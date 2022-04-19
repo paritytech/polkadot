@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-client"
-version = "0.9.18"
+version = "0.9.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -28,13 +28,12 @@ sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = 
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
 sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
 
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
 sc-service = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
-
-pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
 
 beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
 

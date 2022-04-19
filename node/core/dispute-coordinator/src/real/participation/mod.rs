@@ -15,11 +15,15 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::collections::HashSet;
+#[cfg(test)]
+use std::time::Duration;
 
 use futures::{
 	channel::{mpsc, oneshot},
 	FutureExt, SinkExt,
 };
+#[cfg(test)]
+use futures_timer::Delay;
 
 use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
 use polkadot_node_subsystem::{
@@ -31,8 +35,7 @@ use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash
 
 use crate::real::LOG_TARGET;
 
-use super::ordering::CandidateComparator;
-use crate::error::{FatalError, FatalResult, JfyiError, Result};
+use crate::error::{FatalError, FatalResult, Result};
 
 #[cfg(test)]
 mod tests;
@@ -41,7 +44,7 @@ pub use tests::{participation_full_happy_path, participation_missing_availabilit
 
 mod queues;
 use queues::Queues;
-pub use queues::{ParticipationRequest, QueueError};
+pub use queues::{ParticipationPriority, ParticipationRequest, QueueError};
 
 /// How many participation processes do we want to run in parallel the most.
 ///
@@ -144,7 +147,7 @@ impl Participation {
 	pub async fn queue_participation<Context: SubsystemContext>(
 		&mut self,
 		ctx: &mut Context,
-		comparator: Option<CandidateComparator>,
+		priority: ParticipationPriority,
 		req: ParticipationRequest,
 	) -> Result<()> {
 		// Participation already running - we can ignore that request:
@@ -159,7 +162,7 @@ impl Participation {
 			}
 		}
 		// Out of capacity/no recent block yet - queue:
-		Ok(self.queue.queue(comparator, req).map_err(JfyiError::QueueError)?)
+		self.queue.queue(ctx.sender(), priority, req).await
 	}
 
 	/// Message from a worker task was received - get the outcome.
@@ -249,6 +252,9 @@ async fn participate(
 	block_hash: Hash,
 	req: ParticipationRequest,
 ) {
+	#[cfg(test)]
+	// Hack for tests, so we get recovery messages not too early.
+	Delay::new(Duration::from_millis(100)).await;
 	// in order to validate a candidate we need to start by recovering the
 	// available data
 	let (recover_available_data_tx, recover_available_data_rx) = oneshot::channel();
@@ -362,7 +368,7 @@ async fn participate(
 			CandidateValidationMessage::ValidateFromExhaustive(
 				available_data.validation_data,
 				validation_code,
-				req.candidate_receipt().descriptor.clone(),
+				req.candidate_receipt().clone(),
 				available_data.pov,
 				APPROVAL_EXECUTION_TIMEOUT,
 				validation_tx,
@@ -393,6 +399,7 @@ async fn participate(
 
 			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
 		},
+
 		Ok(Ok(ValidationResult::Invalid(invalid))) => {
 			gum::warn!(
 				target: LOG_TARGET,
@@ -403,19 +410,8 @@ async fn participate(
 
 			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
 		},
-		Ok(Ok(ValidationResult::Valid(commitments, _))) => {
-			if commitments.hash() != req.candidate_receipt().commitments_hash {
-				gum::warn!(
-					target: LOG_TARGET,
-					expected = ?req.candidate_receipt().commitments_hash,
-					got = ?commitments.hash(),
-					"Candidate is valid but commitments hash doesn't match",
-				);
-
-				send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
-			} else {
-				send_result(&mut result_sender, req, ParticipationOutcome::Valid).await;
-			}
+		Ok(Ok(ValidationResult::Valid(_, _))) => {
+			send_result(&mut result_sender, req, ParticipationOutcome::Valid).await;
 		},
 	}
 }

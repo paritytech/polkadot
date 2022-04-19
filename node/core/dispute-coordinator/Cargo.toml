@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-dispute-coordinator"
-version = "0.9.18"
+version = "0.9.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -10,7 +10,7 @@ gum = { package = "tracing-gum", path = "../../gum" }
 parity-scale-codec = "3.1.2"
 kvdb = "0.11.0"
 thiserror = "1.0.30"
-lru = "0.7.4"
+lru = "0.7.5"
 fatality = "0.0.6"
 
 polkadot-primitives = { path = "../../../primitives" }
@@ -29,6 +29,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrp
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
 assert_matches = "1.4.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
+futures-timer = "3.0.2"
 
 [features]
 # If not enabled, the dispute coordinator will do nothing.

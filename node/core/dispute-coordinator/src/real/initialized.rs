@@ -21,22 +21,18 @@ use std::{
 	sync::Arc,
 };
 
-use futures::{
-	channel::{mpsc, oneshot},
-	FutureExt, StreamExt,
-};
-use lru::LruCache;
+use futures::{channel::mpsc, FutureExt, StreamExt};
 
 use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
-	DISPUTE_WINDOW, MAX_FINALITY_LAG,
+	DISPUTE_WINDOW,
 };
 use polkadot_node_subsystem::{
 	messages::{
 		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
-		ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
+		ImportStatementsResult,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SubsystemContext,
 };
@@ -52,7 +48,7 @@ use polkadot_primitives::v2::{
 use crate::{
 	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	metrics::Metrics,
-	real::{ordering::get_finalized_block_number, DisputeCoordinatorSubsystem},
+	real::DisputeCoordinatorSubsystem,
 	status::{get_active_with_status, Clock, DisputeStatus, Timestamp},
 	LOG_TARGET,
 };
@@ -60,18 +56,14 @@ use crate::{
 use super::{
 	backend::Backend,
 	db,
-	ordering::{CandidateComparator, OrderingProvider},
 	participation::{
-		self, Participation, ParticipationRequest, ParticipationStatement, WorkerMessageReceiver,
+		self, Participation, ParticipationPriority, ParticipationRequest, ParticipationStatement,
+		WorkerMessageReceiver,
 	},
+	scraping::ChainScraper,
 	spam_slots::SpamSlots,
 	OverlayedBackend,
 };
-
-// The capacity and scrape depth are equal to the maximum allowed unfinalized depth.
-const LRU_SCRAPED_BLOCKS_CAPACITY: usize = MAX_FINALITY_LAG as usize;
-// This is in sync with `MAX_FINALITY_LAG` in relay chain selection & node primitives.
-const MAX_BATCH_SCRAPE_ANCESTORS: u32 = MAX_FINALITY_LAG;
 
 /// After the first active leaves update we transition to `Initialized` state.
 ///
@@ -84,14 +76,12 @@ pub struct Initialized {
 	highest_session: SessionIndex,
 	spam_slots: SpamSlots,
 	participation: Participation,
-	ordering_provider: OrderingProvider,
+	scraper: ChainScraper,
 	participation_receiver: WorkerMessageReceiver,
 	metrics: Metrics,
 	// This tracks only rolling session window failures.
 	// It can be a `Vec` if the need to track more arises.
 	error: Option<SessionsUnavailable>,
-	/// Latest relay blocks that have been successfully scraped.
-	last_scraped_blocks: LruCache<Hash, ()>,
 }
 
 impl Initialized {
@@ -100,7 +90,7 @@ impl Initialized {
 		subsystem: DisputeCoordinatorSubsystem,
 		rolling_session_window: RollingSessionWindow,
 		spam_slots: SpamSlots,
-		ordering_provider: OrderingProvider,
+		scraper: ChainScraper,
 	) -> Self {
 		let DisputeCoordinatorSubsystem { config: _, store: _, keystore, metrics } = subsystem;
 
@@ -113,12 +103,11 @@ impl Initialized {
 			rolling_session_window,
 			highest_session,
 			spam_slots,
-			ordering_provider,
+			scraper,
 			participation,
 			participation_receiver,
 			metrics,
 			error: None,
-			last_scraped_blocks: LruCache::new(LRU_SCRAPED_BLOCKS_CAPACITY),
 		}
 	}
 
@@ -129,7 +118,8 @@ impl Initialized {
 		mut self,
 		mut ctx: Context,
 		mut backend: B,
-		mut participations: Vec<(Option<CandidateComparator>, ParticipationRequest)>,
+		mut participations: Vec<(ParticipationPriority, ParticipationRequest)>,
+		mut votes: Vec<ScrapedOnChainVotes>,
 		mut first_leaf: Option<ActivatedLeaf>,
 		clock: Box<dyn Clock>,
 	) -> FatalResult<()>
@@ -144,6 +134,7 @@ impl Initialized {
 					&mut ctx,
 					&mut backend,
 					&mut participations,
+					&mut votes,
 					&mut first_leaf,
 					&*clock,
 				)
@@ -165,7 +156,8 @@ impl Initialized {
 		&mut self,
 		ctx: &mut Context,
 		backend: &mut B,
-		participations: &mut Vec<(Option<CandidateComparator>, ParticipationRequest)>,
+		participations: &mut Vec<(ParticipationPriority, ParticipationRequest)>,
+		on_chain_votes: &mut Vec<ScrapedOnChainVotes>,
 		first_leaf: &mut Option<ActivatedLeaf>,
 		clock: &dyn Clock,
 	) -> Result<()>
@@ -174,17 +166,31 @@ impl Initialized {
 		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 		B: Backend,
 	{
-		for (comparator, request) in participations.drain(..) {
-			self.participation.queue_participation(ctx, comparator, request).await?;
+		for (priority, request) in participations.drain(..) {
+			self.participation.queue_participation(ctx, priority, request).await?;
 		}
-		if let Some(first_leaf) = first_leaf.take() {
+
+		{
 			let mut overlay_db = OverlayedBackend::new(backend);
-			self.scrape_on_chain_votes(ctx, &mut overlay_db, first_leaf.hash, clock.now())
-				.await?;
+			for votes in on_chain_votes.drain(..) {
+				let _ = self
+					.process_on_chain_votes(ctx, &mut overlay_db, votes, clock.now())
+					.await
+					.map_err(|error| {
+						gum::warn!(
+							target: LOG_TARGET,
+							?error,
+							"Skipping scraping block due to error",
+						);
+					});
+			}
 			if !overlay_db.is_empty() {
 				let ops = overlay_db.into_write_ops();
 				backend.write(ops)?;
 			}
+		}
+
+		if let Some(first_leaf) = first_leaf.take() {
 			// Also provide first leaf to participation for good measure.
 			self.participation
 				.process_active_leaves_update(ctx, &ActiveLeavesUpdate::start_work(first_leaf))
@@ -230,7 +236,7 @@ impl Initialized {
 							default_confirm
 						},
 						FromOverseer::Signal(OverseerSignal::BlockFinalized(_, n)) => {
-							self.ordering_provider.process_finalized_block(&n);
+							self.scraper.process_finalized_block(&n);
 							default_confirm
 						},
 						FromOverseer::Communication { msg } =>
@@ -256,9 +262,8 @@ impl Initialized {
 		update: ActiveLeavesUpdate,
 		now: u64,
 	) -> Result<()> {
-		self.ordering_provider
-			.process_active_leaves_update(ctx.sender(), &update)
-			.await?;
+		let on_chain_votes =
+			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
 		self.participation.process_active_leaves_update(ctx, &update).await?;
 
 		if let Some(new_leaf) = update.activated {
@@ -294,76 +299,14 @@ impl Initialized {
 				Ok(SessionWindowUpdate::Unchanged) => {},
 			};
 
-			// Scrape the head if above rolling session update went well.
-			if self.error.is_none() {
-				let _ = self
-					.scrape_on_chain_votes(ctx, overlay_db, new_leaf.hash, now)
-					.await
-					.map_err(|err| {
-						gum::warn!(
-							target: LOG_TARGET,
-							"Skipping scraping block #{}({}) due to error: {}",
-							new_leaf.number,
-							new_leaf.hash,
-							err
-						);
-					});
-			}
-
-			// Try to scrape any blocks for which we could not get the current session or did not receive an
-			// active leaves update.
-			let ancestors = match get_finalized_block_number(ctx.sender()).await {
-				Ok(block_number) => {
-					// Limit our search to last finalized block, or up to max finality lag.
-					let block_number = std::cmp::max(
-						block_number,
-						new_leaf.number.saturating_sub(MAX_BATCH_SCRAPE_ANCESTORS),
-					);
-					// Fetch ancestry up to and including the last finalized block.
-					// `get_block_ancestors()` doesn't include the target block in the ancestry, so we'll need to
-					// pass in it's parent.
-					OrderingProvider::get_block_ancestors(
-						ctx.sender(),
-						new_leaf.hash,
-						new_leaf.number,
-						block_number.saturating_sub(1),
-						&mut self.last_scraped_blocks,
-					)
-					.await
-					.unwrap_or_else(|err| {
-						gum::debug!(
-							target: LOG_TARGET,
-							activated_leaf = ?new_leaf,
-							error = ?err,
-							"Skipping leaf ancestors due to an error",
-						);
-						// We assume this is a spurious error so we'll move forward with an
-						// empty ancestry.
-						Vec::new()
-					})
-				},
-				Err(err) => {
-					gum::debug!(
-						target: LOG_TARGET,
-						activated_leaf = ?new_leaf,
-						error = ?err,
-						"Skipping leaf ancestors scraping",
-					);
-					// We assume this is a spurious error so we'll move forward with an
-					// empty ancestry.
-					Vec::new()
-				},
-			};
-
 			// The `runtime-api` subsystem has an internal queue which serializes the execution,
 			// so there is no point in running these in parallel.
-			for ancestor in ancestors {
-				let _ = self.scrape_on_chain_votes(ctx, overlay_db, ancestor, now).await.map_err(
-					|err| {
+			for votes in on_chain_votes {
+				let _ = self.process_on_chain_votes(ctx, overlay_db, votes, now).await.map_err(
+					|error| {
 						gum::warn!(
 							target: LOG_TARGET,
-							hash = ?ancestor,
-							error = ?err,
+							?error,
 							"Skipping scraping block due to error",
 						);
 					},
@@ -376,60 +319,17 @@ impl Initialized {
 
 	/// Scrapes on-chain votes (backing votes and concluded disputes) for a active leaf of the
 	/// relay chain.
-	async fn scrape_on_chain_votes(
+	async fn process_on_chain_votes(
 		&mut self,
 		ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>
 		          + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
-		new_leaf: Hash,
+		votes: ScrapedOnChainVotes,
 		now: u64,
 	) -> Result<()> {
-		// Avoid scraping twice.
-		if self.last_scraped_blocks.get(&new_leaf).is_some() {
-			return Ok(())
-		}
-
-		// obtain the concluded disputes as well as the candidate backing votes
-		// from the new leaf
-		let ScrapedOnChainVotes { session, backing_validators_per_candidate, disputes } = {
-			let (tx, rx) = oneshot::channel();
-			ctx.send_message(RuntimeApiMessage::Request(
-				new_leaf,
-				RuntimeApiRequest::FetchOnChainVotes(tx),
-			))
-			.await;
-			match rx.await {
-				Ok(Ok(Some(val))) => val,
-				Ok(Ok(None)) => {
-					gum::trace!(
-						target: LOG_TARGET,
-						relay_parent = ?new_leaf,
-						"No on chain votes stored for relay chain leaf");
-					return Ok(())
-				},
-				Ok(Err(e)) => {
-					gum::debug!(
-						target: LOG_TARGET,
-						relay_parent = ?new_leaf,
-						error = ?e,
-						"Could not retrieve on chain votes due to an API error");
-					return Ok(())
-				},
-				Err(e) => {
-					gum::debug!(
-						target: LOG_TARGET,
-						relay_parent = ?new_leaf,
-						error = ?e,
-						"Could not retrieve onchain votes due to oneshot cancellation");
-					return Ok(())
-				},
-			}
-		};
+		let ScrapedOnChainVotes { session, backing_validators_per_candidate, disputes } = votes;
 
 		if backing_validators_per_candidate.is_empty() && disputes.is_empty() {
-			// This block is not interesting as it doesnt contain any backing votes or disputes. We'll
-			// mark it here as scraped to prevent further processing.
-			self.last_scraped_blocks.put(new_leaf, ());
 			return Ok(())
 		}
 
@@ -444,7 +344,6 @@ impl Initialized {
 			} else {
 				gum::warn!(
 					target: LOG_TARGET,
-					relay_parent = ?new_leaf,
 					?session,
 					"Could not retrieve session info from rolling session window",
 				);
@@ -454,6 +353,7 @@ impl Initialized {
 		// Scraped on-chain backing votes for the candidates with
 		// the new active leaf as if we received them via gossip.
 		for (candidate_receipt, backers) in backing_validators_per_candidate {
+			let relay_parent = candidate_receipt.descriptor.relay_parent;
 			let candidate_hash = candidate_receipt.hash();
 			let statements = backers
 				.into_iter()
@@ -463,10 +363,11 @@ impl Initialized {
 						.get(validator_index.0 as usize)
 						.or_else(|| {
 							gum::error!(
-							target: LOG_TARGET,
-							relay_parent = ?new_leaf,
-							"Missing public key for validator {:?}",
-							&validator_index);
+								target: LOG_TARGET,
+								?session,
+								?validator_index,
+								"Missing public key for validator",
+							);
 							None
 						})
 						.cloned()?;
@@ -474,9 +375,9 @@ impl Initialized {
 					let valid_statement_kind =
 						match attestation.to_compact_statement(candidate_hash) {
 							CompactStatement::Seconded(_) =>
-								ValidDisputeStatementKind::BackingSeconded(new_leaf),
+								ValidDisputeStatementKind::BackingSeconded(relay_parent),
 							CompactStatement::Valid(_) =>
-								ValidDisputeStatementKind::BackingValid(new_leaf),
+								ValidDisputeStatementKind::BackingValid(relay_parent),
 						};
 					let signed_dispute_statement =
 						SignedDisputeStatement::new_unchecked_from_trusted_source(
@@ -502,20 +403,19 @@ impl Initialized {
 				)
 				.await?;
 			match import_result {
-				ImportStatementsResult::ValidImport => gum::trace!(target: LOG_TARGET,
-																	   relay_parent = ?new_leaf,
-																	   ?session,
-																	   "Imported backing vote from on-chain"),
-				ImportStatementsResult::InvalidImport => gum::warn!(target: LOG_TARGET,
-																		relay_parent = ?new_leaf,
-																		?session,
-																		"Attempted import of on-chain backing votes failed"),
+				ImportStatementsResult::ValidImport => gum::trace!(
+					target: LOG_TARGET,
+					?relay_parent,
+					?session,
+					"Imported backing votes from chain"
+				),
+				ImportStatementsResult::InvalidImport => gum::warn!(
+					target: LOG_TARGET,
+					?relay_parent,
+					?session,
+					"Attempted import of on-chain backing votes failed"
+				),
 			}
-		}
-
-		if disputes.is_empty() {
-			self.last_scraped_blocks.put(new_leaf, ());
-			return Ok(())
 		}
 
 		// Import concluded disputes from on-chain, this already went through a vote so it's assumed
@@ -535,7 +435,7 @@ impl Initialized {
 					} else {
 						gum::warn!(
 								target: LOG_TARGET,
-								relay_parent = ?new_leaf,
+								?candidate_hash,
 								?session,
 								"Could not retrieve session info from rolling session window for recently concluded dispute");
 						return None
@@ -547,7 +447,7 @@ impl Initialized {
 						.or_else(|| {
 							gum::error!(
 								target: LOG_TARGET,
-								relay_parent = ?new_leaf,
+								?candidate_hash,
 								?session,
 								"Missing public key for validator {:?} that participated in concluded dispute",
 								&validator_index);
@@ -580,20 +480,21 @@ impl Initialized {
 				)
 				.await?;
 			match import_result {
-				ImportStatementsResult::ValidImport => gum::trace!(target: LOG_TARGET,
-																	   relay_parent = ?new_leaf,
-																	   ?candidate_hash,
-																	   ?session,
-																	   "Imported statement of concluded dispute from on-chain"),
-				ImportStatementsResult::InvalidImport => gum::warn!(target: LOG_TARGET,
-																		relay_parent = ?new_leaf,
-																		?candidate_hash,
-																		?session,
-																		"Attempted import of on-chain statement of concluded dispute failed"),
+				ImportStatementsResult::ValidImport => gum::trace!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					"Imported statement of concluded dispute from on-chain"
+				),
+				ImportStatementsResult::InvalidImport => gum::warn!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					"Attempted import of on-chain statement of concluded dispute failed"
+				),
 			}
 		}
 
-		self.last_scraped_blocks.put(new_leaf, ());
 		Ok(())
 	}
 
@@ -623,11 +524,13 @@ impl Initialized {
 						now,
 					)
 					.await?;
-				let report = move || {
-					pending_confirmation
+				let report = move || match pending_confirmation {
+					Some(pending_confirmation) => pending_confirmation
 						.send(outcome)
-						.map_err(|_| JfyiError::DisputeImportOneshotSend)
+						.map_err(|_| JfyiError::DisputeImportOneshotSend),
+					None => Ok(()),
 				};
+
 				match outcome {
 					ImportStatementsResult::InvalidImport => {
 						report()?;
@@ -811,14 +714,13 @@ impl Initialized {
 			our_votes.retain(|index| controlled_indices.contains(index));
 			!our_votes.is_empty()
 		};
+
 		let was_confirmed = recent_disputes
 			.get(&(session, candidate_hash))
 			.map_or(false, |s| s.is_confirmed_concluded());
-		let comparator = self
-			.ordering_provider
-			.candidate_comparator(ctx.sender(), &candidate_receipt)
-			.await?;
-		let is_included = comparator.is_some();
+
+		let is_included = self.scraper.is_candidate_included(&candidate_receipt.hash());
+
 		let is_local = statements
 			.iter()
 			.find(|(_, index)| controlled_indices.contains(index))
@@ -927,13 +829,14 @@ impl Initialized {
 		// Participate in dispute if the imported vote was not local, we did not vote before either
 		// and we actually have keys to issue a local vote.
 		if !is_local && !voted_already && is_disputed && !controlled_indices.is_empty() {
+			let priority = ParticipationPriority::with_priority_if(is_included);
 			gum::trace!(
 				target: LOG_TARGET,
 				candidate_hash = ?candidate_receipt.hash(),
-				priority = ?comparator.is_some(),
+				?priority,
 				"Queuing participation for candidate"
 			);
-			if comparator.is_some() {
+			if priority.is_priority() {
 				self.metrics.on_queued_priority_participation();
 			} else {
 				self.metrics.on_queued_best_effort_participation();
@@ -944,7 +847,7 @@ impl Initialized {
 				.participation
 				.queue_participation(
 					ctx,
-					comparator,
+					priority,
 					ParticipationRequest::new(candidate_receipt, session, n_validators),
 				)
 				.await;
