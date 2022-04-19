@@ -244,7 +244,7 @@ impl Parse for SubSystemAttributes {
 		// A subsystem makes no sense if not one of them is provided
 		let sends = extract_variant!(unique, Sends take);
 		let consumes = extract_variant!(unique, Consumes take);
-		if sends.is_none() && consumes.is_none() {
+		if sends.as_ref().map(|sends| sends.sends.is_empty()).unwrap_or(true) && consumes.is_none() {
 			return Err(Error::new(
 				span,
 				"Must have at least one of `consumes: [..]` and `sends: [..]`.",
