@@ -613,14 +613,24 @@ impl FragmentTree {
 
 					let fragment = {
 						let f = Fragment::new(
-							relay_parent,
+							relay_parent.clone(),
 							child_constraints.clone(),
 							candidate.candidate.clone(),
 						);
 
 						match f {
 							Ok(f) => f,
-							Err(_) => continue,
+							Err(e) => {
+								gum::debug!(
+									target: LOG_TARGET,
+									err = ?e,
+									?relay_parent,
+									candidate_hash = ?candidate.candidate_hash,
+									"Failed to instantiate fragment",
+								);
+
+								continue
+							},
 						}
 					};
 
@@ -905,10 +915,67 @@ mod tests {
 	fn populate_works_recursively() {
 		let mut storage = CandidateStorage::new();
 
-		// TODO [now]
+		let para_id = ParaId::from(5u32);
+		let relay_parent_a = Hash::repeat_byte(1);
+		let relay_parent_b = Hash::repeat_byte(2);
+
+		let (pvd_a, candidate_a) = make_committed_candidate(
+			para_id,
+			relay_parent_a,
+			0,
+			vec![0x0a].into(),
+			vec![0x0b].into(),
+			0,
+		);
+		let candidate_a_hash = candidate_a.hash();
+
+		let (pvd_b, candidate_b) = make_committed_candidate(
+			para_id,
+			relay_parent_b,
+			1,
+			vec![0x0b].into(),
+			vec![0x0c].into(),
+			1,
+		);
+		let candidate_b_hash = candidate_b.hash();
+
+		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+
+		let ancestors = vec![RelayChainBlockInfo {
+			number: pvd_a.relay_parent_number,
+			hash: relay_parent_a,
+			storage_root: pvd_a.relay_parent_storage_root,
+		}];
+
+		let relay_parent_b_info = RelayChainBlockInfo {
+			number: pvd_b.relay_parent_number,
+			hash: relay_parent_b,
+			storage_root: pvd_b.relay_parent_storage_root,
+		};
+
+		storage.add_candidate(candidate_a, pvd_a).unwrap();
+		storage.add_candidate(candidate_b, pvd_b).unwrap();
+		let scope =
+			Scope::with_ancestors(para_id, relay_parent_b_info, base_constraints, 4, ancestors)
+				.unwrap();
+		let tree = FragmentTree::populate(scope, &storage);
+
+		let candidates: Vec<_> = tree.candidates().collect();
+		assert_eq!(candidates.len(), 2);
+		assert!(candidates.contains(&candidate_a_hash));
+		assert!(candidates.contains(&candidate_b_hash));
+
+		assert_eq!(tree.nodes.len(), 2);
+		assert_eq!(tree.nodes[0].parent, NodePointer::Root);
+		assert_eq!(tree.nodes[0].candidate_hash, candidate_a_hash);
+		assert_eq!(tree.nodes[0].depth, 0);
+
+		assert_eq!(tree.nodes[1].parent, NodePointer::Storage(0));
+		assert_eq!(tree.nodes[1].candidate_hash, candidate_b_hash);
+		assert_eq!(tree.nodes[1].depth, 1);
 	}
 
-	// TODO [now]: enforce root-child nodes contiguous
+	// TODO [now]: enforce root-child (depth 0) nodes contiguous
 
 	// TODO [now]: add candidate child of root
 
