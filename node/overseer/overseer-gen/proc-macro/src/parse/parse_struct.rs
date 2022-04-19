@@ -178,12 +178,7 @@ impl Parse for Sends {
 			let sends = Punctuated::parse_terminated(&content)?;
 			(bracket, sends)
 		};
-	Ok(Self {
-			keyword_sends,
-			colon,
-			bracket,
-			sends,
-		})
+		Ok(Self { keyword_sends, colon, bracket, sends })
 	}
 }
 

@@ -351,6 +351,14 @@ impl<Signal, Message> From<Signal> for FromOverseer<Message, Signal> {
 	}
 }
 
+/// Binds a generated type which implements `#generated_outgoing: From<M>`
+/// for all annotated types.
+///
+/// ```
+///
+/// ```
+pub trait AssociateOutgoing {}
+
 /// A context type that is given to the [`Subsystem`] upon spawning.
 /// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
 /// or spawn jobs.
@@ -374,7 +382,7 @@ pub trait SubsystemContext: Send + 'static {
 
 	/// Try to asynchronously receive a message.
 	///
-	/// This has to be used with caution, if you loop over this without
+	/// Has to be used with caution, if you loop over this without
 	/// using `pending!()` macro you will end up with a busy loop!
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<Self::Message, Self::Signal>>, ()>;
 
@@ -405,12 +413,12 @@ pub trait SubsystemContext: Send + 'static {
 	}
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-	async fn send_messages<X, T>(&mut self, msgs: T)
+	async fn send_messages<T, I>(&mut self, msgs: I)
 	where
-		T: IntoIterator<Item = X> + Send,
-		T::IntoIter: Send,
-		Self::OutgoingMessages: From<X>,
-		X: Send,
+		I: IntoIterator<Item = T> + Send,
+		I::IntoIter: Send,
+		Self::OutgoingMessages: From<T>,
+		T: Send,
 	{
 		self.sender()
 			.send_messages(msgs.into_iter().map(|x| <Self::OutgoingMessages>::from(x)))

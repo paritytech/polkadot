@@ -18,7 +18,38 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Ident, Path, Result};
 
+use petgraph::{
+	dot::{self, Dot},
+	graph::NodeIndex,
+	visit::EdgeRef,
+	Direction,
+};
+use std::collections::HashMap;
+
 use super::*;
+
+/// Render a graphviz (aka dot graph) to a file.
+fn graphviz(
+	graph: &petgraph::Graph<Ident, Path>,
+	dest: &mut impl std::io::Write,
+) -> std::io::Result<()> {
+	let config = &[dot::Config::EdgeNoLabel, dot::Config::NodeNoLabel][..];
+	let dot = Dot::with_attr_getters(
+		graph,
+		config,
+		&|_graph, edge| -> String {
+			format!(
+				r#"label="{}""#,
+				edge.weight().get_ident().expect("Must have a trailing identifier. qed")
+			)
+		},
+		&|_graph, (node_index, subsystem_name)| -> String {
+			format!(r#"label="{}""#, subsystem_name,)
+		},
+	);
+	dest.write_all(format!("{:?}", &dot).as_bytes())?;
+	Ok(())
+}
 
 pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
 	let mut ts = TokenStream::new();
@@ -27,23 +58,104 @@ pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
 	let all_messages_wrapper = &info.message_wrapper;
 	let support_crate = info.support_crate_name();
 
+	// create a directed graph with all the subsystems as nodes and the messages as edges
+	// key is always the message path, values are node indices in the graph and the subsystem generic identifier
+	// store the message path and the source sender, both in the graph as well as identifier
+	let mut outgoing_lut = HashMap::<&Path, Vec<(Ident, NodeIndex)>>::with_capacity(128);
+	// same for consuming the incoming messages
+	let mut consuming_lut = HashMap::<&Path, (Ident, NodeIndex)>::with_capacity(128);
+
+	// Ident = Node = subsystem generic names
+	// Path = Edge = messages
+	let mut graph = petgraph::Graph::<Ident, Path>::new();
+
+	// prepare the full index of outgoing and source subsystems
+	for ssf in info.subsystems() {
+		let node_index = graph.add_node(ssf.generic.clone());
+		for outgoing in ssf.messages_to_send.iter() {
+			outgoing_lut
+				.entry(outgoing)
+				.or_default()
+				.push((ssf.generic.clone(), node_index));
+		}
+		consuming_lut.insert(&ssf.message_to_consume, (ssf.generic.clone(), node_index));
+	}
+
+	for (message_ty, (consuming_subsystem_ident, consuming_node_index)) in consuming_lut.iter() {
+		// match the outgoing ones that were registered above with the consumed message
+		if let Some(origin_subsystems) = outgoing_lut.get(message_ty) {
+			for (origin_subsystem, sending_node_index) in origin_subsystems.iter() {
+				graph.add_edge(*sending_node_index, *consuming_node_index, (*message_ty).clone());
+			}
+		}
+	}
+
+	// all outgoing edges are now usable to deriver everything we need
+	for node_index in graph.node_indices() {
+		let subsystem_name = graph[node_index].to_string();
+		let outgoing_wrapper = Ident::new(&(subsystem_name + "OutgoingMessages"), span);
+
+		// cannot be a hashmap, duplicate keys and sorting required
+		let outgoing_to_consumer = graph
+			.edges_directed(node_index, Direction::Outgoing)
+			.map(|edge| {
+				let message_ty = edge.weight();
+				let subsystem_generic_consumer = graph[edge.target()].clone();
+				Ok((to_variant(message_ty, span.clone())?, subsystem_generic_consumer))
+			})
+			.collect::<Result<Vec<(Ident, Ident)>>>()?;
+
+		let outgoing_variant = outgoing_to_consumer.iter().map(|x| x.0.clone()).collect::<Vec<_>>();
+		let subsystem_generic = outgoing_to_consumer.into_iter().map(|x| x.1).collect::<Vec<_>>();
+
+		ts.extend(quote! {
+			impl ::std::convert::From< #outgoing_wrapper > for #all_messages_wrapper {
+				fn from(message: #outgoing_wrapper) -> Self {
+					match message {
+					#(
+						#outgoing_wrapper :: #outgoing_variant ( msg ) => #all_messages_wrapper :: #subsystem_generic ( msg ),
+					)*
+					}
+				}
+			}
+		})
+	}
+
+	if true {
+		let mut f = std::fs::OpenOptions::new()
+			.truncate(true)
+			.create(true)
+			.write(true)
+			.open("/tmp/foo.dot")
+			.expect("Opening that file works. qed");
+		graphviz(&graph, &mut f).expect("Write of dot graph should work. qed");
+	}
+
 	for ssf in info.subsystems() {
 		let subsystem_name = ssf.generic.to_string();
-		let subsystem_sender_name = Ident::new(&(subsystem_name.clone() + "SubsystemSender"), span);
-		let subsystem_ctx_name = Ident::new(&(subsystem_name.clone() + "SubsystemContext"), span);
+		let subsystem_sender_name = Ident::new(&(subsystem_name.clone() + "Sender"), span);
+		let subsystem_ctx_name = Ident::new(&(subsystem_name.clone() + "Context"), span);
 
 		let outgoing_wrapper = Ident::new(&(subsystem_name.clone() + "OutgoingMessages"), span);
+		let consumes = ssf
+			.message_to_consume
+			.get_ident()
+			.cloned()
+			.unwrap_or_else(|| Ident::new("()", Span::call_site()));
 
 		ts.extend(impl_wrapper_enum(&outgoing_wrapper, ssf.messages_to_send.as_slice())?);
+
 		ts.extend(impl_subsystem_sender(
 			ssf,
 			&all_messages_wrapper,
 			support_crate,
 			&outgoing_wrapper,
+			&all_messages_wrapper,
 			&subsystem_sender_name,
 		));
 		ts.extend(impl_subsystem_context(
 			info,
+			&consumes,
 			&outgoing_wrapper,
 			&subsystem_sender_name,
 			&subsystem_ctx_name,
@@ -52,19 +164,64 @@ pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
 	Ok(ts)
 }
 
+fn to_variant(path: &Path, span: Span) -> Result<Ident> {
+	let ident = path
+		.segments
+		.last()
+		.ok_or_else(|| syn::Error::new(span, "Path is empty, but it must end with an identifier"))
+		.map(|segment| segment.ident.clone())?;
+	Ok(ident)
+}
+
+fn to_variants(message_types: &[Path], span: Span) -> Result<Vec<Ident>> {
+	let variants: Vec<_> =
+		Result::from_iter(message_types.into_iter().map(|path| to_variant(path, span.clone())))?;
+	Ok(variants)
+}
+
 /// Generates the wrapper type enum, no bells or whistles.
 pub(crate) fn impl_wrapper_enum(wrapper: &Ident, message_types: &[Path]) -> Result<TokenStream> {
 	// The message types are path based, each of them must finish with a type
 	// and as such we do this upfront.
+	let variants = to_variants(message_types, wrapper.span())?;
+
+	let ts = quote! {
+		#[allow(missing_docs)]
+		#[derive(Clone)]
+		pub enum #wrapper {
+			#(
+				#variants ( #message_types ),
+			)*
+		}
+
+		#(
+			impl ::std::convert::From< #message_types > for #wrapper {
+				fn from(message: #message_types) -> Self {
+					#wrapper :: #variants ( message )
+				}
+			}
+		)*
+	};
+	Ok(ts)
+}
+
+/// Generates the wrapper type enum, no bells or whistles.
+pub(crate) fn impl_wrapper_to_wrapper_glue(
+	all_message: &Ident,
+	wrapper: &Ident,
+	message_types: &[Path],
+) -> Result<TokenStream> {
+	// The message types are path based, each of them must finish with a type
+	// and as such we do this upfront.
 	let variants: Vec<_> = Result::from_iter(message_types.into_iter().map(|path| {
-		let x = path
+		let ident = path
 			.segments
 			.last()
 			.ok_or_else(|| {
 				syn::Error::new(wrapper.span(), "Path is empty, but it must end with an identifier")
 			})
 			.map(|segment| segment.ident.clone());
-		x
+		ident
 	}))?;
 	let ts = quote! {
 		#[allow(missing_docs)]
@@ -83,7 +240,6 @@ pub(crate) fn impl_wrapper_enum(wrapper: &Ident, message_types: &[Path]) -> Resu
 			}
 		)*
 	};
-
 	Ok(ts)
 }
 
@@ -92,6 +248,7 @@ pub(crate) fn impl_subsystem_sender(
 	wrapper_message: &Ident,
 	support_crate: &TokenStream,
 	outgoing_wrapper: &Ident,
+	all_messages_wrapper: &Ident,
 	subsystem_sender_name: &Ident,
 ) -> TokenStream {
 	let mut ts = quote! {
@@ -106,39 +263,6 @@ pub(crate) fn impl_subsystem_sender(
 		}
 	};
 
-	// Implement for all individual messages to avoid
-	// the necessity for manual wrapping, and to limit what a subsystem
-	// can actually send. This allows the generation of _the_ graph.
-	let sends = &ssf.messages_to_send;
-	ts.extend(quote!{
-		#(
-			#[#support_crate ::async_trait]
-			impl SubsystemSender< #sends > for #subsystem_sender_name {
-				async fn send_message(&mut self, msg: #sends) {
-					self.channels.send_and_log_error(
-						self.signals_received.load(),
-						#wrapper_message ::from ( msg )
-					).await;
-				}
-
-				async fn send_messages<T>(&mut self, msgs: T)
-				where
-					T: IntoIterator<Item = #sends> + Send,
-					T::IntoIter: Send,
-				{
-					// TODO This can definitely be optimized if necessary.
-					for msg in msgs {
-						self.send_message(msg).await;
-					}
-				}
-
-				fn send_unbounded_message(&mut self, msg: #sends) {
-					self.channels.send_unbounded_and_log_error(self.signals_received.load(), #wrapper_message ::from ( msg ));
-				}
-			}
-			)*
-		});
-
 	// Create the same for a wrapping enum:
 	//
 	// 1. subsystem specific `*OutgoingMessages`-type
@@ -147,24 +271,38 @@ pub(crate) fn impl_subsystem_sender(
 		quote! {
 			/// implementation for wrapping message type...
 			#[#support_crate ::async_trait]
-			impl SubsystemSender< #outgoing_wrapper > for #subsystem_sender_name {
-				async fn send_message(&mut self, msg: #outgoing_wrapper) {
-					self.channels.send_and_log_error(self.signals_received.load(), msg).await;
+			impl<Message> SubsystemSender< Message > for #subsystem_sender_name
+			where
+				Message: Send + 'static,
+				#outgoing_wrapper: ::std::convert::From<Message>,
+				#all_messages_wrapper: ::std::convert::From<Message>,
+			{
+				async fn send_message(&mut self, msg: Message) {
+					self.channels.send_and_log_error(
+						self.signals_received.load(),
+						#all_messages_wrapper ::from (
+							#outgoing_wrapper :: from ( msg )
+						)
+					).await;
 				}
 
-				async fn send_messages<T>(&mut self, msgs: T)
+				async fn send_messages<I>(&mut self, msgs: I)
 				where
-					T: IntoIterator<Item = #outgoing_wrapper> + Send,
-					T::IntoIter: Send,
+					I: IntoIterator<Item=Message> + Send,
+					I::IntoIter: Iterator<Item=Message>,
 				{
-					// This can definitely be optimized if necessary.
 					for msg in msgs {
-						self.send_message(msg).await;
+						self.send_message( msg );
 					}
 				}
 
-				fn send_unbounded_message(&mut self, msg: #outgoing_wrapper) {
-					self.channels.send_unbounded_and_log_error(self.signals_received.load(), msg);
+				fn send_unbounded_message(&mut self, msg: Message) {
+					self.channels.send_unbounded_and_log_error(
+						self.signals_received.load(),
+						#all_messages_wrapper ::from (
+							#outgoing_wrapper :: from ( msg )
+						)
+					);
 				}
 			}
 		}
@@ -174,7 +312,7 @@ pub(crate) fn impl_subsystem_sender(
 	ts.extend(wrapped(&outgoing_wrapper));
 
 	// TODO FIXME
-	let inconsequent = true;
+	let inconsequent = false;
 	if inconsequent {
 		ts.extend(wrapped(wrapper_message));
 	}
@@ -186,7 +324,8 @@ pub(crate) fn impl_subsystem_sender(
 /// which acts as the gateway to constructing the overseer.
 pub(crate) fn impl_subsystem_context(
 	info: &OverseerInfo,
-	outgoing_messages: &Ident,
+	consumes: &Ident,
+	sends: &Ident,
 	subsystem_sender_name: &Ident,
 	subsystem_ctx_name: &Ident,
 ) -> TokenStream {
@@ -204,23 +343,23 @@ pub(crate) fn impl_subsystem_context(
 		/// [`SubsystemJob`]: trait.SubsystemJob.html
 		#[derive(Debug)]
 		#[allow(missing_docs)]
-		pub struct #subsystem_ctx_name<M>{
+		pub struct #subsystem_ctx_name {
 			signals: #support_crate ::metered::MeteredReceiver< #signal >,
-			messages: SubsystemIncomingMessages<M>,
+			messages: SubsystemIncomingMessages< #consumes >,
 			to_subsystems: #subsystem_sender_name,
 			to_overseer: #support_crate ::metered::UnboundedMeteredSender<
 				#support_crate ::ToOverseer
 				>,
 			signals_received: SignalsReceived,
-			pending_incoming: Option<(usize, M)>,
+			pending_incoming: Option<(usize, #consumes)>,
 			name: &'static str
 		}
 
-		impl<M> #subsystem_ctx_name<M> {
+		impl #subsystem_ctx_name {
 			/// Create a new context.
 			fn new(
 				signals: #support_crate ::metered::MeteredReceiver< #signal >,
-				messages: SubsystemIncomingMessages<M>,
+				messages: SubsystemIncomingMessages< #consumes >,
 				to_subsystems: ChannelsOut,
 				to_overseer: #support_crate ::metered::UnboundedMeteredSender<#support_crate:: ToOverseer>,
 				name: &'static str
@@ -246,31 +385,30 @@ pub(crate) fn impl_subsystem_context(
 		}
 
 		#[#support_crate ::async_trait]
-		impl<M: std::fmt::Debug + Send + 'static> #support_crate ::SubsystemContext for #subsystem_ctx_name<M>
+		impl #support_crate ::SubsystemContext for #subsystem_ctx_name
 		where
-			#subsystem_sender_name: #support_crate ::SubsystemSender< #outgoing_messages >,
-			#outgoing_messages: From<M>,
+			#subsystem_sender_name: #support_crate ::SubsystemSender< #sends >,
 		{
-			type Message = M;
+			type Message = #consumes;
 			type Signal = #signal;
 			type Sender = #subsystem_sender_name;
-			type OutgoingMessages = #outgoing_messages;
+			type OutgoingMessages = #sends;
 			type Error = #error_ty;
 
-			async fn try_recv(&mut self) -> ::std::result::Result<Option<FromOverseer<M, #signal>>, ()> {
+			async fn try_recv(&mut self) -> ::std::result::Result<Option<FromOverseer<#consumes, #signal>>, ()> {
 				match #support_crate ::poll!(self.recv()) {
 					#support_crate ::Poll::Ready(msg) => Ok(Some(msg.map_err(|_| ())?)),
 					#support_crate ::Poll::Pending => Ok(None),
 				}
 			}
 
-			async fn recv(&mut self) -> ::std::result::Result<FromOverseer<M, #signal>, #error_ty> {
+			async fn recv(&mut self) -> ::std::result::Result<FromOverseer<#consumes, #signal>, #error_ty> {
 				loop {
 					// If we have a message pending an overseer signal, we only poll for signals
 					// in the meantime.
 					if let Some((needs_signals_received, msg)) = self.pending_incoming.take() {
 						if needs_signals_received <= self.signals_received.load() {
-							return Ok(#support_crate ::FromOverseer::Communication { msg });
+							return Ok( #support_crate ::FromOverseer::Communication { msg });
 						} else {
 							self.pending_incoming = Some((needs_signals_received, msg));
 
@@ -282,7 +420,7 @@ pub(crate) fn impl_subsystem_context(
 								))?;
 
 							self.signals_received.inc();
-							return Ok(#support_crate ::FromOverseer::Signal(signal))
+							return Ok( #support_crate ::FromOverseer::Signal(signal))
 						}
 					}
 
@@ -295,7 +433,7 @@ pub(crate) fn impl_subsystem_context(
 					let from_overseer = #support_crate ::futures::select_biased! {
 						signal = await_signal => {
 							let signal = signal
-								.ok_or(#support_crate ::OverseerError::Context(
+								.ok_or( #support_crate ::OverseerError::Context(
 									"Signal channel is terminated and empty."
 									.to_owned()
 								))?;
@@ -304,7 +442,7 @@ pub(crate) fn impl_subsystem_context(
 						}
 						msg = await_message => {
 							let packet = msg
-								.ok_or(#support_crate ::OverseerError::Context(
+								.ok_or( #support_crate ::OverseerError::Context(
 									"Message channel is terminated and empty."
 									.to_owned()
 								))?;

@@ -35,10 +35,11 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let builder = format_ident!("{}Builder", overseer_name);
 	let handle = format_ident!("{}Handle", overseer_name);
 	let connector = format_ident!("{}Connector", overseer_name);
-	let subsystem_ctx_name = format_ident!("{}SubsystemContext", overseer_name);
 
 	let subsystem_name = &info.subsystem_names_without_wip();
 	let subsystem_generics = &info.subsystem_generic_types();
+	let subsystem_ctx_names =
+		&Vec::from_iter(subsystem_generics.iter().map(|name| format_ident!("{}Context", name)));
 
 	let consumes = &info.consumes_without_wip();
 	let channel_name = &info.channel_names_without_wip("");
@@ -103,7 +104,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		info.subsystems().iter().filter(|ssf| !ssf.wip).enumerate().map(|(idx, ssf)| {
 			let field_name = &ssf.name;
 			let field_type = &ssf.generic;
-			let subsystem_consumes = &ssf.message_to_consume;
+			let subsystem_ctx_name = format_ident!("{}Context", &field_type);
+
 			// Remove state generic for the item to be replaced. It sufficient to know `field_type` for
 			// that since we always move from `Init<#field_type>` to `Init<NEW>`.
 			let impl_subsystem_state_generics = recollect_without_idx(&subsystem_passthrough_state_generics[..], idx);
@@ -135,7 +137,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				impl <InitStateSpawner, #field_type, #( #impl_subsystem_state_generics, )* #( #baggage_passthrough_state_generics, )*>
 				#builder <InitStateSpawner, #( #current_state_generics, )* #( #baggage_passthrough_state_generics, )*>
 				where
-					#field_type : Subsystem<#subsystem_ctx_name<#subsystem_consumes>, #error_ty>,
+					#field_type : Subsystem<#subsystem_ctx_name, #error_ty>,
 				{
 					/// Specify the subsystem in the builder directly
 					pub fn #field_name (self, var: #field_type ) ->
@@ -186,7 +188,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				impl <InitStateSpawner, #field_type, #( #impl_subsystem_state_generics, )* #( #baggage_passthrough_state_generics, )*>
 				#builder <InitStateSpawner, #( #post_setter_state_generics, )* #( #baggage_passthrough_state_generics, )*>
 				where
-					#field_type : Subsystem<#subsystem_ctx_name<#subsystem_consumes>, #error_ty>,
+					#field_type : Subsystem<#subsystem_ctx_name, #error_ty>,
 				{
 					/// Replace a subsystem by another implementation for the
 					/// consumable message type.
@@ -195,7 +197,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					where
 						#field_type: 'static,
 						F: 'static + FnOnce(#field_type) -> NEW,
-						NEW: #support_crate ::Subsystem<#subsystem_ctx_name< #subsystem_consumes >, #error_ty>,
+						NEW: #support_crate ::Subsystem<#subsystem_ctx_name, #error_ty>,
 					{
 						let replacement: Init<NEW> = match self.#field_name {
 							Init::Fn(fx) =>
@@ -339,7 +341,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				#builder<Missing<S> #(, Missing<#field_type> )* >
 			where
 				#(
-					#subsystem_generics : Subsystem<#subsystem_ctx_name< #consumes >, #error_ty>,
+					#subsystem_generics : Subsystem<#subsystem_ctx_names, #error_ty>,
 				)*
 			{
 				#builder :: new()
@@ -500,7 +502,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		where
 			#spawner_where_clause,
 			#(
-				#subsystem_generics : Subsystem<#subsystem_ctx_name< #consumes >, #error_ty>,
+				#subsystem_generics : Subsystem<#subsystem_ctx_names, #error_ty>,
 			)*
 		{
 			/// Complete the construction and create the overseer type.
@@ -583,7 +585,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					// Convert owned `snake case` string to a `kebab case` static str.
 					let subsystem_static_str = Box::leak(subsystem_string.replace("_", "-").into_boxed_str());
 
-					let ctx = #subsystem_ctx_name::< #consumes >::new(
+					let ctx = #subsystem_ctx_names::new(
 						signal_rx,
 						message_rx,
 						channels_out.clone(),

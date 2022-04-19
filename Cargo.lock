@@ -7028,6 +7028,7 @@ version = "0.9.19"
 dependencies = [
  "assert_matches",
  "expander 0.0.6",
+ "petgraph",
  "proc-macro-crate",
  "proc-macro2",
  "quote",

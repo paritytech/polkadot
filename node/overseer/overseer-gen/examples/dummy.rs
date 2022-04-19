@@ -8,9 +8,9 @@ use std::collections::HashMap;
 #[derive(Default)]
 pub struct AwesomeSubSys;
 
-impl ::polkadot_overseer_gen::Subsystem<SubsystemContext<MsgStrukt>, Yikes> for AwesomeSubSys {
-	fn start(self, ctx: SubsystemContext<MsgStrukt>) -> SpawnedSubsystem<Yikes> {
-		self.spawn(async move { ctx.send_message(Plinko).await });
+impl ::polkadot_overseer_gen::Subsystem<AwesomeSubSysContext, Yikes> for AwesomeSubSys {
+	fn start(self, ctx: AwesomeSubSysContext) -> SpawnedSubsystem<Yikes> {
+		ctx.spawn("awesome", Box::pin(async move { ctx.send_message(Plinko).await }));
 		unimplemented!("starting yay!")
 	}
 }
@@ -18,9 +18,9 @@ impl ::polkadot_overseer_gen::Subsystem<SubsystemContext<MsgStrukt>, Yikes> for 
 #[derive(Default)]
 pub struct GoblinTower;
 
-impl ::polkadot_overseer_gen::Subsystem<SubsystemContext<Plinko>, Yikes> for GoblinTower {
-	fn start(self, ctx: SubsystemContext<Plinko>) -> SpawnedSubsystem<Yikes> {
-		self.spawn(async move { ctx.send_message(MsgStrukt).await });
+impl ::polkadot_overseer_gen::Subsystem<GoblinTowerContext, Yikes> for GoblinTower {
+	fn start(self, ctx: GoblinTowerContext) -> SpawnedSubsystem<Yikes> {
+		ctx.spawn("awesome", Box::pin(async move { ctx.send_message(MsgStrukt(0u8)).await }));
 		unimplemented!("welcum")
 	}
 }
@@ -91,15 +91,11 @@ impl NetworkMsg {
 }
 
 #[overlord(signal=SigSigSig, event=EvX, error=Yikes, network=NetworkMsg, gen=AllMessages)]
-struct Xxx<T> {
-	#[subsystem(
-		consumes: MsgStrukt,
-		sends: Plinko
-	)]
+struct Yyy<T> {
+	#[subsystem(consumes: MsgStrukt, sends: Plinko)]
 	sub0: AwesomeSubSys,
 
-	#[subsystem(no_dispatch, blocking, consumes: Plinko, sends: MsgStruckt)
-	]
+	#[subsystem(no_dispatch, blocking, consumes: Plinko, sends: MsgStrukt)]
 	plinkos: GoblinTower,
 
 	i_like_pi: f64,
@@ -134,7 +130,7 @@ impl SpawnNamed for DummySpawner {
 struct DummyCtx;
 
 fn main() {
-	let (overseer, _handle): (Xxx<_, f64>, _) = Xxx::builder()
+	let (overseer, _handle): (Yyy<_, f64>, _) = Yyy::builder()
 		.sub0(AwesomeSubSys::default())
 		.plinkos(GoblinTower::default())
 		.i_like_pi(::std::f64::consts::PI)
