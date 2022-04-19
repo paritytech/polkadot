@@ -284,27 +284,6 @@ enum NodePointer {
 	Storage(usize),
 }
 
-/// Abstraction around `&'a CandidateStorage`.
-trait PopulateFrom<'a> {
-	type ParaChildrenIter: Iterator<Item = &'a CandidateEntry> + 'a;
-
-	fn get(&self, candidate_hash: &CandidateHash) -> Option<&'a CandidateEntry>;
-
-	fn iter_para_children(&self, parent_head_hash: &Hash) -> Self::ParaChildrenIter;
-}
-
-impl<'a> PopulateFrom<'a> for &'a CandidateStorage {
-	type ParaChildrenIter = Box<dyn Iterator<Item = &'a CandidateEntry> + 'a>;
-
-	fn get(&self, candidate_hash: &CandidateHash) -> Option<&'a CandidateEntry> {
-		CandidateStorage::get(self, candidate_hash)
-	}
-
-	fn iter_para_children(&self, parent_head_hash: &Hash) -> Self::ParaChildrenIter {
-		Box::new(CandidateStorage::iter_para_children(self, parent_head_hash))
-	}
-}
-
 /// This is a tree of candidates based on some underlying storage of candidates
 /// and a scope.
 pub(crate) struct FragmentTree {
@@ -404,7 +383,34 @@ impl FragmentTree {
 
 	/// Add a candidate and recursively populate from storage.
 	pub(crate) fn add_and_populate(&mut self, hash: CandidateHash, storage: &CandidateStorage) {
-		self.add_and_populate_from(hash, storage);
+		let candidate_entry = match storage.get(&hash) {
+			None => return,
+			Some(e) => e,
+		};
+
+		let candidate_parent = &candidate_entry.candidate.persisted_validation_data.parent_head;
+
+		// Select an initial set of bases, whose required relay-parent matches that of the candidate.
+		let root_base = if &self.scope.base_constraints.required_parent == candidate_parent {
+			Some(NodePointer::Root)
+		} else {
+			None
+		};
+
+		let non_root_bases = self
+			.nodes
+			.iter()
+			.enumerate()
+			.filter(|(_, n)| {
+				n.cumulative_modifications.required_parent.as_ref() == Some(candidate_parent)
+			})
+			.map(|(i, _)| NodePointer::Storage(i));
+
+		let bases = root_base.into_iter().chain(non_root_bases).collect();
+
+		// Pass this into the population function, which will sanity-check stuff like depth, fragments,
+		// etc. and then recursively populate.
+		self.populate_from_bases(storage, bases);
 	}
 
 	/// Returns the hypothetical depths where a candidate with the given hash and parent head data
@@ -456,37 +462,6 @@ impl FragmentTree {
 		depths.iter_ones().collect()
 	}
 
-	fn add_and_populate_from<'a>(&mut self, hash: CandidateHash, storage: impl PopulateFrom<'a>) {
-		let candidate_entry = match storage.get(&hash) {
-			None => return,
-			Some(e) => e,
-		};
-
-		let candidate_parent = &candidate_entry.candidate.persisted_validation_data.parent_head;
-
-		// Select an initial set of bases, whose required relay-parent matches that of the candidate.
-		let root_base = if &self.scope.base_constraints.required_parent == candidate_parent {
-			Some(NodePointer::Root)
-		} else {
-			None
-		};
-
-		let non_root_bases = self
-			.nodes
-			.iter()
-			.enumerate()
-			.filter(|(_, n)| {
-				n.cumulative_modifications.required_parent.as_ref() == Some(candidate_parent)
-			})
-			.map(|(i, _)| NodePointer::Storage(i));
-
-		let bases = root_base.into_iter().chain(non_root_bases).collect();
-
-		// Pass this into the population function, which will sanity-check stuff like depth, fragments,
-		// etc. and then recursively populate.
-		self.populate_from_bases(storage, bases);
-	}
-
 	/// Select a candidate after the given `required_path` which pass
 	/// the predicate.
 	///
@@ -532,7 +507,7 @@ impl FragmentTree {
 
 	fn populate_from_bases<'a>(
 		&mut self,
-		storage: impl PopulateFrom<'a>,
+		storage: &'a CandidateStorage,
 		initial_bases: Vec<NodePointer>,
 	) {
 		// Populate the tree breadth-first.
