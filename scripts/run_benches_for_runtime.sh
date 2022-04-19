@@ -48,4 +48,7 @@ rm "${runtime}_pallets"
   --repeat=100
 
 
+# This true makes sure that $? is 0 instead of
+# carrying over a failure which would otherwise cause
+# the whole CI job to abort.
 true
