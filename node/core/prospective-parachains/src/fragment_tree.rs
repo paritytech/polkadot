@@ -701,8 +701,72 @@ mod tests {
 	use super::*;
 	use assert_matches::assert_matches;
 	use polkadot_node_subsystem_util::inclusion_emulator::staging::InboundHrmpLimitations;
-	use polkadot_primitives::vstaging::{CandidateCommitments, CandidateDescriptor};
+	use polkadot_primitives::vstaging::{
+		BlockNumber, CandidateCommitments, CandidateDescriptor, HeadData,
+	};
 	use polkadot_primitives_test_helpers as test_helpers;
+
+	fn make_constraints(
+		min_relay_parent_number: BlockNumber,
+		valid_watermarks: Vec<BlockNumber>,
+		required_parent: HeadData,
+	) -> Constraints {
+		Constraints {
+			min_relay_parent_number,
+			max_pov_size: 1_000_000,
+			max_code_size: 1_000_000,
+			ump_remaining: 10,
+			ump_remaining_bytes: 1_000,
+			dmp_remaining_messages: 10,
+			hrmp_inbound: InboundHrmpLimitations { valid_watermarks },
+			hrmp_channels_out: HashMap::new(),
+			max_hrmp_num_per_candidate: 0,
+			required_parent,
+			validation_code_hash: Hash::repeat_byte(42).into(),
+			upgrade_restriction: None,
+			future_validation_code: None,
+		}
+	}
+
+	fn make_committed_candidate(
+		para_id: ParaId,
+		relay_parent: Hash,
+		relay_parent_number: BlockNumber,
+		parent_head: HeadData,
+		para_head: HeadData,
+		hrmp_watermark: BlockNumber,
+	) -> (PersistedValidationData, CommittedCandidateReceipt) {
+		let persisted_validation_data = PersistedValidationData {
+			parent_head,
+			relay_parent_number,
+			relay_parent_storage_root: Hash::repeat_byte(69),
+			max_pov_size: 1_000_000,
+		};
+
+		let candidate = CommittedCandidateReceipt {
+			descriptor: CandidateDescriptor {
+				para_id,
+				relay_parent,
+				collator: test_helpers::dummy_collator(),
+				persisted_validation_data_hash: persisted_validation_data.hash(),
+				pov_hash: Hash::repeat_byte(1),
+				erasure_root: Hash::repeat_byte(1),
+				signature: test_helpers::dummy_collator_signature(),
+				para_head: para_head.hash(),
+				validation_code_hash: Hash::repeat_byte(42).into(),
+			},
+			commitments: CandidateCommitments {
+				upward_messages: Vec::new(),
+				horizontal_messages: Vec::new(),
+				new_validation_code: None,
+				head_data: para_head,
+				processed_downward_messages: 0,
+				hrmp_watermark,
+			},
+		};
+
+		(persisted_validation_data, candidate)
+	}
 
 	#[test]
 	fn scope_rejects_ancestors_that_skip_blocks() {
@@ -720,21 +784,7 @@ mod tests {
 		}];
 
 		let max_depth = 2;
-		let base_constraints = Constraints {
-			min_relay_parent_number: 8,
-			max_pov_size: 1_000_000,
-			max_code_size: 1_000_000,
-			ump_remaining: 10,
-			ump_remaining_bytes: 1_000,
-			dmp_remaining_messages: 10,
-			hrmp_inbound: InboundHrmpLimitations { valid_watermarks: vec![8, 9] },
-			hrmp_channels_out: HashMap::new(),
-			max_hrmp_num_per_candidate: 0,
-			required_parent: HeadData(vec![1, 2, 3]),
-			validation_code_hash: Hash::repeat_byte(69).into(),
-			upgrade_restriction: None,
-			future_validation_code: None,
-		};
+		let base_constraints = make_constraints(8, vec![8, 9], vec![1, 2, 3].into());
 
 		assert_matches!(
 			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors,),
@@ -758,21 +808,7 @@ mod tests {
 		}];
 
 		let max_depth = 2;
-		let base_constraints = Constraints {
-			min_relay_parent_number: 0,
-			max_pov_size: 1_000_000,
-			max_code_size: 1_000_000,
-			ump_remaining: 10,
-			ump_remaining_bytes: 1_000,
-			dmp_remaining_messages: 10,
-			hrmp_inbound: InboundHrmpLimitations { valid_watermarks: vec![8, 9] },
-			hrmp_channels_out: HashMap::new(),
-			max_hrmp_num_per_candidate: 0,
-			required_parent: HeadData(vec![1, 2, 3]),
-			validation_code_hash: Hash::repeat_byte(69).into(),
-			upgrade_restriction: None,
-			future_validation_code: None,
-		};
+		let base_constraints = make_constraints(0, vec![], vec![1, 2, 3].into());
 
 		assert_matches!(
 			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors,),
@@ -808,21 +844,7 @@ mod tests {
 		];
 
 		let max_depth = 2;
-		let base_constraints = Constraints {
-			min_relay_parent_number: 3,
-			max_pov_size: 1_000_000,
-			max_code_size: 1_000_000,
-			ump_remaining: 10,
-			ump_remaining_bytes: 1_000,
-			dmp_remaining_messages: 10,
-			hrmp_inbound: InboundHrmpLimitations { valid_watermarks: vec![8, 9] },
-			hrmp_channels_out: HashMap::new(),
-			max_hrmp_num_per_candidate: 0,
-			required_parent: HeadData(vec![1, 2, 3]),
-			validation_code_hash: Hash::repeat_byte(69).into(),
-			upgrade_restriction: None,
-			future_validation_code: None,
-		};
+		let base_constraints = make_constraints(3, vec![2], vec![1, 2, 3].into());
 
 		let scope =
 			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors)
@@ -835,38 +857,20 @@ mod tests {
 	#[test]
 	fn storage_add_candidate() {
 		let mut storage = CandidateStorage::new();
-		let persisted_validation_data = PersistedValidationData {
-			parent_head: vec![4, 5, 6].into(),
-			relay_parent_number: 8,
-			relay_parent_storage_root: Hash::repeat_byte(69),
-			max_pov_size: 1_000_000,
-		};
 
-		let candidate = CommittedCandidateReceipt {
-			descriptor: CandidateDescriptor {
-				para_id: ParaId::from(5u32),
-				relay_parent: Hash::repeat_byte(69),
-				collator: test_helpers::dummy_collator(),
-				persisted_validation_data_hash: persisted_validation_data.hash(),
-				pov_hash: Hash::repeat_byte(1),
-				erasure_root: Hash::repeat_byte(1),
-				signature: test_helpers::dummy_collator_signature(),
-				para_head: Hash::repeat_byte(1),
-				validation_code_hash: Hash::repeat_byte(1).into(),
-			},
-			commitments: CandidateCommitments {
-				upward_messages: Vec::new(),
-				horizontal_messages: Vec::new(),
-				new_validation_code: None,
-				head_data: vec![1, 2, 3].into(),
-				processed_downward_messages: 0,
-				hrmp_watermark: 10,
-			},
-		};
+		let (pvd, candidate) = make_committed_candidate(
+			ParaId::from(5u32),
+			Hash::repeat_byte(69),
+			8,
+			vec![4, 5, 6].into(),
+			vec![1, 2, 3].into(),
+			7,
+		);
+
 		let candidate_hash = candidate.hash();
-		let parent_head_hash = persisted_validation_data.parent_head.hash();
+		let parent_head_hash = pvd.parent_head.hash();
 
-		storage.add_candidate(candidate, persisted_validation_data).unwrap();
+		storage.add_candidate(candidate, pvd).unwrap();
 		assert!(storage.contains(&candidate_hash));
 		assert_eq!(storage.iter_para_children(&parent_head_hash).count(), 1);
 	}
@@ -874,38 +878,20 @@ mod tests {
 	#[test]
 	fn storage_retain() {
 		let mut storage = CandidateStorage::new();
-		let persisted_validation_data = PersistedValidationData {
-			parent_head: vec![4, 5, 6].into(),
-			relay_parent_number: 8,
-			relay_parent_storage_root: Hash::repeat_byte(69),
-			max_pov_size: 1_000_000,
-		};
 
-		let candidate = CommittedCandidateReceipt {
-			descriptor: CandidateDescriptor {
-				para_id: ParaId::from(5u32),
-				relay_parent: Hash::repeat_byte(69),
-				collator: test_helpers::dummy_collator(),
-				persisted_validation_data_hash: persisted_validation_data.hash(),
-				pov_hash: Hash::repeat_byte(1),
-				erasure_root: Hash::repeat_byte(1),
-				signature: test_helpers::dummy_collator_signature(),
-				para_head: Hash::repeat_byte(1),
-				validation_code_hash: Hash::repeat_byte(1).into(),
-			},
-			commitments: CandidateCommitments {
-				upward_messages: Vec::new(),
-				horizontal_messages: Vec::new(),
-				new_validation_code: None,
-				head_data: vec![1, 2, 3].into(),
-				processed_downward_messages: 0,
-				hrmp_watermark: 10,
-			},
-		};
+		let (pvd, candidate) = make_committed_candidate(
+			ParaId::from(5u32),
+			Hash::repeat_byte(69),
+			8,
+			vec![4, 5, 6].into(),
+			vec![1, 2, 3].into(),
+			7,
+		);
+
 		let candidate_hash = candidate.hash();
-		let parent_head_hash = persisted_validation_data.parent_head.hash();
+		let parent_head_hash = pvd.parent_head.hash();
 
-		storage.add_candidate(candidate, persisted_validation_data).unwrap();
+		storage.add_candidate(candidate, pvd).unwrap();
 		storage.retain(|_| true);
 		assert!(storage.contains(&candidate_hash));
 		assert_eq!(storage.iter_para_children(&parent_head_hash).count(), 1);
@@ -915,7 +901,12 @@ mod tests {
 		assert_eq!(storage.iter_para_children(&parent_head_hash).count(), 0);
 	}
 
-	// TODO [now]: recursive populate
+	#[test]
+	fn populate_works_recursively() {
+		let mut storage = CandidateStorage::new();
+
+		// TODO [now]
+	}
 
 	// TODO [now]: enforce root-child nodes contiguous
 
