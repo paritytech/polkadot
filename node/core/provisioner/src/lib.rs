@@ -795,7 +795,7 @@ fn remove_known_disputes(
 	disputes: &mut Vec<(u32, CandidateHash)>,
 	known: &HashSet<(u32, CandidateHash)>,
 ) {
-	if known.len() > 0 {
+	if !known.is_empty() {
 		disputes.retain(|v| !known.contains(v));
 	}
 }
