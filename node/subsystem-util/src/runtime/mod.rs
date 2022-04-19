@@ -28,13 +28,14 @@ use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 use polkadot_node_subsystem::{SubsystemContext, SubsystemSender};
 use polkadot_primitives::v2::{
 	CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore,
-	SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 
 use crate::{
-	request_availability_cores, request_candidate_events, request_session_index_for_child,
-	request_session_info, request_validation_code_by_hash, request_validator_groups,
+	request_availability_cores, request_candidate_events, request_on_chain_votes,
+	request_session_index_for_child, request_session_info, request_validation_code_by_hash,
+	request_validator_groups,
 };
 
 /// Errors that can happen on runtime fetches.
@@ -312,6 +313,17 @@ where
 	Sender: SubsystemSender,
 {
 	recv_runtime(request_candidate_events(relay_parent, sender).await).await
+}
+
+/// Get on chain votes.
+pub async fn get_on_chain_votes<Sender>(
+	sender: &mut Sender,
+	relay_parent: Hash,
+) -> Result<Option<ScrapedOnChainVotes>>
+where
+	Sender: SubsystemSender,
+{
+	recv_runtime(request_on_chain_votes(relay_parent, sender).await).await
 }
 
 /// Fetch `ValidationCode` by hash from the runtime.

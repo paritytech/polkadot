@@ -254,7 +254,7 @@ pub enum DisputeCoordinatorMessage {
 		/// The validator index passed alongside each statement should correspond to the index
 		/// of the validator in the set.
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
-		/// Inform the requester once we finished importing.
+		/// Inform the requester once we finished importing (if a sender was provided).
 		///
 		/// This is:
 		/// - we discarded the votes because
@@ -268,7 +268,7 @@ pub enum DisputeCoordinatorMessage {
 		///		- or other explicit votes on that candidate already recorded
 		///		- or recovered availability for the candidate
 		///		- or the imported statements are backing/approval votes, which are always accepted.
-		pending_confirmation: oneshot::Sender<ImportStatementsResult>,
+		pending_confirmation: Option<oneshot::Sender<ImportStatementsResult>>,
 	},
 	/// Fetch a list of all recent disputes the co-ordinator is aware of.
 	/// These are disputes which have occurred any time in recent sessions,
