@@ -792,13 +792,13 @@ where
 				);
 			}
 		},
-		Connect(relay_parent) => {
+		PreConnectAsCollator(relay_parent) => {
 			let para_id = if let Some(para_id) = state.collating_on {
 				para_id
 			} else {
 				gum::warn!(
 					target: LOG_TARGET,
-					"Connect message while not collating on any parachain",
+					"PreConnectAsCollator message while not collating on any parachain",
 				);
 				return Ok(())
 			};

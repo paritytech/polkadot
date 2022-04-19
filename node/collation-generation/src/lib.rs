@@ -314,7 +314,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 							{
 								let _ = task_sender
 									.send(AllMessages::CollatorProtocol(
-										CollatorProtocolMessage::Connect(relay_parent),
+										CollatorProtocolMessage::PreConnectAsCollator(relay_parent),
 									))
 									.await;
 								gum::debug!(

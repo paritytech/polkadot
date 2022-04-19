@@ -212,7 +212,7 @@ pub enum CollatorProtocolMessage {
 	Seconded(Hash, SignedFullStatement),
 	/// Issue a (pre)connect request for the given relay parent, i.e. get the peer set ready
 	/// for collating on the child.
-	Connect(Hash),
+	PreConnectAsCollator(Hash),
 }
 
 impl Default for CollatorProtocolMessage {
