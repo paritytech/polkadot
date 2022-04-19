@@ -31,10 +31,13 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_overseer::gen::{OverseerError, Subsystem};
-use polkadot_primitives::v2::{BlockNumber, Hash};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
 use polkadot_subsystem::{
 	errors::{SubsystemError, SubsystemResult},
-	messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage},
+	messages::{
+		network_bridge_event::{NewGossipTopology, TopologyPeerInfo},
+		AllMessages, CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage,
+	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemSender,
 };
@@ -45,7 +48,8 @@ use polkadot_subsystem::{
 pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
 
 use std::{
-	collections::{hash_map, HashMap, HashSet},
+	collections::{hash_map, HashMap},
+	iter::ExactSizeIterator,
 	sync::Arc,
 };
 
@@ -590,30 +594,36 @@ where
 						).await;
 					}
 					NetworkBridgeMessage::NewGossipTopology {
-						our_neighbors,
+						session,
+						our_neighbors_x,
+						our_neighbors_y,
 					} => {
 						gum::debug!(
 							target: LOG_TARGET,
 							action = "NewGossipTopology",
-							neighbors = our_neighbors.len(),
+							neighbors_x = our_neighbors_x.len(),
+							neighbors_y = our_neighbors_y.len(),
 							"Gossip topology has changed",
 						);
 
-						let ads = &mut authority_discovery_service;
-						let mut gossip_peers = HashSet::with_capacity(our_neighbors.len());
-						for authority in our_neighbors {
-							let addr = get_peer_id_by_authority_id(
-								ads,
-								authority.clone(),
-							).await;
+						let gossip_peers_x = update_gossip_peers_1d(
+							&mut authority_discovery_service,
+							our_neighbors_x,
+						).await;
 
-							if let Some(peer_id) = addr {
-								gossip_peers.insert(peer_id);
-							}
-						}
+						let gossip_peers_y = update_gossip_peers_1d(
+							&mut authority_discovery_service,
+							our_neighbors_y,
+						).await;
 
 						dispatch_validation_event_to_all_unbounded(
-							NetworkBridgeEvent::NewGossipTopology(gossip_peers),
+							NetworkBridgeEvent::NewGossipTopology(
+								NewGossipTopology {
+									session,
+									our_neighbors_x: gossip_peers_x,
+									our_neighbors_y: gossip_peers_y,
+								}
+							),
 							ctx.sender(),
 						);
 					}
@@ -622,6 +632,28 @@ where
 			},
 		}
 	}
+}
+
+async fn update_gossip_peers_1d<AD, N>(
+	ads: &mut AD,
+	neighbors: N,
+) -> HashMap<AuthorityDiscoveryId, TopologyPeerInfo>
+where
+	AD: validator_discovery::AuthorityDiscovery,
+	N: IntoIterator<Item = (AuthorityDiscoveryId, ValidatorIndex)>,
+	N::IntoIter: std::iter::ExactSizeIterator,
+{
+	let neighbors = neighbors.into_iter();
+	let mut peers = HashMap::with_capacity(neighbors.len());
+	for (authority, validator_index) in neighbors {
+		let addr = get_peer_id_by_authority_id(ads, authority.clone()).await;
+
+		if let Some(peer_id) = addr {
+			peers.insert(authority, TopologyPeerInfo { peer_ids: vec![peer_id], validator_index });
+		}
+	}
+
+	peers
 }
 
 async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(

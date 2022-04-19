@@ -34,11 +34,12 @@ use polkadot_primitives_test_helpers::{
 };
 use polkadot_subsystem::{
 	jaeger,
-	messages::{RuntimeApiMessage, RuntimeApiRequest},
+	messages::{network_bridge_event, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::{sr25519::Pair, AppKey, Pair as TraitPair};
+use sp_authority_discovery::AuthorityPair;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{CryptoStore, SyncCryptoStore, SyncCryptoStorePtr};
 use std::{iter::FromIterator as _, sync::Arc, time::Duration};
@@ -1964,12 +1965,34 @@ fn handle_multiple_seconded_statements() {
 
 		// Explicitly add all `lucky` peers to the gossip peers to ensure that neither `peerA` not `peerB`
 		// receive statements
+		let gossip_topology = {
+			let mut t = network_bridge_event::NewGossipTopology {
+				session: 1,
+				our_neighbors_x: HashMap::new(),
+				our_neighbors_y: HashMap::new(),
+			};
+
+			// This is relying on the fact that statement distribution
+			// just extracts the peer IDs from this struct and does nothing else
+			// with it.
+			for (i, peer) in lucky_peers.iter().enumerate() {
+				let authority_id = AuthorityPair::generate().0.public();
+				t.our_neighbors_x.insert(
+					authority_id,
+					network_bridge_event::TopologyPeerInfo {
+						peer_ids: vec![peer.clone()],
+						validator_index: (i as u32).into(),
+					},
+				);
+			}
+
+			t
+		};
+
 		handle
 			.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::NewGossipTopology(
-						lucky_peers.iter().cloned().collect::<HashSet<_>>(),
-					),
+					NetworkBridgeEvent::NewGossipTopology(gossip_topology),
 				),
 			})
 			.await;
