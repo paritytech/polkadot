@@ -1042,9 +1042,103 @@ mod tests {
 		assert_eq!(tree.nodes[2].parent, NodePointer::Storage(0));
 	}
 
-	// TODO [now]: add candidate child of root
+	#[test]
+	fn add_candidate_child_of_root() {
+		let mut storage = CandidateStorage::new();
 
-	// TODO [now]: add candidate child of non-root
+		let para_id = ParaId::from(5u32);
+		let relay_parent_a = Hash::repeat_byte(1);
+
+		let (pvd_a, candidate_a) = make_committed_candidate(
+			para_id,
+			relay_parent_a,
+			0,
+			vec![0x0a].into(),
+			vec![0x0b].into(),
+			0,
+		);
+
+		let (pvd_b, candidate_b) = make_committed_candidate(
+			para_id,
+			relay_parent_a,
+			0,
+			vec![0x0a].into(),
+			vec![0x0c].into(),
+			0,
+		);
+		let candidate_b_hash = candidate_b.hash();
+
+		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+
+		let relay_parent_a_info = RelayChainBlockInfo {
+			number: pvd_a.relay_parent_number,
+			hash: relay_parent_a,
+			storage_root: pvd_a.relay_parent_storage_root,
+		};
+
+		storage.add_candidate(candidate_a, pvd_a).unwrap();
+		let scope =
+			Scope::with_ancestors(para_id, relay_parent_a_info, base_constraints, 4, vec![])
+				.unwrap();
+		let mut tree = FragmentTree::populate(scope, &storage);
+
+		storage.add_candidate(candidate_b, pvd_b).unwrap();
+		tree.add_and_populate(candidate_b_hash, &storage);
+		let candidates: Vec<_> = tree.candidates().collect();
+		assert_eq!(candidates.len(), 2);
+
+		assert_eq!(tree.nodes[0].parent, NodePointer::Root);
+		assert_eq!(tree.nodes[1].parent, NodePointer::Root);
+	}
+
+	#[test]
+	fn add_candidate_child_of_non_root() {
+		let mut storage = CandidateStorage::new();
+
+		let para_id = ParaId::from(5u32);
+		let relay_parent_a = Hash::repeat_byte(1);
+
+		let (pvd_a, candidate_a) = make_committed_candidate(
+			para_id,
+			relay_parent_a,
+			0,
+			vec![0x0a].into(),
+			vec![0x0b].into(),
+			0,
+		);
+
+		let (pvd_b, candidate_b) = make_committed_candidate(
+			para_id,
+			relay_parent_a,
+			0,
+			vec![0x0b].into(),
+			vec![0x0c].into(),
+			0,
+		);
+		let candidate_b_hash = candidate_b.hash();
+
+		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+
+		let relay_parent_a_info = RelayChainBlockInfo {
+			number: pvd_a.relay_parent_number,
+			hash: relay_parent_a,
+			storage_root: pvd_a.relay_parent_storage_root,
+		};
+
+		storage.add_candidate(candidate_a, pvd_a).unwrap();
+		let scope =
+			Scope::with_ancestors(para_id, relay_parent_a_info, base_constraints, 4, vec![])
+				.unwrap();
+		let mut tree = FragmentTree::populate(scope, &storage);
+
+		storage.add_candidate(candidate_b, pvd_b).unwrap();
+		tree.add_and_populate(candidate_b_hash, &storage);
+		let candidates: Vec<_> = tree.candidates().collect();
+		assert_eq!(candidates.len(), 2);
+
+		assert_eq!(tree.nodes[0].parent, NodePointer::Root);
+		assert_eq!(tree.nodes[1].parent, NodePointer::Storage(0));
+	}
 
 	// TODO [now]: hypothetical_depths for existing candidate.
 
