@@ -16,6 +16,7 @@
 
 #![cfg(feature = "improved-onchain-disputes-import")]
 
+use crate::LOG_TARGET;
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
@@ -36,7 +37,7 @@ pub async fn get_onchain_disputes(
 	sender: &mut impl SubsystemSender,
 	relay_parent: Hash,
 ) -> Result<HashSet<(SessionIndex, CandidateHash)>, GetOnchainDisputesErr> {
-	gum::trace!("Fetching on-chain disputes", ?relay_parent);
+	gum::trace!(target: LOG_TARGET, ?relay_parent, "Fetching on-chain disputes");
 	let (tx, rx) = oneshot::channel();
 	sender
 		.send_message(
@@ -46,22 +47,28 @@ pub async fn get_onchain_disputes(
 
 	rx.await
 		.map_err(|_| {
-			gum::error!("Channel error occured while fetching on-chain disputes", ?relay_parent);
+			gum::error!(
+				target: LOG_TARGET,
+				?relay_parent,
+				"Channel error occured while fetching on-chain disputes"
+			);
 			GetOnchainDisputesErr::Channel
 		})
 		.and_then(|res| {
 			res.map_err(|e| match e {
 				RuntimeApiError::Execution { .. } => {
 					gum::error!(
+						target: LOG_TARGET,
+						?relay_parent,
 						"Execution error occured while fetching on-chain disputes",
-						?relay_parent
 					);
 					GetOnchainDisputesErr::Execution
 				},
 				RuntimeApiError::NotSupported { .. } => {
 					gum::error!(
+						target: LOG_TARGET,
+						?relay_parent,
 						"Runtime doesn't support on-chain disputes fetching",
-						?relay_parent
 					);
 					GetOnchainDisputesErr::NotSupported
 				},
