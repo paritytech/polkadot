@@ -18,9 +18,7 @@ use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 use assert_matches::assert_matches;
 use polkadot_primitives::v2::{BlockNumber, Hash};
 
-use crate::ordering::CandidateComparator;
-
-use super::{ParticipationRequest, QueueError, Queues};
+use super::{CandidateComparator, ParticipationRequest, QueueError, Queues};
 
 /// Make a `ParticipationRequest` based on the given commitments hash.
 fn make_participation_request(hash: Hash) -> ParticipationRequest {
@@ -52,21 +50,21 @@ fn ordering_works_as_expected() {
 	let req5 = make_participation_request(Hash::repeat_byte(0x05));
 	let req_full = make_participation_request(Hash::repeat_byte(0x06));
 	let req_prio_full = make_participation_request(Hash::repeat_byte(0x07));
-	queue.queue(None, req1.clone()).unwrap();
+	queue.queue_with_comparator(None, req1.clone()).unwrap();
 	queue
-		.queue(Some(make_dummy_comparator(&req_prio, 1)), req_prio.clone())
+		.queue_with_comparator(Some(make_dummy_comparator(&req_prio, 1)), req_prio.clone())
 		.unwrap();
-	queue.queue(None, req3.clone()).unwrap();
+	queue.queue_with_comparator(None, req3.clone()).unwrap();
 	queue
-		.queue(Some(make_dummy_comparator(&req_prio_2, 2)), req_prio_2.clone())
+		.queue_with_comparator(Some(make_dummy_comparator(&req_prio_2, 2)), req_prio_2.clone())
 		.unwrap();
-	queue.queue(None, req3.clone()).unwrap();
-	queue.queue(None, req5.clone()).unwrap();
+	queue.queue_with_comparator(None, req3.clone()).unwrap();
+	queue.queue_with_comparator(None, req5.clone()).unwrap();
 	assert_matches!(
-		queue.queue(Some(make_dummy_comparator(&req_prio_full, 3)), req_prio_full),
+		queue.queue_with_comparator(Some(make_dummy_comparator(&req_prio_full, 3)), req_prio_full),
 		Err(QueueError::PriorityFull)
 	);
-	assert_matches!(queue.queue(None, req_full), Err(QueueError::BestEffortFull));
+	assert_matches!(queue.queue_with_comparator(None, req_full), Err(QueueError::BestEffortFull));
 
 	assert_eq!(queue.dequeue(), Some(req_prio));
 	assert_eq!(queue.dequeue(), Some(req_prio_2));
@@ -91,22 +89,22 @@ fn candidate_is_only_dequeued_once() {
 	let req_best_effort_then_prio = make_participation_request(Hash::repeat_byte(0x03));
 	let req_prio_then_best_effort = make_participation_request(Hash::repeat_byte(0x04));
 
-	queue.queue(None, req1.clone()).unwrap();
+	queue.queue_with_comparator(None, req1.clone()).unwrap();
 	queue
-		.queue(Some(make_dummy_comparator(&req_prio, 1)), req_prio.clone())
+		.queue_with_comparator(Some(make_dummy_comparator(&req_prio, 1)), req_prio.clone())
 		.unwrap();
 	// Insert same best effort again:
-	queue.queue(None, req1.clone()).unwrap();
+	queue.queue_with_comparator(None, req1.clone()).unwrap();
 	// insert same prio again:
 	queue
-		.queue(Some(make_dummy_comparator(&req_prio, 1)), req_prio.clone())
+		.queue_with_comparator(Some(make_dummy_comparator(&req_prio, 1)), req_prio.clone())
 		.unwrap();
 
 	// Insert first as best effort:
-	queue.queue(None, req_best_effort_then_prio.clone()).unwrap();
+	queue.queue_with_comparator(None, req_best_effort_then_prio.clone()).unwrap();
 	// Then as prio:
 	queue
-		.queue(
+		.queue_with_comparator(
 			Some(make_dummy_comparator(&req_best_effort_then_prio, 2)),
 			req_best_effort_then_prio.clone(),
 		)
@@ -117,13 +115,13 @@ fn candidate_is_only_dequeued_once() {
 
 	// Insert first as prio:
 	queue
-		.queue(
+		.queue_with_comparator(
 			Some(make_dummy_comparator(&req_prio_then_best_effort, 3)),
 			req_prio_then_best_effort.clone(),
 		)
 		.unwrap();
 	// Then as best effort:
-	queue.queue(None, req_prio_then_best_effort.clone()).unwrap();
+	queue.queue_with_comparator(None, req_prio_then_best_effort.clone()).unwrap();
 
 	assert_eq!(queue.dequeue(), Some(req_best_effort_then_prio));
 	assert_eq!(queue.dequeue(), Some(req_prio_then_best_effort));

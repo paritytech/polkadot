@@ -82,7 +82,7 @@ pub enum Error {
 	#[error(transparent)]
 	Oneshot(#[from] oneshot::Canceled),
 
-	#[error("Dispute import confirmation send failed (receiver canceled)")]
+	#[error("Could not send import confirmation (receiver canceled)")]
 	DisputeImportOneshotSend,
 
 	#[error(transparent)]
@@ -118,7 +118,7 @@ impl JfyiError {
 	pub fn log(self) {
 		match self {
 			// don't spam the log with spurious errors
-			Self::Runtime(_) | Self::Oneshot(_) | Self::DisputeImportOneshotSend => {
+			Self::Runtime(_) | Self::Oneshot(_) => {
 				gum::debug!(target: LOG_TARGET, error = ?self)
 			},
 			// it's worth reporting otherwise
