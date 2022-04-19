@@ -1141,9 +1141,14 @@ mod tests {
 
 		let max_depth = 4;
 		storage.add_candidate(candidate_a, pvd_a).unwrap();
-		let scope =
-			Scope::with_ancestors(para_id, relay_parent_a_info, base_constraints, max_depth, vec![])
-				.unwrap();
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent_a_info,
+			base_constraints,
+			max_depth,
+			vec![],
+		)
+		.unwrap();
 		let tree = FragmentTree::populate(scope, &storage);
 
 		let candidates: Vec<_> = tree.candidates().collect();
@@ -1199,9 +1204,14 @@ mod tests {
 		let max_depth = 4;
 		storage.add_candidate(candidate_a, pvd_a).unwrap();
 		storage.add_candidate(candidate_b, pvd_b).unwrap();
-		let scope =
-			Scope::with_ancestors(para_id, relay_parent_a_info, base_constraints, max_depth, vec![])
-				.unwrap();
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent_a_info,
+			base_constraints,
+			max_depth,
+			vec![],
+		)
+		.unwrap();
 		let tree = FragmentTree::populate(scope, &storage);
 
 		let candidates: Vec<_> = tree.candidates().collect();
