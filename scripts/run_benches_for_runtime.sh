@@ -46,3 +46,6 @@ rm "${runtime}_pallets"
   --weight-path="runtime/${runtime}/constants/src/weights/" \
   --warmup=10 \
   --repeat=100
+
+
+true
