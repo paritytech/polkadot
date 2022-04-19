@@ -42,8 +42,10 @@ struct Cli {
 	runtime: Runtime,
 	#[clap(long, short, ignore_case = true, arg_enum, default_value = "SanityCheck")]
 	command: Command,
-	#[clap(long, short)]
-	snapshot_limit: Option<usize>,
+	#[clap(long)]
+	snapshot_per_page: Option<usize>,
+	#[clap(long)]
+	snapshot_pages: Option<usize>,
 }
 
 #[tokio::main]
@@ -92,7 +94,8 @@ async fn main() {
 			use kusama_runtime::{Block, Runtime};
 			use kusama_runtime_constants::currency::UNITS;
 			snapshot::execute::<Runtime, Block>(
-				options.snapshot_limit,
+				options.snapshot_per_page,
+				options.snapshot_pages.unwrap_or(1),
 				UNITS.try_into().unwrap(),
 				options.uri.clone(),
 			)
@@ -113,7 +116,8 @@ async fn main() {
 			use westend_runtime::{Block, Runtime};
 			use westend_runtime_constants::currency::UNITS;
 			snapshot::execute::<Runtime, Block>(
-				options.snapshot_limit,
+				options.snapshot_per_page,
+				options.snapshot_pages.unwrap_or(1),
 				UNITS.try_into().unwrap(),
 				options.uri.clone(),
 			)
@@ -134,7 +138,8 @@ async fn main() {
 			use polkadot_runtime::{Block, Runtime};
 			use polkadot_runtime_constants::currency::UNITS;
 			snapshot::execute::<Runtime, Block>(
-				options.snapshot_limit,
+				options.snapshot_per_page,
+				options.snapshot_pages.unwrap_or(1),
 				UNITS.try_into().unwrap(),
 				options.uri.clone(),
 			)

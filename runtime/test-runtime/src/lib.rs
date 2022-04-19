@@ -38,7 +38,7 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_election_provider_support::{onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Everything, KeyOwnerProofSystem},
+	traits::{ConstU32, Everything, KeyOwnerProofSystem},
 };
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_session::historical as session_historical;
@@ -354,6 +354,7 @@ impl pallet_staking::Config for Runtime {
 	type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Runtime>;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
+	type Pages = ConstU32<10>;
 	type WeightInfo = ();
 }
 
