@@ -6361,6 +6361,7 @@ dependencies = [
  "schnorrkel",
  "sp-authority-discovery",
  "sp-core",
+ "tokio",
  "tracing-gum",
 ]
 

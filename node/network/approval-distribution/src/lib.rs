@@ -51,7 +51,7 @@ mod metrics;
 mod tests;
 
 const LOG_TARGET: &str = "parachain::approval-distribution";
-const WORKER_COUNT: u32 = 8;
+const WORKER_COUNT: usize = 8;
 const COST_UNEXPECTED_MESSAGE: Rep =
 	Rep::CostMinor("Peer sent an out-of-view assignment or approval");
 const COST_DUPLICATE_MESSAGE: Rep = Rep::CostMinorRepeated("Peer sent identical messages");
@@ -80,6 +80,7 @@ pub struct ApprovalDistribution {
 pub struct ApprovalDistributionWorker {
 	metrics: Metrics,
 	proxy_receiver: futures::channel::mpsc::Receiver<FromOverseer<ApprovalDistributionMessage>>,
+	worker_index: usize,
 }
 
 /// Contains recently finalized
@@ -798,6 +799,10 @@ impl State {
 				});
 		}
 
+		drop(blocks);
+
+		gum::trace!(target: LOG_TARGET, ?view, "I'm gonna unify with this beautiful peer");
+
 		Self::unify_with_peer(
 			ctx,
 			metrics,
@@ -825,11 +830,13 @@ impl State {
 			let old_blocks =
 				self.blocks_by_number.lock().expect("evil lock").split_off(&split_point);
 
-
 			// after split_off old_blocks actually contains new blocks, we need to swap
-			let old_value = std::mem::replace(&mut *self.blocks_by_number.lock().expect("evil lock"), old_blocks);
+			let old_value = std::mem::replace(
+				&mut *self.blocks_by_number.lock().expect("evil lock"),
+				old_blocks,
+			);
 			*self.blocks_by_number.lock().expect("evil lock") = old_value;
-			
+
 			let old_blocks = self.blocks_by_number.lock().expect("evil lock");
 
 			// now that we pruned `self.blocks_by_number`, let's clean up `self.blocks` too
@@ -864,6 +871,12 @@ impl State {
 		let block_hash = assignment.block_hash.clone();
 		let validator_index = assignment.validator;
 
+		gum::trace!(
+			target: LOG_TARGET,
+			?source,
+			"import_and_circulate_assignment: Acquiring entries lock ...",
+		);
+
 		let mut entry = match self.blocks.get_mut(&block_hash) {
 			Some(entry) => entry,
 			None => {
@@ -884,9 +897,20 @@ impl State {
 						modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
 					}
 				}
+				gum::trace!(
+					target: LOG_TARGET,
+					?source,
+					"import_and_circulate_assignment: Acquired entries lock ...",
+				);
 				return
 			},
 		};
+
+		gum::trace!(
+			target: LOG_TARGET,
+			?source,
+			"import_and_circulate_assignment: Acquired entries lock ...",
+		);
 
 		// compute metadata on the assignment.
 		let message_subject = MessageSubject(block_hash, claimed_candidate_index, validator_index);
@@ -934,6 +958,7 @@ impl State {
 
 			let (tx, rx) = oneshot::channel();
 
+			gum::debug!(target: LOG_TARGET, ?source, ?message_subject, "Checking assignment ...",);
 			ctx.send_message(ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment.clone(),
 				claimed_candidate_index,
@@ -951,7 +976,7 @@ impl State {
 			};
 			drop(timer);
 
-			gum::trace!(
+			gum::debug!(
 				target: LOG_TARGET,
 				?source,
 				?message_subject,
@@ -1024,14 +1049,25 @@ impl State {
 		// Invariant: to our knowledge, none of the peers except for the `source` know about the assignment.
 		metrics.on_assignment_imported();
 
+		gum::debug!(
+			target: LOG_TARGET,
+			?message_subject,
+			"import_and_circulate_assignment: locking topology",
+		);
 		let topology = self.topologies.lock().expect("evil lock").get_topology(entry.session);
 		let local = source == MessageSource::Local;
 
+		gum::debug!(
+			target: LOG_TARGET,
+			?message_subject,
+			"import_and_circulate_assignment: locked topology",
+		);
 		let required_routing = topology.as_ref().map_or(RequiredRouting::PendingTopology, |t| {
 			t.required_routing_for(validator_index, local)
 		});
 
-		
+		let all_peers = entry.known_by.keys().cloned().collect::<Vec<_>>();
+
 		let message_state = match entry.candidates.get_mut(claimed_candidate_index as usize) {
 			Some(candidate_entry) => {
 				// set the approval state for validator_index to Assigned
@@ -1064,15 +1100,16 @@ impl State {
 		let assignments = vec![(assignment, claimed_candidate_index)];
 		let n_peers_total = self.peer_views.len();
 		let source_peer = source.peer_id();
-
 		let topology_ref = topology.as_ref();
-		let mut peer_filter = move |peer| {
-			if Some(peer) == source_peer.as_ref() {
-				return false
+
+		let mut peers = Vec::new();
+		for peer in all_peers {
+			if Some(peer) == source_peer {
+				continue
 			}
 
-			if let Some(true) = topology_ref.map(|t| t.route_to_peer(required_routing, peer)) {
-				return true
+			if let Some(true) = topology_ref.map(|t| t.route_to_peer(required_routing, &peer)) {
+				continue
 			}
 
 			// Note: at this point, we haven't received the message from any peers
@@ -1082,14 +1119,9 @@ impl State {
 
 			if route_random {
 				message_state.random_routing.inc_sent();
+				peers.push(peer);
 			}
-
-			route_random
-		};
-
-		let mut entry = self.blocks.get_mut(&block_hash).unwrap();
-
-		let peers = entry.known_by.keys().filter(|p| peer_filter(p)).cloned().collect::<Vec<_>>();
+		}
 
 		// Add the metadata of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
@@ -1212,6 +1244,8 @@ impl State {
 
 			let timer = metrics.time_awaiting_approval_voting();
 
+			gum::debug!(target: LOG_TARGET, ?block_hash, "About to call approval voting",);
+
 			ctx.send_message(ApprovalVoting(ApprovalVotingMessage::CheckAndImportApproval(
 				vote.clone(),
 				tx,
@@ -1227,7 +1261,7 @@ impl State {
 			};
 			drop(timer);
 
-			gum::trace!(
+			gum::debug!(
 				target: LOG_TARGET,
 				?peer_id,
 				?message_subject,
@@ -1340,7 +1374,7 @@ impl State {
 		let source_peer = source.peer_id();
 
 		let message_subject = &message_subject;
-	
+
 		let peers = entry
 			.known_by
 			.iter()
@@ -1348,7 +1382,7 @@ impl State {
 				if Some(*peer) == source_peer.as_ref() {
 					return false
 				}
-	
+
 				// Here we're leaning on a few behaviors of assignment propagation:
 				//   1. At this point, the only peer we're aware of which has the approval
 				//      message is the source peer.
@@ -1358,7 +1392,8 @@ impl State {
 				//      the assignment to all aware peers in the required routing _except_ the original
 				//      source of the assignment. Hence the `in_topology_check`.
 				//   3. Any randomly selected peers have been sent the assignment already.
-				let in_topology = topology.as_ref().map_or(false, |t| t.route_to_peer(required_routing, peer));
+				let in_topology =
+					topology.as_ref().map_or(false, |t| t.route_to_peer(required_routing, peer));
 				in_topology || knowledge.sent.contains(message_subject, MessageKind::Assignment)
 			})
 			.map(|(p, _)| p)
@@ -1420,9 +1455,13 @@ impl State {
 		for head in view.into_iter() {
 			let mut block = head;
 			loop {
+				gum::trace!(target: LOG_TARGET, ?head, "Acquiring entries lock ... ");
+
 				// Gonna hold this lock for a while. A dashmap would be better.
 				match entries.get_mut(&block) {
 					Some(mut entry) if entry.number > view_finalized_number => {
+						gum::trace!(target: LOG_TARGET, ?head, "Acquired! ");
+
 						// entry.value_mut(),
 						// Any peer which is in the `known_by` set has already been
 						// sent all messages it's meant to get for that block and all
@@ -1443,10 +1482,16 @@ impl State {
 							// Propagate the message to all peers in the required routing set OR
 							// randomly sample peers.
 							{
+								gum::trace!(
+									target: LOG_TARGET,
+									?head,
+									"Acquiring topology lock ..."
+								);
 								let topology = topologies
 									.lock()
 									.expect("evil lock")
 									.get_topology(entry.session);
+								gum::trace!(target: LOG_TARGET, ?head, "Acquired! ");
 
 								let random_routing = &mut message_state.random_routing;
 								let required_routing = message_state.required_routing;
@@ -1465,9 +1510,13 @@ impl State {
 									}
 								};
 
+								gum::trace!(target: LOG_TARGET, ?head, "Before peerfilter");
+
 								if !peer_filter(&peer_id) {
+									gum::trace!(target: LOG_TARGET, ?head, "After peerfilter");
 									continue
 								}
+								gum::trace!(target: LOG_TARGET, ?head, "head peerfilter");
 							}
 
 							let message_subject =
@@ -1517,7 +1566,11 @@ impl State {
 			}
 		}
 
+		drop(entries);
+
 		let mut stats = SentMessagesStats::default();
+
+		gum::trace!(target: LOG_TARGET, "Calling network bridge ...");
 
 		if !assignments_to_send.is_empty() {
 			stats.note_assignments_packet(assignments_to_send.len());
@@ -1832,14 +1885,16 @@ impl ApprovalDistributionWorker {
 	pub fn new(
 		metrics: Metrics,
 		proxy_receiver: futures::channel::mpsc::Receiver<FromOverseer<ApprovalDistributionMessage>>,
+		worker_index: usize,
 	) -> Self {
-		Self { metrics, proxy_receiver }
+		Self { metrics, proxy_receiver, worker_index }
 	}
 
+	#[tokio::main]
 	async fn run(self, ctx: impl SubsystemSender, state: State) {
+		let mut rng = rand::rngs::StdRng::from_entropy();
 		// According to the docs of `rand`, this is a ChaCha12 RNG in practice
 		// and will always be chosen for strong performance and security properties.
-		let mut rng = rand::rngs::StdRng::from_entropy();
 		self.run_inner(ctx, state, &mut rng).await;
 	}
 
@@ -1875,6 +1930,8 @@ impl ApprovalDistributionWorker {
 				},
 				FromOverseer::Signal(OverseerSignal::Conclude) => return,
 			}
+
+			gum::trace!(target: LOG_TARGET, worker_index = %self.worker_index, "PROCESSING COMPLETE");
 		}
 	}
 
@@ -1955,16 +2012,19 @@ impl ApprovalDistribution {
 		let state = State::default();
 
 		// Spawn our workers.
-		for _ in 0..WORKER_COUNT {
+		for worker_index in 0..WORKER_COUNT {
 			// Make the proxy pipes.
 			let (proxy_sender, proxy_receiver) = futures::channel::mpsc::channel(1024);
 			let subsystem_sender = ctx.sender().clone();
-			let worker = ApprovalDistributionWorker::new(self.metrics.clone(), proxy_receiver);
-			ctx.spawn_blocking(
-				"approval-distribution-worker",
-				Box::pin(worker.run(subsystem_sender, state.clone())),
-			)
-			.unwrap();
+			let worker =
+				ApprovalDistributionWorker::new(self.metrics.clone(), proxy_receiver, worker_index);
+			// ctx.spawn_blocking(
+			// 	"approval-distribution-worker",
+			// 	Box::pin(worker.run(subsystem_sender, state.clone())),
+			// )
+			// .unwrap();
+			let shared_state = state.clone();
+			std::thread::spawn(move || worker.run(subsystem_sender, shared_state));
 			pool.push(proxy_sender);
 		}
 
@@ -1991,10 +2051,14 @@ impl ApprovalDistribution {
 				},
 			};
 
-			match pool[index % WORKER_COUNT as usize].send(message).await {
+			let worker_index = index % WORKER_COUNT as usize;
+
+			gum::debug!(target: LOG_TARGET, ?worker_index, ?message, "Sending message to worker");
+
+			match pool[worker_index].send(message).await {
 				Ok(_) => {},
 				Err(err) => {
-					gum::debug!(target: LOG_TARGET, ?err, "Failed to send a message to a worker");
+					gum::warn!(target: LOG_TARGET, ?err, "Failed to send a message to a worker");
 				},
 			}
 
