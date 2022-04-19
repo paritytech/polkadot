@@ -51,7 +51,7 @@ mod metrics;
 mod tests;
 
 const LOG_TARGET: &str = "parachain::approval-distribution";
-const WORKER_COUNT: usize = 8;
+const WORKER_COUNT: usize = 4;
 const COST_UNEXPECTED_MESSAGE: Rep =
 	Rep::CostMinor("Peer sent an out-of-view assignment or approval");
 const COST_DUPLICATE_MESSAGE: Rep = Rep::CostMinorRepeated("Peer sent identical messages");
@@ -1482,16 +1482,10 @@ impl State {
 							// Propagate the message to all peers in the required routing set OR
 							// randomly sample peers.
 							{
-								gum::trace!(
-									target: LOG_TARGET,
-									?head,
-									"Acquiring topology lock ..."
-								);
 								let topology = topologies
 									.lock()
 									.expect("evil lock")
 									.get_topology(entry.session);
-								gum::trace!(target: LOG_TARGET, ?head, "Acquired! ");
 
 								let random_routing = &mut message_state.random_routing;
 								let required_routing = message_state.required_routing;
@@ -1510,13 +1504,9 @@ impl State {
 									}
 								};
 
-								gum::trace!(target: LOG_TARGET, ?head, "Before peerfilter");
-
 								if !peer_filter(&peer_id) {
-									gum::trace!(target: LOG_TARGET, ?head, "After peerfilter");
 									continue
 								}
-								gum::trace!(target: LOG_TARGET, ?head, "head peerfilter");
 							}
 
 							let message_subject =
