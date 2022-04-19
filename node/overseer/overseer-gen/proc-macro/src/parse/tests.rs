@@ -15,10 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{SubSysAttrItem, SubSystemAttributes};
+use crate::{SubSysAttrItem, SubSystemAttrItems};
 use assert_matches::assert_matches;
 use quote::quote;
-use syn::{parse::Parse, parse_quote};
+use syn::parse_quote;
 
 mod attr {
 	use super::*;
@@ -136,8 +136,8 @@ mod strukt {
 
 	#[test]
 	fn parse_subsystem_attributes_works_00() {
-		syn::parse2::<SubSystemAttributes>(quote! {
-			#[subsystem(wip, no_dispatch, blocking, consumes: Foo, sends: [])]
+		syn::parse2::<SubSystemAttrItems>(quote! {
+			(wip, no_dispatch, blocking, consumes: Foo, sends: [])
 		})
 		.unwrap();
 	}
@@ -145,8 +145,8 @@ mod strukt {
 	#[test]
 	fn parse_subsystem_attributes_works_01() {
 		assert_matches!(
-		syn::parse2::<SubSystemAttributes>(quote! {
-			#[subsystem(blocking, Foo, sends: [])]
+		syn::parse2::<SubSystemAttrItems>(quote! {
+			(blocking, Foo, sends: [])
 		}), Ok(_) => {
 		});
 	}
@@ -154,8 +154,8 @@ mod strukt {
 	#[test]
 	fn parse_subsystem_attributes_works_02() {
 		assert_matches!(
-		syn::parse2::<SubSystemAttributes>(quote! {
-			#[subsystem(consumes: Foo, sends: [Bar])]
+		syn::parse2::<SubSystemAttrItems>(quote! {
+			(consumes: Foo, sends: [Bar])
 		}), Ok(_) => {
 		});
 	}
@@ -163,8 +163,8 @@ mod strukt {
 	#[test]
 	fn parse_subsystem_attributes_works_03() {
 		assert_matches!(
-		syn::parse2::<SubSystemAttributes>(quote! {
-			#[subsystem(blocking, consumes: Foo, sends: [Bar])]
+		syn::parse2::<SubSystemAttrItems>(quote! {
+			(blocking, consumes: Foo, sends: [Bar])
 		}), Ok(_) => {
 		});
 	}
@@ -172,8 +172,8 @@ mod strukt {
 	#[test]
 	fn parse_subsystem_attributes_works_04() {
 		assert_matches!(
-		syn::parse2::<SubSystemAttributes>(quote! {
-			#[subsystem(wip, consumes: Foo, sends: [Bar])]
+		syn::parse2::<SubSystemAttrItems>(quote! {
+			(wip, consumes: Foo, sends: [Bar])
 		}), Ok(_) => {
 		});
 	}
@@ -181,8 +181,8 @@ mod strukt {
 	#[test]
 	fn parse_subsystem_attributes_works_05() {
 		assert_matches!(
-		syn::parse2::<SubSystemAttributes>(quote! {
-			#[subsystem(consumes: Foo)]
+		syn::parse2::<SubSystemAttrItems>(quote! {
+			(consumes: Foo)
 		}), Ok(_) => {
 		});
 	}
@@ -190,17 +190,17 @@ mod strukt {
 	#[test]
 	fn parse_subsystem_attributes_works_06() {
 		assert_matches!(
-		syn::parse2::<SubSystemAttributes>(quote! {
-			#[subsystem(sends: [Foo], consumes: Bar)]
+		syn::parse2::<SubSystemAttrItems>(quote! {
+			(sends: [Foo], consumes: Bar)
 		}), Ok(_) => {
 		});
 	}
 
 	#[test]
-	fn parse_subsystem_attributes_works_07() {
+	fn parse_subsystem_attributes_works_07_duplicate_send() {
 		assert_matches!(
-		syn::parse2::<SubSystemAttributes>(quote! {
-			#[subsystem(sends: [Foo], Bar, Y)]
+		syn::parse2::<SubSystemAttrItems>(quote! {
+			(sends: [Foo], Bar, Y)
 		}), Err(e) => {
 			dbg!(e)
 		});
@@ -209,17 +209,17 @@ mod strukt {
 	#[test]
 	fn parse_subsystem_attributes_works_08() {
 		assert_matches!(
-		syn::parse2::<SubSystemAttributes>(quote! {
-			#[subsystem(sends: [Foo], consumes: Bar)]
+		syn::parse2::<SubSystemAttrItems>(quote! {
+			(sends: [Foo], consumes: Bar)
 		}), Ok(_) => {
 		});
 	}
 
 	#[test]
-	fn parse_subsystem_attributes_works_09() {
+	fn parse_subsystem_attributes_works_09_neither_consumes_nor_sends() {
 		assert_matches!(
-		syn::parse2::<SubSystemAttributes>(quote! {
-			#[subsystem(no_dispatch, sends: [])]
+		syn::parse2::<SubSystemAttrItems>(quote! {
+			(no_dispatch, sends: [])
 		}), Err(e) => {
 			// must either consume smth or sends smth, neither is NOK
 			dbg!(e)
@@ -227,32 +227,46 @@ mod strukt {
 	}
 
 	#[test]
-	fn parse_subsystem_attributes_works_10() {
+	fn parse_subsystem_attributes_works_10_empty_with_braces() {
 		assert_matches!(
-		syn::parse2::<SubSystemAttributes>(quote! {
-			#[subsystem()]
+		syn::parse2::<SubSystemAttrItems>(quote! {
+			()
 		}), Err(e) => {
 			dbg!(e)
 		});
 	}
 
 	#[test]
-	fn parse_subsystem_attributes_works_11() {
+	fn parse_subsystem_attributes_works_11_empty() {
 		assert_matches!(
-		syn::parse2::<SubSystemAttributes>(quote! {
-			#[subsystem]
+		syn::parse2::<SubSystemAttrItems>(quote! {
+
 		}), Err(e) => {
 			dbg!(e)
 		});
 	}
 
 	#[test]
-	fn parse_subsystem_attributes_works_12() {
+	fn parse_subsystem_attributes_works_12_duplicate_consumes_different_fmt() {
 		assert_matches!(
-		syn::parse2::<SubSystemAttributes>(quote! {
-			#[subsystem(Foo)]
-		}), Ok(_) => {
+		syn::parse2::<SubSystemAttrItems>(quote! {
+			(Foo, consumes = Foo)
+		}), Err(e) => {
+			dbg!(e)
 		});
+	}
+
+	#[test]
+	fn struct_parse_baggage() {
+		let item: OverseerGuts = parse_quote! {
+			pub struct Ooooh<X = Pffffffft> where X: Secrit {
+				#[subsystem(no_dispatch, consumes: Foo, sends: [])]
+				sub0: FooSubsystem,
+
+				metrics: Metrics,
+			}
+		};
+		let _ = dbg!(item);
 	}
 
 	#[test]

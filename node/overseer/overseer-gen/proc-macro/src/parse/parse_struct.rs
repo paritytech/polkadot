@@ -17,12 +17,13 @@
 use proc_macro2::{Span, TokenStream};
 use std::collections::{hash_map::RandomState, HashMap, HashSet};
 use syn::{
-	parse::{Parse, ParseBuffer, ParseStream},
+	parenthesized,
+	parse::{Parse, ParseStream},
 	punctuated::Punctuated,
 	spanned::Spanned,
 	token::Bracket,
-	AttrStyle, Attribute, Error, Field, FieldsNamed, GenericParam, Ident, ItemStruct, Path, Result,
-	Token, Type, Visibility,
+	AttrStyle, Error, Field, FieldsNamed, GenericParam, Ident, ItemStruct, Path, Result, Token,
+	Type, Visibility,
 };
 
 use quote::{quote, ToTokens};
@@ -170,7 +171,7 @@ impl Parse for Sends {
 			keyword_sends: input.parse()?,
 			colon: input.parse()?,
 			bracket: syn::bracketed!(content in input),
-			sends: dbg!(Punctuated::parse_terminated(dbg!(&content))?),
+			sends: Punctuated::parse_terminated(&content)?,
 		})
 	}
 }
@@ -199,10 +200,10 @@ impl Parse for Consumes {
 	}
 }
 
+/// Parses `(no_dispatch, Foo, sends = [Bar, Baz])`
+/// including the `(` and `)`.
 #[derive(Debug, Clone)]
-pub(crate) struct SubSystemAttributes {
-	#[allow(dead_code)]
-	pub(crate) attrs: Vec<Attribute>,
+pub(crate) struct SubSystemAttrItems {
 	#[allow(dead_code)]
 	pub(crate) no_dispatch: bool,
 	/// The subsystem is in progress, only generate the `Wrapper` variant, but do not forward messages
@@ -216,15 +217,14 @@ pub(crate) struct SubSystemAttributes {
 	pub(crate) sends: Option<Sends>,
 }
 
-impl Parse for SubSystemAttributes {
+impl Parse for SubSystemAttrItems {
 	fn parse(input: syn::parse::ParseStream) -> Result<Self> {
 		let span = input.span();
-		let attrs = dbg!(Attribute::parse_outer(input))?;
 
-		// FIXME assert that it's `subsystem(..)`.
-		// attrs[0].path
-		let items =
-			attrs[0].parse_args_with(Punctuated::<SubSysAttrItem, Token![,]>::parse_terminated)?;
+		let content;
+		let _paren_token = parenthesized!(content in input);
+
+		let items = content.call(Punctuated::<SubSysAttrItem, Token![,]>::parse_terminated)?;
 
 		let mut unique = HashMap::<
 			std::mem::Discriminant<SubSysAttrItem>,
@@ -244,7 +244,8 @@ impl Parse for SubSystemAttributes {
 		// A subsystem makes no sense if not one of them is provided
 		let sends = extract_variant!(unique, Sends take);
 		let consumes = extract_variant!(unique, Consumes take);
-		if sends.as_ref().map(|sends| sends.sends.is_empty()).unwrap_or(true) && consumes.is_none() {
+		if sends.as_ref().map(|sends| sends.sends.is_empty()).unwrap_or(true) && consumes.is_none()
+		{
 			return Err(Error::new(
 				span,
 				"Must have at least one of `consumes: [..]` and `sends: [..]`.",
@@ -255,7 +256,7 @@ impl Parse for SubSystemAttributes {
 		let blocking = extract_variant!(unique, Blocking; default = false);
 		let wip = extract_variant!(unique, Wip; default = false);
 
-		Ok(Self { attrs, no_dispatch, blocking, wip, sends, consumes })
+		Ok(Self { no_dispatch, blocking, wip, sends, consumes })
 	}
 }
 
@@ -423,6 +424,7 @@ impl OverseerGuts {
 		// for the builder pattern besides other places.
 		let mut unique_subsystem_idents = HashSet::<Ident>::new();
 		for Field { attrs, vis, ident, ty, .. } in fields.named.into_iter() {
+			// collect all subsystem annotations per field
 			let mut subsystem_attr =
 				attrs.iter().filter(|attr| attr.style == AttrStyle::Outer).filter_map(|attr| {
 					let span = attr.path.span();
@@ -431,8 +433,12 @@ impl OverseerGuts {
 						(attr_tokens, span)
 					})
 				});
-			let ident =
-				ident.ok_or_else(|| Error::new(ty.span(), "Missing identifier for member. BUG"))?;
+			let ident = ident.ok_or_else(|| {
+				Error::new(
+					ty.span(),
+					"Missing identifier for field, only named fields are expceted.",
+				)
+			})?;
 
 			// a `#[subsystem(..)]` annotation exists
 			if let Some((attr_tokens, span)) = subsystem_attr.next() {
@@ -447,7 +453,7 @@ impl OverseerGuts {
 				let span = attr_tokens.span();
 
 				let attr_tokens = attr_tokens.clone();
-				let subsystem_attrs: SubSystemAttributes = syn::parse2(attr_tokens.clone())?;
+				let subsystem_attrs: SubSystemAttrItems = syn::parse2(attr_tokens.clone())?;
 
 				let field_ty = try_type_to_path(ty, span)?;
 				let generic = field_ty
@@ -467,7 +473,7 @@ impl OverseerGuts {
 				}
 				unique_subsystem_idents.insert(generic.clone());
 
-				let SubSystemAttributes { no_dispatch, wip, blocking, consumes, sends, .. } =
+				let SubSystemAttrItems { no_dispatch, wip, blocking, consumes, sends, .. } =
 					subsystem_attrs;
 
 				// messages to be sent
@@ -484,7 +490,6 @@ impl OverseerGuts {
 				};
 
 				// TODO move the send and consumes check here
-
 				subsystems.push(SubSysField {
 					name: ident,
 					generic,
@@ -499,7 +504,7 @@ impl OverseerGuts {
 				let generic = field_ty
 					.get_ident()
 					.map(|ident| baggage_generics.contains(ident))
-					.unwrap_or_default();
+					.unwrap_or(false);
 				baggage.push(BaggageField { field_name: ident, generic, field_ty, vis });
 			}
 		}
