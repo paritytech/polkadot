@@ -717,11 +717,16 @@ where
 
 		Some(backoff)
 	};
+
 	// For now BEEFY is explicitly disabled on non-test chains.
 	if config.chain_spec.is_polkadot() ||
 		config.chain_spec.is_kusama() ||
 		config.chain_spec.is_westend()
 	{
+		gum::warn!(
+			"Refusing to enable BEEFY on a production network; \
+                   BEEFY is still experimental."
+		);
 		enable_beefy = false;
 	}
 
