@@ -111,6 +111,8 @@ pub enum ProspectiveParachainsMessage {
 	/// Returns an empty vector either if there is no such depth or the fragment tree relay-parent
 	/// is unknown.
 	GetHypotheticalDepth(HypotheticalDepthRequest, oneshot::Sender<Vec<usize>>),
+	/// Get the membership of the candidate in all fragment trees.
+	GetTreeMembership(ParaId, CandidateHash, oneshot::Sender<CandidateMembership>),
 }
 
 struct RelayBlockViewData {
@@ -170,6 +172,8 @@ where
 				) => answer_get_backable_candidate(&view, relay_parent, para, required_path, tx),
 				ProspectiveParachainsMessage::GetHypotheticalDepth(request, tx) =>
 					answer_hypothetical_depths_request(&view, request, tx),
+				ProspectiveParachainsMessage::GetTreeMembership(para, candidate, tx) =>
+					answer_tree_membership_request(&view, para, candidate, tx),
 			},
 		}
 	}
@@ -484,6 +488,23 @@ fn answer_hypothetical_depths_request(
 			let _ = tx.send(Vec::new());
 		},
 	}
+}
+
+fn answer_tree_membership_request(
+	view: &View,
+	para: ParaId,
+	candidate: CandidateHash,
+	tx: oneshot::Sender<CandidateMembership>,
+) {
+	let mut membership = Vec::new();
+	for (relay_parent, view_data) in &view.active_leaves {
+		if let Some(tree) = view_data.fragment_trees.get(&para) {
+			if let Some(depths) = tree.candidate(&candidate) {
+				membership.push((*relay_parent, depths));
+			}
+		}
+	}
+	let _ = tx.send(membership);
 }
 
 #[allow(unused)] // TODO [now]
