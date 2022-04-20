@@ -28,9 +28,7 @@ use polkadot_primitives::v2::{
 	ScheduledCore,
 };
 use polkadot_subsystem::{
-	messages::{
-		CollatorProtocolMessage, ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
-	},
+	messages::{CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
 };
 use sp_application_crypto::AppKey;
@@ -284,7 +282,7 @@ async fn test_dispute_coordinator_notifications(
 					candidate_receipt: c_receipt,
 					session: s,
 					statements,
-					pending_confirmation,
+					pending_confirmation: None,
 				}
 			) => {
 				assert_eq!(c_hash, candidate_hash);
@@ -292,7 +290,6 @@ async fn test_dispute_coordinator_notifications(
 				assert_eq!(s, session);
 				assert_eq!(statements.len(), 1);
 				assert_eq!(statements[0].1, validator_index);
-				let _ = pending_confirmation.send(ImportStatementsResult::ValidImport);
 			}
 		)
 	}
