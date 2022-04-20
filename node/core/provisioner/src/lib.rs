@@ -40,12 +40,12 @@ use polkadot_node_subsystem_util::{
 	JobSubsystem, JobTrait,
 };
 use polkadot_primitives::v2::{
-	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeStatement,
-	DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption, SessionIndex,
-	SignedAvailabilityBitfield, ValidatorIndex,
+	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeState,
+	DisputeStatement, DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption,
+	SessionIndex, SignedAvailabilityBitfield, ValidatorIndex,
 };
 use std::{
-	collections::{BTreeMap, HashSet},
+	collections::{BTreeMap, HashMap, HashSet},
 	pin::Pin,
 };
 use thiserror::Error;
@@ -704,7 +704,7 @@ fn extend_by_random_subset_without_repetition(
 async fn select_disputes(
 	sender: &mut impl SubsystemSender,
 	metrics: &metrics::Metrics,
-	leaf: &ActivatedLeaf,
+	_leaf: &ActivatedLeaf,
 ) -> Result<MultiDisputeStatementSet, Error> {
 	const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 1_000;
 
@@ -721,9 +721,9 @@ async fn select_disputes(
 	// On error - an empty set is generated which doesn't affect the logic of the function.
 	// This is a staging feature, so if it is not enabled - create an empty HashSet by default. If it is
 	// enabled - the HashSet will be overriden with the on-chain data.
-	let onchain: HashSet<(SessionIndex, CandidateHash)> = HashSet::new();
+	let onchain = HashMap::new();
 	#[cfg(feature = "staging-client")]
-	let onchain = onchain_disputes::get_onchain_disputes(sender, leaf.hash.clone())
+	let onchain = onchain_disputes::get_onchain_disputes(sender, _leaf.hash.clone())
 		.await
 		.unwrap_or_default();
 	remove_known_disputes(&mut recent, &onchain);
@@ -793,10 +793,10 @@ async fn select_disputes(
 /// `disputes` is mutated by removing all disputes in `known`. The purpose is to filter out the disputes already seen on-chain.
 fn remove_known_disputes(
 	disputes: &mut Vec<(u32, CandidateHash)>,
-	known: &HashSet<(u32, CandidateHash)>,
+	known: &HashMap<(SessionIndex, CandidateHash), DisputeState>,
 ) {
 	if !known.is_empty() {
-		disputes.retain(|v| !known.contains(v));
+		disputes.retain(|v| !known.contains_key(v));
 	}
 }
 

@@ -23,8 +23,8 @@ use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
 	SubsystemSender,
 };
-use polkadot_primitives::v2::{CandidateHash, Hash, SessionIndex};
-use std::collections::HashSet;
+use polkadot_primitives::v2::{CandidateHash, DisputeState, Hash, SessionIndex};
+use std::collections::HashMap;
 
 pub enum GetOnchainDisputesErr {
 	Channel,
@@ -36,7 +36,7 @@ pub enum GetOnchainDisputesErr {
 pub async fn get_onchain_disputes(
 	sender: &mut impl SubsystemSender,
 	relay_parent: Hash,
-) -> Result<HashSet<(SessionIndex, CandidateHash)>, GetOnchainDisputesErr> {
+) -> Result<HashMap<(SessionIndex, CandidateHash), DisputeState>, GetOnchainDisputesErr> {
 	gum::trace!(target: LOG_TARGET, ?relay_parent, "Fetching on-chain disputes");
 	let (tx, rx) = oneshot::channel();
 	sender
@@ -74,5 +74,5 @@ pub async fn get_onchain_disputes(
 				},
 			})
 		})
-		.map(|v| v.into_iter().map(|e| (e.0, e.1)).collect())
+		.map(|v| v.into_iter().map(|e| ((e.0, e.1), e.2)).collect())
 }
