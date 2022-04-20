@@ -76,7 +76,9 @@ async fn participate_with_commitments_hash(
 
 	let req = ParticipationRequest::new(candidate_receipt, session, n_validators);
 
-	participation.queue_participation(ctx, None, req).await
+	participation
+		.queue_participation(ctx, ParticipationPriority::BestEffort, req)
+		.await
 }
 
 async fn activate_leaf(

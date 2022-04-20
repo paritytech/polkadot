@@ -46,3 +46,9 @@ rm "${runtime}_pallets"
   --weight-path="runtime/${runtime}/constants/src/weights/" \
   --warmup=10 \
   --repeat=100
+
+
+# This true makes sure that $? is 0 instead of
+# carrying over a failure which would otherwise cause
+# the whole CI job to abort.
+true
