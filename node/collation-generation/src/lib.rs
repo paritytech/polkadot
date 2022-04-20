@@ -202,33 +202,11 @@ async fn handle_new_activations<Context: SubsystemContext>(
 		for (core_idx, core) in availability_cores.into_iter().enumerate() {
 			let _availability_core_timer = metrics.time_new_activations_availability_core();
 
-			let (scheduled_core, assumption) = match core {
+			let (core_para_id, assumption) = match &core {
 				CoreState::Scheduled(scheduled_core) =>
-					(scheduled_core, OccupiedCoreAssumption::Free),
-				CoreState::Occupied(occupied_core) => {
-					if config.collator.is_collating_on_child(relay_parent).await {
-						let _ = ctx
-							.send_message(AllMessages::CollatorProtocol(
-								CollatorProtocolMessage::PreConnectAsCollator(relay_parent),
-							))
-							.await;
-						gum::debug!(
-							target: LOG_TARGET,
-							para_id = %occupied_core.para_id(),
-							relay_parent = ?relay_parent,
-							"Sent pre-connect request",
-						);
-					}
-
-					// TODO: https://github.com/paritytech/polkadot/issues/1573
-					gum::trace!(
-						target: LOG_TARGET,
-						core_idx = %core_idx,
-						relay_parent = ?relay_parent,
-						"core is occupied. Keep going.",
-					);
-					continue
-				},
+					(scheduled_core.para_id, OccupiedCoreAssumption::Free),
+				CoreState::Occupied(occupied_core) =>
+					(occupied_core.para_id(), OccupiedCoreAssumption::Included),
 				CoreState::Free => {
 					gum::trace!(
 						target: LOG_TARGET,
@@ -239,13 +217,13 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				},
 			};
 
-			if scheduled_core.para_id != config.para_id {
+			if core_para_id != config.para_id {
 				gum::trace!(
 					target: LOG_TARGET,
 					core_idx = %core_idx,
 					relay_parent = ?relay_parent,
 					our_para = %config.para_id,
-					their_para = %scheduled_core.para_id,
+					their_para = %core_para_id,
 					"core is not assigned to our para. Keep going.",
 				);
 				continue
@@ -257,7 +235,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 			let validation_data = match request_persisted_validation_data(
 				relay_parent,
-				scheduled_core.para_id,
+				core_para_id,
 				assumption,
 				ctx.sender(),
 			)
@@ -271,16 +249,41 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						core_idx = %core_idx,
 						relay_parent = ?relay_parent,
 						our_para = %config.para_id,
-						their_para = %scheduled_core.para_id,
+						their_para = %core_para_id,
 						"validation data is not available",
 					);
 					continue
 				},
 			};
 
+			if core.is_occupied() {
+				if config.collator.is_collating_on_child(relay_parent, &validation_data).await {
+					let _ = ctx
+						.send_message(AllMessages::CollatorProtocol(
+							CollatorProtocolMessage::PreConnectAsCollator(relay_parent),
+						))
+						.await;
+					gum::debug!(
+						target: LOG_TARGET,
+						para_id = %core_para_id,
+						relay_parent = ?relay_parent,
+						"Sent pre-connect request",
+					);
+				}
+
+				// TODO: https://github.com/paritytech/polkadot/issues/1573
+				gum::trace!(
+					target: LOG_TARGET,
+					core_idx = %core_idx,
+					relay_parent = ?relay_parent,
+					"core is occupied. Keep going.",
+				);
+				continue
+			}
+
 			let validation_code_hash = match obtain_current_validation_code_hash(
 				relay_parent,
-				scheduled_core.para_id,
+				core_para_id,
 				assumption,
 				ctx.sender(),
 			)
@@ -293,7 +296,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						core_idx = %core_idx,
 						relay_parent = ?relay_parent,
 						our_para = %config.para_id,
-						their_para = %scheduled_core.para_id,
+						their_para = %core_para_id,
 						"validation code hash is not found.",
 					);
 					continue
@@ -317,7 +320,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						None => {
 							gum::debug!(
 								target: LOG_TARGET,
-								para_id = %scheduled_core.para_id,
+								para_id = %core_para_id,
 								"collator returned no collation on collate",
 							);
 							return
@@ -337,7 +340,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						if encoded_size > validation_data.max_pov_size as usize {
 							gum::debug!(
 								target: LOG_TARGET,
-								para_id = %scheduled_core.para_id,
+								para_id = %core_para_id,
 								size = encoded_size,
 								max_size = validation_data.max_pov_size,
 								"PoV exceeded maximum size"
@@ -353,7 +356,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 					let signature_payload = collator_signature_payload(
 						&relay_parent,
-						&scheduled_core.para_id,
+						&core_para_id,
 						&persisted_validation_data_hash,
 						&pov_hash,
 						&validation_code_hash,
@@ -365,7 +368,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 							Err(err) => {
 								gum::error!(
 									target: LOG_TARGET,
-									para_id = %scheduled_core.para_id,
+									para_id = %core_para_id,
 									err = ?err,
 									"failed to calculate erasure root",
 								);
@@ -386,7 +389,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						commitments_hash: commitments.hash(),
 						descriptor: CandidateDescriptor {
 							signature: task_config.key.sign(&signature_payload),
-							para_id: scheduled_core.para_id,
+							para_id: core_para_id,
 							relay_parent,
 							collator: task_config.key.public(),
 							persisted_validation_data_hash,
@@ -402,7 +405,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						candidate_hash = ?ccr.hash(),
 						?pov_hash,
 						?relay_parent,
-						para_id = %scheduled_core.para_id,
+						para_id = %core_para_id,
 						"candidate is generated",
 					);
 					metrics.on_collation_generated();
@@ -415,7 +418,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					{
 						gum::warn!(
 							target: LOG_TARGET,
-							para_id = %scheduled_core.para_id,
+							para_id = %core_para_id,
 							err = ?err,
 							"failed to send collation result",
 						);

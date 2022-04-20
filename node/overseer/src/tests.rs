@@ -839,6 +839,10 @@ impl Collator for TestCollator {
 	) -> Option<CollationResult> {
 		panic!("at the Disco")
 	}
+
+	async fn is_collating_on_child(&self, _: Hash, _: &PersistedValidationData) -> bool {
+		false
+	}
 }
 
 fn test_collator_protocol_msg() -> CollatorProtocolMessage {

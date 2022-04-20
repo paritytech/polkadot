@@ -367,10 +367,12 @@ pub trait Collator: Send + Sync {
 	/// candidate on the child of the given relay parent. This allows a node to issue pre-connect requests
 	/// to a validators group.
 	///
-	/// The default implementation works for the rest chains such as PoW and returns `false`.
-	async fn is_collating_on_child(&self, _relay_parent: Hash) -> bool {
-		false
-	}
+	/// Otherwise, should always return `false`.
+	async fn is_collating_on_child(
+		&self,
+		relay_parent: Hash,
+		validation_data: &PersistedValidationData,
+	) -> bool;
 }
 
 /// Configuration for the collation generator

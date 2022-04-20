@@ -68,6 +68,10 @@ mod handle_new_activations {
 		) -> Option<CollationResult> {
 			Some(CollationResult { collation: test_collation(), result_sender: None })
 		}
+
+		async fn is_collating_on_child(&self, _: Hash, _: &PersistedValidationData) -> bool {
+			false
+		}
 	}
 
 	impl Unpin for TestCollator {}
