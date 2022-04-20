@@ -887,16 +887,13 @@ impl CandidateBackingJob {
 		if let (Some(candidate_receipt), Some(dispute_statement)) =
 			(maybe_candidate_receipt, maybe_signed_dispute_statement)
 		{
-			// TODO: Log confirmation results in an efficient way:
-			// https://github.com/paritytech/polkadot/issues/5156
-			let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 			sender
 				.send_message(DisputeCoordinatorMessage::ImportStatements {
 					candidate_hash,
 					candidate_receipt,
 					session: self.session_index,
 					statements: vec![(dispute_statement, validator_index)],
-					pending_confirmation,
+					pending_confirmation: None,
 				})
 				.await;
 		}
