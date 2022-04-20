@@ -582,9 +582,10 @@ pub(super) fn revert<'a, B: Backend + 'a>(
 			// then revert to this block should be handled specially since no
 			// information about finalized blocks is persisted within the tree.
 			//
-			// We use part the information contained in the finalized block's
+			// We use part of the information contained in the finalized block
 			// children (that are expected to be in the tree) to construct a
-			// dummy block entry for the last finalized block.
+			// dummy block entry for the last finalized block. This will be
+			// wiped as soon as the next block is finalized.
 
 			let blocks = backend.load_blocks_by_number(first_number)?;
 
@@ -606,7 +607,7 @@ pub(super) fn revert<'a, B: Backend + 'a>(
 
 			// The weight is set to the one of the first child. Even though this is
 			// not accurate, it does the job. The reason is that the revert point is
-			// the last finalized block, i.e. this it is the best and only choice.
+			// the last finalized block, i.e. this is the best and only choice.
 			let block_number = first_number.saturating_sub(1);
 			let viability = ViabilityCriteria {
 				explicitly_reverted: false,
