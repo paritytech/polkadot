@@ -315,6 +315,17 @@ impl ChainSelectionSubsystem {
 	pub fn new(config: Config, db: Arc<dyn Database>) -> Self {
 		ChainSelectionSubsystem { config, db }
 	}
+
+	/// Revert to the block corresponding to the specified `hash`.
+	/// The revert is not allowed for blocks older than the last finalized one.
+	pub fn revert(&self, hash: Hash) -> Result<(), Error> {
+		let backend_config = db_backend::v1::Config { col_data: self.config.col_data };
+		let mut backend = db_backend::v1::DbBackend::new(self.db.clone(), backend_config);
+
+		let ops = tree::revert(&backend, hash)?.into_write_ops();
+
+		backend.write(ops)
+	}
 }
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for ChainSelectionSubsystem
@@ -652,18 +663,5 @@ async fn load_leaves(
 		Ok(fetch_finalized(ctx).await?.map_or(Vec::new(), |(h, _)| vec![h]))
 	} else {
 		Ok(leaves)
-	}
-}
-
-impl ChainSelectionSubsystem {
-	/// Revert to the block corresponding to the specified `hash`.
-	/// The revert is not allowed for blocks older than the last finalized one.
-	pub fn revert(&self, hash: Hash) -> Result<(), Error> {
-		let backend_config = db_backend::v1::Config { col_data: self.config.col_data };
-		let mut backend = db_backend::v1::DbBackend::new(self.db.clone(), backend_config);
-
-		let ops = tree::revert(&backend, hash)?.into_write_ops();
-
-		backend.write(ops)
 	}
 }
