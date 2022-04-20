@@ -563,8 +563,10 @@ pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
 	Ok(backend)
 }
 
-/// Revert the tree to the block specified by `hash`.
-/// Returns the set of operations as an `OverlayedBackend`.
+/// Revert the tree to the block relative to `hash`.
+///
+/// This accepts a fresh backend and returns an overlay on top of it representing
+/// all changes made.
 pub(super) fn revert<'a, B: Backend + 'a>(
 	backend: &'a B,
 	hash: Hash,
@@ -576,28 +578,35 @@ pub(super) fn revert<'a, B: Backend + 'a>(
 	let mut entry = match backend.load_block_entry(&hash)? {
 		Some(entry) => entry,
 		None => {
-			// May be a revert to last finalized block. If that is the case,
-			// revert to this block should be handled specially since information
-			// about finalized blocks is not persisted within the tree.
+			// May be a revert to the last finalized block. If this is the case,
+			// then revert to this block should be handled specially since no
+			// information about finalized blocks is persisted within the tree.
+			//
+			// We use part the information contained in the finalized block's
+			// children (that are expected to be in the tree) to construct a
+			// dummy block entry for the last finalized block.
 
-			// We use part the information contained in the finalized block's children
-			// (that should be in the tree) to construct a "dummy" block entry
-			// for the last finalized block.
 			let blocks = backend.load_blocks_by_number(first_number)?;
 
 			let block = blocks
 				.get(0)
 				.and_then(|hash| backend.load_block_entry(hash).ok())
 				.flatten()
-				.ok_or(ChainApiError::from("Unexpected block lookup failure"))?;
+				.ok_or_else(|| {
+					ChainApiError::from(format!(
+						"Lookup failure for block at height {}",
+						first_number
+					))
+				})?;
 
+			// The parent is expected to be the last finalized block.
 			if block.parent_hash != hash {
 				return Err(ChainApiError::from("Can't revert below last finalized block").into())
 			}
 
-			// The weight is set to the weight of the first child, even though
-			// this is NOT ACCURATE it works since this is a finalized block,
-			// this it is the best choice anyway (there are no alternative chains)
+			// The weight is set to the one of the first child. Even though this is
+			// not accurate, it does the job. The reason is that the revert point is
+			// the last finalized block, i.e. this it is the best and only choice.
 			let block_number = first_number.saturating_sub(1);
 			let viability = ViabilityCriteria {
 				explicitly_reverted: false,
@@ -612,7 +621,7 @@ pub(super) fn revert<'a, B: Backend + 'a>(
 				viability,
 				weight: block.weight,
 			};
-			// Add to the blocks list to become the first entry according to block number.
+			// This becomes the first entry according to the block number.
 			backend.write_blocks_by_number(block_number, vec![hash]);
 			entry
 		},
@@ -623,7 +632,7 @@ pub(super) fn revert<'a, B: Backend + 'a>(
 		.map(|h| (h, entry.block_number + 1))
 		.collect();
 
-	// Write block entry without the children.
+	// Write revert point block entry without the children.
 	backend.write_block_entry(entry.clone());
 
 	let mut viable_leaves = backend.load_leaves()?;

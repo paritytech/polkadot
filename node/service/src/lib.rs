@@ -1392,6 +1392,7 @@ impl ExecuteWithClient for RevertConsensus {
 	}
 }
 
+/// Reverts the node state down to at most the last finalized block.
 #[cfg(feature = "full-node")]
 pub fn revert(
 	client: Arc<Client>,
