@@ -62,7 +62,7 @@ use polkadot_node_subsystem_util::inclusion_emulator::staging::{
 	ConstraintModifications, Constraints, Fragment, ProspectiveCandidate, RelayChainBlockInfo,
 };
 use polkadot_primitives::vstaging::{
-	BlockNumber, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt, Hash, HeadData,
+	BlockNumber, CandidateHash, CommittedCandidateReceipt, Hash,
 	Id as ParaId, PersistedValidationData,
 };
 
@@ -112,7 +112,6 @@ impl CandidateStorage {
 		let entry = CandidateEntry {
 			candidate_hash,
 			relay_parent: candidate.descriptor.relay_parent,
-			erasure_root: candidate.descriptor.erasure_root,
 			state: CandidateState::Seconded,
 			candidate: ProspectiveCandidate {
 				commitments: candidate.commitments,
@@ -192,7 +191,6 @@ struct CandidateEntry {
 	relay_parent: Hash,
 	candidate: ProspectiveCandidate,
 	state: CandidateState,
-	erasure_root: Hash,
 }
 
 /// The scope of a [`FragmentTree`].
@@ -628,7 +626,6 @@ impl FragmentTree {
 					let node = FragmentNode {
 						parent: parent_pointer,
 						fragment,
-						erasure_root: candidate.erasure_root.clone(),
 						candidate_hash: candidate.candidate_hash.clone(),
 						depth: child_depth,
 						cumulative_modifications,
@@ -649,7 +646,6 @@ struct FragmentNode {
 	// A pointer to the parent node.
 	parent: NodePointer,
 	fragment: Fragment,
-	erasure_root: Hash,
 	candidate_hash: CandidateHash,
 	depth: usize,
 	cumulative_modifications: ConstraintModifications,
@@ -660,30 +656,6 @@ struct FragmentNode {
 impl FragmentNode {
 	fn relay_parent(&self) -> Hash {
 		self.fragment.relay_parent().hash
-	}
-
-	fn parent_head_data(&self) -> &HeadData {
-		&self.fragment.candidate().persisted_validation_data.parent_head
-	}
-
-	/// Produce a candidate receipt from this fragment node.
-	fn produce_candidate_receipt(&self, para_id: ParaId) -> CommittedCandidateReceipt {
-		let candidate = self.fragment.candidate();
-
-		CommittedCandidateReceipt {
-			commitments: candidate.commitments.clone(),
-			descriptor: CandidateDescriptor {
-				para_id,
-				relay_parent: self.relay_parent(),
-				collator: candidate.collator.clone(),
-				signature: candidate.collator_signature.clone(),
-				persisted_validation_data_hash: candidate.persisted_validation_data.hash(),
-				pov_hash: candidate.pov_hash,
-				erasure_root: self.erasure_root,
-				para_head: candidate.commitments.head_data.hash(),
-				validation_code_hash: candidate.validation_code_hash.clone(),
-			},
-		}
 	}
 
 	fn candidate_child(&self, candidate_hash: &CandidateHash) -> Option<NodePointer> {
