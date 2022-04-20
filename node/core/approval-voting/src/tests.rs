@@ -25,7 +25,6 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, ApprovalVotingMessage, AssignmentCheckResult, AvailabilityRecoveryMessage,
-		ImportStatementsResult,
 	},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
@@ -605,11 +604,10 @@ async fn check_and_import_approval(
 			overseer_recv(overseer).await,
 			AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash: c_hash,
-				pending_confirmation,
+				pending_confirmation: None,
 				..
 			}) => {
 				assert_eq!(c_hash, candidate_hash);
-				let _ = pending_confirmation.send(ImportStatementsResult::ValidImport);
 			}
 		);
 	}

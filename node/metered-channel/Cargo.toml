@@ -20,4 +20,4 @@ futures = { version = "0.3.21", features = ["thread-pool"] }
 assert_matches = "1.5"
 env_logger = "0.9"
 log = "0.4"
-tracing = { version = "0.1.33", features = ["log"] }
+tracing = { version = "0.1.34", features = ["log"] }

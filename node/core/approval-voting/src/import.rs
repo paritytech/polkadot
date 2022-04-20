@@ -574,6 +574,7 @@ pub(crate) async fn handle_new_head(
 			parent_hash: block_header.parent_hash,
 			candidates: included_candidates.iter().map(|(hash, _, _, _)| *hash).collect(),
 			slot,
+			session: session_index,
 		});
 
 		imported_candidates.push(BlockImportedCandidates {
