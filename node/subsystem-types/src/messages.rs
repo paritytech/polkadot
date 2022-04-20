@@ -38,14 +38,17 @@ use polkadot_node_primitives::{
 	CollationSecondedSignal, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement,
 	SignedFullStatement, ValidationResult,
 };
-use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
-	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState, GroupIndex,
-	GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption, PersistedValidationData,
-	PvfCheckStatement, SessionIndex, SessionInfo, SignedAvailabilityBitfield,
-	SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+use polkadot_primitives::{
+	v2::{
+		AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
+		CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
+		GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
+		InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
+		OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, SessionIndex,
+		SessionInfo, SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode,
+		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	vstaging as vstaging_primitives,
 };
 use polkadot_statement_table::v2::Misbehavior;
 use std::{
@@ -693,6 +696,9 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCodeHash>>,
 	),
+	/// Get the validity constraints of the given para.
+	/// This is a staging API that will not be available on production runtimes.
+	StagingValidityConstraints(ParaId, RuntimeApiSender<Option<vstaging_primitives::Constraints>>),
 }
 
 /// A message to the Runtime API subsystem.

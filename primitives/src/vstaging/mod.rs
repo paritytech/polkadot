@@ -24,11 +24,15 @@ use parity_scale_codec::{Decode, Encode};
 use primitives::RuntimeDebug;
 use scale_info::TypeInfo;
 
+#[cfg(feature = "std")]
+use parity_util_mem::MallocSizeOf;
+
 /// Useful type alias for Para IDs.
 pub type ParaId = Id;
 
 /// Constraints on inbound HRMP channels.
 #[derive(RuntimeDebug, Clone, PartialEq, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct InboundHrmpLimitations {
 	/// An exhaustive set of all valid watermarks, sorted ascending
 	pub valid_watermarks: Vec<BlockNumber>,
@@ -36,6 +40,7 @@ pub struct InboundHrmpLimitations {
 
 /// Constraints on outbound HRMP channels.
 #[derive(RuntimeDebug, Clone, PartialEq, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct OutboundHrmpChannelLimitations {
 	/// The maximum bytes that can be written to the channel.
 	pub bytes_remaining: u32,
@@ -47,6 +52,7 @@ pub struct OutboundHrmpChannelLimitations {
 /// block. These limitations are implicitly associated with some particular
 /// parachain, which should be apparent from usage.
 #[derive(RuntimeDebug, Clone, PartialEq, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct Constraints {
 	/// The minimum relay-parent number accepted under these constraints.
 	pub min_relay_parent_number: BlockNumber,

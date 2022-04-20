@@ -114,8 +114,9 @@
 //! in practice at most once every few weeks.
 
 use polkadot_primitives::vstaging::{
-	BlockNumber, CandidateCommitments, CollatorId, CollatorSignature, Hash, HeadData, Id as ParaId,
-	PersistedValidationData, UpgradeRestriction, ValidationCodeHash, Constraints as PrimitiveConstraints,
+	BlockNumber, CandidateCommitments, CollatorId, CollatorSignature,
+	Constraints as PrimitiveConstraints, Hash, HeadData, Id as ParaId, PersistedValidationData,
+	UpgradeRestriction, ValidationCodeHash,
 };
 use std::collections::HashMap;
 
@@ -181,10 +182,19 @@ impl From<PrimitiveConstraints> for Constraints {
 			hrmp_inbound: InboundHrmpLimitations {
 				valid_watermarks: c.hrmp_inbound.valid_watermarks,
 			},
-			hrmp_channels_out: c.hrmp_channels_out.into_iter().map(|(para_id, limits)| (para_id, OutboundHrmpChannelLimitations {
-				bytes_remaining: limits.bytes_remaining as _,
-				messages_remaining: limits.messages_remaining as _,
-			})).collect(),
+			hrmp_channels_out: c
+				.hrmp_channels_out
+				.into_iter()
+				.map(|(para_id, limits)| {
+					(
+						para_id,
+						OutboundHrmpChannelLimitations {
+							bytes_remaining: limits.bytes_remaining as _,
+							messages_remaining: limits.messages_remaining as _,
+						},
+					)
+				})
+				.collect(),
 			max_hrmp_num_per_candidate: c.max_hrmp_num_per_candidate as _,
 			required_parent: c.required_parent,
 			validation_code_hash: c.validation_code_hash,
