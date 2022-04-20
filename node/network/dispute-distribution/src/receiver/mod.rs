@@ -271,7 +271,7 @@ where
 					candidate_receipt,
 					session: valid_vote.0.session_index(),
 					statements: vec![valid_vote, invalid_vote],
-					pending_confirmation,
+					pending_confirmation: Some(pending_confirmation),
 				},
 			))
 			.await;
