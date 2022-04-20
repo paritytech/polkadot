@@ -115,7 +115,7 @@
 
 use polkadot_primitives::vstaging::{
 	BlockNumber, CandidateCommitments, CollatorId, CollatorSignature, Hash, HeadData, Id as ParaId,
-	PersistedValidationData, UpgradeRestriction, ValidationCodeHash,
+	PersistedValidationData, UpgradeRestriction, ValidationCodeHash, Constraints as PrimitiveConstraints,
 };
 use std::collections::HashMap;
 
@@ -167,6 +167,31 @@ pub struct Constraints {
 	/// The future validation code hash, if any, and at what relay-parent
 	/// number the upgrade would be minimally applied.
 	pub future_validation_code: Option<(BlockNumber, ValidationCodeHash)>,
+}
+
+impl From<PrimitiveConstraints> for Constraints {
+	fn from(c: PrimitiveConstraints) -> Self {
+		Constraints {
+			min_relay_parent_number: c.min_relay_parent_number,
+			max_pov_size: c.max_pov_size as _,
+			max_code_size: c.max_code_size as _,
+			ump_remaining: c.ump_remaining as _,
+			ump_remaining_bytes: c.ump_remaining_bytes as _,
+			dmp_remaining_messages: c.dmp_remaining_messages as _,
+			hrmp_inbound: InboundHrmpLimitations {
+				valid_watermarks: c.hrmp_inbound.valid_watermarks,
+			},
+			hrmp_channels_out: c.hrmp_channels_out.into_iter().map(|(para_id, limits)| (para_id, OutboundHrmpChannelLimitations {
+				bytes_remaining: limits.bytes_remaining as _,
+				messages_remaining: limits.messages_remaining as _,
+			})).collect(),
+			max_hrmp_num_per_candidate: c.max_hrmp_num_per_candidate as _,
+			required_parent: c.required_parent,
+			validation_code_hash: c.validation_code_hash,
+			upgrade_restriction: c.upgrade_restriction,
+			future_validation_code: c.future_validation_code,
+		}
+	}
 }
 
 /// Kinds of errors that can occur when modifying constraints.
