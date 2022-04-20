@@ -32,8 +32,9 @@ use std::collections::{HashMap, HashSet};
 use futures::{channel::oneshot, prelude::*};
 
 use polkadot_node_subsystem::{
-	messages::ChainApiMessage, overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
-	SpawnedSubsystem, SubsystemContext, SubsystemError,
+	messages::{ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest},
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
+	SubsystemError,
 };
 use polkadot_node_subsystem_util::inclusion_emulator::staging::{Constraints, RelayChainBlockInfo};
 use polkadot_primitives::vstaging::{
@@ -151,8 +152,7 @@ where
 	}
 }
 
-// TODO [now]: this is temporarily `pub` to make the unused lint behave reasonably.
-pub async fn run<Context>(mut ctx: Context) -> FatalResult<()>
+async fn run<Context>(mut ctx: Context) -> FatalResult<()>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
 	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
@@ -244,7 +244,7 @@ where
 			let candidate_storage =
 				view.candidate_storage.entry(para).or_insert_with(CandidateStorage::new);
 
-			let constraints = fetch_base_constraints(&mut *ctx, &hash, para).await?;
+			let constraints = fetch_base_constraints(&mut *ctx, hash, para).await?;
 
 			let constraints = match constraints {
 				Some(c) => c,
@@ -526,11 +526,21 @@ fn answer_tree_membership_request(
 
 async fn fetch_base_constraints<Context>(
 	ctx: &mut Context,
-	relay_parent: &Hash,
+	relay_parent: Hash,
 	para_id: ParaId,
-) -> JfyiErrorResult<Option<Constraints>> {
-	// TODO [now]: probably a new runtime API.
-	unimplemented!()
+) -> JfyiErrorResult<Option<Constraints>>
+where
+	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
+{
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(RuntimeApiMessage::Request(
+		relay_parent,
+		RuntimeApiRequest::StagingValidityConstraints(para_id, tx),
+	))
+	.await;
+
+	Ok(rx.await.map_err(JfyiError::RuntimeApiRequestCanceled)??.map(From::from))
 }
 
 async fn fetch_upcoming_paras<Context>(

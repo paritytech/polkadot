@@ -56,6 +56,9 @@ pub enum Error {
 
 	#[error("Request to chain API subsystem dropped")]
 	ChainApiRequestCanceled(oneshot::Canceled),
+
+	#[error("Request to runtime API subsystem dropped")]
+	RuntimeApiRequestCanceled(oneshot::Canceled),
 }
 
 /// General `Result` type.
