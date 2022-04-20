@@ -73,3 +73,4 @@ rococo-native = ["service/rococo-native"]
 
 malus = ["full-node", "service/malus"]
 runtime-metrics = ["service/runtime-metrics", "polkadot-node-metrics/runtime-metrics"]
+staging-client = ["service/staging-client"]

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-#![cfg(feature = "improved-onchain-disputes-import")]
+#![cfg(feature = "staging-client")]
 
 use crate::LOG_TARGET;
 use futures::channel::oneshot;

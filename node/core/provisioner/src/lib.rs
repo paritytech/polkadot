@@ -722,7 +722,7 @@ async fn select_disputes(
 	// This is a staging feature, so if it is not enabled - create an empty HashSet by default. If it is
 	// enabled - the HashSet will be overriden with the on-chain data.
 	let onchain: HashSet<(SessionIndex, CandidateHash)> = HashSet::new();
-	#[cfg(feature = "improved-onchain-disputes-import")]
+	#[cfg(feature = "staging-client")]
 	let onchain = onchain_disputes::get_onchain_disputes(sender, leaf.hash.clone())
 		.await
 		.unwrap_or_default();
