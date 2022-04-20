@@ -33,7 +33,7 @@ use futures::{channel::oneshot, prelude::*};
 
 use polkadot_node_subsystem::{
 	messages::ChainApiMessage, overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
-	SubsystemContext,
+	SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
 use polkadot_node_subsystem_util::inclusion_emulator::staging::{Constraints, RelayChainBlockInfo};
 use polkadot_primitives::vstaging::{
@@ -129,6 +129,25 @@ struct View {
 impl View {
 	fn new() -> Self {
 		View { active_leaves: HashMap::new(), candidate_storage: HashMap::new() }
+	}
+}
+
+/// The prospective parachains subsystem.
+#[derive(Default)]
+pub struct ProspectiveParachainsSubsystem;
+
+impl<Context> overseer::Subsystem<Context, SubsystemError> for ProspectiveParachainsSubsystem
+where
+	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
+{
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		SpawnedSubsystem {
+			future: run(ctx)
+				.map_err(|e| SubsystemError::with_origin("prospective-parachains", e))
+				.boxed(),
+			name: "prospective-parachains-subsystem",
+		}
 	}
 }
 
@@ -255,8 +274,6 @@ where
 			let tree = FragmentTree::populate(scope, &*candidate_storage);
 			fragment_trees.insert(para, tree);
 		}
-
-		// TODO [now]: notify subsystems of new trees.
 
 		view.active_leaves.insert(hash, RelayBlockViewData { fragment_trees });
 	}
@@ -507,7 +524,6 @@ fn answer_tree_membership_request(
 	let _ = tx.send(membership);
 }
 
-#[allow(unused)] // TODO [now]
 async fn fetch_constraints<Context>(
 	ctx: &mut Context,
 	relay_parent: &Hash,
@@ -517,7 +533,6 @@ async fn fetch_constraints<Context>(
 	unimplemented!()
 }
 
-#[allow(unused)] // TODO [now]
 async fn fetch_upcoming_paras<Context>(
 	ctx: &mut Context,
 	relay_parent: &Hash,
