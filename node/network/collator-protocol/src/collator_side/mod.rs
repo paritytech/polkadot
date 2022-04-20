@@ -793,6 +793,15 @@ where
 			}
 		},
 		PreConnectAsCollator(relay_parent) => {
+			if !state.view.contains(&relay_parent) {
+				gum::warn!(
+					target: LOG_TARGET,
+					?relay_parent,
+					"PreConnectAsCollator message parent is outside of our view",
+				);
+				return Ok(())
+			}
+
 			let para_id = if let Some(para_id) = state.collating_on {
 				para_id
 			} else {
