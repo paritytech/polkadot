@@ -13,11 +13,11 @@ gum = { package = "tracing-gum", path = "../gum" }
 metered-channel = { path = "../metered-channel" }
 
 # Both `sc-service` and `sc-cli` are required by runtime metrics `logger_hook()`.
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20" }
 
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20" }
 codec = { package = "parity-scale-codec", version = "3.0.0" }
 primitives = { package = "polkadot-primitives", path = "../../primitives/" }
 bs58 = { version = "0.4.0", features = ["alloc"] }
@@ -30,10 +30,10 @@ tempfile = "3.2.0"
 hyper = { version = "0.14.18", default-features = false, features = ["http1", "tcp"] }
 tokio = "1.17.0"
 polkadot-test-service = { path = "../test/service", features=["runtime-metrics"]}
-substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.20" }
 prometheus-parse = {version = "0.2.2"}
 
 [features]
