@@ -32,7 +32,9 @@ use std::collections::{HashMap, HashSet};
 use futures::{channel::oneshot, prelude::*};
 
 use polkadot_node_subsystem::{
-	messages::{ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest},
+	messages::{
+		ChainApiMessage, ProspectiveParachainsSubsystem, RuntimeApiMessage, RuntimeApiRequest,
+	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError,
 };
@@ -82,40 +84,6 @@ pub struct HypotheticalDepthRequest {
 /// Indicates the relay-parents whose fragment tree the candidate
 /// is present in and the depths of that tree the candidate is present in.
 pub type CandidateMembership = Vec<(Hash, Vec<usize>)>;
-
-// TODO [now]: add this enum to the broader subsystem types.
-/// Messages sent to the Prospective Parachains subsystem.
-pub enum ProspectiveParachainsMessage {
-	/// Inform the Prospective Parachains Subsystem of a new candidate.
-	///
-	/// The response sender accepts the candidate membership, which is empty
-	/// if the candidate was already known.
-	CandidateSeconded(
-		ParaId,
-		CommittedCandidateReceipt,
-		PersistedValidationData,
-		oneshot::Sender<CandidateMembership>,
-	),
-	/// Inform the Prospective Parachains Subsystem that a previously seconded candidate
-	/// has been backed. This requires that `CandidateSeconded` was sent for the candidate
-	/// some time in the past.
-	CandidateBacked(ParaId, CandidateHash),
-	/// Get a backable candidate hash for the given parachain, under the given relay-parent hash,
-	/// which is a descendant of the given candidate hashes. Returns `None` on the channel
-	/// if no such candidate exists.
-	GetBackableCandidate(Hash, ParaId, Vec<CandidateHash>, oneshot::Sender<Option<CandidateHash>>),
-	/// Get the hypothetical depths that a candidate with the given properties would
-	/// occupy in the fragment tree for the given relay-parent.
-	///
-	/// If the candidate is already known, this returns the depths the candidate
-	/// occupies.
-	///
-	/// Returns an empty vector either if there is no such depth or the fragment tree relay-parent
-	/// is unknown.
-	GetHypotheticalDepth(HypotheticalDepthRequest, oneshot::Sender<Vec<usize>>),
-	/// Get the membership of the candidate in all fragment trees.
-	GetTreeMembership(ParaId, CandidateHash, oneshot::Sender<CandidateMembership>),
-}
 
 struct RelayBlockViewData {
 	// Scheduling info for paras and upcoming paras.
