@@ -694,8 +694,6 @@ pub enum RuntimeApiRequest {
 		RuntimeApiSender<Option<ValidationCodeHash>>,
 	),
 	/// Returns all on-chain disputes at given block number.
-	// TODO: Do we need `DisputeState`
-	// TODO: Add staging prefix?
 	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
 }
 

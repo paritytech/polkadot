@@ -47,7 +47,7 @@ const ON_CHAIN_VOTES_CACHE_SIZE: usize = 3 * 1024;
 const PVFS_REQUIRE_PRECHECK_SIZE: usize = 1024;
 const VALIDATION_CODE_HASH_CACHE_SIZE: usize = 64 * 1024;
 const VERSION_CACHE_SIZE: usize = 4 * 1024;
-const DISPUTES_CACHE_SIZE: usize = 64 * 1024; // TODO: How much??
+const DISPUTES_CACHE_SIZE: usize = 64 * 1024;
 
 struct ResidentSizeOf<T>(T);
 
