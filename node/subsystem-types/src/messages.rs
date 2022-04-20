@@ -936,6 +936,25 @@ pub enum GossipSupportMessage {
 #[derive(Debug)]
 pub enum PvfCheckerMessage {}
 
+/// A request for the depths a hypothetical candidate would occupy within
+/// some fragment tree.
+pub struct HypotheticalDepthRequest {
+	/// The hash of the potential candidate.
+	pub candidate_hash: CandidateHash,
+	/// The para of the candidate.
+	pub candidate_para: ParaId,
+	/// The hash of the parent head-data of the candidate.
+	pub parent_head_data_hash: Hash,
+	/// The relay-parent of the candidate.
+	pub candidate_relay_parent: Hash,
+	/// The relay-parent of the fragment tree we are comparing to.
+	pub fragment_tree_relay_parent: Hash,
+}
+
+/// Indicates the relay-parents whose fragment tree a candidate
+/// is present in and the depths of that tree the candidate is present in.
+pub type FragmentTreeMembership = Vec<(Hash, Vec<usize>)>;
+
 /// Messages sent to the Prospective Parachains subsystem.
 #[derive(Debug)]
 pub enum ProspectiveParachainsMessage {
