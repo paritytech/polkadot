@@ -332,7 +332,7 @@ impl<S: SpawnNamed + Clone> polkadot_node_primitives::Collator for Collator<S> {
 		self.clone().create_collation(relay_parent, validation_data)
 	}
 
-	async fn is_collating_on_child(&self, _: Hash, _: &PersistedValidationData) -> bool {
+	async fn is_collating(&self, _: Hash, _: &PersistedValidationData) -> bool {
 		false
 	}
 }

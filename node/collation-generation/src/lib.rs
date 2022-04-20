@@ -256,21 +256,21 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				},
 			};
 
-			if core.is_occupied() {
-				if config.collator.is_collating_on_child(relay_parent, &validation_data).await {
-					let _ = ctx
-						.send_message(AllMessages::CollatorProtocol(
-							CollatorProtocolMessage::PreConnectAsCollator(relay_parent),
-						))
-						.await;
-					gum::debug!(
-						target: LOG_TARGET,
-						para_id = %core_para_id,
-						relay_parent = ?relay_parent,
-						"Sent pre-connect request",
-					);
-				}
+			if config.collator.is_collating(relay_parent, &validation_data).await {
+				let _ = ctx
+					.send_message(AllMessages::CollatorProtocol(
+						CollatorProtocolMessage::PreConnectAsCollator(relay_parent),
+					))
+					.await;
+				gum::debug!(
+					target: LOG_TARGET,
+					para_id = %core_para_id,
+					relay_parent = ?relay_parent,
+					"Sent pre-connect request",
+				);
+			}
 
+			if core.is_occupied() {
 				// TODO: https://github.com/paritytech/polkadot/issues/1573
 				gum::trace!(
 					target: LOG_TARGET,

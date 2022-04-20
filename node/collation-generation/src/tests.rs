@@ -69,7 +69,7 @@ mod handle_new_activations {
 			Some(CollationResult { collation: test_collation(), result_sender: None })
 		}
 
-		async fn is_collating_on_child(&self, _: Hash, _: &PersistedValidationData) -> bool {
+		async fn is_collating(&self, _: Hash, _: &PersistedValidationData) -> bool {
 			false
 		}
 	}

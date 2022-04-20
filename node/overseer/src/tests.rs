@@ -840,7 +840,7 @@ impl Collator for TestCollator {
 		panic!("at the Disco")
 	}
 
-	async fn is_collating_on_child(&self, _: Hash, _: &PersistedValidationData) -> bool {
+	async fn is_collating(&self, _: Hash, _: &PersistedValidationData) -> bool {
 		false
 	}
 }

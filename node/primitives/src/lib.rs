@@ -324,7 +324,7 @@ pub struct CollationSecondedSignal {
 	pub statement: SignedFullStatement,
 }
 
-/// Result of the [`Collator::produce_candidate`] invocation.
+/// Result of the [`Collator::produce_collation`] invocation.
 #[cfg(not(target_os = "unknown"))]
 pub struct CollationResult {
 	/// The collation that was build.
@@ -363,12 +363,14 @@ pub trait Collator: Send + Sync {
 		validation_data: &PersistedValidationData,
 	) -> Option<CollationResult>;
 
-	/// If a parachain consensus allows it (e.g. AuRa), figure out whether a collator is going to produce a
-	/// candidate on the child of the given relay parent. This allows a node to issue pre-connect requests
-	/// to a validators group.
+	/// If a parachain consensus allows it, figure out whether a collator is going to produce a
+	/// candidate based **on the child** of the given relay parent.
+	///
+	/// If the above is not possible, but a collator is aware it's going to produce a candidate
+	/// based **on relay parent**, should also return `true`.
 	///
 	/// Otherwise, should always return `false`.
-	async fn is_collating_on_child(
+	async fn is_collating(
 		&self,
 		relay_parent: Hash,
 		validation_data: &PersistedValidationData,
