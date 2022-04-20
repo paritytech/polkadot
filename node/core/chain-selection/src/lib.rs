@@ -363,7 +363,7 @@ async fn run<Context, B>(
 		match res {
 			Err(e) => {
 				e.trace();
-				// All errors right now are considered fatal:
+				// All errors are considered fatal right now:
 				break
 			},
 			Ok(()) => {

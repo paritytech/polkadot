@@ -1,19 +1,23 @@
 //! A dummy to be used with cargo expand
 
 use polkadot_node_network_protocol::WrongVariant;
-use polkadot_overseer_gen::*;
+use polkadot_overseer_gen::{SpawnNamed, *};
 use std::collections::HashMap;
 
 /// Concrete subsystem implementation for `MsgStrukt` msg type.
 #[derive(Default)]
 pub struct AwesomeSubSys;
 
-impl ::polkadot_overseer_gen::Subsystem<AwesomeSubSysContext, Yikes> for AwesomeSubSys {
-	fn start(self, mut ctx: AwesomeSubSysContext) -> SpawnedSubsystem<Yikes> {
+impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<MsgStrukt>, Yikes> for AwesomeSubSys {
+	fn start(self, mut ctx: XxxSubsystemContext<MsgStrukt>) -> SpawnedSubsystem<Yikes> {
 		let mut sender = ctx.sender().clone();
-
-		ctx.spawn("awesome", Box::pin(async move { sender.send_message(Plinko).await }))
-			.unwrap();
+		ctx.spawn(
+			"AwesomeSubsys",
+			Box::pin(async move {
+				sender.send_message(Plinko).await;
+			}),
+		)
+		.unwrap();
 		unimplemented!("starting yay!")
 	}
 }
@@ -21,11 +25,16 @@ impl ::polkadot_overseer_gen::Subsystem<AwesomeSubSysContext, Yikes> for Awesome
 #[derive(Default)]
 pub struct GoblinTower;
 
-impl ::polkadot_overseer_gen::Subsystem<GoblinTowerContext, Yikes> for GoblinTower {
-	fn start(self, mut ctx: GoblinTowerContext) -> SpawnedSubsystem<Yikes> {
+impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<Plinko>, Yikes> for GoblinTower {
+	fn start(self, mut ctx: XxxSubsystemContext<Plinko>) -> SpawnedSubsystem<Yikes> {
 		let mut sender = ctx.sender().clone();
-		ctx.spawn("awesome", Box::pin(async move { sender.send_message(MsgStrukt(0u8)).await }))
-			.unwrap();
+		ctx.spawn(
+			"GoblinTower",
+			Box::pin(async move {
+				sender.send_message(MsgStrukt(8u8)).await;
+			}),
+		)
+		.unwrap();
 		unimplemented!("welcum")
 	}
 }
@@ -96,11 +105,11 @@ impl NetworkMsg {
 }
 
 #[overlord(signal=SigSigSig, event=EvX, error=Yikes, network=NetworkMsg, gen=AllMessages)]
-struct Yyy<T> {
-	#[subsystem(consumes: MsgStrukt, sends: Plinko)]
+struct Xxx<T> {
+	#[subsystem(consumes: MsgStrukt, sends: [Plinko])]
 	sub0: AwesomeSubSys,
 
-	#[subsystem(no_dispatch, blocking, consumes: Plinko, sends: MsgStrukt)]
+	#[subsystem(no_dispatch, blocking, consumes: Plinko, sends: [MsgStrukt])]
 	plinkos: GoblinTower,
 
 	i_like_pi: f64,
@@ -135,7 +144,7 @@ impl SpawnNamed for DummySpawner {
 struct DummyCtx;
 
 fn main() {
-	let (overseer, _handle): (Yyy<_, f64>, _) = Yyy::builder()
+	let (overseer, _handle): (Xxx<_, f64>, _) = Xxx::builder()
 		.sub0(AwesomeSubSys::default())
 		.plinkos(GoblinTower::default())
 		.i_like_pi(::std::f64::consts::PI)

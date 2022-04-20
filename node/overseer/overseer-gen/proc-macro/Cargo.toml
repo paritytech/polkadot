@@ -23,7 +23,7 @@ petgraph = "0.6.0"
 assert_matches = "1.5.0"
 
 [features]
-default = ["expand"]
+default = ["graph", "expand"]
 # write the expanded version to a `overlord-expansion.[a-f0-9]{10}.rs`
 # in the `OUT_DIR` as defined by `cargo` for the `expander` crate.
 expand = []

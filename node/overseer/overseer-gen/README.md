@@ -63,10 +63,10 @@ is not ready to be included in the Overseer:
 ```rust
     #[overlord(signal=SigSigSig, event=Event, gen=AllMessages, error=OverseerError)]
     pub struct Overseer {
-        #[subsystem(MsgA)]
+        #[subsystem(MsgA, sends: MsgB)]
         sub_a: AwesomeSubSysA,
 
-        #[subsystem(MsgB), wip]
+        #[subsystem(MsgB, sends: MsgA), wip]
         sub_b: AwesomeSubSysB, // This subsystem will not be required nor allowed to be set
     }
 ```

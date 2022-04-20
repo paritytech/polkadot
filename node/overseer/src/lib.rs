@@ -418,67 +418,73 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 	message_capacity=2048,
 )]
 pub struct Overseer<SupportsParachains> {
-	#[subsystem(no_dispatch, CandidateValidationMessage)]
+	#[subsystem(no_dispatch, CandidateValidationMessage, sends: [])]
 	candidate_validation: CandidateValidation,
 
-	#[subsystem(no_dispatch, PvfCheckerMessage)]
+	#[subsystem(no_dispatch, PvfCheckerMessage, sends: [])]
 	pvf_checker: PvfChecker,
 
-	#[subsystem(no_dispatch, CandidateBackingMessage)]
+	#[subsystem(no_dispatch, CandidateBackingMessage, sends: [
+		CandidateValidationMessage,
+		CollatorProtocolMessage,
+		AvailabilityDistributionMessage,
+		StatementDistributionMessage,
+		ProvisionerMessage,
+	])]
 	candidate_backing: CandidateBacking,
 
-	#[subsystem(StatementDistributionMessage)]
+	#[subsystem(StatementDistributionMessage, sends: [])]
 	statement_distribution: StatementDistribution,
 
-	#[subsystem(no_dispatch, AvailabilityDistributionMessage)]
+	#[subsystem(no_dispatch, AvailabilityDistributionMessage, sends: [])]
 	availability_distribution: AvailabilityDistribution,
 
-	#[subsystem(no_dispatch, AvailabilityRecoveryMessage)]
+	#[subsystem(no_dispatch, AvailabilityRecoveryMessage, sends: [])]
 	availability_recovery: AvailabilityRecovery,
 
-	#[subsystem(blocking, no_dispatch, BitfieldSigningMessage)]
+	#[subsystem(blocking, no_dispatch, BitfieldSigningMessage, sends: [])]
 	bitfield_signing: BitfieldSigning,
 
-	#[subsystem(BitfieldDistributionMessage)]
+	#[subsystem(BitfieldDistributionMessage, sends: [])]
 	bitfield_distribution: BitfieldDistribution,
 
-	#[subsystem(no_dispatch, ProvisionerMessage)]
+	#[subsystem(no_dispatch, ProvisionerMessage, sends: [])]
 	provisioner: Provisioner,
 
-	#[subsystem(no_dispatch, blocking, RuntimeApiMessage)]
+	#[subsystem(no_dispatch, blocking, RuntimeApiMessage, sends: [])]
 	runtime_api: RuntimeApi,
 
-	#[subsystem(no_dispatch, blocking, AvailabilityStoreMessage)]
+	#[subsystem(no_dispatch, blocking, AvailabilityStoreMessage, sends: [])]
 	availability_store: AvailabilityStore,
 
-	#[subsystem(no_dispatch, NetworkBridgeMessage)]
+	#[subsystem(no_dispatch, NetworkBridgeMessage, sends: [])]
 	network_bridge: NetworkBridge,
 
-	#[subsystem(no_dispatch, blocking, ChainApiMessage)]
+	#[subsystem(no_dispatch, blocking, ChainApiMessage, sends: [])]
 	chain_api: ChainApi,
 
-	#[subsystem(no_dispatch, CollationGenerationMessage)]
+	#[subsystem(no_dispatch, CollationGenerationMessage, sends: [])]
 	collation_generation: CollationGeneration,
 
-	#[subsystem(no_dispatch, CollatorProtocolMessage)]
+	#[subsystem(no_dispatch, CollatorProtocolMessage, sends: [])]
 	collator_protocol: CollatorProtocol,
 
-	#[subsystem(ApprovalDistributionMessage)]
+	#[subsystem(ApprovalDistributionMessage, sends: [])]
 	approval_distribution: ApprovalDistribution,
 
-	#[subsystem(no_dispatch, blocking, ApprovalVotingMessage)]
+	#[subsystem(no_dispatch, blocking, ApprovalVotingMessage, sends: [])]
 	approval_voting: ApprovalVoting,
 
-	#[subsystem(GossipSupportMessage)]
+	#[subsystem(GossipSupportMessage, sends: [])]
 	gossip_support: GossipSupport,
 
-	#[subsystem(no_dispatch, blocking, DisputeCoordinatorMessage)]
+	#[subsystem(no_dispatch, blocking, DisputeCoordinatorMessage, sends: [])]
 	dispute_coordinator: DisputeCoordinator,
 
-	#[subsystem(no_dispatch, DisputeDistributionMessage)]
+	#[subsystem(no_dispatch, DisputeDistributionMessage, sends: [])]
 	dispute_distribution: DisputeDistribution,
 
-	#[subsystem(no_dispatch, blocking, ChainSelectionMessage)]
+	#[subsystem(no_dispatch, blocking, ChainSelectionMessage, sends: [])]
 	chain_selection: ChainSelection,
 
 	/// External listeners waiting for a hash to be in the active-leave set.

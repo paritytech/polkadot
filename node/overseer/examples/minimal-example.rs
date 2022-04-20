@@ -31,7 +31,7 @@ use polkadot_overseer::{
 	self as overseer,
 	dummy::dummy_overseer_builder,
 	gen::{FromOverseer, SpawnedSubsystem},
-	AllMessages, HeadSupportsParachains, OverseerSignal, SubsystemError,
+	HeadSupportsParachains, OverseerSignal, SubsystemError,
 };
 use polkadot_primitives::v2::{CandidateReceipt, Hash};
 
@@ -49,11 +49,7 @@ struct Subsystem1;
 impl Subsystem1 {
 	async fn run<Ctx>(mut ctx: Ctx) -> ()
 	where
-		Ctx: overseer::SubsystemContext<
-			Message = CandidateBackingMessage,
-			AllMessages = AllMessages,
-			Signal = OverseerSignal,
-		>,
+		Ctx: overseer::SubsystemContext<Message = CandidateBackingMessage, Signal = OverseerSignal>,
 	{
 		'louy: loop {
 			match ctx.try_recv().await {
@@ -84,8 +80,7 @@ impl Subsystem1 {
 				Default::default(),
 				tx,
 			);
-			ctx.send_message(<Ctx as overseer::SubsystemContext>::AllMessages::from(msg))
-				.await;
+			ctx.send_message(msg).await;
 		}
 		()
 	}
@@ -93,11 +88,7 @@ impl Subsystem1 {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for Subsystem1
 where
-	Context: overseer::SubsystemContext<
-		Message = CandidateBackingMessage,
-		AllMessages = AllMessages,
-		Signal = OverseerSignal,
-	>,
+	Context: overseer::SubsystemContext<Message = CandidateBackingMessage, Signal = OverseerSignal>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
@@ -118,7 +109,6 @@ impl Subsystem2 {
 	where
 		Ctx: overseer::SubsystemContext<
 			Message = CandidateValidationMessage,
-			AllMessages = AllMessages,
 			Signal = OverseerSignal,
 		>,
 	{
@@ -153,11 +143,8 @@ impl Subsystem2 {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for Subsystem2
 where
-	Context: overseer::SubsystemContext<
-		Message = CandidateValidationMessage,
-		AllMessages = AllMessages,
-		Signal = OverseerSignal,
-	>,
+	Context:
+		overseer::SubsystemContext<Message = CandidateValidationMessage, Signal = OverseerSignal>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
