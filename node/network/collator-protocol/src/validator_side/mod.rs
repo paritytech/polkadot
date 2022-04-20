@@ -909,20 +909,17 @@ async fn process_incoming_peer_message<Context>(
 				);
 
 				peer_data.set_collating(collator_id, para_id);
+			} else if state.active_paras.is_next(&para_id) {
+				gum::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					?collator_id,
+					?para_id,
+					"Declared as collator for the next rotation",
+				);
+
+				peer_data.set_collating(collator_id, para_id);
 			} else {
-				if state.active_paras.is_next(&para_id) {
-					gum::debug!(
-						target: LOG_TARGET,
-						peer_id = ?origin,
-						?collator_id,
-						?para_id,
-						"Declared as collator for the next rotation",
-					);
-
-					peer_data.set_collating(collator_id, para_id);
-					return
-				}
-
 				gum::debug!(
 					target: LOG_TARGET,
 					peer_id = ?origin,
