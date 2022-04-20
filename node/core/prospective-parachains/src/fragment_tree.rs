@@ -66,10 +66,15 @@ use polkadot_primitives::vstaging::{
 	Id as ParaId, PersistedValidationData,
 };
 
-/// An error indicating that a supplied candidate didn't match the persisted
-/// validation data provided alongside it.
+/// Kinds of failures to import a candidate into storage.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct PersistedValidationDataMismatch;
+pub enum CandidateStorageInsertionError {
+	/// An error indicating that a supplied candidate didn't match the persisted
+	/// validation data provided alongside it.
+	PersistedValidationDataMismatch,
+	/// The candidate was already known.
+	CandidateAlreadyKnown(CandidateHash),
+}
 
 pub(crate) struct CandidateStorage {
 	// Index from parent head hash to candidate hashes.
@@ -91,15 +96,15 @@ impl CandidateStorage {
 		&mut self,
 		candidate: CommittedCandidateReceipt,
 		persisted_validation_data: PersistedValidationData,
-	) -> Result<CandidateHash, PersistedValidationDataMismatch> {
+	) -> Result<CandidateHash, CandidateStorageInsertionError> {
 		let candidate_hash = candidate.hash();
 
 		if self.by_candidate_hash.contains_key(&candidate_hash) {
-			return Ok(candidate_hash)
+			return Err(CandidateStorageInsertionError::CandidateAlreadyKnown(candidate_hash))
 		}
 
 		if persisted_validation_data.hash() != candidate.descriptor.persisted_validation_data_hash {
-			return Err(PersistedValidationDataMismatch)
+			return Err(CandidateStorageInsertionError::PersistedValidationDataMismatch)
 		}
 
 		let parent_head_hash = persisted_validation_data.parent_head.hash();
@@ -381,6 +386,11 @@ impl FragmentTree {
 		self.candidates.keys().cloned()
 	}
 
+	/// Whether the candidate exists and at what depths.
+	pub(crate) fn candidate(&self, candidate: &CandidateHash) -> Option<Vec<usize>> {
+		self.candidates.get(candidate).map(|d| d.iter_ones().collect())
+	}
+
 	/// Add a candidate and recursively populate from storage.
 	pub(crate) fn add_and_populate(&mut self, hash: CandidateHash, storage: &CandidateStorage) {
 		let candidate_entry = match storage.get(&hash) {
@@ -635,7 +645,6 @@ impl FragmentTree {
 	}
 }
 
-#[allow(unused)] // TODO [now]
 struct FragmentNode {
 	// A pointer to the parent node.
 	parent: NodePointer,
@@ -648,7 +657,6 @@ struct FragmentNode {
 	children: Vec<(NodePointer, CandidateHash)>,
 }
 
-#[allow(unused)] // TODO [now]
 impl FragmentNode {
 	fn relay_parent(&self) -> Hash {
 		self.fragment.relay_parent().hash

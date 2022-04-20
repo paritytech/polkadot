@@ -77,11 +77,23 @@ pub struct HypotheticalDepthRequest {
 	pub fragment_tree_relay_parent: Hash,
 }
 
+/// Indicates the relay-parents whose fragment tree the candidate
+/// is present in and the depths of that tree the candidate is present in.
+pub type CandidateMembership = Vec<(Hash, Vec<usize>)>;
+
 // TODO [now]: add this enum to the broader subsystem types.
 /// Messages sent to the Prospective Parachains subsystem.
 pub enum ProspectiveParachainsMessage {
 	/// Inform the Prospective Parachains Subsystem of a new candidate.
-	CandidateSeconded(ParaId, CommittedCandidateReceipt, PersistedValidationData),
+	///
+	/// The response sender accepts the candidate membership, which is empty
+	/// if the candidate was already known.
+	CandidateSeconded(
+		ParaId,
+		CommittedCandidateReceipt,
+		PersistedValidationData,
+		oneshot::Sender<CandidateMembership>,
+	),
 	/// Inform the Prospective Parachains Subsystem that a previously seconded candidate
 	/// has been backed. This requires that `CandidateSeconded` was sent for the candidate
 	/// some time in the past.
@@ -146,8 +158,8 @@ where
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
 			FromOverseer::Communication { msg } => match msg {
-				ProspectiveParachainsMessage::CandidateSeconded(para, candidate, pvd) =>
-					handle_candidate_seconded(&mut *ctx, view, para, candidate, pvd).await?,
+				ProspectiveParachainsMessage::CandidateSeconded(para, candidate, pvd, tx) =>
+					handle_candidate_seconded(&mut *ctx, view, para, candidate, pvd, tx).await?,
 				ProspectiveParachainsMessage::CandidateBacked(para, candidate_hash) =>
 					handle_candidate_backed(&mut *ctx, view, para, candidate_hash).await?,
 				ProspectiveParachainsMessage::GetBackableCandidate(
@@ -284,6 +296,7 @@ async fn handle_candidate_seconded<Context>(
 	para: ParaId,
 	candidate: CommittedCandidateReceipt,
 	pvd: PersistedValidationData,
+	tx: oneshot::Sender<CandidateMembership>,
 ) -> JfyiErrorResult<()>
 where
 	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
@@ -300,6 +313,7 @@ where
 				"Received seconded candidate for inactive para",
 			);
 
+			let _ = tx.send(Vec::new());
 			return Ok(())
 		},
 		Some(storage) => storage,
@@ -307,7 +321,13 @@ where
 
 	let candidate_hash = match storage.add_candidate(candidate, pvd) {
 		Ok(c) => c,
-		Err(crate::fragment_tree::PersistedValidationDataMismatch) => {
+		Err(crate::fragment_tree::CandidateStorageInsertionError::CandidateAlreadyKnown(_)) => {
+			let _ = tx.send(Vec::new());
+			return Ok(())
+		},
+		Err(
+			crate::fragment_tree::CandidateStorageInsertionError::PersistedValidationDataMismatch,
+		) => {
 			// We can't log the candidate hash without either doing more ~expensive
 			// hashing but this branch indicates something is seriously wrong elsewhere
 			// so it's doubtful that it would affect debugging.
@@ -318,16 +338,21 @@ where
 				"Received seconded candidate had mismatching validation data",
 			);
 
+			let _ = tx.send(Vec::new());
 			return Ok(())
 		},
 	};
 
-	for (_, leaf_data) in &mut view.active_leaves {
+	let mut membership = Vec::new();
+	for (relay_parent, leaf_data) in &mut view.active_leaves {
 		if let Some(tree) = leaf_data.fragment_trees.get_mut(&para) {
 			tree.add_and_populate(candidate_hash, &*storage);
-			// TODO [now]: notify other subsystems of changes.
+			if let Some(depths) = tree.candidate(&candidate_hash) {
+				membership.push((*relay_parent, depths));
+			}
 		}
 	}
+	let _ = tx.send(membership);
 
 	Ok(())
 }
