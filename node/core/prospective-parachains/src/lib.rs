@@ -618,5 +618,3 @@ struct MetricsInner;
 /// Prospective parachain metrics.
 #[derive(Default, Clone)]
 pub struct Metrics(Option<MetricsInner>);
-
-// TODO [now]: impl metrics
