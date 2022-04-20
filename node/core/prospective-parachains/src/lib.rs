@@ -39,6 +39,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::inclusion_emulator::staging::{Constraints, RelayChainBlockInfo};
 use polkadot_primitives::vstaging::{
 	CandidateHash, CommittedCandidateReceipt, Hash, Id as ParaId, PersistedValidationData,
+	CoreState,
 };
 
 use crate::{
@@ -218,7 +219,7 @@ where
 
 	for activated in update.activated.into_iter() {
 		let hash = activated.hash;
-		let scheduled_paras = fetch_upcoming_paras(&mut *ctx, &hash).await?;
+		let scheduled_paras = fetch_upcoming_paras(&mut *ctx, hash).await?;
 
 		let block_info: RelayChainBlockInfo = match fetch_block_info(&mut *ctx, hash).await? {
 			None => {
@@ -545,10 +546,41 @@ where
 
 async fn fetch_upcoming_paras<Context>(
 	ctx: &mut Context,
-	relay_parent: &Hash,
-) -> JfyiErrorResult<Vec<ParaId>> {
-	// TODO [now]: use `availability_cores` or something like it.
-	unimplemented!()
+	relay_parent: Hash,
+) -> JfyiErrorResult<Vec<ParaId>>
+where
+	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
+{
+	let (tx, rx) = oneshot::channel();
+
+	// This'll have to get more sophisticated with parathreads,
+	// but for now we can just use the `AvailabilityCores`.
+	ctx.send_message(RuntimeApiMessage::Request(
+		relay_parent,
+		RuntimeApiRequest::AvailabilityCores(tx),
+	)).await;
+
+	let cores = rx.await.map_err(JfyiError::RuntimeApiRequestCanceled)??;
+	let mut upcoming = HashSet::new();
+	for core in cores {
+		match core {
+			CoreState::Occupied(occupied) => {
+				if let Some(next_up_on_available) = occupied.next_up_on_available {
+					upcoming.insert(next_up_on_available.para_id);
+				}
+				if let Some(next_up_on_time_out) = occupied.next_up_on_time_out {
+					upcoming.insert(next_up_on_time_out.para_id);
+				}
+			}
+			CoreState::Scheduled(scheduled) => {
+				upcoming.insert(scheduled.para_id);
+			}
+			CoreState::Free => {}
+		}
+	}
+
+	Ok(upcoming.into_iter().collect())
 }
 
 // Fetch ancestors in descending order, up to the amount requested.
