@@ -9,8 +9,11 @@ use std::collections::HashMap;
 pub struct AwesomeSubSys;
 
 impl ::polkadot_overseer_gen::Subsystem<AwesomeSubSysContext, Yikes> for AwesomeSubSys {
-	fn start(self, ctx: AwesomeSubSysContext) -> SpawnedSubsystem<Yikes> {
-		ctx.spawn("awesome", Box::pin(async move { ctx.send_message(Plinko).await }));
+	fn start(self, mut ctx: AwesomeSubSysContext) -> SpawnedSubsystem<Yikes> {
+		let mut sender = ctx.sender().clone();
+
+		ctx.spawn("awesome", Box::pin(async move { sender.send_message(Plinko).await }))
+			.unwrap();
 		unimplemented!("starting yay!")
 	}
 }
@@ -19,8 +22,10 @@ impl ::polkadot_overseer_gen::Subsystem<AwesomeSubSysContext, Yikes> for Awesome
 pub struct GoblinTower;
 
 impl ::polkadot_overseer_gen::Subsystem<GoblinTowerContext, Yikes> for GoblinTower {
-	fn start(self, ctx: GoblinTowerContext) -> SpawnedSubsystem<Yikes> {
-		ctx.spawn("awesome", Box::pin(async move { ctx.send_message(MsgStrukt(0u8)).await }));
+	fn start(self, mut ctx: GoblinTowerContext) -> SpawnedSubsystem<Yikes> {
+		let mut sender = ctx.sender().clone();
+		ctx.spawn("awesome", Box::pin(async move { sender.send_message(MsgStrukt(0u8)).await }))
+			.unwrap();
 		unimplemented!("welcum")
 	}
 }
