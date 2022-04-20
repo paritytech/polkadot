@@ -16,13 +16,5 @@
 
 //! Staging Primitives.
 
-use parity_scale_codec::{Decode, Encode};
-
+// Put any primitives used by staging API functions here
 pub use crate::v2::*;
-
-sp_api::decl_runtime_apis! {
-	/// The API for querying the state of parachains on-chain.
-	// In the staging API, this is u32::MAX.
-	#[api_version(4294967295)]
-	pub trait ParachainHost<H: Encode + Decode = Hash, N: Encode + Decode = BlockNumber> {}
-}
