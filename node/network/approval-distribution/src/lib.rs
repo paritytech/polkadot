@@ -2021,6 +2021,31 @@ impl ApprovalDistribution {
 		self.run_inner(ctx, pool).await
 	}
 
+	fn handle_incoming(msg: &ApprovalDistributionMessage, worker_count: usize) -> Option<usize> {
+		// Ensure approval and assigments are serialized on the same worker via candidate index.
+		match msg {
+			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					"Distributing our assignment on candidate (block={}, index={})",
+					cert.block_hash,
+					candidate_index,
+				);
+				Some(*candidate_index as usize % worker_count)
+			},
+			ApprovalDistributionMessage::DistributeApproval(vote) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					"Distributing our approval vote on candidate (block={}, index={})",
+					vote.block_hash,
+					vote.candidate_index,
+				);
+				Some(vote.candidate_index as usize % worker_count)
+			},
+			_ => None,
+		}
+	}
+
 	/// Used for testing.
 	async fn run_inner<Context>(
 		self,
@@ -2032,7 +2057,6 @@ impl ApprovalDistribution {
 	{
 		let mut index = 0usize;
 		loop {
-			// We need to compute the worker shard index.
 			let message = match ctx.recv().await {
 				Ok(message) => message,
 				Err(e) => {
@@ -2041,14 +2065,20 @@ impl ApprovalDistribution {
 				},
 			};
 
-			let worker_index = index % WORKER_COUNT as usize;
+			// See if we need any specific worker to handle this to ensure strict message processing ordering.
+			let preferred_worker_index = match &message {
+				FromOverseer::Communication { msg } => Self::handle_incoming(msg, WORKER_COUNT),
+				_ => None,
+			};
+
+			let worker_index = preferred_worker_index.unwrap_or(index % WORKER_COUNT as usize);
 
 			gum::debug!(target: LOG_TARGET, ?worker_index, ?message, "Sending message to worker");
 
 			match pool[worker_index].send(message).await {
 				Ok(_) => {},
 				Err(err) => {
-					gum::warn!(target: LOG_TARGET, ?err, "Failed to send a message to a worker");
+					gum::warn!(target: LOG_TARGET, ?err,?worker_index, "Failed to send a message to worker");
 				},
 			}
 
