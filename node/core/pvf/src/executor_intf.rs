@@ -92,7 +92,7 @@ pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error
 }
 
 /// Runs preparation on the given runtime blob. If successful, it returns a serialized compiled
-/// artifact which can then be used to pass into [`execute`].
+/// artifact which can then be used to pass into [`execute`] after writing it to the disk.
 pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::WasmError> {
 	sc_executor_wasmtime::prepare_runtime_artifact(blob, &CONFIG.semantics)
 }
@@ -102,8 +102,14 @@ pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::
 ///
 /// # Safety
 ///
-/// The compiled artifact must be produced with [`prepare`]. Not following this guidance can lead
-/// to arbitrary code execution.
+/// The caller must ensure that the compiled artifact passed here was:
+///   1) produced by [`prepare`],
+///   2) written to the disk as a file,
+///   3) was not modified,
+///   4) will not be modified while any runtime using this artifact is alive, or is being
+///      instantiated.
+///
+/// Failure to adhere to these requirements might lead to crashes and arbitrary code execution.
 pub unsafe fn execute(
 	compiled_artifact_path: &Path,
 	params: &[u8],
