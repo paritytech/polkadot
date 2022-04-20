@@ -973,7 +973,7 @@ where
 		PeerMessage(remote, Versioned::V1(msg)) => {
 			handle_incoming_peer_message(ctx, runtime, state, remote, msg).await?;
 		},
-		NewGossipTopology(..) => {
+		NewGossipTopology { .. } => {
 			// impossible!
 		},
 	}

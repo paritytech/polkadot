@@ -1091,7 +1091,7 @@ where
 			state.peer_data.remove(&peer_id);
 			state.metrics.note_collator_peer_count(state.peer_data.len());
 		},
-		NewGossipTopology(..) => {
+		NewGossipTopology { .. } => {
 			// impossible!
 		},
 		PeerViewChange(peer_id, view) => {
