@@ -1405,9 +1405,15 @@ pub fn revert(
 	let revertible = blocks.min(best_number - finalized);
 
 	let number = best_number - revertible;
-	let hash = client.block_hash_from_id(&BlockId::Number(number))?.unwrap(); // TODO : FIXME
+	let hash = client.block_hash_from_id(&BlockId::Number(number))?.ok_or(
+		sp_blockchain::Error::Backend(format!(
+			"Unexpected hash lookup failure for block number: {}",
+			number
+		)),
+	)?;
 
-	let parachains_db = open_database(&config.database).unwrap();
+	let parachains_db = open_database(&config.database)
+		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))?;
 
 	let config = chain_selection_subsystem::Config {
 		col_data: parachains_db::REAL_COLUMNS.col_chain_selection_data,
