@@ -20,6 +20,7 @@ use ::test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code};
 use futures::channel::oneshot;
 use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
+use polkadot_primitives::vstaging;
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, BlockNumber, CandidateEvent, CandidateHash, CommittedCandidateReceipt,
 	CoreState, DisputeState, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
@@ -193,6 +194,10 @@ sp_api::mock_impl_runtime_apis! {
 
 		fn staging_get_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
 			unimplemented!()
+		}
+
+		fn staging_validity_constraints(para_id: ParaId) -> Option<vstaging::Constraints> {
+			unimplemented!("Staging API not implemented");
 		}
 	}
 

@@ -903,6 +903,10 @@ sp_api::impl_runtime_apis! {
 		fn staging_get_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
 			polkadot_runtime_parachains::runtime_api_impl::vstaging::get_session_disputes::<Runtime>()
 		}
+
+		fn staging_validity_constraints(_: ParaId) -> Option<primitives::vstaging::Constraints> {
+			unimplemented!("Staging API not implemented");
+		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {

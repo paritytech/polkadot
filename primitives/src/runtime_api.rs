@@ -44,7 +44,7 @@
 //! For more details about how the API versioning works refer to `spi_api`
 //! documentation [here](https://docs.substrate.io/rustdocs/latest/sp_api/macro.decl_runtime_apis.html).
 
-use crate::v2;
+use crate::{v2, vstaging};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives as pcp;
 use polkadot_parachain::primitives as ppp;
@@ -155,5 +155,9 @@ sp_api::decl_runtime_apis! {
 		/// Returns all onchain disputes.
 		/// This is a staging method! Do not use on production runtimes!
 		fn staging_get_disputes() -> Vec<(v2::SessionIndex, v2::CandidateHash, v2::DisputeState<v2::BlockNumber>)>;
+
+		/// Returns the base constraints of the given para, if they exist.
+		/// This is a staging method! Do not use on production runtimes!
+		fn staging_validity_constraints(_: ppp::Id) -> Option<vstaging::Constraints>;
 	}
 }

@@ -244,7 +244,7 @@ where
 			let candidate_storage =
 				view.candidate_storage.entry(para).or_insert_with(CandidateStorage::new);
 
-			let constraints = fetch_constraints(&mut *ctx, &hash, para).await?;
+			let constraints = fetch_base_constraints(&mut *ctx, &hash, para).await?;
 
 			let constraints = match constraints {
 				Some(c) => c,
@@ -524,7 +524,7 @@ fn answer_tree_membership_request(
 	let _ = tx.send(membership);
 }
 
-async fn fetch_constraints<Context>(
+async fn fetch_base_constraints<Context>(
 	ctx: &mut Context,
 	relay_parent: &Hash,
 	para_id: ParaId,

@@ -1256,6 +1256,10 @@ sp_api::impl_runtime_apis! {
 		fn staging_get_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
 			unimplemented!()
 		}
+
+		fn staging_validity_constraints(_: ParaId) -> Option<primitives::vstaging::Constraints> {
+			unimplemented!("Staging API not implemented");
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
