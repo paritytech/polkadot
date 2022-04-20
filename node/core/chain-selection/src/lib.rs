@@ -612,8 +612,7 @@ fn handle_finalized_block(
 	finalized_hash: Hash,
 	finalized_number: BlockNumber,
 ) -> Result<(), Error> {
-	let ops =
-		tree::finalize_block(&*backend, finalized_hash, finalized_number)?.into_write_ops();
+	let ops = tree::finalize_block(&*backend, finalized_hash, finalized_number)?.into_write_ops();
 
 	backend.write(ops)
 }

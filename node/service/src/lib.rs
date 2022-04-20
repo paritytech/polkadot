@@ -284,24 +284,24 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 #[cfg(feature = "full-node")]
 fn open_database(db_source: &DatabaseSource) -> Result<Arc<dyn Database>, Error> {
 	let parachains_db = match db_source {
-		DatabaseSource::RocksDb { path, .. } => crate::parachains_db::open_creating_rocksdb(
+		DatabaseSource::RocksDb { path, .. } => parachains_db::open_creating_rocksdb(
 			path.clone(),
-			crate::parachains_db::CacheSizes::default(),
+			parachains_db::CacheSizes::default(),
 		)?,
-		DatabaseSource::ParityDb { path, .. } => crate::parachains_db::open_creating_paritydb(
+		DatabaseSource::ParityDb { path, .. } => parachains_db::open_creating_paritydb(
 			path.parent().ok_or(Error::DatabasePathRequired)?.into(),
-			crate::parachains_db::CacheSizes::default(),
+			parachains_db::CacheSizes::default(),
 		)?,
 		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } =>
 			if paritydb_path.is_dir() && paritydb_path.exists() {
-				crate::parachains_db::open_creating_paritydb(
+				parachains_db::open_creating_paritydb(
 					paritydb_path.parent().ok_or(Error::DatabasePathRequired)?.into(),
-					crate::parachains_db::CacheSizes::default(),
+					parachains_db::CacheSizes::default(),
 				)?
 			} else {
-				crate::parachains_db::open_creating_rocksdb(
+				parachains_db::open_creating_rocksdb(
 					rocksdb_path.clone(),
-					crate::parachains_db::CacheSizes::default(),
+					parachains_db::CacheSizes::default(),
 				)?
 			},
 		DatabaseSource::Custom { .. } => {
@@ -885,12 +885,12 @@ where
 	let parachains_db = open_database(&config.database)?;
 
 	let availability_config = AvailabilityConfig {
-		col_data: crate::parachains_db::REAL_COLUMNS.col_availability_data,
-		col_meta: crate::parachains_db::REAL_COLUMNS.col_availability_meta,
+		col_data: parachains_db::REAL_COLUMNS.col_availability_data,
+		col_meta: parachains_db::REAL_COLUMNS.col_availability_meta,
 	};
 
 	let approval_voting_config = ApprovalVotingConfig {
-		col_data: crate::parachains_db::REAL_COLUMNS.col_approval_data,
+		col_data: parachains_db::REAL_COLUMNS.col_approval_data,
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
@@ -907,12 +907,12 @@ where
 	};
 
 	let chain_selection_config = ChainSelectionConfig {
-		col_data: crate::parachains_db::REAL_COLUMNS.col_chain_selection_data,
+		col_data: parachains_db::REAL_COLUMNS.col_chain_selection_data,
 		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
 	};
 
 	let dispute_coordinator_config = DisputeCoordinatorConfig {
-		col_data: crate::parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
+		col_data: parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
 	};
 
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
@@ -1409,7 +1409,7 @@ pub fn revert(
 	let parachains_db = open_database(&config.database).unwrap();
 
 	let config = chain_selection_subsystem::Config {
-		col_data: crate::parachains_db::REAL_COLUMNS.col_chain_selection_data,
+		col_data: parachains_db::REAL_COLUMNS.col_chain_selection_data,
 		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
 	};
 
