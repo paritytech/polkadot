@@ -20,7 +20,7 @@
 
 use futures::{channel::mpsc, future::FutureExt, join, select, sink::SinkExt, stream::StreamExt};
 use parity_scale_codec::Encode;
-use polkadot_node_primitives::{AvailableData, CollationGenerationConfig, Collator, PoV};
+use polkadot_node_primitives::{AvailableData, CollationGenerationConfig, PoV};
 use polkadot_node_subsystem::{
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
@@ -206,7 +206,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				CoreState::Scheduled(scheduled_core) =>
 					(scheduled_core, OccupiedCoreAssumption::Free),
 				CoreState::Occupied(occupied_core) => {
-					if Collator::is_collating_on_child(&*config.collator, relay_parent).await {
+					if config.collator.is_collating_on_child(relay_parent).await {
 						let _ = ctx
 							.send_message(AllMessages::CollatorProtocol(
 								CollatorProtocolMessage::PreConnectAsCollator(relay_parent),
@@ -308,12 +308,10 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				Box::pin(async move {
 					let persisted_validation_data_hash = validation_data.hash();
 
-					let (collation, result_sender) = match Collator::produce_collation(
-						&*task_config.collator,
-						relay_parent,
-						&validation_data,
-					)
-					.await
+					let (collation, result_sender) = match task_config
+						.collator
+						.produce_collation(relay_parent, &validation_data)
+						.await
 					{
 						Some(collation) => collation.into_inner(),
 						None => {
