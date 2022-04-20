@@ -2024,9 +2024,7 @@ fn handle_multiple_seconded_statements() {
 		handle
 			.send(FromOverseer::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::NewGossipTopology(
-						gossip_topology,
-					),
+					NetworkBridgeEvent::NewGossipTopology(gossip_topology),
 				),
 			})
 			.await;
