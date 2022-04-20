@@ -38,8 +38,8 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::inclusion_emulator::staging::{Constraints, RelayChainBlockInfo};
 use polkadot_primitives::vstaging::{
-	CandidateHash, CommittedCandidateReceipt, Hash, Id as ParaId, PersistedValidationData,
-	CoreState,
+	CandidateHash, CommittedCandidateReceipt, CoreState, Hash, Id as ParaId,
+	PersistedValidationData,
 };
 
 use crate::{
@@ -559,7 +559,8 @@ where
 	ctx.send_message(RuntimeApiMessage::Request(
 		relay_parent,
 		RuntimeApiRequest::AvailabilityCores(tx),
-	)).await;
+	))
+	.await;
 
 	let cores = rx.await.map_err(JfyiError::RuntimeApiRequestCanceled)??;
 	let mut upcoming = HashSet::new();
@@ -572,11 +573,11 @@ where
 				if let Some(next_up_on_time_out) = occupied.next_up_on_time_out {
 					upcoming.insert(next_up_on_time_out.para_id);
 				}
-			}
+			},
 			CoreState::Scheduled(scheduled) => {
 				upcoming.insert(scheduled.para_id);
-			}
-			CoreState::Free => {}
+			},
+			CoreState::Free => {},
 		}
 	}
 

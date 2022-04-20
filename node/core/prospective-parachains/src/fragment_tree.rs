@@ -62,8 +62,8 @@ use polkadot_node_subsystem_util::inclusion_emulator::staging::{
 	ConstraintModifications, Constraints, Fragment, ProspectiveCandidate, RelayChainBlockInfo,
 };
 use polkadot_primitives::vstaging::{
-	BlockNumber, CandidateHash, CommittedCandidateReceipt, Hash,
-	Id as ParaId, PersistedValidationData,
+	BlockNumber, CandidateHash, CommittedCandidateReceipt, Hash, Id as ParaId,
+	PersistedValidationData,
 };
 
 /// Kinds of failures to import a candidate into storage.
