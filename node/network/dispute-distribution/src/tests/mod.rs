@@ -526,7 +526,7 @@ async fn nested_network_dispute_request<'a, F, O>(
 				candidate_receipt,
 				session,
 				statements,
-				pending_confirmation,
+				pending_confirmation: Some(pending_confirmation),
 			}
 		) => {
 			assert_eq!(session, MOCK_SESSION_INDEX);

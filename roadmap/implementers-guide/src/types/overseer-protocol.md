@@ -175,6 +175,8 @@ struct BlockApprovalMeta {
     candidates: Vec<CandidateHash>,
     /// The consensus slot of the block.
     slot: Slot,
+    /// The session of the block.
+    session: SessionIndex,
 }
 
 enum ApprovalDistributionMessage {
@@ -553,9 +555,14 @@ enum NetworkBridgeMessage {
     /// Inform the distribution subsystems about the new
     /// gossip network topology formed.
     NewGossipTopology {
-        /// Ids of our neighbors in the new gossip topology.
-        /// We're not necessarily connected to all of them, but we should.
-        our_neighbors: HashSet<AuthorityDiscoveryId>,
+        /// The session this topology corresponds to.
+        session: SessionIndex,
+        /// Ids of our neighbors in the X dimension of the new gossip topology.
+        /// We're not necessarily connected to all of them, but we should try to be.
+        our_neighbors_x: HashSet<AuthorityDiscoveryId>,
+        /// Ids of our neighbors in the Y dimension of the new gossip topology.
+        /// We're not necessarily connected to all of them, but we should try to be.
+        our_neighbors_y: HashSet<AuthorityDiscoveryId>,
     }
 }
 ```
