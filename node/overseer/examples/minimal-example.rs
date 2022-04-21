@@ -49,7 +49,11 @@ struct Subsystem1;
 impl Subsystem1 {
 	async fn run<Ctx>(mut ctx: Ctx) -> ()
 	where
-		Ctx: overseer::SubsystemContext<Message = CandidateBackingMessage, Signal = OverseerSignal>,
+		Ctx: overseer::SubsystemContext<
+			Message = CandidateBackingMessage,
+			Signal = OverseerSignal
+		>,
+		<Ctx as overseer::SubsystemContext>::OutgoingMessages: From<CandidateValidationMessage>,
 	{
 		'louy: loop {
 			match ctx.try_recv().await {
@@ -88,7 +92,11 @@ impl Subsystem1 {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for Subsystem1
 where
-	Context: overseer::SubsystemContext<Message = CandidateBackingMessage, Signal = OverseerSignal>,
+	Context: overseer::SubsystemContext<
+		Message = CandidateBackingMessage,
+		OutgoingMessages = overseer::CandidateBackingOutgoingMessages,
+		Signal = OverseerSignal
+	>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
