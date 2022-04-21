@@ -6587,6 +6587,7 @@ dependencies = [
 name = "polkadot-network-bridge"
 version = "0.9.19"
 dependencies = [
+ "always-assert",
  "assert_matches",
  "async-trait",
  "bytes 1.1.0",

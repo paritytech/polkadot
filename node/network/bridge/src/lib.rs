@@ -25,6 +25,7 @@ use parity_scale_codec::{Decode, DecodeAll, Encode};
 use parking_lot::Mutex;
 use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;
+use always_assert::never;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
@@ -964,7 +965,17 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 								&metrics,
 							)
 						} else {
-							unreachable!("Only version 1 is supported; peer set connection checked above; qed");
+							gum::warn!(
+								target: LOG_TARGET,
+								version = ?expected_versions[PeerSet::Validation],
+								"Major logic bug. Peer somehow has unsupported validation protocol version."
+							);
+
+							never!("Only version 1 is supported; peer set connection checked above; qed");
+
+							// If a peer somehow triggers this, we'll disconnect them
+							// eventually.
+							(Vec::new(), vec![UNCONNECTED_PEERSET_COST])
 						};
 
 					for report in reports {
@@ -985,7 +996,17 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 								&metrics,
 							)
 						} else {
-							unreachable!("Only version 1 is supported; peer set connection checked above; qed");
+							gum::warn!(
+								target: LOG_TARGET,
+								version = ?expected_versions[PeerSet::Collation],
+								"Major logic bug. Peer somehow has unsupported collation protocol version."
+							);
+
+							never!("Only version 1 is supported; peer set connection checked above; qed");
+
+							// If a peer somehow triggers this, we'll disconnect them
+							// eventually.
+							(Vec::new(), vec![UNCONNECTED_PEERSET_COST])
 						};
 
 					for report in reports {
