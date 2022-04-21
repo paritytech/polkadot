@@ -62,7 +62,7 @@ where
 		Recipient::Authority(authority_id.clone()),
 		PoVFetchingRequest { candidate_hash },
 	);
-	let full_req = Requests::PoVFetching(req);
+	let full_req = Requests::PoVFetchingV1(req);
 
 	ctx.send_message(NetworkBridgeMessage::SendRequests(
 		vec![full_req],
@@ -200,7 +200,7 @@ mod tests {
 					AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(mut reqs, _)) => {
 						let req = assert_matches!(
 							reqs.pop(),
-							Some(Requests::PoVFetching(outgoing)) => {outgoing}
+							Some(Requests::PoVFetchingV1(outgoing)) => {outgoing}
 						);
 						req.pending_response
 							.send(Ok(PoVFetchingResponse::PoV(pov.clone()).encode()))
