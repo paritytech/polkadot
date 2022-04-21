@@ -51,7 +51,7 @@ mod metrics;
 mod tests;
 
 const LOG_TARGET: &str = "parachain::approval-distribution";
-const WORKER_COUNT: usize = 4;
+const WORKER_COUNT: usize = 8;
 const COST_UNEXPECTED_MESSAGE: Rep =
 	Rep::CostMinor("Peer sent an out-of-view assignment or approval");
 const COST_DUPLICATE_MESSAGE: Rep = Rep::CostMinorRepeated("Peer sent identical messages");
@@ -563,6 +563,7 @@ impl State {
 		);
 
 		{
+			let peer_views_len = self.peer_views.len();
 			for ref_multi in self.peer_views.iter() {
 				let (peer_id, view) = (ref_multi.key(), ref_multi.value());
 				let intersection = view.iter().filter(|h| new_hashes.contains(h));
@@ -572,7 +573,7 @@ impl State {
 					metrics,
 					self.blocks.clone(),
 					self.topologies.clone(),
-					self.peer_views.len(),
+					peer_views_len,
 					peer_id.clone(),
 					view_intersection,
 					rng,
@@ -772,35 +773,36 @@ impl State {
 		rng: &mut (impl CryptoRng + Rng),
 	) {
 		gum::trace!(target: LOG_TARGET, ?view, "Peer view change");
-		let finalized_number = view.finalized_number;
-		let old_view = self
-			.peer_views
-			.get_mut(&peer_id)
-			.map(|mut d| std::mem::replace(d.value_mut(), view.clone()));
-		let old_finalized_number = old_view.map(|v| v.finalized_number).unwrap_or(0);
+		{
+			let finalized_number = view.finalized_number;
+			let old_view = self
+				.peer_views
+				.get_mut(&peer_id)
+				.map(|mut d| std::mem::replace(d.value_mut(), view.clone()));
+			let old_finalized_number = old_view.map(|v| v.finalized_number).unwrap_or(0);
 
-		// we want to prune every block known_by peer up to (including) view.finalized_number
-		let blocks = &mut self.blocks;
-		// the `BTreeMap::range` is constrained by stored keys
-		// so the loop won't take ages if the new finalized_number skyrockets
-		// but we need to make sure the range is not empty, otherwise it will panic
-		// it shouldn't be, we make sure of this in the network bridge
-		let range = old_finalized_number..=finalized_number;
-		if !range.is_empty() && !blocks.is_empty() {
-			self.blocks_by_number
-				.lock()
-				.expect("evil lock")
-				.range(range)
-				.flat_map(|(_number, hashes)| hashes)
-				.for_each(|hash| {
-					if let Some(mut entry) = blocks.get_mut(hash) {
-						entry.known_by.remove(&peer_id);
-					}
-				});
+			// we want to prune every block known_by peer up to (including) view.finalized_number
+			// let blocks = &mut self.blocks;
+			// the `BTreeMap::range` is constrained by stored keys
+			// so the loop won't take ages if the new finalized_number skyrockets
+			// but we need to make sure the range is not empty, otherwise it will panic
+			// it shouldn't be, we make sure of this in the network bridge
+			let range = old_finalized_number..=finalized_number;
+			let is_empty = self.blocks.is_empty();
+
+			if !range.is_empty() && !is_empty {
+				self.blocks_by_number
+					.lock()
+					.expect("evil lock")
+					.range(range)
+					.flat_map(|(_number, hashes)| hashes)
+					.for_each(|hash| {
+						if let Some(mut entry) = self.blocks.get_mut(hash) {
+							entry.known_by.remove(&peer_id);
+						}
+					});
+			}
 		}
-
-		drop(blocks);
-
 		gum::trace!(target: LOG_TARGET, ?view, "I'm gonna unify with this beautiful peer");
 
 		Self::unify_with_peer(
@@ -826,16 +828,18 @@ impl State {
 			// we want to prune every block up to (including) finalized_number
 			// why +1 here?
 			// split_off returns everything after the given key, including the key
-			let split_point = finalized_number.saturating_add(1);
-			let old_blocks =
-				self.blocks_by_number.lock().expect("evil lock").split_off(&split_point);
+			{
+				let split_point = finalized_number.saturating_add(1);
+				let old_blocks =
+					self.blocks_by_number.lock().expect("evil lock").split_off(&split_point);
 
-			// after split_off old_blocks actually contains new blocks, we need to swap
-			let old_value = std::mem::replace(
-				&mut *self.blocks_by_number.lock().expect("evil lock"),
-				old_blocks,
-			);
-			*self.blocks_by_number.lock().expect("evil lock") = old_value;
+				// after split_off old_blocks actually contains new blocks, we need to swap
+				let old_value = std::mem::replace(
+					&mut *self.blocks_by_number.lock().expect("evil lock"),
+					old_blocks,
+				);
+				*self.blocks_by_number.lock().expect("evil lock") = old_value;
+			}
 
 			let old_blocks = self.blocks_by_number.lock().expect("evil lock");
 
@@ -888,14 +892,14 @@ impl State {
 						?validator_index,
 						"Unexpected assignment",
 					);
-					if !self
-						.recent_outdated_blocks
-						.lock()
-						.expect("evil lock")
-						.is_recent_outdated(&block_hash)
-					{
-						modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
-					}
+					// if !self
+					// 	.recent_outdated_blocks
+					// 	.lock()
+					// 	.expect("evil lock")
+					// 	.is_recent_outdated(&block_hash)
+					// {
+					// 	modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+					// }
 				}
 				gum::trace!(
 					target: LOG_TARGET,
@@ -930,7 +934,7 @@ impl State {
 								?message_subject,
 								"Duplicate assignment",
 							);
-							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
+							// modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
 						}
 						return
 					}
@@ -942,19 +946,21 @@ impl State {
 						?message_subject,
 						"Assignment from a peer is out of view",
 					);
-					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
+					// modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
 				},
 			}
 
 			// if the assignment is known to be valid, reward the peer
 			if entry.knowledge.contains(&message_subject, message_kind) {
-				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
+				// modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known assignment");
 					peer_knowledge.received.insert(message_subject, message_kind);
 				}
 				return
 			}
+
+			drop(entry);
 
 			let (tx, rx) = oneshot::channel();
 
@@ -976,6 +982,9 @@ impl State {
 			};
 			drop(timer);
 
+			let mut an_entry =
+				self.blocks.get_mut(&block_hash).expect("We just checked above; qed");
+
 			gum::debug!(
 				target: LOG_TARGET,
 				?source,
@@ -983,11 +992,12 @@ impl State {
 				?result,
 				"Checked assignment",
 			);
+
 			match result {
 				AssignmentCheckResult::Accepted => {
-					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
-					entry.knowledge.known_messages.insert(message_subject.clone(), message_kind);
-					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+					// modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
+					an_entry.knowledge.known_messages.insert(message_subject.clone(), message_kind);
+					if let Some(peer_knowledge) = an_entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(message_subject.clone(), message_kind);
 					}
 				},
@@ -995,7 +1005,7 @@ impl State {
 					// "duplicate" assignments aren't necessarily equal.
 					// There is more than one way each validator can be assigned to each core.
 					// cf. https://github.com/paritytech/polkadot/pull/2160#discussion_r557628699
-					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+					if let Some(peer_knowledge) = an_entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(message_subject.clone(), message_kind);
 					}
 					gum::debug!(
@@ -1013,7 +1023,7 @@ impl State {
 						?peer_id,
 						"Got an assignment too far in the future",
 					);
-					modify_reputation(ctx, peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE).await;
+					// modify_reputation(ctx, peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE).await;
 					return
 				},
 				AssignmentCheckResult::Bad(error) => {
@@ -1024,7 +1034,7 @@ impl State {
 						%error,
 						"Got a bad assignment from peer",
 					);
-					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
+					// modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
 					return
 				},
 			}
@@ -1043,8 +1053,11 @@ impl State {
 					?message_subject,
 					"Importing locally a new assignment",
 				);
+				drop(entry);
 			}
 		}
+
+		let mut entry = self.blocks.get_mut(&block_hash).expect("We just checked above; qed");
 
 		// Invariant: to our knowledge, none of the peers except for the `source` know about the assignment.
 		metrics.on_assignment_imported();
@@ -1133,6 +1146,7 @@ impl State {
 
 		let mut stats = SentMessagesStats::default();
 
+		drop(entry);
 		if !peers.is_empty() {
 			gum::trace!(
 				target: LOG_TARGET,
@@ -1171,16 +1185,16 @@ impl State {
 		let mut entry = match self.blocks.get_mut(&block_hash) {
 			Some(entry) if entry.candidates.get(candidate_index as usize).is_some() => entry,
 			_ => {
-				if let Some(peer_id) = source.peer_id() {
-					if !self
-						.recent_outdated_blocks
-						.lock()
-						.expect("evil lock")
-						.is_recent_outdated(&block_hash)
-					{
-						modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
-					}
-				}
+				// if let Some(peer_id) = source.peer_id() {
+				// 	if !self
+				// 		.recent_outdated_blocks
+				// 		.lock()
+				// 		.expect("evil lock")
+				// 		.is_recent_outdated(&block_hash)
+				// 	{
+				// 		modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+				// 	}
+				// }
 				return
 			},
 		};
@@ -1189,6 +1203,7 @@ impl State {
 		let message_subject = MessageSubject(block_hash, candidate_index, validator_index);
 		let message_kind = MessageKind::Approval;
 
+		// Andrei: Does this check still work ?
 		if let Some(peer_id) = source.peer_id() {
 			if !entry.knowledge.contains(&message_subject, MessageKind::Assignment) {
 				gum::debug!(
@@ -1197,7 +1212,7 @@ impl State {
 					?message_subject,
 					"Unknown approval assignment",
 				);
-				modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+				// modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
 				return
 			}
 
@@ -1214,7 +1229,7 @@ impl State {
 								"Duplicate approval",
 							);
 
-							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
+							// modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
 						}
 						return
 					}
@@ -1226,19 +1241,21 @@ impl State {
 						?message_subject,
 						"Approval from a peer is out of view",
 					);
-					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
+					// modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
 				},
 			}
 
 			// if the approval is known to be valid, reward the peer
 			if entry.knowledge.contains(&message_subject, message_kind) {
 				gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known approval");
-				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
+				// modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					peer_knowledge.received.insert(message_subject.clone(), message_kind);
 				}
 				return
 			}
+
+			drop(entry);
 
 			let (tx, rx) = oneshot::channel();
 
@@ -1268,9 +1285,12 @@ impl State {
 				?result,
 				"Checked approval",
 			);
+
+			entry = self.blocks.get_mut(&block_hash).unwrap();
+
 			match result {
 				ApprovalCheckResult::Accepted => {
-					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
+					// modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
 
 					entry.knowledge.insert(message_subject.clone(), message_kind);
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
@@ -1278,7 +1298,7 @@ impl State {
 					}
 				},
 				ApprovalCheckResult::Bad(error) => {
-					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
+					// modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
 					gum::info!(
 						target: LOG_TARGET,
 						?peer_id,
@@ -1335,10 +1355,32 @@ impl State {
 
 						required_routing
 					},
-					Some(_) => {
-						unreachable!(
-							"we only insert it after the metadata, checked the metadata above; qed"
+					Some(state) => {
+						// unreachable!(
+						// 	"we only insert it after the metadata, checked the metadata above; qed"
+						// );
+						gum::warn!(
+							target: LOG_TARGET,
+							hash = ?block_hash,
+							?candidate_index,
+							?validator_index,
+							?state,
+							"Unexpected approval state ",
 						);
+						// candidate_entry.messages.insert(
+						// 	validator_index,
+						// 	MessageState {
+						// 		approval_state: state.approval_state,
+						// 		required_routing: state.required_routing,
+						// 		local: state.local,
+						// 		random_routing: state.random_routing,
+						// 	},
+						// );
+
+						// state.required_routing
+						// This is racing with new_blocks which also calls this fn and doesn't use the
+						// preffered worker index.
+						return
 					},
 					None => {
 						// this would indicate a bug in approval-voting
@@ -1350,6 +1392,7 @@ impl State {
 							"Importing an approval we don't have an assignment for",
 						);
 
+						// Saving this for later when the assignment is processed.
 						return
 					},
 				}
@@ -1408,6 +1451,8 @@ impl State {
 			}
 		}
 
+		drop(entry);
+
 		let mut stats = SentMessagesStats::default();
 
 		if !peers.is_empty() {
@@ -1458,11 +1503,11 @@ impl State {
 				gum::trace!(target: LOG_TARGET, ?head, "Acquiring entries lock ... ");
 
 				// Gonna hold this lock for a while. A dashmap would be better.
-				match entries.get_mut(&block) {
+				let locked_entry = entries.get_mut(&block);
+				match locked_entry {
 					Some(mut entry) if entry.number > view_finalized_number => {
 						gum::trace!(target: LOG_TARGET, ?head, "Acquired! ");
 
-						// entry.value_mut(),
 						// Any peer which is in the `known_by` set has already been
 						// sent all messages it's meant to get for that block and all
 						// in-scope prior blocks.
@@ -1903,6 +1948,9 @@ impl ApprovalDistributionWorker {
 					return
 				},
 			};
+
+			gum::trace!(target: LOG_TARGET, worker_index = %self.worker_index, ?message, "PROCESSING MESSAGE");
+
 			match message {
 				FromOverseer::Communication { msg } =>
 					Self::handle_incoming(&mut ctx, state.clone(), msg, &self.metrics, rng).await,
@@ -2070,7 +2118,6 @@ impl ApprovalDistribution {
 				FromOverseer::Communication { msg } => Self::handle_incoming(msg, WORKER_COUNT),
 				_ => None,
 			};
-
 			let worker_index = preferred_worker_index.unwrap_or(index % WORKER_COUNT as usize);
 
 			gum::debug!(target: LOG_TARGET, ?worker_index, ?message, "Sending message to worker");
@@ -2078,7 +2125,12 @@ impl ApprovalDistribution {
 			match pool[worker_index].send(message).await {
 				Ok(_) => {},
 				Err(err) => {
-					gum::warn!(target: LOG_TARGET, ?err,?worker_index, "Failed to send a message to worker");
+					gum::warn!(
+						target: LOG_TARGET,
+						?err,
+						?worker_index,
+						"Failed to send a message to worker"
+					);
 				},
 			}
 

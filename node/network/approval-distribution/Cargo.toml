@@ -14,7 +14,7 @@ rand = "0.8"
 
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
-dashmap = "5.2.0"
+dashmap = { version = "5.2.0"}
 tokio = "1.17.0"
 
 [dev-dependencies]
