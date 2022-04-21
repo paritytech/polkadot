@@ -1113,7 +1113,7 @@ pub fn polkadot_staging_testnet_config() -> Result<PolkadotChainSpec, String> {
 		),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		Some(testnet_polkadot_properties()),
+		Some(polkadot_chain_spec_properties()),
 		Default::default(),
 	))
 }
@@ -1663,7 +1663,7 @@ pub fn polkadot_development_config() -> Result<PolkadotChainSpec, String> {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		Some(testnet_polkadot_properties()),
+		Some(polkadot_chain_spec_properties()),
 		Default::default(),
 	))
 }
@@ -1803,7 +1803,7 @@ pub fn polkadot_local_testnet_config() -> Result<PolkadotChainSpec, String> {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		Some(testnet_polkadot_properties()),
+		Some(polkadot_chain_spec_properties()),
 		Default::default(),
 	))
 }

@@ -47,7 +47,7 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		Some(testnet_polkadot_properties()),
+		Some(polkadot_chain_spec_properties()),
 		Default::default(),
 	)
 }
