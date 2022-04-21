@@ -19,13 +19,13 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
+use always_assert::never;
 use bytes::Bytes;
 use futures::{prelude::*, stream::BoxStream};
 use parity_scale_codec::{Decode, DecodeAll, Encode};
 use parking_lot::Mutex;
 use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;
-use always_assert::never;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
