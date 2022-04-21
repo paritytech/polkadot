@@ -6,7 +6,7 @@ description = "Integration tests for the XCM Executor"
 version = "0.9.19"
 
 [dependencies]
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.21"
 pallet-xcm = { path = "../../pallet-xcm" }
@@ -15,7 +15,7 @@ polkadot-test-runtime = { path = "../../../runtime/test-runtime" }
 polkadot-test-service = { path = "../../../node/test/service" }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 xcm = { path = "../..", default-features = false }
 xcm-executor = { path = ".." }

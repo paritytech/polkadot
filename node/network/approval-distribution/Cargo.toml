@@ -17,7 +17,7 @@ gum = { package = "tracing-gum", path = "../../gum" }
 
 [dev-dependencies]
 sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
