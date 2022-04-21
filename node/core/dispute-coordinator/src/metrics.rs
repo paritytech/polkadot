@@ -26,6 +26,10 @@ struct MetricsInner {
 	concluded: prometheus::CounterVec<prometheus::U64>,
 	/// Number of participations that have been queued.
 	queued_participations: prometheus::CounterVec<prometheus::U64>,
+	/// Number and duration of requests handled by kind
+	requests: prometheus::HistogramVec,
+	/// Time it takes to transmit writes to db
+	db_operations: prometheus::HistogramVec,
 }
 
 /// Candidate validation metrics.
@@ -33,6 +37,11 @@ struct MetricsInner {
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
+	#[cfg(test)]
+	pub(crate) fn new_dummy() -> Self {
+		Self(None)
+	}
+
 	pub(crate) fn on_open(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.open.inc();
@@ -74,6 +83,35 @@ impl Metrics {
 			metrics.queued_participations.with_label_values(&["best-effort"]).inc();
 		}
 	}
+
+	/// Time a particular request.
+	pub fn time_request(
+		&self,
+		req: &'static str,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.requests.with_label_values(&[req]).start_timer())
+	}
+
+	/// Time a DB write operation.
+	pub fn time_db_write_operation(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.db_operations.with_label_values(&["write"]).start_timer())
+	}
+
+	/// Time a DB read operation.
+	pub fn time_db_read_operation(
+		&self,
+		kind: &str,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.db_operations.with_label_values(&["read", kind]).start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -113,6 +151,26 @@ impl metrics::Metrics for Metrics {
 						"Total number of queued participations, grouped by priority and best-effort. (Not every queueing will necessarily lead to an actual participation because of duplicates.)",
 					),
 					&["priority"],
+				)?,
+				registry,
+			)?,
+			requests: prometheus::register(
+				prometheus::HistogramVec::new(
+					prometheus::HistogramOpts::new(
+						"polkadot_dispute_coordinator_requests_time",
+						"Number and duration of handled requests in dispute coordinator.",
+					),
+					&["request"],
+				)?,
+				registry,
+			)?,
+			db_operations: prometheus::register(
+				prometheus::HistogramVec::new(
+					prometheus::HistogramOpts::new(
+						"polkadot_dispute_coordinator_db_operation_time",
+						"Duration a db operation takes.",
+					),
+					&["operation", "kind"],
 				)?,
 				registry,
 			)?,
