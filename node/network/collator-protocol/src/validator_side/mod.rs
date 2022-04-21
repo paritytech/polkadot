@@ -356,7 +356,7 @@ struct GroupAssignments {
 struct ActiveParas {
 	relay_parent_assignments: HashMap<Hash, GroupAssignments>,
 	current_assignments: HashMap<ParaId, usize>,
-	next_assignments: HashSet<ParaId>,
+	next_assignments: HashMap<Hash, ParaId>,
 }
 
 impl ActiveParas {
@@ -366,8 +366,6 @@ impl ActiveParas {
 		keystore: &SyncCryptoStorePtr,
 		new_relay_parents: impl IntoIterator<Item = Hash>,
 	) {
-		self.next_assignments.clear();
-
 		for relay_parent in new_relay_parents {
 			let mv = polkadot_node_subsystem_util::request_validators(relay_parent, sender)
 				.await
@@ -422,7 +420,7 @@ impl ActiveParas {
 								cores.get(next_core_idx.0 as usize).and_then(CoreState::para_id);
 
 							if let Some(para_id) = next_core_para_id {
-								self.next_assignments.insert(para_id);
+								self.next_assignments.insert(relay_parent, para_id);
 							}
 						}
 
@@ -465,6 +463,8 @@ impl ActiveParas {
 
 	fn remove_outgoing(&mut self, old_relay_parents: impl IntoIterator<Item = Hash>) {
 		for old_relay_parent in old_relay_parents {
+			self.next_assignments.remove(&old_relay_parent);
+
 			if let Some(assignments) = self.relay_parent_assignments.remove(&old_relay_parent) {
 				let GroupAssignments { current } = assignments;
 
@@ -490,7 +490,7 @@ impl ActiveParas {
 	}
 
 	fn is_next(&self, id: &ParaId) -> bool {
-		self.next_assignments.contains(id)
+		self.next_assignments.iter().any(|(_, para_id)| id == para_id)
 	}
 }
 

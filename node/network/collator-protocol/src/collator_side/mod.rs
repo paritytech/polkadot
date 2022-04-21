@@ -278,8 +278,8 @@ enum AssignmentType {
 	/// our parachain should be scheduled.
 	Current,
 	/// Lookahead assignment defines validators group for candidates being
-	/// backed in the grandchild of relay parent, therefore based on the child.
-	/// The core is expected to be occupied.
+	/// backed either in child or grandchild of relay parent.
+	/// The core is expected to be scheduled or occupied.
 	///
 	/// **Important note**: parathread cores very well may happen to be free.
 	Lookahead,
@@ -498,12 +498,12 @@ where
 
 	for (idx, core) in cores.iter().enumerate() {
 		let core_para_id = match (assignment_type, core) {
-			(AssignmentType::Current, CoreState::Scheduled(core)) => core.para_id,
-			(AssignmentType::Lookahead, CoreState::Occupied(core)) => core.para_id(),
+			(AssignmentType::Current, CoreState::Scheduled(core)) => Some(core.para_id),
+			(AssignmentType::Lookahead, _) => core.para_id(),
 			_ => continue,
 		};
 
-		if core_para_id == para_id {
+		if core_para_id == Some(para_id) {
 			return Ok(Some(((idx as u32).into(), cores.len())))
 		}
 	}
