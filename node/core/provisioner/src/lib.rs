@@ -714,19 +714,17 @@ async fn select_disputes(
 	// In case of an overload condition, we limit ourselves to active disputes, and fill up to the
 	// upper bound of disputes to pass to wasm `fn create_inherent_data`.
 	// If the active ones are already exceeding the bounds, randomly select a subset.
-	let mut recent = request_disputes(sender, RequestType::Recent).await;
+	let recent = request_disputes(sender, RequestType::Recent).await;
 
-	// On chain disputes are fetched for the runtime. We don't want to include disputes the runtime already knows
-	// about in the inherent data.
+	// On chain disputes are fetched from the runtime. We want to prioritise the inclusion of unknown disputes in the inherent data.
 	// On error - an empty set is generated which doesn't affect the logic of the function.
-	// This is a staging feature, so if it is not enabled - create an empty HashSet by default. If it is
-	// enabled - the HashSet will be overriden with the on-chain data.
-	let onchain = HashMap::new();
+	// This is a staging feature, so if it is not enabled - create an empty HashMap by default. If it is
+	// enabled - the HashMap will be overridden with the on-chain data.
+	let onchain: HashMap<(SessionIndex, CandidateHash), DisputeState> = HashMap::new();
 	#[cfg(feature = "staging-client")]
 	let onchain = onchain_disputes::get_onchain_disputes(sender, _leaf.hash.clone())
 		.await
 		.unwrap_or_default();
-	remove_known_disputes(&mut recent, &onchain);
 
 	let disputes = if recent.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
 		gum::warn!(
@@ -735,23 +733,59 @@ async fn select_disputes(
 			recent.len(),
 			MAX_DISPUTES_FORWARDED_TO_RUNTIME
 		);
+
 		let mut active = request_disputes(sender, RequestType::Active).await;
-		remove_known_disputes(&mut active, &onchain);
-		let n_active = active.len();
 		let active = if active.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
-			let mut picked = Vec::with_capacity(MAX_DISPUTES_FORWARDED_TO_RUNTIME);
-			extend_by_random_subset_without_repetition(
-				&mut picked,
-				active,
-				MAX_DISPUTES_FORWARDED_TO_RUNTIME,
-			);
-			picked
+			// Active disputes doesn't fit within the limit. Add the unseen onchain with priority.
+			let (seen_onchain, mut unseen_onchain): (
+				Vec<(SessionIndex, CandidateHash)>,
+				Vec<(SessionIndex, CandidateHash)>,
+			) = active.into_iter().partition(|d| onchain.contains_key(d));
+
+			let active_subset = if unseen_onchain.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
+				// Even unseen onchain doesn't fit within the limit. Add as much as possible.
+				let mut unseen_subset = Vec::with_capacity(MAX_DISPUTES_FORWARDED_TO_RUNTIME);
+				extend_by_random_subset_without_repetition(
+					&mut unseen_subset,
+					unseen_onchain,
+					MAX_DISPUTES_FORWARDED_TO_RUNTIME,
+				);
+				unseen_subset
+			} else {
+				// Add all unseen onchain disputes and as much of the seen ones as there is space.
+				let n_unseen_onchain = unseen_onchain.len();
+				extend_by_random_subset_without_repetition(
+					&mut unseen_onchain,
+					seen_onchain,
+					MAX_DISPUTES_FORWARDED_TO_RUNTIME.saturating_sub(n_unseen_onchain),
+				);
+				unseen_onchain
+			};
+			active_subset
 		} else {
+			let mut n_active = active.len();
+			// All active disputes can be sent. Fill the rest of the space with recent ones.
+			// We assume there is not enough space for all recent disputes. So we prioritise the unseen ones.
+			let (seen_onchain, unseen_onchain): (
+				Vec<(SessionIndex, CandidateHash)>,
+				Vec<(SessionIndex, CandidateHash)>,
+			) = recent.into_iter().partition(|d| onchain.contains_key(d));
+
 			extend_by_random_subset_without_repetition(
 				&mut active,
-				recent,
+				unseen_onchain,
 				MAX_DISPUTES_FORWARDED_TO_RUNTIME.saturating_sub(n_active),
 			);
+			n_active = active.len();
+
+			if active.len() < MAX_DISPUTES_FORWARDED_TO_RUNTIME {
+				// Looks like we can add some of the seen disputes too
+				extend_by_random_subset_without_repetition(
+					&mut active,
+					seen_onchain,
+					MAX_DISPUTES_FORWARDED_TO_RUNTIME.saturating_sub(n_active),
+				);
+			}
 			active
 		};
 		active
@@ -785,19 +819,6 @@ async fn select_disputes(
 			}
 		})
 		.collect())
-}
-
-/// Input parameters:
-/// * `disputes` - Vec of disputes
-/// * `known` - HashSet with the on-chain disputes
-/// `disputes` is mutated by removing all disputes in `known`. The purpose is to filter out the disputes already seen on-chain.
-fn remove_known_disputes(
-	disputes: &mut Vec<(u32, CandidateHash)>,
-	known: &HashMap<(SessionIndex, CandidateHash), DisputeState>,
-) {
-	if !known.is_empty() {
-		disputes.retain(|v| !known.contains_key(v));
-	}
 }
 
 /// The provisioner subsystem.
