@@ -20,14 +20,15 @@ use babe_primitives::AuthorityId as BabeId;
 use grandpa::AuthorityId as GrandpaId;
 use pallet_staking::Forcing;
 use polkadot_primitives::v2::{AccountId, AssignmentId, ValidatorId, MAX_CODE_SIZE, MAX_POV_SIZE};
-use polkadot_service::chain_spec::{get_account_id_from_seed, get_from_seed, Extensions};
+use polkadot_service::chain_spec::{
+	get_account_id_from_seed, get_from_seed, testnet_polkadot_properties, Extensions,
+};
 use polkadot_test_runtime::BABE_GENESIS_EPOCH_CONFIG;
 use sc_chain_spec::{ChainSpec, ChainType};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::sr25519;
 use sp_runtime::Perbill;
 use test_runtime_constants::currency::DOTS;
-use polkadot_service::chain_spec::testnet_polkadot_properties;
 
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
