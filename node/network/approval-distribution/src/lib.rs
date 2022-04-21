@@ -22,10 +22,7 @@
 
 use futures::{channel::oneshot, FutureExt as _};
 use polkadot_node_network_protocol::{
-	grid_topology::{
-		RandomRouting, RequiredRouting, SessionGridTopologies,
-		SessionGridTopology,
-	},
+	grid_topology::{RandomRouting, RequiredRouting, SessionGridTopologies, SessionGridTopology},
 	v1 as protocol_v1, PeerId, UnifiedReputationChange as Rep, View,
 };
 use polkadot_node_primitives::approval::{
