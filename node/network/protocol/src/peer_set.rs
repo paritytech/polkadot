@@ -16,7 +16,7 @@
 
 //! All peersets and protocols used for parachains.
 
-use sc_network::config::{NonDefaultSetConfig, SetConfig};
+use sc_network::config::{NonDefaultSetConfig, NonReservedPeerMode, SetConfig};
 use std::{
 	borrow::Cow,
 	ops::{Index, IndexMut},
@@ -52,40 +52,30 @@ impl PeerSet {
 	pub fn get_info(self, is_authority: IsAuthority) -> NonDefaultSetConfig {
 		let protocol = self.into_protocol_name();
 		let max_notification_size = 100 * 1024;
-
-		match self {
-			PeerSet::Validation => NonDefaultSetConfig {
-				notifications_protocol: protocol,
-				fallback_names: Vec::new(),
-				max_notification_size,
-				set_config: sc_network::config::SetConfig {
-					// we allow full nodes to connect to validators for gossip
-					// to ensure any `MIN_GOSSIP_PEERS` always include reserved peers
-					// we limit the amount of non-reserved slots to be less
-					// than `MIN_GOSSIP_PEERS` in total
-					in_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
-					out_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
-					reserved_nodes: Vec::new(),
-					non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
+		let set_config = match self {
+			PeerSet::Validation => SetConfig {
+				// we allow full nodes to connect to validators for gossip
+				// to ensure any `MIN_GOSSIP_PEERS` always include reserved peers
+				// we limit the amount of non-reserved slots to be less
+				// than `MIN_GOSSIP_PEERS` in total
+				in_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
+				out_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
+				reserved_nodes: Vec::new(),
+				non_reserved_mode: NonReservedPeerMode::Accept,
+			},
+			PeerSet::Collation => SetConfig {
+				// Non-authority nodes don't need to accept incoming connections on this peer set:
+				in_peers: if is_authority == IsAuthority::Yes { 100 } else { 0 },
+				out_peers: 0,
+				reserved_nodes: Vec::new(),
+				non_reserved_mode: if is_authority == IsAuthority::Yes {
+					NonReservedPeerMode::Accept
+				} else {
+					NonReservedPeerMode::Deny
 				},
 			},
-			PeerSet::Collation => NonDefaultSetConfig {
-				notifications_protocol: protocol,
-				fallback_names: Vec::new(),
-				max_notification_size,
-				set_config: SetConfig {
-					// Non-authority nodes don't need to accept incoming connections on this peer set:
-					in_peers: if is_authority == IsAuthority::Yes { 100 } else { 0 },
-					out_peers: 0,
-					reserved_nodes: Vec::new(),
-					non_reserved_mode: if is_authority == IsAuthority::Yes {
-						sc_network::config::NonReservedPeerMode::Accept
-					} else {
-						sc_network::config::NonReservedPeerMode::Deny
-					},
-				},
-			},
-		}
+		};
+		NonDefaultSetConfig::new(protocol, max_notification_size).with_config(set_config)
 	}
 
 	/// Get the protocol name associated with each peer set as static str.
@@ -141,6 +131,6 @@ impl<T> IndexMut<PeerSet> for PerPeerSet<T> {
 ///
 /// Should be used during network configuration (added to [`NetworkConfiguration::extra_sets`])
 /// or shortly after startup to register the protocols with the network service.
-pub fn peer_sets_info(is_authority: IsAuthority) -> Vec<sc_network::config::NonDefaultSetConfig> {
+pub fn peer_sets_info(is_authority: IsAuthority) -> Vec<NonDefaultSetConfig> {
 	PeerSet::iter().map(|s| s.get_info(is_authority)).collect()
 }
