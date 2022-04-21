@@ -2126,7 +2126,6 @@ impl ApprovalDistribution {
 									for approval in approvals {
 										per_worker_approvals[approval.candidate_index  as usize % WORKER_COUNT].push(approval);
 									}
-									
 									let messages = per_worker_approvals
 										.into_iter()
 										.filter(|v| !v.is_empty())
