@@ -6990,6 +6990,7 @@ dependencies = [
  "polkadot-node-jaeger",
  "polkadot-node-primitives",
  "polkadot-primitives",
+ "rand 0.8.5",
  "sc-authority-discovery",
  "sc-network",
  "strum 0.24.0",

@@ -17,3 +17,4 @@ strum = { version = "0.24", features = ["derive"] }
 futures = "0.3.21"
 thiserror = "1.0.30"
 fatality = "0.0.6"
+rand = "0.8"
