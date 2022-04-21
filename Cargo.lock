@@ -7559,6 +7559,7 @@ dependencies = [
  "sc-telemetry",
  "sc-transaction-pool",
  "serde",
+ "serde_json",
  "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",

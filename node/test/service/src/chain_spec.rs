@@ -27,6 +27,7 @@ use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::sr25519;
 use sp_runtime::Perbill;
 use test_runtime_constants::currency::DOTS;
+use polkadot_service::chain_spec::testnet_polkadot_properties;
 
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
@@ -45,7 +46,7 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		None,
+		Some(testnet_polkadot_properties()),
 		Default::default(),
 	)
 }
