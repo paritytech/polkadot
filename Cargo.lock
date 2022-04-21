@@ -1107,9 +1107,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.1.9"
+version = "3.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6aad2534fad53df1cc12519c5cda696dd3e20e6118a027e24054aea14a0bdcbe"
+checksum = "3124f3f75ce09e22d1410043e1e24f2ecc44fad3afe4f08408f1f7663d68da2b"
 dependencies = [
  "atty",
  "bitflags",
@@ -6587,8 +6587,10 @@ dependencies = [
 name = "polkadot-network-bridge"
 version = "0.9.19"
 dependencies = [
+ "always-assert",
  "assert_matches",
  "async-trait",
+ "bytes 1.1.0",
  "futures 0.3.21",
  "futures-timer",
  "parity-scale-codec",
@@ -6984,6 +6986,7 @@ name = "polkadot-node-network-protocol"
 version = "0.9.19"
 dependencies = [
  "async-trait",
+ "derive_more",
  "fatality",
  "futures 0.3.21",
  "parity-scale-codec",
