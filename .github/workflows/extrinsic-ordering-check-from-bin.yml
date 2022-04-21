@@ -57,6 +57,7 @@ jobs:
           git clone https://github.com/joao-paulo-parity/polkadot-js-tools
           cd polkadot-js-tools
           ./docker/build.sh build
+          cd ..
           CMD="docker run --network host polkadot-js-tools metadata $REF_URL ws://localhost:9944"
           echo -e "Running:\n$CMD"
           $CMD >> output.txt
