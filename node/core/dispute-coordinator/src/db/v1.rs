@@ -28,12 +28,10 @@ use std::sync::Arc;
 use parity_scale_codec::{Decode, Encode};
 
 use crate::{
+	backend::{Backend, BackendWriteOp, OverlayedBackend},
 	error::{FatalError, FatalResult},
-	real::{
-		backend::{Backend, BackendWriteOp, OverlayedBackend},
-		DISPUTE_WINDOW,
-	},
 	status::DisputeStatus,
+	DISPUTE_WINDOW,
 };
 
 const RECENT_DISPUTES_KEY: &[u8; 15] = b"recent-disputes";

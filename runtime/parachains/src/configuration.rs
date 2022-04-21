@@ -479,13 +479,6 @@ pub mod pallet {
 	pub(crate) type ActiveConfig<T: Config> =
 		StorageValue<_, HostConfiguration<T::BlockNumber>, ValueQuery>;
 
-	/// Pending configuration (if any) for the next session.
-	///
-	/// DEPRECATED: This is no longer used, and will be removed in the future.
-	#[pallet::storage]
-	pub(crate) type PendingConfig<T: Config> =
-		StorageMap<_, Twox64Concat, SessionIndex, migration::v1::HostConfiguration<T::BlockNumber>>;
-
 	/// Pending configuration changes.
 	///
 	/// This is a list of configuration changes, each with a session index at which it should
@@ -1120,10 +1113,6 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_runtime_upgrade() -> Weight {
-			migration::migrate_to_latest::<T>()
-		}
-
 		fn integrity_test() {
 			assert_eq!(
 				&ActiveConfig::<T>::hashed_key(),
