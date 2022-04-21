@@ -28,20 +28,9 @@
 //! an adversary doesn't know which peers a validator will send to.
 //! This is combined with the property that the adversary doesn't know which validators will elect to check a block.
 //!
-//! But, in case these mechanisms don't work on their own, we need to trade bandwidth for protocol liveliness by introducing aggression.
-//!
-//! Aggression has 3 levels:
-//!
-//!  * Aggression Level 0: The basic behaviors described above.
-//!  * Aggression Level 1: The originator of a message sends to all peers. Other peers follow the rules above.
-//!  * Aggression Level 2: All peers send all messages to all their row and column neighbors.
-//!    This means that each validator will, on average, receive each message approximately `2*sqrt(n)` times.
-//! The aggression level of messages pertaining to a block increases when that block is unfinalized and
-//! is a child of the finalized block.
-//! This means that only one block at a time has its messages propagated with aggression > 0.
 
 use crate::PeerId;
-use polkadot_primitives::v2::{BlockNumber, SessionIndex, ValidatorIndex};
+use polkadot_primitives::v2::{SessionIndex, ValidatorIndex};
 use rand::{CryptoRng, Rng};
 use std::{
 	collections::{hash_map, HashMap, HashSet},
@@ -136,48 +125,6 @@ impl SessionGridTopologies {
 		}
 	}
 }
-
-// A note on aggression thresholds: changes in propagation apply only to blocks which are the
-// _direct descendants_ of the finalized block which are older than the given threshold,
-// not to all blocks older than the threshold. Most likely, a few assignments struggle to
-// be propagated in a single block and this holds up all of its descendants blocks.
-// Accordingly, we only step on the gas for the block which is most obviously holding up finality.
-
-/// Aggression configuration representation
-#[derive(Clone)]
-pub struct AggressionConfig {
-	/// Aggression level 1: all validators send all their own messages to all peers.
-	pub l1_threshold: Option<BlockNumber>,
-	/// Aggression level 2: level 1 + all validators send all messages to all peers in the X and Y dimensions.
-	pub l2_threshold: Option<BlockNumber>,
-	/// How often to re-send messages to all targeted recipients.
-	/// This applies to all unfinalized blocks.
-	pub resend_unfinalized_period: Option<BlockNumber>,
-}
-
-impl AggressionConfig {
-	/// Returns `true` if block is not too old depending on the aggression level
-	pub fn is_age_relevant(&self, block_age: BlockNumber) -> bool {
-		if let Some(t) = self.l1_threshold {
-			block_age >= t
-		} else if let Some(t) = self.resend_unfinalized_period {
-			block_age > 0 && block_age % t == 0
-		} else {
-			false
-		}
-	}
-}
-
-impl Default for AggressionConfig {
-	fn default() -> Self {
-		AggressionConfig {
-			l1_threshold: Some(10),
-			l2_threshold: Some(25),
-			resend_unfinalized_period: Some(5),
-		}
-	}
-}
-
 /// A representation of routing based on sample
 #[derive(Debug, Clone, Copy)]
 pub struct RandomRouting {
