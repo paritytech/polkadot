@@ -22,9 +22,7 @@
 
 use dashmap::DashMap;
 use futures::{channel::oneshot, stream::StreamExt, FutureExt as _, SinkExt};
-use polkadot_node_network_protocol::{
-	v1 as protocol_v1, PeerId, UnifiedReputationChange as Rep, View,
-};
+use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, View};
 use polkadot_node_primitives::approval::{
 	AssignmentCert, BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote,
 };
@@ -52,16 +50,6 @@ mod tests;
 
 const LOG_TARGET: &str = "parachain::approval-distribution";
 const WORKER_COUNT: usize = 8;
-const COST_UNEXPECTED_MESSAGE: Rep =
-	Rep::CostMinor("Peer sent an out-of-view assignment or approval");
-const COST_DUPLICATE_MESSAGE: Rep = Rep::CostMinorRepeated("Peer sent identical messages");
-const COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE: Rep =
-	Rep::CostMinor("The vote was valid but too far in the future");
-const COST_INVALID_MESSAGE: Rep = Rep::CostMajor("The vote was bad");
-
-const BENEFIT_VALID_MESSAGE: Rep = Rep::BenefitMinor("Peer sent a valid message");
-const BENEFIT_VALID_MESSAGE_FIRST: Rep =
-	Rep::BenefitMinorFirst("Valid message with new information");
 
 /// The number of peers to randomly propagate messages to.
 const RANDOM_CIRCULATION: usize = 4;
@@ -99,10 +87,6 @@ impl RecentlyOutdated {
 		while self.buf.len() > MAX_BUF_LEN {
 			let _ = self.buf.pop_front();
 		}
-	}
-
-	fn is_recent_outdated(&self, hash: &Hash) -> bool {
-		self.buf.contains(hash)
 	}
 }
 
@@ -1831,19 +1815,6 @@ async fn adjust_required_routing_and_propagate(
 	}
 }
 
-/// Modify the reputation of a peer based on its behavior.
-async fn modify_reputation(ctx: &mut impl SubsystemSender, peer_id: PeerId, rep: Rep) {
-	gum::trace!(
-		target: LOG_TARGET,
-		reputation = ?rep,
-		?peer_id,
-		"Reputation change for peer",
-	);
-
-	ctx.send_message(NetworkBridge(NetworkBridgeMessage::ReportPeer(peer_id, rep)))
-		.await;
-}
-
 impl ApprovalDistributionWorker {
 	/// Create a new instance of the [`ApprovalDistribution`] subsystem.
 	pub fn new(
@@ -1963,6 +1934,15 @@ where
 	}
 }
 
+/// Message routing information.
+enum WorkerRoutingInfo {
+	/// No preference in routing, message can be sent to any worker.
+	None,
+	Specific(usize),
+	/// Message is made of multiple smaller messages that have to be routed sperately.
+	NeedsSplit,
+}
+
 impl ApprovalDistribution {
 	/// Create a new instance of the [`ApprovalDistribution`] subsystem. This is just a wrapper
 	/// which distributes work to single threaded `ApprovalDistributionWorker` instances in a pool.
@@ -1998,7 +1978,10 @@ impl ApprovalDistribution {
 		self.run_inner(ctx, pool).await
 	}
 
-	fn handle_incoming(msg: &ApprovalDistributionMessage, worker_count: usize) -> Option<usize> {
+	fn handle_incoming(
+		msg: &ApprovalDistributionMessage,
+		worker_count: usize,
+	) -> WorkerRoutingInfo {
 		// Ensure approval and assigments are serialized on the same worker via candidate index.
 		match msg {
 			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index) => {
@@ -2008,7 +1991,7 @@ impl ApprovalDistribution {
 					cert.block_hash,
 					candidate_index,
 				);
-				Some(*candidate_index as usize % worker_count)
+				WorkerRoutingInfo::Specific(*candidate_index as usize % worker_count)
 			},
 			ApprovalDistributionMessage::DistributeApproval(vote) => {
 				gum::debug!(
@@ -2017,9 +2000,17 @@ impl ApprovalDistribution {
 					vote.block_hash,
 					vote.candidate_index,
 				);
-				Some(vote.candidate_index as usize % worker_count)
+				WorkerRoutingInfo::Specific(vote.candidate_index as usize % worker_count)
 			},
-			_ => None,
+			ApprovalDistributionMessage::NetworkBridgeUpdateV1(
+				NetworkBridgeEvent::PeerMessage(_, message),
+			) => match message {
+				polkadot_node_network_protocol::v1::ApprovalDistributionMessage::Assignments(_) =>
+					WorkerRoutingInfo::NeedsSplit,
+				polkadot_node_network_protocol::v1::ApprovalDistributionMessage::Approvals(_) =>
+					WorkerRoutingInfo::NeedsSplit,
+			},
+			_ => WorkerRoutingInfo::None,
 		}
 	}
 
@@ -2043,25 +2034,132 @@ impl ApprovalDistribution {
 			};
 
 			// See if we need any specific worker to handle this to ensure strict message processing ordering.
-			let preferred_worker_index = match &message {
+			let routing_info = match &message {
 				FromOverseer::Communication { msg } => Self::handle_incoming(msg, WORKER_COUNT),
-				_ => None,
+				_ => WorkerRoutingInfo::None,
 			};
-			let worker_index = preferred_worker_index.unwrap_or(index % WORKER_COUNT as usize);
 
-			gum::debug!(target: LOG_TARGET, ?worker_index, ?message, "Sending message to worker");
-
-			match pool[worker_index].send(message).await {
-				Ok(_) => {},
-				Err(err) => {
-					gum::warn!(
+			match routing_info {
+				WorkerRoutingInfo::None => {
+					let worker_index = index % WORKER_COUNT as usize;
+					gum::debug!(
 						target: LOG_TARGET,
-						?err,
 						?worker_index,
-						"Failed to send a message to worker"
+						?message,
+						"Sending message to single worker"
 					);
+
+					match pool[worker_index].send(message).await {
+						Ok(_) => {},
+						Err(err) => {
+							gum::warn!(
+								target: LOG_TARGET,
+								?err,
+								?worker_index,
+								"Failed to send a message to worker"
+							);
+						},
+					};
 				},
-			}
+				WorkerRoutingInfo::Specific(worker_index) => {
+					gum::debug!(
+						target: LOG_TARGET,
+						?worker_index,
+						?message,
+						"Sending message to single worker"
+					);
+
+					match pool[worker_index].send(message).await {
+						Ok(_) => {},
+						Err(err) => {
+							gum::warn!(
+								target: LOG_TARGET,
+								?err,
+								?worker_index,
+								"Failed to send a message to worker"
+							);
+						},
+					};
+				},
+				WorkerRoutingInfo::NeedsSplit => {
+					match message {
+						FromOverseer::Communication {
+							msg: ApprovalDistributionMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerMessage(peer, peer_message))
+						} => {
+							match peer_message {
+								polkadot_node_network_protocol::v1::ApprovalDistributionMessage::Assignments(assignments)=> {
+									let mut per_worker_assignments: Vec<Vec<(IndirectAssignmentCert, CandidateIndex)>>= vec![Vec::new(); WORKER_COUNT];
+
+									for assignment in assignments {
+										per_worker_assignments[assignment.1 as usize % WORKER_COUNT].push(assignment);
+									}
+
+									let messages = per_worker_assignments
+										.into_iter()
+										.filter(|v| !v.is_empty())
+										.enumerate()
+										.map(|assignments| (assignments.0, FromOverseer::Communication {
+											msg: ApprovalDistributionMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerMessage(peer, polkadot_node_network_protocol::v1::ApprovalDistributionMessage::Assignments(assignments.1)))
+										}))
+										.collect::<Vec<_>>();
+
+									gum::debug!(target: LOG_TARGET,?messages, count = ?messages.len(), "Sending message to multiple workers");
+
+									for (index, message) in messages.into_iter() {
+										gum::debug!(target: LOG_TARGET,?message, worker_index = ?index, "Sending message to worker");
+
+										match pool[index].send(message).await {
+											Ok(_) => {},
+											Err(err) => {
+												gum::warn!(
+													target: LOG_TARGET,
+													?err,
+													?index,
+													"Failed to send a message to worker"
+												);
+											},
+										};
+									}
+								},
+								polkadot_node_network_protocol::v1::ApprovalDistributionMessage::Approvals(approvals)=> {
+									let mut per_worker_approvals: Vec<Vec<IndirectSignedApprovalVote>>= vec![Vec::new(); WORKER_COUNT];
+									for approval in approvals {
+										per_worker_approvals[approval.candidate_index  as usize % WORKER_COUNT].push(approval);
+									}
+									
+									let messages = per_worker_approvals
+										.into_iter()
+										.filter(|v| !v.is_empty())
+										.enumerate()
+										.map(|approvals| (approvals.0, FromOverseer::Communication
+											{
+												msg: ApprovalDistributionMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerMessage(peer, polkadot_node_network_protocol::v1::ApprovalDistributionMessage::Approvals(approvals.1)))
+											}))
+										.collect::<Vec<_>>();
+										gum::debug!(target: LOG_TARGET,?messages, count = ?messages.len(), "Sending message to multiple workers");
+
+									for (index, message) in messages.into_iter() {
+										gum::debug!(target: LOG_TARGET,?message, worker_index = ?index, "Sending message to worker");
+
+										match pool[index].send(message).await {
+											Ok(_) => {},
+											Err(err) => {
+												gum::warn!(
+													target: LOG_TARGET,
+													?err,
+													?index,
+													"Failed to send a message to worker"
+												);
+											},
+										};
+									}
+								},
+							}
+						},
+						_ => {}
+					};
+				},
+			};
 
 			index += 1;
 		}
