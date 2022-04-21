@@ -891,7 +891,7 @@ impl State {
 					// 	modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
 					// }
 				}
-				
+
 				return
 			},
 		};
@@ -1124,7 +1124,6 @@ impl State {
 			}
 		}
 
-
 		drop(entry);
 		if !peers.is_empty() {
 			gum::trace!(
@@ -1342,7 +1341,7 @@ impl State {
 							?state,
 							"Unexpected approval state ",
 						);
-						
+
 						// This is racing with new_blocks which also calls this fn and doesn't use the
 						// preffered worker index.
 						return
@@ -1462,7 +1461,6 @@ impl State {
 				let locked_entry = entries.get_mut(&block);
 				match locked_entry {
 					Some(mut entry) if entry.number > view_finalized_number => {
-
 						// Any peer which is in the `known_by` set has already been
 						// sent all messages it's meant to get for that block and all
 						// in-scope prior blocks.
