@@ -52,12 +52,12 @@ jobs:
           echo "Chain: $CHAIN" >> output.txt
           echo "----------------------------------------------------------------------" >> output.txt
 
-      - name: Pull polkadot-js-tools image
-        run: docker pull jacogr/polkadot-js-tools
-
       - name: Compare the metadata
         run: |
-          CMD="docker run --pull always --network host jacogr/polkadot-js-tools metadata $REF_URL ws://localhost:9944"
+          git clone https://github.com/joao-paulo-parity/polkadot-js-tools
+          cd polkadot-js-tools
+          ./docker/build.sh build
+          CMD="docker run --network host polkadot-js-tools metadata $REF_URL ws://localhost:9944"
           echo -e "Running:\n$CMD"
           $CMD >> output.txt
           sed -z -i 's/\n\n/\n/g' output.txt
