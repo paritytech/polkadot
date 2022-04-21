@@ -230,7 +230,7 @@ pub(crate) fn impl_subsystem_sender(
 	let mut ts = quote! {
 		/// Connector to send messages towards all subsystems,
 		/// while tracking the which signals where already received.
-		#[derive(Debug, Clone)]
+		#[derive(Debug)]
 		pub struct #subsystem_sender_name < OutgoingWrapper > {
 			/// Collection of channels to all subsystems.
 			channels: ChannelsOut,
@@ -239,33 +239,49 @@ pub(crate) fn impl_subsystem_sender(
 			/// Keep that marker around.
 			_phantom: ::core::marker::PhantomData< OutgoingWrapper >,
 		}
+
+		// can't derive due to `PhantomData` and `OutgoingWrapper` not being
+		// bounded by `Clone`.
+		impl<OutgoingWrapper> std::clone::Clone for #subsystem_sender_name < OutgoingWrapper > {
+			fn clone(&self) -> Self {
+				Self {
+					channels: self.channels.clone(),
+					signals_received: self.signals_received.clone(),
+					_phantom: ::core::marker::PhantomData::default(),
+				}
+			}
+		}
 	};
 
 	// Create the same for a wrapping enum:
 	//
 	// 1. subsystem specific `*OutgoingMessages`-type
 	// 2. overseer-global-`AllMessages`-type
-	let wrapped = |outgoing_wrapper: &Ident| {
+	let wrapped = |outgoing_wrapper: &TokenStream| {
 		quote! {
 			/// `M` references the type _consumed_ by the subsystem.
 			#[#support_crate ::async_trait]
-			impl<OutgoingMessage> SubsystemSender< OutgoingMessage > for #subsystem_sender_name < #outgoing_wrapper >
+			impl SubsystemSender< #outgoing_wrapper > for #subsystem_sender_name < #outgoing_wrapper >
 			where
-				OutgoingMessage: ::std::fmt::Debug + Send + 'static,
-				#outgoing_wrapper: ::std::convert::From<OutgoingMessage> + Send,
 				#all_messages_wrapper: ::std::convert::From< #outgoing_wrapper > + Send,
 			{
-				async fn send_message(&mut self, msg: OutgoingMessage) {
+				async fn send_message<OutgoingMessage>(&mut self, msg: OutgoingMessage)
+				where
+					OutgoingMessage: Send,
+					#outgoing_wrapper: ::std::convert::From<OutgoingMessage> + Send,
+				{
 					self.channels.send_and_log_error(
 						self.signals_received.load(),
-						#all_messages_wrapper ::from (
-							#outgoing_wrapper :: from ( msg )
+						<#all_messages_wrapper as ::std::convert::From<_>> ::from (
+							<#outgoing_wrapper as ::std::convert::From<_>> :: from ( msg )
 						)
 					).await;
 				}
 
-				async fn send_messages<I>(&mut self, msgs: I)
+				async fn send_messages<OutgoingMessage, I>(&mut self, msgs: I)
 				where
+					OutgoingMessage: Send,
+					#outgoing_wrapper: ::std::convert::From<OutgoingMessage> + Send,
 					I: IntoIterator<Item=OutgoingMessage> + Send,
 					I::IntoIter: Iterator<Item=OutgoingMessage> + Send,
 				{
@@ -274,11 +290,15 @@ pub(crate) fn impl_subsystem_sender(
 					}
 				}
 
-				fn send_unbounded_message(&mut self, msg: OutgoingMessage) {
+				fn send_unbounded_message<OutgoingMessage>(&mut self, msg: OutgoingMessage)
+				where
+					OutgoingMessage: Send,
+					#outgoing_wrapper: ::std::convert::From<OutgoingMessage> + Send,
+				{
 					self.channels.send_unbounded_and_log_error(
 						self.signals_received.load(),
-						#all_messages_wrapper ::from (
-							#outgoing_wrapper :: from ( msg )
+						<#all_messages_wrapper as ::std::convert::From<_>> ::from (
+							<#outgoing_wrapper as ::std::convert::From<_>> :: from ( msg )
 						)
 					);
 				}
@@ -287,8 +307,10 @@ pub(crate) fn impl_subsystem_sender(
 	};
 
 	for outgoing_wrapper in outgoing_wrappers {
-		ts.extend(wrapped(&outgoing_wrapper));
+		ts.extend(wrapped(&quote! { #outgoing_wrapper }));
 	}
+
+	ts.extend(wrapped(&quote! { () }));
 
 	ts
 }

@@ -362,11 +362,11 @@ pub trait SubsystemContext: Send + 'static {
 	/// The message type of this context. Subsystems launched with this context will expect
 	/// to receive messages of this type. Commonly uses the wrapping `enum` commonly called
 	/// `AllMessages`.
-	type Message: std::fmt::Debug + Send + 'static;
+	type Message: ::std::fmt::Debug + Send + 'static;
 	/// And the same for signals.
-	type Signal: std::fmt::Debug + Send + 'static;
+	type Signal: ::std::fmt::Debug + Send + 'static;
 	/// The overarching messages `enum` for this particular subsystem.
-	type OutgoingMessages: std::fmt::Debug + Send + 'static;
+	type OutgoingMessages: ::std::fmt::Debug + Send + 'static;
 
 	// The overarching messages `enum` for this particular subsystem.
 	// type AllMessages: From<Self::OutgoingMessages> + From<Self::Message> + std::fmt::Debug + Send + 'static;
@@ -402,32 +402,31 @@ pub trait SubsystemContext: Send + 'static {
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
 	async fn send_message<T>(&mut self, msg: T)
 	where
-		Self::OutgoingMessages: From<T>,
+		Self::OutgoingMessages: From<T> + Send,
 		T: Send,
 	{
-		self.sender().send_message(<Self::OutgoingMessages>::from(msg)).await
+		self.sender().send_message::<T>(msg).await
 	}
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
 	async fn send_messages<T, I>(&mut self, msgs: I)
 	where
+		Self::OutgoingMessages: From<T> + Send,
 		I: IntoIterator<Item = T> + Send,
 		I::IntoIter: Send,
-		Self::OutgoingMessages: From<T>,
 		T: Send,
 	{
-		self.sender()
-			.send_messages(msgs.into_iter().map(|x| <Self::OutgoingMessages>::from(x)))
-			.await
+		self.sender().send_messages::<T, _>(msgs.into_iter()).await
 	}
 
 	/// Send a message using the unbounded connection.
 	fn send_unbounded_message<X>(&mut self, msg: X)
 	where
-		Self::OutgoingMessages: From<X>,
+		Self::OutgoingMessages: From<X> + Send,
 		X: Send,
 	{
-		self.sender().send_unbounded_message(Self::OutgoingMessages::from(msg))
+		self.sender()
+			.send_unbounded_message::<Self::OutgoingMessages>(Self::OutgoingMessages::from(msg))
 	}
 
 	/// Obtain the sender.
@@ -453,25 +452,30 @@ where
 
 /// Sender end of a channel to interface with a subsystem.
 #[async_trait::async_trait]
-pub trait SubsystemSender<OutgoingMessage>: Send + 'static
-where
-	OutgoingMessage: Send,
-{
+pub trait SubsystemSender<OutgoingMessages>: Send + 'static {
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	async fn send_message(&mut self, msg: OutgoingMessage);
+	async fn send_message<OutgoingMessage>(&mut self, msg: OutgoingMessage)
+	where
+		OutgoingMessages: From<OutgoingMessage>,
+		OutgoingMessage: Send;
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-	async fn send_messages<T>(&mut self, msgs: T)
+	async fn send_messages<OutgoingMessage, I>(&mut self, msgs: I)
 	where
-		T: IntoIterator<Item = OutgoingMessage> + Send,
-		T::IntoIter: Send;
+		OutgoingMessages: From<OutgoingMessage>,
+		OutgoingMessage: Send,
+		I: IntoIterator<Item = OutgoingMessage> + Send,
+		I::IntoIter: Send;
 
 	/// Send a message onto the unbounded queue of some other `Subsystem`, routed based on message
 	/// type.
 	///
 	/// This function should be used only when there is some other bounding factor on the messages
 	/// sent with it. Otherwise, it risks a memory leak.
-	fn send_unbounded_message(&mut self, msg: OutgoingMessage);
+	fn send_unbounded_message<OutgoingMessage>(&mut self, msg: OutgoingMessage)
+	where
+		OutgoingMessages: From<OutgoingMessage>,
+		OutgoingMessage: Send;
 }
 
 /// A future that wraps another future with a `Delay` allowing for time-limited futures.

@@ -89,7 +89,11 @@ struct TestSubsystem2(metered::MeteredSender<usize>);
 
 impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem2
 where
-	C: overseer::SubsystemContext<Message = CandidateBackingMessage, Signal = OverseerSignal>,
+	C: overseer::SubsystemContext<
+		Message = CandidateBackingMessage,
+		OutgoingMessages = <CandidateBackingMessage as AssociateOutgoing>::OutgoingMessages,
+		Signal = OverseerSignal,
+	>,
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let sender = self.0.clone();
