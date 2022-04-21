@@ -77,7 +77,7 @@ pub trait RpcApi {
 		unsubscribe = "author_unwatchExtrinsic",
 		item = TransactionStatus<Hash, Hash>
 	)]
-	fn watch_extrinsic(&self, bytes: &Bytes) -> RpcResult<()>;
+	fn watch_extrinsic(&self, bytes: &Bytes);
 
 	/// New head subscription.
 	#[subscription(
@@ -85,7 +85,7 @@ pub trait RpcApi {
 		unsubscribe = "chain_unsubscribeNewHeads",
 		item = Header
 	)]
-	fn subscribe_new_heads(&self) -> RpcResult<()>;
+	fn subscribe_new_heads(&self);
 
 	/// Finalized head subscription.
 	#[subscription(
@@ -93,7 +93,7 @@ pub trait RpcApi {
 		unsubscribe = "chain_unsubscribeFinalizedHeads",
 		item = Header
 	)]
-	fn subscribe_finalized_heads(&self) -> RpcResult<()>;
+	fn subscribe_finalized_heads(&self);
 }
 
 /// Wraps a shared web-socket JSON-RPC client that can be cloned.
