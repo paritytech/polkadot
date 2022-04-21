@@ -60,13 +60,13 @@ pub const DEFAULT_RANDOM_CIRCULATION: usize = 4;
 /// Topology representation
 pub struct SessionGridTopology {
 	/// Represent peers in the X axis
-	peers_x: HashSet<PeerId>,
+	pub peers_x: HashSet<PeerId>,
 	/// Represent validators in the X axis
-	validator_indices_x: HashSet<ValidatorIndex>,
+	pub validator_indices_x: HashSet<ValidatorIndex>,
 	/// Represent peers in the Y axis
-	peers_y: HashSet<PeerId>,
+	pub peers_y: HashSet<PeerId>,
 	/// Represent validators in the Y axis
-	validator_indices_y: HashSet<ValidatorIndex>,
+	pub validator_indices_y: HashSet<ValidatorIndex>,
 }
 
 impl SessionGridTopology {
@@ -103,23 +103,23 @@ impl SessionGridTopology {
 }
 /// A set of topologies indexed by session
 #[derive(Default)]
-pub struct SessionTopologies {
+pub struct SessionGridTopologies {
 	inner: HashMap<SessionIndex, (Option<SessionGridTopology>, usize)>,
 }
 
-impl SessionTopologies {
+impl SessionGridTopologies {
 	/// Returns a topology for the specific session index
 	pub fn get_topology(&self, session: SessionIndex) -> Option<&SessionGridTopology> {
 		self.inner.get(&session).and_then(|val| val.0.as_ref())
 	}
 
 	/// Increase references counter for a specific topology
-	fn inc_session_refs(&mut self, session: SessionIndex) {
+	pub fn inc_session_refs(&mut self, session: SessionIndex) {
 		self.inner.entry(session).or_insert((None, 0)).1 += 1;
 	}
 
 	/// Decrease references counter for a specific topology
-	fn dec_session_refs(&mut self, session: SessionIndex) {
+	pub fn dec_session_refs(&mut self, session: SessionIndex) {
 		if let hash_map::Entry::Occupied(mut occupied) = self.inner.entry(session) {
 			occupied.get_mut().1 = occupied.get().1.saturating_sub(1);
 			if occupied.get().1 == 0 {
@@ -129,7 +129,7 @@ impl SessionTopologies {
 	}
 
 	/// Insert a new topology, no-op if already present.
-	fn insert_topology(&mut self, session: SessionIndex, topology: SessionGridTopology) {
+	pub fn insert_topology(&mut self, session: SessionIndex, topology: SessionGridTopology) {
 		let entry = self.inner.entry(session).or_insert((None, 0));
 		if entry.0.is_none() {
 			entry.0 = Some(topology);
