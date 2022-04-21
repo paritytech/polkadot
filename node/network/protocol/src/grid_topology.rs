@@ -143,7 +143,7 @@ impl SessionGridTopologies {
 // be propagated in a single block and this holds up all of its descendants blocks.
 // Accordingly, we only step on the gas for the block which is most obviously holding up finality.
 
-/// Agression configuration representation
+/// Aggression configuration representation
 #[derive(Clone)]
 pub struct AggressionConfig {
 	/// Aggression level 1: all validators send all their own messages to all peers.
