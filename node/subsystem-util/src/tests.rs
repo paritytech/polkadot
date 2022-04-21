@@ -59,6 +59,7 @@ enum Error {
 
 impl JobTrait for FakeCollatorProtocolJob {
 	type ToJob = CollatorProtocolMessage;
+	type OutgoingMessages = CollatorProtocolOutgoingMessages;
 	type Error = Error;
 	type RunArgs = bool;
 	type Metrics = ();

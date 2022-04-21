@@ -67,8 +67,12 @@ impl<Client> ChainApiSubsystem<Client> {
 impl<Client, Context> overseer::Subsystem<Context, SubsystemError> for ChainApiSubsystem<Client>
 where
 	Client: HeaderBackend<Block> + AuxStore + 'static,
-	Context: SubsystemContext<Message = ChainApiMessage>,
-	Context: overseer::SubsystemContext<Message = ChainApiMessage>,
+	Context: overseer::SubsystemContext<
+		Message = ChainApiMessage,
+		OutgoingMessages = overseer::ChainApiOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run::<Client, Context>(ctx, self)
@@ -84,8 +88,12 @@ async fn run<Client, Context>(
 ) -> SubsystemResult<()>
 where
 	Client: HeaderBackend<Block> + AuxStore,
-	Context: SubsystemContext<Message = ChainApiMessage>,
-	Context: overseer::SubsystemContext<Message = ChainApiMessage>,
+	Context: overseer::SubsystemContext<
+		Message = ChainApiMessage,
+		OutgoingMessages = overseer::ChainApiOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	loop {
 		match ctx.recv().await? {

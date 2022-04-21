@@ -457,7 +457,13 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, blocking, AvailabilityStoreMessage, sends: [])]
 	availability_store: AvailabilityStore,
 
-	#[subsystem(no_dispatch, NetworkBridgeMessage, sends: [])]
+	#[subsystem(no_dispatch, NetworkBridgeMessage, sends: [
+		ApprovalDistributionMessage,
+		StatementDistributionMessage,
+		BitfieldDistributionMessage,
+		GossipSupportMessage,
+		DisputeDistributionMessage,
+	])]
 	network_bridge: NetworkBridge,
 
 	#[subsystem(no_dispatch, blocking, ChainApiMessage, sends: [])]
@@ -475,10 +481,16 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, blocking, ApprovalVotingMessage, sends: [])]
 	approval_voting: ApprovalVoting,
 
-	#[subsystem(GossipSupportMessage, sends: [])]
+	#[subsystem(GossipSupportMessage, sends: [
+		NetworkBridgeMessage,
+		RuntimeApiMessage,
+	])]
 	gossip_support: GossipSupport,
 
-	#[subsystem(no_dispatch, blocking, DisputeCoordinatorMessage, sends: [])]
+	#[subsystem(no_dispatch, blocking, DisputeCoordinatorMessage, sends: [
+		RuntimeApiMessage,
+		ChainApiMessage,
+	])]
 	dispute_coordinator: DisputeCoordinator,
 
 	#[subsystem(no_dispatch, DisputeDistributionMessage, sends: [])]

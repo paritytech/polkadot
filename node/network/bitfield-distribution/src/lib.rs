@@ -213,8 +213,12 @@ impl BitfieldDistribution {
 	/// Start processing work as passed on from the Overseer.
 	async fn run<Context>(self, ctx: Context)
 	where
-		Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-		Context: overseer::SubsystemContext<Message = BitfieldDistributionMessage>,
+		Context: overseer::SubsystemContext<
+			Message = BitfieldDistributionMessage,
+			OutgoingMessages = overseer::BitfieldDistributionOutgoingMessages,
+			Signal = OverseerSignal,
+			Error = SubsystemError,
+		>,
 	{
 		let mut state = ProtocolState::default();
 		let mut rng = rand::rngs::StdRng::from_entropy();
@@ -316,10 +320,7 @@ impl BitfieldDistribution {
 }
 
 /// Modify the reputation of a peer based on its behavior.
-async fn modify_reputation<Context>(ctx: &mut Context, relay_parent: Hash, peer: PeerId, rep: Rep)
-where
-	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-{
+async fn modify_reputation<Context>(ctx: &mut Context, relay_parent: Hash, peer: PeerId, rep: Rep) {
 	gum::trace!(target: LOG_TARGET, ?relay_parent, ?rep, %peer, "reputation change");
 
 	ctx.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
@@ -742,9 +743,7 @@ async fn send_tracked_gossip_message<Context>(
 	dest: PeerId,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
-) where
-	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-{
+) {
 	let job_data = if let Some(job_data) = state.per_relay_parent.get_mut(&message.relay_parent) {
 		job_data
 	} else {
@@ -775,8 +774,12 @@ async fn send_tracked_gossip_message<Context>(
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for BitfieldDistribution
 where
-	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-	Context: overseer::SubsystemContext<Message = BitfieldDistributionMessage>,
+	Context: overseer::SubsystemContext<
+		Message = BitfieldDistributionMessage,
+		OutgoingMessages = overseer::BitfieldDistributionOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self.run(ctx).map(|_| Ok(())).boxed();
@@ -790,9 +793,7 @@ async fn query_basics<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
 ) -> SubsystemResult<Option<(Vec<ValidatorId>, SigningContext)>>
-where
-	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-{
+where {
 	let (validators_tx, validators_rx) = oneshot::channel();
 	let (session_tx, session_rx) = oneshot::channel();
 

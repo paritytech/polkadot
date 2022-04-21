@@ -330,8 +330,12 @@ impl ChainSelectionSubsystem {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for ChainSelectionSubsystem
 where
-	Context: SubsystemContext<Message = ChainSelectionMessage>,
-	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
+	Context: overseer::SubsystemContext<
+		Message = ChainSelectionMessage,
+		OutgoingMessages = overseer::ChainSelectionOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = db_backend::v1::DbBackend::new(
@@ -354,8 +358,12 @@ async fn run<Context, B>(
 	stagnant_check_interval: StagnantCheckInterval,
 	clock: Box<dyn Clock + Send + Sync>,
 ) where
-	Context: SubsystemContext<Message = ChainSelectionMessage>,
-	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
+	Context: overseer::SubsystemContext<
+		Message = ChainSelectionMessage,
+		OutgoingMessages = overseer::ChainSelectionOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 	B: Backend,
 {
 	loop {
@@ -386,8 +394,12 @@ async fn run_until_error<Context, B>(
 	clock: &(dyn Clock + Sync),
 ) -> Result<(), Error>
 where
-	Context: SubsystemContext<Message = ChainSelectionMessage>,
-	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
+	Context: overseer::SubsystemContext<
+		Message = ChainSelectionMessage,
+		OutgoingMessages = overseer::ChainSelectionOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 	B: Backend,
 {
 	let mut stagnant_check_stream = stagnant_check_interval.timeout_stream();

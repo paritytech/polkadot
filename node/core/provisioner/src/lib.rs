@@ -32,7 +32,7 @@ use polkadot_node_subsystem::{
 		CandidateBackingMessage, ChainApiMessage, DisputeCoordinatorMessage, ProvisionableData,
 		ProvisionerInherentData, ProvisionerMessage,
 	},
-	ActivatedLeaf, LeafStatus, PerLeafSpan, SubsystemSender,
+	overseer, ActivatedLeaf, LeafStatus, PerLeafSpan, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data, JobSender, JobSubsystem,
@@ -112,6 +112,7 @@ pub struct ProvisionerConfig;
 
 impl JobTrait for ProvisionerJob {
 	type ToJob = ProvisionerMessage;
+	type OutgoingMessages = overseer::ProvisionerOutgoingMessages;
 	type Error = Error;
 	type RunArgs = ProvisionerConfig;
 	type Metrics = Metrics;

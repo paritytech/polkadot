@@ -123,8 +123,12 @@ impl Initialized {
 		clock: Box<dyn Clock>,
 	) -> FatalResult<()>
 	where
-		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
+		Context: overseer::SubsystemContext<
+			Message = DisputeCoordinatorMessage,
+			OutgoingMessages = overseer::DisputeCoordinatorOutgoingMessages,
+			Signal = OverseerSignal,
+			Error = SubsystemError,
+		>,
 		B: Backend,
 	{
 		loop {
@@ -161,8 +165,12 @@ impl Initialized {
 		clock: &dyn Clock,
 	) -> Result<()>
 	where
-		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
+		Context: overseer::SubsystemContext<
+			Message = DisputeCoordinatorMessage,
+			OutgoingMessages = overseer::DisputeCoordinatorOutgoingMessages,
+			Signal = OverseerSignal,
+			Error = SubsystemError,
+		>,
 		B: Backend,
 	{
 		for (priority, request) in participations.drain(..) {
@@ -255,8 +263,12 @@ impl Initialized {
 
 	async fn process_active_leaves_update(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>
-		          + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
+		ctx: &mut impl overseer::SubsystemContext<
+			Message = DisputeCoordinatorMessage,
+			OutgoingMessages = overseer::DisputeCoordinatorOutgoingMessages,
+			Signal = OverseerSignal,
+			Error = SubsystemError,
+		>,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		update: ActiveLeavesUpdate,
 		now: u64,
@@ -320,8 +332,12 @@ impl Initialized {
 	/// relay chain.
 	async fn process_on_chain_votes(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>
-		          + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
+		ctx: &mut impl overseer::SubsystemContext<
+			Message = DisputeCoordinatorMessage,
+			OutgoingMessages = overseer::DisputeCoordinatorOutgoingMessages,
+			Signal = OverseerSignal,
+			Error = SubsystemError,
+		>,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		votes: ScrapedOnChainVotes,
 		now: u64,
@@ -1056,8 +1072,12 @@ enum MuxedMessage {
 
 impl MuxedMessage {
 	async fn receive(
-		ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>
-		          + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
+		ctx: &mut impl overseer::SubsystemContext<
+			Message = DisputeCoordinatorMessage,
+			OutgoingMessages = overseer::DisputeCoordinatorOutgoingMessages,
+			Signal = OverseerSignal,
+			Error = SubsystemError,
+		>,
 		from_sender: &mut participation::WorkerMessageReceiver,
 	) -> FatalResult<Self> {
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream

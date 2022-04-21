@@ -49,10 +49,7 @@ struct Subsystem1;
 impl Subsystem1 {
 	async fn run<Ctx>(mut ctx: Ctx) -> ()
 	where
-		Ctx: overseer::SubsystemContext<
-			Message = CandidateBackingMessage,
-			Signal = OverseerSignal
-		>,
+		Ctx: overseer::SubsystemContext<Message = CandidateBackingMessage, Signal = OverseerSignal>,
 		<Ctx as overseer::SubsystemContext>::OutgoingMessages: From<CandidateValidationMessage>,
 	{
 		'louy: loop {
@@ -95,7 +92,7 @@ where
 	Context: overseer::SubsystemContext<
 		Message = CandidateBackingMessage,
 		OutgoingMessages = overseer::CandidateBackingOutgoingMessages,
-		Signal = OverseerSignal
+		Signal = OverseerSignal,
 	>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {

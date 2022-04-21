@@ -129,9 +129,10 @@ impl Requester {
 	where
 		Context: SubsystemContext,
 	{
+		let mut sender = ctx.sender();
 		let ActivatedLeaf { hash: leaf, .. } = new_head;
 		let (leaf_session_index, ancestors_in_session) = get_block_ancestors_in_same_session(
-			ctx,
+			&mut sender,
 			runtime,
 			leaf,
 			Self::LEAF_ANCESTRY_LEN_WITHIN_SESSION,
@@ -139,7 +140,7 @@ impl Requester {
 		.await?;
 		// Also spawn or bump tasks for candidates in ancestry in the same session.
 		for hash in std::iter::once(leaf).chain(ancestors_in_session) {
-			let cores = get_occupied_cores(ctx, hash).await?;
+			let cores = get_occupied_cores(&mut sender, hash).await?;
 			gum::trace!(
 				target: LOG_TARGET,
 				occupied_cores = ?cores,
@@ -257,26 +258,27 @@ impl Stream for Requester {
 /// Requests up to `limit` ancestor hashes of relay parent in the same session.
 ///
 /// Also returns session index of the `head`.
-async fn get_block_ancestors_in_same_session<Context>(
-	ctx: &mut Context,
+async fn get_block_ancestors_in_same_session<Sender>(
+	sender: &mut Sender,
 	runtime: &mut RuntimeInfo,
 	head: Hash,
 	limit: usize,
 ) -> Result<(SessionIndex, Vec<Hash>)>
 where
-	Context: SubsystemContext,
+	Sender:
+		overseer::SubsystemSender<RuntimeApiMessage> + overseer::SubsystemSender<ChainApiMessage>,
 {
 	// The order is parent, grandparent, ...
 	//
 	// `limit + 1` since a session index for the last element in ancestry
 	// is obtained through its parent. It always gets truncated because
 	// `session_ancestry_len` can only be incremented `ancestors.len() - 1` times.
-	let mut ancestors = get_block_ancestors(ctx, head, limit + 1).await?;
+	let mut ancestors = get_block_ancestors(sender, head, limit + 1).await?;
 	let mut ancestors_iter = ancestors.iter();
 
 	// `head` is the child of the first block in `ancestors`, request its session index.
 	let head_session_index = match ancestors_iter.next() {
-		Some(parent) => runtime.get_session_index_for_child(ctx.sender(), *parent).await?,
+		Some(parent) => runtime.get_session_index_for_child(sender, *parent).await?,
 		None => {
 			// No first element, i.e. empty.
 			return Ok((0, ancestors))
@@ -287,7 +289,7 @@ where
 	// The first parent is skipped.
 	for parent in ancestors_iter {
 		// Parent is the i-th ancestor, request session index for its child -- (i-1)th element.
-		let session_index = runtime.get_session_index_for_child(ctx.sender(), *parent).await?;
+		let session_index = runtime.get_session_index_for_child(sender, *parent).await?;
 		if session_index == head_session_index {
 			session_ancestry_len += 1;
 		} else {
@@ -303,7 +305,7 @@ where
 
 /// Request up to `limit` ancestor hashes of relay parent from the Chain API.
 async fn get_block_ancestors<Context>(
-	ctx: &mut Context,
+	ctx: &mut overseer::SubsystemSender<ChainApiMessage>,
 	relay_parent: Hash,
 	limit: usize,
 ) -> Result<Vec<Hash>>

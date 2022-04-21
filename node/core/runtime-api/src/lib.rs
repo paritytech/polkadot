@@ -96,8 +96,12 @@ impl<Client, Context> overseer::Subsystem<Context, SubsystemError> for RuntimeAp
 where
 	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-	Context: SubsystemContext<Message = RuntimeApiMessage>,
-	Context: overseer::SubsystemContext<Message = RuntimeApiMessage>,
+	Context: overseer::SubsystemContext<
+		Message = RuntimeApiMessage,
+		OutgoingMessages = overseer::RuntimeApiOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem { future: run(ctx, self).boxed(), name: "runtime-api-subsystem" }
@@ -340,8 +344,12 @@ async fn run<Client, Context>(
 where
 	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-	Context: SubsystemContext<Message = RuntimeApiMessage>,
-	Context: overseer::SubsystemContext<Message = RuntimeApiMessage>,
+	Context: overseer::SubsystemContext<
+		Message = RuntimeApiMessage,
+		OutgoingMessages = overseer::RuntimeApiOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	loop {
 		select! {

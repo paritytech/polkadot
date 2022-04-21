@@ -34,7 +34,7 @@ use polkadot_node_subsystem::{
 		AvailabilityStoreMessage, BitfieldDistributionMessage, BitfieldSigningMessage,
 		RuntimeApiMessage, RuntimeApiRequest,
 	},
-	ActivatedLeaf, LeafStatus, PerLeafSpan, SubsystemSender,
+	overseer, ActivatedLeaf, LeafStatus, PerLeafSpan, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{self as util, JobSender, JobSubsystem, JobTrait, Validator};
 use polkadot_primitives::v2::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
@@ -83,7 +83,7 @@ pub enum Error {
 async fn get_core_availability(
 	core: &CoreState,
 	validator_idx: ValidatorIndex,
-	sender: &Mutex<&mut impl SubsystemSender>,
+	sender: &Mutex<&mut impl SubsystemSender<overseer::BitfieldSigningOutgoingMessages>>,
 	span: &jaeger::Span,
 ) -> Result<bool, Error> {
 	if let &CoreState::Occupied(ref core) = core {
@@ -122,7 +122,7 @@ async fn get_core_availability(
 /// delegates to the v1 runtime API
 async fn get_availability_cores(
 	relay_parent: Hash,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender<overseer::BitfieldSigningOutgoingMessages>,
 ) -> Result<Vec<CoreState>, Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
@@ -146,7 +146,7 @@ async fn construct_availability_bitfield(
 	relay_parent: Hash,
 	span: &jaeger::Span,
 	validator_idx: ValidatorIndex,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender<overseer::BitfieldSigningOutgoingMessages>,
 ) -> Result<AvailabilityBitfield, Error> {
 	// get the set of availability cores from the runtime
 	let availability_cores = {
@@ -184,6 +184,7 @@ async fn construct_availability_bitfield(
 
 impl JobTrait for BitfieldSigningJob {
 	type ToJob = BitfieldSigningMessage;
+	type OutgoingMessages = overseer::BitfieldSigningOutgoingMessages;
 	type Error = Error;
 	type RunArgs = SyncCryptoStorePtr;
 	type Metrics = Metrics;
@@ -191,13 +192,16 @@ impl JobTrait for BitfieldSigningJob {
 	const NAME: &'static str = "bitfield-signing-job";
 
 	/// Run a job for the parent block indicated
-	fn run<S: SubsystemSender>(
+	fn run<S>(
 		leaf: ActivatedLeaf,
 		keystore: Self::RunArgs,
 		metrics: Self::Metrics,
 		_receiver: mpsc::Receiver<BitfieldSigningMessage>,
 		mut sender: JobSender<S>,
-	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>
+	where
+		S: SubsystemSender<Self::OutgoingMessages>,
+	{
 		let metrics = metrics.clone();
 		async move {
 			if let LeafStatus::Stale = leaf.status {

@@ -95,8 +95,12 @@ impl CandidateValidationSubsystem {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for CandidateValidationSubsystem
 where
-	Context: SubsystemContext<Message = CandidateValidationMessage>,
-	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<
+		Message = CandidateValidationMessage,
+		OutgoingMessages = overseer::CandidateValidationOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(
@@ -120,8 +124,12 @@ async fn run<Context>(
 	program_path: PathBuf,
 ) -> SubsystemResult<()>
 where
-	Context: SubsystemContext<Message = CandidateValidationMessage>,
-	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<
+		Message = CandidateValidationMessage,
+		OutgoingMessages = overseer::CandidateValidationOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	let (validation_host, task) = polkadot_node_core_pvf::start(
 		polkadot_node_core_pvf::Config::new(cache_path, program_path),
@@ -235,7 +243,7 @@ async fn runtime_api_request<T, Sender>(
 	receiver: oneshot::Receiver<Result<T, RuntimeApiError>>,
 ) -> Result<T, RuntimeRequestFailed>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	sender
 		.send_message(RuntimeApiMessage::Request(relay_parent, request).into())
@@ -268,7 +276,7 @@ async fn request_validation_code_by_hash<Sender>(
 	validation_code_hash: ValidationCodeHash,
 ) -> Result<Option<ValidationCode>, RuntimeRequestFailed>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 	runtime_api_request(
@@ -287,7 +295,7 @@ async fn precheck_pvf<Sender>(
 	validation_code_hash: ValidationCodeHash,
 ) -> PreCheckOutcome
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	let validation_code =
 		match request_validation_code_by_hash(sender, relay_parent, validation_code_hash).await {
@@ -342,7 +350,7 @@ async fn check_assumption_validation_data<Sender>(
 	assumption: OccupiedCoreAssumption,
 ) -> AssumptionCheckOutcome
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	let validation_data = {
 		let (tx, rx) = oneshot::channel();
@@ -386,7 +394,7 @@ async fn find_assumed_validation_data<Sender>(
 	descriptor: &CandidateDescriptor,
 ) -> AssumptionCheckOutcome
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	// The candidate descriptor has a `persisted_validation_data_hash` which corresponds to
 	// one of up to two possible values that we can derive from the state of the
@@ -446,7 +454,7 @@ async fn validate_from_chain_state<Sender>(
 	metrics: &Metrics,
 ) -> Result<ValidationResult, ValidationFailed>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	let mut new_sender = sender.clone();
 	let (validation_data, validation_code) =

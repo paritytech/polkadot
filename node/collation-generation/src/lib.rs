@@ -73,8 +73,12 @@ impl CollationGenerationSubsystem {
 	/// Otherwise, most are logged and then discarded.
 	async fn run<Context>(mut self, mut ctx: Context)
 	where
-		Context: SubsystemContext<Message = CollationGenerationMessage>,
-		Context: overseer::SubsystemContext<Message = CollationGenerationMessage>,
+		Context: overseer::SubsystemContext<
+			Message = CollationGenerationMessage,
+			OutgoingMessages = overseer::CollationGenerationOutgoingMessages,
+			Signal = OverseerSignal,
+			Error = SubsystemError,
+		>,
 	{
 		// when we activate new leaves, we spawn a bunch of sub-tasks, each of which is
 		// expected to generate precisely one message. We don't want to block the main loop
@@ -108,11 +112,13 @@ impl CollationGenerationSubsystem {
 		&mut self,
 		incoming: SubsystemResult<FromOverseer<<Context as SubsystemContext>::Message>>,
 		ctx: &mut Context,
-		sender: &mpsc::Sender<AllMessages>,
+		sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
 	) -> bool
 	where
-		Context: SubsystemContext<Message = CollationGenerationMessage>,
-		Context: overseer::SubsystemContext<Message = CollationGenerationMessage>,
+		Context: overseer::SubsystemContext<
+			Message = CollationGenerationMessage,
+			OutgoingMessages = overseer::CollationGenerationOutgoingMessages,
+		>,
 	{
 		match incoming {
 			Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
@@ -164,8 +170,12 @@ impl CollationGenerationSubsystem {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for CollationGenerationSubsystem
 where
-	Context: SubsystemContext<Message = CollationGenerationMessage>,
-	Context: overseer::SubsystemContext<Message = CollationGenerationMessage>,
+	Context: overseer::SubsystemContext<
+		Message = CollationGenerationMessage,
+		OutgoingMessages = overseer::CollationGenerationOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async move {
@@ -417,7 +427,7 @@ async fn obtain_current_validation_code_hash(
 	relay_parent: Hash,
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender<overseer::CollationGenerationOutgoingMessages>,
 ) -> Result<Option<ValidationCodeHash>, crate::error::Error> {
 	use polkadot_node_subsystem::RuntimeApiError;
 

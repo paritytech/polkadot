@@ -43,7 +43,7 @@ pub async fn run_pov_receiver<Sender>(
 	mut receiver: IncomingRequestReceiver<v1::PoVFetchingRequest>,
 	metrics: Metrics,
 ) where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<AvailabilityStoreMessage>,
 {
 	loop {
 		match receiver.recv(|| vec![COST_INVALID_REQUEST]).await.into_nested() {
@@ -71,7 +71,7 @@ pub async fn run_chunk_receiver<Sender>(
 	mut receiver: IncomingRequestReceiver<v1::ChunkFetchingRequest>,
 	metrics: Metrics,
 ) where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<AvailabilityStoreMessage>,
 {
 	loop {
 		match receiver.recv(|| vec![COST_INVALID_REQUEST]).await.into_nested() {
@@ -105,7 +105,7 @@ pub async fn answer_pov_request_log<Sender>(
 	req: IncomingRequest<v1::PoVFetchingRequest>,
 	metrics: &Metrics,
 ) where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<AvailabilityStoreMessage>,
 {
 	let res = answer_pov_request(sender, req).await;
 	match res {
@@ -130,7 +130,7 @@ pub async fn answer_chunk_request_log<Sender>(
 	metrics: &Metrics,
 ) -> ()
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<AvailabilityStoreMessage>,
 {
 	let res = answer_chunk_request(sender, req).await;
 	match res {
@@ -154,7 +154,7 @@ pub async fn answer_pov_request<Sender>(
 	req: IncomingRequest<v1::PoVFetchingRequest>,
 ) -> Result<bool>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<AvailabilityStoreMessage>,
 {
 	let _span = jaeger::Span::new(req.payload.candidate_hash, "answer-pov-request");
 
@@ -182,7 +182,7 @@ pub async fn answer_chunk_request<Sender>(
 	req: IncomingRequest<v1::ChunkFetchingRequest>,
 ) -> Result<bool>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<AvailabilityStoreMessage>,
 {
 	let span = jaeger::Span::new(req.payload.candidate_hash, "answer-chunk-request");
 
@@ -217,7 +217,7 @@ async fn query_chunk<Sender>(
 	validator_index: ValidatorIndex,
 ) -> std::result::Result<Option<ErasureChunk>, JfyiError>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<AvailabilityStoreMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 	sender
@@ -245,7 +245,7 @@ async fn query_available_data<Sender>(
 	candidate_hash: CandidateHash,
 ) -> Result<Option<AvailableData>>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<AvailabilityStoreMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 	sender

@@ -100,8 +100,12 @@ impl CollatorProtocolSubsystem {
 
 	async fn run<Context>(self, ctx: Context) -> std::result::Result<(), error::FatalError>
 	where
-		Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
-		Context: SubsystemContext<Message = CollatorProtocolMessage>,
+		Context: overseer::SubsystemContext<
+			Message = CollatorProtocolMessage,
+			OutgoingMessages = overseer::CollatorProtocolOutgoingMessages,
+			Signal = OverseerSignal,
+			Error = SubsystemError,
+		>,
 	{
 		match self.protocol_side {
 			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
@@ -114,9 +118,14 @@ impl CollatorProtocolSubsystem {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for CollatorProtocolSubsystem
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>,
-	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
-	<Context as SubsystemContext>::Sender: SubsystemSender,
+	Context: overseer::SubsystemContext<
+		Message = CollatorProtocolMessage,
+		OutgoingMessages = overseer::CollatorProtocolOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
+	<Context as SubsystemContext>::Sender:
+		SubsystemSender<overseer::CollatorProtocolMessageOutgoingMessages>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self

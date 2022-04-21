@@ -158,10 +158,10 @@ where
 		self.tx.send(msg.into()).await.expect("test overseer no longer live");
 	}
 
-	async fn send_messages<X>(&mut self, msgs: X)
+	async fn send_messages<I>(&mut self, msgs: I)
 	where
-		X: IntoIterator<Item = T> + Send,
-		X::IntoIter: Send,
+		I: IntoIterator<Item = T> + Send,
+		I::IntoIter: Send,
 	{
 		let mut iter = stream::iter(msgs.into_iter().map(|msg| Ok(msg.into())));
 		self.tx.send_all(&mut iter).await.expect("test overseer no longer live");
@@ -180,16 +180,16 @@ pub struct TestSubsystemContext<M, S> {
 }
 
 #[async_trait::async_trait]
-impl<M, S> overseer::SubsystemContext for TestSubsystemContext<M, S>
+impl<M, Spawner> overseer::SubsystemContext for TestSubsystemContext<M, Spawner>
 where
 	M: std::fmt::Debug + Send + 'static,
 	AllMessages: From<M>,
-	S: SpawnNamed + Send + 'static,
+	Spawner: SpawnNamed + Send + 'static,
 {
 	type Message = M;
 	type Sender = TestSubsystemSender;
 	type Signal = OverseerSignal;
-	type AllMessages = AllMessages;
+	type OutgoingMessages = AllMessages;
 	type Error = SubsystemError;
 
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {
@@ -317,7 +317,9 @@ pub struct ForwardSubsystem<M>(pub mpsc::Sender<M>);
 impl<M, Context> overseer::Subsystem<Context, SubsystemError> for ForwardSubsystem<M>
 where
 	M: std::fmt::Debug + Send + 'static,
-	Context: SubsystemContext<Message = M> + overseer::SubsystemContext<Message = M>,
+	Context:
+		overseer::SubsystemContext<Message = M, Signal = OverseerSignal, Error = SubsystemError>,
+	<Context as overseer::SubsystemContext>::OutgoingMessages: From<M> + Send,
 {
 	fn start(mut self, mut ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {

@@ -25,7 +25,9 @@ use sp_application_crypto::AppKey;
 use sp_core::crypto::ByteArray;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
-use polkadot_node_subsystem::{SubsystemContext, SubsystemSender};
+use polkadot_node_subsystem::{
+	messages::RuntimeApiMessage, overseer, SubsystemContext, SubsystemSender,
+};
 use polkadot_primitives::v2::{
 	CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore,
 	ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned,
@@ -123,7 +125,7 @@ impl RuntimeInfo {
 		parent: Hash,
 	) -> Result<SessionIndex>
 	where
-		Sender: SubsystemSender,
+		Sender: SubsystemSender<RuntimeApiMessage>,
 	{
 		match self.session_index_cache.get(&parent) {
 			Some(index) => Ok(*index),
@@ -143,7 +145,7 @@ impl RuntimeInfo {
 		relay_parent: Hash,
 	) -> Result<&'a ExtendedSessionInfo>
 	where
-		Sender: SubsystemSender,
+		Sender: SubsystemSender<RuntimeApiMessage>,
 	{
 		let session_index = self.get_session_index_for_child(sender, relay_parent).await?;
 
@@ -161,7 +163,7 @@ impl RuntimeInfo {
 		session_index: SessionIndex,
 	) -> Result<&'a ExtendedSessionInfo>
 	where
-		Sender: SubsystemSender,
+		Sender: SubsystemSender<RuntimeApiMessage>,
 	{
 		if !self.session_info_cache.contains(&session_index) {
 			let session_info =
@@ -190,7 +192,7 @@ impl RuntimeInfo {
 		std::result::Result<Signed<Payload, RealPayload>, UncheckedSigned<Payload, RealPayload>>,
 	>
 	where
-		Sender: SubsystemSender,
+		Sender: SubsystemSender<RuntimeApiMessage>,
 		Payload: EncodeAs<RealPayload> + Clone,
 		RealPayload: Encode + Clone,
 	{
@@ -257,25 +259,25 @@ where
 }
 
 /// Request availability cores from the runtime.
-pub async fn get_availability_cores<Context>(
-	ctx: &mut Context,
+pub async fn get_availability_cores<Sender>(
+	sender: &mut Sender,
 	relay_parent: Hash,
 ) -> Result<Vec<CoreState>>
 where
-	Context: SubsystemContext,
+	Sender: overseer::SubsystemSender<RuntimeApiMessage>,
 {
-	recv_runtime(request_availability_cores(relay_parent, ctx.sender()).await).await
+	recv_runtime(request_availability_cores(relay_parent, sender).await).await
 }
 
 /// Variant of `request_availability_cores` that only returns occupied ones.
-pub async fn get_occupied_cores<Context>(
-	ctx: &mut Context,
+pub async fn get_occupied_cores<Sender>(
+	sender: &mut Sender,
 	relay_parent: Hash,
 ) -> Result<Vec<OccupiedCore>>
 where
-	Context: SubsystemContext,
+	Sender: overseer::SubsystemSender<RuntimeApiMessage>,
 {
-	let cores = get_availability_cores(ctx, relay_parent).await?;
+	let cores = get_availability_cores(sender, relay_parent).await?;
 
 	Ok(cores
 		.into_iter()
@@ -290,17 +292,16 @@ where
 }
 
 /// Get group rotation info based on the given `relay_parent`.
-pub async fn get_group_rotation_info<Context>(
-	ctx: &mut Context,
+pub async fn get_group_rotation_info<Sender>(
+	sender: &mut Sender,
 	relay_parent: Hash,
 ) -> Result<GroupRotationInfo>
 where
-	Context: SubsystemContext,
+	Sender: overseer::SubsystemSender<RuntimeApiMessage>,
 {
 	// We drop `groups` here as we don't need them, because of `RuntimeInfo`. Ideally we would not
 	// fetch them in the first place.
-	let (_, info) =
-		recv_runtime(request_validator_groups(relay_parent, ctx.sender()).await).await?;
+	let (_, info) = recv_runtime(request_validator_groups(relay_parent, sender).await).await?;
 	Ok(info)
 }
 
@@ -310,7 +311,7 @@ pub async fn get_candidate_events<Sender>(
 	relay_parent: Hash,
 ) -> Result<Vec<CandidateEvent>>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	recv_runtime(request_candidate_events(relay_parent, sender).await).await
 }
@@ -333,7 +334,7 @@ pub async fn get_validation_code_by_hash<Sender>(
 	validation_code_hash: ValidationCodeHash,
 ) -> Result<Option<ValidationCode>>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	recv_runtime(request_validation_code_by_hash(relay_parent, validation_code_hash, sender).await)
 		.await

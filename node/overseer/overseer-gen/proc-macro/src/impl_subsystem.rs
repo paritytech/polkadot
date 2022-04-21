@@ -259,16 +259,14 @@ pub(crate) fn impl_subsystem_sender(
 	// 2. overseer-global-`AllMessages`-type
 	let wrapped = |outgoing_wrapper: &TokenStream| {
 		quote! {
-			/// `M` references the type _consumed_ by the subsystem.
 			#[#support_crate ::async_trait]
-			impl SubsystemSender< #outgoing_wrapper > for #subsystem_sender_name < #outgoing_wrapper >
+			impl<OutgoingMessage> SubsystemSender< OutgoingMessage > for #subsystem_sender_name < #outgoing_wrapper >
 			where
+				OutgoingMessage: Send + 'static,
+				#outgoing_wrapper: ::std::convert::From<OutgoingMessage> + Send,
 				#all_messages_wrapper: ::std::convert::From< #outgoing_wrapper > + Send,
 			{
-				async fn send_message<OutgoingMessage>(&mut self, msg: OutgoingMessage)
-				where
-					OutgoingMessage: Send,
-					#outgoing_wrapper: ::std::convert::From<OutgoingMessage> + Send,
+				async fn send_message(&mut self, msg: OutgoingMessage)
 				{
 					self.channels.send_and_log_error(
 						self.signals_received.load(),
@@ -278,10 +276,8 @@ pub(crate) fn impl_subsystem_sender(
 					).await;
 				}
 
-				async fn send_messages<OutgoingMessage, I>(&mut self, msgs: I)
+				async fn send_messages<I>(&mut self, msgs: I)
 				where
-					OutgoingMessage: Send,
-					#outgoing_wrapper: ::std::convert::From<OutgoingMessage> + Send,
 					I: IntoIterator<Item=OutgoingMessage> + Send,
 					I::IntoIter: Iterator<Item=OutgoingMessage> + Send,
 				{
@@ -290,10 +286,7 @@ pub(crate) fn impl_subsystem_sender(
 					}
 				}
 
-				fn send_unbounded_message<OutgoingMessage>(&mut self, msg: OutgoingMessage)
-				where
-					OutgoingMessage: Send,
-					#outgoing_wrapper: ::std::convert::From<OutgoingMessage> + Send,
+				fn send_unbounded_message(&mut self, msg: OutgoingMessage)
 				{
 					self.channels.send_unbounded_and_log_error(
 						self.signals_received.load(),
@@ -307,10 +300,14 @@ pub(crate) fn impl_subsystem_sender(
 	};
 
 	for outgoing_wrapper in outgoing_wrappers {
-		ts.extend(wrapped(&quote! { #outgoing_wrapper }));
+		ts.extend(wrapped(&quote! {
+			#outgoing_wrapper
+		}));
 	}
 
-	ts.extend(wrapped(&quote! { () }));
+	ts.extend(wrapped(&quote! {
+		()
+	}));
 
 	ts
 }

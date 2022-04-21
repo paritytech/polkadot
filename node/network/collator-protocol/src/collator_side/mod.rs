@@ -370,8 +370,12 @@ async fn distribute_collation<Context>(
 	result_sender: Option<oneshot::Sender<CollationSecondedSignal>>,
 ) -> Result<()>
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>,
-	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<
+		Message = CollatorProtocolMessage,
+		OutgoingMessages = overseer::CollatorProtocolOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	let relay_parent = receipt.descriptor.relay_parent;
 
@@ -462,15 +466,19 @@ where
 /// Get the Id of the Core that is assigned to the para being collated on if any
 /// and the total number of cores.
 async fn determine_core<Context>(
-	ctx: &mut Context,
+	sender: &mut SubsystemSender<RuntimeApiMessage>,
 	para_id: ParaId,
 	relay_parent: Hash,
 ) -> Result<Option<(CoreIndex, usize)>>
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>,
-	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<
+		Message = CollatorProtocolMessage,
+		OutgoingMessages = overseer::CollatorProtocolOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
-	let cores = get_availability_cores(ctx, relay_parent).await?;
+	let cores = get_availability_cores(sender, relay_parent).await?;
 
 	for (idx, core) in cores.iter().enumerate() {
 		if let CoreState::Scheduled(occupied) = core {
@@ -501,8 +509,12 @@ async fn determine_our_validators<Context>(
 	relay_parent: Hash,
 ) -> Result<GroupValidators>
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>,
-	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<
+		Message = CollatorProtocolMessage,
+		OutgoingMessages = overseer::CollatorProtocolOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	let session_index = runtime.get_session_index_for_child(ctx.sender(), relay_parent).await?;
 	let info = &runtime
@@ -532,8 +544,12 @@ where
 /// Issue a `Declare` collation message to the given `peer`.
 async fn declare<Context>(ctx: &mut Context, state: &mut State, peer: PeerId)
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>,
-	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<
+		Message = CollatorProtocolMessage,
+		OutgoingMessages = overseer::CollatorProtocolOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	let declare_signature_payload = protocol_v1::declare_signature_payload(&state.local_peer_id);
 
@@ -556,8 +572,12 @@ where
 /// revoke the previous connection request.
 async fn connect_to_validators<Context>(ctx: &mut Context, validator_ids: Vec<AuthorityDiscoveryId>)
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>,
-	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<
+		Message = CollatorProtocolMessage,
+		OutgoingMessages = overseer::CollatorProtocolOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	// ignore address resolution failure
 	// will reissue a new request on new collation
@@ -580,8 +600,12 @@ async fn advertise_collation<Context>(
 	relay_parent: Hash,
 	peer: PeerId,
 ) where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>,
-	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<
+		Message = CollatorProtocolMessage,
+		OutgoingMessages = overseer::CollatorProtocolOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	let should_advertise = state
 		.our_validators_groups
@@ -642,8 +666,12 @@ async fn process_msg<Context>(
 	msg: CollatorProtocolMessage,
 ) -> Result<()>
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>,
-	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<
+		Message = CollatorProtocolMessage,
+		OutgoingMessages = overseer::CollatorProtocolOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	use CollatorProtocolMessage::*;
 
@@ -756,8 +784,12 @@ async fn handle_incoming_peer_message<Context>(
 	msg: protocol_v1::CollatorProtocolMessage,
 ) -> Result<()>
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>,
-	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<
+		Message = CollatorProtocolMessage,
+		OutgoingMessages = overseer::CollatorProtocolOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	use protocol_v1::CollatorProtocolMessage::*;
 
@@ -837,8 +869,12 @@ async fn handle_incoming_request<Context>(
 	req: IncomingRequest<request_v1::CollationFetchingRequest>,
 ) -> Result<()>
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>,
-	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<
+		Message = CollatorProtocolMessage,
+		OutgoingMessages = overseer::CollatorProtocolOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	let _span = state
 		.span_per_relay_parent
@@ -913,8 +949,12 @@ async fn handle_peer_view_change<Context>(
 	peer_id: PeerId,
 	view: View,
 ) where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>,
-	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<
+		Message = CollatorProtocolMessage,
+		OutgoingMessages = overseer::CollatorProtocolOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	let current = state.peer_views.entry(peer_id.clone()).or_default();
 
@@ -935,8 +975,12 @@ async fn handle_network_msg<Context>(
 	bridge_message: NetworkBridgeEvent<net_protocol::CollatorProtocolMessage>,
 ) -> Result<()>
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>,
-	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<
+		Message = CollatorProtocolMessage,
+		OutgoingMessages = overseer::CollatorProtocolOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	use NetworkBridgeEvent::*;
 
@@ -1029,8 +1073,12 @@ pub(crate) async fn run<Context>(
 	metrics: Metrics,
 ) -> std::result::Result<(), FatalError>
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage>,
-	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<
+		Message = CollatorProtocolMessage,
+		OutgoingMessages = overseer::CollatorProtocolOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	use OverseerSignal::*;
 

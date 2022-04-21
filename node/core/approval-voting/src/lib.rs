@@ -357,8 +357,12 @@ impl ApprovalVotingSubsystem {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for ApprovalVotingSubsystem
 where
-	Context: SubsystemContext<Message = ApprovalVotingMessage>,
-	Context: overseer::SubsystemContext<Message = ApprovalVotingMessage>,
+	Context: overseer::SubsystemContext<
+		Message = ApprovalVotingMessage,
+		OutgoingMessages = overseer::ApprovalVotingOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = DbBackend::new(self.db.clone(), self.db_config);
@@ -605,7 +609,7 @@ impl State {
 	/// Bring `session_window` up to date.
 	pub async fn cache_session_info_for_head(
 		&mut self,
-		ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+		ctx: &mut impl overseer::SubsystemContext,
 		head: Hash,
 	) -> Result<Option<SessionWindowUpdate>, SessionsUnavailable> {
 		let session_window = self.session_window.take();
@@ -709,8 +713,12 @@ async fn run<B, Context>(
 	mut backend: B,
 ) -> SubsystemResult<()>
 where
-	Context: SubsystemContext<Message = ApprovalVotingMessage>,
-	Context: overseer::SubsystemContext<Message = ApprovalVotingMessage>,
+	Context: overseer::SubsystemContext<
+		Message = ApprovalVotingMessage,
+		OutgoingMessages = overseer::ApprovalVotingOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 	B: Backend,
 {
 	let mut state = State {
@@ -849,8 +857,12 @@ where
 //
 // returns `true` if any of the actions was a `Conclude` command.
 async fn handle_actions(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage>
-	          + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+	ctx: &mut impl overseer::SubsystemContext<
+		Message = ApprovalVotingMessage,
+		OutgoingMessages = overseer::ApprovalVotingOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 	state: &mut State,
 	overlayed_db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
@@ -1087,8 +1099,12 @@ fn distribution_messages_for_activation(
 
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.
 async fn handle_from_overseer(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage>
-	          + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+	ctx: &mut impl overseer::SubsystemContext<
+		Message = ApprovalVotingMessage,
+		OutgoingMessages = overseer::ApprovalVotingOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
@@ -1198,7 +1214,7 @@ async fn handle_from_overseer(
 }
 
 async fn handle_approved_ancestor(
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	ctx: &mut impl overseer::SubsystemContext,
 	db: &OverlayedBackend<'_, impl Backend>,
 	target: Hash,
 	lower_bound: BlockNumber,
@@ -2148,8 +2164,12 @@ fn process_wakeup(
 // spawned. When the background work is no longer needed, the `AbortHandle` should be dropped
 // to cancel the background work and any requests it has spawned.
 async fn launch_approval(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage>
-	          + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+	ctx: &mut impl overseer::SubsystemContext<
+		Message = ApprovalVotingMessage,
+		OutgoingMessages = overseer::ApprovalVotingOutgoingMessages,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+	>,
 	metrics: Metrics,
 	session_index: SessionIndex,
 	candidate: CandidateReceipt,

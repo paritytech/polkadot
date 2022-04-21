@@ -132,9 +132,10 @@ impl MuxedMessage {
 	}
 }
 
-impl<Sender: SubsystemSender, AD> DisputesReceiver<Sender, AD>
+impl<Sender, AD> DisputesReceiver<Sender, AD>
 where
 	AD: AuthorityDiscovery,
+	Sender: SubsystemSender,
 {
 	/// Create a new receiver which can be `run`.
 	pub fn new(
