@@ -170,7 +170,7 @@ impl Initialized {
 		}
 
 		{
-			let mut overlay_db = OverlayedBackend::new(backend);
+			let mut overlay_db = OverlayedBackend::new(backend, self.metrics.clone());
 			for votes in on_chain_votes.drain(..) {
 				let _ = self
 					.process_on_chain_votes(ctx, &mut overlay_db, votes, clock.now())
@@ -184,6 +184,7 @@ impl Initialized {
 					});
 			}
 			if !overlay_db.is_empty() {
+				let _write_timer = self.metrics.time_db_write_operation();
 				let ops = overlay_db.into_write_ops();
 				backend.write(ops)?;
 			}
@@ -195,7 +196,7 @@ impl Initialized {
 				.process_active_leaves_update(ctx, &ActiveLeavesUpdate::start_work(first_leaf))
 				.await?;
 		}
-		let mut overlay_db = OverlayedBackend::new(backend, self.metrics);
+		let mut overlay_db = OverlayedBackend::new(backend, self.metrics.clone());
 
 		loop {
 			let default_confirm = Box::new(|| Ok(()));
@@ -225,6 +226,7 @@ impl Initialized {
 					MuxedMessage::Subsystem(msg) => match msg {
 						FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 						FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+							let _time_req = self.metrics.time_request("active_leaves_update");
 							self.process_active_leaves_update(
 								ctx,
 								&mut overlay_db,
@@ -235,6 +237,7 @@ impl Initialized {
 							default_confirm
 						},
 						FromOverseer::Signal(OverseerSignal::BlockFinalized(_, n)) => {
+							let _time_req = self.metrics.time_request("block_finalized");
 							self.scraper.process_finalized_block(&n);
 							default_confirm
 						},
@@ -510,6 +513,7 @@ impl Initialized {
 				statements,
 				pending_confirmation,
 			} => {
+				let _time_req = self.metrics.time_request("import_statements");
 				let outcome = self
 					.handle_import_statements(
 						ctx,
@@ -537,6 +541,7 @@ impl Initialized {
 				}
 			},
 			DisputeCoordinatorMessage::RecentDisputes(tx) => {
+				let _time_req = self.metrics.time_request("recent_disputes");
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 
@@ -549,6 +554,7 @@ impl Initialized {
 				let _ = tx.send(recent_disputes.keys().cloned().collect());
 			},
 			DisputeCoordinatorMessage::ActiveDisputes(tx) => {
+				let _time_req = self.metrics.time_request("active_disputes");
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 
@@ -565,6 +571,7 @@ impl Initialized {
 				);
 			},
 			DisputeCoordinatorMessage::QueryCandidateVotes(query, tx) => {
+				let _time_req = self.metrics.time_request("query_candidate_votes");
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 
@@ -590,6 +597,7 @@ impl Initialized {
 				candidate_receipt,
 				valid,
 			) => {
+				let _time_req = self.metrics.time_request("issue_local_statement");
 				self.issue_local_statement(
 					ctx,
 					overlay_db,
@@ -606,6 +614,7 @@ impl Initialized {
 				block_descriptions,
 				tx,
 			} => {
+				let _time_req = self.metrics.time_request("determine_undisputed_chain");
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 

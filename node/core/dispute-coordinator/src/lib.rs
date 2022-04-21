@@ -211,7 +211,7 @@ impl DisputeCoordinatorSubsystem {
 				},
 			};
 
-			let mut overlay_db = OverlayedBackend::new(&mut backend);
+			let mut overlay_db = OverlayedBackend::new(&mut backend, self.metrics.clone());
 			let (participations, votes, spam_slots, ordering_provider) = match self
 				.handle_startup(
 					ctx,

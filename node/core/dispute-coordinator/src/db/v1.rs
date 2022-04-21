@@ -260,6 +260,8 @@ pub(crate) fn note_current_session(
 
 #[cfg(test)]
 mod tests {
+	use crate::metrics::Metrics;
+
 	use super::*;
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use polkadot_primitives::v2::{Hash, Id as ParaId};

@@ -27,7 +27,7 @@ use polkadot_primitives::v2::{CandidateHash, SessionIndex};
 use std::collections::HashMap;
 
 use super::db::v1::{CandidateVotes, RecentDisputes};
-use crate::error::FatalResult;
+use crate::{error::FatalResult, metrics::Metrics};
 
 #[derive(Debug)]
 pub enum BackendWriteOp {
@@ -73,6 +73,8 @@ pub struct OverlayedBackend<'a, B: 'a> {
 	recent_disputes: Option<RecentDisputes>,
 	// `None` means deleted, missing means query inner.
 	candidate_votes: HashMap<(SessionIndex, CandidateHash), Option<CandidateVotes>>,
+	// Report on read operations:
+	metrics: Metrics,
 }
 
 impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
@@ -82,6 +84,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 			earliest_session: None,
 			recent_disputes: None,
 			candidate_votes: HashMap::new(),
+			metrics,
 		}
 	}
 
@@ -120,6 +123,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 			return Ok(Some(val))
 		}
 
+		let _read_timer = self.metrics.time_db_read_operation("earliest_session");
 		self.inner.load_earliest_session()
 	}
 
@@ -129,6 +133,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 			return Ok(Some(val.clone()))
 		}
 
+		let _read_timer = self.metrics.time_db_read_operation("recent_disputes");
 		self.inner.load_recent_disputes()
 	}
 
@@ -142,6 +147,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 			return Ok(val.clone())
 		}
 
+		let _read_timer = self.metrics.time_db_read_operation("candidate_votes");
 		self.inner.load_candidate_votes(session, candidate_hash)
 	}
 
