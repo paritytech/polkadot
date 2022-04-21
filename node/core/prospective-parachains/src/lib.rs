@@ -34,14 +34,14 @@ use futures::{channel::oneshot, prelude::*};
 use polkadot_node_subsystem::{
 	messages::{
 		ChainApiMessage, FragmentTreeMembership, HypotheticalDepthRequest,
-		ProspectiveParachainsSubsystem, RuntimeApiMessage, RuntimeApiRequest,
+		ProspectiveParachainsMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError,
 };
 use polkadot_node_subsystem_util::inclusion_emulator::staging::{Constraints, RelayChainBlockInfo};
 use polkadot_primitives::vstaging::{
-	CandidateHash, CommittedCandidateReceipt, CoreState, Hash, Id as ParaId,
+	BlockNumber, CandidateHash, CommittedCandidateReceipt, CoreState, Hash, Id as ParaId,
 	PersistedValidationData,
 };
 
@@ -144,6 +144,8 @@ where
 					answer_hypothetical_depths_request(&view, request, tx),
 				ProspectiveParachainsMessage::GetTreeMembership(para, candidate, tx) =>
 					answer_tree_membership_request(&view, para, candidate, tx),
+				ProspectiveParachainsMessage::GetMinimumRelayParent(para, relay_parent, tx) =>
+					answer_minimum_relay_parent_request(&view, para, relay_parent, tx),
 			},
 		}
 	}
@@ -473,6 +475,21 @@ fn answer_tree_membership_request(
 		}
 	}
 	let _ = tx.send(membership);
+}
+
+fn answer_minimum_relay_parent_request(
+	view: &View,
+	para: ParaId,
+	relay_parent: Hash,
+	tx: oneshot::Sender<Option<BlockNumber>>,
+) {
+	let res = view
+		.active_leaves
+		.get(&relay_parent)
+		.and_then(|data| data.fragment_trees.get(&para))
+		.map(|tree| tree.scope().earliest_relay_parent().number);
+
+	let _ = tx.send(res);
 }
 
 async fn fetch_base_constraints<Context>(

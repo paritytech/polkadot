@@ -262,7 +262,8 @@ impl Scope {
 		})
 	}
 
-	fn earliest_relay_parent(&self) -> RelayChainBlockInfo {
+	/// Get the earliest relay-parent allowed in the scope of the fragment tree.
+	pub fn earliest_relay_parent(&self) -> RelayChainBlockInfo {
 		self.ancestors
 			.iter()
 			.next()
@@ -319,6 +320,11 @@ impl FragmentTree {
 		tree.populate_from_bases(storage, vec![NodePointer::Root]);
 
 		tree
+	}
+
+	/// Get the scope of the Fragment Tree.
+	pub fn scope(&self) -> &Scope {
+		&self.scope
 	}
 
 	// Inserts a node and updates child references in a non-root parent.

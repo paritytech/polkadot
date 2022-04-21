@@ -938,6 +938,7 @@ pub enum PvfCheckerMessage {}
 
 /// A request for the depths a hypothetical candidate would occupy within
 /// some fragment tree.
+#[derive(Debug)]
 pub struct HypotheticalDepthRequest {
 	/// The hash of the potential candidate.
 	pub candidate_hash: CandidateHash,
@@ -966,7 +967,7 @@ pub enum ProspectiveParachainsMessage {
 		ParaId,
 		CommittedCandidateReceipt,
 		PersistedValidationData,
-		oneshot::Sender<CandidateMembership>,
+		oneshot::Sender<FragmentTreeMembership>,
 	),
 	/// Inform the Prospective Parachains Subsystem that a previously seconded candidate
 	/// has been backed. This requires that `CandidateSeconded` was sent for the candidate
@@ -986,5 +987,12 @@ pub enum ProspectiveParachainsMessage {
 	/// is unknown.
 	GetHypotheticalDepth(HypotheticalDepthRequest, oneshot::Sender<Vec<usize>>),
 	/// Get the membership of the candidate in all fragment trees.
-	GetTreeMembership(ParaId, CandidateHash, oneshot::Sender<CandidateMembership>),
+	GetTreeMembership(ParaId, CandidateHash, oneshot::Sender<FragmentTreeMembership>),
+	/// Get the minimum accepted relay-parent number in the fragment tree
+	/// for the given relay-parent and para-id.
+	///
+	/// That is, if the relay-parent is known and there's a fragment tree for it,
+	/// in this para-id, this returns the minimum relay-parent block number in the
+	/// same chain which is accepted in the fragment tree for the para-id.
+	GetMinimumRelayParent(ParaId, Hash, oneshot::Sender<Option<BlockNumber>>),
 }
