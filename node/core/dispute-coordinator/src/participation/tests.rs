@@ -54,7 +54,7 @@ pub fn make_our_subsystem_context<S>(
 }
 
 async fn participate(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl overseer::DisputeCoordinatorContextTrait,
 	participation: &mut Participation,
 ) -> Result<()> {
 	let commitments = CandidateCommitments::default();
@@ -62,7 +62,7 @@ async fn participate(
 }
 
 async fn participate_with_commitments_hash(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl overseer::DisputeCoordinatorContextTrait,
 	participation: &mut Participation,
 	commitments_hash: Hash,
 ) -> Result<()> {
@@ -82,7 +82,7 @@ async fn participate_with_commitments_hash(
 }
 
 async fn activate_leaf(
-	ctx: &mut impl SubsystemContext,
+	ctx: &mut impl overseer::DisputeCoordinatorContextTrait,
 	participation: &mut Participation,
 	block_number: BlockNumber,
 ) -> FatalResult<()> {

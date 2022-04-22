@@ -21,7 +21,8 @@ use lru::LruCache;
 
 use polkadot_node_primitives::MAX_FINALITY_LAG;
 use polkadot_node_subsystem::{
-	messages::ChainApiMessage, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError, SubsystemSender,
+	overseer,
+	messages::{RuntimeApiMessage, ChainApiMessage}, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError, SubsystemSender,
 };
 use polkadot_node_subsystem_util::runtime::{get_candidate_events, get_on_chain_votes};
 use polkadot_primitives::v2::{
@@ -81,10 +82,13 @@ impl ChainScraper {
 	/// Create a properly initialized `OrderingProvider`.
 	///
 	/// Returns: `Self` and any scraped votes.
-	pub async fn new<Sender: SubsystemSender>(
+	pub async fn new<Sender>(
 		sender: &mut Sender,
 		initial_head: ActivatedLeaf,
-	) -> Result<(Self, Vec<ScrapedOnChainVotes>)> {
+	) -> Result<(Self, Vec<ScrapedOnChainVotes>)>
+	where
+		Sender: overseer::DisputeCoordinatorSenderTrait,
+	{
 		let mut s = Self {
 			included_candidates: HashSet::new(),
 			candidates_by_block_number: BTreeMap::new(),
@@ -106,11 +110,14 @@ impl ChainScraper {
 	/// and updates current heads, so we can query candidates for all non finalized blocks.
 	///
 	/// Returns: On chain vote for the leaf and any ancestors we might not yet have seen.
-	pub async fn process_active_leaves_update<Sender: SubsystemSender>(
+	pub async fn process_active_leaves_update<Sender>(
 		&mut self,
 		sender: &mut Sender,
 		update: &ActiveLeavesUpdate,
-	) -> crate::error::Result<Vec<ScrapedOnChainVotes>> {
+	) -> crate::error::Result<Vec<ScrapedOnChainVotes>>
+	where
+		Sender: overseer::DisputeCoordinatorSenderTrait,
+	{
 		let activated = match update.activated.as_ref() {
 			Some(activated) => activated,
 			None => return Ok(Vec::new()),
@@ -160,12 +167,15 @@ impl ChainScraper {
 	/// Process candidate events of a block.
 	///
 	/// Keep track of all included candidates.
-	async fn process_candidate_events(
+	async fn process_candidate_events<Sender>(
 		&mut self,
-		sender: &mut impl SubsystemSender,
+		sender: &mut Sender,
 		block_number: BlockNumber,
 		block_hash: Hash,
-	) -> Result<()> {
+	) -> Result<()>
+	where
+		Sender: overseer::DisputeCoordinatorSenderTrait,
+	{
 		// Get included events:
 		let included =
 			get_candidate_events(sender, block_hash)
@@ -196,12 +206,15 @@ impl ChainScraper {
 	/// either at the block present in cache or at the last finalized block.
 	///
 	/// Both `head` and the latest finalized block are **not** included in the result.
-	async fn get_unfinalized_block_ancestors<Sender: SubsystemSender>(
+	async fn get_unfinalized_block_ancestors<Sender>(
 		&mut self,
 		sender: &mut Sender,
 		mut head: Hash,
 		mut head_number: BlockNumber,
-	) -> Result<Vec<Hash>> {
+	) -> Result<Vec<Hash>>
+	where
+		Sender: overseer::DisputeCoordinatorSenderTrait,
+	{
 		let target_ancestor = get_finalized_block_number(sender).await?;
 
 		let mut ancestors = Vec::new();
@@ -256,16 +269,22 @@ impl ChainScraper {
 	}
 }
 
-async fn get_finalized_block_number(sender: &mut impl SubsystemSender) -> FatalResult<BlockNumber> {
+async fn get_finalized_block_number<Sender>(sender: &mut Sender) -> FatalResult<BlockNumber>
+where
+	Sender: overseer::DisputeCoordinatorSenderTrait,
+{
 	let (number_tx, number_rx) = oneshot::channel();
 	send_message_fatal(sender, ChainApiMessage::FinalizedBlockNumber(number_tx), number_rx).await
 }
 
-async fn get_block_ancestors(
-	sender: &mut impl SubsystemSender,
+async fn get_block_ancestors<Sender>(
+	sender: &mut Sender,
 	head: Hash,
 	num_ancestors: BlockNumber,
-) -> FatalResult<Vec<Hash>> {
+) -> FatalResult<Vec<Hash>>
+where
+	Sender: overseer::DisputeCoordinatorSenderTrait,
+{
 	let (tx, rx) = oneshot::channel();
 	sender
 		.send_message(
@@ -273,8 +292,7 @@ async fn get_block_ancestors(
 				hash: head,
 				k: num_ancestors as usize,
 				response_channel: tx,
-			}
-			.into(),
+			},
 		)
 		.await;
 
@@ -289,9 +307,9 @@ async fn send_message_fatal<Sender, Response>(
 	receiver: oneshot::Receiver<std::result::Result<Response, ChainApiError>>,
 ) -> FatalResult<Response>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<ChainApiMessage>,
 {
-	sender.send_message(message.into()).await;
+	sender.send_message(message).await;
 
 	receiver
 		.await

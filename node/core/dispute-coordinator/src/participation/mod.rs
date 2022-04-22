@@ -27,6 +27,7 @@ use futures_timer::Delay;
 
 use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
 use polkadot_node_subsystem::{
+	overseer,
 	messages::{AvailabilityRecoveryMessage, AvailabilityStoreMessage, CandidateValidationMessage},
 	ActiveLeavesUpdate, RecoveryError, SubsystemContext, SubsystemSender,
 };
@@ -144,12 +145,15 @@ impl Participation {
 	/// `on_active_leaves_update`, the participation will be launched right away.
 	///
 	/// Returns: false, if queues are already full.
-	pub async fn queue_participation<Context: SubsystemContext>(
+	pub async fn queue_participation<Context>(
 		&mut self,
 		ctx: &mut Context,
 		priority: ParticipationPriority,
 		req: ParticipationRequest,
-	) -> Result<()> {
+	) -> Result<()>
+	where
+		Context: overseer::DisputeCoordinatorContextTrait,
+	{
 		// Participation already running - we can ignore that request:
 		if self.running_participations.contains(req.candidate_hash()) {
 			return Ok(())
@@ -174,7 +178,7 @@ impl Participation {
 	///
 	/// Returns: The received `ParticipationStatement` or a fatal error, in case
 	/// something went wrong when dequeuing more requests (tasks could not be spawned).
-	pub async fn get_participation_result<Context: SubsystemContext>(
+	pub async fn get_participation_result<Context: overseer::DisputeCoordinatorContextTrait>(
 		&mut self,
 		ctx: &mut Context,
 		msg: WorkerMessage,
@@ -190,7 +194,7 @@ impl Participation {
 	///
 	/// Make sure we to dequeue participations if that became possible and update most recent
 	/// block.
-	pub async fn process_active_leaves_update<Context: SubsystemContext>(
+	pub async fn process_active_leaves_update<Context: overseer::DisputeCoordinatorContextTrait>(
 		&mut self,
 		ctx: &mut Context,
 		update: &ActiveLeavesUpdate,
@@ -212,7 +216,7 @@ impl Participation {
 	}
 
 	/// Dequeue until `MAX_PARALLEL_PARTICIPATIONS` is reached.
-	async fn dequeue_until_capacity<Context: SubsystemContext>(
+	async fn dequeue_until_capacity<Context: overseer::DisputeCoordinatorContextTrait>(
 		&mut self,
 		ctx: &mut Context,
 		recent_head: Hash,
@@ -228,12 +232,15 @@ impl Participation {
 	}
 
 	/// Fork a participation task in the background.
-	fn fork_participation<Context: SubsystemContext>(
+	fn fork_participation<Context>(
 		&mut self,
 		ctx: &mut Context,
 		req: ParticipationRequest,
 		recent_head: Hash,
-	) -> FatalResult<()> {
+	) -> FatalResult<()>
+	where
+		Context: overseer::DisputeCoordinatorContextTrait,
+	{
 		if self.running_participations.insert(req.candidate_hash().clone()) {
 			let sender = ctx.sender().clone();
 			ctx.spawn(
@@ -248,7 +255,7 @@ impl Participation {
 
 async fn participate(
 	mut result_sender: WorkerMessageSender,
-	mut sender: impl SubsystemSender,
+	mut sender: impl overseer::DisputeCoordinatorSenderTrait,
 	block_hash: Hash,
 	req: ParticipationRequest,
 ) {
@@ -265,8 +272,7 @@ async fn participate(
 				req.session(),
 				None,
 				recover_available_data_tx,
-			)
-			.into(),
+			),
 		)
 		.await;
 
@@ -332,8 +338,7 @@ async fn participate(
 				n_validators: req.n_validators() as u32,
 				available_data: available_data.clone(),
 				tx: store_available_data_tx,
-			}
-			.into(),
+			},
 		)
 		.await;
 
@@ -373,7 +378,6 @@ async fn participate(
 				APPROVAL_EXECUTION_TIMEOUT,
 				validation_tx,
 			)
-			.into(),
 		)
 		.await;
 

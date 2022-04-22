@@ -32,7 +32,8 @@ use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW};
 use polkadot_node_subsystem::{
-	messages::DisputeCoordinatorMessage, overseer, ActivatedLeaf, FromOverseer, OverseerSignal,
+    overseer,
+	messages::DisputeCoordinatorMessage, ActivatedLeaf, FromOverseer, OverseerSignal,
 	SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
@@ -126,8 +127,7 @@ impl Config {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for DisputeCoordinatorSubsystem
 where
-	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
-	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
+    Context: overseer::DisputeCoordinatorContextTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async {
@@ -161,8 +161,7 @@ impl DisputeCoordinatorSubsystem {
 		clock: Box<dyn Clock>,
 	) -> FatalResult<()>
 	where
-		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
+		Context: overseer::DisputeCoordinatorContextTrait,
 		B: Backend + 'static,
 	{
 		let res = self.initialize(&mut ctx, backend, &*clock).await?;
@@ -194,8 +193,7 @@ impl DisputeCoordinatorSubsystem {
 		)>,
 	>
 	where
-		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
+		Context: overseer::DisputeCoordinatorContextTrait,
 		B: Backend + 'static,
 	{
 		loop {
@@ -262,8 +260,7 @@ impl DisputeCoordinatorSubsystem {
 		ChainScraper,
 	)>
 	where
-		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
+		 Context: overseer::DisputeCoordinatorContextTrait,
 	{
 		// Prune obsolete disputes:
 		db::v1::note_current_session(overlay_db, rolling_session_window.latest_session())?;
@@ -362,13 +359,12 @@ async fn get_rolling_session_window<Context>(
 	ctx: &mut Context,
 ) -> Result<Option<(ActivatedLeaf, RollingSessionWindow)>>
 where
-	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
+	 Context: overseer::DisputeCoordinatorContextTrait,
 {
 	if let Some(leaf) = wait_for_first_leaf(ctx).await? {
 		Ok(Some((
 			leaf.clone(),
-			RollingSessionWindow::new(ctx, DISPUTE_WINDOW, leaf.hash)
+			RollingSessionWindow::new(ctx.sender().clone(), DISPUTE_WINDOW, leaf.hash)
 				.await
 				.map_err(JfyiError::RollingSessionWindow)?,
 		)))
@@ -380,8 +376,7 @@ where
 /// Wait for `ActiveLeavesUpdate`, returns `None` if `Conclude` signal came first.
 async fn wait_for_first_leaf<Context>(ctx: &mut Context) -> Result<Option<ActivatedLeaf>>
 where
-	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
+	 Context: overseer::DisputeCoordinatorContextTrait,
 {
 	loop {
 		match ctx.recv().await? {
