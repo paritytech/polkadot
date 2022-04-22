@@ -28,7 +28,7 @@ use sp_runtime::{
 	traits::{Hash, IdentityLookup},
 	AccountId32,
 };
-use sp_std::{convert::TryFrom, prelude::*};
+use sp_std::prelude::*;
 
 use pallet_xcm::XcmPassthrough;
 use polkadot_core_primitives::BlockNumber as RelayBlockNumber;

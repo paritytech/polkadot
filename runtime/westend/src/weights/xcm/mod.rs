@@ -139,8 +139,9 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::deposit_reserve_asset())
 	}
-	fn exchange_asset(give: &MultiAssetFilter, _receive: &MultiAssets, _maximal: &bool) -> Weight {
-		give.weigh_multi_assets(XcmGeneric::<Runtime>::exchange_asset())
+	fn exchange_asset(_give: &MultiAssetFilter, _receive: &MultiAssets, _maximal: &bool) -> Weight {
+		// Westend does not currently support exchange asset operations
+		Weight::MAX
 	}
 	fn initiate_reserve_withdraw(
 		assets: &MultiAssetFilter,
@@ -217,25 +218,30 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		XcmGeneric::<Runtime>::clear_transact_status()
 	}
 	fn universal_origin(_: &Junction) -> Weight {
-		Weight::MAX // todo fix
+		// Westend does not currently support universal origin operations
+		Weight::MAX
 	}
 	fn export_message(_: &NetworkId, _: &Junctions, _: &Xcm<()>) -> Weight {
 		Weight::MAX // todo fix
 	}
 	fn lock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		Weight::MAX // todo fix
+		// Westend does not currently support asset locking operations
+		Weight::MAX
 	}
 	fn unlock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		Weight::MAX // todo fix
+		// Westend does not currently support asset locking operations
+		Weight::MAX
 	}
 	fn note_unlockable(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		Weight::MAX // todo fix
+		// Westend does not currently support asset locking operations
+		Weight::MAX
 	}
 	fn request_unlock(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		Weight::MAX // todo fix
+		// Westend does not currently support asset locking operations
+		Weight::MAX
 	}
 	fn set_fees_mode(_: &bool) -> Weight {
-		Weight::MAX // todo fix
+		XcmGeneric::<Runtime>::set_fees_mode()
 	}
 	fn set_topic(_topic: &[u8; 32]) -> Weight {
 		XcmGeneric::<Runtime>::set_topic()
@@ -244,6 +250,7 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		XcmGeneric::<Runtime>::clear_topic()
 	}
 	fn alias_origin(_: &MultiLocation) -> Weight {
-		Weight::MAX // todo fix
+		// XCM Executor does not currently support alias origin operations
+		Weight::MAX
 	}
 }

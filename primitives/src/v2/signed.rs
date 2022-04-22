@@ -21,8 +21,6 @@ use scale_info::TypeInfo;
 use application_crypto::AppKey;
 #[cfg(feature = "std")]
 use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
-#[cfg(feature = "std")]
-use sp_std::convert::TryInto;
 use sp_std::prelude::Vec;
 
 use primitives::RuntimeDebug;

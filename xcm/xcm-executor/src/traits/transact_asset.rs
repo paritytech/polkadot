@@ -90,7 +90,13 @@ pub trait TransactAsset {
 	/// Move an `asset` `from` one location in `to` another location.
 	///
 	/// Returns `XcmError::FailedToTransactAsset` if transfer failed.
-	fn transfer_asset(
+	///
+	/// ## Notes
+	/// This function is meant to only be implemented by the type implementing `TransactAsset`, and
+	/// not be called directly. Most common API usages will instead call `transfer_asset`, which in
+	/// turn has a default implementation that calls `internal_transfer_asset`. As such, **please
+	/// do not call this method directly unless you know what you're doing**.
+	fn internal_transfer_asset(
 		_asset: &MultiAsset,
 		_from: &MultiLocation,
 		_to: &MultiLocation,
@@ -101,14 +107,15 @@ pub trait TransactAsset {
 
 	/// Move an `asset` `from` one location in `to` another location.
 	///
-	/// Attempts to use `transfer_asset` and if not available then falls back to using a two-part withdraw/deposit.
-	fn beam_asset(
+	/// Attempts to use `internal_transfer_asset` and if not available then falls back to using a
+	/// two-part withdraw/deposit.
+	fn transfer_asset(
 		asset: &MultiAsset,
 		from: &MultiLocation,
 		to: &MultiLocation,
 		context: &XcmContext,
 	) -> Result<Assets, XcmError> {
-		match Self::transfer_asset(asset, from, to, context) {
+		match Self::internal_transfer_asset(asset, from, to, context) {
 			Err(XcmError::AssetNotFound | XcmError::Unimplemented) => {
 				let assets = Self::withdraw_asset(asset, from, Some(context))?;
 				// Not a very forgiving attitude; once we implement roll-backs then it'll be nicer.
@@ -189,20 +196,20 @@ impl TransactAsset for Tuple {
 		Err(XcmError::AssetNotFound)
 	}
 
-	fn transfer_asset(
+	fn internal_transfer_asset(
 		what: &MultiAsset,
 		from: &MultiLocation,
 		to: &MultiLocation,
 		context: &XcmContext,
 	) -> Result<Assets, XcmError> {
 		for_tuples!( #(
-			match Tuple::transfer_asset(what, from, to, context) {
+			match Tuple::internal_transfer_asset(what, from, to, context) {
 				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
 				r => return r,
 			}
 		)* );
 		log::trace!(
-			target: "xcm::TransactAsset::transfer_asset",
+			target: "xcm::TransactAsset::internal_transfer_asset",
 			"did not transfer asset: what: {:?}, from: {:?}, to: {:?}, context: {:?}",
 			what,
 			from,
@@ -247,7 +254,7 @@ mod tests {
 			Err(XcmError::AssetNotFound)
 		}
 
-		fn transfer_asset(
+		fn internal_transfer_asset(
 			_what: &MultiAsset,
 			_from: &MultiLocation,
 			_to: &MultiLocation,
@@ -283,7 +290,7 @@ mod tests {
 			Err(XcmError::Overflow)
 		}
 
-		fn transfer_asset(
+		fn internal_transfer_asset(
 			_what: &MultiAsset,
 			_from: &MultiLocation,
 			_to: &MultiLocation,
@@ -319,7 +326,7 @@ mod tests {
 			Ok(Assets::default())
 		}
 
-		fn transfer_asset(
+		fn internal_transfer_asset(
 			_what: &MultiAsset,
 			_from: &MultiLocation,
 			_to: &MultiLocation,

@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-cli"
-version = "0.9.18"
+version = "0.9.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
 edition = "2021"
@@ -15,12 +15,13 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 clap = { version = "3.1", features = ["derive"], optional = true }
-log = "0.4.13"
+log = "0.4.16"
 thiserror = "1.0.30"
 futures = "0.3.21"
 pyro = { package = "pyroscope", version = "0.3.1", optional = true }
 
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
+polkadot-client = { path = "../node/client", optional = true }
 polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
@@ -50,6 +51,7 @@ cli = [
 	"sc-tracing",
 	"frame-benchmarking-cli",
 	"try-runtime-cli",
+	"polkadot-client",
 	"polkadot-node-core-pvf",
 	"polkadot-performance-test",
 ]

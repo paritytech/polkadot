@@ -20,7 +20,7 @@ use crate::{generic, mock::*, *};
 use codec::Decode;
 use frame_support::{
 	parameter_types,
-	traits::{Everything, Nothing, OriginTrait},
+	traits::{Everything, OriginTrait},
 };
 use sp_core::H256;
 use sp_runtime::{
@@ -29,7 +29,10 @@ use sp_runtime::{
 	BuildStorage,
 };
 use xcm_builder::{
-	test_utils::{Assets, TestAssetExchanger, TestAssetTrap, TestSubscriptionService},
+	test_utils::{
+		Assets, TestAssetExchanger, TestAssetLocker, TestAssetTrap, TestSubscriptionService,
+		TestUniversalAliases,
+	},
 	AllowUnpaidExecutionFrom,
 };
 use xcm_executor::traits::ConvertOrigin;
@@ -116,7 +119,7 @@ impl xcm_executor::Config for XcmConfig {
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
 	type AssetTrap = TestAssetTrap;
-	type AssetLocker = ();
+	type AssetLocker = TestAssetLocker;
 	type AssetExchanger = TestAssetExchanger;
 	type AssetClaims = TestAssetTrap;
 	type SubscriptionService = TestSubscriptionService;
@@ -125,7 +128,7 @@ impl xcm_executor::Config for XcmConfig {
 	type FeeManager = ();
 	// No bridges yet...
 	type MessageExporter = ();
-	type UniversalAliases = Nothing;
+	type UniversalAliases = TestUniversalAliases;
 }
 
 impl crate::Config for Test {
@@ -157,6 +160,10 @@ impl generic::Config for Test {
 		Ok(Default::default())
 	}
 
+	fn universal_alias() -> Result<Junction, BenchmarkError> {
+		Ok(GlobalConsensus(ByGenesis([0; 32])))
+	}
+
 	fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
 		Ok(Default::default())
 	}
@@ -169,6 +176,11 @@ impl generic::Config for Test {
 		let assets: MultiAssets = (Concrete(Here.into()), 100).into();
 		let ticket = MultiLocation { parents: 0, interior: X1(GeneralIndex(0)) };
 		Ok((Default::default(), ticket, assets))
+	}
+
+	fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError> {
+		let assets: MultiAsset = (Concrete(Here.into()), 100).into();
+		Ok((Default::default(), Default::default(), assets))
 	}
 }
 

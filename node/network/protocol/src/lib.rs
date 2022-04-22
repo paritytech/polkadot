@@ -282,7 +282,6 @@ impl View {
 /// v1 protocol types.
 pub mod v1 {
 	use parity_scale_codec::{Decode, Encode};
-	use std::convert::TryFrom;
 
 	use polkadot_primitives::v2::{
 		CandidateHash, CandidateIndex, CollatorId, CollatorSignature, CompactStatement, Hash,

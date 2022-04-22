@@ -33,9 +33,8 @@ use xcm_builder::{
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
-	UsingComponents,
+	UsingComponents, WeightInfoBounds,
 };
-use xcm_executor::XcmExecutor;
 
 parameter_types! {
 	/// The location of the KSM token, from the context of this chain. Since this token is native to this
@@ -107,7 +106,8 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Ksm: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const KsmForStatemine: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Parachain(1000).into_location());
+	pub const Statemine: MultiLocation = Parachain(1000).into_location();
+	pub const KsmForStatemine: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Statemine::get());
 	pub const KsmForEncointer: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Parachain(1001).into_location());
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
@@ -144,7 +144,8 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher =
+		WeightInfoBounds<crate::weights::xcm::KusamaXcmWeight<Call>, Call, MaxInstructions>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
 	type Trader =
 		UsingComponents<WeightToFee, TokenLocation, AccountId, Balances, ToAuthor<Runtime>>;
