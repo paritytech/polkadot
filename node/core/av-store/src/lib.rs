@@ -521,12 +521,7 @@ impl KnownUnfinalizedBlocks {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for AvailabilityStoreSubsystem
 where
-	Context: overseer::SubsystemContext<
-		Message = AvailabilityStoreMessage,
-		OutgoingMessages = overseer::AvailabilityStoreOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::AvailabilityStoreContextTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(self, ctx).map(|_| Ok(())).boxed();
@@ -537,12 +532,7 @@ where
 
 async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
 where
-	Context: overseer::SubsystemContext<
-		Message = AvailabilityStoreMessage,
-		OutgoingMessages = overseer::AvailabilityStoreOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::AvailabilityStoreContextTrait,
 {
 	let mut next_pruning = Delay::new(subsystem.pruning_config.pruning_interval).fuse();
 
@@ -570,12 +560,7 @@ async fn run_iteration<Context>(
 	mut next_pruning: &mut future::Fuse<Delay>,
 ) -> Result<bool, Error>
 where
-	Context: overseer::SubsystemContext<
-		Message = AvailabilityStoreMessage,
-		OutgoingMessages = overseer::AvailabilityStoreOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::AvailabilityStoreContextTrait,
 {
 	select! {
 		incoming = ctx.recv().fuse() => {
@@ -626,12 +611,7 @@ async fn process_block_activated<Context>(
 	activated: Hash,
 ) -> Result<(), Error>
 where
-	Context: overseer::SubsystemContext<
-		Message = AvailabilityStoreMessage,
-		OutgoingMessages = overseer::AvailabilityStoreOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::AvailabilityStoreContextTrait,
 {
 	let now = subsystem.clock.now()?;
 
@@ -690,12 +670,7 @@ async fn process_new_head<Context>(
 	header: Header,
 ) -> Result<(), Error>
 where
-	Context: overseer::SubsystemContext<
-		Message = AvailabilityStoreMessage,
-		OutgoingMessages = overseer::AvailabilityStoreOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::AvailabilityStoreContextTrait,
 {
 	let candidate_events = util::request_candidate_events(hash, ctx.sender()).await.await??;
 
@@ -841,12 +816,7 @@ async fn process_block_finalized<Context>(
 	finalized_number: BlockNumber,
 ) -> Result<(), Error>
 where
-	Context: overseer::SubsystemContext<
-		Message = AvailabilityStoreMessage,
-		OutgoingMessages = overseer::AvailabilityStoreOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::AvailabilityStoreContextTrait,
 {
 	let now = subsystem.clock.now()?;
 

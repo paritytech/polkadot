@@ -95,12 +95,7 @@ impl CandidateValidationSubsystem {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for CandidateValidationSubsystem
 where
-	Context: overseer::SubsystemContext<
-		Message = CandidateValidationMessage,
-		OutgoingMessages = overseer::CandidateValidationOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::CandidateValidationContextTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(
@@ -124,12 +119,7 @@ async fn run<Context>(
 	program_path: PathBuf,
 ) -> SubsystemResult<()>
 where
-	Context: overseer::SubsystemContext<
-		Message = CandidateValidationMessage,
-		OutgoingMessages = overseer::CandidateValidationOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::CandidateValidationContextTrait,
 {
 	let (validation_host, task) = polkadot_node_core_pvf::start(
 		polkadot_node_core_pvf::Config::new(cache_path, program_path),

@@ -357,12 +357,7 @@ impl ApprovalVotingSubsystem {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for ApprovalVotingSubsystem
 where
-	Context: overseer::SubsystemContext<
-		Message = ApprovalVotingMessage,
-		OutgoingMessages = overseer::ApprovalVotingOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::ApprovalVotingContextTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = DbBackend::new(self.db.clone(), self.db_config);
@@ -713,12 +708,7 @@ async fn run<B, Context>(
 	mut backend: B,
 ) -> SubsystemResult<()>
 where
-	Context: overseer::SubsystemContext<
-		Message = ApprovalVotingMessage,
-		OutgoingMessages = overseer::ApprovalVotingOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::ApprovalVotingContextTrait,
 	B: Backend,
 {
 	let mut state = State {
@@ -857,12 +847,7 @@ where
 //
 // returns `true` if any of the actions was a `Conclude` command.
 async fn handle_actions(
-	ctx: &mut impl overseer::SubsystemContext<
-		Message = ApprovalVotingMessage,
-		OutgoingMessages = overseer::ApprovalVotingOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	ctx: &mut impl overseer::ApprovalVotingContextTrait,
 	state: &mut State,
 	overlayed_db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
@@ -1099,12 +1084,7 @@ fn distribution_messages_for_activation(
 
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.
 async fn handle_from_overseer(
-	ctx: &mut impl overseer::SubsystemContext<
-		Message = ApprovalVotingMessage,
-		OutgoingMessages = overseer::ApprovalVotingOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	ctx: &mut impl overseer::ApprovalVotingContextTrait,
 	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
@@ -2164,12 +2144,7 @@ fn process_wakeup(
 // spawned. When the background work is no longer needed, the `AbortHandle` should be dropped
 // to cancel the background work and any requests it has spawned.
 async fn launch_approval(
-	ctx: &mut impl overseer::SubsystemContext<
-		Message = ApprovalVotingMessage,
-		OutgoingMessages = overseer::ApprovalVotingOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	ctx: &mut impl overseer::ApprovalVotingContextTrait,
 	metrics: Metrics,
 	session_index: SessionIndex,
 	candidate: CandidateReceipt,
