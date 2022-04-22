@@ -90,6 +90,7 @@ impl SessionGridTopology {
 		}
 	}
 }
+
 /// A set of topologies indexed by session
 #[derive(Default)]
 pub struct SessionGridTopologies {
