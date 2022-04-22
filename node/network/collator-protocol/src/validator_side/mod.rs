@@ -47,6 +47,7 @@ use polkadot_node_primitives::{PoV, SignedFullStatement};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
+		RuntimeApiMessage,
 		CandidateBackingMessage, CollatorProtocolMessage, IfDisconnected, NetworkBridgeEvent,
 		NetworkBridgeMessage,
 	},
@@ -689,7 +690,10 @@ async fn report_collator<Context>(
 	ctx: &mut Context,
 	peer_data: &HashMap<PeerId, PeerData>,
 	id: CollatorId,
-) {
+)
+where
+	Context: overseer::CollatorProtocolContextTrait,
+{
 	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
 		modify_reputation(ctx, peer_id, COST_REPORT_BAD).await;
 	}

@@ -38,7 +38,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{CollationSecondedSignal, PoV, Statement};
 use polkadot_node_subsystem::{
 	jaeger,
-	messages::{CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage},
+	messages::{RuntimeApiMessage, CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage},
 	overseer, FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext,
 };
 use polkadot_node_subsystem_util::{
@@ -397,7 +397,7 @@ where
 
 	// Determine which core the para collated-on is assigned to.
 	// If it is not scheduled then ignore the message.
-	let (our_core, num_cores) = match determine_core(ctx, id, relay_parent).await? {
+	let (our_core, num_cores) = match determine_core(ctx.sender(), id, relay_parent).await? {
 		Some(core) => core,
 		None => {
 			gum::warn!(
@@ -460,13 +460,11 @@ where
 
 /// Get the Id of the Core that is assigned to the para being collated on if any
 /// and the total number of cores.
-async fn determine_core<Context>(
-	sender: &mut SubsystemSender<RuntimeApiMessage>,
+async fn determine_core(
+	sender: &mut impl overseer::SubsystemSender<RuntimeApiMessage>,
 	para_id: ParaId,
 	relay_parent: Hash,
 ) -> Result<Option<(CoreIndex, usize)>>
-where
-	Context: overseer::CollatorProtocolContextTrait,
 {
 	let cores = get_availability_cores(sender, relay_parent).await?;
 
@@ -508,7 +506,7 @@ where
 		.session_info;
 	gum::debug!(target: LOG_TARGET, ?session_index, "Received session info");
 	let groups = &info.validator_groups;
-	let rotation_info = get_group_rotation_info(ctx, relay_parent).await?;
+	let rotation_info = get_group_rotation_info(ctx.sender(), relay_parent).await?;
 
 	let current_group_index = rotation_info.group_for_core(core_index, cores);
 	let current_validators = groups
