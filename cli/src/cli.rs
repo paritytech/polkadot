@@ -72,7 +72,7 @@ pub enum Subcommand {
 	Key(sc_cli::KeySubcommand),
 
 	/// Db meta columns information.
-	BlockchainInfo(sc_cli::BlockchainInfoCmd),
+	ChainInfo(sc_cli::ChainInfoCmd),
 }
 
 #[allow(missing_docs)]

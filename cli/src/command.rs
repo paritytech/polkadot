@@ -605,7 +605,7 @@ pub fn run() -> Result<()> {
 				.into(),
 		)
 		.into()),
-		Some(Subcommand::BlockchainInfo(cmd)) => {
+		Some(Subcommand::ChainInfo(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
 
