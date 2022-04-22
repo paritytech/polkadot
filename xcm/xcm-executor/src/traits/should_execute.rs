@@ -24,6 +24,8 @@ use xcm::latest::{Instruction, MultiLocation};
 pub enum RejectReason {
 	/// The supplied weight credit is not enough to pay for the weight required.
 	InsufficientCredit,
+	/// None of the barrier rules in a tuple matched successfully.
+	NoRulesMatched,
 	/// The series of `DescendOrigin` instructions would overflow the origin MultiLocation.
 	OriginMultiLocationTooLong,
 	/// Does not pass the barrier yet, but might pass in a later block.
@@ -68,23 +70,24 @@ impl ShouldExecute for Tuple {
 		max_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), RejectReason> {
-		let mut reason = RejectReason::UnexpectedMessageFormat;
 		for_tuples!( #(
-			reason = match Tuple::should_execute(origin, instructions, max_weight, weight_credit) {
+			match Tuple::should_execute(origin, instructions, max_weight, weight_credit) {
 				Ok(()) => return Ok(()),
-				Err(e) => e,
+				Err(e) => log::trace!(
+					target: "xcm::should_execute",
+					"barrier rule rejected message with reason: {:?}", e
+				),
 			};
 		)* );
 		log::trace!(
 			target: "xcm::should_execute",
-			"did not pass barrier: origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}, reason: {:?}",
+			"did not pass any barrier rules: origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin,
 			instructions,
 			max_weight,
 			weight_credit,
-			reason,
 		);
-		Err(reason)
+		Err(RejectReason::NoRulesMatched)
 	}
 }
 
