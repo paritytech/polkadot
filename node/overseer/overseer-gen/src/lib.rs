@@ -400,6 +400,7 @@ pub trait SubsystemContext: Send + 'static {
 	) -> Result<(), Self::Error>;
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
+	// #[deprecated(note = "Use `self.sender().send_message(msg) instead, avoid passing around the full context.")]
 	async fn send_message<T>(&mut self, msg: T)
 	where
 		Self::OutgoingMessages: From<T> + Send,
@@ -409,6 +410,7 @@ pub trait SubsystemContext: Send + 'static {
 	}
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
+	// #[deprecated(note = "Use `self.sender().send_message(msg) instead, avoid passing around the full context.")]
 	async fn send_messages<T, I>(&mut self, msgs: I)
 	where
 		Self::OutgoingMessages: From<T> + Send,
@@ -422,6 +424,7 @@ pub trait SubsystemContext: Send + 'static {
 	}
 
 	/// Send a message using the unbounded connection.
+	// #[deprecated(note = "Use `self.sender().send_unbounded_message(msg) instead, avoid passing around the full context.")]
 	fn send_unbounded_message<X>(&mut self, msg: X)
 	where
 		Self::OutgoingMessages: From<X> + Send,
