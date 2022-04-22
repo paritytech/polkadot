@@ -322,7 +322,7 @@ pub async fn get_on_chain_votes<Sender>(
 	relay_parent: Hash,
 ) -> Result<Option<ScrapedOnChainVotes>>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	recv_runtime(request_on_chain_votes(relay_parent, sender).await).await
 }

@@ -69,7 +69,7 @@ impl JobTrait for FakeCollatorProtocolJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
-	fn run<S: SubsystemSender>(
+	fn run<S: overseer::CollatorProtocolSender>(
 		_: ActivatedLeaf,
 		run_args: Self::RunArgs,
 		_metrics: Self::Metrics,

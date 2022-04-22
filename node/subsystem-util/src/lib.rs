@@ -486,6 +486,7 @@ pub trait JobTrait: Unpin + Sized {
 	/// Message type used to send messages to the job.
 	type ToJob: 'static + BoundToRelayParent + Send;
 
+	/// The set of outgoing messages to be accumalted into.
 	type OutgoingMessages: 'static + Send;
 
 	/// Job runtime error.
@@ -686,6 +687,8 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 			OutgoingMessages = <Job as JobTrait>::OutgoingMessages,
 			Signal = OverseerSignal,
 		>,
+		// FIXME TODO must be bounded on the accumaltive sender trait,
+		// not on just the outer one
 		<Context as SubsystemContext>::Sender: SubsystemSender<<Job as JobTrait>::OutgoingMessages>,
 		Job: 'static + JobTrait + Send,
 		<Job as JobTrait>::RunArgs: Clone + Sync,

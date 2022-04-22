@@ -501,7 +501,7 @@ mod tests {
 
 		let test_fut = {
 			Box::pin(async move {
-				let res = RollingSessionWindow::new(&mut ctx, TEST_WINDOW_SIZE, hash).await;
+				let res = RollingSessionWindow::new(ctx.sender(), TEST_WINDOW_SIZE, hash).await;
 				assert!(res.is_err());
 			})
 		};
@@ -561,7 +561,7 @@ mod tests {
 		let test_fut = {
 			Box::pin(async move {
 				let window =
-					RollingSessionWindow::new(&mut ctx, TEST_WINDOW_SIZE, hash).await.unwrap();
+					RollingSessionWindow::new(ctx.sender(), TEST_WINDOW_SIZE, hash).await.unwrap();
 
 				assert_eq!(window.earliest_session, session);
 				assert_eq!(window.session_info, vec![dummy_session_info(session)]);
