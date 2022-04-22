@@ -28,7 +28,12 @@ use polkadot_node_network_protocol::request_response::{
 	v1::{ChunkFetchingRequest, ChunkFetchingResponse},
 };
 use polkadot_node_primitives::ErasureChunk;
-use polkadot_node_subsystem::{
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, BlakeTwo256, Candi	dateHash, GroupIndex, Hash, HashT, OccupiedCore,
+	SessionIndex,
+};
+use polkadot_subsystem::{
+	overseer,
 	jaeger,
 	messages::{AllMessages, AvailabilityStoreMessage, IfDisconnected, NetworkBridgeMessage},
 	SubsystemContext,
@@ -84,7 +89,7 @@ enum FetchedState {
 /// Messages sent from `FetchTask`s to be handled/forwarded.
 pub enum FromFetchTask {
 	/// Message to other subsystem.
-	Message(AllMessages),
+	Message(overseer::AvailabilityDistributionOutgoingMessages), // FIXME TODO
 
 	/// Concluded with result.
 	///
@@ -177,7 +182,7 @@ impl FetchTask {
 	/// A task handling the fetching of the configured chunk will be spawned.
 	pub async fn start<Context>(config: FetchTaskConfig, ctx: &mut Context) -> Result<Self>
 	where
-		Context: SubsystemContext,
+		Context: overseer::AvailabilityDistributionContextTrait,
 	{
 		let FetchTaskConfig { prepared_running, live_in } = config;
 
@@ -333,9 +338,9 @@ impl RunningTask {
 		let requests = Requests::ChunkFetchingV1(full_request);
 
 		self.sender
-			.send(FromFetchTask::Message(AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::ImmediateError),
-			)))
+			.send(FromFetchTask::Message(
+				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::ImmediateError).into()
+			))
 			.await
 			.map_err(|_| TaskError::ShuttingDown)?;
 
@@ -413,13 +418,13 @@ impl RunningTask {
 		let (tx, rx) = oneshot::channel();
 		let r = self
 			.sender
-			.send(FromFetchTask::Message(AllMessages::AvailabilityStore(
+			.send(FromFetchTask::Message(
 				AvailabilityStoreMessage::StoreChunk {
 					candidate_hash: self.request.candidate_hash,
 					chunk,
 					tx,
-				},
-			)))
+				}.into()
+			))
 			.await;
 		if let Err(err) = r {
 			gum::error!(target: LOG_TARGET, err= ?err, "Storing erasure chunk failed, system shutting down?");

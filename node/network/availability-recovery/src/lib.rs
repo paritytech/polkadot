@@ -646,7 +646,7 @@ fn reconstructed_data_matches_root(
 	branches.root() == *expected_root
 }
 
-impl<S: SubsystemSender> RecoveryTask<S> {
+impl<S> RecoveryTask<S> where S: AvailabilityRecoverySenderTrait {
 	async fn run(mut self) -> Result<AvailableData, RecoveryError> {
 		// First just see if we have the data available locally.
 		{
@@ -984,12 +984,7 @@ impl AvailabilityRecoverySubsystem {
 
 	async fn run<Context>(self, mut ctx: Context) -> SubsystemResult<()>
 	where
-		Context: overseer::SubsystemContext<
-			Message = AvailabilityRecoveryMessage,
-			OutgoingMessages = overseer::AvailabilityRecoveryOutgoingMessages,
-			Signal = OverseerSignal,
-			Error = SubsystemError,
-		>,
+		Context: overseer::AvailabilityRecoveryContextTrait,
 	{
 		let mut state = State::default();
 		let Self { fast_path, mut req_receiver, metrics } = self;

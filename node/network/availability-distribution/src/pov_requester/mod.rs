@@ -24,7 +24,10 @@ use polkadot_node_network_protocol::request_response::{
 	OutgoingRequest, Recipient,
 };
 use polkadot_node_primitives::PoV;
-use polkadot_node_subsystem::{
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
+use polkadot_primitives::v2::{AuthorityDiscoveryId, CandidateHash, Hash, ValidatorIndex};
+use polkadot_subsystem::{
+	overseer,
 	jaeger,
 	messages::{IfDisconnected, NetworkBridgeMessage},
 	SubsystemContext,
@@ -50,7 +53,7 @@ pub async fn fetch_pov<Context>(
 	metrics: Metrics,
 ) -> Result<()>
 where
-	Context: SubsystemContext,
+	Context: overseer::AvailabilityDistributionContextTrait,
 {
 	let info = &runtime.get_session_info(ctx.sender(), parent).await?.session_info;
 	let authority_id = info

@@ -32,8 +32,11 @@ use futures::{
 	Stream,
 };
 
+use polkadot_node_subsystem_util::runtime::{get_occupied_cores, RuntimeInfo};
+use polkadot_primitives::v2::{CandidateHash, Hash, OccupiedCore, SessionIndex};
 use polkadot_node_subsystem::{
-	messages::{AllMessages, ChainApiMessage},
+	overseer,
+	messages::{RuntimeApiMessage, ChainApiMessage},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SubsystemContext,
 };
 use polkadot_node_subsystem_util::runtime::{get_occupied_cores, RuntimeInfo};
@@ -101,7 +104,7 @@ impl Requester {
 		update: ActiveLeavesUpdate,
 	) -> Result<()>
 	where
-		Context: SubsystemContext,
+		Context: overseer::AvailabilityDistributionContextTrait,
 	{
 		gum::trace!(target: LOG_TARGET, ?update, "Update fetching heads");
 		let ActiveLeavesUpdate { activated, deactivated } = update;
@@ -127,12 +130,12 @@ impl Requester {
 		new_head: ActivatedLeaf,
 	) -> Result<()>
 	where
-		Context: SubsystemContext,
+		Context: overseer::AvailabilityDistributionContextTrait,
 	{
-		let mut sender = ctx.sender();
+		let sender = &mut ctx.sender().clone();
 		let ActivatedLeaf { hash: leaf, .. } = new_head;
 		let (leaf_session_index, ancestors_in_session) = get_block_ancestors_in_same_session(
-			&mut sender,
+			sender,
 			runtime,
 			leaf,
 			Self::LEAF_ANCESTRY_LEN_WITHIN_SESSION,
@@ -140,7 +143,7 @@ impl Requester {
 		.await?;
 		// Also spawn or bump tasks for candidates in ancestry in the same session.
 		for hash in std::iter::once(leaf).chain(ancestors_in_session) {
-			let cores = get_occupied_cores(&mut sender, hash).await?;
+			let cores = get_occupied_cores(sender, hash).await?;
 			gum::trace!(
 				target: LOG_TARGET,
 				occupied_cores = ?cores,
@@ -178,14 +181,14 @@ impl Requester {
 	/// passed in leaf might be some later block where the candidate is still pending availability.
 	async fn add_cores<Context>(
 		&mut self,
-		ctx: &mut Context,
+		context: &mut Context,
 		runtime: &mut RuntimeInfo,
 		leaf: Hash,
 		leaf_session_index: SessionIndex,
 		cores: impl IntoIterator<Item = OccupiedCore>,
 	) -> Result<()>
 	where
-		Context: SubsystemContext,
+		Context: overseer::AvailabilityDistributionContextTrait,
 	{
 		for core in cores {
 			match self.fetches.entry(core.candidate_hash) {
@@ -201,7 +204,7 @@ impl Requester {
 					let task_cfg = self
 						.session_cache
 						.with_session_info(
-							ctx,
+							context,
 							runtime,
 							// We use leaf here, the relay_parent must be in the same session as the
 							// leaf. This is guaranteed by runtime which ensures that cores are cleared
@@ -222,7 +225,7 @@ impl Requester {
 						});
 
 					if let Ok(Some(task_cfg)) = task_cfg {
-						e.insert(FetchTask::start(task_cfg, ctx).await?);
+						e.insert(FetchTask::start(task_cfg, context).await?);
 					}
 					// Not a validator, nothing to do.
 				},
@@ -233,9 +236,9 @@ impl Requester {
 }
 
 impl Stream for Requester {
-	type Item = AllMessages;
+	type Item = overseer::AvailabilityDistributionOutgoingMessages;
 
-	fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<AllMessages>> {
+	fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<Self::Item>> {
 		loop {
 			match Pin::new(&mut self.rx).poll_next(ctx) {
 				Poll::Ready(Some(FromFetchTask::Message(m))) => return Poll::Ready(Some(m)),
@@ -304,16 +307,16 @@ where
 }
 
 /// Request up to `limit` ancestor hashes of relay parent from the Chain API.
-async fn get_block_ancestors<Context>(
-	ctx: &mut overseer::SubsystemSender<ChainApiMessage>,
+async fn get_block_ancestors<Sender>(
+	sender: &mut Sender,
 	relay_parent: Hash,
 	limit: usize,
 ) -> Result<Vec<Hash>>
 where
-	Context: SubsystemContext,
+	Sender: overseer::SubsystemSender<ChainApiMessage>,
 {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(ChainApiMessage::Ancestors {
+	sender.send_message(ChainApiMessage::Ancestors {
 		hash: relay_parent,
 		k: limit,
 		response_channel: tx,

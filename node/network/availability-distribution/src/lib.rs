@@ -96,12 +96,7 @@ impl AvailabilityDistributionSubsystem {
 	/// Start processing work as passed on from the Overseer.
 	async fn run<Context>(self, mut ctx: Context) -> std::result::Result<(), FatalError>
 	where
-		Context: overseer::SubsystemContext<
-			Message = AvailabilityDistributionMessage,
-			OutgoingMessages = overseer::AvailabilityDistributionOutgoingMessages,
-			Signal = OverseerSignal,
-			Error = SubsystemError,
-		>,
+		Context: overseer::AvailabilityDistributionContextTrait,
 	{
 		let Self { mut runtime, recvs, metrics } = self;
 
