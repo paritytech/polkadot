@@ -8,8 +8,11 @@ use std::collections::HashMap;
 #[derive(Default)]
 pub struct AwesomeSubSys;
 
-impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<MsgStrukt>, Yikes> for AwesomeSubSys {
-	fn start(self, mut ctx: XxxSubsystemContext<MsgStrukt>) -> SpawnedSubsystem<Yikes> {
+impl<Ctx> ::polkadot_overseer_gen::Subsystem<Ctx, Yikes> for AwesomeSubSys
+where
+	Ctx: AwesomeSubSysContextTrait,
+{
+	fn start(self, mut ctx: Ctx) -> SpawnedSubsystem<Yikes> {
 		let mut sender = ctx.sender().clone();
 		ctx.spawn(
 			"AwesomeSubsys",
@@ -25,8 +28,11 @@ impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<MsgStrukt>, Yikes> f
 #[derive(Default)]
 pub struct GoblinTower;
 
-impl ::polkadot_overseer_gen::Subsystem<XxxSubsystemContext<Plinko>, Yikes> for GoblinTower {
-	fn start(self, mut ctx: XxxSubsystemContext<Plinko>) -> SpawnedSubsystem<Yikes> {
+impl<Ctx> ::polkadot_overseer_gen::Subsystem<Ctx, Yikes> for GoblinTower
+where
+	Ctx: GoblinTowerContextTrait,
+{
+	fn start(self, mut ctx: Ctx) -> SpawnedSubsystem<Yikes> {
 		let mut sender = ctx.sender().clone();
 		ctx.spawn(
 			"GoblinTower",

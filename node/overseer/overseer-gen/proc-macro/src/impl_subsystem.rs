@@ -142,8 +142,8 @@ pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
 		}
 	}
 
-	let subsystem_sender_name = Ident::new(&(overseer_name.to_string() + "Sender"), span);
-	let subsystem_ctx_name = Ident::new(&(overseer_name.to_string() + "SubsystemContext"), span);
+	let subsystem_sender_name = &Ident::new(&(overseer_name.to_string() + "Sender"), span);
+	let subsystem_ctx_name = &Ident::new(&(overseer_name.to_string() + "SubsystemContext"), span);
 	ts.extend(impl_subsystem_context(info, &subsystem_sender_name, &subsystem_ctx_name));
 
 	ts.extend(impl_associate_outgoing_messages_trait(&all_messages_wrapper));
@@ -162,7 +162,19 @@ pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
 	// Create all subsystem specific types, one by one
 	for ssf in info.subsystems() {
 		let subsystem_name = ssf.generic.to_string();
-		let outgoing_wrapper = Ident::new(&(subsystem_name.clone() + "OutgoingMessages"), span);
+		let outgoing_wrapper = &Ident::new(&(subsystem_name.clone() + "OutgoingMessages"), span);
+
+		let subsystem_ctx_trait= &Ident::new(&(subsystem_name.clone() + "ContextTrait"), span);
+		let subsystem_sender_trait= &Ident::new(&(subsystem_name.clone() + "SenderTrait"), span);
+
+		ts.extend(impl_per_subsystem_trait(
+			info,
+			subsystem_ctx_trait,
+			subsystem_sender_name,
+			subsystem_sender_trait,
+			&ssf.message_to_consume,
+			&ssf.messages_to_send,
+			outgoing_wrapper));
 
 		ts.extend(impl_associate_outgoing_messages(&ssf.message_to_consume, &outgoing_wrapper));
 
@@ -346,6 +358,201 @@ pub(crate) fn impl_associate_outgoing_messages(
 	}
 }
 
+
+pub(crate) fn impl_per_subsystem_trait(
+	info: &OverseerInfo,
+	subsystem_ctx_trait: &Ident,
+	subsystem_sender_name: &Ident,
+	subsystem_sender_trait: &Ident,
+	consumes: &Path,
+	outgoing: &[Path],
+	outgoing_wrapper: &Ident,
+) -> TokenStream {
+	let all_messages_wrapper = &info.message_wrapper;
+	let signal = &info.extern_signal_ty;
+	let error_ty = &info.extern_error_ty;
+	let support_crate = info.support_crate_name();
+
+	let mut ts = TokenStream::new();
+
+	let acc_sender_trait_bounds = quote !{
+		#support_crate ::SubsystemSender< #outgoing_wrapper >
+		#(
+			+ #support_crate ::SubsystemSender< #outgoing >
+		)*
+	};
+
+	ts.extend(quote!{
+		/// A abstracting trait for usage with subsystems.
+		pub trait #subsystem_sender_trait : #acc_sender_trait_bounds
+		{}
+
+		impl<T> #subsystem_sender_trait for T
+		where
+			T: #acc_sender_trait_bounds
+		{}
+	});
+
+
+
+	let where_clause = quote !{
+		#consumes: AssociateOutgoing,
+		// : <#consumes as AssociateOutgoing>::OutgoingMessages,
+		#all_messages_wrapper: From< #consumes >,
+		#subsystem_sender_name < #outgoing_wrapper >: #subsystem_sender_trait + #acc_sender_trait_bounds,
+	};
+
+	ts.extend(quote!{
+		/// Accumuative trait for a particular subsystem wrapper.
+		pub trait #subsystem_ctx_trait : SubsystemContext <
+			Message = #consumes,
+			Signal = #signal,
+			OutgoingMessages = #outgoing_wrapper,
+			Sender = #subsystem_sender_name < #outgoing_wrapper > ,
+			Error = #error_ty,
+		>
+		where
+			#where_clause
+		{}
+
+		impl<T> #subsystem_ctx_trait for T
+		where
+			T: SubsystemContext <
+				Message = #consumes,
+				Signal = #signal,
+				OutgoingMessages = #outgoing_wrapper,
+				Sender = #subsystem_sender_name < #outgoing_wrapper >,
+				Error = #error_ty,
+			>,
+			#where_clause
+		{}
+	});
+
+
+	// // impl the subsystem context trait (alt!)
+	// ts.extend(quote!{
+
+	// 	#[#support_crate ::async_trait]
+	// 	impl #support_crate ::SubsystemContext for #subsystem_ctx_name <#consumes>
+	// 	where
+	// 		#consumes: AssociateOutgoing,
+	// 		// : <#consumes as AssociateOutgoing>::OutgoingMessages,
+	// 		#all_messages_wrapper: From< #consumes >,
+	// 		#subsystem_sender_name:
+	// 			#support_crate ::SubsystemSender< #outgoing_wrapper >
+	// 			#(
+	// 				+ #support_crate ::SubsystemSender< #outgoing >
+	// 			)*
+	// 			,
+	// 	{
+	// 		type Message = #consumes;
+	// 		type Signal = #signal;
+	// 		type OutgoingMessages = #outgoing_wrapper;
+	// 		// type AllMessages = #all_messages_wrapper;
+	// 		type Sender = #subsystem_sender_name;
+	// 		type Error = #error_ty;
+
+	// 		async fn try_recv(&mut self) -> ::std::result::Result<Option<FromOverseer<M, Self::Signal>>, ()> {
+	// 			match #support_crate ::poll!(self.recv()) {
+	// 				#support_crate ::Poll::Ready(msg) => Ok(Some(msg.map_err(|_| ())?)),
+	// 				#support_crate ::Poll::Pending => Ok(None),
+	// 			}
+	// 		}
+
+	// 		async fn recv(&mut self) -> ::std::result::Result<FromOverseer<M, Self::Signal>, Self::Error> {
+	// 			loop {
+	// 				// If we have a message pending an overseer signal, we only poll for signals
+	// 				// in the meantime.
+	// 				if let Some((needs_signals_received, msg)) = self.pending_incoming.take() {
+	// 					if needs_signals_received <= self.signals_received.load() {
+	// 						return Ok( #support_crate ::FromOverseer::Communication { msg });
+	// 					} else {
+	// 						self.pending_incoming = Some((needs_signals_received, msg));
+
+	// 						// wait for next signal.
+	// 						let signal = self.signals.next().await
+	// 							.ok_or(#support_crate ::OverseerError::Context(
+	// 								"Signal channel is terminated and empty."
+	// 								.to_owned()
+	// 							))?;
+
+	// 						self.signals_received.inc();
+	// 						return Ok( #support_crate ::FromOverseer::Signal(signal))
+	// 					}
+	// 				}
+
+	// 				let mut await_message = self.messages.next().fuse();
+	// 				let mut await_signal = self.signals.next().fuse();
+	// 				let signals_received = self.signals_received.load();
+	// 				let pending_incoming = &mut self.pending_incoming;
+
+	// 				// Otherwise, wait for the next signal or incoming message.
+	// 				let from_overseer = #support_crate ::futures::select_biased! {
+	// 					signal = await_signal => {
+	// 						let signal = signal
+	// 							.ok_or( #support_crate ::OverseerError::Context(
+	// 								"Signal channel is terminated and empty."
+	// 								.to_owned()
+	// 							))?;
+
+	// 						#support_crate ::FromOverseer::Signal(signal)
+	// 					}
+	// 					msg = await_message => {
+	// 						let packet = msg
+	// 							.ok_or( #support_crate ::OverseerError::Context(
+	// 								"Message channel is terminated and empty."
+	// 								.to_owned()
+	// 							))?;
+
+	// 						if packet.signals_received > signals_received {
+	// 							// wait until we've received enough signals to return this message.
+	// 							*pending_incoming = Some((packet.signals_received, packet.message));
+	// 							continue;
+	// 						} else {
+	// 							// we know enough to return this message.
+	// 							#support_crate ::FromOverseer::Communication { msg: packet.message}
+	// 						}
+	// 					}
+	// 				};
+
+	// 				if let #support_crate ::FromOverseer::Signal(_) = from_overseer {
+	// 					self.signals_received.inc();
+	// 				}
+
+	// 				return Ok(from_overseer);
+	// 			}
+	// 		}
+
+	// 		fn sender(&mut self) -> &mut Self::Sender {
+	// 			&mut self.to_subsystems
+	// 		}
+
+	// 		fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+	// 			-> ::std::result::Result<(), #error_ty>
+	// 		{
+	// 			self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnJob {
+	// 				name,
+	// 				subsystem: Some(self.name()),
+	// 				s,
+	// 			}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
+	// 			Ok(())
+	// 		}
+
+	// 		fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+	// 			-> ::std::result::Result<(), #error_ty>
+	// 		{
+	// 			self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnBlockingJob {
+	// 				name,
+	// 				subsystem: Some(self.name()),
+	// 				s,
+	// 			}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
+	// 			Ok(())
+	// 		}
+	// 	}
+	// });
+	ts
+}
+
 /// Implement a builder pattern for the `Overseer`-type,
 /// which acts as the gateway to constructing the overseer.
 pub(crate) fn impl_subsystem_context(
@@ -358,7 +565,7 @@ pub(crate) fn impl_subsystem_context(
 	let error_ty = &info.extern_error_ty;
 	let support_crate = info.support_crate_name();
 
-	let ts = quote! {
+	let mut ts = quote! {
 		/// A context type that is given to the [`Subsystem`] upon spawning.
 		/// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
 		/// or to spawn it's [`SubsystemJob`]s.
@@ -412,6 +619,10 @@ pub(crate) fn impl_subsystem_context(
 				self.name
 			}
 		}
+	};
+
+	// impl the subsystem context trait
+	ts.extend(quote!{
 
 		#[#support_crate ::async_trait]
 		impl<M> #support_crate ::SubsystemContext for #subsystem_ctx_name <M>
@@ -529,7 +740,7 @@ pub(crate) fn impl_subsystem_context(
 				Ok(())
 			}
 		}
-	};
+	});
 
 	ts
 }

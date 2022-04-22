@@ -421,7 +421,7 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, CandidateValidationMessage, sends: [])]
 	candidate_validation: CandidateValidation,
 
-	#[subsystem(no_dispatch, PvfCheckerMessage, sends: [])]
+	#[subsystem(no_dispatch, PvfCheckerMessage, sends: [CandidateValidationMessage, RuntimeApiMessage])]
 	pvf_checker: PvfChecker,
 
 	#[subsystem(no_dispatch, CandidateBackingMessage, sends: [
