@@ -588,12 +588,7 @@ fn matrix_neighbors(
 
 impl<Context, AD> overseer::Subsystem<Context, SubsystemError> for GossipSupport<AD>
 where
-	Context: overseer::SubsystemContext<
-		Message = GossipSupportMessage,
-		OutgoingMessages = overseer::GossipSupportOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::GossipSupportContextTrait,
 	AD: AuthorityDiscovery + Clone,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {

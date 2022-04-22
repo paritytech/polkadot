@@ -130,12 +130,7 @@ pub struct StatementDistributionSubsystem<R> {
 impl<Context, R: rand::Rng + Send + Sync + 'static> overseer::Subsystem<Context, SubsystemError>
 	for StatementDistributionSubsystem<R>
 where
-	Context: overseer::SubsystemContext<
-		Message = StatementDistributionMessage,
-		OutgoingMessages = overseer::StatementDistributionOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::StatementDistributionContextTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision

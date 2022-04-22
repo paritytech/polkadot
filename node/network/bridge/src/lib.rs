@@ -395,12 +395,7 @@ async fn handle_subsystem_messages<Context, N, AD>(
 	metrics: Metrics,
 ) -> Result<(), UnexpectedAbort>
 where
-	Context: overseer::SubsystemContext<
-		Message = NetworkBridgeMessage,
-		OutgoingMessages = overseer::NetworkBridgeOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::NetworkBridgeContextTrait,
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
@@ -1047,12 +1042,7 @@ async fn run_network<N, AD, Context>(
 where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
-	Context: overseer::SubsystemContext<
-		Message = NetworkBridgeMessage,
-		OutgoingMessages = overseer::NetworkBridgeOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::NetworkBridgeContextTrait,
 {
 	let shared = Shared::default();
 

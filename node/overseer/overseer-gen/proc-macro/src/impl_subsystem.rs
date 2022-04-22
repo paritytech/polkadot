@@ -167,7 +167,7 @@ pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
 		let subsystem_ctx_trait= &Ident::new(&(subsystem_name.clone() + "ContextTrait"), span);
 		let subsystem_sender_trait= &Ident::new(&(subsystem_name.clone() + "SenderTrait"), span);
 
-		ts.extend(impl_per_subsystem_trait(
+		ts.extend(impl_per_subsystem_helper_traits(
 			info,
 			subsystem_ctx_trait,
 			subsystem_sender_name,
@@ -359,7 +359,7 @@ pub(crate) fn impl_associate_outgoing_messages(
 }
 
 
-pub(crate) fn impl_per_subsystem_trait(
+pub(crate) fn impl_per_subsystem_helper_traits(
 	info: &OverseerInfo,
 	subsystem_ctx_trait: &Ident,
 	subsystem_sender_name: &Ident,
@@ -375,6 +375,8 @@ pub(crate) fn impl_per_subsystem_trait(
 
 	let mut ts = TokenStream::new();
 
+	// Create a helper trait bound of all outgoing messages, and the generated wrapper type
+	// for ease of use within subsystems:
 	let acc_sender_trait_bounds = quote !{
 		#support_crate ::SubsystemSender< #outgoing_wrapper >
 		#(
@@ -394,12 +396,12 @@ pub(crate) fn impl_per_subsystem_trait(
 	});
 
 
-
+	// Create a helper accumulated per subsystem trait bound:
 	let where_clause = quote !{
-		#consumes: AssociateOutgoing,
-		// : <#consumes as AssociateOutgoing>::OutgoingMessages,
+		#consumes: AssociateOutgoing + ::std::fmt::Debug + Send + 'static,
+		#all_messages_wrapper: From< #outgoing_wrapper >,
 		#all_messages_wrapper: From< #consumes >,
-		#subsystem_sender_name < #outgoing_wrapper >: #subsystem_sender_trait + #acc_sender_trait_bounds,
+		Self::Sender: #subsystem_sender_trait + #acc_sender_trait_bounds,
 	};
 
 	ts.extend(quote!{
@@ -408,6 +410,7 @@ pub(crate) fn impl_per_subsystem_trait(
 			Message = #consumes,
 			Signal = #signal,
 			OutgoingMessages = #outgoing_wrapper,
+			// FIXME setting sender breaks testing, which wants to override this
 			Sender = #subsystem_sender_name < #outgoing_wrapper > ,
 			Error = #error_ty,
 		>
@@ -421,6 +424,7 @@ pub(crate) fn impl_per_subsystem_trait(
 				Message = #consumes,
 				Signal = #signal,
 				OutgoingMessages = #outgoing_wrapper,
+				// FIXME setting sender breaks testing
 				Sender = #subsystem_sender_name < #outgoing_wrapper >,
 				Error = #error_ty,
 			>,

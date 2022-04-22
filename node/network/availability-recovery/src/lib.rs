@@ -177,7 +177,7 @@ impl RequestFromBackers {
 	async fn run(
 		&mut self,
 		params: &RecoveryParams,
-		sender: &mut impl SubsystemSender,
+		sender: &mut impl SubsystemSender<RuntimeApiMessage>,
 	) -> Result<AvailableData, RecoveryError> {
 		gum::trace!(
 			target: LOG_TARGET,
@@ -301,7 +301,7 @@ impl RequestChunksFromValidators {
 	async fn launch_parallel_requests(
 		&mut self,
 		params: &RecoveryParams,
-		sender: &mut impl SubsystemSender,
+		sender: &mut impl SubsystemSender<RuntimeApiMessage>,
 	) {
 		let num_requests = self.get_desired_request_count(params.threshold);
 		let candidate_hash = &params.candidate_hash;
@@ -486,7 +486,7 @@ impl RequestChunksFromValidators {
 	async fn run(
 		&mut self,
 		params: &RecoveryParams,
-		sender: &mut impl SubsystemSender,
+		sender: &mut impl SubsystemSender<RuntimeApiMessage>,
 	) -> Result<AvailableData, RecoveryError> {
 		let metrics = &params.metrics;
 
@@ -801,12 +801,7 @@ impl Default for State {
 
 impl<Context> Subsystem<Context, SubsystemError> for AvailabilityRecoverySubsystem
 where
-	Context: overseer::SubsystemContext<
-		Message = AvailabilityRecoveryMessage,
-		OutgoingMessages = overseer::AvailabilityRecoveryOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::AvailabilityRecoveryContextTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self
@@ -846,12 +841,7 @@ async fn launch_recovery_task<Context>(
 	metrics: &Metrics,
 ) -> error::Result<()>
 where
-	Context: overseer::SubsystemContext<
-		Message = AvailabilityRecoveryMessage,
-		OutgoingMessages = overseer::AvailabilityRecoveryOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::AvailabilityRecoveryContextTrait,
 {
 	let candidate_hash = receipt.hash();
 
@@ -903,12 +893,7 @@ async fn handle_recover<Context>(
 	metrics: &Metrics,
 ) -> error::Result<()>
 where
-	Context: overseer::SubsystemContext<
-		Message = AvailabilityRecoveryMessage,
-		OutgoingMessages = overseer::AvailabilityRecoveryOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::AvailabilityRecoveryContextTrait,
 {
 	let candidate_hash = receipt.hash();
 
@@ -970,12 +955,7 @@ async fn query_full_data<Context>(
 	candidate_hash: CandidateHash,
 ) -> error::Result<Option<AvailableData>>
 where
-	Context: overseer::SubsystemContext<
-		Message = AvailabilityRecoveryMessage,
-		OutgoingMessages = overseer::AvailabilityRecoveryOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::AvailabilityRecoveryContextTrait,
 {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx))

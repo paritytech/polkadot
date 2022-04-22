@@ -496,7 +496,7 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, DisputeDistributionMessage, sends: [])]
 	dispute_distribution: DisputeDistribution,
 
-	#[subsystem(no_dispatch, blocking, ChainSelectionMessage, sends: [])]
+	#[subsystem(no_dispatch, blocking, ChainSelectionMessage, sends: [ChainApiMessage])]
 	chain_selection: ChainSelection,
 
 	/// External listeners waiting for a hash to be in the active-leave set.

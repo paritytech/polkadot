@@ -70,12 +70,7 @@ pub struct IncomingRequestReceivers {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for AvailabilityDistributionSubsystem
 where
-	Context: overseer::SubsystemContext<
-		Message = AvailabilityDistributionMessage,
-		OutgoingMessages = overseer::AvailabilityDistributionOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::AvailabilityDistributionContextTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self

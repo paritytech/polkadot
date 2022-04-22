@@ -118,12 +118,7 @@ impl CollatorProtocolSubsystem {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for CollatorProtocolSubsystem
 where
-	Context: overseer::SubsystemContext<
-		Message = CollatorProtocolMessage,
-		OutgoingMessages = overseer::CollatorProtocolOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::CollatorProtocolContextTrait,
 	<Context as SubsystemContext>::Sender:
 		SubsystemSender<overseer::CollatorProtocolMessageOutgoingMessages>,
 {

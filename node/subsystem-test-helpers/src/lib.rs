@@ -152,7 +152,8 @@ pub fn sender_receiver() -> (TestSubsystemSender, mpsc::UnboundedReceiver<AllMes
 #[async_trait::async_trait]
 impl<T> overseer::SubsystemSender<T> for TestSubsystemSender
 where
-	T: Into<AllMessages> + Send + 'static,
+	AllMessages: From<T>,
+	T: Send + 'static,
 {
 	async fn send_message(&mut self, msg: T) {
 		self.tx.send(msg.into()).await.expect("test overseer no longer live");
@@ -182,14 +183,15 @@ pub struct TestSubsystemContext<M, S> {
 #[async_trait::async_trait]
 impl<M, Spawner> overseer::SubsystemContext for TestSubsystemContext<M, Spawner>
 where
-	M: std::fmt::Debug + Send + 'static,
+	M: overseer::AssociateOutgoing + std::fmt::Debug + Send + 'static,
+	AllMessages: From<<M as overseer::AssociateOutgoing>::OutgoingMessages>,
 	AllMessages: From<M>,
 	Spawner: SpawnNamed + Send + 'static,
 {
 	type Message = M;
 	type Sender = TestSubsystemSender;
 	type Signal = OverseerSignal;
-	type OutgoingMessages = AllMessages;
+	type OutgoingMessages = <M as overseer::AssociateOutgoing>::OutgoingMessages;
 	type Error = SubsystemError;
 
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {

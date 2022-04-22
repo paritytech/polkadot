@@ -1595,12 +1595,7 @@ async fn adjust_required_routing_and_propagate(
 
 /// Modify the reputation of a peer based on its behavior.
 async fn modify_reputation(
-	ctx: &mut impl overseer::SubsystemContext<
-		Message = ApprovalDistributionMessage,
-		OutgoingMessages = overseer::ApprovalDistributionOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	ctx: &mut impl overseer::ApprovalDistributionContextTrait,
 	peer_id: PeerId,
 	rep: Rep,
 ) {
@@ -1738,12 +1733,7 @@ impl ApprovalDistribution {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for ApprovalDistribution
 where
-	Context: overseer::SubsystemContext<
-		Message = ApprovalDistributionMessage,
-		OutgoingMessages = overseer::ApprovalDistributionOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::ApprovalDistributionContextTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self.run(ctx).map(|_| Ok(())).boxed();
