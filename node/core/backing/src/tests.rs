@@ -153,8 +153,11 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-	let subsystem =
-		CandidateBackingSubsystem::new(pool.clone(), keystore, Metrics(None)).run(context);
+	let subsystem = async move {
+		if let Err(e) = super::run(context, keystore, Metrics(None)).await {
+			panic!("{:?}", e);
+		}
+	};
 
 	let test_fut = test(virtual_overseer);
 
