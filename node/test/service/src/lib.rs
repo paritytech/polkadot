@@ -44,7 +44,7 @@ use sc_network::{
 use sc_service::{
 	config::{
 		DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod,
-		WasmInstantiationStrategy,
+		WasmtimeInstantiationStrategy,
 	},
 	BasePath, Configuration, KeepBlocks, Role, RpcHandlers, TaskManager,
 };
@@ -178,7 +178,7 @@ pub fn node_config(
 		keep_blocks: KeepBlocks::All,
 		chain_spec: Box::new(spec),
 		wasm_method: WasmExecutionMethod::Compiled {
-			instantiation_strategy: WasmInstantiationStrategy::PoolingCopyOnWrite,
+			instantiation_strategy: WasmtimeInstantiationStrategy::PoolingCopyOnWrite,
 		},
 		wasm_runtime_overrides: Default::default(),
 		// NOTE: we enforce the use of the native runtime to make the errors more debuggable
