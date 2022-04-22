@@ -516,7 +516,11 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	dispute_coordinator: DisputeCoordinator,
 
-	#[subsystem(no_dispatch, DisputeDistributionMessage, sends: [])]
+	#[subsystem(no_dispatch, DisputeDistributionMessage, sends: [
+		RuntimeApiMessage,
+		DisputeCoordinatorMessage,
+		NetworkBridgeMessage,
+	])]
 	dispute_distribution: DisputeDistribution,
 
 	#[subsystem(no_dispatch, blocking, ChainSelectionMessage, sends: [ChainApiMessage])]
