@@ -578,13 +578,13 @@ fn table_attested_to_backed(
 }
 
 async fn store_available_data(
-	sender: &mut impl SubsystemSender,
+	ctx: &mut Context,
 	n_validators: u32,
 	candidate_hash: CandidateHash,
 	available_data: AvailableData,
 ) -> Result<(), Error> {
 	let (tx, rx) = oneshot::channel();
-	sender
+	ctx.sender()
 		.send_message(
 			AvailabilityStoreMessage::StoreAvailableData {
 				candidate_hash,
@@ -606,7 +606,7 @@ async fn store_available_data(
 // This will compute the erasure root internally and compare it to the expected erasure root.
 // This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
 async fn make_pov_available(
-	sender: &mut impl SubsystemSender,
+	ctx: &mut Context,
 	n_validators: usize,
 	pov: Arc<PoV>,
 	candidate_hash: CandidateHash,
@@ -632,21 +632,21 @@ async fn make_pov_available(
 	{
 		let _span = span.as_ref().map(|s| s.child("store-data").with_candidate(candidate_hash));
 
-		store_available_data(sender, n_validators as u32, candidate_hash, available_data).await?;
+		store_available_data(ctx, n_validators as u32, candidate_hash, available_data).await?;
 	}
 
 	Ok(Ok(()))
 }
 
 async fn request_pov(
-	sender: &mut impl SubsystemSender,
+	ctx: &mut Context,
 	relay_parent: Hash,
 	from_validator: ValidatorIndex,
 	candidate_hash: CandidateHash,
 	pov_hash: Hash,
 ) -> Result<Arc<PoV>, Error> {
 	let (tx, rx) = oneshot::channel();
-	sender
+	ctx.sender()
 		.send_message(
 			AvailabilityDistributionMessage::FetchPoV {
 				relay_parent,
@@ -664,13 +664,13 @@ async fn request_pov(
 }
 
 async fn request_candidate_validation(
-	sender: &mut impl SubsystemSender,
+	ctx: &mut impl overseer::CandidateBackingSenderTrait,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 ) -> Result<ValidationResult, Error> {
 	let (tx, rx) = oneshot::channel();
 
-	sender
+	ctx.sender()
 		.send_message(
 			CandidateValidationMessage::ValidateFromChainState(
 				candidate_receipt,
@@ -678,7 +678,6 @@ async fn request_candidate_validation(
 				BACKING_EXECUTION_TIMEOUT,
 				tx,
 			)
-			.into(),
 		)
 		.await;
 
@@ -705,7 +704,7 @@ struct BackgroundValidationParams<S: overseer::SubsystemSender<AllMessages>, F> 
 
 async fn validate_and_make_available(
 	params: BackgroundValidationParams<
-		impl SubsystemSender,
+		impl overseer::BackingSenderTrait,
 		impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Sync,
 	>,
 ) -> Result<(), Error> {
@@ -724,7 +723,7 @@ async fn validate_and_make_available(
 		PoVData::Ready(pov) => pov,
 		PoVData::FetchFromValidator { from_validator, candidate_hash, pov_hash } => {
 			let _span = span.as_ref().map(|s| s.child("request-pov"));
-			match request_pov(&mut sender, relay_parent, from_validator, candidate_hash, pov_hash)
+			match request_pov(sender, relay_parent, from_validator, candidate_hash, pov_hash)
 				.await
 			{
 				Err(Error::FetchPoV) => {
@@ -810,9 +809,6 @@ async fn validate_and_make_available(
 struct ValidatorIndexOutOfBounds;
 
 impl<Context> CandidateBackingJob<Context>
-where
-	Context: SubsystemContext,
-	Context: overseer::SubsystemContext,
 {
 	async fn handle_validated_candidate_command(
 		&mut self,
@@ -896,7 +892,7 @@ where
 		&mut self,
 		ctx: &mut Context,
 		params: BackgroundValidationParams<
-			impl SubsystemSender,
+			impl overseer::BackingSenderTrait,
 			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static + Sync,
 		>,
 	) -> Result<(), Error> {
@@ -1001,7 +997,7 @@ where
 	}
 
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
-	fn issue_new_misbehaviors(&mut self, ctx: &mut Context) {
+	fn issue_new_misbehaviors(&mut self, sender: &mut impl CandidateBackingSenderTrait) {
 		// collect the misbehaviors to avoid double mutable self borrow issues
 		let misbehaviors: Vec<_> = self.table.drain_misbehaviors().collect();
 		for (validator_id, report) in misbehaviors {
@@ -1010,7 +1006,7 @@ where
 			//
 			// Misbehaviors are bounded by the number of validators and
 			// the block production protocol.
-			ctx.send_unbounded_message(ProvisionerMessage::ProvisionableData(
+			sender.send_unbounded_message(ProvisionerMessage::ProvisionableData(
 				self.parent,
 				ProvisionableData::MisbehaviorReport(self.parent, validator_id, report),
 			));
@@ -1101,7 +1097,7 @@ where
 			None
 		};
 
-		self.issue_new_misbehaviors(ctx);
+		self.issue_new_misbehaviors(ctx.sender());
 
 		// It is important that the child span is dropped before its parent span (`unbacked_span`)
 		drop(import_statement_span);
@@ -1123,8 +1119,8 @@ where
 	/// the networking component responsible for feeding statements to the backing subsystem
 	/// is meant to check the signature and provenance of all statements before submission.
 	async fn dispatch_new_statement_to_dispute_coordinator(
-		&mut self,
-		ctx: &mut Context,
+		&self,
+		ctx: &mut JobSender<impl overseer::BackingSenderTrait>,
 		candidate_hash: CandidateHash,
 		statement: &SignedFullStatement,
 	) -> Result<(), ValidatorIndexOutOfBounds> {
@@ -1157,7 +1153,7 @@ where
 		if let (Some(candidate_receipt), Some(dispute_statement)) =
 			(maybe_candidate_receipt, maybe_signed_dispute_statement)
 		{
-			ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
+			sender.send_message(DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
 				candidate_receipt,
 				session: self.session_index,
