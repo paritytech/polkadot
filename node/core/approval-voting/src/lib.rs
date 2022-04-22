@@ -604,19 +604,19 @@ impl State {
 	/// Bring `session_window` up to date.
 	pub async fn cache_session_info_for_head(
 		&mut self,
-		ctx: &mut impl overseer::SubsystemContext,
+		ctx: &mut impl overseer::ApprovalVotingContextTrait,
 		head: Hash,
 	) -> Result<Option<SessionWindowUpdate>, SessionsUnavailable> {
 		let session_window = self.session_window.take();
 		match session_window {
 			None => {
 				self.session_window =
-					Some(RollingSessionWindow::new(ctx, APPROVAL_SESSIONS, head).await?);
+					Some(RollingSessionWindow::new(ctx.sender(), APPROVAL_SESSIONS, head).await?);
 				Ok(None)
 			},
 			Some(mut session_window) => {
 				let r =
-					session_window.cache_session_info_for_head(ctx, head).await.map(Option::Some);
+					session_window.cache_session_info_for_head(ctx.sender(), head).await.map(Option::Some);
 				self.session_window = Some(session_window);
 				r
 			},
@@ -2364,7 +2364,7 @@ async fn launch_approval(
 // Issue and import a local approval vote. Should only be invoked after approval checks
 // have been done.
 async fn issue_approval(
-	ctx: &mut impl SubsystemSender,
+	ctx: &mut impl overseer::ApprovalVotingSenderTrait,
 	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
