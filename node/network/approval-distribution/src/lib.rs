@@ -22,8 +22,9 @@
 
 use futures::{channel::oneshot, FutureExt as _};
 use polkadot_node_network_protocol::{
+	self as net_protocol,
 	grid_topology::{RandomRouting, RequiredRouting, SessionGridTopologies, SessionGridTopology},
-	v1 as protocol_v1, PeerId, UnifiedReputationChange as Rep, View,
+	v1 as protocol_v1, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_primitives::approval::{
 	AssignmentCert, BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote,
@@ -349,11 +350,11 @@ impl State {
 		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
 		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
 		metrics: &Metrics,
-		event: NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>,
+		event: NetworkBridgeEvent<net_protocol::ApprovalDistributionMessage>,
 		rng: &mut (impl CryptoRng + Rng),
 	) {
 		match event {
-			NetworkBridgeEvent::PeerConnected(peer_id, role, _) => {
+			NetworkBridgeEvent::PeerConnected(peer_id, role, _, _) => {
 				// insert a blank view if none already present
 				gum::trace!(target: LOG_TARGET, ?peer_id, ?role, "Peer connected");
 				self.peer_views.entry(peer_id).or_default();
@@ -397,7 +398,7 @@ impl State {
 					live
 				});
 			},
-			NetworkBridgeEvent::PeerMessage(peer_id, msg) => {
+			NetworkBridgeEvent::PeerMessage(peer_id, Versioned::V1(msg)) => {
 				self.process_incoming_peer_message(ctx, metrics, peer_id, msg, rng).await;
 			},
 		}
@@ -964,9 +965,9 @@ impl State {
 
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				peers,
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments),
-				),
+				)),
 			))
 			.await;
 		}
@@ -1226,9 +1227,9 @@ impl State {
 
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				peers,
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(approvals),
-				),
+				)),
 			))
 			.await;
 		}
@@ -1354,9 +1355,9 @@ impl State {
 
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 				vec![peer_id.clone()],
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments_to_send),
-				),
+				)),
 			))
 			.await;
 		}
@@ -1370,10 +1371,10 @@ impl State {
 			);
 
 			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
-				vec![peer_id.clone()],
-				protocol_v1::ValidationProtocol::ApprovalDistribution(
+				vec![peer_id],
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(approvals_to_send),
-				),
+				)),
 			))
 			.await;
 		}
@@ -1572,9 +1573,9 @@ async fn adjust_required_routing_and_propagate(
 	for (peer, assignments_packet) in peer_assignments {
 		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 			vec![peer],
-			protocol_v1::ValidationProtocol::ApprovalDistribution(
+			Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 				protocol_v1::ApprovalDistributionMessage::Assignments(assignments_packet),
-			),
+			)),
 		))
 		.await;
 	}
@@ -1582,9 +1583,9 @@ async fn adjust_required_routing_and_propagate(
 	for (peer, approvals_packet) in peer_approvals {
 		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 			vec![peer],
-			protocol_v1::ValidationProtocol::ApprovalDistribution(
+			Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 				protocol_v1::ApprovalDistributionMessage::Approvals(approvals_packet),
-			),
+			)),
 		))
 		.await;
 	}
@@ -1675,7 +1676,7 @@ impl ApprovalDistribution {
 		Context: overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
 	{
 		match msg {
-			ApprovalDistributionMessage::NetworkBridgeUpdateV1(event) => {
+			ApprovalDistributionMessage::NetworkBridgeUpdate(event) => {
 				state.handle_network_msg(ctx, metrics, event, rng).await;
 			},
 			ApprovalDistributionMessage::NewBlocks(metas) => {

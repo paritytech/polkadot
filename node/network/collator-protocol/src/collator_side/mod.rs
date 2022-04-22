@@ -26,13 +26,14 @@ use futures::{
 use sp_core::Pair;
 
 use polkadot_node_network_protocol::{
+	self as net_protocol,
 	peer_set::PeerSet,
 	request_response::{
 		incoming::{self, OutgoingResponse},
 		v1::{self as request_v1, CollationFetchingRequest, CollationFetchingResponse},
 		IncomingRequest, IncomingRequestReceiver,
 	},
-	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, View,
+	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_primitives::{CollationSecondedSignal, PoV, Statement};
 use polkadot_node_subsystem_util::{
@@ -545,7 +546,7 @@ where
 
 		ctx.send_message(NetworkBridgeMessage::SendCollationMessage(
 			vec![peer],
-			protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
+			Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 		))
 		.await;
 	}
@@ -622,7 +623,7 @@ async fn advertise_collation<Context>(
 
 	ctx.send_message(NetworkBridgeMessage::SendCollationMessage(
 		vec![peer.clone()],
-		protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
+		Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 	))
 	.await;
 
@@ -687,9 +688,10 @@ where
 				"ReportCollator message is not expected on the collator side of the protocol",
 			);
 		},
-		NetworkBridgeUpdateV1(event) => {
+		NetworkBridgeUpdate(event) => {
 			// We should count only this shoulder in the histogram, as other shoulders are just introducing noise
 			let _ = state.metrics.time_process_msg();
+
 			if let Err(e) = handle_network_msg(ctx, runtime, state, event).await {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -930,7 +932,7 @@ async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	state: &mut State,
-	bridge_message: NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>,
+	bridge_message: NetworkBridgeEvent<net_protocol::CollatorProtocolMessage>,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
@@ -939,7 +941,7 @@ where
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
-		PeerConnected(peer_id, observed_role, maybe_authority) => {
+		PeerConnected(peer_id, observed_role, _, maybe_authority) => {
 			// If it is possible that a disconnected validator would attempt a reconnect
 			// it should be handled here.
 			gum::trace!(target: LOG_TARGET, ?peer_id, ?observed_role, "Peer connected");
@@ -968,7 +970,7 @@ where
 			gum::trace!(target: LOG_TARGET, ?view, "Own view change");
 			handle_our_view_change(state, view).await?;
 		},
-		PeerMessage(remote, msg) => {
+		PeerMessage(remote, Versioned::V1(msg)) => {
 			handle_incoming_peer_message(ctx, runtime, state, remote, msg).await?;
 		},
 		NewGossipTopology { .. } => {
