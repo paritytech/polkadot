@@ -22,8 +22,8 @@
 use futures::{channel::oneshot, future::BoxFuture, prelude::*, stream::FuturesUnordered};
 
 use polkadot_node_subsystem::{
-	messages::{CandidateValidationMessage, PreCheckOutcome, PvfCheckerMessage},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
+	messages::{CandidateValidationMessage, PreCheckOutcome, PvfCheckerMessage, RuntimeApiMessage},
+	overseer::{self, PvfCheckerOutgoingMessages}, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError, SubsystemResult, SubsystemSender,
 };
 use polkadot_primitives::v2::{
@@ -62,12 +62,7 @@ impl PvfCheckerSubsystem {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for PvfCheckerSubsystem
 where
-	Context: overseer::SubsystemContext<
-		Message = PvfCheckerMessage,
-		OutgoingMessages = overseer::PvfCheckerOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-	>,
+	Context: overseer::PvfCheckerContextTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		if self.enabled {
@@ -138,7 +133,9 @@ where
 		OutgoingMessages = overseer::PvfCheckerOutgoingMessages,
 		Signal = OverseerSignal,
 		Error = SubsystemError,
+		// Sender is ommitted here
 	>,
+	<Context as overseer::SubsystemContext>::Sender: overseer::PvfCheckerSenderTrait,
 {
 	let mut state = State {
 		credentials: None,
@@ -187,7 +184,7 @@ where
 /// Handle an incoming PVF pre-check result from the candidate-validation subsystem.
 async fn handle_pvf_check(
 	state: &mut State,
-	sender: &mut impl SubsystemSender<PvfCheckerOutgoingMessages>,
+	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	keystore: &SyncCryptoStorePtr,
 	metrics: &Metrics,
 	outcome: PreCheckOutcome,
@@ -255,7 +252,7 @@ struct Conclude;
 
 async fn handle_from_overseer(
 	state: &mut State,
-	sender: &mut impl SubsystemSender<PvfCheckerOutgoingMessages>,
+	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	keystore: &SyncCryptoStorePtr,
 	metrics: &Metrics,
 	from_overseer: FromOverseer<PvfCheckerMessage>,
@@ -281,7 +278,7 @@ async fn handle_from_overseer(
 
 async fn handle_leaves_update(
 	state: &mut State,
-	sender: &mut impl SubsystemSender<PvfCheckerOutgoingMessages>,
+	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	keystore: &SyncCryptoStorePtr,
 	metrics: &Metrics,
 	update: ActiveLeavesUpdate,
@@ -363,7 +360,7 @@ struct ActivationEffect {
 /// Returns `None` if the PVF pre-checking runtime API is not supported for the given leaf hash.
 async fn examine_activation(
 	state: &mut State,
-	sender: &mut impl SubsystemSender<PvfCheckerOutgoingMessages>,
+	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	keystore: &SyncCryptoStorePtr,
 	leaf_hash: Hash,
 	leaf_number: BlockNumber,
@@ -422,7 +419,7 @@ async fn examine_activation(
 /// Checks the active validators for the given leaf. If we have a signing key for one of them,
 /// returns the [`SigningCredentials`].
 async fn check_signing_credentials(
-	sender: &mut impl SubsystemSender<PvfCheckerOutgoingMessages>,
+	sender: &mut impl SubsystemSender<RuntimeApiMessage>,
 	keystore: &SyncCryptoStorePtr,
 	leaf: Hash,
 ) -> Option<SigningCredentials> {
@@ -451,7 +448,7 @@ async fn check_signing_credentials(
 ///
 /// If the validator already voted for the given code, this function does nothing.
 async fn sign_and_submit_pvf_check_statement(
-	sender: &mut impl SubsystemSender<PvfCheckerOutgoingMessages>,
+	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	keystore: &SyncCryptoStorePtr,
 	voted: &mut HashSet<ValidationCodeHash>,
 	credentials: &SigningCredentials,
@@ -543,7 +540,7 @@ async fn sign_and_submit_pvf_check_statement(
 /// into the `currently_checking` set.
 async fn initiate_precheck(
 	state: &mut State,
-	sender: &mut impl SubsystemSender<PvfCheckerOutgoingMessages>,
+	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	relay_parent: Hash,
 	validation_code_hash: ValidationCodeHash,
 	metrics: &Metrics,
@@ -553,7 +550,7 @@ async fn initiate_precheck(
 	let (tx, rx) = oneshot::channel();
 	sender
 		.send_message(
-			CandidateValidationMessage::PreCheck(relay_parent, validation_code_hash, tx).into(),
+			CandidateValidationMessage::PreCheck(relay_parent, validation_code_hash, tx)
 		)
 		.await;
 
