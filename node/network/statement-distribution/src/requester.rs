@@ -107,7 +107,7 @@ pub async fn fetch(
 			let (outgoing, pending_response) =
 				OutgoingRequest::new(Recipient::Peer(peer), req.clone());
 			if let Err(err) = sender
-				.feed(RequesterMessage::SendRequest(Requests::StatementFetching(outgoing)))
+				.feed(RequesterMessage::SendRequest(Requests::StatementFetchingV1(outgoing)))
 				.await
 			{
 				gum::info!(
