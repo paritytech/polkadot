@@ -43,13 +43,13 @@ const DEFAULT_HEAP_PAGES_ESTIMATE: u64 = 32;
 const EXTRA_HEAP_PAGES: u64 = 2048;
 
 const CONFIG: Config = Config {
-	// NOTE: This is specified in bytes, so we multiply by WASM page size.
-	max_memory_size: Some(((DEFAULT_HEAP_PAGES_ESTIMATE + EXTRA_HEAP_PAGES) * 65536) as usize),
-
 	allow_missing_func_imports: true,
 	cache_path: None,
 	semantics: Semantics {
 		extra_heap_pages: EXTRA_HEAP_PAGES,
+
+		// NOTE: This is specified in bytes, so we multiply by WASM page size.
+		max_memory_size: Some(((DEFAULT_HEAP_PAGES_ESTIMATE + EXTRA_HEAP_PAGES) * 65536) as usize),
 
 		instantiation_strategy:
 			sc_executor_wasmtime::InstantiationStrategy::RecreateInstanceCopyOnWrite,
