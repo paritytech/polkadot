@@ -605,6 +605,29 @@ pub fn run() -> Result<()> {
 				.into(),
 		)
 		.into()),
+		Some(Subcommand::BlockchainInfo(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			let chain_spec = &runner.config().chain_spec;
+
+			ensure_dev(chain_spec).map_err(Error::Other)?;
+
+			#[cfg(feature = "kusama-native")]
+			if chain_spec.is_kusama() {
+				return Ok(runner.sync_run(|config| cmd.run::<service::kusama_runtime::Block>(&config))?)
+			}
+
+			#[cfg(feature = "westend-native")]
+			if chain_spec.is_westend() {
+				return Ok(runner.sync_run(|config| cmd.run::<service::westend_runtime::Block>(&config))?)
+			}
+
+			#[cfg(feature = "polkadot-native")]
+			{
+				return Ok(runner.sync_run(|config| cmd.run::<service::polkadot_runtime::Block>(&config))?)
+			}
+			#[cfg(not(feature = "polkadot-native"))]
+			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
+		}
 	}?;
 
 	#[cfg(feature = "pyroscope")]
