@@ -42,7 +42,8 @@ pub fn validate_candidate(
 
 	let executor = TaskExecutor::new()?;
 	let result = unsafe {
-		// SAFETY: This is trivially safe since the artifact is obtained by calling `prepare`.
+		// SAFETY: This is trivially safe since the artifact is obtained by calling `prepare`
+		//         and is written into a temporary directory in an unmodified state.
 		execute(&artifact_path, params, executor)?
 	};
 
