@@ -40,6 +40,8 @@ pub mod request_response;
 
 /// Accessing authority discovery service
 pub mod authority_discovery;
+/// Grid topology support module
+pub mod grid_topology;
 
 /// A version of the protocol.
 pub type ProtocolVersion = u32;
