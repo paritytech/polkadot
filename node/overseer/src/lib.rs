@@ -491,7 +491,11 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, CollationGenerationMessage, sends: [])]
 	collation_generation: CollationGeneration,
 
-	#[subsystem(no_dispatch, CollatorProtocolMessage, sends: [])]
+	#[subsystem(no_dispatch, CollatorProtocolMessage, sends: [
+		NetworkBridgeMessage,
+		RuntimeApiMessage,
+		CandidateBackingMessage,
+	])]
 	collator_protocol: CollatorProtocol,
 
 	#[subsystem(ApprovalDistributionMessage, sends: [])]
