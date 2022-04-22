@@ -419,7 +419,7 @@ pub async fn find_validation_data<Sender>(
 	descriptor: &CandidateDescriptor,
 ) -> Result<Option<(PersistedValidationData, ValidationCode)>, ValidationFailed>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	match find_assumed_validation_data(sender, &descriptor).await {
 		AssumptionCheckOutcome::Matches(validation_data, validation_code) =>
