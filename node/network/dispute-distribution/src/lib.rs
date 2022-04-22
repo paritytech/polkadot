@@ -116,12 +116,7 @@ pub struct DisputeDistributionSubsystem<AD> {
 
 impl<Context, AD> overseer::Subsystem<Context, SubsystemError> for DisputeDistributionSubsystem<AD>
 where
-	Context: overseer::SubsystemContext<
-			Message = DisputeDistributionMessage,
-			OutgoingMessages = overseer::DisputeDistributionOutgoingMessages,
-			Signal = OverseerSignal,
-			Error = SubsystemError,
-		>
+	Context: overseer::DisputeDistributionContextTrait
 		+ Sync
 		+ Send,
 	AD: AuthorityDiscovery + Clone,
@@ -166,13 +161,7 @@ where
 	/// Start processing work as passed on from the Overseer.
 	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError>
 	where
-		Context: overseer::SubsystemContext<
-				Message = DisputeDistributionMessage,
-				OutgoingMessages = overseer::DisputeDistributionOutgoingMessages,
-				Signal = OverseerSignal,
-				Error = SubsystemError,
-			> + Sync
-			+ Send,
+		Context: overseer::DisputeDistributionContextTrait + Sync + Send,
 	{
 		let receiver = DisputesReceiver::new(
 			ctx.sender().clone(),
@@ -212,11 +201,14 @@ where
 	}
 
 	/// Handle overseer signals.
-	async fn handle_signals<Context: SubsystemContext>(
+	async fn handle_signals<Context>(
 		&mut self,
 		ctx: &mut Context,
 		signal: OverseerSignal,
-	) -> Result<SignalResult> {
+	) -> Result<SignalResult>
+	where
+	Context: overseer::DisputeDistributionContextTrait,
+	{
 		match signal {
 			OverseerSignal::Conclude => return Ok(SignalResult::Conclude),
 			OverseerSignal::ActiveLeaves(update) => {
@@ -228,11 +220,13 @@ where
 	}
 
 	/// Handle `DisputeDistributionMessage`s.
-	async fn handle_subsystem_message<Context: SubsystemContext>(
+	async fn handle_subsystem_message<Context>(
 		&mut self,
 		ctx: &mut Context,
 		msg: DisputeDistributionMessage,
-	) -> Result<()> {
+	) -> Result<()>
+		where Context: overseer::DisputeDistributionContextTrait,
+	{
 		match msg {
 			DisputeDistributionMessage::SendDispute(dispute_msg) =>
 				self.disputes_sender.start_sender(ctx, &mut self.runtime, dispute_msg).await?,
@@ -251,15 +245,13 @@ enum MuxedMessage {
 }
 
 impl MuxedMessage {
-	async fn receive(
-		ctx: &mut impl overseer::SubsystemContext<
-			Message = DisputeDistributionMessage,
-			OutgoingMessages = overseer::DisputeDistributionOutgoingMessages,
-			Signal = OverseerSignal,
-			Error = SubsystemError,
-		>,
+	async fn receive<Context>(
+		ctx: &mut Context,
 		from_sender: &mut mpsc::Receiver<TaskFinish>,
-	) -> Self {
+	) -> Self
+	where
+		Context: overseer::DisputeDistributionContextTrait,
+	{
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream
 		// ends.
 		let from_overseer = ctx.recv().fuse();
