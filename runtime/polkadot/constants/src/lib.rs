@@ -42,7 +42,7 @@ pub mod time {
 	use primitives::v2::{BlockNumber, Moment};
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
-	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 4 * HOURS;
+	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 2 * MINUTES;
 
 	// These time units are defined in number of blocks.
 	pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);

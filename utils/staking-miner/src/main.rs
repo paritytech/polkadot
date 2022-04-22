@@ -38,251 +38,22 @@ mod signer;
 use std::str::FromStr;
 
 pub(crate) use prelude::*;
-pub(crate) use signer::get_account_info;
 
 use clap::Parser;
-use frame_election_provider_support::NposSolver;
-use frame_support::traits::Get;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
-use rpc::{RpcApiClient, SharedRpcClient};
+use rpc::SharedRpcClient;
 use sp_npos_elections::ExtendedBalance;
-use sp_runtime::{traits::Block as BlockT, DeserializeOwned, Perbill};
-use subxt::{ClientBuilder, DefaultConfig, PairSigner, SubstrateExtrinsicParams};
+use sp_runtime::Perbill;
+use subxt::{DefaultConfig, PolkadotExtrinsicParams};
 use tracing_subscriber::{fmt, EnvFilter};
 
 use std::{ops::Deref, sync::Arc};
 
-pub(crate) enum AnyRuntime {
-	Polkadot,
-	Kusama,
-	Westend,
-}
-
-pub(crate) static mut RUNTIME: AnyRuntime = AnyRuntime::Polkadot;
-
 #[subxt::subxt(runtime_metadata_path = "metadata.scale")]
 pub mod runtime {}
 
-pub type Runtime = runtime::RuntimeApi<DefaultConfig, SubstrateExtrinsicParams<DefaultConfig>>;
-
-macro_rules! construct_runtime_prelude {
-	($runtime:ident) => { paste::paste! {
-		#[allow(unused_import)]
-		pub(crate) mod [<$runtime _runtime_exports>] {
-			pub(crate) use crate::prelude::EPM;
-			pub(crate) use [<$runtime _runtime>]::*;
-			pub(crate) use crate::monitor::[<monitor_cmd_ $runtime>] as monitor_cmd;
-			pub(crate) use crate::dry_run::[<dry_run_cmd_ $runtime>] as dry_run_cmd;
-			pub(crate) use crate::emergency_solution::[<emergency_solution_cmd_ $runtime>] as emergency_solution_cmd;
-			pub(crate) use private::{[<create_uxt_ $runtime>] as create_uxt};
-
-			mod private {
-				use super::*;
-				pub(crate) fn [<create_uxt_ $runtime>](
-					raw_solution: EPM::RawSolution<EPM::SolutionOf<Runtime>>,
-					signer: crate::signer::Signer,
-					nonce: crate::prelude::Index,
-					tip: crate::prelude::Balance,
-					era: sp_runtime::generic::Era,
-				) -> UncheckedExtrinsic {
-					use codec::Encode as _;
-					use sp_core::Pair as _;
-					use sp_runtime::traits::StaticLookup as _;
-
-					let crate::signer::Signer { account, pair, .. } = signer;
-
-					let local_call = EPMCall::<Runtime>::submit { raw_solution: Box::new(raw_solution) };
-					let call: Call = <EPMCall<Runtime> as std::convert::TryInto<Call>>::try_into(local_call)
-						.expect("election provider pallet must exist in the runtime, thus \
-							inner call can be converted, qed."
-						);
-
-					let extra: SignedExtra = crate::[<signed_ext_builder_ $runtime>](nonce, tip, era);
-					let raw_payload = SignedPayload::new(call, extra).expect("creating signed payload infallible; qed.");
-					let signature = raw_payload.using_encoded(|payload| {
-						pair.sign(payload)
-					});
-					let (call, extra, _) = raw_payload.deconstruct();
-					let address = <Runtime as frame_system::Config>::Lookup::unlookup(account);
-					let extrinsic = UncheckedExtrinsic::new_signed(call, address, signature.into(), extra);
-					log::debug!(
-						target: crate::LOG_TARGET, "constructed extrinsic {} with length {}",
-						sp_core::hexdisplay::HexDisplay::from(&extrinsic.encode()),
-						extrinsic.encode().len(),
-					);
-					extrinsic
-				}
-			}
-		}}
-	};
-}
-
-// NOTE: we might be able to use some code from the bridges repo here.
-fn signed_ext_builder_polkadot(
-	nonce: Index,
-	tip: Balance,
-	era: sp_runtime::generic::Era,
-) -> polkadot_runtime_exports::SignedExtra {
-	use polkadot_runtime_exports::Runtime;
-	(
-		frame_system::CheckNonZeroSender::<Runtime>::new(),
-		frame_system::CheckSpecVersion::<Runtime>::new(),
-		frame_system::CheckTxVersion::<Runtime>::new(),
-		frame_system::CheckGenesis::<Runtime>::new(),
-		frame_system::CheckMortality::<Runtime>::from(era),
-		frame_system::CheckNonce::<Runtime>::from(nonce),
-		frame_system::CheckWeight::<Runtime>::new(),
-		pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
-		runtime_common::claims::PrevalidateAttests::<Runtime>::new(),
-	)
-}
-
-fn signed_ext_builder_kusama(
-	nonce: Index,
-	tip: Balance,
-	era: sp_runtime::generic::Era,
-) -> kusama_runtime_exports::SignedExtra {
-	use kusama_runtime_exports::Runtime;
-	(
-		frame_system::CheckNonZeroSender::<Runtime>::new(),
-		frame_system::CheckSpecVersion::<Runtime>::new(),
-		frame_system::CheckTxVersion::<Runtime>::new(),
-		frame_system::CheckGenesis::<Runtime>::new(),
-		frame_system::CheckMortality::<Runtime>::from(era),
-		frame_system::CheckNonce::<Runtime>::from(nonce),
-		frame_system::CheckWeight::<Runtime>::new(),
-		pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
-	)
-}
-
-fn signed_ext_builder_westend(
-	nonce: Index,
-	tip: Balance,
-	era: sp_runtime::generic::Era,
-) -> westend_runtime_exports::SignedExtra {
-	use westend_runtime_exports::Runtime;
-	(
-		frame_system::CheckNonZeroSender::<Runtime>::new(),
-		frame_system::CheckSpecVersion::<Runtime>::new(),
-		frame_system::CheckTxVersion::<Runtime>::new(),
-		frame_system::CheckGenesis::<Runtime>::new(),
-		frame_system::CheckMortality::<Runtime>::from(era),
-		frame_system::CheckNonce::<Runtime>::from(nonce),
-		frame_system::CheckWeight::<Runtime>::new(),
-		pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
-	)
-}
-
-construct_runtime_prelude!(polkadot);
-construct_runtime_prelude!(kusama);
-construct_runtime_prelude!(westend);
-
-// NOTE: this is no longer used extensively, most of the per-runtime stuff us delegated to
-// `construct_runtime_prelude` and macro's the import directly from it. A part of the code is also
-// still generic over `T`. My hope is to still make everything generic over a `Runtime`, but sadly
-// that is not currently possible as each runtime has its unique `Call`, and all Calls are not
-// sharing any generic trait. In other words, to create the `UncheckedExtrinsic` of each chain, you
-// need the concrete `Call` of that chain as well.
-#[macro_export]
-macro_rules! any_runtime {
-	($($code:tt)*) => {
-		unsafe {
-			match $crate::RUNTIME {
-				$crate::AnyRuntime::Polkadot => {
-					#[allow(unused)]
-					use $crate::polkadot_runtime_exports::*;
-					$($code)*
-				},
-				$crate::AnyRuntime::Kusama => {
-					#[allow(unused)]
-					use $crate::kusama_runtime_exports::*;
-					$($code)*
-				},
-				$crate::AnyRuntime::Westend => {
-					#[allow(unused)]
-					use $crate::westend_runtime_exports::*;
-					$($code)*
-				}
-			}
-		}
-	}
-}
-
-/// Same as [`any_runtime`], but instead of returning a `Result`, this simply returns `()`. Useful
-/// for situations where the result is not useful and un-ergonomic to handle.
-#[macro_export]
-macro_rules! any_runtime_unit {
-	($($code:tt)*) => {
-		unsafe {
-			match $crate::RUNTIME {
-				$crate::AnyRuntime::Polkadot => {
-					#[allow(unused)]
-					use $crate::polkadot_runtime_exports::*;
-					let _ = $($code)*;
-				},
-				$crate::AnyRuntime::Kusama => {
-					#[allow(unused)]
-					use $crate::kusama_runtime_exports::*;
-					let _ = $($code)*;
-				},
-				$crate::AnyRuntime::Westend => {
-					#[allow(unused)]
-					use $crate::westend_runtime_exports::*;
-					let _ = $($code)*;
-				}
-			}
-		}
-	}
-}
-
-#[derive(frame_support::DebugNoBound, thiserror::Error)]
-enum Error<T: EPM::Config> {
-	Io(#[from] std::io::Error),
-	JsonRpsee(#[from] jsonrpsee::core::Error),
-	RpcHelperError(#[from] rpc::RpcHelperError),
-	Codec(#[from] codec::Error),
-	Crypto(sp_core::crypto::SecretStringError),
-	RemoteExternalities(&'static str),
-	PalletMiner(EPM::unsigned::MinerError<T>),
-	PalletElection(EPM::ElectionError<T>),
-	PalletFeasibility(EPM::FeasibilityError),
-	AccountDoesNotExists,
-	IncorrectPhase,
-	AlreadySubmitted,
-	VersionMismatch,
-	StrategyNotSatisfied,
-}
-
-impl<T: EPM::Config> From<sp_core::crypto::SecretStringError> for Error<T> {
-	fn from(e: sp_core::crypto::SecretStringError) -> Error<T> {
-		Error::Crypto(e)
-	}
-}
-
-impl<T: EPM::Config> From<EPM::unsigned::MinerError<T>> for Error<T> {
-	fn from(e: EPM::unsigned::MinerError<T>) -> Error<T> {
-		Error::PalletMiner(e)
-	}
-}
-
-impl<T: EPM::Config> From<EPM::ElectionError<T>> for Error<T> {
-	fn from(e: EPM::ElectionError<T>) -> Error<T> {
-		Error::PalletElection(e)
-	}
-}
-
-impl<T: EPM::Config> From<EPM::FeasibilityError> for Error<T> {
-	fn from(e: EPM::FeasibilityError) -> Error<T> {
-		Error::PalletFeasibility(e)
-	}
-}
-
-impl<T: EPM::Config> std::fmt::Display for Error<T> {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		<Error<T> as std::fmt::Debug>::fmt(self, f)
-	}
-}
+pub type RuntimeApi = runtime::RuntimeApi<DefaultConfig, PolkadotExtrinsicParams<DefaultConfig>>;
 
 #[derive(Debug, Clone, Parser)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -438,35 +209,35 @@ struct Opt {
 
 /// Build the Ext at hash with all the data of `ElectionProviderMultiPhase` and any additional
 /// pallets.
-async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
-	client: SharedRpcClient,
-	at: Option<B::Hash>,
+async fn create_election_ext<T: subxt::Config>(
+	api: &RuntimeApi,
+	at: Option<Hash>,
 	additional: Vec<String>,
-) -> Result<Ext, Error<T>> {
-	use frame_support::{storage::generator::StorageMap, traits::PalletInfo};
-	use sp_core::hashing::twox_128;
+) -> Result<Ext, anyhow::Error> {
+	use subxt::sp_core::hashing::twox_128;
 
-	let mut pallets = vec![<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
-		.expect("Pallet always has name; qed.")
-		.to_string()];
+	let mut pallets = vec!["ElectionProviderMultiPhase".to_string()];
+
+	let client = api.client.rpc().client.clone();
+
 	pallets.extend(additional);
-	Builder::<B>::new()
+	Builder::<Block>::new()
 		.mode(Mode::Online(OnlineConfig {
-			transport: client.into_inner().into(),
+			transport: client.into(),
 			at,
 			pallets,
 			..Default::default()
 		}))
-		.inject_hashed_prefix(&<frame_system::BlockHash<T>>::prefix_hash())
+		//.inject_hashed_prefix(&<frame_system::BlockHash<T>>::prefix_hash())
 		.inject_hashed_key(&[twox_128(b"System"), twox_128(b"Number")].concat())
 		.build()
 		.await
-		.map_err(|why| Error::RemoteExternalities(why))
+		.map_err(|why| anyhow::anyhow!("{}", why))
 }
 
 /// Compute the election. It expects to NOT be `Phase::Off`. In other words, the snapshot must
 /// exists on the given externalities.
-fn mine_solution<T, S>(
+/*fn mine_solution<T, S>(
 	ext: &mut Ext,
 	do_feasibility: bool,
 ) -> Result<EPM::RawSolution<EPM::SolutionOf<T>>, Error<T>>
@@ -488,10 +259,10 @@ where
 		}
 		Ok(solution)
 	})
-}
+}*/
 
 /// Mine a solution with the given `solver`.
-fn mine_with<T>(
+/*fn mine_with<T>(
 	solver: &Solver,
 	ext: &mut Ext,
 	do_feasibility: bool,
@@ -522,9 +293,9 @@ where
 			>(ext, do_feasibility)
 		},
 	}
-}
+}*/
 
-#[allow(unused)]
+/*#[allow(unused)]
 fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 	ext.execute_with(|| {
 		use std::collections::BTreeMap;
@@ -560,30 +331,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 		println!("mined a dpos-like solution with score = {:?}", score);
 		Ok(())
 	})
-}
-
-pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
-	rpc: &SharedRpcClient,
-) -> Result<(), Error<T>> {
-	let linked_version = T::Version::get();
-	let on_chain_version = rpc
-		.runtime_version(None)
-		.await
-		.expect("runtime version RPC should always work; qed");
-
-	log::debug!(target: LOG_TARGET, "linked version {:?}", linked_version);
-	log::debug!(target: LOG_TARGET, "on-chain version {:?}", on_chain_version);
-
-	if linked_version != on_chain_version {
-		log::error!(
-			target: LOG_TARGET,
-			"VERSION MISMATCH: any transaction will fail with bad-proof"
-		);
-		Err(Error::VersionMismatch)
-	} else {
-		Ok(())
-	}
-}
+}*/
 
 #[tokio::main]
 async fn main() {
@@ -592,169 +340,24 @@ async fn main() {
 	let Opt { uri, seed_or_path, command } = Opt::parse();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
 
-	let api: Runtime = subxt::ClientBuilder::new()
-		.set_url(uri.clone())
-		.build()
-		.await
-		.unwrap()
-		.to_runtime_api();
+	let client: subxt::Client<DefaultConfig> =
+		subxt::ClientBuilder::new().set_url(uri.clone()).build().await.unwrap();
 
-	let rpc = loop {
-		match SharedRpcClient::new(&uri).await {
-			Ok(client) => break client,
-			Err(why) => {
-				log::warn!(
-					target: LOG_TARGET,
-					"failed to connect to client due to {:?}, retrying soon..",
-					why
-				);
-				tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
-			},
-		}
-	};
+	let signer = signer::signer_from_string(&seed_or_path);
 
-	let signer = signer_uri_from_string::<DefaultConfig, _>(&seed_or_path);
-
-	match command {
+	let outcome = match command {
 		Command::Monitor(cmd) => {
-			monitor_cmd(rpc, api, cmd, signer).await;
+			monitor::run_cmd(client, cmd, Arc::new(signer)).await;
 		},
 		_ => panic!("oo"),
 	};
 
-	//log::info!(target: LOG_TARGET, "round of execution finished. outcome = {:?}", outcome);
-}
-
-async fn monitor_cmd<T: subxt::Config, P: subxt::sp_core::Pair>(
-	rpc: SharedRpcClient,
-	api: Runtime,
-	config: MonitorConfig,
-	signer: PairSigner<T, P>,
-) -> Result<(), ()> {
-	let heads_subscription = || {
-		if config.listen == "head" {
-			rpc.subscribe_new_heads()
-		} else {
-			rpc.subscribe_finalized_heads()
-		}
-	};
-
-	let mut subscription = heads_subscription().await.map_err(|_| ())?;
-	let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<()>();
-
-	loop {
-		let at = tokio::select! {
-			maybe_rp = subscription.next() => {
-				match maybe_rp {
-					Some(Ok(r)) => r,
-					// Custom `jsonrpsee` message sent by the server if the subscription was closed on the server side.
-					Some(Err(crate::error::RpcError::SubscriptionClosed(reason))) => {
-						log::warn!(target: LOG_TARGET, "subscription to `subscribeNewHeads/subscribeFinalizedHeads` terminated: {:?}. Retrying..", reason);
-						subscription = heads_subscription().await.map_err(|_| ())?;
-						continue;
-					}
-					Some(Err(e)) => {
-						log::error!(target: LOG_TARGET, "subscription failed to decode Header {:?}, this is bug please file an issue", e);
-						return Err(());
-					}
-					// The subscription was dropped, should only happen if:
-					//	- the connection was closed.
-					//	- the subscription could not keep up with the server.
-					None => {
-						log::warn!(target: LOG_TARGET, "subscription to `subscribeNewHeads/subscribeFinalizedHeads` terminated. Retrying..");
-						subscription = heads_subscription().await?;
-						continue
-					}
-				}
-			},
-			maybe_err = rx.recv() => {
-				match maybe_err {
-					Some(err) => return Err(err),
-					None => unreachable!("at least one sender kept in the main loop should always return Some; qed"),
-				}
-			}
-		};
-
-		// Spawn task and non-recoverable errors are sent back to the main task
-		// such as if the connection has been closed.
-		/*tokio::spawn(send_and_watch_extrinsic(
-			rpc.clone(),
-			tx.clone(),
-			at,
-			signer.clone(),
-			config.clone(),
-		));*/
-	}
-}
-
-/// Construct extrinsic at given block and watch it.
-async fn send_and_watch_extrinsic<T: subxt::Config, P: subxt::sp_core::Pair>(
-	rpc: SharedRpcClient,
-	tx: tokio::sync::mpsc::UnboundedSender<()>,
-	at: Header,
-	signer: PairSigner<T, P>,
-	config: MonitorConfig,
-) {
-	async fn flatten<T>(handle: tokio::task::JoinHandle<Result<T, ()>>) -> Result<T, ()> {
-		match handle.await {
-			Ok(Ok(result)) => Ok(result),
-			Ok(Err(err)) => Err(err),
-			Err(err) => panic!("tokio spawn task failed; kill task: {:?}", err),
-		}
-	}
-}
-
-/// Read the signer account's URI
-fn signer_uri_from_string<T: subxt::Config, P: subxt::sp_core::Pair>(
-	mut seed_or_path: &str,
-) -> PairSigner<T, P> {
-	seed_or_path = seed_or_path.trim();
-
-	let seed = match std::fs::read(seed_or_path) {
-		Ok(s) => String::from_utf8(s).unwrap(),
-		Err(_) => seed_or_path.to_string(),
-	};
-	let seed = seed.trim();
-
-	let pair = Pair::from_string(seed, None)?;
-
-	PairSigner::new(pair)
-	/*let _info = get_account_info::<T>(client, &account, None)
-		.await?
-		.ok_or(Error::<T>::AccountDoesNotExists)?;
-	log::info!(
-		target: LOG_TARGET,
-		"loaded account {:?}, free: {:?}, info: {:?}",
-		&account,
-		Token::from(_info.data.free),
-		_info
-	);*/
-	//Ok(Signer { account, pair })
+	log::info!(target: LOG_TARGET, "round of execution finished. outcome = {:?}", outcome);
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	fn get_version<T: frame_system::Config>() -> sp_version::RuntimeVersion {
-		T::Version::get()
-	}
-
-	#[test]
-	fn any_runtime_works() {
-		unsafe {
-			RUNTIME = AnyRuntime::Polkadot;
-		}
-		let polkadot_version = any_runtime! { get_version::<Runtime>() };
-
-		unsafe {
-			RUNTIME = AnyRuntime::Kusama;
-		}
-		let kusama_version = any_runtime! { get_version::<Runtime>() };
-
-		assert_eq!(polkadot_version.spec_name, "polkadot".into());
-		assert_eq!(kusama_version.spec_name, "kusama".into());
-	}
 
 	#[test]
 	fn cli_monitor_works() {

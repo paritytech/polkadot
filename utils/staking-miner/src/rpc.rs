@@ -17,18 +17,17 @@
 //! JSON-RPC related types and helpers.
 
 use super::*;
-use jsonrpsee::{
-	core::{Error as RpcError, RpcResult},
-	proc_macros::rpc,
-};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use pallet_transaction_payment::RuntimeDispatchInfo;
 use sc_transaction_pool_api::TransactionStatus;
-use sp_core::{storage::StorageKey, Bytes};
 use sp_version::RuntimeVersion;
 use std::{future::Future, time::Duration};
+use subxt::sp_core::{storage::StorageKey, Bytes};
 
 const MAX_CONNECTION_DURATION: Duration = Duration::from_secs(20);
 const MAX_REQUEST_DURATION: Duration = Duration::from_secs(60);
+
+pub use jsonrpsee::core::Error as RpcError;
 
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
 pub(crate) enum RpcHelperError {

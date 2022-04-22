@@ -16,26 +16,10 @@
 
 //! Wrappers around creating a signer account.
 
-use crate::{prelude::*, rpc::SharedRpcClient, AccountId, Error, Index, Pair, LOG_TARGET};
-use frame_system::AccountInfo;
-use sp_core::{crypto::Pair as _, storage::StorageKey};
+use crate::prelude::*;
+use subxt::{sp_core::Pair as _, PairSigner};
 
-pub(crate) const SIGNER_ACCOUNT_WILL_EXIST: &str =
-	"signer account is checked to exist upon startup; it can only die if it transfers funds out \
-	 of it, or get slashed. If it does not exist at this point, it is likely due to a bug, or the \
-	 signer got slashed. Terminating.";
-
-/// Some information about the signer. Redundant at this point, but makes life easier.
-#[derive(Clone)]
-pub(crate) struct Signer {
-	/// The account id.
-	pub(crate) account: AccountId,
-
-	/// The full crypto key-pair.
-	pub(crate) pair: Pair,
-}
-
-pub(crate) async fn get_account_info<T: frame_system::Config<Hash = Hash> + EPM::Config>(
+/*pub(crate) async fn get_account_info<T: frame_system::Config<Hash = Hash> + EPM::Config>(
 	rpc: &SharedRpcClient,
 	who: &T::AccountId,
 	maybe_at: Option<T::Hash>,
@@ -46,39 +30,19 @@ pub(crate) async fn get_account_info<T: frame_system::Config<Hash = Hash> + EPM:
 	)
 	.await
 	.map_err(Into::into)
-}
+}*/
 
 /// Read the signer account's URI
-pub(crate) async fn signer_uri_from_string<
-	T: frame_system::Config<
-			AccountId = AccountId,
-			Index = Index,
-			AccountData = pallet_balances::AccountData<Balance>,
-			Hash = Hash,
-		> + EPM::Config,
->(
-	mut seed_or_path: &str,
-	client: &SharedRpcClient,
-) -> Result<Signer, Error<T>> {
+pub(crate) fn signer_from_string(mut seed_or_path: &str) -> Signer {
 	seed_or_path = seed_or_path.trim();
 
 	let seed = match std::fs::read(seed_or_path) {
-		Ok(s) => String::from_utf8(s).map_err(|_| Error::<T>::AccountDoesNotExists)?,
+		Ok(s) => String::from_utf8(s).unwrap(),
 		Err(_) => seed_or_path.to_string(),
 	};
 	let seed = seed.trim();
 
-	let pair = Pair::from_string(seed, None)?;
-	let account = T::AccountId::from(pair.public());
-	let _info = get_account_info::<T>(client, &account, None)
-		.await?
-		.ok_or(Error::<T>::AccountDoesNotExists)?;
-	log::info!(
-		target: LOG_TARGET,
-		"loaded account {:?}, free: {:?}, info: {:?}",
-		&account,
-		Token::from(_info.data.free),
-		_info
-	);
-	Ok(Signer { account, pair })
+	let pair = Pair::from_string(seed, None).unwrap();
+
+	PairSigner::new(pair)
 }

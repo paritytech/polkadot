@@ -11208,28 +11208,21 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 name = "staking-miner"
 version = "0.9.18"
 dependencies = [
+ "anyhow",
  "assert_cmd",
  "clap",
  "frame-election-provider-support",
  "frame-support",
- "frame-system",
  "jsonrpsee 0.10.1",
- "kusama-runtime",
  "log",
- "pallet-balances",
- "pallet-election-provider-multi-phase",
- "pallet-staking",
  "pallet-transaction-payment",
  "parity-scale-codec",
  "paste",
  "polkadot-core-primitives",
- "polkadot-runtime",
- "polkadot-runtime-common",
  "remote-externalities",
  "sc-transaction-pool-api",
  "serde",
  "serde_json",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-io 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-npos-elections",
  "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
@@ -11239,7 +11232,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing-subscriber 0.3.10",
- "westend-runtime",
 ]
 
 [[package]]
