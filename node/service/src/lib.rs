@@ -681,7 +681,7 @@ pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	mut config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
-	mut enable_beefy: bool,
+	enable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	program_path: Option<std::path::PathBuf>,
@@ -718,16 +718,13 @@ where
 		Some(backoff)
 	};
 
-	// For now BEEFY is explicitly disabled on non-test chains.
-	if config.chain_spec.is_polkadot() ||
-		config.chain_spec.is_kusama() ||
-		config.chain_spec.is_westend()
+	// If not on a known test network, warn the user that BEEFY is still experimental.
+	if enable_beefy &&
+		!config.chain_spec.is_rococo() &&
+		!config.chain_spec.is_wococo() &&
+		!config.chain_spec.is_versi()
 	{
-		gum::warn!(
-			"Refusing to enable BEEFY on a production network; \
-                   BEEFY is still experimental."
-		);
-		enable_beefy = false;
+		gum::warn!("BEEFY is still experimental, usage on a production network is discouraged.");
 	}
 
 	let disable_grandpa = config.disable_grandpa;
