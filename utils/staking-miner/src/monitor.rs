@@ -1,4 +1,4 @@
-use crate::{prelude::*, rpc::*, MonitorConfig, SharedRpcClient, SubmissionStrategy};
+use crate::{prelude::*, MonitorConfig, SubmissionStrategy};
 use codec::Encode;
 use jsonrpsee::core::Error as RpcError;
 use sc_transaction_pool_api::TransactionStatus;
@@ -167,13 +167,13 @@ async fn send_and_watch_extrinsic(
 		return;
 	}
 
-	/*let mut ext = match crate::create_election_ext::<DefaultConfig>(rpc, Some(hash), vec![]).await {
+	let mut ext = match crate::create_election_ext(&api, Some(hash), vec![]).await {
 		Ok(ext) => ext,
 		Err(err) => {
 			log::debug!(target: LOG_TARGET, "Skipping block {}; {}", at.number, err);
 			return;
 		},
-	};*/
+	};
 
 	/*
 

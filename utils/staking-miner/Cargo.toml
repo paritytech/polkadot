@@ -1,6 +1,6 @@
 [package]
 name = "staking-miner"
-version = "0.9.18"
+version = "0.9.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -15,7 +15,7 @@ serde = "1.0.136"
 serde_json = "1.0"
 thiserror = "1.0.30"
 tokio = { version = "1.17.0", features = ["macros", "rt-multi-thread", "sync"] }
-subxt = "0.20.0"
+subxt = { git = "https://github.com/paritytech/subxt" }
 
 
 # substrate

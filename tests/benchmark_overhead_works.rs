@@ -1,28 +1,26 @@
-// This file is part of Substrate.
+// Copyright 2022 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
 
-// Copyright (C) 2022 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
+// Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// This program is distributed in the hope that it will be useful,
+// Polkadot is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use assert_cmd::cargo::cargo_bin;
 use std::{process::Command, result::Result};
 use tempfile::tempdir;
 
-static RUNTIMES: [&'static str; 6] = ["polkadot", "kusama", "westend", "rococo", "wococo", "versi"];
+static RUNTIMES: [&'static str; 3] = ["polkadot", "kusama", "westend"];
 
-/// `benchmark-overhead` works for all dev runtimes.
+/// `benchmark overhead` works for all dev runtimes.
 #[test]
 fn benchmark_overhead_works() {
 	for runtime in RUNTIMES {
@@ -31,7 +29,7 @@ fn benchmark_overhead_works() {
 	}
 }
 
-/// `benchmark-overhead` rejects all non-dev runtimes.
+/// `benchmark overhead` rejects all non-dev runtimes.
 #[test]
 fn benchmark_overhead_rejects_non_dev_runtimes() {
 	for runtime in RUNTIMES {
@@ -43,9 +41,9 @@ fn benchmark_overhead(runtime: String) -> Result<(), String> {
 	let tmp_dir = tempdir().expect("could not create a temp dir");
 	let base_path = tmp_dir.path();
 
-	// Invoke `benchmark-overhead` with all options to make sure that they are valid.
+	// Invoke `benchmark overhead` with all options to make sure that they are valid.
 	let status = Command::new(cargo_bin("polkadot"))
-		.args(["benchmark-overhead", "--chain", &runtime])
+		.args(["benchmark", "overhead", "--chain", &runtime])
 		.arg("-d")
 		.arg(base_path)
 		.arg("--weight-path")

@@ -120,10 +120,10 @@ default:
 .vault-secrets:                    &vault-secrets
   secrets:
     AWS_ACCESS_KEY_ID:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/AWS_ACCESS_KEY_ID@kv
+      vault:                       cicd/gitlab/parity/polkadot/AWS_ACCESS_KEY_ID@kv
       file:                        false
     AWS_SECRET_ACCESS_KEY:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/AWS_SECRET_ACCESS_KEY@kv
+      vault:                       cicd/gitlab/parity/polkadot/AWS_SECRET_ACCESS_KEY@kv
       file:                        false
     GITHUB_PR_TOKEN:
       vault:                       cicd/gitlab/parity/GITHUB_PR_TOKEN@kv
@@ -132,31 +132,31 @@ default:
       vault:                       cicd/gitlab/parity/GITHUB_TOKEN@kv
       file:                        false
     GITHUB_USER:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_USER@kv
+      vault:                       cicd/gitlab/parity/polkadot/GITHUB_USER@kv
       file:                        false
     GITHUB_RELEASE_TOKEN:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_RELEASE_TOKEN@kv
+      vault:                       cicd/gitlab/parity/polkadot/GITHUB_RELEASE_TOKEN@kv
       file:                        false
     GITHUB_SSH_PRIV_KEY:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_SSH_PRIV_KEY@kv
+      vault:                       cicd/gitlab/parity/polkadot/GITHUB_SSH_PRIV_KEY@kv
       file:                        false
     MATRIX_ACCESS_TOKEN:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ACCESS_TOKEN@kv
+      vault:                       cicd/gitlab/parity/polkadot/MATRIX_ACCESS_TOKEN@kv
       file:                        false
     MATRIX_ROOM_ID:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ROOM_ID@kv
+      vault:                       cicd/gitlab/parity/polkadot/MATRIX_ROOM_ID@kv
       file:                        false
     PARITYPR_USER:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/PARITYPR_USER@kv
+      vault:                       cicd/gitlab/parity/polkadot/PARITYPR_USER@kv
       file:                        false
     PARITYPR_PASS:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/PARITYPR_PASS@kv
+      vault:                       cicd/gitlab/parity/polkadot/PARITYPR_PASS@kv
       file:                        false
     PIPELINE_TOKEN:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/PIPELINE_TOKEN@kv
+      vault:                       cicd/gitlab/parity/polkadot/PIPELINE_TOKEN@kv
       file:                        false
     REL_MAN_ROOM_ID:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/REL_MAN_ROOM_ID@kv
+      vault:                       cicd/gitlab/parity/polkadot/REL_MAN_ROOM_ID@kv
       file:                        false
 
 .build-push-image:                 &build-push-image
@@ -227,6 +227,8 @@ build-linux-stable:
     # Enable debug assertions since we are running optimized builds for testing
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+    # Ensure we run the UI tests.
+    RUN_UI_TESTS: 1
   script:
     - time cargo build --profile testnet --features pyroscope --verbose --bin polkadot
     - sccache -s
@@ -334,12 +336,13 @@ build-malus:
         "$DEPENDENT_REPO"
         "$GITHUB_PR_TOKEN"
         "$CARGO_UPDATE_CRATES"
+        "$EXTRA_DEPENDENCIES"
 
 check-dependent-cumulus:
   <<: *check-dependent-project
   variables:
     DEPENDENT_REPO: cumulus
-    CARGO_UPDATE_CRATES: "sp-io polkadot-runtime-common"
+    EXTRA_DEPENDENCIES: substrate
 
 test-node-metrics:
   stage:                           stage2
@@ -820,7 +823,7 @@ short-benchmark-polkadot:          &short-bench
   variables:
     RUNTIME:                       polkadot
   script:
-    - ./artifacts/polkadot benchmark --execution wasm --wasm-execution compiled --chain $RUNTIME-dev --pallet "*" --extrinsic "*" --steps 1 --repeat 1
+    - ./artifacts/polkadot benchmark pallet --execution wasm --wasm-execution compiled --chain $RUNTIME-dev --pallet "*" --extrinsic "*" --steps 1 --repeat 1
 
 short-benchmark-kusama:
   <<:                              *short-bench

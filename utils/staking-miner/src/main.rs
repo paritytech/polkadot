@@ -42,7 +42,6 @@ pub(crate) use prelude::*;
 use clap::Parser;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
-use rpc::SharedRpcClient;
 use sp_npos_elections::ExtendedBalance;
 use sp_runtime::Perbill;
 use subxt::{DefaultConfig, PolkadotExtrinsicParams};
@@ -209,7 +208,7 @@ struct Opt {
 
 /// Build the Ext at hash with all the data of `ElectionProviderMultiPhase` and any additional
 /// pallets.
-async fn create_election_ext<T: subxt::Config>(
+async fn create_election_ext(
 	api: &RuntimeApi,
 	at: Option<Hash>,
 	additional: Vec<String>,
@@ -228,6 +227,7 @@ async fn create_election_ext<T: subxt::Config>(
 			pallets,
 			..Default::default()
 		}))
+		// TODO(niklasad1): find this prefix from subxt?!.
 		//.inject_hashed_prefix(&<frame_system::BlockHash<T>>::prefix_hash())
 		.inject_hashed_key(&[twox_128(b"System"), twox_128(b"Number")].concat())
 		.build()
@@ -346,9 +346,7 @@ async fn main() {
 	let signer = signer::signer_from_string(&seed_or_path);
 
 	let outcome = match command {
-		Command::Monitor(cmd) => {
-			monitor::run_cmd(client, cmd, Arc::new(signer)).await;
-		},
+		Command::Monitor(cmd) => monitor::run_cmd(client, cmd, Arc::new(signer)).await,
 		_ => panic!("oo"),
 	};
 
