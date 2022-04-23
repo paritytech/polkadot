@@ -227,6 +227,8 @@ build-linux-stable:
     # Enable debug assertions since we are running optimized builds for testing
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+    # Ensure we run the UI tests.
+    RUN_UI_TESTS: 1
   script:
     - time cargo build --profile testnet --features pyroscope --verbose --bin polkadot
     - sccache -s
@@ -334,12 +336,13 @@ build-malus:
         "$DEPENDENT_REPO"
         "$GITHUB_PR_TOKEN"
         "$CARGO_UPDATE_CRATES"
+        "$EXTRA_DEPENDENCIES"
 
 check-dependent-cumulus:
   <<: *check-dependent-project
   variables:
     DEPENDENT_REPO: cumulus
-    CARGO_UPDATE_CRATES: "sp-io polkadot-runtime-common"
+    EXTRA_DEPENDENCIES: substrate
 
 test-node-metrics:
   stage:                           stage2

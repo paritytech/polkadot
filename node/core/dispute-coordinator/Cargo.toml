@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-dispute-coordinator"
-version = "0.9.18"
+version = "0.9.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -29,6 +29,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 assert_matches = "1.4.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
+futures-timer = "3.0.2"
 
 [features]
 # If not enabled, the dispute coordinator will do nothing.

@@ -25,7 +25,8 @@
 use futures::{channel::oneshot, FutureExt};
 
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, View,
+	self as net_protocol, v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep,
+	Versioned, View,
 };
 use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS};
 use polkadot_primitives::v2::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
@@ -63,15 +64,15 @@ struct BitfieldGossipMessage {
 }
 
 impl BitfieldGossipMessage {
-	fn into_validation_protocol(self) -> protocol_v1::ValidationProtocol {
-		protocol_v1::ValidationProtocol::BitfieldDistribution(self.into_network_message())
+	fn into_validation_protocol(self) -> net_protocol::VersionedValidationProtocol {
+		self.into_network_message().into()
 	}
 
-	fn into_network_message(self) -> protocol_v1::BitfieldDistributionMessage {
-		protocol_v1::BitfieldDistributionMessage::Bitfield(
+	fn into_network_message(self) -> net_protocol::BitfieldDistributionMessage {
+		Versioned::V1(protocol_v1::BitfieldDistributionMessage::Bitfield(
 			self.relay_parent,
 			self.signed_availability.into(),
-		)
+		))
 	}
 }
 
@@ -207,7 +208,7 @@ impl BitfieldDistribution {
 					.await;
 				},
 				FromOverseer::Communication {
-					msg: BitfieldDistributionMessage::NetworkBridgeUpdateV1(event),
+					msg: BitfieldDistributionMessage::NetworkBridgeUpdate(event),
 				} => {
 					gum::trace!(target: LOG_TARGET, "Processing NetworkMessage");
 					// a network message was received
@@ -506,14 +507,14 @@ async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
 	metrics: &Metrics,
-	bridge_message: NetworkBridgeEvent<protocol_v1::BitfieldDistributionMessage>,
+	bridge_message: NetworkBridgeEvent<net_protocol::BitfieldDistributionMessage>,
 ) where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	let _timer = metrics.time_handle_network_msg();
 
 	match bridge_message {
-		NetworkBridgeEvent::PeerConnected(peer, role, _) => {
+		NetworkBridgeEvent::PeerConnected(peer, role, _, _) => {
 			gum::trace!(target: LOG_TARGET, ?peer, ?role, "Peer connected");
 			// insert if none already present
 			state.peer_views.entry(peer).or_default();
@@ -523,7 +524,14 @@ async fn handle_network_msg<Context>(
 			// get rid of superfluous data
 			state.peer_views.remove(&peer);
 		},
-		NetworkBridgeEvent::NewGossipTopology(peers) => {
+		NetworkBridgeEvent::NewGossipTopology(topology) => {
+			// Combine all peers in the x & y direction as we don't make any distinction.
+			let peers: HashSet<PeerId> = topology
+				.our_neighbors_x
+				.values()
+				.chain(topology.our_neighbors_y.values())
+				.flat_map(|peer_info| peer_info.peer_ids.iter().cloned())
+				.collect();
 			let newly_added: Vec<PeerId> = peers.difference(&state.gossip_peers).cloned().collect();
 			state.gossip_peers = peers;
 			for new_peer in newly_added {
@@ -543,7 +551,7 @@ async fn handle_network_msg<Context>(
 			gum::trace!(target: LOG_TARGET, ?new_view, "Our view change");
 			handle_our_view_change(state, new_view);
 		},
-		NetworkBridgeEvent::PeerMessage(remote, message) =>
+		NetworkBridgeEvent::PeerMessage(remote, Versioned::V1(message)) =>
 			process_incoming_peer_message(ctx, state, metrics, remote, message).await,
 	}
 }

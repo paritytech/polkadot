@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-overseer-gen"
-version = "0.9.18"
+version = "0.9.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Generate an overseer including builder pattern and message wrapper from a single struct."
@@ -19,7 +19,8 @@ futures-timer = "3.0.2"
 pin-project = "1.0"
 
 [dev-dependencies]
-trybuild = "1.0.53"
+trybuild = "1.0.60"
+rustversion = "1.0.6"
 
 [features]
 default = []

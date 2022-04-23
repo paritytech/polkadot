@@ -37,7 +37,6 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_system::pallet_prelude::BlockNumberFor;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -74,13 +73,6 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn session_info)]
 	pub(crate) type Sessions<T: Config> = StorageMap<_, Identity, SessionIndex, SessionInfo>;
-
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_runtime_upgrade() -> Weight {
-			migration::migrate_to_latest::<T>()
-		}
-	}
 }
 
 /// An abstraction for the authority discovery pallet

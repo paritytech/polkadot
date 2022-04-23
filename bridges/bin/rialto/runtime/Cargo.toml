@@ -44,7 +44,6 @@ pallet-beefy = { git = "https://github.com/paritytech/substrate", branch = "mast
 pallet-beefy-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -58,6 +57,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", 
 sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-offchain = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -108,7 +108,6 @@ std = [
 	"pallet-bridge-messages/std",
 	"pallet-grandpa/std",
 	"pallet-mmr/std",
-	"pallet-mmr-primitives/std",
 	"pallet-shift-session-manager/std",
 	"pallet-sudo/std",
 	"pallet-timestamp/std",
@@ -127,6 +126,7 @@ std = [
 	"sp-finality-grandpa/std",
 	"sp-inherents/std",
 	"sp-io/std",
+	"sp-mmr-primitives/std",
 	"sp-offchain/std",
 	"sp-runtime/std",
 	"sp-session/std",

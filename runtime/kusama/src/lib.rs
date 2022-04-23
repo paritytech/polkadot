@@ -23,15 +23,15 @@
 use pallet_transaction_payment::CurrencyAdapter;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v2::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
-	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
+	PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	auctions, claims, crowdloan, elections::OnChainSeqPhragmen, impl_runtime_weights,
-	impls::DealWithFees, paras_registrar, prod_or_fast, slots, BlockHashCount, BlockLength,
-	CurrencyToVote, SlowAdjustingFeeUpdate,
+	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
+	prod_or_fast, slots, BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
 };
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
@@ -47,7 +47,7 @@ use runtime_parachains::{
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_election_provider_support::{
-	generate_solution_type, onchain::UnboundedExecution, NposSolution, SequentialPhragmen,
+	generate_solution_type, onchain, NposSolution, SequentialPhragmen,
 };
 use frame_support::{
 	construct_runtime, parameter_types,
@@ -61,10 +61,10 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use sp_core::OpaqueMetadata;
+use sp_mmr_primitives as mmr;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
@@ -115,7 +115,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9181,
+	spec_version: 9190,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -403,11 +403,12 @@ parameter_types! {
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 16;
+	pub const SignedMaxRefunds: u32 = 16 / 4;
 	pub const SignedDepositBase: Balance = deposit(2, 0);
 	pub const SignedDepositByte: Balance = deposit(0, 10) / 1024;
 	// Each good submission will get 1/10 KSM as reward
 	pub SignedRewardBase: Balance =  UNITS / 10;
-	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
+	pub BetterUnsignedThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
 	// 1 hour session, 15 minutes unsigned phase, 8 offchain executions.
 	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 8;
@@ -429,12 +430,21 @@ generate_solution_type!(
 	>(24)
 );
 
+pub struct OnChainSeqPhragmen;
+impl onchain::Config for OnChainSeqPhragmen {
+	type System = Runtime;
+	type Solver = SequentialPhragmen<AccountId, runtime_common::elections::OnChainAccuracy>;
+	type DataProvider = Staking;
+	type WeightInfo = weights::frame_election_provider_support::WeightInfo<Runtime>;
+}
+
 impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type EstimateCallFee = TransactionPayment;
 	type UnsignedPhase = UnsignedPhase;
 	type SignedMaxSubmissions = SignedMaxSubmissions;
+	type SignedMaxRefunds = SignedMaxRefunds;
 	type SignedRewardBase = SignedRewardBase;
 	type SignedDepositBase = SignedDepositBase;
 	type SignedDepositByte = SignedDepositByte;
@@ -443,7 +453,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SlashHandler = (); // burn slashes
 	type RewardHandler = (); // nothing to do upon rewards
 	type SignedPhase = SignedPhase;
-	type SolutionImprovementThreshold = SolutionImprovementThreshold;
+	type BetterUnsignedThreshold = BetterUnsignedThreshold;
+	type BetterSignedThreshold = ();
 	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
 	type MinerMaxLength = OffchainSolutionLengthLimit;
 	type OffchainRepeat = OffchainRepeat;
@@ -451,7 +462,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution24;
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
-	type GovernanceFallback = UnboundedExecution<OnChainSeqPhragmen<Self, Staking>>;
+	type GovernanceFallback = onchain::UnboundedExecution<OnChainSeqPhragmen>;
 	type Solver = SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
@@ -562,10 +573,11 @@ type SlashCancelOrigin = EnsureOneOf<
 impl pallet_staking::Config for Runtime {
 	type MaxNominations = MaxNominations;
 	type Currency = Balances;
+	type CurrencyBalance = Balance;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
 	type ElectionProvider = ElectionProviderMultiPhase;
-	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self, Staking>;
+	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
 	type RewardRemainder = Treasury;
 	type Event = Event;
 	type Slash = Treasury;
@@ -583,6 +595,7 @@ impl pallet_staking::Config for Runtime {
 	type VoterList = BagsList;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
+	type OnStakerSlash = ();
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -1581,6 +1594,7 @@ mod benches {
 		[pallet_democracy, Democracy]
 		[pallet_elections_phragmen, PhragmenElection]
 		[pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
+		[frame_election_provider_support, ElectionProviderBench::<Runtime>]
 		[pallet_gilt, Gilt]
 		[pallet_identity, Identity]
 		[pallet_im_online, ImOnline]
@@ -1599,6 +1613,9 @@ mod benches {
 		[pallet_treasury, Treasury]
 		[pallet_utility, Utility]
 		[pallet_vesting, Vesting]
+		// XCM
+		[pallet_xcm_benchmarks::fungible, pallet_xcm_benchmarks::fungible::Pallet::<Runtime>]
+		[pallet_xcm_benchmarks::generic, pallet_xcm_benchmarks::generic::Pallet::<Runtime>]
 	);
 }
 
@@ -1661,7 +1678,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl primitives::v2::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+	impl primitives::runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			parachains_runtime_api_impl::validators::<Runtime>()
 		}
@@ -1758,6 +1775,10 @@ sp_api::impl_runtime_apis! {
 		{
 			parachains_runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
 		}
+
+		fn staging_get_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
+			unimplemented!()
+		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
@@ -1790,6 +1811,12 @@ sp_api::impl_runtime_apis! {
 			// dummy implementation due to lack of MMR pallet.
 			Err(mmr::Error::Verify)
 		}
+
+		fn mmr_root() -> Result<Hash, mmr::Error> {
+			// dummy implementation due to lack of MMR pallet.
+			Err(mmr::Error::Verify)
+		}
+
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
@@ -1940,6 +1967,7 @@ sp_api::impl_runtime_apis! {
 
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
+			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 
@@ -1956,18 +1984,86 @@ sp_api::impl_runtime_apis! {
 			Vec<frame_benchmarking::BenchmarkBatch>,
 			sp_runtime::RuntimeString,
 		> {
-			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey};
+			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey, BenchmarkError};
 			// Trying to add benchmarks directly to some pallets caused cyclic dependency issues.
 			// To get around that, we separated the benchmarks into its own crate.
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
+			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
+			use xcm::latest::prelude::*;
+			use xcm_config::{CheckAccount, KsmLocation, SovereignAccountOf, Statemine, XcmConfig};
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
+			impl pallet_election_provider_support_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl frame_benchmarking::baseline::Config for Runtime {}
+
+			impl pallet_xcm_benchmarks::Config for Runtime {
+				type XcmConfig = XcmConfig;
+				type AccountIdConverter = SovereignAccountOf;
+				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
+					Ok(Statemine::get())
+				}
+				fn worst_case_holding() -> MultiAssets {
+					// Kusama only knows about KSM.
+					vec![MultiAsset{
+						id: Concrete(KsmLocation::get()),
+						fun: Fungible(1_000_000 * UNITS),
+					}].into()
+				}
+			}
+
+			parameter_types! {
+				pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
+					Statemine::get(),
+					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(KsmLocation::get()) },
+				));
+				pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
+					Statemine::get(),
+					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(KsmLocation::get()) },
+				));
+			}
+
+			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
+				type TransactAsset = Balances;
+
+				type CheckedAccount = CheckAccount;
+				type TrustedTeleporter = TrustedTeleporter;
+				type TrustedReserve = TrustedReserve;
+
+				fn get_multi_asset() -> MultiAsset {
+					MultiAsset {
+						id: Concrete(KsmLocation::get()),
+						fun: Fungible(1 * UNITS),
+					}
+				}
+			}
+
+			impl pallet_xcm_benchmarks::generic::Config for Runtime {
+				type Call = Call;
+
+				fn worst_case_response() -> (u64, Response) {
+					(0u64, Response::Version(Default::default()))
+				}
+
+				fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
+					Ok(Statemine::get())
+				}
+
+				fn subscribe_origin() -> Result<MultiLocation, BenchmarkError> {
+					Ok(Statemine::get())
+				}
+
+				fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
+					let origin = Statemine::get();
+					let assets: MultiAssets = (Concrete(KsmLocation::get()), 1_000 * UNITS).into();
+					let ticket = MultiLocation { parents: 0, interior: Here };
+					Ok((origin, ticket, assets))
+				}
+			}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number
@@ -1982,6 +2078,8 @@ sp_api::impl_runtime_apis! {
 				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7").to_vec().into(),
 				// Treasury Account
 				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7b99d880ec681799c0cf30e8886371da95ecffd7b6c0f78751baa9d281e0bfa3a6d6f646c70792f74727372790000000000000000000000000000000000000000").to_vec().into(),
+				// Configuration ActiveConfig
+				hex_literal::hex!("06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385").to_vec().into(),
 			];
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
@@ -1989,7 +2087,6 @@ sp_api::impl_runtime_apis! {
 
 			add_benchmarks!(params, batches);
 
-			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}
 	}
