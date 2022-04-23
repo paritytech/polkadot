@@ -739,6 +739,35 @@ mod tests {
 	}
 
 	#[test]
+	fn cli_monitor_mms_works() {
+		let opt = Opt::try_parse_from([
+			env!("CARGO_PKG_NAME"),
+			"--uri",
+			"hi",
+			"--seed-or-path",
+			"//Alice",
+			"monitor",
+			"--listen",
+			"head",
+			"mms",
+		])
+		.unwrap();
+
+		assert_eq!(
+			opt,
+			Opt {
+				uri: "hi".to_string(),
+				seed_or_path: "//Alice".to_string(),
+				command: Command::Monitor(MonitorConfig {
+					listen: "head".to_string(),
+					solver: Solver::MMS { iterations: 10 },
+					submission_strategy: SubmissionStrategy::IfLeading,
+				}),
+			}
+		);
+	}
+
+	#[test]
 	fn cli_dry_run_works() {
 		let opt = Opt::try_parse_from([
 			env!("CARGO_PKG_NAME"),
