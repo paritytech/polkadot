@@ -213,9 +213,26 @@ async fn create_election_ext(
 	at: Option<Hash>,
 	additional: Vec<String>,
 ) -> Result<Ext, anyhow::Error> {
-	use subxt::sp_core::hashing::twox_128;
+	use crate::runtime::election_provider_multi_phase::storage::Round;
+	use crate::runtime::system::storage::{BlockHash, Number};
+	use subxt::storage::{StorageEntry, StorageKeyPrefix};
 
-	let mut pallets = vec!["ElectionProviderMultiPhase".to_string()];
+	// dummy way to get the name of the pallet.
+	let mut pallets = vec![<Round as StorageEntry>::PALLET.to_string()];
+
+	// <frame_system::BlockHash<T>>::prefix_hash()
+	// TODO(niklasad1): this is probably wrong.
+	let block_hash_storage = {
+		let prefix = StorageKeyPrefix::new::<BlockHash>();
+		let store = BlockHash(&0);
+		store.key().final_key(prefix)
+	};
+
+	let system_number = {
+		let prefix = StorageKeyPrefix::new::<Number>();
+		let store = Number;
+		store.key().final_key(prefix)
+	};
 
 	let client = api.client.rpc().client.clone();
 
@@ -227,9 +244,8 @@ async fn create_election_ext(
 			pallets,
 			..Default::default()
 		}))
-		// TODO(niklasad1): find this prefix from subxt?!.
-		//.inject_hashed_prefix(&<frame_system::BlockHash<T>>::prefix_hash())
-		.inject_hashed_key(&[twox_128(b"System"), twox_128(b"Number")].concat())
+		.inject_hashed_prefix(block_hash_storage.as_ref())
+		.inject_hashed_key(system_number.as_ref())
 		.build()
 		.await
 		.map_err(|why| anyhow::anyhow!("{}", why))
