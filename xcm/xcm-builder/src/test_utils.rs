@@ -25,7 +25,9 @@ use sp_std::vec::Vec;
 pub use xcm::latest::prelude::*;
 use xcm_executor::traits::{ClaimAssets, DropAssets, VersionChangeNotifier};
 pub use xcm_executor::{
-	traits::{AssetExchange, ConvertOrigin, OnResponse, TransactAsset},
+	traits::{
+		AssetExchange, AssetLock, ConvertOrigin, Enact, LockError, OnResponse, TransactAsset,
+	},
 	Assets, Config,
 };
 
@@ -135,5 +137,79 @@ pub struct TestUniversalAliases;
 impl Contains<(MultiLocation, Junction)> for TestUniversalAliases {
 	fn contains(aliases: &(MultiLocation, Junction)) -> bool {
 		&aliases.0 == &Here.into_location() && &aliases.1 == &GlobalConsensus(ByGenesis([0; 32]))
+	}
+}
+
+parameter_types! {
+	pub static LockedAssets: Vec<(MultiLocation, MultiAsset)> = vec![];
+}
+
+pub struct TestLockTicket(MultiLocation, MultiAsset);
+impl Enact for TestLockTicket {
+	fn enact(self) -> Result<(), LockError> {
+		let mut locked_assets = LockedAssets::get();
+		locked_assets.push((self.0, self.1));
+		LockedAssets::set(locked_assets);
+		Ok(())
+	}
+}
+pub struct TestUnlockTicket(MultiLocation, MultiAsset);
+impl Enact for TestUnlockTicket {
+	fn enact(self) -> Result<(), LockError> {
+		let mut locked_assets = LockedAssets::get();
+		if let Some((idx, _)) = locked_assets
+			.iter()
+			.enumerate()
+			.find(|(_, (origin, asset))| origin == &self.0 && asset == &self.1)
+		{
+			locked_assets.remove(idx);
+		}
+		LockedAssets::set(locked_assets);
+		Ok(())
+	}
+}
+pub struct TestReduceTicket;
+impl Enact for TestReduceTicket {
+	fn enact(self) -> Result<(), LockError> {
+		Ok(())
+	}
+}
+
+pub struct TestAssetLocker;
+impl AssetLock for TestAssetLocker {
+	type LockTicket = TestLockTicket;
+	type UnlockTicket = TestUnlockTicket;
+	type ReduceTicket = TestReduceTicket;
+
+	fn prepare_lock(
+		unlocker: MultiLocation,
+		asset: MultiAsset,
+		_owner: MultiLocation,
+	) -> Result<TestLockTicket, LockError> {
+		Ok(TestLockTicket(unlocker, asset))
+	}
+
+	fn prepare_unlock(
+		unlocker: MultiLocation,
+		asset: MultiAsset,
+		_owner: MultiLocation,
+	) -> Result<TestUnlockTicket, LockError> {
+		Ok(TestUnlockTicket(unlocker, asset))
+	}
+
+	fn note_unlockable(
+		_locker: MultiLocation,
+		_asset: MultiAsset,
+		_owner: MultiLocation,
+	) -> Result<(), LockError> {
+		Ok(())
+	}
+
+	fn prepare_reduce_unlockable(
+		_locker: MultiLocation,
+		_asset: MultiAsset,
+		_owner: MultiLocation,
+	) -> Result<TestReduceTicket, LockError> {
+		Ok(TestReduceTicket)
 	}
 }

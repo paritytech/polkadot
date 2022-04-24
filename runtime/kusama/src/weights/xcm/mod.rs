@@ -4,15 +4,12 @@ mod pallet_xcm_benchmarks_generic;
 use crate::Runtime;
 use frame_support::weights::Weight;
 use sp_std::prelude::*;
-use xcm::{
-	latest::{prelude::*, QueryResponseInfo},
-	DoubleEncoded,
-};
+use xcm::{latest::prelude::*, DoubleEncoded};
 
 use pallet_xcm_benchmarks_fungible::WeightInfo as XcmBalancesWeight;
 use pallet_xcm_benchmarks_generic::WeightInfo as XcmGeneric;
 
-/// Types of asset supported by the westend runtime.
+/// Types of asset supported by the Kusama runtime.
 pub enum AssetTypes {
 	/// An asset backed by `pallet-balances`.
 	Balances,
@@ -34,7 +31,7 @@ trait WeighMultiAssets {
 	fn weigh_multi_assets(&self, balances_weight: Weight) -> Weight;
 }
 
-// Westend only knows about one asset, the balances pallet.
+// Kusama only knows about one asset, the balances pallet.
 const MAX_ASSETS: u32 = 1;
 
 impl WeighMultiAssets for MultiAssetFilter {
@@ -67,8 +64,8 @@ impl WeighMultiAssets for MultiAssets {
 	}
 }
 
-pub struct WestendXcmWeight<Call>(core::marker::PhantomData<Call>);
-impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
+pub struct KusamaXcmWeight<Call>(core::marker::PhantomData<Call>);
+impl<Call> XcmWeightInfo<Call> for KusamaXcmWeight<Call> {
 	fn withdraw_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::withdraw_asset())
 	}
@@ -97,7 +94,7 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::transfer_reserve_asset())
 	}
 	fn transact(
-		_origin_kind: &OriginKind,
+		_origin_type: &OriginKind,
 		_require_weight_at_most: &u64,
 		_call: &DoubleEncoded<Call>,
 	) -> Weight {
@@ -125,7 +122,7 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn descend_origin(_who: &InteriorMultiLocation) -> Weight {
 		XcmGeneric::<Runtime>::descend_origin()
 	}
-	fn report_error(_query_repsonse_info: &QueryResponseInfo) -> Weight {
+	fn report_error(_query_response_info: &QueryResponseInfo) -> Weight {
 		XcmGeneric::<Runtime>::report_error()
 	}
 
@@ -140,7 +137,7 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::deposit_reserve_asset())
 	}
 	fn exchange_asset(_give: &MultiAssetFilter, _receive: &MultiAssets, _maximal: &bool) -> Weight {
-		// Westend does not currently support exchange asset operations
+		// Kusama does not currently support exchange asset operations
 		Weight::MAX
 	}
 	fn initiate_reserve_withdraw(
@@ -218,26 +215,26 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		XcmGeneric::<Runtime>::clear_transact_status()
 	}
 	fn universal_origin(_: &Junction) -> Weight {
-		// Westend does not currently support universal origin operations
+		// Kusama does not currently support universal origin operations
 		Weight::MAX
 	}
 	fn export_message(_: &NetworkId, _: &Junctions, _: &Xcm<()>) -> Weight {
 		Weight::MAX // todo fix
 	}
 	fn lock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		// Westend does not currently support asset locking operations
+		// Kusama does not currently support asset locking operations
 		Weight::MAX
 	}
 	fn unlock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		// Westend does not currently support asset locking operations
+		// Kusama does not currently support asset locking operations
 		Weight::MAX
 	}
 	fn note_unlockable(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		// Westend does not currently support asset locking operations
+		// Kusama does not currently support asset locking operations
 		Weight::MAX
 	}
 	fn request_unlock(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		// Westend does not currently support asset locking operations
+		// Kusama does not currently support asset locking operations
 		Weight::MAX
 	}
 	fn set_fees_mode(_: &bool) -> Weight {
