@@ -44,8 +44,8 @@ pub use multilocation::{
 	Ancestor, AncestorThen, InteriorMultiLocation, MultiLocation, Parent, ParentThen,
 };
 pub use traits::{
-	send_xcm, validate_send, Error, ExecuteXcm, Outcome, PreparedMessage, Result, SendError,
-	SendResult, SendXcm, Unwrappable, Weight, XcmHash,
+	send_xcm, validate_send, ConversionError, Error, ExecuteXcm, Outcome, PreparedMessage, Result,
+	SendError, SendResult, SendXcm, Unwrappable, Weight, XcmHash,
 };
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::{OriginKind, WeightLimit};
@@ -168,7 +168,7 @@ pub mod prelude {
 			send_xcm, validate_send, Ancestor, AncestorThen,
 			AssetId::{self, *},
 			AssetInstance::{self, *},
-			BodyId, BodyPart, Error as XcmError, ExecuteXcm,
+			BodyId, BodyPart, ConversionError as XcmConversionError, Error as XcmError, ExecuteXcm,
 			Fungibility::{self, *},
 			Instruction::*,
 			InteriorMultiLocation,
@@ -1142,8 +1142,8 @@ pub mod opaque {
 
 // Convert from a v2 response to a v3 response.
 impl TryFrom<OldResponse> for Response {
-	type Error = ();
-	fn try_from(old_response: OldResponse) -> result::Result<Self, ()> {
+	type Error = ConversionError;
+	fn try_from(old_response: OldResponse) -> result::Result<Self, ConversionError> {
 		match old_response {
 			OldResponse::Assets(assets) => Ok(Self::Assets(assets.try_into()?)),
 			OldResponse::Version(version) => Ok(Self::Version(version)),
@@ -1158,16 +1158,16 @@ impl TryFrom<OldResponse> for Response {
 
 // Convert from a v2 XCM to a v3 XCM.
 impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
-	type Error = ();
-	fn try_from(old_xcm: OldXcm<Call>) -> result::Result<Self, ()> {
+	type Error = ConversionError;
+	fn try_from(old_xcm: OldXcm<Call>) -> result::Result<Self, ConversionError> {
 		Ok(Xcm(old_xcm.0.into_iter().map(TryInto::try_into).collect::<result::Result<_, _>>()?))
 	}
 }
 
 // Convert from a v2 instruction to a v3 instruction.
 impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
-	type Error = ();
-	fn try_from(old_instruction: OldInstruction<Call>) -> result::Result<Self, ()> {
+	type Error = ConversionError;
+	fn try_from(old_instruction: OldInstruction<Call>) -> result::Result<Self, ConversionError> {
 		use OldInstruction::*;
 		Ok(match old_instruction {
 			WithdrawAsset(assets) => Self::WithdrawAsset(assets.try_into()?),

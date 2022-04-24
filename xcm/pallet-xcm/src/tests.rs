@@ -24,7 +24,7 @@ use frame_support::{
 };
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
 use sp_runtime::traits::{BlakeTwo256, Hash};
-use xcm::{latest::QueryResponseInfo, prelude::*};
+use xcm::{latest::QueryResponseInfo, prelude::*, VersionedConversionError};
 use xcm_builder::AllowKnownQueryResponses;
 use xcm_executor::{traits::ShouldExecute, XcmExecutor};
 
@@ -963,7 +963,10 @@ fn subscriber_side_subscription_works() {
 
 		// This message cannot be sent to a v2 remote.
 		let v2_msg = xcm::v2::Xcm::<()>(vec![xcm::v2::Instruction::Trap(0)]);
-		assert_eq!(XcmPallet::wrap_version(&remote, v2_msg.clone()), Err(()));
+		assert_eq!(
+			XcmPallet::wrap_version(&remote, v2_msg.clone()),
+			Err(VersionedConversionError::UnsupportedVersion)
+		);
 
 		let message = Xcm(vec![
 			// Remote upgraded to XCM v2
@@ -1002,7 +1005,10 @@ fn auto_subscription_works() {
 			XcmPallet::wrap_version(&remote_v2, msg_v2.clone()),
 			Ok(VersionedXcm::from(msg_v2.clone())),
 		);
-		assert_eq!(XcmPallet::wrap_version(&remote_v2, msg_v3.clone()), Err(()));
+		assert_eq!(
+			XcmPallet::wrap_version(&remote_v2, msg_v3.clone()),
+			Err(VersionedConversionError::UnsupportedVersion),
+		);
 
 		let expected = vec![(remote_v2.clone().into(), 2)];
 		assert_eq!(VersionDiscoveryQueue::<Test>::get().into_inner(), expected);
@@ -1011,7 +1017,10 @@ fn auto_subscription_works() {
 			XcmPallet::wrap_version(&remote_v3, msg_v2.clone()),
 			Ok(VersionedXcm::from(msg_v2.clone())),
 		);
-		assert_eq!(XcmPallet::wrap_version(&remote_v3, msg_v3.clone()), Err(()));
+		assert_eq!(
+			XcmPallet::wrap_version(&remote_v3, msg_v3.clone()),
+			Err(VersionedConversionError::UnsupportedVersion),
+		);
 
 		let expected = vec![(remote_v2.clone().into(), 2), (remote_v3.clone().into(), 2)];
 		assert_eq!(VersionDiscoveryQueue::<Test>::get().into_inner(), expected);
@@ -1082,7 +1091,10 @@ fn auto_subscription_works() {
 			XcmPallet::wrap_version(&remote_v2, msg_v2.clone()),
 			Ok(VersionedXcm::V2(msg_v2))
 		);
-		assert_eq!(XcmPallet::wrap_version(&remote_v2, msg_v3.clone()), Err(()));
+		assert_eq!(
+			XcmPallet::wrap_version(&remote_v2, msg_v3.clone()),
+			Err(VersionedConversionError::UnsupportedVersion),
+		);
 	})
 }
 

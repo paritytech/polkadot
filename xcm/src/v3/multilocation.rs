@@ -16,7 +16,7 @@
 
 //! XCM `MultiLocation` datatype.
 
-use super::{Junction, Junctions};
+use super::{ConversionError, Junction, Junctions};
 use crate::{v2::MultiLocation as OldMultiLocation, VersionedMultiLocation};
 use core::{
 	convert::{TryFrom, TryInto},
@@ -446,8 +446,8 @@ impl MultiLocation {
 }
 
 impl TryFrom<OldMultiLocation> for MultiLocation {
-	type Error = ();
-	fn try_from(x: OldMultiLocation) -> result::Result<Self, ()> {
+	type Error = ConversionError;
+	fn try_from(x: OldMultiLocation) -> result::Result<Self, ConversionError> {
 		Ok(MultiLocation { parents: x.parents, interior: x.interior.try_into()? })
 	}
 }

@@ -23,7 +23,7 @@
 //! - `MultiAssetFilter`: A combination of `Wild` and `MultiAssets` designed for efficiently filtering an XCM holding
 //!   account.
 
-use super::{InteriorMultiLocation, MultiLocation};
+use super::{ConversionError, InteriorMultiLocation, MultiLocation};
 use crate::v2::{
 	AssetId as OldAssetId, AssetInstance as OldAssetInstance, Fungibility as OldFungibility,
 	MultiAsset as OldMultiAsset, MultiAssetFilter as OldMultiAssetFilter,
@@ -65,7 +65,7 @@ pub enum AssetInstance {
 }
 
 impl TryFrom<OldAssetInstance> for AssetInstance {
-	type Error = ();
+	type Error = ConversionError;
 	fn try_from(value: OldAssetInstance) -> Result<Self, Self::Error> {
 		use OldAssetInstance::*;
 		Ok(match value {
@@ -75,7 +75,7 @@ impl TryFrom<OldAssetInstance> for AssetInstance {
 			Array8(n) => Self::Array8(n),
 			Array16(n) => Self::Array16(n),
 			Array32(n) => Self::Array32(n),
-			Blob(_) => return Err(()),
+			Blob(_) => return Err(ConversionError::CannotConvertBlob),
 		})
 	}
 }
@@ -271,7 +271,7 @@ impl<T: Into<AssetInstance>> From<T> for Fungibility {
 }
 
 impl TryFrom<OldFungibility> for Fungibility {
-	type Error = ();
+	type Error = ConversionError;
 	fn try_from(value: OldFungibility) -> Result<Self, Self::Error> {
 		use OldFungibility::*;
 		Ok(match value {
@@ -292,7 +292,7 @@ pub enum WildFungibility {
 }
 
 impl TryFrom<OldWildFungibility> for WildFungibility {
-	type Error = ();
+	type Error = ConversionError;
 	fn try_from(value: OldWildFungibility) -> Result<Self, Self::Error> {
 		use OldWildFungibility::*;
 		Ok(match value {
@@ -325,8 +325,8 @@ impl From<[u8; 32]> for AssetId {
 }
 
 impl TryFrom<OldAssetId> for AssetId {
-	type Error = ();
-	fn try_from(old: OldAssetId) -> Result<Self, ()> {
+	type Error = ConversionError;
+	fn try_from(old: OldAssetId) -> Result<Self, ConversionError> {
 		use OldAssetId::*;
 		Ok(match old {
 			Concrete(l) => Self::Concrete(l.try_into()?),
@@ -336,7 +336,7 @@ impl TryFrom<OldAssetId> for AssetId {
 				left.copy_from_slice(&v[..]);
 				Self::Abstract(r)
 			},
-			_ => return Err(()),
+			_ => return Err(ConversionError::AssetIdLengthExceeded),
 		})
 	}
 }
@@ -456,8 +456,8 @@ impl MultiAsset {
 }
 
 impl TryFrom<OldMultiAsset> for MultiAsset {
-	type Error = ();
-	fn try_from(old: OldMultiAsset) -> Result<Self, ()> {
+	type Error = ConversionError;
+	fn try_from(old: OldMultiAsset) -> Result<Self, ConversionError> {
 		Ok(Self { id: old.id.try_into()?, fun: old.fun.try_into()? })
 	}
 }
@@ -486,13 +486,13 @@ impl Decode for MultiAssets {
 }
 
 impl TryFrom<OldMultiAssets> for MultiAssets {
-	type Error = ();
-	fn try_from(old: OldMultiAssets) -> Result<Self, ()> {
+	type Error = ConversionError;
+	fn try_from(old: OldMultiAssets) -> Result<Self, ConversionError> {
 		let v = old
 			.drain()
 			.into_iter()
 			.map(MultiAsset::try_from)
-			.collect::<Result<Vec<_>, ()>>()?;
+			.collect::<Result<Vec<_>, ConversionError>>()?;
 		Ok(MultiAssets(v))
 	}
 }
@@ -671,8 +671,8 @@ pub enum WildMultiAsset {
 }
 
 impl TryFrom<OldWildMultiAsset> for WildMultiAsset {
-	type Error = ();
-	fn try_from(old: OldWildMultiAsset) -> Result<WildMultiAsset, ()> {
+	type Error = ConversionError;
+	fn try_from(old: OldWildMultiAsset) -> Result<WildMultiAsset, ConversionError> {
 		use OldWildMultiAsset::*;
 		Ok(match old {
 			AllOf { id, fun } => Self::AllOf { id: id.try_into()?, fun: fun.try_into()? },
@@ -682,8 +682,8 @@ impl TryFrom<OldWildMultiAsset> for WildMultiAsset {
 }
 
 impl TryFrom<(OldWildMultiAsset, u32)> for WildMultiAsset {
-	type Error = ();
-	fn try_from(old: (OldWildMultiAsset, u32)) -> Result<WildMultiAsset, ()> {
+	type Error = ConversionError;
+	fn try_from(old: (OldWildMultiAsset, u32)) -> Result<WildMultiAsset, ConversionError> {
 		use OldWildMultiAsset::*;
 		let count = old.1;
 		Ok(match old.0 {
@@ -841,8 +841,8 @@ impl MultiAssetFilter {
 }
 
 impl TryFrom<OldMultiAssetFilter> for MultiAssetFilter {
-	type Error = ();
-	fn try_from(old: OldMultiAssetFilter) -> Result<MultiAssetFilter, ()> {
+	type Error = ConversionError;
+	fn try_from(old: OldMultiAssetFilter) -> Result<MultiAssetFilter, ConversionError> {
 		Ok(match old {
 			OldMultiAssetFilter::Definite(x) => Self::Definite(x.try_into()?),
 			OldMultiAssetFilter::Wild(x) => Self::Wild(x.try_into()?),
@@ -851,14 +851,14 @@ impl TryFrom<OldMultiAssetFilter> for MultiAssetFilter {
 }
 
 impl TryFrom<(OldMultiAssetFilter, u32)> for MultiAssetFilter {
-	type Error = ();
-	fn try_from(old: (OldMultiAssetFilter, u32)) -> Result<MultiAssetFilter, ()> {
+	type Error = ConversionError;
+	fn try_from(old: (OldMultiAssetFilter, u32)) -> Result<MultiAssetFilter, ConversionError> {
 		let count = old.1;
 		Ok(match old.0 {
 			OldMultiAssetFilter::Definite(x) if count >= x.len() as u32 =>
 				Self::Definite(x.try_into()?),
 			OldMultiAssetFilter::Wild(x) => Self::Wild((x, count).try_into()?),
-			_ => return Err(()),
+			_ => return Err(ConversionError::MaxAssetCountExceeded),
 		})
 	}
 }

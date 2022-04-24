@@ -22,7 +22,7 @@ use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
 use frame_system::pallet_prelude::*;
 use primitives::v2::{Id as ParaId, UpwardMessage};
 use sp_std::{collections::btree_map::BTreeMap, fmt, marker::PhantomData, mem, prelude::*};
-use xcm::latest::Outcome;
+use xcm::{latest::Outcome, VersionedConversionError};
 
 pub use pallet::*;
 
@@ -125,8 +125,12 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 				Pallet::<C>::deposit_event(Event::InvalidFormat(id));
 				Ok(0)
 			},
-			Ok((Err(()), weight_used)) => {
+			Ok((Err(VersionedConversionError::UnsupportedVersion), weight_used)) => {
 				Pallet::<C>::deposit_event(Event::UnsupportedVersion(id));
+				Ok(weight_used)
+			},
+			Ok((Err(e), weight_used)) => {
+				Pallet::<C>::deposit_event(Event::FailedToConvertXcmVersion(e));
 				Ok(weight_used)
 			},
 			Ok((Ok(xcm_message), weight_used)) => {
@@ -266,6 +270,8 @@ pub mod pallet {
 		///
 		/// \[ overweight_index, used \]
 		OverweightServiced(OverweightIndex, Weight),
+		/// Failed converting XCM to a specified version.
+		FailedToConvertXcmVersion(VersionedConversionError),
 	}
 
 	#[pallet::error]

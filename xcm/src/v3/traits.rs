@@ -16,7 +16,7 @@
 
 //! Cross-Consensus Message format data structures.
 
-use crate::v2::Error as OldError;
+use crate::{v2::Error as OldError, VersionedConversionError};
 use core::result;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
@@ -126,6 +126,9 @@ pub enum Error {
 	/// The state was not in a condition where the operation was valid to make.
 	#[codec(index = 32)]
 	NoPermission,
+	/// Some error was thrown while trying to convert the XCM to V3.
+	#[codec(index = 33)]
+	FailedToConvertToXcmV3(ConversionError),
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	/// XCM version not able to be handled.
@@ -153,8 +156,8 @@ impl MaxEncodedLen for Error {
 }
 
 impl TryFrom<OldError> for Error {
-	type Error = ();
-	fn try_from(old_error: OldError) -> result::Result<Error, ()> {
+	type Error = ConversionError;
+	fn try_from(old_error: OldError) -> result::Result<Error, ConversionError> {
 		use OldError::*;
 		Ok(match old_error {
 			Overflow => Self::Overflow,
@@ -179,7 +182,7 @@ impl TryFrom<OldError> for Error {
 			NotHoldingFees => Self::NotHoldingFees,
 			TooExpensive => Self::TooExpensive,
 			Trap(i) => Self::Trap(i),
-			_ => return Err(()),
+			_ => return Err(ConversionError::UnsupportedXcmErrorVariant),
 		})
 	}
 }
@@ -190,7 +193,10 @@ impl From<SendError> for Error {
 			SendError::NotApplicable | SendError::Unroutable | SendError::MissingArgument =>
 				Error::Unroutable,
 			SendError::Transport(s) => Error::Transport(s),
-			SendError::DestinationUnsupported => Error::DestinationUnsupported,
+			SendError::DestinationUnsupported(VersionedConversionError::UnsupportedVersion) =>
+				Error::DestinationUnsupported,
+			SendError::DestinationUnsupported(VersionedConversionError::V3(e)) =>
+				Error::FailedToConvertToXcmV3(e),
 			SendError::ExceedsMaxMessageSize => Error::ExceedsMaxMessageSize,
 			SendError::Fees => Error::FeesNotMet,
 		}
@@ -198,6 +204,18 @@ impl From<SendError> for Error {
 }
 
 pub type Result = result::Result<(), Error>;
+
+#[derive(
+	Copy, Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo, frame_support::PalletError,
+)]
+pub enum ConversionError {
+	AssetIdLengthExceeded,
+	BadMonikerLength,
+	CannotConvertBlob,
+	CannotConvertGeneralKey,
+	MaxAssetCountExceeded,
+	UnsupportedXcmErrorVariant,
+}
 
 /// Local weight type; execution time in picoseconds.
 pub type Weight = u64;
@@ -336,7 +354,7 @@ pub enum SendError {
 	Unroutable,
 	/// The given message cannot be translated into a format that the destination can be expected
 	/// to interpret.
-	DestinationUnsupported,
+	DestinationUnsupported(VersionedConversionError),
 	/// Message could not be sent due to its size exceeding the maximum allowed by the transport
 	/// layer.
 	ExceedsMaxMessageSize,
