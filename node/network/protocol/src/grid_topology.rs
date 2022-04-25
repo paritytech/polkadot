@@ -89,6 +89,16 @@ impl SessionGridTopology {
 			RequiredRouting::None | RequiredRouting::PendingTopology => false,
 		}
 	}
+
+	/// Returns a difference between some other topology and this topology as a vector of distinct peers
+	pub fn peers_diff(&self, other: &SessionGridTopology) -> Vec<PeerId> {
+		self.peers_x
+			.iter()
+			.chain(self.peers_y.iter())
+			.filter(|peer_id| !(other.peers_x.contains(peer_id) || other.peers_y.contains(peer_id)))
+			.cloned()
+			.collect::<Vec<_>>()
+	}
 }
 
 /// A set of topologies indexed by session
