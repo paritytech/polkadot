@@ -67,7 +67,7 @@ fn prewarmed_state(
 				},
 		},
 		peer_views: peers.iter().cloned().map(|peer| (peer, view!(relay_parent))).collect(),
-		gossip_peers: peers.into_iter().collect(),
+		topology: SessionGridTopology { peers_x: peers.into_iter().collect(), ..Default::default()},
 		view: our_view!(relay_parent),
 	}
 }

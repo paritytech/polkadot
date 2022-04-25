@@ -47,6 +47,7 @@ pub const DEFAULT_RANDOM_SAMPLE_RATE: usize = crate::MIN_GOSSIP_PEERS;
 pub const DEFAULT_RANDOM_CIRCULATION: usize = 4;
 
 /// Topology representation
+#[derive(Default, Clone, Debug)]
 pub struct SessionGridTopology {
 	/// Represent peers in the X axis
 	pub peers_x: HashSet<PeerId>,
@@ -98,6 +99,11 @@ impl SessionGridTopology {
 			.filter(|peer_id| !(other.peers_x.contains(peer_id) || other.peers_y.contains(peer_id)))
 			.cloned()
 			.collect::<Vec<_>>()
+	}
+
+	/// A convenience method that returns total number of peers in the topology
+	pub fn len(&self) -> usize {
+		self.peers_x.len().saturating_add(self.peers_y.len())
 	}
 }
 
