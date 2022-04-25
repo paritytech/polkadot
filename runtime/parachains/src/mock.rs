@@ -32,7 +32,7 @@ use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
 use primitives::v2::{
 	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Header, Moment, SessionIndex,
-	UpwardMessage, ValidatorIndex, ValidatorId,
+	UpwardMessage, ValidatorId, ValidatorIndex,
 };
 use sp_core::H256;
 use sp_io::TestExternalities;
@@ -249,10 +249,8 @@ impl crate::disputes::Config for Test {
 impl crate::disputes::slashing::Config for Test {
 	type ValidatorSet = crate::disputes::slashing::MockValidatorSet;
 	type KeyOwnerProofSystem = ();
-	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		ValidatorId,
-	)>>::Proof;
+	type KeyOwnerProof =
+		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, ValidatorId)>>::Proof;
 	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 		KeyTypeId,
 		ValidatorId,

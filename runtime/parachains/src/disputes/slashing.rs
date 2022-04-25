@@ -18,18 +18,18 @@
 
 // use pallet_session::KeyOwner;
 // use super::{Config, IdentificationTuple, IdentifyValidatorsInSession};
-use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{CandidateHash, SessionIndex, ValidatorId, ValidatorIndex};
-use scale_info::TypeInfo;
-use sp_runtime::{Perbill, RuntimeDebug, DispatchResult, KeyTypeId, traits::Convert};
-use sp_staking::offence::{DisableStrategy, Kind, Offence, OffenceError, ReportOffence};
-use sp_session::{GetSessionNumber, GetValidatorCount};
-use sp_std::{prelude::*, collections::btree_set::BTreeSet};
+use crate::initializer::SessionChangeNotification;
 use frame_support::{
 	traits::{Get, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
 	weights::{Pays, Weight},
 };
-use crate::initializer::SessionChangeNotification;
+use parity_scale_codec::{Decode, Encode};
+use primitives::v2::{CandidateHash, SessionIndex, ValidatorId, ValidatorIndex};
+use scale_info::TypeInfo;
+use sp_runtime::{traits::Convert, DispatchResult, KeyTypeId, Perbill, RuntimeDebug};
+use sp_session::{GetSessionNumber, GetValidatorCount};
+use sp_staking::offence::{DisableStrategy, Kind, Offence, OffenceError, ReportOffence};
+use sp_std::{collections::btree_set::BTreeSet, prelude::*};
 
 // TODO: docs
 // timeslots should uniquely identify offences
@@ -178,19 +178,18 @@ pub type IdentificationTuple<T> = (
 	>>::Identification,
 );
 
-
 impl<T, R> super::PunishValidators for SlashValidatorsForDisputes<T, R>
 where
 	T: Config + crate::shared::Config,
 	R: ReportOffence<
-		T::AccountId,
-		IdentificationTuple<T>,
-		ForInvalidOffence<IdentificationTuple<T>>,
-	> + ReportOffence<
-		T::AccountId,
-		IdentificationTuple<T>,
-		AgainstValidOffence<IdentificationTuple<T>>,
-	>
+			T::AccountId,
+			IdentificationTuple<T>,
+			ForInvalidOffence<IdentificationTuple<T>>,
+		> + ReportOffence<
+			T::AccountId,
+			IdentificationTuple<T>,
+			AgainstValidOffence<IdentificationTuple<T>>,
+		>,
 {
 	fn punish_for_invalid(
 		session_index: SessionIndex,
@@ -206,7 +205,8 @@ where
 				let validator_set_count = account_ids.len() as u32;
 				let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
 				let shuffled_indices = <crate::shared::Pallet<T>>::active_validator_indices();
-				let offenders = validators.into_iter()
+				let offenders = validators
+					.into_iter()
 					.flat_map(|i| shuffled_indices.get(i.0 as usize).cloned())
 					.flat_map(|i| account_ids.get(i.0 as usize).cloned())
 					.filter_map(|id| {
@@ -215,25 +215,14 @@ where
 						).map(|full_id| (id, full_id))
 					})
 					.collect::<Vec<IdentificationTuple<T>>>();
-				let offence = ForInvalidOffence {
-					validator_set_count,
-					time_slot,
-					offenders,
-				};
+				let offence = ForInvalidOffence { validator_set_count, time_slot, offenders };
 				// TODO: log error?
-				let _ = R::report_offence(
-					reporters,
-					offence,
-				);
-				return;
+				let _ = R::report_offence(reporters, offence);
+				return
 			}
 		}
 		let validators: BTreeSet<ValidatorIndex> = validators.into_iter().collect();
-		<PendingSlashesForInvalid<T>>::insert(
-			session_index,
-			candidate_hash,
-			validators,
-		);
+		<PendingSlashesForInvalid<T>>::insert(session_index, candidate_hash, validators);
 	}
 
 	fn punish_against_valid(
@@ -251,7 +240,8 @@ where
 				let validator_set_count = account_ids.len() as u32;
 				let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
 				let shuffled_indices = <crate::shared::Pallet<T>>::active_validator_indices();
-				let offenders = validators.into_iter()
+				let offenders = validators
+					.into_iter()
 					.flat_map(|i| shuffled_indices.get(i.0 as usize).cloned())
 					.flat_map(|i| account_ids.get(i.0 as usize).cloned())
 					.filter_map(|id| {
@@ -260,25 +250,14 @@ where
 						).map(|full_id| (id, full_id))
 					})
 					.collect::<Vec<IdentificationTuple<T>>>();
-				let offence = AgainstValidOffence {
-					validator_set_count,
-					time_slot,
-					offenders,
-				};
+				let offence = AgainstValidOffence { validator_set_count, time_slot, offenders };
 				// TODO: log error?
-				let _ = R::report_offence(
-					reporters,
-					offence,
-				);
-				return;
+				let _ = R::report_offence(reporters, offence);
+				return
 			}
 		}
 		let validators: BTreeSet<ValidatorIndex> = validators.into_iter().collect();
-		<PendingSlashesAgainstValid<T>>::insert(
-			session_index,
-			candidate_hash,
-			validators,
-		);
+		<PendingSlashesAgainstValid<T>>::insert(session_index, candidate_hash, validators);
 	}
 
 	fn punish_inconclusive(
@@ -311,9 +290,10 @@ pub trait SlashingOffence<KeyOwnerIdentification>: Offence<KeyOwnerIdentificatio
 	fn new_time_slot(session_index: SessionIndex, candidate_hash: CandidateHash) -> Self::TimeSlot;
 }
 
-impl<KeyOwnerIdentification> SlashingOffence<KeyOwnerIdentification> for ForInvalidOffence<KeyOwnerIdentification>
+impl<KeyOwnerIdentification> SlashingOffence<KeyOwnerIdentification>
+	for ForInvalidOffence<KeyOwnerIdentification>
 where
-	KeyOwnerIdentification: Clone
+	KeyOwnerIdentification: Clone,
 {
 	fn new(
 		session_index: SessionIndex,
@@ -322,24 +302,18 @@ where
 		offender: KeyOwnerIdentification,
 	) -> Self {
 		let time_slot = Self::new_time_slot(session_index, candidate_hash);
-		Self {
-			time_slot,
-			validator_set_count,
-			offenders: vec![offender],
-		}
+		Self { time_slot, validator_set_count, offenders: vec![offender] }
 	}
 
 	fn new_time_slot(session_index: SessionIndex, candidate_hash: CandidateHash) -> Self::TimeSlot {
-		DisputesTimeSlot {
-			session_index,
-			candidate_hash,
-		}
+		DisputesTimeSlot { session_index, candidate_hash }
 	}
 }
 
-impl<KeyOwnerIdentification> SlashingOffence<KeyOwnerIdentification> for AgainstValidOffence<KeyOwnerIdentification>
+impl<KeyOwnerIdentification> SlashingOffence<KeyOwnerIdentification>
+	for AgainstValidOffence<KeyOwnerIdentification>
 where
-	KeyOwnerIdentification: Clone
+	KeyOwnerIdentification: Clone,
 {
 	fn new(
 		session_index: SessionIndex,
@@ -348,18 +322,11 @@ where
 		offender: KeyOwnerIdentification,
 	) -> Self {
 		let time_slot = Self::new_time_slot(session_index, candidate_hash);
-		Self {
-			time_slot,
-			validator_set_count,
-			offenders: vec![offender],
-		}
+		Self { time_slot, validator_set_count, offenders: vec![offender] }
 	}
 
 	fn new_time_slot(session_index: SessionIndex, candidate_hash: CandidateHash) -> Self::TimeSlot {
-		DisputesTimeSlot {
-			session_index,
-			candidate_hash,
-		}
+		DisputesTimeSlot { session_index, candidate_hash }
 	}
 }
 
@@ -378,14 +345,11 @@ pub trait HandleSlashingReportsForOldSessions<T: Config> {
 
 	/// Report a for valid offence.
 	/// TODO: do we want to pass reporters or derive from the dispute?
-	fn report_for_invalid_offence(
-		offence: Self::OffenceForInvalid,
-	) -> Result<(), OffenceError>;
+	fn report_for_invalid_offence(offence: Self::OffenceForInvalid) -> Result<(), OffenceError>;
 
 	/// Report an against invalid offence.
-	fn report_against_valid_offence(
-		offence: Self::OffenceAgainstValid,
-	) -> Result<(), OffenceError>;
+	fn report_against_valid_offence(offence: Self::OffenceAgainstValid)
+		-> Result<(), OffenceError>;
 
 	/// Returns true if the offender at the given time slot has already been reported.
 	fn is_known_for_invalid_offence(
@@ -413,9 +377,7 @@ impl<T: Config> HandleSlashingReportsForOldSessions<T> for () {
 	type OffenceAgainstValid = AgainstValidOffence<T::KeyOwnerIdentification>;
 	type ReportLongevity = ();
 
-	fn report_for_invalid_offence(
-		_offence: Self::OffenceForInvalid,
-	) -> Result<(), OffenceError> {
+	fn report_for_invalid_offence(_offence: Self::OffenceForInvalid) -> Result<(), OffenceError> {
 		Ok(())
 	}
 
@@ -533,12 +495,7 @@ pub mod pallet {
 	/// `AccountId`s of the validators in the canonical ordering for the last several sessions.
 	// TODO: clarify canonical ordering
 	#[pallet::storage]
-	pub(super) type AccountIds<T> = StorageMap<
-		_,
-		Twox64Concat,
-		SessionIndex,
-		Vec<AccountId<T>>,
-	>;
+	pub(super) type AccountIds<T> = StorageMap<_, Twox64Concat, SessionIndex, Vec<AccountId<T>>>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -595,7 +552,7 @@ impl<T: Config> Pallet<T> {
 
 		// TODO: we could keep em longer than dispute_period?
 		let pruning_target = notification.session_index - config.dispute_period - 1;
-		let last_pruned = <crate::disputes::LastPrunedSession::<T>>::get();
+		let last_pruned = <crate::disputes::LastPrunedSession<T>>::get();
 		let to_prune = if let Some(last_pruned) = last_pruned {
 			last_pruned + 1..=pruning_target
 		} else {

@@ -1199,11 +1199,7 @@ impl<T: Config> Pallet<T> {
 			);
 
 			// an invalid candidate, according to 2/3. Punish those on the 'for' side.
-			T::PunishValidators::punish_for_invalid(
-				session,
-				candidate_hash,
-				summary.slash_for,
-			);
+			T::PunishValidators::punish_for_invalid(session, candidate_hash, summary.slash_for);
 		}
 
 		<Disputes<T>>::insert(&session, &candidate_hash, &summary.state);
