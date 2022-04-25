@@ -48,7 +48,8 @@ use runtime_common::{
 	CurrencyToVote, SlowAdjustingFeeUpdate,
 };
 use runtime_parachains::{
-	configuration as parachains_configuration, disputes as parachains_disputes,
+	configuration as parachains_configuration,
+	disputes::{self as parachains_disputes, slashing as parachains_slashing},
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
@@ -904,9 +905,23 @@ impl assigned_slots::Config for Runtime {
 
 impl parachains_disputes::Config for Runtime {
 	type Event = Event;
-	type RewardValidators = ();
-	type PunishValidators = ();
+	type PunishValidators = parachains_slashing::SlashValidatorsForDisputes<Self, Offences>;
 	type WeightInfo = weights::runtime_parachains_disputes::WeightInfo<Runtime>;
+}
+
+impl parachains_slashing::Config for Runtime {
+	type ValidatorSet = Historical;
+	type KeyOwnerProofSystem = Historical;
+	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		ValidatorId,
+	)>>::Proof;
+	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		ValidatorId,
+	)>>::IdentificationTuple;
+	type HandleSlashingReportsForOldSessions = (); // TODO
+	type WeightInfo = parachains_slashing::TestWeightInfo; // TODO
 }
 
 parameter_types! {

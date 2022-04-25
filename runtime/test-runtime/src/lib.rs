@@ -31,6 +31,7 @@ use polkadot_runtime_parachains::{
 	paras_inherent as parachains_paras_inherent, runtime_api_impl::v2 as runtime_impl,
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared, ump as parachains_ump,
+	disputes::slashing as parachains_slashing,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -483,9 +484,23 @@ impl parachains_inclusion::Config for Runtime {
 
 impl parachains_disputes::Config for Runtime {
 	type Event = Event;
-	type RewardValidators = ();
 	type PunishValidators = ();
 	type WeightInfo = parachains_disputes::TestWeightInfo;
+}
+
+impl parachains_slashing::Config for Runtime {
+	type ValidatorSet = parachains_slashing::MockValidatorSet;
+	type KeyOwnerProofSystem = ();
+	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		ValidatorId,
+	)>>::Proof;
+	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		ValidatorId,
+	)>>::IdentificationTuple;
+	type HandleSlashingReportsForOldSessions = (); // TODO
+	type WeightInfo = parachains_slashing::TestWeightInfo;
 }
 
 impl parachains_paras_inherent::Config for Runtime {
