@@ -18,7 +18,7 @@ use std::collections::{HashMap, HashSet};
 
 use polkadot_primitives::v2::{CandidateHash, SessionIndex, ValidatorIndex};
 
-use crate::real::LOG_TARGET;
+use crate::LOG_TARGET;
 
 /// Type used for counting potential spam votes.
 type SpamCount = u32;

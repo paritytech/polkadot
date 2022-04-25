@@ -950,15 +950,12 @@ async fn handle_actions(
 				dispute_statement,
 				validator_index,
 			} => {
-				// TODO: Log confirmation results in an efficient way:
-				// https://github.com/paritytech/polkadot/issues/5156
-				let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 				ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
 					candidate_hash,
 					candidate_receipt,
 					session,
 					statements: vec![(dispute_statement, validator_index)],
-					pending_confirmation,
+					pending_confirmation: None,
 				})
 				.await;
 			},
@@ -1006,6 +1003,7 @@ fn distribution_messages_for_activation(
 			parent_hash: block_entry.parent_hash(),
 			candidates: block_entry.candidates().iter().map(|(_, c_hash)| *c_hash).collect(),
 			slot: block_entry.slot(),
+			session: block_entry.session(),
 		});
 
 		for (i, (_, candidate_hash)) in block_entry.candidates().iter().enumerate() {
@@ -2273,7 +2271,7 @@ async fn launch_approval(
 				CandidateValidationMessage::ValidateFromExhaustive(
 					available_data.validation_data,
 					validation_code,
-					candidate.descriptor.clone(),
+					candidate.clone(),
 					available_data.pov,
 					APPROVAL_EXECUTION_TIMEOUT,
 					val_tx,

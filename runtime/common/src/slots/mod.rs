@@ -21,6 +21,8 @@
 //! This doesn't handle the mechanics of determining which para ID actually ends up with a parachain lease. This
 //! must handled by a separately, through the trait interface that this pallet provides or the root dispatchables.
 
+pub mod migration;
+
 use crate::traits::{LeaseError, Leaser, Registrar};
 use frame_support::{
 	pallet_prelude::*,

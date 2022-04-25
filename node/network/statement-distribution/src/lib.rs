@@ -26,10 +26,11 @@ use error::{log_error, FatalResult, JfyiErrorResult};
 use parity_scale_codec::Encode;
 
 use polkadot_node_network_protocol::{
+	self as net_protocol,
 	peer_set::{IsAuthority, PeerSet},
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	v1::{self as protocol_v1, StatementMetadata},
-	IfDisconnected, PeerId, UnifiedReputationChange as Rep, View,
+	IfDisconnected, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_primitives::{SignedFullStatement, Statement, UncheckedSignedFullStatement};
 use polkadot_node_subsystem_util::{self as util, rand, MIN_GOSSIP_PEERS};
@@ -961,7 +962,7 @@ fn statement_message(
 	relay_parent: Hash,
 	statement: SignedFullStatement,
 	metrics: &Metrics,
-) -> protocol_v1::ValidationProtocol {
+) -> net_protocol::VersionedValidationProtocol {
 	let (is_large, size) = is_statement_large(&statement);
 	if let Some(size) = size {
 		metrics.on_created_message(size);
@@ -978,7 +979,7 @@ fn statement_message(
 		protocol_v1::StatementDistributionMessage::Statement(relay_parent, statement.into())
 	};
 
-	protocol_v1::ValidationProtocol::StatementDistribution(msg)
+	protocol_v1::ValidationProtocol::StatementDistribution(msg).into()
 }
 
 /// Check whether a statement should be treated as large statement.
@@ -1603,12 +1604,12 @@ async fn handle_network_update(
 	recent_outdated_heads: &RecentOutdatedHeads,
 	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 	req_sender: &mpsc::Sender<RequesterMessage>,
-	update: NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>,
+	update: NetworkBridgeEvent<net_protocol::StatementDistributionMessage>,
 	metrics: &Metrics,
 	rng: &mut impl rand::Rng,
 ) {
 	match update {
-		NetworkBridgeEvent::PeerConnected(peer, role, maybe_authority) => {
+		NetworkBridgeEvent::PeerConnected(peer, role, _, maybe_authority) => {
 			gum::trace!(target: LOG_TARGET, ?peer, ?role, "Peer connected");
 			peers.insert(
 				peer,
@@ -1632,7 +1633,14 @@ async fn handle_network_update(
 				});
 			}
 		},
-		NetworkBridgeEvent::NewGossipTopology(new_peers) => {
+		NetworkBridgeEvent::NewGossipTopology(topology) => {
+			// Combine all peers in the x & y direction as we don't make any distinction.
+			let new_peers: HashSet<PeerId> = topology
+				.our_neighbors_x
+				.values()
+				.chain(topology.our_neighbors_y.values())
+				.flat_map(|peer_info| peer_info.peer_ids.iter().cloned())
+				.collect();
 			let _ = metrics.time_network_bridge_update_v1("new_gossip_topology");
 			let newly_added: Vec<PeerId> = new_peers.difference(gossip_peers).cloned().collect();
 			*gossip_peers = new_peers;
@@ -1653,7 +1661,7 @@ async fn handle_network_update(
 				}
 			}
 		},
-		NetworkBridgeEvent::PeerMessage(peer, message) => {
+		NetworkBridgeEvent::PeerMessage(peer, Versioned::V1(message)) => {
 			handle_incoming_message_and_circulate(
 				peer,
 				gossip_peers,
@@ -2049,7 +2057,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					)
 					.await;
 				},
-				StatementDistributionMessage::NetworkBridgeUpdateV1(event) => {
+				StatementDistributionMessage::NetworkBridgeUpdate(event) => {
 					handle_network_update(
 						peers,
 						gossip_peers,
