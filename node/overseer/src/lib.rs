@@ -488,7 +488,10 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, blocking, ChainApiMessage, sends: [])]
 	chain_api: ChainApi,
 
-	#[subsystem(no_dispatch, CollationGenerationMessage, sends: [])]
+	#[subsystem(no_dispatch, CollationGenerationMessage, sends: [
+		RuntimeApiMessage,
+		CollatorProtocolMessage,
+	])]
 	collation_generation: CollationGeneration,
 
 	#[subsystem(no_dispatch, CollatorProtocolMessage, sends: [
