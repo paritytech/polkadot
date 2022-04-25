@@ -609,8 +609,6 @@ pub fn run() -> Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
 
-			ensure_dev(chain_spec).map_err(Error::Other)?;
-
 			#[cfg(feature = "kusama-native")]
 			if chain_spec.is_kusama() {
 				return Ok(runner.sync_run(|config| cmd.run::<service::kusama_runtime::Block>(&config))?)
