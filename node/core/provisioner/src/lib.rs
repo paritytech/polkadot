@@ -143,7 +143,7 @@ pub enum Error {
 pub struct ProvisionerConfig;
 
 /// A per-relay-parent job for the provisioning subsystem.
-pub struct ProvisionerJob {
+pub struct ProvisionerJob<Sender> {
 	leaf: ActivatedLeaf,
 	receiver: mpsc::Receiver<ProvisionerMessage>,
 	backed_candidates: Vec<CandidateReceipt>,
@@ -151,9 +151,13 @@ pub struct ProvisionerJob {
 	metrics: Metrics,
 	inherent_after: InherentAfter,
 	awaiting_inherent: Vec<oneshot::Sender<ProvisionerInherentData>>,
+	_phantom: std::marker::PhantomData<Sender>,
 }
 
-impl JobTrait for ProvisionerJob {
+impl<Sender> JobTrait for ProvisionerJob<Sender>
+where
+	Sender: overseer::ProvisionerSenderTrait + std::marker::Unpin,
+{
 	type ToJob = ProvisionerMessage;
 	type OutgoingMessages = overseer::ProvisionerOutgoingMessages;
 	type Error = Error;
@@ -165,25 +169,29 @@ impl JobTrait for ProvisionerJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
-	fn run<Sender: overseer::ProvisionerSenderTrait>(
+	fn run (
 		leaf: ActivatedLeaf,
 		_: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<ProvisionerMessage>,
 		mut sender: JobSender<Sender>,
-	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>
+	{
 		let span = leaf.span.clone();
 		async move {
-\			let job = ProvisionerJob::new(leaf, metrics, receiver);
+			let job = ProvisionerJob::new(leaf, metrics, receiver);
 
-			job.run_loop::<Sender>(sender.subsystem_sender(), PerLeafSpan::new(span, "provisioner"))
+			job.run_loop(sender.subsystem_sender(), PerLeafSpan::new(span, "provisioner"))
 				.await
 		}
 		.boxed()
 	}
 }
 
-impl ProvisionerJob {
+impl<Sender> ProvisionerJob<Sender>
+where
+	Sender: overseer::ProvisionerSenderTrait,
+{
 	fn new(
 		leaf: ActivatedLeaf,
 		metrics: Metrics,
@@ -197,10 +205,11 @@ impl ProvisionerJob {
 			metrics,
 			inherent_after: InherentAfter::new_from_now(),
 			awaiting_inherent: Vec::new(),
+			_phantom: std::marker::PhantomData::<Sender>::default(),
 		}
 	}
 
-	async fn run_loop<Sender: overseer::ProvisionerSenderTrait>(
+	async fn run_loop(
 		mut self,
 		sender: &mut Sender,
 		span: PerLeafSpan,
@@ -239,7 +248,7 @@ impl ProvisionerJob {
 		Ok(())
 	}
 
-	async fn send_inherent_data<Sender: overseer::ProvisionerSenderTrait> (
+	async fn send_inherent_data (
 		&mut self,
 		sender: &mut Sender,
 		return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
@@ -847,4 +856,12 @@ async fn select_disputes(
 }
 
 /// The provisioner subsystem.
-pub type ProvisionerSubsystem<Spawner> = JobSubsystem<ProvisionerJob, Spawner>;
+pub type ProvisionerSubsystem<Spawner> =
+	JobSubsystem<
+		ProvisionerJob<
+			overseer::OverseerSender<
+				overseer::ProvisionerOutgoingMessages
+			>
+		>,
+		Spawner
+	>;
