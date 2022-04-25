@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Parity Technologies (UK) Ltd.
+// Copyright 2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -35,9 +35,7 @@ use polkadot_node_primitives::{
 	ValidationResult, BACKING_EXECUTION_TIMEOUT,
 };
 use polkadot_node_subsystem_util::{
-	self as util,
-	metrics::{self, prometheus},
-	request_from_runtime, request_session_index_for_child, request_validator_groups,
+	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
 	request_validators, FromJobCommand, JobSender, Validator,
 };
 use polkadot_primitives::v2::{
@@ -65,6 +63,9 @@ use statement_table::{
 	Context as TableContextTrait, Table,
 };
 use thiserror::Error;
+
+mod metrics;
+use self::metrics::Metrics;
 
 #[cfg(test)]
 mod tests;
@@ -1300,93 +1301,6 @@ impl util::JobTrait for CandidateBackingJob {
 			job.run_loop(sender, rx_to, span).await
 		}
 		.boxed()
-	}
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	signed_statements_total: prometheus::Counter<prometheus::U64>,
-	candidates_seconded_total: prometheus::Counter<prometheus::U64>,
-	process_second: prometheus::Histogram,
-	process_statement: prometheus::Histogram,
-	get_backed_candidates: prometheus::Histogram,
-}
-
-/// Candidate backing metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_statement_signed(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.signed_statements_total.inc();
-		}
-	}
-
-	fn on_candidate_seconded(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.candidates_seconded_total.inc();
-		}
-	}
-
-	/// Provide a timer for handling `CandidateBackingMessage:Second` which observes on drop.
-	fn time_process_second(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.process_second.start_timer())
-	}
-
-	/// Provide a timer for handling `CandidateBackingMessage::Statement` which observes on drop.
-	fn time_process_statement(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.process_statement.start_timer())
-	}
-
-	/// Provide a timer for handling `CandidateBackingMessage::GetBackedCandidates` which observes on drop.
-	fn time_get_backed_candidates(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.get_backed_candidates.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			signed_statements_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_candidate_backing_signed_statements_total",
-					"Number of statements signed.",
-				)?,
-				registry,
-			)?,
-			candidates_seconded_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_candidate_backing_candidates_seconded_total",
-					"Number of candidates seconded.",
-				)?,
-				registry,
-			)?,
-			process_second: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_candidate_backing_process_second",
-					"Time spent within `candidate_backing::process_second`",
-				))?,
-				registry,
-			)?,
-			process_statement: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_candidate_backing_process_statement",
-					"Time spent within `candidate_backing::process_statement`",
-				))?,
-				registry,
-			)?,
-			get_backed_candidates: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_candidate_backing_get_backed_candidates",
-					"Time spent within `candidate_backing::get_backed_candidates`",
-				))?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
 	}
 }
 
