@@ -528,8 +528,10 @@ pub fn run() -> Result<()> {
 					#[allow(unreachable_code)]
 					Err(service::Error::NoRuntime.into())
 				},
-				BenchmarkCmd::Machine(cmd) =>
-					runner.sync_run(|config| cmd.run(&config).map_err(Error::SubstrateCli)),
+				BenchmarkCmd::Machine(cmd) => runner.sync_run(|config| {
+					cmd.run(&config, POLKADOT_REFERENCE_HARDWARE.clone())
+						.map_err(Error::SubstrateCli)
+				}),
 				// NOTE: this allows the Polkadot client to leniently implement
 				// new benchmark commands.
 				#[allow(unreachable_patterns)]
