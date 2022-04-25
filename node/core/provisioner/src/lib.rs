@@ -95,6 +95,53 @@ impl InherentAfter {
 	}
 }
 
+/// Errors in the provisioner.
+#[derive(Debug, Error)]
+#[allow(missing_docs)]
+pub enum Error {
+	#[error(transparent)]
+	Util(#[from] util::Error),
+
+	#[error("failed to get availability cores")]
+	CanceledAvailabilityCores(#[source] oneshot::Canceled),
+
+	#[error("failed to get persisted validation data")]
+	CanceledPersistedValidationData(#[source] oneshot::Canceled),
+
+	#[error("failed to get block number")]
+	CanceledBlockNumber(#[source] oneshot::Canceled),
+
+	#[error("failed to get backed candidates")]
+	CanceledBackedCandidates(#[source] oneshot::Canceled),
+
+	#[error("failed to get votes on dispute")]
+	CanceledCandidateVotes(#[source] oneshot::Canceled),
+
+	#[error(transparent)]
+	ChainApi(#[from] ChainApiError),
+
+	#[error(transparent)]
+	Runtime(#[from] RuntimeApiError),
+
+	#[error("failed to send message to ChainAPI")]
+	ChainApiMessageSend(#[source] mpsc::SendError),
+
+	#[error("failed to send message to CandidateBacking to get backed candidates")]
+	GetBackedCandidatesSend(#[source] mpsc::SendError),
+
+	#[error("failed to send return message with Inherents")]
+	InherentDataReturnChannel,
+
+	#[error(
+		"backed candidate does not correspond to selected candidate; check logic in provisioner"
+	)]
+	BackedCandidateOrderingProblem,
+}
+
+/// Provisioner run arguments.
+#[derive(Debug, Clone, Copy)]
+pub struct ProvisionerConfig;
+
 /// A per-relay-parent job for the provisioning subsystem.
 pub struct ProvisionerJob {
 	leaf: ActivatedLeaf,
@@ -105,10 +152,6 @@ pub struct ProvisionerJob {
 	inherent_after: InherentAfter,
 	awaiting_inherent: Vec<oneshot::Sender<ProvisionerInherentData>>,
 }
-
-/// Provisioner run arguments.
-#[derive(Debug, Clone, Copy)]
-pub struct ProvisionerConfig;
 
 impl JobTrait for ProvisionerJob {
 	type ToJob = ProvisionerMessage;
@@ -122,18 +165,18 @@ impl JobTrait for ProvisionerJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
-	fn run<S: overseer::ProvisionerSenderTrait>(
+	fn run<Sender: overseer::ProvisionerSenderTrait>(
 		leaf: ActivatedLeaf,
 		_: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<ProvisionerMessage>,
-		mut sender: JobSender<S>,
+		mut sender: JobSender<Sender>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		let span = leaf.span.clone();
 		async move {
-			let job = ProvisionerJob::new(leaf, metrics, receiver);
+\			let job = ProvisionerJob::new(leaf, metrics, receiver);
 
-			job.run_loop(sender.subsystem_sender(), PerLeafSpan::new(span, "provisioner"))
+			job.run_loop::<Sender>(sender.subsystem_sender(), PerLeafSpan::new(span, "provisioner"))
 				.await
 		}
 		.boxed()
@@ -157,9 +200,9 @@ impl ProvisionerJob {
 		}
 	}
 
-	async fn run_loop(
+	async fn run_loop<Sender: overseer::ProvisionerSenderTrait>(
 		mut self,
-		sender: &mut impl overseer::ProvisionerSenderTrait,
+		sender: &mut Sender,
 		span: PerLeafSpan,
 	) -> Result<(), Error> {
 		loop {
@@ -196,9 +239,9 @@ impl ProvisionerJob {
 		Ok(())
 	}
 
-	async fn send_inherent_data(
+	async fn send_inherent_data<Sender: overseer::ProvisionerSenderTrait> (
 		&mut self,
-		sender: &mut impl overseer::ProvisionerSenderTrait,
+		sender: &mut Sender,
 		return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
 	) {
 		if let Err(err) = send_inherent_data(
