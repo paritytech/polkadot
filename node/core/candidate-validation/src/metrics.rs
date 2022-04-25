@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use super::{ValidationResult, ValidationFailed};
 
 #[derive(Clone)]
 pub(crate) struct MetricsInner {
