@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use polkadot_node_subsystem_util::{
-	self as util,
 	metrics::{self, prometheus},
 };
 
