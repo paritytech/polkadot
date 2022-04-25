@@ -355,8 +355,6 @@ fn make_runtime_api_request<Client>(
 where
 	Client: OverseerRuntimeClient + 'static,
 {
-	use sp_api::ApiExt;
-
 	let _timer = metrics.time_make_runtime_api_request();
 
 	macro_rules! query {
@@ -401,10 +399,9 @@ where
 
 	match request {
 		Request::Version(sender) => {
-			let api = client.runtime_api();
+			let api = client;
 
-			let runtime_version = match api
-				.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
+			let runtime_version = match api.api_version_parachain_host(&BlockId::Hash(relay_parent))
 			{
 				Ok(Some(v)) => Ok(v),
 				Ok(None) => Err(RuntimeApiError::NotSupported { runtime_api_name: "api_version" }),

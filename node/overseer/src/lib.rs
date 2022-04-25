@@ -71,15 +71,12 @@ use futures::{channel::oneshot, future::BoxFuture, select, Future, FutureExt, St
 use lru::LruCache;
 
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
-use polkadot_primitives::{
-	v1::{
-		CandidateCommitments, CandidateEvent,
-		CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Header, Id,
-		InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-		PersistedValidationData, ScrapedOnChainVotes, SessionIndex, ValidationCode,
-		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
-	},
-	v2::{Block, BlockId, BlockNumber, Hash, ParachainHost, ParachainHost, PvfCheckStatement, SessionInfo},
+use polkadot_primitives::v2::{
+	Block, BlockId, BlockNumber, CandidateCommitments, CandidateEvent, CommittedCandidateReceipt,
+	CoreState, GroupRotationInfo, Hash, Header, Id, InboundDownwardMessage, InboundHrmpMessage,
+	OccupiedCoreAssumption, ParachainHost, PersistedValidationData, PvfCheckStatement,
+	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
@@ -964,7 +961,7 @@ pub trait OverseerRuntimeClient {
 		&self,
 		at: &BlockId,
 		index: SessionIndex,
-	) -> Result<Option<polkadot_primitives::v1::SessionInfo>, ApiError>;
+	) -> Result<Option<polkadot_primitives::v2::SessionInfo>, ApiError>;
 
 	/// Submits a PVF pre-checking statement into the transaction pool.
 	///
@@ -1239,7 +1236,8 @@ where
 		&self,
 		at: &BlockId,
 		index: SessionIndex,
-	) -> Result<Option<polkadot_primitives::v1::SessionInfo>, ApiError> {
-		self.runtime_api().session_info_before_version_2(at, index)
+	) -> Result<Option<polkadot_primitives::v2::SessionInfo>, ApiError> {
+		// self.runtime_api().session_info_before_version_2(at, index)
+		todo!()
 	}
 }
