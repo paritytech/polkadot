@@ -36,7 +36,7 @@
 // Runtime-generated enums
 #![allow(clippy::large_enum_variant)]
 
-use crate::weights::WeightInfo;
+pub use crate::weights::WeightInfo;
 
 use bp_header_chain::{justification::GrandpaJustification, InitializationData};
 use bp_runtime::{BlockNumberOf, Chain, HashOf, HasherOf, HeaderOf};

@@ -45,8 +45,9 @@ pub use crate::weights_ext::{
 use crate::{
 	inbound_lane::{InboundLane, InboundLaneStorage, ReceivalResult},
 	outbound_lane::{OutboundLane, OutboundLaneStorage, ReceivalConfirmationResult},
-	weights::WeightInfo,
 };
+
+pub use crate::weights::WeightInfo;
 
 use bp_messages::{
 	source_chain::{
