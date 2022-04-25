@@ -225,7 +225,7 @@ spellcheck:
     - git fetch origin +${CI_DEFAULT_BRANCH}:${CI_DEFAULT_BRANCH}
     - echo "___Spellcheck is going to check your diff___"
     - cargo spellcheck list-files -vvv $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
-    - time cargo spellcheck check -vvv --cfg=scripts/ci/gitlab/spellcheck.toml --checkers hunspell --code 1
+    - time cargo spellcheck check -vvv --cfg=.spellcheck/spellcheck.toml --checkers hunspell --code 1
         $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
   allow_failure:                   true
 
@@ -805,5 +805,3 @@ cancel-pipeline:
     PROJECT_ID:                    "${CI_PROJECT_ID}"
     PIPELINE_ID:                   "${CI_PIPELINE_ID}"
   trigger:                         "parity/infrastructure/ci_cd/pipeline-stopper"
-
-
