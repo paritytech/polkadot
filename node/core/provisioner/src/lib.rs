@@ -110,7 +110,7 @@ pub struct ProvisionerJob {
 #[derive(Debug, Clone, Copy)]
 pub struct ProvisionerConfig;
 
-impl JobTrait for ProvisionerJob {
+impl<S: overseer::ProvisionerSenderTrait> JobTrait<S> for ProvisionerJob {
 	type ToJob = ProvisionerMessage;
 	type OutgoingMessages = overseer::ProvisionerOutgoingMessages;
 	type Error = Error;
@@ -122,13 +122,14 @@ impl JobTrait for ProvisionerJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
-	fn run<S: overseer::ProvisionerSenderTrait>(
+	fn run(
 		leaf: ActivatedLeaf,
 		_: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<ProvisionerMessage>,
 		mut sender: JobSender<S>,
-	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>
+	{
 		let span = leaf.span.clone();
 		async move {
 			let job = ProvisionerJob::new(leaf, metrics, receiver);
@@ -804,4 +805,10 @@ async fn select_disputes(
 }
 
 /// The provisioner subsystem.
-pub type ProvisionerSubsystem<Spawner> = JobSubsystem<ProvisionerJob, Spawner>;
+pub type ProvisionerSubsystem<Spawner> = JobSubsystem<
+	ProvisionerJob,
+	Spawner,
+	overseer::OverseerSender<
+		overseer::ProvisionerOutgoingMessages,
+	>
+>;
