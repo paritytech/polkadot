@@ -1168,10 +1168,10 @@ async fn process_msg<Context>(
 				"DistributeCollation message is not expected on the validator side of the protocol",
 			);
 		},
-		PreConnectAsCollator(_) => {
+		ForecastCollation(_, _) => {
 			gum::warn!(
 				target: LOG_TARGET,
-				"PreConnectAsCollator message is not expected on the validator side of the protocol",
+				"ForecastCollation message is not expected on the validator side of the protocol",
 			);
 		},
 		ReportCollator(id) => {

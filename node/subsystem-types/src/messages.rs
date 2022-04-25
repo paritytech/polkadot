@@ -34,9 +34,9 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
-	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig,
-	CollationSecondedSignal, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement,
-	SignedFullStatement, ValidationResult,
+	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationForecast,
+	CollationGenerationConfig, CollationSecondedSignal, DisputeMessage, ErasureChunk, PoV,
+	SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
@@ -184,17 +184,16 @@ impl CandidateValidationMessage {
 /// Messages received by the Collator Protocol subsystem.
 #[derive(Debug, derive_more::From)]
 pub enum CollatorProtocolMessage {
-	/// Signal to the collator protocol that it should connect to validators with the expectation
-	/// of collating on the given para. This is only expected to be called once, early on, if at all,
-	/// and only by the Collation Generation subsystem. As such, it will overwrite the value of
-	/// the previous signal.
+	/// Signal to the collator protocol on which parachain this collator is going to be collating.
+	/// This is only expected to be called once, early on, if at all. As such, it will overwrite
+	/// the value of the previous signal.
 	///
 	/// This should be sent before any `DistributeCollation` message.
 	CollateOn(ParaId),
 	/// Provide a collation to distribute to validators with an optional result sender.
 	///
-	/// The result sender should be informed when at least one parachain validator seconded the collation. It is also
-	/// completely okay to just drop the sender.
+	/// The result sender should be informed when at least one parachain validator seconded the
+	/// collation. It is also completely okay to just drop the sender.
 	DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<CollationSecondedSignal>>),
 	/// Report a collator as having provided an invalid collation. This should lead to disconnect
 	/// and blacklist of the collator.
@@ -210,9 +209,8 @@ pub enum CollatorProtocolMessage {
 	///
 	/// The hash is the relay parent.
 	Seconded(Hash, SignedFullStatement),
-	/// Issue a preconnect request for the given relay parent, i.e. get the peer set ready
-	/// for collating on it or its child.
-	PreConnectAsCollator(Hash),
+	/// Inform the collator protocol of an upcoming collation.
+	ForecastCollation(Hash, CollationForecast),
 }
 
 impl Default for CollatorProtocolMessage {

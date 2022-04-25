@@ -347,6 +347,15 @@ impl CollationResult {
 	}
 }
 
+/// Let a collator share early information about an upcoming collation.
+#[derive(Debug)]
+pub enum CollationForecast {
+	/// We are already building a collation for this very relay parent.
+	Now,
+	/// We are going to provide a collation on the next relay parent.
+	NextBlock,
+}
+
 /// A wrapper over a parachain collator.
 #[cfg(not(target_os = "unknown"))]
 #[async_trait]
@@ -363,18 +372,29 @@ pub trait Collator: Send + Sync {
 		validation_data: &PersistedValidationData,
 	) -> Option<CollationResult>;
 
-	/// If a parachain consensus allows it, figure out whether a collator is going to produce a
-	/// candidate based **on the child** of the given relay parent.
+	/// If a parachain consensus allows it, figure out whether we are going to be providing a
+	/// collation based on the given `relay_parent`.
 	///
-	/// If the above is not possible, but a collator is aware it's going to produce a candidate
-	/// based **on relay parent**, should also return `true`.
+	/// Implementation:
 	///
-	/// Otherwise, should always return `false`.
+	/// 1. Collators who can't know in advance whether they are going to have a collation, shall
+	///       return `None` on every call.
+	/// 2. Collators who can know in advance whether they will provide a collation, shall behave in the
+	///       following way:
+	///			1. They will have a collation for the passed relay_parent - return `Some(Now)`.
+	///			2. They will have a collation at the child for the given relay parent - return
+	///			            `Some(NextBlock)`.
+	///			3. They will not have a collation now or at the next block - return `None`.
+	///
+	///	For collators of type 2, the node will use the forecast for establishing needed network
+	///	connections early and to announce collations, before they are ready - so the
+	///	advertising/request round trip can be done, while the collator is preparing the collation
+	///	already.
 	async fn is_collating(
 		&self,
 		relay_parent: Hash,
 		validation_data: &PersistedValidationData,
-	) -> bool;
+	) -> Option<CollationForecast>;
 }
 
 /// Configuration for the collation generator

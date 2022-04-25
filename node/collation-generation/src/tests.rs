@@ -19,7 +19,7 @@ mod handle_new_activations {
 	use ::test_helpers::{dummy_hash, dummy_head_data, dummy_validator};
 	use futures::lock::Mutex;
 	use polkadot_node_primitives::{
-		BlockData, Collation, CollationResult, Collator, MaybeCompressedPoV, PoV,
+		BlockData, Collation, CollationForecast, CollationResult, Collator, MaybeCompressedPoV, PoV,
 	};
 	use polkadot_node_subsystem::{
 		errors::RuntimeApiError,
@@ -69,8 +69,12 @@ mod handle_new_activations {
 			Some(CollationResult { collation: test_collation(), result_sender: None })
 		}
 
-		async fn is_collating(&self, _: Hash, _: &PersistedValidationData) -> bool {
-			false
+		async fn is_collating(
+			&self,
+			_: Hash,
+			_: &PersistedValidationData,
+		) -> Option<CollationForecast> {
+			None
 		}
 	}
 

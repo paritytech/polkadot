@@ -689,7 +689,7 @@ where
 				);
 			}
 		},
-		PreConnectAsCollator(relay_parent) => {
+		ForecastCollation(relay_parent, _forecast) => {
 			if !state.view.contains(&relay_parent) {
 				gum::warn!(
 					target: LOG_TARGET,

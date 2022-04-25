@@ -256,10 +256,12 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				},
 			};
 
-			if config.collator.is_collating(relay_parent, &validation_data).await {
+			if let Some(forecast) =
+				config.collator.is_collating(relay_parent, &validation_data).await
+			{
 				let _ = ctx
 					.send_message(AllMessages::CollatorProtocol(
-						CollatorProtocolMessage::PreConnectAsCollator(relay_parent),
+						CollatorProtocolMessage::ForecastCollation(relay_parent, forecast),
 					))
 					.await;
 				gum::debug!(
