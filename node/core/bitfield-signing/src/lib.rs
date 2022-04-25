@@ -36,15 +36,14 @@ use polkadot_node_subsystem::{
 	},
 	ActivatedLeaf, LeafStatus, PerLeafSpan, SubsystemSender,
 };
-use polkadot_node_subsystem_util::{
-	self as util,
-	metrics::{self, prometheus},
-	JobSender, JobSubsystem, JobTrait, Validator,
-};
+use polkadot_node_subsystem_util::{self as util, JobSender, JobSubsystem, JobTrait, Validator};
 use polkadot_primitives::v2::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
 use std::{iter::FromIterator, pin::Pin, time::Duration};
 use wasm_timer::{Delay, Instant};
+
+mod metrics;
+use self::metrics::Metrics;
 
 #[cfg(test)]
 mod tests;
@@ -181,51 +180,6 @@ async fn construct_availability_bitfield(
 	);
 
 	Ok(AvailabilityBitfield(core_bits))
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	bitfields_signed_total: prometheus::Counter<prometheus::U64>,
-	run: prometheus::Histogram,
-}
-
-/// Bitfield signing metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_bitfield_signed(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.bitfields_signed_total.inc();
-		}
-	}
-
-	/// Provide a timer for `prune_povs` which observes on drop.
-	fn time_run(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.run.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			bitfields_signed_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_bitfields_signed_total",
-					"Number of bitfields signed.",
-				)?,
-				registry,
-			)?,
-			run: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_bitfield_signing_run",
-					"Time spent within `bitfield_signing::run`",
-				))?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
-	}
 }
 
 impl JobTrait for BitfieldSigningJob {
