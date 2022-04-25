@@ -14,6 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! The collator protocol implementation receives collations and forecasts for collations from the collation-generation and then makes sure to advertise those collations to the right validators, ensuring the necessary connections are open. This is taken care of by the `advertising` submodule.
+//!
+//! Afterwards requests for those collations must be handled, that is handled by the `responding`
+//! module.
+//!
+//! The third functionality that is implemented is forwarding `Seconded` responses to the
+//! collation-generation, is also taken care of by the responder, as it keeps track of available
+//! collations and can issue the necessary cleanup of obsolete response senders.
 use std::{
 	collections::{HashMap, HashSet, VecDeque},
 	iter,
@@ -53,7 +61,6 @@ use polkadot_subsystem::{
 use super::{LOG_TARGET, NEXT_GROUP_PRECONNECT_WINDOW};
 use crate::error::{log_error, Error, FatalError, Result};
 use fatality::Split;
-
 
 /// Advertising of collations to validators
 ///
@@ -205,23 +212,6 @@ enum AssignmentType {
 }
 
 struct State {
-	/// Our network peer id.
-	local_peer_id: PeerId,
-
-	/// Our collator pair.
-	collator_pair: CollatorPair,
-
-	/// The para this collator is collating on.
-	/// Starts as `None` and is updated with every `CollateOn` message.
-	collating_on: Option<ParaId>,
-
-	/// Track all active peers and their views
-	/// to determine what is relevant to them.
-	peer_views: HashMap<PeerId, View>,
-
-	/// Our own view.
-	view: OurView,
-
 	/// Span per relay parent.
 	span_per_relay_parent: HashMap<Hash, PerLeafSpan>,
 
@@ -260,12 +250,7 @@ impl State {
 	/// state fields to their default values (i.e. empty).
 	fn new(local_peer_id: PeerId, collator_pair: CollatorPair, metrics: Metrics) -> State {
 		State {
-			local_peer_id,
-			collator_pair,
 			metrics,
-			collating_on: Default::default(),
-			peer_views: Default::default(),
-			view: Default::default(),
 			span_per_relay_parent: Default::default(),
 			collations: Default::default(),
 			collation_result_senders: Default::default(),
@@ -276,14 +261,6 @@ impl State {
 		}
 	}
 
-	/// Get all peers which have the given relay parent in their view.
-	fn peers_interested_in_leaf(&self, relay_parent: &Hash) -> Vec<PeerId> {
-		self.peer_views
-			.iter()
-			.filter(|(_, v)| v.contains(relay_parent))
-			.map(|(peer, _)| *peer)
-			.collect()
-	}
 }
 
 /// Distribute a collation.

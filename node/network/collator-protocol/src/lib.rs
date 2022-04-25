@@ -41,6 +41,7 @@ use polkadot_subsystem::{
 
 mod error;
 
+/// Collator side of the protocol
 mod collator_side;
 mod validator_side;
 
