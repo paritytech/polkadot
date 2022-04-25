@@ -83,7 +83,7 @@ pub enum Error {
 	#[error("FetchPoV failed")]
 	FetchPoV,
 	#[error("Failed to spawn background task")]
-	FailedToSpawnBg,
+	FailedToSpawnBackgroundTask,
 	#[error("ValidateFromChainState channel closed before receipt")]
 	ValidateFromChainState(#[source] oneshot::Canceled),
 	#[error("StoreAvailableData channel closed before receipt")]
@@ -920,7 +920,7 @@ where
 			};
 
 			ctx.spawn("backing-validation", bg.boxed())
-				.map_err(|_| Error::FailedToSpawnBg)?;
+				.map_err(|_| Error::FailedToSpawnBackgroundTask)?;
 		}
 
 		Ok(())
