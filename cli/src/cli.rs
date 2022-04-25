@@ -70,6 +70,9 @@ pub enum Subcommand {
 	/// Key management CLI utilities
 	#[clap(subcommand)]
 	Key(sc_cli::KeySubcommand),
+
+	/// Db meta columns information.
+	ChainInfo(sc_cli::ChainInfoCmd),
 }
 
 #[allow(missing_docs)]
