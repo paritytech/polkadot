@@ -8,7 +8,10 @@ There are a few basic ground-rules for contributors (including the maintainer(s)
 - **Non-master branches**, prefixed with a short name moniker (e.g. `gav-my-feature`) must be used for ongoing work.
 - **All modifications** must be made in a **pull-request** to solicit feedback from other contributors.
 - A pull-request _must not be merged until CI_ has finished successfully.
-- Contributors should adhere to the [house coding style](https://github.com/paritytech/polkadot/wiki/Style-Guide).
+- Contributors should apply `cargo +nightly fmt` with the version used in CI.
+- Synchronized changes must have annotations with the respective [companion PRs of substrate and cumulus](https://github.com/paritytech/substrate/blob/master/docs/CONTRIBUTING.adoc#updating-polkadot-as-well), tl;dr add the following lines at the _end_ of your PR description:
+  - `substrate companion: https://github.com/paritytech/substrate/pulls/#1234`
+  - `cumulus companion: https://github.com/paritytech/cumulus/pulls/#5678`
 
 ### Merging pull requests once CI is successful
 
@@ -32,6 +35,21 @@ When reviewing a pull request, the end-goal is to suggest useful changes to the 
 
 - There exists a somewhat cleaner/better/faster way of accomplishing the same feature/fix.
 - It does not fit well with some other contributors' longer-term vision for the project.
+
+### Helping out
+
+We use labels to manage PRs and issues and communicate state of a PR. Please familiarize yourself with them. Furthermore we are organizing issues in milestones. Best way to get started is to a pick a ticket from the current milestone tagged easy or medium and get going or mentor and get in contact with the mentor offering their support on that larger task.
+Issues
+
+Please label issues with the following labels:
+
+    I-* Issue severity and type. EXACTLY ONE REQUIRED.
+
+    P-* Issue priority. AT MOST ONE ALLOWED.
+
+    Q-* Issue difficulty. AT MOST ONE ALLOWED.
+
+    Z-* More general tags on the issue, denoting context and resolution.
 
 ## Releases
 
