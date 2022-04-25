@@ -609,7 +609,7 @@ pub fn run() -> Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
 
-			Ok(runner.sync_run(|config| cmd.run::<Block>(&config))?)
+			Ok(runner.sync_run(|config| cmd.run::<service::Block>(&config))?)
 		}
 	}?;
 
