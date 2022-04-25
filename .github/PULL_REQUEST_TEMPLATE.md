@@ -12,7 +12,6 @@ Ref #
 Apply labels!
 -->
 
-
 ## Checklist
 
 - [ ] Labels applied correctly? See the [contributing guidlines](../CONTRIBUTING.md).
