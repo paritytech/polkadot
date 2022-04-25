@@ -54,6 +54,28 @@ use super::{LOG_TARGET, NEXT_GROUP_PRECONNECT_WINDOW};
 use crate::error::{log_error, Error, FatalError, Result};
 use fatality::Split;
 
+
+/// Advertising of collations to validators
+///
+/// - Keep track of validator groups
+/// - Keep track of views of connected validators
+/// - Ensure needed connections are open and unneeded ones are closed
+/// - Send out collation advertisments according to protocol (on correct views and to correct
+/// validators)
+mod advertising;
+
+/// Process incoming collation requests
+///
+/// The whole request/response mechanism for actually getting collations to the validators is
+/// handled here.
+///
+/// In particular:
+///
+/// - Queue/dequeue incoming requests with some processing policy
+/// - Keep track of available collations & clean up unneeded onces.
+/// - Gracefully handle requests for collations that are not yet ready.
+mod responding;
+
 /// Metrics for the collator side of the collator protocol.
 mod metrics;
 pub use metrics::Metrics;
