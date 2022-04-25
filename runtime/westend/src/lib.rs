@@ -25,7 +25,7 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_election_provider_support::{onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
+	traits::{Contains, InstanceFilter, KeyOwnerProofSystem},
 	weights::ConstantMultiplier,
 	PalletId,
 };
@@ -1098,31 +1098,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(
-		SlotsCrowdloanIndexMigration,
-		pallet_staking::migrations::v9::InjectValidatorsIntoVoterList<Runtime>,
-	),
+	(),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-// Migration for crowdloan pallet to use fund index for account generation.
-pub struct SlotsCrowdloanIndexMigration;
-impl OnRuntimeUpgrade for SlotsCrowdloanIndexMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		slots::migration::slots_crowdloan_index_migration::migrate::<Runtime>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		slots::migration::slots_crowdloan_index_migration::pre_migrate::<Runtime>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		slots::migration::slots_crowdloan_index_migration::post_migrate::<Runtime>()
-	}
-}
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
