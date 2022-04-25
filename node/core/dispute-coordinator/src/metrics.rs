@@ -98,9 +98,9 @@ impl Metrics {
 	pub fn time_db_write_operation(
 		&self,
 	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0
-			.as_ref()
-			.map(|metrics| metrics.db_operations.with_label_values(&["write", "flush"]).start_timer())
+		self.0.as_ref().map(|metrics| {
+			metrics.db_operations.with_label_values(&["write", "flush"]).start_timer()
+		})
 	}
 
 	/// Time a DB read operation.
