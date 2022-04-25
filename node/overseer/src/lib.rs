@@ -74,9 +74,11 @@ use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 use polkadot_primitives::v2::{
 	Block, BlockId, BlockNumber, CandidateCommitments, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Header, Id, InboundDownwardMessage, InboundHrmpMessage,
-	OccupiedCoreAssumption, ParachainHost, PersistedValidationData, PvfCheckStatement,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
 	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
 	ValidatorId, ValidatorIndex, ValidatorSignature,
+use polkadot_primitives::{
+	runtime_api::ParachainHost,
 };
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
