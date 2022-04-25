@@ -27,6 +27,7 @@ use polkadot_subsystem::{
 	jaeger,
 	jaeger::{PerLeafSpan, Span},
 };
+use rand_chacha::ChaCha12Rng;
 use sp_application_crypto::AppKey;
 use sp_core::Pair as PairT;
 use sp_keyring::Sr25519Keyring;
@@ -40,6 +41,11 @@ macro_rules! launch {
 			.await
 			.expect("10ms is more than enough for sending messages.")
 	};
+}
+
+/// Pre-seeded `crypto` random numbers generator for testing purposes
+fn dummy_rng() -> ChaCha12Rng {
+	rand_chacha::ChaCha12Rng::seed_from_u64(12345)
 }
 
 /// A very limited state, only interested in the relay parent of the
@@ -67,7 +73,10 @@ fn prewarmed_state(
 				},
 		},
 		peer_views: peers.iter().cloned().map(|peer| (peer, view!(relay_parent))).collect(),
-		topology: SessionGridTopology { peers_x: peers.into_iter().collect(), ..Default::default()},
+		topology: SessionGridTopology {
+			peers_x: peers.into_iter().collect(),
+			..Default::default()
+		},
 		view: our_view!(relay_parent),
 	}
 }
@@ -191,6 +200,7 @@ fn receive_invalid_signature() {
 		.unwrap()
 		.validator_set
 		.push(validator_1.into());
+	let mut rng = dummy_rng();
 
 	executor::block_on(async move {
 		launch!(handle_network_msg(
@@ -198,6 +208,7 @@ fn receive_invalid_signature() {
 			&mut state,
 			&Default::default(),
 			NetworkBridgeEvent::PeerMessage(peer_b.clone(), invalid_msg.into_network_message()),
+			&mut rng,
 		));
 
 		// reputation doesn't change due to one_job_per_validator check
@@ -208,6 +219,7 @@ fn receive_invalid_signature() {
 			&mut state,
 			&Default::default(),
 			NetworkBridgeEvent::PeerMessage(peer_b.clone(), invalid_msg_2.into_network_message()),
+			&mut rng,
 		));
 		// reputation change due to invalid signature
 		assert_matches!(
@@ -259,6 +271,7 @@ fn receive_invalid_validator_index() {
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (mut ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+	let mut rng = dummy_rng();
 
 	executor::block_on(async move {
 		launch!(handle_network_msg(
@@ -266,6 +279,7 @@ fn receive_invalid_validator_index() {
 			&mut state,
 			&Default::default(),
 			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.into_network_message()),
+			&mut rng,
 		));
 
 		// reputation change due to invalid validator index
@@ -319,6 +333,7 @@ fn receive_duplicate_messages() {
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (mut ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+	let mut rng = dummy_rng();
 
 	executor::block_on(async move {
 		// send a first message
@@ -327,6 +342,7 @@ fn receive_duplicate_messages() {
 			&mut state,
 			&Default::default(),
 			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.clone().into_network_message(),),
+			&mut rng,
 		));
 
 		// none of our peers has any interest in any messages
@@ -359,6 +375,7 @@ fn receive_duplicate_messages() {
 			&mut state,
 			&Default::default(),
 			NetworkBridgeEvent::PeerMessage(peer_a.clone(), msg.clone().into_network_message(),),
+			&mut rng,
 		));
 
 		assert_matches!(
@@ -377,6 +394,7 @@ fn receive_duplicate_messages() {
 			&mut state,
 			&Default::default(),
 			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.clone().into_network_message(),),
+			&mut rng,
 		));
 
 		assert_matches!(
@@ -431,9 +449,13 @@ fn do_not_relay_message_twice() {
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (mut ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+	let mut rng = dummy_rng();
 
 	executor::block_on(async move {
-		let gossip_peers = HashSet::from_iter(vec![peer_a.clone(), peer_b.clone()].into_iter());
+		let gossip_peers = SessionGridTopology {
+			peers_x: HashSet::from_iter(vec![peer_a.clone(), peer_b.clone()].into_iter()),
+			..Default::default()
+		};
 		relay_message(
 			&mut ctx,
 			state.per_relay_parent.get_mut(&hash).unwrap(),
@@ -441,6 +463,8 @@ fn do_not_relay_message_twice() {
 			&mut state.peer_views,
 			validator.clone(),
 			msg.clone(),
+			RequiredRouting::GridXY,
+			&mut rng,
 		)
 		.await;
 
@@ -475,6 +499,8 @@ fn do_not_relay_message_twice() {
 			&mut state.peer_views,
 			validator.clone(),
 			msg.clone(),
+			RequiredRouting::GridXY,
+			&mut rng,
 		)
 		.await;
 
@@ -532,6 +558,7 @@ fn changing_view() {
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (mut ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+	let mut rng = dummy_rng();
 
 	executor::block_on(async move {
 		launch!(handle_network_msg(
@@ -539,6 +566,7 @@ fn changing_view() {
 			&mut state,
 			&Default::default(),
 			NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, 1, None),
+			&mut rng,
 		));
 
 		// make peer b interested
@@ -547,6 +575,7 @@ fn changing_view() {
 			&mut state,
 			&Default::default(),
 			NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a, hash_b]),
+			&mut rng,
 		));
 
 		assert!(state.peer_views.contains_key(&peer_b));
@@ -557,6 +586,7 @@ fn changing_view() {
 			&mut state,
 			&Default::default(),
 			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.clone().into_network_message(),),
+			&mut rng,
 		));
 
 		// gossip to the overseer
@@ -587,6 +617,7 @@ fn changing_view() {
 			&mut state,
 			&Default::default(),
 			NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![]),
+			&mut rng,
 		));
 
 		assert!(state.peer_views.contains_key(&peer_b));
@@ -599,6 +630,7 @@ fn changing_view() {
 			&mut state,
 			&Default::default(),
 			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.clone().into_network_message(),),
+			&mut rng,
 		));
 
 		// reputation change for peer B
@@ -617,6 +649,7 @@ fn changing_view() {
 			&mut state,
 			&Default::default(),
 			NetworkBridgeEvent::PeerDisconnected(peer_b.clone()),
+			&mut rng,
 		));
 
 		// we are not interested in any peers at all anymore
@@ -629,6 +662,7 @@ fn changing_view() {
 			&mut state,
 			&Default::default(),
 			NetworkBridgeEvent::PeerMessage(peer_a.clone(), msg.clone().into_network_message(),),
+			&mut rng,
 		));
 
 		// reputation change for peer B
@@ -683,6 +717,7 @@ fn do_not_send_message_back_to_origin() {
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (mut ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+	let mut rng = dummy_rng();
 
 	executor::block_on(async move {
 		// send a first message
@@ -691,6 +726,7 @@ fn do_not_send_message_back_to_origin() {
 			&mut state,
 			&Default::default(),
 			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.clone().into_network_message(),),
+			&mut rng,
 		));
 
 		assert_matches!(

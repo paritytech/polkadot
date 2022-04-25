@@ -6342,6 +6342,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "rand 0.8.5",
+ "rand_chacha 0.3.1",
  "sp-application-crypto",
  "sp-core",
  "sp-keyring",
