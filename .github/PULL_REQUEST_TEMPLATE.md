@@ -15,7 +15,7 @@ Apply labels!
 ## Checklist
 
 - [ ] Labels applied correctly? See the [contributing guidlines](../CONTRIBUTING.md).
-- [ ] Workspace compiles `cargo build --workspace`?
+- [ ] Workspace compiles `cargo check --workspace --tests`?
 - [ ] Workspace tests `cargo test --workspace`?
 - [ ] Applied `cargo +nightly fmt` with the version from CI?
 - [ ] Ran `cargo spellcheck` without any fallout? If any, update `.spellcheck/lingua.dic`.
