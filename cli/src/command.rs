@@ -302,6 +302,15 @@ where
 	};
 
 	runner.run_node_until_exit(move |config| async move {
+		let hwbench = if !cli.run.no_hardware_benchmarks {
+			config.database.path().map(|database_path| {
+				let _ = std::fs::create_dir_all(&database_path);
+				sc_sysinfo::gather_hwbench(Some(database_path))
+			})
+		} else {
+			None
+		};
+
 		let role = config.role.clone();
 
 		match role {
@@ -315,6 +324,7 @@ where
 				None,
 				false,
 				overseer_gen,
+				hwbench,
 			)
 			.map(|full| full.task_manager)
 			.map_err(Into::into),
