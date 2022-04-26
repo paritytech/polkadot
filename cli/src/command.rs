@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::cli::{Cli, Subcommand};
-use frame_benchmarking_cli::{BenchmarkCmd, POLKADOT_REFERENCE_HARDWARE};
+use frame_benchmarking_cli::{BenchmarkCmd, SUBSTRATE_REFERENCE_HARDWARE};
 use futures::future::TryFutureExt;
 use log::info;
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
@@ -529,7 +529,7 @@ pub fn run() -> Result<()> {
 					Err(service::Error::NoRuntime.into())
 				},
 				BenchmarkCmd::Machine(cmd) => runner.sync_run(|config| {
-					cmd.run(&config, POLKADOT_REFERENCE_HARDWARE.clone())
+					cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone())
 						.map_err(Error::SubstrateCli)
 				}),
 				// NOTE: this allows the Polkadot client to leniently implement
