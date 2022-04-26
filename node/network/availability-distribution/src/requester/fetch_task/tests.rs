@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{collections::HashMap, convert::TryFrom};
+use std::collections::HashMap;
 
 use parity_scale_codec::Encode;
 
@@ -235,7 +235,7 @@ impl TestRun {
 				let mut valid_responses = 0;
 				for req in reqs {
 					let req = match req {
-						Requests::ChunkFetching(req) => req,
+						Requests::ChunkFetchingV1(req) => req,
 						_ => panic!("Unexpected request"),
 					};
 					let response =

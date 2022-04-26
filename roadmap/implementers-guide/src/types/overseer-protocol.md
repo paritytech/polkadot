@@ -175,6 +175,8 @@ struct BlockApprovalMeta {
     candidates: Vec<CandidateHash>,
     /// The consensus slot of the block.
     slot: Slot,
+    /// The session of the block.
+    session: SessionIndex,
 }
 
 enum ApprovalDistributionMessage {
@@ -191,7 +193,7 @@ enum ApprovalDistributionMessage {
     /// the message.
     DistributeApproval(IndirectSignedApprovalVote),
     /// An update from the network bridge.
-    NetworkBridgeUpdateV1(NetworkBridgeEvent<ApprovalDistributionV1Message>),
+    NetworkBridgeUpdate(NetworkBridgeEvent<ApprovalDistributionV1Message>),
 }
 ```
 
@@ -282,7 +284,7 @@ enum BitfieldDistributionMessage {
     /// The bitfield distribution subsystem will assume this is indeed correctly signed.
     DistributeBitfield(relay_parent, SignedAvailabilityBitfield),
     /// Receive a network bridge update.
-    NetworkBridgeUpdateV1(NetworkBridgeEvent<BitfieldDistributionV1Message>),
+    NetworkBridgeUpdate(NetworkBridgeEvent<BitfieldDistributionV1Message>),
 }
 ```
 
@@ -553,9 +555,14 @@ enum NetworkBridgeMessage {
     /// Inform the distribution subsystems about the new
     /// gossip network topology formed.
     NewGossipTopology {
-        /// Ids of our neighbors in the new gossip topology.
-        /// We're not necessarily connected to all of them, but we should.
-        our_neighbors: HashSet<AuthorityDiscoveryId>,
+        /// The session this topology corresponds to.
+        session: SessionIndex,
+        /// Ids of our neighbors in the X dimension of the new gossip topology.
+        /// We're not necessarily connected to all of them, but we should try to be.
+        our_neighbors_x: HashSet<AuthorityDiscoveryId>,
+        /// Ids of our neighbors in the Y dimension of the new gossip topology.
+        /// We're not necessarily connected to all of them, but we should try to be.
+        our_neighbors_y: HashSet<AuthorityDiscoveryId>,
     }
 }
 ```
@@ -636,7 +643,7 @@ enum PoVDistributionMessage {
     /// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
     DistributePoV(Hash, CandidateDescriptor, PoV),
     /// An update from the network bridge.
-    NetworkBridgeUpdateV1(NetworkBridgeEvent<PoVDistributionV1Message>),
+    NetworkBridgeUpdate(NetworkBridgeEvent<PoVDistributionV1Message>),
 }
 ```
 
@@ -740,7 +747,7 @@ This is a network protocol that receives messages of type [`StatementDistributio
 ```rust
 enum StatementDistributionMessage {
     /// An update from the network bridge.
-    NetworkBridgeUpdateV1(NetworkBridgeEvent<StatementDistributionV1Message>),
+    NetworkBridgeUpdate(NetworkBridgeEvent<StatementDistributionV1Message>),
     /// We have validated a candidate and want to share our judgment with our peers.
     /// The hash is the relay parent.
     ///

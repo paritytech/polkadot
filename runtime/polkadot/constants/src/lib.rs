@@ -40,9 +40,10 @@ pub mod currency {
 /// Time and blocks.
 pub mod time {
 	use primitives::v2::{BlockNumber, Moment};
+	use runtime_common::prod_or_fast;
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
-	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 4 * HOURS;
+	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = prod_or_fast!(4 * HOURS, 1 * MINUTES);
 
 	// These time units are defined in number of blocks.
 	pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
@@ -105,13 +106,12 @@ mod tests {
 	use runtime_common::MAXIMUM_BLOCK_WEIGHT;
 
 	#[test]
-	// This function tests that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight is correct
+	// Test that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight has sane bounds.
 	fn full_block_fee_is_correct() {
-		// A full block should cost 16 DOLLARS
-		println!("Base: {}", ExtrinsicBaseWeight::get());
-		let x = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
-		let y = 16 * DOLLARS;
-		assert!(x.max(y) - x.min(y) < MILLICENTS);
+		// A full block should cost between 10 and 100 DOLLARS.
+		let full_block = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
+		assert!(full_block >= 10 * DOLLARS);
+		assert!(full_block <= 100 * DOLLARS);
 	}
 
 	#[test]

@@ -20,7 +20,6 @@
 
 use std::{
 	collections::{HashMap, VecDeque},
-	convert::TryFrom,
 	pin::Pin,
 	time::Duration,
 };
@@ -202,7 +201,7 @@ impl RequestFromBackers {
 			sender
 				.send_message(
 					NetworkBridgeMessage::SendRequests(
-						vec![Requests::AvailableDataFetching(req)],
+						vec![Requests::AvailableDataFetchingV1(req)],
 						IfDisconnected::ImmediateError,
 					)
 					.into(),
@@ -305,7 +304,20 @@ impl RequestChunksFromValidators {
 		sender: &mut impl SubsystemSender,
 	) {
 		let num_requests = self.get_desired_request_count(params.threshold);
-		let mut requests = Vec::with_capacity(num_requests - self.requesting_chunks.len());
+		let candidate_hash = &params.candidate_hash;
+		let already_requesting_count = self.requesting_chunks.len();
+
+		gum::debug!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			?num_requests,
+			error_count= ?self.error_count,
+			total_received = ?self.total_received_responses,
+			threshold = ?params.threshold,
+			?already_requesting_count,
+			"Requesting availability chunks for a candidate",
+		);
+		let mut requests = Vec::with_capacity(num_requests - already_requesting_count);
 
 		while self.requesting_chunks.len() < num_requests {
 			if let Some(validator_index) = self.shuffling.pop_back() {
@@ -314,7 +326,7 @@ impl RequestChunksFromValidators {
 					target: LOG_TARGET,
 					?validator,
 					?validator_index,
-					candidate_hash = ?params.candidate_hash,
+					?candidate_hash,
 					"Requesting chunk",
 				);
 
@@ -326,7 +338,7 @@ impl RequestChunksFromValidators {
 
 				let (req, res) =
 					OutgoingRequest::new(Recipient::Authority(validator), raw_request.clone());
-				requests.push(Requests::ChunkFetching(req));
+				requests.push(Requests::ChunkFetchingV1(req));
 
 				params.metrics.on_chunk_request_issued();
 				let timer = params.metrics.time_chunk_request();
@@ -448,6 +460,14 @@ impl RequestChunksFromValidators {
 			// Stop waiting for requests when we either can already recover the data
 			// or have gotten firm 'No' responses from enough validators.
 			if self.can_conclude(params) {
+				gum::debug!(
+					target: LOG_TARGET,
+					candidate_hash = ?params.candidate_hash,
+					received_chunks_count = ?self.received_chunks.len(),
+					requested_chunks_count = ?self.requesting_chunks.len(),
+					threshold = ?params.threshold,
+					"Can conclude availability for a candidate",
+				);
 				break
 			}
 		}
@@ -490,6 +510,8 @@ impl RequestChunksFromValidators {
 			}
 		}
 
+		let _recovery_timer = metrics.time_full_recovery();
+
 		loop {
 			if self.is_unavailable(&params) {
 				gum::debug!(
@@ -503,10 +525,11 @@ impl RequestChunksFromValidators {
 					"Data recovery is not possible",
 				);
 
+				metrics.on_recovery_failed();
+
 				return Err(RecoveryError::Unavailable)
 			}
 
-			let recovery_possible = metrics.time_erasure_recovery_becomes_possible();
 			self.launch_parallel_requests(params, sender).await;
 			self.wait_for_chunks(params).await;
 
@@ -514,7 +537,6 @@ impl RequestChunksFromValidators {
 			// If that fails, or a re-encoding of it doesn't match the expected erasure root,
 			// return Err(RecoveryError::Invalid)
 			if self.received_chunks.len() >= params.threshold {
-				drop(recovery_possible);
 				let recovery_duration = metrics.time_erasure_recovery();
 
 				return match polkadot_erasure_coding::reconstruct_v1(
@@ -533,6 +555,7 @@ impl RequestChunksFromValidators {
 								erasure_root = ?params.erasure_root,
 								"Data recovery complete",
 							);
+							metrics.on_recovery_succeeded();
 
 							Ok(data)
 						} else {
@@ -543,6 +566,7 @@ impl RequestChunksFromValidators {
 								erasure_root = ?params.erasure_root,
 								"Data recovery - root mismatch",
 							);
+							metrics.on_recovery_invalid();
 
 							Err(RecoveryError::Invalid)
 						}
@@ -556,12 +580,11 @@ impl RequestChunksFromValidators {
 							?err,
 							"Data recovery error ",
 						);
+						metrics.on_recovery_invalid();
 
 						Err(RecoveryError::Invalid)
 					},
 				}
-			} else {
-				recovery_possible.map(|rp| rp.stop_and_discard());
 			}
 		}
 	}
@@ -637,6 +660,8 @@ impl<S: SubsystemSender> RecoveryTask<S> {
 				},
 			}
 		}
+
+		self.params.metrics.on_recovery_started();
 
 		loop {
 			// These only fail if we cannot reach the underlying subsystem, which case there is nothing

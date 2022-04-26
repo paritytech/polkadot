@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Parity Technologies (UK) Ltd.
+// Copyright 2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -31,18 +31,16 @@ use futures::{
 };
 
 use polkadot_node_primitives::{
-	AvailableData, PoV, SignedDisputeStatement, SignedFullStatement, Statement, ValidationResult,
-	BACKING_EXECUTION_TIMEOUT,
+	AvailableData, InvalidCandidate, PoV, SignedDisputeStatement, SignedFullStatement, Statement,
+	ValidationResult, BACKING_EXECUTION_TIMEOUT,
 };
 use polkadot_node_subsystem_util::{
-	self as util,
-	metrics::{self, prometheus},
-	request_from_runtime, request_session_index_for_child, request_validator_groups,
+	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
 	request_validators, FromJobCommand, JobSender, Validator,
 };
 use polkadot_primitives::v2::{
-	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
-	CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
+	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
+	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
 	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use polkadot_subsystem::{
@@ -65,6 +63,9 @@ use statement_table::{
 	Context as TableContextTrait, Table,
 };
 use thiserror::Error;
+
+mod metrics;
+use self::metrics::Metrics;
 
 #[cfg(test)]
 mod tests;
@@ -378,14 +379,14 @@ async fn request_pov(
 
 async fn request_candidate_validation(
 	sender: &mut JobSender<impl SubsystemSender>,
-	candidate: CandidateDescriptor,
+	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 ) -> Result<ValidationResult, Error> {
 	let (tx, rx) = oneshot::channel();
 
 	sender
 		.send_message(CandidateValidationMessage::ValidateFromChainState(
-			candidate,
+			candidate_receipt,
 			pov,
 			BACKING_EXECUTION_TIMEOUT,
 			tx,
@@ -456,10 +457,8 @@ async fn validate_and_make_available(
 				.with_pov(&pov)
 				.with_para_id(candidate.descriptor().para_id)
 		});
-		request_candidate_validation(&mut sender, candidate.descriptor.clone(), pov.clone()).await?
+		request_candidate_validation(&mut sender, candidate.clone(), pov.clone()).await?
 	};
-
-	let expected_commitments_hash = candidate.commitments_hash;
 
 	let res = match v {
 		ValidationResult::Valid(commitments, validation_data) => {
@@ -469,40 +468,38 @@ async fn validate_and_make_available(
 				"Validation successful",
 			);
 
-			// If validation produces a new set of commitments, we vote the candidate as invalid.
-			if commitments.hash() != expected_commitments_hash {
-				gum::debug!(
-					target: LOG_TARGET,
-					candidate_hash = ?candidate.hash(),
-					actual_commitments = ?commitments,
-					"Commitments obtained with validation don't match the announced by the candidate receipt",
-				);
-				Err(candidate)
-			} else {
-				let erasure_valid = make_pov_available(
-					&mut sender,
-					n_validators,
-					pov.clone(),
-					candidate.hash(),
-					validation_data,
-					candidate.descriptor.erasure_root,
-					span.as_ref(),
-				)
-				.await?;
+			let erasure_valid = make_pov_available(
+				&mut sender,
+				n_validators,
+				pov.clone(),
+				candidate.hash(),
+				validation_data,
+				candidate.descriptor.erasure_root,
+				span.as_ref(),
+			)
+			.await?;
 
-				match erasure_valid {
-					Ok(()) => Ok((candidate, commitments, pov.clone())),
-					Err(InvalidErasureRoot) => {
-						gum::debug!(
-							target: LOG_TARGET,
-							candidate_hash = ?candidate.hash(),
-							actual_commitments = ?commitments,
-							"Erasure root doesn't match the announced by the candidate receipt",
-						);
-						Err(candidate)
-					},
-				}
+			match erasure_valid {
+				Ok(()) => Ok((candidate, commitments, pov.clone())),
+				Err(InvalidErasureRoot) => {
+					gum::debug!(
+						target: LOG_TARGET,
+						candidate_hash = ?candidate.hash(),
+						actual_commitments = ?commitments,
+						"Erasure root doesn't match the announced by the candidate receipt",
+					);
+					Err(candidate)
+				},
 			}
+		},
+		ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch) => {
+			// If validation produces a new set of commitments, we vote the candidate as invalid.
+			gum::warn!(
+				target: LOG_TARGET,
+				candidate_hash = ?candidate.hash(),
+				"Validation yielded different commitments",
+			);
+			Err(candidate)
 		},
 		ValidationResult::Invalid(reason) => {
 			gum::debug!(
@@ -891,16 +888,13 @@ impl CandidateBackingJob {
 		if let (Some(candidate_receipt), Some(dispute_statement)) =
 			(maybe_candidate_receipt, maybe_signed_dispute_statement)
 		{
-			// TODO: Log confirmation results in an efficient way:
-			// https://github.com/paritytech/polkadot/issues/5156
-			let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 			sender
 				.send_message(DisputeCoordinatorMessage::ImportStatements {
 					candidate_hash,
 					candidate_receipt,
 					session: self.session_index,
 					statements: vec![(dispute_statement, validator_index)],
-					pending_confirmation,
+					pending_confirmation: None,
 				})
 				.await;
 		}
@@ -1307,93 +1301,6 @@ impl util::JobTrait for CandidateBackingJob {
 			job.run_loop(sender, rx_to, span).await
 		}
 		.boxed()
-	}
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	signed_statements_total: prometheus::Counter<prometheus::U64>,
-	candidates_seconded_total: prometheus::Counter<prometheus::U64>,
-	process_second: prometheus::Histogram,
-	process_statement: prometheus::Histogram,
-	get_backed_candidates: prometheus::Histogram,
-}
-
-/// Candidate backing metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_statement_signed(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.signed_statements_total.inc();
-		}
-	}
-
-	fn on_candidate_seconded(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.candidates_seconded_total.inc();
-		}
-	}
-
-	/// Provide a timer for handling `CandidateBackingMessage:Second` which observes on drop.
-	fn time_process_second(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.process_second.start_timer())
-	}
-
-	/// Provide a timer for handling `CandidateBackingMessage::Statement` which observes on drop.
-	fn time_process_statement(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.process_statement.start_timer())
-	}
-
-	/// Provide a timer for handling `CandidateBackingMessage::GetBackedCandidates` which observes on drop.
-	fn time_get_backed_candidates(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.get_backed_candidates.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			signed_statements_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_candidate_backing_signed_statements_total",
-					"Number of statements signed.",
-				)?,
-				registry,
-			)?,
-			candidates_seconded_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_candidate_backing_candidates_seconded_total",
-					"Number of candidates seconded.",
-				)?,
-				registry,
-			)?,
-			process_second: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_candidate_backing_process_second",
-					"Time spent within `candidate_backing::process_second`",
-				))?,
-				registry,
-			)?,
-			process_statement: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_candidate_backing_process_statement",
-					"Time spent within `candidate_backing::process_statement`",
-				))?,
-				registry,
-			)?,
-			get_backed_candidates: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_candidate_backing_get_backed_candidates",
-					"Time spent within `candidate_backing::get_backed_candidates`",
-				))?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
 	}
 }
 

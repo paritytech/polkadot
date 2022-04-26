@@ -3,7 +3,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 name = "xcm-executor"
 description = "An abstract and configurable XCM message executor."
-version = "0.9.18"
+version = "0.9.19"
 
 [dependencies]
 impl-trait-for-tuples = "0.2.2"
@@ -15,7 +15,7 @@ sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "mas
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-log = { version = "0.4.14", default-features = false }
+log = { version = "0.4.16", default-features = false }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false, optional = true }
 
 [features]
