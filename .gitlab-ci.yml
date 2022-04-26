@@ -330,13 +330,10 @@ build-malus:
         "--branch=$PIPELINE_SCRIPTS_TAG"
         https://github.com/paritytech/pipeline-scripts
     - ./pipeline-scripts/check_dependent_project.sh
-        paritytech
-        polkadot
-        --polkadot
-        "$DEPENDENT_REPO"
-        "$GITHUB_PR_TOKEN"
-        "$CARGO_UPDATE_CRATES"
-        "$EXTRA_DEPENDENCIES"
+        --org paritytech
+        --dependent-repo "$DEPENDENT_REPO"
+        --github-api-token "$GITHUB_PR_TOKEN"
+        --extra-dependencies "$EXTRA_DEPENDENCIES"
 
 check-dependent-cumulus:
   <<: *check-dependent-project
