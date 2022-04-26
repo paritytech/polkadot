@@ -417,7 +417,13 @@ pub fn run() -> Result<()> {
 			Ok(runner.async_run(|mut config| {
 				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
 				let aux_revert = Box::new(|client, backend, blocks| {
-					service::revert(client, backend, blocks, config)?;
+					service::revert_backend(client, backend, blocks, config).map_err(|err| {
+						match err {
+							service::Error::Blockchain(err) => err,
+							// Generic application-specific error.
+							err => sp_blockchain::Error::Application(err.into()),
+						}
+					})?;
 					Ok(())
 				});
 				Ok((

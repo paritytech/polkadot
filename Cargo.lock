@@ -6436,6 +6436,7 @@ dependencies = [
  "sc-cli",
  "sc-service",
  "sc-tracing",
+ "sp-blockchain",
  "sp-core",
  "sp-trie",
  "substrate-build-script-utils",

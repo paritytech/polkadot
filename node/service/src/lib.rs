@@ -1393,13 +1393,17 @@ impl ExecuteWithClient for RevertConsensus {
 }
 
 /// Reverts the node state down to at most the last finalized block.
+///
+/// In particular this reverts:
+///  `ChainSelectionSubsystem` data in the parachains-db.
+/// - Low level Babe and Grandpa consensus data.
 #[cfg(feature = "full-node")]
-pub fn revert(
+pub fn revert_backend(
 	client: Arc<Client>,
 	backend: Arc<FullBackend>,
 	blocks: BlockNumber,
 	config: Configuration,
-) -> sp_blockchain::Result<()> {
+) -> Result<(), Error> {
 	let best_number = client.info().best_number;
 	let finalized = client.info().finalized_number;
 	let revertible = blocks.min(best_number - finalized);
@@ -1427,5 +1431,7 @@ pub fn revert(
 		.revert(hash)
 		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))?;
 
-	client.execute_with(RevertConsensus { blocks, backend })
+	client.execute_with(RevertConsensus { blocks, backend })?;
+
+	Ok(())
 }
