@@ -45,7 +45,7 @@ polkadot_path = ENV['GITHUB_WORKSPACE'] + '/polkadot/'
 
 # Generate an ERB renderer based on the template .erb file
 renderer = ERB.new(
-  File.read(File.join(polkadot_path, 'scripts/github/polkadot_release.erb')),
+  File.read(File.join(polkadot_path, 'scripts/ci/github/polkadot_release.erb')),
   trim_mode: '<>'
 )
 

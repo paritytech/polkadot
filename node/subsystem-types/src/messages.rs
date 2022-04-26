@@ -29,7 +29,7 @@ use thiserror::Error;
 pub use sc_network::IfDisconnected;
 
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet, request_response::Requests, v1 as protocol_v1, PeerId,
+	self as net_protocol, peer_set::PeerSet, request_response::Requests, PeerId,
 	UnifiedReputationChange,
 };
 use polkadot_node_primitives::{
@@ -201,7 +201,7 @@ pub enum CollatorProtocolMessage {
 	ReportCollator(CollatorId),
 	/// Get a network bridge update.
 	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
+	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::CollatorProtocolMessage>),
 	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
 	///
 	/// The hash is the relay parent.
@@ -328,20 +328,20 @@ pub enum NetworkBridgeMessage {
 	DisconnectPeer(PeerId, PeerSet),
 
 	/// Send a message to one or more peers on the validation peer-set.
-	SendValidationMessage(Vec<PeerId>, protocol_v1::ValidationProtocol),
+	SendValidationMessage(Vec<PeerId>, net_protocol::VersionedValidationProtocol),
 
 	/// Send a message to one or more peers on the collation peer-set.
-	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
+	SendCollationMessage(Vec<PeerId>, net_protocol::VersionedCollationProtocol),
 
 	/// Send a batch of validation messages.
 	///
 	/// NOTE: Messages will be processed in order (at least statement distribution relies on this).
-	SendValidationMessages(Vec<(Vec<PeerId>, protocol_v1::ValidationProtocol)>),
+	SendValidationMessages(Vec<(Vec<PeerId>, net_protocol::VersionedValidationProtocol)>),
 
 	/// Send a batch of collation messages.
 	///
 	/// NOTE: Messages will be processed in order.
-	SendCollationMessages(Vec<(Vec<PeerId>, protocol_v1::CollationProtocol)>),
+	SendCollationMessages(Vec<(Vec<PeerId>, net_protocol::VersionedCollationProtocol)>),
 
 	/// Send requests via substrate request/response.
 	/// Second parameter, tells what to do if we are not yet connected to the peer.
@@ -455,7 +455,7 @@ pub enum BitfieldDistributionMessage {
 
 	/// Event from the network bridge.
 	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::BitfieldDistributionMessage>),
+	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::BitfieldDistributionMessage>),
 }
 
 impl BitfieldDistributionMessage {
@@ -463,7 +463,7 @@ impl BitfieldDistributionMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::DistributeBitfield(hash, _) => Some(*hash),
-			Self::NetworkBridgeUpdateV1(_) => None,
+			Self::NetworkBridgeUpdate(_) => None,
 		}
 	}
 }
@@ -719,7 +719,7 @@ pub enum StatementDistributionMessage {
 	Share(Hash, SignedFullStatement),
 	/// Event from the network bridge.
 	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
+	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::StatementDistributionMessage>),
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
@@ -913,7 +913,7 @@ pub enum ApprovalDistributionMessage {
 	DistributeApproval(IndirectSignedApprovalVote),
 	/// An update from the network bridge.
 	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>),
+	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::ApprovalDistributionMessage>),
 }
 
 /// Message to the Gossip Support subsystem.
@@ -921,7 +921,7 @@ pub enum ApprovalDistributionMessage {
 pub enum GossipSupportMessage {
 	/// Dummy constructor, so we can receive networking events.
 	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::GossipSuppportNetworkMessage>),
+	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::GossipSupportNetworkMessage>),
 }
 
 /// PVF checker message.
