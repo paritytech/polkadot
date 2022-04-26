@@ -526,7 +526,7 @@ async fn nested_network_dispute_request<'a, F, O>(
 				candidate_receipt,
 				session,
 				statements,
-				pending_confirmation,
+				pending_confirmation: Some(pending_confirmation),
 			}
 		) => {
 			assert_eq!(session, MOCK_SESSION_INDEX);
@@ -668,7 +668,7 @@ async fn check_sent_requests(
 			let reqs: Vec<_> = reqs.into_iter().map(|r|
 				assert_matches!(
 					r,
-					Requests::DisputeSending(req) => {req}
+					Requests::DisputeSendingV1(req) => {req}
 				)
 			)
 			.collect();
