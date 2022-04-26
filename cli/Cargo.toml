@@ -33,6 +33,7 @@ sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", o
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 polkadot-node-metrics = { path = "../node/metrics" }
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
