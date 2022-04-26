@@ -62,7 +62,7 @@ jobs:
           $CMD >> output.txt
           sed -z -i 's/\n\n/\n/g' output.txt
           cat output.txt | egrep -n -i ''
-          SUMMARY=$(./scripts/github/extrinsic-ordering-filter.sh output.txt)
+          SUMMARY=$(./scripts/ci/github/extrinsic-ordering-filter.sh output.txt)
           echo -e $SUMMARY
           echo -e $SUMMARY >> output.txt
 
