@@ -436,12 +436,11 @@ pub fn run() -> Result<()> {
 				let aux_revert = Box::new(|client, backend, blocks| {
 					service::revert_backend(client, backend, blocks, config).map_err(|err| {
 						match err {
-							service::Error::Blockchain(err) => err,
+							service::Error::Blockchain(err) => err.into(),
 							// Generic application-specific error.
-							err => sp_blockchain::Error::Application(err.into()),
+							err => sc_cli::Error::Application(err.into()),
 						}
-					})?;
-					Ok(())
+					})
 				});
 				Ok((
 					cmd.run(client, backend, Some(aux_revert)).map_err(Error::SubstrateCli),
