@@ -273,6 +273,13 @@ where
 		.map_err(Error::from)?;
 	let chain_spec = &runner.config().chain_spec;
 
+	// Disallow BEEFY on production networks.
+	if cli.run.beefy &&
+		(chain_spec.is_polkadot() || chain_spec.is_kusama() || chain_spec.is_westend())
+	{
+		return Err(Error::Other("BEEFY disallowed on production networks".to_string()))
+	}
+
 	set_default_ss58_version(chain_spec);
 
 	let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
