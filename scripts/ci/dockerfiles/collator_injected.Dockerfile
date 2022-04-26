@@ -1,4 +1,4 @@
-# this file copies from scripts/docker/Dockerfile and changes only the binary name
+# this file copies from scripts/ci/dockerfiles/Dockerfile and changes only the binary name
 FROM docker.io/library/ubuntu:20.04
 
 # metadata
@@ -10,7 +10,7 @@ LABEL io.parity.image.authors="devops-team@parity.io" \
 	io.parity.image.vendor="Parity Technologies" \
 	io.parity.image.title="${IMAGE_NAME}" \
 	io.parity.image.description="Injected adder-collator Docker image" \
-	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/docker/collator_injected.Dockerfile" \
+	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/ci/dockerfiles/collator_injected.Dockerfile" \
 	io.parity.image.revision="${VCS_REF}" \
 	io.parity.image.created="${BUILD_DATE}" \
 	io.parity.image.documentation="https://github.com/paritytech/polkadot/"

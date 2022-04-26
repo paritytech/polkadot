@@ -15,7 +15,7 @@ GITREPO=polkadot
 # Build the image
 echo "Building ${GITUSER}/${GITREPO}:latest docker image, hang on!"
 time docker build \
-    -f ./scripts/dockerfiles/polkadot/polkadot_builder.Dockerfile \
+    -f ./scripts/ci/dockerfiles/polkadot/polkadot_builder.Dockerfile \
     -t ${GITUSER}/${GITREPO}:latest \
     -t ${GITUSER}/${GITREPO}:v${VERSION} \
     .

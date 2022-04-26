@@ -273,6 +273,13 @@ where
 		.map_err(Error::from)?;
 	let chain_spec = &runner.config().chain_spec;
 
+	// Disallow BEEFY on production networks.
+	if cli.run.beefy &&
+		(chain_spec.is_polkadot() || chain_spec.is_kusama() || chain_spec.is_westend())
+	{
+		return Err(Error::Other("BEEFY disallowed on production networks".to_string()))
+	}
+
 	set_default_ss58_version(chain_spec);
 
 	let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
@@ -302,6 +309,15 @@ where
 	};
 
 	runner.run_node_until_exit(move |config| async move {
+		let hwbench = if !cli.run.no_hardware_benchmarks {
+			config.database.path().map(|database_path| {
+				let _ = std::fs::create_dir_all(&database_path);
+				sc_sysinfo::gather_hwbench(Some(database_path))
+			})
+		} else {
+			None
+		};
+
 		let role = config.role.clone();
 
 		match role {
@@ -315,6 +331,7 @@ where
 				None,
 				false,
 				overseer_gen,
+				hwbench,
 			)
 			.map(|full| full.task_manager)
 			.map_err(Into::into),
@@ -607,6 +624,10 @@ pub fn run() -> Result<()> {
 				.into(),
 		)
 		.into()),
+		Some(Subcommand::ChainInfo(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			Ok(runner.sync_run(|config| cmd.run::<service::Block>(&config))?)
+		},
 	}?;
 
 	#[cfg(feature = "pyroscope")]
