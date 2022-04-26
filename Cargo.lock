@@ -6996,6 +6996,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-primitives",
  "rand 0.8.5",
+ "rand_chacha 0.3.1",
  "sc-authority-discovery",
  "sc-network",
  "strum 0.24.0",
