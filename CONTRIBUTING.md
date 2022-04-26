@@ -9,7 +9,7 @@ There are a few basic ground-rules for contributors (including the maintainer(s)
 - **All modifications** must be made in a **pull-request** to solicit feedback from other contributors.
 - A pull-request _must not be merged until CI_ has finished successfully.
 - Contributors should apply `cargo +nightly fmt` with the version used in CI.
-- Synchronized changes must have annotations with the respective [companion PRs of substrate and cumulus](https://github.com/paritytech/substrate/blob/master/docs/CONTRIBUTING.adoc#updating-polkadot-as-well), tl;dr add the following lines at the _end_ of your PR description:
+- If the contribution spans across substrate and/or cumulus repositories, [companion PRs of substrate and cumulus](https://github.com/paritytech/substrate/blob/master/docs/CONTRIBUTING.adoc#updating-polkadot-as-well) are mandatory to keep changes synchronised, tl;dr add the following lines at the _end_ of your PR description:
   - `substrate companion: https://github.com/paritytech/substrate/pulls/#1234`
   - `cumulus companion: https://github.com/paritytech/cumulus/pulls/#5678`
 
