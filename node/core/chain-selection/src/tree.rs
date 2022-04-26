@@ -590,7 +590,7 @@ pub(super) fn revert<'a, B: Backend + 'a>(
 			let blocks = backend.load_blocks_by_number(first_number)?;
 
 			let block = blocks
-				.get(0)
+				.first()
 				.and_then(|hash| backend.load_block_entry(hash).ok())
 				.flatten()
 				.ok_or_else(|| {
