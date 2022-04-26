@@ -681,6 +681,7 @@ pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	program_path: Option<std::path::PathBuf>,
 	overseer_enable_anyways: bool,
 	overseer_gen: OverseerGenerator,
+	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, ExecutorDispatch>>>, Error>
 where
 	RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
@@ -919,6 +920,19 @@ where
 		system_rpc_tx,
 		telemetry: telemetry.as_mut(),
 	})?;
+
+	if let Some(hwbench) = hwbench {
+		sc_sysinfo::print_hwbench(&hwbench);
+
+		if let Some(ref mut telemetry) = telemetry {
+			let telemetry_handle = telemetry.handle();
+			task_manager.spawn_handle().spawn(
+				"telemetry_hwbench",
+				None,
+				sc_sysinfo::initialize_hwbench_telemetry(telemetry_handle, hwbench),
+			);
+		}
+	}
 
 	let (block_import, link_half, babe_link, beefy_links) = import_setup;
 
@@ -1290,6 +1304,7 @@ pub fn build_full(
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	overseer_enable_anyways: bool,
 	overseer_gen: impl OverseerGen,
+	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]
 	if config.chain_spec.is_rococo() ||
@@ -1306,6 +1321,7 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			hwbench,
 		)
 		.map(|full| full.with_client(Client::Rococo))
 	}
@@ -1322,6 +1338,7 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			hwbench,
 		)
 		.map(|full| full.with_client(Client::Kusama))
 	}
@@ -1338,6 +1355,7 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			hwbench,
 		)
 		.map(|full| full.with_client(Client::Westend))
 	}
@@ -1354,6 +1372,7 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			hwbench,
 		)
 		.map(|full| full.with_client(Client::Polkadot))
 	}

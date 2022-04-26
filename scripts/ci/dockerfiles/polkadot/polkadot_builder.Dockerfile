@@ -14,7 +14,7 @@ LABEL description="Multistage Docker image for Polkadot: a platform for web3" \
 	io.parity.image.authors="chevdor@gmail.com, devops-team@parity.io" \
 	io.parity.image.vendor="Parity Technologies" \
 	io.parity.image.description="Polkadot: a platform for web3" \
-	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/dockerfiles/polkadot/polkadot_builder.Dockerfile" \
+	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/ci/dockerfiles/polkadot/polkadot_builder.Dockerfile" \
 	io.parity.image.documentation="https://github.com/paritytech/polkadot/"
 
 COPY --from=builder /polkadot/target/release/polkadot /usr/local/bin

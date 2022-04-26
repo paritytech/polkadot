@@ -204,7 +204,7 @@ check-runtime:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
   script:
-    - ./scripts/gitlab/check_runtime.sh
+    - ./scripts/ci/gitlab/check_runtime.sh
   allow_failure:                   true
 
 cargo-fmt:
@@ -273,7 +273,7 @@ spellcheck:
     - git fetch origin +${CI_DEFAULT_BRANCH}:${CI_DEFAULT_BRANCH}
     - echo "___Spellcheck is going to check your diff___"
     - cargo spellcheck list-files -vvv $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
-    - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1
+    - time cargo spellcheck check -vvv --cfg=scripts/ci/gitlab/spellcheck.toml --checkers hunspell --code 1
         $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
   allow_failure:                   true
 
@@ -295,7 +295,7 @@ build-test-collators:
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
     - echo "undying-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r scripts/* ./artifacts
+    - cp -r ./scripts/* ./artifacts
 
 build-malus:
   stage:                           stage1
@@ -312,7 +312,7 @@ build-malus:
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r scripts/* ./artifacts
+    - cp -r ./scripts/* ./artifacts
 
 #### stage:                        stage2
 
@@ -371,7 +371,7 @@ test-deterministic-wasm:
   <<:                              *docker-env
   <<:                              *compiler-info
   script:
-    - ./scripts/gitlab/test_deterministic_wasm.sh
+    - ./scripts/ci/gitlab/test_deterministic_wasm.sh
 
 check-transaction-versions:
   stage:                           stage2
@@ -388,7 +388,7 @@ check-transaction-versions:
     - git config remote.origin.url "https://github.com/paritytech/polkadot.git"
     - git fetch origin release
   script:
-    - scripts/gitlab/check_extrinsics_ordering.sh
+    - ./scripts/ci/gitlab/check_extrinsics_ordering.sh
 
 
 
@@ -409,8 +409,8 @@ publish-polkadot-debug-image:
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
   variables:
     <<:                            *image-variables
-    # scripts/dockerfiles/polkadot_injected_debug.Dockerfile
-    DOCKERFILE:                    dockerfiles/polkadot_injected_debug.Dockerfile
+    # scripts/ci/dockerfiles/polkadot_injected_debug.Dockerfile
+    DOCKERFILE:                    ci/dockerfiles/polkadot_injected_debug.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/polkadot-debug
   needs:
     - job:                         build-linux-stable
@@ -433,8 +433,8 @@ publish-test-collators-image:
   <<:                              *zombienet-refs
   variables:
     <<:                            *image-variables
-    # scripts/dockerfiles/collator_injected.Dockerfile
-    DOCKERFILE:                    dockerfiles/collator_injected.Dockerfile
+    # scripts/ci/dockerfiles/collator_injected.Dockerfile
+    DOCKERFILE:                    ci/dockerfiles/collator_injected.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/colander
   needs:
     - job:                         build-test-collators
@@ -456,8 +456,8 @@ publish-malus-image:
   <<:                              *zombienet-refs
   variables:
     <<:                            *image-variables
-    # scripts/dockerfiles/malus_injected.Dockerfile
-    DOCKERFILE:                    dockerfiles/malus_injected.Dockerfile
+    # scripts/ci/dockerfiles/malus_injected.Dockerfile
+    DOCKERFILE:                    ci/dockerfiles/malus_injected.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/malus
   needs:
     - job:                         build-malus
@@ -522,7 +522,7 @@ update_polkadot_weights:           &update-weights
     paths:
       - ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
   script:
-    - ./scripts/run_benches_for_runtime.sh $RUNTIME
+    - ./scripts/ci/run_benches_for_runtime.sh $RUNTIME
     - git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
   # uses the "shell" executors
   tags:
@@ -583,7 +583,7 @@ generate-impl-guide:
     name: michaelfbryan/mdbook-docker-image:v0.4.4
     entrypoint: [""]
   script:
-    - mdbook build roadmap/implementers-guide
+    - mdbook build ./roadmap/implementers-guide
 
 check-try-runtime:
   stage:                           stage3
@@ -610,8 +610,8 @@ check-no-default-features:
   <<:                              *compiler-info
   script:
     # Check that polkadot-cli will compile no default features.
-    - pushd node/service && cargo check --no-default-features && popd
-    - pushd cli && cargo check --no-default-features --features "service" && popd
+    - pushd ./node/service && cargo check --no-default-features && popd
+    - pushd ./cli && cargo check --no-default-features --features "service" && popd
     - sccache -s
 
 build-short-benchmark:
@@ -793,7 +793,7 @@ publish-rustdoc:
     - git fetch origin gh-pages
     # Save README and docs
     - cp -r ./crate-docs/ /tmp/doc/
-    - cp README.md /tmp/doc/
+    - cp ./README.md /tmp/doc/
     - git checkout gh-pages
     # Remove everything and restore generated docs and README
     - rm -rf ./*
