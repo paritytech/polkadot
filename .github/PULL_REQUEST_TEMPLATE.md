@@ -20,8 +20,8 @@ Apply labels!
 - [ ] Applied `cargo +nightly fmt` with the version from CI?
 - [ ] Ran `cargo spellcheck` without any fallout? If any, update `.spellcheck/lingua.dic`.
 - [ ] Fixed any fallout caused by these changes in `cumulus`?
-- [ ] Referenced relevant companion pullrequests of `substrate` and `cumulus`?
-- [ ] Does the change mandate an _architecture design record_ being committed?
+- [ ] Referenced relevant companion pull-requests of `substrate` and `cumulus`?
+- [ ] Does the change mandate an [architecture decision record](../ADR.md) being added?
 
 <!--
 ## Companions:
