@@ -1942,5 +1942,3 @@ fn session_change_wipes() {
 		assert!(<PendingAvailabilityCommitments<Test>>::iter().collect::<Vec<_>>().is_empty());
 	});
 }
-
-// TODO [now]: test `collect_disputed`

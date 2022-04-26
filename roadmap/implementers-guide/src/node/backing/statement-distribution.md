@@ -14,7 +14,7 @@ Input:
 Output:
 
 - `NetworkBridge::SendMessage(PeerId, message)`
-- `NetworkBridge::SendRequests(StatementFetching)`
+- `NetworkBridge::SendRequests(StatementFetchingV1)`
 - `NetworkBridge::ReportPeer(PeerId, cost_or_benefit)`
 
 ## Functionality
@@ -86,7 +86,7 @@ example. For this reason, there exists a `LargeStatement` constructor for the
 of a statement. The actual candidate data is not included. This message type is
 used whenever a message is deemed large. The receiver of such a message needs to
 request the actual payload via request/response by means of a
-`StatementFetching` request.
+`StatementFetchingV1` request.
 
 This is necessary as distribution of a large payload (mega bytes) via gossip
 would make the network collapse and timely distribution of statements would no

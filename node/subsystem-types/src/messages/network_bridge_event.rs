@@ -21,7 +21,7 @@ use std::{
 
 pub use sc_network::{PeerId, ReputationChange};
 
-use polkadot_node_network_protocol::{ObservedRole, OurView, View, WrongVariant};
+use polkadot_node_network_protocol::{ObservedRole, OurView, ProtocolVersion, View, WrongVariant};
 use polkadot_primitives::v2::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
 
 /// Information about a peer in the gossip topology for a session.
@@ -49,7 +49,7 @@ pub struct NewGossipTopology {
 #[derive(Debug, Clone, PartialEq)]
 pub enum NetworkBridgeEvent<M> {
 	/// A peer has connected.
-	PeerConnected(PeerId, ObservedRole, Option<HashSet<AuthorityDiscoveryId>>),
+	PeerConnected(PeerId, ObservedRole, ProtocolVersion, Option<HashSet<AuthorityDiscoveryId>>),
 
 	/// A peer has disconnected.
 	PeerDisconnected(PeerId),
@@ -92,13 +92,22 @@ impl<M> NetworkBridgeEvent<M> {
 	pub fn focus<'a, T>(&'a self) -> Result<NetworkBridgeEvent<T>, WrongVariant>
 	where
 		T: 'a + Clone,
-		&'a T: TryFrom<&'a M, Error = WrongVariant>,
+		T: TryFrom<&'a M, Error = WrongVariant>,
 	{
 		Ok(match *self {
 			NetworkBridgeEvent::PeerMessage(ref peer, ref msg) =>
-				NetworkBridgeEvent::PeerMessage(peer.clone(), <&'a T>::try_from(msg)?.clone()),
-			NetworkBridgeEvent::PeerConnected(ref peer, ref role, ref authority_id) =>
-				NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone(), authority_id.clone()),
+				NetworkBridgeEvent::PeerMessage(peer.clone(), T::try_from(msg)?),
+			NetworkBridgeEvent::PeerConnected(
+				ref peer,
+				ref role,
+				ref version,
+				ref authority_id,
+			) => NetworkBridgeEvent::PeerConnected(
+				peer.clone(),
+				role.clone(),
+				*version,
+				authority_id.clone(),
+			),
 			NetworkBridgeEvent::PeerDisconnected(ref peer) =>
 				NetworkBridgeEvent::PeerDisconnected(peer.clone()),
 			NetworkBridgeEvent::NewGossipTopology(ref topology) =>
