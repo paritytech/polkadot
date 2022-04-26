@@ -50,7 +50,7 @@ pub async fn get_onchain_disputes(
 			gum::error!(
 				target: LOG_TARGET,
 				?relay_parent,
-				"Channel error occured while fetching on-chain disputes"
+				"Channel error occurred while fetching on-chain disputes"
 			);
 			GetOnchainDisputesErr::Channel
 		})
@@ -60,7 +60,7 @@ pub async fn get_onchain_disputes(
 					gum::error!(
 						target: LOG_TARGET,
 						?relay_parent,
-						"Execution error occured while fetching on-chain disputes",
+						"Execution error occurred while fetching on-chain disputes",
 					);
 					GetOnchainDisputesErr::Execution
 				},
