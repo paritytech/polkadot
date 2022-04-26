@@ -183,4 +183,4 @@ polkadot = { path = "/usr/bin/polkadot" }
 config = "./scripts/gitlab/spellcheck.toml"
 
 [patch.crates-io]
-jsonrpsee = { git = "https://github.com/paritytech/jsonrpsee", branch = "na-jsonrpsee-pubsub-should-not-respond-to-bad-params" }
+jsonrpsee = { git = "https://github.com/paritytech/jsonrpsee", branch = "na-subscriptions-debug" }
