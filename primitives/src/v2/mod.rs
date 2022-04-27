@@ -1599,16 +1599,11 @@ impl<K: From<usize>,V: Clone> MallocSizeOf for TypeIndex<K,V> {
 }
 
 
-impl<'a,K: From<usize>, V: Clone> Deref for TypeIndex<K, V> {
-	type Target = Vec<(K,V)>;
+impl<K: From<usize>, V: Clone> Deref for TypeIndex<K, V> {
+	type Target = Vec<V>;
 
 	fn deref(&self) -> &Self::Target {
-		let mut values: Vec<(K,V)> = Vec::new();
-		for (key,  value) in self.0.into_iter_enumerated().collect_vec(){
-
-			values.push((key,value));
-		}
-		&values
+		&self.0.raw
 	}
 }
 
