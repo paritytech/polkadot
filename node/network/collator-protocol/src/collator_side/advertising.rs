@@ -14,10 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
+use polkadot_node_network_protocol::v1::CollatorProtocolMessage;
 use polkadot_node_network_protocol::{OurView, PeerId, View};
-use polkadot_primitives::v2::{CollatorPair, Id as ParaId, Hash, BlockNumber, SessionIndex};
+use polkadot_primitives::v2::{CollatorPair, Id as ParaId, Hash, BlockNumber, SessionIndex, GroupRotationInfo, CoreIndex, GroupIndex, AuthorityDiscoveryId};
+use polkadot_subsystem::messages::CollatorProtocolMessage;
+use polkadot_subsystem::{ActiveLeavesUpdate, SubsystemContext, SubsystemSender};
+
+use crate::error::FatalResult;
+
+use crate::error::FatalResult;
 
 use super::Metrics;
 
@@ -40,42 +47,142 @@ struct Advertiser {
 	/// Our own view.
 	view: OurView,
 
-    /// The blocks we want to make sure to connect to validators for.
-    required_connections: Option<ConnectionWindow>,
+    /// Information about connections we want to have established.
+    ///
+    /// For connection management we basically need two blocks of information:
+    ///
+    /// 1. Time: When and for how long do we want the connection.
+    /// 2. To what validators/which backing group to connect to.
+    ///
+    /// ## Connection time management
+    ///
+    /// For simplicity we chose to make connection life management based on relay chain blocks,
+    /// which act as a natural pace maker. So the lifespan of a connection can be adjusted in
+    /// multiples of rougly 6 seconds (assuming normal operation).
+    ///
+    /// To ensure uninterrupted connectivity, for several blocks, all you have to do is to ensure
+    /// that this map contains an entry for those consecutive block numbers. We chose block numbers
+    /// as key for this map as opposed to `Hash`es, so you can ensure "guaranteed" uninterrupted
+    /// connectivity from a current block to a future block, e.g. for pre-connect.
+    ///
+    /// Concretely: For pre-connect (establishing a connection one block earlier than you need it),
+    /// you would make sure that this map contains two entries with the same value, one for the
+    /// current block height of the fork you are interested in and one with the block number
+    /// incremented. This way the connection will survive the next block in all cases.
+    ///
+    /// # Target/what validators to connect to
+    ///
+	/// The values of this map are the group/session combinations we want to be connected for the
+	/// given block height.
+    required_connections: HashMap<BlockNumber, HashSet<(SessionIndex, GroupIndex)>>,
+
+	/// Information about established connections to validators in a group.
+	connections: HashMap<(SessionIndex, GroupIndex), GroupConnection>,
+
+	/// Lookup group index/session indexes for a peer that connected.
+	reverse_peers: HashMap<PeerId, HashSet<(SessionIndex, GroupIndex)>>,
+
+	/// Lookup groups in sessions for an Authority (in requested connections)
+	authority_group: HashMap<AuthorityDiscoveryId, HashSet<(SessionIndex, GroupIndex)>>,
+
+	// send task (given relay_parent, paraid):
+	//	- send for paraid
+	//	- resolves to coreid (on a per block basis) - can be found once we have block
+	//	- resolves to groupid - can be found once we know the session (and block height)
+	//	- resolves to `AuthorityDiscoveryIds` - can be found if we have session
+	//	- which resolve to `PeerId`s - can be resolved once connected
+	requested_connections: HashMap<AuthorityDiscoveryId, GroupIndex>,
+	/// `PeerId`s for already established connections for some group.
+	group_peers: HashMap<GroupIndex, HashSet<PeerId>>,
+
+	established_connections: HashMap<Hash, GroupIndex>,
 
 	/// Report metrics.
 	metrics: Metrics,
 }
 
-/// Block heights we want established connections to validators for.
-struct ConnectionWindow {
-    /// Smalles block height, where we want to be connected already.
-    ///
-    /// Note that we will issue connection requests one block before already (if possible), but we
-    /// will connect to the validators as of the given block height.
-    connected_since: BlockNumber,
-    /// Disconnect if we get a block with this height.
-    connected_until: BlockNumber,
-    /// The index of the session for this window.
-    ///
-    /// We invalidate connections on session changes.
-    ///
-    /// Note: With chain reversions it is possible that a block with the same height as another
-    /// block, is in fact in a different session.
-    current_session: SessionIndex,
+/// Needed information for establishing connections.
+struct ConnectionInfo {
+	/// The relay parent to use for determining the correct core.
+	relay_parent: Hash,
+	/// Block number to determine the desired backing group.
+	///
+	/// Note: This seemingly redundant info, is not redundant in the case of `pre-connect`. In this
+	/// case the above relay_parent will be used for determining the core in advance, but the
+	/// responsbile backing group will be determined based on the given `block_number`.
+	block_number: BlockNumber,
+	/// What session we are operating in.
+	///
+	/// For `pre-connect`, this will just be a guess, which might be wrong (we assume to stay in
+	/// the same session).
+	session_index: SessionIndex,
+}
+
+/// Information about connections to a validator group.
+///
+/// We keep track of connected peers in a validator group and the messages that should be sent to
+/// them.
+struct GroupConnection {
+	/// Connected peers.
+	peers: HashSet<PeerId>,
+	/// Messages that should be sent to connected peers in this group.
+	///
+	/// When messages are sent, peers might not yet be connected, so we keep all messages that
+	/// should be sent to peers here, if a new peer connects all messages that are still relevant
+	/// to its view are sent.
+	messages: Vec<CollatorProtocolMessage>,
 }
 
 impl Advertiser {
-	fn new(local_peer_id: PeerId, collator_pair: CollatorPair, metrics: Metrics) -> Self {
+	pub fn new(local_peer_id: PeerId, collator_pair: CollatorPair, metrics: Metrics) -> Self {
 		Self {
 			local_peer_id,
 			collator_pair,
 			collating_on: None,
 			peer_views: HashMap::new(),
 			view: OurView::default(),
-            required_connections: None,
+            required_connections: HashMap::new(),
 			metrics,
 		}
+	}
+
+	/// Ask for additional connections.
+	///
+	/// They will automatically established once a block with block height `when` comes into view
+	/// and will be closed, once it goes out of view, assuming no other entry is present, which
+	/// preserves them.
+	///
+	// - Lookup SessionIndex & Group
+	// - Add to required_connections
+	// - Update Connect message if necessary (connection affects already present block heights)
+	pub fn add_required_connections<Sender: SubsystemSender>(&mut self, sender: &mut Sender, when: BlockNumber, info: ConnectionInfo) {
+		self.requried_connections.insert(when, info);
+	}
+
+	/// Send a message to a validator group.
+	//
+	// - insert message
+	// - send to all already connected peers if in view.
+	//		-> View still relevant with async backing? Likely only when it comes to height.
+	pub fn send_message(&mut self, session: SessionIndex, group: GroupIndex, msg: CollatorProtocolMessage) -> FatalResult<()> {
+		panic!("WIP");
+	}
+
+	// - Add to peers in groups.
+	// - Send any messages it has not received yet.
+	// - Cleanout any obsolete messages
+	pub fn on_peer_connected(&mut self, ...);
+
+
+	/// Process an active leaves update.
+	///
+	/// - Make sure needed connections are established
+	/// - Make sure obsolete connections are dropped
+    pub fn process_active_leaves_update<Context: SubsystemContext>(
+            &mut self,
+            ctx: &mut Context,
+            update: &ActiveLeavesUpdate,
+            ) -> FatalResult<()> {
 	}
 
 	/// Get all peers which have the given relay parent in their view.

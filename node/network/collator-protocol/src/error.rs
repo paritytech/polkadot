@@ -26,6 +26,8 @@ use crate::LOG_TARGET;
 
 /// General result.
 pub type Result<T> = std::result::Result<T, Error>;
+pub type FatalResult<T> = std::result::Result<T, FatalError>;
+pub type JfyiResult<T> = std::result::Result<T, JfyiError>;
 
 use fatality::Nested;
 
