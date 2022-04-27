@@ -53,7 +53,7 @@ const JOB_DELAY: Duration = Duration::from_millis(1500);
 const LOG_TARGET: &str = "parachain::bitfield-signing";
 
 /// Each `BitfieldSigningJob` prepares a signed bitfield for a single relay parent.
-pub struct BitfieldSigningJob;
+pub struct BitfieldSigningJob<Sender>(std::marker::PhantomData<Sender>);
 
 /// Errors we may encounter in the course of executing the `BitfieldSigningSubsystem`.
 #[derive(Debug, thiserror::Error)]
@@ -182,9 +182,13 @@ async fn construct_availability_bitfield(
 	Ok(AvailabilityBitfield(core_bits))
 }
 
-impl JobTrait for BitfieldSigningJob {
+impl<Sender> JobTrait for BitfieldSigningJob<Sender>
+where
+	Sender: overseer::BitfieldSigningSenderTrait + Unpin,
+{
 	type ToJob = BitfieldSigningMessage;
 	type OutgoingMessages = overseer::BitfieldSigningOutgoingMessages;
+	type Sender = Sender;
 	type Error = Error;
 	type RunArgs = SyncCryptoStorePtr;
 	type Metrics = Metrics;
@@ -192,15 +196,13 @@ impl JobTrait for BitfieldSigningJob {
 	const NAME: &'static str = "bitfield-signing-job";
 
 	/// Run a job for the parent block indicated
-	fn run<S>(
+	fn run(
 		leaf: ActivatedLeaf,
 		keystore: Self::RunArgs,
 		metrics: Self::Metrics,
 		_receiver: mpsc::Receiver<BitfieldSigningMessage>,
-		mut sender: JobSender<S>,
+		mut sender: JobSender<Sender>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>
-	where
-		S: SubsystemSender<Self::OutgoingMessages>,
 	{
 		let metrics = metrics.clone();
 		async move {
@@ -290,4 +292,8 @@ impl JobTrait for BitfieldSigningJob {
 }
 
 /// `BitfieldSigningSubsystem` manages a number of bitfield signing jobs.
-pub type BitfieldSigningSubsystem<Spawner> = JobSubsystem<BitfieldSigningJob, Spawner>;
+pub type BitfieldSigningSubsystem<Spawner, Sender> =
+	JobSubsystem<
+		BitfieldSigningJob<Sender>,
+		Spawner,
+	>;

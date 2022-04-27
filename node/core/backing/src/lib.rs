@@ -704,7 +704,7 @@ struct BackgroundValidationParams<S: overseer::SubsystemSender<AllMessages>, F> 
 
 async fn validate_and_make_available(
 	params: BackgroundValidationParams<
-		impl overseer::BackingSenderTrait,
+		impl overseer::CandidateBackingSenderTrait,
 		impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Sync,
 	>,
 ) -> Result<(), Error> {
@@ -892,7 +892,7 @@ impl<Context> CandidateBackingJob<Context>
 		&mut self,
 		ctx: &mut Context,
 		params: BackgroundValidationParams<
-			impl overseer::BackingSenderTrait,
+			Sender,
 			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static + Sync,
 		>,
 	) -> Result<(), Error> {
