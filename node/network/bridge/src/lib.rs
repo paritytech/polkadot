@@ -1089,7 +1089,7 @@ where
 		event
 			.focus()
 			.ok()
-			.map(|m| AllMessages::CollatorProtocol(CollatorProtocolMessage::NetworkBridgeUpdate(m)))
+			.map(|m| CollatorProtocolMessage::NetworkBridgeUpdate(m))
 	};
 
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
