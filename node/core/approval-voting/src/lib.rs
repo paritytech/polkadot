@@ -614,7 +614,7 @@ impl State {
 		match session_window {
 			None => {
 				self.session_window =
-					Some(RollingSessionWindow::new(ctx.sender(), APPROVAL_SESSIONS, head).await?);
+					Some(RollingSessionWindow::new::<Context::Sender>(ctx.sender().clone(), APPROVAL_SESSIONS, head).await?);
 				Ok(None)
 			},
 			Some(mut session_window) => {
