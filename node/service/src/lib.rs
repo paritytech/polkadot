@@ -1428,7 +1428,7 @@ impl ExecuteWithClient for RevertConsensus {
 /// Reverts the node state down to at most the last finalized block.
 ///
 /// In particular this reverts:
-///  `ChainSelectionSubsystem` data in the parachains-db.
+/// - `ChainSelectionSubsystem` data in the parachains-db.
 /// - Low level Babe and Grandpa consensus data.
 #[cfg(feature = "full-node")]
 pub fn revert_backend(
