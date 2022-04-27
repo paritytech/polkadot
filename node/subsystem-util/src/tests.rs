@@ -44,8 +44,9 @@ use thiserror::Error;
 
 // job structs are constructed within JobTrait::run
 // most will want to retain the sender and receiver, as well as whatever other data they like
-struct FakeCollatorProtocolJob {
+struct FakeCollatorProtocolJob<Sender> {
 	receiver: mpsc::Receiver<CollatorProtocolMessage>,
+	_phantom: std::marker::PhantomData<Sender>,
 }
 
 // Error will mostly be a wrapper to make the try operator more convenient;
@@ -57,12 +58,13 @@ enum Error {
 	Sending(#[from] mpsc::SendError),
 }
 
-impl<Sender> JobTrait for FakeCollatorProtocolJob
+impl<Sender> JobTrait for FakeCollatorProtocolJob<Sender>
 where
 	Sender: overseer::CollatorProtocolSender,
 {
 	type Consumes = CollatorProtocolMessage;
-	type Outgoing = CollatorProtocolOutgoingMessages;
+	type OutgoingMessages = CollatorProtocolOutgoingMessages;
+	type Sender = Sender;
 	type Error = Error;
 	type RunArgs = bool;
 	type Metrics = ();
@@ -72,20 +74,23 @@ where
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
-	fn run<S: overseer::CollatorProtocolSender>(
+	fn run(
 		_: ActivatedLeaf,
 		run_args: Self::RunArgs,
 		_metrics: Self::Metrics,
 		receiver: mpsc::Receiver<CollatorProtocolMessage>,
-		mut sender: JobSender<S>,
+		mut sender: JobSender<Sender>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
-			let job = FakeCollatorProtocolJob { receiver };
+			let job = FakeCollatorProtocolJob {
+				receiver,
+				_phantom: std::marker::PhantomData::<Sender>,
+			};
 
 			if run_args {
 				sender
 					.send_message(CollatorProtocolMessage::Invalid(
-						Default::default(),
+						dummy_hash(),
 						dummy_candidate_receipt(dummy_hash()),
 					))
 					.await;
@@ -115,7 +120,13 @@ impl FakeCollatorProtocolJob {
 }
 
 // with the job defined, it's straightforward to get a subsystem implementation.
-type FakeCollatorProtocolSubsystem<Spawner> = JobSubsystem<FakeCollatorProtocolJob, Spawner>;
+type FakeCollatorProtocolSubsystem<Spawner> =
+	JobSubsystem<
+		FakeCollatorProtocolJob<
+			test_helpers::TestSubsystemSender
+		>,
+		Spawner,
+	>;
 
 // this type lets us pretend to be the overseer
 type OverseerHandle = test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>;

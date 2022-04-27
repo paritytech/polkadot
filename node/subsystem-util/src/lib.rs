@@ -484,10 +484,10 @@ impl fmt::Debug for FromJobCommand {
 /// Other messages are passed along to and from the job via the overseer to other subsystems.
 pub trait JobTrait: Unpin + Sized {
 	/// Message type used to send messages to the job.
-	type Consumes: 'static + BoundToRelayParent + Send;
+	type ToJob: 'static + BoundToRelayParent + Send;
 
 	/// The set of outgoing messages to be accumalted into.
-	type Outgoing: 'static + Send;
+	type OutgoingMessages: 'static + Send;
 
 	/// The sender to send outgoing messages.
 	// The trait bounds are rather minimal.
@@ -516,7 +516,7 @@ pub trait JobTrait: Unpin + Sized {
 		leaf: ActivatedLeaf,
 		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
-		receiver: mpsc::Receiver<Self::Consumes>,
+		receiver: mpsc::Receiver<Self::ToJob>,
 		sender: JobSender<Self::Sender>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
 }
@@ -542,16 +542,16 @@ pub enum JobsError<JobError: std::fmt::Debug + std::error::Error + 'static> {
 /// - When dropped, aborts all remaining jobs.
 /// - implements `Stream<Item=FromJobCommand>`, collecting all messages from subordinate jobs.
 #[pin_project]
-struct Jobs<Spawner, Consumes> {
+struct Jobs<Spawner, ToJob> {
 	spawner: Spawner,
-	running: HashMap<Hash, JobHandle<Consumes>>,
+	running: HashMap<Hash, JobHandle<ToJob>>,
 	outgoing_msgs: SelectAll<mpsc::Receiver<FromJobCommand>>,
 }
 
-impl<Spawner, Consumes> Jobs<Spawner, Consumes>
+impl<Spawner, ToJob> Jobs<Spawner, ToJob>
 where
 	Spawner: SpawnNamed,
-	Consumes: Send + 'static,
+	ToJob: Send + 'static,
 {
 	/// Create a new Jobs manager which handles spawning appropriate jobs.
 	pub fn new(spawner: Spawner) -> Self {
@@ -566,7 +566,7 @@ where
 		metrics: Job::Metrics,
 		sender: Job::Sender,
 	) where
-		Job: JobTrait<Consumes = Consumes>,
+		Job: JobTrait<ToJob = ToJob>,
 	{
 		let hash = leaf.hash;
 		let (to_job_tx, to_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
@@ -613,7 +613,7 @@ where
 	}
 
 	/// Send a message to the appropriate job for this `parent_hash`.
-	async fn send_msg(&mut self, parent_hash: Hash, msg: Consumes) {
+	async fn send_msg(&mut self, parent_hash: Hash, msg: ToJob) {
 		if let Entry::Occupied(mut job) = self.running.entry(parent_hash) {
 			if job.get_mut().send_msg(msg).await.is_err() {
 				job.remove();
@@ -622,7 +622,7 @@ where
 	}
 }
 
-impl<Spawner, Consumes> Stream for Jobs<Spawner, Consumes>
+impl<Spawner, ToJob> Stream for Jobs<Spawner, ToJob>
 where
 	Spawner: SpawnNamed,
 {
@@ -637,7 +637,7 @@ where
 	}
 }
 
-impl<Spawner, Consumes> stream::FusedStream for Jobs<Spawner, Consumes>
+impl<Spawner, ToJob> stream::FusedStream for Jobs<Spawner, ToJob>
 where
 	Spawner: SpawnNamed,
 {
@@ -661,7 +661,7 @@ pub struct JobSubsystemParams<Spawner, RunArgs, Metrics> {
 /// Conceptually, this is very simple: it just loops forever.
 ///
 /// - On incoming overseer messages, it starts or stops jobs as appropriate.
-/// - On other incoming messages, if they can be converted into `Job::Consumes` and
+/// - On other incoming messages, if they can be converted into `Job::ToJob` and
 ///   include a hash, then they're forwarded to the appropriate individual job.
 /// - On outgoing messages from the jobs, it forwards them to the overseer.
 pub struct JobSubsystem<Job: JobTrait, Spawner> {
@@ -684,20 +684,20 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 	where
 		Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
 		Context: SubsystemContext<
-			Message = <Job as JobTrait>::Consumes,
-			OutgoingMessages = <Job as JobTrait>::Outgoing,
-			Signal = OverseerSignal,
+			Message = <Job as JobTrait>::ToJob,
+			OutgoingMessages = <Job as JobTrait>::OutgoingMessages,
 			Sender = <Job as JobTrait>::Sender,
+			Signal = OverseerSignal,
 		>,
 		Job: 'static + JobTrait + Send,
 		<Job as JobTrait>::RunArgs: Clone + Sync,
-		<Job as JobTrait>::Consumes:
+		<Job as JobTrait>::ToJob:
 			Sync + From<<Context as polkadot_overseer::SubsystemContext>::Message>,
 		<Job as JobTrait>::Metrics: Sync,
 	{
 		let JobSubsystem { params: JobSubsystemParams { spawner, run_args, metrics }, .. } = self;
 
-		let mut jobs = Jobs::<Spawner, Job::Consumes>::new(spawner);
+		let mut jobs = Jobs::<Spawner, Job::ToJob>::new(spawner);
 
 		loop {
 			select! {
@@ -764,14 +764,14 @@ impl<Context, Job, Spawner> Subsystem<Context, SubsystemError> for JobSubsystem<
 where
 	Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
 	Context: SubsystemContext<
-		Message = Job::Consumes,
+		Message = Job::ToJob,
 		Signal = OverseerSignal,
-		OutgoingMessages = <Job as JobTrait>::Outgoing,
+		OutgoingMessages = <Job as JobTrait>::OutgoingMessages,
 		Sender = <Job as JobTrait>::Sender,
 	>,
 	Job: 'static + JobTrait + Send,
 	Job::RunArgs: Clone + Sync,
-	<Job as JobTrait>::Consumes: Sync + From<<Context as SubsystemContext>::Message>,
+	<Job as JobTrait>::ToJob: Sync + From<<Context as SubsystemContext>::Message>,
 	Job::Metrics: Sync,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
