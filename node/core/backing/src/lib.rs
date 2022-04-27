@@ -29,6 +29,7 @@ use futures::{
 	FutureExt, SinkExt, StreamExt,
 };
 
+use error::{Error, FatalResult};
 use polkadot_node_primitives::{
 	AvailableData, InvalidCandidate, PoV, SignedDisputeStatement, SignedFullStatement, Statement,
 	ValidationResult, BACKING_EXECUTION_TIMEOUT,
@@ -50,7 +51,7 @@ use polkadot_subsystem::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage,
 		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
 		DisputeCoordinatorMessage, ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
-		StatementDistributionMessage, ValidationFailed,
+		StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
 	Stage, SubsystemContext, SubsystemError, SubsystemSender,
@@ -64,43 +65,13 @@ use statement_table::{
 	},
 	Context as TableContextTrait, Table,
 };
-use thiserror::Error;
+
+mod error;
 
 #[cfg(test)]
 mod tests;
 
 const LOG_TARGET: &str = "parachain::candidate-backing";
-
-/// Errors that can occur in candidate backing.
-#[derive(Debug, Error)]
-pub enum Error {
-	#[error("Candidate is not found")]
-	CandidateNotFound,
-	#[error("Signature is invalid")]
-	InvalidSignature,
-	#[error("Failed to send candidates {0:?}")]
-	Send(Vec<BackedCandidate>),
-	#[error("FetchPoV failed")]
-	FetchPoV,
-	#[error("Failed to spawn background task")]
-	FailedToSpawnBackgroundTask,
-	#[error("ValidateFromChainState channel closed before receipt")]
-	ValidateFromChainState(#[source] oneshot::Canceled),
-	#[error("StoreAvailableData channel closed before receipt")]
-	StoreAvailableData(#[source] oneshot::Canceled),
-	#[error("a channel was closed before receipt in try_join!")]
-	JoinMultiple(#[source] oneshot::Canceled),
-	#[error("Obtaining erasure chunks failed")]
-	ObtainErasureChunks(#[from] erasure_coding::Error),
-	#[error(transparent)]
-	ValidationFailed(#[from] ValidationFailed),
-	#[error(transparent)]
-	BackgroundValidationMpsc(#[from] mpsc::SendError),
-	#[error(transparent)]
-	UtilError(#[from] util::Error),
-	#[error(transparent)]
-	SubsystemError(#[from] SubsystemError),
-}
 
 /// PoV data to validate.
 enum PoVData {
@@ -180,7 +151,7 @@ async fn run<Context>(
 	mut ctx: Context,
 	keystore: SyncCryptoStorePtr,
 	metrics: Metrics,
-) -> Result<(), Error>
+) -> FatalResult<()>
 where
 	Context: SubsystemContext<Message = CandidateBackingMessage>,
 	Context: overseer::SubsystemContext<Message = CandidateBackingMessage>,
@@ -188,15 +159,45 @@ where
 	let (background_validation_tx, mut background_validation_rx) = mpsc::channel(16);
 	let mut jobs = HashMap::new();
 
-	// TODO [now]: refactor to JFYIError and add a `run_until_error` function
-	// which actually does this loop
+	loop {
+		let res = run_iteration(
+			&mut ctx,
+			keystore.clone(),
+			&metrics,
+			&mut jobs,
+			background_validation_tx.clone(),
+			&mut background_validation_rx,
+		)
+		.await;
+
+		match res {
+			Ok(()) => break,
+			Err(e) => crate::error::log_error(Err(e))?,
+		}
+	}
+
+	Ok(())
+}
+
+async fn run_iteration<Context>(
+	ctx: &mut Context,
+	keystore: SyncCryptoStorePtr,
+	metrics: &Metrics,
+	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
+	background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
+	background_validation_rx: &mut mpsc::Receiver<(Hash, ValidatedCandidateCommand)>,
+) -> Result<(), Error>
+where
+	Context: SubsystemContext<Message = CandidateBackingMessage>,
+	Context: overseer::SubsystemContext<Message = CandidateBackingMessage>,
+{
 	loop {
 		futures::select!(
 			validated_command = background_validation_rx.next().fuse() => {
 				if let Some((relay_parent, command)) = validated_command {
 					handle_validated_candidate_command(
-						&mut ctx,
-						&mut jobs,
+						&mut *ctx,
+						jobs,
 						relay_parent,
 						command,
 					).await?;
@@ -207,16 +208,16 @@ where
 			from_overseer = ctx.recv().fuse() => {
 				match from_overseer? {
 					FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => handle_active_leaves_update(
-						&mut ctx,
+						&mut *ctx,
 						update,
-						&mut jobs,
+						jobs,
 						&keystore,
 						&background_validation_tx,
 						&metrics,
 					).await?,
 					FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
 					FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-					FromOverseer::Communication { msg } => handle_communication(&mut ctx, &mut jobs, msg).await?,
+					FromOverseer::Communication { msg } => handle_communication(&mut *ctx, jobs, msg).await?,
 				}
 			}
 		)

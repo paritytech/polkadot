@@ -6700,6 +6700,7 @@ version = "0.9.19"
 dependencies = [
  "assert_matches",
  "bitvec",
+ "fatality",
  "futures 0.3.21",
  "polkadot-erasure-coding",
  "polkadot-node-primitives",

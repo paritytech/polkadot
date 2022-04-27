@@ -28,7 +28,7 @@ use polkadot_primitives::v2::{
 	ScheduledCore,
 };
 use polkadot_subsystem::{
-	messages::{CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest},
+	messages::{CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest, ValidationFailed},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
 };
 use sp_application_crypto::AppKey;
