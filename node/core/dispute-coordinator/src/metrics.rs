@@ -26,6 +26,8 @@ struct MetricsInner {
 	concluded: prometheus::CounterVec<prometheus::U64>,
 	/// Number of participations that have been queued.
 	queued_participations: prometheus::CounterVec<prometheus::U64>,
+	/// Time it takes to process different messages.
+	message_processing_time: prometheus::HistogramVec,
 }
 
 /// Candidate validation metrics.
@@ -74,6 +76,15 @@ impl Metrics {
 			metrics.queued_participations.with_label_values(&["best-effort"]).inc();
 		}
 	}
+
+	pub(crate) fn time_message_processing(
+		&self,
+		label: &str,
+	) -> Option<prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| {
+			metrics.message_processing_time.with_label_values(&[label]).start_timer()
+		})
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -113,6 +124,20 @@ impl metrics::Metrics for Metrics {
 						"Total number of queued participations, grouped by priority and best-effort. (Not every queueing will necessarily lead to an actual participation because of duplicates.)",
 					),
 					&["priority"],
+				)?,
+				registry,
+			)?,
+			message_processing_time: prometheus::register(
+				prometheus::HistogramVec::new(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_dispute_coordinator_message_processing_time",
+						"Time spent processing dispute coordinator messages.",
+					)
+					.buckets(vec![
+						0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.35, 0.5, 0.75,
+						1.0, 1.5, 2.0,
+					]),
+					&["kind"],
 				)?,
 				registry,
 			)?,

@@ -31,6 +31,8 @@ struct MetricsInner {
 	time_unify_with_peer: prometheus::Histogram,
 	time_import_pending_now_known: prometheus::Histogram,
 	time_awaiting_approval_voting: prometheus::Histogram,
+	/// Time it takes to process different messages.
+	message_processing_time: prometheus::HistogramVec,
 }
 
 impl Metrics {
@@ -82,6 +84,15 @@ impl Metrics {
 		if let Some(metrics) = &self.0 {
 			metrics.aggression_l2_messages_total.inc();
 		}
+	}
+
+	pub(crate) fn time_message_processing(
+		&self,
+		label: &str,
+	) -> Option<prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| {
+			metrics.message_processing_time.with_label_values(&[label]).start_timer()
+		})
 	}
 }
 
@@ -142,6 +153,20 @@ impl MetricsTrait for Metrics {
 					"polkadot_parachain_time_awaiting_approval_voting",
 					"Time spent awaiting a reply from the Approval Voting Subsystem.",
 				))?,
+				registry,
+			)?,
+			message_processing_time: prometheus::register(
+				prometheus::HistogramVec::new(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_approval_distribution_message_processing_time",
+						"Time spent processing approval distribution messages.",
+					)
+					.buckets(vec![
+						0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.35, 0.5, 0.75,
+						1.0, 1.5, 2.0,
+					]),
+					&["kind"],
+				)?,
 				registry,
 			)?,
 		};

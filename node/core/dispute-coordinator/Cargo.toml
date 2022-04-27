@@ -19,6 +19,7 @@ polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+strum = { version = "0.24", features = ["derive"] }
 
 
 [dev-dependencies]

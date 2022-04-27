@@ -18,6 +18,7 @@
 
 use std::{
 	collections::{BTreeMap, HashSet},
+	convert::AsRef,
 	sync::Arc,
 };
 
@@ -504,6 +505,9 @@ impl Initialized {
 		message: DisputeCoordinatorMessage,
 		now: Timestamp,
 	) -> Result<Box<dyn FnOnce() -> JfyiResult<()>>> {
+		let label = message.as_ref().to_owned();
+		let timer = self.metrics.time_message_processing(&label);
+
 		match message {
 			DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
@@ -622,6 +626,7 @@ impl Initialized {
 			},
 		}
 
+		drop(timer);
 		Ok(Box::new(|| Ok(())))
 	}
 

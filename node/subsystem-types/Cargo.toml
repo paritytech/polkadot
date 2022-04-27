@@ -18,3 +18,4 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "master
 smallvec = "1.8.0"
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.30"
+strum = { version = "0.21", features = ["derive"] }

@@ -53,6 +53,7 @@ use std::{
 	sync::Arc,
 	time::Duration,
 };
+use strum::AsRefStr;
 
 /// Network events as transmitted to other subsystems, wrapped in their message types.
 pub mod network_bridge_event;
@@ -228,7 +229,7 @@ impl BoundToRelayParent for CollatorProtocolMessage {
 ///
 /// NOTE: Any response oneshots might get cancelled if the `DisputeCoordinator` was not yet
 /// properly initialized for some reason.
-#[derive(Debug)]
+#[derive(AsRefStr, Debug)]
 pub enum DisputeCoordinatorMessage {
 	/// Import statements by validators about a candidate.
 	///
@@ -899,7 +900,7 @@ pub enum ApprovalVotingMessage {
 }
 
 /// Message to the Approval Distribution subsystem.
-#[derive(Debug, derive_more::From)]
+#[derive(AsRefStr, Debug, derive_more::From)]
 pub enum ApprovalDistributionMessage {
 	/// Notify the `ApprovalDistribution` subsystem about new blocks
 	/// and the candidates contained within them.

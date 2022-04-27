@@ -39,7 +39,10 @@ use polkadot_primitives::v2::{
 	BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
 };
 use rand::{CryptoRng, Rng, SeedableRng};
-use std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
+use std::{
+	collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque},
+	convert::AsRef,
+};
 
 use self::metrics::Metrics;
 
@@ -1778,6 +1781,9 @@ impl ApprovalDistribution {
 		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
 		Context: overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
 	{
+		let label = msg.as_ref().to_owned();
+		let timer = metrics.time_message_processing(&label);
+
 		match msg {
 			ApprovalDistributionMessage::NetworkBridgeUpdateV1(event) => {
 				state.handle_network_msg(ctx, metrics, event, rng).await;
@@ -1817,6 +1823,8 @@ impl ApprovalDistribution {
 					.await;
 			},
 		}
+
+		drop(timer);
 	}
 }
 
