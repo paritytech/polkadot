@@ -140,12 +140,7 @@ where
 
 	async fn run<Context>(mut self, mut ctx: Context) -> Self
 	where
-		Context: overseer::SubsystemContext<
-			Message = GossipSupportMessage,
-			OutgoingMessages = overseer::GossipSupportOutgoingMessages,
-			Signal = OverseerSignal,
-			Error = SubsystemError,
-		>,
+		Context: overseer::GossipSupportContextTrait,
 	{
 		fn get_connectivity_check_delay() -> Delay {
 			Delay::new(LOW_CONNECTIVITY_WARN_DELAY)
@@ -197,7 +192,7 @@ where
 	///    and issue a connection request.
 	async fn handle_active_leaves(
 		&mut self,
-		sender: &mut impl overseer::SubsystemSender<overseer::GossipSupportOutgoingMessages>,
+		sender: &mut impl overseer::GossipSupportSenderTrait,
 		leaves: impl Iterator<Item = Hash>,
 	) -> Result<(), util::Error> {
 		for leaf in leaves {
@@ -215,7 +210,7 @@ where
 
 			if let Some((session_index, relay_parent)) = maybe_issue_connection {
 				let session_info =
-					util::request_session_info(leaf, session_index, ctx.sender()).await.await??;
+					util::request_session_info(leaf, session_index, sender).await.await??;
 
 				let session_info = match session_info {
 					Some(s) => s,
@@ -272,7 +267,7 @@ where
 					self.update_authority_status_metrics(&session_info).await;
 
 					update_gossip_topology(
-						ctx,
+						sender,
 						our_index,
 						session_info.discovery_keys,
 						relay_parent,
@@ -316,11 +311,14 @@ where
 		}
 	}
 
-	async fn issue_connection_request<Context>(
+	async fn issue_connection_request<Sender>(
 		&mut self,
-		sender: &mut impl SubsystemSender<overseer::GossipSupportOutgoingMessages>,
+		sender: &mut Sender,
 		authorities: Vec<AuthorityDiscoveryId>,
-	) {
+	)
+	where
+		Sender: overseer::GossipSupportSenderTrait,
+	{
 		let num = authorities.len();
 		let mut validator_addrs = Vec::with_capacity(authorities.len());
 		let mut failures = 0;
@@ -440,7 +438,7 @@ where
 
 // Get the authorities of the past, present, and future.
 async fn authorities_past_present_future(
-	sender: &mut impl SubsystemSender<overseer::GossipSupportOutgoingMessages>,
+	sender: &mut impl overseer::GossipSupportSenderTrait,
 	relay_parent: Hash,
 ) -> Result<Vec<AuthorityDiscoveryId>, util::Error> {
 	let authorities = util::request_authorities(relay_parent, sender).await.await??;
@@ -494,7 +492,7 @@ async fn remove_all_controlled(
 ///
 /// [web3]: https://research.web3.foundation/en/latest/polkadot/networking/3-avail-valid.html#topology
 async fn update_gossip_topology(
-	sender: &mut impl SubsystemSender<overseer::GossipSupportOutgoingMessages>,
+	sender: &mut impl overseer::GossipSupportSenderTrait,
 	our_index: usize,
 	authorities: Vec<AuthorityDiscoveryId>,
 	relay_parent: Hash,
