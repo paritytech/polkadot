@@ -21,8 +21,8 @@ use lru::LruCache;
 
 use polkadot_node_primitives::MAX_FINALITY_LAG;
 use polkadot_node_subsystem::{
-	messages::{ChainApiMessage, RuntimeApiMessage},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError, SubsystemSender,
+	messages::ChainApiMessage, overseer, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError,
+	SubsystemSender,
 };
 use polkadot_node_subsystem_util::runtime::{get_candidate_events, get_on_chain_votes};
 use polkadot_primitives::v2::{

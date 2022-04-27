@@ -876,7 +876,6 @@ async fn handle_actions(
 			Action::ScheduleWakeup { block_hash, block_number, candidate_hash, tick } =>
 				wakeups.schedule(block_hash, block_number, candidate_hash, tick),
 			Action::IssueApproval(candidate_hash, approval_request) => {
-				let mut sender = ctx.sender().clone();
 				// Note that the IssueApproval action will create additional
 				// actions that will need to all be processed before we can
 				// handle the next action in the set passed to the ambient
