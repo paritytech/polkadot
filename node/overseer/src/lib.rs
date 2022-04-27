@@ -433,12 +433,19 @@ pub struct Overseer<SupportsParachains> {
 		CandidateValidationMessage,
 		CollatorProtocolMessage,
 		AvailabilityDistributionMessage,
+		AvailabilityStoreMessage,
 		StatementDistributionMessage,
 		ProvisionerMessage,
+		RuntimeApiMessage,
+		DisputeCoordinatorMessage,
 	])]
 	candidate_backing: CandidateBacking,
 
-	#[subsystem(StatementDistributionMessage, sends: [])]
+	#[subsystem(StatementDistributionMessage, sends: [
+		NetworkBridgeMessage,
+		CandidateBackingMessage,
+		RuntimeApiMessage,
+	])]
 	statement_distribution: StatementDistribution,
 
 	#[subsystem(no_dispatch, AvailabilityDistributionMessage, sends: [
@@ -453,13 +460,22 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, AvailabilityRecoveryMessage, sends: [
 		NetworkBridgeMessage,
 		RuntimeApiMessage,
+		AvailabilityStoreMessage,
 	])]
 	availability_recovery: AvailabilityRecovery,
 
-	#[subsystem(blocking, no_dispatch, BitfieldSigningMessage, sends: [])]
+	#[subsystem(blocking, no_dispatch, BitfieldSigningMessage, sends: [
+		AvailabilityStoreMessage,
+		RuntimeApiMessage,
+		BitfieldDistributionMessage,
+	])]
 	bitfield_signing: BitfieldSigning,
 
-	#[subsystem(BitfieldDistributionMessage, sends: [])]
+	#[subsystem(BitfieldDistributionMessage, sends: [
+		RuntimeApiMessage,
+		NetworkBridgeMessage,
+		ProvisionerMessage,
+	])]
 	bitfield_distribution: BitfieldDistribution,
 
 	#[subsystem(no_dispatch, ProvisionerMessage, sends: [
@@ -473,7 +489,10 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, blocking, RuntimeApiMessage, sends: [])]
 	runtime_api: RuntimeApi,
 
-	#[subsystem(no_dispatch, blocking, AvailabilityStoreMessage, sends: [])]
+	#[subsystem(no_dispatch, blocking, AvailabilityStoreMessage, sends: [
+		ChainApiMessage,
+		RuntimeApiMessage,
+	])]
 	availability_store: AvailabilityStore,
 
 	#[subsystem(no_dispatch, NetworkBridgeMessage, sends: [
@@ -501,15 +520,27 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	collator_protocol: CollatorProtocol,
 
-	#[subsystem(ApprovalDistributionMessage, sends: [])]
+	#[subsystem(ApprovalDistributionMessage, sends: [
+		NetworkBridgeMessage,
+		ApprovalVotingMessage,
+	])]
 	approval_distribution: ApprovalDistribution,
 
-	#[subsystem(no_dispatch, blocking, ApprovalVotingMessage, sends: [])]
+	#[subsystem(no_dispatch, blocking, ApprovalVotingMessage, sends: [
+		RuntimeApiMessage,
+		ChainApiMessage,
+		ChainSelectionMessage,
+		DisputeCoordinatorMessage,
+		AvailabilityRecoveryMessage,
+		ApprovalDistributionMessage,
+		CandidateValidationMessage,
+	])]
 	approval_voting: ApprovalVoting,
 
 	#[subsystem(GossipSupportMessage, sends: [
 		NetworkBridgeMessage,
 		RuntimeApiMessage,
+		ChainSelectionMessage,
 	])]
 	gossip_support: GossipSupport,
 
