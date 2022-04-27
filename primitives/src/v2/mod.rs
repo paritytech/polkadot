@@ -16,9 +16,11 @@
 
 //! `V1` Primitives.
 
+use std::ops::{Deref};
+use typed_index_collections::TiVec;
 use bitvec::vec::BitVec;
-use parity_scale_codec::{Decode, Encode};
-use scale_info::TypeInfo;
+use parity_scale_codec::{Decode, Encode, WrapperTypeDecode, WrapperTypeEncode};
+use scale_info::{Type, TypeInfo};
 use sp_std::prelude::*;
 
 use application_crypto::KeyTypeId;
@@ -131,6 +133,14 @@ pub struct ValidatorIndex(pub u32);
 // We should really get https://github.com/paritytech/polkadot/issues/2403 going ..
 impl From<u32> for ValidatorIndex {
 	fn from(n: u32) -> Self {
+		ValidatorIndex(n)
+	}
+}
+
+impl From<usize> for ValidatorIndex {//TODO: See proper implementation
+	fn from(n: usize) -> Self {
+		// can't panic, so need to truncate
+		let n = n.try_into().unwrap_or(u32::MAX);
 		ValidatorIndex(n)
 	}
 }
@@ -789,6 +799,8 @@ impl From<u32> for GroupIndex {
 		GroupIndex(i)
 	}
 }
+
+
 
 /// A claim on authoring the next block for a given parathread.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
@@ -1566,6 +1578,56 @@ pub fn supermajority_threshold(n: usize) -> usize {
 	n - byzantine_threshold(n)
 }
 
+#[derive(Clone, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(PartialEq))]
+pub struct TypeIndex<K: From<usize>,V: Clone> (TiVec<K, V>);
+
+impl<K: From<usize>,V: Clone> From<Vec<(K,V)>> for TypeIndex<K,V>{
+	fn from(_: Vec<(K, V)>) -> Self {
+		todo!()
+	}
+}
+
+#[cfg(feature = "std")]
+impl<K: From<usize>,V: Clone> MallocSizeOf for TypeIndex<K,V> {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
+
+
+impl<'a,K: From<usize>, V: Clone> Deref for TypeIndex<K, V> {
+	type Target = Vec<(K,V)>;
+
+	fn deref(&self) -> &Self::Target {
+		let mut values: Vec<(K,V)> = Vec::new();
+		for (key,  value) in self.0.into_iter_enumerated().collect_vec(){
+
+			values.push((key,value));
+		}
+		&values
+	}
+}
+
+impl<K: From<usize>,V: Clone> WrapperTypeEncode for TypeIndex<K,V>{
+
+}
+
+impl<K: From<usize>,V: Clone> WrapperTypeDecode for TypeIndex<K,V>{
+	type Wrapped = Vec<(K,V)>;
+}
+
+impl<K: From<usize>,V: Clone> TypeInfo for TypeIndex<K,V>{
+	type Identity = ();
+
+	fn type_info() -> Type {
+		todo!()
+	}
+}
+
 /// Information about validator sets of a session.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
@@ -1587,7 +1649,7 @@ pub struct SessionInfo {
 	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
 	///
 	/// `SessionInfo::validators` will be limited to to `max_validators` when set.
-	pub validators: Vec<ValidatorId>,
+	pub validators: TypeIndex<ValidatorIndex,ValidatorId>,
 	/// Validators' authority discovery keys for the session in canonical ordering.
 	///
 	/// NOTE: The first `validators.len()` entries will match the corresponding validators in
@@ -1663,7 +1725,7 @@ pub struct OldV1SessionInfo {
 	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
 	///
 	/// `SessionInfo::validators` will be limited to to `max_validators` when set.
-	pub validators: Vec<ValidatorId>,
+	pub validators: TypeIndex<ValidatorIndex,ValidatorId>,
 	/// Validators' authority discovery keys for the session in canonical ordering.
 	///
 	/// NOTE: The first `validators.len()` entries will match the corresponding validators in

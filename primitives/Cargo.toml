@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
-typed-index-collections = "3.0.3"
+typed-index-collections = { version = "3.0.3", default-features = false, features = ["alloc","serde","serde-alloc"] }
 serde = { version = "1.0.136", optional = true, features = ["derive"] }
 scale-info = { version = "2.1.1", default-features = false, features = ["bit-vec", "derive"] }
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["bit-vec", "derive"] }
@@ -55,5 +55,6 @@ std = [
 	"polkadot-core-primitives/std",
 	"bitvec/std",
 	"frame-system/std",
+	"typed-index-collections/std"
 ]
 runtime-benchmarks = []
