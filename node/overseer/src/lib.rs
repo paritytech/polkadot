@@ -77,7 +77,7 @@ use polkadot_primitives::{
 };
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
-use polkadot_node_network_protocol::v1 as protocol_v1;
+use polkadot_node_network_protocol::VersionedValidationProtocol;
 use polkadot_node_subsystem_types::messages::{
 	ApprovalDistributionMessage, ApprovalVotingMessage, AvailabilityDistributionMessage,
 	AvailabilityRecoveryMessage, AvailabilityStoreMessage, BitfieldDistributionMessage,
@@ -414,7 +414,7 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 	event=Event,
 	signal=OverseerSignal,
 	error=SubsystemError,
-	network=NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
+	network=NetworkBridgeEvent<VersionedValidationProtocol>,
 )]
 pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, CandidateValidationMessage)]

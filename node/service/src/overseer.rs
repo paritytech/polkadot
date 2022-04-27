@@ -145,7 +145,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		Arc<RuntimeClient>,
 		CandidateValidationSubsystem,
 		PvfCheckerSubsystem,
-		CandidateBackingSubsystem<Spawner>,
+		CandidateBackingSubsystem,
 		StatementDistributionSubsystem<rand::rngs::StdRng>,
 		AvailabilityDistributionSubsystem,
 		AvailabilityRecoverySubsystem,
@@ -201,7 +201,6 @@ where
 			Metrics::register(registry)?,
 		))
 		.candidate_backing(CandidateBackingSubsystem::new(
-			spawner.clone(),
 			keystore.clone(),
 			Metrics::register(registry)?,
 		))

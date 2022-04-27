@@ -33,6 +33,7 @@ use std::{
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::{
+	self as net_protocol,
 	peer_set::PeerSet,
 	request_response as req_res,
 	request_response::{
@@ -40,7 +41,7 @@ use polkadot_node_network_protocol::{
 		v1::{CollationFetchingRequest, CollationFetchingResponse},
 		OutgoingRequest, Requests,
 	},
-	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, View,
+	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_primitives::{PoV, SignedFullStatement};
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
@@ -726,7 +727,7 @@ async fn notify_collation_seconded<Context>(
 		protocol_v1::CollatorProtocolMessage::CollationSeconded(relay_parent, statement.into());
 	ctx.send_message(NetworkBridgeMessage::SendCollationMessage(
 		vec![peer_id],
-		protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
+		Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 	))
 	.await;
 
@@ -790,7 +791,7 @@ async fn request_collation<Context>(
 		Recipient::Peer(peer_id),
 		CollationFetchingRequest { relay_parent, para_id },
 	);
-	let requests = Requests::CollationFetching(full_request);
+	let requests = Requests::CollationFetchingV1(full_request);
 
 	let per_request = PerRequest {
 		from_collator: response_recv.boxed().fuse(),
@@ -1073,7 +1074,7 @@ async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	keystore: &SyncCryptoStorePtr,
-	bridge_message: NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>,
+	bridge_message: NetworkBridgeEvent<net_protocol::CollatorProtocolMessage>,
 ) -> Result<()>
 where
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
@@ -1082,7 +1083,7 @@ where
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
-		PeerConnected(peer_id, _role, _) => {
+		PeerConnected(peer_id, _role, _version, _) => {
 			state.peer_data.entry(peer_id).or_default();
 			state.metrics.note_collator_peer_count(state.peer_data.len());
 		},
@@ -1099,7 +1100,7 @@ where
 		OurViewChange(view) => {
 			handle_our_view_change(ctx, state, keystore, view).await?;
 		},
-		PeerMessage(remote, msg) => {
+		PeerMessage(remote, Versioned::V1(msg)) => {
 			process_incoming_peer_message(ctx, state, remote, msg).await;
 		},
 	}
@@ -1138,7 +1139,7 @@ async fn process_msg<Context>(
 		ReportCollator(id) => {
 			report_collator(ctx, &state.peer_data, id).await;
 		},
-		NetworkBridgeUpdateV1(event) => {
+		NetworkBridgeUpdate(event) => {
 			if let Err(e) = handle_network_msg(ctx, state, keystore, event).await {
 				gum::warn!(
 					target: LOG_TARGET,
