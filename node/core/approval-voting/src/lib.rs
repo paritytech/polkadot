@@ -878,7 +878,7 @@ async fn handle_actions(
 				// Note that chaining these iterators is O(n) as we must consume
 				// the prior iterator.
 				let next_actions: Vec<Action> = issue_approval(
-					&mut sender,
+					ctx,
 					state,
 					overlayed_db,
 					metrics,
@@ -1193,13 +1193,16 @@ async fn handle_from_overseer(
 	Ok(actions)
 }
 
-async fn handle_approved_ancestor(
-	ctx: &mut impl overseer::SubsystemContext,
+async fn handle_approved_ancestor<Context>(
+	ctx: &mut Context,
 	db: &OverlayedBackend<'_, impl Backend>,
 	target: Hash,
 	lower_bound: BlockNumber,
 	wakeups: &Wakeups,
-) -> SubsystemResult<Option<HighestApprovedAncestorBlock>> {
+) -> SubsystemResult<Option<HighestApprovedAncestorBlock>>
+where
+	Context: overseer::ApprovalVotingContextTrait,
+{
 	const MAX_TRACING_WINDOW: usize = 200;
 	const ABNORMAL_DEPTH_THRESHOLD: usize = 5;
 
@@ -2244,7 +2247,6 @@ async fn launch_approval(
 									candidate.clone(),
 									false,
 								)
-								.into(),
 							)
 							.await;
 						metrics_guard.take().on_approval_invalid();
@@ -2285,7 +2287,6 @@ async fn launch_approval(
 					APPROVAL_EXECUTION_TIMEOUT,
 					val_tx,
 				)
-				.into(),
 			)
 			.await;
 
@@ -2311,7 +2312,6 @@ async fn launch_approval(
 								candidate.clone(),
 								false,
 							)
-							.into(),
 						)
 						.await;
 
@@ -2336,7 +2336,6 @@ async fn launch_approval(
 							candidate.clone(),
 							false,
 						)
-						.into(),
 					)
 					.await;
 
@@ -2363,14 +2362,17 @@ async fn launch_approval(
 
 // Issue and import a local approval vote. Should only be invoked after approval checks
 // have been done.
-async fn issue_approval(
-	ctx: &mut impl overseer::ApprovalVotingSenderTrait,
+async fn issue_approval<Context>(
+	ctx: &mut Context,
 	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
 	candidate_hash: CandidateHash,
 	ApprovalVoteRequest { validator_index, block_hash }: ApprovalVoteRequest,
-) -> SubsystemResult<Vec<Action>> {
+) -> SubsystemResult<Vec<Action>>
+where
+	Context: overseer::ApprovalVotingContextTrait,
+{
 	let block_entry = match db.load_block_entry(&block_hash)? {
 		Some(b) => b,
 		None => {
@@ -2529,7 +2531,6 @@ async fn issue_approval(
 			validator: validator_index,
 			signature: sig,
 		})
-		.into(),
 	);
 
 	// dispatch to dispute coordinator.

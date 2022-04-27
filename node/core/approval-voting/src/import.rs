@@ -108,7 +108,7 @@ enum ImportedBlockInfoError {
 
 /// Computes information about the imported block. Returns an error if the info couldn't be extracted.
 async fn imported_block_info(
-	ctx: &mut impl overseer::SubsystemContext,
+	ctx: &mut impl overseer::ApprovalVotingContextTrait,
 	env: ImportedBlockInfoEnv<'_>,
 	block_hash: Hash,
 	block_header: &Header,
@@ -320,7 +320,7 @@ pub struct BlockImportedCandidates {
 ///
 /// It is the responsibility of the caller to schedule wakeups for each block.
 pub(crate) async fn handle_new_head(
-	ctx: &mut impl overseer::SubsystemContext<
+	ctx: &mut impl overseer::ApprovalVotingContextTrait<
 		OutgoingMessages = overseer::ApprovalVotingOutgoingMessages,
 	>,
 	state: &mut State,
