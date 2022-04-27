@@ -576,7 +576,7 @@ mod benches {
 		[pallet_bridge_token_swap, BridgeRialtoTokenSwap]
 	);
 }
-pub type MmrHashing = <Runtime as pallet_mmr::Config>::Hashing;
+type MmrHashing = <Runtime as pallet_mmr::Config>::Hashing;
 
 impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
@@ -694,7 +694,7 @@ impl_runtime_apis! {
 			-> Result<(), MmrError>
 		{
 
-			pub type MmrLeaf = <<Runtime as pallet_mmr::Config>::LeafData as LeafDataProvider>::LeafData;
+			type MmrLeaf = <<Runtime as pallet_mmr::Config>::LeafData as LeafDataProvider>::LeafData;
 			let leaf: MmrLeaf = leaf
 				.into_opaque_leaf()
 				.try_decode()
@@ -721,7 +721,7 @@ impl_runtime_apis! {
 		fn verify_batch_proof(leaves: Vec<EncodableOpaqueLeaf>, proof: MmrBatchProof<MmrHash>)
 			-> Result<(), MmrError>
 		{
-			pub type MmrLeaf = <<Runtime as pallet_mmr::Config>::LeafData as LeafDataProvider>::LeafData;
+			type MmrLeaf = <<Runtime as pallet_mmr::Config>::LeafData as LeafDataProvider>::LeafData;
 			let leaves = leaves.into_iter().map(|leaf|
 				leaf.into_opaque_leaf()
 				.try_decode()
