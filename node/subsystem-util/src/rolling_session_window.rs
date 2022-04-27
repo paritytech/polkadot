@@ -94,11 +94,14 @@ pub struct RollingSessionWindow {
 
 impl RollingSessionWindow {
 	/// Initialize a new session info cache with the given window size.
-	pub async fn new(
-		mut sender: impl overseer::SubsystemSender<RuntimeApiMessage>,
+	pub async fn new<Sender>(
+		mut sender: Sender,
 		window_size: SessionWindowSize,
 		block_hash: Hash,
-	) -> Result<Self, SessionsUnavailable> {
+	) -> Result<Self, SessionsUnavailable>
+	where
+		Sender: overseer::SubsystemSender<RuntimeApiMessage>,
+	{
 		let session_index = get_session_index_for_child(&mut sender, block_hash).await?;
 
 		let window_start = session_index.saturating_sub(window_size.get() - 1);
