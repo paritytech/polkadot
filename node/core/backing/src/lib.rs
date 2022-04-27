@@ -1120,7 +1120,7 @@ impl<Context> CandidateBackingJob<Context>
 	/// is meant to check the signature and provenance of all statements before submission.
 	async fn dispatch_new_statement_to_dispute_coordinator(
 		&self,
-		ctx: &mut JobSender<impl overseer::BackingSenderTrait>,
+		ctx: &mut impl overseer::CandidateBackingContextTrait,
 		candidate_hash: CandidateHash,
 		statement: &SignedFullStatement,
 	) -> Result<(), ValidatorIndexOutOfBounds> {

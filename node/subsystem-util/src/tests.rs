@@ -57,7 +57,10 @@ enum Error {
 	Sending(#[from] mpsc::SendError),
 }
 
-impl JobTrait for FakeCollatorProtocolJob {
+impl<Sender> JobTrait for FakeCollatorProtocolJob
+where
+	Sender: overseer::CollatorProtocolSender,
+{
 	type Consumes = CollatorProtocolMessage;
 	type Outgoing = CollatorProtocolOutgoingMessages;
 	type Error = Error;
