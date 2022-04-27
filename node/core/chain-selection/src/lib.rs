@@ -322,7 +322,7 @@ impl ChainSelectionSubsystem {
 		let backend_config = db_backend::v1::Config { col_data: self.config.col_data };
 		let mut backend = db_backend::v1::DbBackend::new(self.db.clone(), backend_config);
 
-		let ops = tree::revert(&backend, hash)?.into_write_ops();
+		let ops = tree::revert_to(&backend, hash)?.into_write_ops();
 
 		backend.write(ops)
 	}

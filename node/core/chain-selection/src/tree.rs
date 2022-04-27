@@ -567,7 +567,7 @@ pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
 ///
 /// This accepts a fresh backend and returns an overlay on top of it representing
 /// all changes made.
-pub(super) fn revert<'a, B: Backend + 'a>(
+pub(super) fn revert_to<'a, B: Backend + 'a>(
 	backend: &'a B,
 	hash: Hash,
 ) -> Result<OverlayedBackend<'a, B>, Error> {
