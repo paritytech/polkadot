@@ -50,7 +50,7 @@ use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem::{
 	errors::RecoveryError,
 	jaeger,
-	messages::{AvailabilityRecoveryMessage, AvailabilityStoreMessage, NetworkBridgeMessage},
+	messages::{AvailabilityRecoveryMessage, AvailabilityStoreMessage, NetworkBridgeMessage, RuntimeApiMessage},
 	overseer::{self, Subsystem},
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError, SubsystemResult, SubsystemSender,
@@ -156,8 +156,8 @@ enum Source {
 
 /// A stateful reconstruction of availability data in reference to
 /// a candidate hash.
-struct RecoveryTask<S> {
-	sender: S,
+struct RecoveryTask<Sender> {
+	sender: Sender,
 
 	/// The parameters of the recovery process.
 	params: RecoveryParams,
@@ -177,7 +177,7 @@ impl RequestFromBackers {
 	async fn run(
 		&mut self,
 		params: &RecoveryParams,
-		sender: &mut impl SubsystemSender<RuntimeApiMessage>,
+		sender: &mut impl overseer::AvailabilityRecoverySenderTrait,
 	) -> Result<AvailableData, RecoveryError> {
 		gum::trace!(
 			target: LOG_TARGET,
@@ -204,7 +204,6 @@ impl RequestFromBackers {
 						vec![Requests::AvailableDataFetchingV1(req)],
 						IfDisconnected::ImmediateError,
 					)
-					.into(),
 				)
 				.await;
 
@@ -298,11 +297,14 @@ impl RequestChunksFromValidators {
 		)
 	}
 
-	async fn launch_parallel_requests(
+	async fn launch_parallel_requests<Sender>(
 		&mut self,
 		params: &RecoveryParams,
-		sender: &mut impl SubsystemSender<RuntimeApiMessage>,
-	) {
+		sender: &mut Sender,
+	)
+	where
+		Sender: overseer::AvailabilityRecoverySenderTrait,
+	{
 		let num_requests = self.get_desired_request_count(params.threshold);
 		let candidate_hash = &params.candidate_hash;
 		let already_requesting_count = self.requesting_chunks.len();
@@ -359,7 +361,7 @@ impl RequestChunksFromValidators {
 
 		sender
 			.send_message(
-				NetworkBridgeMessage::SendRequests(requests, IfDisconnected::ImmediateError).into(),
+				NetworkBridgeMessage::SendRequests(requests, IfDisconnected::ImmediateError)
 			)
 			.await;
 	}
@@ -483,11 +485,14 @@ impl RequestChunksFromValidators {
 		}
 	}
 
-	async fn run(
+	async fn run<Sender>(
 		&mut self,
 		params: &RecoveryParams,
-		sender: &mut impl SubsystemSender<RuntimeApiMessage>,
-	) -> Result<AvailableData, RecoveryError> {
+		sender: &mut Sender,
+	) -> Result<AvailableData, RecoveryError>
+	where
+		Sender: overseer::AvailabilityRecoverySenderTrait,
+	{
 		let metrics = &params.metrics;
 
 		// First query the store for any chunks we've got.
@@ -495,7 +500,7 @@ impl RequestChunksFromValidators {
 			let (tx, rx) = oneshot::channel();
 			sender
 				.send_message(
-					AvailabilityStoreMessage::QueryAllChunks(params.candidate_hash, tx).into(),
+					AvailabilityStoreMessage::QueryAllChunks(params.candidate_hash, tx)
 				)
 				.await;
 
@@ -646,7 +651,7 @@ fn reconstructed_data_matches_root(
 	branches.root() == *expected_root
 }
 
-impl<S> RecoveryTask<S> where S: AvailabilityRecoverySenderTrait {
+impl<Sender> RecoveryTask<Sender> where Sender: overseer::AvailabilityRecoverySenderTrait {
 	async fn run(mut self) -> Result<AvailableData, RecoveryError> {
 		// First just see if we have the data available locally.
 		{
@@ -654,7 +659,7 @@ impl<S> RecoveryTask<S> where S: AvailabilityRecoverySenderTrait {
 			self.sender
 				.send_message(
 					AvailabilityStoreMessage::QueryAvailableData(self.params.candidate_hash, tx)
-						.into(),
+
 				)
 				.await;
 
