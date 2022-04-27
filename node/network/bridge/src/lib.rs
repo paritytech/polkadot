@@ -1056,9 +1056,10 @@ fn dispatch_validation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
 	ctx: &mut impl overseer::NetworkBridgeSenderTrait,
 ) {
-	for msg in AllMessages::dispatch_iter(event) {
-		ctx.send_unbounded_message(msg);
-	}
+	// XXX FIXME XXX FIXME XXX
+	// for msg in AllMessages::dispatch_iter(event) {
+	// 	ctx.send_unbounded_message(msg);
+	// }
 }
 
 fn dispatch_collation_event_to_all_unbounded(
@@ -1075,7 +1076,8 @@ where
 	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>>,
 	I::IntoIter: Send,
 {
-	ctx.send_messages(events.into_iter().flat_map(AllMessages::dispatch_iter)).await
+	// FIXME XXX XXX TODO XXX FIXME XXX
+	// ctx.send_messages(events.into_iter().flat_map(AllMessages::dispatch_iter)).await
 }
 
 async fn dispatch_collation_events_to_all<I>(events: I, ctx: &mut impl overseer::NetworkBridgeSenderTrait)
