@@ -382,6 +382,7 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 		#(
 			+ #support_crate ::SubsystemSender< #outgoing >
 		)*
+			+ Send
 	};
 
 	ts.extend(quote!{
