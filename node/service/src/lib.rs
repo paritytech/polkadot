@@ -239,6 +239,9 @@ pub enum Error {
 
 /// Can be called for a `Configuration` to identify which network the configuration targets.
 pub trait IdentifyVariant {
+	/// Returns if this is a configuration for the `Polkadot` network.
+	fn is_polkadot(&self) -> bool;
+
 	/// Returns if this is a configuration for the `Kusama` network.
 	fn is_kusama(&self) -> bool;
 
@@ -259,6 +262,9 @@ pub trait IdentifyVariant {
 }
 
 impl IdentifyVariant for Box<dyn ChainSpec> {
+	fn is_polkadot(&self) -> bool {
+		self.id().starts_with("polkadot") || self.id().starts_with("dot")
+	}
 	fn is_kusama(&self) -> bool {
 		self.id().starts_with("kusama") || self.id().starts_with("ksm")
 	}
@@ -681,6 +687,7 @@ pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	program_path: Option<std::path::PathBuf>,
 	overseer_enable_anyways: bool,
 	overseer_gen: OverseerGenerator,
+	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, ExecutorDispatch>>>, Error>
 where
 	RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
@@ -711,6 +718,15 @@ where
 
 		Some(backoff)
 	};
+
+	// If not on a known test network, warn the user that BEEFY is still experimental.
+	if enable_beefy &&
+		!config.chain_spec.is_rococo() &&
+		!config.chain_spec.is_wococo() &&
+		!config.chain_spec.is_versi()
+	{
+		gum::warn!("BEEFY is still experimental, usage on a production network is discouraged.");
+	}
 
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
@@ -781,7 +797,7 @@ where
 		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
 		&config.chain_spec,
 	);
-	if chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi() {
+	if enable_beefy {
 		config
 			.network
 			.extra_sets
@@ -919,6 +935,19 @@ where
 		system_rpc_tx,
 		telemetry: telemetry.as_mut(),
 	})?;
+
+	if let Some(hwbench) = hwbench {
+		sc_sysinfo::print_hwbench(&hwbench);
+
+		if let Some(ref mut telemetry) = telemetry {
+			let telemetry_handle = telemetry.handle();
+			task_manager.spawn_handle().spawn(
+				"telemetry_hwbench",
+				None,
+				sc_sysinfo::initialize_hwbench_telemetry(telemetry_handle, hwbench),
+			);
+		}
+	}
 
 	let (block_import, link_half, babe_link, beefy_links) = import_setup;
 
@@ -1111,8 +1140,7 @@ where
 	let keystore_opt =
 		if role.is_authority() { Some(keystore_container.sync_keystore()) } else { None };
 
-	// We currently only run the BEEFY gadget on the Rococo and Wococo testnets.
-	if enable_beefy && (chain_spec.is_rococo() || chain_spec.is_wococo() || chain_spec.is_versi()) {
+	if enable_beefy {
 		let beefy_params = beefy_gadget::BeefyParams {
 			client: client.clone(),
 			backend: backend.clone(),
@@ -1290,6 +1318,7 @@ pub fn build_full(
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	overseer_enable_anyways: bool,
 	overseer_gen: impl OverseerGen,
+	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]
 	if config.chain_spec.is_rococo() ||
@@ -1306,6 +1335,7 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			hwbench,
 		)
 		.map(|full| full.with_client(Client::Rococo))
 	}
@@ -1322,6 +1352,7 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			hwbench,
 		)
 		.map(|full| full.with_client(Client::Kusama))
 	}
@@ -1338,6 +1369,7 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			hwbench,
 		)
 		.map(|full| full.with_client(Client::Westend))
 	}
@@ -1354,6 +1386,7 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			hwbench,
 		)
 		.map(|full| full.with_client(Client::Polkadot))
 	}
