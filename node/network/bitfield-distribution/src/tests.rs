@@ -764,6 +764,114 @@ fn do_not_send_message_back_to_origin() {
 }
 
 #[test]
+fn topology_test() {
+	let _ = env_logger::builder()
+		.filter(None, log::LevelFilter::Trace)
+		.is_test(true)
+		.try_init();
+
+	let hash: Hash = [0; 32].into();
+	let peers_x = (0..25).map(|_| PeerId::random()).collect::<Vec<_>>();
+	let peers_y = (0..25).map(|_| PeerId::random()).collect::<Vec<_>>();
+
+	// ensure all unique
+	assert_eq!(
+		peers_x.iter().chain(peers_y.iter()).collect::<HashSet<_>>().len(),
+		peers_x.len() + peers_y.len()
+	);
+
+	// validator 0 key pair
+	let (mut state, signing_context, keystore, validator) = state_with_view(our_view![hash], hash);
+
+	// Create a simple grid
+	state.topology.peers_x = peers_x.iter().cloned().collect::<HashSet<_>>();
+	state.topology.validator_indices_x = peers_x
+		.iter()
+		.enumerate()
+		.map(|(idx, _)| ValidatorIndex(idx as u32))
+		.collect::<HashSet<_>>();
+	state.topology.peers_y = peers_y.iter().cloned().collect::<HashSet<_>>();
+	state.topology.validator_indices_y = peers_y
+		.iter()
+		.enumerate()
+		.map(|(idx, _)| ValidatorIndex((idx + peers_x.len()) as u32))
+		.collect::<HashSet<_>>();
+
+	// create a signed message by validator 0
+	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
+	let signed_bitfield = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+		&keystore,
+		payload,
+		&signing_context,
+		ValidatorIndex(0),
+		&validator,
+	))
+	.ok()
+	.flatten()
+	.expect("should be signed");
+
+	peers_x.iter().chain(peers_y.iter()).for_each(|peer| {
+		state.peer_views.insert(peer.clone(), view![hash]);
+	});
+
+	let msg = BitfieldGossipMessage {
+		relay_parent: hash.clone(),
+		signed_availability: signed_bitfield.clone(),
+	};
+
+	let pool = sp_core::testing::TaskExecutor::new();
+	let (mut ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+	let mut rng = dummy_rng();
+
+	executor::block_on(async move {
+		// send a first message
+		launch!(handle_network_msg(
+			&mut ctx,
+			&mut state,
+			&Default::default(),
+			NetworkBridgeEvent::PeerMessage(peers_x[0].clone(), msg.clone().into_network_message(),),
+			&mut rng,
+		));
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(
+				_,
+				ProvisionableData::Bitfield(hash, signed)
+			)) => {
+				assert_eq!(hash, hash);
+				assert_eq!(signed, signed_bitfield)
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::SendValidationMessage(peers, send_msg),
+			) => {
+				// It should send message to all peers in y direction and to 4 random peers in x direction
+				assert_eq!(peers_y.len() + 4, peers.len());
+				assert!(state.topology.peers_y.iter().all(|peer| peers.contains(&peer)));
+				assert!(!peers.contains(&peers_x[1]));
+				// Must never include originator
+				assert!(!peers.contains(&peers_x[0]));
+				assert_eq!(send_msg, msg.clone().into_validation_protocol());
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::ReportPeer(peer, rep)
+			) => {
+				assert_eq!(peer, peers_x[0]);
+				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
+			}
+		);
+	});
+}
+
+#[test]
 fn need_message_works() {
 	let validators = vec![Sr25519Keyring::Alice.pair(), Sr25519Keyring::Bob.pair()];
 
