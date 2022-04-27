@@ -106,7 +106,7 @@ impl Metrics {
 }
 
 #[derive(Clone)]
-struct MetricsInner {
+pub(crate) struct MetricsInner {
 	peer_count: prometheus::GaugeVec<prometheus::U64>,
 	connected_events: prometheus::CounterVec<prometheus::U64>,
 	disconnected_events: prometheus::CounterVec<prometheus::U64>,
