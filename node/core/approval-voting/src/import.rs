@@ -45,6 +45,7 @@ use polkadot_node_subsystem_util::{
 	rolling_session_window::{RollingSessionWindow, SessionWindowUpdate},
 };
 use polkadot_primitives::v2::{
+	Id as ParaId,
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, ConsensusLog, CoreIndex,
 	GroupIndex, Hash, Header, SessionIndex,
 };
