@@ -23,7 +23,7 @@ use futures::{channel::oneshot, future::BoxFuture, prelude::*, stream::FuturesUn
 
 use polkadot_node_subsystem::{
 	messages::{CandidateValidationMessage, PreCheckOutcome, PvfCheckerMessage, RuntimeApiMessage},
-	overseer::{self, PvfCheckerOutgoingMessages}, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError, SubsystemResult, SubsystemSender,
 };
 use polkadot_primitives::v2::{
