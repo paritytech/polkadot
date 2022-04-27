@@ -40,8 +40,8 @@ use sp_application_crypto::{AppKey, ByteArray};
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_network_protocol::{
-	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, v1::GossipSuppportNetworkMessage,
-	PeerId,
+	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, GossipSupportNetworkMessage,
+	PeerId, Versioned,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -169,7 +169,7 @@ where
 			);
 			match message {
 				FromOverseer::Communication {
-					msg: GossipSupportMessage::NetworkBridgeUpdateV1(ev),
+					msg: GossipSupportMessage::NetworkBridgeUpdate(ev),
 				} => self.handle_connect_disconnect(ev),
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated,
@@ -383,9 +383,9 @@ where
 		};
 	}
 
-	fn handle_connect_disconnect(&mut self, ev: NetworkBridgeEvent<GossipSuppportNetworkMessage>) {
+	fn handle_connect_disconnect(&mut self, ev: NetworkBridgeEvent<GossipSupportNetworkMessage>) {
 		match ev {
-			NetworkBridgeEvent::PeerConnected(peer_id, _, o_authority) => {
+			NetworkBridgeEvent::PeerConnected(peer_id, _, _, o_authority) => {
 				if let Some(authority_ids) = o_authority {
 					authority_ids.iter().for_each(|a| {
 						self.connected_authorities.insert(a.clone(), peer_id);
@@ -404,7 +404,7 @@ where
 			NetworkBridgeEvent::OurViewChange(_) => {},
 			NetworkBridgeEvent::PeerViewChange(_, _) => {},
 			NetworkBridgeEvent::NewGossipTopology { .. } => {},
-			NetworkBridgeEvent::PeerMessage(_, v) => {
+			NetworkBridgeEvent::PeerMessage(_, Versioned::V1(v)) => {
 				match v {};
 			},
 		}
