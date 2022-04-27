@@ -602,11 +602,14 @@ impl State {
 	}
 
 	/// Bring `session_window` up to date.
-	pub async fn cache_session_info_for_head(
+	pub async fn cache_session_info_for_head<Context>(
 		&mut self,
-		ctx: &mut impl overseer::ApprovalVotingContextTrait,
+		ctx: &mut Context,
 		head: Hash,
-	) -> Result<Option<SessionWindowUpdate>, SessionsUnavailable> {
+	) -> Result<Option<SessionWindowUpdate>, SessionsUnavailable>
+	where
+		Context: overseer::ApprovalVotingContextTrait,
+	{
 		let session_window = self.session_window.take();
 		match session_window {
 			None => {
