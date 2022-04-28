@@ -19,7 +19,7 @@
 #![deny(unused_crate_dependencies)]
 
 use std::{
-	collections::{HashMap, HashSet},
+	collections::{hash_map::Entry, HashMap, HashSet},
 	sync::Arc,
 };
 
@@ -147,6 +147,13 @@ where
 	}
 }
 
+// The mode is determined on a per-relay-parent basis, based
+// on the runtime API version.
+enum Mode {
+	ProspectiveParachains,
+	NoProspectiveParachains,
+}
+
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
@@ -154,14 +161,14 @@ async fn run<Context>(
 	metrics: Metrics,
 ) -> FatalResult<()> {
 	let (background_validation_tx, mut background_validation_rx) = mpsc::channel(16);
-	let mut jobs = HashMap::new();
+	let mut view = View::new();
 
 	loop {
 		let res = run_iteration(
 			&mut ctx,
 			keystore.clone(),
 			&metrics,
-			&mut jobs,
+			&mut view,
 			background_validation_tx.clone(),
 			&mut background_validation_rx,
 		)
@@ -181,7 +188,7 @@ async fn run_iteration<Context>(
 	ctx: &mut Context,
 	keystore: SyncCryptoStorePtr,
 	metrics: &Metrics,
-	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
+	view: &mut View<Context>,
 	background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	background_validation_rx: &mut mpsc::Receiver<(Hash, ValidatedCandidateCommand)>,
 ) -> Result<(), Error> {
@@ -191,7 +198,7 @@ async fn run_iteration<Context>(
 				if let Some((relay_parent, command)) = validated_command {
 					handle_validated_candidate_command(
 						&mut *ctx,
-						jobs,
+						view,
 						relay_parent,
 						command,
 					).await?;
@@ -204,14 +211,14 @@ async fn run_iteration<Context>(
 					FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => handle_active_leaves_update(
 						&mut *ctx,
 						update,
-						jobs,
+						view,
 						&keystore,
 						&background_validation_tx,
 						&metrics,
 					).await?,
 					FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
 					FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-					FromOverseer::Communication { msg } => handle_communication(&mut *ctx, jobs, msg).await?,
+					FromOverseer::Communication { msg } => handle_communication(&mut *ctx, view, msg).await?,
 				}
 			}
 		)
@@ -221,11 +228,11 @@ async fn run_iteration<Context>(
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn handle_validated_candidate_command<Context>(
 	ctx: &mut Context,
-	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
+	view: &mut View<Context>,
 	relay_parent: Hash,
 	command: ValidatedCandidateCommand,
 ) -> Result<(), Error> {
-	if let Some(job) = jobs.get_mut(&relay_parent) {
+	if let Some(job) = view.job_mut(&relay_parent) {
 		job.job.handle_validated_candidate_command(&job.span, ctx, command).await?;
 	} else {
 		// simple race condition; can be ignored - this relay-parent
@@ -238,22 +245,22 @@ async fn handle_validated_candidate_command<Context>(
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn handle_communication<Context>(
 	ctx: &mut Context,
-	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
+	view: &mut View<Context>,
 	message: CandidateBackingMessage,
 ) -> Result<(), Error> {
 	match message {
 		CandidateBackingMessage::Second(relay_parent, candidate, pov) => {
-			if let Some(job) = jobs.get_mut(&relay_parent) {
+			if let Some(job) = view.job_mut(&relay_parent) {
 				job.job.handle_second_msg(&job.span, ctx, candidate, pov).await?;
 			}
 		},
 		CandidateBackingMessage::Statement(relay_parent, statement) => {
-			if let Some(job) = jobs.get_mut(&relay_parent) {
+			if let Some(job) = view.job_mut(&relay_parent) {
 				job.job.handle_statement_message(&job.span, ctx, statement).await?;
 			}
 		},
 		CandidateBackingMessage::GetBackedCandidates(relay_parent, requested_candidates, tx) =>
-			if let Some(job) = jobs.get_mut(&relay_parent) {
+			if let Some(job) = view.job_mut(&relay_parent) {
 				job.job.handle_get_backed_candidates_message(requested_candidates, tx)?;
 			},
 	}
@@ -265,7 +272,7 @@ async fn handle_communication<Context>(
 async fn handle_active_leaves_update<Context>(
 	ctx: &mut Context,
 	update: ActiveLeavesUpdate,
-	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
+	view: &mut View<Context>,
 	keystore: &SyncCryptoStorePtr,
 	background_validation_tx: &mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	metrics: &Metrics,
@@ -278,6 +285,9 @@ async fn handle_active_leaves_update<Context>(
 		None => return Ok(()),
 		Some(a) => a,
 	};
+
+	// TODO [now]: update view. no ancestry if mode is not
+	// `ProspectiveParachains`.
 
 	macro_rules! try_runtime_api {
 		($x: expr) => {
@@ -378,7 +388,8 @@ async fn handle_active_leaves_update<Context>(
 	drop(assignments_span);
 	let _span = span.child("wait-for-job");
 
-	let job = CandidateBackingJob {
+	// TODO [now] bound unneeded
+	let job = CandidateBackingJob::<Context> {
 		parent,
 		session_index,
 		assignment,
@@ -397,7 +408,7 @@ async fn handle_active_leaves_update<Context>(
 		_marker: std::marker::PhantomData,
 	};
 
-	jobs.insert(parent, JobAndSpan { job, span });
+	// TODO [now] view.insert(parent, JobAndSpan { job, span });
 
 	Ok(())
 }
@@ -405,6 +416,111 @@ async fn handle_active_leaves_update<Context>(
 struct JobAndSpan<Context> {
 	job: CandidateBackingJob<Context>,
 	span: PerLeafSpan,
+}
+
+struct ViewEntry<Context> {
+	ref_count: usize,
+	job: Option<JobAndSpan<Context>>,
+}
+
+#[derive(Debug, PartialEq)]
+enum JobStatus {
+	Unneeded,
+	Needed,
+	Existing,
+}
+
+struct View<Context> {
+	// Maps active-leaves to relevant ancestry, according to the
+	// prospective-parachains subsystem.
+	active_leaves: HashMap<Hash, Vec<Hash>>,
+
+	// maps relay-parents to jobs and spans.
+	implicit_view: HashMap<Hash, ViewEntry<Context>>,
+}
+
+impl<Context> View<Context> {
+	fn new() -> Self {
+		View {
+			active_leaves: HashMap::new(),
+			implicit_view: HashMap::new(),
+		}
+	}
+
+	/// Add a leaf to the view, with the given implicit ancestry.
+	///
+	/// Jobs may not already exist for the implicit ancestry, so
+	fn add_leaf_with_implicit_ancestry(
+		&mut self,
+		leaf: Hash,
+		implicit_ancestry: Vec<Hash>,
+	) {
+		let ancestry = match self.active_leaves.entry(leaf) {
+			Entry::Vacant(mut vacant) => vacant.insert(implicit_ancestry),
+			Entry::Occupied(_) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					relay_parent = ?leaf,
+					"Attempted to add leaf to view more than once.",
+				);
+
+				return
+			}
+		};
+
+		for fresh in ancestry.iter().cloned().chain(std::iter::once(leaf)) {
+			self.implicit_view.entry(fresh).or_insert_with(|| ViewEntry {
+				ref_count: 0,
+				job: None,
+			}).ref_count += 1;
+		}
+	}
+
+	/// Given a deactivated leaf, this does book-keeping on deactivated leaves
+	fn prune(&mut self, deactivated: Hash) {
+		if let Some(ancestry) = self.active_leaves.remove(&deactivated) {
+			for outdated in ancestry.into_iter().chain(std::iter::once(deactivated)) {
+				if let Entry::Occupied(mut entry) = self.implicit_view.entry(outdated) {
+					entry.get_mut().ref_count = entry.get().ref_count.saturating_sub(1);
+					if entry.get().ref_count == 0 {
+						let _ = entry.remove();
+					}
+				}
+			}
+		}
+	}
+
+	fn supply_needed_job(&mut self, relay_parent: Hash, job: JobAndSpan<Context>) {
+		if self.job_status(&relay_parent) != JobStatus::Needed {
+			gum::debug!(
+				target: LOG_TARGET,
+				?relay_parent,
+				"Attempted to supply unneeded job to view."
+			);
+			return;
+		}
+
+		// sanity: is always Some; guarded by job_status check above.
+		if let Some(x) = self.implicit_view.get_mut(&relay_parent) {
+			x.job = Some(job);
+		}
+	}
+
+	/// The status of the job for a given relay-parent.
+	fn job_status(&self, relay_parent: &Hash) -> JobStatus {
+		match self.implicit_view.get(relay_parent) {
+			None => JobStatus::Unneeded,
+			Some(entry) => if entry.job.is_some() {
+				JobStatus::Existing
+			} else {
+				JobStatus::Needed
+			},
+		}
+	}
+
+	fn job_mut<'a>(&'a mut self, relay_parent: &Hash) -> Option<&'a mut JobAndSpan<Context>> {
+		self.implicit_view.get_mut(relay_parent).and_then(|x| x.job.as_mut())
+	}
 }
 
 /// Holds all data needed for candidate backing job operation.
