@@ -633,6 +633,8 @@ fn collator_peer_id(
 async fn disconnect_peer<Context>(ctx: &mut Context, peer_id: PeerId)
 where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	ctx.send_message(NetworkBridgeMessage::DisconnectPeer(peer_id, PeerSet::Collation))
 		.await
@@ -646,6 +648,8 @@ async fn fetch_collation<Context>(
 	id: CollatorId,
 ) where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	let (tx, rx) = oneshot::channel();
 
@@ -691,6 +695,8 @@ async fn report_collator<Context>(
 	id: CollatorId,
 ) where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
 		modify_reputation(ctx, peer_id, COST_REPORT_BAD).await;
@@ -704,6 +710,8 @@ async fn note_good_collation<Context>(
 	id: CollatorId,
 ) where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
 		modify_reputation(ctx, peer_id, BENEFIT_NOTIFY_GOOD).await;
@@ -718,6 +726,8 @@ async fn notify_collation_seconded<Context>(
 	statement: SignedFullStatement,
 ) where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	let wire_message =
 		protocol_v1::CollatorProtocolMessage::CollationSeconded(relay_parent, statement.into());
@@ -759,6 +769,8 @@ async fn request_collation<Context>(
 	result: oneshot::Sender<(CandidateReceipt, PoV)>,
 ) where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	if !state.view.contains(&relay_parent) {
 		gum::debug!(
@@ -825,6 +837,8 @@ async fn process_incoming_peer_message<Context>(
 	msg: protocol_v1::CollatorProtocolMessage,
 ) where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	use protocol_v1::CollatorProtocolMessage::*;
 	use sp_runtime::traits::AppVerify;
@@ -1013,6 +1027,8 @@ async fn handle_our_view_change<Context>(
 ) -> Result<()>
 where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	let old_view = std::mem::replace(&mut state.view, view);
 
@@ -1071,6 +1087,8 @@ async fn handle_network_msg<Context>(
 ) -> Result<()>
 where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	use NetworkBridgeEvent::*;
 
@@ -1108,6 +1126,8 @@ async fn process_msg<Context>(
 	state: &mut State,
 ) where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	use CollatorProtocolMessage::*;
 
@@ -1210,6 +1230,8 @@ pub(crate) async fn run<Context>(
 ) -> std::result::Result<(), crate::error::FatalError>
 where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	let mut state = State { metrics, ..Default::default() };
 
@@ -1294,13 +1316,17 @@ async fn poll_requests(
 }
 
 /// Dequeue another collation and fetch.
-async fn dequeue_next_collation_and_fetch<Context: overseer::CollatorProtocolContextTrait>(
+async fn dequeue_next_collation_and_fetch<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	relay_parent: Hash,
 	// The collator we tried to fetch from last.
 	previous_fetch: CollatorId,
-) {
+) where
+	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
+{
 	if let Some((next, id)) = state
 		.collations_per_relay_parent
 		.get_mut(&relay_parent)
@@ -1330,6 +1356,8 @@ async fn handle_collation_fetched_result<Context>(
 	(mut collation_event, res): PendingCollationFetch,
 ) where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	// If no prior collation for this relay parent has been seconded, then
 	// memorize the `collation_event` for that `relay_parent`, such that we may
@@ -1395,6 +1423,8 @@ async fn disconnect_inactive_peers<Context>(
 	peers: &HashMap<PeerId, PeerData>,
 ) where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	for (peer, peer_data) in peers {
 		if peer_data.is_inactive(&eviction_policy) {

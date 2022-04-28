@@ -522,6 +522,8 @@ impl KnownUnfinalizedBlocks {
 impl<Context> overseer::Subsystem<Context, SubsystemError> for AvailabilityStoreSubsystem
 where
 	Context: overseer::AvailabilityStoreContextTrait,
+	<Context as overseer::AvailabilityStoreContextTrait>::Sender:
+		overseer::AvailabilityStoreSenderTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run::<Context>(self, ctx).map(|_| Ok(())).boxed();
@@ -533,6 +535,8 @@ where
 async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
 where
 	Context: overseer::AvailabilityStoreContextTrait,
+	<Context as overseer::AvailabilityStoreContextTrait>::Sender:
+		overseer::AvailabilityStoreSenderTrait,
 {
 	let mut next_pruning = Delay::new(subsystem.pruning_config.pruning_interval).fuse();
 
@@ -561,6 +565,8 @@ async fn run_iteration<Context>(
 ) -> Result<bool, Error>
 where
 	Context: overseer::AvailabilityStoreContextTrait,
+	<Context as overseer::AvailabilityStoreContextTrait>::Sender:
+		overseer::AvailabilityStoreSenderTrait,
 {
 	select! {
 		incoming = ctx.recv().fuse() => {
@@ -612,6 +618,8 @@ async fn process_block_activated<Context>(
 ) -> Result<(), Error>
 where
 	Context: overseer::AvailabilityStoreContextTrait,
+	<Context as overseer::AvailabilityStoreContextTrait>::Sender:
+		overseer::AvailabilityStoreSenderTrait,
 {
 	let now = subsystem.clock.now()?;
 
@@ -671,6 +679,8 @@ async fn process_new_head<Context>(
 ) -> Result<(), Error>
 where
 	Context: overseer::AvailabilityStoreContextTrait,
+	<Context as overseer::AvailabilityStoreContextTrait>::Sender:
+		overseer::AvailabilityStoreSenderTrait,
 {
 	let candidate_events = util::request_candidate_events(hash, ctx.sender()).await.await??;
 
@@ -817,6 +827,8 @@ async fn process_block_finalized<Context>(
 ) -> Result<(), Error>
 where
 	Context: overseer::AvailabilityStoreContextTrait,
+	<Context as overseer::AvailabilityStoreContextTrait>::Sender:
+		overseer::AvailabilityStoreSenderTrait,
 {
 	let now = subsystem.clock.now()?;
 

@@ -129,6 +129,7 @@ where
 	Net: Network + Sync,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 	Context: overseer::NetworkBridgeContextTrait,
+	<Context as overseer::NetworkBridgeContextTrait>::Sender: overseer::NetworkBridgeSenderTrait,
 {
 	fn start(mut self, ctx: Context) -> SpawnedSubsystem {
 		// The stream of networking events has to be created at initialization, otherwise the
@@ -195,6 +196,7 @@ async fn handle_subsystem_messages<Context, N, AD>(
 ) -> Result<(), UnexpectedAbort>
 where
 	Context: overseer::NetworkBridgeContextTrait,
+	<Context as overseer::NetworkBridgeContextTrait>::Sender: overseer::NetworkBridgeSenderTrait,
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
@@ -842,6 +844,7 @@ where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 	Context: overseer::NetworkBridgeContextTrait,
+	<Context as overseer::NetworkBridgeContextTrait>::Sender: overseer::NetworkBridgeSenderTrait,
 {
 	let shared = Shared::default();
 
@@ -906,14 +909,18 @@ fn construct_view(
 	View::new(live_heads.take(MAX_VIEW_HEADS), finalized_number)
 }
 
-fn update_our_view<Net: Network, Context: overseer::NetworkBridgeContextTrait>(
+fn update_our_view<Net, Context>(
 	net: &mut Net,
 	ctx: &mut Context,
 	live_heads: &[ActivatedLeaf],
 	shared: &Shared,
 	finalized_number: BlockNumber,
 	metrics: &Metrics,
-) {
+) where
+	Net: Network,
+	Context: overseer::NetworkBridgeContextTrait,
+	<Context as overseer::NetworkBridgeContextTrait>::Sender: overseer::NetworkBridgeSenderTrait,
+{
 	let new_view = construct_view(live_heads.iter().map(|v| v.hash), finalized_number);
 
 	let (validation_peers, collation_peers) = {

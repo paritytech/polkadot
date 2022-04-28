@@ -358,6 +358,7 @@ impl ApprovalVotingSubsystem {
 impl<Context> overseer::Subsystem<Context, SubsystemError> for ApprovalVotingSubsystem
 where
 	Context: overseer::ApprovalVotingContextTrait,
+	<Context as overseer::ApprovalVotingContextTrait>::Sender: overseer::ApprovalVotingSenderTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = DbBackend::new(self.db.clone(), self.db_config);
@@ -609,6 +610,8 @@ impl State {
 	) -> Result<Option<SessionWindowUpdate>, SessionsUnavailable>
 	where
 		Context: overseer::ApprovalVotingContextTrait,
+		<Context as overseer::ApprovalVotingContextTrait>::Sender:
+			overseer::ApprovalVotingSenderTrait,
 	{
 		let session_window = self.session_window.take();
 		match session_window {
@@ -720,6 +723,7 @@ async fn run<B, Context>(
 ) -> SubsystemResult<()>
 where
 	Context: overseer::ApprovalVotingContextTrait,
+	<Context as overseer::ApprovalVotingContextTrait>::Sender: overseer::ApprovalVotingSenderTrait,
 	B: Backend,
 {
 	let mut state = State {
@@ -857,7 +861,7 @@ where
 // 	https://github.com/paritytech/polkadot/issues/3311
 //
 // returns `true` if any of the actions was a `Conclude` command.
-async fn handle_actions<Context: overseer::ApprovalVotingContextTrait>(
+async fn handle_actions<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	overlayed_db: &mut OverlayedBackend<'_, impl Backend>,
@@ -867,7 +871,11 @@ async fn handle_actions<Context: overseer::ApprovalVotingContextTrait>(
 	approvals_cache: &mut lru::LruCache<CandidateHash, ApprovalOutcome>,
 	mode: &mut Mode,
 	actions: Vec<Action>,
-) -> SubsystemResult<bool> {
+) -> SubsystemResult<bool>
+where
+	Context: overseer::ApprovalVotingContextTrait,
+	<Context as overseer::ApprovalVotingContextTrait>::Sender: overseer::ApprovalVotingSenderTrait,
+{
 	let mut conclude = false;
 
 	let mut actions_iter = actions.into_iter();
@@ -1093,7 +1101,7 @@ fn distribution_messages_for_activation(
 }
 
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.
-async fn handle_from_overseer<Context: overseer::ApprovalVotingContextTrait>(
+async fn handle_from_overseer<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
@@ -1101,7 +1109,11 @@ async fn handle_from_overseer<Context: overseer::ApprovalVotingContextTrait>(
 	x: FromOverseer<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
 	wakeups: &mut Wakeups,
-) -> SubsystemResult<Vec<Action>> {
+) -> SubsystemResult<Vec<Action>>
+where
+	Context: overseer::ApprovalVotingContextTrait,
+	<Context as overseer::ApprovalVotingContextTrait>::Sender: overseer::ApprovalVotingSenderTrait,
+{
 	let actions = match x {
 		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			let mut actions = Vec::new();
@@ -1212,6 +1224,7 @@ async fn handle_approved_ancestor<Context>(
 ) -> SubsystemResult<Option<HighestApprovedAncestorBlock>>
 where
 	Context: overseer::ApprovalVotingContextTrait,
+	<Context as overseer::ApprovalVotingContextTrait>::Sender: overseer::ApprovalVotingSenderTrait,
 {
 	const MAX_TRACING_WINDOW: usize = 200;
 	const ABNORMAL_DEPTH_THRESHOLD: usize = 5;
@@ -2156,7 +2169,7 @@ fn process_wakeup(
 // Launch approval work, returning an `AbortHandle` which corresponds to the background task
 // spawned. When the background work is no longer needed, the `AbortHandle` should be dropped
 // to cancel the background work and any requests it has spawned.
-async fn launch_approval<Context: overseer::ApprovalVotingContextTrait>(
+async fn launch_approval<Context>(
 	ctx: &mut Context,
 	metrics: Metrics,
 	session_index: SessionIndex,
@@ -2164,7 +2177,11 @@ async fn launch_approval<Context: overseer::ApprovalVotingContextTrait>(
 	validator_index: ValidatorIndex,
 	block_hash: Hash,
 	backing_group: GroupIndex,
-) -> SubsystemResult<RemoteHandle<ApprovalState>> {
+) -> SubsystemResult<RemoteHandle<ApprovalState>>
+where
+	Context: overseer::ApprovalVotingContextTrait,
+	<Context as overseer::ApprovalVotingContextTrait>::Sender: overseer::ApprovalVotingSenderTrait,
+{
 	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
 
@@ -2374,6 +2391,7 @@ async fn issue_approval<Context>(
 ) -> SubsystemResult<Vec<Action>>
 where
 	Context: overseer::ApprovalVotingContextTrait,
+	<Context as overseer::ApprovalVotingContextTrait>::Sender: overseer::ApprovalVotingSenderTrait,
 {
 	let block_entry = match db.load_block_entry(&block_hash)? {
 		Some(b) => b,

@@ -373,6 +373,8 @@ async fn distribute_collation<Context>(
 ) -> Result<()>
 where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	let relay_parent = receipt.descriptor.relay_parent;
 
@@ -499,6 +501,8 @@ async fn determine_our_validators<Context>(
 ) -> Result<GroupValidators>
 where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	let session_index = runtime.get_session_index_for_child(ctx.sender(), relay_parent).await?;
 	let info = &runtime
@@ -529,6 +533,8 @@ where
 async fn declare<Context>(ctx: &mut Context, state: &mut State, peer: PeerId)
 where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	let declare_signature_payload = protocol_v1::declare_signature_payload(&state.local_peer_id);
 
@@ -552,6 +558,8 @@ where
 async fn connect_to_validators<Context>(ctx: &mut Context, validator_ids: Vec<AuthorityDiscoveryId>)
 where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	// ignore address resolution failure
 	// will reissue a new request on new collation
@@ -575,6 +583,8 @@ async fn advertise_collation<Context>(
 	peer: PeerId,
 ) where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	let should_advertise = state
 		.our_validators_groups
@@ -636,6 +646,8 @@ async fn process_msg<Context>(
 ) -> Result<()>
 where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	use CollatorProtocolMessage::*;
 
@@ -749,6 +761,8 @@ async fn handle_incoming_peer_message<Context>(
 ) -> Result<()>
 where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	use protocol_v1::CollatorProtocolMessage::*;
 
@@ -829,6 +843,8 @@ async fn handle_incoming_request<Context>(
 ) -> Result<()>
 where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	let _span = state
 		.span_per_relay_parent
@@ -904,6 +920,8 @@ async fn handle_peer_view_change<Context>(
 	view: View,
 ) where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	let current = state.peer_views.entry(peer_id.clone()).or_default();
 
@@ -925,6 +943,8 @@ async fn handle_network_msg<Context>(
 ) -> Result<()>
 where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	use NetworkBridgeEvent::*;
 
@@ -1018,6 +1038,8 @@ pub(crate) async fn run<Context>(
 ) -> std::result::Result<(), FatalError>
 where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	use OverseerSignal::*;
 

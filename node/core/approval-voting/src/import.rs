@@ -107,12 +107,16 @@ enum ImportedBlockInfoError {
 }
 
 /// Computes information about the imported block. Returns an error if the info couldn't be extracted.
-async fn imported_block_info<Context: overseer::ApprovalVotingContextTrait>(
+async fn imported_block_info<Context>(
 	ctx: &mut Context,
 	env: ImportedBlockInfoEnv<'_>,
 	block_hash: Hash,
 	block_header: &Header,
-) -> Result<ImportedBlockInfo, ImportedBlockInfoError> {
+) -> Result<ImportedBlockInfo, ImportedBlockInfoError>
+where
+	Context: overseer::ApprovalVotingContextTrait,
+	<Context as overseer::ApprovalVotingContextTrait>::Sender: overseer::ApprovalVotingSenderTrait,
+{
 	// Ignore any runtime API errors - that means these blocks are old and finalized.
 	// Only unfinalized blocks factor into the approval voting process.
 
@@ -319,13 +323,17 @@ pub struct BlockImportedCandidates {
 ///   * and return information about all candidates imported under each block.
 ///
 /// It is the responsibility of the caller to schedule wakeups for each block.
-pub(crate) async fn handle_new_head<Context: overseer::ApprovalVotingContextTrait>(
+pub(crate) async fn handle_new_head<Context, B: Backend>(
 	ctx: &mut Context,
 	state: &mut State,
-	db: &mut OverlayedBackend<'_, impl Backend>,
+	db: &mut OverlayedBackend<'_, B>,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
-) -> SubsystemResult<Vec<BlockImportedCandidates>> {
+) -> SubsystemResult<Vec<BlockImportedCandidates>>
+where
+	Context: overseer::ApprovalVotingContextTrait,
+	<Context as overseer::ApprovalVotingContextTrait>::Sender: overseer::ApprovalVotingSenderTrait,
+{
 	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
 
 	let mut span = jaeger::Span::new(head, "approval-checking-import");

@@ -99,14 +99,19 @@ impl TaskResult {
 
 impl SendTask {
 	/// Initiates sending a dispute message to peers.
-	pub async fn new<Context: overseer::DisputeDistributionContextTrait>(
+	pub async fn new<Context>(
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		active_sessions: &HashMap<SessionIndex, Hash>,
 		tx: mpsc::Sender<TaskFinish>,
 		request: DisputeRequest,
 		metrics: &Metrics,
-	) -> Result<Self> {
+	) -> Result<Self>
+	where
+		Context: overseer::DisputeDistributionContextTrait,
+		<Context as overseer::DisputeDistributionContextTrait>::Sender:
+			overseer::DisputeDistributionSenderTrait,
+	{
 		let mut send_task =
 			Self { request, deliveries: HashMap::new(), has_failed_sends: false, tx };
 		send_task.refresh_sends(ctx, runtime, active_sessions, metrics).await?;
@@ -117,13 +122,18 @@ impl SendTask {
 	///
 	/// This function is called at construction and should also be called whenever a session change
 	/// happens and on a regular basis to ensure we are retrying failed attempts.
-	pub async fn refresh_sends<Context: overseer::DisputeDistributionContextTrait>(
+	pub async fn refresh_sends<Context>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		active_sessions: &HashMap<SessionIndex, Hash>,
 		metrics: &Metrics,
-	) -> Result<()> {
+	) -> Result<()>
+	where
+		Context: overseer::DisputeDistributionContextTrait,
+		<Context as overseer::DisputeDistributionContextTrait>::Sender:
+			overseer::DisputeDistributionSenderTrait,
+	{
 		let new_authorities = self.get_relevant_validators(ctx, runtime, active_sessions).await?;
 
 		let add_authorities = new_authorities
@@ -194,12 +204,18 @@ impl SendTask {
 	///
 	/// This is all parachain validators of the session the candidate occurred and all authorities
 	/// of all currently active sessions, determined by currently active heads.
-	async fn get_relevant_validators<Context: overseer::DisputeDistributionContextTrait>(
+
+	async fn get_relevant_validators<Context>(
 		&self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		active_sessions: &HashMap<SessionIndex, Hash>,
-	) -> Result<HashSet<AuthorityDiscoveryId>> {
+	) -> Result<HashSet<AuthorityDiscoveryId>>
+	where
+		Context: overseer::DisputeDistributionContextTrait,
+		<Context as overseer::DisputeDistributionContextTrait>::Sender:
+			overseer::DisputeDistributionSenderTrait,
+	{
 		let ref_head = self.request.0.candidate_receipt.descriptor.relay_parent;
 		// Retrieve all authorities which participated in the parachain consensus of the session
 		// in which the candidate was backed.
@@ -238,13 +254,18 @@ impl SendTask {
 /// Start sending of the given message to all given authorities.
 ///
 /// And spawn tasks for handling the response.
-async fn send_requests<Context: overseer::DisputeDistributionContextTrait>(
+async fn send_requests<Context>(
 	ctx: &mut Context,
 	tx: mpsc::Sender<TaskFinish>,
 	receivers: Vec<AuthorityDiscoveryId>,
 	req: DisputeRequest,
 	metrics: &Metrics,
-) -> Result<HashMap<AuthorityDiscoveryId, DeliveryStatus>> {
+) -> Result<HashMap<AuthorityDiscoveryId, DeliveryStatus>>
+where
+	Context: overseer::DisputeDistributionContextTrait,
+	<Context as overseer::DisputeDistributionContextTrait>::Sender:
+		overseer::DisputeDistributionSenderTrait,
+{
 	let mut statuses = HashMap::with_capacity(receivers.len());
 	let mut reqs = Vec::with_capacity(receivers.len());
 

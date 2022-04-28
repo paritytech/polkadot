@@ -141,6 +141,8 @@ where
 	async fn run<Context>(mut self, mut ctx: Context) -> Self
 	where
 		Context: overseer::GossipSupportContextTrait,
+		<Context as overseer::GossipSupportContextTrait>::Sender:
+			overseer::GossipSupportSenderTrait,
 	{
 		fn get_connectivity_check_delay() -> Delay {
 			Delay::new(LOW_CONNECTIVITY_WARN_DELAY)
@@ -587,6 +589,7 @@ fn matrix_neighbors(
 impl<Context, AD> overseer::Subsystem<Context, SubsystemError> for GossipSupport<AD>
 where
 	Context: overseer::GossipSupportContextTrait,
+	<Context as overseer::GossipSupportContextTrait>::Sender: overseer::GossipSupportSenderTrait,
 	AD: AuthorityDiscovery + Clone,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {

@@ -51,6 +51,8 @@ pub async fn fetch_pov<Context>(
 ) -> Result<()>
 where
 	Context: overseer::AvailabilityDistributionContextTrait,
+	<Context as overseer::AvailabilityDistributionContextTrait>::Sender:
+		overseer::AvailabilityDistributionSenderTrait,
 {
 	let info = &runtime.get_session_info(ctx.sender(), parent).await?.session_info;
 	let authority_id = info

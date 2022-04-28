@@ -102,6 +102,8 @@ impl Requester {
 	) -> Result<()>
 	where
 		Context: overseer::AvailabilityDistributionContextTrait,
+		<Context as overseer::AvailabilityDistributionContextTrait>::Sender:
+			overseer::AvailabilityDistributionSenderTrait,
 	{
 		gum::trace!(target: LOG_TARGET, ?update, "Update fetching heads");
 		let ActiveLeavesUpdate { activated, deactivated } = update;
@@ -128,6 +130,8 @@ impl Requester {
 	) -> Result<()>
 	where
 		Context: overseer::AvailabilityDistributionContextTrait,
+		<Context as overseer::AvailabilityDistributionContextTrait>::Sender:
+			overseer::AvailabilityDistributionSenderTrait,
 	{
 		let sender = &mut ctx.sender().clone();
 		let ActivatedLeaf { hash: leaf, .. } = new_head;
@@ -186,6 +190,8 @@ impl Requester {
 	) -> Result<()>
 	where
 		Context: overseer::AvailabilityDistributionContextTrait,
+		<Context as overseer::AvailabilityDistributionContextTrait>::Sender:
+			overseer::AvailabilityDistributionSenderTrait,
 	{
 		for core in cores {
 			match self.fetches.entry(core.candidate_hash) {

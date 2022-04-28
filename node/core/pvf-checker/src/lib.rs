@@ -63,6 +63,7 @@ impl PvfCheckerSubsystem {
 impl<Context> overseer::Subsystem<Context, SubsystemError> for PvfCheckerSubsystem
 where
 	Context: overseer::PvfCheckerContextTrait,
+	<Context as overseer::PvfCheckerContextTrait>::Sender: overseer::PvfCheckerSenderTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		if self.enabled {

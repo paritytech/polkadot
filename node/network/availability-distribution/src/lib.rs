@@ -71,6 +71,8 @@ pub struct IncomingRequestReceivers {
 impl<Context> overseer::Subsystem<Context, SubsystemError> for AvailabilityDistributionSubsystem
 where
 	Context: overseer::AvailabilityDistributionContextTrait,
+	<Context as overseer::AvailabilityDistributionContextTrait>::Sender:
+		overseer::AvailabilityDistributionSenderTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self
@@ -97,6 +99,8 @@ impl AvailabilityDistributionSubsystem {
 	async fn run<Context>(self, mut ctx: Context) -> std::result::Result<(), FatalError>
 	where
 		Context: overseer::AvailabilityDistributionContextTrait,
+		<Context as overseer::AvailabilityDistributionContextTrait>::Sender:
+			overseer::AvailabilityDistributionSenderTrait,
 	{
 		let Self { mut runtime, recvs, metrics } = self;
 

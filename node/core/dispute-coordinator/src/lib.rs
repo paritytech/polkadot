@@ -127,6 +127,8 @@ impl Config {
 impl<Context> overseer::Subsystem<Context, SubsystemError> for DisputeCoordinatorSubsystem
 where
 	Context: overseer::DisputeCoordinatorContextTrait,
+	<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+		overseer::DisputeCoordinatorSenderTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async {
@@ -161,6 +163,8 @@ impl DisputeCoordinatorSubsystem {
 	) -> FatalResult<()>
 	where
 		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
 		B: Backend + 'static,
 	{
 		let res = self.initialize(&mut ctx, backend, &*clock).await?;
@@ -193,6 +197,8 @@ impl DisputeCoordinatorSubsystem {
 	>
 	where
 		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
 		B: Backend + 'static,
 	{
 		loop {
@@ -260,6 +266,8 @@ impl DisputeCoordinatorSubsystem {
 	)>
 	where
 		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
 	{
 		// Prune obsolete disputes:
 		db::v1::note_current_session(overlay_db, rolling_session_window.latest_session())?;
@@ -359,6 +367,8 @@ async fn get_rolling_session_window<Context>(
 ) -> Result<Option<(ActivatedLeaf, RollingSessionWindow)>>
 where
 	Context: overseer::DisputeCoordinatorContextTrait,
+	<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+		overseer::DisputeCoordinatorSenderTrait,
 {
 	if let Some(leaf) = wait_for_first_leaf(ctx).await? {
 		Ok(Some((
@@ -376,6 +386,8 @@ where
 async fn wait_for_first_leaf<Context>(ctx: &mut Context) -> Result<Option<ActivatedLeaf>>
 where
 	Context: overseer::DisputeCoordinatorContextTrait,
+	<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+		overseer::DisputeCoordinatorSenderTrait,
 {
 	loop {
 		match ctx.recv().await? {

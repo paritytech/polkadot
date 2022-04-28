@@ -178,6 +178,8 @@ impl FetchTask {
 	pub async fn start<Context>(config: FetchTaskConfig, ctx: &mut Context) -> Result<Self>
 	where
 		Context: overseer::AvailabilityDistributionContextTrait,
+		<Context as overseer::AvailabilityDistributionContextTrait>::Sender:
+			overseer::AvailabilityDistributionSenderTrait,
 	{
 		let FetchTaskConfig { prepared_running, live_in } = config;
 

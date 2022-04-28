@@ -101,6 +101,8 @@ impl CollatorProtocolSubsystem {
 	async fn run<Context>(self, ctx: Context) -> std::result::Result<(), error::FatalError>
 	where
 		Context: overseer::CollatorProtocolContextTrait,
+		<Context as overseer::CollatorProtocolContextTrait>::Sender:
+			overseer::CollatorProtocolSenderTrait,
 	{
 		match self.protocol_side {
 			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
@@ -114,6 +116,8 @@ impl CollatorProtocolSubsystem {
 impl<Context> overseer::Subsystem<Context, SubsystemError> for CollatorProtocolSubsystem
 where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self
@@ -129,6 +133,8 @@ where
 async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
 where
 	Context: overseer::CollatorProtocolContextTrait,
+	<Context as overseer::CollatorProtocolContextTrait>::Sender:
+		overseer::CollatorProtocolSenderTrait,
 {
 	gum::trace!(
 		target: LOG_TARGET,

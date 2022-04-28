@@ -124,6 +124,8 @@ impl Initialized {
 	) -> FatalResult<()>
 	where
 		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
 		B: Backend,
 	{
 		loop {
@@ -161,6 +163,8 @@ impl Initialized {
 	) -> Result<()>
 	where
 		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
 		B: Backend,
 	{
 		for (priority, request) in participations.drain(..) {
@@ -251,13 +255,18 @@ impl Initialized {
 		}
 	}
 
-	async fn process_active_leaves_update<Context: overseer::DisputeCoordinatorContextTrait>(
+	async fn process_active_leaves_update<Context>(
 		&mut self,
 		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		update: ActiveLeavesUpdate,
 		now: u64,
-	) -> Result<()> {
+	) -> Result<()>
+	where
+		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
+	{
 		let on_chain_votes =
 			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
 		self.participation.process_active_leaves_update(ctx, &update).await?;
@@ -315,13 +324,18 @@ impl Initialized {
 
 	/// Scrapes on-chain votes (backing votes and concluded disputes) for a active leaf of the
 	/// relay chain.
-	async fn process_on_chain_votes<Context: overseer::DisputeCoordinatorContextTrait>(
+	async fn process_on_chain_votes<Context>(
 		&mut self,
 		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		votes: ScrapedOnChainVotes,
 		now: u64,
-	) -> Result<()> {
+	) -> Result<()>
+	where
+		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
+	{
 		let ScrapedOnChainVotes { session, backing_validators_per_candidate, disputes } = votes;
 
 		if backing_validators_per_candidate.is_empty() && disputes.is_empty() {
@@ -493,13 +507,18 @@ impl Initialized {
 		Ok(())
 	}
 
-	async fn handle_incoming<Context: overseer::DisputeCoordinatorContextTrait>(
+	async fn handle_incoming<Context>(
 		&mut self,
 		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		message: DisputeCoordinatorMessage,
 		now: Timestamp,
-	) -> Result<Box<dyn FnOnce() -> JfyiResult<()>>> {
+	) -> Result<Box<dyn FnOnce() -> JfyiResult<()>>>
+	where
+		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
+	{
 		match message {
 			DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
@@ -630,7 +649,7 @@ impl Initialized {
 		Ok(())
 	}
 
-	async fn handle_import_statements<Context: overseer::DisputeCoordinatorContextTrait>(
+	async fn handle_import_statements<Context>(
 		&mut self,
 		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
@@ -639,7 +658,12 @@ impl Initialized {
 		session: SessionIndex,
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 		now: Timestamp,
-	) -> Result<ImportStatementsResult> {
+	) -> Result<ImportStatementsResult>
+	where
+		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
+	{
 		if session + DISPUTE_WINDOW.get() < self.highest_session {
 			// It is not valid to participate in an ancient dispute (spam?).
 			return Ok(ImportStatementsResult::InvalidImport)
@@ -919,7 +943,7 @@ impl Initialized {
 		Ok(ImportStatementsResult::ValidImport)
 	}
 
-	async fn issue_local_statement<Context: overseer::DisputeCoordinatorContextTrait>(
+	async fn issue_local_statement<Context>(
 		&mut self,
 		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
@@ -928,7 +952,12 @@ impl Initialized {
 		session: SessionIndex,
 		valid: bool,
 		now: Timestamp,
-	) -> Result<()> {
+	) -> Result<()>
+	where
+		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
+	{
 		// Load session info.
 		let info = match self.rolling_session_window.session_info(session) {
 			None => {
@@ -1051,10 +1080,15 @@ enum MuxedMessage {
 }
 
 impl MuxedMessage {
-	async fn receive<Context: overseer::DisputeCoordinatorContextTrait>(
+	async fn receive<Context>(
 		ctx: &mut Context,
 		from_sender: &mut participation::WorkerMessageReceiver,
-	) -> FatalResult<Self> {
+	) -> FatalResult<Self>
+	where
+		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
+	{
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream
 		// ends.
 		let from_overseer = ctx.recv().fuse();

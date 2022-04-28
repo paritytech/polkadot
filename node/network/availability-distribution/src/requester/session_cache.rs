@@ -104,6 +104,8 @@ impl SessionCache {
 	) -> Result<Option<R>>
 	where
 		Context: overseer::AvailabilityDistributionContextTrait,
+		<Context as overseer::AvailabilityDistributionContextTrait>::Sender:
+			overseer::AvailabilityDistributionSenderTrait,
 		F: FnOnce(&SessionInfo) -> R,
 	{
 		if let Some(o_info) = self.session_info_cache.get(&session_index) {
@@ -181,6 +183,8 @@ impl SessionCache {
 	) -> Result<Option<SessionInfo>>
 	where
 		Context: overseer::AvailabilityDistributionContextTrait,
+		<Context as overseer::AvailabilityDistributionContextTrait>::Sender:
+			overseer::AvailabilityDistributionSenderTrait,
 	{
 		let info = runtime
 			.get_session_info_by_index(ctx.sender(), relay_parent, session_index)

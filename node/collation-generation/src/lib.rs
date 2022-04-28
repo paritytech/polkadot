@@ -74,6 +74,8 @@ impl CollationGenerationSubsystem {
 	async fn run<Context>(mut self, mut ctx: Context)
 	where
 		Context: overseer::CollationGenerationContextTrait,
+		<Context as overseer::CollationGenerationContextTrait>::Sender:
+			overseer::CollationGenerationSenderTrait,
 	{
 		// when we activate new leaves, we spawn a bunch of sub-tasks, each of which is
 		// expected to generate precisely one message. We don't want to block the main loop
@@ -111,6 +113,8 @@ impl CollationGenerationSubsystem {
 	) -> bool
 	where
 		Context: overseer::CollationGenerationContextTrait,
+		<Context as overseer::CollationGenerationContextTrait>::Sender:
+			overseer::CollationGenerationSenderTrait,
 	{
 		match incoming {
 			Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
@@ -163,6 +167,8 @@ impl CollationGenerationSubsystem {
 impl<Context> overseer::Subsystem<Context, SubsystemError> for CollationGenerationSubsystem
 where
 	Context: overseer::CollationGenerationContextTrait,
+	<Context as overseer::CollationGenerationContextTrait>::Sender:
+		overseer::CollationGenerationSenderTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async move {
@@ -175,13 +181,18 @@ where
 	}
 }
 
-async fn handle_new_activations<Context: overseer::CollationGenerationContextTrait>(
+async fn handle_new_activations<Context>(
 	config: Arc<CollationGenerationConfig>,
 	activated: impl IntoIterator<Item = Hash>,
 	ctx: &mut Context,
 	metrics: Metrics,
 	sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
-) -> crate::error::Result<()> {
+) -> crate::error::Result<()>
+where
+	Context: overseer::CollationGenerationContextTrait,
+	<Context as overseer::CollationGenerationContextTrait>::Sender:
+		overseer::CollationGenerationSenderTrait,
+{
 	// follow the procedure from the guide:
 	// https://w3f.github.io/parachain-implementers-guide/node/collators/collation-generation.html
 

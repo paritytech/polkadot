@@ -97,6 +97,7 @@ where
 	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 	Context: overseer::RuntimeApiContextTrait,
+	<Context as overseer::RuntimeApiContextTrait>::Sender: overseer::RuntimeApiSenderTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem { future: run(ctx, self).boxed(), name: "runtime-api-subsystem" }
@@ -340,6 +341,7 @@ where
 	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 	Context: overseer::RuntimeApiContextTrait,
+	<Context as overseer::RuntimeApiContextTrait>::Sender: overseer::RuntimeApiSenderTrait,
 {
 	loop {
 		select! {

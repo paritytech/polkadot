@@ -87,6 +87,8 @@ impl DisputeSender {
 	) -> Result<()>
 	where
 		Context: overseer::DisputeDistributionContextTrait,
+		<Context as overseer::DisputeDistributionContextTrait>::Sender:
+			overseer::DisputeDistributionSenderTrait,
 	{
 		let req: DisputeRequest = msg.into();
 		let candidate_hash = req.0.candidate_receipt.hash();
@@ -125,6 +127,8 @@ impl DisputeSender {
 	) -> Result<()>
 	where
 		Context: overseer::DisputeDistributionContextTrait,
+		<Context as overseer::DisputeDistributionContextTrait>::Sender:
+			overseer::DisputeDistributionSenderTrait,
 	{
 		let ActiveLeavesUpdate { activated, deactivated } = update;
 		let deactivated: HashSet<_> = deactivated.into_iter().collect();
@@ -193,6 +197,8 @@ impl DisputeSender {
 	) -> Result<()>
 	where
 		Context: overseer::DisputeDistributionContextTrait,
+		<Context as overseer::DisputeDistributionContextTrait>::Sender:
+			overseer::DisputeDistributionSenderTrait,
 	{
 		let (session_index, candidate_hash) = dispute;
 		// A relay chain head is required as context for receiving session info information from runtime and
@@ -319,6 +325,8 @@ impl DisputeSender {
 	) -> Result<bool>
 	where
 		Context: overseer::DisputeDistributionContextTrait,
+		<Context as overseer::DisputeDistributionContextTrait>::Sender:
+			overseer::DisputeDistributionSenderTrait,
 	{
 		let new_sessions = get_active_session_indices(ctx, runtime, &self.active_heads).await?;
 		let new_sessions_raw: HashSet<_> = new_sessions.keys().collect();
@@ -340,6 +348,8 @@ async fn get_active_session_indices<Context>(
 ) -> Result<HashMap<SessionIndex, Hash>>
 where
 	Context: overseer::DisputeDistributionContextTrait,
+	<Context as overseer::DisputeDistributionContextTrait>::Sender:
+		overseer::DisputeDistributionSenderTrait,
 {
 	let mut indeces = HashMap::new();
 	// Iterate all heads we track as active and fetch the child' session indices.
@@ -356,6 +366,8 @@ async fn get_active_disputes<Context>(
 ) -> JfyiErrorResult<Vec<(SessionIndex, CandidateHash)>>
 where
 	Context: overseer::DisputeDistributionContextTrait,
+	<Context as overseer::DisputeDistributionContextTrait>::Sender:
+		overseer::DisputeDistributionSenderTrait,
 {
 	let (tx, rx) = oneshot::channel();
 
@@ -372,6 +384,8 @@ async fn get_candidate_votes<Context>(
 ) -> JfyiErrorResult<Option<CandidateVotes>>
 where
 	Context: overseer::DisputeDistributionContextTrait,
+	<Context as overseer::DisputeDistributionContextTrait>::Sender:
+		overseer::DisputeDistributionSenderTrait,
 {
 	let (tx, rx) = oneshot::channel();
 	// Caller scope is in `update_leaves` and this is bounded by fork count.

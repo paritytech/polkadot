@@ -116,7 +116,9 @@ pub struct DisputeDistributionSubsystem<AD> {
 
 impl<Context, AD> overseer::Subsystem<Context, SubsystemError> for DisputeDistributionSubsystem<AD>
 where
-	Context: overseer::DisputeDistributionContextTrait + Sync + Send,
+	Context: overseer::DisputeDistributionContextTrait,
+	<Context as overseer::DisputeDistributionContextTrait>::Sender:
+		overseer::DisputeDistributionSenderTrait + Sync + Send,
 	AD: AuthorityDiscovery + Clone,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
@@ -159,7 +161,9 @@ where
 	/// Start processing work as passed on from the Overseer.
 	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError>
 	where
-		Context: overseer::DisputeDistributionContextTrait + Sync + Send,
+		Context: overseer::DisputeDistributionContextTrait,
+		<Context as overseer::DisputeDistributionContextTrait>::Sender:
+			overseer::DisputeDistributionSenderTrait + Sync + Send,
 	{
 		let receiver = DisputesReceiver::new(
 			ctx.sender().clone(),
@@ -206,6 +210,8 @@ where
 	) -> Result<SignalResult>
 	where
 		Context: overseer::DisputeDistributionContextTrait,
+		<Context as overseer::DisputeDistributionContextTrait>::Sender:
+			overseer::DisputeDistributionSenderTrait,
 	{
 		match signal {
 			OverseerSignal::Conclude => return Ok(SignalResult::Conclude),
@@ -225,6 +231,8 @@ where
 	) -> Result<()>
 	where
 		Context: overseer::DisputeDistributionContextTrait,
+		<Context as overseer::DisputeDistributionContextTrait>::Sender:
+			overseer::DisputeDistributionSenderTrait,
 	{
 		match msg {
 			DisputeDistributionMessage::SendDispute(dispute_msg) =>
@@ -250,6 +258,8 @@ impl MuxedMessage {
 	) -> Self
 	where
 		Context: overseer::DisputeDistributionContextTrait,
+		<Context as overseer::DisputeDistributionContextTrait>::Sender:
+			overseer::DisputeDistributionSenderTrait,
 	{
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream
 		// ends.

@@ -152,6 +152,8 @@ impl Participation {
 	) -> Result<()>
 	where
 		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
 	{
 		// Participation already running - we can ignore that request:
 		if self.running_participations.contains(req.candidate_hash()) {
@@ -177,11 +179,16 @@ impl Participation {
 	///
 	/// Returns: The received `ParticipationStatement` or a fatal error, in case
 	/// something went wrong when dequeuing more requests (tasks could not be spawned).
-	pub async fn get_participation_result<Context: overseer::DisputeCoordinatorContextTrait>(
+	pub async fn get_participation_result<Context>(
 		&mut self,
 		ctx: &mut Context,
 		msg: WorkerMessage,
-	) -> FatalResult<ParticipationStatement> {
+	) -> FatalResult<ParticipationStatement>
+	where
+		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
+	{
 		let WorkerMessage(statement) = msg;
 		self.running_participations.remove(&statement.candidate_hash);
 		let recent_block = self.recent_block.expect("We never ever reset recent_block to `None` and we already received a result, so it must have been set before. qed.");
@@ -193,11 +200,16 @@ impl Participation {
 	///
 	/// Make sure we to dequeue participations if that became possible and update most recent
 	/// block.
-	pub async fn process_active_leaves_update<Context: overseer::DisputeCoordinatorContextTrait>(
+	pub async fn process_active_leaves_update<Context>(
 		&mut self,
 		ctx: &mut Context,
 		update: &ActiveLeavesUpdate,
-	) -> FatalResult<()> {
+	) -> FatalResult<()>
+	where
+		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
+	{
 		if let Some(activated) = &update.activated {
 			match self.recent_block {
 				None => {
@@ -215,11 +227,17 @@ impl Participation {
 	}
 
 	/// Dequeue until `MAX_PARALLEL_PARTICIPATIONS` is reached.
-	async fn dequeue_until_capacity<Context: overseer::DisputeCoordinatorContextTrait>(
+
+	async fn dequeue_until_capacity<Context>(
 		&mut self,
 		ctx: &mut Context,
 		recent_head: Hash,
-	) -> FatalResult<()> {
+	) -> FatalResult<()>
+	where
+		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
+	{
 		while self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS {
 			if let Some(req) = self.queue.dequeue() {
 				self.fork_participation(ctx, req, recent_head)?;
@@ -239,6 +257,8 @@ impl Participation {
 	) -> FatalResult<()>
 	where
 		Context: overseer::DisputeCoordinatorContextTrait,
+		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
+			overseer::DisputeCoordinatorSenderTrait,
 	{
 		if self.running_participations.insert(req.candidate_hash().clone()) {
 			let sender = ctx.sender().clone();
