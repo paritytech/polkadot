@@ -126,7 +126,7 @@ struct ProtocolState {
 	/// to determine what is relevant to them.
 	peer_views: HashMap<PeerId, View>,
 
-	/// The current gossip topology
+	/// The current and previous gossip topologies
 	topologies: BitfieldGridTopologyStorage,
 
 	/// Our current view.
