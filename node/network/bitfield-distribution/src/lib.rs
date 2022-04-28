@@ -30,7 +30,9 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_subsystem_util::{self as util};
-use polkadot_primitives::v2::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
+use polkadot_primitives::v2::{
+	Hash, SessionIndex, SignedAvailabilityBitfield, SigningContext, ValidatorId,
+};
 use polkadot_subsystem::{
 	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
 	SpawnedSubsystem, SubsystemContext, SubsystemError, SubsystemResult,
@@ -78,6 +80,48 @@ impl BitfieldGossipMessage {
 	}
 }
 
+/// A simple storage for a topology and the corresponding session index
+#[derive(Default, Debug)]
+struct GridTopologySessionBound(SessionGridTopology, SessionIndex);
+
+/// A storage for the current and maybe previous topology
+#[derive(Default, Debug)]
+struct GridTopologyStorage {
+	current_topology: GridTopologySessionBound,
+	prev_topology: Option<GridTopologySessionBound>,
+}
+
+impl GridTopologyStorage {
+	/// Return a grid topology based on the session index:
+	/// If we need a previous session and it is registered in the storage, then return that session.
+	/// Otherwise, return a current session to have some grid topology in any case
+	fn get_topology(&self, idx: SessionIndex) -> &SessionGridTopology {
+		if idx == self.current_topology.1 {
+			&self.current_topology.0
+		} else {
+			if let Some(prev_topology) = &self.prev_topology {
+				if idx == prev_topology.1 {
+					return &prev_topology.0
+				}
+			}
+			// Return the current topology by default
+			&self.current_topology.0
+		}
+	}
+
+	/// Update the current topology preserving the previous one
+	fn update_topology(&mut self, idx: SessionIndex, topology: SessionGridTopology) {
+		let old_current =
+			std::mem::replace(&mut self.current_topology, GridTopologySessionBound(topology, idx));
+		self.prev_topology.replace(old_current);
+	}
+
+	/// Returns a current grid topology
+	fn get_current_topology(&self) -> &SessionGridTopology {
+		&self.current_topology.0
+	}
+}
+
 /// Data used to track information of peers and relay parents the
 /// overseer ordered us to work on.
 #[derive(Default, Debug)]
@@ -87,7 +131,7 @@ struct ProtocolState {
 	peer_views: HashMap<PeerId, View>,
 
 	/// The current gossip topology
-	topology: SessionGridTopology,
+	topologies: GridTopologyStorage,
 
 	/// Our current view.
 	view: OurView,
@@ -312,6 +356,8 @@ async fn handle_bitfield_distribution<Context>(
 
 		return
 	};
+
+	let session_idx = job_data.signing_context.session_index;
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
 		gum::debug!(target: LOG_TARGET, ?relay_parent, "validator set is empty");
@@ -327,7 +373,7 @@ async fn handle_bitfield_distribution<Context>(
 	};
 
 	let msg = BitfieldGossipMessage { relay_parent, signed_availability };
-	let topology = &state.topology;
+	let topology = state.topologies.get_topology(session_idx);
 	let required_routing = topology.required_routing_for(validator_index, true);
 	relay_message(
 		ctx,
@@ -532,7 +578,7 @@ async fn process_incoming_peer_message<Context>(
 
 	let message = BitfieldGossipMessage { relay_parent, signed_availability };
 
-	let topology = &state.topology;
+	let topology = state.topologies.get_topology(job_data.signing_context.session_index);
 	let required_routing = topology.required_routing_for(validator_index, false);
 
 	metrics.on_bitfield_received();
@@ -541,7 +587,7 @@ async fn process_incoming_peer_message<Context>(
 	relay_message(
 		ctx,
 		job_data,
-		&state.topology,
+		topology,
 		&mut state.peer_views,
 		validator,
 		message,
@@ -577,10 +623,11 @@ async fn handle_network_msg<Context>(
 			// get rid of superfluous data
 			state.peer_views.remove(&peer);
 		},
-		NetworkBridgeEvent::NewGossipTopology(topology) => {
-			let new_topology = SessionGridTopology::from(topology);
-			let newly_added = new_topology.peers_diff(&state.topology);
-			state.topology = new_topology;
+		NetworkBridgeEvent::NewGossipTopology(gossip_topology) => {
+			let session_index = gossip_topology.session;
+			let new_topology = SessionGridTopology::from(gossip_topology);
+			let newly_added = new_topology.peers_diff(&new_topology);
+			state.topologies.update_topology(session_index, new_topology);
 
 			for new_peer in newly_added {
 				// in case we already knew that peer in the past
@@ -645,10 +692,11 @@ async fn handle_peer_view_change<Context>(
 		.cloned()
 		.collect::<Vec<_>>();
 
-	let is_gossip_peer = state.topology.route_to_peer(RequiredRouting::GridXY, &origin);
+	let topology = state.topologies.get_current_topology();
+	let is_gossip_peer = topology.route_to_peer(RequiredRouting::GridXY, &origin);
 	let lucky = is_gossip_peer ||
 		util::gen_ratio_rng(
-			util::MIN_GOSSIP_PEERS.saturating_sub(state.topology.len()),
+			util::MIN_GOSSIP_PEERS.saturating_sub(topology.len()),
 			util::MIN_GOSSIP_PEERS,
 			rng,
 		);
