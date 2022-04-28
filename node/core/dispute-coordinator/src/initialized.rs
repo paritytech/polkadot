@@ -251,9 +251,9 @@ impl Initialized {
 		}
 	}
 
-	async fn process_active_leaves_update(
+	async fn process_active_leaves_update<Context: overseer::DisputeCoordinatorContextTrait>(
 		&mut self,
-		ctx: &mut impl overseer::DisputeCoordinatorContextTrait,
+		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		update: ActiveLeavesUpdate,
 		now: u64,
@@ -315,9 +315,9 @@ impl Initialized {
 
 	/// Scrapes on-chain votes (backing votes and concluded disputes) for a active leaf of the
 	/// relay chain.
-	async fn process_on_chain_votes(
+	async fn process_on_chain_votes<Context: overseer::DisputeCoordinatorContextTrait>(
 		&mut self,
-		ctx: &mut impl overseer::DisputeCoordinatorContextTrait,
+		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		votes: ScrapedOnChainVotes,
 		now: u64,
@@ -493,9 +493,9 @@ impl Initialized {
 		Ok(())
 	}
 
-	async fn handle_incoming(
+	async fn handle_incoming<Context: overseer::DisputeCoordinatorContextTrait>(
 		&mut self,
-		ctx: &mut impl overseer::DisputeCoordinatorContextTrait,
+		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		message: DisputeCoordinatorMessage,
 		now: Timestamp,
@@ -630,9 +630,9 @@ impl Initialized {
 		Ok(())
 	}
 
-	async fn handle_import_statements(
+	async fn handle_import_statements<Context: overseer::DisputeCoordinatorContextTrait>(
 		&mut self,
-		ctx: &mut impl overseer::DisputeCoordinatorContextTrait,
+		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		candidate_hash: CandidateHash,
 		candidate_receipt: MaybeCandidateReceipt,
@@ -919,9 +919,9 @@ impl Initialized {
 		Ok(ImportStatementsResult::ValidImport)
 	}
 
-	async fn issue_local_statement(
+	async fn issue_local_statement<Context: overseer::DisputeCoordinatorContextTrait>(
 		&mut self,
-		ctx: &mut impl overseer::DisputeCoordinatorContextTrait,
+		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		candidate_hash: CandidateHash,
 		candidate_receipt: CandidateReceipt,
@@ -1051,8 +1051,8 @@ enum MuxedMessage {
 }
 
 impl MuxedMessage {
-	async fn receive(
-		ctx: &mut impl overseer::DisputeCoordinatorContextTrait,
+	async fn receive<Context: overseer::DisputeCoordinatorContextTrait>(
+		ctx: &mut Context,
 		from_sender: &mut participation::WorkerMessageReceiver,
 	) -> FatalResult<Self> {
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream

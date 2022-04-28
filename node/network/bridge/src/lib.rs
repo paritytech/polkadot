@@ -906,9 +906,9 @@ fn construct_view(
 	View::new(live_heads.take(MAX_VIEW_HEADS), finalized_number)
 }
 
-fn update_our_view(
-	net: &mut impl Network,
-	ctx: &mut impl overseer::NetworkBridgeContextTrait,
+fn update_our_view<Net: Network, Context: overseer::NetworkBridgeContextTrait>(
+	net: &mut Net,
+	ctx: &mut Context,
 	live_heads: &[ActivatedLeaf],
 	shared: &Shared,
 	finalized_number: BlockNumber,

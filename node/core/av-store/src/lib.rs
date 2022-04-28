@@ -524,7 +524,7 @@ where
 	Context: overseer::AvailabilityStoreContextTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = run(self, ctx).map(|_| Ok(())).boxed();
+		let future = run::<Context>(self, ctx).map(|_| Ok(())).boxed();
 
 		SpawnedSubsystem { name: "availability-store-subsystem", future }
 	}

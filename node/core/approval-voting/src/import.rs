@@ -45,9 +45,8 @@ use polkadot_node_subsystem_util::{
 	rolling_session_window::{RollingSessionWindow, SessionWindowUpdate},
 };
 use polkadot_primitives::v2::{
-	Id as ParaId,
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, ConsensusLog, CoreIndex,
-	GroupIndex, Hash, Header, SessionIndex,
+	GroupIndex, Hash, Header, Id as ParaId, SessionIndex,
 };
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::Slot;
@@ -108,8 +107,8 @@ enum ImportedBlockInfoError {
 }
 
 /// Computes information about the imported block. Returns an error if the info couldn't be extracted.
-async fn imported_block_info(
-	ctx: &mut impl overseer::ApprovalVotingContextTrait,
+async fn imported_block_info<Context: overseer::ApprovalVotingContextTrait>(
+	ctx: &mut Context,
 	env: ImportedBlockInfoEnv<'_>,
 	block_hash: Hash,
 	block_header: &Header,
@@ -320,10 +319,8 @@ pub struct BlockImportedCandidates {
 ///   * and return information about all candidates imported under each block.
 ///
 /// It is the responsibility of the caller to schedule wakeups for each block.
-pub(crate) async fn handle_new_head(
-	ctx: &mut impl overseer::ApprovalVotingContextTrait<
-		OutgoingMessages = overseer::ApprovalVotingOutgoingMessages,
-	>,
+pub(crate) async fn handle_new_head<Context: overseer::ApprovalVotingContextTrait>(
+	ctx: &mut Context,
 	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	head: Hash,

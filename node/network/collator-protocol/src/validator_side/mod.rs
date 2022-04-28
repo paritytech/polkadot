@@ -1294,8 +1294,8 @@ async fn poll_requests(
 }
 
 /// Dequeue another collation and fetch.
-async fn dequeue_next_collation_and_fetch(
-	ctx: &mut impl overseer::CollatorProtocolContextTrait,
+async fn dequeue_next_collation_and_fetch<Context: overseer::CollatorProtocolContextTrait>(
+	ctx: &mut Context,
 	state: &mut State,
 	relay_parent: Hash,
 	// The collator we tried to fetch from last.

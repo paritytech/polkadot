@@ -857,8 +857,8 @@ where
 // 	https://github.com/paritytech/polkadot/issues/3311
 //
 // returns `true` if any of the actions was a `Conclude` command.
-async fn handle_actions(
-	ctx: &mut impl overseer::ApprovalVotingContextTrait,
+async fn handle_actions<Context: overseer::ApprovalVotingContextTrait>(
+	ctx: &mut Context,
 	state: &mut State,
 	overlayed_db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
@@ -1093,8 +1093,8 @@ fn distribution_messages_for_activation(
 }
 
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.
-async fn handle_from_overseer(
-	ctx: &mut impl overseer::ApprovalVotingContextTrait,
+async fn handle_from_overseer<Context: overseer::ApprovalVotingContextTrait>(
+	ctx: &mut Context,
 	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
@@ -2156,8 +2156,8 @@ fn process_wakeup(
 // Launch approval work, returning an `AbortHandle` which corresponds to the background task
 // spawned. When the background work is no longer needed, the `AbortHandle` should be dropped
 // to cancel the background work and any requests it has spawned.
-async fn launch_approval(
-	ctx: &mut impl overseer::ApprovalVotingContextTrait,
+async fn launch_approval<Context: overseer::ApprovalVotingContextTrait>(
+	ctx: &mut Context,
 	metrics: Metrics,
 	session_index: SessionIndex,
 	candidate: CandidateReceipt,

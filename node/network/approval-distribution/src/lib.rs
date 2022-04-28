@@ -322,9 +322,9 @@ enum PendingMessage {
 }
 
 impl State {
-	async fn handle_network_msg(
+	async fn handle_network_msg<Context: overseer::ApprovalDistributionContextTrait>(
 		&mut self,
-		ctx: &mut impl overseer::ApprovalDistributionContextTrait,
+		ctx: &mut Context,
 		metrics: &Metrics,
 		event: NetworkBridgeEvent<net_protocol::ApprovalDistributionMessage>,
 		rng: &mut (impl CryptoRng + Rng),
@@ -376,9 +376,9 @@ impl State {
 		}
 	}
 
-	async fn handle_new_blocks(
+	async fn handle_new_blocks<Context: overseer::ApprovalDistributionContextTrait>(
 		&mut self,
-		ctx: &mut impl overseer::ApprovalDistributionContextTrait,
+		ctx: &mut Context,
 		metrics: &Metrics,
 		metas: Vec<BlockApprovalMeta>,
 		rng: &mut (impl CryptoRng + Rng),
@@ -495,9 +495,9 @@ impl State {
 		self.enable_aggression(ctx, Resend::Yes, metrics).await;
 	}
 
-	async fn handle_new_session_topology(
+	async fn handle_new_session_topology<Context: overseer::ApprovalDistributionContextTrait>(
 		&mut self,
-		ctx: &mut impl overseer::ApprovalDistributionContextTrait,
+		ctx: &mut Context,
 		session: SessionIndex,
 		topology: SessionGridTopology,
 	) {
@@ -518,13 +518,16 @@ impl State {
 		.await;
 	}
 
-	async fn process_incoming_peer_message(
+	async fn process_incoming_peer_message<
+		Context: overseer::ApprovalDistributionContextTrait,
+		R: CryptoRng + Rng,
+	>(
 		&mut self,
-		ctx: &mut impl overseer::ApprovalDistributionContextTrait,
+		ctx: &mut Context,
 		metrics: &Metrics,
 		peer_id: PeerId,
 		msg: protocol_v1::ApprovalDistributionMessage,
-		rng: &mut (impl CryptoRng + Rng),
+		rng: &mut R,
 	) {
 		match msg {
 			protocol_v1::ApprovalDistributionMessage::Assignments(assignments) => {
@@ -609,13 +612,16 @@ impl State {
 
 	// handle a peer view change: requires that the peer is already connected
 	// and has an entry in the `PeerData` struct.
-	async fn handle_peer_view_change(
+	async fn handle_peer_view_change<
+		Context: overseer::ApprovalDistributionContextTrait,
+		R: CryptoRng + Rng,
+	>(
 		&mut self,
-		ctx: &mut impl overseer::ApprovalDistributionContextTrait,
+		ctx: &mut Context,
 		metrics: &Metrics,
 		peer_id: PeerId,
 		view: View,
-		rng: &mut (impl CryptoRng + Rng),
+		rng: &mut R,
 	) {
 		gum::trace!(target: LOG_TARGET, ?view, "Peer view change");
 		let finalized_number = view.finalized_number;
@@ -654,9 +660,9 @@ impl State {
 		.await;
 	}
 
-	async fn handle_block_finalized(
+	async fn handle_block_finalized<Context: overseer::ApprovalDistributionContextTrait>(
 		&mut self,
-		ctx: &mut impl overseer::ApprovalDistributionContextTrait,
+		ctx: &mut Context,
 		metrics: &Metrics,
 		finalized_number: BlockNumber,
 	) {
@@ -682,14 +688,17 @@ impl State {
 		self.enable_aggression(ctx, Resend::No, metrics).await;
 	}
 
-	async fn import_and_circulate_assignment(
+	async fn import_and_circulate_assignment<
+		Context: overseer::ApprovalDistributionContextTrait,
+		R: CyrptoRng + Rng,
+	>(
 		&mut self,
-		ctx: &mut impl overseer::ApprovalDistributionContextTrait,
+		ctx: &mut Context,
 		metrics: &Metrics,
 		source: MessageSource,
 		assignment: IndirectAssignmentCert,
 		claimed_candidate_index: CandidateIndex,
-		rng: &mut (impl CryptoRng + Rng),
+		rng: &mut R,
 	) {
 		let block_hash = assignment.block_hash.clone();
 		let validator_index = assignment.validator;
@@ -940,9 +949,9 @@ impl State {
 		}
 	}
 
-	async fn import_and_circulate_approval(
+	async fn import_and_circulate_approval<Context: overseer::ApprovalDistributionContextTrait>(
 		&mut self,
-		ctx: &mut impl overseer::ApprovalDistributionContextTrait,
+		ctx: &mut Context,
 		metrics: &Metrics,
 		source: MessageSource,
 		vote: IndirectSignedApprovalVote,
@@ -1347,9 +1356,9 @@ impl State {
 		}
 	}
 
-	async fn enable_aggression(
+	async fn enable_aggression<Context: overseer::ApprovalDistributionContextTrait>(
 		&mut self,
-		ctx: &mut impl overseer::ApprovalDistributionContextTrait,
+		ctx: &mut Context,
 		resend: Resend,
 		metrics: &Metrics,
 	) {
@@ -1450,8 +1459,10 @@ impl State {
 //
 // Note that the required routing of a message can be modified even if the
 // topology is unknown yet.
-async fn adjust_required_routing_and_propagate(
-	ctx: &mut impl overseer::ApprovalDistributionContextTrait,
+async fn adjust_required_routing_and_propagate<
+	Context: overseer::ApprovalDistributionContextTrait,
+>(
+	ctx: &mut Context,
 	blocks: &mut HashMap<Hash, BlockEntry>,
 	topologies: &SessionGridTopologies,
 	block_filter: impl Fn(&mut BlockEntry) -> bool,
@@ -1557,8 +1568,8 @@ async fn adjust_required_routing_and_propagate(
 }
 
 /// Modify the reputation of a peer based on its behavior.
-async fn modify_reputation(
-	ctx: &mut impl overseer::ApprovalDistributionContextTrait,
+async fn modify_reputation<Context: overseer::ApprovalDistributionContextTrait>(
+	ctx: &mut Context,
 	peer_id: PeerId,
 	rep: Rep,
 ) {

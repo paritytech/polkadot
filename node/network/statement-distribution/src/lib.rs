@@ -630,8 +630,8 @@ enum MuxedMessage {
 }
 
 impl MuxedMessage {
-	async fn receive(
-		ctx: &mut impl overseer::StatementDistributionContextTrait,
+	async fn receive<Context: overseer::StatementDistributionContextTrait>(
+		ctx: &mut Context,
 		from_requester: &mut mpsc::Receiver<RequesterMessage>,
 		from_responder: &mut mpsc::Receiver<ResponderMessage>,
 	) -> MuxedMessage {
@@ -888,11 +888,13 @@ fn check_statement_signature(
 /// circulates the statement to all peers who have not seen it yet, and
 /// sends all statements dependent on that statement to peers who could previously not receive
 /// them but now can.
-async fn circulate_statement_and_dependents(
+async fn circulate_statement_and_dependents<
+	Context: overseer::StatementDistributionContextTrait,
+>(
 	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
-	ctx: &mut impl overseer::StatementDistributionContextTrait,
+	ctx: &mut Context,
 	relay_parent: Hash,
 	statement: SignedFullStatement,
 	priority_peers: Vec<PeerId>,
@@ -1004,10 +1006,10 @@ fn is_statement_large(statement: &SignedFullStatement) -> (bool, Option<usize>) 
 
 /// Circulates a statement to all peers who have not seen it yet, and returns
 /// an iterator over peers who need to have dependent statements sent.
-async fn circulate_statement<'a>(
+async fn circulate_statement<'a, Context: overseer::StatementDistributionContextTrait>(
 	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
-	ctx: &mut impl overseer::StatementDistributionContextTrait,
+	ctx: &mut Context,
 	relay_parent: Hash,
 	stored: StoredStatement<'a>,
 	mut priority_peers: Vec<PeerId>,
@@ -1093,10 +1095,10 @@ async fn circulate_statement<'a>(
 }
 
 /// Send all statements about a given candidate hash to a peer.
-async fn send_statements_about(
+async fn send_statements_about<Context: overseer::StatementDistributionContextTrait>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
-	ctx: &mut impl overseer::StatementDistributionContextTrait,
+	ctx: &mut Context,
 	relay_parent: Hash,
 	candidate_hash: CandidateHash,
 	active_head: &ActiveHeadData,
@@ -1126,10 +1128,10 @@ async fn send_statements_about(
 }
 
 /// Send all statements at a given relay-parent to a peer.
-async fn send_statements(
+async fn send_statements<Context: overseer::StatementDistributionContextTrait>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
-	ctx: &mut impl overseer::StatementDistributionContextTrait,
+	ctx: &mut Context,
 	relay_parent: Hash,
 	active_head: &ActiveHeadData,
 	metrics: &Metrics,
@@ -1156,8 +1158,8 @@ async fn send_statements(
 	}
 }
 
-async fn report_peer(
-	ctx: &mut impl overseer::StatementDistributionContextTrait,
+async fn report_peer<Context: overseer::StatementDistributionContextTrait>(
+	ctx: &mut Context,
 	peer: PeerId,
 	rep: Rep,
 ) {
@@ -1171,11 +1173,14 @@ async fn report_peer(
 /// your statement.
 ///
 /// If the message was large, but the result has been fetched already that one is returned.
-async fn retrieve_statement_from_message<'a>(
+async fn retrieve_statement_from_message<
+	'a,
+	Context: overseer::StatementDistributionContextTrait,
+>(
 	peer: PeerId,
 	message: protocol_v1::StatementDistributionMessage,
 	active_head: &'a mut ActiveHeadData,
-	ctx: &mut impl overseer::StatementDistributionContextTrait,
+	ctx: &mut Context,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 ) -> Option<UncheckedSignedFullStatement> {
@@ -1263,11 +1268,11 @@ async fn retrieve_statement_from_message<'a>(
 /// Launch request for a large statement and get tracking status.
 ///
 /// Returns `None` if spawning task failed.
-async fn launch_request(
+async fn launch_request<Context: overseer::StatementDistributionContextTrait>(
 	meta: StatementMetadata,
 	peer: PeerId,
 	req_sender: mpsc::Sender<RequesterMessage>,
-	ctx: &mut impl overseer::StatementDistributionContextTrait,
+	ctx: &mut Context,
 	metrics: &Metrics,
 ) -> Option<LargeStatementStatus> {
 	let (task, handle) =
@@ -1294,13 +1299,16 @@ async fn launch_request(
 
 /// Handle incoming message and circulate it to peers, if we did not know it already.
 ///
-async fn handle_incoming_message_and_circulate<'a>(
+async fn handle_incoming_message_and_circulate<
+	'a,
+	Context: overseer::StatementDistributionContextTrait,
+>(
 	peer: PeerId,
 	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	recent_outdated_heads: &RecentOutdatedHeads,
-	ctx: &mut impl overseer::StatementDistributionContextTrait,
+	ctx: &mut Context,
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
@@ -1351,12 +1359,12 @@ async fn handle_incoming_message_and_circulate<'a>(
 //
 // This function checks the signature and ensures the statement is compatible with our
 // view. It also notifies candidate backing if the statement was previously unknown.
-async fn handle_incoming_message<'a>(
+async fn handle_incoming_message<'a, Context: overseer::StatementDistributionContextTrait>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	recent_outdated_heads: &RecentOutdatedHeads,
-	ctx: &mut impl overseer::StatementDistributionContextTrait,
+	ctx: &mut Context,
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
@@ -1548,11 +1556,13 @@ async fn handle_incoming_message<'a>(
 }
 
 /// Update a peer's view. Sends all newly unlocked statements based on the previous
-async fn update_peer_view_and_maybe_send_unlocked(
+async fn update_peer_view_and_maybe_send_unlocked<
+	Context: overseer::StatementDistributionContextTrait,
+>(
 	peer: PeerId,
 	gossip_peers: &HashSet<PeerId>,
 	peer_data: &mut PeerData,
-	ctx: &mut impl overseer::StatementDistributionContextTrait,
+	ctx: &mut Context,
 	active_heads: &HashMap<Hash, ActiveHeadData>,
 	new_view: View,
 	metrics: &Metrics,
@@ -1587,13 +1597,13 @@ async fn update_peer_view_and_maybe_send_unlocked(
 	}
 }
 
-async fn handle_network_update(
+async fn handle_network_update<Context: overseer::StatementDistributionContextTrait>(
 	peers: &mut HashMap<PeerId, PeerData>,
 	gossip_peers: &mut HashSet<PeerId>,
 	authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
 	recent_outdated_heads: &RecentOutdatedHeads,
-	ctx: &mut impl overseer::StatementDistributionContextTrait,
+	ctx: &mut Context,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	update: NetworkBridgeEvent<net_protocol::StatementDistributionMessage>,
 	metrics: &Metrics,
@@ -1703,14 +1713,9 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		Self { keystore, req_receiver: Some(req_receiver), metrics, rng }
 	}
 
-	async fn run(
+	async fn run<Context: overseer::StatementDistributionContextTrait>(
 		mut self,
-		mut ctx: impl overseer::StatementDistributionContextTrait<
-			Message = StatementDistributionMessage,
-			OutgoingMessages = overseer::StatementDistributionOutgoingMessages,
-			Signal = OverseerSignal,
-			Error = SubsystemError,
-		>,
+		mut ctx: Context,
 	) -> std::result::Result<(), FatalError> {
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
 		let mut gossip_peers: HashSet<PeerId> = HashSet::new();
@@ -1827,9 +1832,9 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		Ok(())
 	}
 
-	async fn handle_requester_message(
+	async fn handle_requester_message<Context: overseer::StatementDistributionContextTrait>(
 		&mut self,
-		ctx: &mut impl overseer::StatementDistributionContextTrait,
+		ctx: &mut Context,
 		gossip_peers: &HashSet<PeerId>,
 		peers: &mut HashMap<PeerId, PeerData>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
@@ -1935,9 +1940,9 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		Ok(())
 	}
 
-	async fn handle_subsystem_message(
+	async fn handle_subsystem_message<Context: overseer::StatementDistributionContextTrait>(
 		&mut self,
-		ctx: &mut impl overseer::StatementDistributionContextTrait,
+		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		peers: &mut HashMap<PeerId, PeerData>,
 		gossip_peers: &mut HashSet<PeerId>,
