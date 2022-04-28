@@ -195,18 +195,6 @@ default:
 
 #### stage:                        stage1
 
-check-runtime:
-  stage:                           stage1
-  image:                           paritytech/tools:latest
-  <<:                              *kubernetes-env
-  <<:                              *test-refs
-  variables:
-    GITLAB_API:                    "https://gitlab.parity.io/api/v4"
-    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
-  script:
-    - ./scripts/ci/gitlab/check_runtime.sh
-  allow_failure:                   true
-
 cargo-fmt:
   stage:                           stage1
   <<:                              *docker-env
