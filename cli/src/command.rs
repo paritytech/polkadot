@@ -435,7 +435,19 @@ pub fn run() -> Result<()> {
 
 			Ok(runner.async_run(|mut config| {
 				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-				Ok((cmd.run(client, backend, None).map_err(Error::SubstrateCli), task_manager))
+				let aux_revert = Box::new(|client, backend, blocks| {
+					service::revert_backend(client, backend, blocks, config).map_err(|err| {
+						match err {
+							service::Error::Blockchain(err) => err.into(),
+							// Generic application-specific error.
+							err => sc_cli::Error::Application(err.into()),
+						}
+					})
+				});
+				Ok((
+					cmd.run(client, backend, Some(aux_revert)).map_err(Error::SubstrateCli),
+					task_manager,
+				))
 			})?)
 		},
 		Some(Subcommand::PvfPrepareWorker(cmd)) => {
