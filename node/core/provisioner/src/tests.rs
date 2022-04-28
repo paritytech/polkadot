@@ -546,7 +546,7 @@ mod select_disputes {
 			match from_job {
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					_,
-					RuntimeApiRequest::Disputes(sender),
+					RuntimeApiRequest::StagingDisputes(sender),
 				)) => {
 					let _ = sender.send(onchain_disputes.clone());
 				},

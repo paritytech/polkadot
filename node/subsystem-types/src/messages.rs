@@ -694,7 +694,9 @@ pub enum RuntimeApiRequest {
 		RuntimeApiSender<Option<ValidationCodeHash>>,
 	),
 	/// Returns all on-chain disputes at given block number.
-	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
+	StagingDisputes(
+		RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
+	),
 }
 
 /// A message to the Runtime API subsystem.

@@ -41,7 +41,7 @@ pub async fn get_onchain_disputes(
 	let (tx, rx) = oneshot::channel();
 	sender
 		.send_message(
-			RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::Disputes(tx)).into(),
+			RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::StagingDisputes(tx)).into(),
 		)
 		.await;
 

@@ -463,5 +463,5 @@ pub(crate) enum RequestResult {
 	SubmitPvfCheckStatement(Hash, PvfCheckStatement, ValidatorSignature, ()),
 	ValidationCodeHash(Hash, ParaId, OccupiedCoreAssumption, Option<ValidationCodeHash>),
 	Version(Hash, u32),
-	Disputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
+	StagingDisputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
 }
