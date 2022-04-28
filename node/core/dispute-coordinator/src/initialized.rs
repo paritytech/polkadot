@@ -195,9 +195,9 @@ impl Initialized {
 				.process_active_leaves_update(ctx, &ActiveLeavesUpdate::start_work(first_leaf))
 				.await?;
 		}
+		let mut overlay_db = OverlayedBackend::new(backend, self.metrics);
 
 		loop {
-			let mut overlay_db = OverlayedBackend::new(backend);
 			let default_confirm = Box::new(|| Ok(()));
 			let confirm_write =
 				match MuxedMessage::receive(ctx, &mut self.participation_receiver).await? {
