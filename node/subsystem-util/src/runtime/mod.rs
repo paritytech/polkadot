@@ -26,7 +26,7 @@ use sp_core::crypto::ByteArray;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_subsystem::{
-	messages::RuntimeApiMessage, overseer, SubsystemContext, SubsystemSender,
+	messages::RuntimeApiMessage, overseer, SubsystemSender,
 };
 use polkadot_primitives::v2::{
 	CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore,

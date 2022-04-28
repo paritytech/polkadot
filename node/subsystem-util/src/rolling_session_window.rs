@@ -26,7 +26,7 @@ use futures::channel::oneshot;
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
-	overseer, SubsystemContext,
+	overseer,
 };
 use thiserror::Error;
 

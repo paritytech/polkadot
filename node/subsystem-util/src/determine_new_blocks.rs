@@ -18,7 +18,7 @@
 
 use futures::{channel::oneshot, prelude::*};
 use polkadot_node_subsystem::{
-	messages::{ChainApiMessage, RuntimeApiMessage},
+	messages::ChainApiMessage,
 	SubsystemSender,
 };
 use polkadot_primitives::v2::{BlockNumber, Hash, Header};
