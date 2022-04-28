@@ -1208,7 +1208,7 @@ pub fn versi_staging_testnet_config() -> Result<RococoChainSpec, String> {
 		},
 		boot_nodes,
 		Some(
-			TelemetryEndpoints::new(vec![(ROCOCO_STAGING_TELEMETRY_URL.to_string(), 0)])
+			TelemetryEndpoints::new(vec![(VERSI_STAGING_TELEMETRY_URL.to_string(), 0)])
 				.expect("Rococo Staging telemetry url is valid; qed"),
 		),
 		Some(DEFAULT_PROTOCOL_ID),
