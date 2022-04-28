@@ -401,7 +401,8 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 		#consumes: AssociateOutgoing + ::std::fmt::Debug + Send + 'static,
 		#all_messages_wrapper: From< #outgoing_wrapper >,
 		#all_messages_wrapper: From< #consumes >,
-		Self::Sender: #subsystem_sender_trait + #acc_sender_trait_bounds,
+		<Self as SubsystemContext>::Sender: #subsystem_sender_trait,
+		<Self as SubsystemContext>::Sender: #acc_sender_trait_bounds,
 	};
 
 	ts.extend(quote! {
@@ -410,13 +411,15 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 			Message = #consumes,
 			Signal = #signal,
 			OutgoingMessages = #outgoing_wrapper,
-			// FIXME setting sender breaks testing, which wants to override this
-			Sender = #subsystem_sender_name < #outgoing_wrapper > ,
+			// Sender,
 			Error = #error_ty,
 		>
 		where
 			#where_clause
-		{}
+		{
+			/// Sender.
+			type Sender: #subsystem_sender_trait + #acc_sender_trait_bounds;
+		}
 
 		impl<T> #subsystem_ctx_trait for T
 		where
@@ -424,12 +427,13 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 				Message = #consumes,
 				Signal = #signal,
 				OutgoingMessages = #outgoing_wrapper,
-				// FIXME setting sender breaks testing
-				Sender = #subsystem_sender_name < #outgoing_wrapper >,
+				// Sender
 				Error = #error_ty,
 			>,
 			#where_clause
-		{}
+		{
+			type Sender = <Self as SubsystemContext>::Sender;
+		}
 	});
 
 	// // impl the subsystem context trait (alt!)
