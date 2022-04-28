@@ -96,17 +96,13 @@ impl BitfieldGridTopologyStorage {
 	/// If we need a previous session and it is registered in the storage, then return that session.
 	/// Otherwise, return a current session to have some grid topology in any case
 	fn get_topology(&self, idx: SessionIndex) -> &SessionGridTopology {
-		if idx == self.current_topology.1 {
-			&self.current_topology.0
-		} else {
-			if let Some(prev_topology) = &self.prev_topology {
-				if idx == prev_topology.1 {
-					return &prev_topology.0
-				}
+		if let Some(prev_topology) = &self.prev_topology {
+			if idx == prev_topology.1 {
+				return &prev_topology.0
 			}
-			// Return the current topology by default
-			&self.current_topology.0
 		}
+		// Return the current topology by default
+		&self.current_topology.0
 	}
 
 	/// Update the current topology preserving the previous one
