@@ -86,12 +86,12 @@ struct GridTopologySessionBound(SessionGridTopology, SessionIndex);
 
 /// A storage for the current and maybe previous topology
 #[derive(Default, Debug)]
-struct GridTopologyStorage {
+struct BitfieldGridTopologyStorage {
 	current_topology: GridTopologySessionBound,
 	prev_topology: Option<GridTopologySessionBound>,
 }
 
-impl GridTopologyStorage {
+impl BitfieldGridTopologyStorage {
 	/// Return a grid topology based on the session index:
 	/// If we need a previous session and it is registered in the storage, then return that session.
 	/// Otherwise, return a current session to have some grid topology in any case
@@ -131,7 +131,7 @@ struct ProtocolState {
 	peer_views: HashMap<PeerId, View>,
 
 	/// The current gossip topology
-	topologies: GridTopologyStorage,
+	topologies: BitfieldGridTopologyStorage,
 
 	/// Our current view.
 	view: OurView,

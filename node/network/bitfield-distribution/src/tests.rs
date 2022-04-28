@@ -58,6 +58,10 @@ fn prewarmed_state(
 	peers: Vec<PeerId>,
 ) -> ProtocolState {
 	let relay_parent = known_message.relay_parent.clone();
+	let mut topology: SessionGridTopology = Default::default();
+	topology.peers_x = peers.iter().cloned().collect();
+	let mut topologies: BitfieldGridTopologyStorage = Default::default();
+	topologies.update_topology(0_u32, topology);
 	ProtocolState {
 		per_relay_parent: hashmap! {
 			relay_parent.clone() =>
@@ -73,10 +77,7 @@ fn prewarmed_state(
 				},
 		},
 		peer_views: peers.iter().cloned().map(|peer| (peer, view!(relay_parent))).collect(),
-		topology: SessionGridTopology {
-			peers_x: peers.into_iter().collect(),
-			..Default::default()
-		},
+		topologies,
 		view: our_view!(relay_parent),
 	}
 }
@@ -784,18 +785,20 @@ fn topology_test() {
 	let (mut state, signing_context, keystore, validator) = state_with_view(our_view![hash], hash);
 
 	// Create a simple grid
-	state.topology.peers_x = peers_x.iter().cloned().collect::<HashSet<_>>();
-	state.topology.validator_indices_x = peers_x
+	let mut topology: SessionGridTopology = Default::default();
+	topology.peers_x = peers_x.iter().cloned().collect::<HashSet<_>>();
+	topology.validator_indices_x = peers_x
 		.iter()
 		.enumerate()
 		.map(|(idx, _)| ValidatorIndex(idx as u32))
 		.collect::<HashSet<_>>();
-	state.topology.peers_y = peers_y.iter().cloned().collect::<HashSet<_>>();
-	state.topology.validator_indices_y = peers_y
+	topology.peers_y = peers_y.iter().cloned().collect::<HashSet<_>>();
+	topology.validator_indices_y = peers_y
 		.iter()
 		.enumerate()
 		.map(|(idx, _)| ValidatorIndex((idx + peers_x.len()) as u32))
 		.collect::<HashSet<_>>();
+	state.topologies.update_topology(0_u32, topology);
 
 	// create a signed message by validator 0
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
@@ -849,9 +852,10 @@ fn topology_test() {
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendValidationMessage(peers, send_msg),
 			) => {
+				let topology = state.topologies.get_current_topology();
 				// It should send message to all peers in y direction and to 4 random peers in x direction
 				assert_eq!(peers_y.len() + 4, peers.len());
-				assert!(state.topology.peers_y.iter().all(|peer| peers.contains(&peer)));
+				assert!(topology.peers_y.iter().all(|peer| peers.contains(&peer)));
 				assert!(!peers.contains(&peers_x[1]));
 				// Must never include originator
 				assert!(!peers.contains(&peers_x[0]));
