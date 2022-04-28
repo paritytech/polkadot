@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::cli::{Cli, Subcommand};
-use frame_benchmarking_cli::BenchmarkCmd;
+use frame_benchmarking_cli::{BenchmarkCmd, SUBSTRATE_REFERENCE_HARDWARE};
 use futures::future::TryFutureExt;
 use log::info;
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
@@ -273,6 +273,13 @@ where
 		.map_err(Error::from)?;
 	let chain_spec = &runner.config().chain_spec;
 
+	// Disallow BEEFY on production networks.
+	if cli.run.beefy &&
+		(chain_spec.is_polkadot() || chain_spec.is_kusama() || chain_spec.is_westend())
+	{
+		return Err(Error::Other("BEEFY disallowed on production networks".to_string()))
+	}
+
 	set_default_ss58_version(chain_spec);
 
 	let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
@@ -302,6 +309,15 @@ where
 	};
 
 	runner.run_node_until_exit(move |config| async move {
+		let hwbench = if !cli.run.no_hardware_benchmarks {
+			config.database.path().map(|database_path| {
+				let _ = std::fs::create_dir_all(&database_path);
+				sc_sysinfo::gather_hwbench(Some(database_path))
+			})
+		} else {
+			None
+		};
+
 		let role = config.role.clone();
 
 		match role {
@@ -315,6 +331,7 @@ where
 				None,
 				false,
 				overseer_gen,
+				hwbench,
 			)
 			.map(|full| full.task_manager)
 			.map_err(Into::into),
@@ -528,8 +545,10 @@ pub fn run() -> Result<()> {
 					#[allow(unreachable_code)]
 					Err(service::Error::NoRuntime.into())
 				},
-				BenchmarkCmd::Machine(cmd) =>
-					runner.sync_run(|config| cmd.run(&config).map_err(Error::SubstrateCli)),
+				BenchmarkCmd::Machine(cmd) => runner.sync_run(|config| {
+					cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone())
+						.map_err(Error::SubstrateCli)
+				}),
 				// NOTE: this allows the Polkadot client to leniently implement
 				// new benchmark commands.
 				#[allow(unreachable_patterns)]
@@ -605,6 +624,10 @@ pub fn run() -> Result<()> {
 				.into(),
 		)
 		.into()),
+		Some(Subcommand::ChainInfo(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			Ok(runner.sync_run(|config| cmd.run::<service::Block>(&config))?)
+		},
 	}?;
 
 	#[cfg(feature = "pyroscope")]
