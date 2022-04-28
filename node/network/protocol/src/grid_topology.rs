@@ -91,7 +91,7 @@ impl SessionGridTopology {
 		}
 	}
 
-	/// Returns a difference between some other topology and this topology as a vector of distinct peers
+	/// Returns the difference between this and the `other` topology as a vector of peers
 	pub fn peers_diff(&self, other: &SessionGridTopology) -> Vec<PeerId> {
 		self.peers_x
 			.iter()
