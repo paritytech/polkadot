@@ -701,13 +701,12 @@ fn extend_by_random_subset_without_repetition(
 	acc.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 }
 
+const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 1_000;
 async fn select_disputes(
 	sender: &mut impl SubsystemSender,
 	metrics: &metrics::Metrics,
 	_leaf: &ActivatedLeaf,
 ) -> Result<MultiDisputeStatementSet, Error> {
-	const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 1_000;
-
 	// We use `RecentDisputes` instead of `ActiveDisputes` because redundancy is fine.
 	// It's heavier than `ActiveDisputes` but ensures that everything from the dispute
 	// window gets on-chain, unlike `ActiveDisputes`.
