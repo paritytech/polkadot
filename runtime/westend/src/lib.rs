@@ -999,7 +999,7 @@ parameter_types! {
 
 impl pallet_nomination_pools::Config for Runtime {
 	type Event = Event;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
 	type Currency = Balances;
 	type BalanceToU256 = BalanceToU256;
 	type U256ToBalance = U256ToBalance;
