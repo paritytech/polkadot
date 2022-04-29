@@ -150,8 +150,13 @@ where
 // The mode is determined on a per-relay-parent basis, based
 // on the runtime API version.
 enum Mode {
+	// This mode makes use of the prospective parachains subsystem,
+	// to participate in asynchronous backing.
 	ProspectiveParachains,
-	NoProspectiveParachains,
+	// This mode considers the 'base' block of the relay-chain only.
+	// This is a compatibility mode for the pre-asynchronous-backing
+	// era.
+	BaseOnly,
 }
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
