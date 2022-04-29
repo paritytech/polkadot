@@ -54,6 +54,8 @@ const KUSAMA_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/"
 const WESTEND_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "rococo-native")]
 const ROCOCO_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
+#[cfg(feature = "rococo-native")]
+const VERSI_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
 /// Node `ChainSpec` extensions.
@@ -572,6 +574,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
+		nomination_pools: Default::default(),
 	}
 }
 
@@ -1190,6 +1193,32 @@ pub fn rococo_staging_testnet_config() -> Result<RococoChainSpec, String> {
 	))
 }
 
+/// Versi staging testnet config.
+#[cfg(feature = "rococo-native")]
+pub fn versi_staging_testnet_config() -> Result<RococoChainSpec, String> {
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Versi development wasm not available")?;
+	let boot_nodes = vec![];
+
+	Ok(RococoChainSpec::from_genesis(
+		"Versi Staging Testnet",
+		"versi_staging_testnet",
+		ChainType::Live,
+		move || RococoGenesisExt {
+			runtime_genesis_config: rococo_staging_testnet_config_genesis(wasm_binary),
+			session_length_in_blocks: Some(100),
+		},
+		boot_nodes,
+		Some(
+			TelemetryEndpoints::new(vec![(VERSI_STAGING_TELEMETRY_URL.to_string(), 0)])
+				.expect("Versi Staging telemetry url is valid; qed"),
+		),
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		None,
+		Default::default(),
+	))
+}
+
 /// Helper function to generate a crypto pair from seed
 pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
 	TPublic::Pair::from_string(&format!("//{}", seed), None)
@@ -1515,6 +1544,12 @@ pub fn westend_testnet_genesis(
 			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
+		nomination_pools: westend_runtime::NominationPoolsConfig {
+			max_pools: Some(128),
+			min_join_bond: WND,
+			min_create_bond: 100 * WND,
+			..Default::default()
+		},
 	}
 }
 

@@ -50,6 +50,8 @@ use {
 	sp_trie::PrefixedMemoryDB,
 };
 
+use polkadot_node_subsystem_util::database::Database;
+
 pub use sp_core::traits::SpawnNamed;
 #[cfg(feature = "full-node")]
 pub use {
@@ -58,7 +60,7 @@ pub use {
 	relay_chain_selection::SelectRelayChain,
 	sc_client_api::AuxStore,
 	sp_authority_discovery::AuthorityDiscoveryApi,
-	sp_blockchain::HeaderBackend,
+	sp_blockchain::{HeaderBackend, HeaderMetadata},
 	sp_consensus_babe::BabeApi,
 };
 
@@ -94,7 +96,7 @@ pub use polkadot_client::{
 	AbstractClient, Client, ClientHandle, ExecuteWithClient, FullBackend, FullClient,
 	RuntimeApiCollection,
 };
-pub use polkadot_primitives::v2::{Block, BlockId, CollatorPair, Hash, Id as ParaId};
+pub use polkadot_primitives::v2::{Block, BlockId, BlockNumber, CollatorPair, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
 pub use sc_consensus::{BlockImport, LongestChain};
 use sc_executor::NativeElseWasmExecutor;
@@ -283,6 +285,36 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 	fn is_dev(&self) -> bool {
 		self.id().ends_with("dev")
 	}
+}
+
+#[cfg(feature = "full-node")]
+fn open_database(db_source: &DatabaseSource) -> Result<Arc<dyn Database>, Error> {
+	let parachains_db = match db_source {
+		DatabaseSource::RocksDb { path, .. } => parachains_db::open_creating_rocksdb(
+			path.clone(),
+			parachains_db::CacheSizes::default(),
+		)?,
+		DatabaseSource::ParityDb { path, .. } => parachains_db::open_creating_paritydb(
+			path.parent().ok_or(Error::DatabasePathRequired)?.into(),
+			parachains_db::CacheSizes::default(),
+		)?,
+		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } =>
+			if paritydb_path.is_dir() && paritydb_path.exists() {
+				parachains_db::open_creating_paritydb(
+					paritydb_path.parent().ok_or(Error::DatabasePathRequired)?.into(),
+					parachains_db::CacheSizes::default(),
+				)?
+			} else {
+				parachains_db::open_creating_rocksdb(
+					rocksdb_path.clone(),
+					parachains_db::CacheSizes::default(),
+				)?
+			},
+		DatabaseSource::Custom { .. } => {
+			unimplemented!("No polkadot subsystem db for custom source.");
+		},
+	};
+	Ok(parachains_db)
 }
 
 /// Initialize the `Jeager` collector. The destination must listen
@@ -866,39 +898,15 @@ where
 		);
 	}
 
-	let parachains_db = match &config.database {
-		DatabaseSource::RocksDb { path, .. } => crate::parachains_db::open_creating_rocksdb(
-			path.clone(),
-			crate::parachains_db::CacheSizes::default(),
-		)?,
-		DatabaseSource::ParityDb { path, .. } => crate::parachains_db::open_creating_paritydb(
-			path.parent().ok_or(Error::DatabasePathRequired)?.into(),
-			crate::parachains_db::CacheSizes::default(),
-		)?,
-		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } =>
-			if paritydb_path.is_dir() && paritydb_path.exists() {
-				crate::parachains_db::open_creating_paritydb(
-					paritydb_path.parent().ok_or(Error::DatabasePathRequired)?.into(),
-					crate::parachains_db::CacheSizes::default(),
-				)?
-			} else {
-				crate::parachains_db::open_creating_rocksdb(
-					rocksdb_path.clone(),
-					crate::parachains_db::CacheSizes::default(),
-				)?
-			},
-		DatabaseSource::Custom { .. } => {
-			unimplemented!("No polkadot subsystem db for custom source.");
-		},
-	};
+	let parachains_db = open_database(&config.database)?;
 
 	let availability_config = AvailabilityConfig {
-		col_data: crate::parachains_db::REAL_COLUMNS.col_availability_data,
-		col_meta: crate::parachains_db::REAL_COLUMNS.col_availability_meta,
+		col_data: parachains_db::REAL_COLUMNS.col_availability_data,
+		col_meta: parachains_db::REAL_COLUMNS.col_availability_meta,
 	};
 
 	let approval_voting_config = ApprovalVotingConfig {
-		col_data: crate::parachains_db::REAL_COLUMNS.col_approval_data,
+		col_data: parachains_db::REAL_COLUMNS.col_approval_data,
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
@@ -915,12 +923,12 @@ where
 	};
 
 	let chain_selection_config = ChainSelectionConfig {
-		col_data: crate::parachains_db::REAL_COLUMNS.col_chain_selection_data,
+		col_data: parachains_db::REAL_COLUMNS.col_chain_selection_data,
 		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
 	};
 
 	let dispute_coordinator_config = DisputeCoordinatorConfig {
-		col_data: crate::parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
+		col_data: parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
 	};
 
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
@@ -1393,4 +1401,70 @@ pub fn build_full(
 
 	#[cfg(not(feature = "polkadot-native"))]
 	Err(Error::NoRuntime)
+}
+
+struct RevertConsensus {
+	blocks: BlockNumber,
+	backend: Arc<FullBackend>,
+}
+
+impl ExecuteWithClient for RevertConsensus {
+	type Output = sp_blockchain::Result<()>;
+
+	fn execute_with_client<Client, Api, Backend>(self, client: Arc<Client>) -> Self::Output
+	where
+		<Api as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+		Backend: sc_client_api::Backend<Block> + 'static,
+		Backend::State: sp_api::StateBackend<BlakeTwo256>,
+		Api: polkadot_client::RuntimeApiCollection<StateBackend = Backend::State>,
+		Client: AbstractClient<Block, Backend, Api = Api> + 'static,
+	{
+		babe::revert(client.clone(), self.backend, self.blocks)?;
+		grandpa::revert(client, self.blocks)?;
+		Ok(())
+	}
+}
+
+/// Reverts the node state down to at most the last finalized block.
+///
+/// In particular this reverts:
+/// - `ChainSelectionSubsystem` data in the parachains-db.
+/// - Low level Babe and Grandpa consensus data.
+#[cfg(feature = "full-node")]
+pub fn revert_backend(
+	client: Arc<Client>,
+	backend: Arc<FullBackend>,
+	blocks: BlockNumber,
+	config: Configuration,
+) -> Result<(), Error> {
+	let best_number = client.info().best_number;
+	let finalized = client.info().finalized_number;
+	let revertible = blocks.min(best_number - finalized);
+
+	let number = best_number - revertible;
+	let hash = client.block_hash_from_id(&BlockId::Number(number))?.ok_or(
+		sp_blockchain::Error::Backend(format!(
+			"Unexpected hash lookup failure for block number: {}",
+			number
+		)),
+	)?;
+
+	let parachains_db = open_database(&config.database)
+		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))?;
+
+	let config = chain_selection_subsystem::Config {
+		col_data: parachains_db::REAL_COLUMNS.col_chain_selection_data,
+		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
+	};
+
+	let chain_selection =
+		chain_selection_subsystem::ChainSelectionSubsystem::new(config, parachains_db);
+
+	chain_selection
+		.revert(hash)
+		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))?;
+
+	client.execute_with(RevertConsensus { blocks, backend })?;
+
+	Ok(())
 }

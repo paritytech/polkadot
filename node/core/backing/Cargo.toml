@@ -16,6 +16,7 @@ statement-table = { package = "polkadot-statement-table", path = "../../../state
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 gum = { package = "tracing-gum", path = "../../gum" }
 thiserror = "1.0.30"
+fatality = "0.0.6"
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
