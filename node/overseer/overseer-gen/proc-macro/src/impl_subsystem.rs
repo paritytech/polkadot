@@ -119,6 +119,11 @@ pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
 						#outgoing_wrapper :: #outgoing_variant ( msg ) => #all_messages_wrapper :: #subsystem_generic ( msg ),
 					)*
 						#outgoing_wrapper :: Empty => #all_messages_wrapper :: Empty,
+											// And everything that's not WIP but no subsystem consumes it
+						unused_msg => {
+							#support_crate :: gum :: warn!("Nothing consumes {:?}", unused_msg);
+							#all_messages_wrapper :: Empty
+						}
 					}
 				}
 			}
@@ -405,9 +410,7 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 		#all_messages_wrapper: From< #outgoing_wrapper >,
 		#all_messages_wrapper: From< #consumes >,
 		#support_crate :: #outgoing_wrapper: #( From< #outgoing > )+*,
-		<Self as SubsystemContext>::Sender:
-			#subsystem_sender_trait
-			+ #acc_sender_trait_bounds,
+
 	};
 
 	ts.extend(quote! {
@@ -421,9 +424,12 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 		>
 		where
 			#where_clause
+			<Self as SubsystemContext>::Sender:
+				#subsystem_sender_trait
+				+ #acc_sender_trait_bounds,
 		{
 			/// Sender.
-			type Sender: #subsystem_sender_trait + #acc_sender_trait_bounds;
+			type Sender: #subsystem_sender_trait;
 		}
 
 		impl<T> #subsystem_ctx_trait for T
@@ -436,6 +442,9 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 				Error = #error_ty,
 			>,
 			#where_clause
+			<T as SubsystemContext>::Sender:
+				#subsystem_sender_trait
+				+ #acc_sender_trait_bounds,
 		{
 			type Sender = <T as SubsystemContext>::Sender;
 		}

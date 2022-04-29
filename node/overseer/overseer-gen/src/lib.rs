@@ -62,6 +62,8 @@
 
 pub use polkadot_overseer_gen_proc_macro::overlord;
 
+pub use polkadot_overseer_gen_proc_macro::subsystem;
+
 #[doc(hidden)]
 pub use gum;
 #[doc(hidden)]
@@ -372,7 +374,7 @@ pub trait SubsystemContext: Send + 'static {
 	// type AllMessages: From<Self::OutgoingMessages> + From<Self::Message> + std::fmt::Debug + Send + 'static;
 
 	/// The sender type as provided by `sender()` and underlying.
-	type Sender: Clone + SubsystemSender<Self::OutgoingMessages> + Send + 'static;
+	type Sender: Clone + Send + 'static;
 	/// The error type.
 	type Error: ::std::error::Error + ::std::convert::From<OverseerError> + Sync + Send + 'static;
 
@@ -404,9 +406,10 @@ pub trait SubsystemContext: Send + 'static {
 	async fn send_message<T>(&mut self, msg: T)
 	where
 		Self::OutgoingMessages: From<T> + Send,
+		// Self::Sender: SubsystemSender<Self::OutgoingMessages>,
 		T: Send,
 	{
-		self.sender().send_message(<Self::OutgoingMessages>::from(msg)).await
+		// self.sender().send_message(<Self::OutgoingMessages>::from(msg)).await
 	}
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
@@ -414,13 +417,14 @@ pub trait SubsystemContext: Send + 'static {
 	async fn send_messages<T, I>(&mut self, msgs: I)
 	where
 		Self::OutgoingMessages: From<T> + Send,
+		// Self::Sender: SubsystemSender<Self::OutgoingMessages>,
 		I: IntoIterator<Item = T> + Send,
 		I::IntoIter: Send,
 		T: Send,
 	{
-		self.sender()
-			.send_messages(msgs.into_iter().map(<Self::OutgoingMessages>::from))
-			.await
+		// self.sender()
+		// 	.send_messages(msgs.into_iter().map(<Self::OutgoingMessages>::from))
+		// 	.await
 	}
 
 	/// Send a message using the unbounded connection.
@@ -428,9 +432,10 @@ pub trait SubsystemContext: Send + 'static {
 	fn send_unbounded_message<X>(&mut self, msg: X)
 	where
 		Self::OutgoingMessages: From<X> + Send,
+		Self::Sender: SubsystemSender<Self::OutgoingMessages>,
 		X: Send,
 	{
-		self.sender().send_unbounded_message(<Self::OutgoingMessages>::from(msg))
+		// self.sender().send_unbounded_message(<Self::OutgoingMessages>::from(msg))
 	}
 
 	/// Obtain the sender.

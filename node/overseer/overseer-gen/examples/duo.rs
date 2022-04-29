@@ -1,7 +1,7 @@
 //! A dummy to be used with cargo expand
 
 use polkadot_node_network_protocol::WrongVariant;
-use polkadot_overseer_gen::{SpawnNamed, *};
+use polkadot_overseer_gen::{SpawnNamed, self as overseer, *};
 use std::collections::HashMap;
 mod misc;
 
@@ -11,11 +11,10 @@ pub use self::misc::*;
 #[derive(Default)]
 pub struct AwesomeSubSys;
 
-impl<Ctx> overseer::Subsystem<Ctx, Yikes> for AwesomeSubSys
-where
-	Ctx: AwesomeSubSysContextTrait,
+#[overseer::subsystem]
+impl<Context> AwesomeSubSys
 {
-	fn start(self, mut ctx: Ctx) -> SpawnedSubsystem<Yikes> {
+	fn start(self, mut ctx: Context) -> SpawnedSubsystem<Yikes> {
 		let mut sender = ctx.sender().clone();
 		ctx.spawn(
 			"AwesomeSubsys",
@@ -31,12 +30,11 @@ where
 #[derive(Default)]
 pub struct GoblinTower;
 
-impl<Ctx> overseer::Subsystem<Ctx, Yikes> for GoblinTower
-where
-	Ctx: GoblinTowerContextTrait,
-	GoblinTowerContextTrait,
+
+#[overseer::subsystem]
+impl<Context> GoblinTower
 {
-	fn start(self, mut ctx: Ctx) -> SpawnedSubsystem<Yikes> {
+	fn start(self, mut ctx: Context) -> SpawnedSubsystem<Yikes> {
 		let mut sender = ctx.sender().clone();
 		ctx.spawn(
 			"GoblinTower",
