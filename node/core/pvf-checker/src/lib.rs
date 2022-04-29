@@ -129,14 +129,8 @@ async fn run<Context>(
 	metrics: Metrics,
 ) -> SubsystemResult<()>
 where
-	Context: overseer::SubsystemContext<
-		Message = PvfCheckerMessage,
-		OutgoingMessages = overseer::PvfCheckerOutgoingMessages,
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-		// Sender is ommitted here
-	>,
-	<Context as overseer::SubsystemContext>::Sender: overseer::PvfCheckerSenderTrait,
+	Context: overseer::PvfCheckerContextTrait,
+	<Context as overseer::PvfCheckerContextTrait>::Sender: overseer::PvfCheckerSenderTrait,
 {
 	let mut state = State {
 		credentials: None,
