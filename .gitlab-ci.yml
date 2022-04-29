@@ -340,6 +340,9 @@ check-dependent-cumulus:
   variables:
     DEPENDENT_REPO: cumulus
     EXTRA_DEPENDENCIES: substrate
+    COMPANION_OVERRIDES: |
+      polkadot: release-v*
+      cumulus: polkadot-v*
 
 test-node-metrics:
   stage:                           stage2
