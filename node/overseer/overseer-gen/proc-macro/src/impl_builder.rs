@@ -490,6 +490,11 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		}
 	});
 
+	// Create the string literals for spawn.
+	let subsystem_name_str_literal = subsystem_name.iter()
+		.map(|ident| proc_macro2::Literal::string(ident.to_string().replace("_", "-").as_str()))
+		.collect::<Vec<_>>();
+
 	ts.extend(quote! {
 		/// Type used to represent a builder where all fields are initialized and the overseer could be constructed.
 		pub type #initialized_builder<#initialized_builder_generics> = #builder<Init<S>, #( Init<#field_type>, )*>;
@@ -577,17 +582,12 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 						self.signal_capacity.unwrap_or(SIGNAL_CHANNEL_CAPACITY)
 					);
 
-					// Generate subsystem name based on overseer field name.
-					let subsystem_string = String::from(stringify!(#subsystem_name));
-					// Convert owned `snake case` string to a `kebab case` static str.
-					let subsystem_static_str = Box::leak(subsystem_string.replace("_", "-").into_boxed_str());
-
 					let ctx = #subsystem_ctx_name::< #consumes >::new(
 						signal_rx,
 						message_rx,
 						channels_out.clone(),
 						to_overseer_tx.clone(),
-						subsystem_static_str
+						#subsystem_name_str_literal
 					);
 
 					let #subsystem_name: OverseenSubsystem< #consumes > =
@@ -598,7 +598,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 							unbounded_meter,
 							ctx,
 							#subsystem_name,
-							subsystem_static_str,
+							#subsystem_name_str_literal,
 							&mut running_subsystems,
 						)?;
 				)*
