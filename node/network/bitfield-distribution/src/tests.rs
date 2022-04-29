@@ -856,7 +856,7 @@ fn topology_test() {
 				// It should send message to all peers in y direction and to 4 random peers in x direction
 				assert_eq!(peers_y.len() + 4, peers.len());
 				assert!(topology.peers_y.iter().all(|peer| peers.contains(&peer)));
-				assert!(!peers.contains(&peers_x[1]));
+				assert!(topology.peers_x.iter().filter(|peer| peers.contains(&peer)).count() == 4);
 				// Must never include originator
 				assert!(!peers.contains(&peers_x[0]));
 				assert_eq!(send_msg, msg.clone().into_validation_protocol());
