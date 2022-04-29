@@ -49,6 +49,11 @@ pub enum Error {
 	#[error("Receiving message from overseer failed: {0}")]
 	SubsystemReceive(#[source] SubsystemError),
 
+	/// Receiving subsystem message from overseer failed.
+	#[fatal]
+	#[error("Initializing cache failed: {0}")]
+	SubsystemCache(#[source] SubsystemError),
+	
 	#[fatal]
 	#[error("Writing to database failed: {0}")]
 	DbWriteFailed(std::io::Error),

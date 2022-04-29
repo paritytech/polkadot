@@ -61,7 +61,7 @@ use super::{
 	},
 	scraping::ChainScraper,
 	spam_slots::SpamSlots,
-	OverlayedBackend,
+	OverlayCache, OverlayedBackend,
 };
 
 /// After the first active leaves update we transition to `Initialized` state.
@@ -113,7 +113,7 @@ impl Initialized {
 	/// Run the initialized subsystem.
 	///
 	/// Optionally supply initial participations and a first leaf to process.
-	pub async fn run<B, Context>(
+	pub async fn run<'a, B, Context>(
 		mut self,
 		mut ctx: Context,
 		mut backend: B,
@@ -151,7 +151,7 @@ impl Initialized {
 	//
 	// A return value of `Ok` indicates that an exit should be made, while non-fatal errors
 	// lead to another call to this function.
-	async fn run_until_error<B, Context>(
+	async fn run_until_error<'a, B, Context>(
 		&mut self,
 		ctx: &mut Context,
 		backend: &mut B,
@@ -169,11 +169,13 @@ impl Initialized {
 			self.participation.queue_participation(ctx, priority, request).await?;
 		}
 
+		let mut overlay_cache = OverlayCache::new();
 		{
-			let mut overlay_db = OverlayedBackend::new(backend, self.metrics.clone());
+			let overlay_db =
+				OverlayedBackend::new(backend, self.metrics.clone(), &mut overlay_cache)?;
 			for votes in on_chain_votes.drain(..) {
 				let _ = self
-					.process_on_chain_votes(ctx, &mut overlay_db, votes, clock.now())
+					.process_on_chain_votes(ctx, &overlay_db, votes, clock.now())
 					.await
 					.map_err(|error| {
 						gum::warn!(
@@ -183,9 +185,9 @@ impl Initialized {
 						);
 					});
 			}
-			if !overlay_db.is_empty() {
+			if overlay_cache.is_dirty() {
 				let _write_timer = self.metrics.time_db_write_operation();
-				let ops = overlay_db.into_write_ops();
+				let ops = overlay_cache.into_write_ops();
 				backend.write(ops)?;
 			}
 		}
@@ -196,57 +198,58 @@ impl Initialized {
 				.process_active_leaves_update(ctx, &ActiveLeavesUpdate::start_work(first_leaf))
 				.await?;
 		}
-		let mut overlay_db = OverlayedBackend::new(backend, self.metrics.clone());
 
 		loop {
+			let overlay_db =
+				OverlayedBackend::new(backend, self.metrics.clone(), &mut overlay_cache)?;
 			let default_confirm = Box::new(|| Ok(()));
-			let confirm_write =
-				match MuxedMessage::receive(ctx, &mut self.participation_receiver).await? {
-					MuxedMessage::Participation(msg) => {
-						let ParticipationStatement {
-							session,
+			let confirm_write = match MuxedMessage::receive(ctx, &mut self.participation_receiver)
+				.await?
+			{
+				MuxedMessage::Participation(msg) => {
+					let ParticipationStatement {
+						session,
+						candidate_hash,
+						candidate_receipt,
+						outcome,
+					} = self.participation.get_participation_result(ctx, msg).await?;
+					if let Some(valid) = outcome.validity() {
+						self.issue_local_statement(
+							ctx,
+							&overlay_db,
 							candidate_hash,
 							candidate_receipt,
-							outcome,
-						} = self.participation.get_participation_result(ctx, msg).await?;
-						if let Some(valid) = outcome.validity() {
-							self.issue_local_statement(
-								ctx,
-								&mut overlay_db,
-								candidate_hash,
-								candidate_receipt,
-								session,
-								valid,
-								clock.now(),
-							)
+							session,
+							valid,
+							clock.now(),
+						)
+						.await?;
+					}
+					default_confirm
+				},
+				MuxedMessage::Subsystem(msg) => match msg {
+					FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
+					FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+						let _time_req = self.metrics.time_request("active_leaves_update");
+						self.process_active_leaves_update(ctx, &overlay_db, update, clock.now())
 							.await?;
-						}
 						default_confirm
 					},
-					MuxedMessage::Subsystem(msg) => match msg {
-						FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-						FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-							let _time_req = self.metrics.time_request("active_leaves_update");
-							self.process_active_leaves_update(
-								ctx,
-								&mut overlay_db,
-								update,
-								clock.now(),
-							)
-							.await?;
-							default_confirm
-						},
-						FromOverseer::Signal(OverseerSignal::BlockFinalized(_, n)) => {
-							let _time_req = self.metrics.time_request("block_finalized");
-							self.scraper.process_finalized_block(&n);
-							default_confirm
-						},
-						FromOverseer::Communication { msg } =>
-							self.handle_incoming(ctx, &mut overlay_db, msg, clock.now()).await?,
+					FromOverseer::Signal(OverseerSignal::BlockFinalized(_, n)) => {
+						let _time_req = self.metrics.time_request("block_finalized");
+						self.scraper.process_finalized_block(&n);
+						default_confirm
 					},
-				};
+					FromOverseer::Communication { msg } =>
+						self.handle_incoming(ctx, &overlay_db, msg, clock.now()).await?,
+				},
+			};
 
-			overlay_db.flush();
+			if overlay_cache.is_dirty() {
+				let _write_timer = self.metrics.time_db_write_operation();
+				let ops = overlay_cache.into_write_ops();
+				backend.write(ops)?;
+			}
 
 			// even if the changeset was empty,
 			// otherwise the caller will error.
@@ -254,11 +257,11 @@ impl Initialized {
 		}
 	}
 
-	async fn process_active_leaves_update(
+	async fn process_active_leaves_update<'a>(
 		&mut self,
 		ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>
 		          + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
-		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
+		overlay_db: &OverlayedBackend<'_, impl Backend>,
 		update: ActiveLeavesUpdate,
 		now: u64,
 	) -> Result<()> {
@@ -319,11 +322,11 @@ impl Initialized {
 
 	/// Scrapes on-chain votes (backing votes and concluded disputes) for a active leaf of the
 	/// relay chain.
-	async fn process_on_chain_votes(
+	async fn process_on_chain_votes<'a>(
 		&mut self,
 		ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>
 		          + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
-		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
+		overlay_db: &OverlayedBackend<'_, impl Backend>,
 		votes: ScrapedOnChainVotes,
 		now: u64,
 	) -> Result<()> {
@@ -498,10 +501,10 @@ impl Initialized {
 		Ok(())
 	}
 
-	async fn handle_incoming(
+	async fn handle_incoming<'a>(
 		&mut self,
 		ctx: &mut impl SubsystemContext,
-		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
+		overlay_db: &OverlayedBackend<'_, impl Backend>,
 		message: DisputeCoordinatorMessage,
 		now: Timestamp,
 	) -> Result<Box<dyn FnOnce() -> JfyiResult<()>>> {
@@ -545,7 +548,7 @@ impl Initialized {
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 
-				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
+				let recent_disputes = if let Some(disputes) = overlay_db.clone_recent_disputes()? {
 					disputes
 				} else {
 					BTreeMap::new()
@@ -558,7 +561,7 @@ impl Initialized {
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 
-				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
+				let recent_disputes = if let Some(disputes) = overlay_db.clone_recent_disputes()? {
 					disputes
 				} else {
 					BTreeMap::new()
@@ -577,10 +580,10 @@ impl Initialized {
 
 				let mut query_output = Vec::new();
 				for (session_index, candidate_hash) in query {
-					if let Some(v) =
-						overlay_db.load_candidate_votes(session_index, &candidate_hash)?
+					if let Some(votes) =
+						overlay_db.clone_candidate_votes(session_index, &candidate_hash)?
 					{
-						query_output.push((session_index, candidate_hash, v.into()));
+						query_output.push((session_index, candidate_hash, votes.into()));
 					} else {
 						gum::debug!(
 							target: LOG_TARGET,
@@ -641,10 +644,10 @@ impl Initialized {
 		Ok(())
 	}
 
-	async fn handle_import_statements(
+	async fn handle_import_statements<'a>(
 		&mut self,
 		ctx: &mut impl SubsystemContext,
-		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
+		overlay_db: &OverlayedBackend<'_, impl Backend>,
 		candidate_hash: CandidateHash,
 		candidate_receipt: MaybeCandidateReceipt,
 		session: SessionIndex,
@@ -684,7 +687,7 @@ impl Initialized {
 		// us from seeing the backing votes by witholding arbitrary blocks, and hence we do
 		// not have a `CandidateReceipt` available.
 		let (mut votes, mut votes_changed) = match overlay_db
-			.load_candidate_votes(session, &candidate_hash)?
+			.clone_candidate_votes(session, &candidate_hash)?
 			.map(CandidateVotes::from)
 		{
 			Some(votes) => (votes, false),
@@ -711,7 +714,7 @@ impl Initialized {
 		let was_concluded_valid = votes.valid.len() >= supermajority_threshold;
 		let was_concluded_invalid = votes.invalid.len() >= supermajority_threshold;
 
-		let mut recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
+		let mut recent_disputes = overlay_db.clone_recent_disputes()?.unwrap_or_default();
 		let controlled_indices = find_controlled_validator_indices(&self.keystore, &validators);
 
 		// Whether we already cast a vote in that dispute:
@@ -860,7 +863,7 @@ impl Initialized {
 			log_error(r)?;
 		}
 
-		let prev_status = recent_disputes.get(&(session, candidate_hash)).map(|x| x.clone());
+		let prev_status = recent_disputes.get_mut(&(session, candidate_hash)).map(|x| x.clone());
 
 		let status = if is_disputed {
 			let status = recent_disputes.entry((session, candidate_hash)).or_insert_with(|| {
@@ -930,10 +933,10 @@ impl Initialized {
 		Ok(ImportStatementsResult::ValidImport)
 	}
 
-	async fn issue_local_statement(
+	async fn issue_local_statement<'a>(
 		&mut self,
 		ctx: &mut impl SubsystemContext,
-		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
+		overlay_db: &OverlayedBackend<'_, impl Backend>,
 		candidate_hash: CandidateHash,
 		candidate_receipt: CandidateReceipt,
 		session: SessionIndex,
@@ -957,7 +960,7 @@ impl Initialized {
 		let validators = info.validators.clone();
 
 		let votes = overlay_db
-			.load_candidate_votes(session, &candidate_hash)?
+			.clone_candidate_votes(session, &candidate_hash)?
 			.map(CandidateVotes::from)
 			.unwrap_or_else(|| CandidateVotes {
 				candidate_receipt: candidate_receipt.clone(),
@@ -1170,8 +1173,8 @@ fn make_dispute_message(
 /// Determine the the best block and its block number.
 /// Assumes `block_descriptions` are sorted from the one
 /// with the lowest `BlockNumber` to the highest.
-fn determine_undisputed_chain(
-	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
+fn determine_undisputed_chain<'a>(
+	overlay_db: &OverlayedBackend<'_, impl Backend>,
 	base_number: BlockNumber,
 	base_hash: Hash,
 	block_descriptions: Vec<BlockDescription>,

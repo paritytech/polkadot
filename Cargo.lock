@@ -6813,6 +6813,7 @@ dependencies = [
  "kvdb",
  "kvdb-memorydb",
  "lru 0.7.5",
+ "lru-cache",
  "parity-scale-codec",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",

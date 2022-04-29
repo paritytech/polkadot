@@ -41,11 +41,11 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v2::{ScrapedOnChainVotes, ValidatorIndex, ValidatorPair};
 
 use crate::{
-	error::{FatalResult, JfyiError, Result},
+	error::{FatalResult, JfyiError, Result, FatalError},
 	metrics::Metrics,
 	status::{get_active_with_status, SystemClock},
 };
-use backend::{Backend, OverlayedBackend};
+use backend::{Backend, OverlayCache, OverlayedBackend};
 use db::v1::DbBackend;
 use fatality::Split;
 
@@ -154,7 +154,7 @@ impl DisputeCoordinatorSubsystem {
 	}
 
 	/// Initialize and afterwards run `Initialized::run`.
-	async fn run<B, Context>(
+	async fn run<'a, B, Context>(
 		self,
 		mut ctx: Context,
 		backend: B,
@@ -198,6 +198,7 @@ impl DisputeCoordinatorSubsystem {
 		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 		B: Backend + 'static,
 	{
+		let mut overlay_cache = OverlayCache::new();
 		loop {
 			let (first_leaf, rolling_session_window) = match get_rolling_session_window(ctx).await {
 				Ok(Some(update)) => update,
@@ -211,13 +212,14 @@ impl DisputeCoordinatorSubsystem {
 				},
 			};
 
-			let mut overlay_db = OverlayedBackend::new(&mut backend, self.metrics.clone());
+			let overlay_db =
+				OverlayedBackend::new(&backend, self.metrics.clone(), &mut overlay_cache).map_err(FatalError::SubsystemCache)?;
 			let (participations, votes, spam_slots, ordering_provider) = match self
 				.handle_startup(
 					ctx,
 					first_leaf.clone(),
 					&rolling_session_window,
-					&mut overlay_db,
+					&overlay_db,
 					clock,
 				)
 				.await
@@ -228,8 +230,10 @@ impl DisputeCoordinatorSubsystem {
 					continue
 				},
 			};
-			if !overlay_db.is_empty() {
-				let ops = overlay_db.into_write_ops();
+
+			// Check if there are any dirty entries.
+			if overlay_cache.is_dirty() {
+				let ops = overlay_cache.into_write_ops();
 				backend.write(ops)?;
 			}
 
@@ -248,12 +252,12 @@ impl DisputeCoordinatorSubsystem {
 	// - Prune any old disputes.
 	// - Find disputes we need to participate in.
 	// - Initialize spam slots & OrderingProvider.
-	async fn handle_startup<Context>(
+	async fn handle_startup<'a, Context>(
 		&self,
 		ctx: &mut Context,
 		initial_head: ActivatedLeaf,
 		rolling_session_window: &RollingSessionWindow,
-		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
+		overlay_db: &OverlayedBackend<'_, impl Backend>,
 		clock: &dyn Clock,
 	) -> Result<(
 		Vec<(ParticipationPriority, ParticipationRequest)>,
@@ -268,7 +272,7 @@ impl DisputeCoordinatorSubsystem {
 		// Prune obsolete disputes:
 		db::v1::note_current_session(overlay_db, rolling_session_window.latest_session())?;
 
-		let active_disputes = match overlay_db.load_recent_disputes() {
+		let active_disputes = match overlay_db.clone_recent_disputes() {
 			Ok(Some(disputes)) =>
 				get_active_with_status(disputes.into_iter(), clock.now()).collect(),
 			Ok(None) => Vec::new(),
@@ -282,9 +286,9 @@ impl DisputeCoordinatorSubsystem {
 		let mut unconfirmed_disputes: UnconfirmedDisputes = UnconfirmedDisputes::new();
 		let (mut scraper, votes) = ChainScraper::new(ctx.sender(), initial_head).await?;
 		for ((session, ref candidate_hash), status) in active_disputes {
-			let votes: CandidateVotes =
+			let votes =
 				match overlay_db.load_candidate_votes(session, candidate_hash) {
-					Ok(Some(votes)) => votes.into(),
+					Ok(Some(votes)) => votes,
 					Ok(None) => continue,
 					Err(e) => {
 						gum::error!(
