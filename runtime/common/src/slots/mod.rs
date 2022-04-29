@@ -1031,7 +1031,7 @@ mod benchmarking {
 				leaser, period_begin,
 				period_count,
 				extra_reserved: amount,
-				total_amount: amount
+				total_amount: amount,
 			}.into());
 		}
 
