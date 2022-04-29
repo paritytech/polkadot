@@ -624,6 +624,12 @@ async fn handle_network_msg<Context>(
 			let new_topology = SessionGridTopology::from(gossip_topology);
 			let newly_added = new_topology.peers_diff(&new_topology);
 			state.topologies.update_topology(session_index, new_topology);
+			gum::debug!(
+				target: LOG_TARGET,
+				?session_index,
+				"New gossip topology received {} unseen peers",
+				newly_added.len()
+			);
 
 			for new_peer in newly_added {
 				// in case we already knew that peer in the past
