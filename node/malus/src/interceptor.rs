@@ -46,7 +46,10 @@ where
 	}
 
 	/// Modify outgoing messages.
-	fn intercept_outgoing(&self, msg: AssociateOutgoing::<Self::Message>::OutgoingMessages) -> Option<AllMessages> {
+	fn intercept_outgoing(
+		&self,
+		msg: AssociateOutgoing<Self::Message>::OutgoingMessages,
+	) -> Option<AllMessages> {
 		Some(msg)
 	}
 }
