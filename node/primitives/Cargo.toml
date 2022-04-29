@@ -6,7 +6,7 @@ edition = "2021"
 description = "Primitives types for the Node-side"
 
 [dependencies]
-bounded-vec = "0.5"
+bounded-vec = "0.6"
 futures = "0.3.21"
 polkadot-primitives = { path = "../../primitives" }
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }

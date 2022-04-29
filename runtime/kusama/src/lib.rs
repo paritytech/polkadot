@@ -52,8 +52,7 @@ use frame_election_provider_support::{
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		OnRuntimeUpgrade, PrivilegeCmp,
+		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, PrivilegeCmp,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -111,11 +110,12 @@ impl_runtime_weights!(kusama_runtime_constants);
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 /// Runtime version (Kusama).
+#[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9190,
+	spec_version: 9200,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -1024,6 +1024,7 @@ parameter_types! {
 
 impl pallet_recovery::Config for Runtime {
 	type Event = Event;
+	type WeightInfo = ();
 	type Call = Call;
 	type Currency = Balances;
 	type ConfigDepositBase = ConfigDepositBase;
@@ -1536,30 +1537,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(
-		SlotsCrowdloanIndexMigration,
-		pallet_staking::migrations::v9::InjectValidatorsIntoVoterList<Runtime>,
-	),
+	(),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-pub struct SlotsCrowdloanIndexMigration;
-impl OnRuntimeUpgrade for SlotsCrowdloanIndexMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		slots::migration::slots_crowdloan_index_migration::migrate::<Runtime>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		slots::migration::slots_crowdloan_index_migration::pre_migrate::<Runtime>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		slots::migration::slots_crowdloan_index_migration::post_migrate::<Runtime>()
-	}
-}
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
@@ -1604,6 +1585,7 @@ mod benches {
 		[pallet_offences, OffencesBench::<Runtime>]
 		[pallet_preimage, Preimage]
 		[pallet_proxy, Proxy]
+		[pallet_recovery, Recovery]
 		[pallet_scheduler, Scheduler]
 		[pallet_session, SessionBench::<Runtime>]
 		[pallet_staking, Staking]
