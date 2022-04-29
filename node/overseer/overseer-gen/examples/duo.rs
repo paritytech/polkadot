@@ -57,7 +57,6 @@ struct Duo<T> {
 	i_like_hash: HashMap<f64, f64>,
 }
 
-#[test]
 fn main() {
 	let (overseer, _handle): (Duo<_, f64>, _) = Duo::builder()
 		.sub0(AwesomeSubSys::default())

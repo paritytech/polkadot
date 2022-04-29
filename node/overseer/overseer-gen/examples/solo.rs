@@ -30,7 +30,6 @@ impl<Context> GoblinTower {
 	}
 }
 
-#[test]
 fn main() {
 	let (overseer, _handle): (Solo<_>, _) = Solo::builder()
 		.goblin_tower(GoblinTower::default())
