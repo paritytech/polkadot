@@ -22,7 +22,6 @@ use syn::{parse2, parse_quote, punctuated::Punctuated, spanned::Spanned, Result}
 
 mod impl_builder;
 mod impl_channels_out;
-mod impl_dispatch;
 mod impl_message_wrapper;
 mod impl_overseer;
 mod impl_subsystem_ctx_sender;
@@ -30,7 +29,6 @@ mod parse;
 
 use impl_builder::*;
 use impl_channels_out::*;
-use impl_dispatch::*;
 use impl_message_wrapper::*;
 use impl_overseer::*;
 use impl_subsystem_ctx_sender::*;
@@ -106,7 +104,6 @@ pub(crate) fn impl_overseer_gen(
 	additive.extend(impl_subsystem(&info)?);
 
 	additive.extend(impl_message_wrapper_enum(&info)?);
-	additive.extend(impl_dispatch(&info));
 
 	let ts = expander::Expander::new("overlord-expansion")
 		.add_comment("Generated overseer code by `#[overlord(..)]`".to_owned())
