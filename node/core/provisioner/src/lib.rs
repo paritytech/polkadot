@@ -719,7 +719,7 @@ async fn select_disputes(
 	// On error - an empty set is generated which doesn't affect the logic of the function.
 	// This is a staging feature, so if it is not enabled - create an empty HashMap by default. If it is
 	// enabled - the HashMap will be overridden with the on-chain data.
-	let onchain: HashMap<(SessionIndex, CandidateHash), DisputeState> = HashMap::new();
+	let onchain = HashMap::<(SessionIndex, CandidateHash), DisputeState>::new();
 	#[cfg(feature = "staging-client")]
 	let onchain = onchain_disputes::get_onchain_disputes(sender, _leaf.hash.clone())
 		.await
