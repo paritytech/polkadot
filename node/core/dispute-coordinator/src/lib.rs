@@ -124,12 +124,8 @@ impl Config {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for DisputeCoordinatorSubsystem
-where
-	Context: overseer::DisputeCoordinatorContextTrait,
-	<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-		overseer::DisputeCoordinatorSenderTrait,
-{
+#[overseer::subsystem(error=SubsystemError)]
+impl<Context> DisputeCoordinatorSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async {
 			let backend = DbBackend::new(self.store.clone(), self.config.column_config());

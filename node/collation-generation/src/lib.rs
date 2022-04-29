@@ -164,12 +164,8 @@ impl CollationGenerationSubsystem {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for CollationGenerationSubsystem
-where
-	Context: overseer::CollationGenerationContextTrait,
-	<Context as overseer::CollationGenerationContextTrait>::Sender:
-		overseer::CollationGenerationSenderTrait,
-{
+#[overseer::subsystem(error=SubsystemError)]
+impl<Context> CollationGenerationSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async move {
 			self.run(ctx).await;

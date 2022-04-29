@@ -68,12 +68,8 @@ pub struct IncomingRequestReceivers {
 	pub chunk_req_receiver: IncomingRequestReceiver<v1::ChunkFetchingRequest>,
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for AvailabilityDistributionSubsystem
-where
-	Context: overseer::AvailabilityDistributionContextTrait,
-	<Context as overseer::AvailabilityDistributionContextTrait>::Sender:
-		overseer::AvailabilityDistributionSenderTrait,
-{
+#[overseer::subsystem(error=SubsystemError)]
+impl<Context> AvailabilityDistributionSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self
 			.run(ctx)

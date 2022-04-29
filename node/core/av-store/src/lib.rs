@@ -519,12 +519,8 @@ impl KnownUnfinalizedBlocks {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for AvailabilityStoreSubsystem
-where
-	Context: overseer::AvailabilityStoreContextTrait,
-	<Context as overseer::AvailabilityStoreContextTrait>::Sender:
-		overseer::AvailabilityStoreSenderTrait,
-{
+#[overseer::subsystem(error=SubsystemError)]
+impl<Context> AvailabilityStoreSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run::<Context>(self, ctx).map(|_| Ok(())).boxed();
 

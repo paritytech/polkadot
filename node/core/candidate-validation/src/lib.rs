@@ -93,12 +93,8 @@ impl CandidateValidationSubsystem {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for CandidateValidationSubsystem
-where
-	Context: overseer::CandidateValidationContextTrait,
-	<Context as overseer::CandidateValidationContextTrait>::Sender:
-		overseer::CandidateValidationSenderTrait,
-{
+#[overseer::subsystem(error=SubsystemError)]
+impl<Context> CandidateValidationSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(
 			ctx,

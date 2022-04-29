@@ -1730,12 +1730,8 @@ impl ApprovalDistribution {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for ApprovalDistribution
-where
-	Context: overseer::ApprovalDistributionContextTrait,
-	<Context as overseer::ApprovalDistributionContextTrait>::Sender:
-		overseer::ApprovalDistributionSenderTrait,
-{
+#[overseer::subsystem(error=SubsystemError)]
+impl<Context> ApprovalDistribution {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self.run(ctx).map(|_| Ok(())).boxed();
 

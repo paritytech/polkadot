@@ -806,12 +806,8 @@ impl Default for State {
 	}
 }
 
-impl<Context> Subsystem<Context, SubsystemError> for AvailabilityRecoverySubsystem
-where
-	Context: overseer::AvailabilityRecoveryContextTrait,
-	<Context as overseer::AvailabilityRecoveryContextTrait>::Sender:
-		overseer::AvailabilityRecoverySenderTrait,
-{
+#[overseer::subsystem(error=SubsystemError)]
+impl<Context> AvailabilityRecoverySubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self
 			.run(ctx)

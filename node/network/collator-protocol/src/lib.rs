@@ -113,12 +113,8 @@ impl CollatorProtocolSubsystem {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for CollatorProtocolSubsystem
-where
-	Context: overseer::CollatorProtocolContextTrait,
-	<Context as overseer::CollatorProtocolContextTrait>::Sender:
-		overseer::CollatorProtocolSenderTrait,
-{
+#[overseer::subsystem(error=SubsystemError)]
+impl<Context> CollatorProtocolSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self
 			.run(ctx)
