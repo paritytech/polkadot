@@ -5,6 +5,14 @@ mod misc;
 
 pub use self::misc::*;
 
+
+#[overlord(signal=SigSigSig, event=EvX, error=Yikes, network=NetworkMsg, gen=AllMessages)]
+struct Solo<T> {
+	#[subsystem(no_dispatch, consumes: Plinko, sends: [MsgStrukt])]
+	goblin_tower: GoblinTower,
+}
+
+
 #[derive(Default)]
 pub struct GoblinTower;
 
@@ -27,12 +35,6 @@ where
 	}
 }
 
-
-#[overlord(signal=SigSigSig, event=EvX, error=Yikes, network=NetworkMsg, gen=AllMessages)]
-struct Solo<T> {
-	#[subsystem(no_dispatch, consumes: Plinko, sends: [MsgStrukt])]
-	goblin_tower: GoblinTower,
-}
 
 fn main() {
 	let (overseer, _handle): (Solo<_, f64>, _) = Solo::builder()
