@@ -83,7 +83,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 	// Helpers to use within quote! macros
 	let spawner_where_clause: syn::TypeParam = parse_quote! {
-			S: #support_crate ::SpawnNamed + Send
+			S: #support_crate ::SpawnNamed + Send,
 	};
 
 	// Field names and real types
@@ -130,19 +130,28 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			// see the loop below.
 			let to_keep_subsystem_name = recollect_without_idx(&subsystem_name[..], idx);
 
+			let subsystem_sender_trait = format_ident!("{}SenderTrait", field_type);
+			let _subsystem_ctx_trait = format_ident!("{}ContextTrait", field_type);
+
+			let builder_where_clause = quote!{
+				#field_type : #support_crate::Subsystem< #subsystem_ctx_name< #subsystem_consumes >, #error_ty>,
+				< #subsystem_ctx_name < #subsystem_consumes > as #support_crate :: SubsystemContext>::Sender:
+					#subsystem_sender_trait,
+			};
+
 			// Create the field init `fn`
 			quote! {
 				impl <InitStateSpawner, #field_type, #( #impl_subsystem_state_generics, )* #( #baggage_passthrough_state_generics, )*>
 				#builder <InitStateSpawner, #( #current_state_generics, )* #( #baggage_passthrough_state_generics, )*>
 				where
-					#field_type : Subsystem<#subsystem_ctx_name<#subsystem_consumes>, #error_ty>,
+					#builder_where_clause
 				{
 					/// Specify the subsystem in the builder directly
 					pub fn #field_name (self, var: #field_type ) ->
 						#builder <InitStateSpawner, #( #post_setter_state_generics, )* #( #baggage_passthrough_state_generics, )*>
 					{
 						#builder {
-							#field_name: Init::<#field_type>::Value(var),
+							#field_name: Init::< #field_type >::Value(var),
 							#(
 								#to_keep_subsystem_name: self. #to_keep_subsystem_name,
 							)*
@@ -158,7 +167,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					/// Specify the the initialization function for a subsystem
 					pub fn #field_name_with<'a, F>(self, subsystem_init_fn: F ) ->
 						#builder <InitStateSpawner, #( #post_setter_state_generics, )* #( #baggage_passthrough_state_generics, )*>
-						where
+					where
 						F: 'static + FnOnce(#handle) ->
 							::std::result::Result<#field_type, #error_ty>,
 					{
@@ -185,7 +194,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				impl <InitStateSpawner, #field_type, #( #impl_subsystem_state_generics, )* #( #baggage_passthrough_state_generics, )*>
 				#builder <InitStateSpawner, #( #post_setter_state_generics, )* #( #baggage_passthrough_state_generics, )*>
 				where
-					#field_type : Subsystem<#subsystem_ctx_name<#subsystem_consumes>, #error_ty>,
+					#builder_where_clause
 				{
 					/// Replace a subsystem by another implementation for the
 					/// consumable message type.
@@ -301,6 +310,27 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		S, #( #baggage_generic_ty, )* #( #subsystem_generics, )*
 	};
 
+	let builder_where_clause = info.subsystems().iter().map(|ssf| {
+		let field_type = &ssf.generic;
+		let consumes = &ssf.message_to_consume;
+		let subsystem_sender_trait = format_ident!("{}SenderTrait", ssf.generic);
+		let subsystem_ctx_trait = format_ident!("{}ContextTrait", ssf.generic);
+		let outgoing_wrapper = format_ident!("{}OutgoingMessages", ssf.generic);
+		quote!{
+			#field_type:
+				#support_crate::Subsystem< #support_crate :: #subsystem_ctx_name, #error_ty>,
+			#support_crate :: #subsystem_ctx_name< #consumes >:
+				#subsystem_ctx_trait,
+			<#support_crate :: #subsystem_ctx_name as #subsystem_ctx_trait>::Sender:
+				#subsystem_sender_trait,
+		}
+	}).fold(TokenStream::new(), |mut ts, addendum| {
+		ts.extend(addendum);
+		ts
+	});
+
+
+
 	let mut ts = quote! {
 		/// Convenience alias.
 		type SubsystemInitFn<T> = Box<dyn FnOnce(#handle) -> ::std::result::Result<T, #error_ty> >;
@@ -332,14 +362,15 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			}
 		}
 
-		impl<S, #( #baggage_generic_ty, )*> #overseer_name <S, #( #baggage_generic_ty, )*> where #spawner_where_clause {
+		impl<S, #( #baggage_generic_ty, )*> #overseer_name <S, #( #baggage_generic_ty, )*>
+		where
+			#spawner_where_clause
+		{
 			/// Create a new overseer utilizing the builder.
 			pub fn builder< #( #subsystem_generics),* >() ->
-				#builder<Missing<S> #(, Missing<#field_type> )* >
+				#builder<Missing<S> #(, Missing< #field_type > )* >
 			where
-				#(
-					#subsystem_generics : Subsystem<#subsystem_ctx_name< #consumes >, #error_ty>,
-				)*
+				#builder_where_clause
 			{
 				#builder :: new()
 			}
@@ -502,10 +533,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		// A builder specialization where all fields are set
 		impl<#initialized_builder_generics> #initialized_builder<#initialized_builder_generics>
 		where
-			#spawner_where_clause,
-			#(
-				#subsystem_generics : Subsystem<#subsystem_ctx_name< #consumes >, #error_ty>,
-			)*
+			#spawner_where_clause
+			#builder_where_clause
 		{
 			/// Complete the construction and create the overseer type.
 			pub fn build(self)
