@@ -44,12 +44,12 @@ impl<Context> GoblinTower {
 	}
 }
 
-#[overlord(signal=SigSigSig, event=EvX, error=Yikes, network=NetworkMsg, gen=AllMessages)]
+#[overlord(signal=SigSigSig, event=EvX, error=Yikes, gen=AllMessages)]
 struct Duo<T> {
 	#[subsystem(consumes: MsgStrukt, sends: [Plinko])]
 	sub0: AwesomeSubSys,
 
-	#[subsystem(no_dispatch, blocking, consumes: Plinko, sends: [MsgStrukt])]
+	#[subsystem(blocking, consumes: Plinko, sends: [MsgStrukt])]
 	plinkos: GoblinTower,
 
 	i_like_pi: f64,

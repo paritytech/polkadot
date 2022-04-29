@@ -33,7 +33,7 @@ pub struct EvX;
 
 impl EvX {
 	pub fn focus<'a, T>(&'a self) -> Result<EvX, ()> {
-		unimplemented!("dispatch")
+		unimplemented!("focus")
 	}
 }
 
@@ -65,25 +65,3 @@ pub struct MsgStrukt(pub u8);
 
 #[derive(Debug, Clone, Copy)]
 pub struct Plinko;
-
-impl From<NetworkMsg> for MsgStrukt {
-	fn from(_event: NetworkMsg) -> Self {
-		MsgStrukt(1u8)
-	}
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum NetworkMsg {
-	A,
-	B,
-	C,
-}
-
-impl NetworkMsg {
-	pub fn focus(&self) -> Result<Self, WrongVariant> {
-		Ok(match self {
-			Self::B => return Err(WrongVariant),
-			Self::A | Self::C => self.clone(),
-		})
-	}
-}

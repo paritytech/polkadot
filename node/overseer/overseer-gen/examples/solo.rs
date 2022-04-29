@@ -6,9 +6,9 @@ mod misc;
 
 pub use self::misc::*;
 
-#[overlord(signal=SigSigSig, event=EvX, error=Yikes, network=NetworkMsg, gen=AllMessages)]
+#[overlord(signal=SigSigSig, event=EvX, error=Yikes, gen=AllMessages)]
 struct Solo<T> {
-	#[subsystem(no_dispatch, consumes: Plinko, sends: [MsgStrukt])]
+	#[subsystem(consumes: Plinko, sends: [MsgStrukt])]
 	goblin_tower: GoblinTower,
 }
 

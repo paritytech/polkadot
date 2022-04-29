@@ -68,15 +68,6 @@ mod strukt {
 	}
 
 	#[test]
-	fn parse_subsystem_attr_item_works_01_no_dispatch() {
-		assert_matches!(
-		syn::parse2::<SubSysAttrItem>(quote! {
-			no_dispatch
-		}), Ok(SubSysAttrItem::NoDispatch(_)) => {
-		});
-	}
-
-	#[test]
 	fn parse_subsystem_attr_item_works_02_sends() {
 		assert_matches!(
 		syn::parse2::<SubSysAttrItem>(quote! {
@@ -137,7 +128,7 @@ mod strukt {
 	#[test]
 	fn parse_subsystem_attributes_works_00() {
 		syn::parse2::<SubSystemAttrItems>(quote! {
-			(wip, no_dispatch, blocking, consumes: Foo, sends: [])
+			(wip, blocking, consumes: Foo, sends: [])
 		})
 		.unwrap();
 	}
@@ -219,7 +210,7 @@ mod strukt {
 	fn parse_subsystem_attributes_works_09_neither_consumes_nor_sends() {
 		assert_matches!(
 		syn::parse2::<SubSystemAttrItems>(quote! {
-			(no_dispatch, sends: [])
+			(sends: [])
 		}), Err(e) => {
 			// must either consume smth or sends smth, neither is NOK
 			dbg!(e)
@@ -260,7 +251,7 @@ mod strukt {
 	fn struct_parse_baggage() {
 		let item: OverseerGuts = parse_quote! {
 			pub struct Ooooh<X = Pffffffft> where X: Secrit {
-				#[subsystem(no_dispatch, consumes: Foo, sends: [])]
+				#[subsystem(consumes: Foo, sends: [])]
 				sub0: FooSubsystem,
 
 				metrics: Metrics,
@@ -273,13 +264,13 @@ mod strukt {
 	fn struct_parse_full() {
 		let item: OverseerGuts = parse_quote! {
 			pub struct Ooooh<X = Pffffffft> where X: Secrit {
-				#[subsystem(no_dispatch, consumes: Foo, sends: [])]
+				#[subsystem(consumes: Foo, sends: [])]
 				sub0: FooSubsystem,
 
 				#[subsystem(blocking, consumes: Bar, sends: [])]
 				yyy: BaersBuyBilliardBalls,
 
-				#[subsystem(no_dispatch, blocking, consumes: Twain, sends: [])]
+				#[subsystem(blocking, consumes: Twain, sends: [])]
 				fff: Beeeeep,
 
 				#[subsystem(consumes: Rope)]

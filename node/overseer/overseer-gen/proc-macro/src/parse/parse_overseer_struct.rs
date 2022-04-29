@@ -30,7 +30,6 @@ use quote::{quote, ToTokens};
 
 mod kw {
 	syn::custom_keyword!(wip);
-	syn::custom_keyword!(no_dispatch);
 	syn::custom_keyword!(blocking);
 	syn::custom_keyword!(consumes);
 	syn::custom_keyword!(sends);
@@ -44,9 +43,6 @@ pub(crate) enum SubSysAttrItem {
 	/// The subsystem is blocking and requires to be
 	/// spawned on an exclusive thread.
 	Blocking(kw::blocking),
-	/// External messages should not be - after being converted -
-	/// be dispatched to the annotated subsystem.
-	NoDispatch(kw::no_dispatch),
 	/// Message to be sent by this subsystem.
 	Sends(Sends),
 	/// Message to be consumed by this subsystem.
@@ -60,8 +56,6 @@ impl Parse for SubSysAttrItem {
 			Self::Wip(input.parse::<kw::wip>()?)
 		} else if lookahead.peek(kw::blocking) {
 			Self::Blocking(input.parse::<kw::blocking>()?)
-		} else if lookahead.peek(kw::no_dispatch) {
-			Self::NoDispatch(input.parse::<kw::no_dispatch>()?)
 		} else if lookahead.peek(kw::sends) {
 			Self::Sends(input.parse::<Sends>()?)
 		} else {
@@ -79,9 +73,6 @@ impl ToTokens for SubSysAttrItem {
 			Self::Blocking(blocking) => {
 				quote! { #blocking }
 			},
-			Self::NoDispatch(no_dispatch) => {
-				quote! { #no_dispatch }
-			},
 			Self::Sends(_) => {
 				quote! {}
 			},
@@ -94,7 +85,7 @@ impl ToTokens for SubSysAttrItem {
 }
 
 /// A field of the struct annotated with
-/// `#[subsystem(no_dispatch, , A | B | C)]`
+/// `#[subsystem(A, B, C)]`
 #[derive(Clone, Debug)]
 pub(crate) struct SubSysField {
 	/// Name of the field.
@@ -107,9 +98,6 @@ pub(crate) struct SubSysField {
 	pub(crate) message_to_consume: Path,
 	/// Types of messages to be sent by the subsystem.
 	pub(crate) messages_to_send: Vec<Path>,
-	/// If `no_dispatch` is present, if the message is incoming via
-	/// an `extern` `Event`, it will not be dispatched to all subsystems.
-	pub(crate) no_dispatch: bool,
 	/// If the subsystem implementation is blocking execution and hence
 	/// has to be spawned on a separate thread or thread pool.
 	pub(crate) blocking: bool,
@@ -206,12 +194,10 @@ impl Parse for Consumes {
 	}
 }
 
-/// Parses `(no_dispatch, Foo, sends = [Bar, Baz])`
+/// Parses `(Foo, sends = [Bar, Baz])`
 /// including the `(` and `)`.
 #[derive(Debug, Clone)]
 pub(crate) struct SubSystemAttrItems {
-	#[allow(dead_code)]
-	pub(crate) no_dispatch: bool,
 	/// The subsystem is in progress, only generate the `Wrapper` variant, but do not forward messages
 	/// and also not include the subsystem in the list of subsystems.
 	pub(crate) wip: bool,
@@ -258,11 +244,10 @@ impl Parse for SubSystemAttrItems {
 			))
 		}
 
-		let no_dispatch = extract_variant!(unique, NoDispatch; default = false);
 		let blocking = extract_variant!(unique, Blocking; default = false);
 		let wip = extract_variant!(unique, Wip; default = false);
 
-		Ok(Self { no_dispatch, blocking, wip, sends, consumes })
+		Ok(Self { blocking, wip, sends, consumes })
 	}
 }
 
@@ -479,8 +464,7 @@ impl OverseerGuts {
 				}
 				unique_subsystem_idents.insert(generic.clone());
 
-				let SubSystemAttrItems { no_dispatch, wip, blocking, consumes, sends, .. } =
-					subsystem_attrs;
+				let SubSystemAttrItems { wip, blocking, consumes, sends, .. } = subsystem_attrs;
 
 				// messages to be sent
 				let sends = if let Some(sends) = sends {
@@ -501,7 +485,6 @@ impl OverseerGuts {
 					generic,
 					message_to_consume: consumes,
 					messages_to_send: sends,
-					no_dispatch,
 					wip,
 					blocking,
 				});

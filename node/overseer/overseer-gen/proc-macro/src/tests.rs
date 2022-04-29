@@ -32,13 +32,13 @@ fn print() {
 
 	let item = quote! {
 		pub struct Ooooh<X = Pffffffft> where X: Secrit {
-			#[subsystem(no_dispatch, Foo)]
+			#[subsystem(Foo)]
 			sub0: FooSubsystem,
 
 			#[subsystem(blocking, Bar)]
 			yyy: BaersBuyBilliardBalls,
 
-			#[subsystem(no_dispatch, blocking, Twain)]
+			#[subsystem(blocking, Twain)]
 			fff: Beeeeep,
 
 			#[subsystem(Rope)]
@@ -57,13 +57,13 @@ fn print() {
 fn struct_parse_full() {
 	let item: OverseerGuts = parse_quote! {
 		pub struct Ooooh<X = Pffffffft> where X: Secrit {
-			#[subsystem(no_dispatch, Foo)]
+			#[subsystem(Foo)]
 			sub0: FooSubsystem,
 
 			#[subsystem(blocking, Bar)]
 			yyy: BaersBuyBilliardBalls,
 
-			#[subsystem(no_dispatch, blocking, Twain)]
+			#[subsystem(blocking, Twain)]
 			fff: Beeeeep,
 
 			#[subsystem(Rope)]
