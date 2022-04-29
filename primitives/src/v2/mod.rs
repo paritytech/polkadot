@@ -1406,12 +1406,19 @@ pub struct DisputeState<N = BlockNumber> {
 #[cfg(feature = "std")]
 impl MallocSizeOf for DisputeState {
 	fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
-		// BitVec is converted to slice to get its size dynamically.
-		// It's equal to calling .capacity() * sizeof::<u8>() but without hardcoding the actual T
-		std::mem::size_of_val(&*self.validators_for) +
-			std::mem::size_of_val(&*self.validators_against) +
-			self.start.size_of(ops) +
-			self.concluded_at.size_of(ops)
+		// destructuring to make sure no new fields are added to the struct without modifying this function
+		let Self { validators_for, validators_against, start, concluded_at } = self;
+
+		// According to the documentation `.capacity()` might not return a byte aligned value, so just in case:
+		let align_eight = |d: usize| match d % 8 {
+			0 => d / 8,
+			_ => d / 8 + 1,
+		};
+
+		align_eight(validators_for.capacity()) +
+			align_eight(validators_against.capacity()) +
+			start.size_of(ops) +
+			concluded_at.size_of(ops)
 	}
 }
 

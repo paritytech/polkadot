@@ -499,10 +499,12 @@ mod select_candidates {
 mod select_disputes {
 
 	use super::{super::*, common::test_harness};
-	use polkadot_node_subsystem::messages::{
-		AllMessages, DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest,
+	use polkadot_node_subsystem::{
+		messages::{AllMessages, DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest},
+		RuntimeApiError,
 	};
 	use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
+	use polkadot_primitives::v2::DisputeState;
 	use std::sync::Arc;
 	use test_helpers;
 

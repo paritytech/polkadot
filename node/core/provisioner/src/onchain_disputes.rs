@@ -14,65 +14,61 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-#![cfg(feature = "staging-client")]
-
-use crate::LOG_TARGET;
-use futures::channel::oneshot;
-use polkadot_node_subsystem::{
-	errors::RuntimeApiError,
-	messages::{RuntimeApiMessage, RuntimeApiRequest},
-	SubsystemSender,
-};
+use crate::error::GetOnchainDisputesError;
+use polkadot_node_subsystem::SubsystemSender;
 use polkadot_primitives::v2::{CandidateHash, DisputeState, Hash, SessionIndex};
 use std::collections::HashMap;
 
-pub enum GetOnchainDisputesErr {
-	Channel,
-	Execution,
-	NotSupported,
+pub async fn get_onchain_disputes(
+	_sender: &mut impl SubsystemSender,
+	_relay_parent: Hash,
+) -> Result<HashMap<(SessionIndex, CandidateHash), DisputeState>, GetOnchainDisputesError> {
+	let _onchain = Result::<
+		HashMap<(SessionIndex, CandidateHash), DisputeState>,
+		GetOnchainDisputesError,
+	>::Ok(HashMap::new());
+	#[cfg(feature = "staging-client")]
+	let _onchain = self::staging_impl::get_onchain_disputes(_sender, _relay_parent).await;
+
+	_onchain
 }
 
-/// Gets the on-chain disputes at a given block number and returns them as a `HashSet` so that searching in them is cheap.
-pub async fn get_onchain_disputes(
-	sender: &mut impl SubsystemSender,
-	relay_parent: Hash,
-) -> Result<HashMap<(SessionIndex, CandidateHash), DisputeState>, GetOnchainDisputesErr> {
-	gum::trace!(target: LOG_TARGET, ?relay_parent, "Fetching on-chain disputes");
-	let (tx, rx) = oneshot::channel();
-	sender
-		.send_message(
-			RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::StagingDisputes(tx)).into(),
-		)
-		.await;
+// Merge this module with the outer (current one) when promoting to stable
+#[cfg(feature = "staging-client")]
+mod staging_impl {
+	use super::*; // remove this when promoting to stable
+	use crate::LOG_TARGET;
+	use futures::channel::oneshot;
+	use polkadot_node_subsystem::{
+		errors::RuntimeApiError,
+		messages::{RuntimeApiMessage, RuntimeApiRequest},
+		SubsystemSender,
+	};
 
-	rx.await
-		.map_err(|_| {
-			gum::error!(
-				target: LOG_TARGET,
-				?relay_parent,
-				"Channel error occurred while fetching on-chain disputes"
-			);
-			GetOnchainDisputesErr::Channel
-		})
-		.and_then(|res| {
-			res.map_err(|e| match e {
-				RuntimeApiError::Execution { .. } => {
-					gum::error!(
-						target: LOG_TARGET,
-						?relay_parent,
-						"Execution error occurred while fetching on-chain disputes",
-					);
-					GetOnchainDisputesErr::Execution
-				},
-				RuntimeApiError::NotSupported { .. } => {
-					gum::error!(
-						target: LOG_TARGET,
-						?relay_parent,
-						"Runtime doesn't support on-chain disputes fetching",
-					);
-					GetOnchainDisputesErr::NotSupported
-				},
+	/// Gets the on-chain disputes at a given block number and returns them as a `HashSet` so that searching in them is cheap.
+	pub async fn get_onchain_disputes(
+		sender: &mut impl SubsystemSender,
+		relay_parent: Hash,
+	) -> Result<HashMap<(SessionIndex, CandidateHash), DisputeState>, GetOnchainDisputesError> {
+		gum::trace!(target: LOG_TARGET, ?relay_parent, "Fetching on-chain disputes");
+		let (tx, rx) = oneshot::channel();
+		sender
+			.send_message(
+				RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::StagingDisputes(tx))
+					.into(),
+			)
+			.await;
+
+		rx.await
+			.map_err(|_| GetOnchainDisputesError::Channel)
+			.and_then(|res| {
+				res.map_err(|e| match e {
+					RuntimeApiError::Execution { .. } =>
+						GetOnchainDisputesError::Execution(e, relay_parent),
+					RuntimeApiError::NotSupported { .. } =>
+						GetOnchainDisputesError::NotSupported(e, relay_parent),
+				})
 			})
-		})
-		.map(|v| v.into_iter().map(|e| ((e.0, e.1), e.2)).collect())
+			.map(|v| v.into_iter().map(|e| ((e.0, e.1), e.2)).collect())
+	}
 }

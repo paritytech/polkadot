@@ -27,7 +27,6 @@ use futures::{
 use futures_timer::Delay;
 use polkadot_node_primitives::CandidateVotes;
 use polkadot_node_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
 	jaeger,
 	messages::{
 		CandidateBackingMessage, ChainApiMessage, DisputeCoordinatorMessage, ProvisionableData,
@@ -36,24 +35,25 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, LeafStatus, PerLeafSpan, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
-	self as util, request_availability_cores, request_persisted_validation_data, JobSender,
-	JobSubsystem, JobTrait,
+	request_availability_cores, request_persisted_validation_data, JobSender, JobSubsystem,
+	JobTrait,
 };
 use polkadot_primitives::v2::{
-	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeState,
-	DisputeStatement, DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption,
-	SessionIndex, SignedAvailabilityBitfield, ValidatorIndex,
+	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeStatement,
+	DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption, SessionIndex,
+	SignedAvailabilityBitfield, ValidatorIndex,
 };
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
 	pin::Pin,
 };
-use thiserror::Error;
 
+mod error;
 mod metrics;
 mod onchain_disputes;
 
 pub use self::metrics::*;
+use error::Error;
 
 #[cfg(test)]
 mod tests;
@@ -104,49 +104,6 @@ pub struct ProvisionerJob {
 	metrics: Metrics,
 	inherent_after: InherentAfter,
 	awaiting_inherent: Vec<oneshot::Sender<ProvisionerInherentData>>,
-}
-
-/// Errors in the provisioner.
-#[derive(Debug, Error)]
-#[allow(missing_docs)]
-pub enum Error {
-	#[error(transparent)]
-	Util(#[from] util::Error),
-
-	#[error("failed to get availability cores")]
-	CanceledAvailabilityCores(#[source] oneshot::Canceled),
-
-	#[error("failed to get persisted validation data")]
-	CanceledPersistedValidationData(#[source] oneshot::Canceled),
-
-	#[error("failed to get block number")]
-	CanceledBlockNumber(#[source] oneshot::Canceled),
-
-	#[error("failed to get backed candidates")]
-	CanceledBackedCandidates(#[source] oneshot::Canceled),
-
-	#[error("failed to get votes on dispute")]
-	CanceledCandidateVotes(#[source] oneshot::Canceled),
-
-	#[error(transparent)]
-	ChainApi(#[from] ChainApiError),
-
-	#[error(transparent)]
-	Runtime(#[from] RuntimeApiError),
-
-	#[error("failed to send message to ChainAPI")]
-	ChainApiMessageSend(#[source] mpsc::SendError),
-
-	#[error("failed to send message to CandidateBacking to get backed candidates")]
-	GetBackedCandidatesSend(#[source] mpsc::SendError),
-
-	#[error("failed to send return message with Inherents")]
-	InherentDataReturnChannel,
-
-	#[error(
-		"backed candidate does not correspond to selected candidate; check logic in provisioner"
-	)]
-	BackedCandidateOrderingProblem,
 }
 
 /// Provisioner run arguments.
@@ -701,7 +658,10 @@ fn extend_by_random_subset_without_repetition(
 	acc.sort_unstable_by(|a, b| a.0.cmp(&b.0));
 }
 
+/// The maximum number of disputes Provisioner will include in the inherent data.
+/// Serves as a protection not to flood the Runtime with excessive data.
 const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 1_000;
+
 async fn select_disputes(
 	sender: &mut impl SubsystemSender,
 	metrics: &metrics::Metrics,
@@ -715,15 +675,20 @@ async fn select_disputes(
 	// If the active ones are already exceeding the bounds, randomly select a subset.
 	let recent = request_disputes(sender, RequestType::Recent).await;
 
-	// On chain disputes are fetched from the runtime. We want to prioritise the inclusion of unknown disputes in the inherent data.
-	// On error - an empty set is generated which doesn't affect the logic of the function.
-	// This is a staging feature, so if it is not enabled - create an empty HashMap by default. If it is
-	// enabled - the HashMap will be overridden with the on-chain data.
-	let onchain = HashMap::<(SessionIndex, CandidateHash), DisputeState>::new();
-	#[cfg(feature = "staging-client")]
-	let onchain = onchain_disputes::get_onchain_disputes(sender, _leaf.hash.clone())
-		.await
-		.unwrap_or_default();
+	// On chain disputes are fetched from the runtime. We want to prioritise the inclusion of unknown
+	// disputes in the inherent data. The call relies on staging Runtime API. If the staging API is not
+	// enabled in the binary an empty set is generated which doesn't affect the rest of the logic.
+	let onchain = match onchain_disputes::get_onchain_disputes(sender, _leaf.hash.clone()).await {
+		Ok(r) => r,
+		Err(e) => {
+			gum::debug!(
+				target: LOG_TARGET,
+				?e,
+				"Can't fetch onchain disputes. Will continue with empty onchain disputes set.",
+			);
+			HashMap::new()
+		},
+	};
 
 	let disputes = if recent.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
 		gum::warn!(
@@ -777,7 +742,7 @@ async fn select_disputes(
 			);
 			n_active = active.len();
 
-			if active.len() < MAX_DISPUTES_FORWARDED_TO_RUNTIME {
+			if n_active < MAX_DISPUTES_FORWARDED_TO_RUNTIME {
 				// Looks like we can add some of the seen disputes too
 				extend_by_random_subset_without_repetition(
 					&mut active,
