@@ -17,15 +17,15 @@
 #![deny(unused_crate_dependencies)]
 
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{quote, ToTokens, format_ident};
-use syn::{parse2, spanned::Spanned, Result, punctuated::Punctuated, parse_quote, Token};
+use quote::{format_ident, quote, ToTokens};
+use syn::{parse2, parse_quote, punctuated::Punctuated, spanned::Spanned, Result};
 
 mod impl_builder;
 mod impl_channels_out;
 mod impl_dispatch;
 mod impl_message_wrapper;
 mod impl_overseer;
-mod impl_subsystem;
+mod impl_subsystem_ctx_sender;
 mod parse;
 
 use impl_builder::*;
@@ -33,7 +33,7 @@ use impl_channels_out::*;
 use impl_dispatch::*;
 use impl_message_wrapper::*;
 use impl_overseer::*;
-use impl_subsystem::*;
+use impl_subsystem_ctx_sender::*;
 use parse::*;
 
 #[cfg(test)]
@@ -67,7 +67,7 @@ pub(crate) fn impl_overseer_gen(
 	attr: TokenStream,
 	orig: TokenStream,
 ) -> Result<proc_macro2::TokenStream> {
-	let args: AttrArgs = parse2(attr)?;
+	let args: OverseerAttrArgs = parse2(attr)?;
 	let message_wrapper = args.message_wrapper;
 
 	let of: OverseerGuts = parse2(orig)?;
@@ -119,19 +119,12 @@ pub(crate) fn impl_overseer_gen(
 	Ok(ts)
 }
 
-
 pub(crate) fn impl_subsystem_gen(
 	attr: TokenStream,
 	orig: TokenStream,
 ) -> Result<proc_macro2::TokenStream> {
-	if !attr.is_empty() {
-		return Err(
-			syn::Error::new(
-				attr.span(),
-				"Doesn't take any arguments at this time"
-			)
-		);
-	}
+	let error_ty = parse2::<SubsystemAttrArgs>(attr.clone())?.extern_error_ty;
+
 	let mut struktured_impl: syn::ItemImpl = parse2(orig)?;
 
 	let support_crate = if cfg!(test) {
@@ -147,45 +140,41 @@ pub(crate) fn impl_subsystem_gen(
 	};
 
 	let me = match &*struktured_impl.self_ty {
-		syn::Type::Path(ref path) => {
-			dbg!(path).path.segments.last().expect("Must be ident. FIXME bail properly").ident.clone()
-		},
-		_ => {
-			return Err(
-				syn::Error::new(
-					attr.span(),
-					"Doesn't take any arguments at this time"
-				)
-			)
-		}
+		syn::Type::Path(ref path) => dbg!(path)
+			.path
+			.segments
+			.last()
+			.expect("Must be ident. FIXME bail properly")
+			.ident
+			.clone(),
+		_ => return Err(syn::Error::new(attr.span(), "Doesn't take any arguments at this time")),
 	};
 	let subsystem_ctx_trait = format_ident!("{}ContextTrait", me);
 	let subsystem_sender_trait = format_ident!("{}SenderTrait", me);
-	let extra_where_predicates: Punctuated<syn::WherePredicate, syn::Token![,]> = parse_quote!{
+	let extra_where_predicates: Punctuated<syn::WherePredicate, syn::Token![,]> = parse_quote! {
 		Context: #subsystem_ctx_trait,
 		Context: #support_crate::SubsystemContext,
 		<Context as #subsystem_ctx_trait>::Sender: #subsystem_sender_trait,
 		<Context as #support_crate::SubsystemContext>::Sender: #subsystem_sender_trait,
 	};
-	let error_ty = quote!{ Yikes }; // FIXME
-	struktured_impl.trait_.replace(
-		(
-			None,
-			parse_quote!{ #support_crate::Subsystem<Context, #error_ty>},
-			syn::token::For::default(),
-		)
-	);
+	struktured_impl.trait_.replace((
+		None,
+		parse_quote! {
+			#support_crate::Subsystem<Context, #error_ty>
+		},
+		syn::token::For::default(),
+	));
 	let where_clause = struktured_impl.generics.make_where_clause();
 	where_clause.predicates.extend(extra_where_predicates);
 
-
-	let ts = expander::Expander::new(format!("subsystem-{}-expansion", subsystem_ctx_trait.to_string().to_lowercase()))
-		.add_comment("Generated overseer code by `#[subsystem(..)]`".to_owned())
-		.dry(!cfg!(feature = "expand"))
-		.verbose(true)
-		.fmt(expander::Edition::_2021)
-		.write_to_out_dir(struktured_impl.into_token_stream())
-		.expect("Expander does not fail due to IO in OUT_DIR. qed");
+	let ts =
+		expander::Expander::new(format!("subsystem-{}-expansion", me.to_string().to_lowercase()))
+			.add_comment("Generated overseer code by `#[subsystem(..)]`".to_owned())
+			.dry(!cfg!(feature = "expand"))
+			.verbose(true)
+			.fmt(expander::Edition::_2021)
+			.write_to_out_dir(struktured_impl.into_token_stream())
+			.expect("Expander does not fail due to IO in OUT_DIR. qed");
 
 	Ok(ts)
 }

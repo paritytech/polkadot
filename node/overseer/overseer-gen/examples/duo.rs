@@ -1,7 +1,7 @@
 //! A dummy to be used with cargo expand
 
 use polkadot_node_network_protocol::WrongVariant;
-use polkadot_overseer_gen::{SpawnNamed, self as overseer, *};
+use polkadot_overseer_gen::{self as overseer, SpawnNamed, *};
 use std::collections::HashMap;
 mod misc;
 
@@ -11,9 +11,8 @@ pub use self::misc::*;
 #[derive(Default)]
 pub struct AwesomeSubSys;
 
-#[overseer::subsystem]
-impl<Context> AwesomeSubSys
-{
+#[overseer::subsystem(error=Yikes)]
+impl<Context> AwesomeSubSys {
 	fn start(self, mut ctx: Context) -> SpawnedSubsystem<Yikes> {
 		let mut sender = ctx.sender().clone();
 		ctx.spawn(
@@ -30,10 +29,8 @@ impl<Context> AwesomeSubSys
 #[derive(Default)]
 pub struct GoblinTower;
 
-
-#[overseer::subsystem]
-impl<Context> GoblinTower
-{
+#[overseer::subsystem(error=Yikes)]
+impl<Context> GoblinTower {
 	fn start(self, mut ctx: Context) -> SpawnedSubsystem<Yikes> {
 		let mut sender = ctx.sender().clone();
 		ctx.spawn(
@@ -60,6 +57,7 @@ struct Duo<T> {
 	i_like_hash: HashMap<f64, f64>,
 }
 
+#[test]
 fn main() {
 	let (overseer, _handle): (Duo<_, f64>, _) = Duo::builder()
 		.sub0(AwesomeSubSys::default())

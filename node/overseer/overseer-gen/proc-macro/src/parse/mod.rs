@@ -14,11 +14,25 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-mod parse_attr;
-mod parse_struct;
+mod kw {
+	syn::custom_keyword!(event);
+	syn::custom_keyword!(signal);
+	syn::custom_keyword!(error);
+	syn::custom_keyword!(network);
+	syn::custom_keyword!(outgoing);
+	syn::custom_keyword!(gen);
+	syn::custom_keyword!(signal_capacity);
+	syn::custom_keyword!(message_capacity);
+}
+
+mod parse_overseer_attr;
+mod parse_overseer_struct;
+
+mod parse_subsystem_attr;
 
 #[cfg(test)]
 mod tests;
 
-pub(crate) use parse_attr::*;
-pub(crate) use parse_struct::*;
+pub(crate) use self::{parse_overseer_attr::*, parse_overseer_struct::*};
+
+pub(crate) use self::parse_subsystem_attr::*;

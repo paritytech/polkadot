@@ -1,11 +1,10 @@
 //! A minimal demo to be used with cargo expand.
 
-use polkadot_overseer_gen::{SpawnNamed, self as overseer, *};
 use overseer::SubsystemSender as _;
+use polkadot_overseer_gen::{self as overseer, SpawnNamed, *};
 mod misc;
 
 pub use self::misc::*;
-
 
 #[overlord(signal=SigSigSig, event=EvX, error=Yikes, network=NetworkMsg, gen=AllMessages)]
 struct Solo<T> {
@@ -13,12 +12,10 @@ struct Solo<T> {
 	goblin_tower: GoblinTower,
 }
 
-
 #[derive(Default)]
 pub struct GoblinTower;
 
-
-#[overseer::subsystem]
+#[overseer::subsystem(error=Yikes)]
 impl<Context> GoblinTower {
 	fn start(self, mut ctx: Context) -> SpawnedSubsystem<Yikes> {
 		let mut sender = ctx.sender().clone();
@@ -33,7 +30,7 @@ impl<Context> GoblinTower {
 	}
 }
 
-
+#[test]
 fn main() {
 	let (overseer, _handle): (Solo<_>, _) = Solo::builder()
 		.goblin_tower(GoblinTower::default())

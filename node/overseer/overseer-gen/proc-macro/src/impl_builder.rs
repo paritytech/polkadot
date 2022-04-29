@@ -310,26 +310,27 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		S, #( #baggage_generic_ty, )* #( #subsystem_generics, )*
 	};
 
-	let builder_where_clause = info.subsystems().iter().map(|ssf| {
-		let field_type = &ssf.generic;
-		let consumes = &ssf.message_to_consume;
-		let subsystem_sender_trait = format_ident!("{}SenderTrait", ssf.generic);
-		let subsystem_ctx_trait = format_ident!("{}ContextTrait", ssf.generic);
-		let outgoing_wrapper = format_ident!("{}OutgoingMessages", ssf.generic);
-		quote!{
-			#field_type:
-				#support_crate::Subsystem< #subsystem_ctx_name < #consumes>, #error_ty>,
-			<#subsystem_ctx_name< #consumes > as #subsystem_ctx_trait>::Sender:
-				#subsystem_sender_trait,
-			#subsystem_ctx_name< #consumes >:
-				#subsystem_ctx_trait,
-		}
-	}).fold(TokenStream::new(), |mut ts, addendum| {
-		ts.extend(addendum);
-		ts
-	});
-
-
+	let builder_where_clause = info
+		.subsystems()
+		.iter()
+		.map(|ssf| {
+			let field_type = &ssf.generic;
+			let consumes = &ssf.message_to_consume;
+			let subsystem_sender_trait = format_ident!("{}SenderTrait", ssf.generic);
+			let subsystem_ctx_trait = format_ident!("{}ContextTrait", ssf.generic);
+			quote! {
+				#field_type:
+					#support_crate::Subsystem< #subsystem_ctx_name < #consumes>, #error_ty>,
+				<#subsystem_ctx_name< #consumes > as #subsystem_ctx_trait>::Sender:
+					#subsystem_sender_trait,
+				#subsystem_ctx_name< #consumes >:
+					#subsystem_ctx_trait,
+			}
+		})
+		.fold(TokenStream::new(), |mut ts, addendum| {
+			ts.extend(addendum);
+			ts
+		});
 
 	let mut ts = quote! {
 		/// Convenience alias.
@@ -523,7 +524,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	});
 
 	// Create the string literals for spawn.
-	let subsystem_name_str_literal = subsystem_name.iter()
+	let subsystem_name_str_literal = subsystem_name
+		.iter()
 		.map(|ident| proc_macro2::Literal::string(ident.to_string().replace("_", "-").as_str()))
 		.collect::<Vec<_>>();
 

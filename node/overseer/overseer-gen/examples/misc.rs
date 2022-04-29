@@ -23,8 +23,6 @@ impl SpawnNamed for DummySpawner {
 	}
 }
 
-
-
 /// A signal sent by the overseer.
 #[derive(Debug, Clone)]
 pub struct SigSigSig;

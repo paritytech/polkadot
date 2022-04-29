@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::kw;
 use proc_macro2::Span;
 use quote::{quote, ToTokens};
 use std::collections::{hash_map::RandomState, HashMap};
@@ -23,17 +24,6 @@ use syn::{
 	spanned::Spanned,
 	Error, Ident, LitInt, Path, Result, Token,
 };
-
-mod kw {
-	syn::custom_keyword!(event);
-	syn::custom_keyword!(signal);
-	syn::custom_keyword!(error);
-	syn::custom_keyword!(network);
-	syn::custom_keyword!(outgoing);
-	syn::custom_keyword!(gen);
-	syn::custom_keyword!(signal_capacity);
-	syn::custom_keyword!(message_capacity);
-}
 
 #[derive(Clone, Debug)]
 enum OverseerAttrItem {
@@ -138,7 +128,7 @@ impl Parse for OverseerAttrItem {
 
 /// Attribute arguments
 #[derive(Clone, Debug)]
-pub(crate) struct AttrArgs {
+pub(crate) struct OverseerAttrArgs {
 	pub(crate) message_wrapper: Ident,
 	pub(crate) extern_event_ty: Path,
 	pub(crate) extern_signal_ty: Path,
@@ -170,7 +160,7 @@ macro_rules! extract_variant {
 	};
 }
 
-impl Parse for AttrArgs {
+impl Parse for OverseerAttrArgs {
 	fn parse(input: &ParseBuffer) -> Result<Self> {
 		let items: Punctuated<OverseerAttrItem, Token![,]> =
 			input.parse_terminated(OverseerAttrItem::parse)?;
@@ -203,7 +193,7 @@ impl Parse for AttrArgs {
 		let network = extract_variant!(unique, ExternNetworkType);
 		let outgoing = extract_variant!(unique, OutgoingType);
 
-		Ok(AttrArgs {
+		Ok(OverseerAttrArgs {
 			signal_channel_capacity,
 			message_channel_capacity,
 			extern_event_ty: event,
