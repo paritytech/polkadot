@@ -92,7 +92,6 @@ pub(crate) fn impl_overseer_gen(
 		extern_event_ty: args.extern_event_ty,
 		extern_signal_ty: args.extern_signal_ty,
 		extern_error_ty: args.extern_error_ty,
-		extern_network_ty: args.extern_network_ty,
 		outgoing_ty: args.outgoing_ty,
 	};
 

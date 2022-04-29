@@ -18,7 +18,6 @@ mod kw {
 	syn::custom_keyword!(event);
 	syn::custom_keyword!(signal);
 	syn::custom_keyword!(error);
-	syn::custom_keyword!(network);
 	syn::custom_keyword!(outgoing);
 	syn::custom_keyword!(gen);
 	syn::custom_keyword!(signal_capacity);
