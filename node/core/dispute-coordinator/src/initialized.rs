@@ -22,6 +22,7 @@ use std::{
 };
 
 use futures::{channel::mpsc, FutureExt, StreamExt};
+use std::time::Instant;
 
 use sc_keystore::LocalKeystore;
 
@@ -53,7 +54,7 @@ use crate::{
 };
 
 use super::{
-	backend::Backend,
+	backend::{Backend, WRITE_BACK_INTERVAL},
 	db,
 	participation::{
 		self, Participation, ParticipationPriority, ParticipationRequest, ParticipationStatement,
@@ -171,6 +172,7 @@ impl Initialized {
 
 		let maybe_ops;
 		let mut overlay_cache = OverlayCache::new();
+		let mut last_overlay_cache_flush_ts = Instant::now();
 		{
 			let mut overlay_db =
 				OverlayedBackend::new(backend, self.metrics.clone(), &mut overlay_cache)?;
@@ -186,6 +188,7 @@ impl Initialized {
 						);
 					});
 			}
+
 			(overlay_cache, maybe_ops) = overlay_cache.into_write_ops();
 			if let Some(ops) = maybe_ops {
 				let _write_timer = self.metrics.time_db_write_operation();
@@ -251,10 +254,13 @@ impl Initialized {
 					},
 				};
 
-			(overlay_cache, maybe_ops) = overlay_cache.into_write_ops();
-			if let Some(ops) = maybe_ops {
-				let _write_timer = self.metrics.time_db_write_operation();
-				backend.write(ops)?;
+			if last_overlay_cache_flush_ts.elapsed() > WRITE_BACK_INTERVAL {
+				(overlay_cache, maybe_ops) = overlay_cache.into_write_ops();
+				if let Some(ops) = maybe_ops {
+					let _write_timer = self.metrics.time_db_write_operation();
+					backend.write(ops)?;
+				}
+				last_overlay_cache_flush_ts = Instant::now();
 			}
 
 			// even if the changeset was empty,
@@ -554,7 +560,7 @@ impl Initialized {
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 
-				let recent_disputes = if let Some(disputes) = overlay_db.clone_recent_disputes()? {
+				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
 					disputes
 				} else {
 					BTreeMap::new()
@@ -567,7 +573,7 @@ impl Initialized {
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 
-				let recent_disputes = if let Some(disputes) = overlay_db.clone_recent_disputes()? {
+				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
 					disputes
 				} else {
 					BTreeMap::new()
@@ -587,7 +593,7 @@ impl Initialized {
 				let mut query_output = Vec::new();
 				for (session_index, candidate_hash) in query {
 					if let Some(votes) =
-						overlay_db.clone_candidate_votes(session_index, &candidate_hash)?
+						overlay_db.load_candidate_votes(session_index, &candidate_hash)?
 					{
 						query_output.push((session_index, candidate_hash, votes.into()));
 					} else {
@@ -693,7 +699,7 @@ impl Initialized {
 		// us from seeing the backing votes by witholding arbitrary blocks, and hence we do
 		// not have a `CandidateReceipt` available.
 		let (mut votes, mut votes_changed) = match overlay_db
-			.clone_candidate_votes(session, &candidate_hash)?
+			.load_candidate_votes(session, &candidate_hash)?
 			.map(CandidateVotes::from)
 		{
 			Some(votes) => (votes, false),
@@ -720,7 +726,7 @@ impl Initialized {
 		let was_concluded_valid = votes.valid.len() >= supermajority_threshold;
 		let was_concluded_invalid = votes.invalid.len() >= supermajority_threshold;
 
-		let mut recent_disputes = overlay_db.clone_recent_disputes()?.unwrap_or_default();
+		let mut recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
 		let controlled_indices = find_controlled_validator_indices(&self.keystore, &validators);
 
 		// Whether we already cast a vote in that dispute:
@@ -966,7 +972,7 @@ impl Initialized {
 		let validators = info.validators.clone();
 
 		let votes = overlay_db
-			.clone_candidate_votes(session, &candidate_hash)?
+			.load_candidate_votes(session, &candidate_hash)?
 			.map(CandidateVotes::from)
 			.unwrap_or_else(|| CandidateVotes {
 				candidate_receipt: candidate_receipt.clone(),
@@ -1191,7 +1197,7 @@ fn determine_undisputed_chain<'a>(
 		.unwrap_or((base_number, base_hash));
 
 	// Fast path for no disputes.
-	let recent_disputes = match overlay_db.clone_recent_disputes()? {
+	let recent_disputes = match overlay_db.load_recent_disputes()? {
 		None => return Ok(last),
 		Some(a) if a.is_empty() => return Ok(last),
 		Some(a) => a,

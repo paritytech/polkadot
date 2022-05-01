@@ -246,7 +246,7 @@ pub(crate) fn note_current_session(
 
 			// Clear recent disputes metadata.
 			{
-				let mut recent_disputes = overlay_db.clone_recent_disputes()?.unwrap_or_default();
+				let mut recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
 
 				let lower_bound = (new_earliest, CandidateHash(Hash::repeat_byte(0x00)));
 
@@ -272,9 +272,8 @@ pub(crate) fn note_current_session(
 
 #[cfg(test)]
 mod tests {
-	use crate::metrics::Metrics;
-
 	use super::*;
+	use crate::{backend::OverlayCache, metrics::Metrics};
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use polkadot_primitives::v2::{Hash, Id as ParaId};
 
@@ -290,7 +289,9 @@ mod tests {
 	fn overlay_pre_and_post_commit_consistency() {
 		let mut backend = make_db();
 
-		let mut overlay_db = OverlayedBackend::new(&mut backend, Metrics::new_dummy());
+		let mut overlay_cache = OverlayCache::new();
+		let mut overlay_db =
+			OverlayedBackend::new(&mut backend, Metrics::new_dummy(), &mut overlay_cache).unwrap();
 
 		overlay_db.write_earliest_session(0);
 		overlay_db.write_earliest_session(1);
@@ -352,8 +353,8 @@ mod tests {
 			ParaId::from(5),
 		);
 
-		let write_ops = overlay_db.into_write_ops();
-		backend.write(write_ops).unwrap();
+		let (_, write_ops) = overlay_cache.into_write_ops();
+		backend.write(write_ops.unwrap()).unwrap();
 
 		// Test that subsequent writes were written.
 		assert_eq!(backend.load_earliest_session().unwrap().unwrap(), 1);
@@ -380,8 +381,9 @@ mod tests {
 	#[test]
 	fn overlay_preserves_candidate_votes_operation_order() {
 		let mut backend = make_db();
-
-		let mut overlay_db = OverlayedBackend::new(&mut backend, Metrics::new_dummy());
+		let mut overlay_cache = OverlayCache::new();
+		let mut overlay_db =
+			OverlayedBackend::new(&mut backend, Metrics::new_dummy(), &mut overlay_cache).unwrap();
 		overlay_db.delete_candidate_votes(1, CandidateHash(Hash::repeat_byte(1)));
 
 		overlay_db.write_candidate_votes(
@@ -394,8 +396,8 @@ mod tests {
 			},
 		);
 
-		let write_ops = overlay_db.into_write_ops();
-		backend.write(write_ops).unwrap();
+		let (_, write_ops) = overlay_cache.into_write_ops();
+		backend.write(write_ops.unwrap()).unwrap();
 
 		assert_eq!(
 			backend
@@ -408,7 +410,9 @@ mod tests {
 			ParaId::from(1),
 		);
 
-		let mut overlay_db = OverlayedBackend::new(&mut backend, Metrics::new_dummy());
+		let mut overlay_cache = OverlayCache::new();
+		let mut overlay_db =
+			OverlayedBackend::new(&mut backend, Metrics::new_dummy(), &mut overlay_cache).unwrap();
 		overlay_db.write_candidate_votes(
 			1,
 			CandidateHash(Hash::repeat_byte(1)),
@@ -426,8 +430,8 @@ mod tests {
 
 		overlay_db.delete_candidate_votes(1, CandidateHash(Hash::repeat_byte(1)));
 
-		let write_ops = overlay_db.into_write_ops();
-		backend.write(write_ops).unwrap();
+		let (_, write_ops) = overlay_cache.into_write_ops();
+		backend.write(write_ops.unwrap()).unwrap();
 
 		assert!(backend
 			.load_candidate_votes(1, &CandidateHash(Hash::repeat_byte(1)))
@@ -458,7 +462,9 @@ mod tests {
 			invalid: Vec::new(),
 		};
 
-		let mut overlay_db = OverlayedBackend::new(&mut backend, Metrics::new_dummy());
+		let mut overlay_cache = OverlayCache::new();
+		let mut overlay_db =
+			OverlayedBackend::new(&mut backend, Metrics::new_dummy(), &mut overlay_cache).unwrap();
 		overlay_db.write_earliest_session(prev_earliest_session);
 		overlay_db.write_recent_disputes(
 			vec![
@@ -479,11 +485,12 @@ mod tests {
 
 		overlay_db.write_candidate_votes(very_recent, hash_d, blank_candidate_votes());
 
-		let write_ops = overlay_db.into_write_ops();
-		backend.write(write_ops).unwrap();
+		let (mut overlay_cache, write_ops) = overlay_cache.into_write_ops();
+		backend.write(write_ops.unwrap()).unwrap();
 
-		let mut overlay_db = OverlayedBackend::new(&mut backend, Metrics::new_dummy());
-		note_current_session(&overlay_db, current_session).unwrap();
+		let mut overlay_db =
+			OverlayedBackend::new(&mut backend, Metrics::new_dummy(), &mut overlay_cache).unwrap();
+		note_current_session(&mut overlay_db, current_session).unwrap();
 
 		assert_eq!(overlay_db.load_earliest_session().unwrap(), Some(new_earliest_session));
 
@@ -497,7 +504,11 @@ mod tests {
 			.collect(),
 		);
 
-		assert!(overlay_db.load_candidate_votes(very_old, &hash_a).unwrap().is_none());
+		println!("Bau");
+
+		let res = overlay_db.load_candidate_votes(very_old, &hash_a).unwrap();
+		println!("{:?}", res);
+		assert!(res.is_none());
 		assert!(overlay_db.load_candidate_votes(slightly_old, &hash_b).unwrap().is_none());
 		assert!(overlay_db
 			.load_candidate_votes(new_earliest_session, &hash_c)

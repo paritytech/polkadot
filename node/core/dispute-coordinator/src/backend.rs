@@ -25,7 +25,7 @@ use polkadot_node_subsystem::SubsystemResult;
 use polkadot_primitives::v2::{CandidateHash, SessionIndex};
 
 use lru_cache::LruCache;
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use super::db::v1::{CandidateVotes, RecentDisputes};
 use crate::{error::FatalResult, metrics::Metrics};
@@ -73,7 +73,7 @@ pub struct OverlayedBackend<'a, B: 'a> {
 }
 
 /// Cache entry state definitions.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum PersistedCacheEntryState {
 	/// The entry is in memory and is unmodified. This is the initial state.
 	Cached,
@@ -85,7 +85,7 @@ pub enum PersistedCacheEntryState {
 
 /// A wrapper for changes that will be eventually saved in the DB.
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct PersistedCacheEntry<T> {
 	inner: T,
 	state: PersistedCacheEntryState,
@@ -131,11 +131,15 @@ impl<T> PersistedCacheEntry<T> {
 
 /// The LRU cache size for candidate votes.
 const CACHE_SIZE: usize = 1024;
+
 /// The write back interval in seconds
-const WRITE_BACK_INTERVAL: usize = 30;
+#[cfg(not(test))]
+pub const WRITE_BACK_INTERVAL: Duration = Duration::from_secs(30);
+#[cfg(test)]
+pub const WRITE_BACK_INTERVAL: Duration = Duration::from_secs(0);
 
 /// A cache (LRU) with write-back capabilities.
-/// How caching works:
+/// How it works:
 /// - Candidate votes are kept in memory in the `cached_candidate_votes` LRU cache.
 /// - Once the cache reaches `CACHE_SIZE`, we start
 ///
@@ -201,7 +205,7 @@ impl OverlayCache {
 	}
 
 	/// Clone the recent disputes, if any.
-	pub fn clone_recent_disputes(&self) -> Option<RecentDisputes> {
+	pub fn load_recent_disputes(&self) -> Option<RecentDisputes> {
 		if let Some(cache_entry) = self.cached_recent_disputes.clone() {
 			return Some(cache_entry.into())
 		}
@@ -218,34 +222,48 @@ impl OverlayCache {
 		let mut candidate_votes = PersistedCacheEntry::new(candidate_votes);
 		candidate_votes.dirty();
 
-		if let Some(evicted_entry) =
-			self.cached_candidate_votes.insert((session, *candidate_hash), candidate_votes)
-		{
-			if evicted_entry.is_dirty() {
-				// Queue the entry for writing to DB.
-				self.evicted_candidate_votes.insert((session, *candidate_hash), evicted_entry);
+		if self.cached_candidate_votes.len() > CACHE_SIZE {
+			// We need to move an entry to evicted entry list.
+			if let Some(evicted_entry) = self.cached_candidate_votes.remove_lru() {
+				if evicted_entry.1.is_dirty() {
+					// Queue the entry for writing to DB.
+					self.evicted_candidate_votes.insert(evicted_entry.0, evicted_entry.1);
+				}
 			}
-			// If the entry was not dirty, no reason to put it in queue for DB.
 		}
 
+		println!(
+			"Setting candidate {:?} votes to {:?}",
+			(session, *candidate_hash),
+			candidate_votes
+		);
+		self.cached_candidate_votes.insert((session, *candidate_hash), candidate_votes);
 		self.dirty = true;
 	}
 
 	/// Get the candidate votes for the specific session-candidate pair, if present in cache.
-	pub fn clone_candidate_votes(
+	/// The extra option wrapper in the result is to implement the `None` -> `Delete` semantics
+	/// when convering to `BackendWriteOp`.
+	pub fn load_candidate_votes(
 		&mut self,
 		session: SessionIndex,
 		candidate_hash: &CandidateHash,
-	) -> Option<CandidateVotes> {
-		let entry = self.cached_candidate_votes.remove(&(session, *candidate_hash));
+	) -> Option<Option<CandidateVotes>> {
+		let mut entry = self.cached_candidate_votes.remove(&(session, *candidate_hash));
 
 		if entry.is_none() {
-			return None
+			entry = self.evicted_candidate_votes.remove(&(session, *candidate_hash));
+			if entry.is_none() {
+				return None
+			}
 		}
 
 		let entry = entry.expect("tested above; qed");
-		self.cached_candidate_votes.insert((session, *candidate_hash), entry.clone());
-		entry.into()
+
+		// Bring the entry back to the LRU cache if we pick up an evicted one.
+		self.update_candidate_votes(session, candidate_hash, entry.clone().into());
+
+		Some(entry.into())
 	}
 
 	pub fn is_dirty(&self) -> bool {
@@ -309,7 +327,7 @@ impl OverlayCache {
 		let evicted_candidate_vote_ops = self
 			.evicted_candidate_votes
 			.into_iter()
-			// Ensure we are only writing the dirty ones, the others can be dropped. 
+			// Ensure we are only writing the dirty ones, the others can be dropped.
 			.filter(|((_, _), votes)| votes.is_dirty())
 			.map(|((session, candidate), votes)| {
 				let inner = votes.into();
@@ -319,6 +337,7 @@ impl OverlayCache {
 				}
 			});
 
+		// println!("candidate_vote_ops: {:?}", candidate_vote_ops);
 		let ops = evicted_candidate_vote_ops
 			.chain(earliest_session_ops)
 			.chain(recent_dispute_ops.into_iter())
@@ -368,8 +387,8 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	}
 
 	/// Load the recent disputes, if any.
-	pub fn clone_recent_disputes(&mut self) -> SubsystemResult<Option<RecentDisputes>> {
-		if let Some(disputes) = self.cache.clone_recent_disputes() {
+	pub fn load_recent_disputes(&mut self) -> SubsystemResult<Option<RecentDisputes>> {
+		if let Some(disputes) = self.cache.load_recent_disputes() {
 			return Ok(Some(disputes))
 		}
 
@@ -386,13 +405,13 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	}
 
 	/// Clone the candidate votes for the specific session-candidate pair, if any.
-	pub fn clone_candidate_votes(
+	pub fn load_candidate_votes(
 		&mut self,
 		session: SessionIndex,
 		candidate_hash: &CandidateHash,
 	) -> SubsystemResult<Option<CandidateVotes>> {
-		if let Some(candidate_votes) = self.cache.clone_candidate_votes(session, candidate_hash) {
-			return Ok(Some(candidate_votes))
+		if let Some(candidate_votes) = self.cache.load_candidate_votes(session, candidate_hash) {
+			return Ok(candidate_votes)
 		}
 
 		let read_timer = self.metrics.time_db_read_operation("candidate_votes");

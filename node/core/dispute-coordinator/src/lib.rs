@@ -273,7 +273,7 @@ impl DisputeCoordinatorSubsystem {
 		// Prune obsolete disputes:
 		db::v1::note_current_session(overlay_db, rolling_session_window.latest_session())?;
 
-		let active_disputes = match overlay_db.clone_recent_disputes() {
+		let active_disputes = match overlay_db.load_recent_disputes() {
 			Ok(Some(disputes)) =>
 				get_active_with_status(disputes.into_iter(), clock.now()).collect(),
 			Ok(None) => Vec::new(),
@@ -287,7 +287,7 @@ impl DisputeCoordinatorSubsystem {
 		let mut unconfirmed_disputes: UnconfirmedDisputes = UnconfirmedDisputes::new();
 		let (mut scraper, votes) = ChainScraper::new(ctx.sender(), initial_head).await?;
 		for ((session, ref candidate_hash), status) in active_disputes {
-			let votes = match overlay_db.clone_candidate_votes(session, candidate_hash) {
+			let votes = match overlay_db.load_candidate_votes(session, candidate_hash) {
 				Ok(Some(votes)) => votes,
 				Ok(None) => continue,
 				Err(e) => {
