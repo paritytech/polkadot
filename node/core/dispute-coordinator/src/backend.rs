@@ -31,10 +31,10 @@ use super::db::v1::{CandidateVotes, RecentDisputes};
 use crate::{error::FatalResult, metrics::Metrics};
 
 #[derive(Debug)]
-pub enum BackendWriteOp<'a> {
+pub enum BackendWriteOp {
 	WriteEarliestSession(SessionIndex),
-	WriteRecentDisputes(&'a RecentDisputes),
-	WriteCandidateVotes(SessionIndex, CandidateHash, &'a CandidateVotes),
+	WriteRecentDisputes(RecentDisputes),
+	WriteCandidateVotes(SessionIndex, CandidateHash, CandidateVotes),
 	DeleteCandidateVotes(SessionIndex, CandidateHash),
 }
 
@@ -55,9 +55,9 @@ pub trait Backend {
 
 	/// Atomically writes the list of operations, with later operations taking precedence over
 	/// prior.
-	fn write<'a, I>(&mut self, ops: I) -> FatalResult<()>
+	fn write<I>(&mut self, ops: I) -> FatalResult<()>
 	where
-		I: IntoIterator<Item = BackendWriteOp<'a>>;
+		I: IntoIterator<Item = BackendWriteOp>;
 }
 
 /// An in-memory overlay for the backend.
@@ -72,44 +72,60 @@ pub struct OverlayedBackend<'a, B: 'a> {
 	metrics: Metrics,
 }
 
-/// An enum wrapper for changes that will be eventually saved in the DB.
+/// Cache entry state definitions.
 #[derive(Clone)]
-pub enum PersistedCacheEntry<T> {
+pub enum PersistedCacheEntryState {
 	/// The entry is in memory and is unmodified. This is the initial state.
-	Cached(T),
+	Cached,
 	/// The entry is in memory and was modified (needs to be persisted later).
-	Dirty(T),
-	/// The entry has been persisted in the DB.
-	Persisted(T),
+	Dirty,
+	/// The entry is cached and has been persisted in the DB.
+	Persisted,
+}
+
+/// A wrapper for changes that will be eventually saved in the DB.
+
+#[derive(Clone)]
+struct PersistedCacheEntry<T> {
+	inner: T,
+	state: PersistedCacheEntryState,
+}
+
+impl From<PersistedCacheEntry<RecentDisputes>> for RecentDisputes {
+	fn from(cache_entry: PersistedCacheEntry<RecentDisputes>) -> RecentDisputes {
+		cache_entry.inner
+	}
+}
+
+impl From<PersistedCacheEntry<Option<CandidateVotes>>> for Option<CandidateVotes> {
+	fn from(cache_entry: PersistedCacheEntry<Option<CandidateVotes>>) -> Option<CandidateVotes> {
+		cache_entry.inner
+	}
 }
 
 impl<T> PersistedCacheEntry<T> {
 	pub fn new(inner: T) -> Self {
-		Self::Cached(inner)
+		Self { inner, state: PersistedCacheEntryState::Cached }
 	}
 
 	pub fn is_dirty(&self) -> bool {
-		match self {
-			Self::Dirty(_) => true,
+		match self.state {
+			PersistedCacheEntryState::Dirty => true,
 			_ => false,
 		}
 	}
 
-	/// Convenience method to get a ref to inner value. Avoids matching in the calling code.
-	pub fn value(&self) -> &T {
-		match self {
-			Self::Cached(inner) => inner,
-			Self::Dirty(inner) => inner,
-			Self::Persisted(inner) => inner,
-		}
+	pub fn persist(&mut self) {
+		self.state = PersistedCacheEntryState::Persisted;
 	}
 
-	pub fn into_inner(self) -> T {
-		match self {
-			Self::Cached(inner) => inner,
-			Self::Dirty(inner) => inner,
-			Self::Persisted(inner) => inner,
-		}
+	pub fn dirty(&mut self) {
+		self.state = PersistedCacheEntryState::Dirty;
+	}
+
+	/// Convenience method to get a ref to inner value. Avoids matching in the calling code.
+	pub fn value(&self) -> &T {
+		&self.inner
 	}
 }
 
@@ -152,12 +168,14 @@ impl OverlayCache {
 
 	/// Initialize the earliest session.
 	pub fn initialize_earliest_sesion(&mut self, earliest_session: SessionIndex) {
-		self.cached_earliest_session = Some(PersistedCacheEntry::Cached(earliest_session));
+		self.cached_earliest_session = Some(PersistedCacheEntry::new(earliest_session));
 	}
 
 	/// Update the earliest session.
 	pub fn update_earliest_sesion(&mut self, earliest_session: SessionIndex) {
-		self.cached_earliest_session = Some(PersistedCacheEntry::Dirty(earliest_session));
+		let mut entry = PersistedCacheEntry::new(earliest_session);
+		entry.dirty();
+		self.cached_earliest_session = Some(entry);
 		self.dirty = true;
 	}
 
@@ -171,40 +189,23 @@ impl OverlayCache {
 
 	/// Initialize the earliest session.
 	pub fn initialize_recent_disputes(&mut self, recent_disputes: RecentDisputes) {
-		self.cached_recent_disputes = Some(PersistedCacheEntry::Cached(recent_disputes));
+		self.cached_recent_disputes = Some(PersistedCacheEntry::new(recent_disputes));
 	}
 
 	/// Update the earliest session.
 	pub fn update_recent_disputes(&mut self, recent_disputes: RecentDisputes) {
-		self.cached_recent_disputes = Some(PersistedCacheEntry::Dirty(recent_disputes));
+		let mut entry = PersistedCacheEntry::new(recent_disputes);
+		entry.dirty();
+		self.cached_recent_disputes = Some(entry);
 		self.dirty = true;
-	}
-
-	/// Get a ref to the recent disputes, if any.
-	pub fn get_recent_disputes(&self) -> Option<&RecentDisputes> {
-		if let Some(cache_entry) = &self.cached_recent_disputes {
-			return Some(cache_entry.value())
-		}
-		None
 	}
 
 	/// Clone the recent disputes, if any.
 	pub fn clone_recent_disputes(&self) -> Option<RecentDisputes> {
-		if let Some(cache_entry) = &self.cached_recent_disputes {
-			return Some(*cache_entry.value())
+		if let Some(cache_entry) = self.cached_recent_disputes.clone() {
+			return Some(cache_entry.into())
 		}
 		None
-	}
-
-	/// Initialize vote entries for a candidate.
-	pub fn initialize_candidate_votes(
-		&mut self,
-		session: SessionIndex,
-		candidate_hash: &CandidateHash,
-		candidate_votes: CandidateVotes,
-	) {
-		self.cached_candidate_votes
-			.insert((session, *candidate_hash), PersistedCacheEntry::Cached(Some(candidate_votes)));
 	}
 
 	/// Update votes for a candidate.
@@ -214,106 +215,125 @@ impl OverlayCache {
 		candidate_hash: &CandidateHash,
 		candidate_votes: Option<CandidateVotes>,
 	) {
-		if let Some(evicted_entry) = self
-			.cached_candidate_votes
-			.insert((session, *candidate_hash), PersistedCacheEntry::Dirty(candidate_votes))
+		let mut candidate_votes = PersistedCacheEntry::new(candidate_votes);
+		candidate_votes.dirty();
+
+		if let Some(evicted_entry) =
+			self.cached_candidate_votes.insert((session, *candidate_hash), candidate_votes)
 		{
-			self.evicted_candidate_votes.insert((session, *candidate_hash), evicted_entry);
+			if evicted_entry.is_dirty() {
+				// Queue the entry for writing to DB.
+				self.evicted_candidate_votes.insert((session, *candidate_hash), evicted_entry);
+			}
+			// If the entry was not dirty, no reason to put it in queue for DB.
 		}
 
 		self.dirty = true;
 	}
 
 	/// Get the candidate votes for the specific session-candidate pair, if present in cache.
-	pub fn get_candidate_votes(
-		&self,
+	pub fn clone_candidate_votes(
+		&mut self,
 		session: SessionIndex,
 		candidate_hash: &CandidateHash,
-	) -> Option<&CandidateVotes> {
-		if let Some(cached_entry) = self.cached_candidate_votes.get_mut(&(session, *candidate_hash))
-		{
-			return cached_entry.value().as_ref()
+	) -> Option<CandidateVotes> {
+		let entry = self.cached_candidate_votes.remove(&(session, *candidate_hash));
+
+		if entry.is_none() {
+			return None
 		}
-		None
+
+		let entry = entry.expect("tested above; qed");
+		self.cached_candidate_votes.insert((session, *candidate_hash), entry.clone());
+		entry.into()
 	}
 
 	pub fn is_dirty(&self) -> bool {
 		self.dirty
 	}
 
-	/// Iterate the cache and convert the dirty entries to a set of write-ops to be written to the inner backend.
-	/// TODO: deduplicate the code below.
-	pub fn into_write_ops<'a>(&'a mut self) -> impl Iterator<Item = BackendWriteOp<'a>> {
-		let earliest_session_ops = self
-			.cached_earliest_session
-			.as_ref()
-			.filter(|entry| entry.is_dirty())
-			.map(|session| BackendWriteOp::WriteEarliestSession(*session.value()))
-			.into_iter();
-
-		// Update persistence state.
-		self.cached_earliest_session = self
-			.cached_earliest_session
-			.clone()
-			.filter(|entry| entry.is_dirty())
-			.map(|cache_entry| PersistedCacheEntry::Persisted(cache_entry.into_inner()));
-
-		let recent_dispute_ops = self
-			.cached_recent_disputes
-			.as_ref()
-			.filter(|disputes| disputes.is_dirty())
-			.map(|disputes| BackendWriteOp::WriteRecentDisputes(disputes.value()))
-			.into_iter();
-
-		// Update persistence state.
-		self.cached_recent_disputes = self
-			.cached_recent_disputes
-			.clone()
-			.filter(|entry| entry.is_dirty())
-			.map(|cache_entry| PersistedCacheEntry::Persisted(cache_entry.into_inner()));
-
-		let candidate_vote_ops = self
-			.cached_candidate_votes
-			.clone()
-			.iter()
-			.filter(|((_, _), votes)| votes.is_dirty())
-			.map(|((session, candidate), votes)| match votes.value() {
-				Some(votes) => BackendWriteOp::WriteCandidateVotes(*session, *candidate, votes),
-				None => BackendWriteOp::DeleteCandidateVotes(*session, *candidate),
-			});
-
-		// Scan all `Dirty` cache entries and create updated entries to insert below.
-		let updated_candidate_votes = self
-			.cached_candidate_votes
-			.clone()
-			.into_iter()
-			.filter(|((_, _), votes)| votes.is_dirty())
-			.map(|((session, candidate), votes)| {
-				((session, candidate), PersistedCacheEntry::Persisted(votes.into_inner()))
-			});
-
-		// Can't figure out how to mutate the enum in place to change state to persisted.
-		// Updating all dirty entries here.
-		for ((session, candidate), votes) in updated_candidate_votes {
-			self.cached_candidate_votes.insert((session, candidate), votes);
+	/// Consumes `self` and returns a brand new `Self` and set of backend write ops if the `OverlayCache` is dirty.
+	pub fn into_write_ops(
+		mut self,
+	) -> (OverlayCache, Option<impl Iterator<Item = BackendWriteOp>>) {
+		// Bail out early if no changes recorded.
+		if !self.is_dirty() {
+			return (self, None)
 		}
 
-		let evicted_candidate_vote_ops = self
-			.cached_candidate_votes
-			.iter()
-			.filter(|((_, _), votes)| votes.is_dirty())
-			.map(|((session, candidate), votes)| match votes.value() {
-				Some(votes) => BackendWriteOp::WriteCandidateVotes(*session, *candidate, votes),
-				None => BackendWriteOp::DeleteCandidateVotes(*session, *candidate),
+		let earliest_session_ops = self
+			.cached_earliest_session
+			.clone()
+			.filter(|entry| entry.is_dirty())
+			.map(|entry| BackendWriteOp::WriteEarliestSession(*entry.value()))
+			.into_iter();
+
+		let cached_earliest_session = self.cached_earliest_session.map(|mut entry| {
+			if entry.is_dirty() {
+				entry.persist()
+			}
+			entry
+		});
+
+		let mut recent_dispute_ops = Vec::new();
+
+		let cached_recent_disputes =
+			if let Some(mut recent_disputes) = self.cached_recent_disputes.take() {
+				if recent_disputes.is_dirty() {
+					recent_disputes.persist();
+					recent_dispute_ops
+						.push(BackendWriteOp::WriteRecentDisputes(recent_disputes.value().clone()));
+				}
+				Some(recent_disputes)
+			} else {
+				None
+			};
+
+		let mut candidate_vote_ops = Vec::new();
+		let mut cached_candidate_votes = LruCache::new(CACHE_SIZE);
+
+		self.cached_candidate_votes
+			.into_iter()
+			.for_each(|((session, candidate), mut votes)| {
+				if votes.is_dirty() {
+					votes.persist();
+					candidate_vote_ops.push(match votes.value() {
+						Some(votes) =>
+							BackendWriteOp::WriteCandidateVotes(session, candidate, votes.clone()),
+						None => BackendWriteOp::DeleteCandidateVotes(session, candidate),
+					});
+				}
+				cached_candidate_votes.insert((session, candidate), votes);
 			});
 
-		self.evicted_candidate_votes.clear();
-		self.dirty = false;
+		let evicted_candidate_vote_ops = self
+			.evicted_candidate_votes
+			.into_iter()
+			// Ensure we are only writing the dirty ones, the others can be dropped. 
+			.filter(|((_, _), votes)| votes.is_dirty())
+			.map(|((session, candidate), votes)| {
+				let inner = votes.into();
+				match inner {
+					Some(votes) => BackendWriteOp::WriteCandidateVotes(session, candidate, votes),
+					None => BackendWriteOp::DeleteCandidateVotes(session, candidate),
+				}
+			});
 
-		evicted_candidate_vote_ops
+		let ops = evicted_candidate_vote_ops
 			.chain(earliest_session_ops)
-			.chain(recent_dispute_ops)
-			.chain(candidate_vote_ops)
+			.chain(recent_dispute_ops.into_iter())
+			.chain(candidate_vote_ops);
+
+		(
+			OverlayCache {
+				cached_earliest_session,
+				cached_recent_disputes,
+				cached_candidate_votes,
+				evicted_candidate_votes: HashMap::new(),
+				dirty: false,
+			},
+			Some(ops),
+		)
 	}
 }
 
@@ -323,7 +343,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		metrics: Metrics,
 		cache: &'a mut OverlayCache,
 	) -> SubsystemResult<Self> {
-		// Populate cache.
+		// Initialize some caches.
 		if let Some(session) = backend.load_earliest_session()? {
 			let _read_timer = metrics.time_db_read_operation("earliest_session");
 			cache.initialize_earliest_sesion(session);
@@ -337,14 +357,6 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		Ok(Self { inner: backend, cache, metrics })
 	}
 
-	/// Returns true if the are no write operations to perform.
-	pub fn is_empty(&self) -> bool {
-		// self.cache.earliest_session.is_none() &&
-		// 	self.cache.recent_disputes.is_none() &&
-		// 	self.cache.candidate_votes.is_empty()
-		false
-	}
-
 	/// Load the earliest session, if any.
 	pub fn load_earliest_session(&self) -> SubsystemResult<Option<SessionIndex>> {
 		if let Some(val) = self.cache.get_earliest_session() {
@@ -356,27 +368,9 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	}
 
 	/// Load the recent disputes, if any.
-	pub fn load_recent_disputes(&self) -> SubsystemResult<Option<&RecentDisputes>> {
-		if let Some(disputes) = self.cache.get_recent_disputes() {
+	pub fn clone_recent_disputes(&mut self) -> SubsystemResult<Option<RecentDisputes>> {
+		if let Some(disputes) = self.cache.clone_recent_disputes() {
 			return Ok(Some(disputes))
-		}
-
-		let read_timer = self.metrics.time_db_read_operation("recent_disputes");
-		let disputes = self.inner.load_recent_disputes()?;
-		drop(read_timer);
-
-		if let Some(disputes) = disputes {
-			self.cache.update_recent_disputes(disputes);
-			Ok(self.cache.get_recent_disputes())
-		} else {
-			Ok(None)
-		}
-	}
-
-	/// Load the recent disputes, if any.
-	pub fn clone_recent_disputes(&self) -> SubsystemResult<Option<RecentDisputes>> {
-		if let Some(disputes) = self.cache.get_recent_disputes() {
-			return Ok(Some(*disputes))
 		}
 
 		let read_timer = self.metrics.time_db_read_operation("recent_disputes");
@@ -391,36 +385,14 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		}
 	}
 
-	/// Get a ref to the candidate votes for the specific session-candidate pair, if any.
-	pub fn load_candidate_votes(
-		&self,
-		session: SessionIndex,
-		candidate_hash: &CandidateHash,
-	) -> SubsystemResult<Option<&CandidateVotes>> {
-		if let Some(candidate_votes) = self.cache.get_candidate_votes(session, candidate_hash) {
-			return Ok(Some(candidate_votes))
-		}
-
-		let read_timer = self.metrics.time_db_read_operation("candidate_votes");
-		let votes = self.inner.load_candidate_votes(session, candidate_hash)?;
-		drop(read_timer);
-
-		if let Some(votes) = votes {
-			self.cache.update_candidate_votes(session, candidate_hash, Some(votes));
-			Ok(self.cache.get_candidate_votes(session, candidate_hash))
-		} else {
-			Ok(None)
-		}
-	}
-
 	/// Clone the candidate votes for the specific session-candidate pair, if any.
 	pub fn clone_candidate_votes(
-		&self,
+		&mut self,
 		session: SessionIndex,
 		candidate_hash: &CandidateHash,
 	) -> SubsystemResult<Option<CandidateVotes>> {
-		if let Some(candidate_votes) = self.cache.get_candidate_votes(session, candidate_hash) {
-			return Ok(Some(*candidate_votes))
+		if let Some(candidate_votes) = self.cache.clone_candidate_votes(session, candidate_hash) {
+			return Ok(Some(candidate_votes))
 		}
 
 		let read_timer = self.metrics.time_db_read_operation("candidate_votes");
@@ -437,14 +409,14 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	/// Prepare a write to the "earliest session" field of the DB.
 	///
 	/// Later calls to this function will override earlier ones.
-	pub fn write_earliest_session(&self, session: SessionIndex) {
+	pub fn write_earliest_session(&mut self, session: SessionIndex) {
 		self.cache.update_earliest_sesion(session);
 	}
 
 	/// Prepare a write to the recent disputes stored in the DB.
 	///
 	/// Later calls to this function will override earlier ones.
-	pub fn write_recent_disputes(&self, recent_disputes: RecentDisputes) {
+	pub fn write_recent_disputes(&mut self, recent_disputes: RecentDisputes) {
 		self.cache.update_recent_disputes(recent_disputes);
 	}
 
@@ -452,7 +424,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	///
 	/// Later calls to this function for the same candidate will override earlier ones.
 	pub fn write_candidate_votes(
-		&self,
+		&mut self,
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
 		votes: CandidateVotes,
@@ -463,7 +435,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	/// Prepare a deletion of the candidate votes under the indicated candidate.
 	///
 	/// Later calls to this function for the same candidate will override earlier ones.
-	pub fn delete_candidate_votes(&self, session: SessionIndex, candidate_hash: CandidateHash) {
+	pub fn delete_candidate_votes(&mut self, session: SessionIndex, candidate_hash: CandidateHash) {
 		// This will dirty the cache entry, not actually remove it.
 		self.cache.update_candidate_votes(session, &candidate_hash, None);
 	}

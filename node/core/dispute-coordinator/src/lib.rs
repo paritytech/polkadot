@@ -30,7 +30,7 @@ use futures::FutureExt;
 
 use sc_keystore::LocalKeystore;
 
-use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW};
+use polkadot_node_primitives::DISPUTE_WINDOW;
 use polkadot_node_subsystem::{
 	messages::DisputeCoordinatorMessage, overseer, ActivatedLeaf, FromOverseer, OverseerSignal,
 	SpawnedSubsystem, SubsystemContext, SubsystemError,
@@ -41,7 +41,7 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v2::{ScrapedOnChainVotes, ValidatorIndex, ValidatorPair};
 
 use crate::{
-	error::{FatalResult, JfyiError, Result, FatalError},
+	error::{FatalError, FatalResult, JfyiError, Result},
 	metrics::Metrics,
 	status::{get_active_with_status, SystemClock},
 };
@@ -199,6 +199,7 @@ impl DisputeCoordinatorSubsystem {
 		B: Backend + 'static,
 	{
 		let mut overlay_cache = OverlayCache::new();
+		let maybe_ops;
 		loop {
 			let (first_leaf, rolling_session_window) = match get_rolling_session_window(ctx).await {
 				Ok(Some(update)) => update,
@@ -212,14 +213,15 @@ impl DisputeCoordinatorSubsystem {
 				},
 			};
 
-			let overlay_db =
-				OverlayedBackend::new(&backend, self.metrics.clone(), &mut overlay_cache).map_err(FatalError::SubsystemCache)?;
+			let mut overlay_db =
+				OverlayedBackend::new(&backend, self.metrics.clone(), &mut overlay_cache)
+					.map_err(FatalError::SubsystemCache)?;
 			let (participations, votes, spam_slots, ordering_provider) = match self
 				.handle_startup(
 					ctx,
 					first_leaf.clone(),
 					&rolling_session_window,
-					&overlay_db,
+					&mut overlay_db,
 					clock,
 				)
 				.await
@@ -231,12 +233,11 @@ impl DisputeCoordinatorSubsystem {
 				},
 			};
 
-			// Check if there are any dirty entries.
-			if overlay_cache.is_dirty() {
-				let ops = overlay_cache.into_write_ops();
+			(_, maybe_ops) = overlay_cache.into_write_ops();
+			if let Some(ops) = maybe_ops {
+				let _write_timer = self.metrics.time_db_write_operation();
 				backend.write(ops)?;
 			}
-
 			return Ok(Some((
 				participations,
 				votes,
@@ -257,7 +258,7 @@ impl DisputeCoordinatorSubsystem {
 		ctx: &mut Context,
 		initial_head: ActivatedLeaf,
 		rolling_session_window: &RollingSessionWindow,
-		overlay_db: &OverlayedBackend<'_, impl Backend>,
+		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		clock: &dyn Clock,
 	) -> Result<(
 		Vec<(ParticipationPriority, ParticipationRequest)>,
@@ -286,19 +287,18 @@ impl DisputeCoordinatorSubsystem {
 		let mut unconfirmed_disputes: UnconfirmedDisputes = UnconfirmedDisputes::new();
 		let (mut scraper, votes) = ChainScraper::new(ctx.sender(), initial_head).await?;
 		for ((session, ref candidate_hash), status) in active_disputes {
-			let votes =
-				match overlay_db.load_candidate_votes(session, candidate_hash) {
-					Ok(Some(votes)) => votes,
-					Ok(None) => continue,
-					Err(e) => {
-						gum::error!(
-							target: LOG_TARGET,
-							"Failed initial load of candidate votes: {:?}",
-							e
-						);
-						continue
-					},
-				};
+			let votes = match overlay_db.clone_candidate_votes(session, candidate_hash) {
+				Ok(Some(votes)) => votes,
+				Ok(None) => continue,
+				Err(e) => {
+					gum::error!(
+						target: LOG_TARGET,
+						"Failed initial load of candidate votes: {:?}",
+						e
+					);
+					continue
+				},
+			};
 
 			let validators = match rolling_session_window.session_info(session) {
 				None => {

@@ -49,7 +49,7 @@ impl DbBackend {
 	}
 }
 
-impl Backend for DbBackend{
+impl Backend for DbBackend {
 	/// Load the earliest session, if any.
 	fn load_earliest_session(&self) -> SubsystemResult<Option<SessionIndex>> {
 		load_earliest_session(&*self.inner, &self.config)
@@ -71,9 +71,9 @@ impl Backend for DbBackend{
 
 	/// Atomically writes the list of operations, with later operations taking precedence over
 	/// prior.
-	fn write<'a, I>(&mut self, ops: I) -> FatalResult<()>
+	fn write<I>(&mut self, ops: I) -> FatalResult<()>
 	where
-		I: IntoIterator<Item = BackendWriteOp<'a>>,
+		I: IntoIterator<Item = BackendWriteOp>,
 	{
 		let mut tx = DBTransaction::new();
 		for op in ops {
@@ -134,12 +134,12 @@ impl CandidateVotes {
 	pub fn voted_indices(&self) -> Vec<ValidatorIndex> {
 		let mut v: Vec<_> =
 			self.valid.iter().map(|x| x.1).chain(self.invalid.iter().map(|x| x.1)).collect();
-	
+
 		v.sort();
 		v.dedup();
-	
+
 		v
-	}	
+	}
 }
 
 impl From<CandidateVotes> for polkadot_node_primitives::CandidateVotes {
@@ -230,8 +230,8 @@ pub(crate) fn load_recent_disputes(
 ///
 /// If one or more ancient sessions are pruned, all metadata on candidates within the ancient
 /// session will be deleted.
-pub(crate) fn note_current_session<'a>(
-	overlay_db: &OverlayedBackend<'_, impl Backend>,
+pub(crate) fn note_current_session(
+	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 	current_session: SessionIndex,
 ) -> SubsystemResult<()> {
 	let new_earliest = current_session.saturating_sub(DISPUTE_WINDOW.get());
@@ -257,7 +257,7 @@ pub(crate) fn note_current_session<'a>(
 				if pruned_disputes.len() != 0 {
 					overlay_db.write_recent_disputes(new_recent_disputes);
 					for ((session, candidate_hash), _) in pruned_disputes {
-						overlay_db.delete_candidate_votes(*session, *candidate_hash);
+						overlay_db.delete_candidate_votes(session, candidate_hash);
 					}
 				}
 			}

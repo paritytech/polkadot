@@ -53,7 +53,7 @@ pub enum Error {
 	#[fatal]
 	#[error("Initializing cache failed: {0}")]
 	SubsystemCache(#[source] SubsystemError),
-	
+
 	#[fatal]
 	#[error("Writing to database failed: {0}")]
 	DbWriteFailed(std::io::Error),
