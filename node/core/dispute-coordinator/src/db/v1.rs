@@ -504,10 +504,7 @@ mod tests {
 			.collect(),
 		);
 
-		println!("Bau");
-
 		let res = overlay_db.load_candidate_votes(very_old, &hash_a).unwrap();
-		println!("{:?}", res);
 		assert!(res.is_none());
 		assert!(overlay_db.load_candidate_votes(slightly_old, &hash_b).unwrap().is_none());
 		assert!(overlay_db

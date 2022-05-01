@@ -232,11 +232,6 @@ impl OverlayCache {
 			}
 		}
 
-		println!(
-			"Setting candidate {:?} votes to {:?}",
-			(session, *candidate_hash),
-			candidate_votes
-		);
 		self.cached_candidate_votes.insert((session, *candidate_hash), candidate_votes);
 		self.dirty = true;
 	}
@@ -337,7 +332,6 @@ impl OverlayCache {
 				}
 			});
 
-		// println!("candidate_vote_ops: {:?}", candidate_vote_ops);
 		let ops = evicted_candidate_vote_ops
 			.chain(earliest_session_ops)
 			.chain(recent_dispute_ops.into_iter())
