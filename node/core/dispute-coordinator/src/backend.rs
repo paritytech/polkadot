@@ -138,14 +138,23 @@ pub const WRITE_BACK_INTERVAL: Duration = Duration::from_secs(30);
 #[cfg(test)]
 pub const WRITE_BACK_INTERVAL: Duration = Duration::from_secs(0);
 
-/// A cache (LRU) with write-back capabilities.
-/// How it works:
-/// - Candidate votes are kept in memory in the `cached_candidate_votes` LRU cache.
-/// - Once the cache reaches `CACHE_SIZE`, we start
+/// A cache caching reads (LRU) and batches writes (API) as `BackendWriteOp` that can
+/// be fed to a `Backend`.
 ///
-/// How write-back works:
-/// - The evicted entries must be collected via `into_write_ops()`, which returns an iterator
-/// over the corresponding backend operations.
+/// How it works:
+/// - Candidate votes, session and disputes are kept in memory in the LRU cache and their
+/// state is tracked (Cached, Dirty, Persisted).
+/// - Once the cache is full (`CACHE_SIZE`), we start moving evicting entries into
+/// `evicted_candidate_votes`.
+/// - If entries are modified via `update_*`, then these will be marked `Dirty`
+///
+/// How do I get the `BackendWriteOps`?
+/// - `into_write_ops()` scans the LRU cache and the evicted hashmap to construct
+/// a list of `BackendWriteOps`.
+/// - This method is supposed to be called when we want to write in-memory changes
+/// to the DB. It will consume the cache in the process, but it will return a new one
+/// with the same LRU cached values.
+
 pub struct OverlayCache {
 	cached_earliest_session: Option<PersistedCacheEntry<SessionIndex>>,
 	cached_recent_disputes: Option<PersistedCacheEntry<RecentDisputes>>,
