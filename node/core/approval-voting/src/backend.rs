@@ -69,7 +69,7 @@ pub trait Backend {
 /// converted into a set of write operations which will, when written to
 /// the underlying backend, give the same view as the state of the overlay.
 pub struct OverlayedBackend<'a, B: 'a> {
-	inner: &'a mut B,
+	inner: &'a B,
 
 	// `None` means unchanged
 	stored_block_range: Option<StoredBlockRange>,
@@ -82,7 +82,7 @@ pub struct OverlayedBackend<'a, B: 'a> {
 }
 
 impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
-	pub fn new(backend: &'a mut B) -> Self {
+	pub fn new(backend: &'a B) -> Self {
 		OverlayedBackend {
 			inner: backend,
 			stored_block_range: None,
@@ -92,35 +92,11 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		}
 	}
 
-	/// Returns true if the are no write operations to perform.
 	pub fn is_empty(&self) -> bool {
 		self.block_entries.is_empty() &&
 			self.candidate_entries.is_empty() &&
 			self.blocks_at_height.is_empty() &&
 			self.stored_block_range.is_none()
-	}
-
-	/// Is flush needed ?
-	#[cfg(test)]
-	pub fn needs_flush(&self) -> bool {
-		#[cfg(test)]
-		return !self.is_empty()
-	}
-
-	/// Is flush needed ?
-	#[cfg(not(test))]
-	pub fn needs_flush(&self) -> bool {
-		// Arbitrary value here, just for testing. Should be a good buffer size to see any improvements.
-		return self.block_entries.len() + self.candidate_entries.len() + self.blocks_at_height.len() >
-			1000
-	}
-
-	pub fn flush(&mut self) {
-		if self.needs_flush() {
-			let ops = self.into_write_ops();
-			gum::debug!("Flushing db writes");
-			let _ = self.inner.write(ops);
-		}
 	}
 
 	pub fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
@@ -201,38 +177,27 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 
 	/// Transform this backend into a set of write-ops to be written to the
 	/// inner backend.
-	pub fn into_write_ops(&mut self) -> impl Iterator<Item = BackendWriteOp> {
-		let blocks_at_height_ops =
-			self.blocks_at_height.clone().into_iter().map(|(h, v)| match v {
-				Some(v) => BackendWriteOp::WriteBlocksAtHeight(h, v),
-				None => BackendWriteOp::DeleteBlocksAtHeight(h),
-			});
+	pub fn into_write_ops(self) -> impl Iterator<Item = BackendWriteOp> {
+		let blocks_at_height_ops = self.blocks_at_height.into_iter().map(|(h, v)| match v {
+			Some(v) => BackendWriteOp::WriteBlocksAtHeight(h, v),
+			None => BackendWriteOp::DeleteBlocksAtHeight(h),
+		});
 
-		let block_entry_ops = self.block_entries.clone().into_iter().map(|(h, v)| match v {
+		let block_entry_ops = self.block_entries.into_iter().map(|(h, v)| match v {
 			Some(v) => BackendWriteOp::WriteBlockEntry(v),
 			None => BackendWriteOp::DeleteBlockEntry(h),
 		});
 
-		let candidate_entry_ops =
-			self.candidate_entries.clone().into_iter().map(|(h, v)| match v {
-				Some(v) => BackendWriteOp::WriteCandidateEntry(v),
-				None => BackendWriteOp::DeleteCandidateEntry(h),
-			});
+		let candidate_entry_ops = self.candidate_entries.into_iter().map(|(h, v)| match v {
+			Some(v) => BackendWriteOp::WriteCandidateEntry(v),
+			None => BackendWriteOp::DeleteCandidateEntry(h),
+		});
 
-		let result = self
-			.stored_block_range
-			.clone()
+		self.stored_block_range
 			.map(|v| BackendWriteOp::WriteStoredBlockRange(v))
 			.into_iter()
 			.chain(blocks_at_height_ops)
 			.chain(block_entry_ops)
-			.chain(candidate_entry_ops);
-
-		self.stored_block_range = None;
-		self.blocks_at_height = HashMap::new();
-		self.block_entries = HashMap::new();
-		self.candidate_entries = HashMap::new();
-
-		result
+			.chain(candidate_entry_ops)
 	}
 }
