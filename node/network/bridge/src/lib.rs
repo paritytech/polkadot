@@ -1063,15 +1063,15 @@ fn dispatch_validation_event_to_all_unbounded(
 	ctx: &mut impl overseer::NetworkBridgeSenderTrait,
 ) {
 	match event {
-		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::BitfieldDistribution(bdm) => {
-			ctx.send_unbounded_message(bdm)
-		}
-		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::StatementDistribution(sdm) => {
-			ctx.send_unbounded_message(sdm)
-		}
-		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::ApprovalDistribution(adm) => {
-			ctx.send_unbounded_message(adm)
-		}
+		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::BitfieldDistribution(
+			bdm,
+		) => ctx.send_unbounded_message(bdm),
+		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::StatementDistribution(
+			sdm,
+		) => ctx.send_unbounded_message(sdm),
+		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::ApprovalDistribution(
+			adm,
+		) => ctx.send_unbounded_message(adm),
 	}
 }
 
@@ -1079,20 +1079,18 @@ fn dispatch_collation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>,
 	ctx: &mut impl overseer::NetworkBridgeSenderTrait,
 ) {
-
 	match event {
-		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::BitfieldDistribution(bdm) => {
-			ctx.send_unbounded_message(bdm)
-		}
-		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::StatementDistribution(sdm) => {
-			ctx.send_unbounded_message(sdm)
-		}
-		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::ApprovalDistribution(adm) => {
-			ctx.send_unbounded_message(adm)
-		}
+		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::BitfieldDistribution(
+			bdm,
+		) => ctx.send_unbounded_message(bdm),
+		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::StatementDistribution(
+			sdm,
+		) => ctx.send_unbounded_message(sdm),
+		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::ApprovalDistribution(
+			adm,
+		) => ctx.send_unbounded_message(adm),
 	}
 }
-
 
 async fn dispatch_validation_events_to_all<I>(
 	events: I,
@@ -1105,7 +1103,9 @@ async fn dispatch_validation_events_to_all<I>(
 		sender.send_messages(event.focus().map(ApprovalDistributionMessage::from)).await;
 		sender.send_messages(event.focus().map(BitfieldDistributionMessage::from)).await;
 		sender.send_messages(event.focus().map(GossipSupportMessage::from)).await;
-		sender.send_messages(event.focus().map(StatementDistributionMessage::from)).await;
+		sender
+			.send_messages(event.focus().map(StatementDistributionMessage::from))
+			.await;
 	}
 }
 
