@@ -13,10 +13,10 @@ struct Solo<T> {
 }
 
 #[derive(Default)]
-pub struct GoblinTower;
+pub struct Fortified;
 
-#[overseer::subsystem(error=Yikes)]
-impl<Context> GoblinTower {
+#[overseer::subsystem(GoblinTower, error=Yikes)]
+impl<Context> Fortified {
 	fn start(self, mut ctx: Context) -> SpawnedSubsystem<Yikes> {
 		let mut sender = ctx.sender().clone();
 		ctx.spawn(
@@ -32,7 +32,7 @@ impl<Context> GoblinTower {
 
 fn main() {
 	let (overseer, _handle): (Solo<_>, _) = Solo::builder()
-		.goblin_tower(GoblinTower::default())
+		.goblin_tower(Fortified::default())
 		.spawner(DummySpawner)
 		.build()
 		.unwrap();

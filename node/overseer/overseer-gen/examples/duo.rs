@@ -11,7 +11,7 @@ pub use self::misc::*;
 #[derive(Default)]
 pub struct AwesomeSubSys;
 
-#[overseer::subsystem(error=Yikes)]
+#[overseer::subsystem(Awesome, error=Yikes)]
 impl<Context> AwesomeSubSys {
 	fn start(self, mut ctx: Context) -> SpawnedSubsystem<Yikes> {
 		let mut sender = ctx.sender().clone();
@@ -27,10 +27,10 @@ impl<Context> AwesomeSubSys {
 }
 
 #[derive(Default)]
-pub struct GoblinTower;
+pub struct Fortified;
 
-#[overseer::subsystem(error=Yikes)]
-impl<Context> GoblinTower {
+#[overseer::subsystem(GoblinTower, error=Yikes)]
+impl<Context> Fortified {
 	fn start(self, mut ctx: Context) -> SpawnedSubsystem<Yikes> {
 		let mut sender = ctx.sender().clone();
 		ctx.spawn(
@@ -47,7 +47,7 @@ impl<Context> GoblinTower {
 #[overlord(signal=SigSigSig, event=EvX, error=Yikes, gen=AllMessages)]
 struct Duo<T> {
 	#[subsystem(consumes: MsgStrukt, sends: [Plinko])]
-	sub0: AwesomeSubSys,
+	sub0: Awesome,
 
 	#[subsystem(blocking, consumes: Plinko, sends: [MsgStrukt])]
 	plinkos: GoblinTower,
@@ -60,7 +60,7 @@ struct Duo<T> {
 fn main() {
 	let (overseer, _handle): (Duo<_, f64>, _) = Duo::builder()
 		.sub0(AwesomeSubSys::default())
-		.plinkos(GoblinTower::default())
+		.plinkos(Fortified::default())
 		.i_like_pi(::std::f64::consts::PI)
 		.i_like_generic(42.0)
 		.i_like_hash(HashMap::new())
