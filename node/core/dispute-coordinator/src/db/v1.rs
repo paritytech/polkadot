@@ -120,7 +120,7 @@ pub struct ColumnConfiguration {
 }
 
 /// Tracked votes on candidates, for the purposes of dispute resolution.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub struct CandidateVotes {
 	/// The receipt of the candidate itself.
 	pub candidate_receipt: CandidateReceipt,
@@ -291,7 +291,7 @@ mod tests {
 
 		let mut overlay_cache = OverlayCache::new();
 		let mut overlay_db =
-			OverlayedBackend::new(&mut backend, Metrics::new_dummy(), &mut overlay_cache).unwrap();
+			OverlayedBackend::new(&mut backend, Metrics::new_dummy(), &mut overlay_cache);
 
 		overlay_db.write_earliest_session(0);
 		overlay_db.write_earliest_session(1);
@@ -383,7 +383,7 @@ mod tests {
 		let mut backend = make_db();
 		let mut overlay_cache = OverlayCache::new();
 		let mut overlay_db =
-			OverlayedBackend::new(&mut backend, Metrics::new_dummy(), &mut overlay_cache).unwrap();
+			OverlayedBackend::new(&mut backend, Metrics::new_dummy(), &mut overlay_cache);
 		overlay_db.delete_candidate_votes(1, CandidateHash(Hash::repeat_byte(1)));
 
 		overlay_db.write_candidate_votes(
@@ -412,7 +412,7 @@ mod tests {
 
 		let mut overlay_cache = OverlayCache::new();
 		let mut overlay_db =
-			OverlayedBackend::new(&mut backend, Metrics::new_dummy(), &mut overlay_cache).unwrap();
+			OverlayedBackend::new(&mut backend, Metrics::new_dummy(), &mut overlay_cache);
 		overlay_db.write_candidate_votes(
 			1,
 			CandidateHash(Hash::repeat_byte(1)),
@@ -464,7 +464,7 @@ mod tests {
 
 		let mut overlay_cache = OverlayCache::new();
 		let mut overlay_db =
-			OverlayedBackend::new(&mut backend, Metrics::new_dummy(), &mut overlay_cache).unwrap();
+			OverlayedBackend::new(&mut backend, Metrics::new_dummy(), &mut overlay_cache);
 		overlay_db.write_earliest_session(prev_earliest_session);
 		overlay_db.write_recent_disputes(
 			vec![
@@ -489,7 +489,7 @@ mod tests {
 		backend.write(write_ops.unwrap()).unwrap();
 
 		let mut overlay_db =
-			OverlayedBackend::new(&mut backend, Metrics::new_dummy(), &mut overlay_cache).unwrap();
+			OverlayedBackend::new(&mut backend, Metrics::new_dummy(), &mut overlay_cache);
 		note_current_session(&mut overlay_db, current_session).unwrap();
 
 		assert_eq!(overlay_db.load_earliest_session().unwrap(), Some(new_earliest_session));

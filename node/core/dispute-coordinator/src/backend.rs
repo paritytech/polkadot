@@ -29,7 +29,7 @@ use crate::cache::OverlayCache;
 use super::db::v1::{CandidateVotes, RecentDisputes};
 use crate::{error::FatalResult, metrics::Metrics};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BackendWriteOp {
 	WriteEarliestSession(SessionIndex),
 	WriteRecentDisputes(RecentDisputes),
@@ -72,23 +72,8 @@ pub struct OverlayedBackend<'a, B: 'a> {
 }
 
 impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
-	pub fn new(
-		backend: &'a B,
-		metrics: Metrics,
-		cache: &'a mut OverlayCache,
-	) -> SubsystemResult<Self> {
-		// Initialize some caches.
-		if let Some(session) = backend.load_earliest_session()? {
-			let _read_timer = metrics.time_db_read_operation("earliest_session");
-			cache.initialize_earliest_sesion(session);
-		}
-
-		if let Some(disputes) = backend.load_recent_disputes()? {
-			let _read_timer = metrics.time_db_read_operation("recent_disputes");
-			cache.initialize_recent_disputes(disputes);
-		}
-
-		Ok(Self { inner: backend, cache, metrics })
+	pub fn new(backend: &'a B, metrics: Metrics, cache: &'a mut OverlayCache) -> Self {
+		Self { inner: backend, cache, metrics }
 	}
 
 	/// Load the earliest session, if any.

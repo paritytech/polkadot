@@ -41,7 +41,7 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v2::{ScrapedOnChainVotes, ValidatorIndex, ValidatorPair};
 
 use crate::{
-	error::{FatalError, FatalResult, JfyiError, Result},
+	error::{FatalResult, JfyiError, Result},
 	metrics::Metrics,
 	status::{get_active_with_status, SystemClock},
 };
@@ -216,8 +216,7 @@ impl DisputeCoordinatorSubsystem {
 			};
 
 			let mut overlay_db =
-				OverlayedBackend::new(&backend, self.metrics.clone(), &mut overlay_cache)
-					.map_err(FatalError::SubsystemCache)?;
+				OverlayedBackend::new(&backend, self.metrics.clone(), &mut overlay_cache);
 			let (participations, votes, spam_slots, ordering_provider) = match self
 				.handle_startup(
 					ctx,

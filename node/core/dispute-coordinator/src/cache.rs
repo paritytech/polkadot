@@ -16,7 +16,6 @@
 
 //! An LRU cache implementation for [`OverlayedBackend`].
 
-
 use polkadot_primitives::v2::{CandidateHash, SessionIndex};
 
 use lru_cache::LruCache;
@@ -138,11 +137,6 @@ impl OverlayCache {
 		}
 	}
 
-	/// Initialize the earliest session.
-	pub fn initialize_earliest_sesion(&mut self, earliest_session: SessionIndex) {
-		self.cached_earliest_session = Some(PersistedCacheEntry::new(earliest_session));
-	}
-
 	/// Update the earliest session.
 	pub fn update_earliest_sesion(&mut self, earliest_session: SessionIndex) {
 		let mut entry = PersistedCacheEntry::new(earliest_session);
@@ -157,11 +151,6 @@ impl OverlayCache {
 			return Some(cache_entry.value())
 		}
 		None
-	}
-
-	/// Initialize the earliest session.
-	pub fn initialize_recent_disputes(&mut self, recent_disputes: RecentDisputes) {
-		self.cached_recent_disputes = Some(PersistedCacheEntry::new(recent_disputes));
 	}
 
 	/// Update the earliest session.
@@ -190,19 +179,12 @@ impl OverlayCache {
 		let mut candidate_votes = PersistedCacheEntry::new(candidate_votes);
 		candidate_votes.dirty();
 
-		println!("Update called with capacity = {}", self.capacity);
-
 		// Check if this is an insert and exceeds capacity.
 		if !self.cached_candidate_votes.contains_key(&(session, *candidate_hash)) {
-			println!("{:?} is not present in cached_candidate_votes", (session, *candidate_hash));
 			if self.cached_candidate_votes.len() >= self.capacity {
 				// We need to move an entry to evicted entry list.
 				if let Some(evicted_entry) = self.cached_candidate_votes.remove_lru() {
-					println!("{:?} check if it is dirty", (session, *candidate_hash));
-	
 					if evicted_entry.1.is_dirty() {
-						println!("{:?} yes, evicting", (session, *candidate_hash));
-	
 						// Queue the entry for writing to DB.
 						self.evicted_candidate_votes.insert(evicted_entry.0, evicted_entry.1);
 					}
@@ -326,22 +308,115 @@ impl OverlayCache {
 				cached_candidate_votes,
 				evicted_candidate_votes: HashMap::new(),
 				dirty: false,
-				capacity: self.capacity
+				capacity: self.capacity,
 			},
 			Some(ops),
 		)
 	}
 }
 
-
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{
-		status::DisputeStatus,
-	};
+	use crate::status::DisputeStatus;
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use polkadot_primitives::v2::{Hash, Id as ParaId};
+
+	#[test]
+	fn overlay_cache_into_write_ops() {
+		let mut overlay_cache = OverlayCache::new_with_capacity(1);
+
+		assert!(!overlay_cache.is_dirty());
+		for session in 0..100 {
+			overlay_cache.update_earliest_sesion(session);
+		}
+		overlay_cache.update_earliest_sesion(1234);
+
+		assert_eq!(*overlay_cache.get_earliest_session().unwrap(), 1234);
+
+		let (mut overlay_cache, write_ops) = overlay_cache.into_write_ops();
+		let mut write_ops = write_ops.unwrap();
+		assert_eq!(write_ops.next().unwrap(), BackendWriteOp::WriteEarliestSession(1234));
+		assert!(write_ops.next().is_none());
+
+		let disputes =
+			vec![((0, CandidateHash(Hash::repeat_byte(10))), DisputeStatus::Confirmed); 100]
+				.into_iter()
+				.collect::<RecentDisputes>();
+
+		overlay_cache.update_recent_disputes(disputes.clone());
+
+		let (mut overlay_cache, write_ops) = overlay_cache.into_write_ops();
+		let mut write_ops = write_ops.unwrap();
+		assert_eq!(
+			write_ops.next().unwrap(),
+			BackendWriteOp::WriteRecentDisputes(disputes.clone())
+		);
+		assert!(write_ops.next().is_none());
+
+		assert_eq!(overlay_cache.load_recent_disputes().unwrap(), disputes);
+
+		let votes = CandidateVotes {
+			candidate_receipt: {
+				let mut receipt = dummy_candidate_receipt(dummy_hash());
+				receipt.descriptor.para_id = ParaId::new(2000);
+
+				receipt
+			},
+			valid: Vec::new(),
+			invalid: Vec::new(),
+		};
+
+		overlay_cache.update_candidate_votes(
+			1,
+			&CandidateHash(Hash::repeat_byte(1)),
+			Some(votes.clone()),
+		);
+
+		let (mut overlay_cache, write_ops) = overlay_cache.into_write_ops();
+		let mut write_ops = write_ops.unwrap();
+		assert_eq!(
+			write_ops.next().unwrap(),
+			BackendWriteOp::WriteCandidateVotes(
+				1,
+				CandidateHash(Hash::repeat_byte(1)),
+				votes.clone()
+			)
+		);
+		assert!(write_ops.next().is_none());
+		assert_eq!(
+			overlay_cache
+				.load_candidate_votes(1, &CandidateHash(Hash::repeat_byte(1)))
+				.unwrap()
+				.unwrap(),
+			votes
+		);
+
+		// Delete the votes
+		overlay_cache.update_candidate_votes(1, &CandidateHash(Hash::repeat_byte(1)), None);
+
+		// Check if we have the key and value set to none, as we expect to delete the entry when writing the DB.
+		assert_eq!(
+			overlay_cache.load_candidate_votes(1, &CandidateHash(Hash::repeat_byte(1))),
+			Some(None)
+		);
+
+		let (mut overlay_cache, write_ops) = overlay_cache.into_write_ops();
+		let mut write_ops = write_ops.unwrap();
+
+		assert_eq!(
+			write_ops.next().unwrap(),
+			BackendWriteOp::DeleteCandidateVotes(1, CandidateHash(Hash::repeat_byte(1)),)
+		);
+		assert!(write_ops.next().is_none());
+		// Check if it is still in cache.
+		assert_eq!(
+			overlay_cache
+				.load_candidate_votes(1, &CandidateHash(Hash::repeat_byte(1)))
+				.unwrap(),
+			None
+		);
+	}
 
 	#[test]
 	fn overlay_cache_rw_and_eviction() {
@@ -364,13 +439,13 @@ mod tests {
 				.into_iter()
 				.collect(),
 		);
-		
+
 		overlay_cache.update_recent_disputes(
 			vec![((1, CandidateHash(Hash::repeat_byte(1))), DisputeStatus::Active)]
 				.into_iter()
 				.collect(),
 		);
-	
+
 		overlay_cache.update_candidate_votes(
 			1,
 			&CandidateHash(Hash::repeat_byte(1)),
@@ -382,8 +457,8 @@ mod tests {
 		);
 
 		assert_eq!(overlay_cache.evicted_candidate_votes.len(), 0);
-		
-		// Updates the same entry as above, shouldn't cause eviction. 
+
+		// Updates the same entry as above, shouldn't cause eviction.
 		overlay_cache.update_candidate_votes(
 			1,
 			&CandidateHash(Hash::repeat_byte(1)),

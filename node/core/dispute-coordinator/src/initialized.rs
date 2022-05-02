@@ -176,7 +176,7 @@ impl Initialized {
 		let mut last_overlay_cache_flush_ts = Instant::now();
 		{
 			let mut overlay_db =
-				OverlayedBackend::new(backend, self.metrics.clone(), &mut overlay_cache)?;
+				OverlayedBackend::new(backend, self.metrics.clone(), &mut overlay_cache);
 			for votes in on_chain_votes.drain(..) {
 				let _ = self
 					.process_on_chain_votes(ctx, &mut overlay_db, votes, clock.now())
@@ -207,7 +207,7 @@ impl Initialized {
 		loop {
 			let maybe_ops;
 			let mut overlay_db =
-				OverlayedBackend::new(backend, self.metrics.clone(), &mut overlay_cache)?;
+				OverlayedBackend::new(backend, self.metrics.clone(), &mut overlay_cache);
 			let default_confirm = Box::new(|| Ok(()));
 			let confirm_write =
 				match MuxedMessage::receive(ctx, &mut self.participation_receiver).await? {
