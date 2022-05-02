@@ -54,7 +54,8 @@ use crate::{
 };
 
 use super::{
-	backend::{Backend, WRITE_BACK_INTERVAL},
+	backend::Backend,
+	cache::WRITE_BACK_INTERVAL,
 	db,
 	participation::{
 		self, Participation, ParticipationPriority, ParticipationRequest, ParticipationStatement,

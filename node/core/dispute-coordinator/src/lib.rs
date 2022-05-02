@@ -45,7 +45,8 @@ use crate::{
 	metrics::Metrics,
 	status::{get_active_with_status, SystemClock},
 };
-use backend::{Backend, OverlayCache, OverlayedBackend};
+use backend::{Backend, OverlayedBackend};
+use cache::OverlayCache;
 use db::v1::DbBackend;
 use fatality::Split;
 
@@ -55,6 +56,7 @@ use self::{
 };
 
 pub(crate) mod backend;
+pub(crate) mod cache;
 pub(crate) mod db;
 pub(crate) mod error;
 

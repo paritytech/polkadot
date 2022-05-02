@@ -273,7 +273,7 @@ pub(crate) fn note_current_session(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{backend::OverlayCache, metrics::Metrics};
+	use crate::{cache::OverlayCache, metrics::Metrics};
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use polkadot_primitives::v2::{Hash, Id as ParaId};
 
