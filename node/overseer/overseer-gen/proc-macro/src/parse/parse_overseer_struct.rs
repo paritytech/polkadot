@@ -263,7 +263,7 @@ pub(crate) struct BaggageField {
 #[derive(Clone, Debug)]
 pub(crate) struct OverseerInfo {
 	/// Where the support crate `::polkadot_overseer_gen` lives.
-	pub(crate) support_crate_name: TokenStream,
+	pub(crate) support_crate: TokenStream,
 
 	/// Fields annotated with `#[subsystem(..)]`.
 	pub(crate) subsystems: Vec<SubSysField>,
@@ -297,7 +297,7 @@ pub(crate) struct OverseerInfo {
 
 impl OverseerInfo {
 	pub(crate) fn support_crate_name(&self) -> &TokenStream {
-		&self.support_crate_name
+		&self.support_crate
 	}
 
 	pub(crate) fn variant_names(&self) -> Vec<Ident> {

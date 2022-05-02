@@ -22,18 +22,31 @@ use syn::{
 	parse::{Parse, ParseBuffer},
 	punctuated::Punctuated,
 	spanned::Spanned,
-	Error, Path, Result, Token,
+	Error, Ident, Path, Result, Token,
 };
 
 #[derive(Clone, Debug)]
 enum SubsystemAttrItem {
-	ExternErrorType { tag: kw::error, eq_token: Token![=], value: Path },
+	/// Error type provided by the user.
+	ExternErrorType {
+		tag: kw::error,
+		eq_token: Token![=],
+		value: Path,
+	},
+	Subsystem {
+		tag: Option<kw::subsystem>,
+		eq_token: Option<Token![=]>,
+		value: Ident,
+	},
 }
 
 impl ToTokens for SubsystemAttrItem {
 	fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
 		let ts = match self {
 			Self::ExternErrorType { tag, eq_token, value } => {
+				quote! { #tag #eq_token, #value }
+			},
+			Self::Subsystem { tag, eq_token, value } => {
 				quote! { #tag #eq_token, #value }
 			},
 		};
@@ -50,17 +63,24 @@ impl Parse for SubsystemAttrItem {
 				eq_token: input.parse()?,
 				value: input.parse()?,
 			})
+		} else if lookahead.peek(kw::subsystem) {
+			Ok(SubsystemAttrItem::Subsystem {
+				tag: Some(input.parse::<kw::subsystem>()?),
+				eq_token: Some(input.parse()?),
+				value: input.parse()?,
+			})
 		} else {
-			Err(lookahead.error())
+			Ok(SubsystemAttrItem::Subsystem { tag: None, eq_token: None, value: input.parse()? })
 		}
 	}
 }
 
-/// Attribute arguments
+/// Attribute arguments `$args` in `#[subsystem( $args )]`.
 #[derive(Clone, Debug)]
 pub(crate) struct SubsystemAttrArgs {
 	span: Span,
 	pub(crate) extern_error_ty: Path,
+	pub(crate) subsystem_ident: Ident,
 }
 
 impl Spanned for SubsystemAttrArgs {
@@ -77,10 +97,9 @@ macro_rules! extract_variant {
 		extract_variant!($unique, $variant).ok_or_else(|| Error::new(Span::call_site(), $err))
 	};
 	($unique:expr, $variant:ident) => {
-		$unique.values().find_map(|item| {
-			match item {
-				SubsystemAttrItem::$variant { value, .. } => Some(value.clone()),
-			}
+		$unique.values().find_map(|item| match item {
+			SubsystemAttrItem::$variant { value, .. } => Some(value.clone()),
+			_ => None,
 		})
 	};
 }
@@ -106,7 +125,8 @@ impl Parse for SubsystemAttrArgs {
 				return Err(e)
 			}
 		}
-		let error = extract_variant!(unique, ExternErrorType; err = "Must annotate the identical overseer error type via `error=..`.")?;
-		Ok(SubsystemAttrArgs { span, extern_error_ty: error })
+		let extern_error_ty = extract_variant!(unique, ExternErrorType; err = "Must annotate the identical overseer error type via `error=..`.")?;
+		let subsystem_ident = extract_variant!(unique, Subsystem; err = "Must annotate the identical overseer error type via `subsystem=..` or plainly as `Subsystem` as specified in the overseer declaration.")?;
+		Ok(SubsystemAttrArgs { span, extern_error_ty, subsystem_ident })
 	}
 }
