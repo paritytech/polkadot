@@ -409,7 +409,7 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 		#consumes: AssociateOutgoing + ::std::fmt::Debug + Send + 'static,
 		#all_messages_wrapper: From< #outgoing_wrapper >,
 		#all_messages_wrapper: From< #consumes >,
-		#support_crate :: #outgoing_wrapper: #( From< #outgoing > )+*,
+		#outgoing_wrapper: #( From< #outgoing > )+*,
 
 	};
 
