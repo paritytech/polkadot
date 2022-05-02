@@ -33,10 +33,11 @@ use bp_runtime::{
 };
 use codec::Encode;
 use frame_support::{
-	dispatch::Dispatchable,
+	dispatch::{Dispatchable, Zero},
 	ensure,
+	pallet_prelude::Saturating,
 	traits::{Contains, Get},
-	weights::{extract_actual_weight, GetDispatchInfo},
+	weights::{extract_actual_weight, GetDispatchInfo, Weight},
 };
 use frame_system::RawOrigin;
 use sp_runtime::traits::{BadOrigin, Convert, IdentifyAccount, MaybeDisplay, Verify};
@@ -170,7 +171,7 @@ impl<T: Config<I>, I: 'static> MessageDispatch<T::AccountId, T::BridgeMessageId>
 				Self::deposit_event(Event::MessageRejected(source_chain, id));
 				return MessageDispatchResult {
 					dispatch_result: false,
-					unspent_weight: 0,
+					unspent_weight: Weight::zero(),
 					dispatch_fee_paid_during_dispatch: false,
 				}
 			},
@@ -180,7 +181,7 @@ impl<T: Config<I>, I: 'static> MessageDispatch<T::AccountId, T::BridgeMessageId>
 		// (we want it to be the same, because otherwise we may decode Call improperly)
 		let mut dispatch_result = MessageDispatchResult {
 			dispatch_result: false,
-			unspent_weight: message.weight,
+			unspent_weight: Weight::from_computation(message.weight),
 			dispatch_fee_paid_during_dispatch: false,
 		};
 		let expected_version = <T as frame_system::Config>::Version::get().spec_version;
@@ -278,7 +279,7 @@ impl<T: Config<I>, I: 'static> MessageDispatch<T::AccountId, T::BridgeMessageId>
 		// because otherwise Calls may be dispatched at lower price)
 		let dispatch_info = call.get_dispatch_info();
 		let expected_weight = dispatch_info.weight;
-		if message.weight < expected_weight {
+		if message.weight < expected_weight.computation() {
 			log::trace!(
 				target: "runtime::bridge-dispatch",
 				"Message {:?}/{:?}: passed weight is too low. Expected at least {:?}, got {:?}",
@@ -291,7 +292,7 @@ impl<T: Config<I>, I: 'static> MessageDispatch<T::AccountId, T::BridgeMessageId>
 				source_chain,
 				id,
 				expected_weight,
-				message.weight,
+				Weight::from_computation(message.weight),
 			));
 			return dispatch_result
 		}
@@ -313,7 +314,7 @@ impl<T: Config<I>, I: 'static> MessageDispatch<T::AccountId, T::BridgeMessageId>
 				source_chain,
 				id,
 				origin_account,
-				message.weight,
+				Weight::from_computation(message.weight),
 			));
 			return dispatch_result
 		}
@@ -326,7 +327,8 @@ impl<T: Config<I>, I: 'static> MessageDispatch<T::AccountId, T::BridgeMessageId>
 		let result = call.dispatch(origin);
 		let actual_call_weight = extract_actual_weight(&result, &dispatch_info);
 		dispatch_result.dispatch_result = result.is_ok();
-		dispatch_result.unspent_weight = message.weight.saturating_sub(actual_call_weight);
+		dispatch_result.unspent_weight =
+			Weight::from_computation(message.weight).saturating_sub(actual_call_weight);
 
 		log::trace!(
 			target: "runtime::bridge-dispatch",

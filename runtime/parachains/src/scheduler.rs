@@ -35,7 +35,7 @@
 //! number of groups as availability cores. Validator groups will be assigned to different availability cores
 //! over time.
 
-use frame_support::pallet_prelude::*;
+use frame_support::{dispatch::Zero, pallet_prelude::*};
 use primitives::v2::{
 	CollatorId, CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId,
 	ParathreadClaim, ParathreadEntry, ScheduledCore, ValidatorIndex,
@@ -226,7 +226,7 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the scheduler pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	/// Called by the initializer to finalize the scheduler pallet.

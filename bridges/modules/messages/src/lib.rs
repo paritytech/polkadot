@@ -65,7 +65,7 @@ use codec::{Decode, Encode};
 use frame_support::{
 	fail,
 	traits::Get,
-	weights::{Pays, PostDispatchInfo},
+	weights::{Pays, PostDispatchInfo, Weight},
 };
 use frame_system::RawOrigin;
 use num_traits::{SaturatingAdd, Zero};
@@ -349,7 +349,10 @@ pub mod pallet {
 				T::WeightInfo::increase_message_fee(message_size as _),
 			);
 
-			Ok(PostDispatchInfo { actual_weight: Some(actual_weight), pays_fee: Pays::Yes })
+			Ok(PostDispatchInfo {
+				actual_weight: Some(Weight::from_computation(actual_weight)),
+				pays_fee: Pays::Yes,
+			})
 		}
 
 		/// Receive messages proof from bridged chain.
@@ -357,7 +360,7 @@ pub mod pallet {
 		/// The weight of the call assumes that the transaction always brings outbound lane
 		/// state update. Because of that, the submitter (relayer) has no benefit of not including
 		/// this data in the transaction, so reward confirmations lags should be minimal.
-		#[pallet::weight(T::WeightInfo::receive_messages_proof_weight(proof, *messages_count, *dispatch_weight))]
+		#[pallet::weight(T::WeightInfo::receive_messages_proof_weight(proof, *messages_count, dispatch_weight.computation()))]
 		pub fn receive_messages_proof(
 			origin: OriginFor<T>,
 			relayer_id_at_bridged_chain: T::InboundRelayer,
@@ -387,7 +390,7 @@ pub mod pallet {
 			let declared_weight = T::WeightInfo::receive_messages_proof_weight(
 				&proof,
 				messages_count,
-				dispatch_weight,
+				dispatch_weight.computation(),
 			);
 			let mut actual_weight = declared_weight;
 
@@ -433,7 +436,7 @@ pub mod pallet {
 					// on this lane. We can't dispatch lane messages out-of-order, so if declared
 					// weight is not enough, let's move to next lane
 					let dispatch_weight = T::MessageDispatch::dispatch_weight(&message);
-					if dispatch_weight > dispatch_weight_left {
+					if dispatch_weight.is_strictly_greater_than(&dispatch_weight_left) {
 						log::trace!(
 							target: "runtime::bridge-messages",
 							"Cannot dispatch any more messages on lane {:?}. Weight: declared={}, left={}",
@@ -471,18 +474,19 @@ pub mod pallet {
 						ReceivalResult::TooManyUnconfirmedMessages => (dispatch_weight, true),
 					};
 
-					let unspent_weight = sp_std::cmp::min(unspent_weight, dispatch_weight);
+					let unspent_weight = unspent_weight.min(dispatch_weight);
 					dispatch_weight_left -= dispatch_weight - unspent_weight;
-					actual_weight = actual_weight.saturating_sub(unspent_weight).saturating_sub(
-						// delivery call weight formula assumes that the fee is paid at
-						// this (target) chain. If the message is prepaid at the source
-						// chain, let's refund relayer with this extra cost.
-						if refund_pay_dispatch_fee {
-							T::WeightInfo::pay_inbound_dispatch_fee_overhead()
-						} else {
-							0
-						},
-					);
+					actual_weight =
+						actual_weight.saturating_sub(unspent_weight.computation()).saturating_sub(
+							// delivery call weight formula assumes that the fee is paid at
+							// this (target) chain. If the message is prepaid at the source
+							// chain, let's refund relayer with this extra cost.
+							if refund_pay_dispatch_fee {
+								T::WeightInfo::pay_inbound_dispatch_fee_overhead()
+							} else {
+								0
+							},
+						);
 				}
 			}
 
@@ -495,7 +499,10 @@ pub mod pallet {
 				declared_weight,
 			);
 
-			Ok(PostDispatchInfo { actual_weight: Some(actual_weight), pays_fee: Pays::Yes })
+			Ok(PostDispatchInfo {
+				actual_weight: Some(Weight::from_computation(actual_weight)),
+				pays_fee: Pays::Yes,
+			})
 		}
 
 		/// Receive messages delivery proof from bridged chain.
@@ -592,7 +599,9 @@ pub mod pallet {
 					relayers_state.total_messages.saturating_mul(single_message_callback_overhead);
 				let actual_callback_weight =
 					T::OnDeliveryConfirmed::on_messages_delivered(&lane_id, &confirmed_messages);
-				match preliminary_callback_overhead.checked_sub(actual_callback_weight) {
+				match preliminary_callback_overhead
+					.checked_sub(actual_callback_weight.computation())
+				{
 					Some(difference) if difference == 0 => (),
 					Some(difference) => {
 						log::trace!(
@@ -643,7 +652,10 @@ pub mod pallet {
 				lane_id,
 			);
 
-			Ok(PostDispatchInfo { actual_weight: Some(actual_weight), pays_fee: Pays::Yes })
+			Ok(PostDispatchInfo {
+				actual_weight: Some(Weight::from_computation(actual_weight)),
+				pays_fee: Pays::Yes,
+			})
 		}
 	}
 
@@ -874,7 +886,7 @@ fn send_message<T: Config<I>, I: 'static>(
 	let single_message_callback_overhead =
 		T::WeightInfo::single_message_callback_overhead(T::DbWeight::get());
 	let actual_callback_weight = T::OnMessageAccepted::on_messages_accepted(&lane_id, &nonce);
-	match single_message_callback_overhead.checked_sub(actual_callback_weight) {
+	match single_message_callback_overhead.checked_sub(actual_callback_weight.computation()) {
 		Some(difference) if difference == 0 => (),
 		Some(difference) => {
 			log::trace!(
@@ -918,7 +930,7 @@ fn send_message<T: Config<I>, I: 'static>(
 
 	Pallet::<T, I>::deposit_event(Event::MessageAccepted(lane_id, nonce));
 
-	Ok(SendMessageArtifacts { nonce, weight: actual_weight })
+	Ok(SendMessageArtifacts { nonce, weight: Weight::from_computation(actual_weight) })
 }
 
 /// Ensure that the origin is either root, or `PalletOwner`.

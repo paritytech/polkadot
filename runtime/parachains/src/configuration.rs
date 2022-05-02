@@ -285,7 +285,9 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_max_parachain_outbound_channels: Default::default(),
 			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
-			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
+			ump_max_individual_weight: Weight::new()
+				.set_computation(20 * WEIGHT_PER_MILLIS)
+				.set_bandwidth(5 * 1024 * 1024),
 			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
@@ -1136,7 +1138,7 @@ pub struct SessionChangeOutcome<BlockNumber> {
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the configuration pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	/// Called by the initializer to finalize the configuration pallet.

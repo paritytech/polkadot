@@ -109,9 +109,11 @@ pub mod pallet {
 		fn on_initialize(_n: T::BlockNumber) -> frame_support::weights::Weight {
 			<RequestCount<T, I>>::mutate(|count| *count = count.saturating_sub(1));
 
-			(0_u64)
+			let computation_weight = (0_u64)
 				.saturating_add(T::DbWeight::get().reads(1))
-				.saturating_add(T::DbWeight::get().writes(1))
+				.saturating_add(T::DbWeight::get().writes(1));
+
+			Weight::from_computation(computation_weight)
 		}
 	}
 

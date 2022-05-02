@@ -15,9 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::Assets;
-use frame_support::weights::Weight;
 use sp_std::result::Result;
-use xcm::latest::prelude::*;
+use xcm::latest::{prelude::*, Weight};
 
 /// Determine the weight of an XCM message.
 pub trait WeightBounds<Call> {

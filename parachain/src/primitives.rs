@@ -19,7 +19,7 @@
 
 use sp_std::vec::Vec;
 
-use frame_support::weights::Weight;
+use frame_support::{dispatch::Zero, weights::Weight};
 use parity_scale_codec::{CompactAs, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sp_core::{RuntimeDebug, TypeId};
@@ -369,7 +369,7 @@ impl DmpMessageHandler for () {
 		_max_weight: Weight,
 	) -> Weight {
 		iter.for_each(drop);
-		0
+		Weight::zero()
 	}
 }
 
@@ -402,7 +402,7 @@ impl XcmpMessageHandler for () {
 		_max_weight: Weight,
 	) -> Weight {
 		for _ in iter {}
-		0
+		Weight::zero()
 	}
 }
 

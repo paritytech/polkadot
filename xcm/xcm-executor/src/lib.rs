@@ -16,17 +16,13 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{
-	dispatch::{Dispatchable, Weight},
-	ensure,
-	weights::GetDispatchInfo,
-};
+use frame_support::{dispatch::Dispatchable, ensure, weights::GetDispatchInfo};
 use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
 use xcm::latest::{
 	Error as XcmError, ExecuteXcm,
 	Instruction::{self, *},
-	MultiAssets, MultiLocation, Outcome, Response, SendXcm, Xcm,
+	MultiAssets, MultiLocation, Outcome, Response, SendXcm, Weight, Xcm,
 };
 
 pub mod traits;
@@ -342,7 +338,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let message_call = call.take_decoded().map_err(|_| XcmError::FailedToDecode)?;
 				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)
 					.map_err(|_| XcmError::BadOrigin)?;
-				let weight = message_call.get_dispatch_info().weight;
+				let weight = message_call.get_dispatch_info().weight.computation();
 				ensure!(weight <= require_weight_at_most, XcmError::MaxWeightInvalid);
 				let actual_weight = match message_call.dispatch(dispatch_origin) {
 					Ok(post_info) => post_info.actual_weight,
@@ -352,7 +348,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						error_and_info.post_info.actual_weight
 					},
 				}
-				.unwrap_or(weight);
+				.map_or(weight, |w| w.computation());
 				let surplus = weight.saturating_sub(actual_weight);
 				// We assume that the `Config::Weigher` will counts the `require_weight_at_most`
 				// for the estimate of how much weight this instruction will take. Now that we know

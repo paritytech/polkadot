@@ -16,9 +16,9 @@
 
 // Shared test utilities and implementations for the XCM Builder.
 
-use frame_support::{dispatch::Weight, parameter_types};
+use frame_support::parameter_types;
 use sp_std::vec::Vec;
-pub use xcm::latest::prelude::*;
+pub use xcm::latest::{prelude::*, Weight};
 use xcm_executor::traits::{ClaimAssets, DropAssets, VersionChangeNotifier};
 pub use xcm_executor::{
 	traits::{ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset},

@@ -19,7 +19,7 @@
 pub use codec::Encode;
 pub use paste;
 
-pub use frame_support::{traits::Get, weights::Weight};
+pub use frame_support::traits::Get;
 pub use sp_io::TestExternalities;
 pub use sp_std::{cell::RefCell, collections::vec_deque::VecDeque, marker::PhantomData};
 
@@ -32,7 +32,7 @@ pub use polkadot_runtime_parachains::{
 	dmp,
 	ump::{self, MessageId, UmpSink, XcmSink},
 };
-pub use xcm::{latest::prelude::*, VersionedXcm};
+pub use xcm::{latest::prelude::*, VersionedXcm, Weight};
 pub use xcm_executor::XcmExecutor;
 
 pub trait TestExt {

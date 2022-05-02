@@ -18,7 +18,7 @@ use crate::{
 	configuration::{self, HostConfiguration},
 	dmp, ensure_parachain, initializer, paras,
 };
-use frame_support::{pallet_prelude::*, traits::ReservableCurrency};
+use frame_support::{dispatch::Zero, pallet_prelude::*, traits::ReservableCurrency};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v2::{
@@ -609,7 +609,7 @@ fn preopen_hrmp_channel<T: Config>(
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	/// Block finalization logic, called by initializer.
@@ -1010,7 +1010,7 @@ impl<T: Config> Pallet<T> {
 		<Self as Store>::HrmpWatermarks::insert(&recipient, new_hrmp_watermark);
 		weight += T::DbWeight::get().reads_writes(0, 1);
 
-		weight
+		Weight::from_computation(weight)
 	}
 
 	/// Process the outbound HRMP messages by putting them into the appropriate recipient queues.
@@ -1081,7 +1081,7 @@ impl<T: Config> Pallet<T> {
 			weight += T::DbWeight::get().reads_writes(2, 2);
 		}
 
-		weight
+		Weight::from_computation(weight)
 	}
 
 	/// Initiate opening a channel from a parachain to a given recipient with given channel

@@ -16,7 +16,7 @@
 
 use crate::Assets;
 use core::marker::PhantomData;
-use frame_support::{traits::Contains, weights::Weight};
+use frame_support::{dispatch::Zero, traits::Contains, weights::ComputationWeight as Weight};
 use xcm::latest::{MultiAssets, MultiLocation};
 
 /// Define a handler for when some non-empty `Assets` value should be dropped.
@@ -26,7 +26,7 @@ pub trait DropAssets {
 }
 impl DropAssets for () {
 	fn drop_assets(_origin: &MultiLocation, _assets: Assets) -> Weight {
-		0
+		Weight::zero()
 	}
 }
 
@@ -39,7 +39,7 @@ impl<D: DropAssets, A: Contains<Assets>> DropAssets for FilterAssets<D, A> {
 		if A::contains(&assets) {
 			D::drop_assets(origin, assets)
 		} else {
-			0
+			Weight::zero()
 		}
 	}
 }
@@ -54,7 +54,7 @@ impl<D: DropAssets, O: Contains<MultiLocation>> DropAssets for FilterOrigin<D, O
 		if O::contains(origin) {
 			D::drop_assets(origin, assets)
 		} else {
-			0
+			Weight::zero()
 		}
 	}
 }

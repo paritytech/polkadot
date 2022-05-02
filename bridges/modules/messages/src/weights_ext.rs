@@ -20,7 +20,7 @@ use crate::weights::WeightInfo;
 
 use bp_messages::{MessageNonce, UnrewardedRelayersState};
 use bp_runtime::{PreComputedSize, Size};
-use frame_support::weights::{RuntimeDbWeight, Weight};
+use frame_support::weights::{ComputationWeight as Weight, RuntimeDbWeight};
 
 /// Size of the message being delivered in benchmarks.
 pub const EXPECTED_DEFAULT_MESSAGE_LENGTH: u32 = 128;

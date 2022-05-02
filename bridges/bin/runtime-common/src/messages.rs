@@ -367,7 +367,7 @@ pub mod source {
 		payload: &FromThisChainMessagePayload<B>,
 	) -> Result<(), &'static str> {
 		let weight_limits = BridgedChain::<B>::message_weight_limits(&payload.call);
-		if !weight_limits.contains(&payload.weight.into()) {
+		if !weight_limits.contains(&Weight::from_computation(payload.weight).into()) {
 			return Err("Incorrect message weight declared")
 		}
 
@@ -407,7 +407,11 @@ pub mod source {
 		let delivery_transaction = BridgedChain::<B>::estimate_delivery_transaction(
 			&payload.encode(),
 			pay_dispatch_fee_at_target_chain,
-			if pay_dispatch_fee_at_target_chain { 0.into() } else { payload.weight.into() },
+			if pay_dispatch_fee_at_target_chain {
+				Weight::zero().into()
+			} else {
+				Weight::from_computation(payload.weight).into()
+			},
 		);
 		let delivery_transaction_fee = BridgedChain::<B>::transaction_payment(delivery_transaction);
 
@@ -584,7 +588,9 @@ pub mod target {
 		fn dispatch_weight(
 			message: &DispatchMessage<Self::DispatchPayload, BalanceOf<BridgedChain<B>>>,
 		) -> frame_support::weights::Weight {
-			message.data.payload.as_ref().map(|payload| payload.weight).unwrap_or(0)
+			Weight::from_computation(
+				message.data.payload.as_ref().map(|payload| payload.weight).unwrap_or(0),
+			)
 		}
 
 		fn dispatch(

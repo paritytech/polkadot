@@ -108,7 +108,7 @@
 
 use crate::{configuration, initializer::SessionChangeNotification, shared};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation};
+use frame_support::{dispatch::Zero, pallet_prelude::*, traits::EstimateNextSessionRotation};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v2::{
@@ -449,7 +449,7 @@ impl WeightInfo for TestWeightInfo {
 	}
 	fn include_pvf_check_statement() -> Weight {
 		// This special value is to distinguish from the finalizing variants above in tests.
-		Weight::MAX - 1
+		Weight::MAX - Weight::one()
 	}
 }
 
@@ -878,16 +878,10 @@ pub mod pallet {
 		/// Includes a statement for a PVF pre-checking vote. Potentially, finalizes the vote and
 		/// enacts the results if that was the last vote before achieving the supermajority.
 		#[pallet::weight(
-			sp_std::cmp::max(
-				sp_std::cmp::max(
-					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_accept(),
-					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_reject(),
-				),
-				sp_std::cmp::max(
-					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_accept(),
-					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_reject(),
-				)
-			)
+			<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_accept()
+				.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_reject())
+				.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_accept())
+				.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_reject())
 		)]
 		pub fn include_pvf_check_statement(
 			origin: OriginFor<T>,
@@ -1204,7 +1198,7 @@ impl<T: Config> Pallet<T> {
 			pruning.insert(insert_idx, (id, now));
 		});
 
-		T::DbWeight::get().reads_writes(2, 3)
+		Weight::from_computation(T::DbWeight::get().reads_writes(2, 3))
 	}
 
 	// looks at old code metadata, compares them to the current acceptance window, and prunes those
@@ -1214,7 +1208,7 @@ impl<T: Config> Pallet<T> {
 		let code_retention_period = config.code_retention_period;
 		if now <= code_retention_period {
 			let weight = T::DbWeight::get().reads_writes(1, 0);
-			return weight
+			return Weight::from_computation(weight)
 		}
 
 		// The height of any changes we no longer should keep around.
@@ -1262,7 +1256,9 @@ impl<T: Config> Pallet<T> {
 
 		// 1 read for the meta for each pruning task, 1 read for the config
 		// 2 writes: updating the meta and pruning the code
-		T::DbWeight::get().reads_writes(1 + pruning_tasks_done, 2 * pruning_tasks_done)
+		Weight::from_computation(
+			T::DbWeight::get().reads_writes(1 + pruning_tasks_done, 2 * pruning_tasks_done),
+		)
 	}
 
 	/// Process the timers related to upgrades. Specifically, the upgrade go ahead signals toggle
@@ -1297,7 +1293,7 @@ impl<T: Config> Pallet<T> {
 		weight += T::DbWeight::get().reads_writes(1, 1);
 		weight += T::DbWeight::get().reads(cooldowns_expired as u64);
 
-		weight
+		Weight::from_computation(weight)
 	}
 
 	/// Actually perform unsetting the expired upgrade restrictions.
@@ -1319,7 +1315,7 @@ impl<T: Config> Pallet<T> {
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 		new_n_validators: usize,
 	) -> Weight {
-		let mut weight = T::DbWeight::get().reads(1);
+		let mut weight = Weight::from_computation(T::DbWeight::get().reads(1));
 
 		let potentially_active_votes = PvfActiveVoteList::<T>::get();
 
@@ -1347,7 +1343,7 @@ impl<T: Config> Pallet<T> {
 
 			vote_state.age += 1;
 			if vote_state.age < cfg.pvf_voting_ttl {
-				weight += T::DbWeight::get().writes(1);
+				weight += Weight::from_computation(T::DbWeight::get().writes(1));
 				vote_state.reinitialize_ballots(new_n_validators);
 				PvfActiveVoteMap::<T>::insert(&vote_subject, vote_state);
 
@@ -1359,7 +1355,7 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		weight += T::DbWeight::get().writes(1);
+		weight += Weight::from_computation(T::DbWeight::get().writes(1));
 		PvfActiveVoteList::<T>::put(actually_active_votes);
 
 		weight
@@ -1372,9 +1368,9 @@ impl<T: Config> Pallet<T> {
 		sessions_observed: SessionIndex,
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
-		let mut weight = 0;
+		let mut weight = Weight::zero();
 		for cause in causes {
-			weight += T::DbWeight::get().reads_writes(3, 2);
+			weight += Weight::from_computation(T::DbWeight::get().reads_writes(3, 2));
 			Self::deposit_event(Event::PvfCheckAccepted(*code_hash, cause.para_id()));
 
 			match cause {
@@ -1407,7 +1403,7 @@ impl<T: Config> Pallet<T> {
 			}
 		});
 
-		weight
+		Weight::from_computation(weight)
 	}
 
 	fn proceed_with_upgrade(
@@ -1450,7 +1446,7 @@ impl<T: Config> Pallet<T> {
 		let log = ConsensusLog::ParaScheduleUpgradeCode(id, *code_hash, expected_at);
 		<frame_system::Pallet<T>>::deposit_log(log.into());
 
-		weight
+		Weight::from_computation(weight)
 	}
 
 	fn enact_pvf_rejected(
@@ -1462,7 +1458,7 @@ impl<T: Config> Pallet<T> {
 		for cause in causes {
 			// Whenever PVF pre-checking is started or a new cause is added to it, the RC is bumped.
 			// Now we need to unbump it.
-			weight += Self::decrease_code_ref(code_hash);
+			weight += Self::decrease_code_ref(code_hash).computation();
 
 			weight += T::DbWeight::get().reads_writes(3, 2);
 			Self::deposit_event(Event::PvfCheckRejected(*code_hash, cause.para_id()));
@@ -1486,7 +1482,7 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		weight
+		Weight::from_computation(weight)
 	}
 
 	/// Verify that `schedule_para_initialize` can be called successfully.
@@ -1681,7 +1677,7 @@ impl<T: Config> Pallet<T> {
 			// NOTE: we cannot set `UpgradeGoAheadSignal` signal here since this will be reset by
 			//       the following call `note_new_head`
 			log::warn!(target: LOG_TARGET, "ended up scheduling an upgrade while one is pending",);
-			return weight
+			return Weight::from_computation(weight)
 		}
 
 		let code_hash = new_code.hash();
@@ -1698,7 +1694,7 @@ impl<T: Config> Pallet<T> {
 				target: LOG_TARGET,
 				"para tried to upgrade to the same code. Abort the upgrade",
 			);
-			return weight
+			return Weight::from_computation(weight)
 		}
 
 		// This is the start of the upgrade process. Prevent any further attempts at upgrading.
@@ -1720,9 +1716,10 @@ impl<T: Config> Pallet<T> {
 			code_hash,
 			new_code,
 			cfg,
-		);
+		)
+		.computation();
 
-		weight
+		Weight::from_computation(weight)
 	}
 
 	/// Makes sure that the given code hash has passed pre-checking.
@@ -1767,7 +1764,8 @@ impl<T: Config> Pallet<T> {
 					// In any case: fast track the PVF checking into the accepted state
 					weight += T::DbWeight::get().reads(1);
 					let now = <frame_system::Pallet<T>>::block_number();
-					weight += Self::enact_pvf_accepted(now, &code_hash, &[cause], 0, cfg);
+					weight +=
+						Self::enact_pvf_accepted(now, &code_hash, &[cause], 0, cfg).computation();
 				} else {
 					// PVF is not being pre-checked and it is not known. Start a new pre-checking
 					// process.
@@ -1805,9 +1803,9 @@ impl<T: Config> Pallet<T> {
 		//
 		// If the PVF was fast-tracked (i.e. there is already non zero RC) and there is no
 		// pre-checking, we also do not change the RC then.
-		weight += Self::increase_code_ref(&code_hash, &code);
+		weight += Self::increase_code_ref(&code_hash, &code).computation();
 
-		weight
+		Weight::from_computation(weight)
 	}
 
 	/// Note that a para has progressed to a new head, where the new head was executed in the context
@@ -1830,7 +1828,7 @@ impl<T: Config> Pallet<T> {
 					new_code_hash
 				} else {
 					log::error!(target: LOG_TARGET, "Missing future code hash for {:?}", &id);
-					return T::DbWeight::get().reads_writes(3, 1 + 3)
+					return Weight::from_computation(T::DbWeight::get().reads_writes(3, 1 + 3))
 				};
 				let maybe_prior_code_hash = CurrentCodeHash::<T>::get(&id);
 				CurrentCodeHash::<T>::insert(&id, &new_code_hash);
@@ -1845,13 +1843,13 @@ impl<T: Config> Pallet<T> {
 					Self::note_past_code(id, expected_at, now, prior_code_hash)
 				} else {
 					log::error!(target: LOG_TARGET, "Missing prior code hash for para {:?}", &id);
-					0 as Weight
+					Weight::zero()
 				};
 
 				// add 1 to writes due to heads update.
-				weight + T::DbWeight::get().reads_writes(3, 1 + 3)
+				weight + Weight::from_computation(T::DbWeight::get().reads_writes(3, 1 + 3))
 			} else {
-				T::DbWeight::get().reads_writes(1, 1 + 0)
+				Weight::from_computation(T::DbWeight::get().reads_writes(1, 1 + 0))
 			}
 		} else {
 			// This means there is no upgrade scheduled.
@@ -1859,7 +1857,7 @@ impl<T: Config> Pallet<T> {
 			// In case the upgrade was aborted by the relay-chain we should reset
 			// the `Abort` signal.
 			UpgradeGoAheadSignal::<T>::remove(&id);
-			T::DbWeight::get().reads_writes(1, 2)
+			Weight::from_computation(T::DbWeight::get().reads_writes(1, 2))
 		}
 	}
 
@@ -1949,7 +1947,7 @@ impl<T: Config> Pallet<T> {
 			}
 			*refs += 1;
 		});
-		weight
+		Weight::from_computation(weight)
 	}
 
 	/// Decrease the number of reference of the validation code and remove it from storage if zero
@@ -1961,7 +1959,7 @@ impl<T: Config> Pallet<T> {
 		let refs = <Self as Store>::CodeByHashRefs::get(code_hash);
 		if refs == 0 {
 			log::error!(target: LOG_TARGET, "Code refs is already zero for {:?}", code_hash);
-			return weight
+			return Weight::from_computation(weight)
 		}
 		if refs <= 1 {
 			weight += T::DbWeight::get().writes(2);
@@ -1971,7 +1969,7 @@ impl<T: Config> Pallet<T> {
 			weight += T::DbWeight::get().writes(1);
 			<Self as Store>::CodeByHashRefs::insert(code_hash, refs - 1);
 		}
-		weight
+		Weight::from_computation(weight)
 	}
 
 	/// Test function for triggering a new session in this pallet.

@@ -25,7 +25,7 @@ use crate::{
 	scheduler::CoreAssignment, shared, ump,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_support::pallet_prelude::*;
+use frame_support::{dispatch::Zero, pallet_prelude::*};
 use parity_scale_codec::{Decode, Encode};
 use primitives::v2::{
 	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
@@ -303,7 +303,7 @@ const LOG_TARGET: &str = "runtime::inclusion";
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	/// Block finalization logic, called by initializer.
@@ -750,7 +750,7 @@ impl<T: Config> Pallet<T> {
 		);
 
 		// initial weight is config read.
-		let mut weight = T::DbWeight::get().reads_writes(1, 0);
+		let mut weight = Weight::from_computation(T::DbWeight::get().reads_writes(1, 0));
 		if let Some(new_code) = commitments.new_validation_code {
 			weight += <paras::Pallet<T>>::schedule_code_upgrade(
 				receipt.descriptor.para_id,

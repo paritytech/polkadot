@@ -20,7 +20,7 @@ use crate::{
 };
 use frame_support::pallet_prelude::*;
 use primitives::v2::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
-use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
+use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion, Zero};
 use sp_std::{fmt, prelude::*};
 use xcm::latest::SendError;
 
@@ -109,7 +109,7 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	/// Block finalization logic, called by initializer.
@@ -204,7 +204,7 @@ impl<T: Config> Pallet<T> {
 				*q = q.split_off(processed_downward_messages);
 			}
 		});
-		T::DbWeight::get().reads_writes(1, 1)
+		Weight::from_computation(T::DbWeight::get().reads_writes(1, 1))
 	}
 
 	/// Returns the Head of Message Queue Chain for the given para or `None` if there is none

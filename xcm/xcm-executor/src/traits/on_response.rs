@@ -14,8 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::weights::Weight;
-use xcm::latest::{Error as XcmError, MultiLocation, QueryId, Response, Result as XcmResult};
+use frame_support::dispatch::Zero;
+use xcm::latest::{
+	Error as XcmError, MultiLocation, QueryId, Response, Result as XcmResult, Weight,
+};
 
 /// Define what needs to be done upon receiving a query response.
 pub trait OnResponse {
@@ -39,7 +41,7 @@ impl OnResponse for () {
 		_response: Response,
 		_max_weight: Weight,
 	) -> Weight {
-		0
+		Weight::zero()
 	}
 }
 

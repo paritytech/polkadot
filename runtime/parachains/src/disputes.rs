@@ -322,7 +322,7 @@ impl<BlockNumber: Ord> DisputesHandler<BlockNumber> for () {
 	}
 
 	fn initializer_initialize(_now: BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	fn initializer_finalize() {}
@@ -398,7 +398,7 @@ pub trait WeightInfo {
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn force_unfreeze() -> Weight {
-		0
+		Weight::zero()
 	}
 }
 
@@ -825,7 +825,7 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		weight
+		Weight::from_computation(weight)
 	}
 
 	/// Called by the initializer to finalize the disputes pallet.

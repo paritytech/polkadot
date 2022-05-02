@@ -20,6 +20,7 @@ use crate::messages::{source::FromThisChainMessagePayload, MessageBridge};
 
 use bp_messages::{LaneId, MessageDetails, MessageNonce};
 use codec::Decode;
+use frame_support::weights::Weight;
 use sp_std::vec::Vec;
 
 /// Implementation of the `To*OutboundLaneApi::message_details`.
@@ -41,7 +42,7 @@ where
 				FromThisChainMessagePayload::<BridgeConfig>::decode(&mut &message_data.payload[..]).ok()?;
 			Some(MessageDetails {
 				nonce,
-				dispatch_weight: decoded_payload.weight,
+				dispatch_weight: Weight::from_computation(decoded_payload.weight),
 				size: message_data.payload.len() as _,
 				delivery_and_dispatch_fee: message_data.fee,
 				dispatch_fee_payment: decoded_payload.dispatch_fee_payment,

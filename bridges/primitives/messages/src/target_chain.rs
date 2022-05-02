@@ -20,7 +20,7 @@ use crate::{LaneId, Message, MessageData, MessageKey, OutboundLaneData};
 
 use bp_runtime::{messages::MessageDispatchResult, Size};
 use codec::{Decode, Encode, Error as CodecError};
-use frame_support::{weights::Weight, Parameter, RuntimeDebug};
+use frame_support::{dispatch::Zero, weights::Weight, Parameter, RuntimeDebug};
 use scale_info::TypeInfo;
 use sp_std::{collections::btree_map::BTreeMap, fmt::Debug, prelude::*};
 
@@ -166,7 +166,7 @@ impl<AccountId, Fee> MessageDispatch<AccountId, Fee> for ForbidInboundMessages {
 	) -> MessageDispatchResult {
 		MessageDispatchResult {
 			dispatch_result: false,
-			unspent_weight: 0,
+			unspent_weight: Weight::zero(),
 			dispatch_fee_paid_during_dispatch: false,
 		}
 	}

@@ -23,7 +23,7 @@ use crate::{
 	configuration, paras, scheduler, shared,
 	util::{take_active_subset, take_active_subset_and_inactive},
 };
-use frame_support::{pallet_prelude::*, traits::OneSessionHandler};
+use frame_support::{dispatch::Zero, pallet_prelude::*, traits::OneSessionHandler};
 use primitives::v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
 use sp_std::vec::Vec;
 
@@ -149,7 +149,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Called by the initializer to initialize the session info pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	/// Called by the initializer to finalize the session info pallet.

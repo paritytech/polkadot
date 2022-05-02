@@ -57,7 +57,7 @@ impl WeightToFeePolynomial for WeightToFee {
 	fn polynomial() -> WeightToFeeCoefficients<Balance> {
 		const CENTS: Balance = 1_000_000_000_000 / 100;
 		let p = CENTS;
-		let q = 10 * Balance::from(ExtrinsicBaseWeight::get());
+		let q = 10 * Balance::from(ExtrinsicBaseWeight::get().computation());
 		smallvec::smallvec![WeightToFeeCoefficient {
 			degree: 1,
 			negative: false,
@@ -99,7 +99,7 @@ pub const EXISTENTIAL_DEPOSIT: Balance = 1_000_000_000_000 / 100;
 /// chain. Don't put too much reserve there, because it is used to **decrease**
 /// `DEFAULT_MESSAGE_DELIVERY_TX_WEIGHT` cost. So putting large reserve would make delivery
 /// transactions cheaper.
-pub const PAY_INBOUND_DISPATCH_FEE_WEIGHT: Weight = 600_000_000;
+pub const PAY_INBOUND_DISPATCH_FEE_WEIGHT: Weight = Weight::new().set_computation(600_000_000);
 
 sp_api::decl_runtime_apis! {
 	/// API for querying information about the finalized Rococo headers.

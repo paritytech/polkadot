@@ -27,7 +27,7 @@ use codec::{Decode, Encode, EncodeLike};
 use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{BadOrigin, Saturating},
+	traits::{BadOrigin, Saturating, Zero},
 	RuntimeDebug,
 };
 use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
@@ -48,6 +48,7 @@ pub mod pallet {
 	use frame_system::{pallet_prelude::*, Config as SysConfig};
 	use sp_core::H256;
 	use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
+	use xcm::latest::Weight;
 	use xcm_executor::{
 		traits::{
 			ClaimAssets, DropAssets, InvertLocation, OnResponse, VersionChangeNotifier,
@@ -403,11 +404,11 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
+		fn on_initialize(_n: BlockNumberFor<T>) -> frame_support::weights::Weight {
 			let mut weight_used = 0;
 			if let Some(migration) = CurrentMigration::<T>::get() {
 				// Consume 10% of block at most
-				let max_weight = T::BlockWeights::get().max_block / 10;
+				let max_weight = (T::BlockWeights::get().max_block / 10).computation();
 				let (w, maybe_migration) = Self::check_xcm_version_change(migration, max_weight);
 				CurrentMigration::<T>::set(maybe_migration);
 				weight_used.saturating_accrue(w);
@@ -433,13 +434,13 @@ pub mod pallet {
 			if let Ok(q) = BoundedVec::try_from(q) {
 				VersionDiscoveryQueue::<T>::put(q);
 			}
-			weight_used
+			frame_support::weights::Weight::from_computation(weight_used)
 		}
-		fn on_runtime_upgrade() -> Weight {
+		fn on_runtime_upgrade() -> frame_support::weights::Weight {
 			// Start a migration (this happens before on_initialize so it'll happen later in this
 			// block, which should be good enough)...
 			CurrentMigration::<T>::put(VersionMigrationStage::default());
-			T::DbWeight::get().write
+			frame_support::weights::Weight::from_computation(T::DbWeight::get().write)
 		}
 	}
 
@@ -1153,7 +1154,7 @@ pub mod pallet {
 			let dest = T::LocationInverter::invert_location(&responder)
 				.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 			let notify: <T as Config>::Call = notify.into();
-			let max_response_weight = notify.get_dispatch_info().weight;
+			let max_response_weight = notify.get_dispatch_info().weight.computation();
 			let query_id = Self::new_notify_query(responder, notify, timeout);
 			let report_error = Xcm(vec![ReportError { dest, query_id, max_response_weight }]);
 			message.0.insert(0, SetAppendix(report_error));
@@ -1276,14 +1277,14 @@ pub mod pallet {
 	impl<T: Config> DropAssets for Pallet<T> {
 		fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
 			if assets.is_empty() {
-				return 0
+				return Weight::zero()
 			}
 			let versioned = VersionedMultiAssets::from(MultiAssets::from(assets));
 			let hash = BlakeTwo256::hash_of(&(&origin, &versioned));
 			AssetTraps::<T>::mutate(hash, |n| *n += 1);
 			Self::deposit_event(Event::AssetsTrapped(hash, origin.clone(), versioned));
 			// TODO #3735: Put the real weight in there.
-			0
+			Weight::zero()
 		}
 	}
 
@@ -1403,7 +1404,7 @@ pub mod pallet {
 								.using_encoded(|mut bytes| <T as Config>::Call::decode(&mut bytes))
 							{
 								Queries::<T>::remove(query_id);
-								let weight = call.get_dispatch_info().weight;
+								let weight = call.get_dispatch_info().weight.computation();
 								if weight > max_weight {
 									let e = Event::NotifyOverweight(
 										query_id,
@@ -1434,7 +1435,7 @@ pub mod pallet {
 										error_and_info.post_info.actual_weight
 									},
 								}
-								.unwrap_or(weight)
+								.map_or(weight, |w| w.computation())
 							} else {
 								let e =
 									Event::NotifyDecodeFailed(query_id, pallet_index, call_index);

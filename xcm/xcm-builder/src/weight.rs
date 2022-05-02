@@ -16,12 +16,12 @@
 
 use frame_support::{
 	traits::{tokens::currency::Currency as CurrencyT, Get, OnUnbalanced as OnUnbalancedT},
-	weights::{constants::WEIGHT_PER_SECOND, GetDispatchInfo, Weight, WeightToFeePolynomial},
+	weights::{constants::WEIGHT_PER_SECOND, GetDispatchInfo, WeightToFeePolynomial},
 };
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
 use sp_std::{marker::PhantomData, result::Result};
-use xcm::latest::prelude::*;
+use xcm::latest::{prelude::*, Weight};
 use xcm_executor::{
 	traits::{WeightBounds, WeightTrader},
 	Assets,

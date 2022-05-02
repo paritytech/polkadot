@@ -19,7 +19,7 @@
 //! To avoid cyclic dependencies, it is important that this pallet is not
 //! dependent on any of the other pallets.
 
-use frame_support::pallet_prelude::*;
+use frame_support::{dispatch::Zero, pallet_prelude::*};
 use primitives::v2::{SessionIndex, ValidatorId, ValidatorIndex};
 use sp_std::vec::Vec;
 
@@ -75,7 +75,7 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the configuration pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	/// Called by the initializer to finalize the configuration pallet.

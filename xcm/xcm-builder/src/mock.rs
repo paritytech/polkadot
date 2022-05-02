@@ -20,9 +20,7 @@ pub use crate::{
 	FixedRateOfFungible, FixedWeightBounds, LocationInverter, TakeWeightCredit,
 };
 pub use frame_support::{
-	dispatch::{
-		DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, Parameter, Weight,
-	},
+	dispatch::{DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, Parameter},
 	ensure, parameter_types,
 	sp_runtime::DispatchErrorWithPostInfo,
 	traits::{Contains, Get, IsInVec},
