@@ -519,7 +519,7 @@ impl KnownUnfinalizedBlocks {
 	}
 }
 
-#[overseer::subsystem(error=SubsystemError)]
+#[overseer::subsystem(AvailabilityStore, error=SubsystemError)]
 impl<Context> AvailabilityStoreSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run::<Context>(self, ctx).map(|_| Ok(())).boxed();

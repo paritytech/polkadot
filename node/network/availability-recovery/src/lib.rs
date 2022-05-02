@@ -806,7 +806,7 @@ impl Default for State {
 	}
 }
 
-#[overseer::subsystem(error=SubsystemError)]
+#[overseer::subsystem(AvailabilityRecovery, error=SubsystemError)]
 impl<Context> AvailabilityRecoverySubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self

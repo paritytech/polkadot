@@ -124,7 +124,7 @@ impl Config {
 	}
 }
 
-#[overseer::subsystem(error=SubsystemError)]
+#[overseer::subsystem(DisputeCoordinator, error=SubsystemError)]
 impl<Context> DisputeCoordinatorSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async {

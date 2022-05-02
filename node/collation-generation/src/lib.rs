@@ -164,7 +164,7 @@ impl CollationGenerationSubsystem {
 	}
 }
 
-#[overseer::subsystem(error=SubsystemError)]
+#[overseer::subsystem(CollationGeneration, error=SubsystemError)]
 impl<Context> CollationGenerationSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async move {
