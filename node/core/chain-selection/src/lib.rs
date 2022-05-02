@@ -318,9 +318,9 @@ impl ChainSelectionSubsystem {
 
 	/// Revert to the block corresponding to the specified `hash`.
 	/// The revert is not allowed for blocks older than the last finalized one.
-	pub fn revert(&self, hash: Hash) -> Result<(), Error> {
-		let backend_config = db_backend::v1::Config { col_data: self.config.col_data };
-		let mut backend = db_backend::v1::DbBackend::new(self.db.clone(), backend_config);
+	pub fn revert_to(&self, hash: Hash) -> Result<(), Error> {
+		let config = db_backend::v1::Config { col_data: self.config.col_data };
+		let mut backend = db_backend::v1::DbBackend::new(self.db.clone(), config);
 
 		let ops = tree::revert_to(&backend, hash)?.into_write_ops();
 
