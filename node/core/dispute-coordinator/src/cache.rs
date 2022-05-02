@@ -190,8 +190,6 @@ impl OverlayCache {
 					}
 				}
 			}
-		} else {
-			println!("{:?} is known key", (session, *candidate_hash));
 		}
 
 		self.cached_candidate_votes.insert((session, *candidate_hash), candidate_votes);
