@@ -38,7 +38,9 @@ use polkadot_node_subsystem::{
 	errors::{SubsystemError, SubsystemResult},
 	messages::{
 		network_bridge_event::{NewGossipTopology, TopologyPeerInfo},
-		AllMessages, CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage,
+		AllMessages, ApprovalDistributionMessage, BitfieldDistributionMessage,
+		CollatorProtocolMessage, GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage,
+		StatementDistributionMessage,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemSender,
@@ -1099,6 +1101,7 @@ async fn dispatch_validation_events_to_all<I>(
 	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>>,
 	I::IntoIter: Send,
 {
+	let sender = ctx.sender();
 	for event in events {
 		sender.send_messages(event.focus().map(ApprovalDistributionMessage::from)).await;
 		sender.send_messages(event.focus().map(BitfieldDistributionMessage::from)).await;

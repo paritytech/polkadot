@@ -32,11 +32,16 @@ pub(crate) fn impl_subsystem_gen(
 	let support_crate = support_crate();
 
 	let me = match &*struktured_impl.self_ty {
-		syn::Type::Path(ref path) => dbg!(path)
+		syn::Type::Path(ref path) => path
 			.path
 			.segments
 			.last()
-			.expect("Must be ident. FIXME bail properly")
+			.ok_or_else(|| {
+				syn::Error::new(
+					path.path.span(),
+					"Missing an identifier at the end of the path provided",
+				)
+			})?
 			.ident
 			.clone(),
 		_ => return Err(syn::Error::new(attr.span(), "Doesn't take any arguments at this time")),
