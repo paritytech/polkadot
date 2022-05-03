@@ -306,6 +306,9 @@ impl Backend for TestStoreInner {
 				BackendWriteOp::WriteStoredBlockRange(stored_block_range) => {
 					self.stored_block_range = Some(stored_block_range);
 				},
+				BackendWriteOp::DeleteStoredBlockRange => {
+					self.stored_block_range = None;
+				},
 				BackendWriteOp::WriteBlocksAtHeight(h, blocks) => {
 					self.blocks_at_height.insert(h, blocks);
 				},

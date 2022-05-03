@@ -318,7 +318,11 @@ pub fn revert_to(
 	overlay: &mut OverlayedBackend<'_, impl Backend>,
 	hash: Hash,
 ) -> SubsystemResult<()> {
-	let (children, height) = match overlay.load_block_entry(&hash)? {
+	let mut stored_range = overlay.load_stored_blocks()?.ok_or_else(|| {
+		SubsystemError::Context("no available blocks to infer revert point height".to_string())
+	})?;
+
+	let (children, children_height) = match overlay.load_block_entry(&hash)? {
 		Some(mut entry) => {
 			let children_height = entry.block_number() + 1;
 			let children = std::mem::take(&mut entry.children);
@@ -327,13 +331,7 @@ pub fn revert_to(
 			(children, children_height)
 		},
 		None => {
-			let children_height =
-				overlay.load_stored_blocks()?.map(|range| range.0).ok_or_else(|| {
-					SubsystemError::Context(
-						"no available blocks to infer revert point height".to_string(),
-					)
-				})?;
-
+			let children_height = stored_range.0;
 			let children = overlay.load_blocks_at_height(&children_height)?;
 
 			let child_entry = children
@@ -355,11 +353,18 @@ pub fn revert_to(
 		},
 	};
 
-	let mut stack: Vec<_> = children.into_iter().map(|h| (h, height)).collect();
+	let mut stack: Vec<_> = children.into_iter().map(|h| (h, children_height)).collect();
+	let mut range_top = stored_range.1;
 
 	while let Some((hash, number)) = stack.pop() {
 		let mut blocks_at_height = overlay.load_blocks_at_height(&number)?;
 		blocks_at_height.retain(|h| h != &hash);
+
+		// Check if we need to update the range top
+		if blocks_at_height.is_empty() && number <= range_top {
+			range_top = number.saturating_sub(1);
+		}
+
 		overlay.write_blocks_at_height(number, blocks_at_height);
 
 		if let Some(entry) = overlay.load_block_entry(&hash)? {
@@ -382,5 +387,16 @@ pub fn revert_to(
 			stack.extend(entry.children.into_iter().map(|h| (h, number + 1)));
 		}
 	}
+
+	// Check if our modifications to the dag has reduced the range top
+	if range_top != stored_range.1 {
+		if stored_range.0 <= range_top {
+			stored_range.1 = range_top;
+			overlay.write_stored_block_range(stored_range);
+		} else {
+			overlay.delete_stored_block_range();
+		}
+	}
+
 	Ok(())
 }

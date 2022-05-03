@@ -37,6 +37,7 @@ pub enum BackendWriteOp {
 	WriteBlocksAtHeight(BlockNumber, Vec<Hash>),
 	WriteBlockEntry(BlockEntry),
 	WriteCandidateEntry(CandidateEntry),
+	DeleteStoredBlockRange,
 	DeleteBlocksAtHeight(BlockNumber),
 	DeleteBlockEntry(Hash),
 	DeleteCandidateEntry(CandidateHash),
@@ -70,9 +71,8 @@ pub trait Backend {
 /// the underlying backend, give the same view as the state of the overlay.
 pub struct OverlayedBackend<'a, B: 'a> {
 	inner: &'a B,
-
-	// `None` means unchanged
-	stored_block_range: Option<StoredBlockRange>,
+	// `Some(None)` means deleted. Missing (`None`) means query inner.
+	stored_block_range: Option<Option<StoredBlockRange>>,
 	// `None` means 'deleted', missing means query inner.
 	blocks_at_height: HashMap<BlockNumber, Option<Vec<Hash>>>,
 	// `None` means 'deleted', missing means query inner.
@@ -112,7 +112,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 
 	pub fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>> {
 		if let Some(val) = self.stored_block_range.clone() {
-			return Ok(Some(val))
+			return Ok(val)
 		}
 
 		self.inner.load_stored_blocks()
@@ -148,7 +148,11 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	// The assumption is that stored block range is only None on initialization.
 	// Therefore, there is no need to delete_stored_block_range.
 	pub fn write_stored_block_range(&mut self, range: StoredBlockRange) {
-		self.stored_block_range = Some(range);
+		self.stored_block_range = Some(Some(range));
+	}
+
+	pub fn delete_stored_block_range(&mut self) {
+		self.stored_block_range = Some(None);
 	}
 
 	pub fn write_blocks_at_height(&mut self, height: BlockNumber, blocks: Vec<Hash>) {
@@ -193,9 +197,12 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 			None => BackendWriteOp::DeleteCandidateEntry(h),
 		});
 
-		self.stored_block_range
-			.map(|v| BackendWriteOp::WriteStoredBlockRange(v))
-			.into_iter()
+		let stored_block_range_ops = self.stored_block_range.into_iter().map(|v| match v {
+			Some(v) => BackendWriteOp::WriteStoredBlockRange(v),
+			None => BackendWriteOp::DeleteStoredBlockRange,
+		});
+
+		stored_block_range_ops
 			.chain(blocks_at_height_ops)
 			.chain(block_entry_ops)
 			.chain(candidate_entry_ops)
