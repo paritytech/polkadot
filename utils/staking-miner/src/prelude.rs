@@ -20,8 +20,31 @@
 //! It is actually easy to convert the rest as well, but it'll be a lot of noise in our codebase,
 //! needing to sprinkle `any_runtime` in a few extra places.
 
+use frame_support::{parameter_types, traits::ConstU32, weights::Weight};
+use sp_runtime::{PerU16, Perbill};
+
+const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+
+parameter_types! {
+	pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights
+		::with_sensible_defaults(2 * frame_support::weights::constants::WEIGHT_PER_SECOND, NORMAL_DISPATCH_RATIO);
+	pub static MinerMaxWeight: Weight = BlockWeights::get().max_block;
+	pub static MinerMaxLength: u32 = 256;
+	pub static MinerMaxVotesPerVotes: u32 = 16;
+}
+
+frame_election_provider_support::generate_solution_type!(
+	#[compact]
+	pub struct MockedNposSolution::<
+		VoterIndex = u32,
+		TargetIndex = u16,
+		Accuracy = PerU16,
+		MaxVoters = ConstU32::<2_000>
+	>(16)
+);
+
 /// The account id type.
-pub type AccountId = core_primitives::AccountId;
+pub type AccountId = sp_runtime::AccountId32;
 /// The block number type.
 pub type BlockNumber = core_primitives::BlockNumber;
 /// The balance type.
@@ -63,3 +86,26 @@ pub type RuntimeApi = crate::runtime::RuntimeApi<
 pub use crate::runtime::runtime_types as runtime;
 
 pub type Signer = subxt::PairSigner<subxt::DefaultConfig, subxt::sp_core::sr25519::Pair>;
+
+struct MockedMiner;
+
+impl pallet_election_provider_multi_phase::unsigned::MinerConfig for MockedMiner {
+	type AccountId = AccountId;
+	type MaxLength = MinerMaxLength;
+	type MaxWeight = MinerMaxWeight;
+	type MaxVotesPerVoter = MinerMaxVotesPerVotes;
+	type Solution = MockedNposSolution;
+
+	fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
+		todo!();
+		// match MockWeightInfo::get() {
+		//     MockedWeightInfo::Basic =>
+		//         (10 as Weight).saturating_add((5 as Weight).saturating_mul(a as Weight)),
+		//     MockedWeightInfo::Complex => (0 * v + 0 * t + 1000 * a + 0 * d) as Weight,
+		//     MockedWeightInfo::Real =>
+		//         <() as multi_phase::weights::WeightInfo>::feasibility_check(v, t, a, d),
+		// }
+	}
+}
+
+pub type Miner = pallet_election_provider_multi_phase::unsigned::Miner<MockedMiner>;

@@ -179,25 +179,32 @@ async fn send_and_watch_extrinsic(
 			.storage()
 			.election_provider_multi_phase()
 			.snapshot(Some(hash))
-			.await?
-			.unwrap();
+			.await
+			.unwrap()
+			.unwrap_or_else(|| RoundSnapshot { voters: Vec::new(), targets: Vec::new() });
+
 		let desired_targets = api
 			.storage()
 			.election_provider_multi_phase()
 			.desired_targets(Some(hash))
-			.await?
-			.unwrap();
+			.await
+			.unwrap()
+			.unwrap_or_default();
 
 		use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
 
+
 		match config.solver {
 			Solver::SeqPhragmen { iterations } => {
-				BalanceIterations::set(*iterations);
-				SequentialPhragmen::<AccountId32, Perbill, Balancing>::solve(todo!())
+				//BalanceIterations::set(*iterations);
+
+				type S = SequentialPhragmen<AccountId32, Perbill, Balancing>;
+				Miner::mine_solution_with_snapshot::<S>(voters, targets, desired_targets);
 			},
 			Solver::PhragMMS { iterations } => {
-				BalanceIterations::set(*iterations);
-				PhragMMS::<AccountId32, Perbill, Balancing>::solve();
+				//BalanceIterations::set(*iterations);
+				//PhragMMS::<AccountId32, Perbill, Balancing>::solve();
+				todo!();
 			},
 		}
 	};

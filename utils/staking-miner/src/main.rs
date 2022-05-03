@@ -49,7 +49,11 @@ use tracing_subscriber::{fmt, EnvFilter};
 
 use std::{ops::Deref, sync::Arc};
 
-#[subxt::subxt(runtime_metadata_path = "metadata.scale")]
+#[subxt::subxt(
+	runtime_metadata_path = "metadata.scale",
+	derive_for_all_types = "Clone, PartialEq",
+	derive_for_type(type = "sp_core::crypto::AccountId32", derive = "Eq, Ord, PartialOrd")
+)]
 pub mod runtime {}
 
 pub type RuntimeApi = runtime::RuntimeApi<DefaultConfig, PolkadotExtrinsicParams<DefaultConfig>>;
@@ -112,7 +116,7 @@ impl FromStr for SubmissionStrategy {
 			let percent: u32 = s[15..].parse().map_err(|e| format!("{:?}", e))?;
 			Self::ClaimBetterThan(Perbill::from_percent(percent))
 		} else {
-			return Err(s.into());
+			return Err(s.into())
 		};
 		Ok(res)
 	}
@@ -213,8 +217,10 @@ async fn create_election_ext(
 	at: Option<Hash>,
 	additional: Vec<String>,
 ) -> Result<Ext, anyhow::Error> {
-	use crate::runtime::election_provider_multi_phase::storage::Round;
-	use crate::runtime::system::storage::{BlockHash, Number};
+	use crate::runtime::{
+		election_provider_multi_phase::storage::Round,
+		system::storage::{BlockHash, Number},
+	};
 	use subxt::storage::{StorageEntry, StorageKeyPrefix};
 
 	// dummy way to get the name of the pallet.

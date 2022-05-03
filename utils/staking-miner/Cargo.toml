@@ -24,6 +24,7 @@ remote-externalities = { git = "https://github.com/paritytech/substrate", branch
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
