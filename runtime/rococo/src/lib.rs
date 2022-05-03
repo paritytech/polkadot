@@ -185,6 +185,7 @@ construct_runtime! {
 		Indices: pallet_indices,
 		Balances: pallet_balances,
 		TransactionPayment: pallet_transaction_payment,
+		Remark: pallet_remark,
 
 		// Consensus support.
 		// Authorship must be before session in order to note author in the correct session for
@@ -374,6 +375,11 @@ impl parachains_disputes::Config for Runtime {
 	type RewardValidators = ();
 	type PunishValidators = ();
 	type WeightInfo = weights::runtime_parachains_disputes::WeightInfo<Runtime>;
+}
+
+impl pallet_remark::Config for Runtime {
+	type WeightInfo = pallet_remark::weights::SubstrateWeight<Self>;
+	type Event = Event;
 }
 
 parameter_types! {
