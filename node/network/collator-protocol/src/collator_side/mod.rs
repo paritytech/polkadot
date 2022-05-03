@@ -816,9 +816,9 @@ where
 					);
 					let _ = sender.send(CollationSecondedSignal { statement, relay_parent });
 				} else {
-					gum::warn!(
+					gum::debug!(
 						target: LOG_TARGET,
-						?statement,
+						candidate_hash = ?&statement.payload().candidate_hash(),
 						?origin,
 						"received an unexpected `CollationSeconded`: unknown statement",
 					);

@@ -11,7 +11,7 @@ use jsonrpsee::core::Error as RpcError;
 use sc_transaction_pool_api::TransactionStatus;
 use sp_runtime::Perbill;
 use std::sync::Arc;
-use subxt::{sp_core::storage::StorageKey, sp_runtime::Perbill};
+use subxt::sp_core::storage::StorageKey;
 use tokio::sync::mpsc;
 
 /// Ensure that now is the signed phase.
@@ -142,93 +142,6 @@ pub(crate) async fn run_cmd(
 			signer.clone(),
 			config.clone(),
 		));
-	}
-}
-
-mod mock_runtime {
-	use super::*;
-	use crate::runtime::runtime_types::primitive_types::H256;
-	use core_primitives::BlakeTwo256;
-	use pallet_election_provider_multi_phase as multi_phase;
-	use sp_runtime::traits::Header;
-
-	pub type Block = sp_runtime::generic::Block<Header, UncheckedExtrinsic>;
-	pub type UncheckedExtrinsic = sp_runtime::generic::UncheckedExtrinsic<AccountId, Call, (), ()>;
-
-	frame_support::construct_runtime!(
-		pub enum Runtime where
-			Block = Block,
-			NodeBlock = Block,
-			UncheckedExtrinsic = UncheckedExtrinsic
-		{
-			System: frame_system,
-			MultiPhase: multi_phase::{Pallet, Call, Event<T>},
-		}
-	);
-
-	// IMPORTANT: should be same as real runtime
-	pub(crate) type Balance = u32;
-	pub(crate) type BlockNumber = u32;
-	pub(crate) type VoterIndex = u32;
-	pub(crate) type TargetIndex = u16;
-
-	impl frame_system::Config for Runtime {
-		type SS58Prefix = ();
-		type BaseCallFilter = frame_support::traits::Everything;
-		type Origin = Origin;
-		type Index = u64;
-		type BlockNumber = BlockNumber;
-		type Call = Call;
-		type Hash = H256;
-		type Hashing = BlakeTwo256;
-		type AccountId = AccountId;
-		type Lookup = IdentityLookup<Self::AccountId>;
-		type Header = Header;
-		type Event = Event;
-		type BlockHashCount = ();
-		type DbWeight = ();
-		type BlockLength = ();
-		type BlockWeights = BlockWeights;
-		type Version = ();
-		type PalletInfo = PalletInfo;
-		type AccountData = pallet_balances::AccountData<u64>;
-		type OnNewAccount = ();
-		type OnKilledAccount = ();
-		type SystemWeightInfo = ();
-		type OnSetCode = ();
-		type MaxConsumers = ConstU32<16>;
-	}
-	impl pallet_election_provider_multi_phase::Config for MockRuntime {
-		type Event = Event;
-		type Currency = Balances;
-		type EstimateCallFee = frame_support::traits::ConstU32<8>;
-		type SignedPhase = SignedPhase;
-		type UnsignedPhase = UnsignedPhase;
-		type BetterUnsignedThreshold = BetterUnsignedThreshold;
-		type BetterSignedThreshold = BetterSignedThreshold;
-		type OffchainRepeat = OffchainRepeat;
-		type MinerMaxWeight = MinerMaxWeight;
-		type MinerMaxLength = MinerMaxLength;
-		type MinerTxPriority = MinerTxPriority;
-		type SignedRewardBase = SignedRewardBase;
-		type SignedDepositBase = SignedDepositBase;
-		type SignedDepositByte = ();
-		type SignedDepositWeight = ();
-		type SignedMaxWeight = SignedMaxWeight;
-		type SignedMaxSubmissions = SignedMaxSubmissions;
-		type SignedMaxRefunds = SignedMaxRefunds;
-		type SlashHandler = ();
-		type RewardHandler = ();
-		type DataProvider = StakingMock;
-		type WeightInfo = DualMockWeightInfo;
-		type BenchmarkingConfig = TestBenchmarkingConfig;
-		type Fallback = MockFallback;
-		type GovernanceFallback = NoFallback<Self>;
-		type ForceOrigin = frame_system::EnsureRoot<AccountId>;
-		type Solution = TestNposSolution;
-		type MaxElectingVoters = MaxElectingVoters;
-		type MaxElectableTargets = MaxElectableTargets;
-		type Solver = SequentialPhragmen<AccountId, SolutionAccuracyOf<Runtime>, Balancing>;
 	}
 }
 
