@@ -12,3 +12,5 @@ polkadot.*
 .DS_Store
 .cargo
 .env
+logs/
+/*.json
