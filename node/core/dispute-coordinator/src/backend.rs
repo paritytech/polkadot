@@ -78,23 +78,22 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 
 	/// Load the earliest session, if any.
 	pub fn load_earliest_session(&self) -> SubsystemResult<Option<SessionIndex>> {
+		let _read_timer = self.metrics.time_db_read_operation("earliest_session");
 		if let Some(val) = self.cache.get_earliest_session() {
 			return Ok(Some(*val))
 		}
 
-		let _read_timer = self.metrics.time_db_read_operation("earliest_session");
 		self.inner.load_earliest_session()
 	}
 
 	/// Load the recent disputes, if any.
 	pub fn load_recent_disputes(&mut self) -> SubsystemResult<Option<RecentDisputes>> {
+		let _read_timer = self.metrics.time_db_read_operation("recent_disputes");
 		if let Some(disputes) = self.cache.load_recent_disputes() {
 			return Ok(Some(disputes))
 		}
 
-		let read_timer = self.metrics.time_db_read_operation("recent_disputes");
 		let disputes = self.inner.load_recent_disputes()?;
-		drop(read_timer);
 
 		if let Some(disputes) = disputes {
 			self.cache.update_recent_disputes(disputes.clone());
@@ -110,13 +109,12 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		session: SessionIndex,
 		candidate_hash: &CandidateHash,
 	) -> SubsystemResult<Option<CandidateVotes>> {
+		let _read_timer = self.metrics.time_db_read_operation("candidate_votes");
 		if let Some(candidate_votes) = self.cache.load_candidate_votes(session, candidate_hash) {
 			return Ok(candidate_votes)
 		}
 
-		let read_timer = self.metrics.time_db_read_operation("candidate_votes");
 		let votes = self.inner.load_candidate_votes(session, candidate_hash)?;
-		drop(read_timer);
 
 		if let Some(votes) = votes {
 			self.cache.update_candidate_votes(session, candidate_hash, Some(votes.clone()));
