@@ -65,7 +65,7 @@ pub enum Error {
 	BackedCandidateOrderingProblem,
 }
 
-/// Used by `get_onchain_disputes` to represent errors related to fatching onchain disputes from the Runtime
+/// Used by `get_onchain_disputes` to represent errors related to fetching on-chain disputes from the Runtime
 #[allow(dead_code)] // Remove when promoting to stable
 #[fatality::fatality]
 pub enum GetOnchainDisputesError {
