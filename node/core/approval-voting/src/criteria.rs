@@ -445,7 +445,7 @@ pub(crate) enum InvalidAssignmentReason {
 	ValidatorIndexOutOfBounds,
 	SampleOutOfBounds,
 	CoreIndexOutOfBounds,
-	InvalidSignature,
+	InvalidAssignmentKey,
 	IsInBackingGroup,
 	VRFModuloCoreIndexMismatch,
 	VRFModuloOutputMismatch,
@@ -480,7 +480,7 @@ pub(crate) fn check_assignment_cert(
 		.ok_or(InvalidAssignment(Reason::ValidatorIndexOutOfBounds))?;
 
 	let public = schnorrkel::PublicKey::from_bytes(validator_public.as_slice())
-		.map_err(|_| InvalidAssignment(Reason::InvalidSignature))?;
+		.map_err(|_| InvalidAssignment(Reason::InvalidAssignmentKey))?;
 
 	if claimed_core_index.0 >= config.n_cores {
 		return Err(InvalidAssignment(Reason::CoreIndexOutOfBounds))
