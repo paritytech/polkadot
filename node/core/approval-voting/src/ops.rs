@@ -327,17 +327,20 @@ pub fn revert_to(
 			(children, children_height)
 		},
 		None => {
-			// May be a revert to the last finalized block.
-			// Loading all blocks just to get the first one may be expensive
-			// but we should consider that revert is a "one-shot" and very
-			// sporadic operation.
-			let blocks = overlay.load_all_blocks()?;
-			let child_entry = blocks
+			let children_height = overlay.load_stored_blocks()?
+                .map(|range| range.0)
+                .ok_or_else(|| {
+                    SubsystemError::Context("no available blocks to infer revert point heightlookup failure for first block".to_string())
+                })?;
+
+			let children = overlay.load_blocks_at_height(&children_height)?;
+
+			let child_entry = children
 				.first()
 				.and_then(|hash| overlay.load_block_entry(hash).ok())
 				.flatten()
 				.ok_or_else(|| {
-					SubsystemError::Context(format!("lookup failure for block {}", hash))
+					SubsystemError::Context("lookup failure for first block".to_string())
 				})?;
 
 			// The parent is expected to be the revert point
@@ -347,8 +350,6 @@ pub fn revert_to(
 				))
 			}
 
-			let children_height = child_entry.block_number();
-			let children = overlay.load_blocks_at_height(&children_height)?;
 			(children, children_height)
 		},
 	};
