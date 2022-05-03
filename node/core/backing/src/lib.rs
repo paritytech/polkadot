@@ -1001,15 +1001,19 @@ where
 	}
 
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
-	async fn issue_new_misbehaviors(&mut self, ctx: &mut Context) {
+	fn issue_new_misbehaviors(&mut self, ctx: &mut Context) {
 		// collect the misbehaviors to avoid double mutable self borrow issues
 		let misbehaviors: Vec<_> = self.table.drain_misbehaviors().collect();
 		for (validator_id, report) in misbehaviors {
-			ctx.send_message(ProvisionerMessage::ProvisionableData(
+			// The provisioner waits on candidate-backing, which means
+			// that we need to send unbounded messages to avoid cycles.
+			//
+			// Misbehaviors are bounded by the number of validators and
+			// the block production protocol.
+			ctx.send_unbounded_message(ProvisionerMessage::ProvisionableData(
 				self.parent,
 				ProvisionableData::MisbehaviorReport(self.parent, validator_id, report),
-			))
-			.await;
+			));
 		}
 	}
 
@@ -1074,11 +1078,16 @@ where
 						"Candidate backed",
 					);
 
+					// The provisioner waits on candidate-backing, which means
+					// that we need to send unbounded messages to avoid cycles.
+					//
+					// Backed candidates are bounded by the number of validators,
+					// parachains, and the block production rate of the relay chain.
 					let message = ProvisionerMessage::ProvisionableData(
 						self.parent,
 						ProvisionableData::BackedCandidate(backed.receipt()),
 					);
-					ctx.send_message(message).await;
+					ctx.send_unbounded_message(message);
 
 					span.as_ref().map(|s| s.child("backed"));
 					span
@@ -1092,7 +1101,7 @@ where
 			None
 		};
 
-		self.issue_new_misbehaviors(ctx).await;
+		self.issue_new_misbehaviors(ctx);
 
 		// It is important that the child span is dropped before its parent span (`unbacked_span`)
 		drop(import_statement_span);
