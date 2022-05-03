@@ -707,7 +707,7 @@ async fn select_disputes(
 			) = active.into_iter().partition(|d| onchain.contains_key(d));
 
 			let active_subset = if unseen_onchain.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
-				// Even unseen onchain doesn't fit within the limit. Add as much as possible.
+				// Even unseen on-chain don't fit within the limit. Add as many as possible.
 				let mut unseen_subset = Vec::with_capacity(MAX_DISPUTES_FORWARDED_TO_RUNTIME);
 				extend_by_random_subset_without_repetition(
 					&mut unseen_subset,
