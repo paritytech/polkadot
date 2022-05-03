@@ -700,7 +700,7 @@ async fn select_disputes(
 
 		let mut active = request_disputes(sender, RequestType::Active).await;
 		let active = if active.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
-			// Active disputes doesn't fit within the limit. Add the unseen onchain with priority.
+			// Active disputes don't fit within the limit. Prioritize unseen on-chain disputes.
 			let (seen_onchain, mut unseen_onchain): (
 				Vec<(SessionIndex, CandidateHash)>,
 				Vec<(SessionIndex, CandidateHash)>,
