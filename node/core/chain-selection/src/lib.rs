@@ -317,7 +317,7 @@ impl ChainSelectionSubsystem {
 	}
 
 	/// Revert to the block corresponding to the specified `hash`.
-	/// The revert is not allowed for blocks older than the last finalized one.
+	/// The operation is not allowed for blocks older than the last finalized one.
 	pub fn revert_to(&self, hash: Hash) -> Result<(), Error> {
 		let config = db_backend::v1::Config { col_data: self.config.col_data };
 		let mut backend = db_backend::v1::DbBackend::new(self.db.clone(), config);

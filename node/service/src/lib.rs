@@ -1408,7 +1408,8 @@ pub fn build_full(
 /// Reverts the node state down to at most the last finalized block.
 ///
 /// In particular this reverts:
-/// - `ChainSelectionSubsystem` data in the parachains-db.
+/// - `ApprovalVotingSubsystem` data in the parachains-db;
+/// - `ChainSelectionSubsystem` data in the parachains-db;
 /// - Low level Babe and Grandpa consensus data.
 #[cfg(feature = "full-node")]
 pub fn revert_backend(
@@ -1436,12 +1437,8 @@ pub fn revert_backend(
 	let parachains_db = open_database(&config.database)
 		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))?;
 
-	// Revert approval voting subsystem
 	revert_approval_voting(parachains_db.clone(), hash)?;
-
-	// Revert chain-selection subsystem
 	revert_chain_selection(parachains_db, hash)?;
-
 	// Revert Substrate consensus related components
 	client.execute_with(RevertConsensus { blocks, backend })?;
 
@@ -1477,7 +1474,9 @@ fn revert_approval_voting(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::R
 		}
 	}
 
-	// Construct a usable approval voting subsystem with a dummy sync oracle and keystore.
+	// Construct an approval voting subsystem with a dummy sync oracle and keystore.
+	// This dummy components are not be used by the revert and are only necessary
+	// for construction.
 	let approval_voting = approval_voting_subsystem::ApprovalVotingSubsystem::with_config(
 		config,
 		db,

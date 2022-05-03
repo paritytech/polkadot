@@ -332,22 +332,22 @@ pub fn revert_to(
 			// but we should consider that revert is a "one-shot" and very
 			// sporadic operation.
 			let blocks = overlay.load_all_blocks()?;
-			let entry = blocks
+			let child_entry = blocks
 				.first()
 				.and_then(|hash| overlay.load_block_entry(hash).ok())
 				.flatten()
 				.ok_or_else(|| {
-					SubsystemError::Context(format!("Unexpected lookup failure for block {}", hash))
+					SubsystemError::Context(format!("lookup failure for block {}", hash))
 				})?;
 
 			// The parent is expected to be the revert point
-			if entry.parent_hash() != hash {
+			if child_entry.parent_hash() != hash {
 				return Err(SubsystemError::Context(
 					"revert below last finalized block or corrupted storage".to_string(),
 				))
 			}
 
-			let children_height = entry.block_number();
+			let children_height = child_entry.block_number();
 			let children = overlay.load_blocks_at_height(&children_height)?;
 			(children, children_height)
 		},
