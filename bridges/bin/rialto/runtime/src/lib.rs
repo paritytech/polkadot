@@ -632,8 +632,13 @@ impl_runtime_apis! {
 		fn generate_proof(leaf_index: u64)
 			-> Result<(EncodableOpaqueLeaf, MmrProof<Hash>), MmrError>
 		{
-			Mmr::generate_batch_proof(vec![leaf_index])
-				.map(|(leaves, proof)| (EncodableOpaqueLeaf::from_leaf(leaves[0]), MmrBatchProof::into_single_leaf_proof(proof)))
+			let (leaf, proof) = Mmr::generate_batch_proof(vec![leaf_index])
+				.map(|(leaves, proof)| (EncodableOpaqueLeaf::from_leaf(leaves[0]), MmrBatchProof::into_single_leaf_proof(proof)))?;
+			if let Ok(proof) = proof {
+				Ok((leaf, proof))
+			} else {
+				Err(mmr::Error::InvalidLeafIndex)
+			}
 		}
 
 		fn verify_proof(leaf: EncodableOpaqueLeaf, proof: MmrProof<Hash>)
