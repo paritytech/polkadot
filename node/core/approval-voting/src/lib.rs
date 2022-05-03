@@ -342,99 +342,13 @@ impl ApprovalVotingSubsystem {
 	}
 
 	/// Revert to the block corresponding to the specified `hash`.
-	/// The revert is not allowed for blocks older than the last finalized one.
+	/// The operation is not allowed for blocks older than the last finalized one.
 	pub fn revert_to(&self, hash: Hash) -> Result<(), SubsystemError> {
 		let config = approval_db::v1::Config { col_data: self.db_config.col_data };
 		let mut backend = approval_db::v1::DbBackend::new(self.db.clone(), config);
 		let mut overlay = OverlayedBackend::new(&backend);
 
-		let mut entry = match overlay.load_block_entry(&hash)? {
-			Some(entry) => entry,
-			None => {
-				// This may only happen if hash corresponds to genesis or if
-				// we're trying to revert below the last finalized block.
-				// Revert to genesis block should be handled specially since no
-				// information about it is persisted as a block entry.
-				let blocks = overlay.load_blocks_at_height(&1).unwrap_or_default();
-				let is_genesis = blocks
-					.first()
-					.and_then(|hash| overlay.load_block_entry(hash).ok())
-					.flatten()
-					.map(|entry| entry.parent_hash() == hash)
-					.unwrap_or_default();
-				if !is_genesis {
-					return Err(SubsystemError::Context(
-						"Trying to revert below last finalized block".to_string(),
-					))
-				}
-
-				// TODO: check if dummy entry is removed
-				// We use part of the information contained in the finalized block
-				// children (that are expected to be in the tree) to construct a
-				// dummy block entry for the last finalized block. This will be
-				// wiped as soon as the next block is finalized.
-				let entry = approval_db::v1::BlockEntry {
-					block_hash: hash,
-					block_number: 0,
-					parent_hash: Hash::default(),
-					session: 1,
-					slot: Slot::from(1),
-					relay_vrf_story: [0u8; 32],
-					candidates: Vec::new(),
-					approved_bitfield: approval_db::v1::Bitfield::from_slice(&[]),
-					children: blocks,
-				};
-
-				// This becomes the first entry according to the block number.
-				//backend.write_blocks_by_number(block_number, vec![hash]);
-
-				entry.into()
-			},
-		};
-
-		let mut stack: Vec<_> = std::mem::take(&mut entry.children)
-			.into_iter()
-			.map(|h| (h, entry.block_number() + 1))
-			.collect();
-
-		// Write revert point block entry without the children.
-		overlay.write_block_entry(entry);
-
-		while let Some((hash, number)) = stack.pop() {
-			let mut blocks_at_height = overlay.load_blocks_at_height(&number)?;
-			blocks_at_height.retain(|h| h != &hash);
-			overlay.write_blocks_at_height(number, blocks_at_height);
-
-			if let Some(entry) = overlay.load_block_entry(&hash)? {
-				// Before going through the candidates loop is important to first remove the block
-				// entry.
-				overlay.delete_block_entry(&hash);
-
-				// >>> NOTE / TODO / FIXME <<
-				// THIS EXTREMELLY VERBOSE COMMENTS PURPOSE IS ONLY TO SIMPLIFY CODE REVIEW
-				// REMOVE COMMENTS BEFORE MERGE
-				//
-				// For each candidate in `candidates` of `BlockEntry`:
-				// 1. Use the `CandidateHash` with `load_candidate_entry` to load the `CandidateEntry`.
-				// 2. Remove from the `block_assignments` the entries corresponding to `BlockEntry` hash.
-				// 3. If the candidate is not referenced by any other block (i.e. `block_assignments`
-				//    is empty) then we can remove the entry using `delete_candidate_entry`.
-				for (_, candidate_hash) in entry.candidates() {
-					if let Some(mut candidate_entry) =
-						overlay.load_candidate_entry(candidate_hash)?
-					{
-						candidate_entry.block_assignments.remove(&hash);
-						if candidate_entry.block_assignments.is_empty() {
-							overlay.delete_candidate_entry(candidate_hash);
-						} else {
-							overlay.write_candidate_entry(candidate_entry);
-						}
-					}
-				}
-
-				stack.extend(entry.children.into_iter().map(|h| (h, number + 1)));
-			}
-		}
+		ops::revert_to(&mut overlay, hash)?;
 
 		let ops = overlay.into_write_ops();
 		backend.write(ops)

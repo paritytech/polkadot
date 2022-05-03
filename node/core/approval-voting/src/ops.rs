@@ -17,7 +17,7 @@
 //! Middleware interface that leverages low-level database operations
 //! to provide a clean API for processing block and candidate imports.
 
-use polkadot_node_subsystem::SubsystemResult;
+use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 
 use bitvec::order::Lsb0 as BitOrderLsb0;
 use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, GroupIndex, Hash};
@@ -310,4 +310,75 @@ pub fn force_approve(
 	}
 
 	Ok(approved_hashes)
+}
+
+/// Revert to the block corresponding to the specified `hash`.
+/// The operation is not allowed for blocks older than the last finalized one.
+pub fn revert_to(
+	overlay: &mut OverlayedBackend<'_, impl Backend>,
+	hash: Hash,
+) -> SubsystemResult<()> {
+	let (children, height) = match overlay.load_block_entry(&hash)? {
+		Some(mut entry) => {
+			let children_height = entry.block_number() + 1;
+			let children = std::mem::take(&mut entry.children);
+			// Write revert point block entry without the children.
+			overlay.write_block_entry(entry);
+			(children, children_height)
+		},
+		None => {
+			// May be a revert to the last finalized block.
+			// Loading all blocks just to get the first one may be expensive
+			// but we should consider that revert is a "one-shot" and very
+			// sporadic operation.
+			let blocks = overlay.load_all_blocks()?;
+			let entry = blocks
+				.first()
+				.and_then(|hash| overlay.load_block_entry(hash).ok())
+				.flatten()
+				.ok_or_else(|| {
+					SubsystemError::Context(format!("Unexpected lookup failure for block {}", hash))
+				})?;
+
+			// The parent is expected to be the revert point
+			if entry.parent_hash() != hash {
+				return Err(SubsystemError::Context(
+					"revert below last finalized block or corrupted storage".to_string(),
+				))
+			}
+
+			let children_height = entry.block_number();
+			let children = overlay.load_blocks_at_height(&children_height)?;
+			(children, children_height)
+		},
+	};
+
+	let mut stack: Vec<_> = children.into_iter().map(|h| (h, height)).collect();
+
+	while let Some((hash, number)) = stack.pop() {
+		let mut blocks_at_height = overlay.load_blocks_at_height(&number)?;
+		blocks_at_height.retain(|h| h != &hash);
+		overlay.write_blocks_at_height(number, blocks_at_height);
+
+		if let Some(entry) = overlay.load_block_entry(&hash)? {
+			overlay.delete_block_entry(&hash);
+
+			// Cleanup the candidate entries by removing any reference to the
+			// removed block. If for a candidate entry the block block_assignments
+			// drops to zero then we remove the entry.
+			for (_, candidate_hash) in entry.candidates() {
+				if let Some(mut candidate_entry) = overlay.load_candidate_entry(candidate_hash)? {
+					candidate_entry.block_assignments.remove(&hash);
+					if candidate_entry.block_assignments.is_empty() {
+						overlay.delete_candidate_entry(candidate_hash);
+					} else {
+						overlay.write_candidate_entry(candidate_entry);
+					}
+				}
+			}
+
+			stack.extend(entry.children.into_iter().map(|h| (h, number + 1)));
+		}
+	}
+	Ok(())
 }
