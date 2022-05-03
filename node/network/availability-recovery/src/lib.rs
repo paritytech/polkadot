@@ -441,7 +441,7 @@ impl RequestChunksFromValidators {
 
 							gum::debug!(
 								target: LOG_TARGET,
-								candidate_hash= ?params.candidate_hash,
+								candidate_hash = ?params.candidate_hash,
 								err = ?e,
 								?validator_index,
 								"Chunk fetching response was invalid",
