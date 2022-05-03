@@ -327,11 +327,12 @@ pub fn revert_to(
 			(children, children_height)
 		},
 		None => {
-			let children_height = overlay.load_stored_blocks()?
-                .map(|range| range.0)
-                .ok_or_else(|| {
-                    SubsystemError::Context("no available blocks to infer revert point heightlookup failure for first block".to_string())
-                })?;
+			let children_height =
+				overlay.load_stored_blocks()?.map(|range| range.0).ok_or_else(|| {
+					SubsystemError::Context(
+						"no available blocks to infer revert point height".to_string(),
+					)
+				})?;
 
 			let children = overlay.load_blocks_at_height(&children_height)?;
 
