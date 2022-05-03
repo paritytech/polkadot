@@ -7,11 +7,7 @@ use ::pallet_election_provider_multi_phase::RawSolution;
 use codec::{Decode, Encode};
 use sp_runtime::Perbill;
 use std::sync::Arc;
-use subxt::{
-	extrinsic::{BaseExtrinsicParams, ExtrinsicParams as ExtrinsicParamsT, Signer as SignerT},
-	sp_core::storage::StorageKey,
-	transaction::TransactionStatus,
-};
+use subxt::{sp_core::storage::StorageKey, TransactionStatus};
 use tokio::sync::mpsc;
 
 /// Ensure that now is the signed phase.
@@ -252,7 +248,7 @@ async fn send_and_watch_extrinsic(
 		call,
 	);
 
-	let status = xt
+	let mut status = xt
 		.sign_and_submit_then_watch(
 			&*signer,
 			subxt::PolkadotExtrinsicParamsBuilder::<subxt::DefaultConfig>::default(),
@@ -260,19 +256,19 @@ async fn send_and_watch_extrinsic(
 		.await
 		.unwrap();
 
-	while Some(Ok(status)) = status.next_item().await {
-		match status {
+	while let Some(Ok(s)) = status.next_item().await {
+		match s {
 			TransactionStatus::Ready |
 			TransactionStatus::Broadcast(_) |
 			TransactionStatus::Future => (),
 			TransactionStatus::InBlock(hash) => {
 				log::info!(target: LOG_TARGET, "included at {:?}", hash);
-				let mut balance_events = api
-					.events()
-					.subscribe()
-					.await
-					.unwrap()
-					.filter_events::<(runtime::system::events::ExtrinsicSuccess,)>();
+				/*let mut system_events = api
+				.events()
+				.subscribe()
+				.await
+				.unwrap()
+				.filter_events::<(runtime::system::events::ExtrinsicSuccess,)>();*/
 			},
 			TransactionStatus::Retracted(hash) => {
 				log::info!(target: LOG_TARGET, "Retracted at {:?}", hash);
@@ -287,18 +283,4 @@ async fn send_and_watch_extrinsic(
 			},
 		}
 	}
-	/*let ensure_no_better_fut = tokio::spawn(async move {
-		ensure_no_better_solution::<Runtime, Block>(&rpc1, hash, score, config.submission_strategy)
-			.await
-	});
-
-	let ensure_signed_phase_fut =
-		tokio::spawn(async move { ensure_signed_phase::<Runtime, Block>(&rpc2, hash).await });
-
-	// Run the calls in parallel and return once all has completed or any failed.
-	if tokio::try_join!(flatten(ensure_no_better_fut), flatten(ensure_signed_phase_fut),).is_err() {
-		return;
-	}*/
-
-	// let xt = api.tx().election_provider_multi_phase().submit(raw_solution);
 }

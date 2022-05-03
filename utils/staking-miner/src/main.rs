@@ -32,7 +32,6 @@ mod dry_run;
 mod emergency_solution;
 mod monitor;
 mod prelude;
-mod rpc;
 mod signer;
 
 use std::str::FromStr;
@@ -40,8 +39,6 @@ use std::str::FromStr;
 pub(crate) use prelude::*;
 
 use clap::Parser;
-use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
-use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_npos_elections::ExtendedBalance;
 use sp_runtime::Perbill;
 use subxt::{DefaultConfig, PolkadotExtrinsicParams};

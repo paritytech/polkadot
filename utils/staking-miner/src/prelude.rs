@@ -71,9 +71,6 @@ pub type Ext = sp_io::TestExternalities;
 /// The key pair type being used. We "strongly" assume sr25519 for simplicity.
 pub type Pair = subxt::sp_core::sr25519::Pair;
 
-/// A dynamic token type used to represent account balances.
-pub type Token = sub_tokens::dynamic::DynamicToken;
-
 /// Type alias for the subxt client.
 pub type SubxtClient = subxt::Client<subxt::DefaultConfig>;
 
@@ -84,9 +81,6 @@ pub type RuntimeApi = crate::runtime::RuntimeApi<
 >;
 
 pub type ExtrinsicParams = subxt::PolkadotExtrinsicParams<subxt::DefaultConfig>;
-
-pub type OtherParams =
-	<ExtrinsicParams as subxt::extrinsic::ExtrinsicParams<subxt::DefaultConfig>>::OtherParams;
 
 pub use crate::runtime::runtime_types as runtime;
 
