@@ -1,17 +1,17 @@
 use crate::{
 	prelude::*,
-	runtime::runtime_types::{
-		pallet_election_provider_multi_phase::{self, RoundSnapshot},
-		sp_core::crypto::AccountId32,
-	},
+	runtime::runtime_types::pallet_election_provider_multi_phase::{self, RoundSnapshot},
 	BalanceIterations, Balancing, MonitorConfig, Solver, SubmissionStrategy,
 };
-use codec::Encode;
-use jsonrpsee::core::Error as RpcError;
-use sc_transaction_pool_api::TransactionStatus;
+use ::pallet_election_provider_multi_phase::RawSolution;
+use codec::{Decode, Encode};
 use sp_runtime::Perbill;
 use std::sync::Arc;
-use subxt::sp_core::storage::StorageKey;
+use subxt::{
+	extrinsic::{BaseExtrinsicParams, ExtrinsicParams as ExtrinsicParamsT, Signer as SignerT},
+	sp_core::storage::StorageKey,
+	transaction::TransactionStatus,
+};
 use tokio::sync::mpsc;
 
 /// Ensure that now is the signed phase.
@@ -193,66 +193,101 @@ async fn send_and_watch_extrinsic(
 
 		use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
 
+		let voters: Vec<_> = voters
+			.into_iter()
+			.map(|(a, b, mut c)| {
+				let mut bounded_vec: frame_support::BoundedVec<_, MinerMaxVotesPerVotes> =
+					frame_support::BoundedVec::default();
+
+				bounded_vec.try_append(&mut c.0).unwrap();
+
+				(a, b, bounded_vec)
+			})
+			.collect();
 
 		match config.solver {
 			Solver::SeqPhragmen { iterations } => {
 				//BalanceIterations::set(*iterations);
-
-				type S = SequentialPhragmen<AccountId32, Perbill, Balancing>;
-				Miner::mine_solution_with_snapshot::<S>(voters, targets, desired_targets);
+				Miner::mine_solution_with_snapshot::<
+					SequentialPhragmen<AccountId, Perbill, Balancing>,
+				>(voters, targets, desired_targets)
 			},
 			Solver::PhragMMS { iterations } => {
 				//BalanceIterations::set(*iterations);
-				//PhragMMS::<AccountId32, Perbill, Balancing>::solve();
-				todo!();
+				Miner::mine_solution_with_snapshot::<PhragMMS<AccountId, Perbill, Balancing>>(
+					voters,
+					targets,
+					desired_targets,
+				)
 			},
 		}
 	};
 
-	/*
+	let (solution, score, solution_or_snapshot) = raw_solution.unwrap();
 
-	// mine a solution, and run feasibility check on it as well.
-	let raw_solution = match crate::mine_with::<Runtime>(&config.solver, &mut ext, true) {
-		Ok(r) => r,
-		Err(err) => {
-			let _ = tx.send(err.into());
-			return;
-		},
-	};
-
-	let score = raw_solution.score;
 	log::info!(target: LOG_TARGET, "mined solution with {:?}", score);
 
-	let nonce = match crate::get_account_info::<Runtime>(&rpc, &signer.account, Some(hash)).await {
-		Ok(maybe_account) => {
-			let acc = maybe_account.expect(crate::signer::SIGNER_ACCOUNT_WILL_EXIST);
-			acc.nonce
-		},
-		Err(err) => {
-			let _ = tx.send(err);
-			return;
-		},
-	};
+	let raw_solution = RawSolution { solution, score, round: 1 };
+	let call = Call(Box::new(raw_solution));
 
-	let tip = 0 as Balance;
-	let period = <Runtime as frame_system::Config>::BlockHashCount::get() / 2;
-	let current_block = at.number.saturating_sub(1);
-	let era = sp_runtime::generic::Era::mortal(period.into(), current_block.into());
+	#[derive(Encode)]
+	struct Call(Box<RawSolution<MockedNposSolution>>);
 
-	log::trace!(
-		target: LOG_TARGET,
-		"transaction mortality: {:?} -> {:?}",
-		era.birth(current_block.into()),
-		era.death(current_block.into()),
+	impl subxt::Call for Call {
+		const PALLET: &'static str = "ElectionProviderMultiPhase";
+		const FUNCTION: &'static str = "submit_unsigned";
+	}
+
+	#[derive(Encode, Decode)]
+	struct DummyErr;
+
+	impl subxt::HasModuleError for DummyErr {
+		fn module_error_data(&self) -> Option<subxt::ModuleErrorData> {
+			None
+		}
+	}
+
+	let xt = subxt::SubmittableExtrinsic::<_, ExtrinsicParams, _, DummyErr, String>::new(
+		&api.client,
+		call,
 	);
 
-	let extrinsic = ext.execute_with(|| create_uxt(raw_solution, signer.clone(), nonce, tip, era));
-	let bytes = sp_core::Bytes(extrinsic.encode());
+	let status = xt
+		.sign_and_submit_then_watch(
+			&*signer,
+			subxt::PolkadotExtrinsicParamsBuilder::<subxt::DefaultConfig>::default(),
+		)
+		.await
+		.unwrap();
 
-	let rpc1 = rpc.clone();
-	let rpc2 = rpc.clone();
-
-	let ensure_no_better_fut = tokio::spawn(async move {
+	while Some(Ok(status)) = status.next_item().await {
+		match status {
+			TransactionStatus::Ready |
+			TransactionStatus::Broadcast(_) |
+			TransactionStatus::Future => (),
+			TransactionStatus::InBlock(hash) => {
+				log::info!(target: LOG_TARGET, "included at {:?}", hash);
+				let mut balance_events = api
+					.events()
+					.subscribe()
+					.await
+					.unwrap()
+					.filter_events::<(runtime::system::events::ExtrinsicSuccess,)>();
+			},
+			TransactionStatus::Retracted(hash) => {
+				log::info!(target: LOG_TARGET, "Retracted at {:?}", hash);
+			},
+			TransactionStatus::Finalized(hash) => {
+				log::info!(target: LOG_TARGET, "Finalized at {:?}", hash);
+				break
+			},
+			_ => {
+				log::warn!(target: LOG_TARGET, "Stopping listen due to other status {:?}", status);
+				break
+			},
+		}
+	}
+	/*let ensure_no_better_fut = tokio::spawn(async move {
 		ensure_no_better_solution::<Runtime, Block>(&rpc1, hash, score, config.submission_strategy)
 			.await
 	});
@@ -263,106 +298,7 @@ async fn send_and_watch_extrinsic(
 	// Run the calls in parallel and return once all has completed or any failed.
 	if tokio::try_join!(flatten(ensure_no_better_fut), flatten(ensure_signed_phase_fut),).is_err() {
 		return;
-	}
-
-	let mut tx_subscription = match rpc.watch_extrinsic(&bytes).await {
-		Ok(sub) => sub,
-		Err(RpcError::RestartNeeded(e)) => {
-			let _ = tx.send(RpcError::RestartNeeded(e).into());
-			return;
-		},
-		Err(why) => {
-			// This usually happens when we've been busy with mining for a few blocks, and
-			// now we're receiving the subscriptions of blocks in which we were busy. In
-			// these blocks, we still don't have a solution, so we re-compute a new solution
-			// and submit it with an outdated `Nonce`, which yields most often `Stale`
-			// error. NOTE: to improve this overall, and to be able to introduce an array of
-			// other fancy features, we should make this multi-threaded and do the
-			// computation outside of this callback.
-			log::warn!(
-				target: LOG_TARGET,
-				"failing to submit a transaction {:?}. ignore block: {}",
-				why,
-				at.number
-			);
-			return;
-		},
-	};
-
-	while let Some(rp) = tx_subscription.next().await {
-		let status_update = match rp {
-			Ok(r) => r,
-			// Custom `jsonrpsee` message sent by the server if the subscription was closed on the server side.
-			Err(RpcError::SubscriptionClosed(reason)) => {
-				log::warn!(
-					target: LOG_TARGET,
-					"tx subscription closed by the server: {:?}; skip block: {}",
-					reason,
-					at.number
-				);
-				return;
-			},
-			Err(e) => {
-				log::error!(target: LOG_TARGET, "subscription failed to decode TransactionStatus {:?}, this is a bug please file an issue", e);
-				let _ = tx.send(e.into());
-				return;
-			},
-		};
-
-		log::trace!(target: LOG_TARGET, "status update {:?}", status_update);
-		match status_update {
-			TransactionStatus::Ready
-			| TransactionStatus::Broadcast(_)
-			| TransactionStatus::Future => continue,
-			TransactionStatus::InBlock(hash) => {
-				log::info!(target: LOG_TARGET, "included at {:?}", hash);
-				let key = StorageKey(
-					frame_support::storage::storage_prefix(b"System", b"Events").to_vec(),
-				);
-
-				let events = match rpc
-					.get_storage_and_decode::<Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>>(
-						&key,
-						Some(hash),
-					)
-					.await
-				{
-					Ok(rp) => rp.unwrap_or_default(),
-					Err(RpcHelperError::JsonRpsee(RpcError::RestartNeeded(e))) => {
-						let _ = tx.send(RpcError::RestartNeeded(e).into());
-						return;
-					},
-					// Decoding or other RPC error => just terminate the task.
-					Err(e) => {
-						log::warn!(
-							target: LOG_TARGET,
-							"get_storage [key: {:?}, hash: {:?}] failed: {:?}; skip block: {}",
-							key,
-							hash,
-							e,
-							at.number
-						);
-						return;
-					},
-				};
-
-				log::info!(target: LOG_TARGET, "events at inclusion {:?}", events);
-			},
-			TransactionStatus::Retracted(hash) => {
-				log::info!(target: LOG_TARGET, "Retracted at {:?}", hash);
-			},
-			TransactionStatus::Finalized(hash) => {
-				log::info!(target: LOG_TARGET, "Finalized at {:?}", hash);
-				break;
-			},
-			_ => {
-				log::warn!(
-					target: LOG_TARGET,
-					"Stopping listen due to other status {:?}",
-					status_update
-				);
-				break;
-			},
-		};
 	}*/
+
+	// let xt = api.tx().election_provider_multi_phase().submit(raw_solution);
 }

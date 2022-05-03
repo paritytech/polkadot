@@ -44,7 +44,7 @@ frame_election_provider_support::generate_solution_type!(
 );
 
 /// The account id type.
-pub type AccountId = sp_runtime::AccountId32;
+pub type AccountId = subxt::sp_core::crypto::AccountId32;
 /// The block number type.
 pub type BlockNumber = core_primitives::BlockNumber;
 /// The balance type.
@@ -83,11 +83,16 @@ pub type RuntimeApi = crate::runtime::RuntimeApi<
 	subxt::PolkadotExtrinsicParams<subxt::DefaultConfig>,
 >;
 
+pub type ExtrinsicParams = subxt::PolkadotExtrinsicParams<subxt::DefaultConfig>;
+
+pub type OtherParams =
+	<ExtrinsicParams as subxt::extrinsic::ExtrinsicParams<subxt::DefaultConfig>>::OtherParams;
+
 pub use crate::runtime::runtime_types as runtime;
 
 pub type Signer = subxt::PairSigner<subxt::DefaultConfig, subxt::sp_core::sr25519::Pair>;
 
-struct MockedMiner;
+pub struct MockedMiner;
 
 impl pallet_election_provider_multi_phase::unsigned::MinerConfig for MockedMiner {
 	type AccountId = AccountId;
