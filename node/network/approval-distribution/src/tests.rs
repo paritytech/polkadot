@@ -75,7 +75,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	state
 }
 
-const TIMEOUT: Duration = Duration::from_millis(100);
+const TIMEOUT: Duration = Duration::from_millis(200);
 
 async fn overseer_send(overseer: &mut VirtualOverseer, msg: ApprovalDistributionMessage) {
 	gum::trace!(msg = ?msg, "Sending message");

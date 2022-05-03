@@ -19,7 +19,7 @@ sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", br
 polkadot-parachain = { path = "../../parachain", default-features = false }
 schnorrkel = "0.9.1"
 thiserror = "1.0.30"
-serde = { version = "1.0.136", features = ["derive"] }
+serde = { version = "1.0.137", features = ["derive"] }
 
 [target.'cfg(not(target_os = "unknown"))'.dependencies]
 zstd = { version = "0.10.0", default-features = false }
