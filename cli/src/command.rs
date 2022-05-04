@@ -18,7 +18,7 @@ use crate::cli::{Cli, Subcommand};
 use frame_benchmarking_cli::{BenchmarkCmd, SUBSTRATE_REFERENCE_HARDWARE};
 use futures::future::TryFutureExt;
 use log::info;
-use sc_cli::{Role, RuntimeVersion, SubstrateCli};
+use sc_cli::{Role, RuntimeVersion, SubstrateCli, CliConfiguration};
 use service::{self, HeaderBackend, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
 use std::net::ToSocketAddrs;
@@ -263,7 +263,7 @@ pub fn run_node(run: Cli, overseer_gen: impl service::OverseerGen) -> Result<()>
 }
 
 fn run_node_inner<F>(
-	cli: Cli,
+	mut cli: Cli,
 	overseer_gen: impl service::OverseerGen,
 	logger_hook: F,
 ) -> Result<()>
@@ -324,19 +324,37 @@ where
 
 		match role {
 			Role::Light => Err(Error::Other("Light client not enabled".into())),
-			_ => service::build_full(
-				config,
-				service::IsCollator::No,
-				grandpa_pause,
-				cli.run.beefy,
-				jaeger_agent,
-				None,
-				false,
-				overseer_gen,
-				hwbench,
-			)
-			.map(|full| full.task_manager)
-			.map_err(Into::into),
+			_ => {
+				if cli.run.add_chain.is_some() {
+					let tokio_handle = config.tokio_handle.clone();
+					let secondary_config = cli.run.base.create_configuration(&cli, tokio_handle)?;
+					cli.run.base.shared_params.chain = cli.run.add_chain.clone();
+					service::build_squared(
+						config,
+						secondary_config,
+						jaeger_agent,
+						false,
+						overseer_gen,
+						hwbench,
+					)
+					.map(|pair| pair.task_manager)
+					.map_err(Into::into)
+				} else {
+					service::build_full(
+						config,
+						service::IsCollator::No,
+						grandpa_pause,
+						cli.run.beefy,
+						jaeger_agent,
+						None,
+						false,
+						overseer_gen,
+						hwbench,
+					)
+					.map(|full| full.task_manager)
+					.map_err(Into::into)
+				}
+			}
 		}
 	})
 }

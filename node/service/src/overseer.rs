@@ -299,7 +299,7 @@ where
 ///
 /// Default behavior is to create an unmodified overseer, as `RealOverseerGen`
 /// would do.
-pub trait OverseerGen {
+pub trait OverseerGen: Clone {
 	/// Overwrite the full generation of the overseer, including the subsystems.
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
@@ -322,6 +322,7 @@ pub trait OverseerGen {
 use polkadot_overseer::KNOWN_LEAVES_CACHE_SIZE;
 
 /// The regular set of subsystems.
+#[derive(Clone)]
 pub struct RealOverseerGen;
 
 impl OverseerGen for RealOverseerGen {

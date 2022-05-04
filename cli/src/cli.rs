@@ -138,6 +138,13 @@ pub struct RunCmd {
 	/// telemetry, if telemetry is enabled.
 	#[clap(long)]
 	pub no_hardware_benchmarks: bool,
+
+	/// Specify an additional chain to sync.
+	///
+	/// It can be one of the predefined ones (dev, local, or staging) or it can be a path to a file
+	/// with the chainspec (such as one exported by the `build-spec` subcommand).
+	#[clap(long, value_name = "CHAIN_SPEC")]
+	pub add_chain: Option<String>,
 }
 
 #[allow(missing_docs)]

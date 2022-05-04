@@ -599,6 +599,10 @@ where
 #[cfg(feature = "full-node")]
 pub struct NewFull<C> {
 	pub task_manager: TaskManager,
+	pub components: FullComponents<C>,
+}
+
+pub struct FullComponents<C> {
 	pub client: C,
 	pub overseer_handle: Option<Handle>,
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
@@ -606,19 +610,28 @@ pub struct NewFull<C> {
 	pub backend: Arc<FullBackend>,
 }
 
+
 #[cfg(feature = "full-node")]
 impl<C> NewFull<C> {
 	/// Convert the client type using the given `func`.
 	pub fn with_client<NC>(self, func: impl FnOnce(C) -> NC) -> NewFull<NC> {
 		NewFull {
-			client: func(self.client),
 			task_manager: self.task_manager,
-			overseer_handle: self.overseer_handle,
-			network: self.network,
-			rpc_handlers: self.rpc_handlers,
-			backend: self.backend,
+			components: FullComponents {
+				client: func(self.components.client),
+				overseer_handle: self.components.overseer_handle,
+				network: self.components.network,
+				rpc_handlers: self.components.rpc_handlers,
+				backend: self.components.backend,
+			}
 		}
 	}
+}
+
+pub struct ClientPair <C> {
+	pub task_manager: TaskManager,
+	pub client1: FullComponents<C>,
+	pub client2: FullComponents<C>,
 }
 
 /// Is this node a collator?
@@ -1235,7 +1248,7 @@ where
 
 	network_starter.start_network();
 
-	Ok(NewFull { task_manager, client, overseer_handle, network, rpc_handlers, backend })
+	Ok(NewFull { task_manager, components: FullComponents { client, overseer_handle, network, rpc_handlers, backend }})
 }
 
 #[cfg(feature = "full-node")]
@@ -1401,6 +1414,49 @@ pub fn build_full(
 
 	#[cfg(not(feature = "polkadot-native"))]
 	Err(Error::NoRuntime)
+}
+
+/// Build a squared validator.
+pub fn build_squared(
+	config: Configuration,
+	config2: Configuration,
+	jaeger_agent: Option<std::net::SocketAddr>,
+	overseer_enable_anyways: bool,
+	overseer_gen: impl OverseerGen,
+	hwbench: Option<sc_sysinfo::HwBench>,
+) -> Result<ClientPair<Client>, Error> {
+	let client1 = build_full(
+		config,
+		IsCollator::No,
+		None,
+		false,
+		jaeger_agent,
+		None,
+		overseer_enable_anyways,
+		overseer_gen.clone(),
+		hwbench,
+	)?;
+
+	let client2 = build_full(
+		config2,
+		IsCollator::No,
+		None,
+		false,
+		jaeger_agent,
+		None,
+		overseer_enable_anyways,
+		overseer_gen.clone(),
+		None,
+	)?;
+
+	let mut task_manager = client1.task_manager;
+	task_manager.add_child(client2.task_manager);
+
+	Ok(ClientPair {
+		task_manager,
+		client1: client1.components,
+		client2: client2.components,
+	})
 }
 
 struct RevertConsensus {
