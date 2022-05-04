@@ -1093,7 +1093,10 @@ mod tests {
 			assert_ok!(Registrar::make_parachain(para_id));
 
 			// Owner cannot pass origin check when checking lock
-			assert_noop!(Registrar::ensure_root_para_or_owner(Origin::signed(1), para_id, true), BadOrigin);
+			assert_noop!(
+				Registrar::ensure_root_para_or_owner(Origin::signed(1), para_id, true),
+				BadOrigin
+			);
 		});
 	}
 
