@@ -917,6 +917,7 @@ impl pallet_sudo::Config for Runtime {
 impl validator_manager::Config for Runtime {
 	type Event = Event;
 	type PrivilegedOrigin = EnsureRoot<AccountId>;
+	type SendMessage = BridgeWococoMessages;
 }
 
 impl pallet_utility::Config for Runtime {

@@ -41,6 +41,9 @@ pub mod pallet {
 
 		/// Privileged origin that can add or remove validators.
 		type PrivilegedOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
+
+		/// Trait used to send messages to other relay-chains.
+		type SendMessage: SendMessage;
 	}
 
 	#[pallet::event]
@@ -95,6 +98,12 @@ pub mod pallet {
 			Ok(())
 		}
 	}
+}
+
+/// Used to send messages to other chains.
+pub trait SendMessage {
+	// NOTE: will need destination relay chain id
+	fn send_message(message: Vec<u8>);
 }
 
 impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Pallet<T> {

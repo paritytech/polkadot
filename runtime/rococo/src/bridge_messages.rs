@@ -39,7 +39,7 @@ use frame_support::{
 };
 use rococo_runtime_constants::fee::WeightToFee;
 use sp_runtime::FixedU128;
-use sp_std::marker::PhantomData;
+use sp_std::{marker::PhantomData, vec::Vec};
 
 /// Maximal number of pending outbound messages.
 const MAXIMAL_PENDING_MESSAGES_AT_OUTBOUND_LANE: MessageNonce =
@@ -370,6 +370,20 @@ mod at_wococo {
 		Balances,
 		(),
 	>;
+}
+
+impl<T> crate::validator_manager::SendMessage for T
+where
+	T: bp_messages::source_chain::MessagesBridge<
+		crate::Origin,
+		crate::AccountId,
+		crate::Balance,
+		crate::bridge_messages::ToWococoMessagePayload,
+	>,
+{
+	fn send_message(message: Vec<u8>) {
+		let _ = Self::send_message(crate::Origin::root(), [0, 0, 0, 0], message, 0);
+	}
 }
 
 #[cfg(test)]
