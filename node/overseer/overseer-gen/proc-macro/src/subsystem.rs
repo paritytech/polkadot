@@ -20,15 +20,26 @@ use syn::{parse2, parse_quote, punctuated::Punctuated, Result};
 
 use super::{parse::*, *};
 
-pub(crate) fn impl_subsystem_gen(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MakeSubsystem {
+	/// Impl `trait Subsystem` and apply the trait bounds to the `Context` generic.
+	///
+	/// Relevant to `impl Item` only.
+	ImplSubsystemTrait,
+	/// Only apply the trait bounds to the context.
+	AddContextTraitBounds,
+}
+
+pub(crate) fn impl_subsystem_context_trait_bounds(
 	attr: TokenStream,
 	orig: TokenStream,
+	make_subsystem: MakeSubsystem,
 ) -> Result<proc_macro2::TokenStream> {
 	let args = parse2::<SubsystemAttrArgs>(attr.clone())?;
-	let _span = args.span();
-	let SubsystemAttrArgs { error_ty, subsystem_ident, trait_prefix_path, .. } = args;
+	let span = args.span();
+	let SubsystemAttrArgs { error_path, subsystem_ident, trait_prefix_path, .. } = args;
 
-	let mut struktured_impl: syn::ItemImpl = parse2(orig)?;
+	let mut item = parse2::<syn::Item>(orig)?;
 
 	// always prefer the direct usage, if it's not there, let's see if there is
 	// a `prefix=*` provided. Either is ok.
@@ -49,49 +60,80 @@ pub(crate) fn impl_subsystem_gen(
 	if trait_prefix_path.segments.trailing_punct() {
 		return Err(syn::Error::new(trait_prefix_path.span(), "Must not end with `::`"))
 	}
-	let me = match &*struktured_impl.self_ty {
-		syn::Type::Path(ref path) => path
-			.path
-			.segments
-			.last()
-			.ok_or_else(|| {
-				syn::Error::new(
-					path.path.span(),
-					"Missing an identifier at the end of the path provided",
-				)
-			})?
-			.ident
-			.clone(),
-		_ => return Err(syn::Error::new(attr.span(), "Doesn't take any arguments at this time")),
-	};
+
 	let subsystem_ctx_trait = format_ident!("{}ContextTrait", subsystem_ident);
 	let subsystem_sender_trait = format_ident!("{}SenderTrait", subsystem_ident);
+
 	let extra_where_predicates: Punctuated<syn::WherePredicate, syn::Token![,]> = parse_quote! {
 		Context: #trait_prefix_path::#subsystem_ctx_trait,
 		Context: #support_crate::SubsystemContext,
 		<Context as #trait_prefix_path::#subsystem_ctx_trait>::Sender: #trait_prefix_path::#subsystem_sender_trait,
 		<Context as #support_crate::SubsystemContext>::Sender: #trait_prefix_path::#subsystem_sender_trait,
 	};
-	struktured_impl.trait_.replace((
-		None,
-		parse_quote! {
-			#support_crate::Subsystem<Context, #error_ty>
+
+	let apply_ctx_bound_if_present = move |generics: &mut syn::Generics| -> bool {
+		if generics
+			.params
+			.iter()
+			.find(|generic| match generic {
+				syn::GenericParam::Type(ty) if ty.ident == "Context" => true,
+				_ => false,
+			})
+			.is_some()
+		{
+			let where_clause = generics.make_where_clause();
+			where_clause.predicates.extend(extra_where_predicates.clone());
+			true
+		} else {
+			false
+		}
+	};
+
+	match item {
+		syn::Item::Impl(ref mut struktured_impl) => {
+			if make_subsystem == MakeSubsystem::ImplSubsystemTrait {
+				let error_path = error_path.ok_or_else(|| {
+					syn::Error::new(
+						span,
+						"Must annotate the identical overseer error type via `error=..`.",
+					)
+				})?;
+				// Only replace the subsystem trait if it's desired.
+				struktured_impl.trait_.replace((
+					None,
+					parse_quote! {
+						#support_crate::Subsystem<Context, #error_path>
+					},
+					syn::token::For::default(),
+				));
+			}
+
+			apply_ctx_bound_if_present(&mut struktured_impl.generics);
+			for item in struktured_impl.items.iter_mut() {
+				match item {
+					syn::ImplItem::Method(method) => {
+						apply_ctx_bound_if_present(&mut method.sig.generics);
+					},
+					_others => {
+						// don't error, just nop
+					},
+				}
+			}
 		},
-		syn::token::For::default(),
-	));
-	let where_clause = struktured_impl.generics.make_where_clause();
-	where_clause.predicates.extend(extra_where_predicates);
+		syn::Item::Fn(ref mut struktured_fn) => {
+			if make_subsystem == MakeSubsystem::ImplSubsystemTrait {
+				return Err(syn::Error::new(struktured_fn.span(), "Cannot make a free function a subsystem, did you mean to apply `contextbound` instead?"))
+			}
+			apply_ctx_bound_if_present(&mut struktured_fn.sig.generics);
+		},
+		other =>
+			return Err(syn::Error::new(
+				other.span(),
+				"Macro can only be annotated on functions or struct implementations",
+			)),
+	};
 
-	let ts =
-		expander::Expander::new(format!("subsystem-{}-expansion", me.to_string().to_lowercase()))
-			.add_comment("Generated overseer code by `#[subsystem(..)]`".to_owned())
-			.dry(!cfg!(feature = "expand"))
-			.verbose(true)
-			.fmt(expander::Edition::_2021)
-			.write_to_out_dir(struktured_impl.into_token_stream())
-			.expect("Expander does not fail due to IO in OUT_DIR. qed");
-
-	Ok(ts)
+	Ok(item.to_token_stream())
 }
 
 #[cfg(test)]

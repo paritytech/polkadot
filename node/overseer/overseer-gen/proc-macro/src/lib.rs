@@ -73,7 +73,19 @@ pub fn subsystem(
 ) -> proc_macro::TokenStream {
 	let attr: TokenStream = attr.into();
 	let item: TokenStream = item.into();
-	impl_subsystem_gen(attr, item)
+	impl_subsystem_context_trait_bounds(attr, item, MakeSubsystem::ImplSubsystemTrait)
+		.unwrap_or_else(|err| err.to_compile_error())
+		.into()
+}
+
+#[proc_macro_attribute]
+pub fn contextbounds(
+	attr: proc_macro::TokenStream,
+	item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+	let attr: TokenStream = attr.into();
+	let item: TokenStream = item.into();
+	impl_subsystem_context_trait_bounds(attr, item, MakeSubsystem::AddContextTraitBounds)
 		.unwrap_or_else(|err| err.to_compile_error())
 		.into()
 }

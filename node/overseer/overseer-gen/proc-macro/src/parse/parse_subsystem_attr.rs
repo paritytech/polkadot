@@ -28,7 +28,7 @@ use syn::{
 #[derive(Clone, Debug)]
 enum SubsystemAttrItem {
 	/// Error type provided by the user.
-	ErrorType { tag: kw::error, eq_token: Token![=], value: Path },
+	Error { tag: kw::error, eq_token: Token![=], value: Path },
 	/// For which slot in the overseer this should be plugged.
 	///
 	/// The subsystem implementation can and should have a different name
@@ -47,7 +47,7 @@ impl ToTokens for SubsystemAttrItem {
 			Self::TraitPrefix { tag, eq_token, value } => {
 				quote! { #tag #eq_token, #value }
 			},
-			Self::ErrorType { tag, eq_token, value } => {
+			Self::Error { tag, eq_token, value } => {
 				quote! { #tag #eq_token, #value }
 			},
 			Self::Subsystem { tag, eq_token, value } => {
@@ -62,7 +62,7 @@ impl Parse for SubsystemAttrItem {
 	fn parse(input: &ParseBuffer) -> Result<Self> {
 		let lookahead = input.lookahead1();
 		if lookahead.peek(kw::error) {
-			Ok(SubsystemAttrItem::ErrorType {
+			Ok(SubsystemAttrItem::Error {
 				tag: input.parse::<kw::error>()?,
 				eq_token: input.parse()?,
 				value: input.parse()?,
@@ -89,7 +89,7 @@ impl Parse for SubsystemAttrItem {
 #[derive(Clone, Debug)]
 pub(crate) struct SubsystemAttrArgs {
 	span: Span,
-	pub(crate) error_ty: Path,
+	pub(crate) error_path: Option<Path>,
 	pub(crate) subsystem_ident: Ident,
 	pub(crate) trait_prefix_path: Option<Path>,
 }
@@ -136,9 +136,9 @@ impl Parse for SubsystemAttrArgs {
 				return Err(e)
 			}
 		}
-		let error_ty = extract_variant!(unique, ErrorType; err = "Must annotate the identical overseer error type via `error=..`.")?;
+		let error_path = extract_variant!(unique, Error);
 		let subsystem_ident = extract_variant!(unique, Subsystem; err = "Must annotate the identical overseer error type via `subsystem=..` or plainly as `Subsystem` as specified in the overseer declaration.")?;
 		let trait_prefix_path = extract_variant!(unique, TraitPrefix);
-		Ok(SubsystemAttrArgs { span, error_ty, subsystem_ident, trait_prefix_path })
+		Ok(SubsystemAttrArgs { span, error_path, subsystem_ident, trait_prefix_path })
 	}
 }

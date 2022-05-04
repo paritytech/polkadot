@@ -107,8 +107,8 @@ use parity_util_mem::MemoryAllocationTracker;
 
 pub use polkadot_overseer_gen as gen;
 pub use polkadot_overseer_gen::{
-	overlord, subsystem, FromOverseer, MapSubsystem, MessagePacket, SignalsReceived, SpawnNamed,
-	Subsystem, SubsystemContext, SubsystemIncomingMessages, SubsystemInstance,
+	contextbounds, overlord, subsystem, FromOverseer, MapSubsystem, MessagePacket, SignalsReceived,
+	SpawnNamed, Subsystem, SubsystemContext, SubsystemIncomingMessages, SubsystemInstance,
 	SubsystemMeterReadouts, SubsystemMeters, SubsystemSender, TimeoutExt, ToOverseer,
 };
 
