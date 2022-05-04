@@ -586,7 +586,7 @@ mod select_disputes {
 	#[test]
 	fn recent_disputes_are_withing_onchain_limit() {
 		const RECENT_DISPUTES_SIZE: usize = 10;
-		let metrics = metrics::Metrics(None);
+		let metrics = metrics::Metrics::new_dummy();
 		let onchain_disputes = Ok(Vec::new());
 		let active_disputes = Vec::new();
 		let recent_disputes = recent_disputes(RECENT_DISPUTES_SIZE);
@@ -622,7 +622,7 @@ mod select_disputes {
 	fn recent_disputes_are_too_much_but_active_are_within_limit() {
 		const RECENT_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME + 10;
 		const ACTIVE_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME;
-		let metrics = metrics::Metrics(None);
+		let metrics = metrics::Metrics::new_dummy();
 		let onchain_disputes = Ok(Vec::new());
 		let recent_disputes = recent_disputes(RECENT_DISPUTES_SIZE);
 		let active_disputes = active_disputes(ACTIVE_DISPUTES_SIZE);
@@ -659,7 +659,7 @@ mod select_disputes {
 		// In this case all active disputes + a random set of recent disputes should be returned
 		const RECENT_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME + 10;
 		const ACTIVE_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME - 10;
-		let metrics = metrics::Metrics(None);
+		let metrics = metrics::Metrics::new_dummy();
 		let onchain_disputes = Ok(Vec::new());
 		let recent_disputes = recent_disputes(RECENT_DISPUTES_SIZE);
 		let active_disputes = active_disputes(ACTIVE_DISPUTES_SIZE);
@@ -714,7 +714,7 @@ mod select_disputes {
 			const RECENT_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME + 10;
 			const ACTIVE_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME - 10;
 			const ONCHAIN_DISPUTE_SIZE: usize = RECENT_DISPUTES_SIZE - 9;
-			let metrics = metrics::Metrics(None);
+			let metrics = metrics::Metrics::new_dummy();
 			let recent_disputes = recent_disputes(RECENT_DISPUTES_SIZE);
 			let active_disputes = active_disputes(ACTIVE_DISPUTES_SIZE);
 			let onchain_disputes: Result<
@@ -779,7 +779,7 @@ mod select_disputes {
 			const ACTIVE_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME + 10;
 			const ONCHAIN_DISPUTE_SIZE: usize = ACTIVE_DISPUTES_SIZE - 9;
 
-			let metrics = metrics::Metrics(None);
+			let metrics = metrics::Metrics::new_dummy();
 			let recent_disputes = recent_disputes(RECENT_DISPUTES_SIZE);
 			let active_disputes = active_disputes(ACTIVE_DISPUTES_SIZE);
 			let onchain_disputes: Result<
@@ -840,7 +840,7 @@ mod select_disputes {
 			const ACTIVE_DISPUTES_SIZE: usize = MAX_DISPUTES_FORWARDED_TO_RUNTIME + 5;
 			const ONCHAIN_DISPUTE_SIZE: usize = 5;
 
-			let metrics = metrics::Metrics(None);
+			let metrics = metrics::Metrics::new_dummy();
 			let recent_disputes = recent_disputes(RECENT_DISPUTES_SIZE);
 			let active_disputes = active_disputes(ACTIVE_DISPUTES_SIZE);
 			let onchain_disputes: Result<
