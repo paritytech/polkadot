@@ -236,7 +236,7 @@ async fn send_and_watch_extrinsic(
 
 	impl subxt::Call for Call {
 		const PALLET: &'static str = "ElectionProviderMultiPhase";
-		const FUNCTION: &'static str = "submit_unsigned";
+		const FUNCTION: &'static str = "submit";
 	}
 
 	#[derive(Encode, Decode)]

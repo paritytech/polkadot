@@ -31,6 +31,7 @@ parameter_types! {
 	pub static MinerMaxWeight: Weight = BlockWeights::get().max_block;
 	pub static MinerMaxLength: u32 = 256;
 	pub static MinerMaxVotesPerVotes: u32 = 16;
+	pub static MaxElectingVoters: u32 = 10_000;
 }
 
 frame_election_provider_support::generate_solution_type!(
@@ -39,7 +40,7 @@ frame_election_provider_support::generate_solution_type!(
 		VoterIndex = u32,
 		TargetIndex = u16,
 		Accuracy = PerU16,
-		MaxVoters = ConstU32::<2_000>
+		MaxVoters = MaxElectingVoters,
 	>(16)
 );
 
