@@ -39,7 +39,7 @@ use frame_support::{
 };
 use rococo_runtime_constants::fee::WeightToFee;
 use sp_runtime::FixedU128;
-use sp_std::{marker::PhantomData, ops::RangeInclusive};
+use sp_std::marker::PhantomData;
 
 /// Maximal number of pending outbound messages.
 const MAXIMAL_PENDING_MESSAGES_AT_OUTBOUND_LANE: MessageNonce =
@@ -152,20 +152,6 @@ impl<B, GI> BridgedChainWithMessages for RococoLikeChain<B, GI> {
 		Rococo::max_extrinsic_size()
 	}
 
-	fn message_weight_limits(_message_payload: &[u8]) -> RangeInclusive<Weight> {
-		// we don't want to relay too large messages + keep reserve for future upgrades
-		let upper_limit = messages_target::maximal_incoming_message_dispatch_weight(
-			Rococo::max_extrinsic_weight(),
-		);
-
-		// we're charging for payload bytes in `With(Wococo | Rococo)MessageBridge::transaction_payment` function
-		//
-		// this bridge may be used to deliver all kind of messages, so we're not making any assumptions about
-		// minimal dispatch weight here
-
-		0..=upper_limit
-	}
-
 	fn estimate_delivery_transaction(
 		message_payload: &[u8],
 		include_pay_dispatch_fee_cost: bool,
@@ -203,9 +189,13 @@ impl<B, GI> BridgedChainWithMessages for RococoLikeChain<B, GI> {
 			transaction,
 		)
 	}
+
+	fn verify_dispatch_weight(_: &[u8]) -> bool {
+		true // HACK:
+	}
 }
 
-impl<B, GI> TargetHeaderChain<messages_source::FromThisChainMessagePayload<B>, crate::AccountId>
+impl<B, GI> TargetHeaderChain<messages_source::FromThisChainMessagePayload, crate::AccountId>
 	for RococoLikeChain<B, GI>
 where
 	B: MessageBridge,
@@ -221,7 +211,7 @@ where
 		messages_source::FromBridgedChainMessagesDeliveryProof<crate::Hash>;
 
 	fn verify_message(
-		payload: &messages_source::FromThisChainMessagePayload<B>,
+		payload: &messages_source::FromThisChainMessagePayload,
 	) -> Result<(), Self::Error> {
 		messages_source::verify_chain_message::<B>(payload)
 	}
@@ -319,27 +309,21 @@ mod at_rococo {
 	}
 
 	/// Message payload for Rococo -> Wococo messages as it is seen at the Rococo.
-	pub type ToWococoMessagePayload =
-		messages_source::FromThisChainMessagePayload<AtRococoWithWococoMessageBridge>;
+	pub type ToWococoMessagePayload = messages_source::FromThisChainMessagePayload;
 
 	/// Message verifier for Rococo -> Wococo messages at Rococo.
 	pub type ToWococoMessageVerifier =
 		messages_source::FromThisChainMessageVerifier<AtRococoWithWococoMessageBridge>;
 
 	/// Message payload for Wococo -> Rococo messages as it is seen at Rococo.
-	pub type FromWococoMessagePayload =
-		messages_target::FromBridgedChainMessagePayload<AtRococoWithWococoMessageBridge>;
-
-	/// Encoded Rococo Call as it comes from Wococo.
-	pub type FromWococoEncodedCall =
-		messages_target::FromBridgedChainEncodedMessageCall<crate::Call>;
+	pub type FromWococoMessagePayload = messages_target::FromBridgedChainMessagePayload;
 
 	/// Call-dispatch based message dispatch for Wococo -> Rococo messages.
 	pub type FromWococoMessageDispatch = messages_target::FromBridgedChainMessageDispatch<
 		AtRococoWithWococoMessageBridge,
 		Runtime,
 		Balances,
-		crate::AtRococoFromWococoMessagesDispatch,
+		(),
 	>;
 }
 
@@ -370,27 +354,21 @@ mod at_wococo {
 	}
 
 	/// Message payload for Wococo -> Rococo messages as it is seen at the Wococo.
-	pub type ToRococoMessagePayload =
-		messages_source::FromThisChainMessagePayload<AtWococoWithRococoMessageBridge>;
+	pub type ToRococoMessagePayload = messages_source::FromThisChainMessagePayload;
 
 	/// Message verifier for Wococo -> Rococo messages at Wococo.
 	pub type ToRococoMessageVerifier =
 		messages_source::FromThisChainMessageVerifier<AtWococoWithRococoMessageBridge>;
 
 	/// Message payload for Rococo -> Wococo messages as it is seen at Wococo.
-	pub type FromRococoMessagePayload =
-		messages_target::FromBridgedChainMessagePayload<AtWococoWithRococoMessageBridge>;
-
-	/// Encoded Wococo Call as it comes from Rococo.
-	pub type FromRococoEncodedCall =
-		messages_target::FromBridgedChainEncodedMessageCall<crate::Call>;
+	pub type FromRococoMessagePayload = messages_target::FromBridgedChainMessagePayload;
 
 	/// Call-dispatch based message dispatch for Rococo -> Wococo messages.
 	pub type FromRococoMessageDispatch = messages_target::FromBridgedChainMessageDispatch<
 		AtWococoWithRococoMessageBridge,
 		Runtime,
 		Balances,
-		crate::AtWococoFromRococoMessagesDispatch,
+		(),
 	>;
 }
 

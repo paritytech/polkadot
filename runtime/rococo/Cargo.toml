@@ -77,7 +77,6 @@ bp-rococo = { path = "../../bridges/primitives/chain-rococo", default-features =
 bp-runtime = { path = "../../bridges/primitives/runtime", default-features = false }
 bp-wococo = { path = "../../bridges/primitives/chain-wococo", default-features = false }
 bridge-runtime-common = { path = "../../bridges/bin/runtime-common", default-features = false }
-pallet-bridge-dispatch = { path = "../../bridges/modules/dispatch", default-features = false }
 pallet-bridge-grandpa = { path = "../../bridges/modules/grandpa", default-features = false }
 pallet-bridge-messages = { path = "../../bridges/modules/messages", default-features = false }
 
@@ -108,7 +107,6 @@ std = [
 	"pallet-babe/std",
 	"beefy-primitives/std",
 	"pallet-balances/std",
-	"pallet-bridge-dispatch/std",
 	"pallet-bridge-grandpa/std",
 	"pallet-bridge-messages/std",
 	"pallet-collective/std",

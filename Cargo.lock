@@ -697,30 +697,15 @@ dependencies = [
 name = "bp-header-chain"
 version = "0.1.0"
 dependencies = [
- "assert_matches",
  "bp-runtime",
- "bp-test-utils",
  "finality-grandpa",
  "frame-support",
- "hex",
- "hex-literal",
  "parity-scale-codec",
  "scale-info",
  "serde",
  "sp-core",
  "sp-finality-grandpa",
  "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "bp-message-dispatch"
-version = "0.1.0"
-dependencies = [
- "bp-runtime",
- "frame-support",
- "parity-scale-codec",
- "scale-info",
  "sp-std",
 ]
 
@@ -732,8 +717,6 @@ dependencies = [
  "bp-runtime",
  "frame-support",
  "frame-system",
- "hex",
- "hex-literal",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "scale-info",
@@ -750,7 +733,6 @@ dependencies = [
  "bp-runtime",
  "frame-support",
  "frame-system",
- "hex",
  "parity-scale-codec",
  "scale-info",
  "sp-api",
@@ -782,7 +764,6 @@ version = "0.1.0"
 dependencies = [
  "frame-support",
  "hash-db",
- "hex-literal",
  "num-traits",
  "parity-scale-codec",
  "scale-info",
@@ -826,15 +807,12 @@ dependencies = [
 name = "bridge-runtime-common"
 version = "0.1.0"
 dependencies = [
- "bp-message-dispatch",
  "bp-messages",
  "bp-runtime",
- "ed25519-dalek",
  "frame-support",
  "frame-system",
  "hash-db",
- "pallet-balances",
- "pallet-bridge-dispatch",
+ "log",
  "pallet-bridge-grandpa",
  "pallet-bridge-messages",
  "pallet-transaction-payment",
@@ -846,8 +824,6 @@ dependencies = [
  "sp-state-machine",
  "sp-std",
  "sp-trie",
- "sp-version",
- "static_assertions",
 ]
 
 [[package]]
@@ -5277,23 +5253,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-bridge-dispatch"
-version = "0.1.0"
-dependencies = [
- "bp-message-dispatch",
- "bp-runtime",
- "frame-support",
- "frame-system",
- "log",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "pallet-bridge-grandpa"
 version = "0.1.0"
 dependencies = [
@@ -5301,7 +5260,6 @@ dependencies = [
  "bp-runtime",
  "bp-test-utils",
  "finality-grandpa",
- "frame-benchmarking",
  "frame-support",
  "frame-system",
  "log",
@@ -5309,9 +5267,7 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core",
  "sp-finality-grandpa",
- "sp-io",
  "sp-runtime",
  "sp-std",
  "sp-trie",
@@ -5322,20 +5278,16 @@ name = "pallet-bridge-messages"
 version = "0.1.0"
 dependencies = [
  "bitvec",
- "bp-message-dispatch",
  "bp-messages",
  "bp-runtime",
- "frame-benchmarking",
  "frame-support",
  "frame-system",
  "log",
  "num-traits",
- "pallet-balances",
  "parity-scale-codec",
  "scale-info",
  "serde",
  "sp-core",
- "sp-io",
  "sp-runtime",
  "sp-std",
 ]
@@ -8663,7 +8615,6 @@ dependencies = [
  "pallet-balances",
  "pallet-beefy",
  "pallet-beefy-mmr",
- "pallet-bridge-dispatch",
  "pallet-bridge-grandpa",
  "pallet-bridge-messages",
  "pallet-collective",

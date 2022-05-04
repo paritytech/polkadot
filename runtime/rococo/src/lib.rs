@@ -241,8 +241,6 @@ construct_runtime! {
 		// running as Rococo we only use `BridgeWococoMessages`/`BridgeWococoMessagesDispatch`, and vice versa.
 		BridgeRococoMessages: pallet_bridge_messages::{Pallet, Call, Storage, Event<T>, Config<T>} = 43,
 		BridgeWococoMessages: pallet_bridge_messages::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 44,
-		BridgeRococoMessagesDispatch: pallet_bridge_dispatch::{Pallet, Event<T>} = 45,
-		BridgeWococoMessagesDispatch: pallet_bridge_dispatch::<Instance1>::{Pallet, Event<T>} = 46,
 
 		// A "council"
 		Collective: pallet_collective = 80,
@@ -759,34 +757,6 @@ impl pallet_bridge_grandpa::Config<WococoGrandpaInstance> for Runtime {
 	type HeadersToKeep = HeadersToKeep;
 
 	type WeightInfo = pallet_bridge_grandpa::weights::MillauWeight<Runtime>;
-}
-
-// Instance that is "deployed" at Wococo chain. Responsible for dispatching Rococo -> Wococo messages.
-pub type AtWococoFromRococoMessagesDispatch = ();
-impl pallet_bridge_dispatch::Config<AtWococoFromRococoMessagesDispatch> for Runtime {
-	type Event = Event;
-	type BridgeMessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
-	type Call = Call;
-	type CallFilter = frame_support::traits::Everything;
-	type EncodedCall = bridge_messages::FromRococoEncodedCall;
-	type SourceChainAccountId = bp_wococo::AccountId;
-	type TargetChainAccountPublic = sp_runtime::MultiSigner;
-	type TargetChainSignature = sp_runtime::MultiSignature;
-	type AccountIdConverter = bp_rococo::AccountIdConverter;
-}
-
-// Instance that is "deployed" at Rococo chain. Responsible for dispatching Wococo -> Rococo messages.
-pub type AtRococoFromWococoMessagesDispatch = pallet_bridge_dispatch::Instance1;
-impl pallet_bridge_dispatch::Config<AtRococoFromWococoMessagesDispatch> for Runtime {
-	type Event = Event;
-	type BridgeMessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
-	type Call = Call;
-	type CallFilter = frame_support::traits::Everything;
-	type EncodedCall = bridge_messages::FromWococoEncodedCall;
-	type SourceChainAccountId = bp_rococo::AccountId;
-	type TargetChainAccountPublic = sp_runtime::MultiSigner;
-	type TargetChainSignature = sp_runtime::MultiSignature;
-	type AccountIdConverter = bp_wococo::AccountIdConverter;
 }
 
 parameter_types! {
@@ -1485,15 +1455,12 @@ sp_api::impl_runtime_apis! {
 		) -> Vec<bp_messages::MessageDetails<Balance>> {
 			(begin..=end).filter_map(|nonce| {
 				let message_data = BridgeRococoMessages::outbound_message_data(lane, nonce)?;
-				let decoded_payload = bridge_messages::ToRococoMessagePayload::decode(
-					&mut &message_data.payload[..]
-				).ok()?;
 				Some(bp_messages::MessageDetails {
 					nonce,
-					dispatch_weight: decoded_payload.weight,
+					dispatch_weight: 0, // HACK:
 					size: message_data.payload.len() as _,
 					delivery_and_dispatch_fee: message_data.fee,
-					dispatch_fee_payment: decoded_payload.dispatch_fee_payment,
+					dispatch_fee_payment: bp_runtime::messages::DispatchFeePayment::AtSourceChain, // HACK:
 				})
 			})
 			.collect()
@@ -1520,15 +1487,12 @@ sp_api::impl_runtime_apis! {
 		) -> Vec<bp_messages::MessageDetails<Balance>> {
 			(begin..=end).filter_map(|nonce| {
 				let message_data = BridgeWococoMessages::outbound_message_data(lane, nonce)?;
-				let decoded_payload = bridge_messages::ToWococoMessagePayload::decode(
-					&mut &message_data.payload[..]
-				).ok()?;
 				Some(bp_messages::MessageDetails {
 					nonce,
-					dispatch_weight: decoded_payload.weight,
+					dispatch_weight: 0, // HACK:
 					size: message_data.payload.len() as _,
 					delivery_and_dispatch_fee: message_data.fee,
-					dispatch_fee_payment: decoded_payload.dispatch_fee_payment,
+					dispatch_fee_payment: bp_runtime::messages::DispatchFeePayment::AtSourceChain, // HACK:
 				})
 			})
 			.collect()

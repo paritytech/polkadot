@@ -116,7 +116,7 @@ members = [
 
 # We want to be able to build the bridge relayer without pulling it (and all of its
 # dependencies into the Polkadot workspace)
-exclude = ["bridges/relays/bin-substrate", "bridges/bin/rialto/runtime", "bridges/bin/millau/runtime"]
+exclude = ["bridges"]
 
 [badges]
 maintenance = { status = "actively-developed" }
