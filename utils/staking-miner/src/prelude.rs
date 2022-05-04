@@ -33,16 +33,6 @@ parameter_types! {
 	pub static MinerMaxVotesPerVotes: u32 = 16;
 }
 
-frame_election_provider_support::generate_solution_type!(
-	#[compact]
-	pub struct MockedNposSolution::<
-		VoterIndex = u32,
-		TargetIndex = u16,
-		Accuracy = PerU16,
-		MaxVoters = ConstU32::<2_000>
-	>(16)
-);
-
 /// The account id type.
 pub type AccountId = subxt::sp_core::crypto::AccountId32;
 /// The block number type.
@@ -86,6 +76,30 @@ pub use crate::runtime::runtime_types as runtime;
 
 pub type Signer = subxt::PairSigner<subxt::DefaultConfig, subxt::sp_core::sr25519::Pair>;
 
+pub mod polkadot {
+	frame_election_provider_support::generate_solution_type!(
+		#[compact]
+		pub struct NposSolution16::<
+			VoterIndex = u32,
+			TargetIndex = u16,
+			Accuracy = PerU16,
+			MaxVoters = ConstU32::<22500>
+		>(16)
+	);
+}
+
+pub mod kusama {
+	frame_election_provider_support::generate_solution_type!(
+		#[compact]
+		pub struct NposSolution24::<
+			VoterIndex = u32,
+			TargetIndex = u16,
+			Accuracy = PerU16,
+			MaxVoters = ConstU32::<22500>
+		>(16)
+	);
+}
+
 pub struct MockedMiner;
 
 impl pallet_election_provider_multi_phase::unsigned::MinerConfig for MockedMiner {
@@ -93,17 +107,18 @@ impl pallet_election_provider_multi_phase::unsigned::MinerConfig for MockedMiner
 	type MaxLength = MinerMaxLength;
 	type MaxWeight = MinerMaxWeight;
 	type MaxVotesPerVoter = MinerMaxVotesPerVotes;
-	type Solution = MockedNposSolution;
+	type Solution = polkadot::NposSolution16;
 
 	fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
-		(10 as Weight).saturating_add(5 as Weight).saturating_mul(a as Weight)
-		// match MockWeightInfo::get() {
-		//     MockedWeightInfo::Basic =>
-		//         (10 as Weight).saturating_add((5 as Weight).saturating_mul(a as Weight)),
-		//     MockedWeightInfo::Complex => (0 * v + 0 * t + 1000 * a + 0 * d) as Weight,
-		//     MockedWeightInfo::Real =>
-		//         <() as multi_phase::weights::WeightInfo>::feasibility_check(v, t, a, d),
-		// }
+		// feasibility weight.
+		(31_722_000 as Weight)
+			// Standard Error: 8_000
+			.saturating_add((1_255_000 as Weight).saturating_mul(v as Weight))
+			// Standard Error: 28_000
+			.saturating_add((8_972_000 as Weight).saturating_mul(a as Weight))
+			// Standard Error: 42_000
+			.saturating_add((966_000 as Weight).saturating_mul(d as Weight))
+			.saturating_add(T::DbWeight::get().reads(4 as Weight))
 	}
 }
 
