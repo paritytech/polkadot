@@ -20,6 +20,7 @@
 //! It is actually easy to convert the rest as well, but it'll be a lot of noise in our codebase,
 //! needing to sprinkle `any_runtime` in a few extra places.
 
+use codec::{Encode, Decode};
 use frame_support::{parameter_types, traits::ConstU32, weights::Weight};
 use sp_runtime::{PerU16, Perbill};
 
@@ -31,33 +32,39 @@ parameter_types! {
 	pub static MinerMaxWeight: Weight = BlockWeights::get().max_block;
 	pub static MinerMaxLength: u32 = 256;
 	pub static MinerMaxVotesPerVotes: u32 = 16;
-	pub static MaxElectingVoters: u32 = 10_000;
 }
 
-frame_election_provider_support::generate_solution_type!(
-	#[compact]
-	pub struct MockedNposSolution::<
-		VoterIndex = u32,
-		TargetIndex = u16,
-		Accuracy = PerU16,
-		MaxVoters = MaxElectingVoters,
-	>(16)
-);
+#[derive(codec::Encode, codec::Decode)]
+pub struct SubmitCall<T>(Box<pallet_election_provider_multi_phase::RawSolution<T>>);
+
+impl<T> SubmitCall<T> {
+	pub fn new(raw_solution: pallet_election_provider_multi_phase::RawSolution<T>) -> Self {
+		Self(Box::new(raw_solution))
+	}
+}
+
+impl<T: Encode> subxt::Call for SubmitCall<T> {
+	const PALLET: &'static str = "ElectionProviderMultiPhase";
+	const FUNCTION: &'static str = "submit";
+}
+
+#[derive(Encode, Decode)]
+pub struct ModuleErrMissing;
+
+impl subxt::HasModuleError for ModuleErrMissing {
+	fn module_error_data(&self) -> Option<subxt::ModuleErrorData> {
+		None
+	}
+}
+
+pub type NoEvents = String;
 
 /// The account id type.
 pub type AccountId = subxt::sp_core::crypto::AccountId32;
-/// The block number type.
-pub type BlockNumber = core_primitives::BlockNumber;
-/// The balance type.
-pub type Balance = core_primitives::Balance;
-/// The index of an account.
-pub type Index = core_primitives::AccountIndex;
-/// The hash type. We re-export it here, but we can easily get it from block as well.
-pub type Hash = core_primitives::Hash;
 /// The header type. We re-export it here, but we can easily get it from block as well.
-pub type Header = core_primitives::Header;
-/// The block type.
-pub type Block = core_primitives::Block;
+pub type Header = subxt::sp_runtime::generic::Header<u32, subxt::sp_runtime::traits::BlakeTwo256>;
+/// The header type. We re-export it here, but we can easily get it from block as well.
+pub type Hash = subxt::sp_core::H256;
 
 pub use subxt::sp_runtime::traits::{Block as BlockT, Header as HeaderT};
 
@@ -65,9 +72,6 @@ pub use subxt::sp_runtime::traits::{Block as BlockT, Header as HeaderT};
 pub const DEFAULT_URI: &str = "wss://rpc.polkadot.io:443";
 /// The logging target.
 pub const LOG_TARGET: &str = "staking-miner";
-
-/// The externalities type.
-pub type Ext = sp_io::TestExternalities;
 
 /// The key pair type being used. We "strongly" assume sr25519 for simplicity.
 pub type Pair = subxt::sp_core::sr25519::Pair;
@@ -87,25 +91,80 @@ pub use crate::runtime::runtime_types as runtime;
 
 pub type Signer = subxt::PairSigner<subxt::DefaultConfig, subxt::sp_core::sr25519::Pair>;
 
-pub struct MockedMiner;
+pub mod polkadot {
+	use super::*;
 
-impl pallet_election_provider_multi_phase::unsigned::MinerConfig for MockedMiner {
-	type AccountId = AccountId;
-	type MaxLength = MinerMaxLength;
-	type MaxWeight = MinerMaxWeight;
-	type MaxVotesPerVoter = MinerMaxVotesPerVotes;
-	type Solution = MockedNposSolution;
+	frame_election_provider_support::generate_solution_type!(
+		#[compact]
+		pub struct NposSolution16::<
+			VoterIndex = u32,
+			TargetIndex = u16,
+			Accuracy = PerU16,
+			MaxVoters = ConstU32::<22500>
+		>(16)
+	);
 
-	fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
-		(10 as Weight).saturating_add(5 as Weight).saturating_mul(a as Weight)
-		// match MockWeightInfo::get() {
-		//     MockedWeightInfo::Basic =>
-		//         (10 as Weight).saturating_add((5 as Weight).saturating_mul(a as Weight)),
-		//     MockedWeightInfo::Complex => (0 * v + 0 * t + 1000 * a + 0 * d) as Weight,
-		//     MockedWeightInfo::Real =>
-		//         <() as multi_phase::weights::WeightInfo>::feasibility_check(v, t, a, d),
-		// }
+	pub struct Config;
+
+	impl pallet_election_provider_multi_phase::unsigned::MinerConfig for Config {
+		type AccountId = AccountId;
+		type MaxLength = MinerMaxLength;
+		type MaxWeight = MinerMaxWeight;
+		type MaxVotesPerVoter = MinerMaxVotesPerVotes;
+		type Solution = polkadot::NposSolution16;
+
+		fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
+			// feasibility weight.
+			(31_722_000 as Weight)
+				// Standard Error: 8_000
+				.saturating_add((1_255_000 as Weight).saturating_mul(v as Weight))
+				// Standard Error: 28_000
+				.saturating_add((8_972_000 as Weight).saturating_mul(a as Weight))
+				// Standard Error: 42_000
+				.saturating_add((966_000 as Weight).saturating_mul(d as Weight))
+			//.saturating_add(T::DbWeight::get().reads(4 as Weight))
+		}
 	}
 }
 
-pub type Miner = pallet_election_provider_multi_phase::unsigned::Miner<MockedMiner>;
+pub mod kusama {
+	use super::*;
+
+	frame_election_provider_support::generate_solution_type!(
+		#[compact]
+		pub struct NposSolution24::<
+			VoterIndex = u32,
+			TargetIndex = u16,
+			Accuracy = PerU16,
+			MaxVoters = ConstU32::<22500>
+		>(16)
+	);
+
+	pub struct Config;
+
+	impl pallet_election_provider_multi_phase::unsigned::MinerConfig for Config {
+		type AccountId = AccountId;
+		type MaxLength = MinerMaxLength;
+		type MaxWeight = MinerMaxWeight;
+		type MaxVotesPerVoter = MinerMaxVotesPerVotes;
+		type Solution = NposSolution24;
+
+		fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
+			// feasibility weight.
+			(31_722_000 as Weight)
+				// Standard Error: 8_000
+				.saturating_add((1_255_000 as Weight).saturating_mul(v as Weight))
+				// Standard Error: 28_000
+				.saturating_add((8_972_000 as Weight).saturating_mul(a as Weight))
+				// Standard Error: 42_000
+				.saturating_add((966_000 as Weight).saturating_mul(d as Weight))
+			//.saturating_add(T::DbWeight::get().reads(4 as Weight))
+		}
+	}
+}
+
+/// Staking miner for Polkadot.
+pub type PolkadotMiner = pallet_election_provider_multi_phase::unsigned::Miner<polkadot::Config>;
+
+/// Staking miner for Kusama,
+pub type KusamaMiner = pallet_election_provider_multi_phase::unsigned::Miner<kusama::Config>;

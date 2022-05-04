@@ -13,7 +13,7 @@ parity-scale-codec = { version = "3.1.2", default-features = false, features = [
 parking_lot = "0.11.2"
 pin-project = "1.0.9"
 rand = "0.8.5"
-thiserror = "1.0.30"
+thiserror = "1.0.31"
 fatality = "0.0.6"
 gum = { package = "tracing-gum", path = "../gum" }
 derive_more = "0.99.17"
@@ -34,7 +34,7 @@ sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 
 kvdb = "0.11.0"
 parity-util-mem = { version = "0.11", default-features = false }
-parity-db = { version = "0.3.11" }
+parity-db = { version = "0.3.12" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"

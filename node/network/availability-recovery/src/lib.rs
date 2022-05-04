@@ -427,7 +427,7 @@ impl RequestChunksFromValidators {
 				Err((validator_index, e)) => {
 					self.error_count += 1;
 
-					gum::debug!(
+					gum::trace!(
 						target: LOG_TARGET,
 						candidate_hash= ?params.candidate_hash,
 						err = ?e,
@@ -438,8 +438,18 @@ impl RequestChunksFromValidators {
 					match e {
 						RequestError::InvalidResponse(_) => {
 							metrics.on_chunk_request_invalid();
+
+							gum::debug!(
+								target: LOG_TARGET,
+								candidate_hash = ?params.candidate_hash,
+								err = ?e,
+								?validator_index,
+								"Chunk fetching response was invalid",
+							);
 						},
 						RequestError::NetworkError(err) => {
+							// No debug logs on general network errors - that became very spammy
+							// occasionally.
 							if let RequestFailure::Network(OutboundFailure::Timeout) = err {
 								metrics.on_chunk_request_timeout();
 							} else {

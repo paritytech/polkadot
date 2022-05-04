@@ -4,11 +4,11 @@ use crate::{
 	BalanceIterations, Balancing, MonitorConfig, Solver, SubmissionStrategy,
 };
 use pallet_election_provider_multi_phase::RawSolution;
-use codec::{Decode, Encode};
 use sp_runtime::Perbill;
 use std::sync::Arc;
 use subxt::{sp_core::storage::StorageKey, TransactionStatus};
 use tokio::sync::mpsc;
+use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
 
 /// Ensure that now is the signed phase.
 async fn ensure_signed_phase(api: &RuntimeApi, hash: Hash) -> Result<(), anyhow::Error> {
@@ -144,7 +144,7 @@ pub(crate) async fn run_cmd(
 /// Construct extrinsic at given block and watch it.
 async fn send_and_watch_extrinsic(
 	tx: tokio::sync::mpsc::UnboundedSender<()>,
-	at: subxt::sp_runtime::generic::Header<u32, subxt::sp_runtime::traits::BlakeTwo256>,
+	at: Header,
 	client: SubxtClient,
 	signer: Arc<Signer>,
 	config: MonitorConfig,
@@ -190,7 +190,6 @@ async fn send_and_watch_extrinsic(
 			.unwrap()
 			.unwrap_or_default();
 
-		use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
 
 		let voters: Vec<_> = voters
 			.into_iter()
@@ -207,13 +206,13 @@ async fn send_and_watch_extrinsic(
 		match config.solver {
 			Solver::SeqPhragmen { iterations } => {
 				//BalanceIterations::set(*iterations);
-				Miner::mine_solution_with_snapshot::<
+				PolkadotMiner::mine_solution_with_snapshot::<
 					SequentialPhragmen<AccountId, Perbill, Balancing>,
 				>(voters, targets, desired_targets)
 			},
 			Solver::PhragMMS { iterations } => {
 				//BalanceIterations::set(*iterations);
-				Miner::mine_solution_with_snapshot::<PhragMMS<AccountId, Perbill, Balancing>>(
+				PolkadotMiner::mine_solution_with_snapshot::<PhragMMS<AccountId, Perbill, Balancing>>(
 					voters,
 					targets,
 					desired_targets,
@@ -228,32 +227,12 @@ async fn send_and_watch_extrinsic(
 
 	log::info!(target: LOG_TARGET, "mined solution with {:?}", score);
 
-	let raw_solution = RawSolution { solution, score, round };
-	let call = Call(Box::new(raw_solution));
+	let call = SubmitCall::new(RawSolution { solution, score, round });
 
-	#[derive(Encode)]
-	struct Call(Box<RawSolution<MockedNposSolution>>);
-
-	impl subxt::Call for Call {
-		const PALLET: &'static str = "ElectionProviderMultiPhase";
-		const FUNCTION: &'static str = "submit";
-	}
-
-	#[derive(Encode, Decode)]
-	struct DummyErr;
-
-	impl subxt::HasModuleError for DummyErr {
-		fn module_error_data(&self) -> Option<subxt::ModuleErrorData> {
-			None
-		}
-	}
-
-	let xt = subxt::SubmittableExtrinsic::<_, ExtrinsicParams, Call, DummyErr, String>::new(
+	let xt = subxt::SubmittableExtrinsic::<_, ExtrinsicParams, _, ModuleErrMissing, NoEvents>::new(
 		&api.client,
 		call,
 	);
-
-	// let xt = api.tx().election_provider_multi_phase().set_minimum_untrusted_score(None).unwrap();
 
 	let mut status = xt
 		.sign_and_submit_then_watch(
