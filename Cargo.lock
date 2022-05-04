@@ -4881,6 +4881,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nix"
+version = "0.24.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f17df307904acd05aa8e32e97bb20f2a0df1728bbc2d771ae8f9a90463441e9"
+dependencies = [
+ "bitflags",
+ "cfg-if 1.0.0",
+ "libc",
+ "memoffset",
+]
+
+[[package]]
 name = "nodrop"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6392,7 +6404,7 @@ version = "0.9.19"
 dependencies = [
  "assert_cmd",
  "color-eyre",
- "nix 0.23.1",
+ "nix 0.24.1",
  "parity-util-mem",
  "polkadot-cli",
  "polkadot-core-primitives",
@@ -7064,7 +7076,7 @@ dependencies = [
  "hyper",
  "log",
  "metered-channel",
- "nix 0.23.1",
+ "nix 0.24.1",
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-test-service",
