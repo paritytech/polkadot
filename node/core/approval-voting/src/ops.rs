@@ -354,15 +354,15 @@ pub fn revert_to(
 	};
 
 	let mut stack: Vec<_> = children.into_iter().map(|h| (h, children_height)).collect();
-	let mut range_top = stored_range.1;
+	let mut range_end = stored_range.1;
 
 	while let Some((hash, number)) = stack.pop() {
 		let mut blocks_at_height = overlay.load_blocks_at_height(&number)?;
 		blocks_at_height.retain(|h| h != &hash);
 
 		// Check if we need to update the range top
-		if blocks_at_height.is_empty() && number <= range_top {
-			range_top = number.saturating_sub(1);
+		if blocks_at_height.is_empty() && number < range_end {
+			range_end = number;
 		}
 
 		overlay.write_blocks_at_height(number, blocks_at_height);
@@ -389,9 +389,9 @@ pub fn revert_to(
 	}
 
 	// Check if our modifications to the dag has reduced the range top
-	if range_top != stored_range.1 {
-		if stored_range.0 <= range_top {
-			stored_range.1 = range_top;
+	if range_end != stored_range.1 {
+		if stored_range.0 < range_end {
+			stored_range.1 = range_end;
 			overlay.write_stored_block_range(stored_range);
 		} else {
 			overlay.delete_stored_block_range();
