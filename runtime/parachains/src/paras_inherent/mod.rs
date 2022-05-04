@@ -535,7 +535,7 @@ impl<T: Config> Pallet<T> {
 
 		// Give some time slice to dispatch pending upward messages.
 		// this is max config.ump_service_total_weight
-		let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
+		let total_consumed_weight = total_consumed_weight + <ump::Pallet<T>>::process_pending_upward_messages();
 
 		METRICS.on_after_filter(total_consumed_weight);
 
