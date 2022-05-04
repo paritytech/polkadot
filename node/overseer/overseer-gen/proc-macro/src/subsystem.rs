@@ -14,11 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-
-//! Generates the bounds for a particular subsystem.
+//! Generates the bounds for a particular subsystem `Context` and associate `type Sender`.
 //!
 //!
-//! ## `subsystem`
+//! ## Implement `trait Subsystem<Context, Error>` via `subsystem`
 //!
 //! ```rust
 //! #[subsystem(Foo, error = Yikes, prefix = somewhere)]
@@ -41,7 +40,9 @@
 //! where `support_crate` is either equivalent to `somewhere` or derived from the cargo manifest.
 //!
 //!
-//! ### `contextbounds`
+//! ## Add aditional trait bounds for a generic `Context` via `contextbounds`
+//!
+//! ### To an `ImplItem`
 //!
 //! ```rust
 //! #[contextbounds(Foo, prefix = somewhere)]
@@ -63,7 +64,7 @@
 //! }
 //! ```
 //!
-//! or
+//! ### To a free standing `Fn` (not a method, that's covered by the above)
 //!
 //! ```rust
 //! #[contextbounds(Foo, prefix = somewhere)]
