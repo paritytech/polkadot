@@ -14,6 +14,76 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+
+//! Generates the bounds for a particular subsystem.
+//!
+//!
+//! ## `subsystem`
+//!
+//! ```rust
+//! #[subsystem(Foo, error = Yikes, prefix = somewhere)]
+//! impl<Context> BarSubsystem {
+//! ..
+//! }
+//! ``` expands to
+//!
+//! ```rust
+//! impl<Context> support_crate::Subsystem<Context, Yikes> for BarSubsystem
+//! where
+//! 	Context: somewhere::FooSubsystemTrait,
+//!     Context: support_crate::SubsystemContext,
+//!		<Context as somewhere::FooContextTrait>::Sender: somewhere::FooSenderTrait,
+//!		<Context as support_crate::SubsystemContext>::Sender: somewhere::FooSenderTrait,
+//! {
+//! }
+//! ```
+//!
+//! where `support_crate` is either equivalent to `somewhere` or derived from the cargo manifest.
+//!
+//!
+//! ### `contextbounds`
+//!
+//! ```rust
+//! #[contextbounds(Foo, prefix = somewhere)]
+//! impl<Context> X {
+//! ..
+//! }
+//! ```
+//!
+//! expands to
+//!
+//! ```rust
+//! impl<Context> X
+//! where
+//! 	Context: somewhere::FooSubsystemTrait,
+//!     Context: support_crate::SubsystemContext,
+//!		<Context as somewhere::FooContextTrait>::Sender: somewhere::FooSenderTrait,
+//!		<Context as support_crate::SubsystemContext>::Sender: somewhere::FooSenderTrait,
+//! {
+//! }
+//! ```
+//!
+//! or
+//!
+//! ```rust
+//! #[contextbounds(Foo, prefix = somewhere)]
+//! fn do_smth<Context>(context: &mut Context) {
+//! ..
+//! }
+//! ```
+//!
+//! expands to
+//!
+//! ```rust
+//! fn do_smth<Context>(context: &mut Context)
+//! where
+//! 	Context: somewhere::FooSubsystemTrait,
+//!     Context: support_crate::SubsystemContext,
+//!		<Context as somewhere::FooContextTrait>::Sender: somewhere::FooSenderTrait,
+//!		<Context as support_crate::SubsystemContext>::Sender: somewhere::FooSenderTrait,
+//! {
+//! }
+//! ```
 use proc_macro2::TokenStream;
 use quote::{format_ident, ToTokens};
 use syn::{parse2, parse_quote, punctuated::Punctuated, Result};
