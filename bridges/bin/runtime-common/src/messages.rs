@@ -196,9 +196,6 @@ pub fn transaction_payment<Balance: AtLeast32BitUnsigned + FixedPointOperand>(
 pub mod source {
 	use super::*;
 
-	/// Encoded Call of the Bridged chain. We never try to decode it on This chain.
-	pub type BridgedChainOpaqueCall = Vec<u8>;
-
 	/// Message payload for This -> Bridged chain messages.
 	pub type FromThisChainMessagePayload = Vec<u8>;
 
