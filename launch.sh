@@ -30,6 +30,9 @@
 # - https://polkadot.js.org/apps/?rpc=ws%3A%2F%2F127.0.0.1%3A9902#/explorer
 # - https://polkadot.js.org/apps/?rpc=ws%3A%2F%2F127.0.0.1%3A9903#/explorer
 
+# Exit on error
+set -e
+
 BIN=./target/release/polkadot
 
 if [[ -z "${RELAY}" ]]; then
@@ -123,8 +126,8 @@ $RELAY relay-headers rococo-to-wococo \
         --target-host 127.0.0.1 \
         --target-port 9902 \
         --target-signer "//Alice" \
-        > logs/message-messages.log 2>&1 &
-        
+        > logs/headers-relayer.log 2>&1 &
+
 $RELAY relay-messages rococo-to-wococo \
         --source-host 127.0.0.1 \
         --source-port 9900 \
