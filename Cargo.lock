@@ -3513,6 +3513,8 @@ dependencies = [
  "pallet-membership",
  "pallet-multisig",
  "pallet-nicks",
+ "pallet-nomination-pools",
+ "pallet-nomination-pools-benchmarking",
  "pallet-offences",
  "pallet-offences-benchmarking",
  "pallet-preimage",
