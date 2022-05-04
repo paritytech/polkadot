@@ -1,0 +1,78 @@
+[package]
+name = "substrate-relay"
+version = "1.0.1"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2021"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+
+[dependencies]
+anyhow = "1.0"
+async-std = "1.9.0"
+async-trait = "0.1"
+codec = { package = "parity-scale-codec", version = "3.0.0" }
+futures = "0.3.12"
+hex = "0.4"
+log = "0.4.14"
+num-format = "0.4"
+num-traits = "0.2"
+paste = "1.0"
+rand = "0.8"
+structopt = "0.3"
+strum = { version = "0.21.0", features = ["derive"] }
+
+# Bridge dependencies
+
+bp-header-chain = { path = "../../primitives/header-chain" }
+bp-kusama = { path = "../../primitives/chain-kusama" }
+bp-messages = { path = "../../primitives/messages" }
+bp-millau = { path = "../../primitives/chain-millau" }
+bp-polkadot = { path = "../../primitives/chain-polkadot" }
+bp-rialto = { path = "../../primitives/chain-rialto" }
+bp-rialto-parachain = { path = "../../primitives/chain-rialto-parachain" }
+bp-rococo = { path = "../../primitives/chain-rococo" }
+bp-runtime = { path = "../../primitives/runtime" }
+bp-westend = { path = "../../primitives/chain-westend" }
+bp-wococo = { path = "../../primitives/chain-wococo" }
+bridge-runtime-common = { path = "../../bin/runtime-common" }
+finality-relay = { path = "../finality" }
+messages-relay = { path = "../messages" }
+millau-runtime = { path = "../../bin/millau/runtime" }
+pallet-bridge-grandpa = { path = "../../modules/grandpa" }
+pallet-bridge-messages = { path = "../../modules/messages" }
+relay-kusama-client = { path = "../client-kusama" }
+relay-millau-client = { path = "../client-millau" }
+relay-polkadot-client = { path = "../client-polkadot" }
+relay-rialto-client = { path = "../client-rialto" }
+relay-rialto-parachain-client = { path = "../client-rialto-parachain" }
+relay-rococo-client = { path = "../client-rococo" }
+relay-wococo-client = { path = "../client-wococo" }
+relay-substrate-client = { path = "../client-substrate" }
+relay-utils = { path = "../utils" }
+relay-westend-client = { path = "../client-westend" }
+rialto-parachain-runtime = { path = "../../bin/rialto-parachain/runtime" }
+rialto-runtime = { path = "../../bin/rialto/runtime" }
+substrate-relay-helper = { path = "../lib-substrate-relay" }
+
+# Substrate Dependencies
+
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+# Polkadot Dependencies
+
+polkadot-parachain = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcm-v3" }
+polkadot-primitives = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcm-v3" }
+polkadot-runtime-common = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcm-v3" }
+polkadot-runtime-parachains = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcm-v3" }
+
+[dev-dependencies]
+bp-test-utils = { path = "../../primitives/test-utils" }
+hex-literal = "0.3"
+pallet-bridge-grandpa = { path = "../../modules/grandpa" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+tempfile = "3.2"
+finality-grandpa = { version = "0.15.0" }

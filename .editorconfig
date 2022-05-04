@@ -1,26 +1,19 @@
 root = true
-
-[*.rs]
+[*]
 indent_style=tab
 indent_size=tab
 tab_width=4
-max_line_length=120
 end_of_line=lf
 charset=utf-8
 trim_trailing_whitespace=true
+max_line_length=100
 insert_final_newline=true
 
-[*.yml]
+[*.{yml,md,yaml,sh}]
 indent_style=space
 indent_size=2
 tab_width=8
 end_of_line=lf
-charset=utf-8
-trim_trailing_whitespace=true
-insert_final_newline=true
 
-[*.sh]
-indent_style=space
-indent_size=2
-tab_width=8
-end_of_line=lf
+[*.md]
+max_line_length=80

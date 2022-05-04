@@ -1,272 +1,252 @@
-# Polkadot
+# Parity Bridges Common
 
-Implementation of a <https://polkadot.network> node in Rust based on the Substrate framework.
+This is a collection of components for building bridges.
 
-> **NOTE:** In 2018, we split our implementation of "Polkadot" from its development framework
-> "Substrate". See the [Substrate][substrate-repo] repo for git history prior to 2018.
+These components include Substrate pallets for syncing headers, passing arbitrary messages, as well
+as libraries for building relayers to provide cross-chain communication capabilities.
 
-[substrate-repo]: https://github.com/paritytech/substrate
+Three bridge nodes are also available. The nodes can be used to run test networks which bridge other
+Substrate chains.
 
-This repo contains runtimes for the Polkadot, Kusama, and Westend networks. The README provides
-information about installing the `polkadot` binary and developing on the codebase. For more
-specific guides, like how to be a validator, see the
-[Polkadot Wiki](https://wiki.polkadot.network/docs/getting-started).
+🚧 The bridges are currently under construction - a hardhat is recommended beyond this point 🚧
+
+**IMPORTANT**: this documentation is outdated and it is mostly related to the previous version of our
+bridge. Right there's an ongoing work to make our bridge work with XCM messages. Old bridge is still
+available at [encoded-calls-messaging](https://github.com/paritytech/parity-bridges-common/releases/tag/encoded-calls-messaging)
+tag.
+
+## Contents
+
+- [Installation](#installation)
+- [High-Level Architecture](#high-level-architecture)
+- [Project Layout](#project-layout)
+- [Running the Bridge](#running-the-bridge)
+- [How to send a message](#how-to-send-a-message)
+- [Community](#community)
 
 ## Installation
 
-If you just wish to run a Polkadot node without compiling it yourself, you may
-either run the latest binary from our
-[releases](https://github.com/paritytech/polkadot/releases) page, or install
-Polkadot from one of our package repositories.
-
-Installation from the Debian or rpm repositories will create a `systemd`
-service that can be used to run a Polkadot node. This is disabled by default,
-and can be started by running `systemctl start polkadot` on demand (use
-`systemctl enable polkadot` to make it auto-start after reboot). By default, it
-will run as the `polkadot` user.  Command-line flags passed to the binary can
-be customized by editing `/etc/default/polkadot`. This file will not be
-overwritten on updating polkadot. You may also just run the node directly from
-the command-line.
-
-### Debian-based (Debian, Ubuntu)
-
-Currently supports Debian 10 (Buster) and Ubuntu 20.04 (Focal), and
-derivatives. Run the following commands as the `root` user.
+To get up and running you need both stable and nightly Rust. Rust nightly is used to build the Web
+Assembly (WASM) runtime for the node. You can configure the WASM support as so:
 
 ```bash
-# Import the security@parity.io GPG key
-gpg --recv-keys --keyserver hkps://keys.mailvelope.com 9D4B2B6EB8F97156D19669A9FF0812D491B96798
-gpg --export 9D4B2B6EB8F97156D19669A9FF0812D491B96798 > /usr/share/keyrings/parity.gpg
-# Add the Parity repository and update the package index
-echo 'deb [signed-by=/usr/share/keyrings/parity.gpg] https://releases.parity.io/deb release main' > /etc/apt/sources.list.d/parity.list
-apt update
-# Install the `parity-keyring` package - This will ensure the GPG key
-# used by APT remains up-to-date
-apt install parity-keyring
-# Install polkadot
-apt install polkadot
-
+rustup install nightly
+rustup target add wasm32-unknown-unknown --toolchain nightly
 ```
 
-### RPM-based (Fedora, CentOS)
+Once this is configured you can build and test the repo as follows:
 
-Currently supports Fedora 32 and CentOS 8, and derivatives.
+```
+git clone https://github.com/paritytech/parity-bridges-common.git
+cd parity-bridges-common
+cargo build --all
+cargo test --all
+```
+
+Also you can build the repo with
+[Parity CI Docker image](https://github.com/paritytech/scripts/tree/master/dockerfiles/bridges-ci):
 
 ```bash
-# Install dnf-plugins-core (This might already be installed)
-dnf install dnf-plugins-core
-# Add the repository and enable it
-dnf config-manager --add-repo https://releases.parity.io/rpm/polkadot.repo
-dnf config-manager --set-enabled polkadot
-# Install polkadot (You may have to confirm the import of the GPG key, which
-# should have the following fingerprint: 9D4B2B6EB8F97156D19669A9FF0812D491B96798)
-dnf install polkadot
+docker pull paritytech/bridges-ci:production
+mkdir ~/cache
+chown 1000:1000 ~/cache #processes in the container runs as "nonroot" user with UID 1000
+docker run --rm -it -w /shellhere/parity-bridges-common \
+                    -v /home/$(whoami)/cache/:/cache/    \
+                    -v "$(pwd)":/shellhere/parity-bridges-common \
+                    -e CARGO_HOME=/cache/cargo/ \
+                    -e SCCACHE_DIR=/cache/sccache/ \
+                    -e CARGO_TARGET_DIR=/cache/target/  paritytech/bridges-ci:production cargo build --all
+#artifacts can be found in ~/cache/target
 ```
 
-## Building
+If you want to reproduce other steps of CI process you can use the following
+[guide](https://github.com/paritytech/scripts#reproduce-ci-locally).
 
-### Install via Cargo
+If you need more information about setting up your development environment Substrate's
+[Getting Started](https://substrate.dev/docs/en/knowledgebase/getting-started/) page is a good
+resource.
 
-Make sure you have the support software installed from the **Build from Source** section
-below this section.
+## High-Level Architecture
 
-If you want to install Polkadot in your PATH, you can do so with with:
+This repo has support for bridging foreign chains together using a combination of Substrate pallets
+and external processes called relayers. A bridge chain is one that is able to follow the consensus
+of a foreign chain independently. For example, consider the case below where we want to bridge two
+Substrate based chains.
+
+```
++---------------+                 +---------------+
+|               |                 |               |
+|     Rialto    |                 |    Millau     |
+|               |                 |               |
++-------+-------+                 +-------+-------+
+        ^                                 ^
+        |       +---------------+         |
+        |       |               |         |
+        +-----> | Bridge Relay  | <-------+
+                |               |
+                +---------------+
+```
+
+The Millau chain must be able to accept Rialto headers and verify their integrity. It does this by
+using a runtime module designed to track GRANDPA finality. Since two blockchains can't interact
+directly they need an external service, called a relayer, to communicate. The relayer will subscribe
+to new Rialto headers via RPC and submit them to the Millau chain for verification.
+
+Take a look at [Bridge High Level Documentation](./docs/high-level-overview.md) for more in-depth
+description of the bridge interaction.
+
+## Project Layout
+
+Here's an overview of how the project is laid out. The main bits are the `node`, which is the actual
+"blockchain", the `modules` which are used to build the blockchain's logic (a.k.a the runtime) and
+the `relays` which are used to pass messages between chains.
+
+```
+├── bin             // Node and Runtime for the various Substrate chains
+│  └── ...
+├── deployments     // Useful tools for deploying test networks
+│  └──  ...
+├── diagrams        // Pretty pictures of the project architecture
+│  └──  ...
+├── modules         // Substrate Runtime Modules (a.k.a Pallets)
+│  ├── grandpa      // On-Chain GRANDPA Light Client
+│  ├── messages     // Cross Chain Message Passing
+│  ├── dispatch     // Target Chain Message Execution
+│  └──  ...
+├── primitives      // Code shared between modules, runtimes, and relays
+│  └──  ...
+├── relays          // Application for sending headers and messages between chains
+│  └──  ...
+└── scripts         // Useful development and maintenance scripts
+```
+
+## Running the Bridge
+
+To run the Bridge you need to be able to connect the bridge relay node to the RPC interface of nodes
+on each side of the bridge (source and target chain).
+
+There are 2 ways to run the bridge, described below:
+
+- building & running from source
+- running a Docker Compose setup (recommended).
+
+### Using the Source
+
+First you'll need to build the bridge nodes and relay. This can be done as follows:
 
 ```bash
-cargo install --git https://github.com/paritytech/polkadot --tag <version> polkadot --locked
+# In `parity-bridges-common` folder
+cargo build -p rialto-bridge-node
+cargo build -p millau-bridge-node
+cargo build -p substrate-relay
 ```
 
-### Build from Source
+### Running a Dev network
 
-If you'd like to build from source, first install Rust. You may need to add Cargo's bin directory
-to your PATH environment variable. Restarting your computer will do this for you automatically.
+We will launch a dev network to demonstrate how to relay a message between two Substrate based
+chains (named Rialto and Millau).
+
+To do this we will need two nodes, two relayers which will relay headers, and two relayers which
+will relay messages.
+
+#### Running from local scripts
+
+To run a simple dev network you can use the scripts located in the
+[`deployments/local-scripts` folder](./deployments/local-scripts).
+
+First, we must run the two Substrate nodes.
 
 ```bash
-curl https://sh.rustup.rs -sSf | sh
+# In `parity-bridges-common` folder
+./deployments/local-scripts/run-rialto-node.sh
+./deployments/local-scripts/run-millau-node.sh
 ```
 
-If you already have Rust installed, make sure you're using the latest version by running:
+After the nodes are up we can run the header relayers.
 
 ```bash
-rustup update
+./deployments/local-scripts/relay-millau-to-rialto.sh
+./deployments/local-scripts/relay-rialto-to-millau.sh
 ```
 
-Once done, finish installing the support software:
+At this point you should see the relayer submitting headers from the Millau Substrate chain to the
+Rialto Substrate chain.
+
+```
+# Header Relayer Logs
+[Millau_to_Rialto_Sync] [date] DEBUG bridge Going to submit finality proof of Millau header #147 to Rialto
+[...] [date] INFO bridge Synced 147 of 147 headers
+[...] [date] DEBUG bridge Going to submit finality proof of Millau header #148 to Rialto
+[...] [date] INFO bridge Synced 148 of 149 headers
+```
+
+Finally, we can run the message relayers.
 
 ```bash
-sudo apt install build-essential git clang libclang-dev pkg-config libssl-dev
+./deployments/local-scripts/relay-messages-millau-to-rialto.sh
+./deployments/local-scripts/relay-messages-rialto-to-millau.sh
 ```
 
-Build the client by cloning this repository and running the following commands from the root
-directory of the repo:
+You will also see the message lane relayers listening for new messages.
+
+```
+# Message Relayer Logs
+[Millau_to_Rialto_MessageLane_00000000] [date] DEBUG bridge Asking Millau::ReceivingConfirmationsDelivery about best message nonces
+[...] [date] INFO bridge Synced Some(2) of Some(3) nonces in Millau::MessagesDelivery -> Rialto::MessagesDelivery race
+[...] [date] DEBUG bridge Asking Millau::MessagesDelivery about message nonces
+[...] [date] DEBUG bridge Received best nonces from Millau::ReceivingConfirmationsDelivery: TargetClientNonces { latest_nonce: 0, nonces_data: () }
+[...] [date] DEBUG bridge Asking Millau::ReceivingConfirmationsDelivery about finalized message nonces
+[...] [date] DEBUG bridge Received finalized nonces from Millau::ReceivingConfirmationsDelivery: TargetClientNonces { latest_nonce: 0, nonces_data: () }
+[...] [date] DEBUG bridge Received nonces from Millau::MessagesDelivery: SourceClientNonces { new_nonces: {}, confirmed_nonce: Some(0) }
+[...] [date] DEBUG bridge Asking Millau node about its state
+[...] [date] DEBUG bridge Received state from Millau node: ClientState { best_self: HeaderId(1593, 0xacac***), best_finalized_self: HeaderId(1590, 0x0be81d...), best_finalized_peer_at_best_self: HeaderId(0, 0xdcdd89...) }
+```
+
+To send a message see the ["How to send a message" section](#how-to-send-a-message).
+
+### Full Network Docker Compose Setup
+
+For a more sophisticated deployment which includes bidirectional header sync, message passing,
+monitoring dashboards, etc. see the [Deployments README](./deployments/README.md).
+
+You should note that you can find images for all the bridge components published on
+[Docker Hub](https://hub.docker.com/u/paritytech).
+
+To run a Rialto node for example, you can use the following command:
 
 ```bash
-git checkout <latest tagged release>
-./scripts/init.sh
-cargo build --release
+docker run -p 30333:30333 -p 9933:9933 -p 9944:9944 \
+  -it paritytech/rialto-bridge-node --dev --tmp \
+  --rpc-cors=all --unsafe-rpc-external --unsafe-ws-external
 ```
 
-Note that compilation is a memory intensive process. We recommend having 4 GiB of physical RAM or swap available (keep in mind that if a build hits swap it tends to be very slow).
+### How to send a message
 
-#### Build from Source with Docker
-
-You can also build from source using 
-[Parity CI docker image](https://github.com/paritytech/scripts/tree/master/dockerfiles/ci-linux):
+In this section we'll show you how to quickly send a bridge message, if you want to
+interact with and test the bridge see more details in [send message](./docs/send-message.md)
 
 ```bash
-git checkout <latest tagged release>
-docker run --rm -it -w /shellhere/polkadot \
-                    -v $(pwd):/shellhere/polkadot \
-                    paritytech/ci-linux:production cargo build --release
-sudo chown -R $(id -u):$(id -g) target/
+# In `parity-bridges-common` folder
+./scripts/send-message-from-millau-rialto.sh remark
 ```
 
-If you want to reproduce other steps of CI process you can use the following 
-[guide](https://github.com/paritytech/scripts#gitlab-ci-for-building-docker-images).
+After sending a message you will see the following logs showing a message was successfully sent:
 
-## Networks
-
-This repo supports runtimes for Polkadot, Kusama, and Westend.
-
-### Connect to Polkadot Mainnet
-
-Connect to the global Polkadot Mainnet network by running:
-
-```bash
-./target/release/polkadot --chain=polkadot
+```
+INFO bridge Sending message to Rialto. Size: 286. Dispatch weight: 1038000. Fee: 275,002,568
+INFO bridge Signed Millau Call: 0x7904...
+TRACE bridge Sent transaction to Millau node: 0x5e68...
 ```
 
-You can see your node on [telemetry] (set a custom name with `--name "my custom name"`).
+## Community
 
-[telemetry]: https://telemetry.polkadot.io/#list/Polkadot
+Main hangout for the community is [Element](https://element.io/) (formerly Riot). Element is a chat
+server like, for example, Discord. Most discussions around Polkadot and Substrate happen
+in various Element "rooms" (channels). So, joining Element might be a good idea, anyway.
 
-### Connect to the "Kusama" Canary Network
+If you are interested in information exchange and development of Polkadot related bridges please
+feel free to join the [Polkadot Bridges](https://app.element.io/#/room/#bridges:web3.foundation)
+Element channel.
 
-Connect to the global Kusama canary network by running:
-
-```bash
-./target/release/polkadot --chain=kusama
-```
-
-You can see your node on [telemetry] (set a custom name with `--name "my custom name"`).
-
-[telemetry]: https://telemetry.polkadot.io/#list/Kusama
-
-### Connect to the Westend Testnet
-
-Connect to the global Westend testnet by running:
-
-```bash
-./target/release/polkadot --chain=westend
-```
-
-You can see your node on [telemetry] (set a custom name with `--name "my custom name"`).
-
-[telemetry]: https://telemetry.polkadot.io/#list/Westend
-
-### Obtaining DOTs
-
-If you want to do anything on Polkadot, Kusama, or Westend, then you'll need to get an account and
-some DOT, KSM, or WND tokens, respectively. See the
-[claims instructions](https://claims.polkadot.network/) for Polkadot if you have DOTs to claim. For
-Westend's WND tokens, see the faucet
-[instructions](https://wiki.polkadot.network/docs/learn-DOT#getting-westies) on the Wiki.
-
-## Hacking on Polkadot
-
-If you'd actually like to hack on Polkadot, you can grab the source code and build it. Ensure you have
-Rust and the support software installed. This script will install or update Rust and install the
-required dependencies (this may take up to 30 minutes on Mac machines):
-
-```bash
-curl https://getsubstrate.io -sSf | bash -s -- --fast
-```
-
-Then, grab the Polkadot source code:
-
-```bash
-git clone https://github.com/paritytech/polkadot.git
-cd polkadot
-```
-
-Then build the code. You will need to build in release mode (`--release`) to start a network. Only
-use debug mode for development (faster compile times for development and testing).
-
-```bash
-./scripts/init.sh   # Install WebAssembly. Update Rust
-cargo build # Builds all native code
-```
-
-You can run the tests if you like:
-
-```bash
-cargo test --all --release
-```
-
-You can start a development chain with:
-
-```bash
-cargo run -- --dev
-```
-
-Detailed logs may be shown by running the node with the following environment variables set:
-
-```bash
-RUST_LOG=debug RUST_BACKTRACE=1 cargo run -- --dev
-```
-
-### Development
-
-You can run a simple single-node development "network" on your machine by running:
-
-```bash
-polkadot --dev
-```
-
-You can muck around by heading to <https://polkadot.js.org/apps> and choose "Local Node" from the
-Settings menu.
-
-### Local Two-node Testnet
-
-If you want to see the multi-node consensus algorithm in action locally, then you can create a
-local testnet. You'll need two terminals open. In one, run:
-
-```bash
-polkadot --chain=polkadot-local --alice -d /tmp/alice
-```
-
-And in the other, run:
-
-```bash
-polkadot --chain=polkadot-local --bob -d /tmp/bob --port 30334 --bootnodes '/ip4/127.0.0.1/tcp/30333/p2p/ALICE_BOOTNODE_ID_HERE'
-```
-
-Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of the first terminal.
-
-### Monitoring
-
-[Setup Prometheus and Grafana](https://wiki.polkadot.network/docs/maintain-guides-how-to-monitor-your-node).
-
-Once you set this up you can take a look at the [Polkadot Grafana dashboards](grafana/README.md) that we currently maintain. 
-
-### Using Docker
-
-[Using Docker](doc/docker.md)
-
-### Shell Completion
-
-[Shell Completion](doc/shell-completion.md)
-
-## Contributing
-
-### Contributing Guidelines
-
-[Contribution Guidelines](CONTRIBUTING.md)
-
-### Contributor Code of Conduct
-
-[Code of Conduct](CODE_OF_CONDUCT.md)
-
-## License
-
-Polkadot is [GPL 3.0 licensed](LICENSE).
+The [Substrate Technical](https://app.element.io/#/room/#substrate-technical:matrix.org) Element
+channel is most suited for discussions regarding Substrate itself.
