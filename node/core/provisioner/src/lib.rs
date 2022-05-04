@@ -39,9 +39,9 @@ use polkadot_node_subsystem_util::{
 	JobTrait,
 };
 use polkadot_primitives::v2::{
-	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeStatement,
-	DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption, SessionIndex,
-	SignedAvailabilityBitfield, ValidatorIndex,
+	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeState,
+	DisputeStatement, DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption,
+	SessionIndex, SignedAvailabilityBitfield, ValidatorIndex,
 };
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
@@ -667,6 +667,72 @@ async fn select_disputes(
 	metrics: &metrics::Metrics,
 	_leaf: &ActivatedLeaf,
 ) -> Result<MultiDisputeStatementSet, Error> {
+	// Helper lambda
+	// Gets the active disputes as input and partitions it in seen and unseen disputes by the Runtime
+	// Returns as much unseen disputes as possible and optionally some seen disputes up to `MAX_DISPUTES_FORWARDED_TO_RUNTIME` limit.
+	let generate_unseen_active_subset =
+		|active: Vec<(SessionIndex, CandidateHash)>,
+		 onchain: HashMap<(SessionIndex, CandidateHash), DisputeState>|
+		 -> Vec<(SessionIndex, CandidateHash)> {
+			let (seen_onchain, mut unseen_onchain): (
+				Vec<(SessionIndex, CandidateHash)>,
+				Vec<(SessionIndex, CandidateHash)>,
+			) = active.into_iter().partition(|d| onchain.contains_key(d));
+
+			if unseen_onchain.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
+				// Even unseen on-chain don't fit within the limit. Add as many as possible.
+				let mut unseen_subset = Vec::with_capacity(MAX_DISPUTES_FORWARDED_TO_RUNTIME);
+				extend_by_random_subset_without_repetition(
+					&mut unseen_subset,
+					unseen_onchain,
+					MAX_DISPUTES_FORWARDED_TO_RUNTIME,
+				);
+				unseen_subset
+			} else {
+				// Add all unseen onchain disputes and as much of the seen ones as there is space.
+				let n_unseen_onchain = unseen_onchain.len();
+				extend_by_random_subset_without_repetition(
+					&mut unseen_onchain,
+					seen_onchain,
+					MAX_DISPUTES_FORWARDED_TO_RUNTIME.saturating_sub(n_unseen_onchain),
+				);
+				unseen_onchain
+			}
+		};
+
+	// Helper lambda
+	// Extends the active disputes with recent ones up to `MAX_DISPUTES_FORWARDED_TO_RUNTIME` limit. Unseen recent disputes are prioritised.
+	let generate_active_and_unseen_recent_subset =
+		|recent: Vec<(SessionIndex, CandidateHash)>,
+		 mut active: Vec<(SessionIndex, CandidateHash)>,
+		 onchain: HashMap<(SessionIndex, CandidateHash), DisputeState>|
+		 -> Vec<(SessionIndex, CandidateHash)> {
+			let mut n_active = active.len();
+			// All active disputes can be sent. Fill the rest of the space with recent ones.
+			// We assume there is not enough space for all recent disputes. So we prioritise the unseen ones.
+			let (seen_onchain, unseen_onchain): (
+				Vec<(SessionIndex, CandidateHash)>,
+				Vec<(SessionIndex, CandidateHash)>,
+			) = recent.into_iter().partition(|d| onchain.contains_key(d));
+
+			extend_by_random_subset_without_repetition(
+				&mut active,
+				unseen_onchain,
+				MAX_DISPUTES_FORWARDED_TO_RUNTIME.saturating_sub(n_active),
+			);
+			n_active = active.len();
+
+			if n_active < MAX_DISPUTES_FORWARDED_TO_RUNTIME {
+				// Looks like we can add some of the seen disputes too
+				extend_by_random_subset_without_repetition(
+					&mut active,
+					seen_onchain,
+					MAX_DISPUTES_FORWARDED_TO_RUNTIME.saturating_sub(n_active),
+				);
+			}
+			active
+		};
+
 	// We use `RecentDisputes` instead of `ActiveDisputes` because redundancy is fine.
 	// It's heavier than `ActiveDisputes` but ensures that everything from the dispute
 	// window gets on-chain, unlike `ActiveDisputes`.
@@ -697,62 +763,12 @@ async fn select_disputes(
 			recent.len(),
 			MAX_DISPUTES_FORWARDED_TO_RUNTIME
 		);
-
-		let mut active = request_disputes(sender, RequestType::Active).await;
-		let active = if active.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
-			// Active disputes don't fit within the limit. Prioritize unseen on-chain disputes.
-			let (seen_onchain, mut unseen_onchain): (
-				Vec<(SessionIndex, CandidateHash)>,
-				Vec<(SessionIndex, CandidateHash)>,
-			) = active.into_iter().partition(|d| onchain.contains_key(d));
-
-			let active_subset = if unseen_onchain.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
-				// Even unseen on-chain don't fit within the limit. Add as many as possible.
-				let mut unseen_subset = Vec::with_capacity(MAX_DISPUTES_FORWARDED_TO_RUNTIME);
-				extend_by_random_subset_without_repetition(
-					&mut unseen_subset,
-					unseen_onchain,
-					MAX_DISPUTES_FORWARDED_TO_RUNTIME,
-				);
-				unseen_subset
-			} else {
-				// Add all unseen onchain disputes and as much of the seen ones as there is space.
-				let n_unseen_onchain = unseen_onchain.len();
-				extend_by_random_subset_without_repetition(
-					&mut unseen_onchain,
-					seen_onchain,
-					MAX_DISPUTES_FORWARDED_TO_RUNTIME.saturating_sub(n_unseen_onchain),
-				);
-				unseen_onchain
-			};
-			active_subset
+		let active = request_disputes(sender, RequestType::Active).await;
+		if active.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
+			generate_unseen_active_subset(active, onchain)
 		} else {
-			let mut n_active = active.len();
-			// All active disputes can be sent. Fill the rest of the space with recent ones.
-			// We assume there is not enough space for all recent disputes. So we prioritise the unseen ones.
-			let (seen_onchain, unseen_onchain): (
-				Vec<(SessionIndex, CandidateHash)>,
-				Vec<(SessionIndex, CandidateHash)>,
-			) = recent.into_iter().partition(|d| onchain.contains_key(d));
-
-			extend_by_random_subset_without_repetition(
-				&mut active,
-				unseen_onchain,
-				MAX_DISPUTES_FORWARDED_TO_RUNTIME.saturating_sub(n_active),
-			);
-			n_active = active.len();
-
-			if n_active < MAX_DISPUTES_FORWARDED_TO_RUNTIME {
-				// Looks like we can add some of the seen disputes too
-				extend_by_random_subset_without_repetition(
-					&mut active,
-					seen_onchain,
-					MAX_DISPUTES_FORWARDED_TO_RUNTIME.saturating_sub(n_active),
-				);
-			}
-			active
-		};
-		active
+			generate_active_and_unseen_recent_subset(recent, active, onchain)
+		}
 	} else {
 		recent
 	};
