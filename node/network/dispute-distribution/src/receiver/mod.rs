@@ -264,8 +264,9 @@ where
 
 		let (pending_confirmation, confirmation_rx) = oneshot::channel();
 		let candidate_hash = candidate_receipt.hash();
+		
 		self.sender
-			.send_message(AllMessages::DisputeCoordinator(
+			.send_unbounded_message(AllMessages::DisputeCoordinator(
 				DisputeCoordinatorMessage::ImportStatements {
 					candidate_hash,
 					candidate_receipt,
@@ -273,8 +274,7 @@ where
 					statements: vec![valid_vote, invalid_vote],
 					pending_confirmation: Some(pending_confirmation),
 				},
-			))
-			.await;
+			));
 
 		self.pending_imports.push(peer, confirmation_rx, pending_response);
 		Ok(())

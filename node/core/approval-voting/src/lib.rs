@@ -2227,17 +2227,16 @@ async fn launch_approval(
 							(candidate_hash, candidate.descriptor.para_id),
 						);
 
-						sender
-							.send_message(
-								DisputeCoordinatorMessage::IssueLocalStatement(
-									session_index,
-									candidate_hash,
-									candidate.clone(),
-									false,
-								)
-								.into(),
+						// Bounded by number of paras.
+						sender.send_unbounded_message(
+							DisputeCoordinatorMessage::IssueLocalStatement(
+								session_index,
+								candidate_hash,
+								candidate.clone(),
+								false,
 							)
-							.await;
+							.into(),
+						);
 						metrics_guard.take().on_approval_invalid();
 					},
 				}
@@ -2294,17 +2293,16 @@ async fn launch_approval(
 					return ApprovalState::approved(validator_index, candidate_hash)
 				} else {
 					// Commitments mismatch - issue a dispute.
-					sender
-						.send_message(
-							DisputeCoordinatorMessage::IssueLocalStatement(
-								session_index,
-								candidate_hash,
-								candidate.clone(),
-								false,
-							)
-							.into(),
+					// Bounded by the number of paras.
+					sender.send_unbounded_message(
+						DisputeCoordinatorMessage::IssueLocalStatement(
+							session_index,
+							candidate_hash,
+							candidate.clone(),
+							false,
 						)
-						.await;
+						.into(),
+					);
 
 					metrics_guard.take().on_approval_invalid();
 					return ApprovalState::failed(validator_index, candidate_hash)
@@ -2319,17 +2317,16 @@ async fn launch_approval(
 					"Detected invalid candidate as an approval checker.",
 				);
 
-				sender
-					.send_message(
-						DisputeCoordinatorMessage::IssueLocalStatement(
-							session_index,
-							candidate_hash,
-							candidate.clone(),
-							false,
-						)
-						.into(),
+				// Bounded by the number of paras.
+				sender.send_unbounded_message(
+					DisputeCoordinatorMessage::IssueLocalStatement(
+						session_index,
+						candidate_hash,
+						candidate.clone(),
+						false,
 					)
-					.await;
+					.into(),
+				);
 
 				metrics_guard.take().on_approval_invalid();
 				return ApprovalState::failed(validator_index, candidate_hash)

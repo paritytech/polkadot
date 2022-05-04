@@ -1157,14 +1157,16 @@ where
 		if let (Some(candidate_receipt), Some(dispute_statement)) =
 			(maybe_candidate_receipt, maybe_signed_dispute_statement)
 		{
-			ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
+			// This is also bounded by the number of paras/validators.
+			// The number of statements passed in here is bounded by statement distribution which doesn't
+			// send duplicates - filters out `NotedStatement::NotUseful | NotedStatement::UsefulButKnown`.
+			ctx.send_unbounded_message(DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
 				candidate_receipt,
 				session: self.session_index,
 				statements: vec![(dispute_statement, validator_index)],
 				pending_confirmation: None,
-			})
-			.await;
+			});
 		}
 
 		Ok(())
