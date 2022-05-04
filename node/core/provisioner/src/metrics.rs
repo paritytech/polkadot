@@ -31,14 +31,9 @@ struct MetricsInner {
 
 /// Provisioner metrics.
 #[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
+pub struct Metrics(pub(crate) Option<MetricsInner>);
 
 impl Metrics {
-	/// Creates new dummy `Metrics` instance. Used for testing only.
-	pub fn new_dummy() -> Metrics {
-		Metrics(None)
-	}
-
 	pub(crate) fn on_inherent_data_request(&self, response: Result<(), ()>) {
 		if let Some(metrics) = &self.0 {
 			match response {
