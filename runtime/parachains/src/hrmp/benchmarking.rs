@@ -157,9 +157,9 @@ frame_benchmarking::benchmarks! {
 	verify {
 		assert_last_event::<T>(
 			Event::<T>::OpenChannelRequested{
-				sender: sender_id, 
-				recipient: recipient_id, 
-				proposed_max_capacity: capacity, 
+				sender: sender_id,
+				recipient: recipient_id,
+				proposed_max_capacity: capacity,
 				proposed_max_message_size: message_size
 			}.into()
 		);

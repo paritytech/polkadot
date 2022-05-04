@@ -260,13 +260,18 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Open HRMP channel requested.
-		OpenChannelRequested{sender: ParaId, recipient: ParaId, proposed_max_capacity: u32, proposed_max_message_size: u32},
+		OpenChannelRequested {
+			sender: ParaId,
+			recipient: ParaId,
+			proposed_max_capacity: u32,
+			proposed_max_message_size: u32,
+		},
 		/// An HRMP channel request sent by the receiver was canceled by either party.
-		OpenChannelCanceled{by_parachain: ParaId, channel_id: HrmpChannelId},
+		OpenChannelCanceled { by_parachain: ParaId, channel_id: HrmpChannelId },
 		/// Open HRMP channel accepted.
-		OpenChannelAccepted{sender: ParaId, recipient: ParaId},
+		OpenChannelAccepted { sender: ParaId, recipient: ParaId },
 		/// HRMP channel closed.
-		ChannelClosed{by_parachain: ParaId, channel_id: HrmpChannelId},
+		ChannelClosed { by_parachain: ParaId, channel_id: HrmpChannelId },
 	}
 
 	#[pallet::error]
@@ -470,7 +475,7 @@ pub mod pallet {
 				proposed_max_capacity,
 				proposed_max_message_size,
 			)?;
-			Self::deposit_event(Event::OpenChannelRequested{
+			Self::deposit_event(Event::OpenChannelRequested {
 				sender: origin,
 				recipient,
 				proposed_max_capacity,
@@ -486,7 +491,7 @@ pub mod pallet {
 		pub fn hrmp_accept_open_channel(origin: OriginFor<T>, sender: ParaId) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::accept_open_channel(origin, sender)?;
-			Self::deposit_event(Event::OpenChannelAccepted{sender, recipient: origin});
+			Self::deposit_event(Event::OpenChannelAccepted { sender, recipient: origin });
 			Ok(())
 		}
 
@@ -501,7 +506,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::close_channel(origin, channel_id.clone())?;
-			Self::deposit_event(Event::ChannelClosed{by_parachain: origin, channel_id});
+			Self::deposit_event(Event::ChannelClosed { by_parachain: origin, channel_id });
 			Ok(())
 		}
 
@@ -572,10 +577,7 @@ pub mod pallet {
 				Error::<T>::WrongWitness
 			);
 			Self::cancel_open_request(origin, channel_id.clone())?;
-			Self::deposit_event(Event::OpenChannelCanceled{
-				by_parachain: origin, 
-				channel_id
-			});
+			Self::deposit_event(Event::OpenChannelCanceled { by_parachain: origin, channel_id });
 			Ok(())
 		}
 	}
