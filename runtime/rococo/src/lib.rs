@@ -823,13 +823,7 @@ impl pallet_bridge_messages::Config<AtWococoWithRococoMessagesInstance> for Runt
 
 	type TargetHeaderChain = crate::bridge_messages::RococoAtWococo;
 	type LaneMessageVerifier = crate::bridge_messages::ToRococoMessageVerifier;
-	type MessageDeliveryAndDispatchPayment =
-		pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
-			Runtime,
-			AtWococoWithRococoMessagesInstance,
-			pallet_balances::Pallet<Runtime>,
-			crate::bridge_messages::GetDeliveryConfirmationTransactionFee,
-		>;
+	type MessageDeliveryAndDispatchPayment = TollFreeBridgePayment;
 	type OnDeliveryConfirmed = ();
 	type OnMessageAccepted = ();
 
@@ -860,18 +854,38 @@ impl pallet_bridge_messages::Config<AtRococoWithWococoMessagesInstance> for Runt
 
 	type TargetHeaderChain = crate::bridge_messages::WococoAtRococo;
 	type LaneMessageVerifier = crate::bridge_messages::ToWococoMessageVerifier;
-	type MessageDeliveryAndDispatchPayment =
-		pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
-			Runtime,
-			AtRococoWithWococoMessagesInstance,
-			pallet_balances::Pallet<Runtime>,
-			crate::bridge_messages::GetDeliveryConfirmationTransactionFee,
-		>;
+	type MessageDeliveryAndDispatchPayment = TollFreeBridgePayment;
 	type OnDeliveryConfirmed = ();
 	type OnMessageAccepted = ();
 
 	type SourceHeaderChain = crate::bridge_messages::WococoAtRococo;
 	type MessageDispatch = crate::bridge_messages::FromWococoMessageDispatch;
+}
+
+/// An implementation of a payment hook for the bridge. During the prototype stage we assume
+/// that the bridge machinery is run by the validators and used only by the relay-chain.
+pub struct TollFreeBridgePayment;
+impl bp_messages::source_chain::MessageDeliveryAndDispatchPayment<Origin, AccountId, Balance>
+	for TollFreeBridgePayment
+{
+	type Error = &'static str;
+	fn pay_delivery_and_dispatch_fee(
+		_submitter: &Origin,
+		_fee: &Balance,
+		_relayer_fund_account: &AccountId,
+	) -> Result<(), Self::Error> {
+		Ok(())
+	}
+	fn pay_relayers_rewards(
+		_lane_id: bp_messages::LaneId,
+		_messages_relayers: sp_std::collections::vec_deque::VecDeque<
+			bp_messages::UnrewardedRelayer<AccountId>,
+		>,
+		_confirmation_relayer: &AccountId,
+		_received_range: &sp_std::ops::RangeInclusive<bp_messages::MessageNonce>,
+		_relayer_fund_account: &AccountId,
+	) {
+	}
 }
 
 parameter_types! {
