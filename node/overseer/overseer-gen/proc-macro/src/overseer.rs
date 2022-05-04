@@ -14,9 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use proc_macro2::{Ident, Span, TokenStream};
-use quote::{format_ident, quote, ToTokens};
-use syn::{parse2, parse_quote, punctuated::Punctuated, spanned::Spanned, Result};
+use proc_macro2::TokenStream;
+use syn::{parse2, Result};
 
 use super::{parse::*, *};
 
@@ -29,7 +28,7 @@ pub(crate) fn impl_overseer_gen(
 
 	let of: OverseerGuts = parse2(orig)?;
 
-	let support_crate = support_crate();
+	let support_crate = support_crate().expect("The crate this macro is run for, includes the proc-macro support as dependency, otherwise it could not be run in the first place. qed");
 	let info = OverseerInfo {
 		support_crate,
 		subsystems: of.subsystems,

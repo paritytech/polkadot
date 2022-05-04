@@ -150,6 +150,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStr
 					#message_wrapper :: Empty => {}
 
 					// And everything that's not WIP but no subsystem consumes it
+					#[allow(unreachable_patterns)]
 					unused_msg => {
 						#support_crate :: gum :: warn!("Nothing consumes {:?}", unused_msg);
 					}

@@ -93,7 +93,7 @@ impl CandidateValidationSubsystem {
 	}
 }
 
-#[overseer::subsystem(CandidateValidation, error=SubsystemError)]
+#[overseer::subsystem(CandidateValidation, error=SubsystemError, prefix=self::overseer)]
 impl<Context> CandidateValidationSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(

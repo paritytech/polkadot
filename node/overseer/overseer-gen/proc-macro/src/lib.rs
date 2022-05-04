@@ -17,8 +17,7 @@
 #![deny(unused_crate_dependencies)]
 
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{format_ident, quote, ToTokens};
-use syn::{parse2, parse_quote, punctuated::Punctuated, spanned::Spanned, Result};
+use syn::{parse_quote, spanned::Spanned, Path};
 
 mod impl_builder;
 mod impl_channels_out;
@@ -42,18 +41,17 @@ use parse::*;
 use self::{overseer::*, subsystem::*};
 
 /// Obtain the support crate `Path` as `TokenStream`.
-pub(crate) fn support_crate() -> TokenStream {
-	if cfg!(test) {
-		quote! {crate}
+pub(crate) fn support_crate() -> Result<Path, proc_macro_crate::Error> {
+	Ok(if cfg!(test) {
+		parse_quote! {crate}
 	} else {
 		use proc_macro_crate::{crate_name, FoundCrate};
-		let crate_name = crate_name("polkadot-overseer-gen")
-			.expect("Support crate `polkadot-overseer-gen` is present in `Cargo.toml`. qed");
+		let crate_name = crate_name("polkadot-overseer-gen")?;
 		match crate_name {
-			FoundCrate::Itself => quote! {crate},
-			FoundCrate::Name(name) => Ident::new(&name, Span::call_site()).to_token_stream(),
+			FoundCrate::Itself => parse_quote! {crate},
+			FoundCrate::Name(name) => Ident::new(&name, Span::call_site()).into(),
 		}
-	}
+	})
 }
 
 #[proc_macro_attribute]

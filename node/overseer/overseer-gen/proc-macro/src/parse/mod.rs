@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 mod kw {
-	/// An external event.
 	syn::custom_keyword!(event);
 	syn::custom_keyword!(signal);
 	syn::custom_keyword!(error);
@@ -24,6 +23,7 @@ mod kw {
 	syn::custom_keyword!(signal_capacity);
 	syn::custom_keyword!(message_capacity);
 	syn::custom_keyword!(subsystem);
+	syn::custom_keyword!(prefix);
 }
 
 mod parse_overseer_attr;

@@ -788,7 +788,7 @@ async fn send_tracked_gossip_message<Context>(
 	.await;
 }
 
-#[overseer::subsystem(error=SubsystemError)]
+#[overseer::subsystem(BitfieldDistribution, error=SubsystemError, prefix=self::overseer)]
 impl<Context> BitfieldDistribution {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self.run(ctx).map(|_| Ok(())).boxed();

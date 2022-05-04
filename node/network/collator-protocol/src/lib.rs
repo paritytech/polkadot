@@ -113,7 +113,7 @@ impl CollatorProtocolSubsystem {
 	}
 }
 
-#[overseer::subsystem(CollatorProtocol, error=SubsystemError)]
+#[overseer::subsystem(CollatorProtocol, error=SubsystemError, prefix=self::overseer)]
 impl<Context> CollatorProtocolSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self

@@ -28,22 +28,38 @@ use syn::{
 #[derive(Clone, Debug)]
 enum SubsystemAttrItem {
 	/// Error type provided by the user.
-	ExternErrorType {
+	ErrorType {
 		tag: kw::error,
 		eq_token: Token![=],
 		value: Path,
 	},
+	/// For which slot in the overseer this should be plugged.
+	///
+	/// The subsystem implementation can and should have a different name
+	/// from the declared parameter type in the overseer.
 	Subsystem {
 		tag: Option<kw::subsystem>,
 		eq_token: Option<Token![=]>,
 		value: Ident,
+	},
+	/// The prefix to apply when a subsystem is implemented in a different file/crate
+	/// than the overseer itself.
+	///
+	/// Important for `#[subsystem(..)]` to reference the traits correctly.
+	TraitPrefix {
+		tag: kw::prefix,
+		eq_token: Token![=],
+		value: Path,
 	},
 }
 
 impl ToTokens for SubsystemAttrItem {
 	fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
 		let ts = match self {
-			Self::ExternErrorType { tag, eq_token, value } => {
+			Self::TraitPrefix { tag, eq_token, value } => {
+				quote! { #tag #eq_token, #value }
+			},
+			Self::ErrorType { tag, eq_token, value } => {
 				quote! { #tag #eq_token, #value }
 			},
 			Self::Subsystem { tag, eq_token, value } => {
@@ -58,8 +74,14 @@ impl Parse for SubsystemAttrItem {
 	fn parse(input: &ParseBuffer) -> Result<Self> {
 		let lookahead = input.lookahead1();
 		if lookahead.peek(kw::error) {
-			Ok(SubsystemAttrItem::ExternErrorType {
+			Ok(SubsystemAttrItem::ErrorType {
 				tag: input.parse::<kw::error>()?,
+				eq_token: input.parse()?,
+				value: input.parse()?,
+			})
+		} else if lookahead.peek(kw::prefix) {
+			Ok(SubsystemAttrItem::TraitPrefix {
+				tag: input.parse::<kw::prefix>()?,
 				eq_token: input.parse()?,
 				value: input.parse()?,
 			})
@@ -79,8 +101,9 @@ impl Parse for SubsystemAttrItem {
 #[derive(Clone, Debug)]
 pub(crate) struct SubsystemAttrArgs {
 	span: Span,
-	pub(crate) extern_error_ty: Path,
+	pub(crate) error_ty: Path,
 	pub(crate) subsystem_ident: Ident,
+	pub(crate) trait_prefix_path: Option<Path>,
 }
 
 impl Spanned for SubsystemAttrArgs {
@@ -125,8 +148,9 @@ impl Parse for SubsystemAttrArgs {
 				return Err(e)
 			}
 		}
-		let extern_error_ty = extract_variant!(unique, ExternErrorType; err = "Must annotate the identical overseer error type via `error=..`.")?;
+		let error_ty = extract_variant!(unique, ErrorType; err = "Must annotate the identical overseer error type via `error=..`.")?;
 		let subsystem_ident = extract_variant!(unique, Subsystem; err = "Must annotate the identical overseer error type via `subsystem=..` or plainly as `Subsystem` as specified in the overseer declaration.")?;
-		Ok(SubsystemAttrArgs { span, extern_error_ty, subsystem_ident })
+		let trait_prefix_path = extract_variant!(unique, TraitPrefix);
+		Ok(SubsystemAttrArgs { span, error_ty, subsystem_ident, trait_prefix_path })
 	}
 }

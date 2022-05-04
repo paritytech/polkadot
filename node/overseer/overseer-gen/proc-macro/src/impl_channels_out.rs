@@ -80,6 +80,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 					// dummy message type
 					#message_wrapper :: Empty => Ok(()),
 
+					#[allow(unreachable_patterns)]
 					// And everything that's not WIP but no subsystem consumes it
 					unused_msg => {
 						#support_crate :: gum :: warn!("Nothing consumes {:?}", unused_msg);
@@ -119,6 +120,7 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 					#message_wrapper :: Empty => Ok(()),
 
 					// And everything that's not WIP but no subsystem consumes it
+					#[allow(unreachable_patterns)]
 					unused_msg => {
 						#support_crate :: gum :: warn!("Nothing consumes {:?}", unused_msg);
 						Ok(())

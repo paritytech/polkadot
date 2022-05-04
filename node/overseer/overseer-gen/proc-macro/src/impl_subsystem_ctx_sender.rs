@@ -119,7 +119,8 @@ pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
 						#outgoing_wrapper :: #outgoing_variant ( msg ) => #all_messages_wrapper :: #subsystem_generic ( msg ),
 					)*
 						#outgoing_wrapper :: Empty => #all_messages_wrapper :: Empty,
-											// And everything that's not WIP but no subsystem consumes it
+						// And everything that's not WIP but no subsystem consumes it
+						#[allow(unreachable_patterns)]
 						unused_msg => {
 							#support_crate :: gum :: warn!("Nothing consumes {:?}", unused_msg);
 							#all_messages_wrapper :: Empty
@@ -241,7 +242,7 @@ pub(crate) fn impl_wrapper_enum(wrapper: &Ident, message_types: &[Path]) -> Resu
 }
 
 pub(crate) fn impl_subsystem_sender(
-	support_crate: &TokenStream,
+	support_crate: &Path,
 	outgoing_wrappers: impl IntoIterator<Item = Ident>,
 	all_messages_wrapper: &Ident,
 	subsystem_sender_name: &Ident,

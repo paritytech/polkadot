@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use proc_macro2::{Ident, Span, TokenStream};
-use quote::{format_ident, quote, ToTokens};
-use syn::{parse2, parse_quote, punctuated::Punctuated, spanned::Spanned, Result};
+use proc_macro2::TokenStream;
+use quote::{format_ident, ToTokens};
+use syn::{parse2, parse_quote, punctuated::Punctuated, Result};
 
 use super::{parse::*, *};
 
@@ -24,13 +24,36 @@ pub(crate) fn impl_subsystem_gen(
 	attr: TokenStream,
 	orig: TokenStream,
 ) -> Result<proc_macro2::TokenStream> {
-	let SubsystemAttrArgs { extern_error_ty: error_ty, subsystem_ident, .. } =
-		parse2::<SubsystemAttrArgs>(attr.clone())?;
+	let args = parse2::<SubsystemAttrArgs>(attr.clone())?;
+	let _span = args.span();
+	let SubsystemAttrArgs {
+		error_ty,
+		 subsystem_ident,
+		 trait_prefix_path
+		 , .. } =
+		args;
 
 	let mut struktured_impl: syn::ItemImpl = parse2(orig)?;
 
-	let support_crate = support_crate();
+	// always prefer the direct usage, if it's not there, let's see if there is
+	// a `prefix=*` provided. Either is ok.
+	// TODO: technically this is two different things:
+	// The place where the `#[overlord]` is annotated is where all `trait *SenderTrait` and
+	// `trait *ContextTrait` types exist.
+	// The other usage is the true support crate `polkadot-overseer-gen`, where the static ones
+	// are declared.
+	// Right now, if the `support_crate` is not included, it falls back silently to the `trait_prefix_path`.
+	let support_crate = support_crate()
+		.or_else(|_e| {
+			trait_prefix_path.clone().ok_or_else(|| {
+				syn::Error::new(attr.span(), "Couldn't find `polkadot-overseer-gen` in manifest, but also missing a `prefix=` to help trait bound resolution")
+			})
+		})?;
 
+	let trait_prefix_path = trait_prefix_path.unwrap_or_else(|| parse_quote!{ self });
+	if trait_prefix_path.segments.trailing_punct() {
+		return Err(syn::Error::new(trait_prefix_path.span(), "Must not end with `::`"))
+	}
 	let me = match &*struktured_impl.self_ty {
 		syn::Type::Path(ref path) => path
 			.path
@@ -49,10 +72,10 @@ pub(crate) fn impl_subsystem_gen(
 	let subsystem_ctx_trait = format_ident!("{}ContextTrait", subsystem_ident);
 	let subsystem_sender_trait = format_ident!("{}SenderTrait", subsystem_ident);
 	let extra_where_predicates: Punctuated<syn::WherePredicate, syn::Token![,]> = parse_quote! {
-		Context: #subsystem_ctx_trait,
+		Context: #trait_prefix_path::#subsystem_ctx_trait,
 		Context: #support_crate::SubsystemContext,
-		<Context as #subsystem_ctx_trait>::Sender: #subsystem_sender_trait,
-		<Context as #support_crate::SubsystemContext>::Sender: #subsystem_sender_trait,
+		<Context as #trait_prefix_path::#subsystem_ctx_trait>::Sender: #trait_prefix_path::#subsystem_sender_trait,
+		<Context as #support_crate::SubsystemContext>::Sender: #trait_prefix_path::#subsystem_sender_trait,
 	};
 	struktured_impl.trait_.replace((
 		None,
@@ -74,4 +97,18 @@ pub(crate) fn impl_subsystem_gen(
 			.expect("Expander does not fail due to IO in OUT_DIR. qed");
 
 	Ok(ts)
+}
+
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn is_path() {
+		let _p: Path = parse_quote!{ self };
+		let _p: Path = parse_quote!{ crate };
+		let _p: Path = parse_quote!{ ::foo };
+		let _p: Path = parse_quote!{ bar };
+	}
 }
