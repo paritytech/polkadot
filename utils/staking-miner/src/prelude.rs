@@ -20,8 +20,8 @@
 //! It is actually easy to convert the rest as well, but it'll be a lot of noise in our codebase,
 //! needing to sprinkle `any_runtime` in a few extra places.
 
-use frame_support::{parameter_types, traits::ConstU32, weights::Weight};
-use sp_runtime::{PerU16, Perbill};
+use frame_support::{parameter_types, weights::Weight};
+use sp_runtime::Perbill;
 
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 
@@ -96,7 +96,7 @@ pub mod kusama {
 			TargetIndex = u16,
 			Accuracy = PerU16,
 			MaxVoters = ConstU32::<22500>
-		>(16)
+		>(24)
 	);
 }
 
@@ -106,6 +106,7 @@ impl pallet_election_provider_multi_phase::unsigned::MinerConfig for MockedMiner
 	type AccountId = AccountId;
 	type MaxLength = MinerMaxLength;
 	type MaxWeight = MinerMaxWeight;
+
 	type MaxVotesPerVoter = MinerMaxVotesPerVotes;
 	type Solution = polkadot::NposSolution16;
 
