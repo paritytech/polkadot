@@ -1410,10 +1410,7 @@ impl MallocSizeOf for DisputeState {
 		let Self { validators_for, validators_against, start, concluded_at } = self;
 
 		// According to the documentation `.capacity()` might not return a byte aligned value, so just in case:
-		let align_eight = |d: usize| match d % 8 {
-			0 => d / 8,
-			_ => d / 8 + 1,
-		};
+		let align_eight = |d: usize| (d + 7) / 8;
 
 		align_eight(validators_for.capacity()) +
 			align_eight(validators_against.capacity()) +
