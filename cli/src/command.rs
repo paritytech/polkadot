@@ -327,8 +327,8 @@ where
 			_ => {
 				if cli.run.add_chain.is_some() {
 					let tokio_handle = config.tokio_handle.clone();
-					let secondary_config = cli.run.base.create_configuration(&cli, tokio_handle)?;
 					cli.run.base.shared_params.chain = cli.run.add_chain.clone();
+					let secondary_config = cli.run.base.create_configuration(&cli, tokio_handle)?;
 					service::build_squared(
 						config,
 						secondary_config,

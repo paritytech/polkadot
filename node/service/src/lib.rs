@@ -1425,25 +1425,18 @@ pub fn build_squared(
 	overseer_gen: impl OverseerGen,
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<ClientPair<Client>, Error> {
-	let client1 = build_full(
+
+	let client1 = build_grid_chain(
 		config,
-		IsCollator::No,
-		None,
-		false,
 		jaeger_agent,
-		None,
 		overseer_enable_anyways,
 		overseer_gen.clone(),
 		hwbench,
 	)?;
 
-	let client2 = build_full(
+	let client2 = build_grid_chain(
 		config2,
-		IsCollator::No,
-		None,
-		false,
 		jaeger_agent,
-		None,
 		overseer_enable_anyways,
 		overseer_gen.clone(),
 		None,
@@ -1457,6 +1450,31 @@ pub fn build_squared(
 		client1: client1.components,
 		client2: client2.components,
 	})
+}
+
+fn build_grid_chain(
+	config: Configuration,
+	jaeger_agent: Option<std::net::SocketAddr>,
+	overseer_enable_anyways: bool,
+	overseer_gen: impl OverseerGen,
+	hwbench: Option<sc_sysinfo::HwBench>,
+) -> Result<NewFull<Client>, Error> {
+	let span = sc_tracing::tracing::info_span!(
+		sc_tracing::logging::PREFIX_LOG_SPAN,
+		name = config.chain_spec.name(),
+	);
+	let _enter = span.enter();
+	build_full(
+		config,
+		IsCollator::No,
+		None,
+		false,
+		jaeger_agent,
+		None,
+		overseer_enable_anyways,
+		overseer_gen.clone(),
+		hwbench,
+	)
 }
 
 struct RevertConsensus {

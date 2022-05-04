@@ -7700,6 +7700,7 @@ dependencies = [
  "sc-sync-state-rpc",
  "sc-sysinfo",
  "sc-telemetry",
+ "sc-tracing",
  "sc-transaction-pool",
  "serde",
  "serde_json",
