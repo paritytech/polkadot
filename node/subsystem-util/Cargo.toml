@@ -34,7 +34,7 @@ sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 
 kvdb = "0.11.0"
 parity-util-mem = { version = "0.11", default-features = false }
-parity-db = { version = "0.3.11" }
+parity-db = { version = "0.3.12" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"
