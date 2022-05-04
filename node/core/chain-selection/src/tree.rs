@@ -24,6 +24,7 @@
 //! and as the finalized block advances, orphaned sub-trees are entirely pruned.
 
 use polkadot_node_primitives::BlockWeight;
+use polkadot_node_subsystem::ChainApiError;
 use polkadot_primitives::v2::{BlockNumber, Hash};
 
 use std::collections::HashMap;
@@ -86,7 +87,7 @@ impl ViabilityUpdate {
 
 // Propagate viability update to descendants of the given block. This writes
 // the `base` entry as well as all descendants. If the parent of the block
-// entry is not viable, this wlil not affect any descendants.
+// entry is not viable, this will not affect any descendants.
 //
 // If the block entry provided is self-unviable, then it's assumed that an
 // unviability update needs to be propagated to descendants.
@@ -558,6 +559,105 @@ pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
 			}
 		}
 	}
+
+	Ok(backend)
+}
+
+/// Revert the tree to the block relative to `hash`.
+///
+/// This accepts a fresh backend and returns an overlay on top of it representing
+/// all changes made.
+pub(super) fn revert_to<'a, B: Backend + 'a>(
+	backend: &'a B,
+	hash: Hash,
+) -> Result<OverlayedBackend<'a, B>, Error> {
+	let first_number = backend.load_first_block_number()?.unwrap_or_default();
+
+	let mut backend = OverlayedBackend::new(backend);
+
+	let mut entry = match backend.load_block_entry(&hash)? {
+		Some(entry) => entry,
+		None => {
+			// May be a revert to the last finalized block. If this is the case,
+			// then revert to this block should be handled specially since no
+			// information about finalized blocks is persisted within the tree.
+			//
+			// We use part of the information contained in the finalized block
+			// children (that are expected to be in the tree) to construct a
+			// dummy block entry for the last finalized block. This will be
+			// wiped as soon as the next block is finalized.
+
+			let blocks = backend.load_blocks_by_number(first_number)?;
+
+			let block = blocks
+				.first()
+				.and_then(|hash| backend.load_block_entry(hash).ok())
+				.flatten()
+				.ok_or_else(|| {
+					ChainApiError::from(format!(
+						"Lookup failure for block at height {}",
+						first_number
+					))
+				})?;
+
+			// The parent is expected to be the last finalized block.
+			if block.parent_hash != hash {
+				return Err(ChainApiError::from("Can't revert below last finalized block").into())
+			}
+
+			// The weight is set to the one of the first child. Even though this is
+			// not accurate, it does the job. The reason is that the revert point is
+			// the last finalized block, i.e. this is the best and only choice.
+			let block_number = first_number.saturating_sub(1);
+			let viability = ViabilityCriteria {
+				explicitly_reverted: false,
+				approval: Approval::Approved,
+				earliest_unviable_ancestor: None,
+			};
+			let entry = BlockEntry {
+				block_hash: hash,
+				block_number,
+				parent_hash: Hash::default(),
+				children: blocks,
+				viability,
+				weight: block.weight,
+			};
+			// This becomes the first entry according to the block number.
+			backend.write_blocks_by_number(block_number, vec![hash]);
+			entry
+		},
+	};
+
+	let mut stack: Vec<_> = std::mem::take(&mut entry.children)
+		.into_iter()
+		.map(|h| (h, entry.block_number + 1))
+		.collect();
+
+	// Write revert point block entry without the children.
+	backend.write_block_entry(entry.clone());
+
+	let mut viable_leaves = backend.load_leaves()?;
+
+	viable_leaves.insert(LeafEntry {
+		block_hash: hash,
+		block_number: entry.block_number,
+		weight: entry.weight,
+	});
+
+	while let Some((hash, number)) = stack.pop() {
+		let entry = backend.load_block_entry(&hash)?;
+		backend.delete_block_entry(&hash);
+
+		viable_leaves.remove(&hash);
+
+		let mut blocks_at_height = backend.load_blocks_by_number(number)?;
+		blocks_at_height.retain(|h| h != &hash);
+		backend.write_blocks_by_number(number, blocks_at_height);
+
+		stack.extend(entry.into_iter().flat_map(|e| e.children).map(|h| (h, number + 1)));
+	}
+
+	backend.write_leaves(viable_leaves);
 
 	Ok(backend)
 }

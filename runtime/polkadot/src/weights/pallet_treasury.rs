@@ -68,6 +68,12 @@ impl<T: frame_system::Config> pallet_treasury::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	// Storage: Treasury Approvals (r:1 w:1)
+	fn remove_approval() -> Weight {
+		(7_600_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+	}
+	// Storage: Treasury Approvals (r:1 w:1)
 	// Storage: Bounties BountyApprovals (r:1 w:1)
 	// Storage: Treasury Proposals (r:2 w:2)
 	// Storage: System Account (r:4 w:4)
