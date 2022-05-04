@@ -127,12 +127,8 @@ pub struct StatementDistributionSubsystem<R> {
 	rng: R,
 }
 
-impl<Context, R: rand::Rng + Send + Sync + 'static> overseer::Subsystem<Context, SubsystemError>
-	for StatementDistributionSubsystem<R>
-where
-	Context: overseer::StatementDistributionContextTrait,
-	<Context as overseer::StatementDistributionContextTrait>::Sender:
-		overseer::StatementDistributionSenderTrait,
+#[overseer::subsystem(StatementDistribution, error= SubsystemError, prefix=self::overseer)]
+impl<Context, R: rand::Rng + Send + Sync + 'static> StatementDistributionSubsystem<R>
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
@@ -895,6 +891,7 @@ fn check_statement_signature(
 /// circulates the statement to all peers who have not seen it yet, and
 /// sends all statements dependent on that statement to peers who could previously not receive
 /// them but now can.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn circulate_statement_and_dependents<Context>(
 	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
@@ -905,10 +902,7 @@ async fn circulate_statement_and_dependents<Context>(
 	priority_peers: Vec<PeerId>,
 	metrics: &Metrics,
 	rng: &mut impl rand::Rng,
-) where
-	Context: overseer::StatementDistributionContextTrait,
-	<Context as overseer::StatementDistributionContextTrait>::Sender:
-		overseer::StatementDistributionSenderTrait,
+)
 {
 	let active_head = match active_heads.get_mut(&relay_parent) {
 		Some(res) => res,
@@ -1015,6 +1009,7 @@ fn is_statement_large(statement: &SignedFullStatement) -> (bool, Option<usize>) 
 
 /// Circulates a statement to all peers who have not seen it yet, and returns
 /// an iterator over peers who need to have dependent statements sent.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn circulate_statement<'a, Context>(
 	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
@@ -1025,10 +1020,7 @@ async fn circulate_statement<'a, Context>(
 	metrics: &Metrics,
 	rng: &mut impl rand::Rng,
 ) -> Vec<PeerId>
-where
-	Context: overseer::StatementDistributionContextTrait,
-	<Context as overseer::StatementDistributionContextTrait>::Sender:
-		overseer::StatementDistributionSenderTrait,
+
 {
 	let fingerprint = stored.fingerprint();
 
@@ -1109,6 +1101,7 @@ where
 }
 
 /// Send all statements about a given candidate hash to a peer.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn send_statements_about<Context>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
@@ -1117,10 +1110,7 @@ async fn send_statements_about<Context>(
 	candidate_hash: CandidateHash,
 	active_head: &ActiveHeadData,
 	metrics: &Metrics,
-) where
-	Context: overseer::StatementDistributionContextTrait,
-	<Context as overseer::StatementDistributionContextTrait>::Sender:
-		overseer::StatementDistributionSenderTrait,
+)
 {
 	for statement in active_head.statements_about(candidate_hash) {
 		let fingerprint = statement.fingerprint();
@@ -1146,6 +1136,7 @@ async fn send_statements_about<Context>(
 }
 
 /// Send all statements at a given relay-parent to a peer.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn send_statements<Context>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
@@ -1153,10 +1144,7 @@ async fn send_statements<Context>(
 	relay_parent: Hash,
 	active_head: &ActiveHeadData,
 	metrics: &Metrics,
-) where
-	Context: overseer::StatementDistributionContextTrait,
-	<Context as overseer::StatementDistributionContextTrait>::Sender:
-		overseer::StatementDistributionSenderTrait,
+)
 {
 	for statement in active_head.statements() {
 		let fingerprint = statement.fingerprint();
@@ -1181,10 +1169,7 @@ async fn send_statements<Context>(
 }
 
 async fn report_peer<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
-where
-	Context: overseer::StatementDistributionContextTrait,
-	<Context as overseer::StatementDistributionContextTrait>::Sender:
-		overseer::StatementDistributionSenderTrait,
+
 {
 	ctx.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
 }
@@ -1196,6 +1181,7 @@ where
 /// your statement.
 ///
 /// If the message was large, but the result has been fetched already that one is returned.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn retrieve_statement_from_message<'a, Context>(
 	peer: PeerId,
 	message: protocol_v1::StatementDistributionMessage,
@@ -1204,10 +1190,7 @@ async fn retrieve_statement_from_message<'a, Context>(
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 ) -> Option<UncheckedSignedFullStatement>
-where
-	Context: overseer::StatementDistributionContextTrait,
-	<Context as overseer::StatementDistributionContextTrait>::Sender:
-		overseer::StatementDistributionSenderTrait,
+
 {
 	let fingerprint = message.get_fingerprint();
 	let candidate_hash = *fingerprint.0.candidate_hash();
@@ -1293,6 +1276,7 @@ where
 /// Launch request for a large statement and get tracking status.
 ///
 /// Returns `None` if spawning task failed.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn launch_request<Context>(
 	meta: StatementMetadata,
 	peer: PeerId,
@@ -1300,10 +1284,7 @@ async fn launch_request<Context>(
 	ctx: &mut Context,
 	metrics: &Metrics,
 ) -> Option<LargeStatementStatus>
-where
-	Context: overseer::StatementDistributionContextTrait,
-	<Context as overseer::StatementDistributionContextTrait>::Sender:
-		overseer::StatementDistributionSenderTrait,
+
 {
 	let (task, handle) =
 		fetch(meta.relay_parent, meta.candidate_hash, vec![peer], req_sender, metrics.clone())
@@ -1328,7 +1309,7 @@ where
 }
 
 /// Handle incoming message and circulate it to peers, if we did not know it already.
-///
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn handle_incoming_message_and_circulate<'a, Context, R>(
 	peer: PeerId,
 	gossip_peers: &HashSet<PeerId>,
@@ -1340,10 +1321,8 @@ async fn handle_incoming_message_and_circulate<'a, Context, R>(
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 	rng: &mut R,
-) where
-	Context: overseer::StatementDistributionContextTrait,
-	<Context as overseer::StatementDistributionContextTrait>::Sender:
-		overseer::StatementDistributionSenderTrait,
+)
+where
 	R: rand::Rng,
 {
 	let handled_incoming = match peers.get_mut(&peer) {
@@ -1391,6 +1370,7 @@ async fn handle_incoming_message_and_circulate<'a, Context, R>(
 //
 // This function checks the signature and ensures the statement is compatible with our
 // view. It also notifies candidate backing if the statement was previously unknown.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn handle_incoming_message<'a, Context>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
@@ -1401,10 +1381,6 @@ async fn handle_incoming_message<'a, Context>(
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 ) -> Option<(Hash, StoredStatement<'a>)>
-where
-	Context: overseer::StatementDistributionContextTrait,
-	<Context as overseer::StatementDistributionContextTrait>::Sender:
-		overseer::StatementDistributionSenderTrait,
 {
 	let relay_parent = message.get_relay_parent();
 	let _ = metrics.time_network_bridge_update_v1("handle_incoming_message");
@@ -1593,6 +1569,7 @@ where
 }
 
 /// Update a peer's view. Sends all newly unlocked statements based on the previous
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn update_peer_view_and_maybe_send_unlocked<Context, R>(
 	peer: PeerId,
 	gossip_peers: &HashSet<PeerId>,
@@ -1602,10 +1579,8 @@ async fn update_peer_view_and_maybe_send_unlocked<Context, R>(
 	new_view: View,
 	metrics: &Metrics,
 	rng: &mut R,
-) where
-	Context: overseer::StatementDistributionContextTrait,
-	<Context as overseer::StatementDistributionContextTrait>::Sender:
-		overseer::StatementDistributionSenderTrait,
+)
+where
 	R: rand::Rng,
 {
 	let old_view = std::mem::replace(&mut peer_data.view, new_view);
@@ -1637,6 +1612,7 @@ async fn update_peer_view_and_maybe_send_unlocked<Context, R>(
 	}
 }
 
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn handle_network_update<Context, R>(
 	peers: &mut HashMap<PeerId, PeerData>,
 	gossip_peers: &mut HashSet<PeerId>,
@@ -1648,10 +1624,8 @@ async fn handle_network_update<Context, R>(
 	update: NetworkBridgeEvent<net_protocol::StatementDistributionMessage>,
 	metrics: &Metrics,
 	rng: &mut R,
-) where
-	Context: overseer::StatementDistributionContextTrait,
-	<Context as overseer::StatementDistributionContextTrait>::Sender:
-		overseer::StatementDistributionSenderTrait,
+)
+where
 	R: rand::Rng,
 {
 	match update {

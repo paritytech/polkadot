@@ -1731,7 +1731,7 @@ impl ApprovalDistribution {
 }
 
 #[overseer::subsystem(ApprovalDistribution, error=SubsystemError, prefix=self::overseer)]
-impl<Context> ApprovalDistributionSubsystem {
+impl<Context> ApprovalDistribution {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self.run(ctx).map(|_| Ok(())).boxed();
 

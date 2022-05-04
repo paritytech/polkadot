@@ -318,10 +318,6 @@ impl BitfieldDistribution {
 
 /// Modify the reputation of a peer based on its behavior.
 async fn modify_reputation<Context>(ctx: &mut Context, relay_parent: Hash, peer: PeerId, rep: Rep)
-where
-	Context: overseer::BitfieldDistributionContextTrait,
-	<Context as overseer::BitfieldDistributionContextTrait>::Sender:
-		overseer::BitfieldDistributionSenderTrait,
 {
 	gum::trace!(target: LOG_TARGET, ?relay_parent, ?rep, %peer, "reputation change");
 
@@ -330,6 +326,7 @@ where
 /// Distribute a given valid and signature checked bitfield message.
 ///
 /// For this variant the source is this node.
+#[overseer::contextbounds(BitfieldDistribution, prefix=self::overseer)]
 async fn handle_bitfield_distribution<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -394,6 +391,7 @@ async fn handle_bitfield_distribution<Context>(
 /// Distribute a given valid and signature checked bitfield message.
 ///
 /// Can be originated by another subsystem or received via network from another peer.
+#[overseer::contextbounds(BitfieldDistribution, prefix=self::overseer)]
 async fn relay_message<Context>(
 	ctx: &mut Context,
 	job_data: &mut PerRelayParentData,
@@ -485,6 +483,7 @@ async fn relay_message<Context>(
 }
 
 /// Handle an incoming message from a peer.
+#[overseer::contextbounds(BitfieldDistribution, prefix=self::overseer)]
 async fn process_incoming_peer_message<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -606,6 +605,7 @@ async fn process_incoming_peer_message<Context>(
 
 /// Deal with network bridge updates and track what needs to be tracked
 /// which depends on the message type received.
+#[overseer::contextbounds(BitfieldDistribution, prefix=self::overseer)]
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -688,6 +688,7 @@ fn handle_our_view_change(state: &mut ProtocolState, view: OurView) {
 
 // Send the difference between two views which were not sent
 // to that particular peer.
+#[overseer::contextbounds(BitfieldDistribution, prefix=self::overseer)]
 async fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -749,16 +750,14 @@ async fn handle_peer_view_change<Context>(
 }
 
 /// Send a gossip message and track it in the per relay parent data.
+#[overseer::contextbounds(BitfieldDistribution, prefix=self::overseer)]
 async fn send_tracked_gossip_message<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
 	dest: PeerId,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
-) where
-	Context: overseer::BitfieldDistributionContextTrait,
-	<Context as overseer::BitfieldDistributionContextTrait>::Sender:
-		overseer::BitfieldDistributionSenderTrait,
+)
 {
 	let job_data = if let Some(job_data) = state.per_relay_parent.get_mut(&message.relay_parent) {
 		job_data
@@ -798,14 +797,11 @@ impl<Context> BitfieldDistribution {
 }
 
 /// Query our validator set and signing context for a particular relay parent.
+#[overseer::contextbounds(BitfieldDistribution, prefix=self::overseer)]
 async fn query_basics<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
 ) -> SubsystemResult<Option<(Vec<ValidatorId>, SigningContext)>>
-where
-	Context: overseer::BitfieldDistributionContextTrait,
-	<Context as overseer::BitfieldDistributionContextTrait>::Sender:
-		overseer::BitfieldDistributionSenderTrait,
 {
 	let (validators_tx, validators_rx) = oneshot::channel();
 	let (session_tx, session_rx) = oneshot::channel();
