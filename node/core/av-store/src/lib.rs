@@ -355,6 +355,9 @@ pub enum Error {
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
 
+	#[error("Context signal channel closed")]
+	ContextChannelClosed,
+
 	#[error(transparent)]
 	Time(#[from] SystemTimeError),
 
@@ -374,6 +377,7 @@ impl Error {
 			Self::Io(_) => true,
 			Self::Oneshot(_) => true,
 			Self::CustomDatabase => true,
+			Self::ContextChannelClosed => true,
 			_ => false,
 		}
 	}
@@ -563,7 +567,7 @@ where
 {
 	select! {
 		incoming = ctx.recv().fuse() => {
-			match incoming? {
+			match incoming.map_err(|_| Error::ContextChannelClosed)? {
 				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(true),
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
 					ActiveLeavesUpdate { activated, .. })

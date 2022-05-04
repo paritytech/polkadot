@@ -810,8 +810,8 @@ pub enum AssignmentCheckError {
 	InvalidCandidateIndex(CandidateIndex),
 	#[error("Invalid candidate {0}: {1:?}")]
 	InvalidCandidate(CandidateIndex, CandidateHash),
-	#[error("Invalid cert: {0:?}")]
-	InvalidCert(ValidatorIndex),
+	#[error("Invalid cert: {0:?}, reason: {1}")]
+	InvalidCert(ValidatorIndex, String),
 	#[error("Internal state mismatch: {0:?}, {1:?}")]
 	Internal(Hash, CandidateHash),
 }
