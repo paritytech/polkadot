@@ -158,10 +158,6 @@ pub fn rococo_config() -> Result<RococoChainSpec, String> {
 	RococoChainSpec::from_json_bytes(&include_bytes!("../res/rococo.json")[..])
 }
 
-pub fn versi_config() -> Result<VersiChainSpec, String> {
-	VersiChainSpec::from_json_bytes(&include_bytes!("../res/versi.json")[..])
-}
-
 /// This is a temporary testnet that uses the same runtime as rococo.
 pub fn wococo_config() -> Result<RococoChainSpec, String> {
 	RococoChainSpec::from_json_bytes(&include_bytes!("../res/wococo.json")[..])
@@ -1193,6 +1189,17 @@ pub fn rococo_staging_testnet_config() -> Result<RococoChainSpec, String> {
 	))
 }
 
+pub fn versi_chain_spec_properties() -> serde_json::map::Map<String, serde_json::Value> {
+	serde_json::json!({
+		"ss58Format": 42,
+		"tokenDecimals": 12,
+		"tokenSymbol": "VRS",
+	})
+	.as_object()
+	.expect("Map given; qed")
+	.clone()
+}
+
 /// Versi staging testnet config.
 #[cfg(feature = "rococo-native")]
 pub fn versi_staging_testnet_config() -> Result<RococoChainSpec, String> {
@@ -1212,9 +1219,9 @@ pub fn versi_staging_testnet_config() -> Result<RococoChainSpec, String> {
 			TelemetryEndpoints::new(vec![(VERSI_STAGING_TELEMETRY_URL.to_string(), 0)])
 				.expect("Versi Staging telemetry url is valid; qed"),
 		),
-		Some(DEFAULT_PROTOCOL_ID),
+		Some("versi"),
 		None,
-		None,
+		Some(versi_chain_spec_properties()),
 		Default::default(),
 	))
 }
@@ -1956,22 +1963,6 @@ fn wococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisCo
 	)
 }
 
-/// `Versi` is a temporary testnet that uses the same runtime as rococo.
-#[cfg(feature = "rococo-native")]
-fn versi_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
-	rococo_testnet_genesis(
-		wasm_binary,
-		vec![
-			get_authority_keys_from_seed("Alice"),
-			get_authority_keys_from_seed("Bob"),
-			get_authority_keys_from_seed("Charlie"),
-			get_authority_keys_from_seed("Dave"),
-		],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		None,
-	)
-}
-
 /// Wococo local testnet config (multivalidator Alice + Bob + Charlie + Dave)
 #[cfg(feature = "rococo-native")]
 pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
@@ -1995,6 +1986,22 @@ pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 	))
 }
 
+/// `Versi` is a temporary testnet that uses the same runtime as rococo.
+#[cfg(feature = "rococo-native")]
+fn versi_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+	rococo_testnet_genesis(
+		wasm_binary,
+		vec![
+			get_authority_keys_from_seed("Alice"),
+			get_authority_keys_from_seed("Bob"),
+			get_authority_keys_from_seed("Charlie"),
+			get_authority_keys_from_seed("Dave"),
+		],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
 /// `Versi` local testnet config (multivalidator Alice + Bob + Charlie + Dave)
 #[cfg(feature = "rococo-native")]
 pub fn versi_local_testnet_config() -> Result<RococoChainSpec, String> {
@@ -2011,7 +2018,7 @@ pub fn versi_local_testnet_config() -> Result<RococoChainSpec, String> {
 		},
 		vec![],
 		None,
-		Some(DEFAULT_PROTOCOL_ID),
+		Some("versi"),
 		None,
 		None,
 		Default::default(),
