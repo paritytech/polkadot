@@ -30,7 +30,9 @@ parameter_types! {
 	pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights
 		::with_sensible_defaults(2 * frame_support::weights::constants::WEIGHT_PER_SECOND, NORMAL_DISPATCH_RATIO);
 	pub static MinerMaxWeight: Weight = BlockWeights::get().max_block;
+	// TODO: align with the chains
 	pub static MinerMaxLength: u32 = 256;
+	// TODO: align with the chains
 	pub static MinerMaxVotesPerVotes: u32 = 16;
 }
 
@@ -137,7 +139,7 @@ pub mod kusama {
 			TargetIndex = u16,
 			Accuracy = PerU16,
 			MaxVoters = ConstU32::<22500>
-		>(16)
+		>(24)
 	);
 
 	pub struct Config;
