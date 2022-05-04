@@ -72,7 +72,7 @@ impl<C: Chain> StorageProofOverheadMetric<C> {
 		let maybe_encoded_storage_value =
 			storage_value_reader.read_value(CODE).map_err(Error::StorageProofError)?;
 		let encoded_storage_value_size =
-			maybe_encoded_storage_value.ok_or(Error::MissingMandatoryCodeEntry)?.len();
+			maybe_encoded_storage_value.ok_or(Error::MissingMandatoryStorageValue)?.len();
 
 		Ok(storage_proof_size - encoded_storage_value_size)
 	}

@@ -192,7 +192,7 @@ where
 			.inbound_lane_data(id)
 			.await?
 			.map(|data| data.relayers)
-			.unwrap_or_else(|| VecDeque::new());
+			.unwrap_or_else(VecDeque::new);
 		let unrewarded_relayers_state = bp_messages::UnrewardedRelayersState {
 			unrewarded_relayer_entries: relayers.len() as _,
 			messages_in_oldest_entry: relayers

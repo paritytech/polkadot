@@ -151,6 +151,7 @@ impl<C: Chain> UnsignedTransaction<C> {
 	}
 
 	/// Set transaction tip.
+	#[must_use]
 	pub fn tip(mut self, tip: C::Balance) -> Self {
 		self.tip = tip;
 		self

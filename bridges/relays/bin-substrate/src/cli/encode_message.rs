@@ -14,107 +14,80 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{
-	cli::{bridge::FullBridge, AccountId, CliChain, HexBytes},
-	select_full_bridge,
-};
-use frame_support::weights::Weight;
+use crate::cli::{ExplicitOrMaximal, HexBytes};
+use bp_messages::LaneId;
+use bp_runtime::EncodedOrDecodedCall;
+use relay_substrate_client::Chain;
 use structopt::StructOpt;
-use strum::VariantNames;
 
-/// Generic message payload.
+/// All possible messages that may be delivered to generic Substrate chain.
+///
+/// Note this enum may be used in the context of both Source (as part of `encode-call`)
+/// and Target chain (as part of `encode-message/send-message`).
 #[derive(StructOpt, Debug, PartialEq, Eq)]
-pub enum MessagePayload {
-	/// Raw, SCALE-encoded `MessagePayload`.
+pub enum Message {
+	/// Raw bytes for the message.
 	Raw {
-		/// Hex-encoded SCALE data.
+		/// Raw message bytes.
 		data: HexBytes,
 	},
-	/// Construct message to send over the bridge.
-	Call {
-		/// Message details.
-		#[structopt(flatten)]
-		call: crate::cli::encode_call::Call,
-		/// SS58 encoded Source account that will send the payload.
-		#[structopt(long)]
-		sender: AccountId,
-		/// Weight of the call.
-		///
-		/// It must be specified if the chain runtime is not bundled with the relay, or if
-		/// you want to override bundled weight.
-		#[structopt(long)]
-		dispatch_weight: Option<Weight>,
+	/// Message with given size.
+	Sized {
+		/// Sized of the message.
+		size: ExplicitOrMaximal<u32>,
 	},
 }
 
-/// A `MessagePayload` to encode.
-#[derive(StructOpt)]
-pub struct EncodeMessage {
-	/// A bridge instance to initialize.
-	#[structopt(possible_values = FullBridge::VARIANTS, case_insensitive = true)]
-	bridge: FullBridge,
-	#[structopt(flatten)]
-	payload: MessagePayload,
+/// Raw, SCALE-encoded message payload used in expected deployment.
+pub type RawMessage = Vec<u8>;
+
+pub trait CliEncodeMessage: Chain {
+	/// Encode a send message call.
+	fn encode_send_message_call(
+		lane: LaneId,
+		message: RawMessage,
+		fee: Self::Balance,
+		bridge_instance_index: u8,
+	) -> anyhow::Result<EncodedOrDecodedCall<Self::Call>>;
 }
 
-impl EncodeMessage {
-	/// Run the command.
-	pub fn encode(self) -> anyhow::Result<HexBytes> {
-		select_full_bridge!(self.bridge, {
-			let payload =
-				Source::encode_message(self.payload).map_err(|e| anyhow::format_err!("{}", e))?;
-			Ok(HexBytes::encode(&payload))
-		})
-	}
-
-	/// Run the command.
-	pub async fn run(self) -> anyhow::Result<()> {
-		let payload = self.encode()?;
-		println!("{:?}", payload);
-		Ok(())
-	}
+/// Encode message payload passed through CLI flags.
+pub(crate) fn encode_message<Source: Chain, Target: Chain>(
+	message: &Message,
+) -> anyhow::Result<RawMessage> {
+	Ok(match message {
+		Message::Raw { ref data } => data.0.clone(),
+		Message::Sized { ref size } => match *size {
+			ExplicitOrMaximal::Explicit(size) => vec![42; size as usize],
+			ExplicitOrMaximal::Maximal => {
+				let maximal_size = compute_maximal_message_size(
+					Source::max_extrinsic_size(),
+					Target::max_extrinsic_size(),
+				);
+				vec![42; maximal_size as usize]
+			},
+		},
+	})
 }
 
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use sp_core::crypto::Ss58Codec;
+/// Compute maximal message size, given max extrinsic size at source and target chains.
+pub(crate) fn compute_maximal_message_size(
+	maximal_source_extrinsic_size: u32,
+	maximal_target_extrinsic_size: u32,
+) -> u32 {
+	// assume that both signed extensions and other arguments fit 1KB
+	let service_tx_bytes_on_source_chain = 1024;
+	let maximal_source_extrinsic_size =
+		maximal_source_extrinsic_size - service_tx_bytes_on_source_chain;
+	let maximal_message_size =
+		bridge_runtime_common::messages::target::maximal_incoming_message_size(
+			maximal_target_extrinsic_size,
+		);
+	let maximal_message_size = if maximal_message_size > maximal_source_extrinsic_size {
+		maximal_source_extrinsic_size
+	} else {
+		maximal_message_size
+	};
 
-	#[test]
-	fn should_encode_raw_message() {
-		// given
-		let msg = "01000000e88514000000000002d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d003c040130000000000000000000000000";
-		let encode_message =
-			EncodeMessage::from_iter(vec!["encode-message", "rialto-to-millau", "raw", msg]);
-
-		// when
-		let hex = encode_message.encode().unwrap();
-
-		// then
-		assert_eq!(format!("{:?}", hex), format!("0x{}", msg));
-	}
-
-	#[test]
-	fn should_encode_remark_with_size() {
-		// given
-		let sender = sp_keyring::AccountKeyring::Alice.to_account_id().to_ss58check();
-		let encode_message = EncodeMessage::from_iter(vec![
-			"encode-message",
-			"rialto-to-millau",
-			"call",
-			"--sender",
-			&sender,
-			"--dispatch-weight",
-			"42",
-			"remark",
-			"--remark-size",
-			"12",
-		]);
-
-		// when
-		let hex = encode_message.encode().unwrap();
-
-		// then
-		assert_eq!(format!("{:?}", hex), "0x010000002a0000000000000002d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d003c000130000000000000000000000000");
-	}
+	maximal_message_size
 }

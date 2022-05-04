@@ -85,6 +85,7 @@ pub struct LoopMetrics<SC, TC, LM> {
 
 impl<SC, TC, LM> Loop<SC, TC, LM> {
 	/// Customize delay between reconnect attempts.
+	#[must_use]
 	pub fn reconnect_delay(mut self, reconnect_delay: Duration) -> Self {
 		self.reconnect_delay = reconnect_delay;
 		self

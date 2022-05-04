@@ -881,7 +881,7 @@ pub(crate) mod tests {
 			exit_receiver.into_future().map(|(_, _)| ()),
 		);
 
-		assert_eq!(result.submitted_messages_proofs, vec![(1..=1, None)]);
+		assert_eq!(result.submitted_messages_proofs, vec![(1..=1, None)],);
 	}
 
 	#[test]

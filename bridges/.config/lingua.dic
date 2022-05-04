@@ -40,7 +40,6 @@ Instance42
 InstantCurrencyPayments
 KSM/S
 KYC/M
-keypair/MS
 KeyPair
 Kovan
 Lane1
@@ -109,10 +108,9 @@ borked
 chain_getBlock
 choosen
 config/MS
-cooldown
 crypto/MS
 customizable/B
-Debian/M
+debian/M
 decodable/MS
 delivery_and_dispatch_fee
 dev
@@ -177,8 +175,8 @@ plancks
 polkadot/MS
 pov-block/MS
 precommit
-prometheus
-proxying
+promethius
+promethius'
 provisioner/MS
 probabilistically
 prune_depth

@@ -231,19 +231,19 @@ mod tests {
 			let all_accs = vec![1, 2, 3, 4, 5];
 
 			// at least 1 validator is selected
-			assert_eq!(Pallet::<TestRuntime>::select_validators(0, &[1]), vec![1]);
+			assert_eq!(Pallet::<TestRuntime>::select_validators(0, &[1]), vec![1],);
 
 			// at session#0, shift is also 0
-			assert_eq!(Pallet::<TestRuntime>::select_validators(0, &all_accs), vec![1, 2, 3]);
+			assert_eq!(Pallet::<TestRuntime>::select_validators(0, &all_accs), vec![1, 2, 3],);
 
 			// at session#1, shift is also 1
-			assert_eq!(Pallet::<TestRuntime>::select_validators(1, &all_accs), vec![2, 3, 4]);
+			assert_eq!(Pallet::<TestRuntime>::select_validators(1, &all_accs), vec![2, 3, 4],);
 
 			// at session#3, we're wrapping
-			assert_eq!(Pallet::<TestRuntime>::select_validators(3, &all_accs), vec![4, 5, 1]);
+			assert_eq!(Pallet::<TestRuntime>::select_validators(3, &all_accs), vec![4, 5, 1],);
 
 			// at session#5, we're starting from the beginning again
-			assert_eq!(Pallet::<TestRuntime>::select_validators(5, &all_accs), vec![1, 2, 3]);
+			assert_eq!(Pallet::<TestRuntime>::select_validators(5, &all_accs), vec![1, 2, 3],);
 		});
 	}
 }

@@ -8,7 +8,7 @@ description = "Finality proofs relay"
 
 [dependencies]
 async-std = "1.6.5"
-async-trait = "0.1.40"
+async-trait = "0.1"
 backoff = "0.2"
 bp-header-chain = { path = "../../primitives/header-chain" }
 futures = "0.3.5"

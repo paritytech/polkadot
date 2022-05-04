@@ -40,19 +40,18 @@ use bridge_runtime_common::messages::{
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
-use sp_mmr_primitives::{
-	DataOrHash, EncodableOpaqueLeaf, Error as MmrError, LeafDataProvider,
-	BatchProof as MmrBatchProof, Proof as MmrProof, LeafIndex as MmrLeafIndex
-};
 use pallet_transaction_payment::{FeeDetails, Multiplier, RuntimeDispatchInfo};
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
+use sp_mmr_primitives::{
+	DataOrHash, EncodableOpaqueLeaf, Error as MmrError, LeafDataProvider, Proof as MmrProof,
+};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{AccountIdLookup, Block as BlockT, Keccak256, NumberFor, OpaqueKeys},
 	transaction_validity::{TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, FixedPointNumber, FixedU128, MultiSignature, MultiSigner, Perquintill,
+	ApplyExtrinsicResult, FixedPointNumber, FixedU128, Perquintill,
 };
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 #[cfg(feature = "std")]
@@ -204,7 +203,7 @@ impl frame_system::Config for Runtime {
 	type BlockLength = bp_rialto::BlockLength;
 	/// The weight of database operations that the runtime can invoke.
 	type DbWeight = DbWeight;
-	/// The designated `SS58` prefix of this chain.
+	/// The designated SS58 prefix of this chain.
 	type SS58Prefix = SS58Prefix;
 	/// The set code logic, just the default since we're not a parachain.
 	type OnSetCode = ();
@@ -252,18 +251,6 @@ impl pallet_beefy::Config for Runtime {
 	type BeefyId = BeefyId;
 }
 
-impl pallet_bridge_dispatch::Config for Runtime {
-	type Event = Event;
-	type BridgeMessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
-	type Call = Call;
-	type CallFilter = frame_support::traits::Everything;
-	type EncodedCall = crate::millau_messages::FromMillauEncodedCall;
-	type SourceChainAccountId = bp_millau::AccountId;
-	type TargetChainAccountPublic = MultiSigner;
-	type TargetChainSignature = MultiSignature;
-	type AccountIdConverter = bp_rialto::AccountIdConverter;
-}
-
 impl pallet_grandpa::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
@@ -278,7 +265,6 @@ impl pallet_grandpa::Config for Runtime {
 	type HandleEquivocation = ();
 	// TODO: update me (https://github.com/paritytech/parity-bridges-common/issues/78)
 	type WeightInfo = ();
-	type MaxAuthorities = MaxAuthorities;
 }
 
 type MmrHash = <Keccak256 as sp_runtime::traits::Hash>::Output;
@@ -309,10 +295,19 @@ parameter_types! {
 	pub LeafVersion: MmrLeafVersion = MmrLeafVersion::new(0, 0);
 }
 
+pub struct BeefyDummyDataProvider;
+
+impl beefy_primitives::mmr::BeefyDataProvider<()> for BeefyDummyDataProvider {
+	fn extra_data() -> () {
+		()
+	}
+}
+
 impl pallet_beefy_mmr::Config for Runtime {
 	type LeafVersion = LeafVersion;
 	type BeefyAuthorityToMerkleLeaf = pallet_beefy_mmr::BeefyEcdsaToEthereum;
-	type BeefyDataProvider = ();
+	type LeafExtra = ();
+	type BeefyDataProvider = BeefyDummyDataProvider;
 }
 
 parameter_types! {
@@ -364,9 +359,9 @@ parameter_types! {
 
 impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = pallet_transaction_payment::CurrencyAdapter<Balances, ()>;
-	type TransactionByteFee = TransactionByteFee;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = bp_rialto::WeightToFee;
+	type LengthToFee = bp_rialto::WeightToFee;
 	type FeeMultiplierUpdate = pallet_transaction_payment::TargetedFeeAdjustment<
 		Runtime,
 		TargetBlockFullness,
@@ -500,7 +495,6 @@ construct_runtime!(
 
 		// Millau bridge modules.
 		BridgeMillauGrandpa: pallet_bridge_grandpa::{Pallet, Call, Storage},
-		BridgeDispatch: pallet_bridge_dispatch::{Pallet, Event<T>},
 		BridgeMillauMessages: pallet_bridge_messages::{Pallet, Call, Storage, Event<T>, Config<T>},
 
 		// Parachain modules.
@@ -532,9 +526,9 @@ pub type Header = generic::Header<BlockNumber, Hashing>;
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// A Block signed with a Justification
 pub type SignedBlock = generic::SignedBlock<Block>;
-/// `BlockId` type as expected by this runtime.
+/// BlockId type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
-/// The `SignedExtension` to the basic transaction logic.
+/// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
 	frame_system::CheckNonZeroSender<Runtime>,
 	frame_system::CheckSpecVersion<Runtime>,
@@ -559,20 +553,6 @@ pub type Executive = frame_executive::Executive<
 	Runtime,
 	AllPalletsWithSystem,
 >;
-
-#[cfg(feature = "runtime-benchmarks")]
-#[macro_use]
-extern crate frame_benchmarking;
-
-#[cfg(feature = "runtime-benchmarks")]
-mod benches {
-	define_benchmarks!(
-		[pallet_bridge_messages,
-		MessagesBench::<Runtime, WithMillauMessagesInstance>]
-		[pallet_bridge_grandpa, BridgeMillauGrandpa]
-	);
-}
-pub type MmrHashing = <Runtime as pallet_mmr::Config>::Hashing;
 
 impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
@@ -685,6 +665,10 @@ impl_runtime_apis! {
 		) -> Result<(), MmrError> {
 			let nodes = leaves.into_iter().map(|leaf|DataOrHash::Data(leaf.into_opaque_leaf())).collect();
 			pallet_mmr::verify_leaves_proof::<MmrHashing, _>(root, nodes, proof)
+		}
+
+		fn mmr_root() -> Result<Hash, MmrError> {
+			Ok(Mmr::mmr_root())
 		}
 	}
 
@@ -854,6 +838,10 @@ impl_runtime_apis! {
 		{
 			polkadot_runtime_parachains::runtime_api_impl::v2::validation_code_hash::<Runtime>(para_id, assumption)
 		}
+
+		fn staging_get_disputes() -> Vec<(polkadot_primitives::v2::SessionIndex, polkadot_primitives::v2::CandidateHash, polkadot_primitives::v2::DisputeState<BlockNumber>)> {
+			unimplemented!()
+		}
 	}
 
 	impl sp_authority_discovery::AuthorityDiscoveryApi<Block> for Runtime {
@@ -946,30 +934,6 @@ impl_runtime_apis! {
 			>(lane, begin, end)
 		}
 	}
-}
-
-/// Millau account ownership digest from Rialto.
-///
-/// The byte vector returned by this function should be signed with a Millau account private key.
-/// This way, the owner of `rialto_account_id` on Rialto proves that the 'millau' account private
-/// key is also under his control.
-pub fn rialto_to_millau_account_ownership_digest<Call, AccountId, SpecVersion>(
-	millau_call: &Call,
-	rialto_account_id: AccountId,
-	millau_spec_version: SpecVersion,
-) -> sp_std::vec::Vec<u8>
-where
-	Call: codec::Encode,
-	AccountId: codec::Encode,
-	SpecVersion: codec::Encode,
-{
-	pallet_bridge_dispatch::account_ownership_digest(
-		millau_call,
-		rialto_account_id,
-		millau_spec_version,
-		bp_runtime::RIALTO_CHAIN_ID,
-		bp_runtime::MILLAU_CHAIN_ID,
-	)
 }
 
 #[cfg(test)]

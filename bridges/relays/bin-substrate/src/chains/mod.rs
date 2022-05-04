@@ -41,95 +41,28 @@ mod wococo;
 
 #[cfg(test)]
 mod tests {
-	use crate::cli::{encode_call, send_message};
+	use crate::cli::encode_message;
 	use bp_messages::source_chain::TargetHeaderChain;
 	use bp_runtime::Chain as _;
 	use codec::Encode;
-	use frame_support::dispatch::GetDispatchInfo;
 	use relay_millau_client::Millau;
 	use relay_rialto_client::Rialto;
 	use relay_substrate_client::{SignParam, TransactionSignScheme, UnsignedTransaction};
-	use sp_core::Pair;
-	use sp_runtime::traits::{IdentifyAccount, Verify};
 
 	#[test]
-	fn millau_signature_is_valid_on_rialto() {
-		let millau_sign = relay_millau_client::SigningParams::from_string("//Dave", None).unwrap();
-
-		let call =
-			rialto_runtime::Call::System(rialto_runtime::SystemCall::remark { remark: vec![] });
-
-		let millau_public: bp_millau::AccountSigner = millau_sign.public().into();
-		let millau_account_id: bp_millau::AccountId = millau_public.into_account();
-
-		let digest = millau_runtime::millau_to_rialto_account_ownership_digest(
-			&call,
-			millau_account_id,
-			rialto_runtime::VERSION.spec_version,
-		);
-
-		let rialto_signer =
-			relay_rialto_client::SigningParams::from_string("//Dave", None).unwrap();
-		let signature = rialto_signer.sign(&digest);
-
-		assert!(signature.verify(&digest[..], &rialto_signer.public()));
-	}
-
-	#[test]
-	fn rialto_signature_is_valid_on_millau() {
-		let rialto_sign = relay_rialto_client::SigningParams::from_string("//Dave", None).unwrap();
-
-		let call =
-			millau_runtime::Call::System(millau_runtime::SystemCall::remark { remark: vec![] });
-
-		let rialto_public: bp_rialto::AccountSigner = rialto_sign.public().into();
-		let rialto_account_id: bp_rialto::AccountId = rialto_public.into_account();
-
-		let digest = rialto_runtime::rialto_to_millau_account_ownership_digest(
-			&call,
-			rialto_account_id,
-			millau_runtime::VERSION.spec_version,
-		);
-
-		let millau_signer =
-			relay_millau_client::SigningParams::from_string("//Dave", None).unwrap();
-		let signature = millau_signer.sign(&digest);
-
-		assert!(signature.verify(&digest[..], &millau_signer.public()));
-	}
-
-	#[test]
-	fn maximal_rialto_to_millau_message_arguments_size_is_computed_correctly() {
+	fn maximal_rialto_to_millau_message_size_is_computed_correctly() {
 		use rialto_runtime::millau_messages::Millau;
 
-		let maximal_remark_size = encode_call::compute_maximal_message_arguments_size(
+		let maximal_message_size = encode_message::compute_maximal_message_size(
 			bp_rialto::Rialto::max_extrinsic_size(),
 			bp_millau::Millau::max_extrinsic_size(),
 		);
 
-		let call: millau_runtime::Call =
-			millau_runtime::SystemCall::remark { remark: vec![42; maximal_remark_size as _] }
-				.into();
-		let payload = send_message::message_payload(
-			Default::default(),
-			call.get_dispatch_info().weight,
-			bp_message_dispatch::CallOrigin::SourceRoot,
-			&call,
-			send_message::DispatchFeePayment::AtSourceChain,
-		);
-		assert_eq!(Millau::verify_message(&payload), Ok(()));
+		let message = vec![42; maximal_message_size as _];
+		assert_eq!(Millau::verify_message(&message), Ok(()));
 
-		let call: millau_runtime::Call =
-			millau_runtime::SystemCall::remark { remark: vec![42; (maximal_remark_size + 1) as _] }
-				.into();
-		let payload = send_message::message_payload(
-			Default::default(),
-			call.get_dispatch_info().weight,
-			bp_message_dispatch::CallOrigin::SourceRoot,
-			&call,
-			send_message::DispatchFeePayment::AtSourceChain,
-		);
-		assert!(Millau::verify_message(&payload).is_err());
+		let message = vec![42; (maximal_message_size + 1) as _];
+		assert!(Millau::verify_message(&message).is_err());
 	}
 
 	#[test]
@@ -141,65 +74,6 @@ mod tests {
 			"We can't actually send maximal messages to Rialto from Millau, because Millau extrinsics can't be that large",
 		)
 	}
-
-	#[test]
-	fn maximal_rialto_to_millau_message_dispatch_weight_is_computed_correctly() {
-		use rialto_runtime::millau_messages::Millau;
-
-		let maximal_dispatch_weight = send_message::compute_maximal_message_dispatch_weight(
-			bp_millau::Millau::max_extrinsic_weight(),
-		);
-		let call: millau_runtime::Call =
-			rialto_runtime::SystemCall::remark { remark: vec![] }.into();
-
-		let payload = send_message::message_payload(
-			Default::default(),
-			maximal_dispatch_weight,
-			bp_message_dispatch::CallOrigin::SourceRoot,
-			&call,
-			send_message::DispatchFeePayment::AtSourceChain,
-		);
-		assert_eq!(Millau::verify_message(&payload), Ok(()));
-
-		let payload = send_message::message_payload(
-			Default::default(),
-			maximal_dispatch_weight + 1,
-			bp_message_dispatch::CallOrigin::SourceRoot,
-			&call,
-			send_message::DispatchFeePayment::AtSourceChain,
-		);
-		assert!(Millau::verify_message(&payload).is_err());
-	}
-
-	#[test]
-	fn maximal_weight_fill_block_to_rialto_is_generated_correctly() {
-		use millau_runtime::rialto_messages::Rialto;
-
-		let maximal_dispatch_weight = send_message::compute_maximal_message_dispatch_weight(
-			bp_rialto::Rialto::max_extrinsic_weight(),
-		);
-		let call: rialto_runtime::Call =
-			millau_runtime::SystemCall::remark { remark: vec![] }.into();
-
-		let payload = send_message::message_payload(
-			Default::default(),
-			maximal_dispatch_weight,
-			bp_message_dispatch::CallOrigin::SourceRoot,
-			&call,
-			send_message::DispatchFeePayment::AtSourceChain,
-		);
-		assert_eq!(Rialto::verify_message(&payload), Ok(()));
-
-		let payload = send_message::message_payload(
-			Default::default(),
-			maximal_dispatch_weight + 1,
-			bp_message_dispatch::CallOrigin::SourceRoot,
-			&call,
-			send_message::DispatchFeePayment::AtSourceChain,
-		);
-		assert!(Rialto::verify_message(&payload).is_err());
-	}
-
 	#[test]
 	fn rialto_tx_extra_bytes_constant_is_correct() {
 		let rialto_call =

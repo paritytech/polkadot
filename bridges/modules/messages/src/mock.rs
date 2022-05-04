@@ -198,7 +198,7 @@ impl SenderOrigin<AccountId> for Origin {
 	fn linked_account(&self) -> Option<AccountId> {
 		match self.caller {
 			OriginCaller::system(frame_system::RawOrigin::Signed(ref submitter)) =>
-				Some(submitter.clone()),
+				Some(*submitter),
 			_ => None,
 		}
 	}

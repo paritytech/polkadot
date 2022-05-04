@@ -19,6 +19,7 @@ use crate::{
 	service,
 	service::new_partial,
 };
+use frame_benchmarking_cli::BenchmarkCmd;
 use millau_runtime::{Block, RuntimeApi};
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use sc_service::PartialComponents;
@@ -77,18 +78,23 @@ pub fn run() -> sc_cli::Result<()> {
 	));
 
 	match &cli.subcommand {
-		Some(Subcommand::Benchmark(cmd)) =>
-			if cfg!(feature = "runtime-benchmarks") {
-				let runner = cli.create_runner(cmd)?;
-
-				runner.sync_run(|config| cmd.run::<Block, service::ExecutorDispatch>(config))
-			} else {
-				println!(
-					"Benchmarking wasn't enabled when building the node. \
-				You can enable it with `--features runtime-benchmarks`."
-				);
-				Ok(())
-			},
+		Some(Subcommand::Benchmark(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			match cmd {
+				BenchmarkCmd::Pallet(cmd) =>
+					if cfg!(feature = "runtime-benchmarks") {
+						runner
+							.sync_run(|config| cmd.run::<Block, service::ExecutorDispatch>(config))
+					} else {
+						println!(
+							"Benchmarking wasn't enabled when building the node. \
+					You can enable it with `--features runtime-benchmarks`."
+						);
+						Ok(())
+					},
+				_ => Err("Unsupported benchmarking subcommand".into()),
+			}
+		},
 		Some(Subcommand::Key(cmd)) => cmd.run(&cli),
 		Some(Subcommand::Sign(cmd)) => cmd.run(),
 		Some(Subcommand::Verify(cmd)) => cmd.run(),
@@ -135,7 +141,7 @@ pub fn run() -> sc_cli::Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
 				let PartialComponents { client, task_manager, backend, .. } = new_partial(&config)?;
-				Ok((cmd.run(client, backend), task_manager))
+				Ok((cmd.run(client, backend, None), task_manager))
 			})
 		},
 		Some(Subcommand::Inspect(cmd)) => {

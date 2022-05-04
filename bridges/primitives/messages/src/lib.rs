@@ -40,7 +40,7 @@ pub use frame_support::weights::Weight;
 pub enum OperatingMode {
 	/// Normal mode, when all operations are allowed.
 	Normal,
-	/// The pallet is not accepting outbound messages. Inbound messages and receival proofs
+	/// The pallet is not accepting outbound messages. Inbound messages and receiving proofs
 	/// are still accepted.
 	///
 	/// This mode may be used e.g. when bridged chain expects upgrade. Then to avoid dispatch
@@ -224,7 +224,7 @@ impl DeliveredMessages {
 	/// dispatch result.
 	pub fn new(nonce: MessageNonce, dispatch_result: bool) -> Self {
 		let mut dispatch_results = BitVec::with_capacity(1);
-		dispatch_results.push(if dispatch_result { true } else { false });
+		dispatch_results.push(dispatch_result);
 		DeliveredMessages { begin: nonce, end: nonce, dispatch_results }
 	}
 

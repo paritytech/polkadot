@@ -16,7 +16,7 @@ FERDIE_ADDR=6ztG3jPnJTwgZnnYsgCDXbbQVR82M96hBZtPvkN56A9668ZC
 
 SHARED_CMD=" /home/user/substrate-relay send-message millau-to-rialto"
 SHARED_HOST="--source-host millau-node-bob --source-port 9944"
-DAVE_SIGNER="--target-signer //Dave --source-signer //Dave"
+DAVE_SIGNER="--source-signer //Dave"
 
 SEND_MESSAGE="$SHARED_CMD $SHARED_HOST $DAVE_SIGNER"
 
@@ -37,90 +37,37 @@ BUNCH_OF_MESSAGES_TIME=3600
 while true
 do
 	rand_sleep
-	echo "Sending Remark from Millau to Rialto using Target Origin"
+	echo "Sending Message from Millau to Rialto"
 	$SEND_MESSAGE \
 		--lane $MESSAGE_LANE \
 		--conversion-rate-override metric \
-		--origin Target \
-		remark
+		raw 1234
 
 	if [ ! -z $SECONDARY_MESSAGE_LANE ]; then
-		echo "Sending Remark from Millau to Rialto using Target Origin using secondary lane: $SECONDARY_MESSAGE_LANE"
+		echo "Sending Message from Millau to Rialto using secondary lane: $SECONDARY_MESSAGE_LANE"
 		$SEND_MESSAGE \
 			--lane $SECONDARY_MESSAGE_LANE \
 			--conversion-rate-override metric \
-			--origin Target \
-			--dispatch-fee-payment at-target-chain \
-			remark
+			raw 5678
 	fi
-
-	rand_sleep
-	echo "Sending Transfer from Millau to Rialto using Target Origin"
-	 $SEND_MESSAGE \
-		--lane $MESSAGE_LANE \
-		--conversion-rate-override metric \
-		--origin Target \
-		transfer \
-		--amount 1000000000 \
-		--recipient $FERDIE_ADDR
-
-	rand_sleep
-	echo "Sending Remark from Millau to Rialto using Source Origin"
-	 $SEND_MESSAGE \
-		--lane $MESSAGE_LANE \
-		--conversion-rate-override metric \
-		--origin Source \
-		remark
-
-	rand_sleep
-	echo "Sending Transfer from Millau to Rialto using Source Origin"
-	 $SEND_MESSAGE \
-		--lane $MESSAGE_LANE \
-		--conversion-rate-override metric \
-		--origin Source \
-		transfer \
-		--amount 1000000000 \
-		--recipient $FERDIE_ADDR
 
 	# every other hour we're sending 3 large (size, weight, size+weight) messages
 	if [ $SECONDS -ge $LARGE_MESSAGES_TIME ]; then
 		LARGE_MESSAGES_TIME=$((SECONDS + 7200))
 
 		rand_sleep
-		echo "Sending Maximal Size Remark from Millau to Rialto using Target Origin"
+		echo "Sending Maximal Size Message from Millau to Rialto"
 		$SEND_MESSAGE \
 			--lane $MESSAGE_LANE \
 			--conversion-rate-override metric \
-			--origin Target \
-			remark \
-			--remark-size=max
-
-		rand_sleep
-		echo "Sending Maximal Dispatch Weight Remark from Millau to Rialto using Target Origin"
-		$SEND_MESSAGE \
-			--lane $MESSAGE_LANE \
-			--conversion-rate-override metric \
-			--origin Target \
-			--dispatch-weight=max \
-			remark
-
-		rand_sleep
-		echo "Sending Maximal Size and Dispatch Weight Remark from Millau to Rialto using Target Origin"
-		$SEND_MESSAGE \
-			--lane $MESSAGE_LANE \
-			--conversion-rate-override metric \
-			--origin Target \
-			--dispatch-weight=max \
-			remark \
-			--remark-size=max
-
+			sized max
 	fi
 
 	# every other hour we're sending a bunch of small messages
 	if [ $SECONDS -ge $BUNCH_OF_MESSAGES_TIME ]; then
 		BUNCH_OF_MESSAGES_TIME=$((SECONDS + 7200))
 
-		SEND_MESSAGE_OUTPUT=`$SEND_MESSAGE --lane $MESSAGE_LANE --conversion-rate-override metric --origin Target remark 2>&1`
+		SEND_MESSAGE_OUTPUT=`$SEND_MESSAGE --lane $MESSAGE_LANE --conversion-rate-override metric raw deadbeef 2>&1`
 		echo $SEND_MESSAGE_OUTPUT
 		ACTUAL_CONVERSION_RATE_REGEX="conversion rate override: ([0-9\.]+)"
 		if [[ $SEND_MESSAGE_OUTPUT =~ $ACTUAL_CONVERSION_RATE_REGEX ]]; then
@@ -135,8 +82,7 @@ do
 			$SEND_MESSAGE \
 				--lane $MESSAGE_LANE \
 				--conversion-rate-override $ACTUAL_CONVERSION_RATE \
-				--origin Target \
-				remark
+				raw deadbeef
 		done
 
 	fi

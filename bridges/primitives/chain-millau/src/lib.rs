@@ -269,9 +269,6 @@ pub const WITH_MILLAU_MESSAGES_PALLET_NAME: &str = "BridgeMillauMessages";
 /// Name of the Rialto->Millau (actually DOT->KSM) conversion rate stored in the Millau runtime.
 pub const RIALTO_TO_MILLAU_CONVERSION_RATE_PARAMETER_NAME: &str = "RialtoToMillauConversionRate";
 
-/// Name of the With-Rialto token swap pallet instance in the Millau runtime.
-pub const WITH_RIALTO_TOKEN_SWAP_PALLET_NAME: &str = "BridgeRialtoTokenSwap";
-
 /// Name of the `MillauFinalityApi::best_finalized` runtime method.
 pub const BEST_FINALIZED_MILLAU_HEADER_METHOD: &str = "MillauFinalityApi_best_finalized";
 

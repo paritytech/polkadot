@@ -704,8 +704,8 @@ impl<C: Chain> Client<C> {
 		.await
 	}
 
-	/// Return new justifications stream.
-	pub async fn subscribe_justifications(&self) -> Result<Subscription<Bytes>> {
+	/// Return new GRANDPA justifications stream.
+	pub async fn subscribe_grandpa_justifications(&self) -> Result<Subscription<Bytes>> {
 		let subscription = self
 			.jsonrpsee_execute(move |client| async move {
 				Ok(client

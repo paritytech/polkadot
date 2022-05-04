@@ -11,23 +11,20 @@ license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 hex-literal = "0.3"
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
 libsecp256k1 = { version = "0.7", optional = true, default-features = false, features = ["hmac"] }
-scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 
 # Bridge dependencies
 
 bp-header-chain = { path = "../../../primitives/header-chain", default-features = false }
-bp-message-dispatch = { path = "../../../primitives/message-dispatch", default-features = false }
 bp-messages = { path = "../../../primitives/messages", default-features = false }
 bp-millau = { path = "../../../primitives/chain-millau", default-features = false }
 bp-rialto = { path = "../../../primitives/chain-rialto", default-features = false }
 bp-runtime = { path = "../../../primitives/runtime", default-features = false }
 bp-westend = { path = "../../../primitives/chain-westend", default-features = false }
 bridge-runtime-common = { path = "../../runtime-common", default-features = false }
-pallet-bridge-dispatch = { path = "../../../modules/dispatch", default-features = false }
 pallet-bridge-grandpa = { path = "../../../modules/grandpa", default-features = false }
 pallet-bridge-messages = { path = "../../../modules/messages", default-features = false }
-pallet-bridge-token-swap = { path = "../../../modules/token-swap", default-features = false }
 pallet-shift-session-manager = { path = "../../../modules/shift-session-manager", default-features = false }
 
 # Substrate Dependencies
@@ -77,7 +74,6 @@ default = ["std"]
 std = [
 	"beefy-primitives/std",
 	"bp-header-chain/std",
-	"bp-message-dispatch/std",
 	"bp-messages/std",
 	"bp-millau/std",
 	"bp-rialto/std",
@@ -93,10 +89,8 @@ std = [
 	"pallet-balances/std",
 	"pallet-beefy/std",
 	"pallet-beefy-mmr/std",
-	"pallet-bridge-dispatch/std",
 	"pallet-bridge-grandpa/std",
 	"pallet-bridge-messages/std",
-	"pallet-bridge-token-swap/std",
 	"pallet-grandpa/std",
 	"pallet-mmr/std",
 	"pallet-randomness-collective-flip/std",
@@ -130,6 +124,5 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"libsecp256k1",
 	"pallet-bridge-messages/runtime-benchmarks",
-	"pallet-bridge-token-swap/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]

@@ -8,7 +8,7 @@ license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 [dependencies]
 anyhow = "1.0"
 async-std = "1.9.0"
-async-trait = "0.1.42"
+async-trait = "0.1"
 codec = { package = "parity-scale-codec", version = "3.0.0" }
 futures = "0.3.12"
 hex = "0.4"
@@ -25,24 +25,20 @@ strum = { version = "0.21.0", features = ["derive"] }
 bp-header-chain = { path = "../../primitives/header-chain" }
 bp-kusama = { path = "../../primitives/chain-kusama" }
 bp-messages = { path = "../../primitives/messages" }
-bp-message-dispatch = { path = "../../primitives/message-dispatch" }
 bp-millau = { path = "../../primitives/chain-millau" }
 bp-polkadot = { path = "../../primitives/chain-polkadot" }
 bp-rialto = { path = "../../primitives/chain-rialto" }
 bp-rialto-parachain = { path = "../../primitives/chain-rialto-parachain" }
 bp-rococo = { path = "../../primitives/chain-rococo" }
 bp-runtime = { path = "../../primitives/runtime" }
-bp-token-swap = { path = "../../primitives/token-swap" }
 bp-westend = { path = "../../primitives/chain-westend" }
 bp-wococo = { path = "../../primitives/chain-wococo" }
 bridge-runtime-common = { path = "../../bin/runtime-common" }
 finality-relay = { path = "../finality" }
 messages-relay = { path = "../messages" }
 millau-runtime = { path = "../../bin/millau/runtime" }
-pallet-bridge-dispatch = { path = "../../modules/dispatch" }
 pallet-bridge-grandpa = { path = "../../modules/grandpa" }
 pallet-bridge-messages = { path = "../../modules/messages" }
-pallet-bridge-token-swap = { path = "../../modules/token-swap" }
 relay-kusama-client = { path = "../client-kusama" }
 relay-millau-client = { path = "../client-millau" }
 relay-polkadot-client = { path = "../client-polkadot" }
@@ -68,10 +64,10 @@ sp-version = { git = "https://github.com/paritytech/substrate", branch = "master
 
 # Polkadot Dependencies
 
-polkadot-parachain = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-primitives = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-runtime-common = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-runtime-parachains = { git = "https://github.com/paritytech/polkadot", branch = "master" }
+polkadot-parachain = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcm-v3" }
+polkadot-primitives = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcm-v3" }
+polkadot-runtime-common = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcm-v3" }
+polkadot-runtime-parachains = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcm-v3" }
 
 [dev-dependencies]
 bp-test-utils = { path = "../../primitives/test-utils" }

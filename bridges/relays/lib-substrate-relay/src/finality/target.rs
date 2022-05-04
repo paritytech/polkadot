@@ -14,24 +14,22 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Substrate client as Substrate finality proof target. The chain we connect to should have
-//! bridge GRANDPA pallet deployed and provide `<BridgedChainName>FinalityApi` to allow bridging
-//! with <BridgedName> chain.
+//! Substrate client as Substrate finality proof target.
 
 use crate::{
-	finality_pipeline::{
-		FinalitySyncPipelineAdapter, SubmitFinalityProofCallBuilder, SubstrateFinalitySyncPipeline,
+	finality::{
+		engine::Engine, source::SubstrateFinalityProof, FinalitySyncPipelineAdapter,
+		SubmitFinalityProofCallBuilder, SubstrateFinalitySyncPipeline,
 	},
 	TransactionParams,
 };
 
 use async_trait::async_trait;
-use bp_header_chain::{justification::GrandpaJustification, storage_keys::is_halted_key};
 use codec::Encode;
 use finality_relay::TargetClient;
 use relay_substrate_client::{
-	AccountIdOf, AccountKeyPairOf, Chain, ChainWithGrandpa, Client, Error, HeaderIdOf, HeaderOf,
-	SignParam, SyncHeader, TransactionEra, TransactionSignScheme, UnsignedTransaction,
+	AccountIdOf, AccountKeyPairOf, Chain, Client, Error, HeaderIdOf, HeaderOf, SignParam,
+	SyncHeader, TransactionEra, TransactionSignScheme, UnsignedTransaction,
 };
 use relay_utils::relay_loop::Client as RelayClient;
 use sp_core::{Bytes, Pair};
@@ -51,12 +49,9 @@ impl<P: SubstrateFinalitySyncPipeline> SubstrateFinalityTarget<P> {
 		SubstrateFinalityTarget { client, transaction_params }
 	}
 
-	/// Ensure that the GRANDPA pallet at target chain is active.
+	/// Ensure that the bridge pallet at target chain is active.
 	pub async fn ensure_pallet_active(&self) -> Result<(), Error> {
-		let is_halted = self
-			.client
-			.storage_value(is_halted_key(P::SourceChain::WITH_CHAIN_GRANDPA_PALLET_NAME), None)
-			.await?;
+		let is_halted = self.client.storage_value(P::FinalityEngine::is_halted_key(), None).await?;
 		if is_halted.unwrap_or(false) {
 			Err(Error::BridgePalletIsHalted)
 		} else {
@@ -94,7 +89,7 @@ where
 		// we can't continue to relay finality if target node is out of sync, because
 		// it may have already received (some of) headers that we're going to relay
 		self.client.ensure_synced().await?;
-		// we can't relay finality if GRANDPA pallet at target chain is halted
+		// we can't relay finality if bridge pallet at target chain is halted
 		self.ensure_pallet_active().await?;
 
 		Ok(crate::messages_source::read_client_state::<P::TargetChain, P::SourceChain>(
@@ -109,7 +104,7 @@ where
 	async fn submit_finality_proof(
 		&self,
 		header: SyncHeader<HeaderOf<P::SourceChain>>,
-		proof: GrandpaJustification<HeaderOf<P::SourceChain>>,
+		proof: SubstrateFinalityProof<P>,
 	) -> Result<(), Error> {
 		let genesis_hash = *self.client.genesis_hash();
 		let transaction_params = self.transaction_params.clone();

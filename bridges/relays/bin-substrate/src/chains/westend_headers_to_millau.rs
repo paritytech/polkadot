@@ -16,8 +16,9 @@
 
 //! Westend-to-Millau headers sync entrypoint.
 
-use substrate_relay_helper::finality_pipeline::{
-	DirectSubmitFinalityProofCallBuilder, SubstrateFinalitySyncPipeline,
+use substrate_relay_helper::finality::{
+	engine::Grandpa as GrandpaFinalityEngine, DirectSubmitGrandpaFinalityProofCallBuilder,
+	SubstrateFinalitySyncPipeline,
 };
 
 /// Description of Westend -> Millau finalized headers bridge.
@@ -28,7 +29,8 @@ impl SubstrateFinalitySyncPipeline for WestendFinalityToMillau {
 	type SourceChain = relay_westend_client::Westend;
 	type TargetChain = relay_millau_client::Millau;
 
-	type SubmitFinalityProofCallBuilder = DirectSubmitFinalityProofCallBuilder<
+	type FinalityEngine = GrandpaFinalityEngine<Self::SourceChain>;
+	type SubmitFinalityProofCallBuilder = DirectSubmitGrandpaFinalityProofCallBuilder<
 		Self,
 		millau_runtime::Runtime,
 		millau_runtime::WestendGrandpaInstance,

@@ -18,19 +18,16 @@
 
 use codec::{Decode, Encode};
 use relay_substrate_client::ChainRuntimeVersion;
-use sp_runtime::app_crypto::Ss58Codec;
 use structopt::{clap::arg_enum, StructOpt};
 use strum::{EnumString, EnumVariantNames};
 
 use bp_messages::LaneId;
 
 pub(crate) mod bridge;
-pub(crate) mod encode_call;
 pub(crate) mod encode_message;
 pub(crate) mod estimate_fee;
 pub(crate) mod send_message;
 
-mod derive_account;
 mod init_bridge;
 mod register_parachain;
 mod reinit_bridge;
@@ -38,7 +35,6 @@ mod relay_headers;
 mod relay_headers_and_messages;
 mod relay_messages;
 mod resubmit_transactions;
-mod swap_tokens;
 
 /// Parse relay CLI args.
 pub fn parse_args() -> Command {
@@ -81,25 +77,10 @@ pub enum Command {
 	/// The message is being sent to the source chain, delivered to the target chain and dispatched
 	/// there.
 	SendMessage(send_message::SendMessage),
-	/// Generate SCALE-encoded `Call` for the chosen network.
-	///
-	/// The call can be used either as message payload or can be wrapped into a transaction
-	/// and executed on the chain directly.
-	EncodeCall(encode_call::EncodeCall),
-	/// Generate SCALE-encoded `MessagePayload` object that can be sent over selected bridge.
-	///
-	/// The `MessagePayload` can be then fed to `Messages::send_message` function and sent over
-	/// the bridge.
-	EncodeMessage(encode_message::EncodeMessage),
 	/// Estimate Delivery and Dispatch Fee required for message submission to messages pallet.
 	EstimateFee(estimate_fee::EstimateFee),
-	/// Given a source chain `AccountId`, derive the corresponding `AccountId` for the target
-	/// chain.
-	DeriveAccount(derive_account::DeriveAccount),
 	/// Resubmit transactions with increased tip if they are stalled.
 	ResubmitTransactions(resubmit_transactions::ResubmitTransactions),
-	/// Swap tokens using token-swap bridge.
-	SwapTokens(swap_tokens::SwapTokens),
 	/// Register parachain.
 	RegisterParachain(register_parachain::RegisterParachain),
 }
@@ -132,12 +113,8 @@ impl Command {
 			Self::InitBridge(arg) => arg.run().await?,
 			Self::ReinitBridge(arg) => arg.run().await?,
 			Self::SendMessage(arg) => arg.run().await?,
-			Self::EncodeCall(arg) => arg.run().await?,
-			Self::EncodeMessage(arg) => arg.run().await?,
 			Self::EstimateFee(arg) => arg.run().await?,
-			Self::DeriveAccount(arg) => arg.run().await?,
 			Self::ResubmitTransactions(arg) => arg.run().await?,
-			Self::SwapTokens(arg) => arg.run().await?,
 			Self::RegisterParachain(arg) => arg.run().await?,
 		}
 		Ok(())
@@ -182,66 +159,7 @@ impl Balance {
 	}
 }
 
-/// Generic account id with custom parser.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AccountId {
-	account: sp_runtime::AccountId32,
-	ss58_format: sp_core::crypto::Ss58AddressFormat,
-}
-
-impl std::fmt::Display for AccountId {
-	fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(fmt, "{}", self.account.to_ss58check_with_version(self.ss58_format))
-	}
-}
-
-impl std::str::FromStr for AccountId {
-	type Err = String;
-
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		let (account, ss58_format) = sp_runtime::AccountId32::from_ss58check_with_version(s)
-			.map_err(|err| format!("Unable to decode SS58 address: {:?}", err))?;
-		Ok(Self { account, ss58_format })
-	}
-}
-
-const SS58_FORMAT_PROOF: &str = "u16 -> Ss58Format is infallible; qed";
-
-impl AccountId {
-	/// Create new SS58-formatted address from raw account id.
-	pub fn from_raw<T: CliChain>(account: sp_runtime::AccountId32) -> Self {
-		Self { account, ss58_format: T::ss58_format().try_into().expect(SS58_FORMAT_PROOF) }
-	}
-
-	/// Enforces formatting account to be for given [`CliChain`] type.
-	///
-	/// This will change the `ss58format` of the account to match the requested one.
-	/// Note that a warning will be produced in case the current format does not match
-	/// the requested one, but the conversion always succeeds.
-	pub fn enforce_chain<T: CliChain>(&mut self) {
-		let original = self.clone();
-		self.ss58_format = T::ss58_format().try_into().expect(SS58_FORMAT_PROOF);
-		log::debug!("{} SS58 format: {} (RAW: {})", self, self.ss58_format, self.account);
-		if original.ss58_format != self.ss58_format {
-			log::warn!(
-				target: "bridge",
-				"Address {} does not seem to match {}'s SS58 format (got: {}, expected: {}).\nConverted to: {}",
-				original,
-				T::NAME,
-				original.ss58_format,
-				self.ss58_format,
-				self,
-			)
-		}
-	}
-
-	/// Returns the raw (no SS58-prefixed) account id.
-	pub fn raw_id(&self) -> sp_runtime::AccountId32 {
-		self.account.clone()
-	}
-}
-
-/// Bridge-supported network definition.
+// Bridge-supported network definition.
 ///
 /// Used to abstract away CLI commands.
 pub trait CliChain: relay_substrate_client::Chain {
@@ -260,11 +178,6 @@ pub trait CliChain: relay_substrate_client::Chain {
 
 	/// Numeric value of SS58 format.
 	fn ss58_format() -> u16;
-
-	/// Construct message payload to be sent over the bridge.
-	fn encode_message(
-		message: crate::cli::encode_message::MessagePayload,
-	) -> anyhow::Result<Self::MessagePayload>;
 }
 
 /// Lane id.
@@ -621,29 +534,8 @@ declare_chain_options!(Parachain, parachain);
 
 #[cfg(test)]
 mod tests {
-	use std::str::FromStr;
-
-	use sp_core::Pair;
-
 	use super::*;
-
-	#[test]
-	fn should_format_addresses_with_ss58_format() {
-		// given
-		let rialto1 = "5sauUXUfPjmwxSgmb3tZ5d6yx24eZX4wWJ2JtVUBaQqFbvEU";
-		let rialto2 = "5rERgaT1Z8nM3et2epA5i1VtEBfp5wkhwHtVE8HK7BRbjAH2";
-		let millau1 = "752paRyW1EGfq9YLTSSqcSJ5hqnBDidBmaftGhBo8fy6ypW9";
-		let millau2 = "74GNQjmkcfstRftSQPJgMREchqHM56EvAUXRc266cZ1NYVW5";
-
-		let expected = vec![rialto1, rialto2, millau1, millau2];
-
-		// when
-		let parsed = expected.iter().map(|s| AccountId::from_str(s).unwrap()).collect::<Vec<_>>();
-
-		let actual = parsed.iter().map(|a| format!("{}", a)).collect::<Vec<_>>();
-
-		assert_eq!(actual, expected)
-	}
+	use sp_core::Pair;
 
 	#[test]
 	fn hex_bytes_display_matches_from_str_for_clap() {

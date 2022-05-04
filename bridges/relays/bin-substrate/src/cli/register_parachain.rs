@@ -15,8 +15,7 @@
 // along with Parity Bridges Common.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::cli::{
-	swap_tokens::wait_until_transaction_is_finalized, Balance, ParachainConnectionParams,
-	RelaychainConnectionParams, RelaychainSigningParams,
+	Balance, ParachainConnectionParams, RelaychainConnectionParams, RelaychainSigningParams,
 };
 
 use codec::Encode;
@@ -30,7 +29,8 @@ use polkadot_runtime_common::{
 };
 use polkadot_runtime_parachains::paras::ParaLifecycle;
 use relay_substrate_client::{
-	AccountIdOf, CallOf, Chain, Client, SignParam, TransactionSignScheme, UnsignedTransaction,
+	AccountIdOf, CallOf, Chain, Client, HashOf, SignParam, Subscription, TransactionSignScheme,
+	TransactionStatusOf, UnsignedTransaction,
 };
 use rialto_runtime::SudoCall;
 use sp_core::{
@@ -267,6 +267,46 @@ impl RegisterParachain {
 
 			Ok(())
 		})
+	}
+}
+
+/// Wait until transaction is included into finalized block.
+///
+/// Returns the hash of the finalized block with transaction.
+pub(crate) async fn wait_until_transaction_is_finalized<C: Chain>(
+	subscription: Subscription<TransactionStatusOf<C>>,
+) -> anyhow::Result<HashOf<C>> {
+	loop {
+		let transaction_status = subscription.next().await?;
+		match transaction_status {
+			Some(TransactionStatusOf::<C>::FinalityTimeout(_)) |
+			Some(TransactionStatusOf::<C>::Usurped(_)) |
+			Some(TransactionStatusOf::<C>::Dropped) |
+			Some(TransactionStatusOf::<C>::Invalid) |
+			None =>
+				return Err(anyhow::format_err!(
+					"We've been waiting for finalization of {} transaction, but it now has the {:?} status",
+					C::NAME,
+					transaction_status,
+				)),
+			Some(TransactionStatusOf::<C>::Finalized(block_hash)) => {
+				log::trace!(
+					target: "bridge",
+					"{} transaction has been finalized at block {}",
+					C::NAME,
+					block_hash,
+				);
+				return Ok(block_hash)
+			},
+			_ => {
+				log::trace!(
+					target: "bridge",
+					"Received intermediate status of {} transaction: {:?}",
+					C::NAME,
+					transaction_status,
+				);
+			},
+		}
 	}
 }
 

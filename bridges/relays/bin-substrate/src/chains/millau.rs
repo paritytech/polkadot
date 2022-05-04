@@ -18,57 +18,36 @@
 
 use crate::cli::{
 	bridge,
-	encode_call::{self, Call, CliEncodeCall},
-	encode_message,
-	send_message::{self, DispatchFeePayment},
+	encode_message::{CliEncodeMessage, RawMessage},
 	CliChain,
 };
-use anyhow::anyhow;
-use bp_message_dispatch::{CallOrigin, MessagePayload};
+use bp_messages::LaneId;
 use bp_runtime::EncodedOrDecodedCall;
-use codec::Decode;
-use frame_support::weights::{DispatchInfo, GetDispatchInfo};
 use relay_millau_client::Millau;
+use relay_substrate_client::BalanceOf;
 use sp_version::RuntimeVersion;
 
-impl CliEncodeCall for Millau {
-	fn encode_call(call: &Call) -> anyhow::Result<EncodedOrDecodedCall<Self::Call>> {
-		Ok(match call {
-			Call::Raw { data } => Self::Call::decode(&mut &*data.0)?.into(),
-			Call::Remark { remark_payload, .. } =>
-				millau_runtime::Call::System(millau_runtime::SystemCall::remark {
-					remark: remark_payload.as_ref().map(|x| x.0.clone()).unwrap_or_default(),
-				})
-				.into(),
-			Call::Transfer { recipient, amount } =>
-				millau_runtime::Call::Balances(millau_runtime::BalancesCall::transfer {
-					dest: recipient.raw_id(),
-					value: amount.cast(),
-				})
-				.into(),
-			Call::BridgeSendMessage { lane, payload, fee, bridge_instance_index } =>
-				match *bridge_instance_index {
-					bridge::MILLAU_TO_RIALTO_INDEX => {
-						let payload = Decode::decode(&mut &*payload.0)?;
-						millau_runtime::Call::BridgeRialtoMessages(
-							millau_runtime::MessagesCall::send_message {
-								lane_id: lane.0,
-								payload,
-								delivery_and_dispatch_fee: fee.cast(),
-							},
-						)
-						.into()
-					},
-					_ => anyhow::bail!(
-						"Unsupported target bridge pallet with instance index: {}",
-						bridge_instance_index
-					),
+impl CliEncodeMessage for Millau {
+	fn encode_send_message_call(
+		lane: LaneId,
+		payload: RawMessage,
+		fee: BalanceOf<Self>,
+		bridge_instance_index: u8,
+	) -> anyhow::Result<EncodedOrDecodedCall<Self::Call>> {
+		Ok(match bridge_instance_index {
+			bridge::MILLAU_TO_RIALTO_INDEX => millau_runtime::Call::BridgeRialtoMessages(
+				millau_runtime::MessagesCall::send_message {
+					lane_id: lane,
+					payload,
+					delivery_and_dispatch_fee: fee,
 				},
+			)
+			.into(),
+			_ => anyhow::bail!(
+				"Unsupported target bridge pallet with instance index: {}",
+				bridge_instance_index
+			),
 		})
-	}
-
-	fn get_dispatch_info(call: &EncodedOrDecodedCall<Self::Call>) -> anyhow::Result<DispatchInfo> {
-		Ok(call.to_decoded()?.get_dispatch_info())
 	}
 }
 
@@ -76,48 +55,9 @@ impl CliChain for Millau {
 	const RUNTIME_VERSION: RuntimeVersion = millau_runtime::VERSION;
 
 	type KeyPair = sp_core::sr25519::Pair;
-	type MessagePayload = MessagePayload<
-		bp_millau::AccountId,
-		bp_rialto::AccountSigner,
-		bp_rialto::Signature,
-		Vec<u8>,
-	>;
+	type MessagePayload = Vec<u8>;
 
 	fn ss58_format() -> u16 {
 		millau_runtime::SS58Prefix::get() as u16
-	}
-
-	// TODO [#854|#843] support multiple bridges?
-	fn encode_message(
-		message: encode_message::MessagePayload,
-	) -> anyhow::Result<Self::MessagePayload> {
-		match message {
-			encode_message::MessagePayload::Raw { data } => MessagePayload::decode(&mut &*data.0)
-				.map_err(|e| anyhow!("Failed to decode Millau's MessagePayload: {:?}", e)),
-			encode_message::MessagePayload::Call { mut call, mut sender, dispatch_weight } => {
-				type Source = Millau;
-				type Target = relay_rialto_client::Rialto;
-
-				sender.enforce_chain::<Source>();
-				let spec_version = Target::RUNTIME_VERSION.spec_version;
-				let origin = CallOrigin::SourceAccount(sender.raw_id());
-				encode_call::preprocess_call::<Source, Target>(
-					&mut call,
-					bridge::MILLAU_TO_RIALTO_INDEX,
-				);
-				let call = Target::encode_call(&call)?;
-				let dispatch_weight = dispatch_weight.map(Ok).unwrap_or_else(|| {
-					call.to_decoded().map(|call| call.get_dispatch_info().weight)
-				})?;
-
-				Ok(send_message::message_payload(
-					spec_version,
-					dispatch_weight,
-					origin,
-					&call,
-					DispatchFeePayment::AtSourceChain,
-				))
-			},
-		}
 	}
 }

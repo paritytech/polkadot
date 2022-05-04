@@ -16,11 +16,10 @@
 
 //! Default generic implementation of finality source for basic Substrate client.
 
-use crate::finality_pipeline::{FinalitySyncPipelineAdapter, SubstrateFinalitySyncPipeline};
+use crate::finality::{engine::Engine, FinalitySyncPipelineAdapter, SubstrateFinalitySyncPipeline};
 
 use async_std::sync::{Arc, Mutex};
 use async_trait::async_trait;
-use bp_header_chain::justification::GrandpaJustification;
 use codec::Decode;
 use finality_relay::SourceClient;
 use futures::stream::{unfold, Stream, StreamExt};
@@ -38,12 +37,18 @@ pub type RequiredHeaderNumberRef<C> = Arc<Mutex<<C as bp_runtime::Chain>::BlockN
 pub type SubstrateFinalityProofsStream<P> = Pin<
 	Box<
 		dyn Stream<
-				Item = GrandpaJustification<
-					HeaderOf<<P as SubstrateFinalitySyncPipeline>::SourceChain>,
-				>,
+				Item = <<P as SubstrateFinalitySyncPipeline>::FinalityEngine as Engine<
+					<P as SubstrateFinalitySyncPipeline>::SourceChain,
+				>>::FinalityProof,
 			> + Send,
 	>,
 >;
+
+/// Substrate finality proof. Specific to the used `FinalityEngine`.
+pub type SubstrateFinalityProof<P> =
+	<<P as SubstrateFinalitySyncPipeline>::FinalityEngine as Engine<
+		<P as SubstrateFinalitySyncPipeline>::SourceChain,
+	>>::FinalityProof;
 
 /// Substrate node as finality source.
 pub struct SubstrateFinalitySource<P: SubstrateFinalitySyncPipeline> {
@@ -120,7 +125,7 @@ impl<P: SubstrateFinalitySyncPipeline> SourceClient<FinalitySyncPipelineAdapter<
 	) -> Result<
 		(
 			relay_substrate_client::SyncHeader<HeaderOf<P::SourceChain>>,
-			Option<GrandpaJustification<HeaderOf<P::SourceChain>>>,
+			Option<SubstrateFinalityProof<P>>,
 		),
 		Error,
 	> {
@@ -130,9 +135,7 @@ impl<P: SubstrateFinalitySyncPipeline> SourceClient<FinalitySyncPipelineAdapter<
 		let justification = signed_block
 			.justification()
 			.map(|raw_justification| {
-				GrandpaJustification::<HeaderOf<P::SourceChain>>::decode(
-					&mut raw_justification.as_slice(),
-				)
+				SubstrateFinalityProof::<P>::decode(&mut raw_justification.as_slice())
 			})
 			.transpose()
 			.map_err(Error::ResponseParseFailed)?;
@@ -142,7 +145,7 @@ impl<P: SubstrateFinalitySyncPipeline> SourceClient<FinalitySyncPipelineAdapter<
 
 	async fn finality_proofs(&self) -> Result<Self::FinalityProofsStream, Error> {
 		Ok(unfold(
-			self.client.clone().subscribe_justifications().await?,
+			P::FinalityEngine::finality_proofs(self.client.clone()).await?,
 			move |subscription| async move {
 				loop {
 					let log_error = |err| {
@@ -161,7 +164,7 @@ impl<P: SubstrateFinalitySyncPipeline> SourceClient<FinalitySyncPipelineAdapter<
 						.ok()??;
 
 					let decoded_justification =
-						GrandpaJustification::<HeaderOf<P::SourceChain>>::decode(
+						<P::FinalityEngine as Engine<P::SourceChain>>::FinalityProof::decode(
 							&mut &next_justification[..],
 						);
 

@@ -26,30 +26,6 @@ use scale_info::TypeInfo;
 /// Unchecked Wococo extrinsic.
 pub type UncheckedExtrinsic = bp_polkadot_core::UncheckedExtrinsic<Call>;
 
-/// Rococo account ownership digest from Wococo.
-///
-/// The byte vector returned by this function should be signed with a Rococo account private key.
-/// This way, the owner of `wococo_account_id` on Rococo proves that the Rococo account private key
-/// is also under his control.
-pub fn wococo_to_rococo_account_ownership_digest<Call, AccountId, SpecVersion>(
-	rococo_call: &Call,
-	wococo_account_id: AccountId,
-	rococo_spec_version: SpecVersion,
-) -> Vec<u8>
-where
-	Call: codec::Encode,
-	AccountId: codec::Encode,
-	SpecVersion: codec::Encode,
-{
-	pallet_bridge_dispatch::account_ownership_digest(
-		rococo_call,
-		wococo_account_id,
-		rococo_spec_version,
-		bp_runtime::WOCOCO_CHAIN_ID,
-		bp_runtime::ROCOCO_CHAIN_ID,
-	)
-}
-
 /// Wococo Runtime `Call` enum.
 ///
 /// The enum represents a subset of possible `Call`s we can send to Rococo chain.
@@ -107,16 +83,7 @@ pub enum BridgeGrandpaRococoCall {
 #[allow(non_camel_case_types)]
 pub enum BridgeRococoMessagesCall {
 	#[codec(index = 3)]
-	send_message(
-		LaneId,
-		bp_message_dispatch::MessagePayload<
-			bp_rococo::AccountId,
-			bp_wococo::AccountId,
-			bp_wococo::AccountPublic,
-			Vec<u8>,
-		>,
-		bp_rococo::Balance,
-	),
+	send_message(LaneId, Vec<u8>, bp_rococo::Balance),
 	#[codec(index = 5)]
 	receive_messages_proof(
 		bp_rococo::AccountId,

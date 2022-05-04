@@ -21,7 +21,6 @@ use bp_runtime::{Chain, EncodedOrDecodedCall};
 use frame_support::{
 	dispatch::Dispatchable,
 	parameter_types,
-	unsigned::TransactionValidityError,
 	weights::{
 		constants::{BlockExecutionWeight, WEIGHT_PER_SECOND},
 		DispatchClass, Weight,
@@ -35,6 +34,7 @@ use sp_core::Hasher as HasherT;
 use sp_runtime::{
 	generic,
 	traits::{BlakeTwo256, DispatchInfoOf, IdentifyAccount, Verify},
+	transaction_validity::TransactionValidityError,
 	MultiAddress, MultiSignature, OpaqueExtrinsic,
 };
 use sp_std::prelude::Vec;
@@ -343,13 +343,16 @@ where
 	type AdditionalSigned = AdditionalSigned;
 	type Pre = ();
 
-	fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
+	fn additional_signed(
+		&self,
+	) -> Result<Self::AdditionalSigned, frame_support::unsigned::TransactionValidityError> {
 		// we shall not ever see this error in relay, because we are never signing decoded
 		// transactions. Instead we're constructing and signing new transactions. So the error code
 		// is kinda random here
-		self.additional_signed.ok_or(TransactionValidityError::Unknown(
-			frame_support::unsigned::UnknownTransaction::Custom(0xFF),
-		))
+		self.additional_signed
+			.ok_or(frame_support::unsigned::TransactionValidityError::Unknown(
+				frame_support::unsigned::UnknownTransaction::Custom(0xFF),
+			))
 	}
 
 	fn pre_dispatch(

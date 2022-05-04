@@ -105,6 +105,7 @@ impl MetricsParams {
 	}
 
 	/// Do not expose metrics.
+	#[must_use]
 	pub fn disable(mut self) -> Self {
 		self.address = None;
 		self

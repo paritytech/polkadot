@@ -18,7 +18,10 @@
 
 use async_trait::async_trait;
 use relay_polkadot_client::Polkadot;
-use substrate_relay_helper::{finality_pipeline::SubstrateFinalitySyncPipeline, TransactionParams};
+use substrate_relay_helper::{
+	finality::{engine::Grandpa as GrandpaFinalityEngine, SubstrateFinalitySyncPipeline},
+	TransactionParams,
+};
 
 /// Maximal saturating difference between `balance(now)` and `balance(now-24h)` to treat
 /// relay as gone wild.
@@ -47,6 +50,7 @@ impl SubstrateFinalitySyncPipeline for KusamaFinalityToPolkadot {
 	type SourceChain = relay_kusama_client::Kusama;
 	type TargetChain = Polkadot;
 
+	type FinalityEngine = GrandpaFinalityEngine<Self::SourceChain>;
 	type SubmitFinalityProofCallBuilder = KusamaFinalityToPolkadotCallBuilder;
 	type TransactionSignScheme = Polkadot;
 
@@ -55,7 +59,7 @@ impl SubstrateFinalitySyncPipeline for KusamaFinalityToPolkadot {
 		transaction_params: &TransactionParams<sp_core::sr25519::Pair>,
 		enable_version_guard: bool,
 	) -> relay_substrate_client::Result<()> {
-		substrate_relay_helper::finality_guards::start::<Polkadot, Polkadot>(
+		substrate_relay_helper::finality::guards::start::<Polkadot, Polkadot>(
 			target_client,
 			transaction_params,
 			enable_version_guard,

@@ -154,7 +154,6 @@ pub trait Chain: Send + Sync + 'static {
 	type Balance: AtLeast32BitUnsigned
 		+ FixedPointOperand
 		+ Parameter
-		+ Parameter
 		+ Member
 		+ MaybeSerializeDeserialize
 		+ Clone

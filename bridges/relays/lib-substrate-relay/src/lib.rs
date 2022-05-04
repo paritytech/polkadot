@@ -22,11 +22,7 @@ use std::time::Duration;
 
 pub mod conversion_rate_update;
 pub mod error;
-pub mod finality_guards;
-pub mod finality_pipeline;
-pub mod finality_source;
-pub mod finality_target;
-pub mod headers_initialize;
+pub mod finality;
 pub mod helpers;
 pub mod messages_lane;
 pub mod messages_metrics;

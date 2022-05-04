@@ -9,7 +9,7 @@ license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 anyhow = "1.0"
 thiserror = "1.0.26"
 async-std = "1.9.0"
-async-trait = "0.1.42"
+async-trait = "0.1"
 codec = { package = "parity-scale-codec", version = "3.0.0" }
 futures = "0.3.12"
 num-traits = "0.2"

@@ -33,7 +33,7 @@ use frame_support::{
 };
 use scale_info::TypeInfo;
 use sp_runtime::{traits::Saturating, FixedPointNumber, FixedU128};
-use sp_std::{convert::TryFrom, ops::RangeInclusive};
+use sp_std::convert::TryFrom;
 
 /// Initial value of `RialtoToMillauConversionRate` parameter.
 pub const INITIAL_RIALTO_TO_MILLAU_CONVERSION_RATE: FixedU128 =
@@ -49,19 +49,14 @@ parameter_types! {
 }
 
 /// Message payload for Millau -> Rialto messages.
-pub type ToRialtoMessagePayload =
-	messages::source::FromThisChainMessagePayload<WithRialtoMessageBridge>;
+pub type ToRialtoMessagePayload = messages::source::FromThisChainMessagePayload;
 
 /// Message verifier for Millau -> Rialto messages.
 pub type ToRialtoMessageVerifier =
 	messages::source::FromThisChainMessageVerifier<WithRialtoMessageBridge>;
 
 /// Message payload for Rialto -> Millau messages.
-pub type FromRialtoMessagePayload =
-	messages::target::FromBridgedChainMessagePayload<WithRialtoMessageBridge>;
-
-/// Encoded Millau Call as it comes from Rialto.
-pub type FromRialtoEncodedCall = messages::target::FromBridgedChainEncodedMessageCall<crate::Call>;
+pub type FromRialtoMessagePayload = messages::target::FromBridgedChainMessagePayload;
 
 /// Messages proof for Rialto -> Millau messages.
 pub type FromRialtoMessagesProof = messages::target::FromBridgedChainMessagesProof<bp_rialto::Hash>;
@@ -120,19 +115,7 @@ impl messages::ThisChainWithMessages for Millau {
 	type Call = crate::Call;
 
 	fn is_message_accepted(send_origin: &Self::Origin, lane: &LaneId) -> bool {
-		// lanes 0x00000000 && 0x00000001 are accepting any paid messages, while
-		// `TokenSwapMessageLane` only accepts messages from token swap pallet
-		let token_swap_dedicated_lane = crate::TokenSwapMessagesLane::get();
-		match *lane {
-			[0, 0, 0, 0] | [0, 0, 0, 1] => send_origin.linked_account().is_some(),
-			_ if *lane == token_swap_dedicated_lane => matches!(
-				send_origin.caller,
-				crate::OriginCaller::BridgeRialtoTokenSwap(
-					pallet_bridge_token_swap::RawOrigin::TokenSwap { .. }
-				)
-			),
-			_ => false,
-		}
+		(*lane == [0, 0, 0, 0] || *lane == [0, 0, 0, 1]) && send_origin.linked_account().is_some()
 	}
 
 	fn maximal_pending_messages_at_outbound_lane() -> MessageNonce {
@@ -189,19 +172,8 @@ impl messages::BridgedChainWithMessages for Rialto {
 		bp_rialto::Rialto::max_extrinsic_size()
 	}
 
-	fn message_weight_limits(_message_payload: &[u8]) -> RangeInclusive<Weight> {
-		// we don't want to relay too large messages + keep reserve for future upgrades
-		let upper_limit = messages::target::maximal_incoming_message_dispatch_weight(
-			bp_rialto::Rialto::max_extrinsic_weight(),
-		);
-
-		// we're charging for payload bytes in `WithRialtoMessageBridge::transaction_payment`
-		// function
-		//
-		// this bridge may be used to deliver all kind of messages, so we're not making any
-		// assumptions about minimal dispatch weight here
-
-		0..=upper_limit
+	fn verify_dispatch_weight(_message_payload: &[u8]) -> bool {
+		true
 	}
 
 	fn estimate_delivery_transaction(
@@ -296,12 +268,6 @@ impl SenderOrigin<crate::AccountId> for crate::Origin {
 			crate::OriginCaller::system(frame_system::RawOrigin::Root) |
 			crate::OriginCaller::system(frame_system::RawOrigin::None) =>
 				crate::RootAccountForPayments::get(),
-			crate::OriginCaller::BridgeRialtoTokenSwap(
-				pallet_bridge_token_swap::RawOrigin::TokenSwap {
-					ref swap_account_at_this_chain,
-					..
-				},
-			) => Some(swap_account_at_this_chain.clone()),
 			_ => None,
 		}
 	}

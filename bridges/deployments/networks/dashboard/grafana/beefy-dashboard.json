@@ -23,24 +23,47 @@
         "conditions": [
           {
             "evaluator": {
-            "params": [
-              1
-            ],
-            "type": "lt"
+              "params": [
+                1
+              ],
+              "type": "lt"
             },
             "operator": {
-            "type": "and"
+              "type": "and"
             },
             "query": {
-            "params": [
-              "C",
-              "5m",
-              "now"
-            ]
+              "params": [
+                "C",
+                "5m",
+                "now"
+              ]
             },
             "reducer": {
-            "params": [],
-            "type": "max"
+              "params": [],
+              "type": "max"
+            },
+            "type": "query"
+          },
+          {
+            "evaluator": {
+              "params": [
+                1
+              ],
+              "type": "lt"
+            },
+            "operator": {
+              "type": "or"
+            },
+            "query": {
+              "params": [
+                "D",
+                "5m",
+                "now"
+              ]
+            },
+            "reducer": {
+              "params": [],
+              "type": "max"
             },
             "type": "query"
           }
@@ -113,23 +136,23 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "polkadot_beefy_best_block",
+          "expr": "substrate_beefy_best_block{chain=\"rialto_local\"}",
           "legendFormat": "Rialto(Charlie)",
           "refId": "A"
         },
         {
-          "expr": "substrate_beefy_best_block",
+          "expr": "substrate_beefy_best_block{chain=\"millau_local\"}",
           "legendFormat": "Millau(Charlie)",
           "refId": "B"
         },
         {
-          "expr": "max_over_time(substrate_beefy_best_block[5m]) - min_over_time(substrate_beefy_best_block[5m])",
+          "expr": "max_over_time(substrate_beefy_best_block{chain=\"millau_local\"}[5m]) - min_over_time(substrate_beefy_best_block{chain=\"millau_local\"}[5m])",
           "hide": true,
           "legendFormat": "Millau Best Beefy blocks count in last 5 minutes",
           "refId": "C"
         },
         {
-          "expr": "max_over_time(polkadot_beefy_best_block[5m]) - min_over_time(polkadot_beefy_best_block[5m])",
+          "expr": "max_over_time(substrate_beefy_best_block{chain=\"rialto_local\"}[5m]) - min_over_time(substrate_beefy_best_block{chain=\"rialto_local\"}[5m])",
           "hide": true,
           "legendFormat": "Rialto Best Beefy blocks count in last 5 minutes",
           "refId": "D"
@@ -230,22 +253,22 @@
       "pluginVersion": "7.1.3",
       "targets": [
         {
-          "expr": "polkadot_beefy_should_vote_on",
+          "expr": "substrate_beefy_should_vote_on{chain=\"rialto_local\"}",
           "legendFormat": "Rialto(Charlie) Should-Vote-On",
           "refId": "C"
         },
         {
-          "expr": "polkadot_beefy_round_concluded",
+          "expr": "substrate_beefy_round_concluded{chain=\"rialto_local\"}",
           "legendFormat": "Rialto(Charlie) Round-Concluded",
           "refId": "A"
         },
         {
-          "expr": "substrate_beefy_should_vote_on",
+          "expr": "substrate_beefy_should_vote_on{chain=\"millau_local\"}",
           "legendFormat": "Millau(Charlie) Should-Vote-On",
           "refId": "D"
         },
         {
-          "expr": "substrate_beefy_round_concluded",
+          "expr": "substrate_beefy_round_concluded{chain=\"millau_local\"}",
           "legendFormat": "Millau(Charlie) Round-Concluded",
           "refId": "B"
         }
@@ -300,12 +323,12 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "polkadot_beefy_votes_sent",
+          "expr": "substrate_beefy_votes_sent{chain=\"rialto_local\"}",
           "legendFormat": "Rialto (node Charlie)",
           "refId": "A"
         },
         {
-          "expr": "substrate_beefy_votes_sent",
+          "expr": "substrate_beefy_votes_sent{chain=\"millau_local\"}",
           "legendFormat": "Millau (node Charlie)",
           "refId": "B"
         }
@@ -355,6 +378,29 @@
       "alert": {
         "alertRuleTags": {},
         "conditions": [
+          {
+            "evaluator": {
+              "params": [
+                0
+              ],
+              "type": "gt"
+            },
+            "operator": {
+              "type": "and"
+            },
+            "query": {
+              "params": [
+                "A",
+                "5m",
+                "now"
+              ]
+            },
+            "reducer": {
+              "params": [],
+              "type": "max"
+            },
+            "type": "query"
+          },
           {
             "evaluator": {
               "params": [
@@ -447,12 +493,12 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "polkadot_beefy_skipped_sessions",
+          "expr": "substrate_beefy_skipped_sessions{chain=\"rialto_local\"}",
           "legendFormat": "Rialto(Charlie)",
           "refId": "A"
         },
         {
-          "expr": "substrate_beefy_skipped_sessions",
+          "expr": "substrate_beefy_skipped_sessions{chain=\"millau_local\"}",
           "legendFormat": "Millau(Charlie)",
           "refId": "B"
         }

@@ -36,8 +36,6 @@
 // Runtime-generated enums
 #![allow(clippy::large_enum_variant)]
 
-use crate::weights::WeightInfo;
-
 use bp_header_chain::{justification::GrandpaJustification, InitializationData};
 use bp_runtime::{BlockNumberOf, Chain, HashOf, HasherOf, HeaderOf};
 use finality_grandpa::voter_set::VoterSet;
@@ -58,6 +56,7 @@ pub mod benchmarking;
 
 // Re-export in crate namespace for `construct_runtime!`
 pub use pallet::*;
+pub use weights::WeightInfo;
 
 /// Block number of the bridged chain.
 pub type BridgedBlockNumber<T, I> = BlockNumberOf<<T as Config<I>>::BridgedChain>;
@@ -166,7 +165,7 @@ pub mod pallet {
 				try_enact_authority_change::<T, I>(&finality_target, set_id)?;
 			<RequestCount<T, I>>::mutate(|count| *count += 1);
 			insert_header::<T, I>(*finality_target, hash);
-			log::info!(target: "runtime::bridge-grandpa", "Succesfully imported finalized header with hash {:?}!", hash);
+			log::info!(target: "runtime::bridge-grandpa", "Successfully imported finalized header with hash {:?}!", hash);
 
 			// mandatory header is a header that changes authorities set. The pallet can't go
 			// further without importing this header. So every bridge MUST import mandatory headers.

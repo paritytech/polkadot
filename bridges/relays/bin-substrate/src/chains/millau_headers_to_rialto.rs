@@ -16,8 +16,9 @@
 
 //! Millau-to-Rialto headers sync entrypoint.
 
-use substrate_relay_helper::finality_pipeline::{
-	DirectSubmitFinalityProofCallBuilder, SubstrateFinalitySyncPipeline,
+use substrate_relay_helper::finality::{
+	engine::Grandpa as GrandpaFinalityEngine, DirectSubmitGrandpaFinalityProofCallBuilder,
+	SubstrateFinalitySyncPipeline,
 };
 
 /// Description of Millau -> Rialto finalized headers bridge.
@@ -28,7 +29,8 @@ impl SubstrateFinalitySyncPipeline for MillauFinalityToRialto {
 	type SourceChain = relay_millau_client::Millau;
 	type TargetChain = relay_rialto_client::Rialto;
 
-	type SubmitFinalityProofCallBuilder = DirectSubmitFinalityProofCallBuilder<
+	type FinalityEngine = GrandpaFinalityEngine<Self::SourceChain>;
+	type SubmitFinalityProofCallBuilder = DirectSubmitGrandpaFinalityProofCallBuilder<
 		Self,
 		rialto_runtime::Runtime,
 		rialto_runtime::MillauGrandpaInstance,

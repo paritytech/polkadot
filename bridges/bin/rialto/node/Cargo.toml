@@ -16,7 +16,7 @@ jsonrpc-core = "18.0"
 kvdb = "0.11"
 kvdb-rocksdb = "0.15"
 lru = "0.7"
-serde_json = "1.0.59"
+serde_json = "1.0.79"
 thiserror = "1.0"
 
 # Bridge dependencies
@@ -66,6 +66,7 @@ sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-offchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -76,10 +77,10 @@ substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate
 
 # Polkadot Dependencies
 
-polkadot-node-core-pvf = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-primitives = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-runtime-parachains = { git = "https://github.com/paritytech/polkadot", branch = "master" }
-polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false, features = [ "full-node", "polkadot-native" ] }
+polkadot-node-core-pvf = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcm-v3" }
+polkadot-primitives = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcm-v3" }
+polkadot-runtime-parachains = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcm-v3" }
+polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcm-v3", default-features = false, features = [ "full-node", "polkadot-native" ] }
 
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }

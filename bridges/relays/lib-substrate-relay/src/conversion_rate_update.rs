@@ -280,7 +280,7 @@ where
 					genesis_hash,
 					signer: transaction_params.signer,
 					era: TransactionEra::new(best_block_id, transaction_params.mortality),
-					unsigned: UnsignedTransaction::new(call.into(), transaction_nonce).into(),
+					unsigned: UnsignedTransaction::new(call.into(), transaction_nonce),
 				})?
 				.encode(),
 			))

@@ -74,7 +74,7 @@ pub struct OutboundLane<S> {
 }
 
 impl<S: OutboundLaneStorage> OutboundLane<S> {
-	/// Create new inbound lane backed by given storage.
+	/// Create new outbound lane backed by given storage.
 	pub fn new(storage: S) -> Self {
 		OutboundLane { storage }
 	}

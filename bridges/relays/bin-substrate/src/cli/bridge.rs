@@ -73,12 +73,9 @@ macro_rules! select_full_bridge {
 				// Send-message / Estimate-fee
 				#[allow(unused_imports)]
 				use bp_rialto::TO_RIALTO_ESTIMATE_MESSAGE_FEE_METHOD as ESTIMATE_MESSAGE_FEE_METHOD;
-				// Send-message
-				#[allow(unused_imports)]
-				use millau_runtime::millau_to_rialto_account_ownership_digest as account_ownership_digest;
 
 				$generic
-			}
+			},
 			FullBridge::RialtoToMillau => {
 				type Source = relay_rialto_client::Rialto;
 				#[allow(dead_code)]
@@ -96,12 +93,8 @@ macro_rules! select_full_bridge {
 				#[allow(unused_imports)]
 				use bp_millau::TO_MILLAU_ESTIMATE_MESSAGE_FEE_METHOD as ESTIMATE_MESSAGE_FEE_METHOD;
 
-				// Send-message
-				#[allow(unused_imports)]
-				use rialto_runtime::rialto_to_millau_account_ownership_digest as account_ownership_digest;
-
 				$generic
-			}
+			},
 			FullBridge::RococoToWococo => {
 				type Source = relay_rococo_client::Rococo;
 				#[allow(dead_code)]
@@ -118,12 +111,9 @@ macro_rules! select_full_bridge {
 				// Send-message / Estimate-fee
 				#[allow(unused_imports)]
 				use bp_wococo::TO_WOCOCO_ESTIMATE_MESSAGE_FEE_METHOD as ESTIMATE_MESSAGE_FEE_METHOD;
-				// Send-message
-				#[allow(unused_imports)]
-				use relay_rococo_client::runtime::rococo_to_wococo_account_ownership_digest as account_ownership_digest;
 
 				$generic
-			}
+			},
 			FullBridge::WococoToRococo => {
 				type Source = relay_wococo_client::Wococo;
 				#[allow(dead_code)]
@@ -140,12 +130,9 @@ macro_rules! select_full_bridge {
 				// Send-message / Estimate-fee
 				#[allow(unused_imports)]
 				use bp_rococo::TO_ROCOCO_ESTIMATE_MESSAGE_FEE_METHOD as ESTIMATE_MESSAGE_FEE_METHOD;
-				// Send-message
-				#[allow(unused_imports)]
-				use relay_wococo_client::runtime::wococo_to_rococo_account_ownership_digest as account_ownership_digest;
 
 				$generic
-			}
+			},
 			FullBridge::KusamaToPolkadot => {
 				type Source = relay_kusama_client::Kusama;
 				#[allow(dead_code)]
@@ -162,12 +149,9 @@ macro_rules! select_full_bridge {
 				// Send-message / Estimate-fee
 				#[allow(unused_imports)]
 				use bp_polkadot::TO_POLKADOT_ESTIMATE_MESSAGE_FEE_METHOD as ESTIMATE_MESSAGE_FEE_METHOD;
-				// Send-message
-				#[allow(unused_imports)]
-				use relay_kusama_client::runtime::kusama_to_polkadot_account_ownership_digest as account_ownership_digest;
 
 				$generic
-			}
+			},
 			FullBridge::PolkadotToKusama => {
 				type Source = relay_polkadot_client::Polkadot;
 				#[allow(dead_code)]
@@ -184,12 +168,9 @@ macro_rules! select_full_bridge {
 				// Send-message / Estimate-fee
 				#[allow(unused_imports)]
 				use bp_kusama::TO_KUSAMA_ESTIMATE_MESSAGE_FEE_METHOD as ESTIMATE_MESSAGE_FEE_METHOD;
-				// Send-message
-				#[allow(unused_imports)]
-				use relay_polkadot_client::runtime::polkadot_to_kusama_account_ownership_digest as account_ownership_digest;
 
 				$generic
-			}
+			},
 		}
 	};
 }

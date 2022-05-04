@@ -483,27 +483,27 @@ fn prune_recent_finality_proofs_works() {
 	// when there's proof for justified header in the vec
 	let mut recent_finality_proofs = original_recent_finality_proofs.clone();
 	prune_recent_finality_proofs::<TestFinalitySyncPipeline>(10, &mut recent_finality_proofs, 1024);
-	assert_eq!(&original_recent_finality_proofs[1..], recent_finality_proofs);
+	assert_eq!(&original_recent_finality_proofs[1..], recent_finality_proofs,);
 
 	// when there are no proof for justified header in the vec
 	let mut recent_finality_proofs = original_recent_finality_proofs.clone();
 	prune_recent_finality_proofs::<TestFinalitySyncPipeline>(11, &mut recent_finality_proofs, 1024);
-	assert_eq!(&original_recent_finality_proofs[1..], recent_finality_proofs);
+	assert_eq!(&original_recent_finality_proofs[1..], recent_finality_proofs,);
 
 	// when there are too many entries after initial prune && they also need to be pruned
 	let mut recent_finality_proofs = original_recent_finality_proofs.clone();
 	prune_recent_finality_proofs::<TestFinalitySyncPipeline>(10, &mut recent_finality_proofs, 2);
-	assert_eq!(&original_recent_finality_proofs[3..], recent_finality_proofs);
+	assert_eq!(&original_recent_finality_proofs[3..], recent_finality_proofs,);
 
 	// when last entry is pruned
 	let mut recent_finality_proofs = original_recent_finality_proofs.clone();
 	prune_recent_finality_proofs::<TestFinalitySyncPipeline>(19, &mut recent_finality_proofs, 2);
-	assert_eq!(&original_recent_finality_proofs[5..], recent_finality_proofs);
+	assert_eq!(&original_recent_finality_proofs[5..], recent_finality_proofs,);
 
 	// when post-last entry is pruned
 	let mut recent_finality_proofs = original_recent_finality_proofs.clone();
 	prune_recent_finality_proofs::<TestFinalitySyncPipeline>(20, &mut recent_finality_proofs, 2);
-	assert_eq!(&original_recent_finality_proofs[5..], recent_finality_proofs);
+	assert_eq!(&original_recent_finality_proofs[5..], recent_finality_proofs,);
 }
 
 #[test]

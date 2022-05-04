@@ -91,14 +91,6 @@ services:
     depends_on:
       - relay-millau-rialto
 
-  relay-token-swap-generator:
-    <<: *sub-bridge-relay
-    entrypoint: /entrypoints/relay-token-swap-generator-entrypoint.sh
-    ports:
-      - "10716:9616"
-    depends_on:
-      - relay-millau-rialto
-
   # Note: These are being overridden from the top level `monitoring` compose file.
   grafana-dashboard:
     environment:

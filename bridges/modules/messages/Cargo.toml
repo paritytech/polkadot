@@ -11,12 +11,11 @@ bitvec = { version = "1", default-features = false, features = ["alloc"] }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
 log = { version = "0.4.14", default-features = false }
 num-traits = { version = "0.2", default-features = false }
-scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 serde = { version = "1.0.101", optional = true, features = ["derive"] }
 
 # Bridge dependencies
 
-bp-message-dispatch = { path = "../../primitives/message-dispatch", default-features = false }
 bp-messages = { path = "../../primitives/messages", default-features = false }
 bp-runtime = { path = "../../primitives/runtime", default-features = false }
 
@@ -36,7 +35,6 @@ pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "m
 [features]
 default = ["std"]
 std = [
-	"bp-message-dispatch/std",
 	"bp-messages/std",
 	"bp-runtime/std",
 	"codec/std",

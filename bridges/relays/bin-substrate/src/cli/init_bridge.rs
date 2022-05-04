@@ -22,6 +22,7 @@ use relay_substrate_client::{Chain, SignParam, TransactionSignScheme, UnsignedTr
 use sp_core::{Bytes, Pair};
 use structopt::StructOpt;
 use strum::{EnumString, EnumVariantNames, VariantNames};
+use substrate_relay_helper::finality::engine::Grandpa as GrandpaFinalityEngine;
 
 /// Initialize bridge pallet.
 #[derive(StructOpt)]
@@ -56,6 +57,7 @@ macro_rules! select_bridge {
 			InitBridgeName::MillauToRialto => {
 				type Source = relay_millau_client::Millau;
 				type Target = relay_rialto_client::Rialto;
+				type Engine = GrandpaFinalityEngine<Source>;
 
 				fn encode_init_bridge(
 					init_data: InitializationData<<Source as ChainBase>::Header>,
@@ -74,6 +76,7 @@ macro_rules! select_bridge {
 			InitBridgeName::RialtoToMillau => {
 				type Source = relay_rialto_client::Rialto;
 				type Target = relay_millau_client::Millau;
+				type Engine = GrandpaFinalityEngine<Source>;
 
 				fn encode_init_bridge(
 					init_data: InitializationData<<Source as ChainBase>::Header>,
@@ -92,6 +95,7 @@ macro_rules! select_bridge {
 			InitBridgeName::WestendToMillau => {
 				type Source = relay_westend_client::Westend;
 				type Target = relay_millau_client::Millau;
+				type Engine = GrandpaFinalityEngine<Source>;
 
 				fn encode_init_bridge(
 					init_data: InitializationData<<Source as ChainBase>::Header>,
@@ -114,6 +118,7 @@ macro_rules! select_bridge {
 			InitBridgeName::RococoToWococo => {
 				type Source = relay_rococo_client::Rococo;
 				type Target = relay_wococo_client::Wococo;
+				type Engine = GrandpaFinalityEngine<Source>;
 
 				fn encode_init_bridge(
 					init_data: InitializationData<<Source as ChainBase>::Header>,
@@ -130,6 +135,7 @@ macro_rules! select_bridge {
 			InitBridgeName::WococoToRococo => {
 				type Source = relay_wococo_client::Wococo;
 				type Target = relay_rococo_client::Rococo;
+				type Engine = GrandpaFinalityEngine<Source>;
 
 				fn encode_init_bridge(
 					init_data: InitializationData<<Source as ChainBase>::Header>,
@@ -146,6 +152,7 @@ macro_rules! select_bridge {
 			InitBridgeName::KusamaToPolkadot => {
 				type Source = relay_kusama_client::Kusama;
 				type Target = relay_polkadot_client::Polkadot;
+				type Engine = GrandpaFinalityEngine<Source>;
 
 				fn encode_init_bridge(
 					init_data: InitializationData<<Source as ChainBase>::Header>,
@@ -162,6 +169,7 @@ macro_rules! select_bridge {
 			InitBridgeName::PolkadotToKusama => {
 				type Source = relay_polkadot_client::Polkadot;
 				type Target = relay_kusama_client::Kusama;
+				type Engine = GrandpaFinalityEngine<Source>;
 
 				fn encode_init_bridge(
 					init_data: InitializationData<<Source as ChainBase>::Header>,
@@ -189,7 +197,7 @@ impl InitBridge {
 
 			let (spec_version, transaction_version) =
 				target_client.simple_runtime_version().await?;
-			substrate_relay_helper::headers_initialize::initialize(
+			substrate_relay_helper::finality::initialize::initialize::<Engine, _, _, _>(
 				source_client,
 				target_client.clone(),
 				target_sign.public().into(),

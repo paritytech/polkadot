@@ -30,9 +30,11 @@ use relay_utils::{
 };
 
 use crate::{
-	finality_pipeline::{SubstrateFinalitySyncPipeline, RECENT_FINALITY_PROOFS_LIMIT},
-	finality_source::{RequiredHeaderNumberRef, SubstrateFinalitySource},
-	finality_target::SubstrateFinalityTarget,
+	finality::{
+		source::{RequiredHeaderNumberRef, SubstrateFinalitySource},
+		target::SubstrateFinalityTarget,
+		SubstrateFinalitySyncPipeline, RECENT_FINALITY_PROOFS_LIMIT,
+	},
 	TransactionParams, STALL_TIMEOUT,
 };
 
