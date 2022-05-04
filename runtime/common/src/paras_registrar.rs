@@ -255,7 +255,7 @@ pub mod pallet {
 		/// The caller must be Root, the `para` owner, or the `para` itself. The para must be a parathread.
 		#[pallet::weight(<T as Config>::WeightInfo::deregister())]
 		pub fn deregister(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
-			Self::ensure_root_para_or_owner(origin, id)?;
+			Self::ensure_root_para_or_owner(origin, id, false)?;
 			Self::do_deregister(id)
 		}
 
@@ -272,7 +272,7 @@ pub mod pallet {
 		/// and the auction deposit are switched.
 		#[pallet::weight(<T as Config>::WeightInfo::swap())]
 		pub fn swap(origin: OriginFor<T>, id: ParaId, other: ParaId) -> DispatchResult {
-			Self::ensure_root_para_or_owner(origin, id)?;
+			Self::ensure_root_para_or_owner(origin, id, false)?;
 
 			// If `id` and `other` is the same id, we treat this as a "clear" function, and exit
 			// early, since swapping the same id would otherwise be a noop.
@@ -454,16 +454,17 @@ impl<T: Config> Registrar for Pallet<T> {
 
 impl<T: Config> Pallet<T> {
 	/// Ensure the origin is one of Root, the `para` owner, or the `para` itself.
-	/// If the origin is the `para` owner, the `para` must be unlocked.
+	/// If the origin is the `para` owner, and `check_lock` is true, the `para` must be unlocked.
 	fn ensure_root_para_or_owner(
 		origin: <T as frame_system::Config>::Origin,
 		id: ParaId,
+		check_lock: bool,
 	) -> DispatchResult {
 		ensure_signed(origin.clone())
 			.map_err(|e| e.into())
 			.and_then(|who| -> DispatchResult {
 				let para_info = Paras::<T>::get(id).ok_or(Error::<T>::NotRegistered)?;
-				ensure!(!para_info.locked, Error::<T>::ParaLocked);
+				ensure!(!(check_lock && para_info.locked), Error::<T>::ParaLocked);
 				ensure!(para_info.manager == who, Error::<T>::NotOwner);
 				Ok(())
 			})
@@ -1084,9 +1085,6 @@ mod tests {
 				vec![1, 2, 3].into(),
 			));
 
-			// Owner can call swap
-			assert_ok!(Registrar::swap(Origin::signed(1), para_id, para_id + 1));
-
 			// 2 session changes to fully onboard.
 			run_to_session(2);
 			assert_eq!(Parachains::lifecycle(para_id), Some(ParaLifecycle::Parathread));
@@ -1094,8 +1092,8 @@ mod tests {
 			// Once they begin onboarding, we lock them in.
 			assert_ok!(Registrar::make_parachain(para_id));
 
-			// Owner cannot call swap anymore
-			assert_noop!(Registrar::swap(Origin::signed(1), para_id, para_id + 2), BadOrigin);
+			// Owner cannot pass origin check when checking lock
+			assert_noop!(Registrar::ensure_root_para_or_owner(Origin::signed(1), para_id, true), BadOrigin);
 		});
 	}
 
