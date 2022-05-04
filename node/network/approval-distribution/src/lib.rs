@@ -140,7 +140,7 @@ impl Default for AggressionConfig {
 		AggressionConfig {
 			l1_threshold: Some(10),
 			l2_threshold: Some(25),
-			resend_unfinalized_period: Some(5),
+			resend_unfinalized_period: Some(8),
 		}
 	}
 }
