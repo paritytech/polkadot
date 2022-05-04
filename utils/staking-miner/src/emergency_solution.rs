@@ -15,3 +15,29 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The emergency-solution command.
+
+use crate::{prelude::*, DryRunConfig};
+
+/// Forcefully create the snapshot. This can be used to compute the election at anytime.
+fn force_create_snapshot(client: &SubxtClient) -> Result<(), Error> {
+	todo!();
+}
+
+/// Find the stake threshold in order to have at most `count` voters.
+#[allow(unused)]
+fn find_threshold(count: usize) {
+	todo!();
+}
+
+async fn run_cmd(client: SubxtClient, config: DryRunConfig, signer: Signer) -> Result<(), Error> {
+	let api: RuntimeApi = client.to_runtime_api();
+
+	todo!();
+
+	/*let dry_run_fut = rpc.dry_run(&bytes, None);
+	let outcome: sp_runtime::ApplyExtrinsicResult = await_request_and_decode(dry_run_fut)
+		.await
+		.map_err::<Error<Runtime>, _>(Into::into)?;
+	log::info!(target: LOG_TARGET, "dry-run outcome is {:?}", outcome);*/
+	Ok(())
+}

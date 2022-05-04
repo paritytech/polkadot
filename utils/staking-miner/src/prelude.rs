@@ -20,7 +20,7 @@
 //! It is actually easy to convert the rest as well, but it'll be a lot of noise in our codebase,
 //! needing to sprinkle `any_runtime` in a few extra places.
 
-use codec::{Encode, Decode};
+use codec::{Decode, Encode};
 use frame_support::{parameter_types, traits::ConstU32, weights::Weight};
 use sp_runtime::{PerU16, Perbill};
 
@@ -68,7 +68,10 @@ pub type Header = subxt::sp_runtime::generic::Header<u32, subxt::sp_runtime::tra
 /// The header type. We re-export it here, but we can easily get it from block as well.
 pub type Hash = subxt::sp_core::H256;
 
-pub use subxt::sp_runtime::traits::{Block as BlockT, Header as HeaderT};
+pub use subxt::{
+	sp_core,
+	sp_runtime::traits::{Block as BlockT, Header as HeaderT},
+};
 
 /// Default URI to connect to.
 pub const DEFAULT_URI: &str = "wss://rpc.polkadot.io:443";
@@ -90,6 +93,8 @@ pub type RuntimeApi = crate::runtime::RuntimeApi<
 pub type ExtrinsicParams = subxt::SubstrateExtrinsicParams<subxt::DefaultConfig>;
 
 pub use crate::runtime::runtime_types as runtime;
+
+pub use crate::error::Error;
 
 pub type Signer = subxt::PairSigner<subxt::DefaultConfig, subxt::sp_core::sr25519::Pair>;
 
@@ -167,6 +172,25 @@ pub mod kusama {
 
 /// Staking miner for Polkadot.
 pub type PolkadotMiner = pallet_election_provider_multi_phase::unsigned::Miner<polkadot::Config>;
-
-/// Staking miner for Kusama,
 pub type KusamaMiner = pallet_election_provider_multi_phase::unsigned::Miner<kusama::Config>;
+
+#[derive(Debug, Clone)]
+pub enum Chain {
+	Kusama,
+	Polkadot,
+	Westend,
+}
+
+impl std::str::FromStr for Chain {
+	type Err = String;
+
+	fn from_str(s: &str) -> Result<Self, String> {
+		match s {
+			"polkadot" => Ok(Chain::Polkadot),
+			"kusama" => Ok(Chain::Kusama),
+			"westend" => Ok(Chain::Westend),
+			other =>
+				Err(format!("expected chain to be polkadot, kusama or westend; got: {}", other)),
+		}
+	}
+}

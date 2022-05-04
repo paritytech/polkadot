@@ -30,6 +30,8 @@
 
 mod dry_run;
 mod emergency_solution;
+mod error;
+mod helpers;
 mod monitor;
 mod prelude;
 mod signer;
@@ -41,10 +43,9 @@ pub(crate) use prelude::*;
 use clap::Parser;
 use sp_npos_elections::ExtendedBalance;
 use sp_runtime::Perbill;
-use subxt::{DefaultConfig, PolkadotExtrinsicParams};
 use tracing_subscriber::{fmt, EnvFilter};
 
-use std::{ops::Deref, sync::Arc};
+use std::sync::Arc;
 
 #[subxt::subxt(
 	runtime_metadata_path = "metadata.scale",
@@ -53,8 +54,6 @@ use std::{ops::Deref, sync::Arc};
 	derive_for_type(type = "NposSolution16", derive = "Eq")
 )]
 pub mod runtime {}
-
-pub type RuntimeApi = runtime::RuntimeApi<DefaultConfig, PolkadotExtrinsicParams<DefaultConfig>>;
 
 #[derive(Debug, Clone, Parser)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -209,23 +208,28 @@ struct Opt {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Error> {
 	fmt().with_env_filter(EnvFilter::from_default_env()).init();
 
 	let Opt { uri, seed_or_path, command } = Opt::parse();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
 
-	let client: subxt::Client<DefaultConfig> =
-		subxt::ClientBuilder::new().set_url(uri.clone()).build().await.unwrap();
+	let client = subxt::ClientBuilder::new().set_url(uri).build().await?;
+
+	let chain = client.rpc().system_chain().await?;
 
 	let signer = signer::signer_from_string(&seed_or_path);
 
+	log::info!("Connected to chain: {}", chain);
+	let chain = FromStr::from_str(&chain).map_err(|e| Error::Other(e))?;
+
 	let outcome = match command {
-		Command::Monitor(cmd) => monitor::run_cmd(client, cmd, Arc::new(signer)).await,
-		_ => panic!("oo"),
+		Command::Monitor(cmd) => monitor::run_cmd(client, chain, cmd, Arc::new(signer)).await,
+		_ => todo!(),
 	};
 
 	log::info!(target: LOG_TARGET, "round of execution finished. outcome = {:?}", outcome);
+	outcome
 }
 
 #[cfg(test)]
