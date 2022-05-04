@@ -28,29 +28,17 @@ use syn::{
 #[derive(Clone, Debug)]
 enum SubsystemAttrItem {
 	/// Error type provided by the user.
-	ErrorType {
-		tag: kw::error,
-		eq_token: Token![=],
-		value: Path,
-	},
+	ErrorType { tag: kw::error, eq_token: Token![=], value: Path },
 	/// For which slot in the overseer this should be plugged.
 	///
 	/// The subsystem implementation can and should have a different name
 	/// from the declared parameter type in the overseer.
-	Subsystem {
-		tag: Option<kw::subsystem>,
-		eq_token: Option<Token![=]>,
-		value: Ident,
-	},
+	Subsystem { tag: Option<kw::subsystem>, eq_token: Option<Token![=]>, value: Ident },
 	/// The prefix to apply when a subsystem is implemented in a different file/crate
 	/// than the overseer itself.
 	///
 	/// Important for `#[subsystem(..)]` to reference the traits correctly.
-	TraitPrefix {
-		tag: kw::prefix,
-		eq_token: Token![=],
-		value: Path,
-	},
+	TraitPrefix { tag: kw::prefix, eq_token: Token![=], value: Path },
 }
 
 impl ToTokens for SubsystemAttrItem {

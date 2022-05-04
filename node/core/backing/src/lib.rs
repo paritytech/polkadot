@@ -37,10 +37,9 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
-		AvailabilityDistributionMessage, AvailabilityStoreMessage,
-		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
-		DisputeCoordinatorMessage, ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
-		StatementDistributionMessage,
+		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
+		CandidateValidationMessage, CollatorProtocolMessage, DisputeCoordinatorMessage,
+		ProvisionableData, ProvisionerMessage, RuntimeApiRequest, StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
 	Stage, SubsystemContext, SubsystemError, SubsystemSender,

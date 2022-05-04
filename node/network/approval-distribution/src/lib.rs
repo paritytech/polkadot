@@ -511,7 +511,7 @@ impl State {
 	) where
 		Context: overseer::ApprovalDistributionContextTrait,
 		<Context as overseer::ApprovalDistributionContextTrait>::Sender:
-		overseer::ApprovalDistributionSenderTrait,
+			overseer::ApprovalDistributionSenderTrait,
 	{
 		self.topologies.insert_topology(session, topology);
 		let topology = self.topologies.get_topology(session).expect("just inserted above; qed");

@@ -26,12 +26,7 @@ pub(crate) fn impl_subsystem_gen(
 ) -> Result<proc_macro2::TokenStream> {
 	let args = parse2::<SubsystemAttrArgs>(attr.clone())?;
 	let _span = args.span();
-	let SubsystemAttrArgs {
-		error_ty,
-		 subsystem_ident,
-		 trait_prefix_path
-		 , .. } =
-		args;
+	let SubsystemAttrArgs { error_ty, subsystem_ident, trait_prefix_path, .. } = args;
 
 	let mut struktured_impl: syn::ItemImpl = parse2(orig)?;
 
@@ -50,7 +45,7 @@ pub(crate) fn impl_subsystem_gen(
 			})
 		})?;
 
-	let trait_prefix_path = trait_prefix_path.unwrap_or_else(|| parse_quote!{ self });
+	let trait_prefix_path = trait_prefix_path.unwrap_or_else(|| parse_quote! { self });
 	if trait_prefix_path.segments.trailing_punct() {
 		return Err(syn::Error::new(trait_prefix_path.span(), "Must not end with `::`"))
 	}
@@ -99,16 +94,15 @@ pub(crate) fn impl_subsystem_gen(
 	Ok(ts)
 }
 
-
 #[cfg(test)]
 mod tests {
 	use super::*;
 
 	#[test]
 	fn is_path() {
-		let _p: Path = parse_quote!{ self };
-		let _p: Path = parse_quote!{ crate };
-		let _p: Path = parse_quote!{ ::foo };
-		let _p: Path = parse_quote!{ bar };
+		let _p: Path = parse_quote! { self };
+		let _p: Path = parse_quote! { crate };
+		let _p: Path = parse_quote! { ::foo };
+		let _p: Path = parse_quote! { bar };
 	}
 }
