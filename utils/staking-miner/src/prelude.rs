@@ -77,10 +77,10 @@ pub type SubxtClient = subxt::Client<subxt::DefaultConfig>;
 /// Runtime API.
 pub type RuntimeApi = crate::runtime::RuntimeApi<
 	subxt::DefaultConfig,
-	subxt::PolkadotExtrinsicParams<subxt::DefaultConfig>,
+	subxt::SubstrateExtrinsicParams<subxt::DefaultConfig>,
 >;
 
-pub type ExtrinsicParams = subxt::PolkadotExtrinsicParams<subxt::DefaultConfig>;
+pub type ExtrinsicParams = subxt::SubstrateExtrinsicParams<subxt::DefaultConfig>;
 
 pub use crate::runtime::runtime_types as runtime;
 
@@ -96,7 +96,7 @@ impl pallet_election_provider_multi_phase::unsigned::MinerConfig for MockedMiner
 	type Solution = MockedNposSolution;
 
 	fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
-		todo!();
+		(10 as Weight).saturating_add(5 as Weight).saturating_mul(a as Weight)
 		// match MockWeightInfo::get() {
 		//     MockedWeightInfo::Basic =>
 		//         (10 as Weight).saturating_add((5 as Weight).saturating_mul(a as Weight)),

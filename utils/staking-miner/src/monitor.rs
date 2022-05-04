@@ -1,9 +1,9 @@
 use crate::{
 	prelude::*,
-	runtime::runtime_types::pallet_election_provider_multi_phase::{self, RoundSnapshot},
+	runtime::runtime_types::pallet_election_provider_multi_phase::RoundSnapshot,
 	BalanceIterations, Balancing, MonitorConfig, Solver, SubmissionStrategy,
 };
-use ::pallet_election_provider_multi_phase::RawSolution;
+use pallet_election_provider_multi_phase::RawSolution;
 use codec::{Decode, Encode};
 use sp_runtime::Perbill;
 use std::sync::Arc;
@@ -163,13 +163,16 @@ async fn send_and_watch_extrinsic(
 	let api: RuntimeApi = client.to_runtime_api();
 
 	if ensure_signed_phase(&api, hash).await.is_err() {
+		log::debug!("not signed phase; skipping");
 		return
 	}
 
 	if ensure_no_previous_solution(&api, hash, signer.account_id()).await.is_err() {
+		log::debug!("solution already exist; skipping");
 		return
 	}
 
+	log::debug!("prep to create raw solution");
 	let raw_solution = {
 		let RoundSnapshot { voters, targets } = api
 			.storage()
@@ -221,9 +224,11 @@ async fn send_and_watch_extrinsic(
 
 	let (solution, score, solution_or_snapshot) = raw_solution.unwrap();
 
+	let round = api.storage().election_provider_multi_phase().round(Some(hash)).await.unwrap();
+
 	log::info!(target: LOG_TARGET, "mined solution with {:?}", score);
 
-	let raw_solution = RawSolution { solution, score, round: 1 };
+	let raw_solution = RawSolution { solution, score, round };
 	let call = Call(Box::new(raw_solution));
 
 	#[derive(Encode)]
@@ -243,15 +248,17 @@ async fn send_and_watch_extrinsic(
 		}
 	}
 
-	let xt = subxt::SubmittableExtrinsic::<_, ExtrinsicParams, _, DummyErr, String>::new(
+	let xt = subxt::SubmittableExtrinsic::<_, ExtrinsicParams, Call, DummyErr, String>::new(
 		&api.client,
 		call,
 	);
 
+	// let xt = api.tx().election_provider_multi_phase().set_minimum_untrusted_score(None).unwrap();
+
 	let mut status = xt
 		.sign_and_submit_then_watch(
 			&*signer,
-			subxt::PolkadotExtrinsicParamsBuilder::<subxt::DefaultConfig>::default(),
+			subxt::SubstrateExtrinsicParamsBuilder::<subxt::DefaultConfig>::default(),
 		)
 		.await
 		.unwrap();
@@ -263,12 +270,12 @@ async fn send_and_watch_extrinsic(
 			TransactionStatus::Future => (),
 			TransactionStatus::InBlock(hash) => {
 				log::info!(target: LOG_TARGET, "included at {:?}", hash);
-				/*let mut system_events = api
-				.events()
-				.subscribe()
-				.await
-				.unwrap()
-				.filter_events::<(runtime::system::events::ExtrinsicSuccess,)>();*/
+				// let mut system_events = api
+				// .events()
+				// .subscribe()
+				// .await
+				// .unwrap()
+				// .filter_events::<(crate::runtime::system::events::ExtrinsicSuccess,)>();
 			},
 			TransactionStatus::Retracted(hash) => {
 				log::info!(target: LOG_TARGET, "Retracted at {:?}", hash);
