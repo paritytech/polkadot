@@ -134,9 +134,6 @@ $RELAY relay-messages rococo-to-wococo \
         --target-signer "//Alice" \
         --relayer-mode=altruistic \
         --lane 00000000 > logs/message-relayer.log 2>&1 &
-        
-# TODO: Fund the relayer
-echo "Now, please fund the relayer with the following address: $UNIVERSAL_RELAYER_FUND_SS58"
 
 wait
 echo "All children is dead. Exiting."
