@@ -30,7 +30,7 @@ use frame_support::{
 };
 use frame_system::limits::BlockWeights;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
+use primitives::v2::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId, TypeVec, ValidatorIndex};
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
 
@@ -46,9 +46,9 @@ pub use pallet::*;
 #[derive(Clone)]
 pub struct SessionChangeNotification<BlockNumber> {
 	/// The new validators in the session.
-	pub validators: Vec<ValidatorId>,
+	pub validators: TypeVec<ValidatorIndex, ValidatorId>,
 	/// The queued validators for the following session.
-	pub queued: Vec<ValidatorId>,
+	pub queued: TypeVec<ValidatorIndex, ValidatorId>,
 	/// The configuration before handling the session change
 	pub prev_config: HostConfiguration<BlockNumber>,
 	/// The configuration after handling the session change.
@@ -62,8 +62,8 @@ pub struct SessionChangeNotification<BlockNumber> {
 impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<BlockNumber> {
 	fn default() -> Self {
 		Self {
-			validators: Vec::new(),
-			queued: Vec::new(),
+			validators: TypeVec::new(),
+			queued: TypeVec::new(),
 			prev_config: HostConfiguration::default(),
 			new_config: HostConfiguration::default(),
 			random_seed: Default::default(),
@@ -74,8 +74,8 @@ impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<Blo
 
 #[derive(Encode, Decode, TypeInfo)]
 struct BufferedSessionChange {
-	validators: Vec<ValidatorId>,
-	queued: Vec<ValidatorId>,
+	validators: TypeVec<ValidatorIndex, ValidatorId>,
+	queued: TypeVec<ValidatorIndex, ValidatorId>,
 	session_index: SessionIndex,
 }
 
@@ -222,8 +222,8 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
 	fn apply_new_session(
 		session_index: SessionIndex,
-		all_validators: Vec<ValidatorId>,
-		queued: Vec<ValidatorId>,
+		all_validators: TypeVec<ValidatorIndex, ValidatorId>,
+		queued: TypeVec<ValidatorIndex, ValidatorId>,
 	) {
 		let random_seed = {
 			let mut buf = [0u8; 32];
@@ -275,9 +275,9 @@ impl<T: Config> Pallet<T> {
 	) where
 		I: Iterator<Item = (&'a T::AccountId, ValidatorId)>,
 	{
-		let validators: Vec<_> = validators.map(|(_, v)| v).collect();
-		let queued: Vec<_> = if let Some(queued) = queued {
-			queued.map(|(_, v)| v).collect()
+		let validators: TypeVec<_,_> = TypeVec::from(validators.map(|(_, v)| v).collect::<Vec<_>>());
+		let queued: TypeVec<_,_>= if let Some(queued) = queued {
+			TypeVec::from(queued.map(|(_, v)| v).collect::<Vec<_>>())
 		} else {
 			validators.clone()
 		};

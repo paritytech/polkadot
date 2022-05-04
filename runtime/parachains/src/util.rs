@@ -17,7 +17,7 @@
 //! Utilities that don't belong to any particular module but may draw
 //! on all modules.
 
-use primitives::v2::{Id as ParaId, PersistedValidationData, ValidatorIndex};
+use primitives::v2::{Id as ParaId, PersistedValidationData, TypeVec};
 use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
 use crate::{configuration, hrmp, paras};
@@ -49,18 +49,19 @@ pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 /// ```ignore
 ///		split_active_subset(active, all).0 == take_active_subset(active, all)
 /// ```
-pub fn split_active_subset<T: Clone>(active: &[ValidatorIndex], all: &[T]) -> (Vec<T>, Vec<T>) {
+pub fn split_active_subset<K: From<usize> + Clone + Ord,V: Clone>(active: &[K], all: &[V]) -> (TypeVec<K,V>, TypeVec<K,V>)
+	where usize: From<K> {
 	let active_set: BTreeSet<_> = active.iter().cloned().collect();
 	// active result has ordering of active set.
 	let active_result = take_active_subset(active, all);
 	// inactive result preserves original ordering of `all`.
-	let inactive_result = all
+	let inactive_result = TypeVec::from(all
 		.iter()
 		.enumerate()
-		.filter(|(i, _)| !active_set.contains(&ValidatorIndex(*i as _)))
+		.filter(|(i, _)| !active_set.contains(active.get(*i).unwrap()))
 		.map(|(_, v)| v)
 		.cloned()
-		.collect();
+		.collect::<Vec<_>>());
 
 	if active_result.len() != active.len() {
 		log::warn!(
@@ -77,15 +78,16 @@ pub fn split_active_subset<T: Clone>(active: &[ValidatorIndex], all: &[T]) -> (V
 /// ```ignore
 ///		split_active_subset(active, all)[0..active.len()]) == take_active_subset(active, all)
 /// ```
-pub fn take_active_subset_and_inactive<T: Clone>(active: &[ValidatorIndex], all: &[T]) -> Vec<T> {
+pub fn take_active_subset_and_inactive<K: From<usize> + Clone + Ord,V: Clone>(active: &[K], all: &[V]) -> TypeVec<K,V>
+	where usize: From<K> {
 	let (mut a, mut i) = split_active_subset(active, all);
 	a.append(&mut i);
 	a
 }
 
 /// Take the active subset of a set containing all validators.
-pub fn take_active_subset<T: Clone>(active: &[ValidatorIndex], set: &[T]) -> Vec<T> {
-	let subset: Vec<_> = active.iter().filter_map(|i| set.get(i.0 as usize)).cloned().collect();
+pub fn take_active_subset<K: From<usize> + Into<usize> + Clone + Ord,V: Clone>(active: &[K], set: &[V]) -> TypeVec<K,V> {
+	let subset: TypeVec<K,V> = TypeVec::from(active.iter().filter_map(|i| set.get(i.clone().into())).cloned().collect::<Vec<_>>());
 
 	if subset.len() != active.len() {
 		log::warn!(

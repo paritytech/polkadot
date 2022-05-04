@@ -20,7 +20,7 @@
 //! dependent on any of the other pallets.
 
 use frame_support::pallet_prelude::*;
-use primitives::v2::{SessionIndex, ValidatorId, ValidatorIndex};
+use primitives::v2::{SessionIndex, ValidatorId, ValidatorIndex, TypeVec};
 use sp_std::vec::Vec;
 
 use rand::{seq::SliceRandom, SeedableRng};
@@ -88,8 +88,8 @@ impl<T: Config> Pallet<T> {
 		session_index: SessionIndex,
 		random_seed: [u8; 32],
 		new_config: &HostConfiguration<T::BlockNumber>,
-		all_validators: Vec<ValidatorId>,
-	) -> Vec<ValidatorId> {
+		all_validators: TypeVec<ValidatorIndex, ValidatorId>,
+	) -> TypeVec<ValidatorIndex, ValidatorId> {
 		CurrentSessionIndex::<T>::set(session_index);
 		let mut rng: ChaCha20Rng = SeedableRng::from_seed(random_seed);
 
@@ -108,7 +108,7 @@ impl<T: Config> Pallet<T> {
 			crate::util::take_active_subset(&shuffled_indices, &all_validators);
 
 		ActiveValidatorIndices::<T>::set(shuffled_indices);
-		ActiveValidatorKeys::<T>::set(active_validator_keys.clone());
+		ActiveValidatorKeys::<T>::set(active_validator_keys.to_vec());
 
 		active_validator_keys
 	}

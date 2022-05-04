@@ -16,7 +16,7 @@
 
 //! `V1` Primitives.
 
-use std::ops::{Deref};
+use std::ops::{Deref, DerefMut};
 use typed_index_collections::TiVec;
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode, WrapperTypeDecode, WrapperTypeEncode};
@@ -136,6 +136,12 @@ pub struct ValidatorIndex(pub u32);
 impl From<u32> for ValidatorIndex {
 	fn from(n: u32) -> Self {
 		ValidatorIndex(n)
+	}
+}
+
+impl From<ValidatorIndex> for usize{
+	fn from(n: ValidatorIndex) -> Self {
+		n.0 as usize
 	}
 }
 
@@ -1585,16 +1591,16 @@ pub fn supermajority_threshold(n: usize) -> usize {
 
 #[derive(Clone, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
-pub struct TypeVec<K: From<usize>,V: Clone> (TiVec<K, V>);
+pub struct TypeVec<K: From<usize> + Into<usize>,V: Clone> (TiVec<K, V>);
 
 
-impl<K: From<usize>, V: Clone> TypeVec<K, V> {
-	fn new() -> Self {
+impl<K: From<usize> + Into<usize> , V: Clone> TypeVec<K, V> {
+	pub fn new() -> Self {
 		TypeVec::<K, V> { 0: TiVec::<K, V>::new() }
 	}
 }
 
-impl<K: From<usize>, V: Clone> From<Vec<V>> for TypeVec<K, V> {
+impl<K: From<usize> + Into<usize>, V: Clone> From<Vec<V>> for TypeVec<K, V> {
 	fn from(vec: Vec<V>) -> Self {
 		let mut type_vec: TypeVec<K, V> = TypeVec::new();
 		for value in vec.iter() {
@@ -1605,7 +1611,7 @@ impl<K: From<usize>, V: Clone> From<Vec<V>> for TypeVec<K, V> {
 }
 
 #[cfg(feature = "std")]
-impl<K: From<usize>, V: Clone> MallocSizeOf for TypeVec<K, V> {
+impl<K: From<usize> + Into<usize>, V: Clone> MallocSizeOf for TypeVec<K, V> {
 	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
 		0
 	}
@@ -1615,7 +1621,7 @@ impl<K: From<usize>, V: Clone> MallocSizeOf for TypeVec<K, V> {
 }
 
 
-impl<K: From<usize>, V: Clone> Deref for TypeVec<K, V> {
+impl<K: From<usize> + Into<usize>, V: Clone> Deref for TypeVec<K, V> {
 	type Target = Vec<V>;
 
 	fn deref(&self) -> &Self::Target {
@@ -1623,13 +1629,19 @@ impl<K: From<usize>, V: Clone> Deref for TypeVec<K, V> {
 	}
 }
 
-impl<K: From<usize>, V: Clone> WrapperTypeEncode for TypeVec<K, V> {}
+impl<K: From<usize> + Into<usize>, V: Clone> DerefMut for TypeVec<K, V> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.0.raw
+	}
+}
 
-impl<K: From<usize>, V: Clone> WrapperTypeDecode for TypeVec<K, V> {
+impl<K: From<usize> + Into<usize>, V: Clone> WrapperTypeEncode for TypeVec<K, V> {}
+
+impl<K: From<usize> + Into<usize>, V: Clone> WrapperTypeDecode for TypeVec<K, V> {
 	type Wrapped = Vec<V>;
 }
 
-impl<K: From<usize>,V: Clone> TypeInfo for TypeVec<K,V>{
+impl<K: From<usize> + Into<usize>,V: Clone> TypeInfo for TypeVec<K,V>{
 	type Identity = ();
 
 	fn type_info() -> Type {
