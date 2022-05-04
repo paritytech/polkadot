@@ -1056,55 +1056,49 @@ async fn dispatch_collation_event_to_all(
 	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
 }
 
+
 fn dispatch_validation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
-	ctx: &mut impl overseer::NetworkBridgeSenderTrait,
+	sender: &mut impl overseer::NetworkBridgeSenderTrait,
 ) {
-	match event {
-		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::BitfieldDistribution(
-			bdm,
-		) => ctx.send_unbounded_message(bdm),
-		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::StatementDistribution(
-			sdm,
-		) => ctx.send_unbounded_message(sdm),
-		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::ApprovalDistribution(
-			adm,
-		) => ctx.send_unbounded_message(adm),
-	}
+	event.focus()
+		.ok()
+		.map(ApprovalDistributionMessage::from)
+		.and_then(|msg| Some(sender.send_unbounded_message(msg)));
+
+	event.focus()
+		.ok()
+		.map(BitfieldDistributionMessage::from)
+		.and_then(|msg| Some(sender.send_unbounded_message(msg)));
+
+	event.focus()
+		.ok()
+		.map(StatementDistributionMessage::from)
+		.and_then(|msg| Some(sender.send_unbounded_message(msg)));
 }
 
 fn dispatch_collation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>,
-	ctx: &mut impl overseer::NetworkBridgeSenderTrait,
+	sender: &mut impl overseer::NetworkBridgeSenderTrait,
 ) {
-	match event {
-		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::BitfieldDistribution(
-			bdm,
-		) => ctx.send_unbounded_message(bdm),
-		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::StatementDistribution(
-			sdm,
-		) => ctx.send_unbounded_message(sdm),
-		NetworkBridgeEvent::<net_protocol::VersionedValidationProtocol>::ApprovalDistribution(
-			adm,
-		) => ctx.send_unbounded_message(adm),
+	if let Ok(msg) = event.focus() {
+		sender.send_unbounded_message(CollatorProtocolMessage::NetworkBridgeUpdate(msg))
 	}
 }
 
 async fn dispatch_validation_events_to_all<I>(
 	events: I,
-	ctx: &mut impl overseer::NetworkBridgeSenderTrait,
+	sender: &mut impl overseer::NetworkBridgeSenderTrait,
 ) where
 	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>>,
 	I::IntoIter: Send,
 {
-	let sender = ctx.sender();
 	for event in events {
-		sender.send_messages(event.focus().map(ApprovalDistributionMessage::from)).await;
-		sender.send_messages(event.focus().map(BitfieldDistributionMessage::from)).await;
 		sender.send_messages(event.focus().map(GossipSupportMessage::from)).await;
-		sender
-			.send_messages(event.focus().map(StatementDistributionMessage::from))
+		sender.send_messages(event.focus().map(BitfieldDistributionMessage::from)).await;
+		sender.send_messages(event.focus().map(StatementDistributionMessage::from))
 			.await;
+		sender.send_messages(event.focus().map(ApprovalDistributionMessage::from)).await;
 	}
 }
 

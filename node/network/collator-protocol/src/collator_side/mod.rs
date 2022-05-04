@@ -362,6 +362,7 @@ impl State {
 /// or the relay-parent isn't in the active-leaves set, we ignore the message
 /// as it must be invalid in that case - although this indicates a logic error
 /// elsewhere in the node.
+#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn distribute_collation<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
@@ -371,10 +372,6 @@ async fn distribute_collation<Context>(
 	pov: PoV,
 	result_sender: Option<oneshot::Sender<CollationSecondedSignal>>,
 ) -> Result<()>
-where
-	Context: overseer::CollatorProtocolContextTrait,
-	<Context as overseer::CollatorProtocolContextTrait>::Sender:
-		overseer::CollatorProtocolSenderTrait,
 {
 	let relay_parent = receipt.descriptor.relay_parent;
 
@@ -492,6 +489,7 @@ struct GroupValidators {
 /// Figure out current group of validators assigned to the para being collated on.
 ///
 /// Returns [`ValidatorId`]'s of current group as determined based on the `relay_parent`.
+#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn determine_our_validators<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
@@ -499,10 +497,6 @@ async fn determine_our_validators<Context>(
 	cores: usize,
 	relay_parent: Hash,
 ) -> Result<GroupValidators>
-where
-	Context: overseer::CollatorProtocolContextTrait,
-	<Context as overseer::CollatorProtocolContextTrait>::Sender:
-		overseer::CollatorProtocolSenderTrait,
 {
 	let session_index = runtime.get_session_index_for_child(ctx.sender(), relay_parent).await?;
 	let info = &runtime
@@ -530,11 +524,8 @@ where
 }
 
 /// Issue a `Declare` collation message to the given `peer`.
+#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn declare<Context>(ctx: &mut Context, state: &mut State, peer: PeerId)
-where
-	Context: overseer::CollatorProtocolContextTrait,
-	<Context as overseer::CollatorProtocolContextTrait>::Sender:
-		overseer::CollatorProtocolSenderTrait,
 {
 	let declare_signature_payload = protocol_v1::declare_signature_payload(&state.local_peer_id);
 
@@ -555,11 +546,8 @@ where
 
 /// Issue a connection request to a set of validators and
 /// revoke the previous connection request.
+#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn connect_to_validators<Context>(ctx: &mut Context, validator_ids: Vec<AuthorityDiscoveryId>)
-where
-	Context: overseer::CollatorProtocolContextTrait,
-	<Context as overseer::CollatorProtocolContextTrait>::Sender:
-		overseer::CollatorProtocolSenderTrait,
 {
 	// ignore address resolution failure
 	// will reissue a new request on new collation
@@ -576,15 +564,13 @@ where
 ///
 /// This will only advertise a collation if there exists one for the given `relay_parent` and the given `peer` is
 /// set as validator for our para at the given `relay_parent`.
+#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn advertise_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	relay_parent: Hash,
 	peer: PeerId,
-) where
-	Context: overseer::CollatorProtocolContextTrait,
-	<Context as overseer::CollatorProtocolContextTrait>::Sender:
-		overseer::CollatorProtocolSenderTrait,
+)
 {
 	let should_advertise = state
 		.our_validators_groups
@@ -638,16 +624,13 @@ async fn advertise_collation<Context>(
 }
 
 /// The main incoming message dispatching switch.
+#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn process_msg<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	msg: CollatorProtocolMessage,
 ) -> Result<()>
-where
-	Context: overseer::CollatorProtocolContextTrait,
-	<Context as overseer::CollatorProtocolContextTrait>::Sender:
-		overseer::CollatorProtocolSenderTrait,
 {
 	use CollatorProtocolMessage::*;
 
@@ -752,6 +735,7 @@ async fn send_collation(
 }
 
 /// A networking messages switch.
+#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn handle_incoming_peer_message<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
@@ -759,10 +743,6 @@ async fn handle_incoming_peer_message<Context>(
 	origin: PeerId,
 	msg: protocol_v1::CollatorProtocolMessage,
 ) -> Result<()>
-where
-	Context: overseer::CollatorProtocolContextTrait,
-	<Context as overseer::CollatorProtocolContextTrait>::Sender:
-		overseer::CollatorProtocolSenderTrait,
 {
 	use protocol_v1::CollatorProtocolMessage::*;
 
@@ -836,15 +816,12 @@ where
 }
 
 /// Process an incoming network request for a collation.
+#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn handle_incoming_request<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	req: IncomingRequest<request_v1::CollationFetchingRequest>,
 ) -> Result<()>
-where
-	Context: overseer::CollatorProtocolContextTrait,
-	<Context as overseer::CollatorProtocolContextTrait>::Sender:
-		overseer::CollatorProtocolSenderTrait,
 {
 	let _span = state
 		.span_per_relay_parent
@@ -913,15 +890,13 @@ where
 }
 
 /// Our view has changed.
+#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	peer_id: PeerId,
 	view: View,
-) where
-	Context: overseer::CollatorProtocolContextTrait,
-	<Context as overseer::CollatorProtocolContextTrait>::Sender:
-		overseer::CollatorProtocolSenderTrait,
+)
 {
 	let current = state.peer_views.entry(peer_id.clone()).or_default();
 
@@ -935,16 +910,13 @@ async fn handle_peer_view_change<Context>(
 }
 
 /// Bridge messages switch.
+#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	bridge_message: NetworkBridgeEvent<net_protocol::CollatorProtocolMessage>,
 ) -> Result<()>
-where
-	Context: overseer::CollatorProtocolContextTrait,
-	<Context as overseer::CollatorProtocolContextTrait>::Sender:
-		overseer::CollatorProtocolSenderTrait,
 {
 	use NetworkBridgeEvent::*;
 
@@ -1029,6 +1001,7 @@ async fn handle_our_view_change(state: &mut State, view: OurView) -> Result<()> 
 }
 
 /// The collator protocol collator side main loop.
+#[overseer::contextbounds(CollatorProtocol, prefix = crate::overseer)]
 pub(crate) async fn run<Context>(
 	mut ctx: Context,
 	local_peer_id: PeerId,
@@ -1036,10 +1009,6 @@ pub(crate) async fn run<Context>(
 	mut req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
 	metrics: Metrics,
 ) -> std::result::Result<(), FatalError>
-where
-	Context: overseer::CollatorProtocolContextTrait,
-	<Context as overseer::CollatorProtocolContextTrait>::Sender:
-		overseer::CollatorProtocolSenderTrait,
 {
 	use OverseerSignal::*;
 

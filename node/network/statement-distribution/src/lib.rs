@@ -1158,8 +1158,8 @@ async fn send_statements<Context>(
 	}
 }
 
-async fn report_peer<Context>(ctx: &mut Context, peer: PeerId, rep: Rep) {
-	ctx.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
+async fn report_peer(sender: &mut impl overseer::StatementDistributionSenderTrait, peer: PeerId, rep: Rep) {
+	sender.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
 }
 
 /// If message contains a statement, then retrieve it, otherwise fork task to fetch it.
@@ -1377,7 +1377,7 @@ async fn handle_incoming_message<'a, Context>(
 			);
 
 			if !recent_outdated_heads.is_recent_outdated(&relay_parent) {
-				report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
+				report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
 			}
 
 			return None
@@ -1387,7 +1387,7 @@ async fn handle_incoming_message<'a, Context>(
 	if let protocol_v1::StatementDistributionMessage::LargeStatement(_) = message {
 		if let Err(rep) = peer_data.receive_large_statement(&relay_parent) {
 			gum::debug!(target: LOG_TARGET, ?peer, ?message, ?rep, "Unexpected large statement.",);
-			report_peer(ctx, peer, rep).await;
+			report_peer(ctx.sender(), peer, rep).await;
 			return None
 		}
 	}
@@ -1428,16 +1428,16 @@ async fn handle_incoming_message<'a, Context>(
 				// Report peer merely if this is not a duplicate out-of-view statement that
 				// was caused by a missing Seconded statement from this peer
 				if unexpected_count == 0_usize {
-					report_peer(ctx, peer, rep).await;
+					report_peer(ctx.sender(), peer, rep).await;
 				}
 			},
 			// This happens when we have an unexpected remote peer that announced Seconded
 			COST_UNEXPECTED_STATEMENT_REMOTE => {
 				metrics.on_unexpected_statement_seconded();
-				report_peer(ctx, peer, rep).await;
+				report_peer(ctx.sender(), peer, rep).await;
 			},
 			_ => {
-				report_peer(ctx, peer, rep).await;
+				report_peer(ctx.sender(), peer, rep).await;
 			},
 		}
 
@@ -1458,7 +1458,7 @@ async fn handle_incoming_message<'a, Context>(
 				peer_data
 					.receive(&relay_parent, &fingerprint, max_message_count)
 					.expect("checked in `check_can_receive` above; qed");
-				report_peer(ctx, peer, BENEFIT_VALID_STATEMENT).await;
+				report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT).await;
 
 				return None
 			},
@@ -1468,7 +1468,7 @@ async fn handle_incoming_message<'a, Context>(
 		match check_statement_signature(&active_head, relay_parent, unchecked_compact) {
 			Err(statement) => {
 				gum::debug!(target: LOG_TARGET, ?peer, ?statement, "Invalid statement signature");
-				report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
+				report_peer(ctx.sender(), peer, COST_INVALID_SIGNATURE).await;
 				return None
 			},
 			Ok(statement) => statement,
@@ -1494,7 +1494,7 @@ async fn handle_incoming_message<'a, Context>(
 				is_large_statement,
 				"Full statement had bad payload."
 			);
-			report_peer(ctx, peer, COST_WRONG_HASH).await;
+			report_peer(ctx.sender(), peer, COST_WRONG_HASH).await;
 			return None
 		},
 		Ok(statement) => statement,
@@ -1533,7 +1533,7 @@ async fn handle_incoming_message<'a, Context>(
 			unreachable!("checked in `is_useful_or_unknown` above; qed");
 		},
 		NotedStatement::Fresh(statement) => {
-			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT_FIRST).await;
+			report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT_FIRST).await;
 
 			let mut _span = handle_incoming_span.child("notify-backing");
 
@@ -1848,9 +1848,9 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				bad_peers,
 			} => {
 				for bad in bad_peers {
-					report_peer(ctx, bad, COST_FETCH_FAIL).await;
+					report_peer(ctx.sender(), bad, COST_FETCH_FAIL).await;
 				}
-				report_peer(ctx, from_peer, BENEFIT_VALID_RESPONSE).await;
+				report_peer(ctx.sender(), from_peer, BENEFIT_VALID_RESPONSE).await;
 
 				let active_head = active_heads
 					.get_mut(&relay_parent)
@@ -1932,7 +1932,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					}
 				}
 			},
-			RequesterMessage::ReportPeer(peer, rep) => report_peer(ctx, peer, rep).await,
+			RequesterMessage::ReportPeer(peer, rep) => report_peer(ctx.sender(), peer, rep).await,
 		}
 		Ok(())
 	}

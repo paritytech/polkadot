@@ -31,8 +31,10 @@ pub use polkadot_overseer::{
 };
 use polkadot_overseer::{
 	metrics::Metrics as OverseerMetrics, BlockInfo, InitializedOverseerBuilder, MetricsTrait,
-	Overseer, OverseerConnector, OverseerHandle,
+	Overseer, OverseerConnector, OverseerHandle, OverseerSubsystemContext,
 };
+use polkadot_node_subsystem_types::messages::{BitfieldSigningMessage, ProvisionerMessage};
+use polkadot_overseer::gen::SubsystemContext;
 
 use polkadot_primitives::runtime_api::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
@@ -152,9 +154,9 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		StatementDistributionSubsystem<rand::rngs::StdRng>,
 		AvailabilityDistributionSubsystem,
 		AvailabilityRecoverySubsystem,
-		BitfieldSigningSubsystem<Spawner>,
+		BitfieldSigningSubsystem<Spawner, <OverseerSubsystemContext<BitfieldSigningMessage> as SubsystemContext>::Sender>,
 		BitfieldDistributionSubsystem,
-		ProvisionerSubsystem<Spawner>,
+		ProvisionerSubsystem<Spawner, <OverseerSubsystemContext<ProvisionerMessage> as SubsystemContext>::Sender>,
 		RuntimeApiSubsystem<RuntimeClient>,
 		AvailabilityStoreSubsystem,
 		NetworkBridgeSubsystem<

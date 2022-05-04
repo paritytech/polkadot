@@ -54,6 +54,7 @@ pub struct CollationGenerationSubsystem {
 	metrics: Metrics,
 }
 
+#[overseer::contextbounds(CollationGeneration, prefix = self::overseer)]
 impl CollationGenerationSubsystem {
 	/// Create a new instance of the `CollationGenerationSubsystem`.
 	pub fn new(metrics: Metrics) -> Self {
@@ -72,10 +73,6 @@ impl CollationGenerationSubsystem {
 	/// If `err_tx` is not `None`, errors are forwarded onto that channel as they occur.
 	/// Otherwise, most are logged and then discarded.
 	async fn run<Context>(mut self, mut ctx: Context)
-	where
-		Context: overseer::CollationGenerationContextTrait,
-		<Context as overseer::CollationGenerationContextTrait>::Sender:
-			overseer::CollationGenerationSenderTrait,
 	{
 		// when we activate new leaves, we spawn a bunch of sub-tasks, each of which is
 		// expected to generate precisely one message. We don't want to block the main loop
@@ -111,10 +108,6 @@ impl CollationGenerationSubsystem {
 		ctx: &mut Context,
 		sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
 	) -> bool
-	where
-		Context: overseer::CollationGenerationContextTrait,
-		<Context as overseer::CollationGenerationContextTrait>::Sender:
-			overseer::CollationGenerationSenderTrait,
 	{
 		match incoming {
 			Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
@@ -177,6 +170,7 @@ impl<Context> CollationGenerationSubsystem {
 	}
 }
 
+#[overseer::contextbounds(CollationGeneration, prefix = self::overseer)]
 async fn handle_new_activations<Context>(
 	config: Arc<CollationGenerationConfig>,
 	activated: impl IntoIterator<Item = Hash>,
@@ -184,10 +178,6 @@ async fn handle_new_activations<Context>(
 	metrics: Metrics,
 	sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
 ) -> crate::error::Result<()>
-where
-	Context: overseer::CollationGenerationContextTrait,
-	<Context as overseer::CollationGenerationContextTrait>::Sender:
-		overseer::CollationGenerationSenderTrait,
 {
 	// follow the procedure from the guide:
 	// https://w3f.github.io/parachain-implementers-guide/node/collators/collation-generation.html

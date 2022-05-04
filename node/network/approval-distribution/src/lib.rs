@@ -420,7 +420,7 @@ impl State {
 		);
 
 		{
-			let mut sender = ctx.sender();
+			let sender = ctx.sender();
 			for (peer_id, view) in self.peer_views.iter() {
 				let intersection = view.iter().filter(|h| new_hashes.contains(h));
 				let view_intersection = View::new(intersection.cloned(), view.finalized_number);
@@ -713,7 +713,7 @@ impl State {
 						"Unexpected assignment",
 					);
 					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
-						modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+						modify_reputation(ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
 					}
 				}
 				return
@@ -738,7 +738,7 @@ impl State {
 								?message_subject,
 								"Duplicate assignment",
 							);
-							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
+							modify_reputation(ctx.sender(), peer_id, COST_DUPLICATE_MESSAGE).await;
 						}
 						return
 					}
@@ -750,13 +750,13 @@ impl State {
 						?message_subject,
 						"Assignment from a peer is out of view",
 					);
-					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(ctx.sender(), peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
 				},
 			}
 
 			// if the assignment is known to be valid, reward the peer
 			if entry.knowledge.contains(&message_subject, message_kind) {
-				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
+				modify_reputation(ctx.sender(), peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known assignment");
 					peer_knowledge.received.insert(message_subject, message_kind);
@@ -792,7 +792,7 @@ impl State {
 			);
 			match result {
 				AssignmentCheckResult::Accepted => {
-					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
+					modify_reputation(ctx.sender(), peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
 					entry.knowledge.known_messages.insert(message_subject.clone(), message_kind);
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(message_subject.clone(), message_kind);
@@ -820,7 +820,7 @@ impl State {
 						?peer_id,
 						"Got an assignment too far in the future",
 					);
-					modify_reputation(ctx, peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE).await;
+					modify_reputation(ctx.sender(), peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE).await;
 					return
 				},
 				AssignmentCheckResult::Bad(error) => {
@@ -831,7 +831,7 @@ impl State {
 						%error,
 						"Got a bad assignment from peer",
 					);
-					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
+					modify_reputation(ctx.sender(), peer_id, COST_INVALID_MESSAGE).await;
 					return
 				},
 			}
@@ -963,7 +963,7 @@ impl State {
 			_ => {
 				if let Some(peer_id) = source.peer_id() {
 					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
-						modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+						modify_reputation(ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
 					}
 				}
 				return
@@ -982,7 +982,7 @@ impl State {
 					?message_subject,
 					"Unknown approval assignment",
 				);
-				modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+				modify_reputation(ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
 				return
 			}
 
@@ -999,7 +999,7 @@ impl State {
 								"Duplicate approval",
 							);
 
-							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
+							modify_reputation(ctx.sender(), peer_id, COST_DUPLICATE_MESSAGE).await;
 						}
 						return
 					}
@@ -1011,14 +1011,14 @@ impl State {
 						?message_subject,
 						"Approval from a peer is out of view",
 					);
-					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(ctx.sender(), peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
 				},
 			}
 
 			// if the approval is known to be valid, reward the peer
 			if entry.knowledge.contains(&message_subject, message_kind) {
 				gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known approval");
-				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
+				modify_reputation(ctx.sender(), peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					peer_knowledge.received.insert(message_subject.clone(), message_kind);
 				}
@@ -1049,7 +1049,7 @@ impl State {
 			);
 			match result {
 				ApprovalCheckResult::Accepted => {
-					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
+					modify_reputation(ctx.sender(), peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
 
 					entry.knowledge.insert(message_subject.clone(), message_kind);
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
@@ -1057,7 +1057,7 @@ impl State {
 					}
 				},
 				ApprovalCheckResult::Bad(error) => {
-					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
+					modify_reputation(ctx.sender(), peer_id, COST_INVALID_MESSAGE).await;
 					gum::info!(
 						target: LOG_TARGET,
 						?peer_id,
@@ -1568,8 +1568,7 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 }
 
 /// Modify the reputation of a peer based on its behavior.
-#[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]
-async fn modify_reputation<Context>(ctx: &mut Context, peer_id: PeerId, rep: Rep) {
+async fn modify_reputation(sender: &mut impl overseer::ApprovalDistributionSenderTrait, peer_id: PeerId, rep: Rep) {
 	gum::trace!(
 		target: LOG_TARGET,
 		reputation = ?rep,
@@ -1577,7 +1576,7 @@ async fn modify_reputation<Context>(ctx: &mut Context, peer_id: PeerId, rep: Rep
 		"Reputation change for peer",
 	);
 
-	ctx.send_message(NetworkBridgeMessage::ReportPeer(peer_id, rep)).await;
+	sender.send_message(NetworkBridgeMessage::ReportPeer(peer_id, rep)).await;
 }
 
 #[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]

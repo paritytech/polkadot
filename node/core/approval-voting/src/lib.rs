@@ -356,7 +356,7 @@ impl ApprovalVotingSubsystem {
 }
 
 #[overseer::subsystem(ApprovalVoting, error = SubsystemError, prefix = self::overseer)]
-impl<Context> ApprovalVotingSubsystem {
+impl<Context: Send> ApprovalVotingSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = DbBackend::new(self.db.clone(), self.db_config);
 		let future = run::<DbBackend, Context>(
@@ -605,13 +605,17 @@ impl State {
 		&mut self,
 		ctx: &mut Context,
 		head: Hash,
-	) -> Result<Option<SessionWindowUpdate>, SessionsUnavailable> {
+	) -> Result<Option<SessionWindowUpdate>, SessionsUnavailable>
+	where
+		<Context as overseer::SubsystemContext>::Sender: Sized + Send,
+	{
 		let session_window = self.session_window.take();
 		match session_window {
 			None => {
+				let sender = ctx.sender().clone();
 				self.session_window = Some(
-					RollingSessionWindow::new::<<Context>::Sender>(
-						ctx.sender().clone(),
+					RollingSessionWindow::new(
+						sender,
 						APPROVAL_SESSIONS,
 						head,
 					)

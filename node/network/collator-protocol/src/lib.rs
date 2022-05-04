@@ -89,6 +89,7 @@ pub struct CollatorProtocolSubsystem {
 	protocol_side: ProtocolSide,
 }
 
+#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 impl CollatorProtocolSubsystem {
 	/// Start the collator protocol.
 	/// If `id` is `Some` this is a collator side of the protocol.
@@ -99,10 +100,6 @@ impl CollatorProtocolSubsystem {
 	}
 
 	async fn run<Context>(self, ctx: Context) -> std::result::Result<(), error::FatalError>
-	where
-		Context: overseer::CollatorProtocolContextTrait,
-		<Context as overseer::CollatorProtocolContextTrait>::Sender:
-			overseer::CollatorProtocolSenderTrait,
 	{
 		match self.protocol_side {
 			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
@@ -126,11 +123,7 @@ impl<Context> CollatorProtocolSubsystem {
 }
 
 /// Modify the reputation of a peer based on its behavior.
-async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
-where
-	Context: overseer::CollatorProtocolContextTrait,
-	<Context as overseer::CollatorProtocolContextTrait>::Sender:
-		overseer::CollatorProtocolSenderTrait,
+async fn modify_reputation(sender: &mut impl overseer::CollatorProtocolSenderTrait, peer: PeerId, rep: Rep)
 {
 	gum::trace!(
 		target: LOG_TARGET,
@@ -139,5 +132,5 @@ where
 		"reputation change for peer",
 	);
 
-	ctx.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await;
+	sender.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await;
 }

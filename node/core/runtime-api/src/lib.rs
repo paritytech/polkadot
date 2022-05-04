@@ -332,7 +332,7 @@ where
 	}
 }
 
-#[overseer::subsystem(RuntimeApi, error = SubsystemError, prefix = self::overseer)]
+#[overseer::contextbounds(RuntimeApi, prefix = self::overseer)]
 async fn run<Client, Context>(
 	mut ctx: Context,
 	mut subsystem: RuntimeApiSubsystem<Client>,

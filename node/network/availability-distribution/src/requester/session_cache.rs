@@ -79,6 +79,7 @@ pub struct BadValidators {
 	pub bad_validators: Vec<AuthorityDiscoveryId>,
 }
 
+#[overseer::contextbounds(AvailabilityDistribution, prefix = self::overseer)]
 impl SessionCache {
 	/// Create a new `SessionCache`.
 	pub fn new() -> Self {

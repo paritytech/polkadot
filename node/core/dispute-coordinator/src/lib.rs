@@ -125,7 +125,7 @@ impl Config {
 }
 
 #[overseer::subsystem(DisputeCoordinator, error=SubsystemError, prefix=self::overseer)]
-impl<Context> DisputeCoordinatorSubsystem {
+impl<Context: Send> DisputeCoordinatorSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async {
 			let backend = DbBackend::new(self.store.clone(), self.config.column_config());
@@ -352,10 +352,11 @@ impl DisputeCoordinatorSubsystem {
 async fn get_rolling_session_window<Context>(
 	ctx: &mut Context,
 ) -> Result<Option<(ActivatedLeaf, RollingSessionWindow)>> {
-	if let Some(leaf) = wait_for_first_leaf(ctx).await? {
+	if let Some(leaf) = { wait_for_first_leaf(ctx) }.await? {
+		let sender = ctx.sender().clone();
 		Ok(Some((
 			leaf.clone(),
-			RollingSessionWindow::new(ctx.sender().clone(), DISPUTE_WINDOW, leaf.hash)
+			RollingSessionWindow::new(sender, DISPUTE_WINDOW, leaf.hash)
 				.await
 				.map_err(JfyiError::RollingSessionWindow)?,
 		)))
