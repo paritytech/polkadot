@@ -35,6 +35,7 @@ pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
 	/// Creates new dummy `Metrics` instance. Used for testing only.
+	#[cfg(test)]
 	pub fn new_dummy() -> Metrics {
 		Metrics(None)
 	}
