@@ -52,26 +52,19 @@ pub fn make_our_subsystem_context<S>(
 ) {
 	make_subsystem_context(spawn)
 }
-async fn participate<Context>(ctx: &mut Context, participation: &mut Participation) -> Result<()>
-where
-	Context: overseer::DisputeCoordinatorContextTrait,
-	<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-		overseer::DisputeCoordinatorSenderTrait,
-{
+
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
+async fn participate<Context>(ctx: &mut Context, participation: &mut Participation) -> Result<()> {
 	let commitments = CandidateCommitments::default();
 	participate_with_commitments_hash(ctx, participation, commitments.hash()).await
 }
 
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
 async fn participate_with_commitments_hash<Context>(
 	ctx: &mut Context,
 	participation: &mut Participation,
 	commitments_hash: Hash,
-) -> Result<()>
-where
-	Context: overseer::DisputeCoordinatorContextTrait,
-	<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-		overseer::DisputeCoordinatorSenderTrait,
-{
+) -> Result<()> {
 	let candidate_receipt = {
 		let mut receipt = dummy_candidate_receipt_bad_sig(dummy_hash(), dummy_hash());
 		receipt.commitments_hash = commitments_hash;
@@ -87,16 +80,12 @@ where
 		.await
 }
 
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
 async fn activate_leaf<Context>(
 	ctx: &mut Context,
 	participation: &mut Participation,
 	block_number: BlockNumber,
-) -> FatalResult<()>
-where
-	Context: overseer::DisputeCoordinatorContextTrait,
-	<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-		overseer::DisputeCoordinatorSenderTrait,
-{
+) -> FatalResult<()> {
 	let block_header = Header {
 		parent_hash: BlakeTwo256::hash(&block_number.encode()),
 		number: block_number,

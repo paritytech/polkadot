@@ -836,6 +836,7 @@ async fn handle_signal(state: &mut State, signal: OverseerSignal) -> SubsystemRe
 }
 
 /// Machinery around launching recovery tasks into the background.
+#[overseer::contextbounds(AvailabilityRecovery, prefix = self::overseer)]
 async fn launch_recovery_task<Context>(
 	state: &mut State,
 	ctx: &mut Context,
@@ -844,12 +845,7 @@ async fn launch_recovery_task<Context>(
 	backing_group: Option<GroupIndex>,
 	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
 	metrics: &Metrics,
-) -> error::Result<()>
-where
-	Context: overseer::AvailabilityRecoveryContextTrait,
-	<Context as overseer::AvailabilityRecoveryContextTrait>::Sender:
-		overseer::AvailabilityRecoverySenderTrait,
-{
+) -> error::Result<()> {
 	let candidate_hash = receipt.hash();
 
 	let params = RecoveryParams {
@@ -890,6 +886,7 @@ where
 }
 
 /// Handles an availability recovery request.
+#[overseer::contextbounds(AvailabilityRecovery, prefix = self::overseer)]
 async fn handle_recover<Context>(
 	state: &mut State,
 	ctx: &mut Context,
@@ -898,12 +895,7 @@ async fn handle_recover<Context>(
 	backing_group: Option<GroupIndex>,
 	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
 	metrics: &Metrics,
-) -> error::Result<()>
-where
-	Context: overseer::AvailabilityRecoveryContextTrait,
-	<Context as overseer::AvailabilityRecoveryContextTrait>::Sender:
-		overseer::AvailabilityRecoverySenderTrait,
-{
+) -> error::Result<()> {
 	let candidate_hash = receipt.hash();
 
 	let span = jaeger::Span::new(candidate_hash, "availbility-recovery")
@@ -959,15 +951,11 @@ where
 }
 
 /// Queries a chunk from av-store.
+#[overseer::contextbounds(AvailabilityRecovery, prefix = self::overseer)]
 async fn query_full_data<Context>(
 	ctx: &mut Context,
 	candidate_hash: CandidateHash,
-) -> error::Result<Option<AvailableData>>
-where
-	Context: overseer::AvailabilityRecoveryContextTrait,
-	<Context as overseer::AvailabilityRecoveryContextTrait>::Sender:
-		overseer::AvailabilityRecoverySenderTrait,
-{
+) -> error::Result<Option<AvailableData>> {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx))
 		.await;
@@ -975,6 +963,7 @@ where
 	Ok(rx.await.map_err(error::Error::CanceledQueryFullData)?)
 }
 
+#[overseer::contextbounds(AvailabilityRecovery, prefix = self::overseer)]
 impl AvailabilityRecoverySubsystem {
 	/// Create a new instance of `AvailabilityRecoverySubsystem` which starts with a fast path to
 	/// request data from backers.
@@ -993,12 +982,7 @@ impl AvailabilityRecoverySubsystem {
 		Self { fast_path: false, req_receiver, metrics }
 	}
 
-	async fn run<Context>(self, mut ctx: Context) -> SubsystemResult<()>
-	where
-		Context: overseer::AvailabilityRecoveryContextTrait,
-		<Context as overseer::AvailabilityRecoveryContextTrait>::Sender:
-			overseer::AvailabilityRecoverySenderTrait,
-	{
+	async fn run<Context>(self, mut ctx: Context) -> SubsystemResult<()> {
 		let mut state = State::default();
 		let Self { fast_path, mut req_receiver, metrics } = self;
 

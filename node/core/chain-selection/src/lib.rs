@@ -329,11 +329,8 @@ impl ChainSelectionSubsystem {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for ChainSelectionSubsystem
-where
-	Context: overseer::ChainSelectionContextTrait,
-	<Context as overseer::ChainSelectionContextTrait>::Sender: overseer::ChainSelectionSenderTrait,
-{
+#[overseer::subsystem(ChainSelection, error = SubsystemError, prefix = self::overseer)]
+impl<Context> ChainSelectionSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = db_backend::v1::DbBackend::new(
 			self.db,
@@ -349,14 +346,13 @@ where
 	}
 }
 
+#[overseer::contextbounds(ChainSelection, prefix = self::overseer)]
 async fn run<Context, B>(
 	mut ctx: Context,
 	mut backend: B,
 	stagnant_check_interval: StagnantCheckInterval,
 	clock: Box<dyn Clock + Send + Sync>,
 ) where
-	Context: overseer::ChainSelectionContextTrait,
-	<Context as overseer::ChainSelectionContextTrait>::Sender: overseer::ChainSelectionSenderTrait,
 	B: Backend,
 {
 	loop {
@@ -380,6 +376,7 @@ async fn run<Context, B>(
 //
 // A return value of `Ok` indicates that an exit should be made, while non-fatal errors
 // lead to another call to this function.
+#[overseer::contextbounds(ChainSelection, prefix = self::overseer)]
 async fn run_until_error<Context, B>(
 	ctx: &mut Context,
 	backend: &mut B,
@@ -387,8 +384,6 @@ async fn run_until_error<Context, B>(
 	clock: &(dyn Clock + Sync),
 ) -> Result<(), Error>
 where
-	Context: overseer::ChainSelectionContextTrait,
-	<Context as overseer::ChainSelectionContextTrait>::Sender: overseer::ChainSelectionSenderTrait,
 	B: Backend,
 {
 	let mut stagnant_check_stream = stagnant_check_interval.timeout_stream();

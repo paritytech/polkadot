@@ -83,6 +83,7 @@ pub struct Initialized {
 	error: Option<SessionsUnavailable>,
 }
 
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
 impl Initialized {
 	/// Make initialized subsystem, ready to `run`.
 	pub fn new(
@@ -123,9 +124,6 @@ impl Initialized {
 		clock: Box<dyn Clock>,
 	) -> FatalResult<()>
 	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
 		B: Backend,
 	{
 		loop {
@@ -162,9 +160,6 @@ impl Initialized {
 		clock: &dyn Clock,
 	) -> Result<()>
 	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
 		B: Backend,
 	{
 		for (priority, request) in participations.drain(..) {
@@ -261,12 +256,7 @@ impl Initialized {
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		update: ActiveLeavesUpdate,
 		now: u64,
-	) -> Result<()>
-	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
-	{
+	) -> Result<()> {
 		let on_chain_votes =
 			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
 		self.participation.process_active_leaves_update(ctx, &update).await?;
@@ -330,12 +320,7 @@ impl Initialized {
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		votes: ScrapedOnChainVotes,
 		now: u64,
-	) -> Result<()>
-	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
-	{
+	) -> Result<()> {
 		let ScrapedOnChainVotes { session, backing_validators_per_candidate, disputes } = votes;
 
 		if backing_validators_per_candidate.is_empty() && disputes.is_empty() {
@@ -513,12 +498,7 @@ impl Initialized {
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		message: DisputeCoordinatorMessage,
 		now: Timestamp,
-	) -> Result<Box<dyn FnOnce() -> JfyiResult<()>>>
-	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
-	{
+	) -> Result<Box<dyn FnOnce() -> JfyiResult<()>>> {
 		match message {
 			DisputeCoordinatorMessage::ImportStatements {
 				candidate_hash,
@@ -658,12 +638,7 @@ impl Initialized {
 		session: SessionIndex,
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 		now: Timestamp,
-	) -> Result<ImportStatementsResult>
-	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
-	{
+	) -> Result<ImportStatementsResult> {
 		if session + DISPUTE_WINDOW.get() < self.highest_session {
 			// It is not valid to participate in an ancient dispute (spam?).
 			return Ok(ImportStatementsResult::InvalidImport)
@@ -952,12 +927,7 @@ impl Initialized {
 		session: SessionIndex,
 		valid: bool,
 		now: Timestamp,
-	) -> Result<()>
-	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
-	{
+	) -> Result<()> {
 		// Load session info.
 		let info = match self.rolling_session_window.session_info(session) {
 			None => {
@@ -1079,16 +1049,12 @@ enum MuxedMessage {
 	Participation(participation::WorkerMessage),
 }
 
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
 impl MuxedMessage {
 	async fn receive<Context>(
 		ctx: &mut Context,
 		from_sender: &mut participation::WorkerMessageReceiver,
-	) -> FatalResult<Self>
-	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
-	{
+	) -> FatalResult<Self> {
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream
 		// ends.
 		let from_overseer = ctx.recv().fuse();

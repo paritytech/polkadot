@@ -46,12 +46,9 @@ impl HeadSupportsParachains for AlwaysSupportsParachains {
 
 struct Subsystem1;
 
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 impl Subsystem1 {
-	async fn run<Ctx>(mut ctx: Ctx) -> ()
-	where
-		Ctx: overseer::SubsystemContext<Message = CandidateBackingMessage, Signal = OverseerSignal>,
-		<Ctx as overseer::SubsystemContext>::OutgoingMessages: From<CandidateValidationMessage>,
-	{
+	async fn run<Context>(mut ctx: Context) {
 		'louy: loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
@@ -87,14 +84,8 @@ impl Subsystem1 {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for Subsystem1
-where
-	Context: overseer::SubsystemContext<
-		Message = CandidateBackingMessage,
-		OutgoingMessages = overseer::CandidateBackingOutgoingMessages,
-		Signal = OverseerSignal,
-	>,
-{
+#[overseer::contextbounds(CandidateBacking, error = SubsystemError, prefix = self::overseer)]
+impl<Context> Subsystem1 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
@@ -109,14 +100,9 @@ where
 
 struct Subsystem2;
 
+#[overseer::contextbounds(CandidateValidation, prefix = self::overseer)]
 impl Subsystem2 {
-	async fn run<Ctx>(mut ctx: Ctx)
-	where
-		Ctx: overseer::SubsystemContext<
-			Message = CandidateValidationMessage,
-			Signal = OverseerSignal,
-		>,
-	{
+	async fn run<Context>(mut ctx: Context) -> () {
 		ctx.spawn(
 			"subsystem-2-job",
 			Box::pin(async {
@@ -146,11 +132,8 @@ impl Subsystem2 {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for Subsystem2
-where
-	Context:
-		overseer::SubsystemContext<Message = CandidateValidationMessage, Signal = OverseerSignal>,
-{
+#[overseer::subsystem(CandidateValidation, error = SubsystemError, prefix = self::overseer)]
+impl<Context> Subsystem2 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;

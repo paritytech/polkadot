@@ -123,6 +123,7 @@ impl WorkerMessage {
 	}
 }
 
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
 impl Participation {
 	/// Get ready for managing dispute participation requests.
 	///
@@ -149,12 +150,7 @@ impl Participation {
 		ctx: &mut Context,
 		priority: ParticipationPriority,
 		req: ParticipationRequest,
-	) -> Result<()>
-	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
-	{
+	) -> Result<()> {
 		// Participation already running - we can ignore that request:
 		if self.running_participations.contains(req.candidate_hash()) {
 			return Ok(())
@@ -183,12 +179,7 @@ impl Participation {
 		&mut self,
 		ctx: &mut Context,
 		msg: WorkerMessage,
-	) -> FatalResult<ParticipationStatement>
-	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
-	{
+	) -> FatalResult<ParticipationStatement> {
 		let WorkerMessage(statement) = msg;
 		self.running_participations.remove(&statement.candidate_hash);
 		let recent_block = self.recent_block.expect("We never ever reset recent_block to `None` and we already received a result, so it must have been set before. qed.");
@@ -204,12 +195,7 @@ impl Participation {
 		&mut self,
 		ctx: &mut Context,
 		update: &ActiveLeavesUpdate,
-	) -> FatalResult<()>
-	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
-	{
+	) -> FatalResult<()> {
 		if let Some(activated) = &update.activated {
 			match self.recent_block {
 				None => {
@@ -232,12 +218,7 @@ impl Participation {
 		&mut self,
 		ctx: &mut Context,
 		recent_head: Hash,
-	) -> FatalResult<()>
-	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
-	{
+	) -> FatalResult<()> {
 		while self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS {
 			if let Some(req) = self.queue.dequeue() {
 				self.fork_participation(ctx, req, recent_head)?;
@@ -254,12 +235,7 @@ impl Participation {
 		ctx: &mut Context,
 		req: ParticipationRequest,
 		recent_head: Hash,
-	) -> FatalResult<()>
-	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
-	{
+	) -> FatalResult<()> {
 		if self.running_participations.insert(req.candidate_hash().clone()) {
 			let sender = ctx.sender().clone();
 			ctx.spawn(

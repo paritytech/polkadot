@@ -528,12 +528,8 @@ impl<Context> AvailabilityStoreSubsystem {
 	}
 }
 
-async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
-where
-	Context: overseer::AvailabilityStoreContextTrait,
-	<Context as overseer::AvailabilityStoreContextTrait>::Sender:
-		overseer::AvailabilityStoreSenderTrait,
-{
+#[overseer::contextbounds(AvailabilityStore, prefix = self::overseer)]
+async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context) {
 	let mut next_pruning = Delay::new(subsystem.pruning_config.pruning_interval).fuse();
 
 	loop {
@@ -554,16 +550,12 @@ where
 	}
 }
 
+#[overseer::contextbounds(AvailabilityStore, prefix = self::overseer)]
 async fn run_iteration<Context>(
 	ctx: &mut Context,
 	subsystem: &mut AvailabilityStoreSubsystem,
 	mut next_pruning: &mut future::Fuse<Delay>,
-) -> Result<bool, Error>
-where
-	Context: overseer::AvailabilityStoreContextTrait,
-	<Context as overseer::AvailabilityStoreContextTrait>::Sender:
-		overseer::AvailabilityStoreSenderTrait,
-{
+) -> Result<bool, Error> {
 	select! {
 		incoming = ctx.recv().fuse() => {
 			match incoming.map_err(|_| Error::ContextChannelClosed)? {
@@ -607,16 +599,12 @@ where
 	Ok(false)
 }
 
+#[overseer::contextbounds(AvailabilityStore, prefix = self::overseer)]
 async fn process_block_activated<Context>(
 	ctx: &mut Context,
 	subsystem: &mut AvailabilityStoreSubsystem,
 	activated: Hash,
-) -> Result<(), Error>
-where
-	Context: overseer::AvailabilityStoreContextTrait,
-	<Context as overseer::AvailabilityStoreContextTrait>::Sender:
-		overseer::AvailabilityStoreSenderTrait,
-{
+) -> Result<(), Error> {
 	let now = subsystem.clock.now()?;
 
 	let block_header = {
@@ -663,6 +651,7 @@ where
 	Ok(())
 }
 
+#[overseer::contextbounds(AvailabilityStore, prefix = self::overseer)]
 async fn process_new_head<Context>(
 	ctx: &mut Context,
 	db: &Arc<dyn Database>,
@@ -672,12 +661,7 @@ async fn process_new_head<Context>(
 	now: Duration,
 	hash: Hash,
 	header: Header,
-) -> Result<(), Error>
-where
-	Context: overseer::AvailabilityStoreContextTrait,
-	<Context as overseer::AvailabilityStoreContextTrait>::Sender:
-		overseer::AvailabilityStoreSenderTrait,
-{
+) -> Result<(), Error> {
 	let candidate_events = util::request_candidate_events(hash, ctx.sender()).await.await??;
 
 	// We need to request the number of validators based on the parent state,
@@ -815,17 +799,13 @@ macro_rules! peek_num {
 	};
 }
 
+#[overseer::contextbounds(AvailabilityStore, prefix = self::overseer)]
 async fn process_block_finalized<Context>(
 	ctx: &mut Context,
 	subsystem: &AvailabilityStoreSubsystem,
 	finalized_hash: Hash,
 	finalized_number: BlockNumber,
-) -> Result<(), Error>
-where
-	Context: overseer::AvailabilityStoreContextTrait,
-	<Context as overseer::AvailabilityStoreContextTrait>::Sender:
-		overseer::AvailabilityStoreSenderTrait,
-{
+) -> Result<(), Error> {
 	let now = subsystem.clock.now()?;
 
 	let mut next_possible_batch = 0;

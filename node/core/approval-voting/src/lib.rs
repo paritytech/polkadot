@@ -356,8 +356,7 @@ impl ApprovalVotingSubsystem {
 }
 
 #[overseer::subsystem(ApprovalVoting, error = SubsystemError, prefix = self::overseer)]
-impl<Context> ApprovalVotingSubsystem
-{
+impl<Context> ApprovalVotingSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = DbBackend::new(self.db.clone(), self.db_config);
 		let future = run::<DbBackend, Context>(
@@ -606,13 +605,12 @@ impl State {
 		&mut self,
 		ctx: &mut Context,
 		head: Hash,
-	) -> Result<Option<SessionWindowUpdate>, SessionsUnavailable>
-	{
+	) -> Result<Option<SessionWindowUpdate>, SessionsUnavailable> {
 		let session_window = self.session_window.take();
 		match session_window {
 			None => {
 				self.session_window = Some(
-					RollingSessionWindow::new::<Context::Sender>(
+					RollingSessionWindow::new::<<Context>::Sender>(
 						ctx.sender().clone(),
 						APPROVAL_SESSIONS,
 						head,
@@ -866,8 +864,7 @@ async fn handle_actions<Context>(
 	approvals_cache: &mut lru::LruCache<CandidateHash, ApprovalOutcome>,
 	mode: &mut Mode,
 	actions: Vec<Action>,
-) -> SubsystemResult<bool>
-{
+) -> SubsystemResult<bool> {
 	let mut conclude = false;
 
 	let mut actions_iter = actions.into_iter();
@@ -1102,8 +1099,7 @@ async fn handle_from_overseer<Context>(
 	x: FromOverseer<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
 	wakeups: &mut Wakeups,
-) -> SubsystemResult<Vec<Action>>
-{
+) -> SubsystemResult<Vec<Action>> {
 	let actions = match x {
 		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			let mut actions = Vec::new();
@@ -1212,8 +1208,7 @@ async fn handle_approved_ancestor<Context>(
 	target: Hash,
 	lower_bound: BlockNumber,
 	wakeups: &Wakeups,
-) -> SubsystemResult<Option<HighestApprovedAncestorBlock>>
-{
+) -> SubsystemResult<Option<HighestApprovedAncestorBlock>> {
 	const MAX_TRACING_WINDOW: usize = 200;
 	const ABNORMAL_DEPTH_THRESHOLD: usize = 5;
 
@@ -2166,8 +2161,7 @@ async fn launch_approval<Context>(
 	validator_index: ValidatorIndex,
 	block_hash: Hash,
 	backing_group: GroupIndex,
-) -> SubsystemResult<RemoteHandle<ApprovalState>>
-{
+) -> SubsystemResult<RemoteHandle<ApprovalState>> {
 	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
 
@@ -2375,8 +2369,7 @@ async fn issue_approval<Context>(
 	metrics: &Metrics,
 	candidate_hash: CandidateHash,
 	ApprovalVoteRequest { validator_index, block_hash }: ApprovalVoteRequest,
-) -> SubsystemResult<Vec<Action>>
-{
+) -> SubsystemResult<Vec<Action>> {
 	let block_entry = match db.load_block_entry(&block_hash)? {
 		Some(b) => b,
 		None => {

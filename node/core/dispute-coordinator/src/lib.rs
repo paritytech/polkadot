@@ -139,6 +139,7 @@ impl<Context> DisputeCoordinatorSubsystem {
 	}
 }
 
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
 impl DisputeCoordinatorSubsystem {
 	/// Create a new instance of the subsystem.
 	pub fn new(
@@ -158,9 +159,6 @@ impl DisputeCoordinatorSubsystem {
 		clock: Box<dyn Clock>,
 	) -> FatalResult<()>
 	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
 		B: Backend + 'static,
 	{
 		let res = self.initialize(&mut ctx, backend, &*clock).await?;
@@ -192,9 +190,6 @@ impl DisputeCoordinatorSubsystem {
 		)>,
 	>
 	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
 		B: Backend + 'static,
 	{
 		loop {
@@ -259,12 +254,7 @@ impl DisputeCoordinatorSubsystem {
 		Vec<ScrapedOnChainVotes>,
 		SpamSlots,
 		ChainScraper,
-	)>
-	where
-		Context: overseer::DisputeCoordinatorContextTrait,
-		<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-			overseer::DisputeCoordinatorSenderTrait,
-	{
+	)> {
 		// Prune obsolete disputes:
 		db::v1::note_current_session(overlay_db, rolling_session_window.latest_session())?;
 
@@ -358,14 +348,10 @@ impl DisputeCoordinatorSubsystem {
 }
 
 /// Wait for `ActiveLeavesUpdate` on startup, returns `None` if `Conclude` signal came first.
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
 async fn get_rolling_session_window<Context>(
 	ctx: &mut Context,
-) -> Result<Option<(ActivatedLeaf, RollingSessionWindow)>>
-where
-	Context: overseer::DisputeCoordinatorContextTrait,
-	<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-		overseer::DisputeCoordinatorSenderTrait,
-{
+) -> Result<Option<(ActivatedLeaf, RollingSessionWindow)>> {
 	if let Some(leaf) = wait_for_first_leaf(ctx).await? {
 		Ok(Some((
 			leaf.clone(),
@@ -379,12 +365,8 @@ where
 }
 
 /// Wait for `ActiveLeavesUpdate`, returns `None` if `Conclude` signal came first.
-async fn wait_for_first_leaf<Context>(ctx: &mut Context) -> Result<Option<ActivatedLeaf>>
-where
-	Context: overseer::DisputeCoordinatorContextTrait,
-	<Context as overseer::DisputeCoordinatorContextTrait>::Sender:
-		overseer::DisputeCoordinatorSenderTrait,
-{
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
+async fn wait_for_first_leaf<Context>(ctx: &mut Context) -> Result<Option<ActivatedLeaf>> {
 	loop {
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(None),

@@ -171,16 +171,12 @@ impl FetchTaskConfig {
 	}
 }
 
+#[overseer::contextbounds(AvailabilityDistribution, prefix = self::overseer)]
 impl FetchTask {
 	/// Start fetching a chunk.
 	///
 	/// A task handling the fetching of the configured chunk will be spawned.
-	pub async fn start<Context>(config: FetchTaskConfig, ctx: &mut Context) -> Result<Self>
-	where
-		Context: overseer::AvailabilityDistributionContextTrait,
-		<Context as overseer::AvailabilityDistributionContextTrait>::Sender:
-			overseer::AvailabilityDistributionSenderTrait,
-	{
+	pub async fn start<Context>(config: FetchTaskConfig, ctx: &mut Context) -> Result<Self> {
 		let FetchTaskConfig { prepared_running, live_in } = config;
 
 		if let Some(running) = prepared_running {

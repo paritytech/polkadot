@@ -109,18 +109,14 @@ impl<Context> CandidateValidationSubsystem {
 	}
 }
 
+#[overseer::contextbounds(CandidateValidation, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
 	metrics: Metrics,
 	pvf_metrics: polkadot_node_core_pvf::Metrics,
 	cache_path: PathBuf,
 	program_path: PathBuf,
-) -> SubsystemResult<()>
-where
-	Context: overseer::CandidateValidationContextTrait,
-	<Context as overseer::CandidateValidationContextTrait>::Sender:
-		overseer::CandidateValidationSenderTrait,
-{
+) -> SubsystemResult<()> {
 	let (validation_host, task) = polkadot_node_core_pvf::start(
 		polkadot_node_core_pvf::Config::new(cache_path, program_path),
 		pvf_metrics,

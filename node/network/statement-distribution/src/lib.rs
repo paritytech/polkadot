@@ -127,9 +127,8 @@ pub struct StatementDistributionSubsystem<R> {
 	rng: R,
 }
 
-#[overseer::subsystem(StatementDistribution, error= SubsystemError, prefix=self::overseer)]
-impl<Context, R: rand::Rng + Send + Sync + 'static> StatementDistributionSubsystem<R>
-{
+#[overseer::subsystem(StatementDistribution, error=SubsystemError, prefix=self::overseer)]
+impl<Context, R: rand::Rng + Send + Sync + 'static> StatementDistributionSubsystem<R> {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run`.
@@ -627,17 +626,13 @@ enum MuxedMessage {
 	Responder(Option<ResponderMessage>),
 }
 
+#[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
 impl MuxedMessage {
 	async fn receive<Context>(
 		ctx: &mut Context,
 		from_requester: &mut mpsc::Receiver<RequesterMessage>,
 		from_responder: &mut mpsc::Receiver<ResponderMessage>,
-	) -> MuxedMessage
-	where
-		Context: overseer::StatementDistributionContextTrait,
-		<Context as overseer::StatementDistributionContextTrait>::Sender:
-			overseer::StatementDistributionSenderTrait,
-	{
+	) -> MuxedMessage {
 		// We are only fusing here to make `select` happy, in reality we will quit if one of those
 		// streams end:
 		let from_overseer = ctx.recv().fuse();
@@ -902,8 +897,7 @@ async fn circulate_statement_and_dependents<Context>(
 	priority_peers: Vec<PeerId>,
 	metrics: &Metrics,
 	rng: &mut impl rand::Rng,
-)
-{
+) {
 	let active_head = match active_heads.get_mut(&relay_parent) {
 		Some(res) => res,
 		None => return,
@@ -1019,9 +1013,7 @@ async fn circulate_statement<'a, Context>(
 	mut priority_peers: Vec<PeerId>,
 	metrics: &Metrics,
 	rng: &mut impl rand::Rng,
-) -> Vec<PeerId>
-
-{
+) -> Vec<PeerId> {
 	let fingerprint = stored.fingerprint();
 
 	let mut peers_to_send: Vec<PeerId> = peers
@@ -1110,8 +1102,7 @@ async fn send_statements_about<Context>(
 	candidate_hash: CandidateHash,
 	active_head: &ActiveHeadData,
 	metrics: &Metrics,
-)
-{
+) {
 	for statement in active_head.statements_about(candidate_hash) {
 		let fingerprint = statement.fingerprint();
 		if !peer_data.can_send(&relay_parent, &fingerprint) {
@@ -1144,8 +1135,7 @@ async fn send_statements<Context>(
 	relay_parent: Hash,
 	active_head: &ActiveHeadData,
 	metrics: &Metrics,
-)
-{
+) {
 	for statement in active_head.statements() {
 		let fingerprint = statement.fingerprint();
 		if !peer_data.can_send(&relay_parent, &fingerprint) {
@@ -1168,9 +1158,7 @@ async fn send_statements<Context>(
 	}
 }
 
-async fn report_peer<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
-
-{
+async fn report_peer<Context>(ctx: &mut Context, peer: PeerId, rep: Rep) {
 	ctx.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
 }
 
@@ -1189,9 +1177,7 @@ async fn retrieve_statement_from_message<'a, Context>(
 	ctx: &mut Context,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
-) -> Option<UncheckedSignedFullStatement>
-
-{
+) -> Option<UncheckedSignedFullStatement> {
 	let fingerprint = message.get_fingerprint();
 	let candidate_hash = *fingerprint.0.candidate_hash();
 
@@ -1283,9 +1269,7 @@ async fn launch_request<Context>(
 	req_sender: mpsc::Sender<RequesterMessage>,
 	ctx: &mut Context,
 	metrics: &Metrics,
-) -> Option<LargeStatementStatus>
-
-{
+) -> Option<LargeStatementStatus> {
 	let (task, handle) =
 		fetch(meta.relay_parent, meta.candidate_hash, vec![peer], req_sender, metrics.clone())
 			.remote_handle();
@@ -1321,8 +1305,7 @@ async fn handle_incoming_message_and_circulate<'a, Context, R>(
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 	rng: &mut R,
-)
-where
+) where
 	R: rand::Rng,
 {
 	let handled_incoming = match peers.get_mut(&peer) {
@@ -1380,8 +1363,7 @@ async fn handle_incoming_message<'a, Context>(
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
-) -> Option<(Hash, StoredStatement<'a>)>
-{
+) -> Option<(Hash, StoredStatement<'a>)> {
 	let relay_parent = message.get_relay_parent();
 	let _ = metrics.time_network_bridge_update_v1("handle_incoming_message");
 
@@ -1579,8 +1561,7 @@ async fn update_peer_view_and_maybe_send_unlocked<Context, R>(
 	new_view: View,
 	metrics: &Metrics,
 	rng: &mut R,
-)
-where
+) where
 	R: rand::Rng,
 {
 	let old_view = std::mem::replace(&mut peer_data.view, new_view);
@@ -1624,8 +1605,7 @@ async fn handle_network_update<Context, R>(
 	update: NetworkBridgeEvent<net_protocol::StatementDistributionMessage>,
 	metrics: &Metrics,
 	rng: &mut R,
-)
-where
+) where
 	R: rand::Rng,
 {
 	match update {
@@ -1721,6 +1701,7 @@ where
 	}
 }
 
+#[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
 impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 	/// Create a new Statement Distribution Subsystem
 	pub fn new(
@@ -1732,12 +1713,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		Self { keystore, req_receiver: Some(req_receiver), metrics, rng }
 	}
 
-	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError>
-	where
-		Context: overseer::StatementDistributionContextTrait,
-		<Context as overseer::StatementDistributionContextTrait>::Sender:
-			overseer::StatementDistributionSenderTrait,
-	{
+	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError> {
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
 		let mut gossip_peers: HashSet<PeerId> = HashSet::new();
 		let mut authorities: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
@@ -1862,12 +1838,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		recent_outdated_heads: &RecentOutdatedHeads,
 		req_sender: &mpsc::Sender<RequesterMessage>,
 		message: RequesterMessage,
-	) -> JfyiErrorResult<()>
-	where
-		Context: overseer::StatementDistributionContextTrait,
-		<Context as overseer::StatementDistributionContextTrait>::Sender:
-			overseer::StatementDistributionSenderTrait,
-	{
+	) -> JfyiErrorResult<()> {
 		match message {
 			RequesterMessage::Finished {
 				relay_parent,
@@ -1977,12 +1948,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		recent_outdated_heads: &mut RecentOutdatedHeads,
 		req_sender: &mpsc::Sender<RequesterMessage>,
 		message: FromOverseer<StatementDistributionMessage>,
-	) -> Result<bool>
-	where
-		Context: overseer::StatementDistributionContextTrait,
-		<Context as overseer::StatementDistributionContextTrait>::Sender:
-			overseer::StatementDistributionSenderTrait,
-	{
+	) -> Result<bool> {
 		let metrics = &self.metrics;
 
 		match message {

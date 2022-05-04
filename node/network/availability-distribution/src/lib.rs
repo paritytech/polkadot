@@ -80,6 +80,7 @@ impl<Context> AvailabilityDistributionSubsystem {
 	}
 }
 
+#[overseer::contextbounds(AvailabilityDistribution, prefix = self::overseer)]
 impl AvailabilityDistributionSubsystem {
 	/// Create a new instance of the availability distribution.
 	pub fn new(
@@ -92,12 +93,7 @@ impl AvailabilityDistributionSubsystem {
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	async fn run<Context>(self, mut ctx: Context) -> std::result::Result<(), FatalError>
-	where
-		Context: overseer::AvailabilityDistributionContextTrait,
-		<Context as overseer::AvailabilityDistributionContextTrait>::Sender:
-			overseer::AvailabilityDistributionSenderTrait,
-	{
+	async fn run<Context>(self, mut ctx: Context) -> std::result::Result<(), FatalError> {
 		let Self { mut runtime, recvs, metrics } = self;
 
 		let IncomingRequestReceivers { pov_req_receiver, chunk_req_receiver } = recvs;

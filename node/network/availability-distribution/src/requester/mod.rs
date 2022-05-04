@@ -78,6 +78,7 @@ pub struct Requester {
 	metrics: Metrics,
 }
 
+#[overseer::contextbounds(AvailabilityDistribution, prefix = self::overseer)]
 impl Requester {
 	/// How many ancestors of the leaf should we consider along with it.
 	pub(crate) const LEAF_ANCESTRY_LEN_WITHIN_SESSION: usize = 3;
@@ -99,12 +100,7 @@ impl Requester {
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		update: ActiveLeavesUpdate,
-	) -> Result<()>
-	where
-		Context: overseer::AvailabilityDistributionContextTrait,
-		<Context as overseer::AvailabilityDistributionContextTrait>::Sender:
-			overseer::AvailabilityDistributionSenderTrait,
-	{
+	) -> Result<()> {
 		gum::trace!(target: LOG_TARGET, ?update, "Update fetching heads");
 		let ActiveLeavesUpdate { activated, deactivated } = update;
 		// Stale leaves happen after a reversion - we don't want to re-run availability there.
@@ -127,12 +123,7 @@ impl Requester {
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		new_head: ActivatedLeaf,
-	) -> Result<()>
-	where
-		Context: overseer::AvailabilityDistributionContextTrait,
-		<Context as overseer::AvailabilityDistributionContextTrait>::Sender:
-			overseer::AvailabilityDistributionSenderTrait,
-	{
+	) -> Result<()> {
 		let sender = &mut ctx.sender().clone();
 		let ActivatedLeaf { hash: leaf, .. } = new_head;
 		let (leaf_session_index, ancestors_in_session) = get_block_ancestors_in_same_session(
@@ -187,12 +178,7 @@ impl Requester {
 		leaf: Hash,
 		leaf_session_index: SessionIndex,
 		cores: impl IntoIterator<Item = OccupiedCore>,
-	) -> Result<()>
-	where
-		Context: overseer::AvailabilityDistributionContextTrait,
-		<Context as overseer::AvailabilityDistributionContextTrait>::Sender:
-			overseer::AvailabilityDistributionSenderTrait,
-	{
+	) -> Result<()> {
 		for core in cores {
 			match self.fetches.entry(core.candidate_hash) {
 				Entry::Occupied(mut e) =>

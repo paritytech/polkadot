@@ -64,11 +64,10 @@ impl<Client> ChainApiSubsystem<Client> {
 	}
 }
 
-impl<Client, Context> overseer::Subsystem<Context, SubsystemError> for ChainApiSubsystem<Client>
+#[overseer::subsystem(ChainApi, error = SubsystemError, prefix = self::overseer)]
+impl<Client, Context> ChainApiSubsystem<Client>
 where
 	Client: HeaderBackend<Block> + AuxStore + 'static,
-	Context: overseer::ChainApiContextTrait,
-	<Context as overseer::ChainApiContextTrait>::Sender: overseer::ChainApiSenderTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run::<Client, Context>(ctx, self)
@@ -78,14 +77,13 @@ where
 	}
 }
 
+#[overseer::contextbounds(ChainApi, prefix = self::overseer)]
 async fn run<Client, Context>(
 	mut ctx: Context,
 	subsystem: ChainApiSubsystem<Client>,
 ) -> SubsystemResult<()>
 where
 	Client: HeaderBackend<Block> + AuxStore,
-	Context: overseer::ChainApiContextTrait,
-	<Context as overseer::ChainApiContextTrait>::Sender: overseer::ChainApiSenderTrait,
 {
 	loop {
 		match ctx.recv().await? {

@@ -60,11 +60,8 @@ impl PvfCheckerSubsystem {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for PvfCheckerSubsystem
-where
-	Context: overseer::PvfCheckerContextTrait,
-	<Context as overseer::PvfCheckerContextTrait>::Sender: overseer::PvfCheckerSenderTrait,
-{
+#[overseer::subsystem(PvfChecker, error=SubsystemError, prefix = self::overseer)]
+impl<Context> PvfCheckerSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		if self.enabled {
 			let future = run(ctx, self.keystore, self.metrics)
@@ -123,15 +120,12 @@ struct State {
 		FuturesUnordered<BoxFuture<'static, Option<(PreCheckOutcome, ValidationCodeHash)>>>,
 }
 
+#[overseer::contextbounds(PvfChecker, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
 	keystore: SyncCryptoStorePtr,
 	metrics: Metrics,
-) -> SubsystemResult<()>
-where
-	Context: overseer::PvfCheckerContextTrait,
-	<Context as overseer::PvfCheckerContextTrait>::Sender: overseer::PvfCheckerSenderTrait,
-{
+) -> SubsystemResult<()> {
 	let mut state = State {
 		credentials: None,
 		recent_block: None,
