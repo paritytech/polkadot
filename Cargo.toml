@@ -21,7 +21,7 @@ parity-util-mem = { version = "0.11.0", default-features = false, features = ["j
 assert_cmd = "2.0.4"
 nix = "0.23.1"
 tempfile = "3.2.0"
-tokio = "1.17.0"
+tokio = "1.18.1"
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-core-primitives = { path = "core-primitives" }
 

@@ -4585,14 +4585,15 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "0.8.0"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba272f85fa0b41fc91872be579b3bbe0f56b792aa361a380eb669469f68dafb2"
+checksum = "52da4364ffb0e4fe33a9841a98a3f3014fb964045ce4f7a45a398243c8d6b0c9"
 dependencies = [
  "libc",
  "log",
  "miow 0.3.7",
  "ntapi",
+ "wasi 0.11.0+wasi-snapshot-preview1",
  "winapi 0.3.9",
 ]
 
@@ -11739,14 +11740,14 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "1.17.0"
+version = "1.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2af73ac49756f3f7c01172e34a23e5d0216f6c32333757c2c61feb2bbff5a5ee"
+checksum = "dce653fb475565de9f6fb0614b28bca8df2c430c0cf84bcd9c843f15de5414cc"
 dependencies = [
  "bytes 1.1.0",
  "libc",
  "memchr",
- "mio 0.8.0",
+ "mio 0.8.2",
  "num_cpus",
  "once_cell",
  "parking_lot 0.12.0",

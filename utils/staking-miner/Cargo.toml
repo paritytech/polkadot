@@ -14,7 +14,7 @@ paste = "1.0.7"
 serde = "1.0.137"
 serde_json = "1.0"
 thiserror = "1.0.31"
-tokio = { version = "1.17.0", features = ["macros", "rt-multi-thread", "sync"] }
+tokio = { version = "1.18.1", features = ["macros", "rt-multi-thread", "sync"] }
 
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
