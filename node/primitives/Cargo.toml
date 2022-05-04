@@ -18,7 +18,7 @@ sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-parachain = { path = "../../parachain", default-features = false }
 schnorrkel = "0.9.1"
-thiserror = "1.0.30"
+thiserror = "1.0.31"
 serde = { version = "1.0.137", features = ["derive"] }
 
 [target.'cfg(not(target_os = "unknown"))'.dependencies]
