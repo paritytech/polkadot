@@ -92,12 +92,14 @@ polkadot-runtime-constants = { path = "../../runtime/polkadot/constants", option
 kusama-runtime-constants = { path = "../../runtime/kusama/constants", optional = true }
 rococo-runtime-constants = { path = "../../runtime/rococo/constants", optional = true }
 westend-runtime-constants = { path = "../../runtime/westend/constants", optional = true }
+sococo-runtime-constants = { path = "../../runtime/sococo/constants", optional = true }
 
 # Polkadot Runtimes
 polkadot-runtime = { path = "../../runtime/polkadot", optional = true }
 kusama-runtime = { path = "../../runtime/kusama", optional = true }
 westend-runtime = { path = "../../runtime/westend", optional = true }
 rococo-runtime = { path = "../../runtime/rococo", optional = true }
+sococo-runtime = { path = "../../runtime/sococo", optional = true }
 
 # Polkadot Subsystems
 polkadot-approval-distribution = { path = "../network/approval-distribution", optional = true }
@@ -170,6 +172,7 @@ polkadot-native = [ "polkadot-runtime", "polkadot-runtime-constants", "polkadot-
 kusama-native = [ "kusama-runtime", "kusama-runtime-constants", "polkadot-client/kusama" ]
 westend-native = [ "westend-runtime", "westend-runtime-constants", "polkadot-client/westend" ]
 rococo-native = [ "rococo-runtime", "rococo-runtime-constants", "polkadot-client/rococo" ]
+sococo-native = [ "sococo-runtime", "sococo-runtime-constants", "polkadot-client/sococo" ]
 
 runtime-benchmarks = [
 	"polkadot-runtime/runtime-benchmarks",

@@ -70,6 +70,7 @@ polkadot-native = ["service/polkadot-native"]
 kusama-native = ["service/kusama-native"]
 westend-native = ["service/westend-native"]
 rococo-native = ["service/rococo-native"]
+sococo-native = ["service/sococo-native"]
 
 malus = ["full-node", "service/malus"]
 runtime-metrics = ["service/runtime-metrics", "polkadot-node-metrics/runtime-metrics"]

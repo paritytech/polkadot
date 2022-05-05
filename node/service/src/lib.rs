@@ -80,6 +80,9 @@ use telemetry::{Telemetry, TelemetryWorkerHandle};
 #[cfg(feature = "rococo-native")]
 pub use polkadot_client::RococoExecutorDispatch;
 
+#[cfg(feature = "sococo-native")]
+pub use polkadot_client::SococoExecutorDispatch;
+
 #[cfg(feature = "westend-native")]
 pub use polkadot_client::WestendExecutorDispatch;
 
@@ -89,7 +92,9 @@ pub use polkadot_client::KusamaExecutorDispatch;
 #[cfg(feature = "polkadot-native")]
 pub use polkadot_client::PolkadotExecutorDispatch;
 
-pub use chain_spec::{KusamaChainSpec, PolkadotChainSpec, RococoChainSpec, WestendChainSpec};
+pub use chain_spec::{
+	KusamaChainSpec, PolkadotChainSpec, RococoChainSpec, SococoChainSpec, WestendChainSpec,
+};
 pub use consensus_common::{block_validation::Chain, Proposal, SelectChain};
 #[cfg(feature = "full-node")]
 pub use polkadot_client::{
@@ -120,6 +125,8 @@ pub use kusama_runtime;
 pub use polkadot_runtime;
 #[cfg(feature = "rococo-native")]
 pub use rococo_runtime;
+#[cfg(feature = "sococo-native")]
+pub use sococo_runtime;
 #[cfg(feature = "westend-native")]
 pub use westend_runtime;
 
@@ -253,6 +260,9 @@ pub trait IdentifyVariant {
 	/// Returns if this is a configuration for the `Rococo` network.
 	fn is_rococo(&self) -> bool;
 
+	/// Returns if this is a configuration for the `Sococo` network.
+	fn is_sococo(&self) -> bool;
+
 	/// Returns if this is a configuration for the `Wococo` test network.
 	fn is_wococo(&self) -> bool;
 
@@ -275,6 +285,9 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 	}
 	fn is_rococo(&self) -> bool {
 		self.id().starts_with("rococo") || self.id().starts_with("rco")
+	}
+	fn is_sococo(&self) -> bool {
+		self.id().starts_with("sococo") || self.id().starts_with("sco")
 	}
 	fn is_wococo(&self) -> bool {
 		self.id().starts_with("wococo") || self.id().starts_with("wco")
@@ -610,7 +623,6 @@ pub struct FullComponents<C> {
 	pub backend: Arc<FullBackend>,
 }
 
-
 #[cfg(feature = "full-node")]
 impl<C> NewFull<C> {
 	/// Convert the client type using the given `func`.
@@ -623,12 +635,12 @@ impl<C> NewFull<C> {
 				network: self.components.network,
 				rpc_handlers: self.components.rpc_handlers,
 				backend: self.components.backend,
-			}
+			},
 		}
 	}
 }
 
-pub struct ClientPair <C> {
+pub struct ClientPair<C> {
 	pub task_manager: TaskManager,
 	pub client1: FullComponents<C>,
 	pub client2: FullComponents<C>,
@@ -752,6 +764,7 @@ where
 		let mut backoff = sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default();
 
 		if config.chain_spec.is_rococo() ||
+			config.chain_spec.is_sococo() ||
 			config.chain_spec.is_wococo() ||
 			config.chain_spec.is_versi()
 		{
@@ -767,6 +780,7 @@ where
 	// If not on a known test network, warn the user that BEEFY is still experimental.
 	if enable_beefy &&
 		!config.chain_spec.is_rococo() &&
+		!config.chain_spec.is_sococo() &&
 		!config.chain_spec.is_wococo() &&
 		!config.chain_spec.is_versi()
 	{
@@ -1248,7 +1262,10 @@ where
 
 	network_starter.start_network();
 
-	Ok(NewFull { task_manager, components: FullComponents { client, overseer_handle, network, rpc_handlers, backend }})
+	Ok(NewFull {
+		task_manager,
+		components: FullComponents { client, overseer_handle, network, rpc_handlers, backend },
+	})
 }
 
 #[cfg(feature = "full-node")]
@@ -1297,6 +1314,7 @@ pub fn new_chain_ops(
 
 	#[cfg(feature = "rococo-native")]
 	if config.chain_spec.is_rococo() ||
+		config.chain_spec.is_sococo() ||
 		config.chain_spec.is_wococo() ||
 		config.chain_spec.is_versi()
 	{
@@ -1359,6 +1377,23 @@ pub fn build_full(
 			hwbench,
 		)
 		.map(|full| full.with_client(Client::Rococo))
+	}
+	
+	#[cfg(feature = "sococo-native")]
+	if config.chain_spec.is_sococo() {
+		return new_full::<sococo_runtime::RuntimeApi, SococoExecutorDispatch, _>(
+			config,
+			is_collator,
+			grandpa_pause,
+			enable_beefy,
+			jaeger_agent,
+			telemetry_worker_handle,
+			None,
+			overseer_enable_anyways,
+			overseer_gen,
+			hwbench,
+		)
+		.map(|full| full.with_client(Client::Sococo))
 	}
 
 	#[cfg(feature = "kusama-native")]
@@ -1425,7 +1460,6 @@ pub fn build_squared(
 	overseer_gen: impl OverseerGen,
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<ClientPair<Client>, Error> {
-
 	let client1 = build_grid_chain(
 		config,
 		jaeger_agent,
@@ -1445,11 +1479,7 @@ pub fn build_squared(
 	let mut task_manager = client1.task_manager;
 	task_manager.add_child(client2.task_manager);
 
-	Ok(ClientPair {
-		task_manager,
-		client1: client1.components,
-		client2: client2.components,
-	})
+	Ok(ClientPair { task_manager, client1: client1.components, client2: client2.components })
 }
 
 fn build_grid_chain(

@@ -46,9 +46,7 @@ fi
 # that is, this script.
 trap 'kill 0' EXIT
 
-$BIN build-spec --chain=rococo > rococo.json
-
-chains=("rococo" "wococo")
+chains=("rococo" "sococo")
 validators=(alice bob)
 
 # Pregenerated node keys and corresponding PeerIDs.

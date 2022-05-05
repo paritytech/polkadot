@@ -13,7 +13,7 @@ rust-version = "1.57.0" # custom profiles
 readme = "README.md"
 
 [dependencies]
-polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
+polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native", "sococo-native" ]  }
 color-eyre = { version = "0.6.1", default-features = false }
 parity-util-mem = { version = "0.11.0", default-features = false, features = ["jemalloc-global"] }
 
@@ -42,6 +42,8 @@ members = [
 	"runtime/kusama/constants",
 	"runtime/rococo",
 	"runtime/rococo/constants",
+	"runtime/sococo",
+	"runtime/sococo/constants",
 	"runtime/westend",
 	"runtime/westend/constants",
 	"runtime/test-runtime",

@@ -102,6 +102,10 @@ pub struct RunCmd {
 	#[clap(long = "force-rococo")]
 	pub force_rococo: bool,
 
+	/// Force using Sococo native runtime.
+	#[clap(long = "force-sococo")]
+	pub force_sococo: bool,
+
 	/// Setup a GRANDPA scheduled voting pause.
 	///
 	/// This parameter takes two values, namely a block number and a delay (in

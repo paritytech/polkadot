@@ -47,7 +47,8 @@ pub type FullClient<RuntimeApi, ExecutorDispatch> =
 	feature = "rococo",
 	feature = "kusama",
 	feature = "westend",
-	feature = "polkadot"
+	feature = "polkadot",
+	feature = "sococo"
 )))]
 compile_error!("at least one runtime feature must be enabled");
 
@@ -116,6 +117,23 @@ impl sc_executor::NativeExecutionDispatch for RococoExecutorDispatch {
 
 	fn native_version() -> sc_executor::NativeVersion {
 		rococo_runtime::native_version()
+	}
+}
+
+#[cfg(feature = "sococo")]
+/// The native executor instance for Sococo.
+pub struct SococoExecutorDispatch;
+
+#[cfg(feature = "sococo")]
+impl sc_executor::NativeExecutionDispatch for SococoExecutorDispatch {
+	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		sococo_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> sc_executor::NativeVersion {
+		sococo_runtime::native_version()
 	}
 }
 
@@ -256,6 +274,8 @@ macro_rules! with_client {
 			Self::Kusama($client) => { $( $code )* },
 			#[cfg(feature = "rococo")]
 			Self::Rococo($client) => { $( $code )* },
+			#[cfg(feature = "sococo")]
+			Self::Sococo($client) => { $( $code )* },
 		}
 	}
 }
@@ -273,6 +293,8 @@ pub enum Client {
 	Kusama(Arc<FullClient<kusama_runtime::RuntimeApi, KusamaExecutorDispatch>>),
 	#[cfg(feature = "rococo")]
 	Rococo(Arc<FullClient<rococo_runtime::RuntimeApi, RococoExecutorDispatch>>),
+	#[cfg(feature = "sococo")]
+	Sococo(Arc<FullClient<sococo_runtime::RuntimeApi, SococoExecutorDispatch>>),
 }
 
 impl ClientHandle for Client {
@@ -670,6 +692,17 @@ macro_rules! with_signed_payload {
 			#[cfg(feature = "rococo")]
 			Self::Rococo($client) => {
 				use rococo_runtime as runtime;
+
+				$( $setup )*
+
+				signed_payload!($extra, $raw_payload,
+					($period, $current_block, $nonce, $tip, $call, $genesis));
+
+				$( $usage )*
+			},
+			#[cfg(feature = "sococo")]
+			Self::Sococo($client) => {
+				use sococo_runtime as runtime;
 
 				$( $setup )*
 

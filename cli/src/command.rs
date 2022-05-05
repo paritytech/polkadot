@@ -18,7 +18,7 @@ use crate::cli::{Cli, Subcommand};
 use frame_benchmarking_cli::{BenchmarkCmd, SUBSTRATE_REFERENCE_HARDWARE};
 use futures::future::TryFutureExt;
 use log::info;
-use sc_cli::{Role, RuntimeVersion, SubstrateCli, CliConfiguration};
+use sc_cli::{CliConfiguration, Role, RuntimeVersion, SubstrateCli};
 use service::{self, HeaderBackend, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
 use std::net::ToSocketAddrs;
@@ -73,7 +73,7 @@ impl SubstrateCli for Cli {
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		let id = if id == "" {
 			let n = get_exec_name().unwrap_or_default();
-			["polkadot", "kusama", "westend", "rococo", "versi"]
+			["polkadot", "kusama", "westend", "rococo", "versi", "sococo"]
 				.iter()
 				.cloned()
 				.find(|&chain| n.starts_with(chain))
@@ -134,9 +134,16 @@ impl SubstrateCli for Cli {
 			"versi-local" => Box::new(service::chain_spec::versi_local_testnet_config()?),
 			#[cfg(feature = "rococo-native")]
 			"versi-staging" => Box::new(service::chain_spec::versi_staging_testnet_config()?),
-			#[cfg(not(feature = "rococo-native"))]
-			name if name.starts_with("versi-") =>
-				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
+			"sococo" => Box::new(service::chain_spec::sococo_config()?),
+			#[cfg(feature = "sococo-native")]
+			"sococo-dev" => Box::new(service::chain_spec::sococo_development_config()?),
+			#[cfg(feature = "sococo-native")]
+			"sococo-local" => Box::new(service::chain_spec::sococo_local_testnet_config()?),
+			#[cfg(feature = "sococo-native")]
+			"sococo-staging" => Box::new(service::chain_spec::sococo_staging_testnet_config()?),
+			#[cfg(not(feature = "sococo-native"))]
+			name if name.starts_with("sococo-") =>
+				Err(format!("`{}` only supported with `sococo-native` feature enabled.", name))?,
 			path => {
 				let path = std::path::PathBuf::from(path);
 
@@ -151,6 +158,8 @@ impl SubstrateCli for Cli {
 					chain_spec.is_versi()
 				{
 					Box::new(service::RococoChainSpec::from_json_file(path)?)
+				} else if self.run.force_sococo || chain_spec.is_sococo() {
+					Box::new(service::SococoChainSpec::from_json_file(path)?)
 				} else if self.run.force_kusama || chain_spec.is_kusama() {
 					Box::new(service::KusamaChainSpec::from_json_file(path)?)
 				} else if self.run.force_westend || chain_spec.is_westend() {
@@ -176,6 +185,11 @@ impl SubstrateCli for Cli {
 		#[cfg(feature = "rococo-native")]
 		if spec.is_rococo() || spec.is_wococo() || spec.is_versi() {
 			return &service::rococo_runtime::VERSION
+		}
+
+		#[cfg(feature = "sococo-native")]
+		if spec.is_sococo() {
+			return &service::sococo_runtime::VERSION
 		}
 
 		#[cfg(not(all(
@@ -209,7 +223,7 @@ fn set_default_ss58_version(spec: &Box<dyn service::ChainSpec>) {
 }
 
 const DEV_ONLY_ERROR_PATTERN: &'static str =
-	"can only use subcommand with --chain [polkadot-dev, kusama-dev, westend-dev, rococo-dev, wococo-dev], got ";
+	"can only use subcommand with --chain [polkadot-dev, kusama-dev, westend-dev, rococo-dev, wococo-dev, sococo-dev], got ";
 
 fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), String> {
 	if spec.is_dev() {
@@ -234,6 +248,8 @@ macro_rules! unwrap_client {
 			polkadot_client::Client::Kusama($client) => $code,
 			#[cfg(feature = "rococo-native")]
 			polkadot_client::Client::Rococo($client) => $code,
+			#[cfg(feature = "sococo-native")]
+			polkadot_client::Client::Sococo($client) => $code,
 			#[allow(unreachable_patterns)]
 			_ => Err(Error::CommandNotImplemented),
 		}
@@ -324,7 +340,7 @@ where
 
 		match role {
 			Role::Light => Err(Error::Other("Light client not enabled".into())),
-			_ => {
+			_ =>
 				if cli.run.add_chain.is_some() {
 					let tokio_handle = config.tokio_handle.clone();
 					cli.run.base.shared_params.chain = cli.run.add_chain.clone();
@@ -353,8 +369,7 @@ where
 					)
 					.map(|full| full.task_manager)
 					.map_err(Into::into)
-				}
-			}
+				},
 		}
 	})
 }
