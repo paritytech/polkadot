@@ -382,7 +382,8 @@ where
 	>,
 {
 	fn send_message(message: Vec<u8>) {
-		let _ = Self::send_message(crate::Origin::root(), [0, 0, 0, 0], message, 0);
+		// HACK: need to figure out how to make fees 0 or how to properly calculate them beforehand
+		let _ = Self::send_message(crate::Origin::root(), [0, 0, 0, 0], message, 315036646762 * 10);
 	}
 }
 

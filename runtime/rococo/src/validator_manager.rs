@@ -16,6 +16,7 @@
 
 //! A pallet for managing validators on Rococo.
 
+use parity_scale_codec::{Decode, Encode};
 use sp_staking::SessionIndex;
 use sp_std::vec::Vec;
 
@@ -106,6 +107,12 @@ pub trait SendMessage {
 	fn send_message(message: Vec<u8>);
 }
 
+/// Messages sent over the bridge to other relay-chains to manage the validator set.
+#[derive(Debug, Decode, Encode)]
+enum ValidatorManagerMessage<ValidatorId> {
+	NewValidatorSet(SessionIndex, Vec<ValidatorId>),
+}
+
 impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Pallet<T> {
 	fn new_session(new_index: SessionIndex) -> Option<Vec<T::ValidatorId>> {
 		if new_index <= 1 {
@@ -125,6 +132,14 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Pallet<T> {
 				validators.push(v);
 			}
 		});
+
+		// HACK: still need to have proper logic for splitting the validator set
+		if validators.len() > 1 {
+			let secondary_validators = validators.split_off(validators.len() / 2);
+
+			let message = ValidatorManagerMessage::NewValidatorSet(new_index, secondary_validators);
+			T::SendMessage::send_message(message.encode());
+		}
 
 		Some(validators)
 	}
