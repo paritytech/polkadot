@@ -326,7 +326,13 @@ fn overweight_queue_works() {
 		queue_upward_msg(para_a, a_msg_3.clone());
 		Ump::process_pending_upward_messages();
 		assert_last_event(
-			Event::OverweightEnqueued(para_a, upward_message_id(&a_msg_3[..]), 0, 500).into(),
+			Event::OverweightEnqueued {
+				para: para_a,
+				id: upward_message_id(&a_msg_3[..]),
+				overweight_index: 0,
+				required: 500,
+			}
+			.into(),
 		);
 
 		// Now verify that if we wanted to service this overweight message with less than enough
@@ -338,7 +344,7 @@ fn overweight_queue_works() {
 
 		// ... and if we try to service it with just enough weight it will succeed as well.
 		assert_ok!(Ump::service_overweight(Origin::root(), 0, 500));
-		assert_last_event(Event::OverweightServiced(0, 500).into());
+		assert_last_event(Event::OverweightServiced { overweight_index: 0, used: 500 }.into());
 
 		// ... and if we try to service a message with index that doesn't exist it will error
 		// out.
