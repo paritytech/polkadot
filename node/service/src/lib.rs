@@ -1400,7 +1400,10 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
-			None,
+			overseer_message_channel_override.map(|capacity| {
+				gum::warn!("Channel capacity should _never_ be tampered with on polkadot!");
+				capacity
+			}),
 			hwbench,
 		)
 		.map(|full| full.with_client(Client::Polkadot))
