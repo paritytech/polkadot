@@ -118,7 +118,7 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	fn schedule_code_upgrade(b: u32, ) -> Weight {
 		(0 as Weight)
 			// Standard Error: 0
-			.saturating_add((3_000 as Weight).saturating_mul(c as Weight))
+			.saturating_add((3_000 as Weight).saturating_mul(b as Weight))
 			.saturating_add(T::DbWeight::get().reads(8 as Weight))
 			.saturating_add(T::DbWeight::get().writes(8 as Weight))
 	}
@@ -126,7 +126,7 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	fn set_current_head(b: u32, ) -> Weight {
 		(5_494_000 as Weight)
 			// Standard Error: 0
-			.saturating_add((1_000 as Weight).saturating_mul(s as Weight))
+			.saturating_add((1_000 as Weight).saturating_mul(b as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 }
