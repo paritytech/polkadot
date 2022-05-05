@@ -361,7 +361,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			}
 
 			/// Create a new connector with non-default signal channel capacity.
-			fn with_signal_capacity(signal_capacity: usize) -> Self {
+			pub fn with_signal_capacity(signal_capacity: usize) -> Self {
 				let (events_tx, events_rx) = #support_crate ::metered::channel::<
 					#event
 					>(signal_capacity);
@@ -375,7 +375,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 		impl ::std::default::Default for #connector {
 			fn default() -> Self {
-				Self::with_capacity(SIGNAL_CHANNEL_CAPACITY)
+				Self::with_signal_capacity(SIGNAL_CHANNEL_CAPACITY)
 			}
 		}
 	});
