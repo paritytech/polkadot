@@ -40,9 +40,9 @@ jobs:
 
       - name: Build ${{ matrix.runtime }} runtime
         id: srtool_build
-        uses: chevdor/srtool-actions@v0.3.0
+        uses: chevdor/srtool-actions@v0.4.0
         with:
-          # This is the default with chevdor/srtool-actions@v0.3.0 but we make it clear
+          # This is the default with chevdor/srtool-actions@v0.3.0+ but we make it clear
           image: paritytech/srtool
           chain: ${{ matrix.runtime }}
 
