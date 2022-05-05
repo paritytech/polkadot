@@ -9,7 +9,7 @@ futures = "0.3.21"
 lru = "0.7.5"
 rand = "0.8.5"
 fatality = "0.0.6"
-thiserror = "1.0.30"
+thiserror = "1.0.31"
 gum = { package = "tracing-gum", path = "../../gum" }
 
 polkadot-erasure-coding = { path = "../../../erasure-coding" }

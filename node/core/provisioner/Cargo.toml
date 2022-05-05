@@ -8,7 +8,7 @@ edition = "2021"
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
-thiserror = "1.0.30"
+thiserror = "1.0.31"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }

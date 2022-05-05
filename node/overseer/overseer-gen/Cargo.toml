@@ -19,7 +19,7 @@ futures-timer = "3.0.2"
 pin-project = "1.0"
 
 [dev-dependencies]
-trybuild = "1.0.60"
+trybuild = "1.0.61"
 rustversion = "1.0.6"
 
 [features]

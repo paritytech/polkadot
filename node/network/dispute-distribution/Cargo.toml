@@ -18,7 +18,7 @@ polkadot-node-primitives = { path = "../../primitives" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-thiserror = "1.0.30"
+thiserror = "1.0.31"
 fatality = "0.0.6"
 lru = "0.7.5"
 
