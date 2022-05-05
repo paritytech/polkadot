@@ -60,6 +60,8 @@ pub trait WeightInfo {
 	fn force_register() -> Weight;
 	fn deregister() -> Weight;
 	fn swap() -> Weight;
+	fn schedule_code_upgrade(b: u32) -> Weight;
+	fn set_current_head(b: u32) -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -77,6 +79,12 @@ impl WeightInfo for TestWeightInfo {
 		0
 	}
 	fn swap() -> Weight {
+		0
+	}
+	fn schedule_code_upgrade(_b: u32) -> Weight {
+		0
+	}
+	fn set_current_head(_b: u32) -> Weight {
 		0
 	}
 }
@@ -352,11 +360,39 @@ pub mod pallet {
 		/// Add a manager lock from a para. This will prevent the manager of a
 		/// para to deregister or swap a para.
 		///
-		/// Can only be called by the owner, Root, or the parachain.
+		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
 		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
 		pub fn add_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
 			Self::ensure_root_para_or_owner(origin, para)?;
 			<Self as Registrar>::apply_lock(para);
+			Ok(())
+		}
+
+		/// Schedule a parachain upgrade.
+		///
+		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
+		#[pallet::weight(<T as Config>::WeightInfo::schedule_code_upgrade(new_code.0.len() as u32))]
+		pub fn schedule_code_upgrade(
+			origin: OriginFor<T>,
+			para: ParaId,
+			new_code: ValidationCode,
+		) -> DispatchResult {
+			Self::ensure_root_para_or_owner(origin, para)?;
+			runtime_parachains::schedule_code_upgrade::<T>(para, new_code)?;
+			Ok(())
+		}
+
+		/// Set the parachain's current head.
+		///
+		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
+		#[pallet::weight(<T as Config>::WeightInfo::set_current_head(new_head.0.len() as u32))]
+		pub fn set_current_head(
+			origin: OriginFor<T>,
+			para: ParaId,
+			new_head: HeadData,
+		) -> DispatchResult {
+			Self::ensure_root_para_or_owner(origin, para)?;
+			runtime_parachains::set_current_head::<T>(para, new_head);
 			Ok(())
 		}
 	}
@@ -1236,6 +1272,7 @@ mod benchmarking {
 	use crate::traits::Registrar as RegistrarT;
 	use frame_support::assert_ok;
 	use frame_system::RawOrigin;
+	use primitives::v2::{MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
 	use runtime_parachains::{paras, shared, Origin as ParaOrigin};
 	use sp_runtime::traits::Bounded;
 
@@ -1351,6 +1388,18 @@ mod benchmarking {
 			assert_eq!(paras::Pallet::<T>::lifecycle(parachain), Some(ParaLifecycle::Parathread));
 			assert_eq!(paras::Pallet::<T>::lifecycle(parathread), Some(ParaLifecycle::Parachain));
 		}
+
+		schedule_code_upgrade {
+			let b in 1 .. MAX_CODE_SIZE;
+			let new_code = ValidationCode(vec![0; b as usize]);
+			let para_id = ParaId::from(1000);
+		}: _(RawOrigin::Root, para_id, new_code)
+
+		set_current_head {
+			let b in 1 .. MAX_HEAD_DATA_SIZE;
+			let new_head = HeadData(vec![0; b as usize]);
+			let para_id = ParaId::from(1000);
+		}: _(RawOrigin::Root, para_id, new_head)
 
 		impl_benchmark_test_suite!(
 			Registrar,
