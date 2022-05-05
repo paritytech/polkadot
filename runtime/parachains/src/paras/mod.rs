@@ -780,7 +780,7 @@ pub mod pallet {
 			ensure_root(origin)?;
 			let now = frame_system::Pallet::<T>::block_number();
 			Self::note_new_head(para, new_head, now);
-			Self::deposit_event(Event::NewHeadNoted { para });
+			Self::deposit_event(Event::NewHeadNoted { para_id: para });
 			Ok(())
 		}
 

@@ -331,11 +331,19 @@ where
 		.into_iter()
 		.filter_map(|record| extract_event(record.event))
 		.map(|event| match event {
-			RawEvent::<T>::CandidateBacked(c, h, core, group) =>
-				CandidateEvent::CandidateBacked(c, h, core, group),
-			RawEvent::<T>::CandidateIncluded(c, h, core, group) =>
-				CandidateEvent::CandidateIncluded(c, h, core, group),
-			RawEvent::<T>::CandidateTimedOut(c, h, core) =>
+			RawEvent::<T>::CandidateBacked {
+				candidate: c,
+				head_data: h,
+				core_index: core,
+				group_index: group,
+			} => CandidateEvent::CandidateBacked(c, h, core, group),
+			RawEvent::<T>::CandidateIncluded {
+				candidate: c,
+				head_data: h,
+				core_index: core,
+				group_index: group,
+			} => CandidateEvent::CandidateIncluded(c, h, core, group),
+			RawEvent::<T>::CandidateTimedOut { candidate: c, head_data: h, core_index: core } =>
 				CandidateEvent::CandidateTimedOut(c, h, core),
 			RawEvent::<T>::__Ignore(_, _) => unreachable!("__Ignore cannot be used"),
 		})
