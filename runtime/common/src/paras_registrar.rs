@@ -37,7 +37,7 @@ pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{CheckedSub, Saturating},
+	traits::{CheckedSub, Saturating, Zero},
 	RuntimeDebug,
 };
 
@@ -67,25 +67,25 @@ pub trait WeightInfo {
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn reserve() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn register() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn force_register() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn deregister() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn swap() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn schedule_code_upgrade(_b: u32) -> Weight {
-		0
+		Weight::zero()
 	}
 	fn set_current_head(_b: u32) -> Weight {
-		0
+		Weight::zero()
 	}
 }
 
