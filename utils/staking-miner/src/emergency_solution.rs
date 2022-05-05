@@ -16,27 +16,61 @@
 
 //! The emergency-solution command.
 
+/*use codec::Encode;
+use pallet_election_provider_multi_phase::RawSolution;
+use std::io::Write;*/
+
 use crate::{prelude::*, EmergencySolutionConfig};
 
-/// Forcefully create the snapshot. This can be used to compute the election at anytime.
-fn force_create_snapshot(client: &SubxtClient) -> Result<(), Error> {
-	todo!();
-}
+/// Ensure that the current phase is emergency.
+async fn ensure_emergency_phase(api: &RuntimeApi, hash: Option<Hash>) -> Result<(), Error> {
+	use runtime::pallet_election_provider_multi_phase::Phase;
 
-/// Find the stake threshold in order to have at most `count` voters.
-#[allow(unused)]
-fn find_threshold(count: usize) {
-	todo!();
+	match api.storage().election_provider_multi_phase().current_phase(hash).await {
+		Ok(Phase::Emergency) => Ok(()),
+		Ok(_phase) => Err(Error::IncorrectPhase),
+		Err(e) => Err(e.into()),
+	}
 }
 
 pub(crate) async fn run<M>(
 	client: SubxtClient,
 	config: EmergencySolutionConfig,
+	signer: Signer,
 ) -> Result<(), Error>
 where
 	M: MinerConfig<AccountId = AccountId, MaxVotesPerVoter = crate::chains::MinerMaxVotesPerVoter>
 		+ 'static,
 	<M as MinerConfig>::Solution: Send + Sync,
 {
-	todo!();
+	let api: RuntimeApi = client.to_runtime_api();
+	ensure_emergency_phase(&api, config.at).await?;
+
+	todo!("how to get ReadySolution here?!");
+
+	/*let mut ready_solutions = api
+		.storage()
+		.election_provider_multi_phase()
+		.queued_solution(Some(events.block_hash()))
+		.await?
+		.ok_or(Error::Other("queued solutions were empty".into()))?;
+
+	// maybe truncate.
+	if let Some(take) = config.take {
+		log::info!(
+			target: LOG_TARGET,
+			"truncating {} winners to {}",
+			ready_solutions.supports.len(),
+			take
+		);
+		ready_solutions.supports.sort_unstable_by_key(|(_, s)| s.total);
+		ready_solutions.supports.truncate(take);
+	}
+
+	// write to file and stdout.
+	let encoded_support = ready_solutions.supports.encode();
+	let mut supports_file = std::fs::File::create("solution.supports.bin")?;
+	supports_file.write_all(&encoded_support)?;*/
+
+	Ok(())
 }

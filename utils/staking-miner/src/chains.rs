@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use codec::{Decode, Encode};
 use frame_support::{parameter_types, traits::ConstU32, weights::Weight};
 use sp_runtime::{PerU16, Perbill};
 

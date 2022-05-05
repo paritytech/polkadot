@@ -16,13 +16,49 @@
 
 //! The dry-run command.
 
-use crate::{error::Error, prelude::*, DryRunConfig};
+use pallet_election_provider_multi_phase::RawSolution;
 
-pub(crate) async fn run<M>(client: SubxtClient, cfg: DryRunConfig) -> Result<(), Error>
+use crate::{error::Error, prelude::*, DryRunConfig};
+use codec::{Decode, Encode};
+use jsonrpsee::rpc_params;
+use subxt::{rpc::ClientT, sp_core::Bytes};
+
+pub(crate) async fn run<M>(
+	client: SubxtClient,
+	config: DryRunConfig,
+	signer: Signer,
+) -> Result<(), Error>
 where
 	M: MinerConfig<AccountId = AccountId, MaxVotesPerVoter = crate::chains::MinerMaxVotesPerVoter>
 		+ 'static,
 	<M as MinerConfig>::Solution: Send + Sync,
 {
-	todo!();
+	let api: RuntimeApi = client.to_runtime_api();
+
+	let (solution, score, size) =
+		crate::helpers::mine_solution::<M>(&api, config.at, config.solver).await?;
+
+	let round = api.storage().election_provider_multi_phase().round(config.at).await?;
+	let call = SubmitCall::new(RawSolution { solution, score, round });
+
+	let xt = subxt::SubmittableExtrinsic::<_, ExtrinsicParams, _, ModuleErrMissing, NoEvents>::new(
+		&api.client,
+		call,
+	)
+	.create_signed(&signer, subxt::SubstrateExtrinsicParamsBuilder::default())
+	.await?;
+
+	let encoded_xt = Bytes(xt.encode());
+
+	let bytes: Bytes = api
+		.client
+		.rpc()
+		.client
+		.request("system_dryRun", rpc_params![encoded_xt])
+		.await?;
+	let outcome: sp_runtime::ApplyExtrinsicResult = Decode::decode(&mut &*bytes.0).unwrap();
+
+	log::info!(target: LOG_TARGET, "dry-run outcome is {:?}", outcome);
+
+	Ok(())
 }

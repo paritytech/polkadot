@@ -21,8 +21,6 @@
 //! needing to sprinkle `any_runtime` in a few extra places.
 
 use codec::{Decode, Encode};
-use frame_support::{parameter_types, traits::ConstU32, weights::Weight};
-use sp_runtime::{PerU16, Perbill};
 
 #[derive(codec::Encode, codec::Decode)]
 pub struct SubmitCall<T>(Box<pallet_election_provider_multi_phase::RawSolution<T>>);
@@ -38,7 +36,7 @@ impl<T: Encode> subxt::Call for SubmitCall<T> {
 	const FUNCTION: &'static str = "submit";
 }
 
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, Debug)]
 pub struct ModuleErrMissing;
 
 impl subxt::HasModuleError for ModuleErrMissing {
@@ -84,3 +82,5 @@ pub use crate::{error::Error, runtime::runtime_types as runtime};
 pub use pallet_election_provider_multi_phase::{Miner, MinerConfig};
 
 pub type Signer = subxt::PairSigner<subxt::DefaultConfig, subxt::sp_core::sr25519::Pair>;
+
+pub use sp_runtime::Perbill;

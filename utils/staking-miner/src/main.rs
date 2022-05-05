@@ -216,35 +216,36 @@ async fn main() -> Result<(), Error> {
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
 
 	let client = subxt::ClientBuilder::new().set_url(uri).build().await?;
-
 	let chain = client.rpc().system_chain().await?;
-
 	let signer = signer::signer_from_string(&seed_or_path);
 
 	log::info!("Connected to chain: {}", chain);
 
 	let outcome = match chain.to_lowercase().as_str() {
-		// TODO: hack tremove.
+		// TODO: hack remove.
 		"polkadot" | "development" => match command {
 			Command::Monitor(cfg) =>
 				monitor::run::<chains::polkadot::Config>(client, cfg, Arc::new(signer)).await,
-			Command::DryRun(cfg) => dry_run::run::<chains::polkadot::Config>(client, cfg).await,
+			Command::DryRun(cfg) =>
+				dry_run::run::<chains::polkadot::Config>(client, cfg, signer).await,
 			Command::EmergencySolution(cfg) =>
-				emergency_solution::run::<chains::polkadot::Config>(client, cfg).await,
+				emergency_solution::run::<chains::polkadot::Config>(client, cfg, signer).await,
 		},
 		"kusama" => match command {
 			Command::Monitor(cfg) =>
 				monitor::run::<chains::kusama::Config>(client, cfg, Arc::new(signer)).await,
-			Command::DryRun(cfg) => dry_run::run::<chains::kusama::Config>(client, cfg).await,
+			Command::DryRun(cfg) =>
+				dry_run::run::<chains::kusama::Config>(client, cfg, signer).await,
 			Command::EmergencySolution(cfg) =>
-				emergency_solution::run::<chains::kusama::Config>(client, cfg).await,
+				emergency_solution::run::<chains::kusama::Config>(client, cfg, signer).await,
 		},
 		"westend" => match command {
 			Command::Monitor(cfg) =>
 				monitor::run::<chains::westend::Config>(client, cfg, Arc::new(signer)).await,
-			Command::DryRun(cfg) => dry_run::run::<chains::westend::Config>(client, cfg).await,
+			Command::DryRun(cfg) =>
+				dry_run::run::<chains::westend::Config>(client, cfg, signer).await,
 			Command::EmergencySolution(cfg) =>
-				emergency_solution::run::<chains::westend::Config>(client, cfg).await,
+				emergency_solution::run::<chains::westend::Config>(client, cfg, signer).await,
 		},
 		other =>
 			return Err(Error::Other(format!(

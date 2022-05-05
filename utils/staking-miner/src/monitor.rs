@@ -1,10 +1,6 @@
-use crate::{
-	prelude::*, runtime::runtime_types::pallet_election_provider_multi_phase::RoundSnapshot,
-	BalanceIterations, Balancing, MonitorConfig, Solver, SubmissionStrategy,
-};
+use crate::{prelude::*, MonitorConfig, Solver, SubmissionStrategy};
 use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
-use pallet_election_provider_multi_phase::{Miner, MinerConfig, RawSolution, SolutionOf};
-use sp_npos_elections::ElectionScore;
+use pallet_election_provider_multi_phase::{Miner, MinerConfig, RawSolution};
 use sp_runtime::Perbill;
 use std::sync::Arc;
 use subxt::TransactionStatus;
@@ -15,7 +11,7 @@ async fn ensure_signed_phase(api: &RuntimeApi, hash: Hash) -> Result<(), Error> 
 
 	match api.storage().election_provider_multi_phase().current_phase(Some(hash)).await {
 		Ok(Phase::Signed) => Ok(()),
-		Ok(p) => Err(Error::IncorrectPhase),
+		Ok(_phase) => Err(Error::IncorrectPhase),
 		Err(e) => Err(e.into()),
 	}
 }
@@ -158,13 +154,13 @@ async fn send_and_watch_extrinsic<M>(
 		+ 'static,
 	<M as MinerConfig>::Solution: Send + Sync,
 {
-	async fn flatten<T>(handle: tokio::task::JoinHandle<Result<T, Error>>) -> Result<T, Error> {
+	/*async fn flatten<T>(handle: tokio::task::JoinHandle<Result<T, Error>>) -> Result<T, Error> {
 		match handle.await {
 			Ok(Ok(result)) => Ok(result),
 			Ok(Err(err)) => Err(err),
 			Err(err) => panic!("tokio spawn task failed; kill task: {:?}", err),
 		}
-	}
+	}*/
 
 	let hash = at.hash();
 	log::trace!(target: LOG_TARGET, "new event at #{:?} ({:?})", at.number, hash);
@@ -193,35 +189,24 @@ async fn send_and_watch_extrinsic<M>(
 
 	log::debug!("prep to create raw solution");
 
-	let (voters, targets, desired_targets) = match crate::helpers::snapshot(&api, hash).await {
-		Ok(s) => s,
+	let (solution, score, size) =
+		match crate::helpers::mine_solution::<M>(&api, Some(hash), config.solver).await {
+			Ok(s) => s,
+			Err(e) => {
+				log::error!(target: LOG_TARGET, "Mining solution failed: {:?}", e);
+				return
+			},
+		};
+
+	let round = match api.storage().election_provider_multi_phase().round(Some(hash)).await {
+		Ok(round) => round,
 		Err(e) => {
-			log::debug!("Failed to get snapshot: {:?}", e);
+			log::error!(target: LOG_TARGET, "Mining solution failed: {:?}", e);
 			return
 		},
 	};
 
-	let (solution, score, _) = match config.solver {
-		Solver::SeqPhragmen { iterations } => {
-			//BalanceIterations::set(*iterations);
-			Miner::<M>::mine_solution_with_snapshot::<
-				SequentialPhragmen<AccountId, Perbill, Balancing>,
-			>(voters, targets, desired_targets)
-		},
-		Solver::PhragMMS { iterations } => {
-			//BalanceIterations::set(*iterations);
-			Miner::<M>::mine_solution_with_snapshot::<PhragMMS<AccountId, Perbill, Balancing>>(
-				voters,
-				targets,
-				desired_targets,
-			)
-		},
-	}
-	.unwrap();
-
-	let round = api.storage().election_provider_multi_phase().round(Some(hash)).await.unwrap();
-
-	log::info!(target: LOG_TARGET, "mined solution with {:?}", score);
+	log::info!(target: LOG_TARGET, "mined solution with {:?} size: {:?}", score, size);
 
 	if let Err(e) = ensure_no_better_solution(&api, hash, score, config.submission_strategy).await {
 		log::debug!(
@@ -251,13 +236,7 @@ async fn send_and_watch_extrinsic<M>(
 	);
 
 	// This might fail with outdated nonce let it just crash if that happens.
-	let mut status_sub = xt
-		.sign_and_submit_then_watch(
-			&*signer,
-			subxt::SubstrateExtrinsicParamsBuilder::<subxt::DefaultConfig>::default(),
-		)
-		.await
-		.unwrap();
+	let mut status_sub = xt.sign_and_submit_then_watch_default(&*signer).await.unwrap();
 
 	loop {
 		let status = match status_sub.next_item().await {
@@ -281,20 +260,27 @@ async fn send_and_watch_extrinsic<M>(
 			TransactionStatus::Ready |
 			TransactionStatus::Broadcast(_) |
 			TransactionStatus::Future => (),
-			TransactionStatus::InBlock(hash) => {
-				log::info!(target: LOG_TARGET, "included at {:?}", hash);
-				// let mut system_events = api
-				// .events()
-				// .subscribe()
-				// .await
-				// .unwrap()
-				// .filter_events::<(crate::runtime::system::events::ExtrinsicSuccess,)>();
+			TransactionStatus::InBlock(details) => {
+				log::info!(target: LOG_TARGET, "included at {:?}", details.block_hash());
+				let events = details.wait_for_success().await.unwrap();
+
+				let solution_stored =
+					events
+						.find_first::<crate::runtime::election_provider_multi_phase::events::SolutionStored>(
+						);
+
+				if let Ok(Some(event)) = solution_stored {
+					log::info!(target: LOG_TARGET, "included at {:?}", event);
+				} else {
+					log::error!(target: LOG_TARGET, "no SolutionStored event emitted");
+					break
+				}
 			},
 			TransactionStatus::Retracted(hash) => {
 				log::info!(target: LOG_TARGET, "Retracted at {:?}", hash);
 			},
-			TransactionStatus::Finalized(hash) => {
-				log::info!(target: LOG_TARGET, "Finalized at {:?}", hash);
+			TransactionStatus::Finalized(details) => {
+				log::info!(target: LOG_TARGET, "Finalized at {:?}", details.block_hash());
 				return
 			},
 			_ => {
