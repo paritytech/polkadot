@@ -103,4 +103,28 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 			.saturating_add(T::DbWeight::get().reads(10 as Weight))
 			.saturating_add(T::DbWeight::get().writes(8 as Weight))
 	}
+	// Storage: Paras FutureCodeHash (r:1 w:1)
+	// Storage: Paras CurrentCodeHash (r:1 w:0)
+	// Storage: Paras UpgradeCooldowns (r:1 w:1)
+	// Storage: Paras PvfActiveVoteMap (r:1 w:0)
+	// Storage: Paras CodeByHash (r:1 w:1)
+	// Storage: Paras UpcomingUpgrades (r:1 w:1)
+	// Storage: System Digest (r:1 w:1)
+	// Storage: Paras CodeByHashRefs (r:1 w:1)
+	// Storage: Paras FutureCodeUpgrades (r:0 w:1)
+	// Storage: Paras UpgradeRestrictionSignal (r:0 w:1)
+	fn schedule_code_upgrade(b: u32, ) -> Weight {
+		(0 as Weight)
+			// Standard Error: 0
+			.saturating_add((3_000 as Weight).saturating_mul(c as Weight))
+			.saturating_add(T::DbWeight::get().reads(8 as Weight))
+			.saturating_add(T::DbWeight::get().writes(8 as Weight))
+	}
+	// Storage: Paras Heads (r:0 w:1)
+	fn set_current_head(b: u32, ) -> Weight {
+		(5_494_000 as Weight)
+			// Standard Error: 0
+			.saturating_add((1_000 as Weight).saturating_mul(s as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+	}
 }

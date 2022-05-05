@@ -32,7 +32,7 @@ use polkadot_runtime_parachains::{
 	paras_inherent as parachains_paras_inherent, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
-use sp_runtime::transaction_validity::TransactionPriority;
+use sp_runtime::{transaction_validity::TransactionPriority, traits::Zero};
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
 where
@@ -148,19 +148,25 @@ pub struct ZeroWeights;
 
 impl polkadot_runtime_common::paras_registrar::WeightInfo for ZeroWeights {
 	fn reserve() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn register() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn force_register() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn deregister() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn swap() -> Weight {
-		0
+		Weight::zero()
+	}
+	fn schedule_code_upgrade(_b: u32) -> Weight {
+		Weight::zero()
+	}
+	fn set_current_head(_b: u32) -> Weight {
+		Weight::zero()
 	}
 }
 
