@@ -719,6 +719,7 @@ pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	program_path: Option<std::path::PathBuf>,
 	overseer_enable_anyways: bool,
 	overseer_gen: OverseerGenerator,
+	overseer_message_channel_capacity_override: Option<usize>,
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, ExecutorDispatch>>>, Error>
 where
@@ -1038,6 +1039,7 @@ where
 					chain_selection_config,
 					dispute_coordinator_config,
 					pvf_checker_enabled,
+					overseer_message_channel_capacity_override,
 				},
 			)
 			.map_err(|e| {
@@ -1326,7 +1328,7 @@ pub fn build_full(
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	overseer_enable_anyways: bool,
 	overseer_gen: impl OverseerGen,
-	overseer_channel_capacity_override: Option<usize>,
+	overseer_message_channel_override: Option<usize>,
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]
@@ -1344,6 +1346,7 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			overseer_message_channel_override,
 			hwbench,
 		)
 		.map(|full| full.with_client(Client::Rococo))
@@ -1361,6 +1364,7 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			overseer_message_channel_override,
 			hwbench,
 		)
 		.map(|full| full.with_client(Client::Kusama))
@@ -1378,6 +1382,7 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			overseer_message_channel_override,
 			hwbench,
 		)
 		.map(|full| full.with_client(Client::Westend))
@@ -1395,6 +1400,7 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			None,
 			hwbench,
 		)
 		.map(|full| full.with_client(Client::Polkadot))

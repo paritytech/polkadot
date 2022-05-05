@@ -331,8 +331,8 @@ where
 				jaeger_agent,
 				None,
 				false,
-				cli.run.overseer_channel_capacity_override,
 				overseer_gen,
+				cli.run.overseer_channel_capacity_override,
 				hwbench,
 			)
 			.map(|full| full.task_manager)

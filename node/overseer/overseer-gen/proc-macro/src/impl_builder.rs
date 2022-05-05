@@ -150,6 +150,9 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 								#baggage_name: self. #baggage_name,
 							)*
 							spawner: self.spawner,
+
+							channel_capacity: self.channel_capacity,
+							signal_capacity: self.signal_capacity,
 						}
 					}
 					/// Specify the the initialization function for a subsystem
@@ -171,6 +174,10 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 								#baggage_name: self. #baggage_name,
 							)*
 							spawner: self.spawner,
+
+
+							channel_capacity: self.channel_capacity,
+							signal_capacity: self.signal_capacity,
 						}
 					}
 				}
@@ -207,6 +214,9 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 								#baggage_name: self. #baggage_name,
 							)*
 							spawner: self.spawner,
+
+							channel_capacity: self.channel_capacity,
+							signal_capacity: self.signal_capacity,
 						}
 					}
 				}
@@ -254,6 +264,9 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 							#to_keep_baggage_name: self. #to_keep_baggage_name,
 						)*
 						spawner: self.spawner,
+
+						channel_capacity: self.channel_capacity,
+						signal_capacity: self.signal_capacity,
 					}
 				}
 			}
@@ -272,6 +285,9 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 							#to_keep_baggage_name: self. #to_keep_baggage_name,
 						)*
 						spawner: self.spawner,
+
+						channel_capacity: self.channel_capacity,
+						signal_capacity: self.signal_capacity,
 					}
 				}
 			}
@@ -360,11 +376,11 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				self.handle.clone()
 			}
 
-			/// Create a new connector with non-default signal channel capacity.
-			pub fn with_signal_capacity(signal_capacity: usize) -> Self {
+			/// Create a new connector with non-default event channel capacity.
+			pub fn with_event_capacity(event_channel_capacity: usize) -> Self {
 				let (events_tx, events_rx) = #support_crate ::metered::channel::<
 					#event
-					>(signal_capacity);
+					>(event_channel_capacity);
 
 				Self {
 					handle: events_tx,
@@ -375,7 +391,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 		impl ::std::default::Default for #connector {
 			fn default() -> Self {
-				Self::with_signal_capacity(SIGNAL_CHANNEL_CAPACITY)
+				Self::with_event_capacity(SIGNAL_CHANNEL_CAPACITY)
 			}
 		}
 	});
@@ -454,19 +470,19 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	// message and signal channel capacity
 	ts.extend(quote! {
 		impl<S, #( #subsystem_passthrough_state_generics, )* #( #baggage_passthrough_state_generics, )*>
-			#builder<S, #( #subsystem_passthrough_state_generics, )* #( #baggage_passthrough_state_generics, )*>
+			#builder<Init<S>, #( #subsystem_passthrough_state_generics, )* #( #baggage_passthrough_state_generics, )*>
 		where
-			#spawner_where_clause
+			#spawner_where_clause,
 		{
 			/// Set the interconnecting signal channel capacity.
-			pub fn signal_channel_capacity(self, capacity: usize) -> Self
+			pub fn signal_channel_capacity(mut self, capacity: usize) -> Self
 			{
 				self.signal_capacity = Some(capacity);
 				self
 			}
 
 			/// Set the interconnecting message channel capacities.
-			pub fn message_channel_capacity(self, capacity: usize) -> Self
+			pub fn message_channel_capacity(mut self, capacity: usize) -> Self
 			{
 				self.channel_capacity = Some(capacity);
 				self
@@ -489,7 +505,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			/// Complete the construction and create the overseer type.
 			pub fn build(self)
 				-> ::std::result::Result<(#overseer_name<S, #( #baggage_generic_ty, )*>, #handle), #error_ty> {
-				let connector = #connector ::with_signal_capacity(
+				let connector = #connector ::with_event_capacity(
 					self.signal_capacity.unwrap_or(SIGNAL_CHANNEL_CAPACITY)
 				);
 				self.build_with_connector(connector)
@@ -557,7 +573,9 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					let message_rx: SubsystemIncomingMessages< #consumes > = #support_crate ::select(
 						#channel_name_rx, #channel_name_unbounded_rx
 					);
-					let (signal_tx, signal_rx) = #support_crate ::metered::channel(SIGNAL_CHANNEL_CAPACITY);
+					let (signal_tx, signal_rx) = #support_crate ::metered::channel(
+						self.signal_capacity.unwrap_or(SIGNAL_CHANNEL_CAPACITY)
+					);
 
 					// Generate subsystem name based on overseer field name.
 					let subsystem_string = String::from(stringify!(#subsystem_name));
