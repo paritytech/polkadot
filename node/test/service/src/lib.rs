@@ -98,6 +98,7 @@ pub fn new_full(
 		false,
 		polkadot_service::RealOverseerGen,
 		None,
+		None,
 	)
 }
 
