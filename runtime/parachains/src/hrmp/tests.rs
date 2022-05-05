@@ -226,7 +226,7 @@ fn close_channel_works() {
 		assert!(!channel_exists(para_a, para_b));
 		Hrmp::assert_storage_consistency_exhaustive();
 		assert!(System::events().iter().any(|record| record.event ==
-			MockEvent::Hrmp(Event::ChannelClosed { by_parachain: para_b, channel_id })));
+			MockEvent::Hrmp(Event::ChannelClosed { by_parachain: para_b, channel_id: channel_id.clone() })));
 	});
 }
 
