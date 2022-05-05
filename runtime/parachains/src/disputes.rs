@@ -469,19 +469,17 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// A dispute has been initiated. \[candidate hash, dispute location\]
-		DisputeInitiated(CandidateHash, DisputeLocation),
+		/// A dispute has been initiated.
+		DisputeInitiated { candidate_hash: CandidateHash, dispute_location: DisputeLocation },
 		/// A dispute has concluded for or against a candidate.
-		/// `\[para id, candidate hash, dispute result\]`
-		DisputeConcluded(CandidateHash, DisputeResult),
+		DisputeConcluded { candidate_hash: CandidateHash, dispute_result: DisputeResult },
 		/// A dispute has timed out due to insufficient participation.
-		/// `\[para id, candidate hash\]`
-		DisputeTimedOut(CandidateHash),
+		DisputeTimedOut { candidate_hash: CandidateHash },
 		/// A dispute has concluded with supermajority against a candidate.
 		/// Block authors should no longer build on top of this head and should
 		/// instead revert the block at the given height. This should be the
 		/// number of the child of the last known valid block in the chain.
-		Revert(T::BlockNumber),
+		Revert { block_number: T::BlockNumber },
 	}
 
 	#[pallet::error]
@@ -784,7 +782,7 @@ impl<T: Config> Pallet<T> {
 			if dispute.concluded_at.is_none() &&
 				dispute.start + config.dispute_conclusion_by_time_out_period < now
 			{
-				Self::deposit_event(Event::DisputeTimedOut(candidate_hash));
+				Self::deposit_event(Event::DisputeTimedOut { candidate_hash });
 
 				dispute.concluded_at = Some(now);
 				<Disputes<T>>::insert(session_index, candidate_hash, &dispute);
@@ -1132,15 +1130,22 @@ impl<T: Config> Pallet<T> {
 		if fresh {
 			let is_local = <Included<T>>::contains_key(&session, &candidate_hash);
 
-			Self::deposit_event(Event::DisputeInitiated(
+			Self::deposit_event(Event::DisputeInitiated {
 				candidate_hash,
-				if is_local { DisputeLocation::Local } else { DisputeLocation::Remote },
-			));
+				dispute_location: if is_local {
+					DisputeLocation::Local
+				} else {
+					DisputeLocation::Remote
+				},
+			});
 		}
 
 		{
 			if summary.new_flags.contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
-				Self::deposit_event(Event::DisputeConcluded(candidate_hash, DisputeResult::Valid));
+				Self::deposit_event(Event::DisputeConcluded {
+					candidate_hash,
+					dispute_result: DisputeResult::Valid,
+				});
 			}
 
 			// It is possible, although unexpected, for a dispute to conclude twice.
@@ -1148,10 +1153,10 @@ impl<T: Config> Pallet<T> {
 			// A dispute cannot conclude more than once in each direction.
 
 			if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
-				Self::deposit_event(Event::DisputeConcluded(
+				Self::deposit_event(Event::DisputeConcluded {
 					candidate_hash,
-					DisputeResult::Invalid,
-				));
+					dispute_result: DisputeResult::Invalid,
+				});
 			}
 		}
 
@@ -1241,7 +1246,7 @@ impl<T: Config> Pallet<T> {
 			// If we want to revert to block X in the current chain, we need to revert
 			// block X+1.
 			let revert = revert_to + One::one();
-			Self::deposit_event(Event::Revert(revert));
+			Self::deposit_event(Event::Revert { block_number: revert });
 			frame_system::Pallet::<T>::deposit_log(
 				ConsensusLog::Revert(revert.saturated_into()).into(),
 			);
