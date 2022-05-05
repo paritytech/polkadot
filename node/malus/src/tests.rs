@@ -19,8 +19,8 @@ use super::*;
 use polkadot_node_subsystem_test_helpers::*;
 
 use polkadot_node_subsystem::{
-	messages::{AllMessages, AvailabilityStoreMessage},
-	overseer::{dummy::DummySubsystem, gen::TimeoutExt, Subsystem},
+	messages::AvailabilityStoreMessage,
+	overseer::{dummy::DummySubsystem, gen::TimeoutExt, Subsystem, AssociateOutgoing},
 	SubsystemError,
 };
 
@@ -29,8 +29,7 @@ struct BlackHoleInterceptor;
 
 impl<Sender> MessageInterceptor<Sender> for BlackHoleInterceptor
 where
-	Sender: overseer::SubsystemSender<AllMessages>
-		+ overseer::SubsystemSender<AvailabilityStoreMessage>
+	Sender: overseer::AvailabilityStoreSenderTrait
 		+ Clone
 		+ 'static,
 {
@@ -53,8 +52,7 @@ struct PassInterceptor;
 
 impl<Sender> MessageInterceptor<Sender> for PassInterceptor
 where
-	Sender: overseer::SubsystemSender<AllMessages>
-		+ overseer::SubsystemSender<AvailabilityStoreMessage>
+	Sender: overseer::AvailabilityStoreSenderTrait
 		+ Clone
 		+ 'static,
 {
@@ -68,8 +66,8 @@ async fn overseer_send<T: Into<AllMessages>>(overseer: &mut TestSubsystemContext
 fn launch_harness<F, M, Sub, G>(test_gen: G)
 where
 	F: Future<Output = TestSubsystemContextHandle<M>> + Send,
-	M: Into<AllMessages> + std::fmt::Debug + Send + 'static,
-	AllMessages: From<M>,
+	M: AssociateOutgoing + Into<<M as AssociateOutgoing>::OutgoingMessages> + std::fmt::Debug + Send + 'static,
+	<M as AssociateOutgoing>::OutgoingMessages: From<M>,
 	Sub: Subsystem<TestSubsystemContext<M, sp_core::testing::TaskExecutor>, SubsystemError>,
 	G: Fn(TestSubsystemContextHandle<M>) -> (F, Sub),
 {

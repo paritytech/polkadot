@@ -71,8 +71,7 @@ struct NoteCandidate<Spawner> {
 
 impl<Sender, Spawner> MessageInterceptor<Sender> for NoteCandidate<Spawner>
 where
-	Sender: overseer::SubsystemSender<AllMessages>
-		+ overseer::SubsystemSender<CandidateBackingMessage>
+	Sender: overseer::CandidateBackingSenderTrait
 		+ Clone
 		+ Send
 		+ 'static,
@@ -219,9 +218,9 @@ where
 		}
 	}
 
-	fn intercept_outgoing(&self, msg: AllMessages) -> Option<AllMessages> {
+	fn intercept_outgoing(&self, msg: overseer::CandidateBackingOutgoingMessages) -> Option<overseer::CandidateBackingOutgoingMessages> {
 		let msg = match msg {
-			AllMessages::CollatorProtocol(CollatorProtocolMessage::Seconded(
+			overseer::CandidateBackingOutgoingMessages::CollatorProtocol(CollatorProtocolMessage::Seconded(
 				relay_parent,
 				statement,
 			)) => {
@@ -229,7 +228,7 @@ where
 				// TODO: Fix this error. We get this on colaltors because `malicious backing` creates a candidate that gets backed/included.
 				// It is harmless for test parachain collators, but it will prevent cumulus based collators to make progress
 				// as they wait for the relay chain to confirm the seconding of the collation.
-				AllMessages::CollatorProtocol(CollatorProtocolMessage::Seconded(
+				overseer::CandidateBackingOutgoingMessages::CollatorProtocol(CollatorProtocolMessage::Seconded(
 					relay_parent,
 					statement,
 				))
