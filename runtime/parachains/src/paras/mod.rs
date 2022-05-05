@@ -487,25 +487,23 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event {
-		/// Current code has been updated for a Para. `para_id`
-		CurrentCodeUpdated(ParaId),
-		/// Current head has been updated for a Para. `para_id`
-		CurrentHeadUpdated(ParaId),
-		/// A code upgrade has been scheduled for a Para. `para_id`
-		CodeUpgradeScheduled(ParaId),
-		/// A new head has been noted for a Para. `para_id`
-		NewHeadNoted(ParaId),
-		/// A para has been queued to execute pending actions. `para_id`
-		ActionQueued(ParaId, SessionIndex),
+		/// Current code has been updated for a Para.
+		CurrentCodeUpdated { para_id: ParaId },
+		/// Current head has been updated for a Para.
+		CurrentHeadUpdated { para_id: ParaId },
+		/// A code upgrade has been scheduled for a Para.
+		CodeUpgradeScheduled { para_id: ParaId },
+		/// A new head has been noted for a Para.
+		NewHeadNoted { para_id: ParaId },
+		/// A para has been queued to execute pending actions.
+		ActionQueued { para_id: ParaId, session_index: SessionIndex },
 		/// The given para either initiated or subscribed to a PVF check for the given validation
-		/// code. `code_hash` `para_id`
-		PvfCheckStarted(ValidationCodeHash, ParaId),
+		/// code.
+		PvfCheckStarted { code_hash: ValidationCodeHash, para_id: ParaId },
 		/// The given validation code was accepted by the PVF pre-checking vote.
-		/// `code_hash` `para_id`
-		PvfCheckAccepted(ValidationCodeHash, ParaId),
+		PvfCheckAccepted { code_hash: ValidationCodeHash, para_id: ParaId },
 		/// The given validation code was rejected by the PVF pre-checking vote.
-		/// `code_hash` `para_id`
-		PvfCheckRejected(ValidationCodeHash, ParaId),
+		PvfCheckRejected { code_hash: ValidationCodeHash, para_id: ParaId },
 	}
 
 	#[pallet::error]
@@ -740,7 +738,7 @@ pub mod pallet {
 					&para
 				);
 			}
-			Self::deposit_event(Event::CurrentCodeUpdated(para));
+			Self::deposit_event(Event::CurrentCodeUpdated { para_id: para });
 			Ok(())
 		}
 
@@ -753,7 +751,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			<Self as Store>::Heads::insert(&para, new_head);
-			Self::deposit_event(Event::CurrentHeadUpdated(para));
+			Self::deposit_event(Event::CurrentHeadUpdated { para_id: para });
 			Ok(())
 		}
 
@@ -768,7 +766,7 @@ pub mod pallet {
 			ensure_root(origin)?;
 			let config = configuration::Pallet::<T>::config();
 			Self::schedule_code_upgrade(para, new_code, relay_parent_number, &config);
-			Self::deposit_event(Event::CodeUpgradeScheduled(para));
+			Self::deposit_event(Event::CodeUpgradeScheduled { para_id: para });
 			Ok(())
 		}
 
@@ -782,7 +780,7 @@ pub mod pallet {
 			ensure_root(origin)?;
 			let now = frame_system::Pallet::<T>::block_number();
 			Self::note_new_head(para, new_head, now);
-			Self::deposit_event(Event::NewHeadNoted(para));
+			Self::deposit_event(Event::NewHeadNoted { para });
 			Ok(())
 		}
 
@@ -798,7 +796,7 @@ pub mod pallet {
 					v.insert(i, para);
 				}
 			});
-			Self::deposit_event(Event::ActionQueued(para, next_session));
+			Self::deposit_event(Event::ActionQueued { para_id: para, session_index: next_session });
 			Ok(())
 		}
 
@@ -1375,7 +1373,10 @@ impl<T: Config> Pallet<T> {
 		let mut weight = 0;
 		for cause in causes {
 			weight += T::DbWeight::get().reads_writes(3, 2);
-			Self::deposit_event(Event::PvfCheckAccepted(*code_hash, cause.para_id()));
+			Self::deposit_event(Event::PvfCheckAccepted {
+				code_hash: *code_hash,
+				para_id: cause.para_id(),
+			});
 
 			match cause {
 				PvfCheckCause::Onboarding(id) => {
@@ -1465,7 +1466,10 @@ impl<T: Config> Pallet<T> {
 			weight += Self::decrease_code_ref(code_hash);
 
 			weight += T::DbWeight::get().reads_writes(3, 2);
-			Self::deposit_event(Event::PvfCheckRejected(*code_hash, cause.para_id()));
+			Self::deposit_event(Event::PvfCheckRejected {
+				code_hash: *code_hash,
+				para_id: cause.para_id(),
+			});
 
 			match cause {
 				PvfCheckCause::Onboarding(id) => {
@@ -1749,7 +1753,7 @@ impl<T: Config> Pallet<T> {
 		let mut weight = 0;
 
 		weight += T::DbWeight::get().reads_writes(3, 2);
-		Self::deposit_event(Event::PvfCheckStarted(code_hash, cause.para_id()));
+		Self::deposit_event(Event::PvfCheckStarted { code_hash, para_id: cause.para_id() });
 
 		weight += T::DbWeight::get().reads(1);
 		match PvfActiveVoteMap::<T>::get(&code_hash) {

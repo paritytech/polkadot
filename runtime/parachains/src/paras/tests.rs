@@ -124,7 +124,7 @@ impl EventValidator {
 	fn started(&mut self, code: &ValidationCode, id: ParaId) -> &mut Self {
 		self.events.push(frame_system::EventRecord {
 			phase: frame_system::Phase::Initialization,
-			event: Event::PvfCheckStarted(code.hash(), id).into(),
+			event: Event::PvfCheckStarted { code_hash: code.hash(), para_id: id }.into(),
 			topics: vec![],
 		});
 		self
@@ -133,7 +133,7 @@ impl EventValidator {
 	fn rejected(&mut self, code: &ValidationCode, id: ParaId) -> &mut Self {
 		self.events.push(frame_system::EventRecord {
 			phase: frame_system::Phase::Initialization,
-			event: Event::PvfCheckRejected(code.hash(), id).into(),
+			event: Event::PvfCheckRejected { code_hash: code.hash(), para_id: id }.into(),
 			topics: vec![],
 		});
 		self
@@ -142,7 +142,7 @@ impl EventValidator {
 	fn accepted(&mut self, code: &ValidationCode, id: ParaId) -> &mut Self {
 		self.events.push(frame_system::EventRecord {
 			phase: frame_system::Phase::Initialization,
-			event: Event::PvfCheckAccepted(code.hash(), id).into(),
+			event: Event::PvfCheckAccepted { code_hash: code.hash(), para_id: id }.into(),
 			topics: vec![],
 		});
 		self
