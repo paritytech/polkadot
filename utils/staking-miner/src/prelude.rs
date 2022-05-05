@@ -24,18 +24,6 @@ use codec::{Decode, Encode};
 use frame_support::{parameter_types, traits::ConstU32, weights::Weight};
 use sp_runtime::{PerU16, Perbill};
 
-const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
-
-parameter_types! {
-	pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights
-		::with_sensible_defaults(2 * frame_support::weights::constants::WEIGHT_PER_SECOND, NORMAL_DISPATCH_RATIO);
-	pub static MinerMaxWeight: Weight = BlockWeights::get().max_block;
-	// TODO: align with the chains
-	pub static MinerMaxLength: u32 = 256;
-	// TODO: align with the chains
-	pub static MinerMaxVotesPerVotes: u32 = 16;
-}
-
 #[derive(codec::Encode, codec::Decode)]
 pub struct SubmitCall<T>(Box<pallet_election_provider_multi_phase::RawSolution<T>>);
 
@@ -92,105 +80,7 @@ pub type RuntimeApi = crate::runtime::RuntimeApi<
 
 pub type ExtrinsicParams = subxt::SubstrateExtrinsicParams<subxt::DefaultConfig>;
 
-pub use crate::runtime::runtime_types as runtime;
-
-pub use crate::error::Error;
+pub use crate::{error::Error, runtime::runtime_types as runtime};
+pub use pallet_election_provider_multi_phase::{Miner, MinerConfig};
 
 pub type Signer = subxt::PairSigner<subxt::DefaultConfig, subxt::sp_core::sr25519::Pair>;
-
-pub mod polkadot {
-	use super::*;
-
-	frame_election_provider_support::generate_solution_type!(
-		#[compact]
-		pub struct NposSolution16::<
-			VoterIndex = u32,
-			TargetIndex = u16,
-			Accuracy = PerU16,
-			MaxVoters = ConstU32::<22500>
-		>(16)
-	);
-
-	pub struct Config;
-
-	impl pallet_election_provider_multi_phase::unsigned::MinerConfig for Config {
-		type AccountId = AccountId;
-		type MaxLength = MinerMaxLength;
-		type MaxWeight = MinerMaxWeight;
-		type MaxVotesPerVoter = MinerMaxVotesPerVotes;
-		type Solution = polkadot::NposSolution16;
-
-		fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
-			// feasibility weight.
-			(31_722_000 as Weight)
-				// Standard Error: 8_000
-				.saturating_add((1_255_000 as Weight).saturating_mul(v as Weight))
-				// Standard Error: 28_000
-				.saturating_add((8_972_000 as Weight).saturating_mul(a as Weight))
-				// Standard Error: 42_000
-				.saturating_add((966_000 as Weight).saturating_mul(d as Weight))
-			//.saturating_add(T::DbWeight::get().reads(4 as Weight))
-		}
-	}
-}
-
-pub mod kusama {
-	use super::*;
-
-	frame_election_provider_support::generate_solution_type!(
-		#[compact]
-		pub struct NposSolution24::<
-			VoterIndex = u32,
-			TargetIndex = u16,
-			Accuracy = PerU16,
-			MaxVoters = ConstU32::<22500>
-		>(24)
-	);
-
-	pub struct Config;
-
-	impl pallet_election_provider_multi_phase::unsigned::MinerConfig for Config {
-		type AccountId = AccountId;
-		type MaxLength = MinerMaxLength;
-		type MaxWeight = MinerMaxWeight;
-		type MaxVotesPerVoter = MinerMaxVotesPerVotes;
-		type Solution = NposSolution24;
-
-		fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
-			// feasibility weight.
-			(31_722_000 as Weight)
-				// Standard Error: 8_000
-				.saturating_add((1_255_000 as Weight).saturating_mul(v as Weight))
-				// Standard Error: 28_000
-				.saturating_add((8_972_000 as Weight).saturating_mul(a as Weight))
-				// Standard Error: 42_000
-				.saturating_add((966_000 as Weight).saturating_mul(d as Weight))
-			//.saturating_add(T::DbWeight::get().reads(4 as Weight))
-		}
-	}
-}
-
-/// Staking miner for Polkadot.
-pub type PolkadotMiner = pallet_election_provider_multi_phase::unsigned::Miner<polkadot::Config>;
-pub type KusamaMiner = pallet_election_provider_multi_phase::unsigned::Miner<kusama::Config>;
-
-#[derive(Debug, Clone)]
-pub enum Chain {
-	Kusama,
-	Polkadot,
-	Westend,
-}
-
-impl std::str::FromStr for Chain {
-	type Err = String;
-
-	fn from_str(s: &str) -> Result<Self, String> {
-		match s {
-			"polkadot" => Ok(Chain::Polkadot),
-			"kusama" => Ok(Chain::Kusama),
-			"westend" => Ok(Chain::Westend),
-			other =>
-				Err(format!("expected chain to be polkadot, kusama or westend; got: {}", other)),
-		}
-	}
-}

@@ -1,5 +1,3 @@
-use pallet_election_provider_multi_phase::unsigned::MinerError;
-
 use crate::prelude::sp_core;
 
 #[derive(thiserror::Error, Debug)]

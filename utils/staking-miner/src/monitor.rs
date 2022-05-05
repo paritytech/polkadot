@@ -3,10 +3,11 @@ use crate::{
 	BalanceIterations, Balancing, MonitorConfig, Solver, SubmissionStrategy,
 };
 use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
-use pallet_election_provider_multi_phase::{Miner, RawSolution};
+use pallet_election_provider_multi_phase::{Miner, MinerConfig, RawSolution, SolutionOf};
+use sp_npos_elections::ElectionScore;
 use sp_runtime::Perbill;
 use std::sync::Arc;
-use subxt::{sp_core::storage::StorageKey, TransactionStatus};
+use subxt::TransactionStatus;
 
 /// Ensure that now is the signed phase.
 async fn ensure_signed_phase(api: &RuntimeApi, hash: Hash) -> Result<(), Error> {
@@ -83,12 +84,16 @@ async fn ensure_no_better_solution(
 	Ok(())
 }
 
-pub(crate) async fn run_cmd(
+pub(crate) async fn run<M>(
 	client: SubxtClient,
-	chain: Chain,
 	config: MonitorConfig,
 	signer: Arc<Signer>,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	M: MinerConfig<AccountId = AccountId, MaxVotesPerVoter = crate::chains::MinerMaxVotesPerVoter>
+		+ 'static,
+	<M as MinerConfig>::Solution: Send + Sync,
+{
 	let mut subscription = if config.listen == "head" {
 		client.rpc().subscribe_blocks().await
 	} else {
@@ -131,10 +136,9 @@ pub(crate) async fn run_cmd(
 
 		// Spawn task and non-recoverable errors are sent back to the main task
 		// such as if the connection has been closed.
-		tokio::spawn(send_and_watch_extrinsic(
+		tokio::spawn(send_and_watch_extrinsic::<M>(
 			tx.clone(),
 			at,
-			chain.clone(),
 			client.clone(),
 			signer.clone(),
 			config.clone(),
@@ -143,14 +147,17 @@ pub(crate) async fn run_cmd(
 }
 
 /// Construct extrinsic at given block and watch it.
-async fn send_and_watch_extrinsic(
+async fn send_and_watch_extrinsic<M>(
 	tx: tokio::sync::mpsc::UnboundedSender<Error>,
 	at: Header,
-	chain: Chain,
 	client: SubxtClient,
 	signer: Arc<Signer>,
 	config: MonitorConfig,
-) {
+) where
+	M: MinerConfig<AccountId = AccountId, MaxVotesPerVoter = crate::chains::MinerMaxVotesPerVoter>
+		+ 'static,
+	<M as MinerConfig>::Solution: Send + Sync,
+{
 	async fn flatten<T>(handle: tokio::task::JoinHandle<Result<T, Error>>) -> Result<T, Error> {
 		match handle.await {
 			Ok(Ok(result)) => Ok(result),
@@ -165,110 +172,83 @@ async fn send_and_watch_extrinsic(
 	let api: RuntimeApi = client.to_runtime_api();
 
 	if let Err(e) = ensure_signed_phase(&api, hash).await {
-		log::debug!("ensure_signed_phase failed: {:?}; skipping", e);
+		log::debug!(
+			target: LOG_TARGET,
+			"ensure_signed_phase failed: {:?}; skipping block: {}",
+			e,
+			at.number
+		);
 		return
 	}
 
 	if let Err(e) = ensure_no_previous_solution(&api, hash, signer.account_id()).await {
-		log::debug!("ensure_no_previous_solution failed: {:?}; skipping at: {}", e, at.number);
+		log::debug!(
+			target: LOG_TARGET,
+			"ensure_no_previous_solution failed: {:?}; skipping block: {}",
+			e,
+			at.number
+		);
 		return
 	}
 
 	log::debug!("prep to create raw solution");
-	let xt = {
-		match chain {
-			Chain::Polkadot => {
-				let (solution, score, _) =
-					match crate::helpers::mine_solution_polkadot(&api, hash, config.solver).await {
-						Ok(s) => s,
-						Err(e) => {
-							let _ = tx.send(e.into());
-							return
-						},
-					};
 
-				let round =
-					match api.storage().election_provider_multi_phase().round(Some(hash)).await {
-						Ok(r) => r,
-						Err(e) => {
-							let _ = tx.send(e.into());
-							return
-						},
-					};
-
-				log::info!(target: LOG_TARGET, "mined solution with {:?}", score);
-
-				if let Err(e) =
-					ensure_no_better_solution(&api, at.hash(), score, config.submission_strategy)
-						.await
-				{
-					log::debug!("ensure_no_better_solution failed: {:?}", e);
-					return
-				}
-
-				if let Err(e) = ensure_signed_phase(&api, hash).await {
-					log::debug!("ensure_signed_phase failed: {:?}; skipping", e);
-					return
-				}
-
-				let call = SubmitCall::new(RawSolution { solution, score, round });
-
-				subxt::SubmittableExtrinsic::<
-					_,
-					ExtrinsicParams,
-					_,
-					ModuleErrMissing,
-					NoEvents,
-				>::new(&api.client, call)
-			},
-			Chain::Kusama => {
-				let (solution, score, _) =
-					match crate::helpers::mine_solution_kusama(&api, hash, config.solver).await {
-						Ok(s) => s,
-						Err(e) => {
-							let _ = tx.send(e.into());
-							return
-						},
-					};
-				let round =
-					match api.storage().election_provider_multi_phase().round(Some(hash)).await {
-						Ok(r) => r,
-						Err(e) => {
-							let _ = tx.send(e.into());
-							return
-						},
-					};
-
-				log::info!(target: LOG_TARGET, "mined solution with {:?}", score);
-
-				if let Err(e) =
-					ensure_no_better_solution(&api, at.hash(), score, config.submission_strategy)
-						.await
-				{
-					log::debug!("ensure_no_better_solution failed: {:?}", e);
-					return
-				}
-
-				if let Err(e) = ensure_signed_phase(&api, hash).await {
-					log::debug!("ensure_signed_phase failed: {:?}; skipping", e);
-					return
-				}
-
-				let call = SubmitCall::new(RawSolution { solution, score, round });
-
-				subxt::SubmittableExtrinsic::<
-					_,
-					ExtrinsicParams,
-					_,
-					ModuleErrMissing,
-					NoEvents,
-				>::new(&api.client, call)
-			},
-			Chain::Westend => {
-				todo!();
-			},
-		}
+	let (voters, targets, desired_targets) = match crate::helpers::snapshot(&api, hash).await {
+		Ok(s) => s,
+		Err(e) => {
+			log::debug!("Failed to get snapshot: {:?}", e);
+			return
+		},
 	};
+
+	let (solution, score, _) = match config.solver {
+		Solver::SeqPhragmen { iterations } => {
+			//BalanceIterations::set(*iterations);
+			Miner::<M>::mine_solution_with_snapshot::<
+				SequentialPhragmen<AccountId, Perbill, Balancing>,
+			>(voters, targets, desired_targets)
+		},
+		Solver::PhragMMS { iterations } => {
+			//BalanceIterations::set(*iterations);
+			Miner::<M>::mine_solution_with_snapshot::<PhragMMS<AccountId, Perbill, Balancing>>(
+				voters,
+				targets,
+				desired_targets,
+			)
+		},
+	}
+	.unwrap();
+
+	let round = api.storage().election_provider_multi_phase().round(Some(hash)).await.unwrap();
+
+	log::info!(target: LOG_TARGET, "mined solution with {:?}", score);
+
+	if let Err(e) = ensure_no_better_solution(&api, hash, score, config.submission_strategy).await {
+		log::debug!(
+			target: LOG_TARGET,
+			"ensure_no_better_solution failed: {:?}; skipping block: {}",
+			e,
+			at.number
+		);
+		return
+	}
+
+	if let Err(e) = ensure_signed_phase(&api, hash).await {
+		log::debug!(
+			target: LOG_TARGET,
+			"ensure_signed_phase failed: {:?}; skipping block: {}",
+			e,
+			at.number
+		);
+		return
+	}
+
+	let call = SubmitCall::new(RawSolution { solution, score, round });
+
+	let xt = subxt::SubmittableExtrinsic::<_, ExtrinsicParams, _, ModuleErrMissing, NoEvents>::new(
+		&api.client,
+		call,
+	);
 
 	// This might fail with outdated nonce let it just crash if that happens.
 	let mut status_sub = xt
@@ -282,21 +262,17 @@ async fn send_and_watch_extrinsic(
 	loop {
 		let status = match status_sub.next_item().await {
 			Some(Ok(status)) => status,
-			Some(err) => {
+			Some(Err(err)) => {
 				log::error!(
 					target: LOG_TARGET,
 					"watch submit extrinsic at {:?} failed: {:?}",
-					at.number(),
+					hash,
 					err
 				);
 				return
 			},
 			None => {
-				log::error!(
-					target: LOG_TARGET,
-					"watch submit extrinsic at {:?} closed",
-					at.number(),
-				);
+				log::error!(target: LOG_TARGET, "watch submit extrinsic at {:?} closed", hash,);
 				return
 			},
 		};
@@ -319,11 +295,11 @@ async fn send_and_watch_extrinsic(
 			},
 			TransactionStatus::Finalized(hash) => {
 				log::info!(target: LOG_TARGET, "Finalized at {:?}", hash);
-				break
+				return
 			},
 			_ => {
 				log::warn!(target: LOG_TARGET, "Stopping listen due to other status {:?}", status);
-				break
+				return
 			},
 		}
 	}

@@ -28,6 +28,7 @@
 //!   development. It is intended to run this bot with a `restart = true` way, so that it reports it
 //!   crash, but resumes work thereafter.
 
+mod chains;
 mod dry_run;
 mod emergency_solution;
 mod error;
@@ -221,11 +222,35 @@ async fn main() -> Result<(), Error> {
 	let signer = signer::signer_from_string(&seed_or_path);
 
 	log::info!("Connected to chain: {}", chain);
-	let chain = FromStr::from_str(&chain).map_err(|e| Error::Other(e))?;
 
-	let outcome = match command {
-		Command::Monitor(cmd) => monitor::run_cmd(client, chain, cmd, Arc::new(signer)).await,
-		_ => todo!(),
+	let outcome = match chain.to_lowercase().as_str() {
+		// TODO: hack tremove.
+		"polkadot" | "development" => match command {
+			Command::Monitor(cfg) =>
+				monitor::run::<chains::polkadot::Config>(client, cfg, Arc::new(signer)).await,
+			Command::DryRun(cfg) => dry_run::run::<chains::polkadot::Config>(client, cfg).await,
+			Command::EmergencySolution(cfg) =>
+				emergency_solution::run::<chains::polkadot::Config>(client, cfg).await,
+		},
+		"kusama" => match command {
+			Command::Monitor(cfg) =>
+				monitor::run::<chains::kusama::Config>(client, cfg, Arc::new(signer)).await,
+			Command::DryRun(cfg) => dry_run::run::<chains::kusama::Config>(client, cfg).await,
+			Command::EmergencySolution(cfg) =>
+				emergency_solution::run::<chains::kusama::Config>(client, cfg).await,
+		},
+		"westend" => match command {
+			Command::Monitor(cfg) =>
+				monitor::run::<chains::westend::Config>(client, cfg, Arc::new(signer)).await,
+			Command::DryRun(cfg) => dry_run::run::<chains::westend::Config>(client, cfg).await,
+			Command::EmergencySolution(cfg) =>
+				emergency_solution::run::<chains::westend::Config>(client, cfg).await,
+		},
+		other =>
+			return Err(Error::Other(format!(
+				"expected chain to be polkadot, kusama or westend; got: {}",
+				other
+			))),
 	};
 
 	log::info!(target: LOG_TARGET, "round of execution finished. outcome = {:?}", outcome);

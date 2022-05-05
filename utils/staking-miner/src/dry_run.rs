@@ -15,3 +15,14 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The dry-run command.
+
+use crate::{error::Error, prelude::*, DryRunConfig};
+
+pub(crate) async fn run<M>(client: SubxtClient, cfg: DryRunConfig) -> Result<(), Error>
+where
+	M: MinerConfig<AccountId = AccountId, MaxVotesPerVoter = crate::chains::MinerMaxVotesPerVoter>
+		+ 'static,
+	<M as MinerConfig>::Solution: Send + Sync,
+{
+	todo!();
+}

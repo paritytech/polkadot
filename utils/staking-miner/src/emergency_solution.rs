@@ -16,7 +16,7 @@
 
 //! The emergency-solution command.
 
-use crate::{prelude::*, DryRunConfig};
+use crate::{prelude::*, EmergencySolutionConfig};
 
 /// Forcefully create the snapshot. This can be used to compute the election at anytime.
 fn force_create_snapshot(client: &SubxtClient) -> Result<(), Error> {
@@ -29,15 +29,14 @@ fn find_threshold(count: usize) {
 	todo!();
 }
 
-async fn run_cmd(client: SubxtClient, config: DryRunConfig, signer: Signer) -> Result<(), Error> {
-	let api: RuntimeApi = client.to_runtime_api();
-
+pub(crate) async fn run<M>(
+	client: SubxtClient,
+	config: EmergencySolutionConfig,
+) -> Result<(), Error>
+where
+	M: MinerConfig<AccountId = AccountId, MaxVotesPerVoter = crate::chains::MinerMaxVotesPerVoter>
+		+ 'static,
+	<M as MinerConfig>::Solution: Send + Sync,
+{
 	todo!();
-
-	/*let dry_run_fut = rpc.dry_run(&bytes, None);
-	let outcome: sp_runtime::ApplyExtrinsicResult = await_request_and_decode(dry_run_fut)
-		.await
-		.map_err::<Error<Runtime>, _>(Into::into)?;
-	log::info!(target: LOG_TARGET, "dry-run outcome is {:?}", outcome);*/
-	Ok(())
 }
