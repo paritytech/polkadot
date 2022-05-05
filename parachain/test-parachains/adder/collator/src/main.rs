@@ -70,6 +70,7 @@ fn main() -> Result<()> {
 							None,
 							false,
 							polkadot_service::RealOverseerGen,
+							cli.run.overseer_channel_capacity_override,
 							None,
 						)
 						.map_err(|e| e.to_string())?;

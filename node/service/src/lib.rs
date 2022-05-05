@@ -1326,6 +1326,7 @@ pub fn build_full(
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	overseer_enable_anyways: bool,
 	overseer_gen: impl OverseerGen,
+	overseer_channel_capacity_override: Option<usize>,
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]

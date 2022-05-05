@@ -331,6 +331,7 @@ where
 				jaeger_agent,
 				None,
 				false,
+				cli.run.overseer_channel_capacity_override,
 				overseer_gen,
 				hwbench,
 			)

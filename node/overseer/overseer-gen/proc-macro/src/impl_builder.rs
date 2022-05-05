@@ -452,7 +452,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	});
 
 	// message and signal channel capacity
-	ts.extend(quote!{
+	ts.extend(quote! {
 		impl<S, #( #subsystem_passthrough_state_generics, )* #( #baggage_passthrough_state_generics, )*>
 			#builder<S, #( #subsystem_passthrough_state_generics, )* #( #baggage_passthrough_state_generics, )*>
 		where
