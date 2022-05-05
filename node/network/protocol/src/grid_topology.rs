@@ -142,6 +142,45 @@ impl SessionGridTopologies {
 		}
 	}
 }
+
+/// A simple storage for a topology and the corresponding session index
+#[derive(Default, Debug)]
+pub struct GridTopologySessionBound(SessionGridTopology, SessionIndex);
+
+/// A storage for the current and maybe previous topology
+#[derive(Default, Debug)]
+pub struct SessionBoundGridTopologyStorage {
+	current_topology: GridTopologySessionBound,
+	prev_topology: Option<GridTopologySessionBound>,
+}
+
+impl SessionBoundGridTopologyStorage {
+	/// Return a grid topology based on the session index:
+	/// If we need a previous session and it is registered in the storage, then return that session.
+	/// Otherwise, return a current session to have some grid topology in any case
+	pub fn get_topology(&self, idx: SessionIndex) -> &SessionGridTopology {
+		if let Some(prev_topology) = &self.prev_topology {
+			if idx == prev_topology.1 {
+				return &prev_topology.0
+			}
+		}
+		// Return the current topology by default
+		&self.current_topology.0
+	}
+
+	/// Update the current topology preserving the previous one
+	pub fn update_topology(&mut self, idx: SessionIndex, topology: SessionGridTopology) {
+		let old_current =
+			std::mem::replace(&mut self.current_topology, GridTopologySessionBound(topology, idx));
+		self.prev_topology.replace(old_current);
+	}
+
+	/// Returns a current grid topology
+	pub fn get_current_topology(&self) -> &SessionGridTopology {
+		&self.current_topology.0
+	}
+}
+
 /// A representation of routing based on sample
 #[derive(Debug, Clone, Copy)]
 pub struct RandomRouting {
