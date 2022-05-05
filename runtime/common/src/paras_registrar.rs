@@ -255,7 +255,7 @@ pub mod pallet {
 		/// The caller must be Root, the `para` owner, or the `para` itself. The para must be a parathread.
 		#[pallet::weight(<T as Config>::WeightInfo::deregister())]
 		pub fn deregister(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
-			Self::ensure_root_para_or_owner(origin, id, false)?;
+			Self::ensure_root_para_or_owner(origin, id)?;
 			Self::do_deregister(id)
 		}
 
@@ -272,7 +272,7 @@ pub mod pallet {
 		/// and the auction deposit are switched.
 		#[pallet::weight(<T as Config>::WeightInfo::swap())]
 		pub fn swap(origin: OriginFor<T>, id: ParaId, other: ParaId) -> DispatchResult {
-			Self::ensure_root_para_or_owner(origin, id, false)?;
+			Self::ensure_root_para_or_owner(origin, id)?;
 
 			// If `id` and `other` is the same id, we treat this as a "clear" function, and exit
 			// early, since swapping the same id would otherwise be a noop.
@@ -318,11 +318,11 @@ pub mod pallet {
 		/// Remove a manager lock from a para. This will allow the manager of a
 		/// previously locked para to deregister or swap a para without using governance.
 		///
-		/// Can only be called by the Root origin.
+		/// Can only be called by the Root origin or the parachain.
 		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
-		pub fn force_remove_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::remove_lock(para);
+		pub fn remove_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
+			Self::ensure_root_or_para(origin, para)?;
+			<Self as Registrar>::remove_lock(para);
 			Ok(())
 		}
 
@@ -346,6 +346,17 @@ pub mod pallet {
 			let id = NextFreeParaId::<T>::get().max(LOWEST_PUBLIC_ID);
 			Self::do_reserve(who, None, id)?;
 			NextFreeParaId::<T>::set(id + 1);
+			Ok(())
+		}
+
+		/// Add a manager lock from a para. This will prevent the manager of a
+		/// para to deregister or swap a para.
+		///
+		/// Can only be called by the owner, Root, or the parachain.
+		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
+		pub fn add_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
+			Self::ensure_root_para_or_owner(origin, para)?;
+			<Self as Registrar>::apply_lock(para);
 			Ok(())
 		}
 	}
@@ -379,7 +390,7 @@ impl<T: Config> Registrar for Pallet<T> {
 		Paras::<T>::mutate(id, |x| x.as_mut().map(|mut info| info.locked = true));
 	}
 
-	// Apply a lock to the parachain.
+	// Remove a lock from the parachain.
 	fn remove_lock(id: ParaId) {
 		Paras::<T>::mutate(id, |x| x.as_mut().map(|mut info| info.locked = false));
 	}
@@ -411,9 +422,6 @@ impl<T: Config> Registrar for Pallet<T> {
 		);
 		runtime_parachains::schedule_parathread_upgrade::<T>(id)
 			.map_err(|_| Error::<T>::CannotUpgrade)?;
-		// Once a para has upgraded to a parachain, it can no longer be managed by the owner.
-		// Intentionally, the flag stays with the para even after downgrade.
-		Self::apply_lock(id);
 		Ok(())
 	}
 
@@ -458,26 +466,30 @@ impl<T: Config> Pallet<T> {
 	fn ensure_root_para_or_owner(
 		origin: <T as frame_system::Config>::Origin,
 		id: ParaId,
-		check_lock: bool,
 	) -> DispatchResult {
 		ensure_signed(origin.clone())
 			.map_err(|e| e.into())
 			.and_then(|who| -> DispatchResult {
 				let para_info = Paras::<T>::get(id).ok_or(Error::<T>::NotRegistered)?;
-				ensure!(!(check_lock && para_info.locked), Error::<T>::ParaLocked);
+				ensure!(!para_info.locked, Error::<T>::ParaLocked);
 				ensure!(para_info.manager == who, Error::<T>::NotOwner);
 				Ok(())
 			})
-			.or_else(|_| -> DispatchResult {
-				// Else check if para origin...
-				let caller_id = ensure_parachain(<T as Config>::Origin::from(origin.clone()))?;
-				ensure!(caller_id == id, Error::<T>::NotOwner);
-				Ok(())
-			})
-			.or_else(|_| -> DispatchResult {
-				// Check if root...
-				ensure_root(origin.clone()).map_err(|e| e.into())
-			})
+			.or_else(|_| -> DispatchResult { Self::ensure_root_or_para(origin, id) })
+	}
+
+	fn ensure_root_or_para(
+		origin: <T as frame_system::Config>::Origin,
+		id: ParaId,
+	) -> DispatchResult {
+		if let Ok(caller_id) = ensure_parachain(<T as Config>::Origin::from(origin.clone())) {
+			// Check if matching para id...
+			ensure!(caller_id == id, Error::<T>::NotOwner);
+		} else {
+			// Check if root...
+			ensure_root(origin.clone())?;
+		}
+		Ok(())
 	}
 
 	fn do_reserve(
@@ -1085,18 +1097,20 @@ mod tests {
 				vec![1, 2, 3].into(),
 			));
 
-			// 2 session changes to fully onboard.
-			run_to_session(2);
-			assert_eq!(Parachains::lifecycle(para_id), Some(ParaLifecycle::Parathread));
-
+			assert_noop!(Registrar::add_lock(Origin::signed(2), para_id), BadOrigin);
 			// Once they begin onboarding, we lock them in.
-			assert_ok!(Registrar::make_parachain(para_id));
-
+			assert_ok!(Registrar::add_lock(Origin::signed(1), para_id));
 			// Owner cannot pass origin check when checking lock
 			assert_noop!(
-				Registrar::ensure_root_para_or_owner(Origin::signed(1), para_id, true),
+				Registrar::ensure_root_para_or_owner(Origin::signed(1), para_id),
 				BadOrigin
 			);
+			// Owner cannot remove lock.
+			assert_noop!(Registrar::remove_lock(Origin::signed(1), para_id), BadOrigin);
+			// Para can.
+			assert_ok!(Registrar::remove_lock(para_origin(para_id), para_id));
+			// Owner can pass origin check again
+			assert_ok!(Registrar::ensure_root_para_or_owner(Origin::signed(1), para_id));
 		});
 	}
 
