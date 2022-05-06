@@ -19,7 +19,7 @@ parity-util-mem = { version = "0.11.0", default-features = false, features = ["j
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
-nix = "0.23.1"
+nix = "0.24.1"
 tempfile = "3.2.0"
 tokio = "1.18.1"
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -203,6 +203,7 @@ try-runtime = [ "polkadot-cli/try-runtime" ]
 fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
+staging-client = ["polkadot-cli/staging-client"]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]

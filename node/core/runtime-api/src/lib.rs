@@ -169,6 +169,8 @@ where
 				.cache_validation_code_hash((relay_parent, para_id, assumption), hash),
 			Version(relay_parent, version) =>
 				self.requests_cache.cache_version(relay_parent, version),
+			StagingDisputes(relay_parent, disputes) =>
+				self.requests_cache.cache_disputes(relay_parent, disputes),
 		}
 	}
 
@@ -270,6 +272,8 @@ where
 			Request::ValidationCodeHash(para, assumption, sender) =>
 				query!(validation_code_hash(para, assumption), sender)
 					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
+			Request::StagingDisputes(sender) =>
+				query!(disputes(), sender).map(|sender| Request::StagingDisputes(sender)),
 		}
 	}
 
@@ -526,5 +530,7 @@ where
 		},
 		Request::ValidationCodeHash(para, assumption, sender) =>
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
+		Request::StagingDisputes(sender) =>
+			query!(StagingDisputes, staging_get_disputes(), ver = 2, sender),
 	}
 }
