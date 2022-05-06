@@ -1441,8 +1441,8 @@ impl OnRuntimeUpgrade for InitiatePoolConfigs {
 
 			// 128 initial pools: only for initial safety: can be set to infinity when needed.
 			pallet_nomination_pools::MaxPools::<Runtime>::put(128);
-			// 16k total pool members: only for initial safety: can be set to infinity when needed.
-			pallet_nomination_pools::MaxPoolMembers::<Runtime>::put(16 * 1024);
+			// 64k total pool members: only for initial safety: can be set to infinity when needed.
+			pallet_nomination_pools::MaxPoolMembers::<Runtime>::put(64 * 1024);
 			// 1024 members per pool: only for initial safety: can be set to infinity when needed.
 			pallet_nomination_pools::MaxPoolMembersPerPool::<Runtime>::put(1024);
 
