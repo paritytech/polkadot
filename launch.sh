@@ -83,6 +83,7 @@ for ((chain_idx=0;chain_idx<CHAIN_NUM;chain_idx++)); do
         $BIN --tmp \
             --validator \
             --rpc-cors=all --unsafe-rpc-external --unsafe-ws-external \
+            --rpc-methods=unsafe \
             --no-hardware-benchmarks \
             --$validator \
             --force-authoring \
