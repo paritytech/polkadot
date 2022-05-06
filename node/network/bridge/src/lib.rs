@@ -38,12 +38,11 @@ use polkadot_node_subsystem::{
 	errors::{SubsystemError, SubsystemResult},
 	messages::{
 		network_bridge_event::{NewGossipTopology, TopologyPeerInfo},
-		AllMessages, ApprovalDistributionMessage, BitfieldDistributionMessage,
-		CollatorProtocolMessage, GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage,
+		ApprovalDistributionMessage, BitfieldDistributionMessage, CollatorProtocolMessage,
+		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage,
 		StatementDistributionMessage,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemSender,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_overseer::gen::{OverseerError, Subsystem};
@@ -1056,22 +1055,24 @@ async fn dispatch_collation_event_to_all(
 	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
 }
 
-
 fn dispatch_validation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
 	sender: &mut impl overseer::NetworkBridgeSenderTrait,
 ) {
-	event.focus()
+	event
+		.focus()
 		.ok()
 		.map(ApprovalDistributionMessage::from)
 		.and_then(|msg| Some(sender.send_unbounded_message(msg)));
 
-	event.focus()
+	event
+		.focus()
 		.ok()
 		.map(BitfieldDistributionMessage::from)
 		.and_then(|msg| Some(sender.send_unbounded_message(msg)));
 
-	event.focus()
+	event
+		.focus()
 		.ok()
 		.map(StatementDistributionMessage::from)
 		.and_then(|msg| Some(sender.send_unbounded_message(msg)));
@@ -1096,7 +1097,8 @@ async fn dispatch_validation_events_to_all<I>(
 	for event in events {
 		sender.send_messages(event.focus().map(GossipSupportMessage::from)).await;
 		sender.send_messages(event.focus().map(BitfieldDistributionMessage::from)).await;
-		sender.send_messages(event.focus().map(StatementDistributionMessage::from))
+		sender
+			.send_messages(event.focus().map(StatementDistributionMessage::from))
 			.await;
 		sender.send_messages(event.focus().map(ApprovalDistributionMessage::from)).await;
 	}

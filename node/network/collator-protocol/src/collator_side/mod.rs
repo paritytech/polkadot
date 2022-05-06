@@ -41,7 +41,7 @@ use polkadot_node_subsystem::{
 	messages::{
 		CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage, RuntimeApiMessage,
 	},
-	overseer, FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext,
+	overseer, FromOverseer, OverseerSignal, PerLeafSpan,
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
@@ -371,8 +371,7 @@ async fn distribute_collation<Context>(
 	receipt: CandidateReceipt,
 	pov: PoV,
 	result_sender: Option<oneshot::Sender<CollationSecondedSignal>>,
-) -> Result<()>
-{
+) -> Result<()> {
 	let relay_parent = receipt.descriptor.relay_parent;
 
 	// This collation is not in the active-leaves set.
@@ -496,8 +495,7 @@ async fn determine_our_validators<Context>(
 	core_index: CoreIndex,
 	cores: usize,
 	relay_parent: Hash,
-) -> Result<GroupValidators>
-{
+) -> Result<GroupValidators> {
 	let session_index = runtime.get_session_index_for_child(ctx.sender(), relay_parent).await?;
 	let info = &runtime
 		.get_session_info_by_index(ctx.sender(), relay_parent, session_index)
@@ -525,8 +523,7 @@ async fn determine_our_validators<Context>(
 
 /// Issue a `Declare` collation message to the given `peer`.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
-async fn declare<Context>(ctx: &mut Context, state: &mut State, peer: PeerId)
-{
+async fn declare<Context>(ctx: &mut Context, state: &mut State, peer: PeerId) {
 	let declare_signature_payload = protocol_v1::declare_signature_payload(&state.local_peer_id);
 
 	if let Some(para_id) = state.collating_on {
@@ -547,8 +544,10 @@ async fn declare<Context>(ctx: &mut Context, state: &mut State, peer: PeerId)
 /// Issue a connection request to a set of validators and
 /// revoke the previous connection request.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
-async fn connect_to_validators<Context>(ctx: &mut Context, validator_ids: Vec<AuthorityDiscoveryId>)
-{
+async fn connect_to_validators<Context>(
+	ctx: &mut Context,
+	validator_ids: Vec<AuthorityDiscoveryId>,
+) {
 	// ignore address resolution failure
 	// will reissue a new request on new collation
 	let (failed, _) = oneshot::channel();
@@ -570,8 +569,7 @@ async fn advertise_collation<Context>(
 	state: &mut State,
 	relay_parent: Hash,
 	peer: PeerId,
-)
-{
+) {
 	let should_advertise = state
 		.our_validators_groups
 		.get(&relay_parent)
@@ -630,8 +628,7 @@ async fn process_msg<Context>(
 	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	msg: CollatorProtocolMessage,
-) -> Result<()>
-{
+) -> Result<()> {
 	use CollatorProtocolMessage::*;
 
 	match msg {
@@ -742,8 +739,7 @@ async fn handle_incoming_peer_message<Context>(
 	state: &mut State,
 	origin: PeerId,
 	msg: protocol_v1::CollatorProtocolMessage,
-) -> Result<()>
-{
+) -> Result<()> {
 	use protocol_v1::CollatorProtocolMessage::*;
 
 	match msg {
@@ -821,8 +817,7 @@ async fn handle_incoming_request<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	req: IncomingRequest<request_v1::CollationFetchingRequest>,
-) -> Result<()>
-{
+) -> Result<()> {
 	let _span = state
 		.span_per_relay_parent
 		.get(&req.payload.relay_parent)
@@ -896,8 +891,7 @@ async fn handle_peer_view_change<Context>(
 	state: &mut State,
 	peer_id: PeerId,
 	view: View,
-)
-{
+) {
 	let current = state.peer_views.entry(peer_id.clone()).or_default();
 
 	let added: Vec<Hash> = view.difference(&*current).cloned().collect();
@@ -916,8 +910,7 @@ async fn handle_network_msg<Context>(
 	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	bridge_message: NetworkBridgeEvent<net_protocol::CollatorProtocolMessage>,
-) -> Result<()>
-{
+) -> Result<()> {
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
@@ -1008,8 +1001,7 @@ pub(crate) async fn run<Context>(
 	collator_pair: CollatorPair,
 	mut req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
 	metrics: Metrics,
-) -> std::result::Result<(), FatalError>
-{
+) -> std::result::Result<(), FatalError> {
 	use OverseerSignal::*;
 
 	let mut state = State::new(local_peer_id, collator_pair, metrics);

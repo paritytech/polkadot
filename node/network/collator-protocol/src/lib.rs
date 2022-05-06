@@ -36,7 +36,7 @@ use polkadot_primitives::v2::CollatorPair;
 use polkadot_node_subsystem::{
 	errors::SubsystemError,
 	messages::{CollatorProtocolMessage, NetworkBridgeMessage},
-	overseer, SpawnedSubsystem, SubsystemContext, SubsystemSender,
+	overseer, SpawnedSubsystem, SubsystemSender,
 };
 
 mod error;
@@ -99,8 +99,7 @@ impl CollatorProtocolSubsystem {
 		Self { protocol_side }
 	}
 
-	async fn run<Context>(self, ctx: Context) -> std::result::Result<(), error::FatalError>
-	{
+	async fn run<Context>(self, ctx: Context) -> std::result::Result<(), error::FatalError> {
 		match self.protocol_side {
 			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
 				validator_side::run(ctx, keystore, eviction_policy, metrics).await,
@@ -123,8 +122,11 @@ impl<Context> CollatorProtocolSubsystem {
 }
 
 /// Modify the reputation of a peer based on its behavior.
-async fn modify_reputation(sender: &mut impl overseer::CollatorProtocolSenderTrait, peer: PeerId, rep: Rep)
-{
+async fn modify_reputation(
+	sender: &mut impl overseer::CollatorProtocolSenderTrait,
+	peer: PeerId,
+	rep: Rep,
+) {
 	gum::trace!(
 		target: LOG_TARGET,
 		rep = ?rep,

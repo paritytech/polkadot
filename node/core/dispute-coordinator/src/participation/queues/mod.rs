@@ -20,7 +20,7 @@ use std::{
 };
 
 use futures::channel::oneshot;
-use polkadot_node_subsystem::{messages::ChainApiMessage, overseer, SubsystemSender};
+use polkadot_node_subsystem::{messages::ChainApiMessage, overseer};
 use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
 
 use crate::{

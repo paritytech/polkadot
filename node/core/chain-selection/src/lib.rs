@@ -21,7 +21,7 @@ use polkadot_node_subsystem::{
 	errors::ChainApiError,
 	messages::{ChainApiMessage, ChainSelectionMessage},
 	overseer::{self, SubsystemSender},
-	FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
+	FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::database::Database;
 use polkadot_primitives::v2::{BlockNumber, ConsensusLog, Hash, Header};

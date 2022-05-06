@@ -32,8 +32,7 @@ use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW};
 use polkadot_node_subsystem::{
-	overseer, ActivatedLeaf, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError,
+	overseer, ActivatedLeaf, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
 	database::Database, rolling_session_window::RollingSessionWindow,

@@ -41,7 +41,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::DISPUTE_WINDOW;
 use polkadot_node_subsystem::{
 	messages::{DisputeCoordinatorMessage, ImportStatementsResult},
-	overseer, SubsystemSender,
+	overseer,
 };
 use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 

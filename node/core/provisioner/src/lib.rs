@@ -32,7 +32,7 @@ use polkadot_node_subsystem::{
 		CandidateBackingMessage, ChainApiMessage, DisputeCoordinatorMessage, ProvisionableData,
 		ProvisionerInherentData, ProvisionerMessage,
 	},
-	overseer, ActivatedLeaf, LeafStatus, PerLeafSpan, SubsystemSender,
+	overseer, ActivatedLeaf, LeafStatus, PerLeafSpan,
 };
 use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data, JobSender, JobSubsystem,

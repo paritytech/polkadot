@@ -34,7 +34,7 @@ use futures::{
 
 use polkadot_node_subsystem::{
 	messages::{ChainApiMessage, RuntimeApiMessage},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SubsystemContext,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_util::runtime::{get_occupied_cores, RuntimeInfo};
 use polkadot_primitives::v2::{CandidateHash, Hash, OccupiedCore, SessionIndex};

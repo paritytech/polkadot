@@ -27,11 +27,9 @@ use std::{future::Future, pin::Pin};
 /// Filter incoming and outgoing messages.
 pub trait MessageInterceptor<Sender>: Send + Sync + Clone + 'static
 where
-	Sender:
-		overseer::SubsystemSender<
-			<Self::Message as overseer::AssociateOutgoing>::OutgoingMessages
-		>
-		+ Clone + 'static,
+	Sender: overseer::SubsystemSender<<Self::Message as overseer::AssociateOutgoing>::OutgoingMessages>
+		+ Clone
+		+ 'static,
 {
 	/// The message type the original subsystem handles incoming.
 	type Message: overseer::AssociateOutgoing + Send + 'static;
@@ -50,7 +48,10 @@ where
 	}
 
 	/// Modify outgoing messages.
-	fn intercept_outgoing(&self, msg: <Self::Message as overseer::AssociateOutgoing>::OutgoingMessages) -> Option<<Self::Message as overseer::AssociateOutgoing>::OutgoingMessages> {
+	fn intercept_outgoing(
+		&self,
+		msg: <Self::Message as overseer::AssociateOutgoing>::OutgoingMessages,
+	) -> Option<<Self::Message as overseer::AssociateOutgoing>::OutgoingMessages> {
 		Some(msg)
 	}
 }

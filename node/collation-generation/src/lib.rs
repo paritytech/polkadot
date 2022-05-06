@@ -24,7 +24,7 @@ use polkadot_node_primitives::{AvailableData, CollationGenerationConfig, PoV};
 use polkadot_node_subsystem::{
 	messages::{CollationGenerationMessage, CollatorProtocolMessage},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError, SubsystemResult, SubsystemSender,
+	SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data, request_validation_code,
@@ -72,8 +72,7 @@ impl CollationGenerationSubsystem {
 	///
 	/// If `err_tx` is not `None`, errors are forwarded onto that channel as they occur.
 	/// Otherwise, most are logged and then discarded.
-	async fn run<Context>(mut self, mut ctx: Context)
-	{
+	async fn run<Context>(mut self, mut ctx: Context) {
 		// when we activate new leaves, we spawn a bunch of sub-tasks, each of which is
 		// expected to generate precisely one message. We don't want to block the main loop
 		// at any point waiting for them all, so instead, we create a channel on which they can
@@ -107,8 +106,7 @@ impl CollationGenerationSubsystem {
 		incoming: SubsystemResult<FromOverseer<<Context as SubsystemContext>::Message>>,
 		ctx: &mut Context,
 		sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
-	) -> bool
-	{
+	) -> bool {
 		match incoming {
 			Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				activated,
@@ -177,8 +175,7 @@ async fn handle_new_activations<Context>(
 	ctx: &mut Context,
 	metrics: Metrics,
 	sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
-) -> crate::error::Result<()>
-{
+) -> crate::error::Result<()> {
 	// follow the procedure from the guide:
 	// https://w3f.github.io/parachain-implementers-guide/node/collators/collation-generation.html
 

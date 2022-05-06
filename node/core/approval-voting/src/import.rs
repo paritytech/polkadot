@@ -38,7 +38,7 @@ use polkadot_node_subsystem::{
 		ApprovalDistributionMessage, ChainApiMessage, ChainSelectionMessage, RuntimeApiMessage,
 		RuntimeApiRequest,
 	},
-	overseer, RuntimeApiError, SubsystemContext, SubsystemError, SubsystemResult,
+	overseer, RuntimeApiError, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{
 	determine_new_blocks,
@@ -46,7 +46,7 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, ConsensusLog, CoreIndex,
-	GroupIndex, Hash, Header, Id as ParaId, SessionIndex,
+	GroupIndex, Hash, Header, SessionIndex,
 };
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::Slot;

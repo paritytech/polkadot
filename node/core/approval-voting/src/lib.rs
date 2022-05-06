@@ -37,9 +37,8 @@ use polkadot_node_subsystem::{
 		ChainSelectionMessage, DisputeCoordinatorMessage, HighestApprovedAncestorBlock,
 		RuntimeApiMessage, RuntimeApiRequest,
 	},
-	overseer::{self, SubsystemSender as _},
-	FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
-	SubsystemResult, SubsystemSender,
+	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
+	SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
 	database::Database,
@@ -613,14 +612,8 @@ impl State {
 		match session_window {
 			None => {
 				let sender = ctx.sender().clone();
-				self.session_window = Some(
-					RollingSessionWindow::new(
-						sender,
-						APPROVAL_SESSIONS,
-						head,
-					)
-					.await?,
-				);
+				self.session_window =
+					Some(RollingSessionWindow::new(sender, APPROVAL_SESSIONS, head).await?);
 				Ok(None)
 			},
 			Some(mut session_window) => {

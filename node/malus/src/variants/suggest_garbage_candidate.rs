@@ -71,10 +71,7 @@ struct NoteCandidate<Spawner> {
 
 impl<Sender, Spawner> MessageInterceptor<Sender> for NoteCandidate<Spawner>
 where
-	Sender: overseer::CandidateBackingSenderTrait
-		+ Clone
-		+ Send
-		+ 'static,
+	Sender: overseer::CandidateBackingSenderTrait + Clone + Send + 'static,
 	Spawner: SpawnNamed + Clone + 'static,
 {
 	type Message = CandidateBackingMessage;
@@ -218,20 +215,21 @@ where
 		}
 	}
 
-	fn intercept_outgoing(&self, msg: overseer::CandidateBackingOutgoingMessages) -> Option<overseer::CandidateBackingOutgoingMessages> {
+	fn intercept_outgoing(
+		&self,
+		msg: overseer::CandidateBackingOutgoingMessages,
+	) -> Option<overseer::CandidateBackingOutgoingMessages> {
 		let msg = match msg {
-			overseer::CandidateBackingOutgoingMessages::CollatorProtocol(CollatorProtocolMessage::Seconded(
-				relay_parent,
-				statement,
-			)) => {
+			overseer::CandidateBackingOutgoingMessages::CollatorProtocol(
+				CollatorProtocolMessage::Seconded(relay_parent, statement),
+			) => {
 				// `parachain::collator-protocol: received an unexpected `CollationSeconded`: unknown statement statement=...`
 				// TODO: Fix this error. We get this on colaltors because `malicious backing` creates a candidate that gets backed/included.
 				// It is harmless for test parachain collators, but it will prevent cumulus based collators to make progress
 				// as they wait for the relay chain to confirm the seconding of the collation.
-				overseer::CandidateBackingOutgoingMessages::CollatorProtocol(CollatorProtocolMessage::Seconded(
-					relay_parent,
-					statement,
-				))
+				overseer::CandidateBackingOutgoingMessages::CollatorProtocol(
+					CollatorProtocolMessage::Seconded(relay_parent, statement),
+				)
 			},
 			msg => msg,
 		};

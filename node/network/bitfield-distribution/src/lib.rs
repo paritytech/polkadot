@@ -31,7 +31,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_subsystem::{
 	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
-	SpawnedSubsystem, SubsystemContext, SubsystemError, SubsystemResult,
+	SpawnedSubsystem, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{self as util};
 use polkadot_primitives::v2::{
@@ -310,7 +310,12 @@ impl BitfieldDistribution {
 }
 
 /// Modify the reputation of a peer based on its behavior.
-async fn modify_reputation(sender: &mut impl overseer::BitfieldDistributionSenderTrait, relay_parent: Hash, peer: PeerId, rep: Rep) {
+async fn modify_reputation(
+	sender: &mut impl overseer::BitfieldDistributionSenderTrait,
+	relay_parent: Hash,
+	peer: PeerId,
+	rep: Rep,
+) {
 	gum::trace!(target: LOG_TARGET, ?relay_parent, ?rep, %peer, "reputation change");
 
 	sender.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await

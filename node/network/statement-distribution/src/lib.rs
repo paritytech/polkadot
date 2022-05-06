@@ -42,7 +42,7 @@ use polkadot_node_subsystem::{
 		StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
-	SubsystemContext, SubsystemError,
+	SubsystemError,
 };
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
@@ -1158,7 +1158,11 @@ async fn send_statements<Context>(
 	}
 }
 
-async fn report_peer(sender: &mut impl overseer::StatementDistributionSenderTrait, peer: PeerId, rep: Rep) {
+async fn report_peer(
+	sender: &mut impl overseer::StatementDistributionSenderTrait,
+	peer: PeerId,
+	rep: Rep,
+) {
 	sender.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
 }
 

@@ -33,7 +33,7 @@ use polkadot_node_network_protocol::request_response::{incoming::IncomingRequest
 use polkadot_node_primitives::DISPUTE_WINDOW;
 use polkadot_node_subsystem::{
 	messages::DisputeDistributionMessage, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemError,
+	SubsystemError,
 };
 use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 
