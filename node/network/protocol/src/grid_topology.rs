@@ -60,15 +60,37 @@ pub struct SessionGridTopology {
 }
 
 impl SessionGridTopology {
-	/// Given the originator of a message, indicates the part of the topology
+	/// Given the originator of a message as a validator index, indicates the part of the topology
 	/// we're meant to send the message to.
-	pub fn required_routing_for(&self, originator: ValidatorIndex, local: bool) -> RequiredRouting {
+	pub fn required_routing_for_validator(
+		&self,
+		originator: ValidatorIndex,
+		local: bool,
+	) -> RequiredRouting {
 		if local {
 			return RequiredRouting::GridXY
 		}
 
 		let grid_x = self.validator_indices_x.contains(&originator);
 		let grid_y = self.validator_indices_y.contains(&originator);
+
+		match (grid_x, grid_y) {
+			(false, false) => RequiredRouting::None,
+			(true, false) => RequiredRouting::GridY, // messages from X go to Y
+			(false, true) => RequiredRouting::GridX, // messages from Y go to X
+			(true, true) => RequiredRouting::GridXY, // if the grid works as expected, this shouldn't happen.
+		}
+	}
+
+	/// Given the originator of a message as a peer index, indicates the part of the topology
+	/// we're meant to send the message to.
+	pub fn required_routing_for_peer(&self, originator: PeerId, local: bool) -> RequiredRouting {
+		if local {
+			return RequiredRouting::GridXY
+		}
+
+		let grid_x = self.peers_x.contains(&originator);
+		let grid_y = self.peers_y.contains(&originator);
 
 		match (grid_x, grid_y) {
 			(false, false) => RequiredRouting::None,
