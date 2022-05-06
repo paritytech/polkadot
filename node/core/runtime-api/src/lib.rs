@@ -275,6 +275,7 @@ where
 		let metrics = self.metrics.clone();
 		let (sender, receiver) = oneshot::channel();
 
+		gum::debug!(target: LOG_TARGET, "Runtime API call was requested: {:?}", request);
 		let request = match self.query_cache(relay_parent.clone(), request) {
 			Some(request) => request,
 			None => return,

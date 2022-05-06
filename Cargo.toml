@@ -299,6 +299,7 @@ sp-transaction-pool ={path = "/Users/skunert/work/repos/substrate/primitives/tra
 substrate-test-runtime-transaction-pool ={path = "/Users/skunert/work/repos/substrate/test-utils/runtime/transaction-pool" }
 sc-rpc ={path = "/Users/skunert/work/repos/substrate/client/rpc" }
 sc-rpc-api ={path = "/Users/skunert/work/repos/substrate/client/rpc-api" }
+sc-sysinfo ={path = "/Users/skunert/work/repos/substrate/client/sysinfo" }
 sp-block-builder ={path = "/Users/skunert/work/repos/substrate/primitives/block-builder" }
 sp-transaction-storage-proof ={path = "/Users/skunert/work/repos/substrate/primitives/transaction-storage-proof" }
 pallet-balances ={path = "/Users/skunert/work/repos/substrate/frame/balances" }
@@ -357,6 +358,7 @@ pallet-scheduler ={path = "/Users/skunert/work/repos/substrate/frame/scheduler" 
 pallet-preimage ={path = "/Users/skunert/work/repos/substrate/frame/preimage" }
 pallet-democracy ={path = "/Users/skunert/work/repos/substrate/frame/democracy" }
 pallet-election-provider-multi-phase ={path = "/Users/skunert/work/repos/substrate/frame/election-provider-multi-phase" }
+pallet-election-provider-support-benchmarking ={path = "/Users/skunert/work/repos/substrate/frame/election-provider-support/benchmarking" }
 pallet-gilt ={path = "/Users/skunert/work/repos/substrate/frame/gilt" }
 pallet-identity ={path = "/Users/skunert/work/repos/substrate/frame/identity" }
 pallet-im-online ={path = "/Users/skunert/work/repos/substrate/frame/im-online" }
@@ -366,12 +368,13 @@ frame-support-test ={path = "/Users/skunert/work/repos/substrate/frame/support/t
 frame-support-test-pallet ={path = "/Users/skunert/work/repos/substrate/frame/support/test/pallet" }
 pallet-membership ={path = "/Users/skunert/work/repos/substrate/frame/membership" }
 pallet-mmr ={path = "/Users/skunert/work/repos/substrate/frame/merkle-mountain-range" }
-pallet-mmr-primitives ={path = "/Users/skunert/work/repos/substrate/frame/merkle-mountain-range/primitives" }
+sp-mmr-primitives ={path = "/Users/skunert/work/repos/substrate/primitives/merkle-mountain-range" }
 pallet-multisig ={path = "/Users/skunert/work/repos/substrate/frame/multisig" }
 pallet-offences-benchmarking ={path = "/Users/skunert/work/repos/substrate/frame/offences/benchmarking" }
 pallet-proxy ={path = "/Users/skunert/work/repos/substrate/frame/proxy" }
 pallet-recovery ={path = "/Users/skunert/work/repos/substrate/frame/recovery" }
 pallet-referenda ={path = "/Users/skunert/work/repos/substrate/frame/referenda" }
+pallet-remark ={path = "/Users/skunert/work/repos/substrate/frame/remark" }
 pallet-session-benchmarking ={path = "/Users/skunert/work/repos/substrate/frame/session/benchmarking" }
 pallet-society ={path = "/Users/skunert/work/repos/substrate/frame/society" }
 pallet-state-trie-migration ={path = "/Users/skunert/work/repos/substrate/frame/state-trie-migration" }
