@@ -1595,10 +1595,11 @@ fn check_and_import_assignment(
 		);
 
 		let tranche = match res {
-			Err(crate::criteria::InvalidAssignment) =>
+			Err(crate::criteria::InvalidAssignment(reason)) =>
 				return Ok((
 					AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCert(
 						assignment.validator,
+						format!("{:?}", reason),
 					)),
 					Vec::new(),
 				)),

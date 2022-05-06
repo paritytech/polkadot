@@ -848,7 +848,7 @@ fn test_network_bridge_event<M>() -> NetworkBridgeEvent<M> {
 }
 
 fn test_statement_distribution_msg() -> StatementDistributionMessage {
-	StatementDistributionMessage::NetworkBridgeUpdateV1(test_network_bridge_event())
+	StatementDistributionMessage::NetworkBridgeUpdate(test_network_bridge_event())
 }
 
 fn test_availability_recovery_msg() -> AvailabilityRecoveryMessage {
@@ -862,7 +862,7 @@ fn test_availability_recovery_msg() -> AvailabilityRecoveryMessage {
 }
 
 fn test_bitfield_distribution_msg() -> BitfieldDistributionMessage {
-	BitfieldDistributionMessage::NetworkBridgeUpdateV1(test_network_bridge_event())
+	BitfieldDistributionMessage::NetworkBridgeUpdate(test_network_bridge_event())
 }
 
 fn test_provisioner_msg() -> ProvisionerMessage {

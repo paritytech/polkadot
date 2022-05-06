@@ -94,6 +94,7 @@ impl_runtime_weights!(test_runtime_constants);
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 /// Runtime version (Test).
+#[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot-test-runtime"),
 	impl_name: create_runtime_str!("parity-polkadot-test-runtime"),
@@ -331,6 +332,7 @@ impl onchain::Config for OnChainSeqPhragmen {
 impl pallet_staking::Config for Runtime {
 	type MaxNominations = frame_support::pallet_prelude::ConstU32<16>;
 	type Currency = Balances;
+	type CurrencyBalance = Balance;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
 	type RewardRemainder = ();
@@ -354,6 +356,7 @@ impl pallet_staking::Config for Runtime {
 	type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Runtime>;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
+	type OnStakerSlash = ();
 	type WeightInfo = ();
 }
 
@@ -916,15 +919,13 @@ sp_api::impl_runtime_apis! {
 		fn generate_proof(_leaf_index: u64)
 			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
 		{
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::GenerateProof)
+			Err(mmr::Error::PalletNotIncluded)
 		}
 
 		fn verify_proof(_leaf: mmr::EncodableOpaqueLeaf, _proof: mmr::Proof<Hash>)
 			-> Result<(), mmr::Error>
 		{
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::Verify)
+			Err(mmr::Error::PalletNotIncluded)
 		}
 
 		fn verify_proof_stateless(
@@ -932,15 +933,32 @@ sp_api::impl_runtime_apis! {
 			_leaf: mmr::EncodableOpaqueLeaf,
 			_proof: mmr::Proof<Hash>
 		) -> Result<(), mmr::Error> {
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::Verify)
+			Err(mmr::Error::PalletNotIncluded)
 		}
 
 		fn mmr_root() -> Result<Hash, mmr::Error> {
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::Verify)
+			Err(mmr::Error::PalletNotIncluded)
 		}
 
+		fn generate_batch_proof(_leaf_indices: Vec<u64>)
+			-> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error>
+		{
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn verify_batch_proof(_leaves: Vec<mmr::EncodableOpaqueLeaf>, _proof: mmr::BatchProof<Hash>)
+			-> Result<(), mmr::Error>
+		{
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn verify_batch_proof_stateless(
+			_root: Hash,
+			_leaves: Vec<mmr::EncodableOpaqueLeaf>,
+			_proof: mmr::BatchProof<Hash>
+		) -> Result<(), mmr::Error> {
+			Err(mmr::Error::PalletNotIncluded)
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {

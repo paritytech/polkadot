@@ -54,6 +54,8 @@ const KUSAMA_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/"
 const WESTEND_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "rococo-native")]
 const ROCOCO_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
+#[cfg(feature = "rococo-native")]
+const VERSI_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
 /// Node `ChainSpec` extensions.
@@ -154,10 +156,6 @@ pub fn westend_config() -> Result<WestendChainSpec, String> {
 
 pub fn rococo_config() -> Result<RococoChainSpec, String> {
 	RococoChainSpec::from_json_bytes(&include_bytes!("../res/rococo.json")[..])
-}
-
-pub fn versi_config() -> Result<VersiChainSpec, String> {
-	VersiChainSpec::from_json_bytes(&include_bytes!("../res/versi.json")[..])
 }
 
 /// This is a temporary testnet that uses the same runtime as rococo.
@@ -572,6 +570,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
+		nomination_pools: Default::default(),
 	}
 }
 
@@ -1085,6 +1084,16 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 	}
 }
 
+/// Returns the properties for the [`PolkadotChainSpec`].
+pub fn polkadot_chain_spec_properties() -> serde_json::map::Map<String, serde_json::Value> {
+	serde_json::json!({
+		"tokenDecimals": 10,
+	})
+	.as_object()
+	.expect("Map given; qed")
+	.clone()
+}
+
 /// Polkadot staging testnet config.
 #[cfg(feature = "polkadot-native")]
 pub fn polkadot_staging_testnet_config() -> Result<PolkadotChainSpec, String> {
@@ -1103,7 +1112,7 @@ pub fn polkadot_staging_testnet_config() -> Result<PolkadotChainSpec, String> {
 		),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		None,
+		Some(polkadot_chain_spec_properties()),
 		Default::default(),
 	))
 }
@@ -1176,6 +1185,43 @@ pub fn rococo_staging_testnet_config() -> Result<RococoChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		None,
+		Default::default(),
+	))
+}
+
+pub fn versi_chain_spec_properties() -> serde_json::map::Map<String, serde_json::Value> {
+	serde_json::json!({
+		"ss58Format": 42,
+		"tokenDecimals": 12,
+		"tokenSymbol": "VRS",
+	})
+	.as_object()
+	.expect("Map given; qed")
+	.clone()
+}
+
+/// Versi staging testnet config.
+#[cfg(feature = "rococo-native")]
+pub fn versi_staging_testnet_config() -> Result<RococoChainSpec, String> {
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Versi development wasm not available")?;
+	let boot_nodes = vec![];
+
+	Ok(RococoChainSpec::from_genesis(
+		"Versi Staging Testnet",
+		"versi_staging_testnet",
+		ChainType::Live,
+		move || RococoGenesisExt {
+			runtime_genesis_config: rococo_staging_testnet_config_genesis(wasm_binary),
+			session_length_in_blocks: Some(100),
+		},
+		boot_nodes,
+		Some(
+			TelemetryEndpoints::new(vec![(VERSI_STAGING_TELEMETRY_URL.to_string(), 0)])
+				.expect("Versi Staging telemetry url is valid; qed"),
+		),
+		Some("versi"),
+		None,
+		Some(versi_chain_spec_properties()),
 		Default::default(),
 	))
 }
@@ -1505,6 +1551,12 @@ pub fn westend_testnet_genesis(
 			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
+		nomination_pools: westend_runtime::NominationPoolsConfig {
+			max_pools: Some(128),
+			min_join_bond: WND,
+			min_create_bond: 100 * WND,
+			..Default::default()
+		},
 	}
 }
 
@@ -1653,7 +1705,7 @@ pub fn polkadot_development_config() -> Result<PolkadotChainSpec, String> {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		None,
+		Some(polkadot_chain_spec_properties()),
 		Default::default(),
 	))
 }
@@ -1793,7 +1845,7 @@ pub fn polkadot_local_testnet_config() -> Result<PolkadotChainSpec, String> {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		None,
+		Some(polkadot_chain_spec_properties()),
 		Default::default(),
 	))
 }
@@ -1911,22 +1963,6 @@ fn wococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisCo
 	)
 }
 
-/// `Versi` is a temporary testnet that uses the same runtime as rococo.
-#[cfg(feature = "rococo-native")]
-fn versi_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
-	rococo_testnet_genesis(
-		wasm_binary,
-		vec![
-			get_authority_keys_from_seed("Alice"),
-			get_authority_keys_from_seed("Bob"),
-			get_authority_keys_from_seed("Charlie"),
-			get_authority_keys_from_seed("Dave"),
-		],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		None,
-	)
-}
-
 /// Wococo local testnet config (multivalidator Alice + Bob + Charlie + Dave)
 #[cfg(feature = "rococo-native")]
 pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
@@ -1950,6 +1986,22 @@ pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 	))
 }
 
+/// `Versi` is a temporary testnet that uses the same runtime as rococo.
+#[cfg(feature = "rococo-native")]
+fn versi_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+	rococo_testnet_genesis(
+		wasm_binary,
+		vec![
+			get_authority_keys_from_seed("Alice"),
+			get_authority_keys_from_seed("Bob"),
+			get_authority_keys_from_seed("Charlie"),
+			get_authority_keys_from_seed("Dave"),
+		],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
 /// `Versi` local testnet config (multivalidator Alice + Bob + Charlie + Dave)
 #[cfg(feature = "rococo-native")]
 pub fn versi_local_testnet_config() -> Result<RococoChainSpec, String> {
@@ -1966,7 +2018,7 @@ pub fn versi_local_testnet_config() -> Result<RococoChainSpec, String> {
 		},
 		vec![],
 		None,
-		Some(DEFAULT_PROTOCOL_ID),
+		Some("versi"),
 		None,
 		None,
 		Default::default(),

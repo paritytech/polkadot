@@ -111,6 +111,8 @@ where
 	pub dispute_coordinator_config: DisputeCoordinatorConfig,
 	/// Enable PVF pre-checking
 	pub pvf_checker_enabled: bool,
+	/// Overseer channel capacity override.
+	pub overseer_message_channel_capacity_override: Option<usize>,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -138,6 +140,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		chain_selection_config,
 		dispute_coordinator_config,
 		pvf_checker_enabled,
+		overseer_message_channel_capacity_override,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
@@ -145,7 +148,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		Arc<RuntimeClient>,
 		CandidateValidationSubsystem,
 		PvfCheckerSubsystem,
-		CandidateBackingSubsystem<Spawner>,
+		CandidateBackingSubsystem,
 		StatementDistributionSubsystem<rand::rngs::StdRng>,
 		AvailabilityDistributionSubsystem,
 		AvailabilityRecoverySubsystem,
@@ -201,7 +204,6 @@ where
 			Metrics::register(registry)?,
 		))
 		.candidate_backing(CandidateBackingSubsystem::new(
-			spawner.clone(),
 			keystore.clone(),
 			Metrics::register(registry)?,
 		))
@@ -293,7 +295,12 @@ where
 		.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
 		.metrics(metrics)
 		.spawner(spawner);
-	Ok(builder)
+
+	if let Some(capacity) = overseer_message_channel_capacity_override {
+		Ok(builder.message_channel_capacity(capacity))
+	} else {
+		Ok(builder)
+	}
 }
 
 /// Trait for the `fn` generating the overseer.

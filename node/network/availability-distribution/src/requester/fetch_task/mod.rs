@@ -330,7 +330,7 @@ impl RunningTask {
 	) -> std::result::Result<ChunkFetchingResponse, TaskError> {
 		let (full_request, response_recv) =
 			OutgoingRequest::new(Recipient::Authority(validator.clone()), self.request);
-		let requests = Requests::ChunkFetching(full_request);
+		let requests = Requests::ChunkFetchingV1(full_request);
 
 		self.sender
 			.send(FromFetchTask::Message(AllMessages::NetworkBridge(

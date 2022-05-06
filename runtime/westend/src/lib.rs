@@ -25,7 +25,7 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_election_provider_support::{onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
+	traits::{ConstU32, Contains, InstanceFilter, KeyOwnerProofSystem},
 	weights::ConstantMultiplier,
 	PalletId,
 };
@@ -100,11 +100,12 @@ impl_runtime_weights!(westend_runtime_constants);
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 /// Runtime version (Westend).
+#[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9190,
+	spec_version: 9200,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -457,6 +458,7 @@ parameter_types! {
 impl pallet_staking::Config for Runtime {
 	type MaxNominations = MaxNominations;
 	type Currency = Balances;
+	type CurrencyBalance = Balance;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
 	type RewardRemainder = ();
@@ -478,6 +480,7 @@ impl pallet_staking::Config for Runtime {
 	type VoterList = BagsList;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
+	type OnStakerSlash = ();
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -660,6 +663,7 @@ parameter_types! {
 
 impl pallet_recovery::Config for Runtime {
 	type Event = Event;
+	type WeightInfo = ();
 	type Call = Call;
 	type Currency = Balances;
 	type ConfigDepositBase = ConfigDepositBase;
@@ -767,7 +771,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
 				Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
-				Call::BagsList(..)
+				Call::BagsList(..) |
+				Call::NominationPools(..)
 			),
 			ProxyType::Staking => {
 				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
@@ -976,6 +981,37 @@ impl auctions::Config for Runtime {
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
+pub struct BalanceToU256;
+impl sp_runtime::traits::Convert<Balance, sp_core::U256> for BalanceToU256 {
+	fn convert(n: Balance) -> sp_core::U256 {
+		n.into()
+	}
+}
+pub struct U256ToBalance;
+impl sp_runtime::traits::Convert<sp_core::U256, Balance> for U256ToBalance {
+	fn convert(n: sp_core::U256) -> Balance {
+		n.try_into().unwrap_or(Balance::MAX)
+	}
+}
+
+parameter_types! {
+	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
+}
+
+impl pallet_nomination_pools::Config for Runtime {
+	type Event = Event;
+	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
+	type Currency = Balances;
+	type BalanceToU256 = BalanceToU256;
+	type U256ToBalance = U256ToBalance;
+	type StakingInterface = Staking;
+	type PostUnbondingPoolsWindow = ConstU32<4>;
+	type MaxMetadataLen = ConstU32<256>;
+	// we use the same number of allowed unlocking chunks as with staking.
+	type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
+	type PalletId = PoolsPalletId;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1038,6 +1074,9 @@ construct_runtime! {
 		// Provides a semi-sorted list of nominators for staking.
 		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 25,
 
+		// Nomination pools for staking.
+		NominationPools: pallet_nomination_pools::{Pallet, Call, Storage, Event<T>, Config<T>} = 29,
+
 		// Parachains pallets. Start indices at 40 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 41,
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 42,
@@ -1096,31 +1135,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(
-		SlotsCrowdloanIndexMigration,
-		pallet_staking::migrations::v9::InjectValidatorsIntoVoterList<Runtime>,
-	),
+	(),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-// Migration for crowdloan pallet to use fund index for account generation.
-pub struct SlotsCrowdloanIndexMigration;
-impl OnRuntimeUpgrade for SlotsCrowdloanIndexMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		slots::migration::slots_crowdloan_index_migration::migrate::<Runtime>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		slots::migration::slots_crowdloan_index_migration::pre_migrate::<Runtime>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		slots::migration::slots_crowdloan_index_migration::post_migrate::<Runtime>()
-	}
-}
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
@@ -1152,9 +1170,11 @@ mod benches {
 		[pallet_im_online, ImOnline]
 		[pallet_indices, Indices]
 		[pallet_multisig, Multisig]
+		[pallet_nomination_pools, NominationPoolsBench::<Runtime>]
 		[pallet_offences, OffencesBench::<Runtime>]
 		[pallet_preimage, Preimage]
 		[pallet_proxy, Proxy]
+		[pallet_recovery, Recovery]
 		[pallet_scheduler, Scheduler]
 		[pallet_session, SessionBench::<Runtime>]
 		[pallet_staking, Staking]
@@ -1342,15 +1362,15 @@ sp_api::impl_runtime_apis! {
 		fn generate_proof(_leaf_index: u64)
 			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
 		{
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::GenerateProof)
+
+			Err(mmr::Error::PalletNotIncluded)
 		}
 
 		fn verify_proof(_leaf: mmr::EncodableOpaqueLeaf, _proof: mmr::Proof<Hash>)
 			-> Result<(), mmr::Error>
 		{
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::Verify)
+
+			Err(mmr::Error::PalletNotIncluded)
 		}
 
 		fn verify_proof_stateless(
@@ -1358,13 +1378,36 @@ sp_api::impl_runtime_apis! {
 			_leaf: mmr::EncodableOpaqueLeaf,
 			_proof: mmr::Proof<Hash>
 		) -> Result<(), mmr::Error> {
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::Verify)
+
+			Err(mmr::Error::PalletNotIncluded)
 		}
 
 		fn mmr_root() -> Result<Hash, mmr::Error> {
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::Verify)
+
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn generate_batch_proof(_leaf_indices: Vec<u64>)
+			-> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error>
+		{
+
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn verify_batch_proof(_leaves: Vec<mmr::EncodableOpaqueLeaf>, _proof: mmr::BatchProof<Hash>)
+			-> Result<(), mmr::Error>
+		{
+
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn verify_batch_proof_stateless(
+			_root: Hash,
+			_leaves: Vec<mmr::EncodableOpaqueLeaf>,
+			_proof: mmr::BatchProof<Hash>
+		) -> Result<(), mmr::Error> {
+
+			Err(mmr::Error::PalletNotIncluded)
 		}
 	}
 
@@ -1518,6 +1561,7 @@ sp_api::impl_runtime_apis! {
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
+			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
 			type XcmGeneric = pallet_xcm_benchmarks::generic::Pallet::<Runtime>;
@@ -1542,11 +1586,13 @@ sp_api::impl_runtime_apis! {
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
+			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
 			impl pallet_election_provider_support_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
+			impl pallet_nomination_pools_benchmarking::Config for Runtime {}
 
 			use xcm::latest::{
 				AssetId::*, Fungibility::*, Junctions::*, MultiAsset, MultiAssets, MultiLocation,

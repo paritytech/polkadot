@@ -16,7 +16,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 clap = { version = "3.1", features = ["derive"], optional = true }
 log = "0.4.16"
-thiserror = "1.0.30"
+thiserror = "1.0.31"
 futures = "0.3.21"
 pyro = { package = "pyroscope", version = "0.3.1", optional = true }
 
@@ -32,6 +32,7 @@ sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", o
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 polkadot-node-metrics = { path = "../node/metrics" }
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
@@ -72,3 +73,4 @@ rococo-native = ["service/rococo-native"]
 
 malus = ["full-node", "service/malus"]
 runtime-metrics = ["service/runtime-metrics", "polkadot-node-metrics/runtime-metrics"]
+staging-client = ["service/staging-client"]
