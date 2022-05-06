@@ -56,14 +56,18 @@ pub mod pallet {
 		ValidatorsDeregistered(Vec<T::ValidatorId>),
 	}
 
-	/// Validators that should be retired, because their Parachain was deregistered.
+	/// Validators that should be retired. Changes will be effective at current session + 2.
 	#[pallet::storage]
 	pub(crate) type ValidatorsToRetire<T: Config> =
 		StorageValue<_, Vec<T::ValidatorId>, ValueQuery>;
 
-	/// Validators that should be added.
+	/// Validators that should be added. Changes will be effective at current session + 2.
 	#[pallet::storage]
 	pub(crate) type ValidatorsToAdd<T: Config> = StorageValue<_, Vec<T::ValidatorId>, ValueQuery>;
+
+	/// The validator set that will be used in the next session.
+	#[pallet::storage]
+	pub(crate) type NextValidators<T: Config> = StorageValue<_, Vec<T::ValidatorId>, OptionQuery>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -119,29 +123,34 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Pallet<T> {
 			return None
 		}
 
-		let mut validators = Session::<T>::validators();
+		let validators = NextValidators::<T>::take();
 
+		let mut next_validators = validators.clone().unwrap_or_else(|| Session::<T>::validators());
 		ValidatorsToRetire::<T>::take().iter().for_each(|v| {
-			if let Some(pos) = validators.iter().position(|r| r == v) {
-				validators.swap_remove(pos);
+			if let Some(pos) = next_validators.iter().position(|r| r == v) {
+				next_validators.swap_remove(pos);
 			}
 		});
 
 		ValidatorsToAdd::<T>::take().into_iter().for_each(|v| {
-			if !validators.contains(&v) {
-				validators.push(v);
+			if !next_validators.contains(&v) {
+				next_validators.push(v);
 			}
 		});
 
 		// HACK: still need to have proper logic for splitting the validator set
-		if validators.len() > 1 {
-			let secondary_validators = validators.split_off(validators.len() / 2);
+		if next_validators.len() > 1 {
+			let next_secondary_validators = next_validators.split_off(next_validators.len() / 2);
 
-			let message = ValidatorManagerMessage::NewValidatorSet(new_index, secondary_validators);
+			let message =
+				ValidatorManagerMessage::NewValidatorSet(new_index + 1, next_secondary_validators);
+
 			T::SendMessage::send_message(message.encode());
 		}
 
-		Some(validators)
+		NextValidators::<T>::put(next_validators);
+
+		validators
 	}
 
 	fn end_session(_: SessionIndex) {}
