@@ -21,7 +21,7 @@
 //! messages on the overseer level.
 
 use polkadot_node_subsystem::*;
-pub use polkadot_node_subsystem::{messages, overseer, FromOverseer};
+pub use polkadot_node_subsystem::{messages, messages::*, overseer, FromOverseer};
 use std::{future::Future, pin::Pin};
 
 /// Filter incoming and outgoing messages.
@@ -64,33 +64,46 @@ pub struct InterceptedSender<Sender, Fil> {
 }
 
 #[async_trait::async_trait]
-impl<M, Sender, Fil> overseer::SubsystemSender<M> for InterceptedSender<Sender, Fil>
+impl<OutgoingMessage, Sender, Fil> overseer::SubsystemSender<OutgoingMessage> for InterceptedSender<Sender, Fil>
 where
-	M: overseer::AssociateOutgoing,
-	<M as overseer::AssociateOutgoing>::OutgoingMessages: From<M>,
-	Sender: overseer::SubsystemSender<M>
-		+ overseer::SubsystemSender<<M as overseer::AssociateOutgoing>::OutgoingMessages>
-		+ overseer::SubsystemSender<<<Fil as MessageInterceptor<Sender>>::Message as overseer::AssociateOutgoing>::OutgoingMessages>,
+	OutgoingMessage: overseer::AssociateOutgoing + Send + 'static,
+	Sender: overseer::SubsystemSender<OutgoingMessage>
+		+ overseer::SubsystemSender<
+				<
+					<Fil as MessageInterceptor<Sender>>::Message as overseer::AssociateOutgoing
+				>::OutgoingMessages
+			>,
 	Fil: MessageInterceptor<Sender>,
+	<Fil as MessageInterceptor<Sender>>::Message: overseer::AssociateOutgoing,
+	<
+		<Fil as MessageInterceptor<Sender>>::Message as overseer::AssociateOutgoing
+	>::OutgoingMessages:
+		From<OutgoingMessage>,
 {
-	async fn send_message(&mut self, msg: M) {
-		if let Some(msg) = self.message_filter.intercept_outgoing(<<M as overseer::AssociateOutgoing>::OutgoingMessages>::from(msg)) {
+	async fn send_message(&mut self, msg: OutgoingMessage) {
+		let msg = <
+					<<Fil as MessageInterceptor<Sender>>::Message as overseer::AssociateOutgoing
+				>::OutgoingMessages as From<OutgoingMessage>>::from(msg);
+		if let Some(msg) = self.message_filter.intercept_outgoing(msg) {
 			self.inner.send_message(msg).await;
 		}
 	}
 
 	async fn send_messages<T>(&mut self, msgs: T)
 	where
-		T: IntoIterator<Item = M> + Send,
+		T: IntoIterator<Item = OutgoingMessage> + Send,
 		T::IntoIter: Send,
 	{
 		for msg in msgs {
-			self.send_message(<<M as overseer::AssociateOutgoing>::OutgoingMessages>::from(msg)).await;
+			self.send_message(msg).await;
 		}
 	}
 
-	fn send_unbounded_message(&mut self, msg: M) {
-		if let Some(msg) = self.message_filter.intercept_outgoing(<<M as overseer::AssociateOutgoing>::OutgoingMessages>::from(msg)) {
+	fn send_unbounded_message(&mut self, msg: OutgoingMessage) {
+		let msg = <
+					<<Fil as MessageInterceptor<Sender>>::Message as overseer::AssociateOutgoing
+				>::OutgoingMessages as From<OutgoingMessage>>::from(msg);
+		if let Some(msg) = self.message_filter.intercept_outgoing(msg) {
 			self.inner.send_unbounded_message(msg);
 		}
 	}
@@ -99,16 +112,16 @@ where
 /// A subsystem context, that filters the outgoing messages.
 pub struct InterceptedContext<Context, Fil>
 where
-	Context: overseer::SubsystemContext<Error=SubsystemError>,
+	Context: overseer::SubsystemContext<Error=SubsystemError, Signal=OverseerSignal>,
 	Fil: MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>,
-	<Context as overseer::SubsystemContext>::Sender: overseer::SubsystemSender<
-		<Fil as MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>>::Message,
-	>,
-	<Context as overseer::SubsystemContext>::Sender: overseer::SubsystemSender<
+	<Context as overseer::SubsystemContext>::Sender:
+		overseer::SubsystemSender<
 			<
-				<Fil as MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>
-			>::Message as AssociateOutgoing
-		>::OutgoingMessages>,
+				<
+					Fil as MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>
+				>::Message as overseer::AssociateOutgoing
+			>::OutgoingMessages,
+		>,
 {
 	inner: Context,
 	message_filter: Fil,
@@ -117,15 +130,12 @@ where
 
 impl<Context, Fil> InterceptedContext<Context, Fil>
 where
-	Context: overseer::SubsystemContext<Error=SubsystemError>,
+	Context: overseer::SubsystemContext<Error=SubsystemError,Signal=OverseerSignal>,
 	Fil: MessageInterceptor<
 		<Context as overseer::SubsystemContext>::Sender,
 		Message = <Context as overseer::SubsystemContext>::Message,
 	>,
-	<Context as overseer::SubsystemContext>::Message: AssociateOutgoing,
-	<Context as overseer::SubsystemContext>::Sender: overseer::SubsystemSender<
-		<Fil as MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>>::Message,
-	>,
+	<Context as overseer::SubsystemContext>::Message: overseer::AssociateOutgoing,
 	<Context as overseer::SubsystemContext>::Sender: overseer::SubsystemSender<
 		<<Context as overseer::SubsystemContext>::Message as overseer::AssociateOutgoing>::OutgoingMessages
 	>
@@ -142,28 +152,27 @@ where
 #[async_trait::async_trait]
 impl<Context, Fil> overseer::SubsystemContext for InterceptedContext<Context, Fil>
 where
-	Context: overseer::SubsystemContext<Error=SubsystemError>,
-	Fil: MessageInterceptor<
-		<Context as overseer::SubsystemContext>::Sender,
-		Message = <Context as overseer::SubsystemContext>::Message,
-	>,
+	Context: overseer::SubsystemContext<Error=SubsystemError,Signal=OverseerSignal>,
+	<Context as overseer::SubsystemContext>::Message:
+		overseer::AssociateOutgoing,
 	<Context as overseer::SubsystemContext>::Sender:
 		overseer::SubsystemSender<
 			<<Context as overseer::SubsystemContext>::Message as overseer::AssociateOutgoing>::OutgoingMessages
 		>,
-	<Context as overseer::SubsystemContext>::Sender:
+	InterceptedSender<<Context as overseer::SubsystemContext>::Sender, Fil>:
 		overseer::SubsystemSender<
-			<Fil as MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>>::Message,
+			<<Context as overseer::SubsystemContext>::Message as overseer::AssociateOutgoing>::OutgoingMessages
 		>,
-	<Context as overseer::SubsystemContext>::Message: overseer::AssociateOutgoing,
-	<Context as overseer::SubsystemContext>::Sender:
-		overseer::SubsystemSender<<<Context as overseer::SubsystemContext>::Message as overseer::AssociateOutgoing>::OutgoingMessages>,
+	Fil: MessageInterceptor<
+		<Context as overseer::SubsystemContext>::Sender,
+		Message = <Context as overseer::SubsystemContext>::Message,
+	>,
 {
 	type Message = <Context as overseer::SubsystemContext>::Message;
 	type Sender = InterceptedSender<<Context as overseer::SubsystemContext>::Sender, Fil>;
 	type Error = SubsystemError;
 	type OutgoingMessages = <<Context as overseer::SubsystemContext>::Message as overseer::AssociateOutgoing>::OutgoingMessages;
-	type Signal = <Context as overseer::SubsystemContext>::Signal;
+	type Signal = OverseerSignal;
 
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<Self::Message>>, ()> {
 		loop {
@@ -223,19 +232,28 @@ impl<Sub, Interceptor> InterceptedSubsystem<Sub, Interceptor> {
 
 impl<Context, Sub, Interceptor> overseer::Subsystem<Context, SubsystemError> for InterceptedSubsystem<Sub, Interceptor>
 where
-	Context: overseer::SubsystemContext<Error=SubsystemError> + Sync + Send,
-	Sub: overseer::Subsystem<InterceptedContext<Context, Interceptor>, SubsystemError>,
-	InterceptedContext<Context, Interceptor>: overseer::SubsystemContext,
-	Interceptor: MessageInterceptor<
-		<Context as overseer::SubsystemContext>::Sender,
-		Message = <Context as overseer::SubsystemContext>::Message,
-	>,
-	<Context as overseer::SubsystemContext>::Sender: overseer::SubsystemSender<
-		<Interceptor as MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>>::Message,
-	>,
-	<Context as overseer::SubsystemContext>::Message: AssociateOutgoing,
+	Context:
+		overseer::SubsystemContext<Error=SubsystemError,Signal=OverseerSignal> + Sync + Send,
+	InterceptedContext<Context, Interceptor>:
+		overseer::SubsystemContext<Error=SubsystemError,Signal=OverseerSignal>,
+	Sub:
+		overseer::Subsystem<InterceptedContext<Context, Interceptor>, SubsystemError>,
+	Interceptor:
+		MessageInterceptor<
+			<Context as overseer::SubsystemContext>::Sender,
+			Message = <Context as overseer::SubsystemContext>::Message,
+		>,
 	<Context as overseer::SubsystemContext>::Sender:
-		overseer::SubsystemSender<<<Context as overseer::SubsystemContext>::Message as overseer::AssociateOutgoing>::OutgoingMessages>,
+		overseer::SubsystemSender<
+			<Interceptor as MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>>::Message,
+		>,
+	<Context as overseer::SubsystemContext>::Message:
+		overseer::AssociateOutgoing,
+	<Context as overseer::SubsystemContext>::Sender:
+		overseer::SubsystemSender<
+				<<Context as overseer::SubsystemContext>::Message as overseer::AssociateOutgoing
+			>::OutgoingMessages
+		>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let ctx = InterceptedContext::new(ctx, self.message_interceptor);
