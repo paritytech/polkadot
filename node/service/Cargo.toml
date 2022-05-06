@@ -198,3 +198,5 @@ runtime-metrics = [
 	"polkadot-runtime/runtime-metrics",
 	"polkadot-runtime-parachains/runtime-metrics"
 ]
+
+staging-client = ["polkadot-node-core-provisioner/staging-client"]
