@@ -22,11 +22,13 @@ use crate::{Balances, Runtime};
 
 use bp_messages::{
 	source_chain::{SenderOrigin, TargetHeaderChain},
-	target_chain::{ProvedMessages, SourceHeaderChain},
+	target_chain::{DispatchMessage, ProvedMessages, SourceHeaderChain},
 	InboundLaneData, LaneId, Message, MessageNonce,
 };
 use bp_rococo::{Balance, Rococo, EXTRA_STORAGE_PROOF_SIZE, MAXIMAL_ENCODED_ACCOUNT_ID_SIZE};
-use bp_runtime::{Chain, ChainId, ROCOCO_CHAIN_ID, WOCOCO_CHAIN_ID};
+use bp_runtime::{
+	messages::MessageDispatchResult, Chain, ChainId, ROCOCO_CHAIN_ID, WOCOCO_CHAIN_ID,
+};
 use bridge_runtime_common::messages::{
 	source as messages_source, target as messages_target, transaction_payment,
 	BridgedChainWithMessages, ChainWithMessages, MessageBridge, MessageTransaction,
@@ -37,9 +39,10 @@ use frame_support::{
 	weights::{Weight, WeightToFeePolynomial},
 	RuntimeDebug,
 };
+use parity_scale_codec::Decode;
 use sococo_runtime_constants::fee::WeightToFee;
 use sp_runtime::FixedU128;
-use sp_std::{marker::PhantomData, vec::Vec};
+use sp_std::marker::PhantomData;
 
 /// Maximal number of pending outbound messages.
 const MAXIMAL_PENDING_MESSAGES_AT_OUTBOUND_LANE: MessageNonce =
@@ -364,25 +367,67 @@ mod at_wococo {
 	pub type FromRococoMessagePayload = messages_target::FromBridgedChainMessagePayload;
 
 	/// Call-dispatch based message dispatch for Rococo -> Wococo messages.
-	pub type FromRococoMessageDispatch = messages_target::FromBridgedChainMessageDispatch<
-		AtWococoWithRococoMessageBridge,
-		Runtime,
-		Balances,
-		(),
-	>;
-}
+	pub type FromRococoMessageDispatch = BridgedSessionManagerMessageDispatch;
 
-impl<T> crate::validator_manager::SendMessage for T
-where
-	T: bp_messages::source_chain::MessagesBridge<
-		crate::Origin,
-		crate::AccountId,
-		crate::Balance,
-		crate::bridge_messages::ToWococoMessagePayload,
-	>,
-{
-	fn send_message(message: Vec<u8>) {
-		let _ = Self::send_message(crate::Origin::root(), [0, 0, 0, 0], message, 0);
+	pub struct BridgedSessionManagerMessageDispatch;
+	impl bp_messages::target_chain::MessageDispatch<crate::AccountId, Balance>
+		for BridgedSessionManagerMessageDispatch
+	{
+		type DispatchPayload = at_wococo::FromRococoMessagePayload;
+
+		fn dispatch_weight(_message: &DispatchMessage<Self::DispatchPayload, Balance>) -> Weight {
+			0
+		}
+
+		fn dispatch(
+			_relayer_account: &crate::AccountId,
+			message: DispatchMessage<Self::DispatchPayload, Balance>,
+		) -> MessageDispatchResult {
+			use runtime_common::bridged_session_manager::BridgedSessionManagerMessage;
+
+			let dispatch_message = || -> Option<()> {
+				let message_id = (message.key.lane_id, message.key.nonce);
+
+				log::info!(
+					target: "runtime::bridge-dispatch",
+					"Incoming raw message {:?}: {:?}",
+					message_id,
+					message.data.payload,
+				);
+
+				let payload = message.data.payload.ok()?;
+
+				// HACK: we should probably not fix the concrete validator id here
+				let bridged_session_manager_message =
+					BridgedSessionManagerMessage::<crate::AccountId>::decode(&mut &payload[..])
+						.ok()?;
+
+				log::info!(
+					target: "runtime::bridge-dispatch",
+					"Decoded bridged session manager message: {:?}",
+					bridged_session_manager_message,
+				);
+
+				match bridged_session_manager_message {
+					BridgedSessionManagerMessage::NewValidatorSet(session_index, validators) => {
+						runtime_common::bridged_session_manager::Pallet::<Runtime>::push_next_validator_set(
+							session_index,
+							validators,
+						);
+					},
+				}
+
+				Some(())
+			};
+
+			let dispatch_result = dispatch_message().is_some();
+
+			MessageDispatchResult {
+				dispatch_result,
+				unspent_weight: 0,
+				dispatch_fee_paid_during_dispatch: false,
+			}
+		}
 	}
 }
 
