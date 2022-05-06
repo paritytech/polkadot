@@ -20,6 +20,7 @@
 
 pub mod assigned_slots;
 pub mod auctions;
+pub mod bridged_session_manager;
 pub mod claims;
 pub mod crowdloan;
 pub mod elections;
