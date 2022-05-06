@@ -27,6 +27,7 @@ use parity_scale_codec::Encode;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
+	grid_topology::{RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology},
 	peer_set::{IsAuthority, PeerSet},
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	v1::{self as protocol_v1, StatementMetadata},
@@ -77,9 +78,6 @@ use responder::{respond, ResponderMessage};
 /// Metrics for the statement distribution
 pub(crate) mod metrics;
 use metrics::Metrics;
-use polkadot_node_network_protocol::grid_topology::{
-	RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology,
-};
 
 #[cfg(test)]
 mod tests;

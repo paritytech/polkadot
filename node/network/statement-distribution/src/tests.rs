@@ -505,10 +505,11 @@ fn peer_view_update_sends_messages() {
 	let peer = PeerId::random();
 
 	executor::block_on(async move {
-		let gossip_peers = HashSet::from_iter(vec![peer.clone()].into_iter());
+		let mut topology: SessionGridTopology = Default::default();
+		topology.peers_x = HashSet::from_iter(vec![peer.clone()].into_iter());
 		update_peer_view_and_maybe_send_unlocked(
 			peer.clone(),
-			&gossip_peers,
+			&topology,
 			&mut peer_data,
 			&mut ctx,
 			&active_heads,
@@ -634,10 +635,12 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 		};
 		let statement = StoredStatement { comparator: &comparator, statement: &statement };
 
-		let gossip_peers =
+		let mut topology: SessionGridTopology = Default::default();
+		topology.peers_x =
 			HashSet::from_iter(vec![peer_a.clone(), peer_b.clone(), peer_c.clone()].into_iter());
 		let needs_dependents = circulate_statement(
-			&gossip_peers,
+			RequiredRouting::GridXY,
+			&topology,
 			&mut peer_data,
 			&mut ctx,
 			hash_b,
