@@ -16,7 +16,7 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Ident, Path, Result};
+use syn::{Ident, Path, Result, Type};
 
 use petgraph::{
 	dot::{self, Dot},
@@ -200,7 +200,6 @@ fn to_variant(path: &Path, span: Span) -> Result<Ident> {
 		.map(|segment| segment.ident.clone())?;
 	Ok(ident)
 }
-
 
 /// Converts the outgoing message types to variants.
 ///
@@ -395,6 +394,7 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 		#(
 			+ #support_crate ::SubsystemSender< #outgoing >
 		)*
+			+ #support_crate ::SubsystemSender< () >
 			+ Send
 			+ 'static
 	};
@@ -415,8 +415,9 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 		#consumes: AssociateOutgoing + ::std::fmt::Debug + Send + 'static,
 		#all_messages_wrapper: From< #outgoing_wrapper >,
 		#all_messages_wrapper: From< #consumes >,
+		#all_messages_wrapper: From< () >,
 		#outgoing_wrapper: #( From< #outgoing > )+*,
-
+		#outgoing_wrapper: From< () >,
 	};
 
 	ts.extend(quote! {
@@ -457,116 +458,140 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 	});
 
 	// impl the subsystem context trait
-	ts.extend(quote! {
-		#[#support_crate ::async_trait]
-		impl #support_crate ::SubsystemContext for #subsystem_ctx_name < #consumes >
-		where
-			#where_clause
-		{
-			type Message = #consumes;
-			type Signal = #signal;
-			type OutgoingMessages = #outgoing_wrapper;
-			type Sender = #subsystem_sender_name < #outgoing_wrapper >;
-			type Error = #error_ty;
+	let impl_subsystem_ctx_trait = |consumes: Type,
+	                                outgoing: &[Type],
+	                                outgoing_wrapper: Type|
+	 -> TokenStream {
+		let where_clause = quote! {
+			#consumes: AssociateOutgoing + ::std::fmt::Debug + Send + 'static,
+			#all_messages_wrapper: From< #outgoing_wrapper >,
+			#all_messages_wrapper: From< #consumes >,
+			#outgoing_wrapper: #( From< #outgoing > )+*,
+		};
 
-			async fn try_recv(&mut self) -> ::std::result::Result<Option<FromOverseer< Self::Message, #signal>>, ()> {
-				match #support_crate ::poll!(self.recv()) {
-					#support_crate ::Poll::Ready(msg) => Ok(Some(msg.map_err(|_| ())?)),
-					#support_crate ::Poll::Pending => Ok(None),
-				}
-			}
+		quote! {
+			#[#support_crate ::async_trait]
+			impl #support_crate ::SubsystemContext for #subsystem_ctx_name < #consumes >
+			where
+				#where_clause
+			{
+				type Message = #consumes;
+				type Signal = #signal;
+				type OutgoingMessages = #outgoing_wrapper;
+				type Sender = #subsystem_sender_name < #outgoing_wrapper >;
+				type Error = #error_ty;
 
-			async fn recv(&mut self) -> ::std::result::Result<FromOverseer<Self::Message, #signal>, #error_ty> {
-				loop {
-					// If we have a message pending an overseer signal, we only poll for signals
-					// in the meantime.
-					if let Some((needs_signals_received, msg)) = self.pending_incoming.take() {
-						if needs_signals_received <= self.signals_received.load() {
-							return Ok( #support_crate ::FromOverseer::Communication { msg });
-						} else {
-							self.pending_incoming = Some((needs_signals_received, msg));
-
-							// wait for next signal.
-							let signal = self.signals.next().await
-								.ok_or(#support_crate ::OverseerError::Context(
-									"Signal channel is terminated and empty."
-									.to_owned()
-								))?;
-
-							self.signals_received.inc();
-							return Ok( #support_crate ::FromOverseer::Signal(signal))
-						}
+				async fn try_recv(&mut self) -> ::std::result::Result<Option<FromOverseer< Self::Message, #signal>>, ()> {
+					match #support_crate ::poll!(self.recv()) {
+						#support_crate ::Poll::Ready(msg) => Ok(Some(msg.map_err(|_| ())?)),
+						#support_crate ::Poll::Pending => Ok(None),
 					}
+				}
 
-					let mut await_message = self.messages.next().fuse();
-					let mut await_signal = self.signals.next().fuse();
-					let signals_received = self.signals_received.load();
-					let pending_incoming = &mut self.pending_incoming;
-
-					// Otherwise, wait for the next signal or incoming message.
-					let from_overseer = #support_crate ::futures::select_biased! {
-						signal = await_signal => {
-							let signal = signal
-								.ok_or( #support_crate ::OverseerError::Context(
-									"Signal channel is terminated and empty."
-									.to_owned()
-								))?;
-
-							#support_crate ::FromOverseer::Signal(signal)
-						}
-						msg = await_message => {
-							let packet = msg
-								.ok_or( #support_crate ::OverseerError::Context(
-									"Message channel is terminated and empty."
-									.to_owned()
-								))?;
-
-							if packet.signals_received > signals_received {
-								// wait until we've received enough signals to return this message.
-								*pending_incoming = Some((packet.signals_received, packet.message));
-								continue;
+				async fn recv(&mut self) -> ::std::result::Result<FromOverseer<Self::Message, #signal>, #error_ty> {
+					loop {
+						// If we have a message pending an overseer signal, we only poll for signals
+						// in the meantime.
+						if let Some((needs_signals_received, msg)) = self.pending_incoming.take() {
+							if needs_signals_received <= self.signals_received.load() {
+								return Ok( #support_crate ::FromOverseer::Communication { msg });
 							} else {
-								// we know enough to return this message.
-								#support_crate ::FromOverseer::Communication { msg: packet.message}
+								self.pending_incoming = Some((needs_signals_received, msg));
+
+								// wait for next signal.
+								let signal = self.signals.next().await
+									.ok_or(#support_crate ::OverseerError::Context(
+										"Signal channel is terminated and empty."
+										.to_owned()
+									))?;
+
+								self.signals_received.inc();
+								return Ok( #support_crate ::FromOverseer::Signal(signal))
 							}
 						}
-					};
 
-					if let #support_crate ::FromOverseer::Signal(_) = from_overseer {
-						self.signals_received.inc();
+						let mut await_message = self.messages.next().fuse();
+						let mut await_signal = self.signals.next().fuse();
+						let signals_received = self.signals_received.load();
+						let pending_incoming = &mut self.pending_incoming;
+
+						// Otherwise, wait for the next signal or incoming message.
+						let from_overseer = #support_crate ::futures::select_biased! {
+							signal = await_signal => {
+								let signal = signal
+									.ok_or( #support_crate ::OverseerError::Context(
+										"Signal channel is terminated and empty."
+										.to_owned()
+									))?;
+
+								#support_crate ::FromOverseer::Signal(signal)
+							}
+							msg = await_message => {
+								let packet = msg
+									.ok_or( #support_crate ::OverseerError::Context(
+										"Message channel is terminated and empty."
+										.to_owned()
+									))?;
+
+								if packet.signals_received > signals_received {
+									// wait until we've received enough signals to return this message.
+									*pending_incoming = Some((packet.signals_received, packet.message));
+									continue;
+								} else {
+									// we know enough to return this message.
+									#support_crate ::FromOverseer::Communication { msg: packet.message}
+								}
+							}
+						};
+
+						if let #support_crate ::FromOverseer::Signal(_) = from_overseer {
+							self.signals_received.inc();
+						}
+
+						return Ok(from_overseer);
 					}
+				}
 
-					return Ok(from_overseer);
+				fn sender(&mut self) -> &mut Self::Sender {
+					&mut self.to_subsystems
+				}
+
+				fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+					-> ::std::result::Result<(), #error_ty>
+				{
+					self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnJob {
+						name,
+						subsystem: Some(self.name()),
+						s,
+					}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
+					Ok(())
+				}
+
+				fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+					-> ::std::result::Result<(), #error_ty>
+				{
+					self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnBlockingJob {
+						name,
+						subsystem: Some(self.name()),
+						s,
+					}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
+					Ok(())
 				}
 			}
-
-			fn sender(&mut self) -> &mut Self::Sender {
-				&mut self.to_subsystems
-			}
-
-			fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
-				-> ::std::result::Result<(), #error_ty>
-			{
-				self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnJob {
-					name,
-					subsystem: Some(self.name()),
-					s,
-				}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
-				Ok(())
-			}
-
-			fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
-				-> ::std::result::Result<(), #error_ty>
-			{
-				self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnBlockingJob {
-					name,
-					subsystem: Some(self.name()),
-					s,
-				}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
-				Ok(())
-			}
 		}
-	});
+	};
+
+	ts.extend(impl_subsystem_ctx_trait(
+		parse_quote! { #consumes },
+		&Vec::from_iter(outgoing.iter().map(|path| {
+			parse_quote! { #path }
+		})),
+		parse_quote! { #outgoing_wrapper },
+	));
+
+	let empty_tuple: Type = parse_quote! { () };
+	ts.extend(impl_subsystem_ctx_trait(empty_tuple.clone(), &[], empty_tuple));
+
 	ts
 }
 
