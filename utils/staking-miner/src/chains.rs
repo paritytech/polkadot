@@ -36,7 +36,7 @@ pub mod westend {
 		type MaxVotesPerVoter = MinerMaxVotesPerVoter;
 		type Solution = NposSolution24;
 
-		fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
+		fn solution_weight(v: u32, _t: u32, a: u32, d: u32) -> Weight {
 			// feasibility weight.
 			(31_722_000 as Weight)
 				// Standard Error: 8_000
@@ -72,7 +72,7 @@ pub mod polkadot {
 		type MaxVotesPerVoter = MinerMaxVotesPerVoter;
 		type Solution = polkadot::NposSolution16;
 
-		fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
+		fn solution_weight(v: u32, _t: u32, a: u32, d: u32) -> Weight {
 			// feasibility weight.
 			(31_722_000 as Weight)
 				// Standard Error: 8_000
@@ -108,7 +108,7 @@ pub mod kusama {
 		type MaxVotesPerVoter = MinerMaxVotesPerVoter;
 		type Solution = NposSolution24;
 
-		fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
+		fn solution_weight(v: u32, _t: u32, a: u32, d: u32) -> Weight {
 			// feasibility weight.
 			(31_722_000 as Weight)
 				// Standard Error: 8_000

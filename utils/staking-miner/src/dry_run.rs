@@ -35,11 +35,20 @@ where
 {
 	let api: RuntimeApi = client.to_runtime_api();
 
-	let (solution, score, size) =
+	let (solution, score, _size) =
 		crate::helpers::mine_solution::<M>(&api, config.at, config.solver).await?;
 
 	let round = api.storage().election_provider_multi_phase().round(config.at).await?;
-	let call = SubmitCall::new(RawSolution { solution, score, round });
+	let raw_solution = RawSolution { solution, score, round };
+
+	log::info!(
+		target: LOG_TARGET,
+		"solution score {:?} / length {:?}",
+		score,
+		raw_solution.encode().len(),
+	);
+
+	let call = SubmitCall::new(raw_solution);
 
 	let xt = subxt::SubmittableExtrinsic::<_, ExtrinsicParams, _, ModuleErrMissing, NoEvents>::new(
 		&api.client,
@@ -56,9 +65,13 @@ where
 		.client
 		.request("system_dryRun", rpc_params![encoded_xt])
 		.await?;
-	let outcome: sp_runtime::ApplyExtrinsicResult = Decode::decode(&mut &*bytes.0).unwrap();
+
+	let outcome: sp_runtime::ApplyExtrinsicResult = Decode::decode(&mut &*bytes.0)?;
 
 	log::info!(target: LOG_TARGET, "dry-run outcome is {:?}", outcome);
 
-	Ok(())
+	match outcome {
+		Ok(Ok(r)) => Ok(r),
+		err => panic!("{:?}", err),
+	}
 }

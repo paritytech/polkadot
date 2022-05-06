@@ -1,6 +1,5 @@
-use crate::{prelude::*, MonitorConfig, Solver, SubmissionStrategy};
-use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
-use pallet_election_provider_multi_phase::{Miner, MinerConfig, RawSolution};
+use crate::{prelude::*, MonitorConfig, SubmissionStrategy};
+use pallet_election_provider_multi_phase::{MinerConfig, RawSolution};
 use sp_runtime::Perbill;
 use std::sync::Arc;
 use subxt::TransactionStatus;

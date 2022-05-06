@@ -52,7 +52,7 @@ use std::sync::Arc;
 	runtime_metadata_path = "metadata.scale",
 	derive_for_all_types = "Clone, PartialEq",
 	derive_for_type(type = "sp_core::crypto::AccountId32", derive = "Eq, Ord, PartialOrd"),
-	derive_for_type(type = "NposSolution16", derive = "Eq")
+	derive_for_type(type = "NposSolution16", derive = "Default")
 )]
 pub mod runtime {}
 

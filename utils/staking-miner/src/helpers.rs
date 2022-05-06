@@ -72,3 +72,33 @@ pub(crate) async fn snapshot(api: &RuntimeApi, hash: Option<Hash>) -> Result<Sna
 
 	Ok((voters, targets, desired_targets))
 }
+
+use crate::runtime::runtime_types::{
+	node_runtime::NposSolution16 as SubxtNposSolution16,
+	sp_arithmetic::per_things::PerU16 as SubxtPerU16,
+};
+
+fn to_subxt_per_u16(x: sp_runtime::PerU16) -> SubxtPerU16 {
+	SubxtPerU16(x.deconstruct())
+}
+
+fn to_subxt_raw_solution(s: crate::chains::polkadot::NposSolution16) -> SubxtNposSolution16 {
+	SubxtNposSolution16 {
+		votes1: s.votes1,
+		votes2: Vec::new(),
+		votes3: Vec::new(),
+		votes4: Vec::new(),
+		votes5: Vec::new(),
+		votes6: Vec::new(),
+		votes7: Vec::new(),
+		votes8: Vec::new(),
+		votes9: Vec::new(),
+		votes10: Vec::new(),
+		votes11: Vec::new(),
+		votes12: Vec::new(),
+		votes13: Vec::new(),
+		votes14: Vec::new(),
+		votes15: Vec::new(),
+		votes16: Vec::new(),
+	}
+}
