@@ -11,10 +11,10 @@ tracing-subscriber = { version = "0.3.10", features = ["env-filter"]   }
 jsonrpsee = { version = "0.10.1", features = ["ws-client", "macros"] }
 log = "0.4.16"
 paste = "1.0.7"
-serde = "1.0.136"
+serde = "1.0.137"
 serde_json = "1.0"
-thiserror = "1.0.30"
-tokio = { version = "1.17.0", features = ["macros", "rt-multi-thread", "sync"] }
+thiserror = "1.0.31"
+tokio = { version = "1.18.1", features = ["macros", "rt-multi-thread", "sync"] }
 
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
 

@@ -79,6 +79,7 @@ impl BitfieldGossipMessage {
 		))
 	}
 }
+
 /// Data used to track information of peers and relay parents the
 /// overseer ordered us to work on.
 #[derive(Default, Debug)]
@@ -332,6 +333,7 @@ async fn handle_bitfield_distribution<Context>(
 	let msg = BitfieldGossipMessage { relay_parent, signed_availability };
 	let topology = state.topologies.get_topology(session_idx);
 	let required_routing = topology.required_routing_for_validator(validator_index, true);
+
 	relay_message(
 		ctx,
 		job_data,
