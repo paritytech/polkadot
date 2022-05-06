@@ -243,10 +243,10 @@ where
 			<Context as overseer::SubsystemContext>::Sender,
 			Message = <Context as overseer::SubsystemContext>::Message,
 		>,
-	<Context as overseer::SubsystemContext>::Sender:
-		overseer::SubsystemSender<
-			<Interceptor as MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>>::Message,
-		>,
+	// <Context as overseer::SubsystemContext>::Sender:
+	// 	overseer::SubsystemSender<
+	// 		<Interceptor as MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>>::Message,
+	// 	>,
 	<Context as overseer::SubsystemContext>::Message:
 		overseer::AssociateOutgoing,
 	<Context as overseer::SubsystemContext>::Sender:

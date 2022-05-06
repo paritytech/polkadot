@@ -201,6 +201,11 @@ fn to_variant(path: &Path, span: Span) -> Result<Ident> {
 	Ok(ident)
 }
 
+
+/// Converts the outgoing message types to variants.
+///
+/// TODO: Commonly this is `${X}Message` becomes `${X}OutgoingMessages::${X}Message`
+/// where for `AllMessages` it would be `AllMessages::${X}`.
 fn to_variants(message_types: &[Path], span: Span) -> Result<Vec<Ident>> {
 	let variants: Vec<_> =
 		Result::from_iter(message_types.into_iter().map(|path| to_variant(path, span.clone())))?;

@@ -330,8 +330,8 @@ where
 
 	fn intercept_outgoing(
 		&self,
-		msg: <Self::Message as overseer::AssociateOutgoing>::OutgoingMessages,
-	) -> Option<<Self::Message as overseer::AssociateOutgoing>::OutgoingMessages> {
+		msg: overseer::CandidateValidationOutgoingMessages,
+	) -> Option<overseer::CandidateValidationOutgoingMessages> {
 		Some(msg)
 	}
 }

@@ -66,8 +66,8 @@ async fn overseer_send<T: Into<AllMessages>>(overseer: &mut TestSubsystemContext
 fn launch_harness<F, M, Sub, G>(test_gen: G)
 where
 	F: Future<Output = TestSubsystemContextHandle<M>> + Send,
-	M: AssociateOutgoing + Into<<M as AssociateOutgoing>::OutgoingMessages> + std::fmt::Debug + Send + 'static,
-	<M as AssociateOutgoing>::OutgoingMessages: From<M>,
+	M: AssociateOutgoing + std::fmt::Debug + Send + 'static,
+	// <M as AssociateOutgoing>::OutgoingMessages: From<M>,
 	Sub: Subsystem<TestSubsystemContext<M, sp_core::testing::TaskExecutor>, SubsystemError>,
 	G: Fn(TestSubsystemContextHandle<M>) -> (F, Sub),
 {
