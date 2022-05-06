@@ -2007,12 +2007,10 @@ fn handle_multiple_seconded_statements() {
 				our_neighbors_y: HashMap::new(),
 			};
 
-			// This is relying on the fact that statement distribution
-			// just extracts the peer IDs from this struct and does nothing else
-			// with it.
+			// Create a topology to ensure that we send messages not to `peer_a`/`peer_b`
 			for (i, peer) in lucky_peers.iter().enumerate() {
 				let authority_id = AuthorityPair::generate().0.public();
-				t.our_neighbors_x.insert(
+				t.our_neighbors_y.insert(
 					authority_id,
 					network_bridge_event::TopologyPeerInfo {
 						peer_ids: vec![peer.clone()],
@@ -2020,6 +2018,20 @@ fn handle_multiple_seconded_statements() {
 					},
 				);
 			}
+			t.our_neighbors_x.insert(
+				AuthorityPair::generate().0.public(),
+				network_bridge_event::TopologyPeerInfo {
+					peer_ids: vec![peer_a.clone()],
+					validator_index: 1_u32.into(),
+				},
+			);
+			t.our_neighbors_x.insert(
+				AuthorityPair::generate().0.public(),
+				network_bridge_event::TopologyPeerInfo {
+					peer_ids: vec![peer_b.clone()],
+					validator_index: 2_u32.into(),
+				},
+			);
 
 			t
 		};
