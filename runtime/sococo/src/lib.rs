@@ -44,8 +44,9 @@ use primitives::v2::{
 	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use runtime_common::{
-	assigned_slots, auctions, crowdloan, impl_runtime_weights, impls::ToAuthor, paras_registrar,
-	paras_sudo_wrapper, slots, BlockHashCount, BlockLength, SlowAdjustingFeeUpdate,
+	assigned_slots, auctions, bridged_session_manager, crowdloan, impl_runtime_weights,
+	impls::ToAuthor, paras_registrar, paras_sudo_wrapper, slots, BlockHashCount, BlockLength,
+	SlowAdjustingFeeUpdate,
 };
 use runtime_parachains::{self, runtime_api_impl::v2 as runtime_api_impl};
 use scale_info::TypeInfo;
@@ -84,7 +85,6 @@ pub use frame_system::Call as SystemCall;
 use sococo_runtime_constants::{currency::*, fee::*, time::*};
 
 mod bridge_messages;
-mod validator_manager;
 mod weights;
 pub mod xcm_config;
 
@@ -228,8 +228,8 @@ construct_runtime! {
 		Beefy: pallet_beefy,
 		MmrLeaf: pallet_beefy_mmr,
 
-		// Validator Manager pallet.
-		ValidatorManager: validator_manager,
+		// Bridged session manager
+		BridgedSessionManager: bridged_session_manager,
 
 		// It might seem strange that we add both sides of the bridge to the same runtime. We do this because this
 		// runtime as shared by both the Rococo and Wococo chains. When running as Rococo we only use
@@ -478,7 +478,8 @@ impl pallet_session::Config for Runtime {
 	type ValidatorIdOf = ValidatorIdOf;
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
-	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, ValidatorManager>;
+	type SessionManager =
+		pallet_session::historical::NoteHistoricalRoot<Self, BridgedSessionManager>;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type WeightInfo = ();
@@ -914,11 +915,7 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
-impl validator_manager::Config for Runtime {
-	type Event = Event;
-	type PrivilegedOrigin = EnsureRoot<AccountId>;
-	type SendMessage = BridgeWococoMessages;
-}
+impl bridged_session_manager::Config for Runtime {}
 
 impl pallet_utility::Config for Runtime {
 	type Event = Event;
