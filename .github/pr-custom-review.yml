@@ -29,7 +29,7 @@ rules:
     check_type: changed_files
     condition:
       include: \.gitlab-ci.yml|scripts/ci/.*|\.github/.*
-    min_approvals: 1
+    min_approvals: 2
     teams:
       - ci
 
