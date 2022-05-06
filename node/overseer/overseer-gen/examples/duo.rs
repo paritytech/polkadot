@@ -1,6 +1,5 @@
 //! A dummy to be used with cargo expand
 
-use polkadot_node_network_protocol::WrongVariant;
 use polkadot_overseer_gen::{self as overseer, SpawnNamed, *};
 use std::collections::HashMap;
 mod misc;
