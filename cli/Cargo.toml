@@ -15,7 +15,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 clap = { version = "3.1", features = ["derive"], optional = true }
-log = "0.4.16"
+log = "0.4.17"
 thiserror = "1.0.31"
 futures = "0.3.21"
 pyro = { package = "pyroscope", version = "0.3.1", optional = true }

@@ -17,7 +17,7 @@ sp-std = { default-features = false, branch = "master", git = "https://github.co
 xcm-executor = { path = "../xcm-executor", default-features = false, features = ["runtime-benchmarks"] }
 frame-benchmarking = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 xcm = { path = "..", default-features = false, features = ["runtime-benchmarks"] }
-log = "0.4.16"
+log = "0.4.17"
 
 [dev-dependencies]
 pallet-balances = { branch = "master", git = "https://github.com/paritytech/substrate" }
