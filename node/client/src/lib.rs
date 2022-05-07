@@ -381,16 +381,6 @@ impl sc_client_api::BlockBackend<Block> for Client {
 			}
 		}
 	}
-
-	fn requires_full_sync(&self) -> bool {
-		with_client! {
-			self,
-			client,
-			{
-				client.requires_full_sync()
-			}
-		}
-	}
 }
 
 impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {

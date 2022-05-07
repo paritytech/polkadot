@@ -196,6 +196,7 @@ pub fn node_config(
 		rpc_cors: None,
 		rpc_methods: Default::default(),
 		rpc_id_provider: None,
+		rpc_max_subs_per_conn: None,
 		ws_max_out_buffer_capacity: None,
 		prometheus_config: None,
 		telemetry_endpoints: None,
