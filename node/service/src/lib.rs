@@ -1464,24 +1464,11 @@ fn revert_approval_voting(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::R
 		slot_duration_millis: Default::default(),
 	};
 
-	struct DummyOracle;
-	impl consensus_common::SyncOracle for DummyOracle {
-		fn is_major_syncing(&mut self) -> bool {
-			false
-		}
-		fn is_offline(&mut self) -> bool {
-			false
-		}
-	}
-
-	// Construct an approval voting subsystem with a dummy sync oracle and keystore.
-	// This dummy components are not be used by the revert and are only necessary
-	// for construction.
 	let approval_voting = approval_voting_subsystem::ApprovalVotingSubsystem::with_config(
 		config,
 		db,
 		Arc::new(sc_keystore::LocalKeystore::in_memory()),
-		Box::new(DummyOracle),
+		Box::new(consensus_common::NoNetwork),
 		approval_voting_subsystem::Metrics::default(),
 	);
 

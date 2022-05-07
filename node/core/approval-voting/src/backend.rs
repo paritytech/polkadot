@@ -145,8 +145,6 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		self.inner.load_candidate_entry(candidate_hash)
 	}
 
-	// The assumption is that stored block range is only None on initialization.
-	// Therefore, there is no need to delete_stored_block_range.
 	pub fn write_stored_block_range(&mut self, range: StoredBlockRange) {
 		self.stored_block_range = Some(Some(range));
 	}
