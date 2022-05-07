@@ -23,7 +23,7 @@ fatality = "0.0.6"
 thiserror = "1.0.31"
 
 [dev-dependencies]
-log = "0.4.16"
+log = "0.4.17"
 env_logger = "0.9.0"
 assert_matches = "1.4.0"
 
