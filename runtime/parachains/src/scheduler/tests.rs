@@ -18,7 +18,7 @@ use super::*;
 
 use frame_support::assert_ok;
 use keyring::Sr25519Keyring;
-use primitives::v2::{BlockNumber, CollatorId, SessionIndex, ValidatorId};
+use primitives::v2::{BlockNumber, CollatorId, SessionIndex, TypeVec, ValidatorId};
 
 use crate::{
 	configuration::HostConfiguration,
@@ -330,8 +330,8 @@ fn session_change_shuffles_validators() {
 
 	assert_eq!(default_config().parathread_cores, 3);
 	new_test_ext(genesis_config).execute_with(|| {
-		let chain_a = ParaId::from(1);
-		let chain_b = ParaId::from(2);
+		let chain_a = ParaId::from(1 as u32);
+		let chain_b = ParaId::from(2 as u32);
 
 		// ensure that we have 5 groups by registering 2 parachains.
 		schedule_blank_para(chain_a, true);
@@ -340,7 +340,7 @@ fn session_change_shuffles_validators() {
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: default_config(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Bob.public()),
 					ValidatorId::from(Sr25519Keyring::Charlie.public()),
@@ -348,7 +348,7 @@ fn session_change_shuffles_validators() {
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
 					ValidatorId::from(Sr25519Keyring::Ferdie.public()),
 					ValidatorId::from(Sr25519Keyring::One.public()),
-				],
+				]),
 				random_seed: [99; 32],
 				..Default::default()
 			}),
@@ -387,9 +387,9 @@ fn session_change_takes_only_max_per_core() {
 	};
 
 	new_test_ext(genesis_config).execute_with(|| {
-		let chain_a = ParaId::from(1);
-		let chain_b = ParaId::from(2);
-		let chain_c = ParaId::from(3);
+		let chain_a = ParaId::from(1 as u32);
+		let chain_b = ParaId::from(2 as u32);
+		let chain_c = ParaId::from(3 as u32);
 
 		// ensure that we have 5 groups by registering 2 parachains.
 		schedule_blank_para(chain_a, true);
@@ -399,7 +399,7 @@ fn session_change_takes_only_max_per_core() {
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: config.clone(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Bob.public()),
 					ValidatorId::from(Sr25519Keyring::Charlie.public()),
@@ -407,7 +407,7 @@ fn session_change_takes_only_max_per_core() {
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
 					ValidatorId::from(Sr25519Keyring::Ferdie.public()),
 					ValidatorId::from(Sr25519Keyring::One.public()),
-				],
+				]),
 				random_seed: [99; 32],
 				..Default::default()
 			}),
@@ -434,12 +434,12 @@ fn schedule_schedules() {
 		..Default::default()
 	};
 
-	let chain_a = ParaId::from(1);
-	let chain_b = ParaId::from(2);
+	let chain_a = ParaId::from(1 as u32);
+	let chain_b = ParaId::from(2 as u32);
 
-	let thread_a = ParaId::from(3);
-	let thread_b = ParaId::from(4);
-	let thread_c = ParaId::from(5);
+	let thread_a = ParaId::from(3 as u32);
+	let thread_b = ParaId::from(4 as u32);
+	let thread_c = ParaId::from(5 as u32);
 
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
@@ -459,13 +459,13 @@ fn schedule_schedules() {
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: default_config(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Bob.public()),
 					ValidatorId::from(Sr25519Keyring::Charlie.public()),
 					ValidatorId::from(Sr25519Keyring::Dave.public()),
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
-				],
+				]),
 				..Default::default()
 			}),
 			_ => None,
@@ -559,14 +559,14 @@ fn schedule_schedules_including_just_freed() {
 		..Default::default()
 	};
 
-	let chain_a = ParaId::from(1);
-	let chain_b = ParaId::from(2);
+	let chain_a = ParaId::from(1 as u32);
+	let chain_b = ParaId::from(2 as u32);
 
-	let thread_a = ParaId::from(3);
-	let thread_b = ParaId::from(4);
-	let thread_c = ParaId::from(5);
-	let thread_d = ParaId::from(6);
-	let thread_e = ParaId::from(7);
+	let thread_a = ParaId::from(3 as u32);
+	let thread_b = ParaId::from(4 as u32);
+	let thread_c = ParaId::from(5 as u32);
+	let thread_d = ParaId::from(6 as u32);
+	let thread_e = ParaId::from(7 as u32);
 
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
@@ -588,13 +588,13 @@ fn schedule_schedules_including_just_freed() {
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: default_config(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Bob.public()),
 					ValidatorId::from(Sr25519Keyring::Charlie.public()),
 					ValidatorId::from(Sr25519Keyring::Dave.public()),
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
-				],
+				]),
 				..Default::default()
 			}),
 			_ => None,
@@ -735,9 +735,9 @@ fn schedule_clears_availability_cores() {
 		..Default::default()
 	};
 
-	let chain_a = ParaId::from(1);
-	let chain_b = ParaId::from(2);
-	let chain_c = ParaId::from(3);
+	let chain_a = ParaId::from(1 as u32);
+	let chain_b = ParaId::from(2 as u32);
+	let chain_c = ParaId::from(3 as u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
 		assert_eq!(default_config().parathread_cores, 3);
@@ -751,13 +751,13 @@ fn schedule_clears_availability_cores() {
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: default_config(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Bob.public()),
 					ValidatorId::from(Sr25519Keyring::Charlie.public()),
 					ValidatorId::from(Sr25519Keyring::Dave.public()),
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
-				],
+				]),
 				..Default::default()
 			}),
 			_ => None,
@@ -841,8 +841,8 @@ fn schedule_rotates_groups() {
 		..Default::default()
 	};
 
-	let thread_a = ParaId::from(1);
-	let thread_b = ParaId::from(2);
+	let thread_a = ParaId::from(1 as u32);
+	let thread_b = ParaId::from(2 as u32);
 
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
@@ -856,10 +856,10 @@ fn schedule_rotates_groups() {
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: config.clone(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
-				],
+				]),
 				..Default::default()
 			}),
 			_ => None,
@@ -913,8 +913,8 @@ fn parathread_claims_are_pruned_after_retries() {
 		..Default::default()
 	};
 
-	let thread_a = ParaId::from(1);
-	let thread_b = ParaId::from(2);
+	let thread_a = ParaId::from(1 as u32);
+	let thread_b = ParaId::from(2 as u32);
 
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
@@ -928,10 +928,10 @@ fn parathread_claims_are_pruned_after_retries() {
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: default_config(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
-				],
+				]),
 				..Default::default()
 			}),
 			_ => None,
@@ -974,8 +974,8 @@ fn availability_predicate_works() {
 			thread_availability_period < group_rotation_frequency
 	);
 
-	let chain_a = ParaId::from(1);
-	let thread_a = ParaId::from(2);
+	let chain_a = ParaId::from(1 as u32);
+	let thread_a = ParaId::from(2 as u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
 		schedule_blank_para(chain_a, true);
@@ -985,13 +985,13 @@ fn availability_predicate_works() {
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: default_config(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Bob.public()),
 					ValidatorId::from(Sr25519Keyring::Charlie.public()),
 					ValidatorId::from(Sr25519Keyring::Dave.public()),
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
-				],
+				]),
 				..Default::default()
 			}),
 			_ => None,
@@ -1069,8 +1069,8 @@ fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
 		..Default::default()
 	};
 
-	let thread_a = ParaId::from(1);
-	let thread_b = ParaId::from(2);
+	let thread_a = ParaId::from(1 as u32);
+	let thread_b = ParaId::from(2 as u32);
 
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
@@ -1082,10 +1082,10 @@ fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: config.clone(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
-				],
+				]),
 				..Default::default()
 			}),
 			_ => None,
@@ -1141,8 +1141,8 @@ fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
 		..Default::default()
 	};
 
-	let thread_a = ParaId::from(1);
-	let thread_b = ParaId::from(2);
+	let thread_a = ParaId::from(1 as u32);
+	let thread_b = ParaId::from(2 as u32);
 
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
@@ -1154,10 +1154,10 @@ fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: config.clone(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
-				],
+				]),
 				..Default::default()
 			}),
 			_ => None,
@@ -1219,7 +1219,7 @@ fn next_up_on_available_is_parachain_always() {
 		..Default::default()
 	};
 
-	let chain_a = ParaId::from(1);
+	let chain_a = ParaId::from(1 as u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
 		schedule_blank_para(chain_a, true);
@@ -1228,10 +1228,10 @@ fn next_up_on_available_is_parachain_always() {
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: config.clone(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
-				],
+				]),
 				..Default::default()
 			}),
 			_ => None,
@@ -1273,7 +1273,7 @@ fn next_up_on_time_out_is_parachain_always() {
 		..Default::default()
 	};
 
-	let chain_a = ParaId::from(1);
+	let chain_a = ParaId::from(1 as u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
 		schedule_blank_para(chain_a, true);
@@ -1282,10 +1282,10 @@ fn next_up_on_time_out_is_parachain_always() {
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: config.clone(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
-				],
+				]),
 				..Default::default()
 			}),
 			_ => None,
@@ -1326,8 +1326,8 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 
 	assert_eq!(default_config().parathread_cores, 3);
 	new_test_ext(genesis_config).execute_with(|| {
-		let chain_a = ParaId::from(1);
-		let chain_b = ParaId::from(2);
+		let chain_a = ParaId::from(1 as u32);
+		let chain_b = ParaId::from(2 as u32);
 
 		// ensure that we have 5 groups by registering 2 parachains.
 		schedule_blank_para(chain_a, true);
@@ -1336,7 +1336,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: default_config(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Bob.public()),
 					ValidatorId::from(Sr25519Keyring::Charlie.public()),
@@ -1344,7 +1344,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
 					ValidatorId::from(Sr25519Keyring::Ferdie.public()),
 					ValidatorId::from(Sr25519Keyring::One.public()),
-				],
+				]),
 				random_seed: [99; 32],
 				..Default::default()
 			}),
@@ -1361,7 +1361,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 		run_to_end_of_block(2, |number| match number {
 			2 => Some(SessionChangeNotification {
 				new_config: default_config(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Bob.public()),
 					ValidatorId::from(Sr25519Keyring::Charlie.public()),
@@ -1369,7 +1369,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
 					ValidatorId::from(Sr25519Keyring::Ferdie.public()),
 					ValidatorId::from(Sr25519Keyring::One.public()),
-				],
+				]),
 				random_seed: [99; 32],
 				..Default::default()
 			}),
@@ -1401,8 +1401,8 @@ fn parathread_claims_are_pruned_after_deregistration() {
 		..Default::default()
 	};
 
-	let thread_a = ParaId::from(1);
-	let thread_b = ParaId::from(2);
+	let thread_a = ParaId::from(1 as u32);
+	let thread_b = ParaId::from(2 as u32);
 
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
@@ -1416,10 +1416,10 @@ fn parathread_claims_are_pruned_after_deregistration() {
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
 				new_config: default_config(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
-				],
+				]),
 				..Default::default()
 			}),
 			_ => None,
@@ -1437,10 +1437,10 @@ fn parathread_claims_are_pruned_after_deregistration() {
 		run_to_block(3, |number| match number {
 			3 => Some(SessionChangeNotification {
 				new_config: default_config(),
-				validators: vec![
+				validators: TypeVec::from(vec![
 					ValidatorId::from(Sr25519Keyring::Alice.public()),
 					ValidatorId::from(Sr25519Keyring::Eve.public()),
-				],
+				]),
 				..Default::default()
 			}),
 			_ => None,

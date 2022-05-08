@@ -413,7 +413,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let validators_shuffled: Vec<_> = session_info::Pallet::<T>::session_info(target_session)
 			.unwrap()
 			.validators
-			.clone();
+			.clone()
+			.to_vec();
 
 		self.validators = Some(validators_shuffled);
 		self.block_number = block_number;

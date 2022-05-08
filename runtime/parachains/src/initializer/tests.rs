@@ -122,7 +122,7 @@ fn scheduled_cleanup_performed() {
 		assert_ok!(Paras::schedule_para_cleanup(b));
 
 		// Apply session 2 in the future
-		Initializer::apply_new_session(2, vec![], vec![]);
+		Initializer::apply_new_session(2, TypeVec::new(), TypeVec::new());
 
 		assert!(Dmp::dmq_contents(a).is_empty());
 		assert!(Dmp::dmq_contents(b).is_empty());

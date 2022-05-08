@@ -30,12 +30,7 @@ use assert_matches::assert_matches;
 use frame_support::assert_noop;
 use futures::executor::block_on;
 use keyring::Sr25519Keyring;
-use primitives::v2::{
-	BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
-	CompactStatement as Statement, Hash, SignedAvailabilityBitfield, SignedStatement,
-	UncheckedSignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidityAttestation,
-	PARACHAIN_KEY_TYPE_ID,
-};
+use primitives::v2::{BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId, CompactStatement as Statement, Hash, SignedAvailabilityBitfield, SignedStatement, UncheckedSignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidityAttestation, PARACHAIN_KEY_TYPE_ID, TypeVec};
 use sc_keystore::LocalKeystore;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
@@ -1916,8 +1911,8 @@ fn session_change_wipes() {
 
 		run_to_block(12, |n| match n {
 			12 => Some(SessionChangeNotification {
-				validators: validator_public_new.clone(),
-				queued: Vec::new(),
+				validators: TypeVec::from(validator_public_new.clone()),
+				queued: TypeVec::new(),
 				prev_config: default_config(),
 				new_config: default_config(),
 				random_seed: Default::default(),

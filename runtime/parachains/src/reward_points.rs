@@ -74,7 +74,7 @@ mod tests {
 		mock::{new_test_ext, MockGenesisConfig, ParasShared, Test},
 	};
 	use keyring::Sr25519Keyring;
-	use primitives::v2::ValidatorId;
+	use primitives::v2::{TypeVec, ValidatorId};
 
 	#[test]
 	fn rewards_based_on_indirection() {
@@ -94,20 +94,20 @@ mod tests {
 			let mut config = HostConfiguration::default();
 			config.max_validators = None;
 
-			let pubkeys = validator_pubkeys(&validators);
+			let pubkeys = TypeVec::from(validator_pubkeys(&validators));
 
 			let shuffled_pubkeys =
 				ParasShared::initializer_on_new_session(1, [1; 32], &config, pubkeys);
 
 			assert_eq!(
 				shuffled_pubkeys,
-				validator_pubkeys(&[
+				TypeVec::from(validator_pubkeys(&[
 					Sr25519Keyring::Ferdie,
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 					Sr25519Keyring::Dave,
 					Sr25519Keyring::Alice,
-				])
+				]))
 			);
 
 			assert_eq!(

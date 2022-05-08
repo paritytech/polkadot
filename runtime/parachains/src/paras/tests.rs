@@ -17,7 +17,7 @@
 use super::*;
 use frame_support::{assert_err, assert_ok, assert_storage_noop};
 use keyring::Sr25519Keyring;
-use primitives::v2::{BlockNumber, ValidatorId, PARACHAIN_KEY_TYPE_ID};
+use primitives::v2::{BlockNumber, ValidatorId, PARACHAIN_KEY_TYPE_ID, TypeVec};
 use sc_keystore::LocalKeystore;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
@@ -73,7 +73,7 @@ fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
 			let mut session_change_notification = SessionChangeNotification::default();
 			session_change_notification.session_index = ParasShared::session_index() + 1;
-			session_change_notification.validators = validator_pubkeys.clone();
+			session_change_notification.validators = TypeVec::from(validator_pubkeys.clone());
 			ParasShared::initializer_on_new_session(
 				session_change_notification.session_index,
 				session_change_notification.random_seed,
@@ -868,7 +868,7 @@ fn para_incoming_at_session() {
 				accept: true,
 				subject: code_a.hash(),
 				session_index: 1,
-				validator_index: i.into(),
+				validator_index: (i as u32).into() ,
 			})
 			.for_each(sign_and_include_pvf_check_statement);
 
@@ -877,7 +877,7 @@ fn para_incoming_at_session() {
 				accept: true,
 				subject: code_b.hash(),
 				session_index: 1,
-				validator_index: i.into(),
+				validator_index: (i as u32).into(),
 			})
 			.for_each(sign_and_include_pvf_check_statement);
 
@@ -886,7 +886,7 @@ fn para_incoming_at_session() {
 				accept: true,
 				subject: code_c.hash(),
 				session_index: 1,
-				validator_index: i.into(),
+				validator_index: (i as u32).into(),
 			})
 			.for_each(sign_and_include_pvf_check_statement);
 
@@ -1077,7 +1077,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 				accept: true,
 				subject: validation_code.hash(),
 				session_index: EXPECTED_SESSION,
-				validator_index: i.into(),
+				validator_index: (i as u32).into(),
 			})
 			.for_each(sign_and_include_pvf_check_statement);
 
@@ -1197,7 +1197,7 @@ fn pvf_check_upgrade_reject() {
 				accept: false,
 				subject: new_code.hash(),
 				session_index: EXPECTED_SESSION,
-				validator_index: i.into(),
+				validator_index: (i as u32).into(),
 			})
 			.for_each(sign_and_include_pvf_check_statement);
 
@@ -1231,7 +1231,7 @@ fn pvf_check_submit_vote_while_disabled() {
 			accept: false,
 			subject: ValidationCode(vec![1, 2, 3]).hash(),
 			session_index: 1,
-			validator_index: 1.into(),
+			validator_index: (1 as u32).into(),
 		};
 
 		let signature: ValidatorSignature =
@@ -1309,7 +1309,7 @@ fn pvf_check_submit_vote() {
 				accept: false,
 				subject: code_a.hash(),
 				session_index: 1,
-				validator_index: 1.into(),
+				validator_index: (1 as u32).into(),
 			}),
 			(Ok(()), Ok(())),
 		);
@@ -1319,7 +1319,7 @@ fn pvf_check_submit_vote() {
 			accept: false,
 			subject: code_a.hash(),
 			session_index: 1,
-			validator_index: 1.into(),
+			validator_index: (1 as u32).into(),
 		});
 		assert_eq!(unsigned, Err(InvalidTransaction::Custom(INVALID_TX_DOUBLE_VOTE).into()));
 		assert_err!(dispatch, Error::<Test>::PvfCheckDoubleVote);
@@ -1329,7 +1329,7 @@ fn pvf_check_submit_vote() {
 			accept: true,
 			subject: code_a.hash(),
 			session_index: 1,
-			validator_index: 1.into(),
+			validator_index: (1 as u32).into(),
 		});
 		assert_eq!(unsigned, Err(InvalidTransaction::Custom(INVALID_TX_DOUBLE_VOTE).into()));
 		assert_err!(dispatch, Error::<Test>::PvfCheckDoubleVote);
@@ -1339,7 +1339,7 @@ fn pvf_check_submit_vote() {
 			accept: false,
 			subject: code_a.hash(),
 			session_index: 0,
-			validator_index: 1.into(),
+			validator_index: (1 as u32).into(),
 		});
 		assert_eq!(unsigned, Err(InvalidTransaction::Stale.into()));
 		assert_err!(dispatch, Error::<Test>::PvfCheckStatementStale);
@@ -1349,7 +1349,7 @@ fn pvf_check_submit_vote() {
 			accept: false,
 			subject: code_a.hash(),
 			session_index: 2,
-			validator_index: 1.into(),
+			validator_index: (1 as u32).into(),
 		});
 		assert_eq!(unsigned, Err(InvalidTransaction::Future.into()));
 		assert_err!(dispatch, Error::<Test>::PvfCheckStatementFuture);
@@ -1359,7 +1359,7 @@ fn pvf_check_submit_vote() {
 			accept: false,
 			subject: code_a.hash(),
 			session_index: 1,
-			validator_index: 5.into(),
+			validator_index: (5 as u32).into(),
 		});
 		assert_eq!(unsigned, Err(InvalidTransaction::Custom(INVALID_TX_BAD_VALIDATOR_IDX).into()));
 		assert_err!(dispatch, Error::<Test>::PvfCheckValidatorIndexOutOfBounds);
@@ -1369,7 +1369,7 @@ fn pvf_check_submit_vote() {
 			accept: false,
 			subject: code_b.hash(),
 			session_index: 1,
-			validator_index: 1.into(),
+			validator_index: (1 as u32).into(),
 		});
 		assert_eq!(unsigned, Err(InvalidTransaction::Custom(INVALID_TX_BAD_SUBJECT).into()));
 		assert_err!(dispatch, Error::<Test>::PvfCheckSubjectInvalid);

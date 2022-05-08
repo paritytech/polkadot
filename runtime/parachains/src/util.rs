@@ -106,7 +106,7 @@ mod tests {
 	use sp_std::vec::Vec;
 
 	use crate::util::{split_active_subset, take_active_subset};
-	use primitives::v2::ValidatorIndex;
+	use primitives::v2::{TypeVec, ValidatorIndex};
 
 	#[test]
 	fn take_active_subset_is_compatible_with_split_active_subset() {
@@ -115,7 +115,7 @@ mod tests {
 		let (selected, unselected) = split_active_subset(&active, &validators);
 		let selected2 = take_active_subset(&active, &validators);
 		assert_eq!(selected, selected2);
-		assert_eq!(unselected, vec![9, 6, 4, 5, 2, 0, 8]);
-		assert_eq!(selected, vec![1, 3, 7]);
+		assert_eq!(unselected, TypeVec::from(vec![9, 6, 4, 5, 2, 0, 8]));
+		assert_eq!(selected, TypeVec::from(vec![1, 3, 7]));
 	}
 }

@@ -38,23 +38,23 @@ fn sets_and_shuffles_validators() {
 	let mut config = HostConfiguration::default();
 	config.max_validators = None;
 
-	let pubkeys = validator_pubkeys(&validators);
+	let pubkeys = TypeVec::from(validator_pubkeys(&validators));
 
 	new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 		let validators = ParasShared::initializer_on_new_session(1, [1; 32], &config, pubkeys);
 
 		assert_eq!(
 			validators,
-			validator_pubkeys(&[
+			TypeVec::from(validator_pubkeys(&[
 				Sr25519Keyring::Ferdie,
 				Sr25519Keyring::Bob,
 				Sr25519Keyring::Charlie,
 				Sr25519Keyring::Dave,
 				Sr25519Keyring::Alice,
-			])
+			]))
 		);
 
-		assert_eq!(ParasShared::active_validator_keys(), validators);
+		assert_eq!(ParasShared::active_validator_keys(), validators.to_vec());
 
 		assert_eq!(
 			ParasShared::active_validator_indices(),
@@ -82,14 +82,14 @@ fn sets_truncates_and_shuffles_validators() {
 	let mut config = HostConfiguration::default();
 	config.max_validators = Some(2);
 
-	let pubkeys = validator_pubkeys(&validators);
+	let pubkeys = TypeVec::from(validator_pubkeys(&validators));
 
 	new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 		let validators = ParasShared::initializer_on_new_session(1, [1; 32], &config, pubkeys);
 
-		assert_eq!(validators, validator_pubkeys(&[Sr25519Keyring::Ferdie, Sr25519Keyring::Bob,]));
+		assert_eq!(validators, TypeVec::from(validator_pubkeys(&[Sr25519Keyring::Ferdie, Sr25519Keyring::Bob,])));
 
-		assert_eq!(ParasShared::active_validator_keys(), validators);
+		assert_eq!(ParasShared::active_validator_keys(), validators.to_vec());
 
 		assert_eq!(
 			ParasShared::active_validator_indices(),
