@@ -15,10 +15,10 @@ polkadot-node-network-protocol = { path = "../../network/protocol" }
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.20" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.20" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.20" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.20" }
 maplit = "1.0.2"
 log = "0.4.16"
 env_logger = "0.9.0"

@@ -5,8 +5,8 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "dp-jsonrpsee-integration-2" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-jsonrpsee-v0.9.20" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.20" }
 parity-scale-codec = { version = "3.1.2", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 

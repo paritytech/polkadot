@@ -25,20 +25,20 @@ polkadot-client = { path = "../node/client", optional = true }
 polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "dp-jsonrpsee-integration-2" }
-try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "dp-jsonrpsee-integration-2" }
-sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "dp-jsonrpsee-integration-2" }
-sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "dp-jsonrpsee-integration-2" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.20" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-jsonrpsee-v0.9.20" }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-jsonrpsee-v0.9.20" }
+sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-jsonrpsee-v0.9.20" }
+sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-jsonrpsee-v0.9.20" }
 polkadot-node-metrics = { path = "../node/metrics" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "dp-jsonrpsee-integration-2" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-jsonrpsee-v0.9.20" }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-jsonrpsee-v0.9.20" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.20" }
 
 [features]
 default = ["wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-native"]

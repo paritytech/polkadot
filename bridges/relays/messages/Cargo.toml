@@ -21,4 +21,4 @@ bp-runtime = { path = "../../primitives/runtime" }
 finality-relay = { path = "../finality" }
 relay-utils = { path = "../utils" }
 
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.20" }
