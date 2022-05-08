@@ -86,8 +86,9 @@ pub fn take_active_subset_and_inactive<K: From<usize> + Clone + Ord,V: Clone>(ac
 }
 
 /// Take the active subset of a set containing all validators.
-pub fn take_active_subset<K: From<usize> + Into<usize> + Clone + Ord,V: Clone>(active: &[K], set: &[V]) -> TypeVec<K,V> {
-	let subset: TypeVec<K,V> = TypeVec::from(active.iter().filter_map(|i| set.get(i.clone().into())).cloned().collect::<Vec<_>>());
+pub fn take_active_subset<K: From<usize> + Clone + Ord,V: Clone>(active: &[K], set: &[V]) -> TypeVec<K,V>
+	where usize: From<K>{
+	let subset: TypeVec<K,V> = TypeVec::from(active.iter().filter_map(|i| set.get(usize::from(i.clone()))).cloned().collect::<Vec<_>>());
 
 	if subset.len() != active.len() {
 		log::warn!(
