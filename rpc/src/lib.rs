@@ -136,7 +136,10 @@ where
 		finality_provider,
 	} = grandpa;
 
-	io.merge(substrate_state_trie_migration_rpc::MigrationRpc::new(client.clone(), backend, deny_unsafe).into_rpc())?;
+	io.merge(
+		substrate_state_trie_migration_rpc::MigrationRpc::new(client.clone(), backend, deny_unsafe)
+			.into_rpc(),
+	)?;
 	io.merge(SystemRpc::new(client.clone(), pool.clone(), deny_unsafe).into_rpc())?;
 	io.merge(TransactionPaymentRpc::new(client.clone()).into_rpc())?;
 	io.merge(MmrRpc::new(client.clone()).into_rpc())?;
@@ -162,13 +165,8 @@ where
 		.into_rpc(),
 	)?;
 	io.merge(
-		SyncStateRpc::new(
-			chain_spec,
-			client,
-			shared_authority_set,
-			shared_epoch_changes,
-		)?
-		.into_rpc(),
+		SyncStateRpc::new(chain_spec, client, shared_authority_set, shared_epoch_changes)?
+			.into_rpc(),
 	)?;
 
 	io.merge(
