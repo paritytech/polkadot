@@ -96,7 +96,7 @@ impl SessionGridTopology {
 			(false, false) => RequiredRouting::None,
 			(true, false) => RequiredRouting::GridY, // messages from X go to Y
 			(false, true) => RequiredRouting::GridX, // messages from Y go to X
-			(true, true) => RequiredRouting::GridXY, // if the grid works as expected, this shouldn't happen.
+			(true, true) => { gum::debug!(target: LOG_TARGET, ?originator, "Grid topology is unexpected, play it safe and send to X AND Y"); RequiredRouting::GridXY }, // if the grid works as expected, this shouldn't happen.
 		}
 	}
 
