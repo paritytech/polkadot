@@ -318,10 +318,13 @@ pub struct ForwardSubsystem<M>(pub mpsc::Sender<M>);
 
 impl<M, Context> overseer::Subsystem<Context, SubsystemError> for ForwardSubsystem<M>
 where
-	M: std::fmt::Debug + Send + 'static,
-	Context:
-		overseer::SubsystemContext<Message = M, Signal = OverseerSignal, Error = SubsystemError>,
-	<Context as overseer::SubsystemContext>::OutgoingMessages: From<M> + Send,
+	M: overseer::AssociateOutgoing + std::fmt::Debug + Send + 'static,
+	Context: overseer::SubsystemContext<
+		Message = M,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+		OutgoingMessages = <M as overseer::AssociateOutgoing>::OutgoingMessages,
+	>,
 {
 	fn start(mut self, mut ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {

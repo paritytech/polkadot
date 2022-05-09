@@ -60,10 +60,10 @@ enum Error {
 
 impl<Sender> JobTrait for FakeCollatorProtocolJob<Sender>
 where
-	Sender: overseer::CollatorProtocolSender,
+	Sender: overseer::CollatorProtocolSenderTrait + std::marker::Unpin,
 {
-	type Consumes = CollatorProtocolMessage;
-	type OutgoingMessages = CollatorProtocolOutgoingMessages;
+	type ToJob = CollatorProtocolMessage;
+	type OutgoingMessages = overseer::CollatorProtocolOutgoingMessages;
 	type Sender = Sender;
 	type Error = Error;
 	type RunArgs = bool;
@@ -102,7 +102,10 @@ where
 	}
 }
 
-impl FakeCollatorProtocolJob {
+impl<Sender> FakeCollatorProtocolJob<Sender>
+where
+	Sender: overseer::CollatorProtocolSenderTrait,
+{
 	async fn run_loop(mut self) -> Result<(), Error> {
 		loop {
 			match self.receiver.next().await {
