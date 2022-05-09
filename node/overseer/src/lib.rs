@@ -414,7 +414,8 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 	event=Event,
 	signal=OverseerSignal,
 	error=SubsystemError,
-	network=NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
+	network=NetworkBridgeEvent<VersionedValidationProtocol>,
+	message_capacity=2048,
 )]
 pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, CandidateValidationMessage)]
