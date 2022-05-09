@@ -1351,7 +1351,7 @@ async fn handle_incoming_message_and_circulate<'a>(
 		let topology = match session_index {
 			Ok(session_index) => topology_storage.get_topology_or_fallback(session_index),
 			Err(e) => {
-				gum::error!(
+				gum::debug!(
 					target: LOG_TARGET,
 					%relay_parent,
 					"cannot get session index for the specific relay parent: {:?}",
