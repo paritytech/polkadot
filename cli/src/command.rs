@@ -127,7 +127,6 @@ impl SubstrateCli for Cli {
 			#[cfg(not(feature = "rococo-native"))]
 			name if name.starts_with("wococo-") =>
 				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
-			"versi" => Box::new(service::chain_spec::versi_config()?),
 			#[cfg(feature = "rococo-native")]
 			"versi-dev" => Box::new(service::chain_spec::versi_development_config()?),
 			#[cfg(feature = "rococo-native")]
@@ -333,6 +332,7 @@ where
 				None,
 				false,
 				overseer_gen,
+				cli.run.overseer_channel_capacity_override,
 				hwbench,
 			)
 			.map(|full| full.task_manager)

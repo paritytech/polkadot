@@ -38,7 +38,7 @@ use frame_support::{
 	traits::Randomness,
 };
 use frame_system::pallet_prelude::*;
-use pallet_babe::{self, CurrentBlockRandomness};
+use pallet_babe::{self, ParentBlockRandomness};
 use primitives::v2::{
 	BackedCandidate, CandidateHash, CandidateReceipt, CheckedDisputeStatementSet,
 	CheckedMultiDisputeStatementSet, CoreIndex, DisputeStatementSet,
@@ -1195,14 +1195,18 @@ pub(crate) fn assure_sanity_backed_candidates<
 /// a const value, while emitting a warning.
 fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 	const CANDIDATE_SEED_SUBJECT: [u8; 32] = *b"candidate-seed-selection-subject";
-	let vrf_random = CurrentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
+	// NOTE: this is slightly gameable since this randomness was already public
+	// by the previous block, while for the block author this randomness was
+	// known 2 epochs ago. it is marginally better than using the parent block
+	// hash since it's harder to influence the VRF output than the block hash.
+	let vrf_random = ParentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
 	let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT.clone();
 	if let Some(vrf_random) = vrf_random {
 		entropy.as_mut().copy_from_slice(vrf_random.as_ref());
 	} else {
 		// in case there is no VRF randomness present, we utilize the relay parent
 		// as seed, it's better than a static value.
-		log::warn!(target: LOG_TARGET, "CurrentBlockRandomness did not provide entropy");
+		log::warn!(target: LOG_TARGET, "ParentBlockRandomness did not provide entropy");
 		entropy.as_mut().copy_from_slice(parent_hash.as_ref());
 	}
 	entropy

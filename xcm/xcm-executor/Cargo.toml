@@ -15,7 +15,7 @@ sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "mas
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-log = { version = "0.4.16", default-features = false }
+log = { version = "0.4.17", default-features = false }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false, optional = true }
 
 [features]
