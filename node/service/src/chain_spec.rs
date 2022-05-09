@@ -767,6 +767,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		gilt: Default::default(),
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
+		nomination_pools: Default::default(),
 	}
 }
 
@@ -1471,6 +1472,12 @@ pub fn kusama_testnet_genesis(
 		gilt: Default::default(),
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
+		nomination_pools: westend_runtime::NominationPoolsConfig {
+			max_pools: Some(128),
+			min_join_bond: KSM / 100,
+			min_create_bond: KSM,
+			..Default::default()
+		},
 	}
 }
 
