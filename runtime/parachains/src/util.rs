@@ -17,7 +17,7 @@
 //! Utilities that don't belong to any particular module but may draw
 //! on all modules.
 
-use primitives::v2::{Id as ParaId, PersistedValidationData, TypeVec};
+use primitives::v2::{Id as ParaId, PersistedValidationData, TypeVec, ValidatorIndex};
 use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
 use crate::{configuration, hrmp, paras};
@@ -58,7 +58,7 @@ pub fn split_active_subset<K: From<usize> + Clone + Ord,V: Clone>(active: &[K], 
 	let inactive_result = TypeVec::from(all
 		.iter()
 		.enumerate()
-		.filter(|(i, _)| !active_set.contains(active.get(*i).unwrap()))
+		.filter(|(i, _)| !active_set.contains(&K::from(*i)))
 		.map(|(_, v)| v)
 		.cloned()
 		.collect::<Vec<_>>());
