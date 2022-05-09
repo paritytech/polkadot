@@ -48,7 +48,7 @@ pub(crate) fn impl_overseer_gen(
 
 	additive.extend(impl_overseen_subsystem(&info));
 	additive.extend(impl_channels_out_struct(&info));
-	additive.extend(impl_subsystem(&info)?);
+	additive.extend(impl_subsystem_types_all(&info)?);
 
 	additive.extend(impl_message_wrapper_enum(&info)?);
 
