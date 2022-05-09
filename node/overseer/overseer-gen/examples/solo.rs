@@ -1,3 +1,5 @@
+#![allow(unused_assignments)]
+
 //! A minimal demo to be used with cargo expand.
 
 use overseer::SubsystemSender as _;

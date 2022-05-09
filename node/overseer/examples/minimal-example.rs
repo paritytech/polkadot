@@ -85,8 +85,8 @@ impl Subsystem1 {
 }
 
 #[overseer::contextbounds(CandidateBacking, error = SubsystemError, prefix = self::overseer)]
-impl<Context> Subsystem1 {
-	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
+impl Subsystem1 {
+	fn start<Context>(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
 			Ok(())
