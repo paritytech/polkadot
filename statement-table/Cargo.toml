@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-statement-table"
-version = "0.9.20"
+version = "0.9.21"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
