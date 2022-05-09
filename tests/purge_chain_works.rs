@@ -38,8 +38,12 @@ async fn purge_chain_rocksdb_works() {
 		.spawn()
 		.unwrap();
 
+	let (ws_url, _) = common::find_ws_url_from_output(cmd.stderr.take().unwrap());
+
 	// Let it produce 1 block.
-	common::wait_n_finalized_blocks(1, Duration::from_secs(60)).await.unwrap();
+	common::wait_n_finalized_blocks(1, Duration::from_secs(60), &ws_url)
+		.await
+		.unwrap();
 
 	// Send SIGINT to node.
 	kill(Pid::from_raw(cmd.id().try_into().unwrap()), SIGINT).unwrap();
@@ -81,8 +85,12 @@ async fn purge_chain_paritydb_works() {
 		.spawn()
 		.unwrap();
 
+	let (ws_url, _) = common::find_ws_url_from_output(cmd.stderr.take().unwrap());
+
 	// Let it produce 1 block.
-	common::wait_n_finalized_blocks(1, Duration::from_secs(60)).await.unwrap();
+	common::wait_n_finalized_blocks(1, Duration::from_secs(60), &ws_url)
+		.await
+		.unwrap();
 
 	// Send SIGINT to node.
 	kill(Pid::from_raw(cmd.id().try_into().unwrap()), SIGINT).unwrap();
