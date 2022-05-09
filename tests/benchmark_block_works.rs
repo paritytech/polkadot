@@ -47,6 +47,8 @@ async fn benchmark_block_works() {
 /// Builds a chain with one block for the given runtime and base path.
 async fn build_chain(runtime: &str, base_path: &Path) -> Result<(), String> {
 	let mut cmd = Command::new(cargo_bin("polkadot"))
+		.stdout(process::Stdio::piped())
+		.stderr(process::Stdio::piped())
 		.args(["--chain", &runtime, "--force-authoring", "--alice"])
 		.arg("-d")
 		.arg(base_path)
