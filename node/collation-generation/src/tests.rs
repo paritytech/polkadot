@@ -296,7 +296,7 @@ mod handle_new_activations {
 			*subsystem_sent_messages.lock().await = rx.collect().await;
 		});
 
-		let sent_messages = Arc::try_unwrap(sent_messages)
+		let mut sent_messages = Arc::try_unwrap(sent_messages)
 			.expect("subsystem should have shut down by now")
 			.into_inner();
 
