@@ -484,7 +484,7 @@ pub trait JobTrait: Unpin + Sized {
 	/// Message type used to send messages to the job.
 	type ToJob: 'static + BoundToRelayParent + Send;
 
-	/// The set of outgoing messages to be accumalted into.
+	/// The set of outgoing messages to be accumulated into.
 	type OutgoingMessages: 'static + Send;
 
 	/// The sender to send outgoing messages.

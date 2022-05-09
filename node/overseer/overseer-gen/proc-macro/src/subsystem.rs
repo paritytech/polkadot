@@ -40,7 +40,7 @@
 //! where `support_crate` is either equivalent to `somewhere` or derived from the cargo manifest.
 //!
 //!
-//! ## Add aditional trait bounds for a generic `Context` via `contextbounds`
+//! ## Add additional trait bounds for a generic `Context` via `contextbounds`
 //!
 //! ### To an `ImplItem`
 //!
@@ -93,7 +93,7 @@ use super::{parse::*, *};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MakeSubsystem {
-	/// Impl `trait Subsystem` and apply the trait bounds to the `Context` generic.
+	/// Implements `trait Subsystem` and apply the trait bounds to the `Context` generic.
 	///
 	/// Relevant to `impl Item` only.
 	ImplSubsystemTrait,

@@ -573,7 +573,7 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 	};
 
 	ts.extend(quote! {
-		/// Accumuative trait for a particular subsystem wrapper.
+		/// Accumulative trait for a particular subsystem wrapper.
 		pub trait #subsystem_ctx_trait : SubsystemContext <
 			Message = #consumes,
 			Signal = #signal_ty,
