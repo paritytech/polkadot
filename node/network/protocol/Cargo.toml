@@ -19,6 +19,7 @@ thiserror = "1.0.31"
 fatality = "0.0.6"
 rand = "0.8"
 derive_more = "0.99"
+gum = { package = "tracing-gum", path = "../../gum" }
 
 [dev-dependencies]
 rand_chacha = "0.3.1"
