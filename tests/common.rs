@@ -67,6 +67,12 @@ async fn wait_n_finalized_blocks_from(n: usize, url: &str) {
 }
 
 /// Read the WS address from the output.
+///
+/// This is hack to get the actual binded sockaddr because
+/// polkadot assigns a random port if the specified port was already binded.
+///
+/// You must call `Command::new("cmd").stdout(process::Stdio::piped()).stderr(process::Stdio::piped())`
+/// for this to work.
 pub fn find_ws_url_from_output(read: impl Read + Send) -> (String, String) {
 	let mut data = String::new();
 

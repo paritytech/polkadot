@@ -31,6 +31,8 @@ async fn purge_chain_rocksdb_works() {
 	let tmpdir = tempdir().expect("could not create temp dir");
 
 	let mut cmd = Command::new(cargo_bin("polkadot"))
+		.stdout(process::Stdio::piped())
+		.stderr(process::Stdio::piped())
 		.args(&["--dev", "-d"])
 		.arg(tmpdir.path())
 		.arg("--port")
@@ -78,6 +80,8 @@ async fn purge_chain_paritydb_works() {
 	let tmpdir = tempdir().expect("could not create temp dir");
 
 	let mut cmd = Command::new(cargo_bin("polkadot"))
+		.stdout(process::Stdio::piped())
+		.stderr(process::Stdio::piped())
 		.args(&["--dev", "-d"])
 		.arg(tmpdir.path())
 		.arg("--database")
