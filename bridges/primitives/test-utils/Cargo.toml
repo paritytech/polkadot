@@ -10,10 +10,10 @@ bp-header-chain = { path = "../header-chain", default-features = false  }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
 ed25519-dalek = { version = "1.0", default-features = false, features = ["u64_backend"] }
 finality-grandpa = { version = "0.15.0", default-features = false }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.20" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false  , branch = "polkadot-v0.9.20" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.20" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.20" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.21" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false  , branch = "polkadot-v0.9.21" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.21" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.21" }
 
 [features]
 default = ["std"]
