@@ -1347,11 +1347,20 @@ async fn handle_incoming_message_and_circulate<'a>(
 		// were not aware of before, we cannot have any dependent statements from the candidate.
 		let _ = metrics.time_network_bridge_update_v1("circulate_statement");
 
-		let session_index = runtime
-			.get_session_index_for_child(ctx.sender(), relay_parent)
-			.await
-			.unwrap_or(0_u32);
-		let topology = topology_storage.get_topology_or_fallback(session_index);
+		let session_index = runtime.get_session_index_for_child(ctx.sender(), relay_parent).await;
+		let topology = match session_index {
+			Ok(session_index) => topology_storage.get_topology_or_fallback(session_index),
+			Err(e) => {
+				gum::error!(
+					target: LOG_TARGET,
+					%relay_parent,
+					"cannot get session index for the specific relay parent: {:?}",
+					e
+				);
+
+				topology_storage.get_current_topology()
+			},
+		};
 		let required_routing = topology.required_routing_by_peer_id(peer, false);
 
 		let _ = circulate_statement(
