@@ -313,8 +313,9 @@ async fn assert_sends_validation_event_to_all(
 	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
 	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeMessage>,
 ) {
-	// Ordering must match the enum variant order
-	// in `AllMessages`.
+	// Ordering must be consistent across:
+	// `fn dispatch_validation_event_to_all_unbounded`
+	// `dispatch_validation_events_to_all`
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::StatementDistribution(
