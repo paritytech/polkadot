@@ -65,32 +65,28 @@ pub enum DisputeResult {
 pub trait PunishValidators {
 	/// Punish a series of validators who were for an invalid parablock. This is expected to be a major
 	/// punishment.
-	///
-	/// `validator_set_count` is the size of the validator set in that session.
 	fn punish_for_invalid(
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
+		losers: impl IntoIterator<Item = ValidatorIndex>,
+		winners: impl IntoIterator<Item = ValidatorIndex>,
 	);
 
 	/// Punish a series of validators who were against a valid parablock. This is expected to be a minor
 	/// punishment.
-	///
-	/// `validator_set_count` is the size of the validator set in that session.
 	fn punish_against_valid(
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
+		losers: impl IntoIterator<Item = ValidatorIndex>,
+		winners: impl IntoIterator<Item = ValidatorIndex>,
 	);
 
 	/// Punish a series of validators who were part of a dispute which never concluded. This is expected
 	/// to be a minor punishment.
-	///
-	/// `validator_set_count` is the size of the validator set in that session.
 	fn punish_inconclusive(
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
+		losers: impl IntoIterator<Item = ValidatorIndex>,
 	);
 }
 
@@ -99,12 +95,14 @@ impl PunishValidators for () {
 		_: SessionIndex,
 		_: CandidateHash,
 		_: impl IntoIterator<Item = ValidatorIndex>,
+		_: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 	}
 
 	fn punish_against_valid(
 		_: SessionIndex,
 		_: CandidateHash,
+		_: impl IntoIterator<Item = ValidatorIndex>,
 		_: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 	}
@@ -1259,10 +1257,16 @@ impl<T: Config> Pallet<T> {
 				session,
 				candidate_hash,
 				summary.slash_against,
+				summary.state.validators_for.iter_ones().map(|i| ValidatorIndex(i as _)),
 			);
 
 			// an invalid candidate, according to 2/3. Punish those on the 'for' side.
-			T::PunishValidators::punish_for_invalid(session, candidate_hash, summary.slash_for);
+			T::PunishValidators::punish_for_invalid(
+				session,
+				candidate_hash,
+				summary.slash_for,
+				summary.state.validators_against.iter_ones().map(|i| ValidatorIndex(i as _)),
+			);
 		}
 
 		<Disputes<T>>::insert(&session, &candidate_hash, &summary.state);

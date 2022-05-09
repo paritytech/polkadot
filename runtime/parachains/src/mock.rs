@@ -268,19 +268,21 @@ impl crate::disputes::PunishValidators for Test {
 	fn punish_for_invalid(
 		session: SessionIndex,
 		_: CandidateHash,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
+		losers: impl IntoIterator<Item = ValidatorIndex>,
+		_winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_FOR
-			.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
+			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
 	}
 
 	fn punish_against_valid(
 		session: SessionIndex,
 		_: CandidateHash,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
+		losers: impl IntoIterator<Item = ValidatorIndex>,
+		_winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_AGAINST
-			.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
+			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
 	}
 
 	fn punish_inconclusive(

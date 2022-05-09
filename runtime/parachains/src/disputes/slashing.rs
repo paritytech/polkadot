@@ -18,7 +18,7 @@
 
 // use pallet_session::KeyOwner;
 // use super::{Config, IdentificationTuple, IdentifyValidatorsInSession};
-use crate::{initializer::SessionChangeNotification, session_info::IdentificationTuple};
+use crate::{initializer::SessionChangeNotification, session_info::{AccountId, IdentificationTuple}};
 use frame_support::{
 	traits::{Get, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
 	weights::{Pays, Weight},
@@ -168,11 +168,11 @@ impl<T, R> SlashValidatorsForDisputes<T, R>
 where
 	T: Config + crate::session_info::Config,
 	R: ReportOffence<
-			T::AccountId,
+			AccountId<T>,
 			IdentificationTuple<T>,
 			ForInvalidOffence<IdentificationTuple<T>>,
 		> + ReportOffence<
-			T::AccountId,
+			AccountId<T>,
 			IdentificationTuple<T>,
 			AgainstValidOffence<IdentificationTuple<T>>,
 		>,
@@ -182,15 +182,14 @@ where
 	fn maybe_identify_validators(
 		session_index: SessionIndex,
 		validators: impl IntoIterator<Item = ValidatorIndex>,
-	) -> Option<(Vec<IdentificationTuple<T>>, u32)> {
+	) -> Option<(Vec<IdentificationTuple<T>>, Vec<AccountId<T>>, u32)> {
 		// We use `ValidatorSet::session_index` and not `shared::Pallet<T>::session_index()`
 		// because at the first block of a new era, the `IdentificationOf` of a validator
 		// in the previous session might be missing, while `shared` pallet would return
 		// the same session index as being updated at the end of the block.
 		let current_session = T::ValidatorSet::session_index();
 		if session_index == current_session {
-			if let Some(account_ids) = crate::session_info::Pallet::<T>::account_keys(session_index)
-			{
+			if let Some(account_ids) = crate::session_info::Pallet::<T>::account_keys(session_index){
 				let validator_set_count = account_ids.len() as u32;
 				let fully_identified = validators
 					.into_iter()
@@ -201,7 +200,7 @@ where
 						).map(|full_id| (id, full_id))
 					})
 					.collect::<Vec<IdentificationTuple<T>>>();
-				return Some((fully_identified, validator_set_count))
+				return Some((fully_identified, account_ids, validator_set_count))
 			}
 		}
 		None
@@ -212,11 +211,11 @@ impl<T, R> super::PunishValidators for SlashValidatorsForDisputes<T, R>
 where
 	T: Config + crate::session_info::Config,
 	R: ReportOffence<
-			T::AccountId,
+			AccountId<T>,
 			IdentificationTuple<T>,
 			ForInvalidOffence<IdentificationTuple<T>>,
 		> + ReportOffence<
-			T::AccountId,
+			AccountId<T>,
 			IdentificationTuple<T>,
 			AgainstValidOffence<IdentificationTuple<T>>,
 		>,
@@ -224,34 +223,41 @@ where
 	fn punish_for_invalid(
 		session_index: SessionIndex,
 		candidate_hash: CandidateHash,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
+		losers: impl IntoIterator<Item = ValidatorIndex>,
+		winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		// TODO: set reporters to the winning side of the dispute
-
-		let validators: BTreeSet<ValidatorIndex> = validators.into_iter().collect();
-		let maybe = Self::maybe_identify_validators(session_index, validators.iter().cloned());
-		if let Some((offenders, validator_set_count)) = maybe {
-			let reporters = vec![];
+		let losers: BTreeSet<ValidatorIndex> = losers.into_iter().collect();
+		let maybe = Self::maybe_identify_validators(session_index, losers.iter().cloned());
+		if let Some((offenders, account_ids, validator_set_count)) = maybe {
+			let reporters = winners.into_iter()
+				.filter_map(|i| account_ids.get(i.0 as usize).cloned())
+				.collect();
 			let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
 			let offence = ForInvalidOffence { validator_set_count, time_slot, offenders };
 			// TODO: log error?
 			let _ = R::report_offence(reporters, offence);
 			return
 		}
-		<PendingSlashesForInvalid<T>>::insert(session_index, candidate_hash, validators);
+		let winners: BTreeSet<ValidatorIndex> = winners.into_iter().collect();
+		let results = DisputeResults {
+			winners,
+			losers,
+		};
+		<PendingSlashesForInvalid<T>>::insert(session_index, candidate_hash, results);
 	}
 
 	fn punish_against_valid(
 		session_index: SessionIndex,
 		candidate_hash: CandidateHash,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
+		losers: impl IntoIterator<Item = ValidatorIndex>,
+		winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		// TODO: set reporters to the winning side of the dispute
-
-		let validators: BTreeSet<ValidatorIndex> = validators.into_iter().collect();
-		let maybe = Self::maybe_identify_validators(session_index, validators.iter().cloned());
-		if let Some((offenders, validator_set_count)) = maybe {
-			let reporters = vec![];
+		let losers: BTreeSet<ValidatorIndex> = losers.into_iter().collect();
+		let maybe = Self::maybe_identify_validators(session_index, losers.iter().cloned());
+		if let Some((offenders, account_ids, validator_set_count)) = maybe {
+			let reporters = winners.into_iter()
+				.filter_map(|i| account_ids.get(i.0 as usize).cloned())
+				.collect();
 			let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
 			let offence = AgainstValidOffence { validator_set_count, time_slot, offenders };
 			// TODO: log error?
@@ -259,7 +265,12 @@ where
 			return
 		}
 
-		<PendingSlashesAgainstValid<T>>::insert(session_index, candidate_hash, validators);
+		let winners: BTreeSet<ValidatorIndex> = winners.into_iter().collect();
+		let results = DisputeResults {
+			winners,
+			losers,
+		};
+		<PendingSlashesAgainstValid<T>>::insert(session_index, candidate_hash, results);
 	}
 
 	fn punish_inconclusive(
@@ -277,6 +288,13 @@ pub enum SlashingOffenceKind {
 	ForInvalid,
 	#[codec(index = 1)]
 	AgainstValid,
+}
+
+// TODO: docs
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+pub struct DisputeResults {
+	pub winners: BTreeSet<ValidatorIndex>,
+	pub losers: BTreeSet<ValidatorIndex>,
 }
 
 pub trait SlashingOffence<KeyOwnerIdentification>: Offence<KeyOwnerIdentification> {
@@ -475,7 +493,7 @@ pub mod pallet {
 		SessionIndex,
 		Blake2_128Concat,
 		CandidateHash,
-		BTreeSet<ValidatorIndex>, // TODO: also store winners
+		DisputeResults,
 	>;
 
 	/// Pending "against valid" dispute slashes for the last several sessions.
@@ -486,7 +504,7 @@ pub mod pallet {
 		SessionIndex,
 		Blake2_128Concat,
 		CandidateHash,
-		BTreeSet<ValidatorIndex>, // TODO separate backing from approval and dispute votes?
+		DisputeResults,
 	>;
 
 	#[pallet::error]
