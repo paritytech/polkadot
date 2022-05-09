@@ -200,6 +200,7 @@ impl ProvisionerJob {
 		sender: &mut impl SubsystemSender,
 		return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
 	) {
+
 		if let Err(err) = send_inherent_data(
 			&self.leaf,
 			&self.signed_bitfields,
@@ -221,6 +222,7 @@ impl ProvisionerJob {
 				leaf_hash = ?self.leaf.hash,
 				"inherent data sent successfully"
 			);
+			self.metrics.observe_inherent_data_bitfields_count(self.signed_bitfields.len());
 		}
 	}
 
