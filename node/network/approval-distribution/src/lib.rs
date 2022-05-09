@@ -513,8 +513,7 @@ impl State {
 			|block_entry| block_entry.session == session,
 			|required_routing, local, validator_index| {
 				if *required_routing == RequiredRouting::PendingTopology {
-					*required_routing =
-						topology.required_routing_by_index(*validator_index, local);
+					*required_routing = topology.required_routing_by_index(*validator_index, local);
 				}
 			},
 		)
