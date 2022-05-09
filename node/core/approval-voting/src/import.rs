@@ -611,7 +611,7 @@ pub(crate) mod tests {
 	use assert_matches::assert_matches;
 	use merlin::Transcript;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
-	use polkadot_node_subsystem::messages::AllMessages;
+	use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
 	use polkadot_primitives::v2::{Id as ParaId, SessionInfo, ValidatorIndex};
@@ -726,7 +726,8 @@ pub(crate) mod tests {
 	#[test]
 	fn imported_block_info_is_good() {
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) =
+			make_subsystem_context::<ApprovalVotingMessage, _>(pool.clone());
 
 		let session = 5;
 		let session_info = dummy_session_info(session);
@@ -849,7 +850,8 @@ pub(crate) mod tests {
 	#[test]
 	fn imported_block_info_fails_if_no_babe_vrf() {
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) =
+			make_subsystem_context::<ApprovalVotingMessage, _>(pool.clone());
 
 		let session = 5;
 		let session_info = dummy_session_info(session);
@@ -952,7 +954,8 @@ pub(crate) mod tests {
 	#[test]
 	fn imported_block_info_fails_if_ancient_session() {
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) =
+			make_subsystem_context::<ApprovalVotingMessage, _>(pool.clone());
 
 		let session = 5;
 
@@ -1029,7 +1032,7 @@ pub(crate) mod tests {
 	#[test]
 	fn imported_block_info_extracts_force_approve() {
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) = make_subsystem_context(pool.clone());
 
 		let session = 5;
 		let session_info = dummy_session_info(session);
@@ -1160,7 +1163,8 @@ pub(crate) mod tests {
 		let mut overlay_db = OverlayedBackend::new(&db);
 
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) =
+			make_subsystem_context::<ApprovalVotingMessage, _>(pool.clone());
 
 		let session = 5;
 		let irrelevant = 666;
