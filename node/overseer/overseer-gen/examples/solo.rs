@@ -2,7 +2,6 @@
 
 //! A minimal demo to be used with cargo expand.
 
-use overseer::SubsystemSender as _;
 use polkadot_overseer_gen::{self as overseer, SpawnNamed, *};
 mod misc;
 

@@ -368,6 +368,10 @@ pub(crate) fn impl_associate_outgoing_messages_trait(all_messages_wrapper: &Iden
 		impl AssociateOutgoing for () {
 			type OutgoingMessages = ();
 		}
+
+		impl AssociateOutgoing for #all_messages_wrapper {
+			type OutgoingMessages = #all_messages_wrapper ;
+		}
 	}
 }
 
