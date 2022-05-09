@@ -328,7 +328,7 @@ mod handle_new_activations {
 		};
 
 		assert_eq!(sent_messages.len(), 1);
-		match &sent_messages[0] {
+		match AllMessages::from(sent_messages.pop().unwrap()) {
 			AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
 				CandidateReceipt { descriptor, .. },
 				_pov,
@@ -356,7 +356,7 @@ mod handle_new_activations {
 					expect_descriptor.erasure_root = descriptor.erasure_root.clone();
 					expect_descriptor
 				};
-				assert_eq!(descriptor, &expect_descriptor);
+				assert_eq!(descriptor, expect_descriptor);
 			},
 			_ => panic!("received wrong message type"),
 		}
@@ -470,11 +470,13 @@ mod handle_new_activations {
 
 		assert_eq!(sent_messages.len(), 1);
 		match &sent_messages[0] {
-			AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
-				CandidateReceipt { descriptor, .. },
-				_pov,
-				..,
-			)) => {
+			overseer::CollationGenerationOutgoingMessages::CollatorProtocolMessage(
+				CollatorProtocolMessage::DistributeCollation(
+					CandidateReceipt { descriptor, .. },
+					_pov,
+					..,
+				),
+			) => {
 				assert_eq!(expect_validation_code_hash, descriptor.validation_code_hash);
 			},
 			_ => panic!("received wrong message type"),
