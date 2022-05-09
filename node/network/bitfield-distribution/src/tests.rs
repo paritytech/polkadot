@@ -62,7 +62,7 @@ fn prewarmed_state(
 	let relay_parent = known_message.relay_parent.clone();
 	let mut topology: SessionGridTopology = Default::default();
 	topology.peers_x = peers.iter().cloned().collect();
-	let mut topologies: SessionBoundGridTopologyStorage = Default::default();
+	let mut topologies = SessionBoundGridTopologyStorage::default();
 	topologies.update_topology(0_u32, topology);
 	ProtocolState {
 		per_relay_parent: hashmap! {
