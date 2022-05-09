@@ -55,8 +55,10 @@ async fn build_chain(runtime: &str, base_path: &Path) -> Result<(), String> {
 		.spawn()
 		.unwrap();
 
+	let (ws_url, _) = common::find_ws_url_from_output(cmd.stderr.take().unwrap());
+
 	// Wait for the chain to produce one block.
-	let ok = common::wait_n_finalized_blocks(1, Duration::from_secs(60)).await;
+	let ok = common::wait_n_finalized_blocks(1, Duration::from_secs(60), &ws_url).await;
 	// Send SIGINT to node.
 	kill(Pid::from_raw(cmd.id().try_into().unwrap()), SIGINT).unwrap();
 	// Wait for the node to handle it and exit.

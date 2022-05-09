@@ -41,15 +41,19 @@ async fn running_the_node_works_and_can_be_interrupted() {
 			.spawn()
 			.unwrap();
 
+		let (ws_url, _) = common::find_ws_url_from_output(cmd.stderr.take().unwrap());
+
 		// Let it produce three blocks.
-		common::wait_n_finalized_blocks(3, Duration::from_secs(60)).await.unwrap();
+		common::wait_n_finalized_blocks(3, Duration::from_secs(60), &ws_url)
+			.await
+			.unwrap();
 
 		assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
 		kill(Pid::from_raw(cmd.id().try_into().unwrap()), signal).unwrap();
 		assert_eq!(
 			common::wait_for(&mut cmd, 30).map(|x| x.success()),
 			Some(true),
-			"the pocess must exit gracefully after signal {}",
+			"the process must exit gracefully after signal {}",
 			signal,
 		);
 	}
