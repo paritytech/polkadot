@@ -329,11 +329,11 @@ mod tests {
 		let test_fut = {
 			Box::pin(async move {
 				let window = match window {
-					None => RollingSessionWindow::new(&mut sender, TEST_WINDOW_SIZE, hash)
+					None => RollingSessionWindow::new(sender.clone(), TEST_WINDOW_SIZE, hash)
 						.await
 						.unwrap(),
 					Some(mut window) => {
-						window.cache_session_info_for_head(&mut sender, hash).await.unwrap();
+						window.cache_session_info_for_head(sender, hash).await.unwrap();
 						window
 					},
 				};
@@ -503,8 +503,9 @@ mod tests {
 		let hash = header.hash();
 
 		let test_fut = {
+			let sender = ctx.sender().clone();
 			Box::pin(async move {
-				let res = RollingSessionWindow::new(ctx.sender(), TEST_WINDOW_SIZE, hash).await;
+				let res = RollingSessionWindow::new(sender, TEST_WINDOW_SIZE, hash).await;
 				assert!(res.is_err());
 			})
 		};
@@ -563,8 +564,9 @@ mod tests {
 
 		let test_fut = {
 			Box::pin(async move {
+				let sender = ctx.sender().clone();
 				let window =
-					RollingSessionWindow::new(ctx.sender(), TEST_WINDOW_SIZE, hash).await.unwrap();
+					RollingSessionWindow::new(sender, TEST_WINDOW_SIZE, hash).await.unwrap();
 
 				assert_eq!(window.earliest_session, session);
 				assert_eq!(window.session_info, vec![dummy_session_info(session)]);

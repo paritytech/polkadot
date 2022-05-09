@@ -60,7 +60,12 @@ enum Error {
 
 impl<Sender> JobTrait for FakeCollatorProtocolJob<Sender>
 where
-	Sender: overseer::CollatorProtocolSenderTrait + std::marker::Unpin,
+	Sender: overseer::CollatorProtocolSenderTrait
+		+ std::marker::Unpin
+		+ overseer::SubsystemSender<CollatorProtocolMessage>,
+	JobSender<Sender>: overseer::CollatorProtocolSenderTrait
+		+ std::marker::Unpin
+		+ overseer::SubsystemSender<CollatorProtocolMessage>,
 {
 	type ToJob = CollatorProtocolMessage;
 	type OutgoingMessages = overseer::CollatorProtocolOutgoingMessages;
@@ -86,12 +91,16 @@ where
 				FakeCollatorProtocolJob { receiver, _phantom: std::marker::PhantomData::<Sender> };
 
 			if run_args {
-				sender
-					.send_message(CollatorProtocolMessage::Invalid(
-						dummy_hash(),
-						dummy_candidate_receipt(dummy_hash()),
-					))
-					.await;
+				// FIXME XXX
+				// this was a hack for testing, for sending a message to a subsystem itself
+				// on a bounded channel which is outragiously stupid, even for a test case
+				// sender
+				// 	.send_message(CollatorProtocolMessage::Invalid(
+				// 		dummy_hash(),
+				// 		dummy_candidate_receipt(dummy_hash()),
+				// 	))
+				// 	.await;
+				unimplemented!("Probably delete this testcase entirely TODO")
 			}
 
 			// it isn't necessary to break run_loop into its own function,
