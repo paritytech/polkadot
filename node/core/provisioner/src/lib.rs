@@ -599,7 +599,8 @@ async fn request_disputes(
 		RequestType::Recent => DisputeCoordinatorMessage::RecentDisputes(tx),
 		RequestType::Active => DisputeCoordinatorMessage::ActiveDisputes(tx),
 	};
-	sender.send_message(msg.into()).await;
+	// Bounded by block production - `ProvisionerMessage::RequestInherentData`.
+	sender.send_unbounded_message(msg.into());
 
 	let recent_disputes = match rx.await {
 		Ok(r) => r,
@@ -617,9 +618,10 @@ async fn request_votes(
 	disputes_to_query: Vec<(SessionIndex, CandidateHash)>,
 ) -> Vec<(SessionIndex, CandidateHash, CandidateVotes)> {
 	let (tx, rx) = oneshot::channel();
-	sender
-		.send_message(DisputeCoordinatorMessage::QueryCandidateVotes(disputes_to_query, tx).into())
-		.await;
+	// Bounded by block production - `ProvisionerMessage::RequestInherentData`.
+	sender.send_unbounded_message(
+		DisputeCoordinatorMessage::QueryCandidateVotes(disputes_to_query, tx).into(),
+	);
 
 	match rx.await {
 		Ok(v) => v,
