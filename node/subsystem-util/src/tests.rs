@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#![cfg(test)]
+
 use super::*;
 use assert_matches::assert_matches;
 use executor::block_on;
@@ -91,16 +93,12 @@ where
 				FakeCollatorProtocolJob { receiver, _phantom: std::marker::PhantomData::<Sender> };
 
 			if run_args {
-				// FIXME XXX
-				// this was a hack for testing, for sending a message to a subsystem itself
-				// on a bounded channel which is outragiously stupid, even for a test case
-				// sender
-				// 	.send_message(CollatorProtocolMessage::Invalid(
-				// 		dummy_hash(),
-				// 		dummy_candidate_receipt(dummy_hash()),
-				// 	))
-				// 	.await;
-				unimplemented!("Probably delete this testcase entirely TODO")
+				sender
+					.send_message(CollatorProtocolMessage::Invalid(
+						dummy_hash(),
+						dummy_candidate_receipt(dummy_hash()),
+					))
+					.await;
 			}
 
 			// it isn't necessary to break run_loop into its own function,
