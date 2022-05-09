@@ -58,6 +58,8 @@ pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
 	let span = overseer_name.span();
 	let all_messages_wrapper = &info.message_wrapper;
 	let support_crate = info.support_crate_name();
+	let signal_ty = &info.extern_signal_ty;
+	let error_ty = &info.extern_error_ty;
 
 	// create a directed graph with all the subsystems as nodes and the messages as edges
 	// key is always the message path, values are node indices in the graph and the subsystem generic identifier
@@ -188,6 +190,21 @@ pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
 
 		ts.extend(impl_wrapper_enum(&outgoing_wrapper, ssf.messages_to_send.as_slice())?);
 	}
+
+	// impl the emtpy tuple handling for tests
+	let empty_tuple: Type = parse_quote! { () };
+	ts.extend(impl_subsystem_context_trait_for(
+		empty_tuple.clone(),
+		&[],
+		empty_tuple,
+		all_messages_wrapper,
+		subsystem_ctx_name,
+		subsystem_sender_name,
+		support_crate,
+		signal_ty,
+		error_ty,
+	));
+
 	Ok(ts)
 }
 
@@ -370,6 +387,137 @@ pub(crate) fn impl_associate_outgoing_messages(
 	}
 }
 
+pub(crate) fn impl_subsystem_context_trait_for(
+	consumes: Type,
+	outgoing: &[Type],
+	outgoing_wrapper: Type,
+	all_messages_wrapper: &Ident,
+	subsystem_ctx_name: &Ident,
+	subsystem_sender_name: &Ident,
+	support_crate: &Path,
+	signal: &Path,
+	error_ty: &Path,
+) -> TokenStream {
+	// impl the subsystem context trait
+	let where_clause = quote! {
+		#consumes: AssociateOutgoing + ::std::fmt::Debug + Send + 'static,
+		#all_messages_wrapper: From< #outgoing_wrapper >,
+		#all_messages_wrapper: From< #consumes >,
+		#outgoing_wrapper: #( From< #outgoing > )+*,
+	};
+
+	quote! {
+		#[#support_crate ::async_trait]
+		impl #support_crate ::SubsystemContext for #subsystem_ctx_name < #consumes >
+		where
+			#where_clause
+		{
+			type Message = #consumes;
+			type Signal = #signal;
+			type OutgoingMessages = #outgoing_wrapper;
+			type Sender = #subsystem_sender_name < #outgoing_wrapper >;
+			type Error = #error_ty;
+
+			async fn try_recv(&mut self) -> ::std::result::Result<Option<FromOverseer< Self::Message, #signal>>, ()> {
+				match #support_crate ::poll!(self.recv()) {
+					#support_crate ::Poll::Ready(msg) => Ok(Some(msg.map_err(|_| ())?)),
+					#support_crate ::Poll::Pending => Ok(None),
+				}
+			}
+
+			async fn recv(&mut self) -> ::std::result::Result<FromOverseer<Self::Message, #signal>, #error_ty> {
+				loop {
+					// If we have a message pending an overseer signal, we only poll for signals
+					// in the meantime.
+					if let Some((needs_signals_received, msg)) = self.pending_incoming.take() {
+						if needs_signals_received <= self.signals_received.load() {
+							return Ok( #support_crate ::FromOverseer::Communication { msg });
+						} else {
+							self.pending_incoming = Some((needs_signals_received, msg));
+
+							// wait for next signal.
+							let signal = self.signals.next().await
+								.ok_or(#support_crate ::OverseerError::Context(
+									"Signal channel is terminated and empty."
+									.to_owned()
+								))?;
+
+							self.signals_received.inc();
+							return Ok( #support_crate ::FromOverseer::Signal(signal))
+						}
+					}
+
+					let mut await_message = self.messages.next().fuse();
+					let mut await_signal = self.signals.next().fuse();
+					let signals_received = self.signals_received.load();
+					let pending_incoming = &mut self.pending_incoming;
+
+					// Otherwise, wait for the next signal or incoming message.
+					let from_overseer = #support_crate ::futures::select_biased! {
+						signal = await_signal => {
+							let signal = signal
+								.ok_or( #support_crate ::OverseerError::Context(
+									"Signal channel is terminated and empty."
+									.to_owned()
+								))?;
+
+							#support_crate ::FromOverseer::Signal(signal)
+						}
+						msg = await_message => {
+							let packet = msg
+								.ok_or( #support_crate ::OverseerError::Context(
+									"Message channel is terminated and empty."
+									.to_owned()
+								))?;
+
+							if packet.signals_received > signals_received {
+								// wait until we've received enough signals to return this message.
+								*pending_incoming = Some((packet.signals_received, packet.message));
+								continue;
+							} else {
+								// we know enough to return this message.
+								#support_crate ::FromOverseer::Communication { msg: packet.message}
+							}
+						}
+					};
+
+					if let #support_crate ::FromOverseer::Signal(_) = from_overseer {
+						self.signals_received.inc();
+					}
+
+					return Ok(from_overseer);
+				}
+			}
+
+			fn sender(&mut self) -> &mut Self::Sender {
+				&mut self.to_subsystems
+			}
+
+			fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+				-> ::std::result::Result<(), #error_ty>
+			{
+				self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnJob {
+					name,
+					subsystem: Some(self.name()),
+					s,
+				}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
+				Ok(())
+			}
+
+			fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+				-> ::std::result::Result<(), #error_ty>
+			{
+				self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnBlockingJob {
+					name,
+					subsystem: Some(self.name()),
+					s,
+				}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
+				Ok(())
+			}
+		}
+	}
+}
+
 pub(crate) fn impl_per_subsystem_helper_traits(
 	info: &OverseerInfo,
 	subsystem_ctx_name: &Ident,
@@ -381,7 +529,7 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 	outgoing_wrapper: &Ident,
 ) -> TokenStream {
 	let all_messages_wrapper = &info.message_wrapper;
-	let signal = &info.extern_signal_ty;
+	let signal_ty = &info.extern_signal_ty;
 	let error_ty = &info.extern_error_ty;
 	let support_crate = info.support_crate_name();
 
@@ -424,7 +572,7 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 		/// Accumuative trait for a particular subsystem wrapper.
 		pub trait #subsystem_ctx_trait : SubsystemContext <
 			Message = #consumes,
-			Signal = #signal,
+			Signal = #signal_ty,
 			OutgoingMessages = #outgoing_wrapper,
 			// Sender,
 			Error = #error_ty,
@@ -443,7 +591,7 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 		where
 			T: SubsystemContext <
 				Message = #consumes,
-				Signal = #signal,
+				Signal = #signal_ty,
 				OutgoingMessages = #outgoing_wrapper,
 				// Sender
 				Error = #error_ty,
@@ -457,141 +605,19 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 		}
 	});
 
-	// impl the subsystem context trait
-	let impl_subsystem_ctx_trait = |consumes: Type,
-	                                outgoing: &[Type],
-	                                outgoing_wrapper: Type|
-	 -> TokenStream {
-		let where_clause = quote! {
-			#consumes: AssociateOutgoing + ::std::fmt::Debug + Send + 'static,
-			#all_messages_wrapper: From< #outgoing_wrapper >,
-			#all_messages_wrapper: From< #consumes >,
-			#outgoing_wrapper: #( From< #outgoing > )+*,
-		};
-
-		quote! {
-			#[#support_crate ::async_trait]
-			impl #support_crate ::SubsystemContext for #subsystem_ctx_name < #consumes >
-			where
-				#where_clause
-			{
-				type Message = #consumes;
-				type Signal = #signal;
-				type OutgoingMessages = #outgoing_wrapper;
-				type Sender = #subsystem_sender_name < #outgoing_wrapper >;
-				type Error = #error_ty;
-
-				async fn try_recv(&mut self) -> ::std::result::Result<Option<FromOverseer< Self::Message, #signal>>, ()> {
-					match #support_crate ::poll!(self.recv()) {
-						#support_crate ::Poll::Ready(msg) => Ok(Some(msg.map_err(|_| ())?)),
-						#support_crate ::Poll::Pending => Ok(None),
-					}
-				}
-
-				async fn recv(&mut self) -> ::std::result::Result<FromOverseer<Self::Message, #signal>, #error_ty> {
-					loop {
-						// If we have a message pending an overseer signal, we only poll for signals
-						// in the meantime.
-						if let Some((needs_signals_received, msg)) = self.pending_incoming.take() {
-							if needs_signals_received <= self.signals_received.load() {
-								return Ok( #support_crate ::FromOverseer::Communication { msg });
-							} else {
-								self.pending_incoming = Some((needs_signals_received, msg));
-
-								// wait for next signal.
-								let signal = self.signals.next().await
-									.ok_or(#support_crate ::OverseerError::Context(
-										"Signal channel is terminated and empty."
-										.to_owned()
-									))?;
-
-								self.signals_received.inc();
-								return Ok( #support_crate ::FromOverseer::Signal(signal))
-							}
-						}
-
-						let mut await_message = self.messages.next().fuse();
-						let mut await_signal = self.signals.next().fuse();
-						let signals_received = self.signals_received.load();
-						let pending_incoming = &mut self.pending_incoming;
-
-						// Otherwise, wait for the next signal or incoming message.
-						let from_overseer = #support_crate ::futures::select_biased! {
-							signal = await_signal => {
-								let signal = signal
-									.ok_or( #support_crate ::OverseerError::Context(
-										"Signal channel is terminated and empty."
-										.to_owned()
-									))?;
-
-								#support_crate ::FromOverseer::Signal(signal)
-							}
-							msg = await_message => {
-								let packet = msg
-									.ok_or( #support_crate ::OverseerError::Context(
-										"Message channel is terminated and empty."
-										.to_owned()
-									))?;
-
-								if packet.signals_received > signals_received {
-									// wait until we've received enough signals to return this message.
-									*pending_incoming = Some((packet.signals_received, packet.message));
-									continue;
-								} else {
-									// we know enough to return this message.
-									#support_crate ::FromOverseer::Communication { msg: packet.message}
-								}
-							}
-						};
-
-						if let #support_crate ::FromOverseer::Signal(_) = from_overseer {
-							self.signals_received.inc();
-						}
-
-						return Ok(from_overseer);
-					}
-				}
-
-				fn sender(&mut self) -> &mut Self::Sender {
-					&mut self.to_subsystems
-				}
-
-				fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
-					-> ::std::result::Result<(), #error_ty>
-				{
-					self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnJob {
-						name,
-						subsystem: Some(self.name()),
-						s,
-					}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
-					Ok(())
-				}
-
-				fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
-					-> ::std::result::Result<(), #error_ty>
-				{
-					self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnBlockingJob {
-						name,
-						subsystem: Some(self.name()),
-						s,
-					}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
-					Ok(())
-				}
-			}
-		}
-	};
-
-	ts.extend(impl_subsystem_ctx_trait(
+	ts.extend(impl_subsystem_context_trait_for(
 		parse_quote! { #consumes },
 		&Vec::from_iter(outgoing.iter().map(|path| {
 			parse_quote! { #path }
 		})),
 		parse_quote! { #outgoing_wrapper },
+		all_messages_wrapper,
+		subsystem_ctx_name,
+		subsystem_sender_name,
+		support_crate,
+		signal_ty,
+		error_ty,
 	));
-
-	let empty_tuple: Type = parse_quote! { () };
-	ts.extend(impl_subsystem_ctx_trait(empty_tuple.clone(), &[], empty_tuple));
-
 	ts
 }
 
@@ -602,7 +628,7 @@ pub(crate) fn impl_subsystem_context(
 	subsystem_sender_name: &Ident,
 	subsystem_ctx_name: &Ident,
 ) -> TokenStream {
-	let signal = &info.extern_signal_ty;
+	let signal_ty = &info.extern_signal_ty;
 	let support_crate = info.support_crate_name();
 
 	let ts = quote! {
@@ -616,7 +642,7 @@ pub(crate) fn impl_subsystem_context(
 		#[derive(Debug)]
 		#[allow(missing_docs)]
 		pub struct #subsystem_ctx_name<M: AssociateOutgoing + Send + 'static> {
-			signals: #support_crate ::metered::MeteredReceiver< #signal >,
+			signals: #support_crate ::metered::MeteredReceiver< #signal_ty >,
 			messages: SubsystemIncomingMessages< M >,
 			to_subsystems: #subsystem_sender_name < <M as AssociateOutgoing>::OutgoingMessages >,
 			to_overseer: #support_crate ::metered::UnboundedMeteredSender<
@@ -633,7 +659,7 @@ pub(crate) fn impl_subsystem_context(
 		{
 			/// Create a new context.
 			fn new(
-				signals: #support_crate ::metered::MeteredReceiver< #signal >,
+				signals: #support_crate ::metered::MeteredReceiver< #signal_ty >,
 				messages: SubsystemIncomingMessages< M >,
 				to_subsystems: ChannelsOut,
 				to_overseer: #support_crate ::metered::UnboundedMeteredSender<#support_crate:: ToOverseer>,
