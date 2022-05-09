@@ -62,7 +62,7 @@ pub struct SessionGridTopology {
 impl SessionGridTopology {
 	/// Given the originator of a message as a validator index, indicates the part of the topology
 	/// we're meant to send the message to.
-	pub fn required_routing_for_validator(
+	pub fn required_routing_by_index(
 		&self,
 		originator: ValidatorIndex,
 		local: bool,
@@ -84,7 +84,7 @@ impl SessionGridTopology {
 
 	/// Given the originator of a message as a peer index, indicates the part of the topology
 	/// we're meant to send the message to.
-	pub fn required_routing_for_peer(&self, originator: PeerId, local: bool) -> RequiredRouting {
+	pub fn required_routing_by_peer_id(&self, originator: PeerId, local: bool) -> RequiredRouting {
 		if local {
 			return RequiredRouting::GridXY
 		}
@@ -180,14 +180,23 @@ impl SessionBoundGridTopologyStorage {
 	/// Return a grid topology based on the session index:
 	/// If we need a previous session and it is registered in the storage, then return that session.
 	/// Otherwise, return a current session to have some grid topology in any case
-	pub fn get_topology(&self, idx: SessionIndex) -> &SessionGridTopology {
+	pub fn get_topology_or_fallback(&self, idx: SessionIndex) -> &SessionGridTopology {
+		self.get_topology(idx).unwrap_or(&self.current_topology.0)
+	}
+
+	/// Return the grid topology for the specific session index, if no such a session is stored
+	/// returns `None`.
+	pub fn get_topology(&self, idx: SessionIndex) -> Option<&SessionGridTopology> {
 		if let Some(prev_topology) = &self.prev_topology {
 			if idx == prev_topology.1 {
-				return &prev_topology.0
+				return Some(&prev_topology.0)
 			}
 		}
-		// Return the current topology by default
-		&self.current_topology.0
+		if self.current_topology.1 == idx {
+			return Some(&self.current_topology.0)
+		}
+
+		None
 	}
 
 	/// Update the current topology preserving the previous one

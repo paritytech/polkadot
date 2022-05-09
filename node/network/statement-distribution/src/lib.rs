@@ -913,7 +913,7 @@ async fn circulate_statement_and_dependents(
 		.with_candidate(statement.payload().candidate_hash())
 		.with_stage(jaeger::Stage::StatementDistribution);
 
-	let topology = topology_store.get_topology(active_head.session_index);
+	let topology = topology_store.get_topology_or_fallback(active_head.session_index);
 	// First circulate the statement directly to all peers needing it.
 	// The borrow of `active_head` needs to encompass only this (Rust) statement.
 	let outputs: Option<(CandidateHash, Vec<PeerId>)> = {
@@ -1351,8 +1351,8 @@ async fn handle_incoming_message_and_circulate<'a>(
 			.get_session_index_for_child(ctx.sender(), relay_parent)
 			.await
 			.unwrap_or(0_u32);
-		let topology = topology_storage.get_topology(session_index);
-		let required_routing = topology.required_routing_for_peer(peer, false);
+		let topology = topology_storage.get_topology_or_fallback(session_index);
+		let required_routing = topology.required_routing_by_peer_id(peer, false);
 
 		let _ = circulate_statement(
 			required_routing,

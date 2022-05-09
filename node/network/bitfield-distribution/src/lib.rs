@@ -331,8 +331,8 @@ async fn handle_bitfield_distribution<Context>(
 	};
 
 	let msg = BitfieldGossipMessage { relay_parent, signed_availability };
-	let topology = state.topologies.get_topology(session_idx);
-	let required_routing = topology.required_routing_for_validator(validator_index, true);
+	let topology = state.topologies.get_topology_or_fallback(session_idx);
+	let required_routing = topology.required_routing_by_index(validator_index, true);
 
 	relay_message(
 		ctx,
@@ -537,8 +537,10 @@ async fn process_incoming_peer_message<Context>(
 
 	let message = BitfieldGossipMessage { relay_parent, signed_availability };
 
-	let topology = state.topologies.get_topology(job_data.signing_context.session_index);
-	let required_routing = topology.required_routing_for_validator(validator_index, false);
+	let topology = state
+		.topologies
+		.get_topology_or_fallback(job_data.signing_context.session_index);
+	let required_routing = topology.required_routing_by_index(validator_index, false);
 
 	metrics.on_bitfield_received();
 	one_per_validator.insert(validator.clone(), message.clone());
