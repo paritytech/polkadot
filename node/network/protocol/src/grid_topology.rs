@@ -174,7 +174,10 @@ impl SessionGridTopologies {
 
 /// A simple storage for a topology and the corresponding session index
 #[derive(Default, Debug)]
-pub struct GridTopologySessionBound(SessionGridTopology, SessionIndex);
+pub struct GridTopologySessionBound {
+	topology: SessionGridTopology,
+	session_index: SessionIndex,
+}
 
 /// A storage for the current and maybe previous topology
 #[derive(Default, Debug)]
@@ -188,34 +191,36 @@ impl SessionBoundGridTopologyStorage {
 	/// If we need a previous session and it is registered in the storage, then return that session.
 	/// Otherwise, return a current session to have some grid topology in any case
 	pub fn get_topology_or_fallback(&self, idx: SessionIndex) -> &SessionGridTopology {
-		self.get_topology(idx).unwrap_or(&self.current_topology.0)
+		self.get_topology(idx).unwrap_or(&self.current_topology.topology)
 	}
 
 	/// Return the grid topology for the specific session index, if no such a session is stored
 	/// returns `None`.
 	pub fn get_topology(&self, idx: SessionIndex) -> Option<&SessionGridTopology> {
 		if let Some(prev_topology) = &self.prev_topology {
-			if idx == prev_topology.1 {
-				return Some(&prev_topology.0)
+			if idx == prev_topology.session_index {
+				return Some(&prev_topology.topology)
 			}
 		}
-		if self.current_topology.1 == idx {
-			return Some(&self.current_topology.0)
+		if self.current_topology.session_index == idx {
+			return Some(&self.current_topology.topology)
 		}
 
 		None
 	}
 
 	/// Update the current topology preserving the previous one
-	pub fn update_topology(&mut self, idx: SessionIndex, topology: SessionGridTopology) {
-		let old_current =
-			std::mem::replace(&mut self.current_topology, GridTopologySessionBound(topology, idx));
+	pub fn update_topology(&mut self, session_index: SessionIndex, topology: SessionGridTopology) {
+		let old_current = std::mem::replace(
+			&mut self.current_topology,
+			GridTopologySessionBound { topology, session_index },
+		);
 		self.prev_topology.replace(old_current);
 	}
 
 	/// Returns a current grid topology
 	pub fn get_current_topology(&self) -> &SessionGridTopology {
-		&self.current_topology.0
+		&self.current_topology.topology
 	}
 }
 
