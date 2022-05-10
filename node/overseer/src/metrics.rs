@@ -190,7 +190,7 @@ impl MetricsTrait for Metrics {
 				prometheus::GaugeVec::<prometheus::U64>::new(
 					prometheus::Opts::new(
 						"polkadot_parachain_subsystem_bounded_blocked",
-						"Number of times senders blocked while sending messages to a subsytem",
+						"Number of times senders blocked while sending messages to a subsystem",
 					),
 					&["subsystem_name"],
 				)?,

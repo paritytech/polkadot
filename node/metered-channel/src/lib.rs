@@ -42,7 +42,7 @@ pub struct Meter {
 	sent: Arc<AtomicUsize>,
 	// Number of receives on this channel.
 	received: Arc<AtomicUsize>,
-	// Number of times the sender blocked the caller (when channel is full).
+	// Number of times senders blocked while sending messages to a subsystem.
 	blocked: Arc<AtomicUsize>,
 	// Atomic ringbuffer of the last 50 time of flight values
 	tof: Arc<crossbeam_queue::ArrayQueue<CoarseDuration>>,
