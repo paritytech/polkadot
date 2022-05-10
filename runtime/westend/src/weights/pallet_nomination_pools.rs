@@ -250,5 +250,12 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		(2_793_000 as Weight)
 			.saturating_add(T::DbWeight::get().writes(5 as Weight))
 	}
+
+	// Storage: NominationPools BondedPools (r:1 w:1)
+	fn update_roles() -> Weight {
+		(18_608_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+	}
 }
 
