@@ -1,5 +1,11 @@
 use polkadot_overseer_gen::{SpawnNamed, *};
 
+#[derive(Debug, Clone, Copy)]
+pub enum SigSigSig {
+	Conclude,
+	Foo,
+}
+
 #[derive(Debug, Clone)]
 pub struct DummySpawner;
 
@@ -22,10 +28,6 @@ impl SpawnNamed for DummySpawner {
 		unimplemented!("spawn {} {}", task_name, subsystem_name.unwrap_or("default"))
 	}
 }
-
-/// A signal sent by the overseer.
-#[derive(Debug, Clone)]
-pub struct SigSigSig;
 
 /// The external event.
 #[derive(Debug, Clone)]

@@ -1,3 +1,5 @@
+#![allow(dead_code)] // overseer events are not used
+
 //! A dummy to be used with cargo expand
 
 use polkadot_overseer_gen::{self as overseer, SpawnNamed, *};
@@ -57,16 +59,31 @@ struct Duo<T> {
 }
 
 fn main() {
-	let (overseer, _handle): (Duo<_, f64>, _) = Duo::builder()
-		.sub0(AwesomeSubSys::default())
-		.plinkos(Fortified::default())
-		.i_like_pi(::std::f64::consts::PI)
-		.i_like_generic(42.0)
-		.i_like_hash(HashMap::new())
-		.spawner(DummySpawner)
-		.build()
-		.unwrap();
-	assert_eq!(overseer.i_like_pi.floor() as i8, 3);
-	assert_eq!(overseer.i_like_generic.floor() as i8, 42);
-	assert_eq!(overseer.i_like_hash.len() as i8, 0);
+	use futures::{executor, pin_mut};
+
+	executor::block_on(async move {
+		let (overseer, _handle): (Duo<_, f64>, _) = Duo::builder()
+			.sub0(AwesomeSubSys::default())
+			.plinkos(Fortified::default())
+			.i_like_pi(::std::f64::consts::PI)
+			.i_like_generic(42.0)
+			.i_like_hash(HashMap::new())
+			.spawner(DummySpawner)
+			.build()
+			.unwrap();
+
+		assert_eq!(overseer.i_like_pi.floor() as i8, 3);
+		assert_eq!(overseer.i_like_generic.floor() as i8, 42);
+		assert_eq!(overseer.i_like_hash.len() as i8, 0);
+
+		let overseer_fut = overseer
+			.running_subsystems
+			.into_future()
+			.timeout(std::time::Duration::from_millis(300))
+			.fuse();
+
+		pin_mut!(overseer_fut);
+
+		overseer_fut.await
+	});
 }

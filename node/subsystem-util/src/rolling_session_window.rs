@@ -327,7 +327,7 @@ mod tests {
 
 		let hash = header.hash();
 
-		let mut sender = ctx.sender();
+		let sender = ctx.sender();
 
 		let test_fut = {
 			Box::pin(async move {

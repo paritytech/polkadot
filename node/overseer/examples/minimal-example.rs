@@ -24,14 +24,12 @@ use std::time::Duration;
 
 use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
 use polkadot_node_primitives::{BlockData, PoV};
-use polkadot_node_subsystem_types::messages::{
-	CandidateBackingMessage, CandidateValidationMessage,
-};
+use polkadot_node_subsystem_types::messages::CandidateValidationMessage;
 use polkadot_overseer::{
 	self as overseer,
 	dummy::dummy_overseer_builder,
 	gen::{FromOverseer, SpawnedSubsystem},
-	HeadSupportsParachains, OverseerSignal, SubsystemError,
+	HeadSupportsParachains, SubsystemError,
 };
 use polkadot_primitives::v2::{CandidateReceipt, Hash};
 
@@ -84,9 +82,9 @@ impl Subsystem1 {
 	}
 }
 
-#[overseer::contextbounds(CandidateBacking, error = SubsystemError, prefix = self::overseer)]
-impl Subsystem1 {
-	fn start<Context>(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
+#[overseer::subsystem(CandidateBacking, error = SubsystemError, prefix = self::overseer)]
+impl<Context> Subsystem1 {
+	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
 			Ok(())
@@ -156,6 +154,7 @@ fn main() {
 			.unwrap()
 			.replace_candidate_validation(|_| Subsystem2)
 			.replace_candidate_backing(|orig| orig)
+			.replace_candidate_backing(|_orig| Subsystem1)
 			.build()
 			.unwrap();
 

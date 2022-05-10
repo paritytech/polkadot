@@ -1,4 +1,4 @@
-#![allow(unused_assignments)]
+#![allow(dead_code)] // overseer events are not used
 
 //! A minimal demo to be used with cargo expand.
 
@@ -32,9 +32,23 @@ impl<Context> Fortified {
 }
 
 fn main() {
-	let (overseer, _handle): (Solo<_>, _) = Solo::builder()
-		.goblin_tower(Fortified::default())
-		.spawner(DummySpawner)
-		.build()
-		.unwrap();
+	use futures::{executor, pin_mut};
+
+	executor::block_on(async move {
+		let (overseer, _handle): (Solo<_>, _) = Solo::builder()
+			.goblin_tower(Fortified::default())
+			.spawner(DummySpawner)
+			.build()
+			.unwrap();
+
+		let overseer_fut = overseer
+			.running_subsystems
+			.into_future()
+			.timeout(std::time::Duration::from_millis(300))
+			.fuse();
+
+		pin_mut!(overseer_fut);
+
+		overseer_fut.await
+	});
 }

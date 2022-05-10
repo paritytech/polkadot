@@ -56,7 +56,7 @@ pub(crate) fn impl_overseer_gen(
 		.add_comment("Generated overseer code by `#[overlord(..)]`".to_owned())
 		.dry(!cfg!(feature = "expand"))
 		.verbose(true)
-		.fmt(expander::Edition::_2021)
+		.fmt(expander::RustFmt::No)
 		.write_to_out_dir(additive)
 		.expect("Expander does not fail due to IO in OUT_DIR. qed");
 
