@@ -25,7 +25,7 @@ use std::collections::HashMap;
 
 const DEFAULT_PROMETHEUS_PORT: u16 = 9616;
 
-#[substrate_test_utils::test(flavor = "multi_thread")]
+#[substrate_test_utils::test]
 async fn runtime_can_publish_metrics() {
 	let mut alice_config =
 		node_config(|| {}, tokio::runtime::Handle::current(), Alice, Vec::new(), true);
