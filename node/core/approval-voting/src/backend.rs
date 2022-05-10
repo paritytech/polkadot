@@ -67,8 +67,11 @@ pub trait Backend {
 // Status of block range in the `OverlayedBackend`.
 #[derive(PartialEq)]
 enum BlockRangeStatus {
+	// Value has not been modified.
 	NotModified,
+	// Value has been deleted
 	Deleted,
+	// Value has been updated.
 	Inserted(StoredBlockRange),
 }
 
