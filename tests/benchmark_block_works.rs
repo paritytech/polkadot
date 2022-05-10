@@ -22,7 +22,12 @@ use nix::{
 	sys::signal::{kill, Signal::SIGINT},
 	unistd::Pid,
 };
-use std::{path::Path, process::{self, Command}, result::Result, time::Duration};
+use std::{
+	path::Path,
+	process::{self, Command},
+	result::Result,
+	time::Duration,
+};
 use tempfile::tempdir;
 
 pub mod common;
