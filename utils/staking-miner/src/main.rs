@@ -52,7 +52,7 @@ use std::sync::Arc;
 	runtime_metadata_path = "metadata.scale",
 	derive_for_all_types = "Clone, PartialEq",
 	derive_for_type(type = "sp_core::crypto::AccountId32", derive = "Eq, Ord, PartialOrd"),
-	derive_for_type(type = "NposSolution16", derive = "Default")
+	derive_for_type(type = "sp_arithmetic::per_things::PerU16", derive = "Copy, Default")
 )]
 pub mod runtime {}
 
@@ -114,7 +114,7 @@ impl FromStr for SubmissionStrategy {
 			let percent: u32 = s[15..].parse().map_err(|e| format!("{:?}", e))?;
 			Self::ClaimBetterThan(Perbill::from_percent(percent))
 		} else {
-			return Err(s.into())
+			return Err(s.into());
 		};
 		Ok(res)
 	}
@@ -224,34 +224,44 @@ async fn main() -> Result<(), Error> {
 	let outcome = match chain.to_lowercase().as_str() {
 		// TODO: hack remove.
 		"polkadot" | "development" => match command {
-			Command::Monitor(cfg) =>
-				monitor::run::<chains::polkadot::Config>(client, cfg, Arc::new(signer)).await,
-			Command::DryRun(cfg) =>
-				dry_run::run::<chains::polkadot::Config>(client, cfg, signer).await,
-			Command::EmergencySolution(cfg) =>
-				emergency_solution::run::<chains::polkadot::Config>(client, cfg, signer).await,
+			Command::Monitor(cfg) => {
+				monitor::run::<chains::polkadot::Config>(client, cfg, Arc::new(signer)).await
+			},
+			Command::DryRun(cfg) => {
+				dry_run::run::<chains::polkadot::Config>(client, cfg, signer).await
+			},
+			Command::EmergencySolution(cfg) => {
+				emergency_solution::run::<chains::polkadot::Config>(client, cfg, signer).await
+			},
 		},
-		"kusama" => match command {
-			Command::Monitor(cfg) =>
-				monitor::run::<chains::kusama::Config>(client, cfg, Arc::new(signer)).await,
-			Command::DryRun(cfg) =>
-				dry_run::run::<chains::kusama::Config>(client, cfg, signer).await,
-			Command::EmergencySolution(cfg) =>
-				emergency_solution::run::<chains::kusama::Config>(client, cfg, signer).await,
+		/*"kusama" => match command {
+			Command::Monitor(cfg) => {
+				monitor::run::<chains::kusama::Config>(client, cfg, Arc::new(signer)).await
+			},
+			Command::DryRun(cfg) => {
+				dry_run::run::<chains::kusama::Config>(client, cfg, signer).await
+			},
+			Command::EmergencySolution(cfg) => {
+				emergency_solution::run::<chains::kusama::Config>(client, cfg, signer).await
+			},
 		},
 		"westend" => match command {
-			Command::Monitor(cfg) =>
-				monitor::run::<chains::westend::Config>(client, cfg, Arc::new(signer)).await,
-			Command::DryRun(cfg) =>
-				dry_run::run::<chains::westend::Config>(client, cfg, signer).await,
-			Command::EmergencySolution(cfg) =>
-				emergency_solution::run::<chains::westend::Config>(client, cfg, signer).await,
-		},
-		other =>
+			Command::Monitor(cfg) => {
+				monitor::run::<chains::westend::Config>(client, cfg, Arc::new(signer)).await
+			},
+			Command::DryRun(cfg) => {
+				dry_run::run::<chains::westend::Config>(client, cfg, signer).await
+			},
+			Command::EmergencySolution(cfg) => {
+				emergency_solution::run::<chains::westend::Config>(client, cfg, signer).await
+			},
+		},*/
+		other => {
 			return Err(Error::Other(format!(
 				"expected chain to be polkadot, kusama or westend; got: {}",
 				other
-			))),
+			)))
+		},
 	};
 
 	log::info!(target: LOG_TARGET, "round of execution finished. outcome = {:?}", outcome);

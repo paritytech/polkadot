@@ -36,7 +36,7 @@ async fn ensure_no_previous_solution(
 
 		if let Some(submission) = submission {
 			if &submission.who == us {
-				return Err(Error::AlreadySubmitted)
+				return Err(Error::AlreadySubmitted);
 			}
 		}
 	}
@@ -72,7 +72,7 @@ async fn ensure_no_better_solution(
 		};
 
 		if !score.strict_threshold_better(other_score, epsilon) {
-			return Err(Error::BetterScoreExist)
+			return Err(Error::BetterScoreExist);
 		}
 	}
 
@@ -85,8 +85,11 @@ pub(crate) async fn run<M>(
 	signer: Arc<Signer>,
 ) -> Result<(), Error>
 where
-	M: MinerConfig<AccountId = AccountId, MaxVotesPerVoter = crate::chains::MinerMaxVotesPerVoter>
-		+ 'static,
+	M: MinerConfig<
+			AccountId = AccountId,
+			MaxVotesPerVoter = crate::chains::MinerMaxVotesPerVoter,
+			Solution = crate::chains::polkadot::NposSolution16,
+		> + 'static,
 	<M as MinerConfig>::Solution: Send + Sync,
 {
 	let mut subscription = if config.listen == "head" {
@@ -149,8 +152,11 @@ async fn send_and_watch_extrinsic<M>(
 	signer: Arc<Signer>,
 	config: MonitorConfig,
 ) where
-	M: MinerConfig<AccountId = AccountId, MaxVotesPerVoter = crate::chains::MinerMaxVotesPerVoter>
-		+ 'static,
+	M: MinerConfig<
+			AccountId = AccountId,
+			MaxVotesPerVoter = crate::chains::MinerMaxVotesPerVoter,
+			Solution = crate::chains::polkadot::NposSolution16,
+		> + 'static,
 	<M as MinerConfig>::Solution: Send + Sync,
 {
 	/*async fn flatten<T>(handle: tokio::task::JoinHandle<Result<T, Error>>) -> Result<T, Error> {
@@ -173,7 +179,7 @@ async fn send_and_watch_extrinsic<M>(
 			e,
 			at.number
 		);
-		return
+		return;
 	}
 
 	if let Err(e) = ensure_no_previous_solution(&api, hash, signer.account_id()).await {
@@ -183,7 +189,7 @@ async fn send_and_watch_extrinsic<M>(
 			e,
 			at.number
 		);
-		return
+		return;
 	}
 
 	log::debug!("prep to create raw solution");
@@ -193,7 +199,7 @@ async fn send_and_watch_extrinsic<M>(
 			Ok(s) => s,
 			Err(e) => {
 				log::error!(target: LOG_TARGET, "Mining solution failed: {:?}", e);
-				return
+				return;
 			},
 		};
 
@@ -201,7 +207,7 @@ async fn send_and_watch_extrinsic<M>(
 		Ok(round) => round,
 		Err(e) => {
 			log::error!(target: LOG_TARGET, "Mining solution failed: {:?}", e);
-			return
+			return;
 		},
 	};
 
@@ -214,7 +220,7 @@ async fn send_and_watch_extrinsic<M>(
 			e,
 			at.number
 		);
-		return
+		return;
 	}
 
 	if let Err(e) = ensure_signed_phase(&api, hash).await {
@@ -224,15 +230,12 @@ async fn send_and_watch_extrinsic<M>(
 			e,
 			at.number
 		);
-		return
+		return;
 	}
 
-	let call = SubmitCall::new(RawSolution { solution, score, round });
-
-	let xt = subxt::SubmittableExtrinsic::<_, ExtrinsicParams, _, ModuleErrMissing, NoEvents>::new(
-		&api.client,
-		call,
-	);
+	let raw_solution =
+		crate::helpers::to_subxt_raw_solution(RawSolution { solution, score, round });
+	let xt = api.tx().election_provider_multi_phase().submit(raw_solution)?;
 
 	// This might fail with outdated nonce let it just crash if that happens.
 	let mut status_sub = xt.sign_and_submit_then_watch_default(&*signer).await.unwrap();
@@ -247,18 +250,18 @@ async fn send_and_watch_extrinsic<M>(
 					hash,
 					err
 				);
-				return
+				return;
 			},
 			None => {
 				log::error!(target: LOG_TARGET, "watch submit extrinsic at {:?} closed", hash,);
-				return
+				return;
 			},
 		};
 
 		match status {
-			TransactionStatus::Ready |
-			TransactionStatus::Broadcast(_) |
-			TransactionStatus::Future => (),
+			TransactionStatus::Ready
+			| TransactionStatus::Broadcast(_)
+			| TransactionStatus::Future => (),
 			TransactionStatus::InBlock(details) => {
 				log::info!(target: LOG_TARGET, "included at {:?}", details.block_hash());
 				let events = details.wait_for_success().await.unwrap();
@@ -272,7 +275,7 @@ async fn send_and_watch_extrinsic<M>(
 					log::info!(target: LOG_TARGET, "included at {:?}", event);
 				} else {
 					log::error!(target: LOG_TARGET, "no SolutionStored event emitted");
-					break
+					break;
 				}
 			},
 			TransactionStatus::Retracted(hash) => {
@@ -280,11 +283,11 @@ async fn send_and_watch_extrinsic<M>(
 			},
 			TransactionStatus::Finalized(details) => {
 				log::info!(target: LOG_TARGET, "Finalized at {:?}", details.block_hash());
-				return
+				return;
 			},
 			_ => {
 				log::warn!(target: LOG_TARGET, "Stopping listen due to other status {:?}", status);
-				return
+				return;
 			},
 		}
 	}
