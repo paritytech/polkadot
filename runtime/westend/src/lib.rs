@@ -990,7 +990,8 @@ impl sp_runtime::traits::Convert<Balance, sp_core::U256> for BalanceToU256 {
 pub struct U256ToBalance;
 impl sp_runtime::traits::Convert<sp_core::U256, Balance> for U256ToBalance {
 	fn convert(n: sp_core::U256) -> Balance {
-		n.try_into().unwrap_or(Balance::MAX)
+		use frame_support::traits::Defensive;
+		n.try_into().defensive_unwrap_or(Balance::MAX)
 	}
 }
 
