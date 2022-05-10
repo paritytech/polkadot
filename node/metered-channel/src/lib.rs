@@ -42,6 +42,8 @@ pub struct Meter {
 	sent: Arc<AtomicUsize>,
 	// Number of receives on this channel.
 	received: Arc<AtomicUsize>,
+	// Number of times the sender blocked the caller (when channel is full).
+	blocked: Arc<AtomicUsize>,
 	// Atomic ringbuffer of the last 50 time of flight values
 	tof: Arc<crossbeam_queue::ArrayQueue<CoarseDuration>>,
 }
@@ -51,6 +53,7 @@ impl std::default::Default for Meter {
 		Self {
 			sent: Arc::new(AtomicUsize::new(0)),
 			received: Arc::new(AtomicUsize::new(0)),
+			blocked: Arc::new(AtomicUsize::new(0)),
 			tof: Arc::new(crossbeam_queue::ArrayQueue::new(100)),
 		}
 	}
@@ -65,6 +68,8 @@ pub struct Readout {
 	pub sent: usize,
 	/// The amount of messages received on the channel, in aggregate.
 	pub received: usize,
+	/// How many times the caller blocked when sending messages.
+	pub blocked: usize,
 	/// Time of flight in micro seconds (us)
 	pub tof: Vec<CoarseDuration>,
 }
@@ -77,6 +82,7 @@ impl Meter {
 		Readout {
 			sent: self.sent.load(Ordering::Relaxed),
 			received: self.received.load(Ordering::Relaxed),
+			blocked: self.blocked.load(Ordering::Relaxed),
 			tof: {
 				let mut acc = Vec::with_capacity(self.tof.len());
 				while let Some(value) = self.tof.pop() {
@@ -97,6 +103,10 @@ impl Meter {
 
 	fn note_received(&self) {
 		self.received.fetch_add(1, Ordering::Relaxed);
+	}
+
+	fn note_blocked(&self) {
+		self.blocked.fetch_add(1, Ordering::Relaxed);
 	}
 
 	fn note_time_of_flight(&self, tof: CoarseDuration) {

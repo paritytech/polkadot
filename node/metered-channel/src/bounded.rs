@@ -158,13 +158,26 @@ impl<T> MeteredSender<T> {
 	where
 		Self: Unpin,
 	{
-		let msg = self.prepare_with_tof(msg);
-		let fut = self.inner.send(msg);
-		futures::pin_mut!(fut);
-		fut.await.map_err(|e| {
-			self.meter.retract_sent();
-			e
-		})
+		match self.try_send(msg) {
+			Err(send_err) => {
+				if send_err.is_full() {
+					// Count bounded channel sends that block.
+					// There is a small posibility that the channel might not longer be full when we call
+					// `send` again.
+
+					self.meter.note_blocked();
+				}
+
+				let msg = send_err.into_inner();
+				let fut = self.inner.send(msg);
+				futures::pin_mut!(fut);
+				fut.await.map_err(|e| {
+					self.meter.retract_sent();
+					e
+				})
+			},
+			_ => Ok(()),
+		}
 	}
 
 	/// Attempt to send message or fail immediately.
