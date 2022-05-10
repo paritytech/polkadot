@@ -17,13 +17,12 @@
 use polkadot_core_primitives::Block;
 use remote_externalities::rpc_api::get_finalized_head;
 use std::{
+	io::{BufRead, BufReader, Read},
 	process::{Child, ExitStatus},
 	thread,
 	time::Duration,
 };
 use tokio::time::timeout;
-
-static LOCALHOST_WS: &str = "ws://127.0.0.1:9944/";
 
 /// Wait for the given `child` the given amount of `secs`.
 ///
@@ -46,8 +45,9 @@ pub fn wait_for(child: &mut Child, secs: usize) -> Option<ExitStatus> {
 pub async fn wait_n_finalized_blocks(
 	n: usize,
 	timeout_duration: Duration,
+	url: &str,
 ) -> Result<(), tokio::time::error::Elapsed> {
-	timeout(timeout_duration, wait_n_finalized_blocks_from(n, LOCALHOST_WS)).await
+	timeout(timeout_duration, wait_n_finalized_blocks_from(n, url)).await
 }
 
 /// Wait for at least `n` blocks to be finalized from a specified node.
@@ -64,4 +64,33 @@ async fn wait_n_finalized_blocks_from(n: usize, url: &str) {
 		};
 		interval.tick().await;
 	}
+}
+
+/// Read the WS address from the output.
+///
+/// This is hack to get the actual binded sockaddr because
+/// polkadot assigns a random port if the specified port was already binded.
+///
+/// You must call `Command::new("cmd").stdout(process::Stdio::piped()).stderr(process::Stdio::piped())`
+/// for this to work.
+pub fn find_ws_url_from_output(read: impl Read + Send) -> (String, String) {
+	let mut data = String::new();
+
+	let ws_url = BufReader::new(read)
+		.lines()
+		.find_map(|line| {
+			let line = line.expect("failed to obtain next line from stdout for port discovery");
+
+			data.push_str(&line);
+
+			// does the line contain our port (we expect this specific output from substrate).
+			let sock_addr = match line.split_once("Running JSON-RPC WS server: addr=") {
+				None => return None,
+				Some((_, after)) => after.split_once(",").unwrap().0,
+			};
+
+			Some(format!("ws://{}", sock_addr))
+		})
+		.expect("We should get a WebSocket address");
+	(ws_url, data)
 }
