@@ -211,6 +211,7 @@ runtime-benchmarks = [
 	"pallet-membership/runtime-benchmarks",
 	"pallet-multisig/runtime-benchmarks",
 	"pallet-nomination-pools/runtime-benchmarks",
+	"pallet-nomination-pools-benchmarking",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
 	"pallet-scheduler/runtime-benchmarks",
