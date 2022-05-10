@@ -19,7 +19,6 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 #[derive(Clone)]
 pub(crate) struct MetricsInner {
 	pub(crate) chain_api_requests: prometheus::CounterVec<prometheus::U64>,
-	pub(crate) queue_len: prometheus::GaugeVec<prometheus::U64>,
 	pub(crate) make_runtime_api_request: prometheus::Histogram,
 }
 
@@ -35,12 +34,6 @@ impl Metrics {
 			} else {
 				metrics.chain_api_requests.with_label_values(&["failed"]).inc();
 			}
-		}
-	}
-
-	pub fn set_queue_len(&self, kind: &'static str, len: usize) {
-		if let Some(metrics) = &self.0 {
-			metrics.queue_len.with_label_values(&[kind]).set(len as u64);
 		}
 	}
 
@@ -68,16 +61,6 @@ impl metrics::Metrics for Metrics {
 						"Number of Runtime API requests served.",
 					),
 					&["success"],
-				)?,
-				registry,
-			)?,
-			queue_len: prometheus::register(
-				prometheus::GaugeVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_runtime_api_requests_queue_len",
-						"The sizes of the `waiting` or `active` queues.",
-					),
-					&["kind"],
 				)?,
 				registry,
 			)?,
