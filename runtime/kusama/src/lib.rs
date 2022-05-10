@@ -1448,7 +1448,7 @@ impl OnRuntimeUpgrade for InitiatePoolConfigs {
 			pallet_nomination_pools::MaxPoolMembersPerPool::<Runtime>::put(1024);
 
 			log::info!(target: "runtime::kusama", "pools config initiated 🎉");
-			<Runtime as frame_system::Config>::DbWeight::get().writes(5)
+			<Runtime as frame_system::Config>::DbWeight::get().reads_writes(1, 5)
 		} else {
 			log::info!(target: "runtime::kusama", "pools config already initiated 😏");
 			<Runtime as frame_system::Config>::DbWeight::get().reads(1)
