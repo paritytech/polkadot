@@ -11,17 +11,18 @@ declarative.
 ```rust
     #[overlord(signal=SigSigSig, event=Event, gen=AllMessages, error=OverseerError)]
     pub struct Overseer {
-        #[subsystem(MsgA)]
+        #[subsystem(MsgA, sends: [MsgB])]
         sub_a: AwesomeSubSysA,
 
-        #[subsystem(MsgB)]
+        #[subsystem(MsgB, sends: [MsgA])]
         sub_b: AwesomeSubSysB,
     }
 ```
 
 * Each subsystem is annotated with `#[subsystem(_)]` where `MsgA` respectively `MsgB` are the messages
 being consumed by that particular subsystem. Each of those subsystems is required to implement the subsystem
-trait.
+trait with the correct trait bounds. Commonly this is achieved
+by using `#[subsystem]` and `#[contextbounds]` macro.
 * `error=` tells the overseer to use the user provided
 error type, if not provided a builtin one is used. Note that this is the one error type used throughout all calls, so make sure it does impl `From<E>` for all other error types `E` that are relevant to your application.
 * `event=` declares an external event type, that injects certain events
