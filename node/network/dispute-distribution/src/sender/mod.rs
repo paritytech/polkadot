@@ -340,10 +340,10 @@ async fn get_active_disputes<Context: SubsystemContext>(
 	ctx: &mut Context,
 ) -> JfyiErrorResult<Vec<(SessionIndex, CandidateHash)>> {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ActiveDisputes(
-		tx,
-	)))
-	.await;
+	// Caller scope is in `update_leaves` and this is bounded by fork count.
+	ctx.send_unbounded_message(AllMessages::DisputeCoordinator(
+		DisputeCoordinatorMessage::ActiveDisputes(tx),
+	));
 	rx.await.map_err(|_| JfyiError::AskActiveDisputesCanceled)
 }
 
@@ -354,10 +354,10 @@ async fn get_candidate_votes<Context: SubsystemContext>(
 	candidate_hash: CandidateHash,
 ) -> JfyiErrorResult<Option<CandidateVotes>> {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(AllMessages::DisputeCoordinator(
+	// Caller scope is in `update_leaves` and this is bounded by fork count.
+	ctx.send_unbounded_message(AllMessages::DisputeCoordinator(
 		DisputeCoordinatorMessage::QueryCandidateVotes(vec![(session_index, candidate_hash)], tx),
-	))
-	.await;
+	));
 	rx.await
 		.map(|v| v.get(0).map(|inner| inner.to_owned().2))
 		.map_err(|_| JfyiError::AskCandidateVotesCanceled)

@@ -444,7 +444,10 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 		sc_consensus::DefaultImportQueue<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
 		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
 		(
-			impl service::RpcExtensionBuilder,
+			impl Fn(
+				polkadot_rpc::DenyUnsafe,
+				polkadot_rpc::SubscriptionTaskExecutor,
+			) -> Result<polkadot_rpc::RpcExtension, SubstrateServiceError>,
 			(
 				babe::BabeBlockImport<
 					Block,
@@ -938,7 +941,7 @@ where
 		client: client.clone(),
 		keystore: keystore_container.sync_keystore(),
 		network: network.clone(),
-		rpc_extensions_builder: Box::new(rpc_extensions_builder),
+		rpc_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
 		task_manager: &mut task_manager,
 		system_rpc_tx,
@@ -1177,9 +1180,22 @@ where
 		}
 	}
 
+	// Reduce grandpa load on Kusama and test networks. This will slow down finality by
+	// approximately one slot duration, but will reduce load. We would like to see the impact on
+	// Kusama, see: https://github.com/paritytech/polkadot/issues/5464
+	let gossip_duration = if chain_spec.is_versi() ||
+		chain_spec.is_wococo() ||
+		chain_spec.is_rococo() ||
+		chain_spec.is_kusama()
+	{
+		Duration::from_millis(2000)
+	} else {
+		Duration::from_millis(1000)
+	};
+
 	let config = grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
-		gossip_duration: Duration::from_millis(1000),
+		gossip_duration,
 		justification_period: 512,
 		name: Some(name),
 		observer_enabled: false,
