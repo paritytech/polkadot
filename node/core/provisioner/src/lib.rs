@@ -95,49 +95,6 @@ impl InherentAfter {
 	}
 }
 
-/// Errors in the provisioner.
-#[derive(Debug, Error)]
-#[allow(missing_docs)]
-pub enum Error {
-	#[error(transparent)]
-	Util(#[from] util::Error),
-
-	#[error("failed to get availability cores")]
-	CanceledAvailabilityCores(#[source] oneshot::Canceled),
-
-	#[error("failed to get persisted validation data")]
-	CanceledPersistedValidationData(#[source] oneshot::Canceled),
-
-	#[error("failed to get block number")]
-	CanceledBlockNumber(#[source] oneshot::Canceled),
-
-	#[error("failed to get backed candidates")]
-	CanceledBackedCandidates(#[source] oneshot::Canceled),
-
-	#[error("failed to get votes on dispute")]
-	CanceledCandidateVotes(#[source] oneshot::Canceled),
-
-	#[error(transparent)]
-	ChainApi(#[from] ChainApiError),
-
-	#[error(transparent)]
-	Runtime(#[from] RuntimeApiError),
-
-	#[error("failed to send message to ChainAPI")]
-	ChainApiMessageSend(#[source] mpsc::SendError),
-
-	#[error("failed to send message to CandidateBacking to get backed candidates")]
-	GetBackedCandidatesSend(#[source] mpsc::SendError),
-
-	#[error("failed to send return message with Inherents")]
-	InherentDataReturnChannel,
-
-	#[error(
-		"backed candidate does not correspond to selected candidate; check logic in provisioner"
-	)]
-	BackedCandidateOrderingProblem,
-}
-
 /// Provisioner run arguments.
 #[derive(Debug, Clone, Copy)]
 pub struct ProvisionerConfig;
