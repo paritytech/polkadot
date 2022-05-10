@@ -49,7 +49,7 @@ use tracing_subscriber::{fmt, EnvFilter};
 use std::sync::Arc;
 
 #[subxt::subxt(
-	runtime_metadata_path = "metadata.scale",
+	runtime_metadata_path = "polkadot.scale",
 	derive_for_all_types = "Clone, PartialEq",
 	derive_for_type(type = "sp_core::crypto::AccountId32", derive = "Eq, Ord, PartialOrd"),
 	derive_for_type(type = "sp_arithmetic::per_things::PerU16", derive = "Copy, Default")

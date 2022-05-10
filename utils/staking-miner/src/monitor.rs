@@ -102,26 +102,26 @@ where
 
 	loop {
 		let at = tokio::select! {
-			maybe_rp = subscription.next() => {
-				match maybe_rp {
-					Some(Ok(r)) => r,
-					Some(Err(e)) => {
-						log::error!(target: LOG_TARGET, "subscription failed to decode Header {:?}, this is bug please file an issue", e);
-						return Err(e.into());
-					}
-					// The subscription was dropped, should only happen if:
-					//	- the connection was closed.
-					//	- the subscription could not keep up with the server.
-					None => {
-						log::warn!(target: LOG_TARGET, "subscription to `subscribeNewHeads/subscribeFinalizedHeads` terminated. Retrying..");
-						subscription = if config.listen == "head" {
-							client.rpc().subscribe_blocks().await
-						} else {
-							client.rpc().subscribe_finalized_blocks().await
-						}?;
+				maybe_rp = subscription.next() => {
+					match maybe_rp {
+						Some(Ok(r)) => r,
+						Some(Err(e)) => {
+							log::error!(target: LOG_TARGET, "subscription failed to decode Header {:?}, this is bug please file an issue", e);
+							return Err(e.into());
+						}
+						// The subscription was dropped, should only happen if:
+						//	- the connection was closed.
+						//	- the subscription could not keep up with the server.
+						None => {
+							log::warn!(target: LOG_TARGET, "subscription to `subscribeNewHeads/subscribeFinalizedHeads` terminated. Retrying..");
+							subscription = if config.listen == "head" {
+								client.rpc().subscribe_blocks().await
+							} else {
+								client.rpc().subscribe_finalized_blocks().await
+							}?;
 
-						continue
-					}
+							continue
+						}
 				}
 			},
 			maybe_err = rx.recv() => {
@@ -233,9 +233,18 @@ async fn send_and_watch_extrinsic<M>(
 		return;
 	}
 
-	let raw_solution =
-		crate::helpers::to_subxt_raw_solution(RawSolution { solution, score, round });
-	let xt = api.tx().election_provider_multi_phase().submit(raw_solution)?;
+	let subxt_solution = crate::helpers::to_subxt_raw_solution(solution);
+	let raw_solution = runtime::pallet_election_provider_multi_phase::RawSolution {
+		solution: subxt_solution,
+		score: runtime::sp_npos_elections::ElectionScore {
+			minimal_stake: score.minimal_stake,
+			sum_stake: score.sum_stake,
+			sum_stake_squared: score.sum_stake_squared,
+		},
+		round,
+	};
+
+	let xt = api.tx().election_provider_multi_phase().submit(raw_solution).unwrap();
 
 	// This might fail with outdated nonce let it just crash if that happens.
 	let mut status_sub = xt.sign_and_submit_then_watch_default(&*signer).await.unwrap();
