@@ -22,7 +22,12 @@ use nix::{
 	sys::signal::{kill, Signal::SIGINT},
 	unistd::Pid,
 };
-use std::{path::Path, process::Command, result::Result, time::Duration};
+use std::{
+	path::Path,
+	process::{self, Command},
+	result::Result,
+	time::Duration,
+};
 use tempfile::tempdir;
 
 pub mod common;
@@ -47,6 +52,8 @@ async fn benchmark_block_works() {
 /// Builds a chain with one block for the given runtime and base path.
 async fn build_chain(runtime: &str, base_path: &Path) -> Result<(), String> {
 	let mut cmd = Command::new(cargo_bin("polkadot"))
+		.stdout(process::Stdio::piped())
+		.stderr(process::Stdio::piped())
 		.args(["--chain", &runtime, "--force-authoring", "--alice"])
 		.arg("-d")
 		.arg(base_path)
@@ -55,8 +62,10 @@ async fn build_chain(runtime: &str, base_path: &Path) -> Result<(), String> {
 		.spawn()
 		.unwrap();
 
+	let (ws_url, _) = common::find_ws_url_from_output(cmd.stderr.take().unwrap());
+
 	// Wait for the chain to produce one block.
-	let ok = common::wait_n_finalized_blocks(1, Duration::from_secs(60)).await;
+	let ok = common::wait_n_finalized_blocks(1, Duration::from_secs(60), &ws_url).await;
 	// Send SIGINT to node.
 	kill(Pid::from_raw(cmd.id().try_into().unwrap()), SIGINT).unwrap();
 	// Wait for the node to handle it and exit.
