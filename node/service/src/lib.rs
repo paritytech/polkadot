@@ -1493,6 +1493,8 @@ impl ExecuteWithClient for RevertConsensus {
 		Api: polkadot_client::RuntimeApiCollection<StateBackend = Backend::State>,
 		Client: AbstractClient<Block, Backend, Api = Api> + 'static,
 	{
+		// Revert consensus-related components.
+		// The operations are not correlated, thus call order is not relevant.
 		babe::revert(client.clone(), self.backend, self.blocks)?;
 		grandpa::revert(client, self.blocks)?;
 		Ok(())
