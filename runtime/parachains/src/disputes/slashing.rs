@@ -26,21 +26,27 @@ use frame_support::{
 use parity_scale_codec::{Decode, Encode};
 use primitives::v2::{CandidateHash, SessionIndex, ValidatorId, ValidatorIndex};
 use scale_info::TypeInfo;
-use sp_runtime::{traits::Convert, DispatchResult, KeyTypeId, Perbill, RuntimeDebug};
+use sp_runtime::{
+	traits::Convert, DispatchResult, KeyTypeId, Perbill, RuntimeDebug,
+	transaction_validity::{
+		InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
+		TransactionValidityError, ValidTransaction,
+	},
+};
 use sp_session::{GetSessionNumber, GetValidatorCount};
 use sp_staking::offence::{DisableStrategy, Kind, Offence, OffenceError, ReportOffence};
 use sp_std::{collections::btree_set::BTreeSet, prelude::*};
 
-// TODO: docs
-// timeslots should uniquely identify offences
-// and are used for deduplication
+const LOG_TARGET: &str = "runtime::slashing";
+
+/// Timeslots should uniquely identify offences
+/// and are used for the offence deduplication.
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 pub struct DisputesTimeSlot {
 	// TODO: `TimeSlot` docs says it should fit into `u128`
 	// any proofs?
 
-	// ordering is important for timeslots
-	// why?
+	// The order of these matters for `derive(Ord)`.
 	session_index: SessionIndex,
 	candidate_hash: CandidateHash,
 }
@@ -51,15 +57,13 @@ impl DisputesTimeSlot {
 	}
 }
 
-// TODO design: one offence type vs multiple
-
 /// An offence that is filed when a series of validators lost a dispute
 /// about an invalid candidate.
 #[derive(RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Clone, PartialEq, Eq))]
 pub struct ForInvalidOffence<KeyOwnerIdentification> {
 	/// The size of the validator set in that session.
-	/// Note: this included not only parachain validators.
+	/// Note: this includes not only parachain validators.
 	pub validator_set_count: u32,
 	/// Should be unique per dispute.
 	pub time_slot: DisputesTimeSlot,
@@ -111,7 +115,7 @@ where
 #[cfg_attr(feature = "std", derive(Clone, PartialEq, Eq))]
 pub struct AgainstValidOffence<KeyOwnerIdentification> {
 	/// The size of the validator set in that session.
-	/// Note: this included not only parachain validators.
+	/// Note: this includes not only parachain validators.
 	pub validator_set_count: u32,
 	/// Should be unique per dispute.
 	pub time_slot: DisputesTimeSlot,
@@ -290,6 +294,21 @@ pub enum SlashingOffenceKind {
 	AgainstValid,
 }
 
+/// We store most of the information about a lost dispute on chain.
+/// This is a minimum required to identify and verify it.
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+pub struct DisputeProof {
+	/// Time slot when the dispute occured.
+	pub time_slot: DisputesTimeSlot,
+	/// The dispute outcome.
+	pub kind: SlashingOffenceKind,
+	// TODO: ValidatorIndex as well?
+	/// The index of the validator who lost a dispute.
+	// pub validator_index: ValidatorIndex,
+	/// The parachain session key of the offender.
+	pub validator_id: ValidatorId,
+}
+
 // TODO: docs
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 pub struct DisputeResults {
@@ -364,7 +383,6 @@ pub trait HandleSlashingReportsForOldSessions<T: Config> {
 	type ReportLongevity: Get<u64>;
 
 	/// Report a for valid offence.
-	/// TODO: do we want to pass reporters or derive from the dispute?
 	fn report_for_invalid_offence(offence: Self::OffenceForInvalid) -> Result<(), OffenceError>;
 
 	/// Report an against invalid offence.
@@ -526,9 +544,7 @@ pub mod pallet {
 		))]
 		pub fn report_dispute_lost_unsigned(
 			origin: OriginFor<T>,
-			_session_index: SessionIndex,
-			_candidate_hash: CandidateHash,
-			_kind: SlashingOffenceKind,
+			_dispute_proof: DisputeProof,
 			_key_owner_proof: T::KeyOwnerProof,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
@@ -556,7 +572,6 @@ impl<T: Config> Pallet<T> {
 			return
 		}
 
-		// TODO: we could keep em longer than dispute_period?
 		let pruning_target = notification.session_index - config.dispute_period - 1;
 		let to_prune = pruning_target..=pruning_target;
 
@@ -564,5 +579,106 @@ impl<T: Config> Pallet<T> {
 			<PendingSlashesForInvalid<T>>::remove_prefix(old_session, None);
 			<PendingSlashesAgainstValid<T>>::remove_prefix(old_session, None);
 		}
+	}
+}
+
+/// Methods for the `ValidateUnsigned` implementation:
+/// It restricts calls to `report_dispute_lost_unsigned` to local calls (i.e. extrinsics generated
+/// on this node) or that already in a block. This guarantees that only block authors can include
+/// unsigned slashing reports.
+impl<T: Config> Pallet<T> {
+	pub fn validate_unsigned(source: TransactionSource, call: &Call<T>) -> TransactionValidity {
+		if let Call::report_dispute_lost_unsigned { dispute_proof, key_owner_proof } = call {
+			// discard slashing report not coming from the local node
+			match source {
+				TransactionSource::Local | TransactionSource::InBlock => { /* allowed */ },
+				_ => {
+					log::warn!(
+						target: LOG_TARGET,
+						"rejecting unsigned transaction because it is not local/in-block."
+					);
+
+					return InvalidTransaction::Call.into()
+				},
+			}
+
+			// check report staleness
+			is_known_offence::<T>(dispute_proof, key_owner_proof)?;
+
+			let longevity =
+				<T::HandleSlashingReportsForOldSessions as HandleSlashingReportsForOldSessions<T>>::ReportLongevity::get();
+
+			let tag_prefix = match dispute_proof.kind {
+				SlashingOffenceKind::ForInvalid => "DisputeForInvalid",
+				SlashingOffenceKind::AgainstValid => "DisputeAgainstValid",
+			};
+
+			ValidTransaction::with_tag_prefix(tag_prefix)
+				// We assign the maximum priority for any report.
+				.priority(TransactionPriority::max_value())
+				// Only one report for the same offender at the same slot.
+				.and_provides((
+					dispute_proof.time_slot.clone(),
+					dispute_proof.validator_id.clone(),
+				))
+				.longevity(longevity)
+				// We don't propagate this. This can never be included on a remote node.
+				.propagate(false)
+				.build()
+		} else {
+			InvalidTransaction::Call.into()
+		}
+	}
+
+	pub fn pre_dispatch(call: &Call<T>) -> Result<(), TransactionValidityError> {
+		if let Call::report_dispute_lost_unsigned { dispute_proof, key_owner_proof } = call {
+			is_known_offence::<T>(dispute_proof, key_owner_proof)
+		} else {
+			Err(InvalidTransaction::Call.into())
+		}
+	}
+}
+
+fn is_known_offence<T: Config>(
+	dispute_proof: &DisputeProof,
+	key_owner_proof: &T::KeyOwnerProof,
+) -> Result<(), TransactionValidityError> {
+	// check the membership proof to extract the offender's id
+	let key = (primitives::v2::PARACHAIN_KEY_TYPE_ID, dispute_proof.validator_id.clone());
+
+	let offender = T::KeyOwnerProofSystem::check_proof(key, key_owner_proof.clone())
+		.ok_or(InvalidTransaction::BadProof)?;
+
+	// check if the offence has already been reported,
+	// and if so then we can discard the report.
+	let is_known_offence = match dispute_proof.kind {
+		SlashingOffenceKind::ForInvalid => {
+			let time_slot = <T::HandleSlashingReportsForOldSessions as HandleSlashingReportsForOldSessions<T>>::OffenceForInvalid::new_time_slot(
+				dispute_proof.time_slot.session_index,
+				dispute_proof.time_slot.candidate_hash,
+			);
+
+			T::HandleSlashingReportsForOldSessions::is_known_for_invalid_offence(
+				&offender,
+				&time_slot,
+			)
+		},
+		SlashingOffenceKind::AgainstValid => {
+			let time_slot = <T::HandleSlashingReportsForOldSessions as HandleSlashingReportsForOldSessions<T>>::OffenceAgainstValid::new_time_slot(
+				dispute_proof.time_slot.session_index,
+				dispute_proof.time_slot.candidate_hash,
+			);
+
+			T::HandleSlashingReportsForOldSessions::is_known_against_valid_offence(
+				&offender,
+				&time_slot,
+			)
+		},
+	};
+
+	if is_known_offence {
+		Err(InvalidTransaction::Stale.into())
+	} else {
+		Ok(())
 	}
 }
