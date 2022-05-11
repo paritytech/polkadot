@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-#![deny(unused_crate_dependencies)]
-
 use proc_macro2::{Ident, Span, TokenStream};
 use syn::{parse_quote, spanned::Spanned, Path};
 
