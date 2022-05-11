@@ -1964,7 +1964,7 @@ mod benchmarking {
 
 	benchmarks! {
 		create {
-			let para_id = ParaId::from(1);
+			let para_id = ParaId::from(1_u32);
 			let cap = BalanceOf::<T>::max_value();
 			let first_period = 0u32.into();
 			let last_period = 3u32.into();
@@ -2052,7 +2052,7 @@ mod benchmarking {
 		}
 
 		edit {
-			let para_id = ParaId::from(1);
+			let para_id = ParaId::from(1_u32);
 			let cap = BalanceOf::<T>::max_value();
 			let first_period = 0u32.into();
 			let last_period = 3u32.into();
