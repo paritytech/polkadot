@@ -24,7 +24,9 @@ use crate::{
 	util::{take_active_subset, take_active_subset_and_inactive},
 };
 use frame_support::{pallet_prelude::*, traits::OneSessionHandler};
-use primitives::v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
+use primitives::v2::{
+	AssignmentId, AuthorityDiscoveryId, GroupIndex, SessionIndex, SessionInfo, TypeVec,
+};
 use sp_std::vec::Vec;
 
 pub use pallet::*;
@@ -102,7 +104,8 @@ impl<T: Config> Pallet<T> {
 		let assignment_keys = AssignmentKeysUnsafe::<T>::get();
 		let active_set = <shared::Pallet<T>>::active_validator_indices();
 
-		let validator_groups = <scheduler::Pallet<T>>::validator_groups();
+		let validator_groups =
+			TypeVec::<GroupIndex, _>::from(<scheduler::Pallet<T>>::validator_groups());
 		let n_cores = <scheduler::Pallet<T>>::availability_cores().len() as u32;
 		let zeroth_delay_tranche_width = config.zeroth_delay_tranche_width;
 		let relay_vrf_modulo_samples = config.relay_vrf_modulo_samples;

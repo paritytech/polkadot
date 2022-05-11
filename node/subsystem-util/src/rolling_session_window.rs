@@ -276,17 +276,17 @@ mod tests {
 	use assert_matches::assert_matches;
 	use polkadot_node_subsystem::messages::{AllMessages, AvailabilityRecoveryMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_primitives::v2::Header;
+	use polkadot_primitives::v2::{Header, TypeVec};
 	use sp_core::testing::TaskExecutor;
 
 	pub const TEST_WINDOW_SIZE: SessionWindowSize = new_session_window_size!(6);
 
 	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
 		SessionInfo {
-			validators: Vec::new(),
+			validators: TypeVec::new(),
 			discovery_keys: Vec::new(),
 			assignment_keys: Vec::new(),
-			validator_groups: Vec::new(),
+			validator_groups: TypeVec::new(),
 			n_cores: index as _,
 			zeroth_delay_tranche_width: index as _,
 			relay_vrf_modulo_samples: index as _,

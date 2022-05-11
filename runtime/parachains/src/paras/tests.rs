@@ -17,7 +17,7 @@
 use super::*;
 use frame_support::{assert_err, assert_ok, assert_storage_noop};
 use keyring::Sr25519Keyring;
-use primitives::v2::{BlockNumber, ValidatorId, PARACHAIN_KEY_TYPE_ID, TypeVec};
+use primitives::v2::{BlockNumber, TypeVec, ValidatorId, PARACHAIN_KEY_TYPE_ID};
 use sc_keystore::LocalKeystore;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
@@ -868,7 +868,7 @@ fn para_incoming_at_session() {
 				accept: true,
 				subject: code_a.hash(),
 				session_index: 1,
-				validator_index: (i as u32).into() ,
+				validator_index: (i as u32).into(),
 			})
 			.for_each(sign_and_include_pvf_check_statement);
 

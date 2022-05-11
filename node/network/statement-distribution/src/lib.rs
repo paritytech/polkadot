@@ -37,8 +37,8 @@ use polkadot_node_subsystem_util::{self as util, rand, MIN_GOSSIP_PEERS};
 
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
-	SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+	SignedStatement, SigningContext, TypeVec, UncheckedSignedStatement, ValidatorId,
+	ValidatorIndex, ValidatorSignature,
 };
 use polkadot_subsystem::{
 	jaeger,
@@ -668,7 +668,7 @@ struct ActiveHeadData {
 	/// Large statements we are waiting for with associated meta data.
 	waiting_large_statements: HashMap<CandidateHash, LargeStatementStatus>,
 	/// The parachain validators at the head's child session index.
-	validators: Vec<ValidatorId>,
+	validators: TypeVec<ValidatorIndex, ValidatorId>,
 	/// The current session index of this fork.
 	session_index: sp_staking::SessionIndex,
 	/// How many `Seconded` statements we've seen per validator.
@@ -679,7 +679,7 @@ struct ActiveHeadData {
 
 impl ActiveHeadData {
 	fn new(
-		validators: Vec<ValidatorId>,
+		validators: TypeVec<ValidatorIndex, ValidatorId>,
 		session_index: sp_staking::SessionIndex,
 		span: PerLeafSpan,
 	) -> Self {

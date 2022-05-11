@@ -16,12 +16,12 @@
 
 //! `V1` Primitives.
 
-use std::ops::{Deref, DerefMut};
-use typed_index_collections::TiVec;
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode, WrapperTypeDecode, WrapperTypeEncode};
 use scale_info::{Type, TypeInfo};
 use sp_std::prelude::*;
+use std::ops::{Deref, DerefMut};
+use typed_index_collections::TiVec;
 
 use application_crypto::KeyTypeId;
 use inherents::InherentIdentifier;
@@ -139,14 +139,13 @@ impl From<u32> for ValidatorIndex {
 	}
 }
 
-impl From<ValidatorIndex> for usize{
+impl From<ValidatorIndex> for usize {
 	fn from(n: ValidatorIndex) -> Self {
 		n.0 as usize
 	}
 }
 
 impl From<usize> for ValidatorIndex {
-	//TODO: See proper implementation
 	fn from(n: usize) -> Self {
 		// can't panic, so need to truncate
 		let n = n.try_into().unwrap_or(u32::MAX);
@@ -525,8 +524,8 @@ impl<H> CandidateReceipt<H> {
 
 	/// Computes the blake2-256 hash of the receipt.
 	pub fn hash(&self) -> CandidateHash
-		where
-			H: Encode,
+	where
+		H: Encode,
 	{
 		CandidateHash(BlakeTwo256::hash_of(self))
 	}
@@ -575,16 +574,16 @@ impl<H: Clone> CommittedCandidateReceipt<H> {
 	/// This computes the canonical hash, not the hash of the directly encoded data.
 	/// Thus this is a shortcut for `candidate.to_plain().hash()`.
 	pub fn hash(&self) -> CandidateHash
-		where
-			H: Encode,
+	where
+		H: Encode,
 	{
 		self.to_plain().hash()
 	}
 
 	/// Does this committed candidate receipt corresponds to the given [`CandidateReceipt`]?
 	pub fn corresponds_to(&self, receipt: &CandidateReceipt<H>) -> bool
-		where
-			H: PartialEq,
+	where
+		H: PartialEq,
 	{
 		receipt.descriptor == self.descriptor && receipt.commitments_hash == self.commitments.hash()
 	}
@@ -717,16 +716,16 @@ impl<H> BackedCandidate<H> {
 
 	/// Compute this candidate's hash.
 	pub fn hash(&self) -> CandidateHash
-		where
-			H: Clone + Encode,
+	where
+		H: Clone + Encode,
 	{
 		self.candidate.hash()
 	}
 
 	/// Get this candidate's receipt.
 	pub fn receipt(&self) -> CandidateReceipt<H>
-		where
-			H: Clone,
+	where
+		H: Clone,
 	{
 		self.candidate.to_plain()
 	}
@@ -749,11 +748,11 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 	validator_lookup: impl Fn(usize) -> Option<ValidatorId>,
 ) -> Result<usize, ()> {
 	if backed.validator_indices.len() != group_len {
-		return Err(());
+		return Err(())
 	}
 
 	if backed.validity_votes.len() > group_len {
-		return Err(());
+		return Err(())
 	}
 
 	// this is known, even in runtime, to be blake2-256.
@@ -774,12 +773,12 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 		if sig.verify(&payload[..], &validator_id) {
 			signed += 1;
 		} else {
-			return Err(());
+			return Err(())
 		}
 	}
 
 	if signed != backed.validity_votes.len() {
-		return Err(());
+		return Err(())
 	}
 
 	Ok(signed)
@@ -787,7 +786,7 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 
 /// The unique (during session) index of a core.
 #[derive(
-Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy, TypeInfo, RuntimeDebug,
+	Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy, TypeInfo, RuntimeDebug,
 )]
 #[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
 pub struct CoreIndex(pub u32);
@@ -809,6 +808,13 @@ impl From<u32> for GroupIndex {
 	}
 }
 
+impl From<usize> for GroupIndex {
+	fn from(n: usize) -> Self {
+		// can't panic, so need to truncate
+		let n = n.try_into().unwrap_or(u32::MAX);
+		GroupIndex(n)
+	}
+}
 
 /// A claim on authoring the next block for a given parathread.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
@@ -854,10 +860,10 @@ impl GroupRotationInfo {
 	/// `core_index` should be less than `cores`, which is capped at `u32::max()`.
 	pub fn group_for_core(&self, core_index: CoreIndex, cores: usize) -> GroupIndex {
 		if self.group_rotation_frequency == 0 {
-			return GroupIndex(core_index.0);
+			return GroupIndex(core_index.0)
 		}
 		if cores == 0 {
-			return GroupIndex(0);
+			return GroupIndex(0)
 		}
 
 		let cores = sp_std::cmp::min(cores, u32::MAX as usize);
@@ -876,10 +882,10 @@ impl GroupRotationInfo {
 	/// `core_index` should be less than `cores`, which is capped at `u32::max()`.
 	pub fn core_for_group(&self, group_index: GroupIndex, cores: usize) -> CoreIndex {
 		if self.group_rotation_frequency == 0 {
-			return CoreIndex(group_index.0);
+			return CoreIndex(group_index.0)
 		}
 		if cores == 0 {
-			return CoreIndex(0);
+			return CoreIndex(0)
 		}
 
 		let cores = sp_std::cmp::min(cores, u32::MAX as usize);
@@ -1048,7 +1054,7 @@ pub struct ScrapedOnChainVotes<H: Encode + Decode = Hash> {
 	/// Set of backing validators for each candidate, represented by its candidate
 	/// receipt.
 	pub backing_validators_per_candidate:
-	Vec<(CandidateReceipt<H>, Vec<(ValidatorIndex, ValidityAttestation)>)>,
+		Vec<(CandidateReceipt<H>, Vec<(ValidatorIndex, ValidityAttestation)>)>,
 	/// On-chain-recorded set of disputes.
 	/// Note that the above `backing_validators` are
 	/// unrelated to the backers of the disputes candidates.
@@ -1247,8 +1253,8 @@ impl DisputeStatement {
 			DisputeStatement::Valid(ValidDisputeStatementKind::Explicit) =>
 				ExplicitDisputeStatement { valid: true, candidate_hash, session }.signing_payload(),
 			DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(
-										inclusion_parent,
-									)) => CompactStatement::Seconded(candidate_hash).signing_payload(&SigningContext {
+				inclusion_parent,
+			)) => CompactStatement::Seconded(candidate_hash).signing_payload(&SigningContext {
 				session_index: session,
 				parent_hash: inclusion_parent,
 			}),
@@ -1556,7 +1562,7 @@ impl parity_scale_codec::Decode for CompactStatement {
 	) -> Result<Self, parity_scale_codec::Error> {
 		let maybe_magic = <[u8; 4]>::decode(input)?;
 		if maybe_magic != BACKING_STATEMENT_MAGIC {
-			return Err(parity_scale_codec::Error::from("invalid magic string"));
+			return Err(parity_scale_codec::Error::from("invalid magic string"))
 		}
 
 		Ok(match CompactStatementInner::decode(input)? {
@@ -1588,13 +1594,11 @@ pub fn supermajority_threshold(n: usize) -> usize {
 	n - byzantine_threshold(n)
 }
 
-
 #[derive(Clone, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
-pub struct TypeVec<K: From<usize> ,V: Clone> (TiVec<K, V>);
+pub struct TypeVec<K: From<usize>, V: Clone>(TiVec<K, V>);
 
-
-impl<K: From<usize> , V: Clone> TypeVec<K, V> {
+impl<K: From<usize>, V: Clone> TypeVec<K, V> {
 	pub fn new() -> Self {
 		TypeVec::<K, V> { 0: TiVec::<K, V>::new() }
 	}
@@ -1620,7 +1624,6 @@ impl<K: From<usize>, V: Clone> MallocSizeOf for TypeVec<K, V> {
 	}
 }
 
-
 impl<K: From<usize>, V: Clone> Deref for TypeVec<K, V> {
 	type Target = Vec<V>;
 
@@ -1641,7 +1644,7 @@ impl<K: From<usize>, V: Clone> WrapperTypeDecode for TypeVec<K, V> {
 	type Wrapped = Vec<V>;
 }
 
-impl<K: From<usize>,V: Clone> TypeInfo for TypeVec<K,V>{
+impl<K: From<usize>, V: Clone> TypeInfo for TypeVec<K, V> {
 	type Identity = ();
 
 	fn type_info() -> Type {
@@ -1693,7 +1696,7 @@ pub struct SessionInfo {
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by
 	/// `GroupIndex`.
-	pub validator_groups: Vec<Vec<ValidatorIndex>>,
+	pub validator_groups: TypeVec<GroupIndex, Vec<ValidatorIndex>>,
 	/// The number of availability cores used by the protocol during this session.
 	pub n_cores: u32,
 	/// The zeroth delay tranche width.
@@ -1769,7 +1772,7 @@ pub struct OldV1SessionInfo {
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by
 	/// `GroupIndex`.
-	pub validator_groups: Vec<Vec<ValidatorIndex>>,
+	pub validator_groups: TypeVec<GroupIndex, Vec<ValidatorIndex>>,
 	/// The number of availability cores used by the protocol during this session.
 	pub n_cores: u32,
 	/// The zeroth delay tranche width.

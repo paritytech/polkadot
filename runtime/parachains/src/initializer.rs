@@ -30,7 +30,9 @@ use frame_support::{
 };
 use frame_system::limits::BlockWeights;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId, TypeVec, ValidatorIndex};
+use primitives::v2::{
+	BlockNumber, ConsensusLog, SessionIndex, TypeVec, ValidatorId, ValidatorIndex,
+};
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
 
@@ -275,8 +277,9 @@ impl<T: Config> Pallet<T> {
 	) where
 		I: Iterator<Item = (&'a T::AccountId, ValidatorId)>,
 	{
-		let validators: TypeVec<_,_> = TypeVec::from(validators.map(|(_, v)| v).collect::<Vec<_>>());
-		let queued: TypeVec<_,_>= if let Some(queued) = queued {
+		let validators: TypeVec<_, _> =
+			TypeVec::from(validators.map(|(_, v)| v).collect::<Vec<_>>());
+		let queued: TypeVec<_, _> = if let Some(queued) = queued {
 			TypeVec::from(queued.map(|(_, v)| v).collect::<Vec<_>>())
 		} else {
 			validators.clone()

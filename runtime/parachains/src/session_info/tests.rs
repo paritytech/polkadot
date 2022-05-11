@@ -184,7 +184,10 @@ fn session_info_active_subsets() {
 	let validators = take_active_subset(&active_set, &unscrambled_validators);
 
 	new_test_ext(genesis_config()).execute_with(|| {
-		ParasShared::set_active_validators_with_indices(active_set.clone(), validators.clone().to_vec());
+		ParasShared::set_active_validators_with_indices(
+			active_set.clone(),
+			validators.clone().to_vec(),
+		);
 
 		assert_eq!(ParasShared::active_validator_indices(), active_set);
 

@@ -17,7 +17,7 @@
 //! Utilities that don't belong to any particular module but may draw
 //! on all modules.
 
-use primitives::v2::{Id as ParaId, PersistedValidationData, TypeVec, ValidatorIndex};
+use primitives::v2::{Id as ParaId, PersistedValidationData, TypeVec};
 use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
 use crate::{configuration, hrmp, paras};
@@ -49,19 +49,25 @@ pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 /// ```ignore
 ///		split_active_subset(active, all).0 == take_active_subset(active, all)
 /// ```
-pub fn split_active_subset<K: From<usize> + Clone + Ord,V: Clone>(active: &[K], all: &[V]) -> (TypeVec<K,V>, TypeVec<K,V>)
-	where usize: From<K> {
+pub fn split_active_subset<K: From<usize> + Clone + Ord, V: Clone>(
+	active: &[K],
+	all: &[V],
+) -> (TypeVec<K, V>, TypeVec<K, V>)
+where
+	usize: From<K>,
+{
 	let active_set: BTreeSet<_> = active.iter().cloned().collect();
 	// active result has ordering of active set.
 	let active_result = take_active_subset(active, all);
 	// inactive result preserves original ordering of `all`.
-	let inactive_result = TypeVec::from(all
-		.iter()
-		.enumerate()
-		.filter(|(i, _)| !active_set.contains(&K::from(*i)))
-		.map(|(_, v)| v)
-		.cloned()
-		.collect::<Vec<_>>());
+	let inactive_result = TypeVec::from(
+		all.iter()
+			.enumerate()
+			.filter(|(i, _)| !active_set.contains(&K::from(*i)))
+			.map(|(_, v)| v)
+			.cloned()
+			.collect::<Vec<_>>(),
+	);
 
 	if active_result.len() != active.len() {
 		log::warn!(
@@ -78,17 +84,33 @@ pub fn split_active_subset<K: From<usize> + Clone + Ord,V: Clone>(active: &[K], 
 /// ```ignore
 ///		split_active_subset(active, all)[0..active.len()]) == take_active_subset(active, all)
 /// ```
-pub fn take_active_subset_and_inactive<K: From<usize> + Clone + Ord,V: Clone>(active: &[K], all: &[V]) -> TypeVec<K,V>
-	where usize: From<K> {
+pub fn take_active_subset_and_inactive<K: From<usize> + Clone + Ord, V: Clone>(
+	active: &[K],
+	all: &[V],
+) -> TypeVec<K, V>
+where
+	usize: From<K>,
+{
 	let (mut a, mut i) = split_active_subset(active, all);
 	a.append(&mut i);
 	a
 }
 
 /// Take the active subset of a set containing all validators.
-pub fn take_active_subset<K: From<usize> + Clone + Ord,V: Clone>(active: &[K], set: &[V]) -> TypeVec<K,V>
-	where usize: From<K>{
-	let subset: TypeVec<K,V> = TypeVec::from(active.iter().filter_map(|i| set.get(usize::from(i.clone()))).cloned().collect::<Vec<_>>());
+pub fn take_active_subset<K: From<usize> + Clone + Ord, V: Clone>(
+	active: &[K],
+	set: &[V],
+) -> TypeVec<K, V>
+where
+	usize: From<K>,
+{
+	let subset: TypeVec<K, V> = TypeVec::from(
+		active
+			.iter()
+			.filter_map(|i| set.get(usize::from(i.clone())))
+			.cloned()
+			.collect::<Vec<_>>(),
+	);
 
 	if subset.len() != active.len() {
 		log::warn!(

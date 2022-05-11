@@ -21,7 +21,8 @@ use polkadot_node_primitives::approval::{
 	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
 };
 use polkadot_primitives::v2::{
-	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, SessionInfo, ValidatorIndex,
+	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, SessionInfo, TypeVec,
+	ValidatorIndex,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::ByteArray;
@@ -138,7 +139,7 @@ pub(crate) struct Config {
 	/// The assignment public keys for validators.
 	assignment_keys: Vec<AssignmentId>,
 	/// The groups of validators assigned to each core.
-	validator_groups: Vec<Vec<ValidatorIndex>>,
+	validator_groups: TypeVec<GroupIndex, Vec<ValidatorIndex>>,
 	/// The number of availability cores used by the protocol during this session.
 	n_cores: u32,
 	/// The zeroth delay tranche width.
@@ -615,10 +616,10 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: vec![
+				validator_groups: TypeVec::from(vec![
 					vec![ValidatorIndex(0)],
 					vec![ValidatorIndex(1), ValidatorIndex(2)],
-				],
+				]),
 				n_cores: 2,
 				zeroth_delay_tranche_width: 10,
 				relay_vrf_modulo_samples: 3,
@@ -650,10 +651,10 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: vec![
+				validator_groups: TypeVec::from(vec![
 					vec![ValidatorIndex(0)],
 					vec![ValidatorIndex(1), ValidatorIndex(2)],
-				],
+				]),
 				n_cores: 2,
 				zeroth_delay_tranche_width: 10,
 				relay_vrf_modulo_samples: 3,
@@ -680,7 +681,7 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: vec![],
+				validator_groups: TypeVec::from(vec![]),
 				n_cores: 0,
 				zeroth_delay_tranche_width: 10,
 				relay_vrf_modulo_samples: 3,
@@ -717,7 +718,7 @@ mod tests {
 				&[Sr25519Keyring::Alice],
 				n_validators - 1,
 			),
-			validator_groups: basic_groups(n_validators, n_cores),
+			validator_groups: TypeVec::from(basic_groups(n_validators, n_cores)),
 			n_cores: n_cores as u32,
 			zeroth_delay_tranche_width: 10,
 			relay_vrf_modulo_samples: 3,

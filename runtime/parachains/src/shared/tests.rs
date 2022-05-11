@@ -87,7 +87,10 @@ fn sets_truncates_and_shuffles_validators() {
 	new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 		let validators = ParasShared::initializer_on_new_session(1, [1; 32], &config, pubkeys);
 
-		assert_eq!(validators, TypeVec::from(validator_pubkeys(&[Sr25519Keyring::Ferdie, Sr25519Keyring::Bob,])));
+		assert_eq!(
+			validators,
+			TypeVec::from(validator_pubkeys(&[Sr25519Keyring::Ferdie, Sr25519Keyring::Bob,]))
+		);
 
 		assert_eq!(ParasShared::active_validator_keys(), validators.to_vec());
 
