@@ -18,7 +18,10 @@
 
 // use pallet_session::KeyOwner;
 // use super::{Config, IdentificationTuple, IdentifyValidatorsInSession};
-use crate::{initializer::SessionChangeNotification, session_info::{AccountId, IdentificationTuple}};
+use crate::{
+	initializer::SessionChangeNotification,
+	session_info::{AccountId, IdentificationTuple},
+};
 use frame_support::{
 	traits::{Get, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
 	weights::{Pays, Weight},
@@ -27,11 +30,12 @@ use parity_scale_codec::{Decode, Encode};
 use primitives::v2::{CandidateHash, SessionIndex, ValidatorId, ValidatorIndex};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::Convert, DispatchResult, KeyTypeId, Perbill, RuntimeDebug,
+	traits::Convert,
 	transaction_validity::{
 		InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
 		TransactionValidityError, ValidTransaction,
 	},
+	DispatchResult, KeyTypeId, Perbill, RuntimeDebug,
 };
 use sp_session::{GetSessionNumber, GetValidatorCount};
 use sp_staking::offence::{DisableStrategy, Kind, Offence, OffenceError, ReportOffence};
@@ -193,7 +197,8 @@ where
 		// the same session index as being updated at the end of the block.
 		let current_session = T::ValidatorSet::session_index();
 		if session_index == current_session {
-			if let Some(account_ids) = crate::session_info::Pallet::<T>::account_keys(session_index){
+			if let Some(account_ids) = crate::session_info::Pallet::<T>::account_keys(session_index)
+			{
 				let validator_set_count = account_ids.len() as u32;
 				let fully_identified = validators
 					.into_iter()
@@ -233,7 +238,8 @@ where
 		let losers: BTreeSet<ValidatorIndex> = losers.into_iter().collect();
 		let maybe = Self::maybe_identify_validators(session_index, losers.iter().cloned());
 		if let Some((offenders, account_ids, validator_set_count)) = maybe {
-			let reporters = winners.into_iter()
+			let reporters = winners
+				.into_iter()
 				.filter_map(|i| account_ids.get(i.0 as usize).cloned())
 				.collect();
 			let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
@@ -243,10 +249,7 @@ where
 			return
 		}
 		let winners: BTreeSet<ValidatorIndex> = winners.into_iter().collect();
-		let results = DisputeResults {
-			winners,
-			losers,
-		};
+		let results = DisputeResults { winners, losers };
 		<PendingSlashesForInvalid<T>>::insert(session_index, candidate_hash, results);
 	}
 
@@ -259,7 +262,8 @@ where
 		let losers: BTreeSet<ValidatorIndex> = losers.into_iter().collect();
 		let maybe = Self::maybe_identify_validators(session_index, losers.iter().cloned());
 		if let Some((offenders, account_ids, validator_set_count)) = maybe {
-			let reporters = winners.into_iter()
+			let reporters = winners
+				.into_iter()
 				.filter_map(|i| account_ids.get(i.0 as usize).cloned())
 				.collect();
 			let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
@@ -270,10 +274,7 @@ where
 		}
 
 		let winners: BTreeSet<ValidatorIndex> = winners.into_iter().collect();
-		let results = DisputeResults {
-			winners,
-			losers,
-		};
+		let results = DisputeResults { winners, losers };
 		<PendingSlashesAgainstValid<T>>::insert(session_index, candidate_hash, results);
 	}
 
@@ -606,7 +607,9 @@ impl<T: Config> Pallet<T> {
 			is_known_offence::<T>(dispute_proof, key_owner_proof)?;
 
 			let longevity =
-				<T::HandleSlashingReportsForOldSessions as HandleSlashingReportsForOldSessions<T>>::ReportLongevity::get();
+				<T::HandleSlashingReportsForOldSessions as HandleSlashingReportsForOldSessions<
+					T,
+				>>::ReportLongevity::get();
 
 			let tag_prefix = match dispute_proof.kind {
 				SlashingOffenceKind::ForInvalid => "DisputeForInvalid",
@@ -617,10 +620,7 @@ impl<T: Config> Pallet<T> {
 				// We assign the maximum priority for any report.
 				.priority(TransactionPriority::max_value())
 				// Only one report for the same offender at the same slot.
-				.and_provides((
-					dispute_proof.time_slot.clone(),
-					dispute_proof.validator_id.clone(),
-				))
+				.and_provides((dispute_proof.time_slot.clone(), dispute_proof.validator_id.clone()))
 				.longevity(longevity)
 				// We don't propagate this. This can never be included on a remote node.
 				.propagate(false)
@@ -653,25 +653,29 @@ fn is_known_offence<T: Config>(
 	// and if so then we can discard the report.
 	let is_known_offence = match dispute_proof.kind {
 		SlashingOffenceKind::ForInvalid => {
-			let time_slot = <T::HandleSlashingReportsForOldSessions as HandleSlashingReportsForOldSessions<T>>::OffenceForInvalid::new_time_slot(
-				dispute_proof.time_slot.session_index,
-				dispute_proof.time_slot.candidate_hash,
-			);
+			let time_slot =
+				<T::HandleSlashingReportsForOldSessions as HandleSlashingReportsForOldSessions<
+					T,
+				>>::OffenceForInvalid::new_time_slot(
+					dispute_proof.time_slot.session_index,
+					dispute_proof.time_slot.candidate_hash,
+				);
 
 			T::HandleSlashingReportsForOldSessions::is_known_for_invalid_offence(
-				&offender,
-				&time_slot,
+				&offender, &time_slot,
 			)
 		},
 		SlashingOffenceKind::AgainstValid => {
-			let time_slot = <T::HandleSlashingReportsForOldSessions as HandleSlashingReportsForOldSessions<T>>::OffenceAgainstValid::new_time_slot(
-				dispute_proof.time_slot.session_index,
-				dispute_proof.time_slot.candidate_hash,
-			);
+			let time_slot =
+				<T::HandleSlashingReportsForOldSessions as HandleSlashingReportsForOldSessions<
+					T,
+				>>::OffenceAgainstValid::new_time_slot(
+					dispute_proof.time_slot.session_index,
+					dispute_proof.time_slot.candidate_hash,
+				);
 
 			T::HandleSlashingReportsForOldSessions::is_known_against_valid_offence(
-				&offender,
-				&time_slot,
+				&offender, &time_slot,
 			)
 		},
 	};

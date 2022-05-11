@@ -271,8 +271,7 @@ impl crate::disputes::PunishValidators for Test {
 		losers: impl IntoIterator<Item = ValidatorIndex>,
 		_winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		PUNISH_VALIDATORS_FOR
-			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
+		PUNISH_VALIDATORS_FOR.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
 	}
 
 	fn punish_against_valid(
