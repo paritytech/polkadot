@@ -306,6 +306,9 @@ impl Backend for TestStoreInner {
 				BackendWriteOp::WriteStoredBlockRange(stored_block_range) => {
 					self.stored_block_range = Some(stored_block_range);
 				},
+				BackendWriteOp::DeleteStoredBlockRange => {
+					self.stored_block_range = None;
+				},
 				BackendWriteOp::WriteBlocksAtHeight(h, blocks) => {
 					self.blocks_at_height.insert(h, blocks);
 				},
@@ -1007,8 +1010,11 @@ fn subsystem_rejects_bad_assignment_ok_criteria() {
 
 #[test]
 fn subsystem_rejects_bad_assignment_err_criteria() {
-	let assignment_criteria =
-		Box::new(MockAssignmentCriteria::check_only(move |_| Err(criteria::InvalidAssignment)));
+	let assignment_criteria = Box::new(MockAssignmentCriteria::check_only(move |_| {
+		Err(criteria::InvalidAssignment(
+			criteria::InvalidAssignmentReason::ValidatorIndexOutOfBounds,
+		))
+	}));
 	let config = HarnessConfigBuilder::default().assignment_criteria(assignment_criteria).build();
 	test_harness(config, |test_harness| async move {
 		let TestHarness { mut virtual_overseer, sync_oracle_handle: _sync_oracle_handle, .. } =
@@ -1045,7 +1051,10 @@ fn subsystem_rejects_bad_assignment_err_criteria() {
 
 		assert_eq!(
 			rx.await,
-			Ok(AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCert(ValidatorIndex(0)))),
+			Ok(AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCert(
+				ValidatorIndex(0),
+				"ValidatorIndexOutOfBounds".to_string(),
+			))),
 		);
 
 		virtual_overseer
@@ -2813,7 +2822,9 @@ fn pre_covers_dont_stall_approval() {
 		move |validator_index| match validator_index {
 			ValidatorIndex(0 | 1) => Ok(0),
 			ValidatorIndex(2) => Ok(1),
-			ValidatorIndex(_) => Err(criteria::InvalidAssignment),
+			ValidatorIndex(_) => Err(criteria::InvalidAssignment(
+				criteria::InvalidAssignmentReason::ValidatorIndexOutOfBounds,
+			)),
 		},
 	));
 

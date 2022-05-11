@@ -31,8 +31,8 @@ use polkadot_node_primitives::approval::{
 };
 use polkadot_node_subsystem::{
 	messages::{
-		network_bridge_event, ApprovalCheckResult, ApprovalDistributionMessage,
-		ApprovalVotingMessage, AssignmentCheckResult, NetworkBridgeEvent, NetworkBridgeMessage,
+		ApprovalCheckResult, ApprovalDistributionMessage, ApprovalVotingMessage,
+		AssignmentCheckResult, NetworkBridgeEvent, NetworkBridgeMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError,
@@ -138,33 +138,10 @@ impl AggressionConfig {
 impl Default for AggressionConfig {
 	fn default() -> Self {
 		AggressionConfig {
-			l1_threshold: Some(10),
-			l2_threshold: Some(25),
-			resend_unfinalized_period: Some(5),
+			l1_threshold: Some(13),
+			l2_threshold: Some(28),
+			resend_unfinalized_period: Some(8),
 		}
-	}
-}
-
-struct ApprovalGridTopology(SessionGridTopology);
-
-impl From<network_bridge_event::NewGossipTopology> for ApprovalGridTopology {
-	fn from(topology: network_bridge_event::NewGossipTopology) -> Self {
-		let peers_x =
-			topology.our_neighbors_x.values().flat_map(|p| &p.peer_ids).cloned().collect();
-		let peers_y =
-			topology.our_neighbors_y.values().flat_map(|p| &p.peer_ids).cloned().collect();
-
-		let validator_indices_x =
-			topology.our_neighbors_x.values().map(|p| p.validator_index.clone()).collect();
-		let validator_indices_y =
-			topology.our_neighbors_y.values().map(|p| p.validator_index.clone()).collect();
-
-		ApprovalGridTopology(SessionGridTopology {
-			peers_x,
-			peers_y,
-			validator_indices_x,
-			validator_indices_y,
-		})
 	}
 }
 
@@ -368,12 +345,8 @@ impl State {
 			},
 			NetworkBridgeEvent::NewGossipTopology(topology) => {
 				let session = topology.session;
-				self.handle_new_session_topology(
-					ctx,
-					session,
-					ApprovalGridTopology::from(topology),
-				)
-				.await;
+				self.handle_new_session_topology(ctx, session, SessionGridTopology::from(topology))
+					.await;
 			},
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 				self.handle_peer_view_change(ctx, metrics, peer_id, view, rng).await;
@@ -528,9 +501,9 @@ impl State {
 		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
 		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
 		session: SessionIndex,
-		topology: ApprovalGridTopology,
+		topology: SessionGridTopology,
 	) {
-		self.topologies.insert_topology(session, topology.0);
+		self.topologies.insert_topology(session, topology);
 		let topology = self.topologies.get_topology(session).expect("just inserted above; qed");
 
 		adjust_required_routing_and_propagate(

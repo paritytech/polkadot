@@ -47,6 +47,7 @@ pub const DEFAULT_RANDOM_SAMPLE_RATE: usize = crate::MIN_GOSSIP_PEERS;
 pub const DEFAULT_RANDOM_CIRCULATION: usize = 4;
 
 /// Topology representation
+#[derive(Default, Clone, Debug)]
 pub struct SessionGridTopology {
 	/// Represent peers in the X axis
 	pub peers_x: HashSet<PeerId>,
@@ -89,7 +90,23 @@ impl SessionGridTopology {
 			RequiredRouting::None | RequiredRouting::PendingTopology => false,
 		}
 	}
+
+	/// Returns the difference between this and the `other` topology as a vector of peers
+	pub fn peers_diff(&self, other: &SessionGridTopology) -> Vec<PeerId> {
+		self.peers_x
+			.iter()
+			.chain(self.peers_y.iter())
+			.filter(|peer_id| !(other.peers_x.contains(peer_id) || other.peers_y.contains(peer_id)))
+			.cloned()
+			.collect::<Vec<_>>()
+	}
+
+	/// A convenience method that returns total number of peers in the topology
+	pub fn len(&self) -> usize {
+		self.peers_x.len().saturating_add(self.peers_y.len())
+	}
 }
+
 /// A set of topologies indexed by session
 #[derive(Default)]
 pub struct SessionGridTopologies {
@@ -191,5 +208,77 @@ impl RequiredRouting {
 			RequiredRouting::PendingTopology | RequiredRouting::None => true,
 			_ => false,
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use rand::SeedableRng;
+	use rand_chacha::ChaCha12Rng;
+
+	fn dummy_rng() -> ChaCha12Rng {
+		rand_chacha::ChaCha12Rng::seed_from_u64(12345)
+	}
+
+	#[test]
+	fn test_random_routing_sample() {
+		// This test is fragile as it relies on a specific ChaCha12Rng
+		// sequence that might be implementation defined even for a static seed
+		let mut rng = dummy_rng();
+		let mut random_routing = RandomRouting { target: 4, sent: 0, sample_rate: 8 };
+
+		assert_eq!(random_routing.sample(16, &mut rng), true);
+		random_routing.inc_sent();
+		assert_eq!(random_routing.sample(16, &mut rng), false);
+		assert_eq!(random_routing.sample(16, &mut rng), false);
+		assert_eq!(random_routing.sample(16, &mut rng), true);
+		random_routing.inc_sent();
+		assert_eq!(random_routing.sample(16, &mut rng), true);
+		random_routing.inc_sent();
+		assert_eq!(random_routing.sample(16, &mut rng), false);
+		assert_eq!(random_routing.sample(16, &mut rng), false);
+		assert_eq!(random_routing.sample(16, &mut rng), false);
+		assert_eq!(random_routing.sample(16, &mut rng), true);
+		random_routing.inc_sent();
+
+		for _ in 0..16 {
+			assert_eq!(random_routing.sample(16, &mut rng), false);
+		}
+	}
+
+	fn run_random_routing(
+		random_routing: &mut RandomRouting,
+		rng: &mut (impl CryptoRng + Rng),
+		npeers: usize,
+		iters: usize,
+	) -> usize {
+		let mut ret = 0_usize;
+
+		for _ in 0..iters {
+			if random_routing.sample(npeers, rng) {
+				random_routing.inc_sent();
+				ret += 1;
+			}
+		}
+
+		ret
+	}
+
+	#[test]
+	fn test_random_routing_distribution() {
+		let mut rng = dummy_rng();
+
+		let mut random_routing = RandomRouting { target: 4, sent: 0, sample_rate: 8 };
+		assert_eq!(run_random_routing(&mut random_routing, &mut rng, 100, 10000), 4);
+
+		let mut random_routing = RandomRouting { target: 8, sent: 0, sample_rate: 100 };
+		assert_eq!(run_random_routing(&mut random_routing, &mut rng, 100, 10000), 8);
+
+		let mut random_routing = RandomRouting { target: 0, sent: 0, sample_rate: 100 };
+		assert_eq!(run_random_routing(&mut random_routing, &mut rng, 100, 10000), 0);
+
+		let mut random_routing = RandomRouting { target: 10, sent: 0, sample_rate: 10 };
+		assert_eq!(run_random_routing(&mut random_routing, &mut rng, 10, 100), 10);
 	}
 }

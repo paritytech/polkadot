@@ -40,12 +40,12 @@ use polkadot_node_primitives::{
 };
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
-	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState, GroupIndex,
-	GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption, PersistedValidationData,
-	PvfCheckStatement, SessionIndex, SessionInfo, SignedAvailabilityBitfield,
-	SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
+	DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
+	PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
+	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use polkadot_statement_table::v2::Misbehavior;
 use std::{
@@ -693,6 +693,10 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCodeHash>>,
 	),
+	/// Returns all on-chain disputes at given block number.
+	StagingDisputes(
+		RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
+	),
 }
 
 /// A message to the Runtime API subsystem.
@@ -810,8 +814,8 @@ pub enum AssignmentCheckError {
 	InvalidCandidateIndex(CandidateIndex),
 	#[error("Invalid candidate {0}: {1:?}")]
 	InvalidCandidate(CandidateIndex, CandidateHash),
-	#[error("Invalid cert: {0:?}")]
-	InvalidCert(ValidatorIndex),
+	#[error("Invalid cert: {0:?}, reason: {1}")]
+	InvalidCert(ValidatorIndex, String),
 	#[error("Internal state mismatch: {0:?}, {1:?}")]
 	Internal(Hash, CandidateHash),
 }
