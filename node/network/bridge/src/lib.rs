@@ -33,9 +33,6 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, ObservedRole, OurView, PeerId, ProtocolVersion,
 	UnifiedReputationChange as Rep, Versioned, View,
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_overseer::gen::{OverseerError, Subsystem};
-use polkadot_primitives::v2::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
 use polkadot_node_subsystem::{
 	errors::{SubsystemError, SubsystemResult},
 	messages::{
@@ -45,6 +42,9 @@ use polkadot_node_subsystem::{
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemSender,
 };
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_overseer::gen::{OverseerError, Subsystem};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
 
 /// Peer set info for network initialization.
 ///

@@ -35,11 +35,6 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{SignedFullStatement, Statement, UncheckedSignedFullStatement};
 use polkadot_node_subsystem_util::{self as util, rand, MIN_GOSSIP_PEERS};
 
-use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
-	SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
-};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
@@ -48,6 +43,11 @@ use polkadot_node_subsystem::{
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
 	SubsystemContext, SubsystemError,
+};
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
+	SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 
 use futures::{

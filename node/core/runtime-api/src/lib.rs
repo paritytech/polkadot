@@ -22,15 +22,15 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_primitives::{
-	runtime_api::ParachainHost,
-	v2::{Block, BlockId, Hash},
-};
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 	SubsystemResult,
+};
+use polkadot_primitives::{
+	runtime_api::ParachainHost,
+	v2::{Block, BlockId, Hash},
 };
 
 use sp_api::ProvideRuntimeApi;

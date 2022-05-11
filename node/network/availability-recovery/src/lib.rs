@@ -47,11 +47,6 @@ use polkadot_node_network_protocol::{
 	IfDisconnected, UnifiedReputationChange as Rep,
 };
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
-use polkadot_node_subsystem_util::request_session_info;
-use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt, GroupIndex,
-	Hash, HashT, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
-};
 use polkadot_node_subsystem::{
 	errors::RecoveryError,
 	jaeger,
@@ -59,6 +54,11 @@ use polkadot_node_subsystem::{
 	overseer::{self, Subsystem},
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError, SubsystemResult, SubsystemSender,
+};
+use polkadot_node_subsystem_util::request_session_info;
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt, GroupIndex,
+	Hash, HashT, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
 };
 
 mod error;

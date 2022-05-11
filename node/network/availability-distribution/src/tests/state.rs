@@ -20,8 +20,8 @@ use std::{
 	time::Duration,
 };
 
-use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle;
+use polkadot_node_subsystem_util::TimeoutExt;
 
 use futures::{
 	channel::{mpsc, oneshot},

@@ -34,15 +34,6 @@ use polkadot_node_primitives::{
 	AvailableData, InvalidCandidate, PoV, SignedDisputeStatement, SignedFullStatement, Statement,
 	ValidationResult, BACKING_EXECUTION_TIMEOUT,
 };
-use polkadot_node_subsystem_util::{
-	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
-	request_validators, Validator,
-};
-use polkadot_primitives::v2::{
-	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
-	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
-	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
-};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
@@ -53,6 +44,15 @@ use polkadot_node_subsystem::{
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
 	Stage, SubsystemContext, SubsystemError, SubsystemSender,
+};
+use polkadot_node_subsystem_util::{
+	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
+	request_validators, Validator,
+};
+use polkadot_primitives::v2::{
+	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
+	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
+	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{

@@ -18,9 +18,9 @@
 //! Error handling related code and Error/Result definitions.
 
 use polkadot_node_network_protocol::PeerId;
+use polkadot_node_subsystem::SubsystemError;
 use polkadot_node_subsystem_util::runtime;
 use polkadot_primitives::v2::{CandidateHash, Hash};
-use polkadot_node_subsystem::SubsystemError;
 
 use crate::LOG_TARGET;
 
