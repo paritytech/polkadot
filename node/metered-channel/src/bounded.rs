@@ -169,6 +169,7 @@ impl<T> MeteredSender<T> {
 				}
 
 				let msg = send_err.into_inner();
+				self.meter.note_sent();
 				let fut = self.inner.send(msg);
 				futures::pin_mut!(fut);
 				fut.await.map_err(|e| {
