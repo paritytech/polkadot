@@ -40,7 +40,7 @@ use polkadot_primitives::v2::{
 	SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
 	ValidatorSignature,
 };
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
 		AllMessages, CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeMessage,

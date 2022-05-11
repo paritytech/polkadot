@@ -36,8 +36,8 @@ use polkadot_primitives::v2::{
 use polkadot_primitives_test_helpers::{
 	dummy_candidate_descriptor, dummy_candidate_receipt_bad_sig, dummy_hash,
 };
-use polkadot_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest};
-use polkadot_subsystem_testhelpers as test_helpers;
+use polkadot_node_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest};
+use polkadot_node_subsystem_test_helpers as test_helpers;
 
 const ACTIVITY_TIMEOUT: Duration = Duration::from_millis(500);
 const DECLARE_TIMEOUT: Duration = Duration::from_millis(25);

@@ -52,7 +52,7 @@ use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt, GroupIndex,
 	Hash, HashT, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
 };
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	errors::RecoveryError,
 	jaeger,
 	messages::{AvailabilityRecoveryMessage, AvailabilityStoreMessage, NetworkBridgeMessage},

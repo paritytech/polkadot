@@ -26,7 +26,7 @@ use polkadot_primitives::{
 	runtime_api::ParachainHost,
 	v2::{Block, BlockId, Hash},
 };
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,

@@ -20,7 +20,7 @@
 use polkadot_node_network_protocol::request_response::incoming;
 use polkadot_node_primitives::UncheckedSignedFullStatement;
 use polkadot_node_subsystem_util::runtime;
-use polkadot_subsystem::errors::SubsystemError;
+use polkadot_node_subsystem::errors::SubsystemError;
 
 use crate::LOG_TARGET;
 

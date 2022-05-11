@@ -22,7 +22,7 @@ use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
 use polkadot_node_primitives::{CandidateVotes, DisputeMessage, SignedDisputeStatement};
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::v2::{CandidateHash, DisputeStatement, Hash, SessionIndex};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	messages::{AllMessages, DisputeCoordinatorMessage},
 	ActiveLeavesUpdate, SubsystemContext,
 };

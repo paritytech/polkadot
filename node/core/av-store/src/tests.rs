@@ -28,7 +28,7 @@ use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, HeadData, Header,
 	PersistedValidationData, ValidatorId,
 };
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},

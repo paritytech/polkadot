@@ -37,12 +37,12 @@ use polkadot_primitives::v2::{
 	SessionInfo, ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::TestCandidateBuilder;
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
-use polkadot_subsystem_testhelpers as test_helpers;
+use polkadot_node_subsystem_test_helpers as test_helpers;
 
 #[derive(Clone)]
 struct TestState {

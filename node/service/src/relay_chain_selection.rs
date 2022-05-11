@@ -44,7 +44,7 @@ use polkadot_overseer::{AllMessages, Handle};
 use polkadot_primitives::v2::{
 	Block as PolkadotBlock, BlockNumber, Hash, Header as PolkadotHeader,
 };
-use polkadot_subsystem::messages::{
+use polkadot_node_subsystem::messages::{
 	ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage,
 	HighestApprovedAncestorBlock,
 };

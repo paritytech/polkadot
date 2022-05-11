@@ -32,12 +32,12 @@ use polkadot_node_primitives::{BlockData, PoV, Proof};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v2::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
 use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
-use polkadot_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 
 type VirtualOverseer = TestSubsystemContextHandle<AvailabilityRecoveryMessage>;
 

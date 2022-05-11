@@ -33,7 +33,7 @@ use polkadot_node_subsystem_util::{self as util};
 use polkadot_primitives::v2::{
 	Hash, SessionIndex, SignedAvailabilityBitfield, SigningContext, ValidatorId,
 };
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
 	SpawnedSubsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };

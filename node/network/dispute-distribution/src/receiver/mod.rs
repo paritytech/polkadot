@@ -40,7 +40,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::DISPUTE_WINDOW;
 use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	messages::{AllMessages, DisputeCoordinatorMessage, ImportStatementsResult},
 	SubsystemSender,
 };

@@ -45,7 +45,7 @@ use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState,
 	Hash, Id as ParaId,
 };
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	jaeger,
 	messages::{CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage},
 	overseer, FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext,

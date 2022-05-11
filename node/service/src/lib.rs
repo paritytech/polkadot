@@ -65,7 +65,7 @@ pub use {
 };
 
 #[cfg(feature = "full-node")]
-use polkadot_subsystem::jaeger;
+use polkadot_node_subsystem::jaeger;
 
 use std::{sync::Arc, time::Duration};
 
@@ -221,7 +221,7 @@ pub enum Error {
 	Telemetry(#[from] telemetry::Error),
 
 	#[error(transparent)]
-	Jaeger(#[from] polkadot_subsystem::jaeger::JaegerError),
+	Jaeger(#[from] polkadot_node_subsystem::jaeger::JaegerError),
 
 	#[cfg(feature = "full-node")]
 	#[error(transparent)]

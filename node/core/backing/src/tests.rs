@@ -27,7 +27,7 @@ use polkadot_primitives::v2::{
 	CandidateDescriptor, CollatorId, GroupRotationInfo, HeadData, PersistedValidationData,
 	ScheduledCore,
 };
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	messages::{CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest, ValidationFailed},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
 };

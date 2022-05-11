@@ -37,7 +37,7 @@ use polkadot_node_subsystem_test_helpers::{
 use polkadot_node_subsystem_util::metered;
 use polkadot_primitives::v2::AuthorityDiscoveryId;
 use polkadot_primitives_test_helpers::dummy_collator_signature;
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
 		ApprovalDistributionMessage, BitfieldDistributionMessage, GossipSupportMessage,

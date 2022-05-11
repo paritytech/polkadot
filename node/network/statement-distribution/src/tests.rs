@@ -32,7 +32,7 @@ use polkadot_primitives::v2::{Hash, SessionInfo, ValidationCode};
 use polkadot_primitives_test_helpers::{
 	dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
 };
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	jaeger,
 	messages::{network_bridge_event, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,

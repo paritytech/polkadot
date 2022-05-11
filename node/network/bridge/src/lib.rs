@@ -36,7 +36,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_overseer::gen::{OverseerError, Subsystem};
 use polkadot_primitives::v2::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	errors::{SubsystemError, SubsystemResult},
 	messages::{
 		network_bridge_event::{NewGossipTopology, TopologyPeerInfo},
