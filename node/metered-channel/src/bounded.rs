@@ -160,6 +160,10 @@ impl<T> MeteredSender<T> {
 	{
 		match self.try_send(msg) {
 			Err(send_err) => {
+				if send_err.is_disconnected() {
+					return Err(send_err.into_send_error())
+				}
+
 				let msg = send_err.into_inner();
 				self.meter.note_sent();
 				let fut = self.inner.send(msg);
