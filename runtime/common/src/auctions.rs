@@ -1383,8 +1383,8 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 1, 1));
-			let para_1 = ParaId::from(1);
-			let para_2 = ParaId::from(2);
+			let para_1 = ParaId::from(1_u32);
+			let para_2 = ParaId::from(2_u32);
 
 			// Make a bid and reserve a balance
 			assert_ok!(Auctions::bid(Origin::signed(1), para_1, 1, 1, 4, 10));
@@ -1407,9 +1407,9 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 9, 1));
-			let para_1 = ParaId::from(1);
-			let para_2 = ParaId::from(2);
-			let para_3 = ParaId::from(3);
+			let para_1 = ParaId::from(1_u32);
+			let para_2 = ParaId::from(2_u32);
+			let para_3 = ParaId::from(3_u32);
 
 			// Make bids
 			assert_ok!(Auctions::bid(Origin::signed(1), para_1, 1, 1, 4, 10));
@@ -1522,9 +1522,9 @@ mod tests {
 
 			run_to_block(1);
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 9, 11));
-			let para_1 = ParaId::from(1);
-			let para_2 = ParaId::from(2);
-			let para_3 = ParaId::from(3);
+			let para_1 = ParaId::from(1_u32);
+			let para_2 = ParaId::from(2_u32);
+			let para_3 = ParaId::from(3_u32);
 
 			// Make bids
 			assert_ok!(Auctions::bid(Origin::signed(1), para_1, 1, 11, 14, 10));
@@ -1782,7 +1782,7 @@ mod benchmarking {
 			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
 
 			let para = ParaId::from(0);
-			let new_para = ParaId::from(1);
+			let new_para = ParaId::from(1_u32);
 
 			// Register the paras
 			let owner = account("owner", 0, 0);
