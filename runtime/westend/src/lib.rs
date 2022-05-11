@@ -953,7 +953,7 @@ impl parachains_slashing::Config for Runtime {
 		KeyTypeId,
 		ValidatorId,
 	)>>::IdentificationTuple;
-	type HandleSlashingReportsForOldSessions = (); // TODO
+	type HandleReports = (); // TODO
 	type WeightInfo = parachains_slashing::TestWeightInfo; // TODO
 }
 

@@ -254,7 +254,7 @@ impl crate::disputes::slashing::Config for Test {
 		KeyTypeId,
 		ValidatorId,
 	)>>::IdentificationTuple;
-	type HandleSlashingReportsForOldSessions = ();
+	type HandleReports = ();
 	type WeightInfo = crate::disputes::slashing::TestWeightInfo;
 }
 
