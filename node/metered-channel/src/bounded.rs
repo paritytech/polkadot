@@ -160,14 +160,6 @@ impl<T> MeteredSender<T> {
 	{
 		match self.try_send(msg) {
 			Err(send_err) => {
-				if send_err.is_full() {
-					// Count bounded channel sends that block.
-					// There is a small posibility that the channel might not longer be full when we call
-					// `send` again.
-
-					self.meter.note_blocked();
-				}
-
 				let msg = send_err.into_inner();
 				self.meter.note_sent();
 				let fut = self.inner.send(msg);
@@ -188,6 +180,10 @@ impl<T> MeteredSender<T> {
 	) -> result::Result<(), mpsc::TrySendError<MaybeTimeOfFlight<T>>> {
 		let msg = self.prepare_with_tof(msg);
 		self.inner.try_send(msg).map_err(|e| {
+			if e.is_full() {
+				// Count bounded channel sends that block.
+				self.meter.note_blocked();
+			}
 			self.meter.retract_sent();
 			e
 		})
