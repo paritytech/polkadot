@@ -29,13 +29,13 @@ use polkadot_node_network_protocol::{
 	grid_topology::{RandomRouting, RequiredRouting, SessionGridTopology},
 	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
+use polkadot_node_subsystem::{
+	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
+	SpawnedSubsystem, SubsystemContext, SubsystemError, SubsystemResult,
+};
 use polkadot_node_subsystem_util::{self as util};
 use polkadot_primitives::v2::{
 	Hash, SessionIndex, SignedAvailabilityBitfield, SigningContext, ValidatorId,
-};
-use polkadot_subsystem::{
-	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
-	SpawnedSubsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
 use rand::{CryptoRng, Rng, SeedableRng};
 use std::collections::{HashMap, HashSet};

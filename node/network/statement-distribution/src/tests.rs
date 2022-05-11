@@ -27,15 +27,15 @@ use polkadot_node_network_protocol::{
 	view, ObservedRole,
 };
 use polkadot_node_primitives::{Statement, UncheckedSignedFullStatement};
+use polkadot_node_subsystem::{
+	jaeger,
+	messages::{network_bridge_event, RuntimeApiMessage, RuntimeApiRequest},
+	ActivatedLeaf, LeafStatus,
+};
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
 use polkadot_primitives::v2::{Hash, SessionInfo, ValidationCode};
 use polkadot_primitives_test_helpers::{
 	dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
-};
-use polkadot_subsystem::{
-	jaeger,
-	messages::{network_bridge_event, RuntimeApiMessage, RuntimeApiRequest},
-	ActivatedLeaf, LeafStatus,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::{sr25519::Pair, AppKey, Pair as TraitPair};
