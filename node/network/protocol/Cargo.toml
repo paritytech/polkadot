@@ -15,5 +15,10 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "master
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 strum = { version = "0.24", features = ["derive"] }
 futures = "0.3.21"
-thiserror = "1.0.30"
+thiserror = "1.0.31"
 fatality = "0.0.6"
+rand = "0.8"
+derive_more = "0.99"
+
+[dev-dependencies]
+rand_chacha = "0.3.1"

@@ -21,7 +21,9 @@ use std::{
 
 pub use sc_network::{PeerId, ReputationChange};
 
-use polkadot_node_network_protocol::{ObservedRole, OurView, View, WrongVariant};
+use polkadot_node_network_protocol::{
+	grid_topology::SessionGridTopology, ObservedRole, OurView, ProtocolVersion, View, WrongVariant,
+};
 use polkadot_primitives::v2::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
 
 /// Information about a peer in the gossip topology for a session.
@@ -49,7 +51,7 @@ pub struct NewGossipTopology {
 #[derive(Debug, Clone, PartialEq)]
 pub enum NetworkBridgeEvent<M> {
 	/// A peer has connected.
-	PeerConnected(PeerId, ObservedRole, Option<HashSet<AuthorityDiscoveryId>>),
+	PeerConnected(PeerId, ObservedRole, ProtocolVersion, Option<HashSet<AuthorityDiscoveryId>>),
 
 	/// A peer has disconnected.
 	PeerDisconnected(PeerId),
@@ -92,13 +94,22 @@ impl<M> NetworkBridgeEvent<M> {
 	pub fn focus<'a, T>(&'a self) -> Result<NetworkBridgeEvent<T>, WrongVariant>
 	where
 		T: 'a + Clone,
-		&'a T: TryFrom<&'a M, Error = WrongVariant>,
+		T: TryFrom<&'a M, Error = WrongVariant>,
 	{
 		Ok(match *self {
 			NetworkBridgeEvent::PeerMessage(ref peer, ref msg) =>
-				NetworkBridgeEvent::PeerMessage(peer.clone(), <&'a T>::try_from(msg)?.clone()),
-			NetworkBridgeEvent::PeerConnected(ref peer, ref role, ref authority_id) =>
-				NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone(), authority_id.clone()),
+				NetworkBridgeEvent::PeerMessage(peer.clone(), T::try_from(msg)?),
+			NetworkBridgeEvent::PeerConnected(
+				ref peer,
+				ref role,
+				ref version,
+				ref authority_id,
+			) => NetworkBridgeEvent::PeerConnected(
+				peer.clone(),
+				role.clone(),
+				*version,
+				authority_id.clone(),
+			),
 			NetworkBridgeEvent::PeerDisconnected(ref peer) =>
 				NetworkBridgeEvent::PeerDisconnected(peer.clone()),
 			NetworkBridgeEvent::NewGossipTopology(ref topology) =>
@@ -108,5 +119,21 @@ impl<M> NetworkBridgeEvent<M> {
 			NetworkBridgeEvent::OurViewChange(ref view) =>
 				NetworkBridgeEvent::OurViewChange(view.clone()),
 		})
+	}
+}
+
+impl From<NewGossipTopology> for SessionGridTopology {
+	fn from(topology: NewGossipTopology) -> Self {
+		let peers_x =
+			topology.our_neighbors_x.values().flat_map(|p| &p.peer_ids).cloned().collect();
+		let peers_y =
+			topology.our_neighbors_y.values().flat_map(|p| &p.peer_ids).cloned().collect();
+
+		let validator_indices_x =
+			topology.our_neighbors_x.values().map(|p| p.validator_index.clone()).collect();
+		let validator_indices_y =
+			topology.our_neighbors_y.values().map(|p| p.validator_index.clone()).collect();
+
+		SessionGridTopology { peers_x, peers_y, validator_indices_x, validator_indices_y }
 	}
 }

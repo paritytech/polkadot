@@ -201,7 +201,7 @@ impl RequestFromBackers {
 			sender
 				.send_message(
 					NetworkBridgeMessage::SendRequests(
-						vec![Requests::AvailableDataFetching(req)],
+						vec![Requests::AvailableDataFetchingV1(req)],
 						IfDisconnected::ImmediateError,
 					)
 					.into(),
@@ -304,7 +304,20 @@ impl RequestChunksFromValidators {
 		sender: &mut impl SubsystemSender,
 	) {
 		let num_requests = self.get_desired_request_count(params.threshold);
-		let mut requests = Vec::with_capacity(num_requests - self.requesting_chunks.len());
+		let candidate_hash = &params.candidate_hash;
+		let already_requesting_count = self.requesting_chunks.len();
+
+		gum::debug!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			?num_requests,
+			error_count= ?self.error_count,
+			total_received = ?self.total_received_responses,
+			threshold = ?params.threshold,
+			?already_requesting_count,
+			"Requesting availability chunks for a candidate",
+		);
+		let mut requests = Vec::with_capacity(num_requests - already_requesting_count);
 
 		while self.requesting_chunks.len() < num_requests {
 			if let Some(validator_index) = self.shuffling.pop_back() {
@@ -313,7 +326,7 @@ impl RequestChunksFromValidators {
 					target: LOG_TARGET,
 					?validator,
 					?validator_index,
-					candidate_hash = ?params.candidate_hash,
+					?candidate_hash,
 					"Requesting chunk",
 				);
 
@@ -325,7 +338,7 @@ impl RequestChunksFromValidators {
 
 				let (req, res) =
 					OutgoingRequest::new(Recipient::Authority(validator), raw_request.clone());
-				requests.push(Requests::ChunkFetching(req));
+				requests.push(Requests::ChunkFetchingV1(req));
 
 				params.metrics.on_chunk_request_issued();
 				let timer = params.metrics.time_chunk_request();
@@ -414,7 +427,7 @@ impl RequestChunksFromValidators {
 				Err((validator_index, e)) => {
 					self.error_count += 1;
 
-					gum::debug!(
+					gum::trace!(
 						target: LOG_TARGET,
 						candidate_hash= ?params.candidate_hash,
 						err = ?e,
@@ -425,8 +438,18 @@ impl RequestChunksFromValidators {
 					match e {
 						RequestError::InvalidResponse(_) => {
 							metrics.on_chunk_request_invalid();
+
+							gum::debug!(
+								target: LOG_TARGET,
+								candidate_hash = ?params.candidate_hash,
+								err = ?e,
+								?validator_index,
+								"Chunk fetching response was invalid",
+							);
 						},
 						RequestError::NetworkError(err) => {
+							// No debug logs on general network errors - that became very spammy
+							// occasionally.
 							if let RequestFailure::Network(OutboundFailure::Timeout) = err {
 								metrics.on_chunk_request_timeout();
 							} else {
@@ -447,6 +470,14 @@ impl RequestChunksFromValidators {
 			// Stop waiting for requests when we either can already recover the data
 			// or have gotten firm 'No' responses from enough validators.
 			if self.can_conclude(params) {
+				gum::debug!(
+					target: LOG_TARGET,
+					candidate_hash = ?params.candidate_hash,
+					received_chunks_count = ?self.received_chunks.len(),
+					requested_chunks_count = ?self.requesting_chunks.len(),
+					threshold = ?params.threshold,
+					"Can conclude availability for a candidate",
+				);
 				break
 			}
 		}

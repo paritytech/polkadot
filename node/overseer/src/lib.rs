@@ -74,8 +74,8 @@ use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
 	v2::{
-		Block, BlockId, BlockNumber, CandidateCommitments, CandidateEvent,
-		CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Header, Id,
+		Block, BlockId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
+		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Header, Id,
 		InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
 		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
 		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
@@ -83,7 +83,7 @@ use polkadot_primitives::{
 };
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
-use polkadot_node_network_protocol::v1 as protocol_v1;
+use polkadot_node_network_protocol::VersionedValidationProtocol;
 use polkadot_node_subsystem_types::messages::{
 	ApprovalDistributionMessage, ApprovalVotingMessage, AvailabilityDistributionMessage,
 	AvailabilityRecoveryMessage, AvailabilityStoreMessage, BitfieldDistributionMessage,
@@ -463,7 +463,8 @@ pub async fn forward_collator_events<P: client::BlockchainRPCEvents<Block>>(
 	event=Event,
 	signal=OverseerSignal,
 	error=SubsystemError,
-	network=NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
+	network=NetworkBridgeEvent<VersionedValidationProtocol>,
+	message_capacity=2048,
 )]
 pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, CandidateValidationMessage)]
@@ -1046,6 +1047,11 @@ pub trait OverseerRuntimeClient {
 	) -> std::result::Result<Vec<sp_authority_discovery::AuthorityId>, ApiError>;
 
 	fn api_version_parachain_host(&self, at: &BlockId) -> Result<Option<u32>, ApiError>;
+
+	fn staging_get_disputes(
+		&self,
+		at: &BlockId,
+	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError>;
 }
 
 impl<T> OverseerRuntimeClient for T
@@ -1242,5 +1248,12 @@ where
 	) -> Result<Option<polkadot_primitives::v2::SessionInfo>, ApiError> {
 		// self.runtime_api().session_info_before_version_2(at, index)
 		todo!()
+	}
+
+	fn staging_get_disputes(
+		&self,
+		at: &BlockId,
+	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError> {
+		self.runtime_api().staging_get_disputes(at)
 	}
 }

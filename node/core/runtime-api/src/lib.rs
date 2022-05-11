@@ -22,7 +22,7 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_subsystem_util::metrics::prometheus;
 use polkadot_overseer::OverseerRuntimeClient;
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
@@ -42,6 +42,9 @@ use futures::{channel::oneshot, prelude::*, select, stream::FuturesUnordered};
 use std::{collections::VecDeque, pin::Pin, sync::Arc};
 
 mod cache;
+
+mod metrics;
+use self::metrics::Metrics;
 
 #[cfg(test)]
 mod tests;
@@ -163,6 +166,8 @@ where
 				.cache_validation_code_hash((relay_parent, para_id, assumption), hash),
 			Version(relay_parent, version) =>
 				self.requests_cache.cache_version(relay_parent, version),
+			StagingDisputes(relay_parent, disputes) =>
+				self.requests_cache.cache_disputes(relay_parent, disputes),
 		}
 	}
 
@@ -264,6 +269,8 @@ where
 			Request::ValidationCodeHash(para, assumption, sender) =>
 				query!(validation_code_hash(para, assumption), sender)
 					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
+			Request::StagingDisputes(sender) =>
+				query!(disputes(), sender).map(|sender| Request::StagingDisputes(sender)),
 		}
 	}
 
@@ -516,65 +523,7 @@ where
 		},
 		Request::ValidationCodeHash(para, assumption, sender) =>
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
-	}
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	chain_api_requests: prometheus::CounterVec<prometheus::U64>,
-	make_runtime_api_request: prometheus::Histogram,
-}
-
-/// Runtime API metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_request(&self, succeeded: bool) {
-		if let Some(metrics) = &self.0 {
-			if succeeded {
-				metrics.chain_api_requests.with_label_values(&["succeeded"]).inc();
-			} else {
-				metrics.chain_api_requests.with_label_values(&["failed"]).inc();
-			}
-		}
-	}
-
-	fn on_cached_request(&self) {
-		self.0
-			.as_ref()
-			.map(|metrics| metrics.chain_api_requests.with_label_values(&["cached"]).inc());
-	}
-
-	/// Provide a timer for `make_runtime_api_request` which observes on drop.
-	fn time_make_runtime_api_request(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.make_runtime_api_request.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			chain_api_requests: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_runtime_api_requests_total",
-						"Number of Runtime API requests served.",
-					),
-					&["success"],
-				)?,
-				registry,
-			)?,
-			make_runtime_api_request: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_runtime_api_make_runtime_api_request",
-					"Time spent within `runtime_api::make_runtime_api_request`",
-				))?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
+		Request::StagingDisputes(sender) =>
+			query!(StagingDisputes, staging_get_disputes(), ver = 2, sender),
 	}
 }

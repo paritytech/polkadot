@@ -19,9 +19,9 @@ parity-util-mem = { version = "0.11.0", default-features = false, features = ["j
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
-nix = "0.23.1"
+nix = "0.24.1"
 tempfile = "3.2.0"
-tokio = "1.17.0"
+tokio = "1.18.1"
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-core-primitives = { path = "core-primitives" }
 
@@ -203,6 +203,7 @@ try-runtime = [ "polkadot-cli/try-runtime" ]
 fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
+staging-client = ["polkadot-cli/staging-client"]
 [patch."https://github.com/paritytech/substrate"]
 node-template ={path = "/Users/skunert/work/repos/substrate/bin/node-template/node" }
 frame-benchmarking ={path = "/Users/skunert/work/repos/substrate/frame/benchmarking" }
@@ -242,11 +243,11 @@ sc-executor ={path = "/Users/skunert/work/repos/substrate/client/executor" }
 sc-executor-common ={path = "/Users/skunert/work/repos/substrate/client/executor/common" }
 sc-allocator ={path = "/Users/skunert/work/repos/substrate/client/allocator" }
 sp-maybe-compressed-blob ={path = "/Users/skunert/work/repos/substrate/primitives/maybe-compressed-blob" }
+sp-sandbox ={path = "/Users/skunert/work/repos/substrate/primitives/sandbox" }
 sp-serializer ={path = "/Users/skunert/work/repos/substrate/primitives/serializer" }
 sc-executor-wasmi ={path = "/Users/skunert/work/repos/substrate/client/executor/wasmi" }
 sc-executor-wasmtime ={path = "/Users/skunert/work/repos/substrate/client/executor/wasmtime" }
 sc-runtime-test ={path = "/Users/skunert/work/repos/substrate/client/executor/runtime-test" }
-sp-sandbox ={path = "/Users/skunert/work/repos/substrate/primitives/sandbox" }
 sp-tasks ={path = "/Users/skunert/work/repos/substrate/primitives/tasks" }
 substrate-wasm-builder ={path = "/Users/skunert/work/repos/substrate/utils/wasm-builder" }
 sc-tracing ={path = "/Users/skunert/work/repos/substrate/client/tracing" }
@@ -284,7 +285,9 @@ sc-network ={path = "/Users/skunert/work/repos/substrate/client/network" }
 fork-tree ={path = "/Users/skunert/work/repos/substrate/utils/fork-tree" }
 sc-consensus ={path = "/Users/skunert/work/repos/substrate/client/consensus/common" }
 sc-utils ={path = "/Users/skunert/work/repos/substrate/client/utils" }
+sc-network-common ={path = "/Users/skunert/work/repos/substrate/client/network/common" }
 sc-peerset ={path = "/Users/skunert/work/repos/substrate/client/peerset" }
+sc-network-sync ={path = "/Users/skunert/work/repos/substrate/client/network/sync" }
 sp-finality-grandpa ={path = "/Users/skunert/work/repos/substrate/primitives/finality-grandpa" }
 sc-telemetry ={path = "/Users/skunert/work/repos/substrate/client/telemetry" }
 sc-client-db ={path = "/Users/skunert/work/repos/substrate/client/db" }
@@ -370,6 +373,8 @@ pallet-membership ={path = "/Users/skunert/work/repos/substrate/frame/membership
 pallet-mmr ={path = "/Users/skunert/work/repos/substrate/frame/merkle-mountain-range" }
 sp-mmr-primitives ={path = "/Users/skunert/work/repos/substrate/primitives/merkle-mountain-range" }
 pallet-multisig ={path = "/Users/skunert/work/repos/substrate/frame/multisig" }
+pallet-nomination-pools ={path = "/Users/skunert/work/repos/substrate/frame/nomination-pools" }
+pallet-nomination-pools-benchmarking ={path = "/Users/skunert/work/repos/substrate/frame/nomination-pools/benchmarking" }
 pallet-offences-benchmarking ={path = "/Users/skunert/work/repos/substrate/frame/offences/benchmarking" }
 pallet-proxy ={path = "/Users/skunert/work/repos/substrate/frame/proxy" }
 pallet-recovery ={path = "/Users/skunert/work/repos/substrate/frame/recovery" }
@@ -464,5 +469,4 @@ polkadot = { path = "/usr/bin/polkadot" }
 "../scripts/packaging/polkadot.service" = { path = "/usr/lib/systemd/system/polkadot.service", mode = "644" }
 
 [package.metadata.spellcheck]
-config = "./scripts/gitlab/spellcheck.toml"
-
+config = "./scripts/ci/gitlab/spellcheck.toml"

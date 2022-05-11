@@ -193,7 +193,7 @@ enum ApprovalDistributionMessage {
     /// the message.
     DistributeApproval(IndirectSignedApprovalVote),
     /// An update from the network bridge.
-    NetworkBridgeUpdateV1(NetworkBridgeEvent<ApprovalDistributionV1Message>),
+    NetworkBridgeUpdate(NetworkBridgeEvent<ApprovalDistributionV1Message>),
 }
 ```
 
@@ -284,7 +284,7 @@ enum BitfieldDistributionMessage {
     /// The bitfield distribution subsystem will assume this is indeed correctly signed.
     DistributeBitfield(relay_parent, SignedAvailabilityBitfield),
     /// Receive a network bridge update.
-    NetworkBridgeUpdateV1(NetworkBridgeEvent<BitfieldDistributionV1Message>),
+    NetworkBridgeUpdate(NetworkBridgeEvent<BitfieldDistributionV1Message>),
 }
 ```
 
@@ -643,7 +643,7 @@ enum PoVDistributionMessage {
     /// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
     DistributePoV(Hash, CandidateDescriptor, PoV),
     /// An update from the network bridge.
-    NetworkBridgeUpdateV1(NetworkBridgeEvent<PoVDistributionV1Message>),
+    NetworkBridgeUpdate(NetworkBridgeEvent<PoVDistributionV1Message>),
 }
 ```
 
@@ -747,7 +747,7 @@ This is a network protocol that receives messages of type [`StatementDistributio
 ```rust
 enum StatementDistributionMessage {
     /// An update from the network bridge.
-    NetworkBridgeUpdateV1(NetworkBridgeEvent<StatementDistributionV1Message>),
+    NetworkBridgeUpdate(NetworkBridgeEvent<StatementDistributionV1Message>),
     /// We have validated a candidate and want to share our judgment with our peers.
     /// The hash is the relay parent.
     ///

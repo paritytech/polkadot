@@ -20,7 +20,7 @@ polkadot-core-primitives = { path = "../core-primitives", default-features = fal
 derive_more = "0.99.11"
 
 # all optional crates.
-serde = { version = "1.0.136", default-features = false, features = [ "derive" ], optional = true }
+serde = { version = "1.0.137", default-features = false, features = [ "derive" ], optional = true }
 
 [features]
 default = ["std"]
