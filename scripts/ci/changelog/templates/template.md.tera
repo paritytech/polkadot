@@ -16,7 +16,7 @@ This release contains the changes from `{{ env.REF1 }}` to `{{ env.REF2 }}`.
 {%- set SUB = "[S]" -%}
 
 {# -- Manual free notes section -- -#}
-{% include "free_notes.md.tera" -%}
+{% include "_free_notes.md.tera" -%}
 {# --------------------------------- -#}
 
 {# -- Important automatic section -- -#}
