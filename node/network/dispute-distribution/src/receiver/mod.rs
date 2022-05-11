@@ -39,11 +39,9 @@ use polkadot_node_network_protocol::{
 	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_node_primitives::DISPUTE_WINDOW;
-use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 use polkadot_node_subsystem::{
-	overseer,
 	messages::{AllMessages, DisputeCoordinatorMessage, ImportStatementsResult},
-	SubsystemSender,
+	overseer, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 
@@ -268,15 +266,13 @@ where
 		let (pending_confirmation, confirmation_rx) = oneshot::channel();
 		let candidate_hash = candidate_receipt.hash();
 		self.sender
-			.send_message(
-				DisputeCoordinatorMessage::ImportStatements {
-					candidate_hash,
-					candidate_receipt,
-					session: valid_vote.0.session_index(),
-					statements: vec![valid_vote, invalid_vote],
-					pending_confirmation: Some(pending_confirmation),
-				}
-			)
+			.send_message(DisputeCoordinatorMessage::ImportStatements {
+				candidate_hash,
+				candidate_receipt,
+				session: valid_vote.0.session_index(),
+				statements: vec![valid_vote, invalid_vote],
+				pending_confirmation: Some(pending_confirmation),
+			})
 			.await;
 
 		self.pending_imports.push(peer, confirmation_rx, pending_response);

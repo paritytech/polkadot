@@ -32,8 +32,7 @@ use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW};
 use polkadot_node_subsystem::{
-    overseer,
-	messages::DisputeCoordinatorMessage, ActivatedLeaf, FromOverseer, OverseerSignal,
+	messages::DisputeCoordinatorMessage, overseer, ActivatedLeaf, FromOverseer, OverseerSignal,
 	SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
@@ -127,7 +126,7 @@ impl Config {
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for DisputeCoordinatorSubsystem
 where
-    Context: overseer::DisputeCoordinatorContextTrait,
+	Context: overseer::DisputeCoordinatorContextTrait,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async {
@@ -260,7 +259,7 @@ impl DisputeCoordinatorSubsystem {
 		ChainScraper,
 	)>
 	where
-		 Context: overseer::DisputeCoordinatorContextTrait,
+		Context: overseer::DisputeCoordinatorContextTrait,
 	{
 		// Prune obsolete disputes:
 		db::v1::note_current_session(overlay_db, rolling_session_window.latest_session())?;
@@ -359,7 +358,7 @@ async fn get_rolling_session_window<Context>(
 	ctx: &mut Context,
 ) -> Result<Option<(ActivatedLeaf, RollingSessionWindow)>>
 where
-	 Context: overseer::DisputeCoordinatorContextTrait,
+	Context: overseer::DisputeCoordinatorContextTrait,
 {
 	if let Some(leaf) = wait_for_first_leaf(ctx).await? {
 		Ok(Some((
@@ -376,7 +375,7 @@ where
 /// Wait for `ActiveLeavesUpdate`, returns `None` if `Conclude` signal came first.
 async fn wait_for_first_leaf<Context>(ctx: &mut Context) -> Result<Option<ActivatedLeaf>>
 where
-	 Context: overseer::DisputeCoordinatorContextTrait,
+	Context: overseer::DisputeCoordinatorContextTrait,
 {
 	loop {
 		match ctx.recv().await? {

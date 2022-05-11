@@ -1318,13 +1318,14 @@ impl State {
 				"Sending assignments to unified peer",
 			);
 
-			sender.send_message(NetworkBridgeMessage::SendValidationMessage(
-				vec![peer_id.clone()],
-				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Assignments(assignments_to_send),
-				)),
-			))
-			.await;
+			sender
+				.send_message(NetworkBridgeMessage::SendValidationMessage(
+					vec![peer_id.clone()],
+					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
+						protocol_v1::ApprovalDistributionMessage::Assignments(assignments_to_send),
+					)),
+				))
+				.await;
 		}
 
 		if !approvals_to_send.is_empty() {
@@ -1335,13 +1336,14 @@ impl State {
 				"Sending approvals to unified peer",
 			);
 
-			sender.send_message(NetworkBridgeMessage::SendValidationMessage(
-				vec![peer_id],
-				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Approvals(approvals_to_send),
-				)),
-			))
-			.await;
+			sender
+				.send_message(NetworkBridgeMessage::SendValidationMessage(
+					vec![peer_id],
+					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
+						protocol_v1::ApprovalDistributionMessage::Approvals(approvals_to_send),
+					)),
+				))
+				.await;
 		}
 	}
 
@@ -1593,9 +1595,8 @@ impl ApprovalDistribution {
 		self,
 		mut ctx: Context,
 		state: &mut State,
-		rng: &mut (impl CryptoRng + Rng)
-	)
-	where
+		rng: &mut (impl CryptoRng + Rng),
+	) where
 		Context: overseer::ApprovalDistributionContextTrait,
 	{
 		loop {
@@ -1632,8 +1633,7 @@ impl ApprovalDistribution {
 		msg: ApprovalDistributionMessage,
 		metrics: &Metrics,
 		rng: &mut (impl CryptoRng + Rng),
-	)
-	where
+	) where
 		Context: overseer::ApprovalDistributionContextTrait,
 	{
 		match msg {

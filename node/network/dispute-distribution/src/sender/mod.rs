@@ -20,12 +20,9 @@ use futures::channel::{mpsc, oneshot};
 
 use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
 use polkadot_node_primitives::{CandidateVotes, DisputeMessage, SignedDisputeStatement};
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::v2::{CandidateHash, DisputeStatement, Hash, SessionIndex};
 use polkadot_node_subsystem::{
-	overseer,
 	messages::{AllMessages, DisputeCoordinatorMessage},
-	ActiveLeavesUpdate, SubsystemContext,
+	overseer, ActiveLeavesUpdate, SubsystemContext,
 };
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::v2::{CandidateHash, DisputeStatement, Hash, SessionIndex};
@@ -363,9 +360,7 @@ where
 	let (tx, rx) = oneshot::channel();
 
 	// Caller scope is in `update_leaves` and this is bounded by fork count.
-	ctx.send_unbounded_message(
-		DisputeCoordinatorMessage::ActiveDisputes(tx),
-	);
+	ctx.send_unbounded_message(DisputeCoordinatorMessage::ActiveDisputes(tx));
 	rx.await.map_err(|_| JfyiError::AskActiveDisputesCanceled)
 }
 
@@ -380,9 +375,10 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 	// Caller scope is in `update_leaves` and this is bounded by fork count.
-	ctx.send_unbounded_message(
-		DisputeCoordinatorMessage::QueryCandidateVotes(vec![(session_index, candidate_hash)], tx),
-	);
+	ctx.send_unbounded_message(DisputeCoordinatorMessage::QueryCandidateVotes(
+		vec![(session_index, candidate_hash)],
+		tx,
+	));
 	rx.await
 		.map(|v| v.get(0).map(|inner| inner.to_owned().2))
 		.map_err(|_| JfyiError::AskCandidateVotesCanceled)

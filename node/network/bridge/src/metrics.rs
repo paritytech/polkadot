@@ -14,9 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::{PeerSet, ProtocolVersion};
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use super::{ProtocolVersion, PeerSet};
-
 
 /// Metrics for the network bridge.
 #[derive(Clone, Default)]
@@ -55,7 +54,12 @@ impl Metrics {
 		});
 	}
 
-	pub fn on_notification_received(&self, peer_set: PeerSet, version: ProtocolVersion, size: usize) {
+	pub fn on_notification_received(
+		&self,
+		peer_set: PeerSet,
+		version: ProtocolVersion,
+		size: usize,
+	) {
 		if let Some(metrics) = self.0.as_ref() {
 			metrics
 				.notifications_received

@@ -50,7 +50,10 @@ use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem::{
 	errors::RecoveryError,
 	jaeger,
-	messages::{AvailabilityRecoveryMessage, AvailabilityStoreMessage, NetworkBridgeMessage, RuntimeApiMessage},
+	messages::{
+		AvailabilityRecoveryMessage, AvailabilityStoreMessage, NetworkBridgeMessage,
+		RuntimeApiMessage,
+	},
 	overseer::{self, Subsystem},
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError, SubsystemResult, SubsystemSender,
@@ -199,12 +202,10 @@ impl RequestFromBackers {
 			);
 
 			sender
-				.send_message(
-					NetworkBridgeMessage::SendRequests(
-						vec![Requests::AvailableDataFetchingV1(req)],
-						IfDisconnected::ImmediateError,
-					)
-				)
+				.send_message(NetworkBridgeMessage::SendRequests(
+					vec![Requests::AvailableDataFetchingV1(req)],
+					IfDisconnected::ImmediateError,
+				))
 				.await;
 
 			match response.await {
@@ -301,8 +302,7 @@ impl RequestChunksFromValidators {
 		&mut self,
 		params: &RecoveryParams,
 		sender: &mut Sender,
-	)
-	where
+	) where
 		Sender: overseer::AvailabilityRecoverySenderTrait,
 	{
 		let num_requests = self.get_desired_request_count(params.threshold);
@@ -360,9 +360,10 @@ impl RequestChunksFromValidators {
 		}
 
 		sender
-			.send_message(
-				NetworkBridgeMessage::SendRequests(requests, IfDisconnected::ImmediateError)
-			)
+			.send_message(NetworkBridgeMessage::SendRequests(
+				requests,
+				IfDisconnected::ImmediateError,
+			))
 			.await;
 	}
 
@@ -499,9 +500,7 @@ impl RequestChunksFromValidators {
 		{
 			let (tx, rx) = oneshot::channel();
 			sender
-				.send_message(
-					AvailabilityStoreMessage::QueryAllChunks(params.candidate_hash, tx)
-				)
+				.send_message(AvailabilityStoreMessage::QueryAllChunks(params.candidate_hash, tx))
 				.await;
 
 			match rx.await {
@@ -651,16 +650,19 @@ fn reconstructed_data_matches_root(
 	branches.root() == *expected_root
 }
 
-impl<Sender> RecoveryTask<Sender> where Sender: overseer::AvailabilityRecoverySenderTrait {
+impl<Sender> RecoveryTask<Sender>
+where
+	Sender: overseer::AvailabilityRecoverySenderTrait,
+{
 	async fn run(mut self) -> Result<AvailableData, RecoveryError> {
 		// First just see if we have the data available locally.
 		{
 			let (tx, rx) = oneshot::channel();
 			self.sender
-				.send_message(
-					AvailabilityStoreMessage::QueryAvailableData(self.params.candidate_hash, tx)
-
-				)
+				.send_message(AvailabilityStoreMessage::QueryAvailableData(
+					self.params.candidate_hash,
+					tx,
+				))
 				.await;
 
 			match rx.await {

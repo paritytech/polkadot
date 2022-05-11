@@ -164,8 +164,8 @@ pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
 		let subsystem_name = ssf.generic.to_string();
 		let outgoing_wrapper = &Ident::new(&(subsystem_name.clone() + "OutgoingMessages"), span);
 
-		let subsystem_ctx_trait= &Ident::new(&(subsystem_name.clone() + "ContextTrait"), span);
-		let subsystem_sender_trait= &Ident::new(&(subsystem_name.clone() + "SenderTrait"), span);
+		let subsystem_ctx_trait = &Ident::new(&(subsystem_name.clone() + "ContextTrait"), span);
+		let subsystem_sender_trait = &Ident::new(&(subsystem_name.clone() + "SenderTrait"), span);
 
 		ts.extend(impl_per_subsystem_helper_traits(
 			info,
@@ -174,7 +174,8 @@ pub(crate) fn impl_subsystem(info: &OverseerInfo) -> Result<TokenStream> {
 			subsystem_sender_trait,
 			&ssf.message_to_consume,
 			&ssf.messages_to_send,
-			outgoing_wrapper));
+			outgoing_wrapper,
+		));
 
 		ts.extend(impl_associate_outgoing_messages(&ssf.message_to_consume, &outgoing_wrapper));
 
@@ -358,7 +359,6 @@ pub(crate) fn impl_associate_outgoing_messages(
 	}
 }
 
-
 pub(crate) fn impl_per_subsystem_helper_traits(
 	info: &OverseerInfo,
 	subsystem_ctx_trait: &Ident,
@@ -377,7 +377,7 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 
 	// Create a helper trait bound of all outgoing messages, and the generated wrapper type
 	// for ease of use within subsystems:
-	let acc_sender_trait_bounds = quote !{
+	let acc_sender_trait_bounds = quote! {
 		#support_crate ::SubsystemSender< #outgoing_wrapper >
 		#(
 			+ #support_crate ::SubsystemSender< #outgoing >
@@ -385,7 +385,7 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 			+ Send
 	};
 
-	ts.extend(quote!{
+	ts.extend(quote! {
 		/// A abstracting trait for usage with subsystems.
 		pub trait #subsystem_sender_trait : #acc_sender_trait_bounds
 		{}
@@ -396,16 +396,15 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 		{}
 	});
 
-
 	// Create a helper accumulated per subsystem trait bound:
-	let where_clause = quote !{
+	let where_clause = quote! {
 		#consumes: AssociateOutgoing + ::std::fmt::Debug + Send + 'static,
 		#all_messages_wrapper: From< #outgoing_wrapper >,
 		#all_messages_wrapper: From< #consumes >,
 		Self::Sender: #subsystem_sender_trait + #acc_sender_trait_bounds,
 	};
 
-	ts.extend(quote!{
+	ts.extend(quote! {
 		/// Accumuative trait for a particular subsystem wrapper.
 		pub trait #subsystem_ctx_trait : SubsystemContext <
 			Message = #consumes,
@@ -432,7 +431,6 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 			#where_clause
 		{}
 	});
-
 
 	// // impl the subsystem context trait (alt!)
 	// ts.extend(quote!{
@@ -627,7 +625,7 @@ pub(crate) fn impl_subsystem_context(
 	};
 
 	// impl the subsystem context trait
-	ts.extend(quote!{
+	ts.extend(quote! {
 
 		#[#support_crate ::async_trait]
 		impl<M> #support_crate ::SubsystemContext for #subsystem_ctx_name <M>

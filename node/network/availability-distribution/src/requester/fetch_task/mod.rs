@@ -29,18 +29,13 @@ use polkadot_node_network_protocol::request_response::{
 };
 use polkadot_node_primitives::ErasureChunk;
 use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, BlakeTwo256, Candi	dateHash, GroupIndex, Hash, HashT, OccupiedCore,
+	AuthorityDiscoveryId, BlakeTwo256, CandidateHash, GroupIndex, Hash, HashT, OccupiedCore,
 	SessionIndex,
 };
 use polkadot_subsystem::{
-	overseer,
 	jaeger,
 	messages::{AllMessages, AvailabilityStoreMessage, IfDisconnected, NetworkBridgeMessage},
-	SubsystemContext,
-};
-use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, BlakeTwo256, CandidateHash, GroupIndex, Hash, HashT, OccupiedCore,
-	SessionIndex,
+	overseer, SubsystemContext,
 };
 
 use crate::{
@@ -339,7 +334,8 @@ impl RunningTask {
 
 		self.sender
 			.send(FromFetchTask::Message(
-				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::ImmediateError).into()
+				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::ImmediateError)
+					.into(),
 			))
 			.await
 			.map_err(|_| TaskError::ShuttingDown)?;
@@ -423,7 +419,8 @@ impl RunningTask {
 					candidate_hash: self.request.candidate_hash,
 					chunk,
 					tx,
-				}.into()
+				}
+				.into(),
 			))
 			.await;
 		if let Err(err) = r {

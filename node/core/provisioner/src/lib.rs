@@ -170,14 +170,13 @@ where
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
-	fn run (
+	fn run(
 		leaf: ActivatedLeaf,
 		_: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<ProvisionerMessage>,
 		mut sender: JobSender<Sender>,
-	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>
-	{
+	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		let span = leaf.span.clone();
 		async move {
 			let job = ProvisionerJob::new(leaf, metrics, receiver);
@@ -210,11 +209,7 @@ where
 		}
 	}
 
-	async fn run_loop(
-		mut self,
-		sender: &mut Sender,
-		span: PerLeafSpan,
-	) -> Result<(), Error> {
+	async fn run_loop(mut self, sender: &mut Sender, span: PerLeafSpan) -> Result<(), Error> {
 		loop {
 			futures::select! {
 				msg = self.receiver.next() => match msg {
@@ -249,7 +244,7 @@ where
 		Ok(())
 	}
 
-	async fn send_inherent_data (
+	async fn send_inherent_data(
 		&mut self,
 		sender: &mut Sender,
 		return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
@@ -526,13 +521,11 @@ async fn select_candidates(
 	// now get the backed candidates corresponding to these candidate receipts
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send_message(
-			CandidateBackingMessage::GetBackedCandidates(
-				relay_parent,
-				selected_candidates.clone(),
-				tx,
-			)
-		)
+		.send_message(CandidateBackingMessage::GetBackedCandidates(
+			relay_parent,
+			selected_candidates.clone(),
+			tx,
+		))
 		.await;
 	let mut candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
 
@@ -672,9 +665,10 @@ async fn request_votes(
 ) -> Vec<(SessionIndex, CandidateHash, CandidateVotes)> {
 	let (tx, rx) = oneshot::channel();
 	// Bounded by block production - `ProvisionerMessage::RequestInherentData`.
-	sender.send_unbounded_message(
-		DisputeCoordinatorMessage::QueryCandidateVotes(disputes_to_query, tx)
-	);
+	sender.send_unbounded_message(DisputeCoordinatorMessage::QueryCandidateVotes(
+		disputes_to_query,
+		tx,
+	));
 
 	match rx.await {
 		Ok(v) => v,
@@ -857,8 +851,4 @@ async fn select_disputes(
 }
 
 /// The provisioner subsystem.
-pub type ProvisionerSubsystem<Spawner, Sender> =
-	JobSubsystem<
-		ProvisionerJob<Sender>,
-		Spawner,
-	>;
+pub type ProvisionerSubsystem<Spawner, Sender> = JobSubsystem<ProvisionerJob<Sender>, Spawner>;

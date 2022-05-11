@@ -116,9 +116,7 @@ pub struct DisputeDistributionSubsystem<AD> {
 
 impl<Context, AD> overseer::Subsystem<Context, SubsystemError> for DisputeDistributionSubsystem<AD>
 where
-	Context: overseer::DisputeDistributionContextTrait
-		+ Sync
-		+ Send,
+	Context: overseer::DisputeDistributionContextTrait + Sync + Send,
 	AD: AuthorityDiscovery + Clone,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
@@ -207,7 +205,7 @@ where
 		signal: OverseerSignal,
 	) -> Result<SignalResult>
 	where
-	Context: overseer::DisputeDistributionContextTrait,
+		Context: overseer::DisputeDistributionContextTrait,
 	{
 		match signal {
 			OverseerSignal::Conclude => return Ok(SignalResult::Conclude),
@@ -225,7 +223,8 @@ where
 		ctx: &mut Context,
 		msg: DisputeDistributionMessage,
 	) -> Result<()>
-		where Context: overseer::DisputeDistributionContextTrait,
+	where
+		Context: overseer::DisputeDistributionContextTrait,
 	{
 		match msg {
 			DisputeDistributionMessage::SendDispute(dispute_msg) =>

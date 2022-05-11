@@ -87,7 +87,6 @@ const EMPTY_VIEW_COST: Rep = Rep::CostMajor("Peer sent us an empty view");
 // network bridge log target
 const LOG_TARGET: &'static str = "parachain::network-bridge";
 
-
 /// Messages from and to the network.
 ///
 /// As transmitted to and received from subsystems.
@@ -1071,8 +1070,10 @@ fn dispatch_collation_event_to_all_unbounded(
 	}
 }
 
-async fn dispatch_validation_events_to_all<I>(events: I, ctx: &mut impl overseer::NetworkBridgeSenderTrait)
-where
+async fn dispatch_validation_events_to_all<I>(
+	events: I,
+	ctx: &mut impl overseer::NetworkBridgeSenderTrait,
+) where
 	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>>,
 	I::IntoIter: Send,
 {
@@ -1080,16 +1081,15 @@ where
 	// ctx.send_messages(events.into_iter().flat_map(AllMessages::dispatch_iter)).await
 }
 
-async fn dispatch_collation_events_to_all<I>(events: I, ctx: &mut impl overseer::NetworkBridgeSenderTrait)
-where
+async fn dispatch_collation_events_to_all<I>(
+	events: I,
+	ctx: &mut impl overseer::NetworkBridgeSenderTrait,
+) where
 	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>>,
 	I::IntoIter: Send,
 {
 	let messages_for = |event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>| {
-		event
-			.focus()
-			.ok()
-			.map(|m| CollatorProtocolMessage::NetworkBridgeUpdate(m))
+		event.focus().ok().map(|m| CollatorProtocolMessage::NetworkBridgeUpdate(m))
 	};
 
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await

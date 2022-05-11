@@ -32,12 +32,9 @@ use futures::{
 	Stream,
 };
 
-use polkadot_node_subsystem_util::runtime::{get_occupied_cores, RuntimeInfo};
-use polkadot_primitives::v2::{CandidateHash, Hash, OccupiedCore, SessionIndex};
 use polkadot_node_subsystem::{
-	overseer,
-	messages::{RuntimeApiMessage, ChainApiMessage},
-	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SubsystemContext,
+	messages::{ChainApiMessage, RuntimeApiMessage},
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SubsystemContext,
 };
 use polkadot_node_subsystem_util::runtime::{get_occupied_cores, RuntimeInfo};
 use polkadot_primitives::v2::{CandidateHash, Hash, OccupiedCore, SessionIndex};
@@ -316,12 +313,13 @@ where
 	Sender: overseer::SubsystemSender<ChainApiMessage>,
 {
 	let (tx, rx) = oneshot::channel();
-	sender.send_message(ChainApiMessage::Ancestors {
-		hash: relay_parent,
-		k: limit,
-		response_channel: tx,
-	})
-	.await;
+	sender
+		.send_message(ChainApiMessage::Ancestors {
+			hash: relay_parent,
+			k: limit,
+			response_channel: tx,
+		})
+		.await;
 
 	let ancestors = rx
 		.await

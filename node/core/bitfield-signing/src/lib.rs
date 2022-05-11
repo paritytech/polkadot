@@ -202,8 +202,7 @@ where
 		metrics: Self::Metrics,
 		_receiver: mpsc::Receiver<BitfieldSigningMessage>,
 		mut sender: JobSender<Sender>,
-	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>
-	{
+	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		let metrics = metrics.clone();
 		async move {
 			if let LeafStatus::Stale = leaf.status {
@@ -293,7 +292,4 @@ where
 
 /// `BitfieldSigningSubsystem` manages a number of bitfield signing jobs.
 pub type BitfieldSigningSubsystem<Spawner, Sender> =
-	JobSubsystem<
-		BitfieldSigningJob<Sender>,
-		Spawner,
-	>;
+	JobSubsystem<BitfieldSigningJob<Sender>, Spawner>;

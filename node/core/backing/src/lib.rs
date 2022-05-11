@@ -671,14 +671,12 @@ async fn request_candidate_validation(
 	let (tx, rx) = oneshot::channel();
 
 	ctx.sender()
-		.send_message(
-			CandidateValidationMessage::ValidateFromChainState(
-				candidate_receipt,
-				pov,
-				BACKING_EXECUTION_TIMEOUT,
-				tx,
-			)
-		)
+		.send_message(CandidateValidationMessage::ValidateFromChainState(
+			candidate_receipt,
+			pov,
+			BACKING_EXECUTION_TIMEOUT,
+			tx,
+		))
 		.await;
 
 	match rx.await {
@@ -723,8 +721,7 @@ async fn validate_and_make_available(
 		PoVData::Ready(pov) => pov,
 		PoVData::FetchFromValidator { from_validator, candidate_hash, pov_hash } => {
 			let _span = span.as_ref().map(|s| s.child("request-pov"));
-			match request_pov(sender, relay_parent, from_validator, candidate_hash, pov_hash)
-				.await
+			match request_pov(sender, relay_parent, from_validator, candidate_hash, pov_hash).await
 			{
 				Err(Error::FetchPoV) => {
 					tx_command
@@ -808,8 +805,7 @@ async fn validate_and_make_available(
 
 struct ValidatorIndexOutOfBounds;
 
-impl<Context> CandidateBackingJob<Context>
-{
+impl<Context> CandidateBackingJob<Context> {
 	async fn handle_validated_candidate_command(
 		&mut self,
 		root_span: &jaeger::Span,
@@ -1153,14 +1149,15 @@ impl<Context> CandidateBackingJob<Context>
 		if let (Some(candidate_receipt), Some(dispute_statement)) =
 			(maybe_candidate_receipt, maybe_signed_dispute_statement)
 		{
-			sender.send_message(DisputeCoordinatorMessage::ImportStatements {
-				candidate_hash,
-				candidate_receipt,
-				session: self.session_index,
-				statements: vec![(dispute_statement, validator_index)],
-				pending_confirmation: None,
-			})
-			.await;
+			sender
+				.send_message(DisputeCoordinatorMessage::ImportStatements {
+					candidate_hash,
+					candidate_receipt,
+					session: self.session_index,
+					statements: vec![(dispute_statement, validator_index)],
+					pending_confirmation: None,
+				})
+				.await;
 		}
 
 		Ok(())

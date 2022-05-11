@@ -315,8 +315,7 @@ where
 		&mut self,
 		sender: &mut Sender,
 		authorities: Vec<AuthorityDiscoveryId>,
-	)
-	where
+	) where
 		Sender: overseer::GossipSupportSenderTrait,
 	{
 		let num = authorities.len();
@@ -541,12 +540,13 @@ async fn update_gossip_topology(
 		.map(|i| (authorities[i].clone(), ValidatorIndex::from(i as u32)))
 		.collect();
 
-	sender.send_message(NetworkBridgeMessage::NewGossipTopology {
-		session: session_index,
-		our_neighbors_x: row_neighbors,
-		our_neighbors_y: column_neighbors,
-	})
-	.await;
+	sender
+		.send_message(NetworkBridgeMessage::NewGossipTopology {
+			session: session_index,
+			our_neighbors_x: row_neighbors,
+			our_neighbors_y: column_neighbors,
+		})
+		.await;
 
 	Ok(())
 }

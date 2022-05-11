@@ -1118,11 +1118,8 @@ async fn send_statements_about(
 			statement = ?statement.statement,
 			"Sending statement",
 		);
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
-			vec![peer.clone()],
-			payload,
-		))
-		.await;
+		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload))
+			.await;
 
 		metrics.on_statement_distributed();
 	}
@@ -1152,19 +1149,19 @@ async fn send_statements(
 			statement = ?statement.statement,
 			"Sending statement"
 		);
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
-			vec![peer.clone()],
-			payload,
-		))
-		.await;
+		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload))
+			.await;
 
 		metrics.on_statement_distributed();
 	}
 }
 
-async fn report_peer(ctx: &mut impl overseer::StatementDistributionContextTrait, peer: PeerId, rep: Rep) {
-	ctx.send_message(NetworkBridgeMessage::ReportPeer(peer, rep))
-		.await
+async fn report_peer(
+	ctx: &mut impl overseer::StatementDistributionContextTrait,
+	peer: PeerId,
+	rep: Rep,
+) {
+	ctx.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
 }
 
 /// If message contains a statement, then retrieve it, otherwise fork task to fetch it.

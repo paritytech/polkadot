@@ -27,9 +27,8 @@ use futures_timer::Delay;
 
 use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
 use polkadot_node_subsystem::{
-	overseer,
 	messages::{AvailabilityRecoveryMessage, AvailabilityStoreMessage, CandidateValidationMessage},
-	ActiveLeavesUpdate, RecoveryError, SubsystemContext, SubsystemSender,
+	overseer, ActiveLeavesUpdate, RecoveryError, SubsystemContext, SubsystemSender,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
 use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
@@ -266,14 +265,12 @@ async fn participate(
 	// available data
 	let (recover_available_data_tx, recover_available_data_rx) = oneshot::channel();
 	sender
-		.send_message(
-			AvailabilityRecoveryMessage::RecoverAvailableData(
-				req.candidate_receipt().clone(),
-				req.session(),
-				None,
-				recover_available_data_tx,
-			),
-		)
+		.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
+			req.candidate_receipt().clone(),
+			req.session(),
+			None,
+			recover_available_data_tx,
+		))
 		.await;
 
 	let available_data = match recover_available_data_rx.await {
@@ -332,14 +329,12 @@ async fn participate(
 	// in the dispute
 	let (store_available_data_tx, store_available_data_rx) = oneshot::channel();
 	sender
-		.send_message(
-			AvailabilityStoreMessage::StoreAvailableData {
-				candidate_hash: *req.candidate_hash(),
-				n_validators: req.n_validators() as u32,
-				available_data: available_data.clone(),
-				tx: store_available_data_tx,
-			},
-		)
+		.send_message(AvailabilityStoreMessage::StoreAvailableData {
+			candidate_hash: *req.candidate_hash(),
+			n_validators: req.n_validators() as u32,
+			available_data: available_data.clone(),
+			tx: store_available_data_tx,
+		})
 		.await;
 
 	match store_available_data_rx.await {
@@ -369,16 +364,14 @@ async fn participate(
 	// same level of leeway.
 	let (validation_tx, validation_rx) = oneshot::channel();
 	sender
-		.send_message(
-			CandidateValidationMessage::ValidateFromExhaustive(
-				available_data.validation_data,
-				validation_code,
-				req.candidate_receipt().clone(),
-				available_data.pov,
-				APPROVAL_EXECUTION_TIMEOUT,
-				validation_tx,
-			)
-		)
+		.send_message(CandidateValidationMessage::ValidateFromExhaustive(
+			available_data.validation_data,
+			validation_code,
+			req.candidate_receipt().clone(),
+			available_data.pov,
+			APPROVAL_EXECUTION_TIMEOUT,
+			validation_tx,
+		))
 		.await;
 
 	// we cast votes (either positive or negative) depending on the outcome of

@@ -213,7 +213,7 @@ impl BitfieldDistribution {
 	/// Start processing work as passed on from the Overseer.
 	async fn run<Context>(self, ctx: Context)
 	where
-	Context: overseer::BitfieldDistributionContextTrait,
+		Context: overseer::BitfieldDistributionContextTrait,
 	{
 		let mut state = ProtocolState::default();
 		let mut rng = rand::rngs::StdRng::from_entropy();
@@ -682,7 +682,7 @@ async fn handle_peer_view_change<Context>(
 	origin: PeerId,
 	view: View,
 	rng: &mut (impl CryptoRng + Rng),
-)where
+) where
 	Context: overseer::BitfieldDistributionContextTrait,
 {
 	let added = state
@@ -741,8 +741,7 @@ async fn send_tracked_gossip_message<Context>(
 	dest: PeerId,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
-)
-where
+) where
 	Context: overseer::BitfieldDistributionContextTrait,
 {
 	let job_data = if let Some(job_data) = state.per_relay_parent.get_mut(&message.relay_parent) {

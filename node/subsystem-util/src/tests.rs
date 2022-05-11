@@ -82,10 +82,8 @@ where
 		mut sender: JobSender<Sender>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
-			let job = FakeCollatorProtocolJob {
-				receiver,
-				_phantom: std::marker::PhantomData::<Sender>,
-			};
+			let job =
+				FakeCollatorProtocolJob { receiver, _phantom: std::marker::PhantomData::<Sender> };
 
 			if run_args {
 				sender
@@ -121,12 +119,7 @@ impl FakeCollatorProtocolJob {
 
 // with the job defined, it's straightforward to get a subsystem implementation.
 type FakeCollatorProtocolSubsystem<Spawner> =
-	JobSubsystem<
-		FakeCollatorProtocolJob<
-			test_helpers::TestSubsystemSender
-		>,
-		Spawner,
-	>;
+	JobSubsystem<FakeCollatorProtocolJob<test_helpers::TestSubsystemSender>, Spawner>;
 
 // this type lets us pretend to be the overseer
 type OverseerHandle = test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>;

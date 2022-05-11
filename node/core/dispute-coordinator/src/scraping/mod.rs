@@ -21,8 +21,8 @@ use lru::LruCache;
 
 use polkadot_node_primitives::MAX_FINALITY_LAG;
 use polkadot_node_subsystem::{
-	overseer,
-	messages::{RuntimeApiMessage, ChainApiMessage}, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError, SubsystemSender,
+	messages::{ChainApiMessage, RuntimeApiMessage},
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError, SubsystemSender,
 };
 use polkadot_node_subsystem_util::runtime::{get_candidate_events, get_on_chain_votes};
 use polkadot_primitives::v2::{
@@ -287,13 +287,11 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send_message(
-			ChainApiMessage::Ancestors {
-				hash: head,
-				k: num_ancestors as usize,
-				response_channel: tx,
-			},
-		)
+		.send_message(ChainApiMessage::Ancestors {
+			hash: head,
+			k: num_ancestors as usize,
+			response_channel: tx,
+		})
 		.await;
 
 	rx.await

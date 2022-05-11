@@ -27,13 +27,10 @@ use polkadot_node_primitives::PoV;
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::v2::{AuthorityDiscoveryId, CandidateHash, Hash, ValidatorIndex};
 use polkadot_subsystem::{
-	overseer,
 	jaeger,
 	messages::{IfDisconnected, NetworkBridgeMessage},
-	SubsystemContext,
+	overseer, SubsystemContext,
 };
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, CandidateHash, Hash, ValidatorIndex};
 
 use crate::{
 	error::{Error, FatalError, JfyiError, Result},

@@ -19,13 +19,10 @@ use std::collections::HashSet;
 use lru::LruCache;
 use rand::{seq::SliceRandom, thread_rng};
 
+use polkadot_node_subsystem::{overseer, SubsystemContext};
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex, ValidatorIndex,
-};
-use polkadot_node_subsystem::{
-	SubsystemContext,
-	overseer,
 };
 
 use crate::{

@@ -391,7 +391,8 @@ async fn handle_new_activations<Context: overseer::CollationGenerationContextTra
 
 					if let Err(err) = task_sender
 						.send(
-							CollatorProtocolMessage::DistributeCollation(ccr, pov, result_sender).into(),
+							CollatorProtocolMessage::DistributeCollation(ccr, pov, result_sender)
+								.into(),
 						)
 						.await
 					{

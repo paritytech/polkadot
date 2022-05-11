@@ -47,9 +47,8 @@ use polkadot_node_primitives::{PoV, SignedFullStatement};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
-		RuntimeApiMessage,
 		CandidateBackingMessage, CollatorProtocolMessage, IfDisconnected, NetworkBridgeEvent,
-		NetworkBridgeMessage,
+		NetworkBridgeMessage, RuntimeApiMessage,
 	},
 	overseer, FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext, SubsystemSender,
 };
@@ -690,8 +689,7 @@ async fn report_collator<Context>(
 	ctx: &mut Context,
 	peer_data: &HashMap<PeerId, PeerData>,
 	id: CollatorId,
-)
-where
+) where
 	Context: overseer::CollatorProtocolContextTrait,
 {
 	if let Some(peer_id) = collator_peer_id(peer_data, &id) {
