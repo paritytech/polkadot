@@ -44,7 +44,6 @@ use sp_std::marker::PhantomData;
 /// Weight functions for `pallet_nomination_pools`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo<T> {
-	// Storage: unknown [0x3a7472616e73616374696f6e5f6c6576656c3a] (r:1 w:1)
 	// Storage: NominationPools MinJoinBond (r:1 w:0)
 	// Storage: NominationPools PoolMembers (r:1 w:1)
 	// Storage: NominationPools BondedPools (r:1 w:1)
@@ -59,11 +58,10 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: BagsList ListNodes (r:3 w:3)
 	// Storage: BagsList ListBags (r:2 w:2)
 	fn join() -> Weight {
-		(107_222_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(18 as Weight))
-			.saturating_add(T::DbWeight::get().writes(12 as Weight))
+		(107_531_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(17 as Weight))
+			.saturating_add(T::DbWeight::get().writes(11 as Weight))
 	}
-	// Storage: unknown [0x3a7472616e73616374696f6e5f6c6576656c3a] (r:1 w:1)
 	// Storage: NominationPools PoolMembers (r:1 w:1)
 	// Storage: NominationPools BondedPools (r:1 w:1)
 	// Storage: NominationPools RewardPools (r:1 w:1)
@@ -74,11 +72,10 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: BagsList ListNodes (r:3 w:3)
 	// Storage: BagsList ListBags (r:2 w:2)
 	fn bond_extra_transfer() -> Weight {
-		(98_029_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(14 as Weight))
-			.saturating_add(T::DbWeight::get().writes(13 as Weight))
+		(98_133_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(13 as Weight))
+			.saturating_add(T::DbWeight::get().writes(12 as Weight))
 	}
-	// Storage: unknown [0x3a7472616e73616374696f6e5f6c6576656c3a] (r:1 w:1)
 	// Storage: NominationPools PoolMembers (r:1 w:1)
 	// Storage: NominationPools BondedPools (r:1 w:1)
 	// Storage: NominationPools RewardPools (r:1 w:1)
@@ -86,24 +83,22 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: Staking Ledger (r:1 w:1)
 	// Storage: Staking Bonded (r:1 w:0)
 	// Storage: Balances Locks (r:1 w:1)
-	// Storage: BagsList ListNodes (r:3 w:3)
+	// Storage: BagsList ListNodes (r:2 w:2)
 	// Storage: BagsList ListBags (r:2 w:2)
 	fn bond_extra_reward() -> Weight {
-		(116_652_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(15 as Weight))
-			.saturating_add(T::DbWeight::get().writes(14 as Weight))
+		(109_228_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(13 as Weight))
+			.saturating_add(T::DbWeight::get().writes(12 as Weight))
 	}
-	// Storage: unknown [0x3a7472616e73616374696f6e5f6c6576656c3a] (r:1 w:1)
 	// Storage: NominationPools PoolMembers (r:1 w:1)
 	// Storage: NominationPools BondedPools (r:1 w:1)
 	// Storage: NominationPools RewardPools (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
 	fn claim_payout() -> Weight {
-		(44_674_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(5 as Weight))
-			.saturating_add(T::DbWeight::get().writes(5 as Weight))
+		(43_882_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(4 as Weight))
+			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
-	// Storage: unknown [0x3a7472616e73616374696f6e5f6c6576656c3a] (r:1 w:1)
 	// Storage: NominationPools PoolMembers (r:1 w:1)
 	// Storage: NominationPools BondedPools (r:1 w:1)
 	// Storage: NominationPools RewardPools (r:1 w:1)
@@ -119,23 +114,21 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: NominationPools SubPoolsStorage (r:1 w:1)
 	// Storage: NominationPools CounterForSubPoolsStorage (r:1 w:1)
 	fn unbond() -> Weight {
-		(104_035_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(19 as Weight))
-			.saturating_add(T::DbWeight::get().writes(14 as Weight))
+		(104_954_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(18 as Weight))
+			.saturating_add(T::DbWeight::get().writes(13 as Weight))
 	}
-	// Storage: unknown [0x3a7472616e73616374696f6e5f6c6576656c3a] (r:1 w:1)
 	// Storage: NominationPools BondedPools (r:1 w:0)
 	// Storage: Staking Ledger (r:1 w:1)
 	// Storage: Staking CurrentEra (r:1 w:0)
 	// Storage: Balances Locks (r:1 w:1)
 	fn pool_withdraw_unbonded(s: u32, ) -> Weight {
-		(34_790_000 as Weight)
+		(34_903_000 as Weight)
 			// Standard Error: 0
-			.saturating_add((27_000 as Weight).saturating_mul(s as Weight))
-			.saturating_add(T::DbWeight::get().reads(5 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+			.saturating_add((26_000 as Weight).saturating_mul(s as Weight))
+			.saturating_add(T::DbWeight::get().reads(4 as Weight))
+			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
-	// Storage: unknown [0x3a7472616e73616374696f6e5f6c6576656c3a] (r:1 w:1)
 	// Storage: NominationPools PoolMembers (r:1 w:1)
 	// Storage: Staking CurrentEra (r:1 w:0)
 	// Storage: NominationPools BondedPools (r:1 w:1)
@@ -145,13 +138,12 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: System Account (r:1 w:1)
 	// Storage: NominationPools CounterForPoolMembers (r:1 w:1)
 	fn withdraw_unbonded_update(s: u32, ) -> Weight {
-		(70_499_000 as Weight)
-			// Standard Error: 0
-			.saturating_add((36_000 as Weight).saturating_mul(s as Weight))
-			.saturating_add(T::DbWeight::get().reads(9 as Weight))
-			.saturating_add(T::DbWeight::get().writes(8 as Weight))
+		(70_736_000 as Weight)
+			// Standard Error: 1_000
+			.saturating_add((35_000 as Weight).saturating_mul(s as Weight))
+			.saturating_add(T::DbWeight::get().reads(8 as Weight))
+			.saturating_add(T::DbWeight::get().writes(7 as Weight))
 	}
-	// Storage: unknown [0x3a7472616e73616374696f6e5f6c6576656c3a] (r:1 w:1)
 	// Storage: NominationPools PoolMembers (r:1 w:1)
 	// Storage: Staking CurrentEra (r:1 w:0)
 	// Storage: NominationPools BondedPools (r:1 w:1)
@@ -171,14 +163,11 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: NominationPools CounterForSubPoolsStorage (r:1 w:1)
 	// Storage: NominationPools CounterForBondedPools (r:1 w:1)
 	// Storage: Staking Payee (r:0 w:1)
-	fn withdraw_unbonded_kill(s: u32, ) -> Weight {
-		(122_969_000 as Weight)
-			// Standard Error: 1_000
-			.saturating_add((2_000 as Weight).saturating_mul(s as Weight))
-			.saturating_add(T::DbWeight::get().reads(20 as Weight))
-			.saturating_add(T::DbWeight::get().writes(17 as Weight))
+	fn withdraw_unbonded_kill(_s: u32, ) -> Weight {
+		(124_735_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(19 as Weight))
+			.saturating_add(T::DbWeight::get().writes(16 as Weight))
 	}
-	// Storage: unknown [0x3a7472616e73616374696f6e5f6c6576656c3a] (r:1 w:1)
 	// Storage: Staking MinNominatorBond (r:1 w:0)
 	// Storage: NominationPools MinCreateBond (r:1 w:0)
 	// Storage: NominationPools MinJoinBond (r:1 w:0)
@@ -202,9 +191,9 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: NominationPools BondedPools (r:1 w:1)
 	// Storage: Staking Payee (r:0 w:1)
 	fn create() -> Weight {
-		(110_839_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(23 as Weight))
-			.saturating_add(T::DbWeight::get().writes(16 as Weight))
+		(115_479_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(22 as Weight))
+			.saturating_add(T::DbWeight::get().writes(15 as Weight))
 	}
 	// Storage: NominationPools BondedPools (r:1 w:0)
 	// Storage: Staking Ledger (r:1 w:0)
@@ -219,9 +208,9 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: BagsList CounterForListNodes (r:1 w:1)
 	// Storage: Staking CounterForNominators (r:1 w:1)
 	fn nominate(n: u32, ) -> Weight {
-		(40_341_000 as Weight)
-			// Standard Error: 6_000
-			.saturating_add((1_994_000 as Weight).saturating_mul(n as Weight))
+		(41_646_000 as Weight)
+			// Standard Error: 8_000
+			.saturating_add((2_015_000 as Weight).saturating_mul(n as Weight))
 			.saturating_add(T::DbWeight::get().reads(12 as Weight))
 			.saturating_add(T::DbWeight::get().reads((1 as Weight).saturating_mul(n as Weight)))
 			.saturating_add(T::DbWeight::get().writes(5 as Weight))
@@ -229,7 +218,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: NominationPools BondedPools (r:1 w:1)
 	// Storage: Staking Ledger (r:1 w:0)
 	fn set_state() -> Weight {
-		(19_299_000 as Weight)
+		(19_703_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -237,7 +226,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: NominationPools Metadata (r:1 w:1)
 	// Storage: NominationPools CounterForMetadata (r:1 w:1)
 	fn set_metadata(n: u32, ) -> Weight {
-		(8_809_000 as Weight)
+		(8_863_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((1_000 as Weight).saturating_mul(n as Weight))
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
@@ -249,12 +238,12 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: NominationPools MinCreateBond (r:0 w:1)
 	// Storage: NominationPools MaxPools (r:0 w:1)
 	fn set_configs() -> Weight {
-		(2_207_000 as Weight)
+		(2_333_000 as Weight)
 			.saturating_add(T::DbWeight::get().writes(5 as Weight))
 	}
 	// Storage: NominationPools BondedPools (r:1 w:1)
 	fn update_roles() -> Weight {
-		(18_608_000 as Weight)
+		(15_619_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
