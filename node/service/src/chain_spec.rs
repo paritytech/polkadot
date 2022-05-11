@@ -1553,7 +1553,7 @@ pub fn westend_testnet_genesis(
 			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
-		nomination_pools: Default::default(),
+		nomination_pools: Default::default()
 	}
 }
 
