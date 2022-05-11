@@ -15,6 +15,7 @@ This release contains the changes from `{{ env.REF1 }}` to `{{ env.REF2 }}`.
 {%- set DOT = "[P]" -%}
 {%- set SUB = "[S]" -%}
 
+{# -- Important automatic section -- -#}
 {% include "global_priority.md.tera" -%}
 
 {% include "host_functions.md.tera" -%}
@@ -22,6 +23,7 @@ This release contains the changes from `{{ env.REF1 }}` to `{{ env.REF2 }}`.
 {% include "migrations-db.md.tera" -%}
 
 {% include "migrations-runtime.md.tera" -%}
+{# --------------------------------- -#}
 
 {% include "compiler.md.tera" -%}
 
