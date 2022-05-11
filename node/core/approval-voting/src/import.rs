@@ -46,7 +46,7 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, ConsensusLog, CoreIndex,
-	GroupIndex, Hash, Header, SessionIndex, TypeVec
+	GroupIndex, Hash, Header, SessionIndex, TypeVec,
 };
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::Slot;
@@ -1166,7 +1166,10 @@ pub(crate) mod tests {
 			validators: TypeVec::from(vec![Sr25519Keyring::Alice.public().into(); 6]),
 			discovery_keys: Vec::new(),
 			assignment_keys: Vec::new(),
-			validator_groups: TypeVec::from(vec![vec![ValidatorIndex(0); 5], vec![ValidatorIndex(0); 2]]),
+			validator_groups: TypeVec::from(vec![
+				vec![ValidatorIndex(0); 5],
+				vec![ValidatorIndex(0); 2],
+			]),
 			n_cores: 6,
 			needed_approvals: 2,
 			zeroth_delay_tranche_width: irrelevant,
