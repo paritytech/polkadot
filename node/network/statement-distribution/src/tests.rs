@@ -2014,7 +2014,7 @@ fn handle_multiple_seconded_statements() {
 					authority_id,
 					network_bridge_event::TopologyPeerInfo {
 						peer_ids: vec![peer.clone()],
-						validator_index: (i as u32).into(),
+						validator_index: (i as u32 + 2_u32).into(),
 					},
 				);
 			}
@@ -2022,14 +2022,14 @@ fn handle_multiple_seconded_statements() {
 				AuthorityPair::generate().0.public(),
 				network_bridge_event::TopologyPeerInfo {
 					peer_ids: vec![peer_a.clone()],
-					validator_index: 1_u32.into(),
+					validator_index: 0_u32.into(),
 				},
 			);
 			t.our_neighbors_x.insert(
 				AuthorityPair::generate().0.public(),
 				network_bridge_event::TopologyPeerInfo {
 					peer_ids: vec![peer_b.clone()],
-					validator_index: 2_u32.into(),
+					validator_index: 1_u32.into(),
 				},
 			);
 
