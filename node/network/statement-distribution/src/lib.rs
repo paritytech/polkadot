@@ -1361,7 +1361,8 @@ async fn handle_incoming_message_and_circulate<'a>(
 				topology_storage.get_current_topology()
 			},
 		};
-		let required_routing = topology.required_routing_by_peer_id(peer, false);
+		let required_routing =
+			topology.required_routing_by_index(statement.statement.validator_index(), false);
 
 		let _ = circulate_statement(
 			required_routing,
