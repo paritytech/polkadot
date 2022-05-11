@@ -34,8 +34,8 @@ use polkadot_node_network_protocol::{
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
-		ApprovalDistributionMessage, BitfieldDistributionMessage, GossipSupportMessage,
-		StatementDistributionMessage,
+		AllMessages, ApprovalDistributionMessage, BitfieldDistributionMessage,
+		GossipSupportMessage, StatementDistributionMessage,
 	},
 	ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
 };

@@ -44,8 +44,7 @@ use polkadot_node_subsystem::{
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_overseer::gen::{OverseerError, Subsystem};
+use polkadot_overseer::gen::OverseerError;
 use polkadot_primitives::v2::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
 
 /// Peer set info for network initialization.

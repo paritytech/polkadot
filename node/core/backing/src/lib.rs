@@ -42,7 +42,7 @@ use polkadot_node_subsystem::{
 		ProvisionableData, ProvisionerMessage, RuntimeApiRequest, StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
-	Stage, SubsystemContext, SubsystemError, SubsystemSender,
+	Stage, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
 	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
