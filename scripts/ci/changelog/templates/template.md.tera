@@ -15,6 +15,10 @@ This release contains the changes from `{{ env.REF1 }}` to `{{ env.REF2 }}`.
 {%- set DOT = "[P]" -%}
 {%- set SUB = "[S]" -%}
 
+{# -- Manual free notes section -- -#}
+{% include "free_notes.md.tera" -%}
+{# --------------------------------- -#}
+
 {# -- Important automatic section -- -#}
 {% include "global_priority.md.tera" -%}
 
