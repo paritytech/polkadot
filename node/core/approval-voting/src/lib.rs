@@ -340,6 +340,19 @@ impl ApprovalVotingSubsystem {
 			metrics,
 		}
 	}
+
+	/// Revert to the block corresponding to the specified `hash`.
+	/// The operation is not allowed for blocks older than the last finalized one.
+	pub fn revert_to(&self, hash: Hash) -> Result<(), SubsystemError> {
+		let config = approval_db::v1::Config { col_data: self.db_config.col_data };
+		let mut backend = approval_db::v1::DbBackend::new(self.db.clone(), config);
+		let mut overlay = OverlayedBackend::new(&backend);
+
+		ops::revert_to(&mut overlay, hash)?;
+
+		let ops = overlay.into_write_ops();
+		backend.write(ops)
+	}
 }
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for ApprovalVotingSubsystem

@@ -16,10 +16,10 @@
 {% endfor -%}
 
 {%- if runtime_migration_count == 0 -%}
-No Runtime migration detected in this release.
+ℹ️ There is no runtime migration in this release.
 {% else  %}
 
-There is {{ runtime_migration_count }} runtime migration(s) in this release.
+⚠️ There is {{ runtime_migration_count }} runtime migration(s) in this release.
 
 Runtime migrations are operations running once during a runtime upgrade.
 {%- endif %}

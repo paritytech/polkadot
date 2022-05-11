@@ -52,7 +52,8 @@ use frame_election_provider_support::{
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, PrivilegeCmp,
+		ConstU32, Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		OnRuntimeUpgrade, PrivilegeCmp,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -1397,6 +1398,64 @@ impl pallet_gilt::Config for Runtime {
 	type WeightInfo = weights::pallet_gilt::WeightInfo<Runtime>;
 }
 
+pub struct BalanceToU256;
+impl sp_runtime::traits::Convert<Balance, sp_core::U256> for BalanceToU256 {
+	fn convert(n: Balance) -> sp_core::U256 {
+		n.into()
+	}
+}
+pub struct U256ToBalance;
+impl sp_runtime::traits::Convert<sp_core::U256, Balance> for U256ToBalance {
+	fn convert(n: sp_core::U256) -> Balance {
+		use frame_support::traits::Defensive;
+		n.try_into().defensive_unwrap_or(Balance::MAX)
+	}
+}
+
+parameter_types! {
+	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
+}
+
+impl pallet_nomination_pools::Config for Runtime {
+	type Event = Event;
+	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
+	type Currency = Balances;
+	type BalanceToU256 = BalanceToU256;
+	type U256ToBalance = U256ToBalance;
+	type StakingInterface = Staking;
+	type PostUnbondingPoolsWindow = ConstU32<4>;
+	type MaxMetadataLen = ConstU32<256>;
+	// we use the same number of allowed unlocking chunks as with staking.
+	type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
+	type PalletId = PoolsPalletId;
+}
+
+pub struct InitiatePoolConfigs;
+impl OnRuntimeUpgrade for InitiatePoolConfigs {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		// we use one as an indicator if this has already been set.
+		if pallet_nomination_pools::MaxPools::<Runtime>::get().is_none() {
+			// 1/600 KSM to join a pool.
+			pallet_nomination_pools::MinJoinBond::<Runtime>::put(50 * CENTS);
+			// 1 KSM to create a pool.
+			pallet_nomination_pools::MinCreateBond::<Runtime>::put(UNITS);
+
+			// 128 initial pools: only for initial safety: can be set to infinity when needed.
+			pallet_nomination_pools::MaxPools::<Runtime>::put(128);
+			// 64k total pool members: only for initial safety: can be set to infinity when needed.
+			pallet_nomination_pools::MaxPoolMembers::<Runtime>::put(64 * 1024);
+			// 1024 members per pool: only for initial safety: can be set to infinity when needed.
+			pallet_nomination_pools::MaxPoolMembersPerPool::<Runtime>::put(1024);
+
+			log::info!(target: "runtime::kusama", "pools config initiated 🎉");
+			<Runtime as frame_system::Config>::DbWeight::get().reads_writes(1, 5)
+		} else {
+			log::info!(target: "runtime::kusama", "pools config already initiated 😏");
+			<Runtime as frame_system::Config>::DbWeight::get().reads(1)
+		}
+	}
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1481,6 +1540,9 @@ construct_runtime! {
 		// Provides a semi-sorted list of nominators for staking.
 		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 39,
 
+		// nomination pools: extension to staking.
+		NominationPools: pallet_nomination_pools::{Pallet, Call, Storage, Event<T>, Config<T>} = 41,
+
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 51,
@@ -1537,7 +1599,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(),
+	InitiatePoolConfigs,
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1582,6 +1644,7 @@ mod benches {
 		[pallet_indices, Indices]
 		[pallet_membership, TechnicalMembership]
 		[pallet_multisig, Multisig]
+		[pallet_nomination_pools, NominationPoolsBench::<Runtime>]
 		[pallet_offences, OffencesBench::<Runtime>]
 		[pallet_preimage, Preimage]
 		[pallet_proxy, Proxy]
@@ -1966,6 +2029,7 @@ sp_api::impl_runtime_apis! {
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
+			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 
 			let mut list = Vec::<BenchmarkList>::new();
@@ -1988,6 +2052,7 @@ sp_api::impl_runtime_apis! {
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
+			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 			use xcm::latest::prelude::*;
 			use xcm_config::{CheckAccount, KsmLocation, SovereignAccountOf, Statemine, XcmConfig};
@@ -1997,6 +2062,7 @@ sp_api::impl_runtime_apis! {
 			impl pallet_election_provider_support_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl frame_benchmarking::baseline::Config for Runtime {}
+			impl pallet_nomination_pools_benchmarking::Config for Runtime {}
 
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
@@ -2077,6 +2143,8 @@ sp_api::impl_runtime_apis! {
 				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7b99d880ec681799c0cf30e8886371da95ecffd7b6c0f78751baa9d281e0bfa3a6d6f646c70792f74727372790000000000000000000000000000000000000000").to_vec().into(),
 				// Configuration ActiveConfig
 				hex_literal::hex!("06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385").to_vec().into(),
+				// The transactional storage limit.
+				hex_literal::hex!("3a7472616e73616374696f6e5f6c6576656c3a").to_vec().into(),
 			];
 
 			let mut batches = Vec::<BenchmarkBatch>::new();

@@ -767,6 +767,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		gilt: Default::default(),
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
+		nomination_pools: Default::default(),
 	}
 }
 
@@ -1471,6 +1472,7 @@ pub fn kusama_testnet_genesis(
 		gilt: Default::default(),
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
+		nomination_pools: Default::default(),
 	}
 }
 
@@ -1551,12 +1553,7 @@ pub fn westend_testnet_genesis(
 			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
-		nomination_pools: westend_runtime::NominationPoolsConfig {
-			max_pools: Some(128),
-			min_join_bond: WND,
-			min_create_bond: 100 * WND,
-			..Default::default()
-		},
+		nomination_pools: Default::default(),
 	}
 }
 
