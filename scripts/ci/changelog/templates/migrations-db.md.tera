@@ -16,10 +16,10 @@
 {% endfor -%}
 
 {%- if db_migration_count == 0 -%}
-No Database migration detected in this release.
+ℹ️ There is no database migration in this release.
 {% else  %}
 
-There is {{ db_migration_count }} database migration(s) in this release.
+⚠️ There is {{ db_migration_count }} database migration(s) in this release.
 
 Database migrations are operations bringing your database to the latest stand.
 Some migrations may break compatibility and making a backup of your database is highly recommended.
