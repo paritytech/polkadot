@@ -7029,10 +7029,13 @@ dependencies = [
  "assert_matches",
  "expander 0.0.6",
  "petgraph",
+ "polkadot-overseer-gen",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
  "syn",
+ "thiserror",
+ "tracing-gum",
 ]
 
 [[package]]

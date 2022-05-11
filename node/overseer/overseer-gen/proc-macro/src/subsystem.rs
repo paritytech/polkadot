@@ -19,23 +19,109 @@
 //!
 //! ## Implement `trait Subsystem<Context, Error>` via `subsystem`
 //!
-//! ```ignore
+//! ```no_run
+//! # use polkadot_overseer_gen_proc_macro::subsystem;
+//! # mod somewhere {
+//! # use polkadot_overseer_gen_proc_macro::overlord;
+//! # pub use polkadot_overseer_gen::*;
+//! #
+//! # #[derive(Debug, thiserror::Error)]
+//! # #[error("Yikes!")]
+//! # pub struct Yikes;
+//! # impl From<OverseerError> for Yikes {
+//! #   fn from(_: OverseerError) -> Yikes { Yikes }
+//! # }
+//! # impl From<mpsc::SendError> for Yikes {
+//! #   fn from(_: mpsc::SendError) -> Yikes { Yikes }
+//! # }
+//! #
+//! # #[derive(Debug)]
+//! # pub struct Eve;
+//! #
+//! # #[derive(Debug, Clone)]
+//! # pub struct Sig;
+//! #
+//! # #[derive(Debug, Clone, Copy)]
+//! # pub struct A;
+//! # #[derive(Debug, Clone, Copy)]
+//! # pub struct B;
+//! #
+//! # #[overlord(signal=Sig, gen=AllOfThem, event=Eve, error=Yikes)]
+//! # pub struct Wonderland {
+//! # 	#[subsystem(A, sends: [B])]
+//! # 	foo: Foo,
+//! # 	#[subsystem(B, sends: [A])]
+//! # 	bar: Bar,
+//! # }
+//! # }
+//! # use somewhere::{Yikes, SpawnedSubsystem};
+//! #
+//! # struct FooSubsystem;
+//! #
 //! #[subsystem(Foo, error = Yikes, prefix = somewhere)]
-//! impl<Context> BarSubsystem {
-//! ..
+//! impl<Context> FooSubsystem {
+//!    fn start(self, context: Context) -> SpawnedSubsystem<Yikes> {
+//!	       // ..
+//!        # let _ = context;
+//!        # unimplemented!()
+//!    }
 //! }
 //! ```
 //!
 //! expands to
 //!
-//! ```ignore
-//! impl<Context> support_crate::Subsystem<Context, Yikes> for BarSubsystem
+//! ```no_run
+//! # use polkadot_overseer_gen_proc_macro::subsystem;
+//! # mod somewhere {
+//! # use polkadot_overseer_gen_proc_macro::overlord;
+//! # pub use polkadot_overseer_gen::*;
+//! #
+//! # #[derive(Debug, thiserror::Error)]
+//! # #[error("Yikes!")]
+//! # pub struct Yikes;
+//! # impl From<OverseerError> for Yikes {
+//! #   fn from(_: OverseerError) -> Yikes { Yikes }
+//! # }
+//! # impl From<mpsc::SendError> for Yikes {
+//! #   fn from(_: mpsc::SendError) -> Yikes { Yikes }
+//! # }
+//! #
+//! # #[derive(Debug)]
+//! # pub struct Eve;
+//! #
+//! # #[derive(Debug, Clone)]
+//! # pub struct Sig;
+//! #
+//! # #[derive(Debug, Clone, Copy)]
+//! # pub struct A;
+//! # #[derive(Debug, Clone, Copy)]
+//! # pub struct B;
+//! #
+//! # #[overlord(signal=Sig, gen=AllOfThem, event=Eve, error=Yikes)]
+//! # pub struct Wonderland {
+//! # 	#[subsystem(A, sends: [B])]
+//! # 	foo: Foo,
+//! # 	#[subsystem(B, sends: [A])]
+//! # 	bar: Bar,
+//! # }
+//! # }
+//! # use somewhere::{Yikes, SpawnedSubsystem};
+//! # use polkadot_overseer_gen as support_crate;
+//! #
+//! # struct FooSubsystem;
+//! #
+//! impl<Context> support_crate::Subsystem<Context, Yikes> for FooSubsystem
 //! where
-//! 	Context: somewhere::FooSubsystemTrait,
+//! 	Context: somewhere::FooContextTrait,
 //!     Context: support_crate::SubsystemContext,
 //!		<Context as somewhere::FooContextTrait>::Sender: somewhere::FooSenderTrait,
 //!		<Context as support_crate::SubsystemContext>::Sender: somewhere::FooSenderTrait,
 //! {
+//!       fn start(self, context: Context) -> SpawnedSubsystem<Yikes> {
+//!        // ..
+//!        # let _ = context;
+//!        # unimplemented!()
+//!       }
 //! }
 //! ```
 //!

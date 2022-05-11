@@ -174,7 +174,7 @@ impl Parse for OverseerAttrArgs {
 
 		let error = extract_variant!(unique, ExternErrorType; err = "Must declare the overseer error type via `error=..`.")?;
 		let event = extract_variant!(unique, ExternEventType; err = "Must declare the overseer event type via `event=..`.")?;
-		let signal = extract_variant!(unique, ExternOverseerSignalType; err = "Must declare the overseer signal type via `span=..`.")?;
+		let signal = extract_variant!(unique, ExternOverseerSignalType; err = "Must declare the overseer signal type via `signal=..`.")?;
 		let message_wrapper = extract_variant!(unique, MessageWrapperName; err = "Must declare the overseer generated wrapping message type via `gen=..`.")?;
 		let outgoing = extract_variant!(unique, OutgoingType);
 
