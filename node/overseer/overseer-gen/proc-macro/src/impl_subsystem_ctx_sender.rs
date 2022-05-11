@@ -263,7 +263,7 @@ pub(crate) fn impl_wrapper_enum(wrapper: &Ident, message_types: &[Path]) -> Resu
 	Ok(ts)
 }
 
-/// Create the clonable subsystem sender type and implements `trait SubsystemSender`
+/// Create the subsystem sender type and implements `trait SubsystemSender`
 /// for the `#outgoing_wrappers: From<OutgoingMessage>` with the proper associated types.
 pub(crate) fn impl_subsystem_sender(
 	support_crate: &Path,
