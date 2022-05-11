@@ -17,7 +17,7 @@
 
 ## Host functions
 
-{%- if host_fn_count == 0 -%}
+{%- if host_fn_count == 0 %}
 ℹ️ This release does not contain any new host functions.
 {% elif host_fn_count == 1 -%}
 ⚠️ The runtimes in this release contain one new **host function**.
