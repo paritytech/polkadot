@@ -102,7 +102,7 @@ use std::fmt;
 #[cfg(test)]
 mod tests;
 
-/// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
+/// A type of messages that are sent from a [`Subsystem`] to the declared overseer.
 ///
 /// Used to launch jobs.
 pub enum ToOverseer {
