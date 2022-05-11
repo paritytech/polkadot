@@ -25,6 +25,8 @@ This release contains the changes from `{{ env.REF1 }}` to `{{ env.REF2 }}`.
 
 {% include "migrations-runtime.md.tera" -%}
 
+{% include "spotlights.md.tera" -%}
+
 {% include "runtimes.md.tera" -%}
 
 {% include "changes.md.tera" -%}

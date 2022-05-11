@@ -1,0 +1,30 @@
+
+{#- First we check if there are any -#}
+{%- set_global spotlight_count = 0 -%}
+
+{%- for pr in changes -%}
+    {%- if pr.meta.S and pr.meta.S.value == 1 %}
+        {%- set_global spotlight_count = spotlight_count + 1 -%}
+    {%- endif -%}
+{% endfor %}
+
+{#- then we show them -#}
+<!-- Found {{ spotlight_count }} spotlight(s) -->
+{% if spotlight_count > 0 %}
+
+## Spotlights
+
+Spotlights are important changes that we think are worth noting, independently from their priority.
+
+{% for pr in changes -%}
+    {%- if pr.meta.S and pr.meta.S.value == 1 %}
+    {%- if pr.body %}
+- [`#{{pr.number}}`]({{pr.html_url}}) | {{ pr.title}}
+> {{pr.body | linebreaksbr }}
+{% endif -%}
+    {% endif -%}
+{% endfor %}
+
+{%- else -%}
+<!-- No Spotlight found in this release -->
+{% endif %}
