@@ -19,14 +19,16 @@
 //!
 //! ## Implement `trait Subsystem<Context, Error>` via `subsystem`
 //!
-//! ```rust
+//! ```ignore
 //! #[subsystem(Foo, error = Yikes, prefix = somewhere)]
 //! impl<Context> BarSubsystem {
 //! ..
 //! }
-//! ``` expands to
+//! ```
 //!
-//! ```rust
+//! expands to
+//!
+//! ```ignore
 //! impl<Context> support_crate::Subsystem<Context, Yikes> for BarSubsystem
 //! where
 //! 	Context: somewhere::FooSubsystemTrait,
@@ -44,7 +46,7 @@
 //!
 //! ### To an `ImplItem`
 //!
-//! ```rust
+//! ```ignore
 //! #[contextbounds(Foo, prefix = somewhere)]
 //! impl<Context> X {
 //! ..
@@ -53,7 +55,7 @@
 //!
 //! expands to
 //!
-//! ```rust
+//! ```ignore
 //! impl<Context> X
 //! where
 //! 	Context: somewhere::FooSubsystemTrait,
@@ -66,7 +68,7 @@
 //!
 //! ### To a free standing `Fn` (not a method, that's covered by the above)
 //!
-//! ```rust
+//! ```ignore
 //! #[contextbounds(Foo, prefix = somewhere)]
 //! fn do_smth<Context>(context: &mut Context) {
 //! ..
@@ -75,7 +77,7 @@
 //!
 //! expands to
 //!
-//! ```rust
+//! ```ignore
 //! fn do_smth<Context>(context: &mut Context)
 //! where
 //! 	Context: somewhere::FooSubsystemTrait,
