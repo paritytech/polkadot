@@ -39,11 +39,11 @@ use polkadot_node_network_protocol::{
 	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_node_primitives::DISPUTE_WINDOW;
-use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	messages::{AllMessages, DisputeCoordinatorMessage, ImportStatementsResult},
 	SubsystemSender,
 };
+use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 
 use crate::{
 	metrics::{FAILED, SUCCEEDED},
@@ -271,7 +271,7 @@ where
 					candidate_receipt,
 					session: valid_vote.0.session_index(),
 					statements: vec![valid_vote, invalid_vote],
-					pending_confirmation,
+					pending_confirmation: Some(pending_confirmation),
 				},
 			))
 			.await;

@@ -30,6 +30,7 @@ use sp_keyring::Sr25519Keyring;
 
 use polkadot_node_network_protocol::request_response::{v1, Recipient};
 use polkadot_node_primitives::{BlockData, PoV, Proof};
+use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_primitives::v2::{CandidateHash, ValidatorIndex};
 
 use super::*;
@@ -235,7 +236,7 @@ impl TestRun {
 				let mut valid_responses = 0;
 				for req in reqs {
 					let req = match req {
-						Requests::ChunkFetching(req) => req,
+						Requests::ChunkFetchingV1(req) => req,
 						_ => panic!("Unexpected request"),
 					};
 					let response =

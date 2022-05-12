@@ -142,9 +142,26 @@ enum CollationProtocolV1 {
 These updates are posted from the [Network Bridge Subsystem](../node/utility/network-bridge.md) to other subsystems based on registered listeners.
 
 ```rust
+struct NewGossipTopology {
+	/// The session index this topology corresponds to.
+	session: SessionIndex,
+	/// Neighbors in the 'X' dimension of the grid.
+	our_neighbors_x: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
+	/// Neighbors in the 'Y' dimension of the grid.
+	our_neighbors_y: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
+}
+
+struct TopologyPeerInfo {
+	/// The validator's known peer IDs.
+	peer_ids: Vec<PeerId>,
+	/// The index of the validator in the discovery keys of the corresponding
+	/// `SessionInfo`. This can extend _beyond_ the set of active parachain validators.
+	validator_index: ValidatorIndex,
+}
+
 enum NetworkBridgeEvent<M> {
 	/// A peer with given ID is now connected.
-	PeerConnected(PeerId, ObservedRole, Option<HashSet<AuthorityDiscoveryId>>),
+	PeerConnected(PeerId, ObservedRole, ProtocolVersion, Option<HashSet<AuthorityDiscoveryId>>),
 	/// A peer with given ID is now disconnected.
 	PeerDisconnected(PeerId),
 	/// Our neighbors in the new gossip topology.
@@ -154,7 +171,7 @@ enum NetworkBridgeEvent<M> {
 	///
 	/// Note, that the distribution subsystems need to handle the last
 	/// view update of the newly added gossip peers manually.
-	NewGossipTopology(HashSet<PeerId>),
+	NewGossipTopology(NewGossipTopology),
 	/// We received a message from the given peer.
 	PeerMessage(PeerId, M),
 	/// The given peer has updated its description of its view.

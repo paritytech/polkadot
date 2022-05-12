@@ -26,13 +26,13 @@ use polkadot_node_network_protocol::{
 	},
 	IfDisconnected,
 };
+use polkadot_node_subsystem::{
+	messages::{AllMessages, NetworkBridgeMessage},
+	SubsystemContext,
+};
 use polkadot_node_subsystem_util::{metrics, runtime::RuntimeInfo};
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, ValidatorIndex,
-};
-use polkadot_subsystem::{
-	messages::{AllMessages, NetworkBridgeMessage},
-	SubsystemContext,
 };
 
 use super::error::{FatalError, Result};
@@ -255,7 +255,7 @@ async fn send_requests<Context: SubsystemContext>(
 		let (outgoing, pending_response) =
 			OutgoingRequest::new(Recipient::Authority(receiver.clone()), req.clone());
 
-		reqs.push(Requests::DisputeSending(outgoing));
+		reqs.push(Requests::DisputeSendingV1(outgoing));
 
 		let fut = wait_response_task(
 			pending_response,

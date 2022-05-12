@@ -33,7 +33,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_primitives::v2::CollatorPair;
 
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	errors::SubsystemError,
 	messages::{CollatorProtocolMessage, NetworkBridgeMessage},
 	overseer, SpawnedSubsystem, SubsystemContext, SubsystemSender,

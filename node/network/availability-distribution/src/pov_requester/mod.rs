@@ -24,13 +24,13 @@ use polkadot_node_network_protocol::request_response::{
 	OutgoingRequest, Recipient,
 };
 use polkadot_node_primitives::PoV;
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, CandidateHash, Hash, ValidatorIndex};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	jaeger,
 	messages::{IfDisconnected, NetworkBridgeMessage},
 	SubsystemContext,
 };
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
+use polkadot_primitives::v2::{AuthorityDiscoveryId, CandidateHash, Hash, ValidatorIndex};
 
 use crate::{
 	error::{Error, FatalError, JfyiError, Result},
@@ -62,7 +62,7 @@ where
 		Recipient::Authority(authority_id.clone()),
 		PoVFetchingRequest { candidate_hash },
 	);
-	let full_req = Requests::PoVFetching(req);
+	let full_req = Requests::PoVFetchingV1(req);
 
 	ctx.send_message(NetworkBridgeMessage::SendRequests(
 		vec![full_req],
@@ -133,11 +133,11 @@ mod tests {
 	use sp_core::testing::TaskExecutor;
 
 	use polkadot_node_primitives::BlockData;
-	use polkadot_primitives::v2::{CandidateHash, Hash, ValidatorIndex};
-	use polkadot_subsystem::messages::{
+	use polkadot_node_subsystem::messages::{
 		AllMessages, AvailabilityDistributionMessage, RuntimeApiMessage, RuntimeApiRequest,
 	};
-	use polkadot_subsystem_testhelpers as test_helpers;
+	use polkadot_node_subsystem_test_helpers as test_helpers;
+	use polkadot_primitives::v2::{CandidateHash, Hash, ValidatorIndex};
 	use test_helpers::mock::make_ferdie_keystore;
 
 	use super::*;
@@ -200,7 +200,7 @@ mod tests {
 					AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(mut reqs, _)) => {
 						let req = assert_matches!(
 							reqs.pop(),
-							Some(Requests::PoVFetching(outgoing)) => {outgoing}
+							Some(Requests::PoVFetchingV1(outgoing)) => {outgoing}
 						);
 						req.pending_response
 							.send(Ok(PoVFetchingResponse::PoV(pov.clone()).encode()))

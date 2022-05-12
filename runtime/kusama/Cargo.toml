@@ -8,10 +8,10 @@ build = "build.rs"
 [dependencies]
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { version = "2.0.0", default-features = false, features = ["derive"] }
-log = { version = "0.4.16", default-features = false }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+log = { version = "0.4.17", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
-serde = { version = "1.0.136", default-features = false }
+serde = { version = "1.0.137", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 smallvec = "1.8.0"
@@ -59,6 +59,7 @@ pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-nomination-pools = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -79,13 +80,16 @@ pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-whitelist = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
+pallet-xcm-benchmarks = { path = "../../xcm/pallet-xcm-benchmarks", default-features = false, optional = true }
 frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+pallet-nomination-pools-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+pallet-election-provider-support-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 hex-literal = { version = "0.3.4", optional = true }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
@@ -149,6 +153,7 @@ std = [
 	"pallet-membership/std",
 	"pallet-multisig/std",
 	"pallet-nicks/std",
+	"pallet-nomination-pools/std",
 	"pallet-offences/std",
 	"pallet-preimage/std",
 	"pallet-proxy/std",
@@ -204,6 +209,7 @@ runtime-benchmarks = [
 	"pallet-democracy/runtime-benchmarks",
 	"pallet-elections-phragmen/runtime-benchmarks",
 	"pallet-election-provider-multi-phase/runtime-benchmarks",
+	"pallet-election-provider-support-benchmarking/runtime-benchmarks",
 	"pallet-gilt/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
 	"pallet-identity/runtime-benchmarks",
@@ -211,11 +217,14 @@ runtime-benchmarks = [
 	"pallet-indices/runtime-benchmarks",
 	"pallet-membership/runtime-benchmarks",
 	"pallet-multisig/runtime-benchmarks",
+	"pallet-nomination-pools/runtime-benchmarks",
+	"pallet-nomination-pools-benchmarking",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
 	"pallet-referenda/runtime-benchmarks",
 	"pallet-scheduler/runtime-benchmarks",
 	"pallet-society/runtime-benchmarks",
+	"pallet-recovery/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-tips/runtime-benchmarks",
@@ -232,6 +241,7 @@ runtime-benchmarks = [
 	"frame-election-provider-support/runtime-benchmarks",
 	"pallet-bags-list/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
+	"pallet-xcm-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",

@@ -97,6 +97,8 @@ pub fn new_full(
 		worker_program_path,
 		false,
 		polkadot_service::RealOverseerGen,
+		None,
+		None,
 	)
 }
 
@@ -188,9 +190,13 @@ pub fn node_config(
 		rpc_ws: None,
 		rpc_ipc: None,
 		rpc_max_payload: None,
+		rpc_max_request_size: None,
+		rpc_max_response_size: None,
 		rpc_ws_max_connections: None,
 		rpc_cors: None,
 		rpc_methods: Default::default(),
+		rpc_id_provider: None,
+		rpc_max_subs_per_conn: None,
 		ws_max_out_buffer_capacity: None,
 		prometheus_config: None,
 		telemetry_endpoints: None,

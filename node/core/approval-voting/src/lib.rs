@@ -340,6 +340,19 @@ impl ApprovalVotingSubsystem {
 			metrics,
 		}
 	}
+
+	/// Revert to the block corresponding to the specified `hash`.
+	/// The operation is not allowed for blocks older than the last finalized one.
+	pub fn revert_to(&self, hash: Hash) -> Result<(), SubsystemError> {
+		let config = approval_db::v1::Config { col_data: self.db_config.col_data };
+		let mut backend = approval_db::v1::DbBackend::new(self.db.clone(), config);
+		let mut overlay = OverlayedBackend::new(&backend);
+
+		ops::revert_to(&mut overlay, hash)?;
+
+		let ops = overlay.into_write_ops();
+		backend.write(ops)
+	}
 }
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for ApprovalVotingSubsystem
@@ -950,15 +963,12 @@ async fn handle_actions(
 				dispute_statement,
 				validator_index,
 			} => {
-				// TODO: Log confirmation results in an efficient way:
-				// https://github.com/paritytech/polkadot/issues/5156
-				let (pending_confirmation, _confirmation_rx) = oneshot::channel();
 				ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
 					candidate_hash,
 					candidate_receipt,
 					session,
 					statements: vec![(dispute_statement, validator_index)],
-					pending_confirmation,
+					pending_confirmation: None,
 				})
 				.await;
 			},
@@ -1006,6 +1016,7 @@ fn distribution_messages_for_activation(
 			parent_hash: block_entry.parent_hash(),
 			candidates: block_entry.candidates().iter().map(|(_, c_hash)| *c_hash).collect(),
 			slot: block_entry.slot(),
+			session: block_entry.session(),
 		});
 
 		for (i, (_, candidate_hash)) in block_entry.candidates().iter().enumerate() {
@@ -1597,10 +1608,11 @@ fn check_and_import_assignment(
 		);
 
 		let tranche = match res {
-			Err(crate::criteria::InvalidAssignment) =>
+			Err(crate::criteria::InvalidAssignment(reason)) =>
 				return Ok((
 					AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCert(
 						assignment.validator,
+						format!("{:?}", reason),
 					)),
 					Vec::new(),
 				)),
@@ -2273,7 +2285,7 @@ async fn launch_approval(
 				CandidateValidationMessage::ValidateFromExhaustive(
 					available_data.validation_data,
 					validation_code,
-					candidate.descriptor.clone(),
+					candidate.clone(),
 					available_data.pov,
 					APPROVAL_EXECUTION_TIMEOUT,
 					val_tx,

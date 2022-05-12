@@ -16,7 +16,7 @@
 // limitations under the License.
 
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2022-04-03 (Y/M/D)
+//! DATE: 2022-05-11 (Y/M/D)
 //!
 //! SHORT-NAME: `block`, LONG-NAME: `BlockExecution`, RUNTIME: `Development`
 //! WARMUPS: `10`, REPEAT: `100`
@@ -25,7 +25,8 @@
 
 // Executed Command:
 //   ./target/production/polkadot
-//   benchmark-overhead
+//   benchmark
+//   overhead
 //   --chain=rococo-dev
 //   --execution=wasm
 //   --wasm-execution=compiled
@@ -43,16 +44,16 @@ parameter_types! {
 	/// Calculated by multiplying the *Average* with `1` and adding `0`.
 	///
 	/// Stats [NS]:
-	///   Min, Max: 3_680_262, 4_938_714
-	///   Average:  3_745_959
-	///   Median:   3_725_848
-	///   Std-Dev:  126490.36
+	///   Min, Max: 3_744_634, 4_861_755
+	///   Average:  3_868_923
+	///   Median:   3_813_630
+	///   Std-Dev:  218133.97
 	///
 	/// Percentiles [NS]:
-	///   99th: 3_855_334
-	///   95th: 3_815_093
-	///   75th: 3_762_125
-	pub const BlockExecutionWeight: Weight = 3_745_959 * WEIGHT_PER_NANOS;
+	///   99th: 4_820_671
+	///   95th: 4_303_283
+	///   75th: 3_852_252
+	pub const BlockExecutionWeight: Weight = 3_868_923 * WEIGHT_PER_NANOS;
 }
 
 #[cfg(test)]

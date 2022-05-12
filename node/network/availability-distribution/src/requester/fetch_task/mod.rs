@@ -28,14 +28,14 @@ use polkadot_node_network_protocol::request_response::{
 	v1::{ChunkFetchingRequest, ChunkFetchingResponse},
 };
 use polkadot_node_primitives::ErasureChunk;
-use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, BlakeTwo256, CandidateHash, GroupIndex, Hash, HashT, OccupiedCore,
-	SessionIndex,
-};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, AvailabilityStoreMessage, IfDisconnected, NetworkBridgeMessage},
 	SubsystemContext,
+};
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, BlakeTwo256, CandidateHash, GroupIndex, Hash, HashT, OccupiedCore,
+	SessionIndex,
 };
 
 use crate::{
@@ -330,7 +330,7 @@ impl RunningTask {
 	) -> std::result::Result<ChunkFetchingResponse, TaskError> {
 		let (full_request, response_recv) =
 			OutgoingRequest::new(Recipient::Authority(validator.clone()), self.request);
-		let requests = Requests::ChunkFetching(full_request);
+		let requests = Requests::ChunkFetchingV1(full_request);
 
 		self.sender
 			.send(FromFetchTask::Message(AllMessages::NetworkBridge(

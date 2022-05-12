@@ -33,15 +33,15 @@ use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
-use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v2::{
-	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Header, ValidatorIndex,
-};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{AvailabilityStoreMessage, ChainApiMessage},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError,
+};
+use polkadot_node_subsystem_util as util;
+use polkadot_primitives::v2::{
+	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Header, ValidatorIndex,
 };
 
 mod metrics;
@@ -355,6 +355,9 @@ pub enum Error {
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
 
+	#[error("Context signal channel closed")]
+	ContextChannelClosed,
+
 	#[error(transparent)]
 	Time(#[from] SystemTimeError),
 
@@ -374,6 +377,7 @@ impl Error {
 			Self::Io(_) => true,
 			Self::Oneshot(_) => true,
 			Self::CustomDatabase => true,
+			Self::ContextChannelClosed => true,
 			_ => false,
 		}
 	}
@@ -563,7 +567,7 @@ where
 {
 	select! {
 		incoming = ctx.recv().fuse() => {
-			match incoming? {
+			match incoming.map_err(|_| Error::ContextChannelClosed)? {
 				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(true),
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
 					ActiveLeavesUpdate { activated, .. })

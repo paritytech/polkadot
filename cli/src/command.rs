@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::cli::{Cli, Subcommand};
-use frame_benchmarking_cli::BenchmarkCmd;
+use frame_benchmarking_cli::{BenchmarkCmd, SUBSTRATE_REFERENCE_HARDWARE};
 use futures::future::TryFutureExt;
 use log::info;
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
@@ -127,11 +127,12 @@ impl SubstrateCli for Cli {
 			#[cfg(not(feature = "rococo-native"))]
 			name if name.starts_with("wococo-") =>
 				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
-			"versi" => Box::new(service::chain_spec::versi_config()?),
 			#[cfg(feature = "rococo-native")]
 			"versi-dev" => Box::new(service::chain_spec::versi_development_config()?),
 			#[cfg(feature = "rococo-native")]
 			"versi-local" => Box::new(service::chain_spec::versi_local_testnet_config()?),
+			#[cfg(feature = "rococo-native")]
+			"versi-staging" => Box::new(service::chain_spec::versi_staging_testnet_config()?),
 			#[cfg(not(feature = "rococo-native"))]
 			name if name.starts_with("versi-") =>
 				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
@@ -273,6 +274,13 @@ where
 		.map_err(Error::from)?;
 	let chain_spec = &runner.config().chain_spec;
 
+	// Disallow BEEFY on production networks.
+	if cli.run.beefy &&
+		(chain_spec.is_polkadot() || chain_spec.is_kusama() || chain_spec.is_westend())
+	{
+		return Err(Error::Other("BEEFY disallowed on production networks".to_string()))
+	}
+
 	set_default_ss58_version(chain_spec);
 
 	let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
@@ -302,6 +310,15 @@ where
 	};
 
 	runner.run_node_until_exit(move |config| async move {
+		let hwbench = if !cli.run.no_hardware_benchmarks {
+			config.database.path().map(|database_path| {
+				let _ = std::fs::create_dir_all(&database_path);
+				sc_sysinfo::gather_hwbench(Some(database_path))
+			})
+		} else {
+			None
+		};
+
 		let role = config.role.clone();
 
 		match role {
@@ -315,6 +332,8 @@ where
 				None,
 				false,
 				overseer_gen,
+				cli.run.overseer_channel_capacity_override,
+				hwbench,
 			)
 			.map(|full| full.task_manager)
 			.map_err(Into::into),
@@ -416,7 +435,19 @@ pub fn run() -> Result<()> {
 
 			Ok(runner.async_run(|mut config| {
 				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-				Ok((cmd.run(client, backend, None).map_err(Error::SubstrateCli), task_manager))
+				let aux_revert = Box::new(|client, backend, blocks| {
+					service::revert_backend(client, backend, blocks, config).map_err(|err| {
+						match err {
+							service::Error::Blockchain(err) => err.into(),
+							// Generic application-specific error.
+							err => sc_cli::Error::Application(err.into()),
+						}
+					})
+				});
+				Ok((
+					cmd.run(client, backend, Some(aux_revert)).map_err(Error::SubstrateCli),
+					task_manager,
+				))
 			})?)
 		},
 		Some(Subcommand::PvfPrepareWorker(cmd)) => {
@@ -528,6 +559,10 @@ pub fn run() -> Result<()> {
 					#[allow(unreachable_code)]
 					Err(service::Error::NoRuntime.into())
 				},
+				BenchmarkCmd::Machine(cmd) => runner.sync_run(|config| {
+					cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone())
+						.map_err(Error::SubstrateCli)
+				}),
 				// NOTE: this allows the Polkadot client to leniently implement
 				// new benchmark commands.
 				#[allow(unreachable_patterns)]
@@ -603,6 +638,10 @@ pub fn run() -> Result<()> {
 				.into(),
 		)
 		.into()),
+		Some(Subcommand::ChainInfo(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			Ok(runner.sync_run(|config| cmd.run::<service::Block>(&config))?)
+		},
 	}?;
 
 	#[cfg(feature = "pyroscope")]

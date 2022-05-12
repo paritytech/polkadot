@@ -20,6 +20,6 @@ use frame_support::traits::StorageVersion;
 
 /// The current storage version.
 ///
-/// v0-v1: https://github.com/paritytech/polkadot/pull/3575
-/// v1-v2: https://github.com/paritytech/polkadot/pull/4420
+/// v0-v1: <https://github.com/paritytech/polkadot/pull/3575>
+/// v1-v2: <https://github.com/paritytech/polkadot/pull/4420>
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);

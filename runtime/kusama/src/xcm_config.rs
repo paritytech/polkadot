@@ -29,7 +29,7 @@ use xcm_builder::{
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
-	TakeWeightCredit, UsingComponents,
+	TakeWeightCredit, UsingComponents, WeightInfoBounds,
 };
 
 parameter_types! {
@@ -101,7 +101,8 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Kusama: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(KsmLocation::get()) });
-	pub const KusamaForStatemine: (MultiAssetFilter, MultiLocation) = (Kusama::get(), Parachain(1000).into());
+	pub const Statemine: MultiLocation = Parachain(1000).into();
+	pub const KusamaForStatemine: (MultiAssetFilter, MultiLocation) = (Kusama::get(), Statemine::get());
 	pub const KusamaForEncointer: (MultiAssetFilter, MultiLocation) = (Kusama::get(), Parachain(1001).into());
 }
 pub type TrustedTeleporters =
@@ -137,7 +138,8 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher =
+		WeightInfoBounds<crate::weights::xcm::KusamaXcmWeight<Call>, Call, MaxInstructions>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
 	type Trader = UsingComponents<WeightToFee, KsmLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
