@@ -3,6 +3,18 @@
 
 ## Runtime Migrations
 
+Runtime migrations are operations running once during a runtime upgrade.
+
+{% if runtime_migration_count == 0 -%}
+ℹ️ There is no runtime migration in this release.
+{%- else -%}
+{%- if runtime_migration_count == 1 -%}
+⚠️ There is one runtime migration in this release:
+{%- else -%}
+⚠️ There are {{ runtime_migration_count }} runtime migrations in this release:
+{%- endif -%}
+{%- endif %}
+
 {% for pr in changes | sort(attribute="merged_at") -%}
 
 {%- if pr.meta.B and pr.meta.B.value == 0 %}
@@ -14,12 +26,3 @@
 {% endif -%}
 {% endif -%}
 {% endfor -%}
-
-{%- if runtime_migration_count == 0 -%}
-ℹ️ There is no runtime migration in this release.
-{% else  %}
-
-⚠️ There is {{ runtime_migration_count }} runtime migration(s) in this release.
-
-Runtime migrations are operations running once during a runtime upgrade.
-{%- endif %}
