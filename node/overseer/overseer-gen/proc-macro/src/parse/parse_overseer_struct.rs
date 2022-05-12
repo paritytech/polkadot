@@ -476,7 +476,6 @@ impl OverseerGuts {
 					return Err(Error::new(span, "Must provide exactly one consuming message type"))
 				};
 
-				// TODO move the send and consumes check here
 				subsystems.push(SubSysField {
 					name: ident,
 					generic,

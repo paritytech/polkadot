@@ -202,7 +202,8 @@ pub(crate) fn impl_subsystem_context_trait_bounds(
 
 	// always prefer the direct usage, if it's not there, let's see if there is
 	// a `prefix=*` provided. Either is ok.
-	// TODO: technically this is two different things:
+
+	// Technically this is two different things:
 	// The place where the `#[overlord]` is annotated is where all `trait *SenderTrait` and
 	// `trait *ContextTrait` types exist.
 	// The other usage is the true support crate `polkadot-overseer-gen`, where the static ones
