@@ -1206,8 +1206,8 @@ pub(crate) mod tests {
 			r
 		};
 		let candidates = vec![
-			(make_candidate(1.into()), CoreIndex(0), GroupIndex(0)),
-			(make_candidate(2.into()), CoreIndex(1), GroupIndex(1)),
+			(make_candidate(ParaId::from(1)), CoreIndex(0), GroupIndex(0)),
+			(make_candidate(ParaId::from(2)), CoreIndex(1), GroupIndex(1)),
 		];
 		let inclusion_events = candidates
 			.iter()
