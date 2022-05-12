@@ -22,17 +22,17 @@ use futures::{channel::oneshot, executor, future, Future};
 use ::test_helpers::TestCandidateBuilder;
 use parking_lot::Mutex;
 use polkadot_node_primitives::{AvailableData, BlockData, PoV, Proof};
+use polkadot_node_subsystem::{
+	errors::RuntimeApiError,
+	jaeger,
+	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
+	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
+};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::{database::Database, TimeoutExt};
 use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, HeadData, Header,
 	PersistedValidationData, ValidatorId,
-};
-use polkadot_subsystem::{
-	errors::RuntimeApiError,
-	jaeger,
-	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
-	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use sp_keyring::Sr25519Keyring;
 
@@ -309,13 +309,13 @@ fn store_chunk_works() {
 		let chunk_msg =
 			AvailabilityStoreMessage::StoreChunk { candidate_hash, chunk: chunk.clone(), tx };
 
-		overseer_send(&mut virtual_overseer, chunk_msg.into()).await;
+		overseer_send(&mut virtual_overseer, chunk_msg).await;
 		assert_eq!(rx.await.unwrap(), Ok(()));
 
 		let (tx, rx) = oneshot::channel();
 		let query_chunk = AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx);
 
-		overseer_send(&mut virtual_overseer, query_chunk.into()).await;
+		overseer_send(&mut virtual_overseer, query_chunk).await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), chunk);
 		virtual_overseer
@@ -341,13 +341,13 @@ fn store_chunk_does_nothing_if_no_entry_already() {
 		let chunk_msg =
 			AvailabilityStoreMessage::StoreChunk { candidate_hash, chunk: chunk.clone(), tx };
 
-		overseer_send(&mut virtual_overseer, chunk_msg.into()).await;
+		overseer_send(&mut virtual_overseer, chunk_msg).await;
 		assert_eq!(rx.await.unwrap(), Err(()));
 
 		let (tx, rx) = oneshot::channel();
 		let query_chunk = AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx);
 
-		overseer_send(&mut virtual_overseer, query_chunk.into()).await;
+		overseer_send(&mut virtual_overseer, query_chunk).await;
 
 		assert!(rx.await.unwrap().is_none());
 		virtual_overseer
