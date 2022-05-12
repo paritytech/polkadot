@@ -1,5 +1,5 @@
 use crate::{prelude::*, MonitorConfig, SubmissionStrategy};
-use pallet_election_provider_multi_phase::{MinerConfig, RawSolution};
+use pallet_election_provider_multi_phase::MinerConfig;
 use sp_runtime::Perbill;
 use std::sync::Arc;
 use subxt::TransactionStatus;
@@ -233,18 +233,23 @@ async fn send_and_watch_extrinsic<M>(
 		return;
 	}
 
-	let subxt_solution = crate::helpers::to_subxt_raw_solution(solution);
-	let raw_solution = runtime::pallet_election_provider_multi_phase::RawSolution {
-		solution: subxt_solution,
-		score: runtime::sp_npos_elections::ElectionScore {
-			minimal_stake: score.minimal_stake,
-			sum_stake: score.sum_stake,
-			sum_stake_squared: score.sum_stake_squared,
-		},
-		round,
+	let score = crate::runtime::runtime_types::sp_npos_elections::ElectionScore {
+		sum_stake: score.sum_stake,
+		sum_stake_squared: score.sum_stake_squared,
+		minimal_stake: score.minimal_stake,
 	};
 
-	let xt = api.tx().election_provider_multi_phase().submit(raw_solution).unwrap();
+	let solution = crate::helpers::to_subxt_raw_solution(solution);
+
+	let xt = api
+		.tx()
+		.election_provider_multi_phase()
+		.submit(crate::runtime::runtime_types::pallet_election_provider_multi_phase::RawSolution {
+			solution,
+			score,
+			round,
+		})
+		.unwrap();
 
 	// This might fail with outdated nonce let it just crash if that happens.
 	let mut status_sub = xt.sign_and_submit_then_watch_default(&*signer).await.unwrap();

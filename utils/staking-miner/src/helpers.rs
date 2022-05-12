@@ -74,7 +74,7 @@ pub(crate) async fn snapshot(api: &RuntimeApi, hash: Option<Hash>) -> Result<Sna
 }
 
 use crate::runtime::runtime_types::{
-	node_runtime::NposSolution16 as SubxtNposSolution16,
+	polkadot_runtime::NposCompactSolution16 as SubxtNposSolution16,
 	sp_arithmetic::per_things::PerU16 as SubxtPerU16,
 };
 
