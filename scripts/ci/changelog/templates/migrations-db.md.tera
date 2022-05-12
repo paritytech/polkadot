@@ -1,5 +1,12 @@
 {%- import "change.md.tera" as m_c %}
 {%- set_global db_migration_count = 0 -%}
+{%- for pr in changes -%}
+    {%- if pr.meta.B and pr.meta.B.value == 0 %}
+        {#- We skip silent ones -#}
+    {%- elif pr.meta.E and pr.meta.E.value == 2 -%}
+        {%- set_global db_migration_count = db_migration_count + 1 -%}
+    {%- endif -%}
+{%- endfor -%}
 
 ## Database Migrations
 
@@ -8,22 +15,16 @@ Some migrations may break compatibility, making a backup of your database is hig
 
 {% if db_migration_count == 0 -%}
 ℹ️ There is no database migration in this release.
-{%- else -%}
-{%- if db_migration_count == 1 -%}
+{%- elif db_migration_count == 1 -%}
 ⚠️ There is one database migration in this release:
 {%- else -%}
 ⚠️ There are {{ db_migration_count }} database migrations in this release:
-{%- endif -%}
 {%- endif %}
-
 {% for pr in changes | sort(attribute="merged_at") -%}
 
 {%- if pr.meta.B and pr.meta.B.value == 0 %}
 {#- We skip silent ones -#}
-{%- else -%}
-{%- if pr.meta.E and pr.meta.E.value == 2 -%}
-{%- set_global db_migration_count = db_migration_count + 1 -%}
+{%- elif pr.meta.E and pr.meta.E.value == 2 -%}
 - {{ m_c::change(c=pr) }}
-{% endif -%}
 {% endif -%}
 {% endfor -%}
