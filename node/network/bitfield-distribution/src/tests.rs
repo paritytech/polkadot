@@ -74,6 +74,7 @@ fn prewarmed_state(
 					message_received_from_peer: hashmap!{},
 					message_sent_to_peer: hashmap!{},
 					span: PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
+					unbounded_messages_count: 0,
 				},
 		},
 		peer_views: peers.iter().cloned().map(|peer| (peer, view!(relay_parent))).collect(),
@@ -106,6 +107,7 @@ fn state_with_view(
 					message_received_from_peer: hashmap! {},
 					message_sent_to_peer: hashmap! {},
 					span: PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
+					unbounded_messages_count: 0,
 				},
 			)
 		})
