@@ -74,7 +74,7 @@ parameter_types! {
 #[frame_support::pallet]
 pub mod pallet_custom_origins {
 	use frame_support::pallet_prelude::*;
-	use super::{Balance, UNITS};
+	use super::{Balance, QUID, GRAND};
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {}

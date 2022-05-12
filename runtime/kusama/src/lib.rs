@@ -918,7 +918,7 @@ impl pallet_society::Config for Runtime {
 	type RotationPeriod = RotationPeriod;
 	type MaxLockDuration = MaxLockDuration;
 	type FounderSetOrigin = EnsureRoot<AccountId>;
-	type JudgementOrigin = pallet_society::EnsureFounder<Runtime>;
+	type SuspensionJudgementOrigin = pallet_society::EnsureFounder<Runtime>;
 	type ChallengePeriod = ChallengePeriod;
 	type MaxCandidateIntake = MaxCandidateIntake;
 	type PalletId = SocietyPalletId;
@@ -1353,7 +1353,7 @@ construct_runtime! {
 		Referenda: pallet_referenda::{Pallet, Call, Storage, Event<T>} = 21,
 		Fellowship: pallet_collective::<Instance3>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 22,
 		FellowshipMembership: pallet_membership::<Instance2>::{Pallet, Call, Storage, Event<T>, Config<T>} = 23,
-		Origins: pallet_custom_origins::{Origin} = 41,
+		Origins: pallet_custom_origins::{Origin} = 43,
 		Whitelist: pallet_whitelist::{Pallet, Call, Storage, Event<T>} = 42,
 
 		// Claims. Usable initially.
