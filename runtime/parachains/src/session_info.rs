@@ -17,7 +17,7 @@
 //! The session info pallet provides information about validator sets
 //! from prior sessions needed for approvals and disputes.
 //!
-//! See https://w3f.github.io/parachain-implementers-guide/runtime/session_info.html.
+//! See <https://w3f.github.io/parachain-implementers-guide/runtime/session_info.html>.
 
 use crate::{
 	configuration, paras, scheduler, shared,

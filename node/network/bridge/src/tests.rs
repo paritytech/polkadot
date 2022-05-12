@@ -31,13 +31,7 @@ use sc_network::{Event as NetworkEvent, IfDisconnected};
 use polkadot_node_network_protocol::{
 	request_response::outgoing::Requests, view, ObservedRole, Versioned,
 };
-use polkadot_node_subsystem_test_helpers::{
-	SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
-};
-use polkadot_node_subsystem_util::metered;
-use polkadot_primitives::v2::AuthorityDiscoveryId;
-use polkadot_primitives_test_helpers::dummy_collator_signature;
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
 		ApprovalDistributionMessage, BitfieldDistributionMessage, GossipSupportMessage,
@@ -45,6 +39,12 @@ use polkadot_subsystem::{
 	},
 	ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
 };
+use polkadot_node_subsystem_test_helpers::{
+	SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
+};
+use polkadot_node_subsystem_util::metered;
+use polkadot_primitives::v2::AuthorityDiscoveryId;
+use polkadot_primitives_test_helpers::dummy_collator_signature;
 use sc_network::Multiaddr;
 use sp_keyring::Sr25519Keyring;
 
