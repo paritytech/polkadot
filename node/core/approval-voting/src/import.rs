@@ -612,7 +612,7 @@ pub(crate) mod tests {
 	use polkadot_node_subsystem::messages::AllMessages;
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
-	use polkadot_primitives::v2::{SessionInfo, ValidatorIndex};
+	use polkadot_primitives::v2::{Id as ParaId, SessionInfo, ValidatorIndex};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -1206,8 +1206,8 @@ pub(crate) mod tests {
 			r
 		};
 		let candidates = vec![
-			(make_candidate(1.into()), CoreIndex(0), GroupIndex(0)),
-			(make_candidate(2.into()), CoreIndex(1), GroupIndex(1)),
+			(make_candidate(ParaId::from(1)), CoreIndex(0), GroupIndex(0)),
+			(make_candidate(ParaId::from(2)), CoreIndex(1), GroupIndex(1)),
 		];
 		let inclusion_events = candidates
 			.iter()
