@@ -37,7 +37,7 @@ use polkadot_node_subsystem_test_helpers::{
 use polkadot_node_subsystem_util::{reexports::SubsystemContext, TimeoutExt};
 use polkadot_primitives::v2::{
 	BlakeTwo256, BlockNumber, CandidateDescriptor, CandidateEvent, CandidateReceipt, CoreIndex,
-	GroupIndex, Hash, HashT, HeadData,
+	GroupIndex, Hash, HashT, HeadData, Id as ParaId,
 };
 
 use crate::LOG_TARGET;
