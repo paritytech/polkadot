@@ -19,7 +19,7 @@
 //!
 //! ## Implement `trait Subsystem<Context, Error>` via `subsystem`
 //!
-//! ```no_run
+//! ```ignore
 //! # use polkadot_overseer_gen_proc_macro::subsystem;
 //! # mod somewhere {
 //! # use polkadot_overseer_gen_proc_macro::overlord;
@@ -70,7 +70,7 @@
 //!
 //! expands to
 //!
-//! ```no_run
+//! ```ignore
 //! # use polkadot_overseer_gen_proc_macro::subsystem;
 //! # mod somewhere {
 //! # use polkadot_overseer_gen_proc_macro::overlord;
