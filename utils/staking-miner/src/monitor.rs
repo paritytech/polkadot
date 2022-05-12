@@ -1,5 +1,6 @@
 use crate::{prelude::*, MonitorConfig, SubmissionStrategy};
-use pallet_election_provider_multi_phase::MinerConfig;
+use codec::Encode;
+use pallet_election_provider_multi_phase::{MinerConfig, RawSolution};
 use sp_runtime::Perbill;
 use std::sync::Arc;
 use subxt::TransactionStatus;
@@ -233,23 +234,12 @@ async fn send_and_watch_extrinsic<M>(
 		return;
 	}
 
-	let score = crate::runtime::runtime_types::sp_npos_elections::ElectionScore {
-		sum_stake: score.sum_stake,
-		sum_stake_squared: score.sum_stake_squared,
-		minimal_stake: score.minimal_stake,
-	};
+	let call = SubmitCall::new(RawSolution { solution, score, round });
 
-	let solution = crate::helpers::to_subxt_raw_solution(solution);
-
-	let xt = api
-		.tx()
-		.election_provider_multi_phase()
-		.submit(crate::runtime::runtime_types::pallet_election_provider_multi_phase::RawSolution {
-			solution,
-			score,
-			round,
-		})
-		.unwrap();
+	let xt = subxt::SubmittableExtrinsic::<_, ExtrinsicParams, _, ModuleErrMissing, NoEvents>::new(
+		&api.client,
+		call,
+	);
 
 	// This might fail with outdated nonce let it just crash if that happens.
 	let mut status_sub = xt.sign_and_submit_then_watch_default(&*signer).await.unwrap();

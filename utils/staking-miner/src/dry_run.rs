@@ -54,7 +54,7 @@ where
 		&api.client,
 		call,
 	)
-	.create_signed(&signer, subxt::SubstrateExtrinsicParamsBuilder::default())
+	.create_signed(&signer, subxt::PolkadotExtrinsicParamsBuilder::default())
 	.await?;
 
 	let encoded_xt = Bytes(xt.encode());

@@ -73,10 +73,10 @@ pub type SubxtClient = subxt::Client<subxt::DefaultConfig>;
 /// Runtime API.
 pub type RuntimeApi = crate::runtime::RuntimeApi<
 	subxt::DefaultConfig,
-	subxt::SubstrateExtrinsicParams<subxt::DefaultConfig>,
+	subxt::PolkadotExtrinsicParams<subxt::DefaultConfig>,
 >;
 
-pub type ExtrinsicParams = subxt::SubstrateExtrinsicParams<subxt::DefaultConfig>;
+pub type ExtrinsicParams = subxt::PolkadotExtrinsicParams<subxt::DefaultConfig>;
 
 pub use crate::{error::Error, runtime::runtime_types as runtime};
 pub use pallet_election_provider_multi_phase::{Miner, MinerConfig};
