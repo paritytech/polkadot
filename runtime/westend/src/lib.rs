@@ -852,7 +852,9 @@ impl parachains_configuration::Config for Runtime {
 
 impl parachains_shared::Config for Runtime {}
 
-impl parachains_session_info::Config for Runtime {}
+impl parachains_session_info::Config for Runtime {
+	type ValidatorSet = Historical;
+}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
