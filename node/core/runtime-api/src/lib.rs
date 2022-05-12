@@ -53,7 +53,7 @@ mod tests;
 const LOG_TARGET: &str = "parachain::runtime-api";
 
 /// The number of maximum runtime API requests can be executed in parallel. Further requests will be buffered.
-const MAX_PARALLEL_REQUESTS: usize = 4;
+const MAX_PARALLEL_REQUESTS: usize = 8;
 
 /// The name of the blocking task that executes a runtime API request.
 const API_REQUEST_TASK_NAME: &str = "polkadot-runtime-api-request";
@@ -298,6 +298,7 @@ where
 
 		if self.active_requests.len() >= MAX_PARALLEL_REQUESTS {
 			self.waiting_requests.push_back((request, receiver));
+			self.metrics.set_queue_len("waiting", self.waiting_requests.len());
 
 			if self.waiting_requests.len() > MAX_PARALLEL_REQUESTS * 10 {
 				gum::warn!(
@@ -310,6 +311,7 @@ where
 			self.spawn_handle
 				.spawn_blocking(API_REQUEST_TASK_NAME, Some("runtime-api"), request);
 			self.active_requests.push(receiver);
+			self.metrics.set_queue_len("active", self.active_requests.len());
 		}
 	}
 
@@ -329,7 +331,10 @@ where
 			self.spawn_handle
 				.spawn_blocking(API_REQUEST_TASK_NAME, Some("runtime-api"), req);
 			self.active_requests.push(recv);
+			self.metrics.set_queue_len("waiting", self.waiting_requests.len());
 		}
+
+		self.metrics.set_queue_len("active", self.active_requests.len());
 	}
 }
 
