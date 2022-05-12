@@ -488,6 +488,10 @@ dependencies = [
 name = "beefy-merkle-tree"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#76a6cc3ca66926fa88569c2b5bfe2b311ef335ae"
+dependencies = [
+ "beefy-primitives",
+ "sp-api",
+]
 
 [[package]]
 name = "beefy-primitives"
