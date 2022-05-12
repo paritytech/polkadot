@@ -1,11 +1,11 @@
 
-## Docker images
+## Docker image
 
-The docker image for this release can be found in [Docker hub](https://hub.docker.com/r/parity/polkadot-collator/tags?page=1&ordering=last_updated)
-(It will be available a few minutes after this release was published).
+The docker image for this release can be found at [Docker hub](https://hub.docker.com/r/parity/polkadot/tags?page=1&ordering=last_updated)
+(It will be available a few minutes after the release has been published).
 
-You may also pull it with:
+You may pull it using:
 
 ```
-docker pull parity/polkadot-collator:latest
+docker pull parity/polkadot:latest
 ```
