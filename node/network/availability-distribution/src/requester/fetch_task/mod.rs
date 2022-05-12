@@ -84,7 +84,7 @@ enum FetchedState {
 /// Messages sent from `FetchTask`s to be handled/forwarded.
 pub enum FromFetchTask {
 	/// Message to other subsystem.
-	Message(overseer::AvailabilityDistributionOutgoingMessages), // FIXME TODO
+	Message(overseer::AvailabilityDistributionOutgoingMessages),
 
 	/// Concluded with result.
 	///
