@@ -60,11 +60,7 @@ struct TestSubsystem1(metered::MeteredSender<usize>);
 
 impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem1
 where
-	C: overseer::SubsystemContext<
-		Message = CandidateValidationMessage,
-		Signal = OverseerSignal,
-		AllMessages = AllMessages,
-	>,
+	C: overseer::SubsystemContext<Message = CandidateValidationMessage, Signal = OverseerSignal>,
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let mut sender = self.0;
@@ -95,8 +91,8 @@ impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem2
 where
 	C: overseer::SubsystemContext<
 		Message = CandidateBackingMessage,
+		OutgoingMessages = <CandidateBackingMessage as AssociateOutgoing>::OutgoingMessages,
 		Signal = OverseerSignal,
-		AllMessages = AllMessages,
 	>,
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
@@ -143,11 +139,7 @@ struct ReturnOnStart;
 
 impl<C> overseer::Subsystem<C, SubsystemError> for ReturnOnStart
 where
-	C: overseer::SubsystemContext<
-		Message = CandidateBackingMessage,
-		Signal = OverseerSignal,
-		AllMessages = AllMessages,
-	>,
+	C: overseer::SubsystemContext<Message = CandidateBackingMessage, Signal = OverseerSignal>,
 {
 	fn start(self, mut _ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem {
@@ -316,11 +308,7 @@ struct TestSubsystem5(metered::MeteredSender<OverseerSignal>);
 
 impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem5
 where
-	C: overseer::SubsystemContext<
-		Message = CandidateValidationMessage,
-		Signal = OverseerSignal,
-		AllMessages = AllMessages,
-	>,
+	C: overseer::SubsystemContext<Message = CandidateValidationMessage, Signal = OverseerSignal>,
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let mut sender = self.0.clone();
@@ -352,11 +340,7 @@ struct TestSubsystem6(metered::MeteredSender<OverseerSignal>);
 
 impl<C> Subsystem<C, SubsystemError> for TestSubsystem6
 where
-	C: overseer::SubsystemContext<
-		Message = CandidateBackingMessage,
-		Signal = OverseerSignal,
-		AllMessages = AllMessages,
-	>,
+	C: overseer::SubsystemContext<Message = CandidateBackingMessage, Signal = OverseerSignal>,
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let mut sender = self.0.clone();
@@ -761,7 +745,7 @@ impl CounterSubsystem {
 
 impl<C, M> Subsystem<C, SubsystemError> for CounterSubsystem
 where
-	C: overseer::SubsystemContext<Message = M, Signal = OverseerSignal, AllMessages = AllMessages>,
+	C: overseer::SubsystemContext<Message = M, Signal = OverseerSignal>,
 	M: Send,
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {

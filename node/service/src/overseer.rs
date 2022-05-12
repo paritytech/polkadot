@@ -24,14 +24,16 @@ use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
 use polkadot_node_core_provisioner::ProvisionerConfig;
 use polkadot_node_network_protocol::request_response::{v1 as request_v1, IncomingRequestReceiver};
+use polkadot_node_subsystem_types::messages::{BitfieldSigningMessage, ProvisionerMessage};
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::{
 	dummy::{dummy_overseer_builder, DummySubsystem},
 	HeadSupportsParachains,
 };
 use polkadot_overseer::{
-	metrics::Metrics as OverseerMetrics, BlockInfo, InitializedOverseerBuilder, MetricsTrait,
-	Overseer, OverseerConnector, OverseerHandle,
+	gen::SubsystemContext, metrics::Metrics as OverseerMetrics, BlockInfo,
+	InitializedOverseerBuilder, MetricsTrait, Overseer, OverseerConnector, OverseerHandle,
+	OverseerSubsystemContext,
 };
 
 use polkadot_primitives::runtime_api::ParachainHost;
@@ -152,9 +154,15 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		StatementDistributionSubsystem<rand::rngs::StdRng>,
 		AvailabilityDistributionSubsystem,
 		AvailabilityRecoverySubsystem,
-		BitfieldSigningSubsystem<Spawner>,
+		BitfieldSigningSubsystem<
+			Spawner,
+			<OverseerSubsystemContext<BitfieldSigningMessage> as SubsystemContext>::Sender,
+		>,
 		BitfieldDistributionSubsystem,
-		ProvisionerSubsystem<Spawner>,
+		ProvisionerSubsystem<
+			Spawner,
+			<OverseerSubsystemContext<ProvisionerMessage> as SubsystemContext>::Sender,
+		>,
 		RuntimeApiSubsystem<RuntimeClient>,
 		AvailabilityStoreSubsystem,
 		NetworkBridgeSubsystem<
