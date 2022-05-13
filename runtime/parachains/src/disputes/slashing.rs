@@ -189,28 +189,26 @@ where
 	/// along with the validator set count for that session. `None` otherwise.
 	fn maybe_identify_validators(
 		session_index: SessionIndex,
+		account_ids: &[AccountId<T>],
 		validators: impl IntoIterator<Item = ValidatorIndex>,
-	) -> Option<(Vec<IdentificationTuple<T>>, Vec<AccountId<T>>, u32)> {
+	) -> Option<(Vec<IdentificationTuple<T>>, u32)> {
 		// We use `ValidatorSet::session_index` and not `shared::Pallet<T>::session_index()`
 		// because at the first block of a new era, the `IdentificationOf` of a validator
 		// in the previous session might be missing, while `shared` pallet would return
 		// the same session index as being updated at the end of the block.
 		let current_session = T::ValidatorSet::session_index();
 		if session_index == current_session {
-			if let Some(account_ids) = crate::session_info::Pallet::<T>::account_keys(session_index)
-			{
-				let validator_set_count = account_ids.len() as u32;
-				let fully_identified = validators
-					.into_iter()
-					.flat_map(|i| account_ids.get(i.0 as usize).cloned())
-					.filter_map(|id| {
-						<T::ValidatorSet as ValidatorSetWithIdentification<T::AccountId>>::IdentificationOf::convert(
-							id.clone()
-						).map(|full_id| (id, full_id))
-					})
-					.collect::<Vec<IdentificationTuple<T>>>();
-				return Some((fully_identified, account_ids, validator_set_count))
-			}
+			let validator_set_count = account_ids.len() as u32;
+			let fully_identified = validators
+				.into_iter()
+				.flat_map(|i| account_ids.get(i.0 as usize).cloned())
+				.filter_map(|id| {
+					<T::ValidatorSet as ValidatorSetWithIdentification<T::AccountId>>::IdentificationOf::convert(
+						id.clone()
+					).map(|full_id| (id, full_id))
+				})
+				.collect::<Vec<IdentificationTuple<T>>>();
+			return Some((fully_identified, validator_set_count))
 		}
 		None
 	}
@@ -236,27 +234,28 @@ where
 		winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		let losers: Losers = losers.into_iter().collect();
-		let maybe = Self::maybe_identify_validators(session_index, losers.iter().cloned());
-		if let Some((offenders, account_ids, validator_set_count)) = maybe {
-			let reporters = winners
-				.into_iter()
-				.filter_map(|i| account_ids.get(i.0 as usize).cloned())
-				.collect();
+		let account_keys = crate::session_info::Pallet::<T>::account_keys(session_index);
+		let account_ids = match account_keys {
+			Some(account_keys) => account_keys,
+			None => {
+				// TODO: warn
+				return
+			},
+		};
+		let winners: Winners<T> = winners
+			.into_iter()
+			.filter_map(|i| account_ids.get(i.0 as usize).cloned())
+			.collect();
+		let maybe =
+			Self::maybe_identify_validators(session_index, &account_ids, losers.iter().cloned());
+		if let Some((offenders, validator_set_count)) = maybe {
 			let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
 			let offence = ForInvalidOffence { validator_set_count, time_slot, offenders };
 			// TODO: log error?
-			let _ = R::report_offence(reporters, offence);
+			let _ = R::report_offence(winners, offence);
 			return
 		}
-		let winners: Winners<T> = if let Some(account_ids) = crate::session_info::Pallet::<T>::account_keys(session_index) {
-			winners
-			.into_iter()
-			.filter_map(|i| account_ids.get(i.0 as usize).cloned())
-			.collect()
-		} else {
-			// Shouldn't really happen
-			Default::default()
-		};
+
 		<PendingForInvalidLosers<T>>::insert(session_index, candidate_hash, losers);
 		<ForInvalidWinners<T>>::insert(session_index, candidate_hash, winners);
 	}
@@ -268,28 +267,28 @@ where
 		winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		let losers: Losers = losers.into_iter().collect();
-		let maybe = Self::maybe_identify_validators(session_index, losers.iter().cloned());
-		if let Some((offenders, account_ids, validator_set_count)) = maybe {
-			let reporters = winners
-				.into_iter()
-				.filter_map(|i| account_ids.get(i.0 as usize).cloned())
-				.collect();
+		let account_keys = crate::session_info::Pallet::<T>::account_keys(session_index);
+		let account_ids = match account_keys {
+			Some(account_keys) => account_keys,
+			None => {
+				// TODO: warn
+				return
+			},
+		};
+		let winners: Winners<T> = winners
+			.into_iter()
+			.filter_map(|i| account_ids.get(i.0 as usize).cloned())
+			.collect();
+		let maybe =
+			Self::maybe_identify_validators(session_index, &account_ids, losers.iter().cloned());
+		if let Some((offenders, validator_set_count)) = maybe {
 			let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
 			let offence = AgainstValidOffence { validator_set_count, time_slot, offenders };
 			// TODO: log error?
-			let _ = R::report_offence(reporters, offence);
+			let _ = R::report_offence(winners, offence);
 			return
 		}
 
-		let winners: Winners<T> = if let Some(account_ids) = crate::session_info::Pallet::<T>::account_keys(session_index) {
-			winners
-			.into_iter()
-			.filter_map(|i| account_ids.get(i.0 as usize).cloned())
-			.collect()
-		} else {
-			// Shouldn't really happen
-			Default::default()
-		};
 		<PendingAgainstValidLosers<T>>::insert(session_index, candidate_hash, losers);
 		<AgainstValidWinners<T>>::insert(session_index, candidate_hash, winners);
 	}
@@ -530,14 +529,8 @@ pub mod pallet {
 
 	/// Indices of the validators pending "for invalid" dispute slashes.
 	#[pallet::storage]
-	pub(super) type PendingForInvalidLosers<T> = StorageDoubleMap<
-		_,
-		Twox64Concat,
-		SessionIndex,
-		Blake2_128Concat,
-		CandidateHash,
-		Losers,
-	>;
+	pub(super) type PendingForInvalidLosers<T> =
+		StorageDoubleMap<_, Twox64Concat, SessionIndex, Blake2_128Concat, CandidateHash, Losers>;
 
 	/// Indices of the validators who won in "for invalid" disputes.
 	#[pallet::storage]
@@ -552,14 +545,8 @@ pub mod pallet {
 
 	/// Indices of the validators pending "against valid" dispute slashes.
 	#[pallet::storage]
-	pub(super) type PendingAgainstValidLosers<T> = StorageDoubleMap<
-		_,
-		Twox64Concat,
-		SessionIndex,
-		Blake2_128Concat,
-		CandidateHash,
-		Losers,
-	>;
+	pub(super) type PendingAgainstValidLosers<T> =
+		StorageDoubleMap<_, Twox64Concat, SessionIndex, Blake2_128Concat, CandidateHash, Losers>;
 
 	/// Indices of the validators who won in "against valid" disputes.
 	#[pallet::storage]
@@ -645,10 +632,8 @@ pub mod pallet {
 						try_remove,
 					)?;
 
-					let winners = <ForInvalidWinners<T>>::get(
-						&session_index,
-						&candidate_hash,
-					).unwrap_or_default();
+					let winners = <ForInvalidWinners<T>>::get(&session_index, &candidate_hash)
+						.unwrap_or_default();
 
 					let offence = <T::HandleReports as HandleReports<T>>::OffenceForInvalid::new(
 						session_index,
@@ -660,9 +645,9 @@ pub mod pallet {
 					// We can't really submit a duplicate report
 					// unless there's a bug.
 					<T::HandleReports as HandleReports<T>>::report_for_invalid_offence(
-						winners,
-						offence,
-					).map_err(|_| Error::<T>::DuplicateSlashingReport)?;
+						winners, offence,
+					)
+					.map_err(|_| Error::<T>::DuplicateSlashingReport)?;
 				},
 				SlashingOffenceKind::AgainstValid => {
 					<PendingAgainstValidLosers<T>>::try_mutate_exists(
@@ -671,10 +656,8 @@ pub mod pallet {
 						try_remove,
 					)?;
 
-					let winners = <ForInvalidWinners<T>>::get(
-						&session_index,
-						&candidate_hash,
-					).unwrap_or_default();
+					let winners = <ForInvalidWinners<T>>::get(&session_index, &candidate_hash)
+						.unwrap_or_default();
 
 					// submit an offence report
 					let offence = <T::HandleReports as HandleReports<T>>::OffenceAgainstValid::new(
@@ -686,9 +669,9 @@ pub mod pallet {
 					// We can't really submit a duplicate report
 					// unless there's a bug.
 					<T::HandleReports as HandleReports<T>>::report_against_valid_offence(
-						winners,
-						offence,
-					).map_err(|_| Error::<T>::DuplicateSlashingReport)?;
+						winners, offence,
+					)
+					.map_err(|_| Error::<T>::DuplicateSlashingReport)?;
 				},
 			}
 
@@ -716,6 +699,8 @@ impl<T: Config> Pallet<T> {
 		}
 
 		let old_session = notification.session_index - config.dispute_period - 1;
+
+		// TODO: warn if there were pending slashes?
 		<PendingForInvalidLosers<T>>::remove_prefix(old_session, None);
 		<PendingAgainstValidLosers<T>>::remove_prefix(old_session, None);
 		<ForInvalidWinners<T>>::remove_prefix(old_session, None);
