@@ -24,22 +24,21 @@ use futures::{
 	channel::{mpsc, oneshot},
 	future,
 	lock::Mutex,
-	prelude::*,
-	Future,
+	FutureExt,
 };
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	jaeger,
 	messages::{
-		AvailabilityStoreMessage, BitfieldDistributionMessage, BitfieldSigningMessage,
-		RuntimeApiMessage, RuntimeApiRequest,
+		AvailabilityStoreMessage, BitfieldDistributionMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
-	overseer, ActivatedLeaf, LeafStatus, PerLeafSpan, SubsystemSender,
+	overseer, ActivatedLeaf, FromOverseer, LeafStatus, OverseerSignal, PerLeafSpan,
+	SpawnedSubsystem, SubsystemError, SubsystemResult, SubsystemSender,
 };
-use polkadot_node_subsystem_util::{self as util, JobSender, JobSubsystem, JobTrait, Validator};
+use polkadot_node_subsystem_util::{self as util, Validator};
 use polkadot_primitives::v2::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
-use std::{iter::FromIterator, pin::Pin, time::Duration};
+use std::{iter::FromIterator, time::Duration};
 use wasm_timer::{Delay, Instant};
 
 mod metrics;
@@ -51,9 +50,6 @@ mod tests;
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
 const JOB_DELAY: Duration = Duration::from_millis(1500);
 const LOG_TARGET: &str = "parachain::bitfield-signing";
-
-/// Each `BitfieldSigningJob` prepares a signed bitfield for a single relay parent.
-pub struct BitfieldSigningJob<Sender>(std::marker::PhantomData<Sender>);
 
 /// Errors we may encounter in the course of executing the `BitfieldSigningSubsystem`.
 #[derive(Debug, thiserror::Error)]
@@ -182,114 +178,137 @@ async fn construct_availability_bitfield(
 	Ok(AvailabilityBitfield(core_bits))
 }
 
-impl<Sender> JobTrait for BitfieldSigningJob<Sender>
-where
-	Sender: overseer::BitfieldSigningSenderTrait + Unpin,
-{
-	type ToJob = BitfieldSigningMessage;
-	type OutgoingMessages = overseer::BitfieldSigningOutgoingMessages;
-	type Sender = Sender;
-	type Error = Error;
-	type RunArgs = SyncCryptoStorePtr;
-	type Metrics = Metrics;
+/// The bitfield signing subsystem.
+pub struct BitfieldSigningSubsystem {
+	keystore: SyncCryptoStorePtr,
+	metrics: Metrics,
+}
 
-	const NAME: &'static str = "bitfield-signing-job";
-
-	/// Run a job for the parent block indicated
-	fn run(
-		leaf: ActivatedLeaf,
-		keystore: Self::RunArgs,
-		metrics: Self::Metrics,
-		_receiver: mpsc::Receiver<BitfieldSigningMessage>,
-		mut sender: JobSender<Sender>,
-	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-		let metrics = metrics.clone();
-		async move {
-			if let LeafStatus::Stale = leaf.status {
-				gum::debug!(
-					target: LOG_TARGET,
-					hash = ?leaf.hash,
-					block_number =  ?leaf.number,
-					"Stale leaf - don't sign bitfields."
-				);
-				return Ok(())
-			}
-
-			let span = PerLeafSpan::new(leaf.span, "bitfield-signing");
-			let _span = span.child("delay");
-			let wait_until = Instant::now() + JOB_DELAY;
-
-			// now do all the work we can before we need to wait for the availability store
-			// if we're not a validator, we can just succeed effortlessly
-			let validator = match Validator::new(leaf.hash, keystore.clone(), &mut sender).await {
-				Ok(validator) => validator,
-				Err(util::Error::NotAValidator) => return Ok(()),
-				Err(err) => return Err(Error::Util(err)),
-			};
-
-			// wait a bit before doing anything else
-			Delay::new_at(wait_until).await?;
-
-			// this timer does not appear at the head of the function because we don't want to include
-			// JOB_DELAY each time.
-			let _timer = metrics.time_run();
-
-			drop(_span);
-			let span_availability = span.child("availability");
-
-			let bitfield = match construct_availability_bitfield(
-				leaf.hash,
-				&span_availability,
-				validator.index(),
-				sender.subsystem_sender(),
-			)
-			.await
-			{
-				Err(Error::Runtime(runtime_err)) => {
-					// Don't take down the node on runtime API errors.
-					gum::warn!(target: LOG_TARGET, err = ?runtime_err, "Encountered a runtime API error");
-					return Ok(())
-				},
-				Err(err) => return Err(err),
-				Ok(bitfield) => bitfield,
-			};
-
-			drop(span_availability);
-			let _span = span.child("signing");
-
-			let signed_bitfield = match validator
-				.sign(keystore.clone(), bitfield)
-				.await
-				.map_err(|e| Error::Keystore(e))?
-			{
-				Some(b) => b,
-				None => {
-					gum::error!(
-						target: LOG_TARGET,
-						"Key was found at construction, but while signing it could not be found.",
-					);
-					return Ok(())
-				},
-			};
-
-			metrics.on_bitfield_signed();
-
-			drop(_span);
-			let _span = span.child("gossip");
-
-			sender
-				.send_message(BitfieldDistributionMessage::DistributeBitfield(
-					leaf.hash,
-					signed_bitfield,
-				))
-				.await;
-
-			Ok(())
-		}
-		.boxed()
+impl BitfieldSigningSubsystem {
+	/// Create a new instance of the `BitfieldSigningSubsystem`.
+	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+		Self { keystore, metrics }
 	}
 }
 
-/// `BitfieldSigningSubsystem` manages a number of bitfield signing jobs.
-pub type BitfieldSigningSubsystem<Spawner, Sender> =
-	JobSubsystem<BitfieldSigningJob<Sender>, Spawner>;
+#[overseer::subsystem(BitfieldSigning, error=SubsystemError, prefix=self::overseer)]
+impl<Context> BitfieldSigningSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = async move {
+			run(ctx, self.keystore, self.metrics)
+				.await
+				.map_err(|e| SubsystemError::with_origin("bitfield-signing", e))
+		}
+		.boxed();
+
+		SpawnedSubsystem { name: "bitfield-signing-subsystem", future }
+	}
+}
+
+#[overseer::contextbounds(BitfieldSigning, prefix = self::overseer)]
+async fn run<Context>(
+	mut ctx: Context,
+	keystore: SyncCryptoStorePtr,
+	metrics: Metrics,
+) -> SubsystemResult<()> {
+	loop {
+		match ctx.recv().await? {
+			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+				for leaf in update.activated {
+					handle_active_leaves_update(&mut ctx, leaf, &keystore, &metrics)
+						.await
+						.unwrap_or_else(|err| gum::debug!(target: LOG_TARGET, error = ?err));
+				}
+			},
+			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
+			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
+			FromOverseer::Communication { msg } => match msg {},
+		}
+	}
+}
+
+#[overseer::contextbounds(BitfieldSigning, prefix = self::overseer)]
+async fn handle_active_leaves_update<Context>(
+	ctx: &mut Context,
+	leaf: ActivatedLeaf,
+	keystore: &SyncCryptoStorePtr,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	let metrics = metrics.clone();
+	if let LeafStatus::Stale = leaf.status {
+		gum::debug!(
+			target: LOG_TARGET,
+			hash = ?leaf.hash,
+			block_number =  ?leaf.number,
+			"Stale leaf - don't sign bitfields."
+		);
+		return Ok(())
+	}
+
+	let span = PerLeafSpan::new(leaf.span, "bitfield-signing");
+	let _span = span.child("delay");
+	let wait_until = Instant::now() + JOB_DELAY;
+
+	// now do all the work we can before we need to wait for the availability store
+	// if we're not a validator, we can just succeed effortlessly
+	let validator = match Validator::new(leaf.hash, keystore.clone(), ctx.sender()).await {
+		Ok(validator) => validator,
+		Err(util::Error::NotAValidator) => return Ok(()),
+		Err(err) => return Err(Error::Util(err)),
+	};
+
+	// wait a bit before doing anything else
+	Delay::new_at(wait_until).await?;
+
+	// this timer does not appear at the head of the function because we don't want to include
+	// JOB_DELAY each time.
+	let _timer = metrics.time_run();
+
+	drop(_span);
+	let span_availability = span.child("availability");
+
+	let bitfield = match construct_availability_bitfield(
+		leaf.hash,
+		&span_availability,
+		validator.index(),
+		ctx.sender(),
+	)
+	.await
+	{
+		Err(Error::Runtime(runtime_err)) => {
+			// Don't take down the node on runtime API errors.
+			gum::warn!(target: LOG_TARGET, err = ?runtime_err, "Encountered a runtime API error");
+			return Ok(())
+		},
+		Err(err) => return Err(err),
+		Ok(bitfield) => bitfield,
+	};
+
+	drop(span_availability);
+	let _span = span.child("signing");
+
+	let signed_bitfield = match validator
+		.sign(keystore.clone(), bitfield)
+		.await
+		.map_err(|e| Error::Keystore(e))?
+	{
+		Some(b) => b,
+		None => {
+			gum::error!(
+				target: LOG_TARGET,
+				"Key was found at construction, but while signing it could not be found.",
+			);
+			return Ok(())
+		},
+	};
+
+	metrics.on_bitfield_signed();
+
+	drop(_span);
+	let _span = span.child("gossip");
+
+	ctx.send_message(BitfieldDistributionMessage::DistributeBitfield(leaf.hash, signed_bitfield))
+		.await;
+
+	Ok(())
+}
