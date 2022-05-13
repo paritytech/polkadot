@@ -59,7 +59,7 @@ const COST_INVALID_CANDIDATE: Rep = Rep::Malicious("Reported candidate was not a
 const COST_NOT_A_VALIDATOR: Rep = Rep::CostMajor("Reporting peer was not a validator.");
 
 /// How many statement imports we want to issue in parallel:
-pub const MAX_PARALLEL_IMPORTS: usize = 10;
+pub const MAX_PARALLEL_IMPORTS: usize = 30;
 
 /// State for handling incoming `DisputeRequest` messages.
 ///
