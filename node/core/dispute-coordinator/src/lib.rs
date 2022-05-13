@@ -89,6 +89,9 @@ mod spam_slots;
 /// if there are lots of them.
 pub(crate) mod participation;
 
+//! Batch imports together for greatly improved import performance.
+pub(crate) mod import_batcher;
+
 /// Metrics types.
 mod metrics;
 
