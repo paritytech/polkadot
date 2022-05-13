@@ -58,42 +58,7 @@ use error::Error;
 #[cfg(test)]
 mod tests;
 
-/// How long to wait before proposing.
-const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(2000);
-
 const LOG_TARGET: &str = "parachain::provisioner";
-
-enum InherentAfter {
-	Ready,
-	Wait(Delay),
-}
-
-impl InherentAfter {
-	fn new_from_now() -> Self {
-		InherentAfter::Wait(Delay::new(PRE_PROPOSE_TIMEOUT))
-	}
-
-	fn is_ready(&self) -> bool {
-		match *self {
-			InherentAfter::Ready => true,
-			InherentAfter::Wait(_) => false,
-		}
-	}
-
-	async fn ready(&mut self) {
-		match *self {
-			InherentAfter::Ready => {
-				// Make sure we never end the returned future.
-				// This is required because the `select!` that calls this future will end in a busy loop.
-				futures::pending!()
-			},
-			InherentAfter::Wait(ref mut d) => {
-				d.await;
-				*self = InherentAfter::Ready;
-			},
-		}
-	}
-}
 
 /// Provisioner run arguments.
 #[derive(Debug, Clone, Copy)]
@@ -106,8 +71,6 @@ pub struct ProvisionerJob<Sender> {
 	backed_candidates: Vec<CandidateReceipt>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
 	metrics: Metrics,
-	inherent_after: InherentAfter,
-	awaiting_inherent: Vec<oneshot::Sender<ProvisionerInherentData>>,
 	_phantom: std::marker::PhantomData<Sender>,
 }
 
@@ -161,40 +124,26 @@ where
 			signed_bitfields: Vec::new(),
 			metrics,
 			inherent_after: InherentAfter::new_from_now(),
-			awaiting_inherent: Vec::new(),
 			_phantom: std::marker::PhantomData::<Sender>::default(),
 		}
 	}
 
 	async fn run_loop(mut self, sender: &mut Sender, span: PerLeafSpan) -> Result<(), Error> {
 		loop {
-			futures::select! {
-				msg = self.receiver.next() => match msg {
-					Some(ProvisionerMessage::RequestInherentData(_, return_sender)) => {
-						let _span = span.child("req-inherent-data");
-						let _timer = self.metrics.time_request_inherent_data();
+			match self.receiver.next() {
+				Some(ProvisionerMessage::RequestInherentData(_, return_sender)) => {
+					let _span = span.child("req-inherent-data");
+					let _timer = self.metrics.time_request_inherent_data();
 
-						if self.inherent_after.is_ready() {
-							self.send_inherent_data(sender, vec![return_sender]).await;
-						} else {
-							self.awaiting_inherent.push(return_sender);
-						}
-					}
-					Some(ProvisionerMessage::ProvisionableData(_, data)) => {
-						let span = span.child("provisionable-data");
-						let _timer = self.metrics.time_provisionable_data();
-
-						self.note_provisionable_data(&span, data);
-					}
-					None => break,
+					self.send_inherent_data(sender, vec![return_sender]).await;
 				},
-				_ = self.inherent_after.ready().fuse() => {
-					let _span = span.child("send-inherent-data");
-					let return_senders = std::mem::take(&mut self.awaiting_inherent);
-					if !return_senders.is_empty() {
-						self.send_inherent_data(sender, return_senders).await;
-					}
-				}
+				Some(ProvisionerMessage::ProvisionableData(_, data)) => {
+					let span = span.child("provisionable-data");
+					let _timer = self.metrics.time_provisionable_data();
+
+					self.note_provisionable_data(&span, data);
+				},
+				None => break,
 			}
 		}
 
