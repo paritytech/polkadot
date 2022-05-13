@@ -128,25 +128,31 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// An auction started. Provides its index and the block number where it will begin to
 		/// close and the first lease period of the quadruplet that is auctioned.
-		/// `[auction_index, lease_period, ending]`
-		AuctionStarted(AuctionIndex, LeasePeriodOf<T>, T::BlockNumber),
-		/// An auction ended. All funds become unreserved. `[auction_index]`
-		AuctionClosed(AuctionIndex),
+		AuctionStarted {
+			auction_index: AuctionIndex,
+			lease_period: LeasePeriodOf<T>,
+			ending: T::BlockNumber,
+		},
+		/// An auction ended. All funds become unreserved.
+		AuctionClosed { auction_index: AuctionIndex },
 		/// Funds were reserved for a winning bid. First balance is the extra amount reserved.
-		/// Second is the total. `[bidder, extra_reserved, total_amount]`
-		Reserved(T::AccountId, BalanceOf<T>, BalanceOf<T>),
+		/// Second is the total.
+		Reserved { bidder: T::AccountId, extra_reserved: BalanceOf<T>, total_amount: BalanceOf<T> },
 		/// Funds were unreserved since bidder is no longer active. `[bidder, amount]`
-		Unreserved(T::AccountId, BalanceOf<T>),
+		Unreserved { bidder: T::AccountId, amount: BalanceOf<T> },
 		/// Someone attempted to lease the same slot twice for a parachain. The amount is held in reserve
 		/// but no parachain slot has been leased.
-		/// `[parachain_id, leaser, amount]`
-		ReserveConfiscated(ParaId, T::AccountId, BalanceOf<T>),
+		ReserveConfiscated { para_id: ParaId, leaser: T::AccountId, amount: BalanceOf<T> },
 		/// A new bid has been accepted as the current winner.
-		/// `[who, para_id, amount, first_slot, last_slot]`
-		BidAccepted(T::AccountId, ParaId, BalanceOf<T>, LeasePeriodOf<T>, LeasePeriodOf<T>),
+		BidAccepted {
+			bidder: T::AccountId,
+			para_id: ParaId,
+			amount: BalanceOf<T>,
+			first_slot: LeasePeriodOf<T>,
+			last_slot: LeasePeriodOf<T>,
+		},
 		/// The winning offset was chosen for an auction. This will map into the `Winning` storage map.
-		/// `[auction_index, block_number]`
-		WinningOffset(AuctionIndex, T::BlockNumber),
+		WinningOffset { auction_index: AuctionIndex, block_number: T::BlockNumber },
 	}
 
 	#[pallet::error]
@@ -397,7 +403,11 @@ impl<T: Config> Pallet<T> {
 		let ending = frame_system::Pallet::<T>::block_number().saturating_add(duration);
 		AuctionInfo::<T>::put((lease_period_index, ending));
 
-		Self::deposit_event(Event::<T>::AuctionStarted(n, lease_period_index, ending));
+		Self::deposit_event(Event::<T>::AuctionStarted {
+			auction_index: n,
+			lease_period: lease_period_index,
+			ending,
+		});
 		Ok(())
 	}
 
@@ -472,11 +482,11 @@ impl<T: Config> Pallet<T> {
 				// ...and record the amount reserved.
 				ReservedAmounts::<T>::insert(&bidder_para, reserve_required);
 
-				Self::deposit_event(Event::<T>::Reserved(
-					bidder.clone(),
-					additional,
-					reserve_required,
-				));
+				Self::deposit_event(Event::<T>::Reserved {
+					bidder: bidder.clone(),
+					extra_reserved: additional,
+					total_amount: reserve_required,
+				});
 			}
 
 			// Return any funds reserved for the previous winner if we are not in the ending period
@@ -495,16 +505,20 @@ impl<T: Config> Pallet<T> {
 						// It really should be reserved; there's not much we can do here on fail.
 						let err_amt = CurrencyOf::<T>::unreserve(&who, amount);
 						debug_assert!(err_amt.is_zero());
-						Self::deposit_event(Event::<T>::Unreserved(who, amount));
+						Self::deposit_event(Event::<T>::Unreserved { bidder: who, amount });
 					}
 				}
 			}
 
 			// Update the range winner.
 			Winning::<T>::insert(offset, &current_winning);
-			Self::deposit_event(Event::<T>::BidAccepted(
-				bidder, para, amount, first_slot, last_slot,
-			));
+			Self::deposit_event(Event::<T>::BidAccepted {
+				bidder,
+				para_id: para,
+				amount,
+				first_slot,
+				last_slot,
+			});
 		}
 		Ok(())
 	}
@@ -535,7 +549,10 @@ impl<T: Config> Pallet<T> {
 						T::SampleLength::get().max(One::one());
 
 					let auction_counter = AuctionCounter::<T>::get();
-					Self::deposit_event(Event::<T>::WinningOffset(auction_counter, offset));
+					Self::deposit_event(Event::<T>::WinningOffset {
+						auction_index: auction_counter,
+						block_number: offset,
+					});
 					let res = Winning::<T>::get(offset)
 						.unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
 					// This `remove_all` statement should remove at most `EndingPeriod` / `SampleLength` items,
@@ -585,14 +602,20 @@ impl<T: Config> Pallet<T> {
 					// The leaser attempted to get a second lease on the same para ID, possibly griefing us. Let's
 					// keep the amount reserved and let governance sort it out.
 					if CurrencyOf::<T>::reserve(&leaser, amount).is_ok() {
-						Self::deposit_event(Event::<T>::ReserveConfiscated(para, leaser, amount));
+						Self::deposit_event(Event::<T>::ReserveConfiscated {
+							para_id: para,
+							leaser,
+							amount,
+						});
 					}
 				},
 				Ok(()) => {}, // Nothing to report.
 			}
 		}
 
-		Self::deposit_event(Event::<T>::AuctionClosed(AuctionCounter::<T>::get()));
+		Self::deposit_event(Event::<T>::AuctionClosed {
+			auction_index: AuctionCounter::<T>::get(),
+		});
 	}
 
 	/// Calculate the final winners from the winning slots.
@@ -1763,11 +1786,11 @@ mod benchmarking {
 			let origin = T::InitiateOrigin::successful_origin();
 		}: _(RawOrigin::Root, duration, lease_period_index)
 		verify {
-			assert_last_event::<T>(Event::<T>::AuctionStarted(
-				AuctionCounter::<T>::get(),
-				LeasePeriodOf::<T>::max_value(),
-				T::BlockNumber::max_value(),
-			).into());
+			assert_last_event::<T>(Event::<T>::AuctionStarted {
+				auction_index: AuctionCounter::<T>::get(),
+				lease_period: LeasePeriodOf::<T>::max_value(),
+				ending: T::BlockNumber::max_value(),
+			}.into());
 		}
 
 		// Worst case scenario a new bid comes in which kicks out an existing bid for the same slot.
@@ -1859,7 +1882,7 @@ mod benchmarking {
 			Auctions::<T>::on_initialize(duration + now + T::EndingPeriod::get());
 		} verify {
 			let auction_index = AuctionCounter::<T>::get();
-			assert_last_event::<T>(Event::<T>::AuctionClosed(auction_index).into());
+			assert_last_event::<T>(Event::<T>::AuctionClosed { auction_index }.into());
 			assert!(Winning::<T>::iter().count().is_zero());
 		}
 
