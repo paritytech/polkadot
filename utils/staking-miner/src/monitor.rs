@@ -1,13 +1,12 @@
-use crate::{prelude::*, MonitorConfig, SubmissionStrategy};
-use codec::Encode;
+use crate::{chain, prelude::*, Error, MonitorConfig, SubmissionStrategy};
 use pallet_election_provider_multi_phase::{MinerConfig, RawSolution};
 use sp_runtime::Perbill;
 use std::sync::Arc;
 use subxt::TransactionStatus;
 
 /// Ensure that now is the signed phase.
-async fn ensure_signed_phase(api: &RuntimeApi, hash: Hash) -> Result<(), Error> {
-	use runtime::pallet_election_provider_multi_phase::Phase;
+async fn ensure_signed_phase(api: &chain::polkadot::RuntimeApi, hash: Hash) -> Result<(), Error> {
+	use pallet_election_provider_multi_phase::Phase;
 
 	match api.storage().election_provider_multi_phase().current_phase(Some(hash)).await {
 		Ok(Phase::Signed) => Ok(()),
@@ -18,7 +17,7 @@ async fn ensure_signed_phase(api: &RuntimeApi, hash: Hash) -> Result<(), Error> 
 
 /// Ensure that our current `us` have not submitted anything previously.
 async fn ensure_no_previous_solution(
-	api: &RuntimeApi,
+	api: &chain::polkadot::RuntimeApi,
 	at: Hash,
 	us: &subxt::sp_runtime::AccountId32,
 ) -> Result<(), Error> {
@@ -47,7 +46,7 @@ async fn ensure_no_previous_solution(
 
 /// Reads all current solutions and checks the scores according to the `SubmissionStrategy`.
 async fn ensure_no_better_solution(
-	api: &RuntimeApi,
+	api: &chain::polkadot::RuntimeApi,
 	at: Hash,
 	score: sp_npos_elections::ElectionScore,
 	strategy: SubmissionStrategy,
@@ -88,8 +87,8 @@ pub(crate) async fn run<M>(
 where
 	M: MinerConfig<
 			AccountId = AccountId,
-			MaxVotesPerVoter = crate::chains::MinerMaxVotesPerVoter,
-			Solution = crate::chains::polkadot::NposSolution16,
+			MaxVotesPerVoter = crate::chain::MinerMaxVotesPerVoter,
+			Solution = crate::chain::polkadot::NposSolution16,
 		> + 'static,
 	<M as MinerConfig>::Solution: Send + Sync,
 {
@@ -155,8 +154,8 @@ async fn send_and_watch_extrinsic<M>(
 ) where
 	M: MinerConfig<
 			AccountId = AccountId,
-			MaxVotesPerVoter = crate::chains::MinerMaxVotesPerVoter,
-			Solution = crate::chains::polkadot::NposSolution16,
+			MaxVotesPerVoter = crate::chain::MinerMaxVotesPerVoter,
+			Solution = crate::chain::polkadot::NposSolution16,
 		> + 'static,
 	<M as MinerConfig>::Solution: Send + Sync,
 {
@@ -171,7 +170,7 @@ async fn send_and_watch_extrinsic<M>(
 	let hash = at.hash();
 	log::trace!(target: LOG_TARGET, "new event at #{:?} ({:?})", at.number, hash);
 
-	let api: RuntimeApi = client.to_runtime_api();
+	let api: chain::polkadot::RuntimeApi = client.to_runtime_api();
 
 	if let Err(e) = ensure_signed_phase(&api, hash).await {
 		log::debug!(
@@ -234,12 +233,11 @@ async fn send_and_watch_extrinsic<M>(
 		return;
 	}
 
-	let call = SubmitCall::new(RawSolution { solution, score, round });
-
-	let xt = subxt::SubmittableExtrinsic::<_, ExtrinsicParams, _, ModuleErrMissing, NoEvents>::new(
-		&api.client,
-		call,
-	);
+	let xt = api
+		.tx()
+		.election_provider_multi_phase()
+		.submit(RawSolution { solution, score, round })
+		.unwrap();
 
 	// This might fail with outdated nonce let it just crash if that happens.
 	let mut status_sub = xt.sign_and_submit_then_watch_default(&*signer).await.unwrap();
@@ -270,10 +268,7 @@ async fn send_and_watch_extrinsic<M>(
 				log::info!(target: LOG_TARGET, "included at {:?}", details.block_hash());
 				let events = details.wait_for_success().await.unwrap();
 
-				let solution_stored =
-					events
-						.find_first::<crate::runtime::election_provider_multi_phase::events::SolutionStored>(
-						);
+				let solution_stored = events.find_first::<epm::events::SolutionStored>();
 
 				if let Ok(Some(event)) = solution_stored {
 					log::info!(target: LOG_TARGET, "included at {:?}", event);

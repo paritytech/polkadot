@@ -28,7 +28,7 @@
 //!   development. It is intended to run this bot with a `restart = true` way, so that it reports it
 //!   crash, but resumes work thereafter.
 
-mod chains;
+mod chain;
 mod dry_run;
 mod emergency_solution;
 mod error;
@@ -47,14 +47,6 @@ use sp_runtime::Perbill;
 use tracing_subscriber::{fmt, EnvFilter};
 
 use std::sync::Arc;
-
-#[subxt::subxt(
-	runtime_metadata_path = "polkadot.scale",
-	derive_for_all_types = "Clone, Debug, PartialEq",
-	derive_for_type(type = "sp_core::crypto::AccountId32", derive = "Eq, Ord, PartialOrd"),
-	derive_for_type(type = "sp_arithmetic::per_things::PerU16", derive = "Copy, Default")
-)]
-pub mod runtime {}
 
 #[derive(Debug, Clone, Parser)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -225,14 +217,15 @@ async fn main() -> Result<(), Error> {
 		// TODO: hack remove.
 		"polkadot" | "development" => match command {
 			Command::Monitor(cfg) => {
-				monitor::run::<chains::polkadot::Config>(client, cfg, Arc::new(signer)).await
+				monitor::run::<chain::polkadot::Config>(client, cfg, Arc::new(signer)).await
 			},
-			Command::DryRun(cfg) => {
+			_ => todo!(),
+			/*Command::DryRun(cfg) => {
 				dry_run::run::<chains::polkadot::Config>(client, cfg, signer).await
 			},
 			Command::EmergencySolution(cfg) => {
 				emergency_solution::run::<chains::polkadot::Config>(client, cfg, signer).await
-			},
+			},*/
 		},
 		/*"kusama" => match command {
 			Command::Monitor(cfg) => {

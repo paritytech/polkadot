@@ -18,7 +18,7 @@
 
 use pallet_election_provider_multi_phase::RawSolution;
 
-use crate::{error::Error, prelude::*, DryRunConfig};
+use crate::{chain, error::Error, prelude::*, DryRunConfig};
 use codec::{Decode, Encode};
 use jsonrpsee::rpc_params;
 use subxt::{rpc::ClientT, sp_core::Bytes};
@@ -29,11 +29,11 @@ pub(crate) async fn run<M>(
 	signer: Signer,
 ) -> Result<(), Error>
 where
-	M: MinerConfig<AccountId = AccountId, MaxVotesPerVoter = crate::chains::MinerMaxVotesPerVoter>
+	M: MinerConfig<AccountId = AccountId, MaxVotesPerVoter = crate::chain::MinerMaxVotesPerVoter>
 		+ 'static,
 	<M as MinerConfig>::Solution: Send + Sync,
 {
-	let api: RuntimeApi = client.to_runtime_api();
+	/*let api: chain::polkadot::RuntimeApi = client.to_runtime_api();
 
 	let (solution, score, _size) =
 		crate::helpers::mine_solution::<M>(&api, config.at, config.solver).await?;
@@ -46,11 +46,11 @@ where
 		"solution score {:?} / length {:?}",
 		score,
 		raw_solution.encode().len(),
-	);
+	);*/
 
-	let call = SubmitCall::new(raw_solution);
+	todo!();
 
-	let xt = subxt::SubmittableExtrinsic::<_, ExtrinsicParams, _, ModuleErrMissing, NoEvents>::new(
+	/*let xt = subxt::SubmittableExtrinsic::<_, ExtrinsicParams, _, ModuleErrMissing, NoEvents>::new(
 		&api.client,
 		call,
 	)
@@ -73,5 +73,5 @@ where
 	match outcome {
 		Ok(Ok(r)) => Ok(r),
 		err => panic!("{:?}", err),
-	}
+	}*/
 }

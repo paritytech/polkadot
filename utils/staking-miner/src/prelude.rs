@@ -20,33 +20,6 @@
 //! It is actually easy to convert the rest as well, but it'll be a lot of noise in our codebase,
 //! needing to sprinkle `any_runtime` in a few extra places.
 
-use codec::{Decode, Encode};
-
-#[derive(codec::Encode, codec::Decode)]
-pub struct SubmitCall<T>(Box<pallet_election_provider_multi_phase::RawSolution<T>>);
-
-impl<T> SubmitCall<T> {
-	pub fn new(raw_solution: pallet_election_provider_multi_phase::RawSolution<T>) -> Self {
-		Self(Box::new(raw_solution))
-	}
-}
-
-impl<T: Encode> subxt::Call for SubmitCall<T> {
-	const PALLET: &'static str = "ElectionProviderMultiPhase";
-	const FUNCTION: &'static str = "submit";
-}
-
-#[derive(Encode, Decode, Debug)]
-pub struct ModuleErrMissing;
-
-impl subxt::HasModuleError for ModuleErrMissing {
-	fn module_error_data(&self) -> Option<subxt::ModuleErrorData> {
-		None
-	}
-}
-
-pub type NoEvents = String;
-
 /// The account id type.
 pub type AccountId = subxt::sp_core::crypto::AccountId32;
 /// The header type. We re-export it here, but we can easily get it from block as well.
@@ -70,17 +43,19 @@ pub type Pair = subxt::sp_core::sr25519::Pair;
 /// Type alias for the subxt client.
 pub type SubxtClient = subxt::Client<subxt::DefaultConfig>;
 
-/// Runtime API.
-pub type RuntimeApi = crate::runtime::RuntimeApi<
-	subxt::DefaultConfig,
-	subxt::PolkadotExtrinsicParams<subxt::DefaultConfig>,
->;
-
 pub type ExtrinsicParams = subxt::PolkadotExtrinsicParams<subxt::DefaultConfig>;
 
-pub use crate::{error::Error, runtime::runtime_types as runtime};
 pub use pallet_election_provider_multi_phase::{Miner, MinerConfig};
 
 pub type Signer = subxt::PairSigner<subxt::DefaultConfig, subxt::sp_core::sr25519::Pair>;
 
 pub use sp_runtime::Perbill;
+
+// This is safe as it is the same for all chains.
+
+pub mod epm {
+	pub use crate::chain::polkadot::runtime::election_provider_multi_phase::*;
+	pub use crate::chain::polkadot::runtime_types::pallet_election_provider_multi_phase::*;
+}
+
+pub use crate::error::Error;
