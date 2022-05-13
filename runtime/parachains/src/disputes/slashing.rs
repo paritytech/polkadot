@@ -235,7 +235,7 @@ where
 		losers: impl IntoIterator<Item = ValidatorIndex>,
 		winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		let losers: BTreeSet<ValidatorIndex> = losers.into_iter().collect();
+		let losers: Losers = losers.into_iter().collect();
 		let maybe = Self::maybe_identify_validators(session_index, losers.iter().cloned());
 		if let Some((offenders, account_ids, validator_set_count)) = maybe {
 			let reporters = winners
@@ -248,9 +248,17 @@ where
 			let _ = R::report_offence(reporters, offence);
 			return
 		}
-		let winners: BTreeSet<ValidatorIndex> = winners.into_iter().collect();
-		let results = PendingIndices { winners, losers };
-		<PendingSlashesForInvalid<T>>::insert(session_index, candidate_hash, results);
+		let winners: Winners<T> = if let Some(account_ids) = crate::session_info::Pallet::<T>::account_keys(session_index) {
+			winners
+			.into_iter()
+			.filter_map(|i| account_ids.get(i.0 as usize).cloned())
+			.collect()
+		} else {
+			// Shouldn't really happen
+			Default::default()
+		};
+		<PendingForInvalidLosers<T>>::insert(session_index, candidate_hash, losers);
+		<ForInvalidWinners<T>>::insert(session_index, candidate_hash, winners);
 	}
 
 	fn punish_against_valid(
@@ -259,7 +267,7 @@ where
 		losers: impl IntoIterator<Item = ValidatorIndex>,
 		winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		let losers: BTreeSet<ValidatorIndex> = losers.into_iter().collect();
+		let losers: Losers = losers.into_iter().collect();
 		let maybe = Self::maybe_identify_validators(session_index, losers.iter().cloned());
 		if let Some((offenders, account_ids, validator_set_count)) = maybe {
 			let reporters = winners
@@ -273,9 +281,17 @@ where
 			return
 		}
 
-		let winners: BTreeSet<ValidatorIndex> = winners.into_iter().collect();
-		let results = PendingIndices { winners, losers };
-		<PendingSlashesAgainstValid<T>>::insert(session_index, candidate_hash, results);
+		let winners: Winners<T> = if let Some(account_ids) = crate::session_info::Pallet::<T>::account_keys(session_index) {
+			winners
+			.into_iter()
+			.filter_map(|i| account_ids.get(i.0 as usize).cloned())
+			.collect()
+		} else {
+			// Shouldn't really happen
+			Default::default()
+		};
+		<PendingAgainstValidLosers<T>>::insert(session_index, candidate_hash, losers);
+		<AgainstValidWinners<T>>::insert(session_index, candidate_hash, winners);
 	}
 
 	fn punish_inconclusive(
@@ -310,12 +326,8 @@ pub struct DisputeProof {
 }
 
 // TODO: docs
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-pub struct PendingIndices {
-	pub losers: BTreeSet<ValidatorIndex>,
-	// TODO: put winners somewhere else
-	pub winners: BTreeSet<ValidatorIndex>,
-}
+pub type Losers = BTreeSet<ValidatorIndex>;
+pub type Winners<T> = Vec<AccountId<T>>;
 
 pub trait SlashingOffence<KeyOwnerIdentification>: Offence<KeyOwnerIdentification> {
 	/// Create a new dispute offence using the given details.
@@ -370,6 +382,7 @@ where
 	}
 }
 
+// TODO: does it need to be that generic?
 pub trait HandleReports<T: Config> {
 	/// The offence type used for reporting offences on valid reports for disputes
 	/// lost about a valid candidate.
@@ -384,13 +397,17 @@ pub trait HandleReports<T: Config> {
 	type ReportLongevity: Get<u64>;
 
 	/// Report a for valid offence.
-	// TODO: pass reporters
-	fn report_for_invalid_offence(offence: Self::OffenceForInvalid) -> Result<(), OffenceError>;
+	// TODO: generic over reporter type?
+	fn report_for_invalid_offence(
+		reporters: Vec<AccountId<T>>,
+		offence: Self::OffenceForInvalid,
+	) -> Result<(), OffenceError>;
 
 	/// Report an against invalid offence.
-	// TODO: pass reporters
-	fn report_against_valid_offence(offence: Self::OffenceAgainstValid)
-		-> Result<(), OffenceError>;
+	fn report_against_valid_offence(
+		reporters: Vec<AccountId<T>>,
+		offence: Self::OffenceAgainstValid,
+	) -> Result<(), OffenceError>;
 
 	/// Returns true if the offender at the given time slot has already been reported.
 	fn is_known_for_invalid_offence(
@@ -405,6 +422,7 @@ pub trait HandleReports<T: Config> {
 	) -> bool;
 
 	/// Create and dispatch a slashing report extrinsic.
+	/// This should be called offchain.
 	fn submit_unsigned_slashing_report(
 		session_index: SessionIndex,
 		candidate_hash: CandidateHash,
@@ -418,11 +436,15 @@ impl<T: Config> HandleReports<T> for () {
 	type OffenceAgainstValid = AgainstValidOffence<T::KeyOwnerIdentification>;
 	type ReportLongevity = ();
 
-	fn report_for_invalid_offence(_offence: Self::OffenceForInvalid) -> Result<(), OffenceError> {
+	fn report_for_invalid_offence(
+		_reporters: Vec<AccountId<T>>,
+		_offence: Self::OffenceForInvalid,
+	) -> Result<(), OffenceError> {
 		Ok(())
 	}
 
 	fn report_against_valid_offence(
+		_reporters: Vec<AccountId<T>>,
 		_offence: Self::OffenceAgainstValid,
 	) -> Result<(), OffenceError> {
 		Ok(())
@@ -506,26 +528,48 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
-	/// Pending "for invalid" dispute slashes for the last several sessions.
+	/// Indices of the validators pending "for invalid" dispute slashes.
 	#[pallet::storage]
-	pub(super) type PendingSlashesForInvalid<T> = StorageDoubleMap<
+	pub(super) type PendingForInvalidLosers<T> = StorageDoubleMap<
 		_,
 		Twox64Concat,
 		SessionIndex,
 		Blake2_128Concat,
 		CandidateHash,
-		PendingIndices,
+		Losers,
 	>;
 
-	/// Pending "against valid" dispute slashes for the last several sessions.
+	/// Indices of the validators who won in "for invalid" disputes.
 	#[pallet::storage]
-	pub(super) type PendingSlashesAgainstValid<T> = StorageDoubleMap<
+	pub(super) type ForInvalidWinners<T> = StorageDoubleMap<
 		_,
 		Twox64Concat,
 		SessionIndex,
 		Blake2_128Concat,
 		CandidateHash,
-		PendingIndices,
+		Winners<T>,
+	>;
+
+	/// Indices of the validators pending "against valid" dispute slashes.
+	#[pallet::storage]
+	pub(super) type PendingAgainstValidLosers<T> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		SessionIndex,
+		Blake2_128Concat,
+		CandidateHash,
+		Losers,
+	>;
+
+	/// Indices of the validators who won in "against valid" disputes.
+	#[pallet::storage]
+	pub(super) type AgainstValidWinners<T> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		SessionIndex,
+		Blake2_128Concat,
+		CandidateHash,
+		Winners<T>,
 	>;
 
 	#[pallet::error]
@@ -579,15 +623,15 @@ pub mod pallet {
 			// check that there is a pending slash for the given
 			// validator index and candidate hash
 			let candidate_hash = dispute_proof.time_slot.candidate_hash;
-			let try_remove = |v: &mut Option<PendingIndices>| -> Result<(), DispatchError> {
+			let try_remove = |v: &mut Option<Losers>| -> Result<(), DispatchError> {
 				let mut indices = v.take().ok_or(Error::<T>::InvalidCandidateHash)?;
 
 				ensure!(
-					indices.losers.remove(&dispute_proof.validator_index),
+					indices.remove(&dispute_proof.validator_index),
 					Error::<T>::InvalidValidatorIndex,
 				);
 
-				if !indices.losers.is_empty() {
+				if !indices.is_empty() {
 					*v = Some(indices);
 				}
 
@@ -595,11 +639,16 @@ pub mod pallet {
 			};
 			match dispute_proof.kind {
 				SlashingOffenceKind::ForInvalid => {
-					<PendingSlashesForInvalid<T>>::try_mutate_exists(
+					<PendingForInvalidLosers<T>>::try_mutate_exists(
 						&session_index,
 						&candidate_hash,
 						try_remove,
 					)?;
+
+					let winners = <ForInvalidWinners<T>>::get(
+						&session_index,
+						&candidate_hash,
+					).unwrap_or_default();
 
 					let offence = <T::HandleReports as HandleReports<T>>::OffenceForInvalid::new(
 						session_index,
@@ -607,17 +656,25 @@ pub mod pallet {
 						validator_set_count,
 						offender,
 					);
+
 					// We can't really submit a duplicate report
 					// unless there's a bug.
-					<T::HandleReports as HandleReports<T>>::report_for_invalid_offence(offence)
-						.map_err(|_| Error::<T>::DuplicateSlashingReport)?;
+					<T::HandleReports as HandleReports<T>>::report_for_invalid_offence(
+						winners,
+						offence,
+					).map_err(|_| Error::<T>::DuplicateSlashingReport)?;
 				},
 				SlashingOffenceKind::AgainstValid => {
-					<PendingSlashesAgainstValid<T>>::try_mutate_exists(
+					<PendingAgainstValidLosers<T>>::try_mutate_exists(
 						&session_index,
 						&candidate_hash,
 						try_remove,
 					)?;
+
+					let winners = <ForInvalidWinners<T>>::get(
+						&session_index,
+						&candidate_hash,
+					).unwrap_or_default();
 
 					// submit an offence report
 					let offence = <T::HandleReports as HandleReports<T>>::OffenceAgainstValid::new(
@@ -628,8 +685,10 @@ pub mod pallet {
 					);
 					// We can't really submit a duplicate report
 					// unless there's a bug.
-					<T::HandleReports as HandleReports<T>>::report_against_valid_offence(offence)
-						.map_err(|_| Error::<T>::DuplicateSlashingReport)?;
+					<T::HandleReports as HandleReports<T>>::report_against_valid_offence(
+						winners,
+						offence,
+					).map_err(|_| Error::<T>::DuplicateSlashingReport)?;
 				},
 			}
 
@@ -657,8 +716,10 @@ impl<T: Config> Pallet<T> {
 		}
 
 		let old_session = notification.session_index - config.dispute_period - 1;
-		<PendingSlashesForInvalid<T>>::remove_prefix(old_session, None);
-		<PendingSlashesAgainstValid<T>>::remove_prefix(old_session, None);
+		<PendingForInvalidLosers<T>>::remove_prefix(old_session, None);
+		<PendingAgainstValidLosers<T>>::remove_prefix(old_session, None);
+		<ForInvalidWinners<T>>::remove_prefix(old_session, None);
+		<AgainstValidWinners<T>>::remove_prefix(old_session, None);
 	}
 }
 
