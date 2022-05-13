@@ -37,9 +37,8 @@ use polkadot_node_subsystem::{
 		ChainSelectionMessage, DisputeCoordinatorMessage, HighestApprovedAncestorBlock,
 		RuntimeApiMessage, RuntimeApiRequest,
 	},
-	overseer::{self, SubsystemSender as _},
-	FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
-	SubsystemResult, SubsystemSender,
+	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
+	SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
 	database::Database,
@@ -340,13 +339,23 @@ impl ApprovalVotingSubsystem {
 			metrics,
 		}
 	}
+
+	/// Revert to the block corresponding to the specified `hash`.
+	/// The operation is not allowed for blocks older than the last finalized one.
+	pub fn revert_to(&self, hash: Hash) -> Result<(), SubsystemError> {
+		let config = approval_db::v1::Config { col_data: self.db_config.col_data };
+		let mut backend = approval_db::v1::DbBackend::new(self.db.clone(), config);
+		let mut overlay = OverlayedBackend::new(&backend);
+
+		ops::revert_to(&mut overlay, hash)?;
+
+		let ops = overlay.into_write_ops();
+		backend.write(ops)
+	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for ApprovalVotingSubsystem
-where
-	Context: SubsystemContext<Message = ApprovalVotingMessage>,
-	Context: overseer::SubsystemContext<Message = ApprovalVotingMessage>,
-{
+#[overseer::subsystem(ApprovalVoting, error = SubsystemError, prefix = self::overseer)]
+impl<Context: Send> ApprovalVotingSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = DbBackend::new(self.db.clone(), self.db_config);
 		let future = run::<DbBackend, Context>(
@@ -584,27 +593,34 @@ struct State {
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 }
 
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 impl State {
 	fn session_info(&self, i: SessionIndex) -> Option<&SessionInfo> {
 		self.session_window.as_ref().and_then(|w| w.session_info(i))
 	}
 
 	/// Bring `session_window` up to date.
-	pub async fn cache_session_info_for_head(
+	pub async fn cache_session_info_for_head<Context>(
 		&mut self,
-		ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+		ctx: &mut Context,
 		head: Hash,
-	) -> Result<Option<SessionWindowUpdate>, SessionsUnavailable> {
+	) -> Result<Option<SessionWindowUpdate>, SessionsUnavailable>
+	where
+		<Context as overseer::SubsystemContext>::Sender: Sized + Send,
+	{
 		let session_window = self.session_window.take();
 		match session_window {
 			None => {
+				let sender = ctx.sender().clone();
 				self.session_window =
-					Some(RollingSessionWindow::new(ctx, APPROVAL_SESSIONS, head).await?);
+					Some(RollingSessionWindow::new(sender, APPROVAL_SESSIONS, head).await?);
 				Ok(None)
 			},
 			Some(mut session_window) => {
-				let r =
-					session_window.cache_session_info_for_head(ctx, head).await.map(Option::Some);
+				let r = session_window
+					.cache_session_info_for_head(ctx.sender(), head)
+					.await
+					.map(Option::Some);
 				self.session_window = Some(session_window);
 				r
 			},
@@ -688,6 +704,7 @@ enum Action {
 	Conclude,
 }
 
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 async fn run<B, Context>(
 	mut ctx: Context,
 	mut subsystem: ApprovalVotingSubsystem,
@@ -696,8 +713,6 @@ async fn run<B, Context>(
 	mut backend: B,
 ) -> SubsystemResult<()>
 where
-	Context: SubsystemContext<Message = ApprovalVotingMessage>,
-	Context: overseer::SubsystemContext<Message = ApprovalVotingMessage>,
 	B: Backend,
 {
 	let mut state = State {
@@ -835,9 +850,9 @@ where
 // 	https://github.com/paritytech/polkadot/issues/3311
 //
 // returns `true` if any of the actions was a `Conclude` command.
-async fn handle_actions(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage>
-	          + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+async fn handle_actions<Context>(
+	ctx: &mut Context,
 	state: &mut State,
 	overlayed_db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
@@ -855,7 +870,6 @@ async fn handle_actions(
 			Action::ScheduleWakeup { block_hash, block_number, candidate_hash, tick } =>
 				wakeups.schedule(block_hash, block_number, candidate_hash, tick),
 			Action::IssueApproval(candidate_hash, approval_request) => {
-				let mut sender = ctx.sender().clone();
 				// Note that the IssueApproval action will create additional
 				// actions that will need to all be processed before we can
 				// handle the next action in the set passed to the ambient
@@ -868,7 +882,7 @@ async fn handle_actions(
 				// Note that chaining these iterators is O(n) as we must consume
 				// the prior iterator.
 				let next_actions: Vec<Action> = issue_approval(
-					&mut sender,
+					ctx,
 					state,
 					overlayed_db,
 					metrics,
@@ -1073,9 +1087,9 @@ fn distribution_messages_for_activation(
 }
 
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.
-async fn handle_from_overseer(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage>
-	          + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+async fn handle_from_overseer<Context>(
+	ctx: &mut Context,
 	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
@@ -1184,8 +1198,9 @@ async fn handle_from_overseer(
 	Ok(actions)
 }
 
-async fn handle_approved_ancestor(
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+async fn handle_approved_ancestor<Context>(
+	ctx: &mut Context,
 	db: &OverlayedBackend<'_, impl Backend>,
 	target: Hash,
 	lower_bound: BlockNumber,
@@ -1595,10 +1610,11 @@ fn check_and_import_assignment(
 		);
 
 		let tranche = match res {
-			Err(crate::criteria::InvalidAssignment) =>
+			Err(crate::criteria::InvalidAssignment(reason)) =>
 				return Ok((
 					AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCert(
 						assignment.validator,
+						format!("{:?}", reason),
 					)),
 					Vec::new(),
 				)),
@@ -2133,9 +2149,9 @@ fn process_wakeup(
 // Launch approval work, returning an `AbortHandle` which corresponds to the background task
 // spawned. When the background work is no longer needed, the `AbortHandle` should be dropped
 // to cancel the background work and any requests it has spawned.
-async fn launch_approval(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage>
-	          + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+async fn launch_approval<Context>(
+	ctx: &mut Context,
 	metrics: Metrics,
 	session_index: SessionIndex,
 	candidate: CandidateReceipt,
@@ -2228,15 +2244,12 @@ async fn launch_approval(
 						);
 
 						sender
-							.send_message(
-								DisputeCoordinatorMessage::IssueLocalStatement(
-									session_index,
-									candidate_hash,
-									candidate.clone(),
-									false,
-								)
-								.into(),
-							)
+							.send_message(DisputeCoordinatorMessage::IssueLocalStatement(
+								session_index,
+								candidate_hash,
+								candidate.clone(),
+								false,
+							))
 							.await;
 						metrics_guard.take().on_approval_invalid();
 					},
@@ -2267,17 +2280,14 @@ async fn launch_approval(
 		let (val_tx, val_rx) = oneshot::channel();
 
 		sender
-			.send_message(
-				CandidateValidationMessage::ValidateFromExhaustive(
-					available_data.validation_data,
-					validation_code,
-					candidate.clone(),
-					available_data.pov,
-					APPROVAL_EXECUTION_TIMEOUT,
-					val_tx,
-				)
-				.into(),
-			)
+			.send_message(CandidateValidationMessage::ValidateFromExhaustive(
+				available_data.validation_data,
+				validation_code,
+				candidate.clone(),
+				available_data.pov,
+				APPROVAL_EXECUTION_TIMEOUT,
+				val_tx,
+			))
 			.await;
 
 		match val_rx.await {
@@ -2295,15 +2305,12 @@ async fn launch_approval(
 				} else {
 					// Commitments mismatch - issue a dispute.
 					sender
-						.send_message(
-							DisputeCoordinatorMessage::IssueLocalStatement(
-								session_index,
-								candidate_hash,
-								candidate.clone(),
-								false,
-							)
-							.into(),
-						)
+						.send_message(DisputeCoordinatorMessage::IssueLocalStatement(
+							session_index,
+							candidate_hash,
+							candidate.clone(),
+							false,
+						))
 						.await;
 
 					metrics_guard.take().on_approval_invalid();
@@ -2320,15 +2327,12 @@ async fn launch_approval(
 				);
 
 				sender
-					.send_message(
-						DisputeCoordinatorMessage::IssueLocalStatement(
-							session_index,
-							candidate_hash,
-							candidate.clone(),
-							false,
-						)
-						.into(),
-					)
+					.send_message(DisputeCoordinatorMessage::IssueLocalStatement(
+						session_index,
+						candidate_hash,
+						candidate.clone(),
+						false,
+					))
 					.await;
 
 				metrics_guard.take().on_approval_invalid();
@@ -2354,8 +2358,9 @@ async fn launch_approval(
 
 // Issue and import a local approval vote. Should only be invoked after approval checks
 // have been done.
-async fn issue_approval(
-	ctx: &mut impl SubsystemSender,
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+async fn issue_approval<Context>(
+	ctx: &mut Context,
 	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
@@ -2513,15 +2518,14 @@ async fn issue_approval(
 	metrics.on_approval_produced();
 
 	// dispatch to approval distribution.
-	ctx.send_unbounded_message(
-		ApprovalDistributionMessage::DistributeApproval(IndirectSignedApprovalVote {
+	ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeApproval(
+		IndirectSignedApprovalVote {
 			block_hash,
 			candidate_index: candidate_index as _,
 			validator: validator_index,
 			signature: sig,
-		})
-		.into(),
-	);
+		},
+	));
 
 	// dispatch to dispute coordinator.
 	actions.extend(inform_disputes_action);

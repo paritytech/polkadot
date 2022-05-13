@@ -37,7 +37,7 @@ use polkadot_node_subsystem_test_helpers::{
 use polkadot_node_subsystem_util::{reexports::SubsystemContext, TimeoutExt};
 use polkadot_primitives::v2::{
 	BlakeTwo256, BlockNumber, CandidateDescriptor, CandidateEvent, CandidateReceipt, CoreIndex,
-	GroupIndex, Hash, HashT, HeadData,
+	GroupIndex, Hash, HashT, HeadData, Id as ParaId,
 };
 
 use crate::LOG_TARGET;
@@ -115,7 +115,7 @@ async fn process_active_leaves_update(
 fn make_candidate_receipt(relay_parent: Hash) -> CandidateReceipt {
 	let zeros = dummy_hash();
 	let descriptor = CandidateDescriptor {
-		para_id: 0.into(),
+		para_id: ParaId::from(0_u32),
 		relay_parent,
 		collator: dummy_collator(),
 		persisted_validation_data_hash: zeros,

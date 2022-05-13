@@ -39,7 +39,7 @@ pub async fn determine_new_blocks<E, Sender>(
 	lower_bound_number: BlockNumber,
 ) -> Result<Vec<(Hash, Header)>, E>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<ChainApiMessage>,
 {
 	const ANCESTRY_STEP: usize = 4;
 

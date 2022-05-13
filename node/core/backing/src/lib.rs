@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Parity Technologies (UK) Ltd.
+// Copyright 2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,40 +20,38 @@
 
 use std::{
 	collections::{HashMap, HashSet},
-	pin::Pin,
 	sync::Arc,
 };
 
 use bitvec::vec::BitVec;
 use futures::{
 	channel::{mpsc, oneshot},
-	Future, FutureExt, SinkExt, StreamExt,
+	FutureExt, SinkExt, StreamExt,
 };
 
+use error::{Error, FatalResult};
 use polkadot_node_primitives::{
 	AvailableData, InvalidCandidate, PoV, SignedDisputeStatement, SignedFullStatement, Statement,
 	ValidationResult, BACKING_EXECUTION_TIMEOUT,
 };
+use polkadot_node_subsystem::{
+	jaeger,
+	messages::{
+		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
+		CandidateValidationMessage, CollatorProtocolMessage, DisputeCoordinatorMessage,
+		ProvisionableData, ProvisionerMessage, RuntimeApiRequest, StatementDistributionMessage,
+	},
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
+	Stage, SubsystemError,
+};
 use polkadot_node_subsystem_util::{
-	self as util,
-	metrics::{self, prometheus},
-	request_from_runtime, request_session_index_for_child, request_validator_groups,
-	request_validators, FromJobCommand, JobSender, Validator,
+	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
+	request_validators, Validator,
 };
 use polkadot_primitives::v2::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
 	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
 	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
-};
-use polkadot_subsystem::{
-	jaeger,
-	messages::{
-		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage,
-		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
-		DisputeCoordinatorMessage, ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
-		StatementDistributionMessage, ValidationFailed,
-	},
-	overseer, ActivatedLeaf, PerLeafSpan, Stage, SubsystemSender,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{
@@ -64,39 +62,16 @@ use statement_table::{
 	},
 	Context as TableContextTrait, Table,
 };
-use thiserror::Error;
+
+mod error;
+
+mod metrics;
+use self::metrics::Metrics;
 
 #[cfg(test)]
 mod tests;
 
 const LOG_TARGET: &str = "parachain::candidate-backing";
-
-/// Errors that can occur in candidate backing.
-#[derive(Debug, Error)]
-pub enum Error {
-	#[error("Candidate is not found")]
-	CandidateNotFound,
-	#[error("Signature is invalid")]
-	InvalidSignature,
-	#[error("Failed to send candidates {0:?}")]
-	Send(Vec<BackedCandidate>),
-	#[error("FetchPoV failed")]
-	FetchPoV,
-	#[error("ValidateFromChainState channel closed before receipt")]
-	ValidateFromChainState(#[source] oneshot::Canceled),
-	#[error("StoreAvailableData channel closed before receipt")]
-	StoreAvailableData(#[source] oneshot::Canceled),
-	#[error("a channel was closed before receipt in try_join!")]
-	JoinMultiple(#[source] oneshot::Canceled),
-	#[error("Obtaining erasure chunks failed")]
-	ObtainErasureChunks(#[from] erasure_coding::Error),
-	#[error(transparent)]
-	ValidationFailed(#[from] ValidationFailed),
-	#[error(transparent)]
-	BackgroundValidationMpsc(#[from] mpsc::SendError),
-	#[error(transparent)]
-	UtilError(#[from] util::Error),
-}
 
 /// PoV data to validate.
 enum PoVData {
@@ -142,8 +117,298 @@ impl ValidatedCandidateCommand {
 	}
 }
 
+/// The candidate backing subsystem.
+pub struct CandidateBackingSubsystem {
+	keystore: SyncCryptoStorePtr,
+	metrics: Metrics,
+}
+
+impl CandidateBackingSubsystem {
+	/// Create a new instance of the `CandidateBackingSubsystem`.
+	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+		Self { keystore, metrics }
+	}
+}
+
+#[overseer::subsystem(CandidateBacking, error = SubsystemError, prefix = self::overseer)]
+impl<Context> CandidateBackingSubsystem
+where
+	Context: Send + Sync,
+{
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = async move {
+			run(ctx, self.keystore, self.metrics)
+				.await
+				.map_err(|e| SubsystemError::with_origin("candidate-backing", e))
+		}
+		.boxed();
+
+		SpawnedSubsystem { name: "candidate-backing-subsystem", future }
+	}
+}
+
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn run<Context>(
+	mut ctx: Context,
+	keystore: SyncCryptoStorePtr,
+	metrics: Metrics,
+) -> FatalResult<()> {
+	let (background_validation_tx, mut background_validation_rx) = mpsc::channel(16);
+	let mut jobs = HashMap::new();
+
+	loop {
+		let res = run_iteration(
+			&mut ctx,
+			keystore.clone(),
+			&metrics,
+			&mut jobs,
+			background_validation_tx.clone(),
+			&mut background_validation_rx,
+		)
+		.await;
+
+		match res {
+			Ok(()) => break,
+			Err(e) => crate::error::log_error(Err(e))?,
+		}
+	}
+
+	Ok(())
+}
+
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn run_iteration<Context>(
+	ctx: &mut Context,
+	keystore: SyncCryptoStorePtr,
+	metrics: &Metrics,
+	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
+	background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
+	background_validation_rx: &mut mpsc::Receiver<(Hash, ValidatedCandidateCommand)>,
+) -> Result<(), Error> {
+	loop {
+		futures::select!(
+			validated_command = background_validation_rx.next().fuse() => {
+				if let Some((relay_parent, command)) = validated_command {
+					handle_validated_candidate_command(
+						&mut *ctx,
+						jobs,
+						relay_parent,
+						command,
+					).await?;
+				} else {
+					panic!("background_validation_tx always alive at this point; qed");
+				}
+			}
+			from_overseer = ctx.recv().fuse() => {
+				match from_overseer? {
+					FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => handle_active_leaves_update(
+						&mut *ctx,
+						update,
+						jobs,
+						&keystore,
+						&background_validation_tx,
+						&metrics,
+					).await?,
+					FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
+					FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
+					FromOverseer::Communication { msg } => handle_communication(&mut *ctx, jobs, msg).await?,
+				}
+			}
+		)
+	}
+}
+
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn handle_validated_candidate_command<Context>(
+	ctx: &mut Context,
+	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
+	relay_parent: Hash,
+	command: ValidatedCandidateCommand,
+) -> Result<(), Error> {
+	if let Some(job) = jobs.get_mut(&relay_parent) {
+		job.job.handle_validated_candidate_command(&job.span, ctx, command).await?;
+	} else {
+		// simple race condition; can be ignored - this relay-parent
+		// is no longer relevant.
+	}
+
+	Ok(())
+}
+
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn handle_communication<Context>(
+	ctx: &mut Context,
+	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
+	message: CandidateBackingMessage,
+) -> Result<(), Error> {
+	match message {
+		CandidateBackingMessage::Second(relay_parent, candidate, pov) => {
+			if let Some(job) = jobs.get_mut(&relay_parent) {
+				job.job.handle_second_msg(&job.span, ctx, candidate, pov).await?;
+			}
+		},
+		CandidateBackingMessage::Statement(relay_parent, statement) => {
+			if let Some(job) = jobs.get_mut(&relay_parent) {
+				job.job.handle_statement_message(&job.span, ctx, statement).await?;
+			}
+		},
+		CandidateBackingMessage::GetBackedCandidates(relay_parent, requested_candidates, tx) =>
+			if let Some(job) = jobs.get_mut(&relay_parent) {
+				job.job.handle_get_backed_candidates_message(requested_candidates, tx)?;
+			},
+	}
+
+	Ok(())
+}
+
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn handle_active_leaves_update<Context>(
+	ctx: &mut Context,
+	update: ActiveLeavesUpdate,
+	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
+	keystore: &SyncCryptoStorePtr,
+	background_validation_tx: &mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	for deactivated in update.deactivated {
+		jobs.remove(&deactivated);
+	}
+
+	let leaf = match update.activated {
+		None => return Ok(()),
+		Some(a) => a,
+	};
+
+	macro_rules! try_runtime_api {
+		($x: expr) => {
+			match $x {
+				Ok(x) => x,
+				Err(e) => {
+					gum::warn!(
+						target: LOG_TARGET,
+						err = ?e,
+						"Failed to fetch runtime API data for job",
+					);
+
+					// We can't do candidate validation work if we don't have the
+					// requisite runtime API data. But these errors should not take
+					// down the node.
+					return Ok(());
+				}
+			}
+		}
+	}
+
+	let parent = leaf.hash;
+	let span = PerLeafSpan::new(leaf.span, "backing");
+	let _span = span.child("runtime-apis");
+
+	let (validators, groups, session_index, cores) = futures::try_join!(
+		request_validators(parent, ctx.sender()).await,
+		request_validator_groups(parent, ctx.sender()).await,
+		request_session_index_for_child(parent, ctx.sender()).await,
+		request_from_runtime(parent, ctx.sender(), |tx| {
+			RuntimeApiRequest::AvailabilityCores(tx)
+		},)
+		.await,
+	)
+	.map_err(Error::JoinMultiple)?;
+
+	let validators: Vec<_> = try_runtime_api!(validators);
+	let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
+	let session_index = try_runtime_api!(session_index);
+	let cores = try_runtime_api!(cores);
+
+	drop(_span);
+	let _span = span.child("validator-construction");
+
+	let signing_context = SigningContext { parent_hash: parent, session_index };
+	let validator =
+		match Validator::construct(&validators, signing_context.clone(), keystore.clone()).await {
+			Ok(v) => Some(v),
+			Err(util::Error::NotAValidator) => None,
+			Err(e) => {
+				gum::warn!(
+					target: LOG_TARGET,
+					err = ?e,
+					"Cannot participate in candidate backing",
+				);
+
+				return Ok(())
+			},
+		};
+
+	drop(_span);
+	let mut assignments_span = span.child("compute-assignments");
+
+	let mut groups = HashMap::new();
+
+	let n_cores = cores.len();
+
+	let mut assignment = None;
+
+	for (idx, core) in cores.into_iter().enumerate() {
+		// Ignore prospective assignments on occupied cores for the time being.
+		if let CoreState::Scheduled(scheduled) = core {
+			let core_index = CoreIndex(idx as _);
+			let group_index = group_rotation_info.group_for_core(core_index, n_cores);
+			if let Some(g) = validator_groups.get(group_index.0 as usize) {
+				if validator.as_ref().map_or(false, |v| g.contains(&v.index())) {
+					assignment = Some((scheduled.para_id, scheduled.collator));
+				}
+				groups.insert(scheduled.para_id, g.clone());
+			}
+		}
+	}
+
+	let table_context = TableContext { groups, validators, validator };
+
+	let (assignment, required_collator) = match assignment {
+		None => {
+			assignments_span.add_string_tag("assigned", "false");
+			(None, None)
+		},
+		Some((assignment, required_collator)) => {
+			assignments_span.add_string_tag("assigned", "true");
+			assignments_span.add_para_id(assignment);
+			(Some(assignment), required_collator)
+		},
+	};
+
+	drop(assignments_span);
+	let _span = span.child("wait-for-job");
+
+	let job = CandidateBackingJob {
+		parent,
+		session_index,
+		assignment,
+		required_collator,
+		issued_statements: HashSet::new(),
+		awaiting_validation: HashSet::new(),
+		fallbacks: HashMap::new(),
+		seconded: None,
+		unbacked_candidates: HashMap::new(),
+		backed: HashSet::new(),
+		keystore: keystore.clone(),
+		table: Table::default(),
+		table_context,
+		background_validation_tx: background_validation_tx.clone(),
+		metrics: metrics.clone(),
+		_marker: std::marker::PhantomData,
+	};
+
+	jobs.insert(parent, JobAndSpan { job, span });
+
+	Ok(())
+}
+
+struct JobAndSpan<Context> {
+	job: CandidateBackingJob<Context>,
+	span: PerLeafSpan,
+}
+
 /// Holds all data needed for candidate backing job operation.
-pub struct CandidateBackingJob {
+struct CandidateBackingJob<Context> {
 	/// The hash of the relay parent on top of which this job is doing it's work.
 	parent: Hash,
 	/// The session index this corresponds to.
@@ -168,9 +433,9 @@ pub struct CandidateBackingJob {
 	keystore: SyncCryptoStorePtr,
 	table: Table<TableContext>,
 	table_context: TableContext,
-	background_validation: mpsc::Receiver<ValidatedCandidateCommand>,
-	background_validation_tx: mpsc::Sender<ValidatedCandidateCommand>,
+	background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	metrics: Metrics,
+	_marker: std::marker::PhantomData<Context>,
 }
 
 /// In case a backing validator does not provide a PoV, we need to retry with other backing
@@ -297,7 +562,7 @@ fn table_attested_to_backed(
 }
 
 async fn store_available_data(
-	sender: &mut JobSender<impl SubsystemSender>,
+	sender: &mut impl overseer::CandidateBackingSenderTrait,
 	n_validators: u32,
 	candidate_hash: CandidateHash,
 	available_data: AvailableData,
@@ -321,8 +586,9 @@ async fn store_available_data(
 //
 // This will compute the erasure root internally and compare it to the expected erasure root.
 // This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
+
 async fn make_pov_available(
-	sender: &mut JobSender<impl SubsystemSender>,
+	sender: &mut impl overseer::CandidateBackingSenderTrait,
 	n_validators: usize,
 	pov: Arc<PoV>,
 	candidate_hash: CandidateHash,
@@ -355,7 +621,7 @@ async fn make_pov_available(
 }
 
 async fn request_pov(
-	sender: &mut JobSender<impl SubsystemSender>,
+	sender: &mut impl overseer::CandidateBackingSenderTrait,
 	relay_parent: Hash,
 	from_validator: ValidatorIndex,
 	candidate_hash: CandidateHash,
@@ -377,7 +643,7 @@ async fn request_pov(
 }
 
 async fn request_candidate_validation(
-	sender: &mut JobSender<impl SubsystemSender>,
+	sender: &mut impl overseer::CandidateBackingSenderTrait,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 ) -> Result<ValidationResult, Error> {
@@ -402,9 +668,9 @@ async fn request_candidate_validation(
 type BackgroundValidationResult =
 	Result<(CandidateReceipt, CandidateCommitments, Arc<PoV>), CandidateReceipt>;
 
-struct BackgroundValidationParams<S: overseer::SubsystemSender<AllMessages>, F> {
-	sender: JobSender<S>,
-	tx_command: mpsc::Sender<ValidatedCandidateCommand>,
+struct BackgroundValidationParams<S: overseer::CandidateBackingSenderTrait, F> {
+	sender: S,
+	tx_command: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	candidate: CandidateReceipt,
 	relay_parent: Hash,
 	pov: PoVData,
@@ -415,7 +681,7 @@ struct BackgroundValidationParams<S: overseer::SubsystemSender<AllMessages>, F> 
 
 async fn validate_and_make_available(
 	params: BackgroundValidationParams<
-		impl SubsystemSender,
+		impl overseer::CandidateBackingSenderTrait,
 		impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Sync,
 	>,
 ) -> Result<(), Error> {
@@ -439,7 +705,10 @@ async fn validate_and_make_available(
 			{
 				Err(Error::FetchPoV) => {
 					tx_command
-						.send(ValidatedCandidateCommand::AttestNoPoV(candidate.hash()))
+						.send((
+							relay_parent,
+							ValidatedCandidateCommand::AttestNoPoV(candidate.hash()),
+						))
 						.await
 						.map_err(Error::BackgroundValidationMpsc)?;
 					return Ok(())
@@ -511,48 +780,17 @@ async fn validate_and_make_available(
 		},
 	};
 
-	tx_command.send(make_command(res)).await.map_err(Into::into)
+	tx_command.send((relay_parent, make_command(res))).await.map_err(Into::into)
 }
 
 struct ValidatorIndexOutOfBounds;
 
-impl CandidateBackingJob {
-	/// Run asynchronously.
-	async fn run_loop(
-		mut self,
-		mut sender: JobSender<impl SubsystemSender>,
-		mut rx_to: mpsc::Receiver<CandidateBackingMessage>,
-		span: PerLeafSpan,
-	) -> Result<(), Error> {
-		loop {
-			futures::select! {
-				validated_command = self.background_validation.next() => {
-					let _span = span.child("process-validation-result");
-					if let Some(c) = validated_command {
-						self.handle_validated_candidate_command(&span, &mut sender, c).await?;
-					} else {
-						panic!("`self` hasn't dropped and `self` holds a reference to this sender; qed");
-					}
-				}
-				to_job = rx_to.next() => match to_job {
-					None => break,
-					Some(msg) => {
-						// we intentionally want spans created in `process_msg` to descend from the
-						// `span ` which is longer-lived than this ephemeral timing span.
-						let _timing_span = span.child("process-message");
-						self.process_msg(&span, &mut sender, msg).await?;
-					}
-				}
-			}
-		}
-
-		Ok(())
-	}
-
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+impl<Context> CandidateBackingJob<Context> {
 	async fn handle_validated_candidate_command(
 		&mut self,
 		root_span: &jaeger::Span,
-		sender: &mut JobSender<impl SubsystemSender>,
+		ctx: &mut Context,
 		command: ValidatedCandidateCommand,
 	) -> Result<(), Error> {
 		let candidate_hash = command.candidate_hash();
@@ -575,21 +813,19 @@ impl CandidateBackingJob {
 								commitments,
 							});
 							if let Some(stmt) = self
-								.sign_import_and_distribute_statement(sender, statement, root_span)
+								.sign_import_and_distribute_statement(ctx, statement, root_span)
 								.await?
 							{
-								sender
-									.send_message(CollatorProtocolMessage::Seconded(
-										self.parent,
-										stmt,
-									))
-									.await;
+								ctx.send_message(CollatorProtocolMessage::Seconded(
+									self.parent,
+									stmt,
+								))
+								.await;
 							}
 						}
 					},
 					Err(candidate) => {
-						sender
-							.send_message(CollatorProtocolMessage::Invalid(self.parent, candidate))
+						ctx.send_message(CollatorProtocolMessage::Invalid(self.parent, candidate))
 							.await;
 					},
 				}
@@ -601,7 +837,7 @@ impl CandidateBackingJob {
 				if !self.issued_statements.contains(&candidate_hash) {
 					if res.is_ok() {
 						let statement = Statement::Valid(candidate_hash);
-						self.sign_import_and_distribute_statement(sender, statement, &root_span)
+						self.sign_import_and_distribute_statement(ctx, statement, &root_span)
 							.await?;
 					}
 					self.issued_statements.insert(candidate_hash);
@@ -614,7 +850,7 @@ impl CandidateBackingJob {
 						// Ok, another try:
 						let c_span = span.as_ref().map(|s| s.child("try"));
 						let attesting = attesting.clone();
-						self.kick_off_validation_work(sender, attesting, c_span).await?
+						self.kick_off_validation_work(ctx, attesting, c_span).await?
 					}
 				} else {
 					gum::warn!(
@@ -631,9 +867,9 @@ impl CandidateBackingJob {
 
 	async fn background_validate_and_make_available(
 		&mut self,
-		sender: &mut JobSender<impl SubsystemSender>,
+		ctx: &mut Context,
 		params: BackgroundValidationParams<
-			impl SubsystemSender,
+			impl overseer::CandidateBackingSenderTrait,
 			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static + Sync,
 		>,
 	) -> Result<(), Error> {
@@ -657,9 +893,9 @@ impl CandidateBackingJob {
 					}
 				}
 			};
-			sender
-				.send_command(FromJobCommand::Spawn("backing-validation", bg.boxed()))
-				.await?;
+
+			ctx.spawn("backing-validation", bg.boxed())
+				.map_err(|_| Error::FailedToSpawnBackgroundTask)?;
 		}
 
 		Ok(())
@@ -670,7 +906,7 @@ impl CandidateBackingJob {
 		&mut self,
 		parent_span: &jaeger::Span,
 		root_span: &jaeger::Span,
-		sender: &mut JobSender<impl SubsystemSender>,
+		ctx: &mut Context,
 		candidate: &CandidateReceipt,
 		pov: Arc<PoV>,
 	) -> Result<(), Error> {
@@ -680,8 +916,7 @@ impl CandidateBackingJob {
 			.as_ref()
 			.map_or(false, |c| c != &candidate.descriptor().collator)
 		{
-			sender
-				.send_message(CollatorProtocolMessage::Invalid(self.parent, candidate.clone()))
+			ctx.send_message(CollatorProtocolMessage::Invalid(self.parent, candidate.clone()))
 				.await;
 			return Ok(())
 		}
@@ -702,9 +937,9 @@ impl CandidateBackingJob {
 			"Validate and second candidate",
 		);
 
-		let bg_sender = sender.clone();
+		let bg_sender = ctx.sender().clone();
 		self.background_validate_and_make_available(
-			sender,
+			ctx,
 			BackgroundValidationParams {
 				sender: bg_sender,
 				tx_command: self.background_validation_tx.clone(),
@@ -723,14 +958,14 @@ impl CandidateBackingJob {
 
 	async fn sign_import_and_distribute_statement(
 		&mut self,
-		sender: &mut JobSender<impl SubsystemSender>,
+		ctx: &mut Context,
 		statement: Statement,
 		root_span: &jaeger::Span,
 	) -> Result<Option<SignedFullStatement>, Error> {
 		if let Some(signed_statement) = self.sign_statement(statement).await {
-			self.import_statement(sender, &signed_statement, root_span).await?;
+			self.import_statement(ctx, &signed_statement, root_span).await?;
 			let smsg = StatementDistributionMessage::Share(self.parent, signed_statement.clone());
-			sender.send_unbounded_message(smsg);
+			ctx.send_unbounded_message(smsg);
 
 			Ok(Some(signed_statement))
 		} else {
@@ -739,23 +974,26 @@ impl CandidateBackingJob {
 	}
 
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
-	async fn issue_new_misbehaviors(&mut self, sender: &mut JobSender<impl SubsystemSender>) {
+	fn issue_new_misbehaviors(&mut self, sender: &mut impl overseer::CandidateBackingSenderTrait) {
 		// collect the misbehaviors to avoid double mutable self borrow issues
 		let misbehaviors: Vec<_> = self.table.drain_misbehaviors().collect();
 		for (validator_id, report) in misbehaviors {
-			sender
-				.send_message(ProvisionerMessage::ProvisionableData(
-					self.parent,
-					ProvisionableData::MisbehaviorReport(self.parent, validator_id, report),
-				))
-				.await;
+			// The provisioner waits on candidate-backing, which means
+			// that we need to send unbounded messages to avoid cycles.
+			//
+			// Misbehaviors are bounded by the number of validators and
+			// the block production protocol.
+			sender.send_unbounded_message(ProvisionerMessage::ProvisionableData(
+				self.parent,
+				ProvisionableData::MisbehaviorReport(self.parent, validator_id, report),
+			));
 		}
 	}
 
 	/// Import a statement into the statement table and return the summary of the import.
 	async fn import_statement(
 		&mut self,
-		sender: &mut JobSender<impl SubsystemSender>,
+		ctx: &mut Context,
 		statement: &SignedFullStatement,
 		root_span: &jaeger::Span,
 	) -> Result<Option<TableSummary>, Error> {
@@ -777,7 +1015,7 @@ impl CandidateBackingJob {
 		};
 
 		if let Err(ValidatorIndexOutOfBounds) = self
-			.dispatch_new_statement_to_dispute_coordinator(sender, candidate_hash, &statement)
+			.dispatch_new_statement_to_dispute_coordinator(ctx.sender(), candidate_hash, &statement)
 			.await
 		{
 			gum::warn!(
@@ -813,11 +1051,16 @@ impl CandidateBackingJob {
 						"Candidate backed",
 					);
 
+					// The provisioner waits on candidate-backing, which means
+					// that we need to send unbounded messages to avoid cycles.
+					//
+					// Backed candidates are bounded by the number of validators,
+					// parachains, and the block production rate of the relay chain.
 					let message = ProvisionerMessage::ProvisionableData(
 						self.parent,
 						ProvisionableData::BackedCandidate(backed.receipt()),
 					);
-					sender.send_message(message).await;
+					ctx.send_unbounded_message(message);
 
 					span.as_ref().map(|s| s.child("backed"));
 					span
@@ -831,7 +1074,7 @@ impl CandidateBackingJob {
 			None
 		};
 
-		self.issue_new_misbehaviors(sender).await;
+		self.issue_new_misbehaviors(ctx.sender());
 
 		// It is important that the child span is dropped before its parent span (`unbacked_span`)
 		drop(import_statement_span);
@@ -854,7 +1097,7 @@ impl CandidateBackingJob {
 	/// is meant to check the signature and provenance of all statements before submission.
 	async fn dispatch_new_statement_to_dispute_coordinator(
 		&self,
-		sender: &mut JobSender<impl SubsystemSender>,
+		sender: &mut impl overseer::CandidateBackingSenderTrait,
 		candidate_hash: CandidateHash,
 		statement: &SignedFullStatement,
 	) -> Result<(), ValidatorIndexOutOfBounds> {
@@ -901,86 +1144,94 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
-	async fn process_msg(
+	async fn handle_second_msg(
 		&mut self,
 		root_span: &jaeger::Span,
-		sender: &mut JobSender<impl SubsystemSender>,
-		msg: CandidateBackingMessage,
+		ctx: &mut Context,
+		candidate: CandidateReceipt,
+		pov: PoV,
 	) -> Result<(), Error> {
-		match msg {
-			CandidateBackingMessage::Second(relay_parent, candidate, pov) => {
-				let _timer = self.metrics.time_process_second();
+		let _timer = self.metrics.time_process_second();
 
-				let span = root_span
-					.child("second")
-					.with_stage(jaeger::Stage::CandidateBacking)
-					.with_pov(&pov)
-					.with_candidate(candidate.hash())
-					.with_relay_parent(relay_parent);
+		let candidate_hash = candidate.hash();
+		let span = root_span
+			.child("second")
+			.with_stage(jaeger::Stage::CandidateBacking)
+			.with_pov(&pov)
+			.with_candidate(candidate_hash)
+			.with_relay_parent(self.parent);
 
-				// Sanity check that candidate is from our assignment.
-				if Some(candidate.descriptor().para_id) != self.assignment {
-					gum::debug!(
-						target: LOG_TARGET,
-						our_assignment = ?self.assignment,
-						collation = ?candidate.descriptor().para_id,
-						"Subsystem asked to second for para outside of our assignment",
-					);
+		// Sanity check that candidate is from our assignment.
+		if Some(candidate.descriptor().para_id) != self.assignment {
+			gum::debug!(
+				target: LOG_TARGET,
+				our_assignment = ?self.assignment,
+				collation = ?candidate.descriptor().para_id,
+				"Subsystem asked to second for para outside of our assignment",
+			);
 
-					return Ok(())
-				}
-
-				// If the message is a `CandidateBackingMessage::Second`, sign and dispatch a
-				// Seconded statement only if we have not seconded any other candidate and
-				// have not signed a Valid statement for the requested candidate.
-				if self.seconded.is_none() {
-					// This job has not seconded a candidate yet.
-					let candidate_hash = candidate.hash();
-
-					if !self.issued_statements.contains(&candidate_hash) {
-						let pov = Arc::new(pov);
-						self.validate_and_second(&span, &root_span, sender, &candidate, pov)
-							.await?;
-					}
-				}
-			},
-			CandidateBackingMessage::Statement(_relay_parent, statement) => {
-				let _timer = self.metrics.time_process_statement();
-				let _span = root_span
-					.child("statement")
-					.with_stage(jaeger::Stage::CandidateBacking)
-					.with_candidate(statement.payload().candidate_hash())
-					.with_relay_parent(_relay_parent);
-
-				match self.maybe_validate_and_import(&root_span, sender, statement).await {
-					Err(Error::ValidationFailed(_)) => return Ok(()),
-					Err(e) => return Err(e),
-					Ok(()) => (),
-				}
-			},
-			CandidateBackingMessage::GetBackedCandidates(_, requested_candidates, tx) => {
-				let _timer = self.metrics.time_get_backed_candidates();
-
-				let backed = requested_candidates
-					.into_iter()
-					.filter_map(|hash| {
-						self.table.attested_candidate(&hash, &self.table_context).and_then(
-							|attested| table_attested_to_backed(attested, &self.table_context),
-						)
-					})
-					.collect();
-
-				tx.send(backed).map_err(|data| Error::Send(data))?;
-			},
+			return Ok(())
 		}
 
+		// If the message is a `CandidateBackingMessage::Second`, sign and dispatch a
+		// Seconded statement only if we have not seconded any other candidate and
+		// have not signed a Valid statement for the requested candidate.
+		if self.seconded.is_none() {
+			// This job has not seconded a candidate yet.
+
+			if !self.issued_statements.contains(&candidate_hash) {
+				let pov = Arc::new(pov);
+				self.validate_and_second(&span, &root_span, ctx, &candidate, pov).await?;
+			}
+		}
+
+		Ok(())
+	}
+
+	async fn handle_statement_message(
+		&mut self,
+		root_span: &jaeger::Span,
+		ctx: &mut Context,
+		statement: SignedFullStatement,
+	) -> Result<(), Error> {
+		let _timer = self.metrics.time_process_statement();
+		let _span = root_span
+			.child("statement")
+			.with_stage(jaeger::Stage::CandidateBacking)
+			.with_candidate(statement.payload().candidate_hash())
+			.with_relay_parent(self.parent);
+
+		match self.maybe_validate_and_import(&root_span, ctx, statement).await {
+			Err(Error::ValidationFailed(_)) => Ok(()),
+			Err(e) => Err(e),
+			Ok(()) => Ok(()),
+		}
+	}
+
+	fn handle_get_backed_candidates_message(
+		&mut self,
+		requested_candidates: Vec<CandidateHash>,
+		tx: oneshot::Sender<Vec<BackedCandidate>>,
+	) -> Result<(), Error> {
+		let _timer = self.metrics.time_get_backed_candidates();
+
+		let backed = requested_candidates
+			.into_iter()
+			.filter_map(|hash| {
+				self.table
+					.attested_candidate(&hash, &self.table_context)
+					.and_then(|attested| table_attested_to_backed(attested, &self.table_context))
+			})
+			.collect();
+
+		tx.send(backed).map_err(|data| Error::Send(data))?;
 		Ok(())
 	}
 
 	/// Kick off validation work and distribute the result as a signed statement.
 	async fn kick_off_validation_work(
 		&mut self,
-		sender: &mut JobSender<impl SubsystemSender>,
+		ctx: &mut Context,
 		attesting: AttestingData,
 		span: Option<jaeger::Span>,
 	) -> Result<(), Error> {
@@ -1008,14 +1259,14 @@ impl CandidateBackingJob {
 			return Ok(())
 		}
 
-		let bg_sender = sender.clone();
+		let bg_sender = ctx.sender().clone();
 		let pov = PoVData::FetchFromValidator {
 			from_validator: attesting.from_validator,
 			candidate_hash,
 			pov_hash: attesting.pov_hash,
 		};
 		self.background_validate_and_make_available(
-			sender,
+			ctx,
 			BackgroundValidationParams {
 				sender: bg_sender,
 				tx_command: self.background_validation_tx.clone(),
@@ -1034,10 +1285,10 @@ impl CandidateBackingJob {
 	async fn maybe_validate_and_import(
 		&mut self,
 		root_span: &jaeger::Span,
-		sender: &mut JobSender<impl SubsystemSender>,
+		ctx: &mut Context,
 		statement: SignedFullStatement,
 	) -> Result<(), Error> {
-		if let Some(summary) = self.import_statement(sender, &statement, root_span).await? {
+		if let Some(summary) = self.import_statement(ctx, &statement, root_span).await? {
 			if Some(summary.group_id) != self.assignment {
 				return Ok(())
 			}
@@ -1087,12 +1338,12 @@ impl CandidateBackingJob {
 				},
 			};
 
-			self.kick_off_validation_work(sender, attesting, span).await?;
+			self.kick_off_validation_work(ctx, attesting, span).await?;
 		}
 		Ok(())
 	}
 
-	async fn sign_statement(&self, statement: Statement) -> Option<SignedFullStatement> {
+	async fn sign_statement(&mut self, statement: Statement) -> Option<SignedFullStatement> {
 		let signed = self
 			.table_context
 			.validator
@@ -1158,238 +1409,3 @@ impl CandidateBackingJob {
 		self.unbacked_candidates.remove(hash)
 	}
 }
-
-impl util::JobTrait for CandidateBackingJob {
-	type ToJob = CandidateBackingMessage;
-	type Error = Error;
-	type RunArgs = SyncCryptoStorePtr;
-	type Metrics = Metrics;
-
-	const NAME: &'static str = "candidate-backing-job";
-
-	fn run<S: SubsystemSender>(
-		leaf: ActivatedLeaf,
-		keystore: SyncCryptoStorePtr,
-		metrics: Metrics,
-		rx_to: mpsc::Receiver<Self::ToJob>,
-		mut sender: JobSender<S>,
-	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-		let parent = leaf.hash;
-		async move {
-			macro_rules! try_runtime_api {
-				($x: expr) => {
-					match $x {
-						Ok(x) => x,
-						Err(e) => {
-							gum::warn!(
-								target: LOG_TARGET,
-								err = ?e,
-								"Failed to fetch runtime API data for job",
-							);
-
-							// We can't do candidate validation work if we don't have the
-							// requisite runtime API data. But these errors should not take
-							// down the node.
-							return Ok(());
-						}
-					}
-				}
-			}
-
-			let span = PerLeafSpan::new(leaf.span, "backing");
-			let _span = span.child("runtime-apis");
-
-			let (validators, groups, session_index, cores) = futures::try_join!(
-				request_validators(parent, &mut sender).await,
-				request_validator_groups(parent, &mut sender).await,
-				request_session_index_for_child(parent, &mut sender).await,
-				request_from_runtime(parent, &mut sender, |tx| {
-					RuntimeApiRequest::AvailabilityCores(tx)
-				},)
-				.await,
-			)
-			.map_err(Error::JoinMultiple)?;
-
-			let validators = try_runtime_api!(validators);
-			let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
-			let session_index = try_runtime_api!(session_index);
-			let cores = try_runtime_api!(cores);
-
-			drop(_span);
-			let _span = span.child("validator-construction");
-
-			let signing_context = SigningContext { parent_hash: parent, session_index };
-			let validator =
-				match Validator::construct(&validators, signing_context.clone(), keystore.clone())
-					.await
-				{
-					Ok(v) => Some(v),
-					Err(util::Error::NotAValidator) => None,
-					Err(e) => {
-						gum::warn!(
-							target: LOG_TARGET,
-							err = ?e,
-							"Cannot participate in candidate backing",
-						);
-
-						return Ok(())
-					},
-				};
-
-			drop(_span);
-			let mut assignments_span = span.child("compute-assignments");
-
-			let mut groups = HashMap::new();
-
-			let n_cores = cores.len();
-
-			let mut assignment = None;
-
-			for (idx, core) in cores.into_iter().enumerate() {
-				// Ignore prospective assignments on occupied cores for the time being.
-				if let CoreState::Scheduled(scheduled) = core {
-					let core_index = CoreIndex(idx as _);
-					let group_index = group_rotation_info.group_for_core(core_index, n_cores);
-					if let Some(g) = validator_groups.get(group_index.0 as usize) {
-						if validator.as_ref().map_or(false, |v| g.contains(&v.index())) {
-							assignment = Some((scheduled.para_id, scheduled.collator));
-						}
-						groups.insert(scheduled.para_id, g.clone());
-					}
-				}
-			}
-
-			let table_context = TableContext { groups, validators, validator };
-
-			let (assignment, required_collator) = match assignment {
-				None => {
-					assignments_span.add_string_tag("assigned", "false");
-					(None, None)
-				},
-				Some((assignment, required_collator)) => {
-					assignments_span.add_string_tag("assigned", "true");
-					assignments_span.add_para_id(assignment);
-					(Some(assignment), required_collator)
-				},
-			};
-
-			drop(assignments_span);
-			let _span = span.child("wait-for-job");
-
-			let (background_tx, background_rx) = mpsc::channel(16);
-			let job = CandidateBackingJob {
-				parent,
-				session_index,
-				assignment,
-				required_collator,
-				issued_statements: HashSet::new(),
-				awaiting_validation: HashSet::new(),
-				fallbacks: HashMap::new(),
-				seconded: None,
-				unbacked_candidates: HashMap::new(),
-				backed: HashSet::new(),
-				keystore,
-				table: Table::default(),
-				table_context,
-				background_validation: background_rx,
-				background_validation_tx: background_tx,
-				metrics,
-			};
-			drop(_span);
-
-			job.run_loop(sender, rx_to, span).await
-		}
-		.boxed()
-	}
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	signed_statements_total: prometheus::Counter<prometheus::U64>,
-	candidates_seconded_total: prometheus::Counter<prometheus::U64>,
-	process_second: prometheus::Histogram,
-	process_statement: prometheus::Histogram,
-	get_backed_candidates: prometheus::Histogram,
-}
-
-/// Candidate backing metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_statement_signed(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.signed_statements_total.inc();
-		}
-	}
-
-	fn on_candidate_seconded(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.candidates_seconded_total.inc();
-		}
-	}
-
-	/// Provide a timer for handling `CandidateBackingMessage:Second` which observes on drop.
-	fn time_process_second(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.process_second.start_timer())
-	}
-
-	/// Provide a timer for handling `CandidateBackingMessage::Statement` which observes on drop.
-	fn time_process_statement(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.process_statement.start_timer())
-	}
-
-	/// Provide a timer for handling `CandidateBackingMessage::GetBackedCandidates` which observes on drop.
-	fn time_get_backed_candidates(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.get_backed_candidates.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			signed_statements_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_candidate_backing_signed_statements_total",
-					"Number of statements signed.",
-				)?,
-				registry,
-			)?,
-			candidates_seconded_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_candidate_backing_candidates_seconded_total",
-					"Number of candidates seconded.",
-				)?,
-				registry,
-			)?,
-			process_second: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_candidate_backing_process_second",
-					"Time spent within `candidate_backing::process_second`",
-				))?,
-				registry,
-			)?,
-			process_statement: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_candidate_backing_process_statement",
-					"Time spent within `candidate_backing::process_statement`",
-				))?,
-				registry,
-			)?,
-			get_backed_candidates: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_candidate_backing_get_backed_candidates",
-					"Time spent within `candidate_backing::get_backed_candidates`",
-				))?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
-	}
-}
-
-/// The candidate backing subsystem.
-pub type CandidateBackingSubsystem<Spawner> =
-	polkadot_node_subsystem_util::JobSubsystem<CandidateBackingJob, Spawner>;

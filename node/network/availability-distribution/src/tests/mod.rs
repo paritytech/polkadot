@@ -22,7 +22,7 @@ use polkadot_node_network_protocol::request_response::IncomingRequest;
 use polkadot_primitives::v2::CoreState;
 use sp_keystore::SyncCryptoStorePtr;
 
-use polkadot_subsystem_testhelpers as test_helpers;
+use polkadot_node_subsystem_test_helpers as test_helpers;
 
 use super::*;
 

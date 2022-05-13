@@ -37,12 +37,14 @@ use futures::prelude::*;
 use sc_client_api::AuxStore;
 use sp_blockchain::HeaderBackend;
 
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::v2::{Block, BlockId};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	messages::ChainApiMessage, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemError, SubsystemResult,
+	SubsystemError, SubsystemResult,
 };
+use polkadot_primitives::v2::{Block, BlockId};
+
+mod metrics;
+use self::metrics::Metrics;
 
 #[cfg(test)]
 mod tests;
@@ -62,11 +64,10 @@ impl<Client> ChainApiSubsystem<Client> {
 	}
 }
 
-impl<Client, Context> overseer::Subsystem<Context, SubsystemError> for ChainApiSubsystem<Client>
+#[overseer::subsystem(ChainApi, error = SubsystemError, prefix = self::overseer)]
+impl<Client, Context> ChainApiSubsystem<Client>
 where
 	Client: HeaderBackend<Block> + AuxStore + 'static,
-	Context: SubsystemContext<Message = ChainApiMessage>,
-	Context: overseer::SubsystemContext<Message = ChainApiMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run::<Client, Context>(ctx, self)
@@ -76,14 +77,13 @@ where
 	}
 }
 
+#[overseer::contextbounds(ChainApi, prefix = self::overseer)]
 async fn run<Client, Context>(
 	mut ctx: Context,
 	subsystem: ChainApiSubsystem<Client>,
 ) -> SubsystemResult<()>
 where
 	Client: HeaderBackend<Block> + AuxStore,
-	Context: SubsystemContext<Message = ChainApiMessage>,
-	Context: overseer::SubsystemContext<Message = ChainApiMessage>,
 {
 	loop {
 		match ctx.recv().await? {
@@ -161,124 +161,5 @@ where
 				},
 			},
 		}
-	}
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	chain_api_requests: prometheus::CounterVec<prometheus::U64>,
-	block_number: prometheus::Histogram,
-	block_header: prometheus::Histogram,
-	block_weight: prometheus::Histogram,
-	finalized_block_hash: prometheus::Histogram,
-	finalized_block_number: prometheus::Histogram,
-	ancestors: prometheus::Histogram,
-}
-
-/// Chain API metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_request(&self, succeeded: bool) {
-		if let Some(metrics) = &self.0 {
-			if succeeded {
-				metrics.chain_api_requests.with_label_values(&["succeeded"]).inc();
-			} else {
-				metrics.chain_api_requests.with_label_values(&["failed"]).inc();
-			}
-		}
-	}
-
-	/// Provide a timer for `block_number` which observes on drop.
-	fn time_block_number(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.block_number.start_timer())
-	}
-
-	/// Provide a timer for `block_header` which observes on drop.
-	fn time_block_header(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.block_header.start_timer())
-	}
-
-	/// Provide a timer for `block_weight` which observes on drop.
-	fn time_block_weight(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.block_weight.start_timer())
-	}
-
-	/// Provide a timer for `finalized_block_hash` which observes on drop.
-	fn time_finalized_block_hash(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.finalized_block_hash.start_timer())
-	}
-
-	/// Provide a timer for `finalized_block_number` which observes on drop.
-	fn time_finalized_block_number(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.finalized_block_number.start_timer())
-	}
-
-	/// Provide a timer for `ancestors` which observes on drop.
-	fn time_ancestors(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.ancestors.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			chain_api_requests: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_chain_api_requests_total",
-						"Number of Chain API requests served.",
-					),
-					&["success"],
-				)?,
-				registry,
-			)?,
-			block_number: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_chain_api_block_number",
-					"Time spent within `chain_api::block_number`",
-				))?,
-				registry,
-			)?,
-			block_header: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_chain_api_block_headers",
-					"Time spent within `chain_api::block_headers`",
-				))?,
-				registry,
-			)?,
-			block_weight: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_chain_api_block_weight",
-					"Time spent within `chain_api::block_weight`",
-				))?,
-				registry,
-			)?,
-			finalized_block_hash: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_chain_api_finalized_block_hash",
-					"Time spent within `chain_api::finalized_block_hash`",
-				))?,
-				registry,
-			)?,
-			finalized_block_number: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_chain_api_finalized_block_number",
-					"Time spent within `chain_api::finalized_block_number`",
-				))?,
-				registry,
-			)?,
-			ancestors: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_chain_api_ancestors",
-					"Time spent within `chain_api::ancestors`",
-				))?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
 	}
 }
