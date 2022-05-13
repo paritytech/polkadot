@@ -6716,7 +6716,6 @@ dependencies = [
  "bitvec",
  "fatality",
  "futures 0.3.21",
- "futures-timer",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",

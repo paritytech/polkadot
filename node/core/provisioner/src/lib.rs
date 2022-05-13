@@ -24,7 +24,6 @@ use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
 };
-use futures_timer::Delay;
 use polkadot_node_primitives::CandidateVotes;
 use polkadot_node_subsystem::{
 	jaeger,
@@ -123,14 +122,13 @@ where
 			backed_candidates: Vec::new(),
 			signed_bitfields: Vec::new(),
 			metrics,
-			inherent_after: InherentAfter::new_from_now(),
 			_phantom: std::marker::PhantomData::<Sender>::default(),
 		}
 	}
 
 	async fn run_loop(mut self, sender: &mut Sender, span: PerLeafSpan) -> Result<(), Error> {
 		loop {
-			match self.receiver.next() {
+			match self.receiver.next().await {
 				Some(ProvisionerMessage::RequestInherentData(_, return_sender)) => {
 					let _span = span.child("req-inherent-data");
 					let _timer = self.metrics.time_request_inherent_data();

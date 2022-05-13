@@ -13,7 +13,6 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-futures-timer = "3.0.2"
 rand = "0.8.5"
 fatality = "0.0.6"
 
