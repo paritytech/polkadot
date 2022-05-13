@@ -630,7 +630,7 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -661,7 +661,7 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -704,7 +704,7 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -754,7 +754,7 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -789,7 +789,7 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -832,7 +832,7 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -857,7 +857,7 @@ mod tests {
 			}
 
 			// Leases is empty.
-			assert!(Leases::<Test>::get(ParaId::from(1)).is_empty());
+			assert!(Leases::<Test>::get(ParaId::from(1_u32)).is_empty());
 		});
 	}
 
@@ -868,13 +868,13 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(2),
+				ParaId::from(2_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -899,19 +899,19 @@ mod tests {
 			run_to_block(1);
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(2),
+				ParaId::from(2_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(3),
+				ParaId::from(3_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -919,9 +919,9 @@ mod tests {
 			// We will directly manipulate leases to emulate some kind of failure in the system.
 			// Para 1 will have no leases
 			// Para 2 will have a lease period in the current index
-			Leases::<Test>::insert(ParaId::from(2), vec![Some((0, 0))]);
+			Leases::<Test>::insert(ParaId::from(2_u32), vec![Some((0, 0))]);
 			// Para 3 will have a lease period in a future index
-			Leases::<Test>::insert(ParaId::from(3), vec![None, None, Some((0, 0))]);
+			Leases::<Test>::insert(ParaId::from(3_u32), vec![None, None, Some((0, 0))]);
 
 			// Para 1 should fail cause they don't have any leases
 			assert_noop!(

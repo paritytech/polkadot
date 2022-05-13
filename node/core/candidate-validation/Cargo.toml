@@ -15,7 +15,7 @@ parity-scale-codec = { version = "3.1.2", default-features = false, features = [
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-node-primitives = { path = "../../primitives" }
-polkadot-node-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [target.'cfg(not(any(target_os = "android", target_os = "unknown")))'.dependencies]

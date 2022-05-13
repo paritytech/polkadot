@@ -382,6 +382,28 @@ impl onchain::Config for OnChainSeqPhragmen {
 	type WeightInfo = weights::frame_election_provider_support::WeightInfo<Runtime>;
 }
 
+impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
+	type AccountId = AccountId;
+	type MaxLength = OffchainSolutionLengthLimit;
+	type MaxWeight = OffchainSolutionWeightLimit;
+	type Solution = NposCompactSolution16;
+	type MaxVotesPerVoter = <
+		<Self as pallet_election_provider_multi_phase::Config>::DataProvider
+		as
+		frame_election_provider_support::ElectionDataProvider
+	>::MaxVotesPerVoter;
+
+	// The unsigned submissions have to respect the weight of the submit_unsigned call, thus their
+	// weight estimate function is wired to this call's weight.
+	fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
+		<
+			<Self as pallet_election_provider_multi_phase::Config>::WeightInfo
+			as
+			pallet_election_provider_multi_phase::WeightInfo
+		>::submit_unsigned(v, t, a, d)
+	}
+}
+
 impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
@@ -394,17 +416,16 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SignedDepositBase = SignedDepositBase;
 	type SignedDepositByte = SignedDepositByte;
 	type SignedDepositWeight = ();
-	type SignedMaxWeight = Self::MinerMaxWeight;
+	type SignedMaxWeight =
+		<Self::MinerConfig as pallet_election_provider_multi_phase::MinerConfig>::MaxWeight;
+	type MinerConfig = Self;
 	type SlashHandler = (); // burn slashes
 	type RewardHandler = (); // nothing to do upon rewards
 	type BetterUnsignedThreshold = BetterUnsignedThreshold;
 	type BetterSignedThreshold = ();
-	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
-	type MinerMaxLength = OffchainSolutionLengthLimit;
 	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
-	type Solution = NposCompactSolution16;
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
 	type GovernanceFallback = onchain::UnboundedExecution<OnChainSeqPhragmen>;
 	type Solver = SequentialPhragmen<
@@ -831,7 +852,9 @@ impl parachains_configuration::Config for Runtime {
 
 impl parachains_shared::Config for Runtime {}
 
-impl parachains_session_info::Config for Runtime {}
+impl parachains_session_info::Config for Runtime {
+	type ValidatorSet = Historical;
+}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
@@ -990,7 +1013,8 @@ impl sp_runtime::traits::Convert<Balance, sp_core::U256> for BalanceToU256 {
 pub struct U256ToBalance;
 impl sp_runtime::traits::Convert<sp_core::U256, Balance> for U256ToBalance {
 	fn convert(n: sp_core::U256) -> Balance {
-		n.try_into().unwrap_or(Balance::MAX)
+		use frame_support::traits::Defensive;
+		n.try_into().defensive_unwrap_or(Balance::MAX)
 	}
 }
 
@@ -1362,15 +1386,15 @@ sp_api::impl_runtime_apis! {
 		fn generate_proof(_leaf_index: u64)
 			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
 		{
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::GenerateProof)
+
+			Err(mmr::Error::PalletNotIncluded)
 		}
 
 		fn verify_proof(_leaf: mmr::EncodableOpaqueLeaf, _proof: mmr::Proof<Hash>)
 			-> Result<(), mmr::Error>
 		{
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::Verify)
+
+			Err(mmr::Error::PalletNotIncluded)
 		}
 
 		fn verify_proof_stateless(
@@ -1378,13 +1402,36 @@ sp_api::impl_runtime_apis! {
 			_leaf: mmr::EncodableOpaqueLeaf,
 			_proof: mmr::Proof<Hash>
 		) -> Result<(), mmr::Error> {
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::Verify)
+
+			Err(mmr::Error::PalletNotIncluded)
 		}
 
 		fn mmr_root() -> Result<Hash, mmr::Error> {
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::Verify)
+
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn generate_batch_proof(_leaf_indices: Vec<u64>)
+			-> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error>
+		{
+
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn verify_batch_proof(_leaves: Vec<mmr::EncodableOpaqueLeaf>, _proof: mmr::BatchProof<Hash>)
+			-> Result<(), mmr::Error>
+		{
+
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn verify_batch_proof_stateless(
+			_root: Hash,
+			_leaves: Vec<mmr::EncodableOpaqueLeaf>,
+			_proof: mmr::BatchProof<Hash>
+		) -> Result<(), mmr::Error> {
+
+			Err(mmr::Error::PalletNotIncluded)
 		}
 	}
 
@@ -1663,6 +1710,8 @@ sp_api::impl_runtime_apis! {
 				hex_literal::hex!("63f78c98723ddc9073523ef3beefda0ca95dac46c07a40d91506e7637ec4ba57").to_vec().into(),
 				// Configuration ActiveConfig
 				hex_literal::hex!("06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385").to_vec().into(),
+				// The transactional storage limit.
+				hex_literal::hex!("3a7472616e73616374696f6e5f6c6576656c3a").to_vec().into(),
 			];
 
 			let mut batches = Vec::<BenchmarkBatch>::new();

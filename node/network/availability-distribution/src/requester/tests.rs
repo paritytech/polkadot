@@ -25,14 +25,14 @@ use polkadot_primitives::v2::{
 	BlockNumber, CoreState, GroupIndex, Hash, Id, ScheduledCore, SessionIndex, SessionInfo,
 };
 
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
 		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
-use polkadot_subsystem_testhelpers::{
+use polkadot_node_subsystem_test_helpers::{
 	make_subsystem_context, mock::make_ferdie_keystore, TestSubsystemContext,
 	TestSubsystemContextHandle,
 };
