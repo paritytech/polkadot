@@ -424,13 +424,11 @@ async fn select_candidates(
 
 	// now get the backed candidates corresponding to these candidate receipts
 	let (tx, rx) = oneshot::channel();
-	sender
-		.send_message(CandidateBackingMessage::GetBackedCandidates(
-			relay_parent,
-			selected_candidates.clone(),
-			tx,
-		))
-		.await;
+	sender.send_unbounded_message(CandidateBackingMessage::GetBackedCandidates(
+		relay_parent,
+		selected_candidates.clone(),
+		tx,
+	));
 	let mut candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
 
 	// `selected_candidates` is generated in ascending order by core index, and `GetBackedCandidates`
