@@ -179,8 +179,6 @@ pub mod pallet {
 		/// Query response has been received and query is removed. The dispatch was unable to be
 		/// decoded into a `Call`; this might be due to dispatch function having a signature which
 		/// is not `(origin, QueryId, Response)`.
-		///
-		/// \[ id, pallet index, call index \]
 		NotifyDecodeFailed { id: QueryId, pallet_index: u8, call_index: u8 },
 		/// Expected query response has been received but the origin location of the response does
 		/// not match that expected. The query remains registered for a later, valid, response to

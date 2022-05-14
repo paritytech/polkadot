@@ -66,9 +66,9 @@ fn basic_buy_fees_message_executes() {
 		.inspect_state(|| {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 				r.event,
-				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::Attempted(Outcome::Complete(
-					_
-				))),
+				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::Attempted {
+					outcome: Outcome::Complete(_)
+				}),
 			)));
 		});
 }
@@ -147,10 +147,11 @@ fn query_response_fires() {
 		.inspect_state(|| {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 				r.event,
-				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::ResponseReady(
-					q,
-					Response::ExecutionResult(None),
-				)) if q == query_id,
+				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::ResponseReady{
+						id: q,
+						response: Response::ExecutionResult(None),
+					}
+				) if q == query_id,
 			)));
 			assert_eq!(
 				polkadot_test_runtime::Xcm::query(query_id),
