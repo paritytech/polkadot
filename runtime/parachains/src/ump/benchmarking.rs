@@ -35,13 +35,7 @@ fn queue_upward_msg<T: Config>(
 	let msgs = vec![msg];
 	Ump::<T>::check_upward_messages(host_conf, para, &msgs).unwrap();
 	let _ = Ump::<T>::receive_upward_messages(para, msgs);
-	assert_last_event_type::<T>(
-		Event::UpwardMessagesReceived { 
-			para, 
-			count: 1, 
-			size: len 
-		}.into()
-	);
+	assert_last_event_type::<T>(Event::UpwardMessagesReceived { para, count: 1, size: len }.into());
 }
 
 // Create a message with at least `size` bytes encoded length
@@ -131,9 +125,9 @@ frame_benchmarking::benchmarks! {
 		Ump::<T>::process_pending_upward_messages();
 		assert_last_event_type::<T>(
 			Event::OverweightEnqueued {
-				para, 
-				id: upward_message_id(&msg), 
-				overweight_index: 0, 
+				para,
+				id: upward_message_id(&msg),
+				overweight_index: 0,
 				required: 0
 			}.into()
 		);
@@ -141,8 +135,8 @@ frame_benchmarking::benchmarks! {
 	verify {
 		assert_last_event_type::<T>(
 			Event::OverweightServiced {
-				overweight_index: 0, 
-				used: 0 
+				overweight_index: 0,
+				used: 0
 			}.into()
 		);
 	}

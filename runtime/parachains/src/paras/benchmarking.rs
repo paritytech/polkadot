@@ -133,7 +133,7 @@ benchmarks! {
 		let next_session = crate::shared::Pallet::<T>::session_index().saturating_add(One::one());
 		assert_last_event::<T>(
 			Event::ActionQueued {
-				para_id, 
+				para_id,
 				session_index: next_session
 			}.into()
 		);

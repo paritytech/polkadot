@@ -172,7 +172,7 @@ frame_benchmarking::benchmarks! {
 	verify {
 		assert_last_event::<T>(
 			Event::<T>::OpenChannelAccepted {
-				sender, 
+				sender,
 				recipient
 			}.into()
 		);
@@ -186,7 +186,7 @@ frame_benchmarking::benchmarks! {
 	verify {
 		assert_last_event::<T>(
 			Event::<T>::ChannelClosed {
-				by_parachain: sender, 
+				by_parachain: sender,
 				channel_id
 			}.into()
 		);
