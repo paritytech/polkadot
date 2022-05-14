@@ -87,7 +87,11 @@ fn report_outcome_notify_works() {
 					0,
 					Response::ExecutionResult(None),
 				)),
-				Event::XcmPallet(crate::Event::Notified { id: 0, pallet_index: 4, call_index: 2 }),
+				Event::XcmPallet(crate::Event::Notified {
+					query_id: 0,
+					pallet_index: 4,
+					call_index: 2
+				}),
 			]
 		);
 		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![]);
@@ -136,7 +140,7 @@ fn report_outcome_works() {
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::ResponseReady {
-				id: 0,
+				query_id: 0,
 				response: Response::ExecutionResult(None)
 			})
 		);

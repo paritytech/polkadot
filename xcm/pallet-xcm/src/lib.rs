@@ -132,18 +132,18 @@ pub mod pallet {
 		/// Query response received which does not match a registered query. This may be because a
 		/// matching query was never registered, it may be because it is a duplicate response, or
 		/// because the query timed out.
-		UnexpectedResponse { origin: MultiLocation, id: QueryId },
+		UnexpectedResponse { origin: MultiLocation, query_id: QueryId },
 		/// Query response has been received and is ready for taking with `take_response`. There is
 		/// no registered notification call.
-		ResponseReady { id: QueryId, response: Response },
+		ResponseReady { query_id: QueryId, response: Response },
 		/// Query response has been received and query is removed. The registered notification has
 		/// been dispatched and executed successfully.
-		Notified { id: QueryId, pallet_index: u8, call_index: u8 },
+		Notified { query_id: QueryId, pallet_index: u8, call_index: u8 },
 		/// Query response has been received and query is removed. The registered notification could
 		/// not be dispatched because the dispatch weight is greater than the maximum weight
 		/// originally budgeted by this runtime for the query result.
 		NotifyOverweight {
-			id: QueryId,
+			query_id: QueryId,
 			pallet_index: u8,
 			call_index: u8,
 			actual_weight: Weight,
@@ -151,17 +151,17 @@ pub mod pallet {
 		},
 		/// Query response has been received and query is removed. There was a general error with
 		/// dispatching the notification call.
-		NotifyDispatchError { id: QueryId, pallet_index: u8, call_index: u8 },
+		NotifyDispatchError { query_id: QueryId, pallet_index: u8, call_index: u8 },
 		/// Query response has been received and query is removed. The dispatch was unable to be
 		/// decoded into a `Call`; this might be due to dispatch function having a signature which
 		/// is not `(origin, QueryId, Response)`.
-		NotifyDecodeFailed { id: QueryId, pallet_index: u8, call_index: u8 },
+		NotifyDecodeFailed { query_id: QueryId, pallet_index: u8, call_index: u8 },
 		/// Expected query response has been received but the origin location of the response does
 		/// not match that expected. The query remains registered for a later, valid, response to
 		/// be received and acted upon.
 		InvalidResponder {
 			origin: MultiLocation,
-			id: QueryId,
+			query_id: QueryId,
 			expected_location: Option<MultiLocation>,
 		},
 		/// Expected query response has been received but the expected origin location placed in
@@ -171,9 +171,9 @@ pub mod pallet {
 		/// runtime should be readable prior to query timeout) and dangerous since the possibly
 		/// valid response will be dropped. Manual governance intervention is probably going to be
 		/// needed.
-		InvalidResponderVersion { origin: MultiLocation, id: QueryId },
+		InvalidResponderVersion { origin: MultiLocation, query_id: QueryId },
 		/// Received query response has been read and removed.
-		ResponseTaken { id: QueryId },
+		ResponseTaken { query_id: QueryId },
 		/// Some assets have been placed in an asset trap.
 		AssetsTrapped { hash: H256, origin: MultiLocation, assets: VersionedMultiAssets },
 		/// An XCM version change notification message has been attempted to be sent.
@@ -183,10 +183,10 @@ pub mod pallet {
 		SupportedVersionChanged { location: MultiLocation, xcm_version: XcmVersion },
 		/// A given location which had a version change subscription was dropped owing to an error
 		/// sending the notification to it.
-		NotifyTargetSendFail { location: MultiLocation, id: QueryId, error: XcmError },
+		NotifyTargetSendFail { location: MultiLocation, query_id: QueryId, error: XcmError },
 		/// A given location which had a version change subscription was dropped owing to an error
 		/// migrating the location to our new XCM format.
-		NotifyTargetMigrationFail { location: VersionedMultiLocation, id: QueryId },
+		NotifyTargetMigrationFail { location: VersionedMultiLocation, query_id: QueryId },
 	}
 
 	#[pallet::origin]
@@ -949,7 +949,7 @@ pub mod pallet {
 							VersionNotifyTargets::<T>::remove(XCM_VERSION, key);
 							Event::NotifyTargetSendFail {
 								location: new_key,
-								id: query_id,
+								query_id,
 								error: e.into(),
 							}
 						},
@@ -972,7 +972,7 @@ pub mod pallet {
 							Err(()) => {
 								Self::deposit_event(Event::NotifyTargetMigrationFail {
 									location: old_key,
-									id: value.0,
+									query_id: value.0,
 								});
 								weight_used.saturating_accrue(todo_vnt_migrate_fail_weight);
 								if weight_used >= weight_cutoff {
@@ -1005,7 +1005,7 @@ pub mod pallet {
 								},
 								Err(e) => Event::NotifyTargetSendFail {
 									location: new_key,
-									id: query_id,
+									query_id,
 									error: e.into(),
 								},
 							};
@@ -1183,7 +1183,7 @@ pub mod pallet {
 			if let Some(QueryStatus::Ready { response, at }) = Queries::<T>::get(query_id) {
 				let response = response.try_into().ok()?;
 				Queries::<T>::remove(query_id);
-				Self::deposit_event(Event::ResponseTaken { id: query_id });
+				Self::deposit_event(Event::ResponseTaken { query_id });
 				Some((response, at))
 			} else {
 				None
@@ -1341,7 +1341,7 @@ pub mod pallet {
 						Ok(o) => {
 							Self::deposit_event(Event::InvalidResponder {
 								origin: origin.clone(),
-								id: query_id,
+								query_id,
 								expected_location: Some(o),
 							});
 							return 0
@@ -1349,7 +1349,7 @@ pub mod pallet {
 						_ => {
 							Self::deposit_event(Event::InvalidResponder {
 								origin: origin.clone(),
-								id: query_id,
+								query_id,
 								expected_location: None,
 							});
 							// TODO #3735: Correct weight for this.
@@ -1384,7 +1384,7 @@ pub mod pallet {
 						Err(_) => {
 							Self::deposit_event(Event::InvalidResponderVersion {
 								origin: origin.clone(),
-								id: query_id,
+								query_id,
 							});
 							return 0
 						},
@@ -1392,7 +1392,7 @@ pub mod pallet {
 					if origin != &responder {
 						Self::deposit_event(Event::InvalidResponder {
 							origin: origin.clone(),
-							id: query_id,
+							query_id,
 							expected_location: Some(responder),
 						});
 						return 0
@@ -1410,7 +1410,7 @@ pub mod pallet {
 								let weight = call.get_dispatch_info().weight;
 								if weight > max_weight {
 									let e = Event::NotifyOverweight {
-										id: query_id,
+										query_id,
 										pallet_index,
 										call_index,
 										actual_weight: weight,
@@ -1422,17 +1422,14 @@ pub mod pallet {
 								let dispatch_origin = Origin::Response(origin.clone()).into();
 								match call.dispatch(dispatch_origin) {
 									Ok(post_info) => {
-										let e = Event::Notified {
-											id: query_id,
-											pallet_index,
-											call_index,
-										};
+										let e =
+											Event::Notified { query_id, pallet_index, call_index };
 										Self::deposit_event(e);
 										post_info.actual_weight
 									},
 									Err(error_and_info) => {
 										let e = Event::NotifyDispatchError {
-											id: query_id,
+											query_id,
 											pallet_index,
 											call_index,
 										};
@@ -1445,7 +1442,7 @@ pub mod pallet {
 								.unwrap_or(weight)
 							} else {
 								let e = Event::NotifyDecodeFailed {
-									id: query_id,
+									query_id,
 									pallet_index,
 									call_index,
 								};
@@ -1454,8 +1451,7 @@ pub mod pallet {
 							}
 						},
 						None => {
-							let e =
-								Event::ResponseReady { id: query_id, response: response.clone() };
+							let e = Event::ResponseReady { query_id, response: response.clone() };
 							Self::deposit_event(e);
 							let at = frame_system::Pallet::<T>::current_block_number();
 							let response = response.into();
@@ -1467,7 +1463,7 @@ pub mod pallet {
 				_ => {
 					Self::deposit_event(Event::UnexpectedResponse {
 						origin: origin.clone(),
-						id: query_id,
+						query_id,
 					});
 					return 0
 				},
