@@ -156,7 +156,7 @@ frame_benchmarking::benchmarks! {
 	}: _(sender_origin, recipient_id, capacity, message_size)
 	verify {
 		assert_last_event::<T>(
-			Event::<T>::OpenChannelRequested{
+			Event::<T>::OpenChannelRequested {
 				sender: sender_id,
 				recipient: recipient_id,
 				proposed_max_capacity: capacity,
@@ -170,7 +170,12 @@ frame_benchmarking::benchmarks! {
 			establish_para_connection::<T>(1, 2, ParachainSetupStep::Requested);
 	}: _(recipient_origin, sender)
 	verify {
-		assert_last_event::<T>(Event::<T>::OpenChannelAccepted{sender, recipient}.into());
+		assert_last_event::<T>(
+			Event::<T>::OpenChannelAccepted {
+				sender, 
+				recipient
+			}.into()
+		);
 	}
 
 	hrmp_close_channel {
@@ -179,7 +184,12 @@ frame_benchmarking::benchmarks! {
 		let channel_id = HrmpChannelId { sender, recipient };
 	}: _(sender_origin, channel_id.clone())
 	verify {
-		assert_last_event::<T>(Event::<T>::ChannelClosed{by_parachain: sender, channel_id}.into());
+		assert_last_event::<T>(
+			Event::<T>::ChannelClosed {
+				by_parachain: sender, 
+				channel_id
+			}.into()
+		);
 	}
 
 	// NOTE: a single parachain should have the maximum number of allowed ingress and egress
