@@ -28,7 +28,7 @@ use futures_timer::Delay;
 use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
 use polkadot_node_subsystem::{
 	messages::{AvailabilityRecoveryMessage, AvailabilityStoreMessage, CandidateValidationMessage},
-	ActiveLeavesUpdate, RecoveryError, SubsystemContext, SubsystemSender,
+	overseer, ActiveLeavesUpdate, RecoveryError,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
 use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
@@ -123,6 +123,7 @@ impl WorkerMessage {
 	}
 }
 
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
 impl Participation {
 	/// Get ready for managing dispute participation requests.
 	///
@@ -144,7 +145,7 @@ impl Participation {
 	/// `on_active_leaves_update`, the participation will be launched right away.
 	///
 	/// Returns: false, if queues are already full.
-	pub async fn queue_participation<Context: SubsystemContext>(
+	pub async fn queue_participation<Context>(
 		&mut self,
 		ctx: &mut Context,
 		priority: ParticipationPriority,
@@ -174,7 +175,7 @@ impl Participation {
 	///
 	/// Returns: The received `ParticipationStatement` or a fatal error, in case
 	/// something went wrong when dequeuing more requests (tasks could not be spawned).
-	pub async fn get_participation_result<Context: SubsystemContext>(
+	pub async fn get_participation_result<Context>(
 		&mut self,
 		ctx: &mut Context,
 		msg: WorkerMessage,
@@ -190,7 +191,7 @@ impl Participation {
 	///
 	/// Make sure we to dequeue participations if that became possible and update most recent
 	/// block.
-	pub async fn process_active_leaves_update<Context: SubsystemContext>(
+	pub async fn process_active_leaves_update<Context>(
 		&mut self,
 		ctx: &mut Context,
 		update: &ActiveLeavesUpdate,
@@ -212,7 +213,8 @@ impl Participation {
 	}
 
 	/// Dequeue until `MAX_PARALLEL_PARTICIPATIONS` is reached.
-	async fn dequeue_until_capacity<Context: SubsystemContext>(
+
+	async fn dequeue_until_capacity<Context>(
 		&mut self,
 		ctx: &mut Context,
 		recent_head: Hash,
@@ -228,7 +230,7 @@ impl Participation {
 	}
 
 	/// Fork a participation task in the background.
-	fn fork_participation<Context: SubsystemContext>(
+	fn fork_participation<Context>(
 		&mut self,
 		ctx: &mut Context,
 		req: ParticipationRequest,
@@ -248,7 +250,7 @@ impl Participation {
 
 async fn participate(
 	mut result_sender: WorkerMessageSender,
-	mut sender: impl SubsystemSender,
+	mut sender: impl overseer::DisputeCoordinatorSenderTrait,
 	block_hash: Hash,
 	req: ParticipationRequest,
 ) {
@@ -259,15 +261,12 @@ async fn participate(
 	// available data
 	let (recover_available_data_tx, recover_available_data_rx) = oneshot::channel();
 	sender
-		.send_message(
-			AvailabilityRecoveryMessage::RecoverAvailableData(
-				req.candidate_receipt().clone(),
-				req.session(),
-				None,
-				recover_available_data_tx,
-			)
-			.into(),
-		)
+		.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
+			req.candidate_receipt().clone(),
+			req.session(),
+			None,
+			recover_available_data_tx,
+		))
 		.await;
 
 	let available_data = match recover_available_data_rx.await {
@@ -326,15 +325,12 @@ async fn participate(
 	// in the dispute
 	let (store_available_data_tx, store_available_data_rx) = oneshot::channel();
 	sender
-		.send_message(
-			AvailabilityStoreMessage::StoreAvailableData {
-				candidate_hash: *req.candidate_hash(),
-				n_validators: req.n_validators() as u32,
-				available_data: available_data.clone(),
-				tx: store_available_data_tx,
-			}
-			.into(),
-		)
+		.send_message(AvailabilityStoreMessage::StoreAvailableData {
+			candidate_hash: *req.candidate_hash(),
+			n_validators: req.n_validators() as u32,
+			available_data: available_data.clone(),
+			tx: store_available_data_tx,
+		})
 		.await;
 
 	match store_available_data_rx.await {
@@ -364,17 +360,14 @@ async fn participate(
 	// same level of leeway.
 	let (validation_tx, validation_rx) = oneshot::channel();
 	sender
-		.send_message(
-			CandidateValidationMessage::ValidateFromExhaustive(
-				available_data.validation_data,
-				validation_code,
-				req.candidate_receipt().clone(),
-				available_data.pov,
-				APPROVAL_EXECUTION_TIMEOUT,
-				validation_tx,
-			)
-			.into(),
-		)
+		.send_message(CandidateValidationMessage::ValidateFromExhaustive(
+			available_data.validation_data,
+			validation_code,
+			req.candidate_receipt().clone(),
+			available_data.pov,
+			APPROVAL_EXECUTION_TIMEOUT,
+			validation_tx,
+		))
 		.await;
 
 	// we cast votes (either positive or negative) depending on the outcome of
