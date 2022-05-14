@@ -215,9 +215,19 @@ async fn run<Context>(
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 				for leaf in update.activated {
-					handle_active_leaves_update(&mut ctx, leaf, &keystore, &metrics)
-						.await
-						.unwrap_or_else(|err| gum::debug!(target: LOG_TARGET, error = ?err));
+					let sender = ctx.sender().clone();
+
+					ctx.spawn(
+						"bitfield-signing-job",
+						handle_active_leaves_update(
+							sender,
+							leaf,
+							keystore.clone(),
+							metrics.clone(),
+						)
+						.map(drop)
+						.boxed(),
+					)?;
 				}
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
@@ -227,14 +237,15 @@ async fn run<Context>(
 	}
 }
 
-#[overseer::contextbounds(BitfieldSigning, prefix = self::overseer)]
-async fn handle_active_leaves_update<Context>(
-	ctx: &mut Context,
+async fn handle_active_leaves_update<Sender>(
+	mut sender: Sender,
 	leaf: ActivatedLeaf,
-	keystore: &SyncCryptoStorePtr,
-	metrics: &Metrics,
-) -> Result<(), Error> {
-	let metrics = metrics.clone();
+	keystore: SyncCryptoStorePtr,
+	metrics: Metrics,
+) -> Result<(), Error>
+where
+	Sender: overseer::BitfieldSigningSenderTrait,
+{
 	if let LeafStatus::Stale = leaf.status {
 		gum::debug!(
 			target: LOG_TARGET,
@@ -251,7 +262,7 @@ async fn handle_active_leaves_update<Context>(
 
 	// now do all the work we can before we need to wait for the availability store
 	// if we're not a validator, we can just succeed effortlessly
-	let validator = match Validator::new(leaf.hash, keystore.clone(), ctx.sender()).await {
+	let validator = match Validator::new(leaf.hash, keystore.clone(), &mut sender).await {
 		Ok(validator) => validator,
 		Err(util::Error::NotAValidator) => return Ok(()),
 		Err(err) => return Err(Error::Util(err)),
@@ -271,7 +282,7 @@ async fn handle_active_leaves_update<Context>(
 		leaf.hash,
 		&span_availability,
 		validator.index(),
-		ctx.sender(),
+		&mut sender,
 	)
 	.await
 	{
@@ -287,27 +298,25 @@ async fn handle_active_leaves_update<Context>(
 	drop(span_availability);
 	let _span = span.child("signing");
 
-	let signed_bitfield = match validator
-		.sign(keystore.clone(), bitfield)
-		.await
-		.map_err(|e| Error::Keystore(e))?
-	{
-		Some(b) => b,
-		None => {
-			gum::error!(
-				target: LOG_TARGET,
-				"Key was found at construction, but while signing it could not be found.",
-			);
-			return Ok(())
-		},
-	};
+	let signed_bitfield =
+		match validator.sign(keystore, bitfield).await.map_err(|e| Error::Keystore(e))? {
+			Some(b) => b,
+			None => {
+				gum::error!(
+					target: LOG_TARGET,
+					"Key was found at construction, but while signing it could not be found.",
+				);
+				return Ok(())
+			},
+		};
 
 	metrics.on_bitfield_signed();
 
 	drop(_span);
 	let _span = span.child("gossip");
 
-	ctx.send_message(BitfieldDistributionMessage::DistributeBitfield(leaf.hash, signed_bitfield))
+	sender
+		.send_message(BitfieldDistributionMessage::DistributeBitfield(leaf.hash, signed_bitfield))
 		.await;
 
 	Ok(())
