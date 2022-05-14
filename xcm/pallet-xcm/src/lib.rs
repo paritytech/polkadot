@@ -156,18 +156,18 @@ pub mod pallet {
 		/// Query response received which does not match a registered query. This may be because a
 		/// matching query was never registered, it may be because it is a duplicate response, or
 		/// because the query timed out.
-		UnexpectedResponse { origin: MultiLocation, id: QueryId },
+		UnexpectedResponse { origin: MultiLocation, query_id: QueryId },
 		/// Query response has been received and is ready for taking with `take_response`. There is
 		/// no registered notification call.
-		ResponseReady { id: QueryId, response: Response },
+		ResponseReady { query_id: QueryId, response: Response },
 		/// Query response has been received and query is removed. The registered notification has
 		/// been dispatched and executed successfully.
-		Notified { id: QueryId, pallet_index: u8, call_index: u8 },
+		Notified { query_id: QueryId, pallet_index: u8, call_index: u8 },
 		/// Query response has been received and query is removed. The registered notification could
 		/// not be dispatched because the dispatch weight is greater than the maximum weight
 		/// originally budgeted by this runtime for the query result.
 		NotifyOverweight {
-			id: QueryId,
+			query_id: QueryId,
 			pallet_index: u8,
 			call_index: u8,
 			actual_weight: Weight,
@@ -175,17 +175,17 @@ pub mod pallet {
 		},
 		/// Query response has been received and query is removed. There was a general error with
 		/// dispatching the notification call.
-		NotifyDispatchError { id: QueryId, pallet_index: u8, call_index: u8 },
+		NotifyDispatchError { query_id: QueryId, pallet_index: u8, call_index: u8 },
 		/// Query response has been received and query is removed. The dispatch was unable to be
 		/// decoded into a `Call`; this might be due to dispatch function having a signature which
 		/// is not `(origin, QueryId, Response)`.
-		NotifyDecodeFailed { id: QueryId, pallet_index: u8, call_index: u8 },
+		NotifyDecodeFailed { query_id: QueryId, pallet_index: u8, call_index: u8 },
 		/// Expected query response has been received but the origin location of the response does
 		/// not match that expected. The query remains registered for a later, valid, response to
 		/// be received and acted upon.
 		InvalidResponder {
 			origin: MultiLocation,
-			id: QueryId,
+			query_id: QueryId,
 			expected_location: Option<MultiLocation>,
 		},
 		/// Expected query response has been received but the expected origin location placed in
@@ -195,9 +195,9 @@ pub mod pallet {
 		/// runtime should be readable prior to query timeout) and dangerous since the possibly
 		/// valid response will be dropped. Manual governance intervention is probably going to be
 		/// needed.
-		InvalidResponderVersion { origin: MultiLocation, id: QueryId },
+		InvalidResponderVersion { origin: MultiLocation, query_id: QueryId },
 		/// Received query response has been read and removed.
-		ResponseTaken { id: QueryId },
+		ResponseTaken { query_id: QueryId },
 		/// Some assets have been placed in an asset trap.
 		AssetsTrapped { hash: H256, origin: MultiLocation, assets: VersionedMultiAssets },
 		/// An XCM version change notification message has been attempted to be sent.
@@ -211,7 +211,7 @@ pub mod pallet {
 		SupportedVersionChanged { location: MultiLocation, xcm_version: XcmVersion },
 		/// A given location which had a version change subscription was dropped owing to an error
 		/// sending the notification to it.
-		NotifyTargetSendFail { location: MultiLocation, id: QueryId, error: XcmError },
+		NotifyTargetSendFail { location: MultiLocation, query_id: QueryId, error: XcmError },
 		/// A given location which had a version change subscription was dropped owing to an error
 		/// migrating the location to our new XCM format.
 		///

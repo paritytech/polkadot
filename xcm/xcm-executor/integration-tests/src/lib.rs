@@ -148,7 +148,7 @@ fn query_response_fires() {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 				r.event,
 				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::ResponseReady{
-						id: q,
+						query_id: q,
 						response: Response::ExecutionResult(None),
 					}
 				) if q == query_id,
