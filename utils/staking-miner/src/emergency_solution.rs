@@ -20,13 +20,10 @@
 use pallet_election_provider_multi_phase::RawSolution;
 use std::io::Write;*/
 
-use crate::{chain, prelude::*, EmergencySolutionConfig};
+use crate::{chain::westend::RuntimeApi, prelude::*, EmergencySolutionConfig};
 
 /// Ensure that the current phase is emergency.
-async fn ensure_emergency_phase(
-	api: &chain::polkadot::RuntimeApi,
-	hash: Option<Hash>,
-) -> Result<(), Error> {
+async fn ensure_emergency_phase(api: &RuntimeApi, hash: Option<Hash>) -> Result<(), Error> {
 	use pallet_election_provider_multi_phase::Phase;
 
 	match api.storage().election_provider_multi_phase().current_phase(hash).await {
@@ -39,14 +36,13 @@ async fn ensure_emergency_phase(
 pub(crate) async fn run<M>(
 	client: SubxtClient,
 	config: EmergencySolutionConfig,
-	signer: Signer,
+	_signer: Signer,
 ) -> Result<(), Error>
 where
-	M: MinerConfig<AccountId = AccountId, MaxVotesPerVoter = crate::chain::MinerMaxVotesPerVoter>
-		+ 'static,
+	M: MinerConfig<AccountId = AccountId, MaxVotesPerVoter = MinerMaxVotesPerVoter> + 'static,
 	<M as MinerConfig>::Solution: Send + Sync,
 {
-	let api: chain::polkadot::RuntimeApi = client.to_runtime_api();
+	let api: RuntimeApi = client.to_runtime_api();
 	ensure_emergency_phase(&api, config.at).await?;
 
 	todo!("how to get ReadySolution here?!");

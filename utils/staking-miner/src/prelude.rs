@@ -20,6 +20,10 @@
 //! It is actually easy to convert the rest as well, but it'll be a lot of noise in our codebase,
 //! needing to sprinkle `any_runtime` in a few extra places.
 
+use frame_support::{parameter_types, weights::Weight};
+
+const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+
 /// The account id type.
 pub type AccountId = subxt::sp_core::crypto::AccountId32;
 /// The header type. We re-export it here, but we can easily get it from block as well.
@@ -43,19 +47,23 @@ pub type Pair = subxt::sp_core::sr25519::Pair;
 /// Type alias for the subxt client.
 pub type SubxtClient = subxt::Client<subxt::DefaultConfig>;
 
-pub type ExtrinsicParams = subxt::PolkadotExtrinsicParams<subxt::DefaultConfig>;
-
 pub use pallet_election_provider_multi_phase::{Miner, MinerConfig};
 
 pub type Signer = subxt::PairSigner<subxt::DefaultConfig, subxt::sp_core::sr25519::Pair>;
 
 pub use sp_runtime::Perbill;
 
-// This is safe as it is the same for all chains.
+pub type BoundedVec = frame_support::BoundedVec<AccountId, MinerMaxVotesPerVoter>;
 
-pub mod epm {
-	pub use crate::chain::polkadot::runtime::election_provider_multi_phase::*;
-	pub use crate::chain::polkadot::runtime_types::pallet_election_provider_multi_phase::*;
+parameter_types! {
+	// TODO: this is part of the metadata check again if we can fetch this from subxt.
+	pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights
+		::with_sensible_defaults(2 * frame_support::weights::constants::WEIGHT_PER_SECOND, NORMAL_DISPATCH_RATIO);
+	pub static MinerMaxWeight: Weight = BlockWeights::get().max_block;
+	// TODO: align with the chains
+	pub static MinerMaxLength: u32 = 256;
+	// TODO: align with the chains
+	pub static MinerMaxVotesPerVoter: u32 = 256;
 }
 
 pub use crate::error::Error;

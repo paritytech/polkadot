@@ -37,8 +37,6 @@ mod monitor;
 mod prelude;
 mod signer;
 
-use std::str::FromStr;
-
 pub(crate) use prelude::*;
 
 use clap::Parser;
@@ -46,7 +44,7 @@ use sp_npos_elections::ExtendedBalance;
 use sp_runtime::Perbill;
 use tracing_subscriber::{fmt, EnvFilter};
 
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 #[derive(Debug, Clone, Parser)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -106,7 +104,7 @@ impl FromStr for SubmissionStrategy {
 			let percent: u32 = s[15..].parse().map_err(|e| format!("{:?}", e))?;
 			Self::ClaimBetterThan(Perbill::from_percent(percent))
 		} else {
-			return Err(s.into());
+			return Err(s.into())
 		};
 		Ok(res)
 	}
@@ -208,53 +206,30 @@ async fn main() -> Result<(), Error> {
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
 
 	let client = subxt::ClientBuilder::new().set_url(uri).build().await?;
-	let chain = client.rpc().system_chain().await?;
+	let chain = client.rpc().system_chain().await?.to_lowercase();
 	let signer = signer::signer_from_string(&seed_or_path);
 
 	log::info!("Connected to chain: {}", chain);
 
-	let outcome = match chain.to_lowercase().as_str() {
-		// TODO: hack remove.
-		"polkadot" | "development" => match command {
-			Command::Monitor(cfg) => {
-				monitor::run::<chain::polkadot::Config>(client, cfg, Arc::new(signer)).await
-			},
-			_ => todo!(),
-			/*Command::DryRun(cfg) => {
-				dry_run::run::<chains::polkadot::Config>(client, cfg, signer).await
-			},
-			Command::EmergencySolution(cfg) => {
-				emergency_solution::run::<chains::polkadot::Config>(client, cfg, signer).await
-			},*/
+	// TODO: fix boiler plate
+	let outcome = match (chain.as_str(), command) {
+		("polkadot", Command::Monitor(cfg)) =>
+			monitor::run_polkadot(client, cfg, Arc::new(signer)).await,
+		("kusama" | "development", Command::Monitor(cfg)) =>
+			monitor::run_kusama(client, cfg, Arc::new(signer)).await,
+		("westend", Command::Monitor(cfg)) =>
+			monitor::run_westend(client, cfg, Arc::new(signer)).await,
+		("polkadot", Command::DryRun(cfg)) => dry_run::run_polkadot(client, cfg, signer).await,
+		("kusama" | "development", Command::DryRun(cfg)) =>
+			dry_run::run_kusama(client, cfg, signer).await,
+		("westend", Command::DryRun(cfg)) => dry_run::run_westend(client, cfg, signer).await,
+		(_, Command::EmergencySolution(_cfg)) => {
+			panic!("emergency not supported yet");
 		},
-		/*"kusama" => match command {
-			Command::Monitor(cfg) => {
-				monitor::run::<chains::kusama::Config>(client, cfg, Arc::new(signer)).await
-			},
-			Command::DryRun(cfg) => {
-				dry_run::run::<chains::kusama::Config>(client, cfg, signer).await
-			},
-			Command::EmergencySolution(cfg) => {
-				emergency_solution::run::<chains::kusama::Config>(client, cfg, signer).await
-			},
-		},
-		"westend" => match command {
-			Command::Monitor(cfg) => {
-				monitor::run::<chains::westend::Config>(client, cfg, Arc::new(signer)).await
-			},
-			Command::DryRun(cfg) => {
-				dry_run::run::<chains::westend::Config>(client, cfg, signer).await
-			},
-			Command::EmergencySolution(cfg) => {
-				emergency_solution::run::<chains::westend::Config>(client, cfg, signer).await
-			},
-		},*/
-		other => {
-			return Err(Error::Other(format!(
-				"expected chain to be polkadot, kusama or westend; got: {}",
-				other
-			)))
-		},
+		(other, cmd) => Err(Error::Other(format!(
+			"command: {:?} failed; expected chain to be polkadot, kusama or westend; got: {}",
+			cmd, other
+		))),
 	};
 
 	log::info!(target: LOG_TARGET, "round of execution finished. outcome = {:?}", outcome);

@@ -23,55 +23,56 @@ use codec::{Decode, Encode};
 use jsonrpsee::rpc_params;
 use subxt::{rpc::ClientT, sp_core::Bytes};
 
-pub(crate) async fn run<M>(
-	client: SubxtClient,
-	config: DryRunConfig,
-	signer: Signer,
-) -> Result<(), Error>
-where
-	M: MinerConfig<AccountId = AccountId, MaxVotesPerVoter = crate::chain::MinerMaxVotesPerVoter>
-		+ 'static,
-	<M as MinerConfig>::Solution: Send + Sync,
-{
-	/*let api: chain::polkadot::RuntimeApi = client.to_runtime_api();
+macro_rules! dry_run_cmd_for {
+	($runtime:tt) => {
+		paste::paste! {
 
-	let (solution, score, _size) =
-		crate::helpers::mine_solution::<M>(&api, config.at, config.solver).await?;
+			pub(crate) async fn [<run_$runtime>](client: SubxtClient, config: DryRunConfig, signer: Signer) -> Result<(), Error>
 
-	let round = api.storage().election_provider_multi_phase().round(config.at).await?;
-	let raw_solution = RawSolution { solution, score, round };
+		{
+			let api: chain::$runtime::RuntimeApi = client.to_runtime_api();
 
-	log::info!(
-		target: LOG_TARGET,
-		"solution score {:?} / length {:?}",
-		score,
-		raw_solution.encode().len(),
-	);*/
+			let (solution, score, _size) =
+				crate::helpers::[<mine_solution_$runtime>](&api, config.at, config.solver).await?;
 
-	todo!();
+			let round = api.storage().election_provider_multi_phase().round(config.at).await?;
+			let raw_solution = RawSolution { solution, score, round };
 
-	/*let xt = subxt::SubmittableExtrinsic::<_, ExtrinsicParams, _, ModuleErrMissing, NoEvents>::new(
-		&api.client,
-		call,
-	)
-	.create_signed(&signer, subxt::PolkadotExtrinsicParamsBuilder::default())
-	.await?;
 
-	let encoded_xt = Bytes(xt.encode());
+			log::info!(
+				target: LOG_TARGET,
+				"solution score {:?} / length {:?}",
+				score,
+				raw_solution.encode().len(),
+			);
 
-	let bytes: Bytes = api
-		.client
-		.rpc()
-		.client
-		.request("system_dryRun", rpc_params![encoded_xt])
-		.await?;
+			let uxt = api.tx().election_provider_multi_phase().submit(raw_solution)?;
+			let sxt = uxt.create_signed(&signer, subxt::PolkadotExtrinsicParamsBuilder::default()).await?;
 
-	let outcome: sp_runtime::ApplyExtrinsicResult = Decode::decode(&mut &*bytes.0)?;
 
-	log::info!(target: LOG_TARGET, "dry-run outcome is {:?}", outcome);
+			let encoded_xt = Bytes(sxt.encode());
 
-	match outcome {
-		Ok(Ok(r)) => Ok(r),
-		err => panic!("{:?}", err),
-	}*/
+			let bytes: Bytes = api
+				.client
+				.rpc()
+				.client
+				.request("system_dryRun", rpc_params![encoded_xt])
+				.await?;
+
+			let outcome: sp_runtime::ApplyExtrinsicResult = Decode::decode(&mut &*bytes.0)?;
+
+			log::info!(target: LOG_TARGET, "dry-run outcome is {:?}", outcome);
+
+			match outcome {
+				Ok(Ok(r)) => Ok(r),
+				err => panic!("{:?}", err),
+			}
+		}
+
+	}
+	};
 }
+
+dry_run_cmd_for!(polkadot);
+dry_run_cmd_for!(kusama);
+dry_run_cmd_for!(westend);
