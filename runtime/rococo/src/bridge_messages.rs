@@ -34,7 +34,7 @@ use bridge_runtime_common::messages::{
 };
 use frame_support::{
 	traits::Get,
-	weights::{Weight, WeightToFeePolynomial},
+	weights::{Weight, WeightToFee as WeightToFeeT},
 	RuntimeDebug,
 };
 use rococo_runtime_constants::fee::WeightToFee;

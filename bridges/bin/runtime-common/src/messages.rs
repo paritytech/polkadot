@@ -33,7 +33,7 @@ use bp_runtime::{
 use codec::{Decode, DecodeLimit, Encode};
 use frame_support::{
 	traits::{Currency, ExistenceRequirement},
-	weights::{Weight, WeightToFeePolynomial},
+	weights::{Weight, WeightToFee},
 	RuntimeDebug,
 };
 use hash_db::Hasher;

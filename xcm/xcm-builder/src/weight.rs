@@ -16,7 +16,7 @@
 
 use frame_support::{
 	traits::{tokens::currency::Currency as CurrencyT, Get, OnUnbalanced as OnUnbalancedT},
-	weights::{constants::WEIGHT_PER_SECOND, GetDispatchInfo, Weight, WeightToFeePolynomial},
+	weights::{constants::WEIGHT_PER_SECOND, GetDispatchInfo, Weight, WeightToFee as WeightToFeeT},
 };
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
@@ -241,7 +241,7 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> Drop for FixedRateOfFungible<T, R>
 /// Weight trader which uses the `TransactionPayment` pallet to set the right price for weight and then
 /// places any weight bought into the right account.
 pub struct UsingComponents<
-	WeightToFee: WeightToFeePolynomial<Balance = Currency::Balance>,
+	WeightToFee: WeightToFeeT<Balance = Currency::Balance>,
 	AssetId: Get<MultiLocation>,
 	AccountId,
 	Currency: CurrencyT<AccountId>,
@@ -252,7 +252,7 @@ pub struct UsingComponents<
 	PhantomData<(WeightToFee, AssetId, AccountId, Currency, OnUnbalanced)>,
 );
 impl<
-		WeightToFee: WeightToFeePolynomial<Balance = Currency::Balance>,
+		WeightToFee: WeightToFeeT<Balance = Currency::Balance>,
 		AssetId: Get<MultiLocation>,
 		AccountId,
 		Currency: CurrencyT<AccountId>,
@@ -289,7 +289,7 @@ impl<
 	}
 }
 impl<
-		WeightToFee: WeightToFeePolynomial<Balance = Currency::Balance>,
+		WeightToFee: WeightToFeeT<Balance = Currency::Balance>,
 		AssetId: Get<MultiLocation>,
 		AccountId,
 		Currency: CurrencyT<AccountId>,
