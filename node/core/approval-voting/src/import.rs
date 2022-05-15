@@ -46,7 +46,7 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, ConsensusLog, CoreIndex,
-	GroupIndex, Hash, Header, SessionIndex, TypeVec,
+	GroupIndex, Hash, Header, SessionIndex,
 };
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::Slot;
@@ -614,7 +614,7 @@ pub(crate) mod tests {
 	use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
-	use polkadot_primitives::v2::{Id as ParaId, SessionInfo, ValidatorIndex, TypeVec};
+	use polkadot_primitives::v2::{Id as ParaId, SessionInfo, TypeVec, ValidatorIndex};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,

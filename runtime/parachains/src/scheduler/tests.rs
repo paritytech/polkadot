@@ -433,7 +433,7 @@ fn schedule_schedules() {
 		},
 		..Default::default()
 	};
-  
+
 	let chain_a = ParaId::from(1_u32);
 	let chain_b = ParaId::from(2_u32);
 

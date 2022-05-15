@@ -197,6 +197,7 @@ impl SessionCache {
 			}
 			// Look up `AuthorityDiscoveryId`s right away:
 			let validator_groups: Vec<Vec<_>> = validator_groups
+				.to_vec()
 				.into_iter()
 				.map(|group| {
 					group

@@ -23,12 +23,12 @@ use crate::{
 	configuration, paras, scheduler, shared,
 	util::{take_active_subset, take_active_subset_and_inactive},
 };
-use primitives::v2::{
-	AssignmentId, AuthorityDiscoveryId, GroupIndex, SessionIndex, SessionInfo, TypeVec,
-};
 use frame_support::{
 	pallet_prelude::*,
 	traits::{OneSessionHandler, ValidatorSet, ValidatorSetWithIdentification},
+};
+use primitives::v2::{
+	AssignmentId, AuthorityDiscoveryId, GroupIndex, SessionIndex, SessionInfo, TypeVec,
 };
 use sp_std::vec::Vec;
 

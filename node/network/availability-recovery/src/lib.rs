@@ -846,7 +846,7 @@ async fn launch_recovery_task<Context>(
 
 	let params = RecoveryParams {
 		validator_authority_keys: session_info.discovery_keys.clone(),
-		validators: session_info.validators.clone(),
+		validators: session_info.validators.clone().to_vec(),
 		threshold: recovery_threshold(session_info.validators.len())?,
 		candidate_hash,
 		erasure_root: receipt.descriptor.erasure_root,
