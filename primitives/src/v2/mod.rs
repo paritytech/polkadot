@@ -1612,11 +1612,13 @@ pub fn supermajority_threshold(n: usize) -> usize {
 	n - byzantine_threshold(n)
 }
 
+/// Vector indexed via key value type e.g. ValidatorIndex
 #[derive(Clone, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct TypeVec<K: From<usize>, V: Clone>(TiVec<K, V>);
 
 impl<K: From<usize>, V: Clone> TypeVec<K, V> {
+	///Creates new TypeVec object
 	pub fn new() -> Self {
 		TypeVec::<K, V> { 0: TiVec::<K, V>::new() }
 	}
