@@ -167,7 +167,7 @@ impl<T: Config> Pallet<T> {
 		// The validator set is guaranteed to be of the current session
 		// because we delay `on_new_session` till the end of the block.
 		let account_ids = T::ValidatorSet::validators();
-		let active_account_ids = take_active_subset(&active_set, &account_ids);
+		let active_account_ids = take_active_subset(&active_set, &account_ids).to_vec();
 		AccountKeys::<T>::insert(&new_session_index, &active_account_ids);
 
 		// create a new entry in `Sessions` with information about the current session

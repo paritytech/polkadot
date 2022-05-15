@@ -20,7 +20,7 @@ use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode, WrapperTypeDecode, WrapperTypeEncode};
 use scale_info::{Type, TypeInfo};
 use sp_std::prelude::*;
-use std::ops::{Deref, DerefMut};
+//use std::ops::{Deref, DerefMut};
 use typed_index_collections::TiVec;
 
 use application_crypto::KeyTypeId;
@@ -1640,7 +1640,7 @@ impl<K: From<usize>, V: Clone> MallocSizeOf for TypeVec<K, V> {
 	}
 }
 
-impl<K: From<usize>, V: Clone> Deref for TypeVec<K, V> {
+impl<K: From<usize>, V: Clone> std::ops::Deref for TypeVec<K, V> {
 	type Target = Vec<V>;
 
 	fn deref(&self) -> &Self::Target {
@@ -1648,7 +1648,7 @@ impl<K: From<usize>, V: Clone> Deref for TypeVec<K, V> {
 	}
 }
 
-impl<K: From<usize>, V: Clone> DerefMut for TypeVec<K, V> {
+impl<K: From<usize>, V: Clone> std::ops::DerefMut for TypeVec<K, V> {
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		&mut self.0.raw
 	}
