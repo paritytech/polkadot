@@ -1181,8 +1181,8 @@ mod sanitizers {
 
 		let group_validators = |group_index: GroupIndex| {
 			match group_index {
-				group_index if group_index == GroupIndex::from(0 as usize) => Some(vec![0, 1]),
-				group_index if group_index == GroupIndex::from(1 as usize) => Some(vec![2, 3]),
+				group_index if group_index == GroupIndex::from(0_usize) => Some(vec![0, 1]),
+				group_index if group_index == GroupIndex::from(1_usize) => Some(vec![2, 3]),
 				_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
 			}
 			.map(|m| m.into_iter().map(ValidatorIndex).collect::<Vec<_>>())

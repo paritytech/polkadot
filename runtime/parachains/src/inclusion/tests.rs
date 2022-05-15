@@ -323,7 +323,7 @@ fn collect_pending_cleans_up_pending() {
 				relay_parent_number: 0,
 				backed_in_number: 0,
 				backers: default_backing_bitfield(),
-				backing_group: GroupIndex::from(0 as usize),
+				backing_group: GroupIndex::from(0_usize),
 			},
 		);
 		PendingAvailabilityCommitments::<Test>::insert(
@@ -341,7 +341,7 @@ fn collect_pending_cleans_up_pending() {
 				relay_parent_number: 0,
 				backed_in_number: 0,
 				backers: default_backing_bitfield(),
-				backing_group: GroupIndex::from(1 as usize),
+				backing_group: GroupIndex::from(1_usize),
 			},
 		);
 		PendingAvailabilityCommitments::<Test>::insert(chain_b, default_candidate.commitments);
@@ -635,7 +635,7 @@ fn bitfield_checks() {
 					relay_parent_number: 0,
 					backed_in_number: 0,
 					backers: default_backing_bitfield(),
-					backing_group: GroupIndex::from(0 as usize),
+					backing_group: GroupIndex::from(0_usize),
 				},
 			);
 			PendingAvailabilityCommitments::<Test>::insert(chain_a, default_candidate.commitments);
@@ -678,7 +678,7 @@ fn bitfield_checks() {
 					relay_parent_number: 0,
 					backed_in_number: 0,
 					backers: default_backing_bitfield(),
-					backing_group: GroupIndex::from(0 as usize),
+					backing_group: GroupIndex::from(0_usize),
 				},
 			);
 
@@ -759,7 +759,7 @@ fn supermajority_bitfields_trigger_availability() {
 				relay_parent_number: 0,
 				backed_in_number: 0,
 				backers: backing_bitfield(&[3, 4]),
-				backing_group: GroupIndex::from(0 as usize),
+				backing_group: GroupIndex::from(0_usize),
 			},
 		);
 		PendingAvailabilityCommitments::<Test>::insert(chain_a, candidate_a.clone().commitments);
@@ -781,7 +781,7 @@ fn supermajority_bitfields_trigger_availability() {
 				relay_parent_number: 0,
 				backed_in_number: 0,
 				backers: backing_bitfield(&[0, 2]),
-				backing_group: GroupIndex::from(1 as usize),
+				backing_group: GroupIndex::from(1_usize),
 			},
 		);
 		PendingAvailabilityCommitments::<Test>::insert(chain_b, candidate_b.commitments);
@@ -927,9 +927,9 @@ fn candidate_checks() {
 
 		let group_validators = |group_index: GroupIndex| {
 			match group_index {
-				group_index if group_index == GroupIndex::from(0 as usize) => Some(vec![0, 1]),
-				group_index if group_index == GroupIndex::from(1 as usize) => Some(vec![2, 3]),
-				group_index if group_index == GroupIndex::from(2 as usize) => Some(vec![4]),
+				group_index if group_index == GroupIndex::from(0_usize) => Some(vec![0, 1]),
+				group_index if group_index == GroupIndex::from(1_usize) => Some(vec![2, 3]),
+				group_index if group_index == GroupIndex::from(2_usize) => Some(vec![4]),
 				_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
 			}
 			.map(|m| m.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
@@ -941,21 +941,21 @@ fn candidate_checks() {
 			core: CoreIndex::from(0),
 			para_id: chain_a,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(0 as usize),
+			group_idx: GroupIndex::from(0_usize),
 		};
 
 		let chain_b_assignment = CoreAssignment {
 			core: CoreIndex::from(1),
 			para_id: chain_b,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(1 as usize),
+			group_idx: GroupIndex::from(1_usize),
 		};
 
 		let thread_a_assignment = CoreAssignment {
 			core: CoreIndex::from(2),
 			para_id: thread_a,
 			kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
-			group_idx: GroupIndex::from(2 as usize),
+			group_idx: GroupIndex::from(2_usize),
 		};
 
 		// unscheduled candidate.
@@ -974,7 +974,7 @@ fn candidate_checks() {
 			let backed = block_on(back_candidate(
 				candidate,
 				&validators,
-				group_validators(GroupIndex::from(0 as usize)).unwrap().as_ref(),
+				group_validators(GroupIndex::from(0_usize)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
@@ -1019,7 +1019,7 @@ fn candidate_checks() {
 			let backed_a = block_on(back_candidate(
 				candidate_a,
 				&validators,
-				group_validators(GroupIndex::from(0 as usize)).unwrap().as_ref(),
+				group_validators(GroupIndex::from(0_usize)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
@@ -1028,7 +1028,7 @@ fn candidate_checks() {
 			let backed_b = block_on(back_candidate(
 				candidate_b,
 				&validators,
-				group_validators(GroupIndex::from(1 as usize)).unwrap().as_ref(),
+				group_validators(GroupIndex::from(1_usize)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
@@ -1062,7 +1062,7 @@ fn candidate_checks() {
 			let backed = block_on(back_candidate(
 				candidate,
 				&validators,
-				group_validators(GroupIndex::from(0 as usize)).unwrap().as_ref(),
+				group_validators(GroupIndex::from(0_usize)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Lacking,
@@ -1097,7 +1097,7 @@ fn candidate_checks() {
 			let backed = block_on(back_candidate(
 				candidate,
 				&validators,
-				group_validators(GroupIndex::from(0 as usize)).unwrap().as_ref(),
+				group_validators(GroupIndex::from(0_usize)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
@@ -1132,7 +1132,7 @@ fn candidate_checks() {
 			let backed = block_on(back_candidate(
 				candidate,
 				&validators,
-				group_validators(GroupIndex::from(2 as usize)).unwrap().as_ref(),
+				group_validators(GroupIndex::from(2_usize)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
@@ -1174,7 +1174,7 @@ fn candidate_checks() {
 			let backed = block_on(back_candidate(
 				candidate,
 				&validators,
-				group_validators(GroupIndex::from(2 as usize)).unwrap().as_ref(),
+				group_validators(GroupIndex::from(2_usize)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
@@ -1208,7 +1208,7 @@ fn candidate_checks() {
 			let backed = block_on(back_candidate(
 				candidate,
 				&validators,
-				group_validators(GroupIndex::from(0 as usize)).unwrap().as_ref(),
+				group_validators(GroupIndex::from(0_usize)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
@@ -1225,7 +1225,7 @@ fn candidate_checks() {
 					relay_parent_number: 3,
 					backed_in_number: 4,
 					backers: default_backing_bitfield(),
-					backing_group: GroupIndex::from(0 as usize),
+					backing_group: GroupIndex::from(0_usize),
 				},
 			);
 			<PendingAvailabilityCommitments<Test>>::insert(&chain_a, candidate.commitments);
@@ -1264,7 +1264,7 @@ fn candidate_checks() {
 			let backed = block_on(back_candidate(
 				candidate,
 				&validators,
-				group_validators(GroupIndex::from(0 as usize)).unwrap().as_ref(),
+				group_validators(GroupIndex::from(0_usize)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
@@ -1301,7 +1301,7 @@ fn candidate_checks() {
 			let backed = block_on(back_candidate(
 				candidate,
 				&validators,
-				group_validators(GroupIndex::from(0 as usize)).unwrap().as_ref(),
+				group_validators(GroupIndex::from(0_usize)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
@@ -1342,7 +1342,7 @@ fn candidate_checks() {
 			let backed = block_on(back_candidate(
 				candidate,
 				&validators,
-				group_validators(GroupIndex::from(0 as usize)).unwrap().as_ref(),
+				group_validators(GroupIndex::from(0_usize)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
@@ -1377,7 +1377,7 @@ fn candidate_checks() {
 			let backed = block_on(back_candidate(
 				candidate,
 				&validators,
-				group_validators(GroupIndex::from(0 as usize)).unwrap().as_ref(),
+				group_validators(GroupIndex::from(0_usize)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
@@ -1412,7 +1412,7 @@ fn candidate_checks() {
 			let backed = block_on(back_candidate(
 				candidate,
 				&validators,
-				group_validators(GroupIndex::from(0 as usize)).unwrap().as_ref(),
+				group_validators(GroupIndex::from(0_usize)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
@@ -1470,9 +1470,9 @@ fn backing_works() {
 
 		let group_validators = |group_index: GroupIndex| {
 			match group_index {
-				group_index if group_index == GroupIndex::from(0 as usize) => Some(vec![0, 1]),
-				group_index if group_index == GroupIndex::from(1 as usize) => Some(vec![2, 3]),
-				group_index if group_index == GroupIndex::from(2 as usize) => Some(vec![4]),
+				group_index if group_index == GroupIndex::from(0_usize) => Some(vec![0, 1]),
+				group_index if group_index == GroupIndex::from(1_usize) => Some(vec![2, 3]),
+				group_index if group_index == GroupIndex::from(2_usize) => Some(vec![4]),
 				_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
 			}
 			.map(|vs| vs.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
@@ -1484,21 +1484,21 @@ fn backing_works() {
 			core: CoreIndex::from(0),
 			para_id: chain_a,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(0 as usize),
+			group_idx: GroupIndex::from(0_usize),
 		};
 
 		let chain_b_assignment = CoreAssignment {
 			core: CoreIndex::from(1),
 			para_id: chain_b,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(1 as usize),
+			group_idx: GroupIndex::from(1_usize),
 		};
 
 		let thread_a_assignment = CoreAssignment {
 			core: CoreIndex::from(2),
 			para_id: thread_a,
 			kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
-			group_idx: GroupIndex::from(2 as usize),
+			group_idx: GroupIndex::from(2_usize),
 		};
 
 		let mut candidate_a = TestCandidateBuilder {
@@ -1537,7 +1537,7 @@ fn backing_works() {
 		let backed_a = block_on(back_candidate(
 			candidate_a.clone(),
 			&validators,
-			group_validators(GroupIndex::from(0 as usize)).unwrap().as_ref(),
+			group_validators(GroupIndex::from(0_usize)).unwrap().as_ref(),
 			&keystore,
 			&signing_context,
 			BackingKind::Threshold,
@@ -1546,7 +1546,7 @@ fn backing_works() {
 		let backed_b = block_on(back_candidate(
 			candidate_b.clone(),
 			&validators,
-			group_validators(GroupIndex::from(1 as usize)).unwrap().as_ref(),
+			group_validators(GroupIndex::from(1_usize)).unwrap().as_ref(),
 			&keystore,
 			&signing_context,
 			BackingKind::Threshold,
@@ -1555,7 +1555,7 @@ fn backing_works() {
 		let backed_c = block_on(back_candidate(
 			candidate_c.clone(),
 			&validators,
-			group_validators(GroupIndex::from(2 as usize)).unwrap().as_ref(),
+			group_validators(GroupIndex::from(2_usize)).unwrap().as_ref(),
 			&keystore,
 			&signing_context,
 			BackingKind::Threshold,
@@ -1663,7 +1663,7 @@ fn backing_works() {
 				relay_parent_number: System::block_number() - 1,
 				backed_in_number: System::block_number(),
 				backers,
-				backing_group: GroupIndex::from(0 as usize),
+				backing_group: GroupIndex::from(0_usize),
 			})
 		);
 		assert_eq!(
@@ -1685,7 +1685,7 @@ fn backing_works() {
 				relay_parent_number: System::block_number() - 1,
 				backed_in_number: System::block_number(),
 				backers,
-				backing_group: GroupIndex::from(1 as usize),
+				backing_group: GroupIndex::from(1_usize),
 			})
 		);
 		assert_eq!(
@@ -1703,7 +1703,7 @@ fn backing_works() {
 				relay_parent_number: System::block_number() - 1,
 				backed_in_number: System::block_number(),
 				backers: backing_bitfield(&[4]),
-				backing_group: GroupIndex::from(2 as usize),
+				backing_group: GroupIndex::from(2_usize),
 			})
 		);
 		assert_eq!(
@@ -1750,7 +1750,7 @@ fn can_include_candidate_with_ok_code_upgrade() {
 
 		let group_validators = |group_index: GroupIndex| {
 			match group_index {
-				group_index if group_index == GroupIndex::from(0 as usize) =>
+				group_index if group_index == GroupIndex::from(0_usize) =>
 					Some(vec![0, 1, 2, 3, 4]),
 				_ => panic!("Group index out of bounds for 1 parachain"),
 			}
@@ -1761,7 +1761,7 @@ fn can_include_candidate_with_ok_code_upgrade() {
 			core: CoreIndex::from(0),
 			para_id: chain_a,
 			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(0 as usize),
+			group_idx: GroupIndex::from(0_usize),
 		};
 
 		let mut candidate_a = TestCandidateBuilder {
@@ -1779,7 +1779,7 @@ fn can_include_candidate_with_ok_code_upgrade() {
 		let backed_a = block_on(back_candidate(
 			candidate_a.clone(),
 			&validators,
-			group_validators(GroupIndex::from(0 as usize)).unwrap().as_ref(),
+			group_validators(GroupIndex::from(0_usize)).unwrap().as_ref(),
 			&keystore,
 			&signing_context,
 			BackingKind::Threshold,
@@ -1810,7 +1810,7 @@ fn can_include_candidate_with_ok_code_upgrade() {
 				relay_parent_number: System::block_number() - 1,
 				backed_in_number: System::block_number(),
 				backers,
-				backing_group: GroupIndex::from(0 as usize),
+				backing_group: GroupIndex::from(0_usize),
 			})
 		);
 		assert_eq!(
@@ -1882,7 +1882,7 @@ fn session_change_wipes() {
 				relay_parent_number: 5,
 				backed_in_number: 6,
 				backers: default_backing_bitfield(),
-				backing_group: GroupIndex::from(0 as usize),
+				backing_group: GroupIndex::from(0_usize),
 			},
 		);
 		<PendingAvailabilityCommitments<Test>>::insert(&chain_a, candidate.commitments.clone());
@@ -1897,7 +1897,7 @@ fn session_change_wipes() {
 				relay_parent_number: 6,
 				backed_in_number: 7,
 				backers: default_backing_bitfield(),
-				backing_group: GroupIndex::from(1 as usize),
+				backing_group: GroupIndex::from(1_usize),
 			},
 		);
 		<PendingAvailabilityCommitments<Test>>::insert(&chain_b, candidate.commitments);

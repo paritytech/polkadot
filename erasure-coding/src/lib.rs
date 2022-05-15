@@ -258,7 +258,7 @@ where
 	// construct trie mapping each chunk's index to its hash.
 	{
 		let mut trie = TrieDBMut::new(&mut trie_storage, &mut root);
-		for (i, chunk) in chunks.as_ref().iter().enumerate() {
+		for (i, chunk) in chunks.iter().enumerate() {
 			(i as u32).using_encoded(|encoded_index| {
 				let chunk_hash = BlakeTwo256::hash(chunk.as_ref());
 				trie.insert(encoded_index, chunk_hash.as_ref())
