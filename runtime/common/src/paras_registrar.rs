@@ -127,9 +127,9 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		Registered(ParaId, T::AccountId),
-		Deregistered(ParaId),
-		Reserved(ParaId, T::AccountId),
+		Registered { para_id: ParaId, manager: T::AccountId },
+		Deregistered { para_id: ParaId },
+		Reserved { para_id: ParaId, who: T::AccountId },
 	}
 
 	#[pallet::error]
@@ -492,7 +492,7 @@ impl<T: Config> Pallet<T> {
 		let info = ParaInfo { manager: who.clone(), deposit, locked: false };
 
 		Paras::<T>::insert(id, info);
-		Self::deposit_event(Event::<T>::Reserved(id, who));
+		Self::deposit_event(Event::<T>::Reserved { para_id: id, who });
 		Ok(())
 	}
 
@@ -530,7 +530,7 @@ impl<T: Config> Pallet<T> {
 		// We check above that para has no lifecycle, so this should not fail.
 		let res = runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 		debug_assert!(res.is_ok());
-		Self::deposit_event(Event::<T>::Registered(id, who));
+		Self::deposit_event(Event::<T>::Registered { para_id: id, manager: who });
 		Ok(())
 	}
 
@@ -549,7 +549,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		PendingSwap::<T>::remove(id);
-		Self::deposit_event(Event::<T>::Deregistered(id));
+		Self::deposit_event(Event::<T>::Deregistered { para_id: id });
 		Ok(())
 	}
 
@@ -1268,7 +1268,7 @@ mod benchmarking {
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 		}: _(RawOrigin::Signed(caller.clone()))
 		verify {
-			assert_last_event::<T>(Event::<T>::Reserved(LOWEST_PUBLIC_ID, caller).into());
+			assert_last_event::<T>(Event::<T>::Reserved { para_id: LOWEST_PUBLIC_ID, who: caller }.into());
 			assert!(Paras::<T>::get(LOWEST_PUBLIC_ID).is_some());
 			assert_eq!(paras::Pallet::<T>::lifecycle(LOWEST_PUBLIC_ID), None);
 		}
@@ -1282,7 +1282,7 @@ mod benchmarking {
 			assert_ok!(Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()).into()));
 		}: _(RawOrigin::Signed(caller.clone()), para, genesis_head, validation_code)
 		verify {
-			assert_last_event::<T>(Event::<T>::Registered(para, caller).into());
+			assert_last_event::<T>(Event::<T>::Registered{ para_id: para, manager: caller }.into());
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
 			next_scheduled_session::<T>();
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
@@ -1296,7 +1296,7 @@ mod benchmarking {
 			let validation_code = Registrar::<T>::worst_validation_code();
 		}: _(RawOrigin::Root, manager.clone(), deposit, para, genesis_head, validation_code)
 		verify {
-			assert_last_event::<T>(Event::<T>::Registered(para, manager).into());
+			assert_last_event::<T>(Event::<T>::Registered { para_id: para, manager }.into());
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
 			next_scheduled_session::<T>();
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
@@ -1308,7 +1308,7 @@ mod benchmarking {
 			let caller: T::AccountId = whitelisted_caller();
 		}: _(RawOrigin::Signed(caller), para)
 		verify {
-			assert_last_event::<T>(Event::<T>::Deregistered(para).into());
+			assert_last_event::<T>(Event::<T>::Deregistered { para_id: para }.into());
 		}
 
 		swap {

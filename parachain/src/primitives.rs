@@ -65,7 +65,7 @@ impl ValidationCode {
 	}
 }
 
-/// Unit type wrapper around [`Hash`] that represents a validation code hash.
+/// Unit type wrapper around [`type@Hash`] that represents a validation code hash.
 ///
 /// This type is produced by [`ValidationCode::hash`].
 ///

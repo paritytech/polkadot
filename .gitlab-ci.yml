@@ -514,7 +514,8 @@ build-rustdoc:
     - ./crate-docs/
   script:
     # FIXME: it fails with `RUSTDOCFLAGS="-Dwarnings"` and `--all-features`
-    - time cargo doc --workspace --verbose
+    # FIXME: return to stable when https://github.com/rust-lang/rust/issues/96937 gets into stable
+    - time cargo +nightly doc --workspace --verbose
     - rm -f ./target/doc/.lock
     - mv ./target/doc ./crate-docs
     # FIXME: remove me after CI image gets nonroot
