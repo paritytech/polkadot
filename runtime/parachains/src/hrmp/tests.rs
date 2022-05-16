@@ -497,8 +497,14 @@ fn refund_deposit_on_normal_closure() {
 		// Now, we close the channel and wait until the next session.
 		Hrmp::close_channel(para_b, HrmpChannelId { sender: para_a, recipient: para_b }).unwrap();
 		run_to_block(10, Some(vec![10]));
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account_truncating()), 100);
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account_truncating()), 110);
+		assert_eq!(
+			<Test as Config>::Currency::free_balance(&para_a.into_account_truncating()),
+			100
+		);
+		assert_eq!(
+			<Test as Config>::Currency::free_balance(&para_b.into_account_truncating()),
+			110
+		);
 	});
 }
 
@@ -531,8 +537,14 @@ fn refund_deposit_on_offboarding() {
 		assert!(!channel_exists(para_a, para_b));
 		Hrmp::assert_storage_consistency_exhaustive();
 
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account_truncating()), 100);
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account_truncating()), 110);
+		assert_eq!(
+			<Test as Config>::Currency::free_balance(&para_a.into_account_truncating()),
+			100
+		);
+		assert_eq!(
+			<Test as Config>::Currency::free_balance(&para_b.into_account_truncating()),
+			110
+		);
 	});
 }
 
@@ -565,7 +577,10 @@ fn no_dangling_open_requests() {
 		run_to_block(10, Some(vec![10]));
 
 		// The outcome we expect is `para_b` should receive the refund.
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account_truncating()), 110);
+		assert_eq!(
+			<Test as Config>::Currency::free_balance(&para_b.into_account_truncating()),
+			110
+		);
 		assert!(!channel_exists(para_a, para_b));
 		Hrmp::assert_storage_consistency_exhaustive();
 	});
@@ -592,7 +607,10 @@ fn cancel_pending_open_channel_request() {
 		// Cancel opening the channel
 		Hrmp::cancel_open_request(para_a, HrmpChannelId { sender: para_a, recipient: para_b })
 			.unwrap();
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account_truncating()), 100);
+		assert_eq!(
+			<Test as Config>::Currency::free_balance(&para_a.into_account_truncating()),
+			100
+		);
 
 		run_to_block(10, Some(vec![10]));
 		assert!(!channel_exists(para_a, para_b));
