@@ -27,7 +27,7 @@ use beefy_primitives::{
 };
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, InstanceFilter, KeyOwnerProofSystem},
+	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, SortedMembers},
 	PalletId,
 };
 use frame_system::EnsureRoot;
@@ -107,7 +107,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 0,
-	state_version: 0,
+	state_version: 1,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -219,6 +219,7 @@ construct_runtime! {
 		Slots: slots::{Pallet, Call, Storage, Event<T>},
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
 		AssignedSlots: assigned_slots::{Pallet, Call, Storage, Event<T>},
+		StateTrieMigration: pallet_state_trie_migration,
 
 		// Sudo
 		Sudo: pallet_sudo,
@@ -1066,6 +1067,48 @@ impl pallet_multisig::Config for Runtime {
 	type WeightInfo = weights::pallet_multisig::WeightInfo<Runtime>;
 }
 
+use pallet_state_trie_migration::MigrationLimits;
+parameter_types! {
+    // The deposit configuration for the singed migration. Specially if you want to allow any signed account to do the migration (see `SignedFilter`, these deposits should be high)
+    pub const MigrationSignedDepositPerItem: Balance = 1 * CENTS;
+    pub const MigrationSignedDepositBase: Balance = 20 * DOLLARS;
+}
+
+impl pallet_state_trie_migration::Config for Runtime {
+    type Event = Event;
+    type Currency = Balances;
+    type SignedDepositPerItem = MigrationSignedDepositPerItem;
+    type SignedDepositBase = MigrationSignedDepositBase;
+    // An origin that can control the whole pallet: should be Root, or a part of your council. 
+    type ControlOrigin = EnsureRoot<AccountId>;
+    // specific account for the migration, can trigger the signed migrations.
+    type SignedFilter = frame_system::EnsureSignedBy<MigController, AccountId>;
+		//type SignedFilter = frame_system::EnsureSigned<Self::AccountId>;
+
+    // Replace this with weight based on your runtime. 
+		type WeightInfo = weights::pallet_state_trie_migration::WeightInfo<Runtime>;
+}
+
+pub struct MigController;
+
+const KEY_MIG_CONTROLLER: [u8; 32] = [78, 108, 243, 247, 41, 70, 156, 34, 206, 222, 31, 148, 224, 84, 205, 43, 243, 75, 111, 97, 51, 182, 220, 160, 160, 143, 140, 250, 146, 252, 199, 114];
+
+impl SortedMembers<AccountId> for MigController {
+	fn sorted_members() -> Vec<AccountId> {
+		// hardcoded key of controller for manual migration
+		vec![KEY_MIG_CONTROLLER.into()]
+	}
+}
+
+#[test]
+fn ensure_key_ss58() {
+	use sp_core::crypto::Ss58Codec;
+	let acc = AccountId::from_ss58check("5DqXxWrJPv9QX8GDY227fb1f8gbEfrabi9bvBK4htA7idHR5").unwrap();
+	let acc: &[u8] = acc.as_ref();
+	assert_eq!(acc, &KEY_MIG_CONTROLLER[..]);
+//	panic!("{:?}", acc);
+}
+
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
 extern crate frame_benchmarking;
@@ -1095,6 +1138,7 @@ mod benches {
 		[pallet_indices, Indices]
 		[pallet_membership, Membership]
 		[pallet_multisig, Multisig]
+		[pallet_state_trie_migration, StateTrieMigration]
 		[pallet_proxy, Proxy]
 		[frame_system, SystemBench::<Runtime>]
 		[pallet_timestamp, Timestamp]

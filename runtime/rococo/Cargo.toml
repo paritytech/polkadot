@@ -46,6 +46,7 @@ pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-state-trie-migration = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -122,6 +123,7 @@ std = [
 	"pallet-im-online/std",
 	"pallet-session/std",
 	"pallet-staking/std",
+	"pallet-state-trie-migration/std",
 	"pallet-offences/std",
 	"pallet-proxy/std",
 	"pallet-timestamp/std",
@@ -177,6 +179,7 @@ runtime-benchmarks = [
 	"pallet-membership/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
+	"pallet-state-trie-migration/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-utility/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
@@ -202,6 +205,7 @@ try-runtime = [
 	"pallet-im-online/try-runtime",
 	"pallet-membership/try-runtime",
 	"pallet-session/try-runtime",
+	"pallet-state-trie-migration/try-runtime",
 	"pallet-proxy/try-runtime",
 	"pallet-staking/try-runtime",
 	"pallet-offences/try-runtime",

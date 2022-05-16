@@ -24,6 +24,7 @@ pub mod pallet_membership;
 pub mod pallet_multisig;
 pub mod pallet_proxy;
 pub mod pallet_session;
+pub mod pallet_state_trie_migration;
 pub mod pallet_timestamp;
 pub mod pallet_utility;
 pub mod runtime_common_auctions;
