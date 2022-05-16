@@ -15,8 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	prometheus::Registry, AllMessages, HeadSupportsParachains, InitializedOverseerBuilder,
-	MetricsTrait, Overseer, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnNamed,
+	prometheus::Registry, HeadSupportsParachains, InitializedOverseerBuilder, MetricsTrait,
+	Overseer, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnNamed,
 	KNOWN_LEAVES_CACHE_SIZE,
 };
 use lru::LruCache;
@@ -30,11 +30,7 @@ pub struct DummySubsystem;
 
 impl<Context> Subsystem<Context, SubsystemError> for DummySubsystem
 where
-	Context: SubsystemContext<
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-		AllMessages = AllMessages,
-	>,
+	Context: SubsystemContext<Signal = OverseerSignal, Error = SubsystemError>,
 {
 	fn start(self, mut ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
@@ -43,7 +39,7 @@ where
 					Err(_) => return Ok(()),
 					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
 					Ok(overseer_msg) => {
-						tracing::debug!(
+						gum::debug!(
 							target: "dummy-subsystem",
 							"Discarding a message sent from overseer {:?}",
 							overseer_msg

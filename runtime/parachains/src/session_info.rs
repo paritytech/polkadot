@@ -17,17 +17,17 @@
 //! The session info pallet provides information about validator sets
 //! from prior sessions needed for approvals and disputes.
 //!
-//! See https://w3f.github.io/parachain-implementers-guide/runtime/session_info.html.
+//! See <https://w3f.github.io/parachain-implementers-guide/runtime/session_info.html>.
 
 use crate::{
 	configuration, paras, scheduler, shared,
 	util::{take_active_subset, take_active_subset_and_inactive},
 };
-use frame_support::{pallet_prelude::*, traits::OneSessionHandler};
-use primitives::{
-	v1::{AssignmentId, AuthorityDiscoveryId, SessionIndex},
-	v2::SessionInfo,
+use frame_support::{
+	pallet_prelude::*,
+	traits::{OneSessionHandler, ValidatorSet, ValidatorSetWithIdentification},
 };
+use primitives::v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
 use sp_std::vec::Vec;
 
 pub use pallet::*;
@@ -37,10 +37,23 @@ pub mod migration;
 #[cfg(test)]
 mod tests;
 
+/// A type for representing the validator account id in a session.
+pub type AccountId<T> = <<T as Config>::ValidatorSet as ValidatorSet<
+	<T as frame_system::Config>::AccountId,
+>>::ValidatorId;
+
+/// A tuple of `(AccountId, Identification)` where `Identification`
+/// is the full identification of `AccountId`.
+pub type IdentificationTuple<T> = (
+	AccountId<T>,
+	<<T as Config>::ValidatorSet as ValidatorSetWithIdentification<
+		<T as frame_system::Config>::AccountId,
+	>>::Identification,
+);
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_system::pallet_prelude::BlockNumberFor;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -57,6 +70,10 @@ pub mod pallet {
 		+ scheduler::Config
 		+ AuthorityDiscoveryConfig
 	{
+		/// A type for retrieving `AccountId`s of the validators in the current session.
+		/// These are stash keys of the validators.
+		/// It's used for rewards and slashing. `Identification` is only needed for slashing.
+		type ValidatorSet: ValidatorSetWithIdentification<Self::AccountId>;
 	}
 
 	/// Assignment keys for the current session.
@@ -78,12 +95,13 @@ pub mod pallet {
 	#[pallet::getter(fn session_info)]
 	pub(crate) type Sessions<T: Config> = StorageMap<_, Identity, SessionIndex, SessionInfo>;
 
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_runtime_upgrade() -> Weight {
-			migration::migrate_to_latest::<T>()
-		}
-	}
+	/// The validator account keys of the validators actively participating in parachain consensus.
+	// We do not store this in `SessionInfo` to avoid leaking the `AccountId` type to the client,
+	// which would complicate the migration process if we are to change it in the future.
+	#[pallet::storage]
+	#[pallet::getter(fn account_keys)]
+	pub(crate) type AccountKeys<T: Config> =
+		StorageMap<_, Identity, SessionIndex, Vec<AccountId<T>>>;
 }
 
 /// An abstraction for the authority discovery pallet
@@ -132,6 +150,9 @@ impl<T: Config> Pallet<T> {
 		if old_earliest_stored_session != 0 || Sessions::<T>::get(0).is_some() {
 			for idx in old_earliest_stored_session..new_earliest_stored_session {
 				Sessions::<T>::remove(&idx);
+				// Idx will be missing for a few sessions after the runtime upgrade.
+				// But it shouldn'be be a problem.
+				AccountKeys::<T>::remove(&idx);
 			}
 			// update `EarliestStoredSession` based on `config.dispute_period`
 			EarliestStoredSession::<T>::set(new_earliest_stored_session);
@@ -139,6 +160,13 @@ impl<T: Config> Pallet<T> {
 			// just introduced on a live chain
 			EarliestStoredSession::<T>::set(new_session_index);
 		}
+
+		// The validator set is guaranteed to be of the current session
+		// because we delay `on_new_session` till the end of the block.
+		let account_ids = T::ValidatorSet::validators();
+		let active_account_ids = take_active_subset(&active_set, &account_ids);
+		AccountKeys::<T>::insert(&new_session_index, &active_account_ids);
+
 		// create a new entry in `Sessions` with information about the current session
 		let new_session_info = SessionInfo {
 			validators, // these are from the notification and are thus already correct.

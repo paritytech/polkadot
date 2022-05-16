@@ -338,8 +338,6 @@ fn setting_pending_config_members() {
 			minimum_validation_upgrade_delay: 20,
 		};
 
-		assert!(<Configuration as Store>::PendingConfig::get(shared::SESSION_DELAY).is_none());
-
 		Configuration::set_validation_upgrade_cooldown(
 			Origin::root(),
 			new_config.validation_upgrade_cooldown,
@@ -520,7 +518,7 @@ fn verify_externally_accessible() {
 	// This test verifies that the value can be accessed through the well known keys and the
 	// host configuration decodes into the abridged version.
 
-	use primitives::v1::{well_known_keys, AbridgedHostConfiguration};
+	use primitives::v2::{well_known_keys, AbridgedHostConfiguration};
 
 	new_test_ext(Default::default()).execute_with(|| {
 		let ground_truth = HostConfiguration::default();

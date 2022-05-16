@@ -32,7 +32,7 @@ mod handle_new_activations {
 	use polkadot_node_subsystem_test_helpers::{
 		subsystem_test_harness, TestSubsystemContextHandle,
 	};
-	use polkadot_primitives::v1::{
+	use polkadot_primitives::v2::{
 		CollatorPair, Id as ParaId, PersistedValidationData, ScheduledCore, ValidationCode,
 	};
 	use std::pin::Pin;
@@ -296,7 +296,7 @@ mod handle_new_activations {
 			*subsystem_sent_messages.lock().await = rx.collect().await;
 		});
 
-		let sent_messages = Arc::try_unwrap(sent_messages)
+		let mut sent_messages = Arc::try_unwrap(sent_messages)
 			.expect("subsystem should have shut down by now")
 			.into_inner();
 
@@ -328,7 +328,7 @@ mod handle_new_activations {
 		};
 
 		assert_eq!(sent_messages.len(), 1);
-		match &sent_messages[0] {
+		match AllMessages::from(sent_messages.pop().unwrap()) {
 			AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
 				CandidateReceipt { descriptor, .. },
 				_pov,
@@ -356,7 +356,7 @@ mod handle_new_activations {
 					expect_descriptor.erasure_root = descriptor.erasure_root.clone();
 					expect_descriptor
 				};
-				assert_eq!(descriptor, &expect_descriptor);
+				assert_eq!(descriptor, expect_descriptor);
 			},
 			_ => panic!("received wrong message type"),
 		}
@@ -470,11 +470,13 @@ mod handle_new_activations {
 
 		assert_eq!(sent_messages.len(), 1);
 		match &sent_messages[0] {
-			AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
-				CandidateReceipt { descriptor, .. },
-				_pov,
-				..,
-			)) => {
+			overseer::CollationGenerationOutgoingMessages::CollatorProtocolMessage(
+				CollatorProtocolMessage::DistributeCollation(
+					CandidateReceipt { descriptor, .. },
+					_pov,
+					..,
+				),
+			) => {
 				assert_eq!(expect_validation_code_hash, descriptor.validation_code_hash);
 			},
 			_ => panic!("received wrong message type"),

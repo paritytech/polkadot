@@ -1,0 +1,11 @@
+
+## Docker image
+
+The docker image for this release can be found at [Docker hub](https://hub.docker.com/r/parity/polkadot/tags?page=1&ordering=last_updated)
+(It will be available a few minutes after the release has been published).
+
+You may pull it using:
+
+```
+docker pull parity/polkadot:latest
+```

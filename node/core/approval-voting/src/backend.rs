@@ -22,7 +22,7 @@
 //! before any commit to the underlying storage is made.
 
 use polkadot_node_subsystem::SubsystemResult;
-use polkadot_primitives::v1::{BlockNumber, CandidateHash, Hash};
+use polkadot_primitives::v2::{BlockNumber, CandidateHash, Hash};
 
 use std::collections::HashMap;
 
@@ -37,6 +37,7 @@ pub enum BackendWriteOp {
 	WriteBlocksAtHeight(BlockNumber, Vec<Hash>),
 	WriteBlockEntry(BlockEntry),
 	WriteCandidateEntry(CandidateEntry),
+	DeleteStoredBlockRange,
 	DeleteBlocksAtHeight(BlockNumber),
 	DeleteBlockEntry(Hash),
 	DeleteCandidateEntry(CandidateHash),
@@ -63,6 +64,17 @@ pub trait Backend {
 		I: IntoIterator<Item = BackendWriteOp>;
 }
 
+// Status of block range in the `OverlayedBackend`.
+#[derive(PartialEq)]
+enum BlockRangeStatus {
+	// Value has not been modified.
+	NotModified,
+	// Value has been deleted
+	Deleted,
+	// Value has been updated.
+	Inserted(StoredBlockRange),
+}
+
 /// An in-memory overlay over the backend.
 ///
 /// This maintains read-only access to the underlying backend, but can be
@@ -70,9 +82,8 @@ pub trait Backend {
 /// the underlying backend, give the same view as the state of the overlay.
 pub struct OverlayedBackend<'a, B: 'a> {
 	inner: &'a B,
-
-	// `None` means unchanged
-	stored_block_range: Option<StoredBlockRange>,
+	// `Some(None)` means deleted. Missing (`None`) means query inner.
+	stored_block_range: BlockRangeStatus,
 	// `None` means 'deleted', missing means query inner.
 	blocks_at_height: HashMap<BlockNumber, Option<Vec<Hash>>>,
 	// `None` means 'deleted', missing means query inner.
@@ -85,7 +96,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	pub fn new(backend: &'a B) -> Self {
 		OverlayedBackend {
 			inner: backend,
-			stored_block_range: None,
+			stored_block_range: BlockRangeStatus::NotModified,
 			blocks_at_height: HashMap::new(),
 			block_entries: HashMap::new(),
 			candidate_entries: HashMap::new(),
@@ -96,7 +107,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		self.block_entries.is_empty() &&
 			self.candidate_entries.is_empty() &&
 			self.blocks_at_height.is_empty() &&
-			self.stored_block_range.is_none()
+			self.stored_block_range == BlockRangeStatus::NotModified
 	}
 
 	pub fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
@@ -111,11 +122,11 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	}
 
 	pub fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>> {
-		if let Some(val) = self.stored_block_range.clone() {
-			return Ok(Some(val))
+		match self.stored_block_range {
+			BlockRangeStatus::Inserted(ref value) => Ok(Some(value.clone())),
+			BlockRangeStatus::Deleted => Ok(None),
+			BlockRangeStatus::NotModified => self.inner.load_stored_blocks(),
 		}
-
-		self.inner.load_stored_blocks()
 	}
 
 	pub fn load_blocks_at_height(&self, height: &BlockNumber) -> SubsystemResult<Vec<Hash>> {
@@ -145,10 +156,12 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		self.inner.load_candidate_entry(candidate_hash)
 	}
 
-	// The assumption is that stored block range is only None on initialization.
-	// Therefore, there is no need to delete_stored_block_range.
 	pub fn write_stored_block_range(&mut self, range: StoredBlockRange) {
-		self.stored_block_range = Some(range);
+		self.stored_block_range = BlockRangeStatus::Inserted(range);
+	}
+
+	pub fn delete_stored_block_range(&mut self) {
+		self.stored_block_range = BlockRangeStatus::Deleted;
 	}
 
 	pub fn write_blocks_at_height(&mut self, height: BlockNumber, blocks: Vec<Hash>) {
@@ -193,8 +206,13 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 			None => BackendWriteOp::DeleteCandidateEntry(h),
 		});
 
-		self.stored_block_range
-			.map(|v| BackendWriteOp::WriteStoredBlockRange(v))
+		let stored_block_range_ops = match self.stored_block_range {
+			BlockRangeStatus::Inserted(val) => Some(BackendWriteOp::WriteStoredBlockRange(val)),
+			BlockRangeStatus::Deleted => Some(BackendWriteOp::DeleteStoredBlockRange),
+			BlockRangeStatus::NotModified => None,
+		};
+
+		stored_block_range_ops
 			.into_iter()
 			.chain(blocks_at_height_ops)
 			.chain(block_entry_ops)

@@ -24,16 +24,14 @@ use std::time::Duration;
 
 use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
 use polkadot_node_primitives::{BlockData, PoV};
-use polkadot_node_subsystem_types::messages::{
-	CandidateBackingMessage, CandidateValidationMessage,
-};
+use polkadot_node_subsystem_types::messages::CandidateValidationMessage;
 use polkadot_overseer::{
 	self as overseer,
 	dummy::dummy_overseer_builder,
 	gen::{FromOverseer, SpawnedSubsystem},
-	AllMessages, HeadSupportsParachains, OverseerSignal, SubsystemError,
+	HeadSupportsParachains, SubsystemError,
 };
-use polkadot_primitives::v1::Hash;
+use polkadot_primitives::v2::{CandidateReceipt, Hash};
 
 struct AlwaysSupportsParachains;
 impl HeadSupportsParachains for AlwaysSupportsParachains {
@@ -46,26 +44,20 @@ impl HeadSupportsParachains for AlwaysSupportsParachains {
 
 struct Subsystem1;
 
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 impl Subsystem1 {
-	async fn run<Ctx>(mut ctx: Ctx) -> ()
-	where
-		Ctx: overseer::SubsystemContext<
-			Message = CandidateBackingMessage,
-			AllMessages = AllMessages,
-			Signal = OverseerSignal,
-		>,
-	{
+	async fn run<Context>(mut ctx: Context) {
 		'louy: loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
 					if let FromOverseer::Communication { msg } = msg {
-						tracing::info!("msg {:?}", msg);
+						gum::info!("msg {:?}", msg);
 					}
 					continue 'louy
 				},
 				Ok(None) => (),
 				Err(_) => {
-					tracing::info!("exiting");
+					gum::info!("exiting");
 					break 'louy
 				},
 			}
@@ -73,27 +65,25 @@ impl Subsystem1 {
 			Delay::new(Duration::from_secs(1)).await;
 			let (tx, _) = oneshot::channel();
 
+			let candidate_receipt = CandidateReceipt {
+				descriptor: dummy_candidate_descriptor(dummy_hash()),
+				commitments_hash: Hash::zero(),
+			};
+
 			let msg = CandidateValidationMessage::ValidateFromChainState(
-				dummy_candidate_descriptor(dummy_hash()),
+				candidate_receipt,
 				PoV { block_data: BlockData(Vec::new()) }.into(),
 				Default::default(),
 				tx,
 			);
-			ctx.send_message(<Ctx as overseer::SubsystemContext>::AllMessages::from(msg))
-				.await;
+			ctx.send_message(msg).await;
 		}
 		()
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for Subsystem1
-where
-	Context: overseer::SubsystemContext<
-		Message = CandidateBackingMessage,
-		AllMessages = AllMessages,
-		Signal = OverseerSignal,
-	>,
-{
+#[overseer::subsystem(CandidateBacking, error = SubsystemError, prefix = self::overseer)]
+impl<Context> Subsystem1 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
@@ -108,20 +98,14 @@ where
 
 struct Subsystem2;
 
+#[overseer::contextbounds(CandidateValidation, prefix = self::overseer)]
 impl Subsystem2 {
-	async fn run<Ctx>(mut ctx: Ctx)
-	where
-		Ctx: overseer::SubsystemContext<
-			Message = CandidateValidationMessage,
-			AllMessages = AllMessages,
-			Signal = OverseerSignal,
-		>,
-	{
+	async fn run<Context>(mut ctx: Context) -> () {
 		ctx.spawn(
 			"subsystem-2-job",
 			Box::pin(async {
 				loop {
-					tracing::info!("Job tick");
+					gum::info!("Job tick");
 					Delay::new(Duration::from_secs(1)).await;
 				}
 			}),
@@ -131,14 +115,14 @@ impl Subsystem2 {
 		loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
-					tracing::info!("Subsystem2 received message {:?}", msg);
+					gum::info!("Subsystem2 received message {:?}", msg);
 					continue
 				},
 				Ok(None) => {
 					pending!();
 				},
 				Err(_) => {
-					tracing::info!("exiting");
+					gum::info!("exiting");
 					return
 				},
 			}
@@ -146,14 +130,8 @@ impl Subsystem2 {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for Subsystem2
-where
-	Context: overseer::SubsystemContext<
-		Message = CandidateValidationMessage,
-		AllMessages = AllMessages,
-		Signal = OverseerSignal,
-	>,
-{
+#[overseer::subsystem(CandidateValidation, error = SubsystemError, prefix = self::overseer)]
+impl<Context> Subsystem2 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
@@ -176,6 +154,7 @@ fn main() {
 			.unwrap()
 			.replace_candidate_validation(|_| Subsystem2)
 			.replace_candidate_backing(|orig| orig)
+			.replace_candidate_backing(|_orig| Subsystem1)
 			.build()
 			.unwrap();
 
@@ -189,7 +168,7 @@ fn main() {
 			select! {
 				_ = overseer_fut => break,
 				_ = timer_stream.next() => {
-					tracing::info!("tick");
+					gum::info!("tick");
 				}
 				complete => break,
 			}

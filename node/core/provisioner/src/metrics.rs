@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use std::convert::TryInto;
 
 #[derive(Clone)]
 struct MetricsInner {
@@ -35,6 +34,12 @@ struct MetricsInner {
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
+	/// Creates new dummy `Metrics` instance. Used for testing only.
+	#[cfg(test)]
+	pub fn new_dummy() -> Metrics {
+		Metrics(None)
+	}
+
 	pub(crate) fn on_inherent_data_request(&self, response: Result<(), ()>) {
 		if let Some(metrics) = &self.0 {
 			match response {

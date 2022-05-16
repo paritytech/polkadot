@@ -19,8 +19,10 @@
 use babe_primitives::AuthorityId as BabeId;
 use grandpa::AuthorityId as GrandpaId;
 use pallet_staking::Forcing;
-use polkadot_primitives::v1::{AccountId, AssignmentId, ValidatorId, MAX_CODE_SIZE, MAX_POV_SIZE};
-use polkadot_service::chain_spec::{get_account_id_from_seed, get_from_seed, Extensions};
+use polkadot_primitives::v2::{AccountId, AssignmentId, ValidatorId, MAX_CODE_SIZE, MAX_POV_SIZE};
+use polkadot_service::chain_spec::{
+	get_account_id_from_seed, get_from_seed, polkadot_chain_spec_properties, Extensions,
+};
 use polkadot_test_runtime::BABE_GENESIS_EPOCH_CONFIG;
 use sc_chain_spec::{ChainSpec, ChainType};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
@@ -45,7 +47,7 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
-		None,
+		Some(polkadot_chain_spec_properties()),
 		Default::default(),
 	)
 }

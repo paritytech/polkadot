@@ -22,56 +22,52 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
-	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, prod_or_fast, slots,
-	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
+	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
+	prod_or_fast, slots, BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
 };
 
 use runtime_parachains::{
-	configuration as parachains_configuration, dmp as parachains_dmp, hrmp as parachains_hrmp,
-	inclusion as parachains_inclusion, initializer as parachains_initializer,
-	origin as parachains_origin, paras as parachains_paras,
+	configuration as parachains_configuration, disputes as parachains_disputes,
+	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
+	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::v1 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
+	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
+use frame_election_provider_support::{generate_solution_type, onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		OnRuntimeUpgrade, PrivilegeCmp,
+		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, PrivilegeCmp,
 	},
-	weights::Weight,
+	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
 };
 use frame_system::EnsureRoot;
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
-use primitives::{
-	v1::{
-		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-		CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
-		InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
-		ScrapedOnChainVotes, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
-		ValidatorIndex,
-	},
-	v2::SessionInfo,
+use primitives::v2::{
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
+	PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use sp_core::OpaqueMetadata;
+use sp_mmr_primitives as mmr;
 use sp_runtime::{
 	create_runtime_str,
 	curve::PiecewiseLinear,
 	generic, impl_opaque_keys,
 	traits::{
 		AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic as ExtrinsicT,
-		OpaqueKeys, SaturatedConversion, Verify, Zero,
+		OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, KeyTypeId, Perbill, Percent, Permill,
@@ -83,6 +79,7 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
 
+pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_election_provider_multi_phase::Call as EPMCall;
 #[cfg(feature = "std")]
@@ -101,23 +98,26 @@ mod bag_thresholds;
 
 pub mod xcm_config;
 
+impl_runtime_weights!(polkadot_runtime_constants);
+
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 // Polkadot version identifier;
 /// Runtime version (Polkadot).
+#[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9170,
+	spec_version: 9200,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 10,
+	transaction_version: 12,
 	state_version: 0,
 };
 
@@ -164,6 +164,7 @@ impl Contains<Call> for BaseFilter {
 			Call::Proxy(_) |
 			Call::Multisig(_) |
 			Call::Bounties(_) |
+			Call::ChildBounties(_) |
 			Call::Tips(_) |
 			Call::ElectionProviderMultiPhase(_) |
 			Call::Configuration(_) |
@@ -172,6 +173,7 @@ impl Contains<Call> for BaseFilter {
 			Call::Paras(_) |
 			Call::Initializer(_) |
 			Call::ParaInherent(_) |
+			Call::ParasDisputes(_) |
 			Call::Dmp(_) |
 			Call::Ump(_) |
 			Call::Hrmp(_) |
@@ -293,7 +295,7 @@ parameter_types! {
 	pub EpochDuration: u64 = prod_or_fast!(
 		EPOCH_DURATION_IN_SLOTS as u64,
 		2 * MINUTES as u64,
-		"KSM_EPOCH_DURATION"
+		"DOT_EPOCH_DURATION"
 	);
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 	pub ReportLongevity: u64 =
@@ -368,9 +370,9 @@ parameter_types! {
 
 impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Runtime>>;
-	type TransactionByteFee = TransactionByteFee;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
+	type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
 
@@ -440,31 +442,64 @@ parameter_types! {
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 16;
+	pub const SignedMaxRefunds: u32 = 16 / 4;
 	// 40 DOTs fixed deposit..
 	pub const SignedDepositBase: Balance = deposit(2, 0);
 	// 0.01 DOT per KB of solution data.
 	pub const SignedDepositByte: Balance = deposit(0, 10) / 1024;
 	// Each good submission will get 1 DOT as reward
 	pub SignedRewardBase: Balance = 1 * UNITS;
-	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
+	pub BetterUnsignedThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
 	// 4 hour session, 1 hour unsigned phase, 32 offchain executions.
 	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 32;
 
-	/// Whilst `UseNominatorsAndUpdateBagsList` or `UseNominatorsMap` is in use, this can still be a
-	/// very large value. Once the `BagsList` is in full motion, staking might open its door to many
-	/// more nominators, and this value should instead be what is a "safe" number (e.g. 22500).
-	pub const VoterSnapshotPerBlock: u32 = 22_500;
+	/// We take the top 22500 nominators as electing voters..
+	pub const MaxElectingVoters: u32 = 22_500;
+	/// ... and all of the validators as electable targets. Whilst this is the case, we cannot and
+	/// shall not increase the size of the validator intentions.
+	pub const MaxElectableTargets: u16 = u16::MAX;
 }
 
-sp_npos_elections::generate_solution_type!(
+generate_solution_type!(
 	#[compact]
 	pub struct NposCompactSolution16::<
 		VoterIndex = u32,
 		TargetIndex = u16,
 		Accuracy = sp_runtime::PerU16,
+		MaxVoters = MaxElectingVoters,
 	>(16)
 );
+
+pub struct OnChainSeqPhragmen;
+impl onchain::Config for OnChainSeqPhragmen {
+	type System = Runtime;
+	type Solver = SequentialPhragmen<AccountId, runtime_common::elections::OnChainAccuracy>;
+	type DataProvider = Staking;
+	type WeightInfo = weights::frame_election_provider_support::WeightInfo<Runtime>;
+}
+
+impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
+	type AccountId = AccountId;
+	type MaxLength = OffchainSolutionLengthLimit;
+	type MaxWeight = OffchainSolutionWeightLimit;
+	type Solution = NposCompactSolution16;
+	type MaxVotesPerVoter = <
+		<Self as pallet_election_provider_multi_phase::Config>::DataProvider
+		as
+		frame_election_provider_support::ElectionDataProvider
+	>::MaxVotesPerVoter;
+
+	// The unsigned submissions have to respect the weight of the submit_unsigned call, thus their
+	// weight estimate function is wired to this call's weight.
+	fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
+		<
+			<Self as pallet_election_provider_multi_phase::Config>::WeightInfo
+			as
+			pallet_election_provider_multi_phase::WeightInfo
+		>::submit_unsigned(v, t, a, d)
+	}
+}
 
 impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Event = Event;
@@ -473,27 +508,27 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SignedPhase = SignedPhase;
 	type UnsignedPhase = UnsignedPhase;
 	type SignedMaxSubmissions = SignedMaxSubmissions;
+	type SignedMaxRefunds = SignedMaxRefunds;
 	type SignedRewardBase = SignedRewardBase;
 	type SignedDepositBase = SignedDepositBase;
 	type SignedDepositByte = SignedDepositByte;
 	type SignedDepositWeight = ();
-	type SignedMaxWeight = Self::MinerMaxWeight;
+	type SignedMaxWeight =
+		<Self::MinerConfig as pallet_election_provider_multi_phase::MinerConfig>::MaxWeight;
+	type MinerConfig = Self;
 	type SlashHandler = (); // burn slashes
 	type RewardHandler = (); // nothing to do upon rewards
-	type SolutionImprovementThreshold = SolutionImprovementThreshold;
-	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
-	type MinerMaxLength = OffchainSolutionLengthLimit;
+	type BetterUnsignedThreshold = BetterUnsignedThreshold;
+	type BetterSignedThreshold = ();
 	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
-	type Solution = NposCompactSolution16;
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
-	type GovernanceFallback =
-		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
-	type Solver = frame_election_provider_support::SequentialPhragmen<
+	type GovernanceFallback = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	type Solver = SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
-		runtime_common::elections::OffchainRandomBalancing,
+		(),
 	>;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureOneOf<
@@ -501,7 +536,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
 	>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
-	type VoterSnapshotPerBlock = VoterSnapshotPerBlock;
+	type MaxElectingVoters = MaxElectingVoters;
+	type MaxElectableTargets = MaxElectableTargets;
 }
 
 parameter_types! {
@@ -510,9 +546,10 @@ parameter_types! {
 
 impl pallet_bags_list::Config for Runtime {
 	type Event = Event;
-	type VoteWeightProvider = Staking;
+	type ScoreProvider = Staking;
 	type WeightInfo = weights::pallet_bags_list::WeightInfo<Runtime>;
 	type BagThresholds = BagThresholds;
+	type Score = sp_npos_elections::VoteWeight;
 }
 
 // TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
@@ -541,7 +578,7 @@ parameter_types! {
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	// 16
-	pub const MaxNominations: u32 = <NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
+	pub const MaxNominations: u32 = <NposCompactSolution16 as frame_election_provider_support::NposSolution>::LIMIT as u32;
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -549,14 +586,10 @@ type SlashCancelOrigin = EnsureOneOf<
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 4>,
 >;
 
-impl frame_election_provider_support::onchain::Config for Runtime {
-	type Accuracy = runtime_common::elections::OnOnChainAccuracy;
-	type DataProvider = Staking;
-}
-
 impl pallet_staking::Config for Runtime {
 	type MaxNominations = MaxNominations;
 	type Currency = Balances;
+	type CurrencyBalance = Balance;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
 	type RewardRemainder = Treasury;
@@ -574,9 +607,11 @@ impl pallet_staking::Config for Runtime {
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
-	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
-	type SortedListProvider = BagsList;
+	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	type VoterList = BagsList;
+	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
+	type OnStakerSlash = ();
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -775,12 +810,6 @@ parameter_types! {
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
 	pub const TipReportDepositBase: Balance = 1 * DOLLARS;
 	pub const DataDepositPerByte: Balance = 1 * CENTS;
-	pub const BountyDepositBase: Balance = 1 * DOLLARS;
-	pub const BountyDepositPayoutDelay: BlockNumber = 8 * DAYS;
-	pub const BountyUpdatePeriod: BlockNumber = 90 * DAYS;
-	pub const MaximumReasonLength: u32 = 16384;
-	pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
-	pub const BountyValueMinimum: Balance = 10 * DOLLARS;
 	pub const MaxApprovals: u32 = 100;
 	pub const MaxAuthorities: u32 = 100_000;
 	pub const MaxKeys: u32 = 10_000;
@@ -811,17 +840,42 @@ impl pallet_treasury::Config for Runtime {
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 }
 
+parameter_types! {
+	pub const BountyDepositBase: Balance = 1 * DOLLARS;
+	pub const BountyDepositPayoutDelay: BlockNumber = 8 * DAYS;
+	pub const BountyUpdatePeriod: BlockNumber = 90 * DAYS;
+	pub const MaximumReasonLength: u32 = 16384;
+	pub const CuratorDepositMultiplier: Permill = Permill::from_percent(50);
+	pub const CuratorDepositMin: Balance = 10 * DOLLARS;
+	pub const CuratorDepositMax: Balance = 200 * DOLLARS;
+	pub const BountyValueMinimum: Balance = 10 * DOLLARS;
+}
+
 impl pallet_bounties::Config for Runtime {
 	type Event = Event;
 	type BountyDepositBase = BountyDepositBase;
 	type BountyDepositPayoutDelay = BountyDepositPayoutDelay;
 	type BountyUpdatePeriod = BountyUpdatePeriod;
-	type BountyCuratorDeposit = BountyCuratorDeposit;
+	type CuratorDepositMultiplier = CuratorDepositMultiplier;
+	type CuratorDepositMin = CuratorDepositMin;
+	type CuratorDepositMax = CuratorDepositMax;
 	type BountyValueMinimum = BountyValueMinimum;
-	type ChildBountyManager = ();
+	type ChildBountyManager = ChildBounties;
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaximumReasonLength = MaximumReasonLength;
 	type WeightInfo = weights::pallet_bounties::WeightInfo<Runtime>;
+}
+
+parameter_types! {
+	pub const MaxActiveChildBountyCount: u32 = 100;
+	pub const ChildBountyValueMinimum: Balance = BountyValueMinimum::get() / 10;
+}
+
+impl pallet_child_bounties::Config for Runtime {
+	type Event = Event;
+	type MaxActiveChildBountyCount = MaxActiveChildBountyCount;
+	type ChildBountyValueMinimum = ChildBountyValueMinimum;
+	type WeightInfo = weights::pallet_child_bounties::WeightInfo<Runtime>;
 }
 
 impl pallet_tips::Config for Runtime {
@@ -1106,6 +1160,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::TechnicalMembership(..) |
 				Call::Treasury(..) |
 				Call::Bounties(..) |
+				Call::ChildBounties(..) |
 				Call::Tips(..) |
 				Call::Claims(..) |
 				Call::Vesting(pallet_vesting::Call::vest{..}) |
@@ -1130,7 +1185,8 @@ impl InstanceFilter<Call> for ProxyType {
 					Call::Council(..) | Call::TechnicalCommittee(..) |
 					Call::PhragmenElection(..) |
 					Call::Treasury(..) | Call::Bounties(..) |
-					Call::Tips(..) | Call::Utility(..)
+					Call::Tips(..) | Call::Utility(..) |
+					Call::ChildBounties(..)
 			),
 			ProxyType::Staking => {
 				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
@@ -1182,11 +1238,13 @@ impl parachains_configuration::Config for Runtime {
 
 impl parachains_shared::Config for Runtime {}
 
-impl parachains_session_info::Config for Runtime {}
+impl parachains_session_info::Config for Runtime {
+	type ValidatorSet = Historical;
+}
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
-	type DisputesHandler = ();
+	type DisputesHandler = ParasDisputes;
 	type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
 }
 
@@ -1207,9 +1265,11 @@ parameter_types! {
 
 impl parachains_ump::Config for Runtime {
 	type Event = Event;
-	type UmpSink = ();
+	type UmpSink =
+		crate::parachains_ump::XcmSink<xcm_executor::XcmExecutor<xcm_config::XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = parachains_ump::TestWeightInfo;
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -1231,6 +1291,13 @@ impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::runtime_parachains_initializer::WeightInfo<Runtime>;
+}
+
+impl parachains_disputes::Config for Runtime {
+	type Event = Event;
+	type RewardValidators = ();
+	type PunishValidators = ();
+	type WeightInfo = weights::runtime_parachains_disputes::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1322,7 +1389,7 @@ impl auctions::Config for Runtime {
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
-		NodeBlock = primitives::v1::Block,
+		NodeBlock = primitives::v2::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
@@ -1375,8 +1442,9 @@ construct_runtime! {
 		// Multisig dispatch. Late addition.
 		Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>} = 30,
 
-		// Bounties module.
+		// Bounties modules.
 		Bounties: pallet_bounties::{Pallet, Call, Storage, Event<T>} = 34,
+		ChildBounties: pallet_child_bounties = 38,
 
 		// Tips module.
 		Tips: pallet_tips::{Pallet, Call, Storage, Event<T>} = 35,
@@ -1400,6 +1468,7 @@ construct_runtime! {
 		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 59,
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 60,
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
+		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 62,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 70,
@@ -1443,221 +1512,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(FixCouncilDepositMigration, CrowdloanIndexMigration),
+	(),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-// Migration for crowdloan pallet to use fund index for account generation.
-pub struct CrowdloanIndexMigration;
-impl OnRuntimeUpgrade for CrowdloanIndexMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		crowdloan::migration::crowdloan_index_migration::migrate::<Runtime>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		crowdloan::migration::crowdloan_index_migration::pre_migrate::<Runtime>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		crowdloan::migration::crowdloan_index_migration::post_migrate::<Runtime>()
-	}
-}
-
-/// A migration struct to fix some deposits in the council election pallet.
-///
-/// See more details here: https://github.com/paritytech/polkadot/issues/4160
-pub struct FixCouncilDepositMigration;
-impl FixCouncilDepositMigration {
-	fn execute(check: bool) -> frame_support::weights::Weight {
-		let accounts = vec![
-			// 14udY48vCbPLtF2VEpUmqfJLHesmAZWi5ShzeKgnqkuigYaR
-			[
-				172, 216, 115, 87, 170, 243, 188, 88, 181, 73, 157, 16, 214, 192, 48, 146, 239, 79,
-				168, 154, 196, 169, 194, 254, 122, 128, 246, 166, 205, 215, 176, 96,
-			],
-			// 14iGCDW2cEphmcXH22RhbuQBxjAzPP8UJAX8EQw4p5T2ZwsW
-			[
-				164, 44, 232, 74, 83, 194, 159, 82, 232, 179, 36, 255, 38, 50, 209, 27, 131, 102,
-				14, 84, 172, 117, 220, 42, 68, 1, 156, 100, 180, 176, 241, 14,
-			],
-			// 14FrHPF7UWDZCe811yBUXMch8VS7hE4CvV26UR92Pvz5BUia
-			[
-				144, 8, 9, 30, 45, 31, 178, 14, 109, 106, 70, 192, 214, 101, 145, 201, 176, 11,
-				115, 234, 66, 56, 108, 8, 151, 223, 221, 83, 39, 193, 85, 49,
-			],
-			// 14BpBd1EhsbzSAarjKJmpNHA2evTj1B4FjryWACycBCqTxDQ
-			[
-				140, 243, 252, 167, 136, 94, 38, 129, 226, 241, 53, 86, 191, 123, 76, 106, 9, 118,
-				132, 88, 187, 170, 17, 156, 237, 88, 146, 133, 105, 209, 1, 25,
-			],
-			// 13Smi6KLQxEfBNYNPAbiMPiVFVPRpu8WM2qQv42jkmZKnkfo
-			[
-				108, 32, 26, 170, 125, 136, 60, 208, 129, 73, 14, 48, 167, 180, 62, 102, 16, 173,
-				35, 186, 0, 84, 201, 8, 220, 147, 61, 201, 113, 230, 64, 79,
-			],
-			// 1A6Tb4x8T9WbN2Rvq1kQFdFoFQxbNv6GBhc5GAMY9ACQV4j
-			[
-				6, 239, 149, 80, 170, 82, 13, 197, 145, 211, 233, 148, 11, 63, 162, 137, 186, 65,
-				36, 99, 214, 95, 24, 38, 33, 183, 77, 243, 230, 55, 164, 23,
-			],
-			// 14cstG1jBDJuPGcAf41cmX6QWuF2AxN3sMWaxtPac9D5cToJ
-			[
-				160, 17, 148, 94, 22, 13, 118, 174, 174, 230, 77, 85, 60, 34, 25, 135, 10, 214,
-				212, 168, 251, 43, 41, 57, 155, 47, 233, 152, 3, 232, 207, 125,
-			],
-			// 165gfcRhaqPSiwhhw3Vsb6S4iWxALtQtEK5MbtrfJsgDEHQi
-			[
-				224, 191, 172, 240, 87, 30, 41, 24, 135, 105, 21, 246, 198, 223, 211, 33, 187, 40,
-				23, 235, 216, 30, 183, 110, 115, 152, 101, 130, 89, 103, 87, 61,
-			],
-			// 1gNBZtAbG75p4cVcdCJNh6NE8YB7X1F7jr67J8fCBeV96cp
-			[
-				30, 5, 224, 89, 249, 90, 22, 14, 81, 26, 74, 44, 0, 199, 0, 49, 246, 90, 132, 220,
-				218, 82, 237, 53, 50, 244, 232, 214, 149, 157, 57, 93,
-			],
-			// 1EP1PHmnjwpL2X53CToLFJg8UuXqzbuAv3ySXQjkJaCw3Y6
-			[
-				10, 52, 69, 106, 236, 104, 209, 252, 112, 54, 239, 6, 22, 255, 205, 117, 20, 214,
-				60, 209, 217, 67, 60, 15, 85, 179, 114, 221, 70, 156, 136, 17,
-			],
-			// 14v1h36tNjUkxaMGugURtXZncrXns47pkQ86gJcxyPtknsN
-			[
-				2, 252, 48, 175, 174, 77, 94, 53, 172, 150, 26, 125, 182, 0, 149, 0, 209, 114, 46,
-				207, 136, 115, 39, 94, 13, 115, 135, 178, 125, 86, 132, 59,
-			],
-			// 14dQWQ6URVDwApf58KWd61FjGcQ4UPujw7gsz5o8Mcitp24y
-			[
-				160, 120, 170, 132, 20, 103, 222, 160, 137, 141, 113, 85, 183, 237, 251, 51, 79,
-				137, 124, 136, 76, 53, 22, 248, 179, 239, 132, 36, 16, 2, 135, 0,
-			],
-			// 15Xx6ToS88iUagZ6BNJsEMKDbo4V7RcjdJk1FGfdxLtgqVs4
-			[
-				200, 139, 194, 108, 60, 251, 55, 151, 193, 178, 226, 201, 231, 253, 3, 32, 217,
-				137, 146, 113, 186, 146, 85, 162, 64, 140, 79, 238, 179, 60, 212, 37,
-			],
-			// 121YKGZBCaLyCkZjrwfqEkZHHVns1Kt5Q1g6gEfdU6MgbkFy
-			[
-				44, 165, 166, 39, 32, 79, 103, 91, 243, 65, 83, 45, 12, 71, 150, 8, 65, 72, 47,
-				138, 41, 93, 84, 82, 246, 172, 37, 77, 120, 255, 205, 0,
-			],
-			// 14pXP1DJVJnZDt6CcPkuwfT6NHh9nQ22J8LnsUCvkk2LRH65
-			[
-				168, 243, 128, 29, 140, 120, 224, 144, 194, 1, 238, 189, 86, 169, 82, 167, 233, 13,
-				83, 92, 237, 86, 132, 253, 211, 253, 103, 106, 154, 207, 75, 68,
-			],
-			// 14tye3sQ1L3z3p4DSKhvhbXFMW6jQfFQYFd5xi4LBhJ2TJem
-			[
-				172, 88, 225, 14, 65, 37, 22, 93, 132, 13, 83, 22, 158, 17, 26, 78, 118, 72, 127,
-				147, 13, 123, 218, 87, 117, 131, 246, 187, 246, 219, 81, 59,
-			],
-			// 14gUmUjQooUqAgbkP8zEdz5tkLyCqPSz8GZ41AnLLyFzhVw2
-			[
-				162, 208, 190, 35, 76, 208, 148, 91, 47, 116, 178, 159, 123, 17, 212, 247, 90, 174,
-				73, 32, 139, 89, 214, 83, 90, 3, 174, 26, 67, 165, 183, 112,
-			],
-			// 16c552whYN6dr8jJtNdRLm8FKyxMpYwFDP5f5enw26VquJk5
-			[
-				247, 236, 116, 170, 31, 243, 191, 68, 117, 233, 36, 158, 227, 128, 193, 216, 142,
-				209, 41, 184, 91, 128, 225, 244, 111, 216, 85, 70, 197, 255, 107, 44,
-			],
-			// 16UJBPHVqQ3xYXnmhEpaQtvSRnrP9k1XeE7WxoyCxsrL9AvV
-			[
-				241, 254, 159, 123, 160, 254, 171, 158, 71, 104, 77, 64, 6, 237, 37, 173, 108, 68,
-				26, 21, 83, 206, 246, 39, 72, 84, 94, 165, 117, 57, 42, 245,
-			],
-			// 16aHHHXnTYAV72qngKmEDVGXwRw8cknqgioY75BsTtMNJEg3
-			[
-				246, 143, 18, 83, 127, 208, 99, 243, 148, 152, 117, 161, 239, 194, 206, 212, 72,
-				86, 133, 228, 137, 154, 134, 116, 198, 74, 192, 66, 219, 182, 125, 67,
-			],
-			// 16X6fA9y2kPoUDN3wo2Y5PhAfYCd7R8b8soH9jKo754TEoHh
-			[
-				244, 33, 147, 88, 40, 40, 13, 119, 209, 186, 58, 206, 220, 185, 108, 55, 45, 165,
-				35, 15, 86, 139, 143, 62, 89, 66, 182, 145, 129, 57, 5, 38,
-			],
-			// 14M7jxZGVjp8DKNgmqCRPmrJyVpFSNvrUG6CfX7TGcS48JZw
-			[
-				148, 12, 76, 172, 117, 113, 22, 224, 45, 110, 189, 199, 224, 170, 130, 125, 212,
-				121, 33, 129, 247, 254, 11, 118, 205, 112, 146, 85, 229, 36, 187, 19,
-			],
-			// 16kbrXtdXwQKEPrswWQXLtBTao1PqiGhRcXFvyh4ysF5pmoK
-			[
-				254, 110, 12, 120, 57, 60, 85, 65, 211, 12, 63, 67, 45, 168, 180, 85, 164, 150,
-				102, 196, 83, 28, 134, 154, 95, 189, 99, 201, 185, 163, 138, 109,
-			],
-			// 1LWcBbCTEc1E1vvVSSPXXiMfGdX9ZLPv9su3cWN3m9xWEjE
-			[
-				14, 225, 83, 206, 131, 55, 42, 106, 38, 36, 189, 220, 15, 111, 155, 98, 53, 232,
-				95, 87, 98, 25, 56, 12, 208, 210, 160, 62, 172, 112, 77, 83,
-			],
-			// 1n1B9ZPkg9cv152c6UwtQrXuNwR2tXPXvwKDX9cYeMh4fNQ
-			[
-				34, 82, 161, 213, 13, 148, 36, 11, 212, 229, 179, 46, 245, 193, 24, 213, 158, 134,
-				74, 138, 221, 110, 45, 48, 252, 255, 83, 185, 57, 240, 138, 16,
-			],
-			// 1RVaJptRF1XompgRCXuda3Vs8Cxjt22ww5ndSRSvaW7WJBf
-			[
-				18, 174, 20, 73, 241, 49, 142, 117, 34, 7, 71, 237, 232, 254, 238, 5, 97, 245, 0,
-				241, 202, 36, 0, 194, 4, 255, 173, 115, 92, 83, 236, 84,
-			],
-			// 1243tzEb446NSpWzPcaeMGpJh2YZ4TwMb4B85yVCt4275fD8
-			[
-				46, 143, 184, 53, 56, 149, 115, 226, 83, 136, 159, 62, 59, 200, 58, 164, 121, 129,
-				227, 42, 112, 29, 160, 91, 242, 253, 25, 119, 194, 54, 208, 61,
-			],
-			// 14XetcVhGUWtf2W1tbtA6wxP3MwWxTquLsLhZMgKGBG4W7R5
-			[
-				156, 21, 156, 115, 71, 245, 92, 84, 163, 230, 0, 227, 233, 120, 27, 153, 130, 240,
-				92, 168, 113, 189, 234, 206, 107, 103, 117, 220, 169, 238, 189, 17,
-			],
-			// 15rqGn147Drr6nY5Xvyzqo6NgDWJoQzooiqaJHEzkcavFryy
-			[
-				214, 242, 116, 231, 100, 216, 50, 159, 252, 77, 140, 17, 120, 203, 4, 244, 115,
-				129, 156, 227, 192, 228, 32, 224, 58, 167, 125, 103, 154, 67, 208, 60,
-			],
-			// 1629Shw6w88GnyXyyUbRtX7YFipQnjScGKcWr1BaRiMhvmAg
-			[
-				222, 12, 213, 196, 1, 109, 233, 174, 186, 136, 143, 177, 134, 162, 168, 187, 208,
-				151, 155, 47, 220, 232, 133, 120, 133, 142, 111, 42, 219, 127, 143, 78,
-			],
-		];
-		let count = accounts.len() as u64;
-		accounts.into_iter().map(AccountId::from).for_each(|who| {
-			use frame_support::traits::ReservableCurrency;
-			// unreserve up to 4.95 DOTs, if they still have it.
-			let leftover = Balances::unreserve(&who, 495 * UNITS / 100);
-			if check && !leftover.is_zero() {
-				log::warn!(
-					target: "runtime::polkadot",
-					"some account {:?} does not have enough balance for the refund ({}), this is not necessarily a problem.",
-					who,
-					leftover,
-				);
-			}
-		});
-		<Runtime as frame_system::Config>::DbWeight::get().reads_writes(count, count)
-	}
-}
-
-impl OnRuntimeUpgrade for FixCouncilDepositMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		if VERSION.spec_version == 9180 {
-			Self::execute(false)
-		} else {
-			log::warn!(target: "runtime::polkadot", "FixCouncilDepositMigration should be removed.");
-			0
-		}
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		let _ = Self::execute(true);
-		Ok(())
-	}
-}
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
@@ -1669,24 +1527,29 @@ mod benches {
 		// Polkadot
 		// NOTE: Make sure to prefix these with `runtime_common::` so
 		// the that path resolves correctly in the generated file.
+		[runtime_common::auctions, Auctions]
 		[runtime_common::claims, Claims]
 		[runtime_common::crowdloan, Crowdloan]
 		[runtime_common::slots, Slots]
 		[runtime_common::paras_registrar, Registrar]
 		[runtime_parachains::configuration, Configuration]
+		[runtime_parachains::disputes, ParasDisputes]
 		[runtime_parachains::initializer, Initializer]
 		[runtime_parachains::paras, Paras]
 		[runtime_parachains::paras_inherent, ParaInherent]
+		[runtime_parachains::ump, Ump]
 		// Substrate
 		[pallet_bags_list, BagsList]
 		[pallet_balances, Balances]
 		[frame_benchmarking::baseline, Baseline::<Runtime>]
 		[pallet_bounties, Bounties]
+		[pallet_child_bounties, ChildBounties]
 		[pallet_collective, Council]
 		[pallet_collective, TechnicalCommittee]
 		[pallet_democracy, Democracy]
 		[pallet_elections_phragmen, PhragmenElection]
 		[pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
+		[frame_election_provider_support, ElectionProviderBench::<Runtime>]
 		[pallet_identity, Identity]
 		[pallet_im_online, ImOnline]
 		[pallet_indices, Indices]
@@ -1766,7 +1629,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl primitives::v2::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+	impl primitives::runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			parachains_runtime_api_impl::validators::<Runtime>()
 		}
@@ -1796,7 +1659,7 @@ sp_api::impl_runtime_apis! {
 
 		fn check_validation_outputs(
 			para_id: ParaId,
-			outputs: primitives::v1::CandidateCommitments,
+			outputs: primitives::v2::CandidateCommitments,
 		) -> bool {
 			parachains_runtime_api_impl::check_validation_outputs::<Runtime>(para_id, outputs)
 		}
@@ -1849,7 +1712,7 @@ sp_api::impl_runtime_apis! {
 
 		fn submit_pvf_check_statement(
 			stmt: primitives::v2::PvfCheckStatement,
-			signature: primitives::v1::ValidatorSignature,
+			signature: primitives::v2::ValidatorSignature,
 		) {
 			parachains_runtime_api_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
 		}
@@ -1862,6 +1725,10 @@ sp_api::impl_runtime_apis! {
 			-> Option<ValidationCodeHash>
 		{
 			parachains_runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
+		}
+
+		fn staging_get_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
+			unimplemented!()
 		}
 	}
 
@@ -1876,15 +1743,13 @@ sp_api::impl_runtime_apis! {
 		fn generate_proof(_leaf_index: u64)
 			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
 		{
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::GenerateProof)
+			Err(mmr::Error::PalletNotIncluded)
 		}
 
 		fn verify_proof(_leaf: mmr::EncodableOpaqueLeaf, _proof: mmr::Proof<Hash>)
 			-> Result<(), mmr::Error>
 		{
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::Verify)
+			Err(mmr::Error::PalletNotIncluded)
 		}
 
 		fn verify_proof_stateless(
@@ -1892,8 +1757,31 @@ sp_api::impl_runtime_apis! {
 			_leaf: mmr::EncodableOpaqueLeaf,
 			_proof: mmr::Proof<Hash>
 		) -> Result<(), mmr::Error> {
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::Verify)
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn mmr_root() -> Result<Hash, mmr::Error> {
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn generate_batch_proof(_leaf_indices: Vec<u64>)
+			-> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error>
+		{
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn verify_batch_proof(_leaves: Vec<mmr::EncodableOpaqueLeaf>, _proof: mmr::BatchProof<Hash>)
+			-> Result<(), mmr::Error>
+		{
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn verify_batch_proof_stateless(
+			_root: Hash,
+			_leaves: Vec<mmr::EncodableOpaqueLeaf>,
+			_proof: mmr::BatchProof<Hash>
+		) -> Result<(), mmr::Error> {
+			Err(mmr::Error::PalletNotIncluded)
 		}
 	}
 
@@ -1988,7 +1876,7 @@ sp_api::impl_runtime_apis! {
 
 	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
 		fn authorities() -> Vec<AuthorityDiscoveryId> {
-			AuthorityDiscovery::authorities()
+			parachains_runtime_api_impl::relevant_authority_ids::<Runtime>()
 		}
 	}
 
@@ -2046,6 +1934,7 @@ sp_api::impl_runtime_apis! {
 
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
+			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 
@@ -2067,11 +1956,13 @@ sp_api::impl_runtime_apis! {
 			// To get around that, we separated the benchmarks into its own crate.
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
+			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
+			impl pallet_election_provider_support_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl frame_benchmarking::baseline::Config for Runtime {}
 
@@ -2092,6 +1983,7 @@ sp_api::impl_runtime_apis! {
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
+
 			add_benchmarks!(params, batches);
 
 			Ok(batches)
@@ -2105,6 +1997,7 @@ mod test_fees {
 	use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
 	use keyring::Sr25519Keyring::Charlie;
 	use pallet_transaction_payment::Multiplier;
+	use runtime_common::MinimumMultiplier;
 	use separator::Separatable;
 	use sp_runtime::{assert_eq_error_rate, FixedPointNumber};
 
@@ -2142,7 +2035,7 @@ mod test_fees {
 	#[test]
 	#[ignore]
 	fn transfer_cost_min_multiplier() {
-		let min_multiplier = runtime_common::MinimumMultiplier::get();
+		let min_multiplier = MinimumMultiplier::get();
 		let call = pallet_balances::Call::<Runtime>::transfer_keep_alive {
 			dest: Charlie.to_account_id().into(),
 			value: Default::default(),

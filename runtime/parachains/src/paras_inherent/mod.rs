@@ -38,8 +38,8 @@ use frame_support::{
 	traits::Randomness,
 };
 use frame_system::pallet_prelude::*;
-use pallet_babe::{self, CurrentBlockRandomness};
-use primitives::v1::{
+use pallet_babe::{self, ParentBlockRandomness};
+use primitives::v2::{
 	BackedCandidate, CandidateHash, CandidateReceipt, CheckedDisputeStatementSet,
 	CheckedMultiDisputeStatementSet, CoreIndex, DisputeStatementSet,
 	InherentData as ParachainsInherentData, MultiDisputeStatementSet, ScrapedOnChainVotes,
@@ -81,10 +81,10 @@ const LOG_TARGET: &str = "runtime::inclusion-inherent";
 /// A bitfield concerning concluded disputes for candidates
 /// associated to the core index equivalent to the bit position.
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-pub(crate) struct DisputedBitfield(pub(crate) BitVec<bitvec::order::Lsb0, u8>);
+pub(crate) struct DisputedBitfield(pub(crate) BitVec<u8, bitvec::order::Lsb0>);
 
-impl From<BitVec<bitvec::order::Lsb0, u8>> for DisputedBitfield {
-	fn from(inner: BitVec<bitvec::order::Lsb0, u8>) -> Self {
+impl From<BitVec<u8, bitvec::order::Lsb0>> for DisputedBitfield {
+	fn from(inner: BitVec<u8, bitvec::order::Lsb0>) -> Self {
 		Self(inner)
 	}
 }
@@ -93,7 +93,7 @@ impl From<BitVec<bitvec::order::Lsb0, u8>> for DisputedBitfield {
 impl DisputedBitfield {
 	/// Create a new bitfield, where each bit is set to `false`.
 	pub fn zeros(n: usize) -> Self {
-		Self::from(BitVec::<bitvec::order::Lsb0, u8>::repeat(false, n))
+		Self::from(BitVec::<u8, bitvec::order::Lsb0>::repeat(false, n))
 	}
 }
 
@@ -596,12 +596,14 @@ impl<T: Config> Pallet<T> {
 		let max_spam_slots = config.dispute_max_spam_slots;
 		let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
+		// TODO: Better if we can convert this to `with_transactional` and handle an error if
+		// too many transactional layers are spawned.
 		let (
 			mut backed_candidates,
 			mut bitfields,
 			checked_disputes_sets,
 			checked_disputes_sets_consumed_weight,
-		) = frame_support::storage::with_transaction(|| {
+		) = frame_support::storage::with_transaction_unchecked(|| {
 			let dispute_statement_set_valid = move |set: DisputeStatementSet| {
 				T::DisputesHandler::filter_dispute_data(
 					set,
@@ -964,7 +966,7 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config>(
 		return vec![]
 	}
 
-	let all_zeros = BitVec::<bitvec::order::Lsb0, u8>::repeat(false, expected_bits);
+	let all_zeros = BitVec::<u8, bitvec::order::Lsb0>::repeat(false, expected_bits);
 	let signing_context = SigningContext { parent_hash, session_index };
 	for unchecked_bitfield in unchecked_bitfields {
 		// Find and skip invalid bitfields.
@@ -1193,14 +1195,18 @@ pub(crate) fn assure_sanity_backed_candidates<
 /// a const value, while emitting a warning.
 fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 	const CANDIDATE_SEED_SUBJECT: [u8; 32] = *b"candidate-seed-selection-subject";
-	let vrf_random = CurrentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
+	// NOTE: this is slightly gameable since this randomness was already public
+	// by the previous block, while for the block author this randomness was
+	// known 2 epochs ago. it is marginally better than using the parent block
+	// hash since it's harder to influence the VRF output than the block hash.
+	let vrf_random = ParentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
 	let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT.clone();
 	if let Some(vrf_random) = vrf_random {
 		entropy.as_mut().copy_from_slice(vrf_random.as_ref());
 	} else {
 		// in case there is no VRF randomness present, we utilize the relay parent
 		// as seed, it's better than a static value.
-		log::warn!(target: LOG_TARGET, "CurrentBlockRandomness did not provide entropy");
+		log::warn!(target: LOG_TARGET, "ParentBlockRandomness did not provide entropy");
 		entropy.as_mut().copy_from_slice(parent_hash.as_ref());
 	}
 	entropy

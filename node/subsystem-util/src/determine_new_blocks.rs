@@ -18,7 +18,7 @@
 
 use futures::{channel::oneshot, prelude::*};
 use polkadot_node_subsystem::{messages::ChainApiMessage, SubsystemSender};
-use polkadot_primitives::v1::{BlockNumber, Hash, Header};
+use polkadot_primitives::v2::{BlockNumber, Hash, Header};
 
 /// Given a new chain-head hash, this determines the hashes of all new blocks we should track
 /// metadata for, given this head.
@@ -39,7 +39,7 @@ pub async fn determine_new_blocks<E, Sender>(
 	lower_bound_number: BlockNumber,
 ) -> Result<Vec<(Hash, Header)>, E>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<ChainApiMessage>,
 {
 	const ANCESTRY_STEP: usize = 4;
 

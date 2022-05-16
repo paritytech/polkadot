@@ -22,6 +22,16 @@ For assignments, what we need to be checking is whether we are aware of the (blo
 
 However, awareness on its own of a (block, candidate) pair would imply that even ancient candidates all the way back to the genesis are relevant. We are actually not interested in anything before finality.
 
+We gossip assignments along a grid topology produced by the [Gossip Support Subsystem](../utility/gossip-support.md) and also to a few random peers. The first time we accept an assignment or approval, regardless of the source, which originates from a validator peer in a shared dimension of the grid, we propagate the message to validator peers in the unshared dimension as well as a few random peers.
+
+But, in case these mechanisms don't work on their own, we need to trade bandwidth for protocol liveness by introducing aggression.
+
+Aggression has 3 levels:
+    Aggression Level 0: The basic behaviors described above.
+    Aggression Level 1: The originator of a message sends to all peers. Other peers follow the rules above.
+    Aggression Level 2: All peers send all messages to all their row and column neighbors. This means that each validator will, on average, receive each message approximately 2*sqrt(n) times.
+
+These aggression levels are chosen based on how long a block has taken to finalize: assignments and approvals related to the unfinalized block will be propagated with more aggression. In particular, it's only the earliest unfinalized blocks that aggression should be applied to, because descendants may be unfinalized only by virtue of being descendants.
 
 ## Protocol
 
@@ -29,7 +39,7 @@ Input:
   - `ApprovalDistributionMessage::NewBlocks`
   - `ApprovalDistributionMessage::DistributeAssignment`
   - `ApprovalDistributionMessage::DistributeApproval`
-  - `ApprovalDistributionMessage::NetworkBridgeUpdateV1`
+  - `ApprovalDistributionMessage::NetworkBridgeUpdate`
   - `OverseerSignal::BlockFinalized`
 
 Output:
@@ -241,12 +251,12 @@ Imports an approval signature referenced by block hash and candidate index:
 
 #### `unify_with_peer(peer: PeerId, view)`:
 
-1. Initialize a set `fresh_blocks = {}`
+1. Initialize a set `missing_knowledge = {}`
 
 For each block in the view:
   2. Load the `BlockEntry` for the block. If the block is unknown, or the number is less than or equal to the view's finalized number go to step 6.
-  3. Inspect the `known_by` set of the `BlockEntry`. If the peer is already present, go to step 6.
-  4. Add the peer to `known_by` with a cloned version of `block_entry.knowledge`. and add the hash of the block to `fresh_blocks`.
+  3. Inspect the `known_by` set of the `BlockEntry`. If the peer already knows all assignments/approvals, go to step 6.
+  4. Add the peer to `known_by` and add the hash and missing knowledge of the block to `missing_knowledge`.
   5. Return to step 2 with the ancestor of the block.
 
-6. For each block in `fresh_blocks`, send all assignments and approvals for all candidates in those blocks to the peer.
+6. For each block in `missing_knowledge`, send all assignments and approvals for all candidates in those blocks to the peer.

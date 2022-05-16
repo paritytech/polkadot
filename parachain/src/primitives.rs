@@ -65,7 +65,7 @@ impl ValidationCode {
 	}
 }
 
-/// Unit type wrapper around [`Hash`] that represents a validation code hash.
+/// Unit type wrapper around [`type@Hash`] that represents a validation code hash.
 ///
 /// This type is produced by [`ValidationCode::hash`].
 ///
@@ -158,7 +158,6 @@ impl From<u32> for Id {
 
 impl From<usize> for Id {
 	fn from(x: usize) -> Self {
-		use sp_std::convert::TryInto;
 		// can't panic, so need to truncate
 		let x = x.try_into().unwrap_or(u32::MAX);
 		Id(x)

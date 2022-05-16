@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#![cfg(test)]
+
 use super::*;
 use assert_matches::assert_matches;
 use executor::block_on;
@@ -24,8 +26,8 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, SpawnedSubsystem,
 };
 use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
-use polkadot_primitives::v1::Hash;
-use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
+use polkadot_primitives::v2::Hash;
+use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash, AlwaysZeroRng};
 use std::{
 	pin::Pin,
 	sync::{
@@ -44,8 +46,9 @@ use thiserror::Error;
 
 // job structs are constructed within JobTrait::run
 // most will want to retain the sender and receiver, as well as whatever other data they like
-struct FakeCollatorProtocolJob {
+struct FakeCollatorProtocolJob<Sender> {
 	receiver: mpsc::Receiver<CollatorProtocolMessage>,
+	_phantom: std::marker::PhantomData<Sender>,
 }
 
 // Error will mostly be a wrapper to make the try operator more convenient;
@@ -57,8 +60,18 @@ enum Error {
 	Sending(#[from] mpsc::SendError),
 }
 
-impl JobTrait for FakeCollatorProtocolJob {
+impl<Sender> JobTrait for FakeCollatorProtocolJob<Sender>
+where
+	Sender: overseer::CollatorProtocolSenderTrait
+		+ std::marker::Unpin
+		+ overseer::SubsystemSender<CollatorProtocolMessage>,
+	JobSender<Sender>: overseer::CollatorProtocolSenderTrait
+		+ std::marker::Unpin
+		+ overseer::SubsystemSender<CollatorProtocolMessage>,
+{
 	type ToJob = CollatorProtocolMessage;
+	type OutgoingMessages = overseer::CollatorProtocolOutgoingMessages;
+	type Sender = Sender;
 	type Error = Error;
 	type RunArgs = bool;
 	type Metrics = ();
@@ -68,20 +81,21 @@ impl JobTrait for FakeCollatorProtocolJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
-	fn run<S: SubsystemSender>(
+	fn run(
 		_: ActivatedLeaf,
 		run_args: Self::RunArgs,
 		_metrics: Self::Metrics,
 		receiver: mpsc::Receiver<CollatorProtocolMessage>,
-		mut sender: JobSender<S>,
+		mut sender: JobSender<Sender>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
-			let job = FakeCollatorProtocolJob { receiver };
+			let job =
+				FakeCollatorProtocolJob { receiver, _phantom: std::marker::PhantomData::<Sender> };
 
 			if run_args {
 				sender
 					.send_message(CollatorProtocolMessage::Invalid(
-						Default::default(),
+						dummy_hash(),
 						dummy_candidate_receipt(dummy_hash()),
 					))
 					.await;
@@ -95,7 +109,10 @@ impl JobTrait for FakeCollatorProtocolJob {
 	}
 }
 
-impl FakeCollatorProtocolJob {
+impl<Sender> FakeCollatorProtocolJob<Sender>
+where
+	Sender: overseer::CollatorProtocolSenderTrait,
+{
 	async fn run_loop(mut self) -> Result<(), Error> {
 		loop {
 			match self.receiver.next().await {
@@ -111,7 +128,8 @@ impl FakeCollatorProtocolJob {
 }
 
 // with the job defined, it's straightforward to get a subsystem implementation.
-type FakeCollatorProtocolSubsystem<Spawner> = JobSubsystem<FakeCollatorProtocolJob, Spawner>;
+type FakeCollatorProtocolSubsystem<Spawner> =
+	JobSubsystem<FakeCollatorProtocolJob<test_helpers::TestSubsystemSender>, Spawner>;
 
 // this type lets us pretend to be the overseer
 type OverseerHandle = test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>;
@@ -244,4 +262,27 @@ fn tick_tack_metronome() {
 			_ = f2 => (),
 		)
 	});
+}
+
+#[test]
+fn subset_generation_check() {
+	let mut values = (0_u8..=25).collect::<Vec<_>>();
+	// 12 even numbers exist
+	choose_random_subset::<u8, _>(|v| v & 0x01 == 0, &mut values, 12);
+	values.sort();
+	for (idx, v) in dbg!(values).into_iter().enumerate() {
+		assert_eq!(v as usize, idx * 2);
+	}
+}
+
+#[test]
+fn subset_predefined_generation_check() {
+	let mut values = (0_u8..=25).collect::<Vec<_>>();
+	choose_random_subset_with_rng::<u8, _, _>(|_| false, &mut values, &mut AlwaysZeroRng, 12);
+	assert_eq!(values.len(), 12);
+	for (idx, v) in dbg!(values).into_iter().enumerate() {
+		// Since shuffle actually shuffles the indexes from 1..len, then
+		// our PRG that returns zeroes will shuffle 0 and 1, 1 and 2, ... len-2 and len-1
+		assert_eq!(v as usize, idx + 1);
+	}
 }

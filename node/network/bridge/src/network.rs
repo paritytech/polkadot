@@ -29,9 +29,9 @@ use sc_network::{
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
 	request_response::{OutgoingRequest, Recipient, Requests},
-	PeerId, UnifiedReputationChange as Rep,
+	PeerId, ProtocolVersion, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, Block, Hash};
 
 use crate::validator_discovery::AuthorityDiscovery;
 
@@ -46,6 +46,7 @@ pub(crate) fn send_message<M>(
 	net: &mut impl Network,
 	mut peers: Vec<PeerId>,
 	peer_set: PeerSet,
+	version: ProtocolVersion,
 	message: M,
 	metrics: &super::Metrics,
 ) where
@@ -53,7 +54,7 @@ pub(crate) fn send_message<M>(
 {
 	let message = {
 		let encoded = message.encode();
-		metrics.on_notification_sent(peer_set, encoded.len(), peers.len());
+		metrics.on_notification_sent(peer_set, version, encoded.len(), peers.len());
 		encoded
 	};
 
@@ -131,14 +132,18 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 	}
 
 	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet) {
-		sc_network::NetworkService::disconnect_peer(&**self, who, peer_set.into_protocol_name());
+		sc_network::NetworkService::disconnect_peer(
+			&**self,
+			who,
+			peer_set.into_default_protocol_name(),
+		);
 	}
 
 	fn write_notification(&self, who: PeerId, peer_set: PeerSet, message: Vec<u8>) {
 		sc_network::NetworkService::write_notification(
 			&**self,
 			who,
-			peer_set.into_protocol_name(),
+			peer_set.into_default_protocol_name(),
 			message,
 		);
 	}
@@ -176,14 +181,12 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 
 		let peer_id = match peer_id {
 			None => {
-				tracing::debug!(target: LOG_TARGET, "Discovering authority failed");
+				gum::debug!(target: LOG_TARGET, "Discovering authority failed");
 				match pending_response
 					.send(Err(RequestFailure::Network(OutboundFailure::DialFailure)))
 				{
-					Err(_) => tracing::debug!(
-						target: LOG_TARGET,
-						"Sending failed request response failed."
-					),
+					Err(_) =>
+						gum::debug!(target: LOG_TARGET, "Sending failed request response failed."),
 					Ok(_) => {},
 				}
 				return

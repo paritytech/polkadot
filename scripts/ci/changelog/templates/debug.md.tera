@@ -1,0 +1,8 @@
+{%- set to_ignore = changes | filter(attribute="meta.B.value", value=0) %}
+
+<!--
+changes:
+ - total: {{ changes | length }}
+ - silent: {{ to_ignore | length }}
+ - remaining: {{ changes | length - to_ignore | length }}
+-->

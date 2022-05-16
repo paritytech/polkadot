@@ -1,18 +1,18 @@
 [package]
 name = "polkadot-node-core-bitfield-signing"
-version = "0.9.17"
+version = "0.9.19"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 futures = "0.3.21"
-tracing = "0.1.31"
+gum = { package = "tracing-gum", path = "../../gum" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 wasm-timer = "0.2.5"
-thiserror = "1.0.30"
+thiserror = "1.0.31"
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

@@ -72,20 +72,19 @@ use lru::LruCache;
 
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 use polkadot_primitives::{
-	v1::{Block, BlockId, BlockNumber, Hash},
-	v2::ParachainHost,
+	runtime_api::ParachainHost,
+	v2::{Block, BlockId, BlockNumber, Hash},
 };
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
-use polkadot_node_network_protocol::v1 as protocol_v1;
 use polkadot_node_subsystem_types::messages::{
 	ApprovalDistributionMessage, ApprovalVotingMessage, AvailabilityDistributionMessage,
 	AvailabilityRecoveryMessage, AvailabilityStoreMessage, BitfieldDistributionMessage,
 	BitfieldSigningMessage, CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage,
 	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
 	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
-	NetworkBridgeEvent, NetworkBridgeMessage, ProvisionerMessage, PvfCheckerMessage,
-	RuntimeApiMessage, StatementDistributionMessage,
+	NetworkBridgeMessage, ProvisionerMessage, PvfCheckerMessage, RuntimeApiMessage,
+	StatementDistributionMessage,
 };
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
@@ -108,9 +107,9 @@ use parity_util_mem::MemoryAllocationTracker;
 
 pub use polkadot_overseer_gen as gen;
 pub use polkadot_overseer_gen::{
-	overlord, FromOverseer, MapSubsystem, MessagePacket, SignalsReceived, SpawnNamed, Subsystem,
-	SubsystemContext, SubsystemIncomingMessages, SubsystemInstance, SubsystemMeterReadouts,
-	SubsystemMeters, SubsystemSender, TimeoutExt, ToOverseer,
+	contextbounds, overlord, subsystem, FromOverseer, MapSubsystem, MessagePacket, SignalsReceived,
+	SpawnNamed, Subsystem, SubsystemContext, SubsystemIncomingMessages, SubsystemInstance,
+	SubsystemMeterReadouts, SubsystemMeters, SubsystemSender, TimeoutExt, ToOverseer,
 };
 
 /// Store 2 days worth of blocks, not accounting for forks,
@@ -202,7 +201,7 @@ impl Handle {
 	/// Most basic operation, to stop a server.
 	async fn send_and_log_error(&mut self, event: Event) {
 		if self.0.send(event).await.is_err() {
-			tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
+			gum::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
 		}
 	}
 }
@@ -336,7 +335,7 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 /// # use std::time::Duration;
 /// # use futures::{executor, pin_mut, select, FutureExt};
 /// # use futures_timer::Delay;
-/// # use polkadot_primitives::v1::Hash;
+/// # use polkadot_primitives::v2::Hash;
 /// # use polkadot_overseer::{
 /// # 	self as overseer,
 /// #   OverseerSignal,
@@ -414,70 +413,155 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 	event=Event,
 	signal=OverseerSignal,
 	error=SubsystemError,
-	network=NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
+	message_capacity=2048,
 )]
 pub struct Overseer<SupportsParachains> {
-	#[subsystem(no_dispatch, CandidateValidationMessage)]
+	#[subsystem(CandidateValidationMessage, sends: [
+		RuntimeApiMessage,
+	])]
 	candidate_validation: CandidateValidation,
 
-	#[subsystem(no_dispatch, PvfCheckerMessage)]
+	#[subsystem(PvfCheckerMessage, sends: [
+		CandidateValidationMessage,
+		RuntimeApiMessage,
+	])]
 	pvf_checker: PvfChecker,
 
-	#[subsystem(no_dispatch, CandidateBackingMessage)]
+	#[subsystem(CandidateBackingMessage, sends: [
+		CandidateValidationMessage,
+		CollatorProtocolMessage,
+		AvailabilityDistributionMessage,
+		AvailabilityStoreMessage,
+		StatementDistributionMessage,
+		ProvisionerMessage,
+		RuntimeApiMessage,
+		DisputeCoordinatorMessage,
+	])]
 	candidate_backing: CandidateBacking,
 
-	#[subsystem(StatementDistributionMessage)]
+	#[subsystem(StatementDistributionMessage, sends: [
+		NetworkBridgeMessage,
+		CandidateBackingMessage,
+		RuntimeApiMessage,
+	])]
 	statement_distribution: StatementDistribution,
 
-	#[subsystem(no_dispatch, AvailabilityDistributionMessage)]
+	#[subsystem(AvailabilityDistributionMessage, sends: [
+		AvailabilityStoreMessage,
+		AvailabilityRecoveryMessage,
+		ChainApiMessage,
+		RuntimeApiMessage,
+		NetworkBridgeMessage,
+	])]
 	availability_distribution: AvailabilityDistribution,
 
-	#[subsystem(no_dispatch, AvailabilityRecoveryMessage)]
+	#[subsystem(AvailabilityRecoveryMessage, sends: [
+		NetworkBridgeMessage,
+		RuntimeApiMessage,
+		AvailabilityStoreMessage,
+	])]
 	availability_recovery: AvailabilityRecovery,
 
-	#[subsystem(blocking, no_dispatch, BitfieldSigningMessage)]
+	#[subsystem(blocking, BitfieldSigningMessage, sends: [
+		AvailabilityStoreMessage,
+		RuntimeApiMessage,
+		BitfieldDistributionMessage,
+	])]
 	bitfield_signing: BitfieldSigning,
 
-	#[subsystem(BitfieldDistributionMessage)]
+	#[subsystem(BitfieldDistributionMessage, sends: [
+		RuntimeApiMessage,
+		NetworkBridgeMessage,
+		ProvisionerMessage,
+	])]
 	bitfield_distribution: BitfieldDistribution,
 
-	#[subsystem(no_dispatch, ProvisionerMessage)]
+	#[subsystem(ProvisionerMessage, sends: [
+		RuntimeApiMessage,
+		CandidateBackingMessage,
+		ChainApiMessage,
+		DisputeCoordinatorMessage,
+	])]
 	provisioner: Provisioner,
 
-	#[subsystem(no_dispatch, blocking, RuntimeApiMessage)]
+	#[subsystem(blocking, RuntimeApiMessage, sends: [])]
 	runtime_api: RuntimeApi,
 
-	#[subsystem(no_dispatch, blocking, AvailabilityStoreMessage)]
+	#[subsystem(blocking, AvailabilityStoreMessage, sends: [
+		ChainApiMessage,
+		RuntimeApiMessage,
+	])]
 	availability_store: AvailabilityStore,
 
-	#[subsystem(no_dispatch, NetworkBridgeMessage)]
+	#[subsystem(NetworkBridgeMessage, sends: [
+		BitfieldDistributionMessage,
+		StatementDistributionMessage,
+		ApprovalDistributionMessage,
+		GossipSupportMessage,
+		DisputeDistributionMessage,
+		CollationGenerationMessage,
+		CollatorProtocolMessage,
+	])]
 	network_bridge: NetworkBridge,
 
-	#[subsystem(no_dispatch, blocking, ChainApiMessage)]
+	#[subsystem(blocking, ChainApiMessage, sends: [])]
 	chain_api: ChainApi,
 
-	#[subsystem(no_dispatch, CollationGenerationMessage)]
+	#[subsystem(CollationGenerationMessage, sends: [
+		RuntimeApiMessage,
+		CollatorProtocolMessage,
+	])]
 	collation_generation: CollationGeneration,
 
-	#[subsystem(no_dispatch, CollatorProtocolMessage)]
+	#[subsystem(CollatorProtocolMessage, sends: [
+		NetworkBridgeMessage,
+		RuntimeApiMessage,
+		CandidateBackingMessage,
+	])]
 	collator_protocol: CollatorProtocol,
 
-	#[subsystem(ApprovalDistributionMessage)]
+	#[subsystem(ApprovalDistributionMessage, sends: [
+		NetworkBridgeMessage,
+		ApprovalVotingMessage,
+	])]
 	approval_distribution: ApprovalDistribution,
 
-	#[subsystem(no_dispatch, ApprovalVotingMessage)]
+	#[subsystem(blocking, ApprovalVotingMessage, sends: [
+		RuntimeApiMessage,
+		ChainApiMessage,
+		ChainSelectionMessage,
+		DisputeCoordinatorMessage,
+		AvailabilityRecoveryMessage,
+		ApprovalDistributionMessage,
+		CandidateValidationMessage,
+	])]
 	approval_voting: ApprovalVoting,
 
-	#[subsystem(GossipSupportMessage)]
+	#[subsystem(GossipSupportMessage, sends: [
+		NetworkBridgeMessage,
+		RuntimeApiMessage,
+		ChainSelectionMessage,
+	])]
 	gossip_support: GossipSupport,
 
-	#[subsystem(no_dispatch, DisputeCoordinatorMessage)]
+	#[subsystem(blocking, DisputeCoordinatorMessage, sends: [
+		RuntimeApiMessage,
+		ChainApiMessage,
+		DisputeDistributionMessage,
+		CandidateValidationMessage,
+		AvailabilityStoreMessage,
+		AvailabilityRecoveryMessage,
+	])]
 	dispute_coordinator: DisputeCoordinator,
 
-	#[subsystem(no_dispatch, DisputeDistributionMessage)]
+	#[subsystem(DisputeDistributionMessage, sends: [
+		RuntimeApiMessage,
+		DisputeCoordinatorMessage,
+		NetworkBridgeMessage,
+	])]
 	dispute_distribution: DisputeDistribution,
 
-	#[subsystem(no_dispatch, ChainSelectionMessage)]
+	#[subsystem(blocking, ChainSelectionMessage, sends: [ChainApiMessage])]
 	chain_selection: ChainSelection,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
@@ -532,21 +616,18 @@ where
 			Ok(memory_stats) =>
 				Box::new(move |metrics: &OverseerMetrics| match memory_stats.snapshot() {
 					Ok(memory_stats_snapshot) => {
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							"memory_stats: {:?}",
 							&memory_stats_snapshot
 						);
 						metrics.memory_stats_snapshot(memory_stats_snapshot);
 					},
-					Err(e) => tracing::debug!(
-						target: LOG_TARGET,
-						"Failed to obtain memory stats: {:?}",
-						e
-					),
+					Err(e) =>
+						gum::debug!(target: LOG_TARGET, "Failed to obtain memory stats: {:?}", e),
 				}),
 			Err(_) => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					"Memory allocation tracking is not supported by the allocator.",
 				);
@@ -561,7 +642,7 @@ where
 		// We combine the amount of messages from subsystems to the overseer
 		// as well as the amount of messages from external sources to the overseer
 		// into one `to_overseer` value.
-		metronome_metrics.channel_fill_level_snapshot(
+		metronome_metrics.channel_metrics_snapshot(
 			subsystem_meters
 				.iter()
 				.cloned()
@@ -583,7 +664,7 @@ where
 	SupportsParachains: HeadSupportsParachains,
 	S: SpawnNamed,
 {
-	/// Stop the overseer.
+	/// Stop the `Overseer`.
 	async fn stop(mut self) {
 		let _ = self.wait_terminate(OverseerSignal::Conclude, Duration::from_secs(1_u64)).await;
 	}
@@ -637,7 +718,7 @@ where
 					}
 				},
 				res = self.running_subsystems.select_next_some() => {
-					tracing::error!(
+					gum::error!(
 						target: LOG_TARGET,
 						subsystem = ?res,
 						"subsystem finished unexpectedly",

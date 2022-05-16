@@ -64,6 +64,13 @@ pub fn abort_on_spec_version_change<C: ChainWithBalances>(
 	expected_spec_version: u32,
 ) {
 	async_std::task::spawn(async move {
+		log::info!(
+			target: "bridge-guard",
+			"Starting spec_version guard for {}. Expected spec_version: {}",
+			C::NAME,
+			expected_spec_version,
+		);
+
 		loop {
 			let actual_spec_version = env.runtime_version().await;
 			match actual_spec_version {
@@ -103,6 +110,14 @@ pub fn abort_when_account_balance_decreased<C: ChainWithBalances>(
 	const DAY: Duration = Duration::from_secs(60 * 60 * 24);
 
 	async_std::task::spawn(async move {
+		log::info!(
+			target: "bridge-guard",
+			"Starting balance guard for {}/{:?}. Maximal decrease: {:?}",
+			C::NAME,
+			account_id,
+			maximal_decrease,
+		);
+
 		let mut balances = VecDeque::new();
 
 		loop {
@@ -181,7 +196,7 @@ impl<C: ChainWithBalances> Environment<C> for Client<C> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use frame_support::weights::IdentityFee;
+	use frame_support::weights::{IdentityFee, Weight};
 	use futures::{
 		channel::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
 		future::FutureExt,
@@ -202,10 +217,19 @@ mod tests {
 		type Balance = u32;
 		type Index = u32;
 		type Signature = sp_runtime::testing::TestSignature;
+
+		fn max_extrinsic_size() -> u32 {
+			unreachable!()
+		}
+		fn max_extrinsic_weight() -> Weight {
+			unreachable!()
+		}
 	}
 
 	impl Chain for TestChain {
 		const NAME: &'static str = "Test";
+		const TOKEN_ID: Option<&'static str> = None;
+		const BEST_FINALIZED_HEADER_ID_METHOD: &'static str = "BestTestHeader";
 		const AVERAGE_BLOCK_INTERVAL: Duration = Duration::from_millis(1);
 		const STORAGE_PROOF_OVERHEAD: u32 = 0;
 		const MAXIMAL_ENCODED_ACCOUNT_ID_SIZE: u32 = 0;

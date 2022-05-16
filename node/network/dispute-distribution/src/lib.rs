@@ -31,11 +31,11 @@ use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::request_response::{incoming::IncomingRequestReceiver, v1};
 use polkadot_node_primitives::DISPUTE_WINDOW;
-use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	messages::DisputeDistributionMessage, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemError,
+	SubsystemError,
 };
+use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 
 /// ## The sender [`DisputeSender`]
 ///
@@ -82,7 +82,7 @@ use self::receiver::DisputesReceiver;
 
 /// Error and [`Result`] type for this subsystem.
 mod error;
-use error::{log_error, Fatal, FatalResult, Result};
+use error::{log_error, FatalError, FatalResult, Result};
 
 #[cfg(test)]
 mod tests;
@@ -114,12 +114,11 @@ pub struct DisputeDistributionSubsystem<AD> {
 	metrics: Metrics,
 }
 
-impl<Context, AD> overseer::Subsystem<Context, SubsystemError> for DisputeDistributionSubsystem<AD>
+#[overseer::subsystem(DisputeDistribution, error = SubsystemError, prefix = self::overseer)]
+impl<Context, AD> DisputeDistributionSubsystem<AD>
 where
-	Context: SubsystemContext<Message = DisputeDistributionMessage>
-		+ overseer::SubsystemContext<Message = DisputeDistributionMessage>
-		+ Sync
-		+ Send,
+	<Context as overseer::DisputeDistributionContextTrait>::Sender:
+		overseer::DisputeDistributionSenderTrait + Sync + Send,
 	AD: AuthorityDiscovery + Clone,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
@@ -132,6 +131,7 @@ where
 	}
 }
 
+#[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
 impl<AD> DisputeDistributionSubsystem<AD>
 where
 	AD: AuthorityDiscovery + Clone,
@@ -160,13 +160,7 @@ where
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), Fatal>
-	where
-		Context: SubsystemContext<Message = DisputeDistributionMessage>
-			+ overseer::SubsystemContext<Message = DisputeDistributionMessage>
-			+ Sync
-			+ Send,
-	{
+	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError> {
 		let receiver = DisputesReceiver::new(
 			ctx.sender().clone(),
 			self.req_receiver
@@ -176,7 +170,7 @@ where
 			self.metrics.clone(),
 		);
 		ctx.spawn("disputes-receiver", receiver.run().boxed())
-			.map_err(Fatal::SpawnTask)?;
+			.map_err(FatalError::SpawnTask)?;
 
 		loop {
 			let message = MuxedMessage::receive(&mut ctx, &mut self.sender_rx).await;
@@ -197,7 +191,7 @@ where
 				},
 				MuxedMessage::Sender(result) => {
 					self.disputes_sender
-						.on_task_message(result.ok_or(Fatal::SenderExhausted)?)
+						.on_task_message(result.ok_or(FatalError::SenderExhausted)?)
 						.await;
 				},
 			}
@@ -205,7 +199,7 @@ where
 	}
 
 	/// Handle overseer signals.
-	async fn handle_signals<Context: SubsystemContext>(
+	async fn handle_signals<Context>(
 		&mut self,
 		ctx: &mut Context,
 		signal: OverseerSignal,
@@ -221,7 +215,7 @@ where
 	}
 
 	/// Handle `DisputeDistributionMessage`s.
-	async fn handle_subsystem_message<Context: SubsystemContext>(
+	async fn handle_subsystem_message<Context>(
 		&mut self,
 		ctx: &mut Context,
 		msg: DisputeDistributionMessage,
@@ -243,10 +237,10 @@ enum MuxedMessage {
 	Sender(Option<TaskFinish>),
 }
 
+#[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
 impl MuxedMessage {
-	async fn receive(
-		ctx: &mut (impl SubsystemContext<Message = DisputeDistributionMessage>
-		          + overseer::SubsystemContext<Message = DisputeDistributionMessage>),
+	async fn receive<Context>(
+		ctx: &mut Context,
 		from_sender: &mut mpsc::Receiver<TaskFinish>,
 	) -> Self {
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream
@@ -254,7 +248,7 @@ impl MuxedMessage {
 		let from_overseer = ctx.recv().fuse();
 		futures::pin_mut!(from_overseer, from_sender);
 		futures::select!(
-			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(Fatal::SubsystemReceive)),
+			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
 			msg = from_sender.next() => MuxedMessage::Sender(msg),
 		)
 	}

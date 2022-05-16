@@ -21,7 +21,7 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::{
 	AvailableData, DisputeMessage, ErasureChunk, PoV, Proof, UncheckedDisputeMessage,
 };
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, Hash, Id as ParaId, ValidatorIndex,
 };
 
@@ -85,7 +85,7 @@ impl ChunkResponse {
 
 impl IsRequest for ChunkFetchingRequest {
 	type Response = ChunkFetchingResponse;
-	const PROTOCOL: Protocol = Protocol::ChunkFetching;
+	const PROTOCOL: Protocol = Protocol::ChunkFetchingV1;
 }
 
 /// Request the advertised collation at that relay-parent.
@@ -107,7 +107,7 @@ pub enum CollationFetchingResponse {
 
 impl IsRequest for CollationFetchingRequest {
 	type Response = CollationFetchingResponse;
-	const PROTOCOL: Protocol = Protocol::CollationFetching;
+	const PROTOCOL: Protocol = Protocol::CollationFetchingV1;
 }
 
 /// Request the advertised collation at that relay-parent.
@@ -130,7 +130,7 @@ pub enum PoVFetchingResponse {
 
 impl IsRequest for PoVFetchingRequest {
 	type Response = PoVFetchingResponse;
-	const PROTOCOL: Protocol = Protocol::PoVFetching;
+	const PROTOCOL: Protocol = Protocol::PoVFetchingV1;
 }
 
 /// Request the entire available data for a candidate.
@@ -162,7 +162,7 @@ impl From<Option<AvailableData>> for AvailableDataFetchingResponse {
 
 impl IsRequest for AvailableDataFetchingRequest {
 	type Response = AvailableDataFetchingResponse;
-	const PROTOCOL: Protocol = Protocol::AvailableDataFetching;
+	const PROTOCOL: Protocol = Protocol::AvailableDataFetchingV1;
 }
 
 /// Request for fetching a large statement via request/response.
@@ -188,7 +188,7 @@ pub enum StatementFetchingResponse {
 
 impl IsRequest for StatementFetchingRequest {
 	type Response = StatementFetchingResponse;
-	const PROTOCOL: Protocol = Protocol::StatementFetching;
+	const PROTOCOL: Protocol = Protocol::StatementFetchingV1;
 }
 
 /// A dispute request.
@@ -213,5 +213,5 @@ pub enum DisputeResponse {
 
 impl IsRequest for DisputeRequest {
 	type Response = DisputeResponse;
-	const PROTOCOL: Protocol = Protocol::DisputeSending;
+	const PROTOCOL: Protocol = Protocol::DisputeSendingV1;
 }

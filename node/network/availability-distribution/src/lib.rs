@@ -19,14 +19,14 @@ use futures::{future::Either, FutureExt, StreamExt, TryFutureExt};
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::request_response::{v1, IncomingRequestReceiver};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	messages::AvailabilityDistributionMessage, overseer, FromOverseer, OverseerSignal,
-	SpawnedSubsystem, SubsystemContext, SubsystemError,
+	SpawnedSubsystem, SubsystemError,
 };
 
 /// Error and [`Result`] type for this subsystem.
 mod error;
-use error::{log_error, Fatal, Result};
+use error::{log_error, FatalError, Result};
 
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
@@ -68,11 +68,8 @@ pub struct IncomingRequestReceivers {
 	pub chunk_req_receiver: IncomingRequestReceiver<v1::ChunkFetchingRequest>,
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for AvailabilityDistributionSubsystem
-where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-	Context: overseer::SubsystemContext<Message = AvailabilityDistributionMessage>,
-{
+#[overseer::subsystem(AvailabilityDistribution, error=SubsystemError, prefix=self::overseer)]
+impl<Context> AvailabilityDistributionSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self
 			.run(ctx)
@@ -83,6 +80,7 @@ where
 	}
 }
 
+#[overseer::contextbounds(AvailabilityDistribution, prefix = self::overseer)]
 impl AvailabilityDistributionSubsystem {
 	/// Create a new instance of the availability distribution.
 	pub fn new(
@@ -95,11 +93,7 @@ impl AvailabilityDistributionSubsystem {
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	async fn run<Context>(self, mut ctx: Context) -> std::result::Result<(), Fatal>
-	where
-		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-		Context: overseer::SubsystemContext<Message = AvailabilityDistributionMessage>,
-	{
+	async fn run<Context>(self, mut ctx: Context) -> std::result::Result<(), FatalError> {
 		let Self { mut runtime, recvs, metrics } = self;
 
 		let IncomingRequestReceivers { pov_req_receiver, chunk_req_receiver } = recvs;
@@ -111,13 +105,13 @@ impl AvailabilityDistributionSubsystem {
 				"pov-receiver",
 				run_pov_receiver(sender.clone(), pov_req_receiver, metrics.clone()).boxed(),
 			)
-			.map_err(Fatal::SpawnTask)?;
+			.map_err(FatalError::SpawnTask)?;
 
 			ctx.spawn(
 				"chunk-receiver",
 				run_chunk_receiver(sender, chunk_req_receiver, metrics.clone()).boxed(),
 			)
-			.map_err(Fatal::SpawnTask)?;
+			.map_err(FatalError::SpawnTask)?;
 		}
 
 		loop {
@@ -132,9 +126,9 @@ impl AvailabilityDistributionSubsystem {
 			// Handle task messages sending:
 			let message = match action {
 				Either::Left(subsystem_msg) =>
-					subsystem_msg.map_err(|e| Fatal::IncomingMessageChannel(e))?,
+					subsystem_msg.map_err(|e| FatalError::IncomingMessageChannel(e))?,
 				Either::Right(from_task) => {
-					let from_task = from_task.ok_or(Fatal::RequesterExhausted)?;
+					let from_task = from_task.ok_or(FatalError::RequesterExhausted)?;
 					ctx.send_message(from_task).await;
 					continue
 				},

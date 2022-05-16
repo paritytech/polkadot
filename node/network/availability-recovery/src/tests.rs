@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{convert::TryFrom, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use futures::{executor, future};
@@ -29,15 +29,15 @@ use sc_network::config::RequestResponseConfig;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_primitives::{BlockData, PoV, Proof};
-use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v1::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
-use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
-use polkadot_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_primitives::v2::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
+use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 
 type VirtualOverseer = TestSubsystemContextHandle<AvailabilityRecoveryMessage>;
 
@@ -134,7 +134,7 @@ async fn overseer_send(
 	overseer: &mut TestSubsystemContextHandle<AvailabilityRecoveryMessage>,
 	msg: AvailabilityRecoveryMessage,
 ) {
-	tracing::trace!(msg = ?msg, "sending message");
+	gum::trace!(msg = ?msg, "sending message");
 	overseer
 		.send(FromOverseer::Communication { msg })
 		.timeout(TIMEOUT)
@@ -145,9 +145,9 @@ async fn overseer_send(
 async fn overseer_recv(
 	overseer: &mut TestSubsystemContextHandle<AvailabilityRecoveryMessage>,
 ) -> AllMessages {
-	tracing::trace!("waiting for message ...");
+	gum::trace!("waiting for message ...");
 	let msg = overseer.recv().timeout(TIMEOUT).await.expect("TIMEOUT is enough to recv.");
-	tracing::trace!(msg = ?msg, "received message");
+	gum::trace!(msg = ?msg, "received message");
 	msg
 }
 
@@ -292,7 +292,7 @@ impl TestState {
 						i += 1;
 						assert_matches!(
 							req,
-							Requests::ChunkFetching(req) => {
+							Requests::ChunkFetchingV1(req) => {
 								assert_eq!(req.payload.candidate_hash, candidate_hash);
 
 								let validator_index = req.payload.index.0 as usize;
@@ -341,7 +341,7 @@ impl TestState {
 
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AvailableDataFetching(req) => {
+						Requests::AvailableDataFetchingV1(req) => {
 							assert_eq!(req.payload.candidate_hash, candidate_hash);
 							let validator_index = self.validator_authority_id
 								.iter()

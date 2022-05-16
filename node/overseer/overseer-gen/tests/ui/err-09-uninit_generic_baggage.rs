@@ -21,7 +21,7 @@ pub struct MsgStrukt(u8);
 
 #[overlord(signal=SigSigSig, error=OverseerError, event=Event, gen=AllMessages)]
 struct Overseer<T> {
-	#[subsystem(no_dispatch, MsgStrukt)]
+	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
 	i_like_pie: T,
 }

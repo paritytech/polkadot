@@ -29,7 +29,7 @@ use thiserror::Error;
 pub use sc_network::IfDisconnected;
 
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet, request_response::Requests, v1 as protocol_v1, PeerId,
+	self as net_protocol, peer_set::PeerSet, request_response::Requests, PeerId,
 	UnifiedReputationChange,
 };
 use polkadot_node_primitives::{
@@ -38,21 +38,18 @@ use polkadot_node_primitives::{
 	CollationSecondedSignal, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement,
 	SignedFullStatement, ValidationResult,
 };
-use polkadot_primitives::{
-	v1::{
-		AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
-		CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
-		CoreState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
-		InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
-		OccupiedCoreAssumption, PersistedValidationData, SessionIndex, SignedAvailabilityBitfield,
-		SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId,
-		ValidatorIndex, ValidatorSignature,
-	},
-	v2::{PvfCheckStatement, SessionInfo},
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
+	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
+	DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
+	PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
+	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
-use polkadot_statement_table::v1::Misbehavior;
+use polkadot_statement_table::v2::Misbehavior;
 use std::{
-	collections::{BTreeMap, HashSet},
+	collections::{BTreeMap, HashMap, HashSet},
 	sync::Arc,
 	time::Duration,
 };
@@ -129,14 +126,14 @@ pub enum CandidateValidationMessage {
 	///
 	/// This will implicitly attempt to gather the `PersistedValidationData` and `ValidationCode`
 	/// from the runtime API of the chain, based on the `relay_parent`
-	/// of the `CandidateDescriptor`.
+	/// of the `CandidateReceipt`.
 	///
 	/// This will also perform checking of validation outputs against the acceptance criteria.
 	///
 	/// If there is no state available which can provide this data or the core for
 	/// the para is not free at the relay-parent, an error is returned.
 	ValidateFromChainState(
-		CandidateDescriptor,
+		CandidateReceipt,
 		Arc<PoV>,
 		/// Execution timeout
 		Duration,
@@ -154,7 +151,7 @@ pub enum CandidateValidationMessage {
 	ValidateFromExhaustive(
 		PersistedValidationData,
 		ValidationCode,
-		CandidateDescriptor,
+		CandidateReceipt,
 		Arc<PoV>,
 		/// Execution timeout
 		Duration,
@@ -204,7 +201,7 @@ pub enum CollatorProtocolMessage {
 	ReportCollator(CollatorId),
 	/// Get a network bridge update.
 	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
+	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::CollatorProtocolMessage>),
 	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
 	///
 	/// The hash is the relay parent.
@@ -257,7 +254,7 @@ pub enum DisputeCoordinatorMessage {
 		/// The validator index passed alongside each statement should correspond to the index
 		/// of the validator in the set.
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
-		/// Inform the requester once we finished importing.
+		/// Inform the requester once we finished importing (if a sender was provided).
 		///
 		/// This is:
 		/// - we discarded the votes because
@@ -271,7 +268,7 @@ pub enum DisputeCoordinatorMessage {
 		///		- or other explicit votes on that candidate already recorded
 		///		- or recovered availability for the candidate
 		///		- or the imported statements are backing/approval votes, which are always accepted.
-		pending_confirmation: oneshot::Sender<ImportStatementsResult>,
+		pending_confirmation: Option<oneshot::Sender<ImportStatementsResult>>,
 	},
 	/// Fetch a list of all recent disputes the co-ordinator is aware of.
 	/// These are disputes which have occurred any time in recent sessions,
@@ -331,20 +328,20 @@ pub enum NetworkBridgeMessage {
 	DisconnectPeer(PeerId, PeerSet),
 
 	/// Send a message to one or more peers on the validation peer-set.
-	SendValidationMessage(Vec<PeerId>, protocol_v1::ValidationProtocol),
+	SendValidationMessage(Vec<PeerId>, net_protocol::VersionedValidationProtocol),
 
 	/// Send a message to one or more peers on the collation peer-set.
-	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
+	SendCollationMessage(Vec<PeerId>, net_protocol::VersionedCollationProtocol),
 
 	/// Send a batch of validation messages.
 	///
 	/// NOTE: Messages will be processed in order (at least statement distribution relies on this).
-	SendValidationMessages(Vec<(Vec<PeerId>, protocol_v1::ValidationProtocol)>),
+	SendValidationMessages(Vec<(Vec<PeerId>, net_protocol::VersionedValidationProtocol)>),
 
 	/// Send a batch of collation messages.
 	///
 	/// NOTE: Messages will be processed in order.
-	SendCollationMessages(Vec<(Vec<PeerId>, protocol_v1::CollationProtocol)>),
+	SendCollationMessages(Vec<(Vec<PeerId>, net_protocol::VersionedCollationProtocol)>),
 
 	/// Send requests via substrate request/response.
 	/// Second parameter, tells what to do if we are not yet connected to the peer.
@@ -381,9 +378,20 @@ pub enum NetworkBridgeMessage {
 	/// Inform the distribution subsystems about the new
 	/// gossip network topology formed.
 	NewGossipTopology {
-		/// Ids of our neighbors in the new gossip topology.
-		/// We're not necessarily connected to all of them, but we should.
-		our_neighbors: HashSet<AuthorityDiscoveryId>,
+		/// The session info this gossip topology is concerned with.
+		session: SessionIndex,
+		/// Ids of our neighbors in the X dimensions of the new gossip topology,
+		/// along with their validator indices within the session.
+		///
+		/// We're not necessarily connected to all of them, but we should
+		/// try to be.
+		our_neighbors_x: HashMap<AuthorityDiscoveryId, ValidatorIndex>,
+		/// Ids of our neighbors in the X dimensions of the new gossip topology,
+		/// along with their validator indices within the session.
+		///
+		/// We're not necessarily connected to all of them, but we should
+		/// try to be.
+		our_neighbors_y: HashMap<AuthorityDiscoveryId, ValidatorIndex>,
 	},
 }
 
@@ -447,7 +455,7 @@ pub enum BitfieldDistributionMessage {
 
 	/// Event from the network bridge.
 	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::BitfieldDistributionMessage>),
+	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::BitfieldDistributionMessage>),
 }
 
 impl BitfieldDistributionMessage {
@@ -455,7 +463,7 @@ impl BitfieldDistributionMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::DistributeBitfield(hash, _) => Some(*hash),
-			Self::NetworkBridgeUpdateV1(_) => None,
+			Self::NetworkBridgeUpdate(_) => None,
 		}
 	}
 }
@@ -615,6 +623,8 @@ pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, crate::errors::RuntimeA
 /// A request to the Runtime API subsystem.
 #[derive(Debug)]
 pub enum RuntimeApiRequest {
+	/// Get the version of the runtime API, if any.
+	Version(RuntimeApiSender<u32>),
 	/// Get the next, current and some previous authority discovery set deduplicated.
 	Authorities(RuntimeApiSender<Vec<AuthorityDiscoveryId>>),
 	/// Get the current validator set.
@@ -641,7 +651,7 @@ pub enum RuntimeApiRequest {
 	/// Sends back `true` if the validation outputs pass all acceptance criteria checks.
 	CheckValidationOutputs(
 		ParaId,
-		polkadot_primitives::v1::CandidateCommitments,
+		polkadot_primitives::v2::CandidateCommitments,
 		RuntimeApiSender<bool>,
 	),
 	/// Get the session index that a child of the block will have.
@@ -671,7 +681,7 @@ pub enum RuntimeApiRequest {
 	/// Get information about the BABE epoch the block was included in.
 	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
 	/// Get all disputes in relation to a relay parent.
-	FetchOnChainVotes(RuntimeApiSender<Option<polkadot_primitives::v1::ScrapedOnChainVotes>>),
+	FetchOnChainVotes(RuntimeApiSender<Option<polkadot_primitives::v2::ScrapedOnChainVotes>>),
 	/// Submits a PVF pre-checking statement into the transaction pool.
 	SubmitPvfCheckStatement(PvfCheckStatement, ValidatorSignature, RuntimeApiSender<()>),
 	/// Returns code hashes of PVFs that require pre-checking by validators in the active set.
@@ -682,6 +692,10 @@ pub enum RuntimeApiRequest {
 		ParaId,
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCodeHash>>,
+	),
+	/// Returns all on-chain disputes at given block number.
+	StagingDisputes(
+		RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
 	),
 }
 
@@ -709,7 +723,7 @@ pub enum StatementDistributionMessage {
 	Share(Hash, SignedFullStatement),
 	/// Event from the network bridge.
 	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
+	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::StatementDistributionMessage>),
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
@@ -800,8 +814,8 @@ pub enum AssignmentCheckError {
 	InvalidCandidateIndex(CandidateIndex),
 	#[error("Invalid candidate {0}: {1:?}")]
 	InvalidCandidate(CandidateIndex, CandidateHash),
-	#[error("Invalid cert: {0:?}")]
-	InvalidCert(ValidatorIndex),
+	#[error("Invalid cert: {0:?}, reason: {1}")]
+	InvalidCert(ValidatorIndex, String),
 	#[error("Internal state mismatch: {0:?}, {1:?}")]
 	Internal(Hash, CandidateHash),
 }
@@ -903,7 +917,7 @@ pub enum ApprovalDistributionMessage {
 	DistributeApproval(IndirectSignedApprovalVote),
 	/// An update from the network bridge.
 	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::ApprovalDistributionMessage>),
+	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::ApprovalDistributionMessage>),
 }
 
 /// Message to the Gossip Support subsystem.
@@ -911,7 +925,7 @@ pub enum ApprovalDistributionMessage {
 pub enum GossipSupportMessage {
 	/// Dummy constructor, so we can receive networking events.
 	#[from]
-	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::GossipSuppportNetworkMessage>),
+	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::GossipSupportNetworkMessage>),
 }
 
 /// PVF checker message.

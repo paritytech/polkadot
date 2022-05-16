@@ -24,17 +24,19 @@ use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
 use polkadot_node_core_provisioner::ProvisionerConfig;
 use polkadot_node_network_protocol::request_response::{v1 as request_v1, IncomingRequestReceiver};
+use polkadot_node_subsystem_types::messages::{BitfieldSigningMessage, ProvisionerMessage};
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::{
 	dummy::{dummy_overseer_builder, DummySubsystem},
 	HeadSupportsParachains,
 };
 use polkadot_overseer::{
-	metrics::Metrics as OverseerMetrics, BlockInfo, InitializedOverseerBuilder, MetricsTrait,
-	Overseer, OverseerConnector, OverseerHandle,
+	gen::SubsystemContext, metrics::Metrics as OverseerMetrics, BlockInfo,
+	InitializedOverseerBuilder, MetricsTrait, Overseer, OverseerConnector, OverseerHandle,
+	OverseerSubsystemContext,
 };
 
-use polkadot_primitives::v2::ParachainHost;
+use polkadot_primitives::runtime_api::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::AuxStore;
 use sc_keystore::LocalKeystore;
@@ -63,6 +65,7 @@ pub use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
 pub use polkadot_node_core_provisioner::ProvisionerSubsystem;
 pub use polkadot_node_core_pvf_checker::PvfCheckerSubsystem;
 pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
+use polkadot_node_subsystem_util::rand::{self, SeedableRng};
 pub use polkadot_statement_distribution::StatementDistributionSubsystem;
 
 /// Arguments passed for overseer construction.
@@ -79,7 +82,7 @@ where
 	/// Runtime client generic, providing the `ProvieRuntimeApi` trait besides others.
 	pub runtime_client: Arc<RuntimeClient>,
 	/// The underlying key value store for the parachains.
-	pub parachains_db: Arc<dyn kvdb::KeyValueDB>,
+	pub parachains_db: Arc<dyn polkadot_node_subsystem_util::database::Database>,
 	/// Underlying network service implementation.
 	pub network_service: Arc<sc_network::NetworkService<Block, Hash>>,
 	/// Underlying authority discovery service.
@@ -108,10 +111,10 @@ where
 	pub chain_selection_config: ChainSelectionConfig,
 	/// Configuration for the dispute coordinator subsystem.
 	pub dispute_coordinator_config: DisputeCoordinatorConfig,
-	/// Enable to disputes.
-	pub disputes_enabled: bool,
 	/// Enable PVF pre-checking
 	pub pvf_checker_enabled: bool,
+	/// Overseer channel capacity override.
+	pub overseer_message_channel_capacity_override: Option<usize>,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -138,8 +141,8 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		candidate_validation_config,
 		chain_selection_config,
 		dispute_coordinator_config,
-		disputes_enabled,
 		pvf_checker_enabled,
+		overseer_message_channel_capacity_override,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
@@ -147,13 +150,19 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		Arc<RuntimeClient>,
 		CandidateValidationSubsystem,
 		PvfCheckerSubsystem,
-		CandidateBackingSubsystem<Spawner>,
-		StatementDistributionSubsystem,
+		CandidateBackingSubsystem,
+		StatementDistributionSubsystem<rand::rngs::StdRng>,
 		AvailabilityDistributionSubsystem,
 		AvailabilityRecoverySubsystem,
-		BitfieldSigningSubsystem<Spawner>,
+		BitfieldSigningSubsystem<
+			Spawner,
+			<OverseerSubsystemContext<BitfieldSigningMessage> as SubsystemContext>::Sender,
+		>,
 		BitfieldDistributionSubsystem,
-		ProvisionerSubsystem<Spawner>,
+		ProvisionerSubsystem<
+			Spawner,
+			<OverseerSubsystemContext<ProvisionerMessage> as SubsystemContext>::Sender,
+		>,
 		RuntimeApiSubsystem<RuntimeClient>,
 		AvailabilityStoreSubsystem,
 		NetworkBridgeSubsystem<
@@ -178,7 +187,6 @@ where
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
 	use polkadot_node_subsystem_util::metrics::Metrics;
-	use std::iter::FromIterator;
 
 	let metrics = <OverseerMetrics as MetricsTrait>::register(registry)?;
 
@@ -204,7 +212,6 @@ where
 			Metrics::register(registry)?,
 		))
 		.candidate_backing(CandidateBackingSubsystem::new(
-			spawner.clone(),
 			keystore.clone(),
 			Metrics::register(registry)?,
 		))
@@ -244,7 +251,7 @@ where
 		))
 		.provisioner(ProvisionerSubsystem::new(
 			spawner.clone(),
-			ProvisionerConfig { disputes_enabled },
+			ProvisionerConfig,
 			Metrics::register(registry)?,
 		))
 		.runtime_api(RuntimeApiSubsystem::new(
@@ -256,6 +263,7 @@ where
 			keystore.clone(),
 			statement_req_receiver,
 			Metrics::register(registry)?,
+			rand::rngs::StdRng::from_entropy(),
 		))
 		.approval_distribution(ApprovalDistributionSubsystem::new(Metrics::register(registry)?))
 		.approval_voting(ApprovalVotingSubsystem::with_config(
@@ -270,16 +278,12 @@ where
 			authority_discovery_service.clone(),
 			Metrics::register(registry)?,
 		))
-		.dispute_coordinator(if disputes_enabled {
-			DisputeCoordinatorSubsystem::new(
-				parachains_db.clone(),
-				dispute_coordinator_config,
-				keystore.clone(),
-				Metrics::register(registry)?,
-			)
-		} else {
-			DisputeCoordinatorSubsystem::dummy()
-		})
+		.dispute_coordinator(DisputeCoordinatorSubsystem::new(
+			parachains_db.clone(),
+			dispute_coordinator_config,
+			keystore.clone(),
+			Metrics::register(registry)?,
+		))
 		.dispute_distribution(DisputeDistributionSubsystem::new(
 			keystore.clone(),
 			dispute_req_receiver,
@@ -299,7 +303,12 @@ where
 		.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
 		.metrics(metrics)
 		.spawner(spawner);
-	Ok(builder)
+
+	if let Some(capacity) = overseer_message_channel_capacity_override {
+		Ok(builder.message_channel_capacity(capacity))
+	} else {
+		Ok(builder)
+	}
 }
 
 /// Trait for the `fn` generating the overseer.

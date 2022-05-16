@@ -201,33 +201,36 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 	let (to_sweeper_tx, to_sweeper_rx) = mpsc::channel(100);
 	let run_sweeper = sweeper_task(to_sweeper_rx);
 
-	let run = async move {
+	let run_host = async move {
 		let artifacts = Artifacts::new(&config.cache_path).await;
 
-		futures::pin_mut!(run_prepare_queue, run_prepare_pool, run_execute_queue, run_sweeper);
-
-		run(
-			Inner {
-				cache_path: config.cache_path,
-				cleanup_pulse_interval: Duration::from_secs(3600),
-				artifact_ttl: Duration::from_secs(3600 * 24),
-				artifacts,
-				to_host_rx,
-				to_prepare_queue_tx,
-				from_prepare_queue_rx,
-				to_execute_queue_tx,
-				to_sweeper_tx,
-				awaiting_prepare: AwaitingPrepare::default(),
-			},
-			run_prepare_pool,
-			run_prepare_queue,
-			run_execute_queue,
-			run_sweeper,
-		)
+		run(Inner {
+			cache_path: config.cache_path,
+			cleanup_pulse_interval: Duration::from_secs(3600),
+			artifact_ttl: Duration::from_secs(3600 * 24),
+			artifacts,
+			to_host_rx,
+			to_prepare_queue_tx,
+			from_prepare_queue_rx,
+			to_execute_queue_tx,
+			to_sweeper_tx,
+			awaiting_prepare: AwaitingPrepare::default(),
+		})
 		.await
 	};
 
-	(validation_host, run)
+	let task = async move {
+		// Bundle the sub-components' tasks together into a single future.
+		futures::select! {
+			_ = run_host.fuse() => {},
+			_ = run_prepare_queue.fuse() => {},
+			_ = run_prepare_pool.fuse() => {},
+			_ = run_execute_queue.fuse() => {},
+			_ = run_sweeper.fuse() => {},
+		};
+	};
+
+	(validation_host, task)
 }
 
 /// An execution request that should execute the PVF (known in the context) and send the results
@@ -297,15 +300,18 @@ async fn run(
 		mut to_sweeper_tx,
 		mut awaiting_prepare,
 	}: Inner,
-	prepare_pool: impl Future<Output = ()> + Unpin,
-	prepare_queue: impl Future<Output = ()> + Unpin,
-	execute_queue: impl Future<Output = ()> + Unpin,
-	sweeper: impl Future<Output = ()> + Unpin,
 ) {
 	macro_rules! break_if_fatal {
 		($expr:expr) => {
 			match $expr {
-				Err(Fatal) => break,
+				Err(Fatal) => {
+					gum::error!(
+						target: LOG_TARGET,
+						"Fatal error occurred, terminating the host. Line: {}",
+						line!(),
+					);
+					break
+				},
 				Ok(v) => v,
 			}
 		};
@@ -317,31 +323,9 @@ async fn run(
 	let mut to_host_rx = to_host_rx.fuse();
 	let mut from_prepare_queue_rx = from_prepare_queue_rx.fuse();
 
-	// Make sure that the task-futures are fused.
-	let mut prepare_queue = prepare_queue.fuse();
-	let mut prepare_pool = prepare_pool.fuse();
-	let mut execute_queue = execute_queue.fuse();
-	let mut sweeper = sweeper.fuse();
-
 	loop {
 		// biased to make it behave deterministically for tests.
 		futures::select_biased! {
-			_ = prepare_queue => {
-				never!("prepare_pool: long-running task never concludes; qed");
-				break;
-			},
-			_ = prepare_pool => {
-				never!("prepare_pool: long-running task never concludes; qed");
-				break;
-			},
-			_ = execute_queue => {
-				never!("execute_queue: long-running task never concludes; qed");
-				break;
-			},
-			_ = sweeper => {
-				never!("sweeper: long-running task never concludes; qed");
-				break;
-			},
 			() = cleanup_pulse.select_next_some() => {
 				// `select_next_some` because we don't expect this to fail, but if it does, we
 				// still don't fail. The tradeoff is that the compiled cache will start growing
@@ -356,7 +340,14 @@ async fn run(
 				).await);
 			},
 			to_host = to_host_rx.next() => {
-				let to_host = break_if_fatal!(to_host.ok_or(Fatal));
+				let to_host = match to_host {
+					None => {
+						// The sending half of the channel has been closed, meaning the
+						// `ValidationHost` struct was dropped. Shutting down gracefully.
+						break;
+					},
+					Some(to_host) => to_host,
+				};
 
 				break_if_fatal!(handle_to_host(
 					&cache_path,
@@ -639,13 +630,13 @@ async fn handle_cleanup_pulse(
 	artifact_ttl: Duration,
 ) -> Result<(), Fatal> {
 	let to_remove = artifacts.prune(artifact_ttl);
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		"PVF pruning: {} artifacts reached their end of life",
 		to_remove.len(),
 	);
 	for artifact_id in to_remove {
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			validation_code_hash = ?artifact_id.code_hash,
 			"pruning artifact",
@@ -664,7 +655,7 @@ async fn sweeper_task(mut sweeper_rx: mpsc::Receiver<PathBuf>) {
 			None => break,
 			Some(condemned) => {
 				let result = async_std::fs::remove_file(&condemned).await;
-				tracing::trace!(
+				gum::trace!(
 					target: LOG_TARGET,
 					?result,
 					"Sweeping the artifact file {}",
@@ -761,26 +752,18 @@ mod tests {
 			let (to_execute_queue_tx, to_execute_queue_rx) = mpsc::channel(10);
 			let (to_sweeper_tx, to_sweeper_rx) = mpsc::channel(10);
 
-			let mk_dummy_loop = || std::future::pending().boxed();
-
-			let run = run(
-				Inner {
-					cache_path,
-					cleanup_pulse_interval,
-					artifact_ttl,
-					artifacts,
-					to_host_rx,
-					to_prepare_queue_tx,
-					from_prepare_queue_rx,
-					to_execute_queue_tx,
-					to_sweeper_tx,
-					awaiting_prepare: AwaitingPrepare::default(),
-				},
-				mk_dummy_loop(),
-				mk_dummy_loop(),
-				mk_dummy_loop(),
-				mk_dummy_loop(),
-			)
+			let run = run(Inner {
+				cache_path,
+				cleanup_pulse_interval,
+				artifact_ttl,
+				artifacts,
+				to_host_rx,
+				to_prepare_queue_tx,
+				from_prepare_queue_rx,
+				to_execute_queue_tx,
+				to_sweeper_tx,
+				awaiting_prepare: AwaitingPrepare::default(),
+			})
 			.boxed();
 
 			Self {

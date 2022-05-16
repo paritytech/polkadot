@@ -27,7 +27,7 @@ use crate::{
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v1::{
+use primitives::v2::{
 	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
 	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash,
 	HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorId,
@@ -78,9 +78,9 @@ pub struct CandidatePendingAvailability<H, N> {
 	/// The candidate descriptor.
 	descriptor: CandidateDescriptor<H>,
 	/// The received availability votes. One bit per validator.
-	availability_votes: BitVec<BitOrderLsb0, u8>,
+	availability_votes: BitVec<u8, BitOrderLsb0>,
 	/// The backers of the candidate pending availability.
-	backers: BitVec<BitOrderLsb0, u8>,
+	backers: BitVec<u8, BitOrderLsb0>,
 	/// The block number of the relay-parent of the receipt.
 	relay_parent_number: N,
 	/// The block number of the relay-chain block this was backed in.
@@ -91,7 +91,7 @@ pub struct CandidatePendingAvailability<H, N> {
 
 impl<H, N> CandidatePendingAvailability<H, N> {
 	/// Get the availability votes on the candidate.
-	pub(crate) fn availability_votes(&self) -> &BitVec<BitOrderLsb0, u8> {
+	pub(crate) fn availability_votes(&self) -> &BitVec<u8, BitOrderLsb0> {
 		&self.availability_votes
 	}
 
@@ -120,8 +120,8 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 		core: CoreIndex,
 		hash: CandidateHash,
 		descriptor: CandidateDescriptor<H>,
-		availability_votes: BitVec<BitOrderLsb0, u8>,
-		backers: BitVec<BitOrderLsb0, u8>,
+		availability_votes: BitVec<u8, BitOrderLsb0>,
+		backers: BitVec<u8, BitOrderLsb0>,
 		relay_parent_number: N,
 		backed_in_number: N,
 		backing_group: GroupIndex,
@@ -168,6 +168,9 @@ impl<H> Default for ProcessedCandidates<H> {
 }
 
 /// Number of backing votes we need for a valid backing.
+///
+/// WARNING: This check has to be kept in sync with the node side check in the backing
+/// subsystem.
 pub fn minimum_backing_votes(n_validators: usize) -> usize {
 	// For considerations on this value see:
 	// https://github.com/paritytech/polkadot/pull/1656#issuecomment-999734650
@@ -544,7 +547,7 @@ impl<T: Config> Pallet<T> {
 				}
 
 				let para_id = backed_candidate.descriptor().para_id;
-				let mut backers = bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
+				let mut backers = bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
 
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
 					check_assignment_in_order(assignment)?;
@@ -571,7 +574,7 @@ impl<T: Config> Pallet<T> {
 
 						// check the signatures in the backing and that it is a majority.
 						{
-							let maybe_amount_validated = primitives::v1::check_candidate_backing(
+							let maybe_amount_validated = primitives::v2::check_candidate_backing(
 								&backed_candidate,
 								&signing_context,
 								group_vals.len(),
@@ -649,8 +652,8 @@ impl<T: Config> Pallet<T> {
 			let para_id = candidate.descriptor().para_id;
 
 			// initialize all availability votes to 0.
-			let availability_votes: BitVec<BitOrderLsb0, u8> =
-				bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
+			let availability_votes: BitVec<u8, BitOrderLsb0> =
+				bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
 
 			Self::deposit_event(Event::<T>::CandidateBacked(
 				candidate.candidate.to_plain(),
@@ -689,7 +692,7 @@ impl<T: Config> Pallet<T> {
 	/// Run the acceptance criteria checks on the given candidate commitments.
 	pub(crate) fn check_validation_outputs_for_runtime_api(
 		para_id: ParaId,
-		validation_outputs: primitives::v1::CandidateCommitments,
+		validation_outputs: primitives::v2::CandidateCommitments,
 	) -> bool {
 		// This function is meant to be called from the runtime APIs against the relay-parent, hence
 		// `relay_parent_number` is equal to `now`.
@@ -721,8 +724,8 @@ impl<T: Config> Pallet<T> {
 	fn enact_candidate(
 		relay_parent_number: T::BlockNumber,
 		receipt: CommittedCandidateReceipt<T::Hash>,
-		backers: BitVec<BitOrderLsb0, u8>,
-		availability_votes: BitVec<BitOrderLsb0, u8>,
+		backers: BitVec<u8, BitOrderLsb0>,
+		availability_votes: BitVec<u8, BitOrderLsb0>,
 		core_index: CoreIndex,
 		backing_group: GroupIndex,
 	) -> Weight {
@@ -1035,11 +1038,11 @@ impl<T: Config> CandidateCheckContext<T> {
 		&self,
 		para_id: ParaId,
 		head_data: &HeadData,
-		new_validation_code: &Option<primitives::v1::ValidationCode>,
+		new_validation_code: &Option<primitives::v2::ValidationCode>,
 		processed_downward_messages: u32,
-		upward_messages: &[primitives::v1::UpwardMessage],
+		upward_messages: &[primitives::v2::UpwardMessage],
 		hrmp_watermark: T::BlockNumber,
-		horizontal_messages: &[primitives::v1::OutboundHrmpMessage<ParaId>],
+		horizontal_messages: &[primitives::v2::OutboundHrmpMessage<ParaId>],
 	) -> Result<(), AcceptanceCheckErr<T::BlockNumber>> {
 		ensure!(
 			head_data.0.len() <= self.config.max_head_data_size as _,

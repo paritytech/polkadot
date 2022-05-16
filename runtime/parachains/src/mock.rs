@@ -25,12 +25,12 @@ use crate::{
 
 use frame_support::{
 	parameter_types,
-	traits::{GenesisBuild, KeyOwnerProofSystem},
+	traits::{GenesisBuild, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
 	weights::Weight,
 };
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
-use primitives::v1::{
+use primitives::v2::{
 	AuthorityDiscoveryId, Balance, BlockNumber, Header, Moment, SessionIndex, UpwardMessage,
 	ValidatorIndex,
 };
@@ -230,6 +230,7 @@ impl crate::ump::Config for Test {
 	type UmpSink = TestUmpSink;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
+	type WeightInfo = crate::ump::TestWeightInfo;
 }
 
 impl crate::hrmp::Config for Test {
@@ -300,7 +301,41 @@ impl crate::paras_inherent::Config for Test {
 	type WeightInfo = crate::paras_inherent::TestWeightInfo;
 }
 
-impl crate::session_info::Config for Test {}
+pub struct MockValidatorSet;
+
+impl ValidatorSet<AccountId> for MockValidatorSet {
+	type ValidatorId = AccountId;
+	type ValidatorIdOf = ValidatorIdOf;
+	fn session_index() -> SessionIndex {
+		0
+	}
+	fn validators() -> Vec<Self::ValidatorId> {
+		Vec::new()
+	}
+}
+
+impl ValidatorSetWithIdentification<AccountId> for MockValidatorSet {
+	type Identification = ();
+	type IdentificationOf = FoolIdentificationOf;
+}
+
+pub struct FoolIdentificationOf;
+impl sp_runtime::traits::Convert<AccountId, Option<()>> for FoolIdentificationOf {
+	fn convert(_: AccountId) -> Option<()> {
+		Some(())
+	}
+}
+
+pub struct ValidatorIdOf;
+impl sp_runtime::traits::Convert<AccountId, Option<AccountId>> for ValidatorIdOf {
+	fn convert(a: AccountId) -> Option<AccountId> {
+		Some(a)
+	}
+}
+
+impl crate::session_info::Config for Test {
+	type ValidatorSet = MockValidatorSet;
+}
 
 thread_local! {
 	pub static DISCOVERY_AUTHORITIES: RefCell<Vec<AuthorityDiscoveryId>> = RefCell::new(Vec::new());

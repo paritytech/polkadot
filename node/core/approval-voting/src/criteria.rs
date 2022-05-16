@@ -20,9 +20,8 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{
 	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
 };
-use polkadot_primitives::{
-	v1::{AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, ValidatorIndex},
-	v2::SessionInfo,
+use polkadot_primitives::v2::{
+	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, SessionInfo, ValidatorIndex,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::ByteArray;
@@ -237,7 +236,7 @@ pub(crate) fn compute_assignments(
 		config.assignment_keys.is_empty() ||
 		config.validator_groups.is_empty()
 	{
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			n_cores = config.n_cores,
 			has_assignment_keys = !config.assignment_keys.is_empty(),
@@ -256,7 +255,7 @@ pub(crate) fn compute_assignments(
 				Err(sc_keystore::Error::Unavailable) => None,
 				Err(sc_keystore::Error::Io(e)) if e.kind() == std::io::ErrorKind::NotFound => None,
 				Err(e) => {
-					tracing::warn!(target: LOG_TARGET, "Encountered keystore error: {:?}", e);
+					gum::warn!(target: LOG_TARGET, "Encountered keystore error: {:?}", e);
 					None
 				},
 			}
@@ -264,7 +263,7 @@ pub(crate) fn compute_assignments(
 
 		match key {
 			None => {
-				tracing::trace!(target: LOG_TARGET, "No assignment key");
+				gum::trace!(target: LOG_TARGET, "No assignment key");
 				return HashMap::new()
 			},
 			Some(k) => k,
@@ -278,7 +277,7 @@ pub(crate) fn compute_assignments(
 		.map(|(c_hash, core, _)| (c_hash, core))
 		.collect::<Vec<_>>();
 
-	tracing::trace!(
+	gum::trace!(
 		target: LOG_TARGET,
 		assignable_cores = leaving_cores.len(),
 		"Assigning to candidates from different backing groups"
@@ -334,7 +333,7 @@ fn compute_relay_vrf_modulo_assignments(
 					if let Some((candidate_hash, _)) =
 						leaving_cores.clone().into_iter().find(|(_, c)| c == core)
 					{
-						tracing::trace!(
+						gum::trace!(
 							target: LOG_TARGET,
 							?candidate_hash,
 							?core,
@@ -416,7 +415,7 @@ fn compute_relay_vrf_delay_assignments(
 		};
 
 		if used {
-			tracing::trace!(
+			gum::trace!(
 				target: LOG_TARGET,
 				?candidate_hash,
 				?core,
@@ -430,15 +429,29 @@ fn compute_relay_vrf_delay_assignments(
 
 /// Assignment invalid.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InvalidAssignment;
+pub struct InvalidAssignment(pub(crate) InvalidAssignmentReason);
 
 impl std::fmt::Display for InvalidAssignment {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Invalid Assignment")
+		write!(f, "Invalid Assignment: {:?}", self.0)
 	}
 }
 
 impl std::error::Error for InvalidAssignment {}
+
+/// Failure conditions when checking an assignment cert.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum InvalidAssignmentReason {
+	ValidatorIndexOutOfBounds,
+	SampleOutOfBounds,
+	CoreIndexOutOfBounds,
+	InvalidAssignmentKey,
+	IsInBackingGroup,
+	VRFModuloCoreIndexMismatch,
+	VRFModuloOutputMismatch,
+	VRFDelayCoreIndexMismatch,
+	VRFDelayOutputMismatch,
+}
 
 /// Checks the crypto of an assignment cert. Failure conditions:
 ///   * Validator index out of bounds
@@ -459,16 +472,18 @@ pub(crate) fn check_assignment_cert(
 	assignment: &AssignmentCert,
 	backing_group: GroupIndex,
 ) -> Result<DelayTranche, InvalidAssignment> {
+	use InvalidAssignmentReason as Reason;
+
 	let validator_public = config
 		.assignment_keys
 		.get(validator_index.0 as usize)
-		.ok_or(InvalidAssignment)?;
+		.ok_or(InvalidAssignment(Reason::ValidatorIndexOutOfBounds))?;
 
 	let public = schnorrkel::PublicKey::from_bytes(validator_public.as_slice())
-		.map_err(|_| InvalidAssignment)?;
+		.map_err(|_| InvalidAssignment(Reason::InvalidAssignmentKey))?;
 
 	if claimed_core_index.0 >= config.n_cores {
-		return Err(InvalidAssignment)
+		return Err(InvalidAssignment(Reason::CoreIndexOutOfBounds))
 	}
 
 	// Check that the validator was not part of the backing group
@@ -477,14 +492,14 @@ pub(crate) fn check_assignment_cert(
 		is_in_backing_group(&config.validator_groups, validator_index, backing_group);
 
 	if is_in_backing {
-		return Err(InvalidAssignment)
+		return Err(InvalidAssignment(Reason::IsInBackingGroup))
 	}
 
 	let &(ref vrf_output, ref vrf_proof) = &assignment.vrf;
 	match assignment.kind {
 		AssignmentCertKind::RelayVRFModulo { sample } => {
 			if sample >= config.relay_vrf_modulo_samples {
-				return Err(InvalidAssignment)
+				return Err(InvalidAssignment(Reason::SampleOutOfBounds))
 			}
 
 			let (vrf_in_out, _) = public
@@ -494,18 +509,18 @@ pub(crate) fn check_assignment_cert(
 					&vrf_proof.0,
 					assigned_core_transcript(claimed_core_index),
 				)
-				.map_err(|_| InvalidAssignment)?;
+				.map_err(|_| InvalidAssignment(Reason::VRFModuloOutputMismatch))?;
 
 			// ensure that the `vrf_in_out` actually gives us the claimed core.
 			if relay_vrf_modulo_core(&vrf_in_out, config.n_cores) == claimed_core_index {
 				Ok(0)
 			} else {
-				Err(InvalidAssignment)
+				Err(InvalidAssignment(Reason::VRFModuloCoreIndexMismatch))
 			}
 		},
 		AssignmentCertKind::RelayVRFDelay { core_index } => {
 			if core_index != claimed_core_index {
-				return Err(InvalidAssignment)
+				return Err(InvalidAssignment(Reason::VRFDelayCoreIndexMismatch))
 			}
 
 			let (vrf_in_out, _) = public
@@ -514,7 +529,7 @@ pub(crate) fn check_assignment_cert(
 					&vrf_output.0,
 					&vrf_proof.0,
 				)
-				.map_err(|_| InvalidAssignment)?;
+				.map_err(|_| InvalidAssignment(Reason::VRFDelayOutputMismatch))?;
 
 			Ok(relay_vrf_delay_tranche(
 				&vrf_in_out,
@@ -537,7 +552,7 @@ fn is_in_backing_group(
 mod tests {
 	use super::*;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
-	use polkadot_primitives::v1::{Hash, ASSIGNMENT_KEY_TYPE_ID};
+	use polkadot_primitives::v2::{Hash, ASSIGNMENT_KEY_TYPE_ID};
 	use sp_application_crypto::sr25519;
 	use sp_core::crypto::Pair as PairT;
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;

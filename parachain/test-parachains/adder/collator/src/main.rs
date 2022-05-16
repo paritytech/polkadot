@@ -19,7 +19,7 @@
 use polkadot_cli::{Error, Result};
 use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
-use polkadot_primitives::v1::Id as ParaId;
+use polkadot_primitives::v2::Id as ParaId;
 use sc_cli::{Error as SubstrateCliError, Role, SubstrateCli};
 use sp_core::hexdisplay::HexDisplay;
 use test_parachain_adder_collator::Collator;
@@ -65,11 +65,13 @@ fn main() -> Result<()> {
 							config,
 							polkadot_service::IsCollator::Yes(collator.collator_key()),
 							None,
-							true,
+							false,
 							None,
 							None,
 							false,
 							polkadot_service::RealOverseerGen,
+							None,
+							None,
 						)
 						.map_err(|e| e.to_string())?;
 						let mut overseer_handle = full_node

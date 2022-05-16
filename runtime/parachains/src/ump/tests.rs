@@ -22,7 +22,7 @@ use crate::mock::{
 use frame_support::{assert_noop, assert_ok, weights::Weight};
 use std::collections::HashSet;
 
-struct GenesisConfigBuilder {
+pub(super) struct GenesisConfigBuilder {
 	max_upward_message_size: u32,
 	max_upward_message_num_per_candidate: u32,
 	max_upward_queue_count: u32,
@@ -45,7 +45,7 @@ impl Default for GenesisConfigBuilder {
 }
 
 impl GenesisConfigBuilder {
-	fn build(self) -> crate::mock::MockGenesisConfig {
+	pub(super) fn build(self) -> crate::mock::MockGenesisConfig {
 		let mut genesis = default_genesis_config();
 		let config = &mut genesis.configuration.config;
 
@@ -261,7 +261,7 @@ fn verify_relay_dispatch_queue_size_is_externally_accessible() {
 	// keys and is decodable into a (u32, u32).
 
 	use parity_scale_codec::Decode as _;
-	use primitives::v1::well_known_keys;
+	use primitives::v2::well_known_keys;
 
 	let a = ParaId::from(228);
 	let msg = vec![1, 2, 3];

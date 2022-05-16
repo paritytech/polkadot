@@ -18,14 +18,14 @@
 
 use hyper::{Client, Uri};
 use polkadot_test_service::{node_config, run_validator_node, test_prometheus_config};
-use primitives::v1::metric_definitions::PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED;
+use primitives::v2::metric_definitions::PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED;
 use sc_client_api::{execution_extensions::ExecutionStrategies, ExecutionStrategy};
 use sp_keyring::AccountKeyring::*;
-use std::{collections::HashMap, convert::TryFrom};
+use std::collections::HashMap;
 
 const DEFAULT_PROMETHEUS_PORT: u16 = 9616;
 
-#[substrate_test_utils::test]
+#[substrate_test_utils::test(flavor = "multi_thread")]
 async fn runtime_can_publish_metrics() {
 	let mut alice_config =
 		node_config(|| {}, tokio::runtime::Handle::current(), Alice, Vec::new(), true);

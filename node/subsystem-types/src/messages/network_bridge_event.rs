@@ -14,30 +14,56 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{collections::HashSet, convert::TryFrom};
+use std::{
+	collections::{HashMap, HashSet},
+	convert::TryFrom,
+};
 
 pub use sc_network::{PeerId, ReputationChange};
 
-use polkadot_node_network_protocol::{ObservedRole, OurView, View, WrongVariant};
-use polkadot_primitives::v1::AuthorityDiscoveryId;
+use polkadot_node_network_protocol::{
+	grid_topology::SessionGridTopology, ObservedRole, OurView, ProtocolVersion, View, WrongVariant,
+};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
+
+/// Information about a peer in the gossip topology for a session.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TopologyPeerInfo {
+	/// The validator's known peer IDs.
+	pub peer_ids: Vec<PeerId>,
+	/// The index of the validator in the discovery keys of the corresponding
+	/// `SessionInfo`. This can extend _beyond_ the set of active parachain validators.
+	pub validator_index: ValidatorIndex,
+}
+
+/// A struct indicating new gossip topology.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NewGossipTopology {
+	/// The session index this topology corresponds to.
+	pub session: SessionIndex,
+	/// Neighbors in the 'X' dimension of the grid.
+	pub our_neighbors_x: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
+	/// Neighbors in the 'Y' dimension of the grid.
+	pub our_neighbors_y: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
+}
 
 /// Events from network.
 #[derive(Debug, Clone, PartialEq)]
 pub enum NetworkBridgeEvent<M> {
 	/// A peer has connected.
-	PeerConnected(PeerId, ObservedRole, Option<HashSet<AuthorityDiscoveryId>>),
+	PeerConnected(PeerId, ObservedRole, ProtocolVersion, Option<HashSet<AuthorityDiscoveryId>>),
 
 	/// A peer has disconnected.
 	PeerDisconnected(PeerId),
 
-	/// Our neighbors in the new gossip topology.
+	/// Our neighbors in the new gossip topology for the session.
 	/// We're not necessarily connected to all of them.
 	///
 	/// This message is issued only on the validation peer set.
 	///
 	/// Note, that the distribution subsystems need to handle the last
 	/// view update of the newly added gossip peers manually.
-	NewGossipTopology(HashSet<PeerId>),
+	NewGossipTopology(NewGossipTopology),
 
 	/// Peer has sent a message.
 	PeerMessage(PeerId, M),
@@ -68,21 +94,46 @@ impl<M> NetworkBridgeEvent<M> {
 	pub fn focus<'a, T>(&'a self) -> Result<NetworkBridgeEvent<T>, WrongVariant>
 	where
 		T: 'a + Clone,
-		&'a T: TryFrom<&'a M, Error = WrongVariant>,
+		T: TryFrom<&'a M, Error = WrongVariant>,
 	{
 		Ok(match *self {
 			NetworkBridgeEvent::PeerMessage(ref peer, ref msg) =>
-				NetworkBridgeEvent::PeerMessage(peer.clone(), <&'a T>::try_from(msg)?.clone()),
-			NetworkBridgeEvent::PeerConnected(ref peer, ref role, ref authority_id) =>
-				NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone(), authority_id.clone()),
+				NetworkBridgeEvent::PeerMessage(peer.clone(), T::try_from(msg)?),
+			NetworkBridgeEvent::PeerConnected(
+				ref peer,
+				ref role,
+				ref version,
+				ref authority_id,
+			) => NetworkBridgeEvent::PeerConnected(
+				peer.clone(),
+				role.clone(),
+				*version,
+				authority_id.clone(),
+			),
 			NetworkBridgeEvent::PeerDisconnected(ref peer) =>
 				NetworkBridgeEvent::PeerDisconnected(peer.clone()),
-			NetworkBridgeEvent::NewGossipTopology(ref peers) =>
-				NetworkBridgeEvent::NewGossipTopology(peers.clone()),
+			NetworkBridgeEvent::NewGossipTopology(ref topology) =>
+				NetworkBridgeEvent::NewGossipTopology(topology.clone()),
 			NetworkBridgeEvent::PeerViewChange(ref peer, ref view) =>
 				NetworkBridgeEvent::PeerViewChange(peer.clone(), view.clone()),
 			NetworkBridgeEvent::OurViewChange(ref view) =>
 				NetworkBridgeEvent::OurViewChange(view.clone()),
 		})
+	}
+}
+
+impl From<NewGossipTopology> for SessionGridTopology {
+	fn from(topology: NewGossipTopology) -> Self {
+		let peers_x =
+			topology.our_neighbors_x.values().flat_map(|p| &p.peer_ids).cloned().collect();
+		let peers_y =
+			topology.our_neighbors_y.values().flat_map(|p| &p.peer_ids).cloned().collect();
+
+		let validator_indices_x =
+			topology.our_neighbors_x.values().map(|p| p.validator_index.clone()).collect();
+		let validator_indices_y =
+			topology.our_neighbors_y.values().map(|p| p.validator_index.clone()).collect();
+
+		SessionGridTopology { peers_x, peers_y, validator_indices_x, validator_indices_y }
 	}
 }

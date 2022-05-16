@@ -30,7 +30,7 @@ use frame_support::{
 };
 pub use pallet::*;
 use parity_scale_codec::Decode;
-use primitives::v1::Id as ParaId;
+use primitives::v2::Id as ParaId;
 use sp_runtime::traits::{CheckedSub, One, Saturating, Zero};
 use sp_std::{mem::swap, prelude::*};
 
@@ -128,25 +128,31 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// An auction started. Provides its index and the block number where it will begin to
 		/// close and the first lease period of the quadruplet that is auctioned.
-		/// `[auction_index, lease_period, ending]`
-		AuctionStarted(AuctionIndex, LeasePeriodOf<T>, T::BlockNumber),
-		/// An auction ended. All funds become unreserved. `[auction_index]`
-		AuctionClosed(AuctionIndex),
+		AuctionStarted {
+			auction_index: AuctionIndex,
+			lease_period: LeasePeriodOf<T>,
+			ending: T::BlockNumber,
+		},
+		/// An auction ended. All funds become unreserved.
+		AuctionClosed { auction_index: AuctionIndex },
 		/// Funds were reserved for a winning bid. First balance is the extra amount reserved.
-		/// Second is the total. `[bidder, extra_reserved, total_amount]`
-		Reserved(T::AccountId, BalanceOf<T>, BalanceOf<T>),
+		/// Second is the total.
+		Reserved { bidder: T::AccountId, extra_reserved: BalanceOf<T>, total_amount: BalanceOf<T> },
 		/// Funds were unreserved since bidder is no longer active. `[bidder, amount]`
-		Unreserved(T::AccountId, BalanceOf<T>),
+		Unreserved { bidder: T::AccountId, amount: BalanceOf<T> },
 		/// Someone attempted to lease the same slot twice for a parachain. The amount is held in reserve
 		/// but no parachain slot has been leased.
-		/// `[parachain_id, leaser, amount]`
-		ReserveConfiscated(ParaId, T::AccountId, BalanceOf<T>),
+		ReserveConfiscated { para_id: ParaId, leaser: T::AccountId, amount: BalanceOf<T> },
 		/// A new bid has been accepted as the current winner.
-		/// `[who, para_id, amount, first_slot, last_slot]`
-		BidAccepted(T::AccountId, ParaId, BalanceOf<T>, LeasePeriodOf<T>, LeasePeriodOf<T>),
+		BidAccepted {
+			bidder: T::AccountId,
+			para_id: ParaId,
+			amount: BalanceOf<T>,
+			first_slot: LeasePeriodOf<T>,
+			last_slot: LeasePeriodOf<T>,
+		},
 		/// The winning offset was chosen for an auction. This will map into the `Winning` storage map.
-		/// `[auction_index, block_number]`
-		WinningOffset(AuctionIndex, T::BlockNumber),
+		WinningOffset { auction_index: AuctionIndex, block_number: T::BlockNumber },
 	}
 
 	#[pallet::error]
@@ -397,7 +403,11 @@ impl<T: Config> Pallet<T> {
 		let ending = frame_system::Pallet::<T>::block_number().saturating_add(duration);
 		AuctionInfo::<T>::put((lease_period_index, ending));
 
-		Self::deposit_event(Event::<T>::AuctionStarted(n, lease_period_index, ending));
+		Self::deposit_event(Event::<T>::AuctionStarted {
+			auction_index: n,
+			lease_period: lease_period_index,
+			ending,
+		});
 		Ok(())
 	}
 
@@ -472,11 +482,11 @@ impl<T: Config> Pallet<T> {
 				// ...and record the amount reserved.
 				ReservedAmounts::<T>::insert(&bidder_para, reserve_required);
 
-				Self::deposit_event(Event::<T>::Reserved(
-					bidder.clone(),
-					additional,
-					reserve_required,
-				));
+				Self::deposit_event(Event::<T>::Reserved {
+					bidder: bidder.clone(),
+					extra_reserved: additional,
+					total_amount: reserve_required,
+				});
 			}
 
 			// Return any funds reserved for the previous winner if we are not in the ending period
@@ -495,16 +505,20 @@ impl<T: Config> Pallet<T> {
 						// It really should be reserved; there's not much we can do here on fail.
 						let err_amt = CurrencyOf::<T>::unreserve(&who, amount);
 						debug_assert!(err_amt.is_zero());
-						Self::deposit_event(Event::<T>::Unreserved(who, amount));
+						Self::deposit_event(Event::<T>::Unreserved { bidder: who, amount });
 					}
 				}
 			}
 
 			// Update the range winner.
 			Winning::<T>::insert(offset, &current_winning);
-			Self::deposit_event(Event::<T>::BidAccepted(
-				bidder, para, amount, first_slot, last_slot,
-			));
+			Self::deposit_event(Event::<T>::BidAccepted {
+				bidder,
+				para_id: para,
+				amount,
+				first_slot,
+				last_slot,
+			});
 		}
 		Ok(())
 	}
@@ -535,7 +549,10 @@ impl<T: Config> Pallet<T> {
 						T::SampleLength::get().max(One::one());
 
 					let auction_counter = AuctionCounter::<T>::get();
-					Self::deposit_event(Event::<T>::WinningOffset(auction_counter, offset));
+					Self::deposit_event(Event::<T>::WinningOffset {
+						auction_index: auction_counter,
+						block_number: offset,
+					});
 					let res = Winning::<T>::get(offset)
 						.unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
 					// This `remove_all` statement should remove at most `EndingPeriod` / `SampleLength` items,
@@ -585,14 +602,20 @@ impl<T: Config> Pallet<T> {
 					// The leaser attempted to get a second lease on the same para ID, possibly griefing us. Let's
 					// keep the amount reserved and let governance sort it out.
 					if CurrencyOf::<T>::reserve(&leaser, amount).is_ok() {
-						Self::deposit_event(Event::<T>::ReserveConfiscated(para, leaser, amount));
+						Self::deposit_event(Event::<T>::ReserveConfiscated {
+							para_id: para,
+							leaser,
+							amount,
+						});
 					}
 				},
 				Ok(()) => {}, // Nothing to report.
 			}
 		}
 
-		Self::deposit_event(Event::<T>::AuctionClosed(AuctionCounter::<T>::get()));
+		Self::deposit_event(Event::<T>::AuctionClosed {
+			auction_index: AuctionCounter::<T>::get(),
+		});
 	}
 
 	/// Calculate the final winners from the winning slots.
@@ -658,7 +681,7 @@ mod tests {
 	};
 	use frame_system::{EnsureRoot, EnsureSignedBy};
 	use pallet_balances;
-	use primitives::v1::{BlockNumber, Header, Id as ParaId};
+	use primitives::v2::{BlockNumber, Header, Id as ParaId};
 	use sp_core::H256;
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 	use std::{cell::RefCell, collections::BTreeMap};
@@ -1383,8 +1406,8 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 1, 1));
-			let para_1 = ParaId::from(1);
-			let para_2 = ParaId::from(2);
+			let para_1 = ParaId::from(1_u32);
+			let para_2 = ParaId::from(2_u32);
 
 			// Make a bid and reserve a balance
 			assert_ok!(Auctions::bid(Origin::signed(1), para_1, 1, 1, 4, 10));
@@ -1407,9 +1430,9 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 9, 1));
-			let para_1 = ParaId::from(1);
-			let para_2 = ParaId::from(2);
-			let para_3 = ParaId::from(3);
+			let para_1 = ParaId::from(1_u32);
+			let para_2 = ParaId::from(2_u32);
+			let para_3 = ParaId::from(3_u32);
 
 			// Make bids
 			assert_ok!(Auctions::bid(Origin::signed(1), para_1, 1, 1, 4, 10));
@@ -1522,9 +1545,9 @@ mod tests {
 
 			run_to_block(1);
 			assert_ok!(Auctions::new_auction(Origin::signed(6), 9, 11));
-			let para_1 = ParaId::from(1);
-			let para_2 = ParaId::from(2);
-			let para_3 = ParaId::from(3);
+			let para_1 = ParaId::from(1_u32);
+			let para_2 = ParaId::from(2_u32);
+			let para_3 = ParaId::from(3_u32);
 
 			// Make bids
 			assert_ok!(Auctions::bid(Origin::signed(1), para_1, 1, 11, 14, 10));
@@ -1763,22 +1786,26 @@ mod benchmarking {
 			let origin = T::InitiateOrigin::successful_origin();
 		}: _(RawOrigin::Root, duration, lease_period_index)
 		verify {
-			assert_last_event::<T>(Event::<T>::AuctionStarted(
-				AuctionCounter::<T>::get(),
-				LeasePeriodOf::<T>::max_value(),
-				T::BlockNumber::max_value(),
-			).into());
+			assert_last_event::<T>(Event::<T>::AuctionStarted {
+				auction_index: AuctionCounter::<T>::get(),
+				lease_period: LeasePeriodOf::<T>::max_value(),
+				ending: T::BlockNumber::max_value(),
+			}.into());
 		}
 
 		// Worst case scenario a new bid comes in which kicks out an existing bid for the same slot.
 		bid {
+			// If there is an offset, we need to be on that block to be able to do lease things.
+			let (_, offset) = T::Leaser::lease_period_length();
+			frame_system::Pallet::<T>::set_block_number(offset + One::one());
+
 			// Create a new auction
 			let duration = T::BlockNumber::max_value();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
 
 			let para = ParaId::from(0);
-			let new_para = ParaId::from(1);
+			let new_para = ParaId::from(1_u32);
 
 			// Register the paras
 			let owner = account("owner", 0, 0);
@@ -1818,8 +1845,12 @@ mod benchmarking {
 		// Worst case: 10 bidders taking all wining spots, and we need to calculate the winner for auction end.
 		// Entire winner map should be full and removed at the end of the benchmark.
 		on_initialize {
+			// If there is an offset, we need to be on that block to be able to do lease things.
+			let (lease_length, offset) = T::Leaser::lease_period_length();
+			frame_system::Pallet::<T>::set_block_number(offset + One::one());
+
 			// Create a new auction
-			let duration: T::BlockNumber = 99u32.into();
+			let duration: T::BlockNumber = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
 			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
@@ -1851,14 +1882,18 @@ mod benchmarking {
 			Auctions::<T>::on_initialize(duration + now + T::EndingPeriod::get());
 		} verify {
 			let auction_index = AuctionCounter::<T>::get();
-			assert_last_event::<T>(Event::<T>::AuctionClosed(auction_index).into());
+			assert_last_event::<T>(Event::<T>::AuctionClosed { auction_index }.into());
 			assert!(Winning::<T>::iter().count().is_zero());
 		}
 
 		// Worst case: 10 bidders taking all wining spots, and winning data is full.
 		cancel_auction {
+			// If there is an offset, we need to be on that block to be able to do lease things.
+			let (lease_length, offset) = T::Leaser::lease_period_length();
+			frame_system::Pallet::<T>::set_block_number(offset + One::one());
+
 			// Create a new auction
-			let duration: T::BlockNumber = 99u32.into();
+			let duration: T::BlockNumber = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
 			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;

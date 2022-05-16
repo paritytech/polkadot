@@ -1,21 +1,21 @@
 [package]
 name = "polkadot-node-core-candidate-validation"
-version = "0.9.17"
+version = "0.9.19"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-async-trait = "0.1.52"
+async-trait = "0.1.53"
 futures = "0.3.21"
-tracing = "0.1.31"
+gum = { package = "tracing-gum", path = "../../gum" }
 
 sp-maybe-compressed-blob = { package = "sp-maybe-compressed-blob", git = "https://github.com/paritytech/substrate", branch = "master" }
-parity-scale-codec = { version = "2.3.1", default-features = false, features = ["bit-vec", "derive"] }
+parity-scale-codec = { version = "3.1.2", default-features = false, features = ["bit-vec", "derive"] }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-node-primitives = { path = "../../primitives" }
-polkadot-node-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [target.'cfg(not(any(target_os = "android", target_os = "unknown")))'.dependencies]

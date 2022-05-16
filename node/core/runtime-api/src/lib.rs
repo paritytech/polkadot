@@ -22,16 +22,14 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::{
-	v1::{Block, BlockId, Hash},
-	v2::ParachainHost,
-};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
-	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
-	SubsystemResult,
+	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
+};
+use polkadot_primitives::{
+	runtime_api::ParachainHost,
+	v2::{Block, BlockId, Hash},
 };
 
 use sp_api::ProvideRuntimeApi;
@@ -44,6 +42,9 @@ use futures::{channel::oneshot, prelude::*, select, stream::FuturesUnordered};
 use std::{collections::VecDeque, pin::Pin, sync::Arc};
 
 mod cache;
+
+mod metrics;
+use self::metrics::Metrics;
 
 #[cfg(test)]
 mod tests;
@@ -90,12 +91,11 @@ impl<Client> RuntimeApiSubsystem<Client> {
 	}
 }
 
-impl<Client, Context> overseer::Subsystem<Context, SubsystemError> for RuntimeApiSubsystem<Client>
+#[overseer::subsystem(RuntimeApi, error = SubsystemError, prefix = self::overseer)]
+impl<Client, Context> RuntimeApiSubsystem<Client>
 where
 	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-	Context: SubsystemContext<Message = RuntimeApiMessage>,
-	Context: overseer::SubsystemContext<Message = RuntimeApiMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem { future: run(ctx, self).boxed(), name: "runtime-api-subsystem" }
@@ -165,6 +165,10 @@ where
 			ValidationCodeHash(relay_parent, para_id, assumption, hash) => self
 				.requests_cache
 				.cache_validation_code_hash((relay_parent, para_id, assumption), hash),
+			Version(relay_parent, version) =>
+				self.requests_cache.cache_version(relay_parent, version),
+			StagingDisputes(relay_parent, disputes) =>
+				self.requests_cache.cache_disputes(relay_parent, disputes),
 		}
 	}
 
@@ -195,6 +199,8 @@ where
 		}
 
 		match request {
+			Request::Version(sender) =>
+				query!(version(), sender).map(|sender| Request::Version(sender)),
 			Request::Authorities(sender) =>
 				query!(authorities(), sender).map(|sender| Request::Authorities(sender)),
 			Request::Validators(sender) =>
@@ -264,6 +270,8 @@ where
 			Request::ValidationCodeHash(para, assumption, sender) =>
 				query!(validation_code_hash(para, assumption), sender)
 					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
+			Request::StagingDisputes(sender) =>
+				query!(disputes(), sender).map(|sender| Request::StagingDisputes(sender)),
 		}
 	}
 
@@ -290,7 +298,7 @@ where
 			self.waiting_requests.push_back((request, receiver));
 
 			if self.waiting_requests.len() > MAX_PARALLEL_REQUESTS * 10 {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					"{} runtime API requests waiting to be executed.",
 					self.waiting_requests.len(),
@@ -323,6 +331,7 @@ where
 	}
 }
 
+#[overseer::contextbounds(RuntimeApi, prefix = self::overseer)]
 async fn run<Client, Context>(
 	mut ctx: Context,
 	mut subsystem: RuntimeApiSubsystem<Client>,
@@ -330,8 +339,6 @@ async fn run<Client, Context>(
 where
 	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-	Context: SubsystemContext<Message = RuntimeApiMessage>,
-	Context: overseer::SubsystemContext<Message = RuntimeApiMessage>,
 {
 	loop {
 		select! {
@@ -360,6 +367,8 @@ where
 	Client: ProvideRuntimeApi<Block>,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 {
+	use sp_api::ApiExt;
+
 	let _timer = metrics.time_make_runtime_api_request();
 
 	macro_rules! query {
@@ -367,10 +376,9 @@ where
 			let sender = $sender;
 			let api = client.runtime_api();
 
-			use sp_api::ApiExt;
 			let runtime_version = api.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
 				.unwrap_or_else(|e| {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						"cannot query the runtime API version: {}",
 						e,
@@ -378,7 +386,7 @@ where
 					Some(0)
 				})
 				.unwrap_or_else(|| {
-					tracing::warn!(
+					gum::warn!(
 						target: LOG_TARGET,
 						"no runtime version is reported"
 					);
@@ -404,6 +412,24 @@ where
 	}
 
 	match request {
+		Request::Version(sender) => {
+			let api = client.runtime_api();
+
+			let runtime_version = match api
+				.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
+			{
+				Ok(Some(v)) => Ok(v),
+				Ok(None) => Err(RuntimeApiError::NotSupported { runtime_api_name: "api_version" }),
+				Err(e) => Err(RuntimeApiError::Execution {
+					runtime_api_name: "api_version",
+					source: std::sync::Arc::new(e),
+				}),
+			};
+
+			let _ = sender.send(runtime_version.clone());
+			runtime_version.ok().map(|v| RequestResult::Version(relay_parent, v))
+		},
+
 		Request::Authorities(sender) => query!(Authorities, authorities(), ver = 1, sender),
 		Request::Validators(sender) => query!(Validators, validators(), ver = 1, sender),
 		Request::ValidatorGroups(sender) =>
@@ -448,8 +474,6 @@ where
 		Request::CandidateEvents(sender) =>
 			query!(CandidateEvents, candidate_events(), ver = 1, sender),
 		Request::SessionInfo(index, sender) => {
-			use sp_api::ApiExt;
-
 			let api = client.runtime_api();
 			let block_id = BlockId::Hash(relay_parent);
 
@@ -503,65 +527,7 @@ where
 		},
 		Request::ValidationCodeHash(para, assumption, sender) =>
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
-	}
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	chain_api_requests: prometheus::CounterVec<prometheus::U64>,
-	make_runtime_api_request: prometheus::Histogram,
-}
-
-/// Runtime API metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_request(&self, succeeded: bool) {
-		if let Some(metrics) = &self.0 {
-			if succeeded {
-				metrics.chain_api_requests.with_label_values(&["succeeded"]).inc();
-			} else {
-				metrics.chain_api_requests.with_label_values(&["failed"]).inc();
-			}
-		}
-	}
-
-	fn on_cached_request(&self) {
-		self.0
-			.as_ref()
-			.map(|metrics| metrics.chain_api_requests.with_label_values(&["cached"]).inc());
-	}
-
-	/// Provide a timer for `make_runtime_api_request` which observes on drop.
-	fn time_make_runtime_api_request(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.make_runtime_api_request.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			chain_api_requests: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_runtime_api_requests_total",
-						"Number of Runtime API requests served.",
-					),
-					&["success"],
-				)?,
-				registry,
-			)?,
-			make_runtime_api_request: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_runtime_api_make_runtime_api_request",
-					"Time spent within `runtime_api::make_runtime_api_request`",
-				))?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
+		Request::StagingDisputes(sender) =>
+			query!(StagingDisputes, staging_get_disputes(), ver = 2, sender),
 	}
 }

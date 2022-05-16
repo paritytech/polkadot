@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 1
 
@@ -42,13 +42,13 @@ jobs:
 
       - name: Run fuzzer
         working-directory: xcm/xcm-simulator/fuzzer/
-        run: bash $GITHUB_WORKSPACE/scripts/github/run_fuzzer.sh xcm-fuzzer
+        run: bash $GITHUB_WORKSPACE/scripts/ci/github/run_fuzzer.sh xcm-fuzzer
 
   erasure-coding-round-trip:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 1
 
@@ -88,13 +88,13 @@ jobs:
 
       - name: Run fuzzer
         working-directory: erasure-coding/fuzzer
-        run: bash $GITHUB_WORKSPACE/scripts/github/run_fuzzer.sh round_trip
+        run: bash $GITHUB_WORKSPACE/scripts/ci/github/run_fuzzer.sh round_trip
 
   erasure-coding-reconstruct:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 1
 
@@ -134,4 +134,4 @@ jobs:
 
       - name: Run fuzzer
         working-directory: erasure-coding/fuzzer
-        run: bash $GITHUB_WORKSPACE/scripts/github/run_fuzzer.sh reconstruct
+        run: bash $GITHUB_WORKSPACE/scripts/ci/github/run_fuzzer.sh reconstruct

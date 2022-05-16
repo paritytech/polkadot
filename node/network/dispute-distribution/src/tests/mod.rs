@@ -41,19 +41,18 @@ use polkadot_node_network_protocol::{
 	IfDisconnected,
 };
 use polkadot_node_primitives::{CandidateVotes, UncheckedDisputeMessage};
-use polkadot_primitives::{
-	v1::{AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex},
-	v2::SessionInfo,
-};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, DisputeCoordinatorMessage, DisputeDistributionMessage, ImportStatementsResult,
 		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, Span,
 };
-use polkadot_subsystem_testhelpers::{
+use polkadot_node_subsystem_test_helpers::{
 	mock::make_ferdie_keystore, subsystem_test_harness, TestSubsystemContextHandle,
+};
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, SessionInfo,
 };
 
 use self::mock::{
@@ -176,7 +175,7 @@ fn received_request_triggers_import() {
 							assert_matches!(
 								rx_response.await,
 								Err(err) => {
-									tracing::trace!(
+									gum::trace!(
 										target: LOG_TARGET,
 										?err,
 										"Request got dropped - other request already in flight"
@@ -198,7 +197,7 @@ fn received_request_triggers_import() {
 							assert_matches!(
 								rx_response.await,
 								Err(err) => {
-									tracing::trace!(
+									gum::trace!(
 										target: LOG_TARGET,
 										?err,
 										"Request got dropped - other request already in flight"
@@ -224,7 +223,7 @@ fn received_request_triggers_import() {
 			assert_matches!(
 				rx_response.await,
 				Err(err) => {
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						?err,
 						"Request got dropped - peer is banned."
@@ -245,7 +244,7 @@ fn received_request_triggers_import() {
 		)
 		.await;
 
-		tracing::trace!(target: LOG_TARGET, "Concluding.");
+		gum::trace!(target: LOG_TARGET, "Concluding.");
 		conclude(&mut handle).await;
 	};
 	test_harness(test);
@@ -527,7 +526,7 @@ async fn nested_network_dispute_request<'a, F, O>(
 				candidate_receipt,
 				session,
 				statements,
-				pending_confirmation,
+				pending_confirmation: Some(pending_confirmation),
 			}
 		) => {
 			assert_eq!(session, MOCK_SESSION_INDEX);
@@ -563,7 +562,7 @@ async fn nested_network_dispute_request<'a, F, O>(
 					if let Some(sent_feedback) = sent_feedback {
 						sent_feedback.send(()).unwrap();
 					}
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						"Valid import happened."
 					);
@@ -669,7 +668,7 @@ async fn check_sent_requests(
 			let reqs: Vec<_> = reqs.into_iter().map(|r|
 				assert_matches!(
 					r,
-					Requests::DisputeSending(req) => {req}
+					Requests::DisputeSendingV1(req) => {req}
 				)
 			)
 			.collect();
@@ -736,7 +735,7 @@ where
 		match subsystem.run(ctx).await {
 			Ok(()) => {},
 			Err(fatal) => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?fatal,
 					"Dispute distribution exited with fatal error."

@@ -22,7 +22,7 @@ use polkadot_node_core_pvf::PrepareError;
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::reexports::SubsystemContext;
-use polkadot_primitives::v1::{HeadData, UpwardMessage};
+use polkadot_primitives::v2::{HeadData, Id as ParaId, UpwardMessage};
 use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 
@@ -33,7 +33,7 @@ fn correctly_checks_included_assumption() {
 
 	let persisted_validation_data_hash = validation_data.hash();
 	let relay_parent = [2; 32].into();
-	let para_id = 5.into();
+	let para_id = ParaId::from(5_u32);
 
 	let descriptor = make_valid_candidate_descriptor(
 		para_id,
@@ -105,7 +105,7 @@ fn correctly_checks_timed_out_assumption() {
 
 	let persisted_validation_data_hash = validation_data.hash();
 	let relay_parent = [2; 32].into();
-	let para_id = 5.into();
+	let para_id = ParaId::from(5_u32);
 
 	let descriptor = make_valid_candidate_descriptor(
 		para_id,
@@ -175,7 +175,7 @@ fn check_is_bad_request_if_no_validation_data() {
 	let validation_data: PersistedValidationData = Default::default();
 	let persisted_validation_data_hash = validation_data.hash();
 	let relay_parent = [2; 32].into();
-	let para_id = 5.into();
+	let para_id = ParaId::from(5_u32);
 
 	let descriptor = make_valid_candidate_descriptor(
 		para_id,
@@ -229,7 +229,7 @@ fn check_is_bad_request_if_no_validation_code() {
 	let validation_data: PersistedValidationData = Default::default();
 	let persisted_validation_data_hash = validation_data.hash();
 	let relay_parent = [2; 32].into();
-	let para_id = 5.into();
+	let para_id = ParaId::from(5_u32);
 
 	let descriptor = make_valid_candidate_descriptor(
 		para_id,
@@ -294,8 +294,8 @@ fn check_is_bad_request_if_no_validation_code() {
 #[test]
 fn check_does_not_match() {
 	let validation_data: PersistedValidationData = Default::default();
-	let relay_parent = [2; 32].into();
-	let para_id = 5.into();
+	let relay_parent = Hash::repeat_byte(0x02);
+	let para_id = ParaId::from(5_u32);
 
 	let descriptor = make_valid_candidate_descriptor(
 		para_id,
@@ -379,7 +379,7 @@ fn candidate_validation_ok_is_ok() {
 	let validation_code = ValidationCode(vec![2; 16]);
 
 	let descriptor = make_valid_candidate_descriptor(
-		1.into(),
+		ParaId::from(1_u32),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
@@ -406,11 +406,22 @@ fn candidate_validation_ok_is_ok() {
 		hrmp_watermark: 0,
 	};
 
+	let commitments = CandidateCommitments {
+		head_data: validation_result.head_data.clone(),
+		upward_messages: validation_result.upward_messages.clone(),
+		horizontal_messages: validation_result.horizontal_messages.clone(),
+		new_validation_code: validation_result.new_validation_code.clone(),
+		processed_downward_messages: validation_result.processed_downward_messages,
+		hrmp_watermark: validation_result.hrmp_watermark,
+	};
+
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: commitments.hash() };
+
 	let v = executor::block_on(validate_candidate_exhaustive(
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data.clone(),
 		validation_code,
-		descriptor,
+		candidate_receipt,
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&Default::default(),
@@ -435,7 +446,7 @@ fn candidate_validation_bad_return_is_invalid() {
 	let validation_code = ValidationCode(vec![2; 16]);
 
 	let descriptor = make_valid_candidate_descriptor(
-		1.into(),
+		ParaId::from(1_u32),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
@@ -453,13 +464,15 @@ fn candidate_validation_bad_return_is_invalid() {
 	);
 	assert!(check.is_ok());
 
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
+
 	let v = executor::block_on(validate_candidate_exhaustive(
 		MockValidateCandidateBackend::with_hardcoded_result(Err(
 			ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath),
 		)),
 		validation_data,
 		validation_code,
-		descriptor,
+		candidate_receipt,
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&Default::default(),
@@ -477,7 +490,7 @@ fn candidate_validation_timeout_is_internal_error() {
 	let validation_code = ValidationCode(vec![2; 16]);
 
 	let descriptor = make_valid_candidate_descriptor(
-		1.into(),
+		ParaId::from(1_u32),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
@@ -495,19 +508,67 @@ fn candidate_validation_timeout_is_internal_error() {
 	);
 	assert!(check.is_ok());
 
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
+
 	let v = executor::block_on(validate_candidate_exhaustive(
 		MockValidateCandidateBackend::with_hardcoded_result(Err(
 			ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout),
 		)),
 		validation_data,
 		validation_code,
-		descriptor,
+		candidate_receipt,
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&Default::default(),
 	));
 
 	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
+}
+
+#[test]
+fn candidate_validation_commitment_hash_mismatch_is_invalid() {
+	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
+	let pov = PoV { block_data: BlockData(vec![0xff; 32]) };
+	let validation_code = ValidationCode(vec![0xff; 16]);
+	let head_data = HeadData(vec![1, 1, 1]);
+
+	let candidate_receipt = CandidateReceipt {
+		descriptor: make_valid_candidate_descriptor(
+			ParaId::from(1_u32),
+			validation_data.parent_head.hash(),
+			validation_data.hash(),
+			pov.hash(),
+			validation_code.hash(),
+			head_data.hash(),
+			dummy_hash(),
+			Sr25519Keyring::Alice,
+		),
+		commitments_hash: Hash::zero(),
+	};
+
+	// This will result in different commitments for this candidate.
+	let validation_result = WasmValidationResult {
+		head_data,
+		new_validation_code: None,
+		upward_messages: Vec::new(),
+		horizontal_messages: Vec::new(),
+		processed_downward_messages: 0,
+		hrmp_watermark: 12345,
+	};
+
+	let result = executor::block_on(validate_candidate_exhaustive(
+		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
+		validation_data,
+		validation_code,
+		candidate_receipt,
+		Arc::new(pov),
+		Duration::from_secs(0),
+		&Default::default(),
+	))
+	.unwrap();
+
+	// Ensure `post validation` check on the commitments hash works as expected.
+	assert_matches!(result, ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch));
 }
 
 #[test]
@@ -518,7 +579,7 @@ fn candidate_validation_code_mismatch_is_invalid() {
 	let validation_code = ValidationCode(vec![2; 16]);
 
 	let descriptor = make_valid_candidate_descriptor(
-		1.into(),
+		ParaId::from(1_u32),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
@@ -536,13 +597,15 @@ fn candidate_validation_code_mismatch_is_invalid() {
 	);
 	assert_matches!(check, Err(InvalidCandidate::CodeHashMismatch));
 
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
+
 	let v = executor::block_on(validate_candidate_exhaustive(
 		MockValidateCandidateBackend::with_hardcoded_result(Err(
 			ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout),
 		)),
 		validation_data,
 		validation_code,
-		descriptor,
+		candidate_receipt,
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&Default::default(),
@@ -564,7 +627,7 @@ fn compressed_code_works() {
 		.unwrap();
 
 	let descriptor = make_valid_candidate_descriptor(
-		1.into(),
+		ParaId::from(1_u32),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
@@ -583,11 +646,22 @@ fn compressed_code_works() {
 		hrmp_watermark: 0,
 	};
 
+	let commitments = CandidateCommitments {
+		head_data: validation_result.head_data.clone(),
+		upward_messages: validation_result.upward_messages.clone(),
+		horizontal_messages: validation_result.horizontal_messages.clone(),
+		new_validation_code: validation_result.new_validation_code.clone(),
+		processed_downward_messages: validation_result.processed_downward_messages,
+		hrmp_watermark: validation_result.hrmp_watermark,
+	};
+
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: commitments.hash() };
+
 	let v = executor::block_on(validate_candidate_exhaustive(
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		validation_code,
-		descriptor,
+		candidate_receipt,
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&Default::default(),
@@ -609,7 +683,7 @@ fn code_decompression_failure_is_invalid() {
 			.unwrap();
 
 	let descriptor = make_valid_candidate_descriptor(
-		1.into(),
+		ParaId::from(1_u32),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
@@ -628,11 +702,13 @@ fn code_decompression_failure_is_invalid() {
 		hrmp_watermark: 0,
 	};
 
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
+
 	let v = executor::block_on(validate_candidate_exhaustive(
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		validation_code,
-		descriptor,
+		candidate_receipt,
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&Default::default(),
@@ -655,7 +731,7 @@ fn pov_decompression_failure_is_invalid() {
 	let validation_code = ValidationCode(vec![2; 16]);
 
 	let descriptor = make_valid_candidate_descriptor(
-		1.into(),
+		ParaId::from(1_u32),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
@@ -674,11 +750,13 @@ fn pov_decompression_failure_is_invalid() {
 		hrmp_watermark: 0,
 	};
 
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
+
 	let v = executor::block_on(validate_candidate_exhaustive(
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		validation_code,
-		descriptor,
+		candidate_receipt,
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&Default::default(),

@@ -20,14 +20,12 @@ use ::test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code};
 use futures::channel::oneshot;
 use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-use polkadot_primitives::{
-	v1::{
-		AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState,
-		GroupRotationInfo, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-		OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, SessionIndex,
-		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
-	},
-	v2::{PvfCheckStatement, SessionInfo},
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, BlockNumber, CandidateEvent, CandidateHash, CommittedCandidateReceipt,
+	CoreState, DisputeState, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
+	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_core::testing::TaskExecutor;
 use std::{
@@ -111,7 +109,7 @@ sp_api::mock_impl_runtime_apis! {
 		fn check_validation_outputs(
 			&self,
 			para_id: ParaId,
-			_commitments: polkadot_primitives::v1::CandidateCommitments,
+			_commitments: polkadot_primitives::v2::CandidateCommitments,
 		) -> bool {
 			self.validation_outputs_results
 				.get(&para_id)
@@ -192,6 +190,10 @@ sp_api::mock_impl_runtime_apis! {
 		) -> Option<ValidationCodeHash> {
 			self.validation_code_hash.get(&para).map(|c| c.clone())
 		}
+
+		fn staging_get_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
+			unimplemented!()
+		}
 	}
 
 	impl BabeApi<Block> for MockRuntimeApi {
@@ -219,7 +221,7 @@ sp_api::mock_impl_runtime_apis! {
 		}
 
 		fn submit_report_equivocation_unsigned_extrinsic(
-			_equivocation_proof: sp_consensus_babe::EquivocationProof<polkadot_primitives::v1::Header>,
+			_equivocation_proof: sp_consensus_babe::EquivocationProof<polkadot_primitives::v2::Header>,
 			_key_owner_proof: sp_consensus_babe::OpaqueKeyOwnershipProof,
 		) -> Option<()> {
 			None
@@ -341,8 +343,8 @@ fn requests_availability_cores() {
 fn requests_persisted_validation_data() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let relay_parent = [1; 32].into();
-	let para_a = 5.into();
-	let para_b = 6.into();
+	let para_a = ParaId::from(5_u32);
+	let para_b = ParaId::from(6_u32);
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	let mut runtime_api = MockRuntimeApi::default();
@@ -387,8 +389,8 @@ fn requests_persisted_validation_data() {
 fn requests_assumed_validation_data() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let relay_parent = [1; 32].into();
-	let para_a = 5.into();
-	let para_b = 6.into();
+	let para_a = ParaId::from(5_u32);
+	let para_b = ParaId::from(6_u32);
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	let validation_code = ValidationCode(vec![1, 2, 3]);
@@ -440,9 +442,9 @@ fn requests_check_validation_outputs() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let mut runtime_api = MockRuntimeApi::default();
 	let relay_parent = [1; 32].into();
-	let para_a = 5.into();
-	let para_b = 6.into();
-	let commitments = polkadot_primitives::v1::CandidateCommitments::default();
+	let para_a = ParaId::from(5_u32);
+	let para_b = ParaId::from(6_u32);
+	let commitments = polkadot_primitives::v2::CandidateCommitments::default();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	runtime_api.validation_outputs_results.insert(para_a, false);
@@ -563,8 +565,8 @@ fn requests_validation_code() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
 	let relay_parent = [1; 32].into();
-	let para_a = 5.into();
-	let para_b = 6.into();
+	let para_a = ParaId::from(5_u32);
+	let para_b = ParaId::from(6_u32);
 	let spawner = sp_core::testing::TaskExecutor::new();
 	let validation_code = dummy_validation_code();
 
@@ -610,8 +612,8 @@ fn requests_validation_code() {
 fn requests_candidate_pending_availability() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let relay_parent = [1; 32].into();
-	let para_a = 5.into();
-	let para_b = 6.into();
+	let para_a = ParaId::from(5_u32);
+	let para_b = ParaId::from(6_u32);
 	let spawner = sp_core::testing::TaskExecutor::new();
 	let candidate_receipt = dummy_committed_candidate_receipt(relay_parent);
 
@@ -687,8 +689,8 @@ fn requests_dmq_contents() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
 	let relay_parent = [1; 32].into();
-	let para_a = 5.into();
-	let para_b = 6.into();
+	let para_a = ParaId::from(5_u32);
+	let para_b = ParaId::from(6_u32);
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	let runtime_api = Arc::new({
@@ -735,9 +737,9 @@ fn requests_inbound_hrmp_channels_contents() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
 	let relay_parent = [1; 32].into();
-	let para_a = 99.into();
-	let para_b = 66.into();
-	let para_c = 33.into();
+	let para_a = ParaId::from(99_u32);
+	let para_b = ParaId::from(66_u32);
+	let para_c = ParaId::from(33_u32);
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	let para_b_inbound_channels = [
@@ -1002,8 +1004,8 @@ fn requests_validation_code_hash() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
 	let relay_parent = [1; 32].into();
-	let para_a = 5.into();
-	let para_b = 6.into();
+	let para_a = ParaId::from(5_u32);
+	let para_b = ParaId::from(6_u32);
 	let spawner = sp_core::testing::TaskExecutor::new();
 	let validation_code_hash = dummy_validation_code().hash();
 

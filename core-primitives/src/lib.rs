@@ -60,7 +60,7 @@ pub type ChainId = u32;
 /// A hash of some data used by the relay chain.
 pub type Hash = sp_core::H256;
 
-/// Unit type wrapper around [`Hash`] that represents a candidate hash.
+/// Unit type wrapper around [`type@Hash`] that represents a candidate hash.
 ///
 /// This type is produced by [`CandidateReceipt::hash`].
 ///
@@ -68,6 +68,14 @@ pub type Hash = sp_core::H256;
 #[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, Default, PartialOrd, Ord, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct CandidateHash(pub Hash);
+
+#[cfg(feature = "std")]
+impl std::ops::Deref for CandidateHash {
+	type Target = Hash;
+	fn deref(&self) -> &Self::Target {
+		&self.0
+	}
+}
 
 #[cfg(feature = "std")]
 impl std::fmt::Display for CandidateHash {
@@ -149,7 +157,7 @@ pub struct OutboundHrmpMessage<Id> {
 	pub data: sp_std::vec::Vec<u8>,
 }
 
-/// `V1` primitives.
-pub mod v1 {
+/// `V2` primitives.
+pub mod v2 {
 	pub use super::*;
 }

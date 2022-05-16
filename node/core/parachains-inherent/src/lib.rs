@@ -28,10 +28,12 @@ use futures::{select, FutureExt};
 use polkadot_node_subsystem::{
 	errors::SubsystemError, messages::ProvisionerMessage, overseer::Handle,
 };
-use polkadot_primitives::v1::{Block, Hash, InherentData as ParachainsInherentData};
+use polkadot_primitives::v2::{Block, Hash, InherentData as ParachainsInherentData};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::generic::BlockId;
 use std::time;
+
+pub(crate) const LOG_TARGET: &str = "parachain::parachains-inherent";
 
 /// How long to wait for the provisioner, before giving up.
 const PROVISIONER_TIMEOUT: time::Duration = core::time::Duration::from_millis(2500);
@@ -42,6 +44,11 @@ pub struct ParachainsInherentDataProvider {
 }
 
 impl ParachainsInherentDataProvider {
+	/// Create a [`Self`] directly from some [`ParachainsInherentData`].
+	pub fn from_data(inherent_data: ParachainsInherentData) -> Self {
+		Self { inherent_data }
+	}
+
 	/// Create a new instance of the [`ParachainsInherentDataProvider`].
 	pub async fn create<C: HeaderBackend<Block>>(
 		client: &C,
@@ -88,7 +95,8 @@ impl ParachainsInherentDataProvider {
 				parent_header,
 			},
 			Err(err) => {
-				tracing::debug!(
+				gum::debug!(
+					target: LOG_TARGET,
 					?err,
 					"Could not get provisioner inherent data; injecting default data",
 				);
@@ -112,13 +120,13 @@ impl sp_inherents::InherentDataProvider for ParachainsInherentDataProvider {
 		dst_inherent_data: &mut sp_inherents::InherentData,
 	) -> Result<(), sp_inherents::Error> {
 		dst_inherent_data
-			.put_data(polkadot_primitives::v1::PARACHAINS_INHERENT_IDENTIFIER, &self.inherent_data)
+			.put_data(polkadot_primitives::v2::PARACHAINS_INHERENT_IDENTIFIER, &self.inherent_data)
 	}
 
 	async fn try_handle_error(
 		&self,
-		_: &sp_inherents::InherentIdentifier,
-		_: &[u8],
+		_identifier: &sp_inherents::InherentIdentifier,
+		_error: &[u8],
 	) -> Option<Result<(), sp_inherents::Error>> {
 		// Inherent isn't checked and can not return any error
 		None

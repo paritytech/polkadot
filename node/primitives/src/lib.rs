@@ -22,7 +22,7 @@
 
 #![deny(missing_docs)]
 
-use std::{convert::TryFrom, pin::Pin, time::Duration};
+use std::{pin::Pin, time::Duration};
 
 use bounded_vec::BoundedVec;
 use futures::Future;
@@ -34,7 +34,7 @@ pub use sp_consensus_babe::{
 };
 pub use sp_core::traits::SpawnNamed;
 
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
 	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
 	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
@@ -76,12 +76,17 @@ pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
 /// dispute participants.
 pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(6);
 
+/// Linked to `MAX_FINALITY_LAG` in relay chain selection,
+/// `MAX_HEADS_LOOK_BACK` in `approval-voting` and
+/// `MAX_BATCH_SCRAPE_ANCESTORS` in `dispute-coordinator`
+pub const MAX_FINALITY_LAG: u32 = 500;
+
 /// Type of a session window size.
 ///
 /// We are not using `NonZeroU32` here because `expect` and `unwrap` are not yet const, so global
 /// constants of `SessionWindowSize` would require `lazy_static` in that case.
 ///
-/// See: https://github.com/rust-lang/rust/issues/67441
+/// See: <https://github.com/rust-lang/rust/issues/67441>
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct SessionWindowSize(SessionIndex);
 
@@ -231,6 +236,8 @@ pub enum InvalidCandidate {
 	ParaHeadHashMismatch,
 	/// Validation code hash does not match.
 	CodeHashMismatch,
+	/// Validation has generated different candidate commitments.
+	CommitmentsHashMismatch,
 }
 
 /// Result of the validation of the candidate.
@@ -288,7 +295,7 @@ impl MaybeCompressedPoV {
 /// - contains a proof of validity.
 #[derive(Clone, Encode, Decode)]
 #[cfg(not(target_os = "unknown"))]
-pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
+pub struct Collation<BlockNumber = polkadot_primitives::v2::BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
 	/// The horizontal messages sent by the parachain.

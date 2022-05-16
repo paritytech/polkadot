@@ -16,7 +16,7 @@
 
 //! A malus or nemesis node launch code.
 
-use clap::{AppSettings, Parser};
+use clap::Parser;
 use color_eyre::eyre;
 use polkadot_cli::{Cli, RunCmd};
 
@@ -37,14 +37,14 @@ enum NemesisVariant {
 	/// Back a candidate with a specifically crafted proof of validity.
 	BackGarbageCandidate(RunCmd),
 	/// Delayed disputing of ancestors that are perfectly fine.
-	DisputeAncestor(RunCmd),
+	DisputeAncestor(DisputeAncestorOptions),
 
 	#[allow(missing_docs)]
-	#[clap(name = "prepare-worker", setting = AppSettings::Hidden)]
+	#[clap(name = "prepare-worker", hide = true)]
 	PvfPrepareWorker(polkadot_cli::ValidationWorkerCommand),
 
 	#[allow(missing_docs)]
-	#[clap(name = "execute-worker", setting = AppSettings::Hidden)]
+	#[clap(name = "execute-worker", hide = true)]
 	PvfExecuteWorker(polkadot_cli::ValidationWorkerCommand),
 }
 
@@ -66,9 +66,11 @@ impl MalusCli {
 			NemesisVariant::BackGarbageCandidate(cmd) =>
 				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate)?,
 			NemesisVariant::SuggestGarbageCandidate(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), SuggestGarbageCandidate)?,
-			NemesisVariant::DisputeAncestor(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), DisputeValidCandidates)?,
+				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidateWrapper)?,
+			NemesisVariant::DisputeAncestor(opts) => polkadot_cli::run_node(
+				run_cmd(opts.clone().cmd),
+				DisputeValidCandidates::new(opts),
+			)?,
 			NemesisVariant::PvfPrepareWorker(cmd) => {
 				#[cfg(target_os = "android")]
 				{
@@ -120,7 +122,7 @@ mod tests {
 			variant: NemesisVariant::DisputeAncestor(run),
 			..
 		} => {
-			assert!(run.base.bob);
+			assert!(run.cmd.base.bob);
 		});
 	}
 }

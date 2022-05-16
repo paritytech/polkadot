@@ -2,11 +2,11 @@
 name = "relay-westend-client"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2.2.0" }
+codec = { package = "parity-scale-codec", version = "3.0.0" }
 relay-substrate-client = { path = "../client-substrate" }
 relay-utils = { path = "../utils" }
 
@@ -16,5 +16,6 @@ bp-westend = { path = "../../primitives/chain-westend" }
 
 # Substrate Dependencies
 
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }

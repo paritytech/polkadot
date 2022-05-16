@@ -30,7 +30,7 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::EnsureRoot;
 use parity_scale_codec::Encode;
-use primitives::v1::{
+use primitives::v2::{
 	BlockNumber, HeadData, Header, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID,
 };
 use runtime_parachains::{
@@ -44,7 +44,7 @@ use sp_runtime::{
 	transaction_validity::TransactionPriority,
 	AccountId32,
 };
-use sp_std::{convert::TryInto, sync::Arc};
+use sp_std::sync::Arc;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -239,7 +239,7 @@ impl auctions::Config for Test {
 
 parameter_types! {
 	pub const LeasePeriod: BlockNumber = 100;
-	pub static LeaseOffset: BlockNumber = 0;
+	pub static LeaseOffset: BlockNumber = 5;
 }
 
 impl slots::Config for Test {
@@ -319,6 +319,11 @@ fn test_validation_code(size: usize) -> ValidationCode {
 
 fn para_origin(id: u32) -> ParaOrigin {
 	ParaOrigin::Parachain(id.into())
+}
+
+fn add_blocks(n: u32) {
+	let block_number = System::block_number();
+	run_to_block(block_number + n);
 }
 
 fn run_to_block(n: u32) {
@@ -427,10 +432,17 @@ fn basic_end_to_end_works() {
 			// Auction ends at block 110 + offset
 			run_to_block(109 + offset);
 			assert!(contains_event(
-				crowdloan::Event::<Test>::HandleBidResult(ParaId::from(para_2), Ok(())).into()
+				crowdloan::Event::<Test>::HandleBidResult {
+					para_id: ParaId::from(para_2),
+					result: Ok(())
+				}
+				.into()
 			));
 			run_to_block(110 + offset);
-			assert_eq!(last_event(), auctions::Event::<Test>::AuctionClosed(1).into());
+			assert_eq!(
+				last_event(),
+				auctions::Event::<Test>::AuctionClosed { auction_index: 1 }.into()
+			);
 
 			// Paras should have won slots
 			assert_eq!(
@@ -1307,19 +1319,25 @@ fn gap_bids_work() {
 		));
 
 		// Finish the auction
-		run_to_block(110);
+		run_to_block(110 + LeaseOffset::get());
 
 		// Should have won the lease periods
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2000)),
-			// -- 1 --- 2 --- 3 ---------- 4 -------------- 5 -------------- 6 -------------- 7 -------
 			vec![
+				// LP 1
 				None,
+				// LP 2
 				None,
+				// LP 3
 				None,
+				// LP 4
 				Some((account_id(10), 100)),
+				// LP 5
 				Some((account_id(20), 800)),
+				// LP 6
 				Some((account_id(20), 200)),
+				// LP 7
 				Some((account_id(10), 400))
 			],
 		);
@@ -1330,14 +1348,17 @@ fn gap_bids_work() {
 
 		// Progress through the leases and note the correct amount of balance is reserved.
 
-		run_to_block(400);
+		add_blocks(300 + LeaseOffset::get());
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2000)),
-			// --------- 4 -------------- 5 -------------- 6 -------------- 7 -------
 			vec![
+				// LP 4
 				Some((account_id(10), 100)),
+				// LP 5
 				Some((account_id(20), 800)),
+				// LP 6
 				Some((account_id(20), 200)),
+				// LP 7
 				Some((account_id(10), 400))
 			],
 		);
@@ -1346,13 +1367,15 @@ fn gap_bids_work() {
 		assert_eq!(Balances::reserved_balance(&account_id(20)), 800);
 
 		// Lease period 4 is done, but nothing is unreserved since user 1 has a debt on lease 7
-		run_to_block(500);
+		add_blocks(100);
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2000)),
-			// --------- 5 -------------- 6 -------------- 7 -------
 			vec![
+				// LP 5
 				Some((account_id(20), 800)),
+				// LP 6
 				Some((account_id(20), 200)),
+				// LP 7
 				Some((account_id(10), 400))
 			],
 		);
@@ -1361,7 +1384,7 @@ fn gap_bids_work() {
 		assert_eq!(Balances::reserved_balance(&account_id(20)), 800);
 
 		// Lease period 5 is done, and 20 will unreserve down to 200.
-		run_to_block(600);
+		add_blocks(100);
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2000)),
 			// --------- 6 -------------- 7 -------
@@ -1371,7 +1394,7 @@ fn gap_bids_work() {
 		assert_eq!(Balances::reserved_balance(&account_id(20)), 200);
 
 		// Lease period 6 is done, and 20 will unreserve everything.
-		run_to_block(700);
+		add_blocks(100);
 		assert_eq!(
 			slots::Leases::<Test>::get(ParaId::from(2000)),
 			// --------- 7 -------
@@ -1381,7 +1404,7 @@ fn gap_bids_work() {
 		assert_eq!(Balances::reserved_balance(&account_id(20)), 0);
 
 		// All leases are done. Everything is unreserved.
-		run_to_block(800);
+		add_blocks(100);
 		assert_eq!(slots::Leases::<Test>::get(ParaId::from(2000)), vec![]);
 		assert_eq!(Balances::reserved_balance(&account_id(10)), 0);
 		assert_eq!(Balances::reserved_balance(&account_id(20)), 0);

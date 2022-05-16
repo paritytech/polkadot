@@ -23,7 +23,7 @@ use frame_support::{
 };
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v1::ValidityError;
+use primitives::v2::ValidityError;
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
@@ -183,8 +183,8 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Someone claimed some DOTs. `[who, ethereum_address, amount]`
-		Claimed(T::AccountId, EthereumAddress, BalanceOf<T>),
+		/// Someone claimed some DOTs.
+		Claimed { who: T::AccountId, ethereum_address: EthereumAddress, amount: BalanceOf<T> },
 	}
 
 	#[pallet::error]
@@ -581,7 +581,11 @@ impl<T: Config> Pallet<T> {
 		Signing::<T>::remove(&signer);
 
 		// Let's deposit an event to let the outside world know this happened.
-		Self::deposit_event(Event::<T>::Claimed(dest, signer, balance_due));
+		Self::deposit_event(Event::<T>::Claimed {
+			who: dest,
+			ethereum_address: signer,
+			amount: balance_due,
+		});
 
 		Ok(())
 	}

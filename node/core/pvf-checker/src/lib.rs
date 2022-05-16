@@ -22,13 +22,13 @@
 use futures::{channel::oneshot, future::BoxFuture, prelude::*, stream::FuturesUnordered};
 
 use polkadot_node_subsystem::{
-	messages::{CandidateValidationMessage, PreCheckOutcome, PvfCheckerMessage},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError, SubsystemResult, SubsystemSender,
+	messages::{CandidateValidationMessage, PreCheckOutcome, PvfCheckerMessage, RuntimeApiMessage},
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
+	SubsystemResult, SubsystemSender,
 };
-use polkadot_primitives::{
-	v1::{BlockNumber, Hash, SessionIndex, ValidationCodeHash, ValidatorId, ValidatorIndex},
-	v2::PvfCheckStatement,
+use polkadot_primitives::v2::{
+	BlockNumber, Hash, PvfCheckStatement, SessionIndex, ValidationCodeHash, ValidatorId,
+	ValidatorIndex,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use std::collections::HashSet;
@@ -60,11 +60,8 @@ impl PvfCheckerSubsystem {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for PvfCheckerSubsystem
-where
-	Context: SubsystemContext<Message = PvfCheckerMessage>,
-	Context: overseer::SubsystemContext<Message = PvfCheckerMessage>,
-{
+#[overseer::subsystem(PvfChecker, error=SubsystemError, prefix = self::overseer)]
+impl<Context> PvfCheckerSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		if self.enabled {
 			let future = run(ctx, self.keystore, self.metrics)
@@ -123,15 +120,12 @@ struct State {
 		FuturesUnordered<BoxFuture<'static, Option<(PreCheckOutcome, ValidationCodeHash)>>>,
 }
 
+#[overseer::contextbounds(PvfChecker, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
 	keystore: SyncCryptoStorePtr,
 	metrics: Metrics,
-) -> SubsystemResult<()>
-where
-	Context: SubsystemContext<Message = PvfCheckerMessage>,
-	Context: overseer::SubsystemContext<Message = PvfCheckerMessage>,
-{
+) -> SubsystemResult<()> {
 	let mut state = State {
 		credentials: None,
 		recent_block: None,
@@ -179,13 +173,13 @@ where
 /// Handle an incoming PVF pre-check result from the candidate-validation subsystem.
 async fn handle_pvf_check(
 	state: &mut State,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	keystore: &SyncCryptoStorePtr,
 	metrics: &Metrics,
 	outcome: PreCheckOutcome,
 	validation_code_hash: ValidationCodeHash,
 ) {
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		?validation_code_hash,
 		"Received pre-check result: {:?}",
@@ -200,7 +194,7 @@ async fn handle_pvf_check(
 			//
 			// Returning here will leave the PVF in the view dangling. Since it is there, no new
 			// pre-checking request will be sent.
-			tracing::info!(
+			gum::info!(
 				target: LOG_TARGET,
 				?validation_code_hash,
 				"Pre-check failed, abstaining from voting",
@@ -212,7 +206,7 @@ async fn handle_pvf_check(
 	match state.view.on_judgement(validation_code_hash, judgement) {
 		Ok(()) => (),
 		Err(()) => {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				?validation_code_hash,
 				"received judgement for an unknown (or removed) PVF hash",
@@ -247,14 +241,14 @@ struct Conclude;
 
 async fn handle_from_overseer(
 	state: &mut State,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	keystore: &SyncCryptoStorePtr,
 	metrics: &Metrics,
 	from_overseer: FromOverseer<PvfCheckerMessage>,
 ) -> Option<Conclude> {
 	match from_overseer {
 		FromOverseer::Signal(OverseerSignal::Conclude) => {
-			tracing::info!(target: LOG_TARGET, "Received `Conclude` signal, exiting");
+			gum::info!(target: LOG_TARGET, "Received `Conclude` signal, exiting");
 			Some(Conclude)
 		},
 		FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {
@@ -273,7 +267,7 @@ async fn handle_from_overseer(
 
 async fn handle_leaves_update(
 	state: &mut State,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	keystore: &SyncCryptoStorePtr,
 	metrics: &Metrics,
 	update: ActiveLeavesUpdate,
@@ -355,12 +349,12 @@ struct ActivationEffect {
 /// Returns `None` if the PVF pre-checking runtime API is not supported for the given leaf hash.
 async fn examine_activation(
 	state: &mut State,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	keystore: &SyncCryptoStorePtr,
 	leaf_hash: Hash,
 	leaf_number: BlockNumber,
 ) -> Option<ActivationEffect> {
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		"Examining activation of leaf {:?} ({})",
 		leaf_hash,
@@ -370,7 +364,7 @@ async fn examine_activation(
 	let pending_pvfs = match runtime_api::pvfs_require_precheck(sender, leaf_hash).await {
 		Err(runtime_api::RuntimeRequestError::NotSupported) => return None,
 		Err(_) => {
-			tracing::debug!(
+			gum::debug!(
 				target: LOG_TARGET,
 				relay_parent = ?leaf_hash,
 				"cannot fetch PVFs that require pre-checking from runtime API",
@@ -398,7 +392,7 @@ async fn examine_activation(
 				None
 			},
 		Err(e) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				relay_parent = ?leaf_hash,
 				"cannot fetch session index from runtime API: {:?}",
@@ -414,14 +408,14 @@ async fn examine_activation(
 /// Checks the active validators for the given leaf. If we have a signing key for one of them,
 /// returns the [`SigningCredentials`].
 async fn check_signing_credentials(
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender<RuntimeApiMessage>,
 	keystore: &SyncCryptoStorePtr,
 	leaf: Hash,
 ) -> Option<SigningCredentials> {
 	let validators = match runtime_api::validators(sender, leaf).await {
 		Ok(v) => v,
 		Err(e) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				relay_parent = ?leaf,
 				"error occured during requesting validators: {:?}",
@@ -443,7 +437,7 @@ async fn check_signing_credentials(
 ///
 /// If the validator already voted for the given code, this function does nothing.
 async fn sign_and_submit_pvf_check_statement(
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	keystore: &SyncCryptoStorePtr,
 	voted: &mut HashSet<ValidationCodeHash>,
 	credentials: &SigningCredentials,
@@ -453,7 +447,7 @@ async fn sign_and_submit_pvf_check_statement(
 	judgement: Judgement,
 	validation_code_hash: ValidationCodeHash,
 ) {
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		?validation_code_hash,
 		?relay_parent,
@@ -464,7 +458,7 @@ async fn sign_and_submit_pvf_check_statement(
 	metrics.on_vote_submission_started();
 
 	if voted.contains(&validation_code_hash) {
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			relay_parent = ?relay_parent,
 			?validation_code_hash,
@@ -491,7 +485,7 @@ async fn sign_and_submit_pvf_check_statement(
 	{
 		Ok(Some(signature)) => signature,
 		Ok(None) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				?relay_parent,
 				validator_index = ?credentials.validator_index,
@@ -501,7 +495,7 @@ async fn sign_and_submit_pvf_check_statement(
 			return
 		},
 		Err(e) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				?relay_parent,
 				validator_index = ?credentials.validator_index,
@@ -518,7 +512,7 @@ async fn sign_and_submit_pvf_check_statement(
 			metrics.on_vote_submitted();
 		},
 		Err(e) => {
-			tracing::warn!(
+			gum::warn!(
 				target: LOG_TARGET,
 				?relay_parent,
 				?validation_code_hash,
@@ -535,23 +529,16 @@ async fn sign_and_submit_pvf_check_statement(
 /// into the `currently_checking` set.
 async fn initiate_precheck(
 	state: &mut State,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	relay_parent: Hash,
 	validation_code_hash: ValidationCodeHash,
 	metrics: &Metrics,
 ) {
-	tracing::debug!(
-		target: LOG_TARGET,
-		?validation_code_hash,
-		?relay_parent,
-		"initiating a precheck",
-	);
+	gum::debug!(target: LOG_TARGET, ?validation_code_hash, ?relay_parent, "initiating a precheck",);
 
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send_message(
-			CandidateValidationMessage::PreCheck(relay_parent, validation_code_hash, tx).into(),
-		)
+		.send_message(CandidateValidationMessage::PreCheck(relay_parent, validation_code_hash, tx))
 		.await;
 
 	let timer = metrics.time_pre_check_judgement();
@@ -563,7 +550,7 @@ async fn initiate_precheck(
 				// Pre-checking request dropped before replying. That can happen in case the
 				// overseer is shutting down. Our part of shutdown will be handled by the
 				// overseer conclude signal. Log it here just in case.
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?validation_code_hash,
 					?relay_parent,

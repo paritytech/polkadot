@@ -20,12 +20,9 @@ use futures::channel::{mpsc, oneshot};
 
 use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
 use polkadot_node_primitives::{CandidateVotes, DisputeMessage, SignedDisputeStatement};
+use polkadot_node_subsystem::{messages::DisputeCoordinatorMessage, overseer, ActiveLeavesUpdate};
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::v1::{CandidateHash, DisputeStatement, Hash, SessionIndex};
-use polkadot_subsystem::{
-	messages::{AllMessages, DisputeCoordinatorMessage},
-	ActiveLeavesUpdate, SubsystemContext,
-};
+use polkadot_primitives::v2::{CandidateHash, DisputeStatement, Hash, SessionIndex};
 
 /// For each ongoing dispute we have a `SendTask` which takes care of it.
 ///
@@ -37,9 +34,9 @@ pub use send_task::TaskFinish;
 
 /// Error and [`Result`] type for sender
 mod error;
-pub use error::{Error, Fatal, NonFatal, Result};
+pub use error::{Error, FatalError, JfyiError, Result};
 
-use self::error::NonFatalResult;
+use self::error::JfyiErrorResult;
 use crate::{Metrics, LOG_TARGET};
 
 /// The `DisputeSender` keeps track of all ongoing disputes we need to send statements out.
@@ -66,6 +63,7 @@ pub struct DisputeSender {
 	metrics: Metrics,
 }
 
+#[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
 impl DisputeSender {
 	/// Create a new `DisputeSender` which can be used to start dispute sendings.
 	pub fn new(tx: mpsc::Sender<TaskFinish>, metrics: Metrics) -> Self {
@@ -79,7 +77,7 @@ impl DisputeSender {
 	}
 
 	/// Create a `SendTask` for a particular new dispute.
-	pub async fn start_sender<Context: SubsystemContext>(
+	pub async fn start_sender<Context>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
@@ -89,11 +87,7 @@ impl DisputeSender {
 		let candidate_hash = req.0.candidate_receipt.hash();
 		match self.disputes.entry(candidate_hash) {
 			Entry::Occupied(_) => {
-				tracing::trace!(
-					target: LOG_TARGET,
-					?candidate_hash,
-					"Dispute sending already active."
-				);
+				gum::trace!(target: LOG_TARGET, ?candidate_hash, "Dispute sending already active.");
 				return Ok(())
 			},
 			Entry::Vacant(vacant) => {
@@ -118,7 +112,7 @@ impl DisputeSender {
 	/// - Get new authorities to send messages to.
 	/// - Get rid of obsolete tasks and disputes.
 	/// - Get dispute sending started in case we missed one for some reason (e.g. on node startup)
-	pub async fn update_leaves<Context: SubsystemContext>(
+	pub async fn update_leaves<Context>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
@@ -168,7 +162,7 @@ impl DisputeSender {
 		let task = match self.disputes.get_mut(&candidate_hash) {
 			None => {
 				// Can happen when a dispute ends, with messages still in queue:
-				tracing::trace!(
+				gum::trace!(
 					target: LOG_TARGET,
 					?result,
 					"Received `FromSendingTask::Finished` for non existing dispute."
@@ -183,7 +177,7 @@ impl DisputeSender {
 	/// Call `start_sender` on all passed in disputes.
 	///
 	/// Recover necessary votes for building up `DisputeMessage` and start sending for all of them.
-	async fn start_send_for_dispute<Context: SubsystemContext>(
+	async fn start_send_for_dispute<Context>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
@@ -208,14 +202,14 @@ impl DisputeSender {
 					None
 				}
 			})
-			.ok_or(NonFatal::NoActiveHeads)?;
+			.ok_or(JfyiError::NoActiveHeads)?;
 
 		let info = runtime
 			.get_session_info_by_index(ctx.sender(), *ref_head, session_index)
 			.await?;
 		let our_index = match info.validator_info.our_index {
 			None => {
-				tracing::trace!(
+				gum::trace!(
 					target: LOG_TARGET,
 					"Not a validator in that session - not starting dispute sending."
 				);
@@ -226,7 +220,7 @@ impl DisputeSender {
 
 		let votes = match get_candidate_votes(ctx, session_index, candidate_hash).await? {
 			None => {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?session_index,
 					?candidate_hash,
@@ -243,11 +237,12 @@ impl DisputeSender {
 
 		let (valid_vote, invalid_vote) = if let Some(our_valid_vote) = our_valid_vote {
 			// Get some invalid vote as well:
-			let invalid_vote = votes.invalid.get(0).ok_or(NonFatal::MissingVotesFromCoordinator)?;
+			let invalid_vote =
+				votes.invalid.get(0).ok_or(JfyiError::MissingVotesFromCoordinator)?;
 			(our_valid_vote, invalid_vote)
 		} else if let Some(our_invalid_vote) = our_invalid_vote {
 			// Get some valid vote as well:
-			let valid_vote = votes.valid.get(0).ok_or(NonFatal::MissingVotesFromCoordinator)?;
+			let valid_vote = votes.valid.get(0).ok_or(JfyiError::MissingVotesFromCoordinator)?;
 			(valid_vote, our_invalid_vote)
 		} else {
 			// There is no vote from us yet - nothing to do.
@@ -258,7 +253,7 @@ impl DisputeSender {
 			.session_info
 			.validators
 			.get(valid_index.0 as usize)
-			.ok_or(NonFatal::InvalidStatementFromCoordinator)?;
+			.ok_or(JfyiError::InvalidStatementFromCoordinator)?;
 		let valid_signed = SignedDisputeStatement::new_checked(
 			DisputeStatement::Valid(kind.clone()),
 			candidate_hash,
@@ -266,14 +261,14 @@ impl DisputeSender {
 			valid_public.clone(),
 			signature.clone(),
 		)
-		.map_err(|()| NonFatal::InvalidStatementFromCoordinator)?;
+		.map_err(|()| JfyiError::InvalidStatementFromCoordinator)?;
 
 		let (kind, invalid_index, signature) = invalid_vote;
 		let invalid_public = info
 			.session_info
 			.validators
 			.get(invalid_index.0 as usize)
-			.ok_or(NonFatal::InvalidValidatorIndexFromCoordinator)?;
+			.ok_or(JfyiError::InvalidValidatorIndexFromCoordinator)?;
 		let invalid_signed = SignedDisputeStatement::new_checked(
 			DisputeStatement::Invalid(kind.clone()),
 			candidate_hash,
@@ -281,7 +276,7 @@ impl DisputeSender {
 			invalid_public.clone(),
 			signature.clone(),
 		)
-		.map_err(|()| NonFatal::InvalidValidatorIndexFromCoordinator)?;
+		.map_err(|()| JfyiError::InvalidValidatorIndexFromCoordinator)?;
 
 		// Reconstructing the checked signed dispute statements is hardly useful here and wasteful,
 		// but I don't want to enable a bypass for the below smart constructor and this code path
@@ -297,7 +292,7 @@ impl DisputeSender {
 			votes.candidate_receipt,
 			&info.session_info,
 		)
-		.map_err(NonFatal::InvalidDisputeFromCoordinator)?;
+		.map_err(JfyiError::InvalidDisputeFromCoordinator)?;
 
 		// Finally, get the party started:
 		self.start_sender(ctx, runtime, message).await
@@ -306,7 +301,7 @@ impl DisputeSender {
 	/// Make active sessions correspond to currently active heads.
 	///
 	/// Returns: true if sessions changed.
-	async fn refresh_sessions<Context: SubsystemContext>(
+	async fn refresh_sessions<Context>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
@@ -324,7 +319,8 @@ impl DisputeSender {
 /// Retrieve the currently active sessions.
 ///
 /// List is all indices of all active sessions together with the head that was used for the query.
-async fn get_active_session_indices<Context: SubsystemContext>(
+#[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
+async fn get_active_session_indices<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	active_heads: &Vec<Hash>,
@@ -339,29 +335,31 @@ async fn get_active_session_indices<Context: SubsystemContext>(
 }
 
 /// Retrieve Set of active disputes from the dispute coordinator.
-async fn get_active_disputes<Context: SubsystemContext>(
+#[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
+async fn get_active_disputes<Context>(
 	ctx: &mut Context,
-) -> NonFatalResult<Vec<(SessionIndex, CandidateHash)>> {
+) -> JfyiErrorResult<Vec<(SessionIndex, CandidateHash)>> {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ActiveDisputes(
-		tx,
-	)))
-	.await;
-	rx.await.map_err(|_| NonFatal::AskActiveDisputesCanceled)
+
+	// Caller scope is in `update_leaves` and this is bounded by fork count.
+	ctx.send_unbounded_message(DisputeCoordinatorMessage::ActiveDisputes(tx));
+	rx.await.map_err(|_| JfyiError::AskActiveDisputesCanceled)
 }
 
 /// Get all locally available dispute votes for a given dispute.
-async fn get_candidate_votes<Context: SubsystemContext>(
+#[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
+async fn get_candidate_votes<Context>(
 	ctx: &mut Context,
 	session_index: SessionIndex,
 	candidate_hash: CandidateHash,
-) -> NonFatalResult<Option<CandidateVotes>> {
+) -> JfyiErrorResult<Option<CandidateVotes>> {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(AllMessages::DisputeCoordinator(
-		DisputeCoordinatorMessage::QueryCandidateVotes(vec![(session_index, candidate_hash)], tx),
-	))
-	.await;
+	// Caller scope is in `update_leaves` and this is bounded by fork count.
+	ctx.send_unbounded_message(DisputeCoordinatorMessage::QueryCandidateVotes(
+		vec![(session_index, candidate_hash)],
+		tx,
+	));
 	rx.await
 		.map(|v| v.get(0).map(|inner| inner.to_owned().2))
-		.map_err(|_| NonFatal::AskCandidateVotesCanceled)
+		.map_err(|_| JfyiError::AskCandidateVotesCanceled)
 }

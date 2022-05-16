@@ -30,7 +30,7 @@ use polkadot_node_network_protocol::{
 	peer_set::{PeerSet, PerPeerSet},
 	PeerId,
 };
-use polkadot_primitives::v1::AuthorityDiscoveryId;
+use polkadot_primitives::v2::AuthorityDiscoveryId;
 
 const LOG_TARGET: &str = "parachain::validator-discovery";
 
@@ -66,7 +66,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		let removed = peers_to_remove.len();
 		state.previously_requested = new_peer_ids;
 
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			?peer_set,
 			?num_peers,
@@ -75,15 +75,21 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		);
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
+		//
+		// for peer-set management, the default should be used regardless of
+		// the negotiated version.
 		if let Err(e) = network_service
-			.set_reserved_peers(peer_set.into_protocol_name(), newly_requested)
+			.set_reserved_peers(peer_set.into_default_protocol_name(), newly_requested)
 			.await
 		{
-			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
+			gum::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
 		// the addresses are known to be valid
+		//
+		// for peer-set management, the default should be used regardless of
+		// the negotiated version.
 		let _ = network_service
-			.remove_from_peers_set(peer_set.into_protocol_name(), peers_to_remove)
+			.remove_from_peers_set(peer_set.into_default_protocol_name(), peers_to_remove)
 			.await;
 
 		network_service
@@ -116,7 +122,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 				newly_requested.extend(addresses);
 			} else {
 				failed_to_resolve += 1;
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					"Authority Discovery couldn't resolve {:?}",
 					authority
@@ -124,7 +130,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			}
 		}
 
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			?peer_set,
 			?requested,

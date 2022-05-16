@@ -20,12 +20,13 @@ use polkadot_node_primitives::BlockWeight;
 use polkadot_node_subsystem::{
 	errors::ChainApiError,
 	messages::{ChainApiMessage, ChainSelectionMessage},
-	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
+	overseer::{self, SubsystemSender},
+	FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
-use polkadot_primitives::v1::{BlockNumber, ConsensusLog, Hash, Header};
+use polkadot_node_subsystem_util::database::Database;
+use polkadot_primitives::v2::{BlockNumber, ConsensusLog, Hash, Header};
 
 use futures::{channel::oneshot, future::Either, prelude::*};
-use kvdb::KeyValueDB;
 use parity_scale_codec::Error as CodecError;
 
 use std::{
@@ -207,9 +208,9 @@ impl Error {
 	fn trace(&self) {
 		match self {
 			// don't spam the log with spurious errors
-			Self::Oneshot(_) => tracing::debug!(target: LOG_TARGET, err = ?self),
+			Self::Oneshot(_) => gum::debug!(target: LOG_TARGET, err = ?self),
 			// it's worth reporting otherwise
-			_ => tracing::warn!(target: LOG_TARGET, err = ?self),
+			_ => gum::warn!(target: LOG_TARGET, err = ?self),
 		}
 	}
 }
@@ -235,7 +236,7 @@ impl Clock for SystemClock {
 		match SystemTime::now().duration_since(UNIX_EPOCH) {
 			Ok(d) => d.as_secs(),
 			Err(e) => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					err = ?e,
 					"Current time is before unix epoch. Validation will not work correctly."
@@ -306,26 +307,34 @@ pub struct Config {
 /// The chain selection subsystem.
 pub struct ChainSelectionSubsystem {
 	config: Config,
-	db: Arc<dyn KeyValueDB>,
+	db: Arc<dyn Database>,
 }
 
 impl ChainSelectionSubsystem {
 	/// Create a new instance of the subsystem with the given config
 	/// and key-value store.
-	pub fn new(config: Config, db: Arc<dyn KeyValueDB>) -> Self {
+	pub fn new(config: Config, db: Arc<dyn Database>) -> Self {
 		ChainSelectionSubsystem { config, db }
+	}
+
+	/// Revert to the block corresponding to the specified `hash`.
+	/// The operation is not allowed for blocks older than the last finalized one.
+	pub fn revert_to(&self, hash: Hash) -> Result<(), Error> {
+		let config = db_backend::v1::Config { col_data: self.config.col_data };
+		let mut backend = db_backend::v1::DbBackend::new(self.db.clone(), config);
+
+		let ops = tree::revert_to(&backend, hash)?.into_write_ops();
+
+		backend.write(ops)
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for ChainSelectionSubsystem
-where
-	Context: SubsystemContext<Message = ChainSelectionMessage>,
-	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
-{
+#[overseer::subsystem(ChainSelection, error = SubsystemError, prefix = self::overseer)]
+impl<Context> ChainSelectionSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let backend = crate::db_backend::v1::DbBackend::new(
+		let backend = db_backend::v1::DbBackend::new(
 			self.db,
-			crate::db_backend::v1::Config { col_data: self.config.col_data },
+			db_backend::v1::Config { col_data: self.config.col_data },
 		);
 
 		SpawnedSubsystem {
@@ -337,14 +346,13 @@ where
 	}
 }
 
+#[overseer::contextbounds(ChainSelection, prefix = self::overseer)]
 async fn run<Context, B>(
 	mut ctx: Context,
 	mut backend: B,
 	stagnant_check_interval: StagnantCheckInterval,
 	clock: Box<dyn Clock + Send + Sync>,
 ) where
-	Context: SubsystemContext<Message = ChainSelectionMessage>,
-	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
 	B: Backend,
 {
 	loop {
@@ -352,11 +360,11 @@ async fn run<Context, B>(
 		match res {
 			Err(e) => {
 				e.trace();
-				// All errors right now are considered fatal:
+				// All errors are considered fatal right now:
 				break
 			},
 			Ok(()) => {
-				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+				gum::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 				break
 			},
 		}
@@ -368,6 +376,7 @@ async fn run<Context, B>(
 //
 // A return value of `Ok` indicates that an exit should be made, while non-fatal errors
 // lead to another call to this function.
+#[overseer::contextbounds(ChainSelection, prefix = self::overseer)]
 async fn run_until_error<Context, B>(
 	ctx: &mut Context,
 	backend: &mut B,
@@ -375,8 +384,6 @@ async fn run_until_error<Context, B>(
 	clock: &(dyn Clock + Sync),
 ) -> Result<(), Error>
 where
-	Context: SubsystemContext<Message = ChainSelectionMessage>,
-	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
 	B: Backend,
 {
 	let mut stagnant_check_stream = stagnant_check_interval.timeout_stream();
@@ -391,7 +398,7 @@ where
 					FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 						for leaf in update.activated {
 							let write_ops = handle_active_leaf(
-								ctx,
+								ctx.sender(),
 								&*backend,
 								clock.timestamp_now() + STAGNANT_TIMEOUT,
 								leaf.hash,
@@ -408,11 +415,11 @@ where
 							handle_approved_block(backend, hash)?
 						}
 						ChainSelectionMessage::Leaves(tx) => {
-							let leaves = load_leaves(ctx, &*backend).await?;
+							let leaves = load_leaves(ctx.sender(), &*backend).await?;
 							let _ = tx.send(leaves);
 						}
 						ChainSelectionMessage::BestLeafContaining(required, tx) => {
-							let best_containing = crate::backend::find_best_leaf_containing(
+							let best_containing = backend::find_best_leaf_containing(
 								&*backend,
 								required,
 							)?;
@@ -435,36 +442,31 @@ where
 }
 
 async fn fetch_finalized(
-	ctx: &mut impl SubsystemContext,
+	sender: &mut impl SubsystemSender<ChainApiMessage>,
 ) -> Result<Option<(Hash, BlockNumber)>, Error> {
 	let (number_tx, number_rx) = oneshot::channel();
 
-	ctx.send_message(ChainApiMessage::FinalizedBlockNumber(number_tx)).await;
+	sender.send_message(ChainApiMessage::FinalizedBlockNumber(number_tx)).await;
 
 	let number = match number_rx.await? {
 		Ok(number) => number,
 		Err(err) => {
-			tracing::warn!(target: LOG_TARGET, ?err, "Fetching finalized number failed");
+			gum::warn!(target: LOG_TARGET, ?err, "Fetching finalized number failed");
 			return Ok(None)
 		},
 	};
 
 	let (hash_tx, hash_rx) = oneshot::channel();
 
-	ctx.send_message(ChainApiMessage::FinalizedBlockHash(number, hash_tx)).await;
+	sender.send_message(ChainApiMessage::FinalizedBlockHash(number, hash_tx)).await;
 
 	match hash_rx.await? {
 		Err(err) => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				number,
-				?err,
-				"Fetching finalized block number failed"
-			);
+			gum::warn!(target: LOG_TARGET, number, ?err, "Fetching finalized block number failed");
 			Ok(None)
 		},
 		Ok(None) => {
-			tracing::warn!(target: LOG_TARGET, number, "Missing hash for finalized block number");
+			gum::warn!(target: LOG_TARGET, number, "Missing hash for finalized block number");
 			Ok(None)
 		},
 		Ok(Some(h)) => Ok(Some((h, number))),
@@ -472,36 +474,36 @@ async fn fetch_finalized(
 }
 
 async fn fetch_header(
-	ctx: &mut impl SubsystemContext,
+	sender: &mut impl SubsystemSender<ChainApiMessage>,
 	hash: Hash,
 ) -> Result<Option<Header>, Error> {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(ChainApiMessage::BlockHeader(hash, tx)).await;
+	sender.send_message(ChainApiMessage::BlockHeader(hash, tx)).await;
 
 	Ok(rx.await?.unwrap_or_else(|err| {
-		tracing::warn!(target: LOG_TARGET, ?hash, ?err, "Missing hash for finalized block number");
+		gum::warn!(target: LOG_TARGET, ?hash, ?err, "Missing hash for finalized block number");
 		None
 	}))
 }
 
 async fn fetch_block_weight(
-	ctx: &mut impl SubsystemContext,
+	sender: &mut impl overseer::SubsystemSender<ChainApiMessage>,
 	hash: Hash,
 ) -> Result<Option<BlockWeight>, Error> {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(ChainApiMessage::BlockWeight(hash, tx)).await;
+	sender.send_message(ChainApiMessage::BlockWeight(hash, tx)).await;
 
 	let res = rx.await?;
 
 	Ok(res.unwrap_or_else(|err| {
-		tracing::warn!(target: LOG_TARGET, ?hash, ?err, "Missing hash for finalized block number");
+		gum::warn!(target: LOG_TARGET, ?hash, ?err, "Missing hash for finalized block number");
 		None
 	}))
 }
 
 // Handle a new active leaf.
 async fn handle_active_leaf(
-	ctx: &mut impl SubsystemContext,
+	sender: &mut impl overseer::ChainSelectionSenderTrait,
 	backend: &impl Backend,
 	stagnant_at: Timestamp,
 	hash: Hash,
@@ -513,19 +515,19 @@ async fn handle_active_leaf(
 			// tree.
 			l.saturating_sub(1)
 		},
-		None => fetch_finalized(ctx).await?.map_or(1, |(_, n)| n),
+		None => fetch_finalized(sender).await?.map_or(1, |(_, n)| n),
 	};
 
-	let header = match fetch_header(ctx, hash).await? {
+	let header = match fetch_header(sender, hash).await? {
 		None => {
-			tracing::warn!(target: LOG_TARGET, ?hash, "Missing header for new head");
+			gum::warn!(target: LOG_TARGET, ?hash, "Missing header for new head");
 			return Ok(Vec::new())
 		},
 		Some(h) => h,
 	};
 
 	let new_blocks = polkadot_node_subsystem_util::determine_new_blocks(
-		ctx.sender(),
+		sender,
 		|h| backend.load_block_entry(h).map(|b| b.is_some()),
 		hash,
 		&header,
@@ -538,9 +540,9 @@ async fn handle_active_leaf(
 	// determine_new_blocks gives blocks in descending order.
 	// for this, we want ascending order.
 	for (hash, header) in new_blocks.into_iter().rev() {
-		let weight = match fetch_block_weight(ctx, hash).await? {
+		let weight = match fetch_block_weight(sender, hash).await? {
 			None => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					?hash,
 					"Missing block weight for new head. Skipping chain.",
@@ -554,7 +556,7 @@ async fn handle_active_leaf(
 		};
 
 		let reversion_logs = extract_reversion_logs(&header);
-		crate::tree::import_block(
+		tree::import_block(
 			&mut overlay,
 			hash,
 			header.number,
@@ -580,7 +582,7 @@ fn extract_reversion_logs(header: &Header) -> Vec<BlockNumber> {
 		.enumerate()
 		.filter_map(|(i, d)| match ConsensusLog::from_digest_item(d) {
 			Err(e) => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					err = ?e,
 					index = i,
@@ -592,7 +594,7 @@ fn extract_reversion_logs(header: &Header) -> Vec<BlockNumber> {
 			},
 			Ok(Some(ConsensusLog::Revert(b))) if b < number => Some(b),
 			Ok(Some(ConsensusLog::Revert(b))) => {
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					revert_target = b,
 					block_number = number,
@@ -617,8 +619,7 @@ fn handle_finalized_block(
 	finalized_hash: Hash,
 	finalized_number: BlockNumber,
 ) -> Result<(), Error> {
-	let ops =
-		crate::tree::finalize_block(&*backend, finalized_hash, finalized_number)?.into_write_ops();
+	let ops = tree::finalize_block(&*backend, finalized_hash, finalized_number)?.into_write_ops();
 
 	backend.write(ops)
 }
@@ -628,7 +629,7 @@ fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Re
 	let ops = {
 		let mut overlay = OverlayedBackend::new(&*backend);
 
-		crate::tree::approve_block(&mut overlay, approved_block)?;
+		tree::approve_block(&mut overlay, approved_block)?;
 
 		overlay.into_write_ops()
 	};
@@ -638,7 +639,7 @@ fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Re
 
 fn detect_stagnant(backend: &mut impl Backend, now: Timestamp) -> Result<(), Error> {
 	let ops = {
-		let overlay = crate::tree::detect_stagnant(&*backend, now)?;
+		let overlay = tree::detect_stagnant(&*backend, now)?;
 
 		overlay.into_write_ops()
 	};
@@ -649,13 +650,13 @@ fn detect_stagnant(backend: &mut impl Backend, now: Timestamp) -> Result<(), Err
 // Load the leaves from the backend. If there are no leaves, then return
 // the finalized block.
 async fn load_leaves(
-	ctx: &mut impl SubsystemContext,
+	sender: &mut impl overseer::SubsystemSender<ChainApiMessage>,
 	backend: &impl Backend,
 ) -> Result<Vec<Hash>, Error> {
 	let leaves: Vec<_> = backend.load_leaves()?.into_hashes_descending().collect();
 
 	if leaves.is_empty() {
-		Ok(fetch_finalized(ctx).await?.map_or(Vec::new(), |(h, _)| vec![h]))
+		Ok(fetch_finalized(sender).await?.map_or(Vec::new(), |(h, _)| vec![h]))
 	} else {
 		Ok(leaves)
 	}
