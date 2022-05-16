@@ -154,6 +154,7 @@ impl ChainScraper {
 	///
 	/// Once a candidate lives in a relay chain block that's behind the finalized chain/got
 	/// finalized, we can treat it as low priority.
+	#[allow(dead_code)]
 	pub fn process_finalized_block(&mut self, finalized: &BlockNumber) {
 		let not_finalized = self.candidates_by_block_number.split_off(finalized);
 		let finalized = std::mem::take(&mut self.candidates_by_block_number);

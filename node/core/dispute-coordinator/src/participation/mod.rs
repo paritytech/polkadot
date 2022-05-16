@@ -106,6 +106,7 @@ pub enum ParticipationOutcome {
 
 impl ParticipationOutcome {
 	/// If validation was successful, get whether the candidate was valid or invalid.
+	#[allow(dead_code)]
 	pub fn validity(self) -> Option<bool> {
 		match self {
 			Self::Valid => Some(true),
@@ -175,6 +176,7 @@ impl Participation {
 	///
 	/// Returns: The received `ParticipationStatement` or a fatal error, in case
 	/// something went wrong when dequeuing more requests (tasks could not be spawned).
+	#[allow(dead_code)]
 	pub async fn get_participation_result<Context>(
 		&mut self,
 		ctx: &mut Context,

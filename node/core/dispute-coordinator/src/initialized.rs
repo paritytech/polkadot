@@ -16,10 +16,7 @@
 
 //! Dispute coordinator subsystem in initialized state (after first active leaf is received).
 
-use std::{
-	collections::{BTreeMap, HashSet},
-	sync::Arc,
-};
+use std::{collections::HashSet, sync::Arc};
 
 use futures::{channel::mpsc, FutureExt, StreamExt};
 
@@ -46,9 +43,9 @@ use polkadot_primitives::v2::{
 };
 
 use crate::{
-	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
+	error::{log_error, Error, FatalError, FatalResult, JfyiResult, Result},
 	metrics::Metrics,
-	status::{get_active_with_status, Clock, DisputeStatus, Timestamp},
+	status::{Clock, DisputeStatus, Timestamp},
 	DisputeCoordinatorSubsystem, LOG_TARGET,
 };
 
@@ -56,7 +53,7 @@ use super::{
 	backend::Backend,
 	db,
 	participation::{
-		self, Participation, ParticipationPriority, ParticipationRequest, ParticipationStatement,
+		self, Participation, ParticipationPriority, ParticipationRequest,
 		WorkerMessageReceiver,
 	},
 	scraping::ChainScraper,
@@ -198,41 +195,15 @@ impl Initialized {
 			let default_confirm = Box::new(|| Ok(()));
 			let confirm_write =
 				match MuxedMessage::receive(ctx, &mut self.participation_receiver).await? {
-					MuxedMessage::Participation(msg) => {
-						let ParticipationStatement {
-							session,
-							candidate_hash,
-							candidate_receipt,
-							outcome,
-						} = self.participation.get_participation_result(ctx, msg).await?;
-						if let Some(valid) = outcome.validity() {
-							self.issue_local_statement(
-								ctx,
-								&mut overlay_db,
-								candidate_hash,
-								candidate_receipt,
-								session,
-								valid,
-								clock.now(),
-							)
-							.await?;
-						}
+					MuxedMessage::Participation(_) => {
 						default_confirm
 					},
 					MuxedMessage::Subsystem(msg) => match msg {
 						FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-						FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-							self.process_active_leaves_update(
-								ctx,
-								&mut overlay_db,
-								update,
-								clock.now(),
-							)
-							.await?;
+						FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {
 							default_confirm
 						},
-						FromOverseer::Signal(OverseerSignal::BlockFinalized(_, n)) => {
-							self.scraper.process_finalized_block(&n);
+						FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {
 							default_confirm
 						},
 						FromOverseer::Communication { msg } =>
@@ -250,6 +221,7 @@ impl Initialized {
 		}
 	}
 
+	#[allow(dead_code)]
 	async fn process_active_leaves_update<Context>(
 		&mut self,
 		ctx: &mut Context,
@@ -494,110 +466,31 @@ impl Initialized {
 
 	async fn handle_incoming<Context>(
 		&mut self,
-		ctx: &mut Context,
+		_ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		message: DisputeCoordinatorMessage,
-		now: Timestamp,
+		_now: Timestamp,
 	) -> Result<Box<dyn FnOnce() -> JfyiResult<()>>> {
 		match message {
 			DisputeCoordinatorMessage::ImportStatements {
-				candidate_hash,
-				candidate_receipt,
-				session,
-				statements,
-				pending_confirmation,
+				candidate_hash: _,
+				candidate_receipt: _,
+				session: _,
+				statements: _,
+				pending_confirmation: _,
 			} => {
-				let outcome = self
-					.handle_import_statements(
-						ctx,
-						overlay_db,
-						candidate_hash,
-						MaybeCandidateReceipt::Provides(candidate_receipt),
-						session,
-						statements,
-						now,
-					)
-					.await?;
-				let report = move || match pending_confirmation {
-					Some(pending_confirmation) => pending_confirmation
-						.send(outcome)
-						.map_err(|_| JfyiError::DisputeImportOneshotSend),
-					None => Ok(()),
-				};
-
-				match outcome {
-					ImportStatementsResult::InvalidImport => {
-						report()?;
-					},
-					// In case of valid import, delay confirmation until actual disk write:
-					ImportStatementsResult::ValidImport => return Ok(Box::new(report)),
-				}
+				return Ok(Box::new(|| Ok(())))
 			},
 			DisputeCoordinatorMessage::RecentDisputes(tx) => {
-				// Return error if session information is missing.
-				self.ensure_available_session_info()?;
-
-				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
-					disputes
-				} else {
-					BTreeMap::new()
-				};
-
-				let _ = tx.send(recent_disputes.keys().cloned().collect());
+				let _ = tx.send(Vec::new());
 			},
 			DisputeCoordinatorMessage::ActiveDisputes(tx) => {
-				// Return error if session information is missing.
-				self.ensure_available_session_info()?;
-
-				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
-					disputes
-				} else {
-					BTreeMap::new()
-				};
-
-				let _ = tx.send(
-					get_active_with_status(recent_disputes.into_iter(), now)
-						.map(|(k, _)| k)
-						.collect(),
-				);
+				let _ = tx.send(Vec::new());
 			},
-			DisputeCoordinatorMessage::QueryCandidateVotes(query, tx) => {
-				// Return error if session information is missing.
-				self.ensure_available_session_info()?;
-
-				let mut query_output = Vec::new();
-				for (session_index, candidate_hash) in query {
-					if let Some(v) =
-						overlay_db.load_candidate_votes(session_index, &candidate_hash)?
-					{
-						query_output.push((session_index, candidate_hash, v.into()));
-					} else {
-						gum::debug!(
-							target: LOG_TARGET,
-							session_index,
-							"No votes found for candidate",
-						);
-					}
-				}
-				let _ = tx.send(query_output);
+			DisputeCoordinatorMessage::QueryCandidateVotes(_, tx) => {
+				let _ = tx.send(Vec::new());
 			},
-			DisputeCoordinatorMessage::IssueLocalStatement(
-				session,
-				candidate_hash,
-				candidate_receipt,
-				valid,
-			) => {
-				self.issue_local_statement(
-					ctx,
-					overlay_db,
-					candidate_hash,
-					candidate_receipt,
-					session,
-					valid,
-					now,
-				)
-				.await?;
-			},
+			DisputeCoordinatorMessage::IssueLocalStatement(_, _, _, _) => {},
 			DisputeCoordinatorMessage::DetermineUndisputedChain {
 				base: (base_number, base_hash),
 				block_descriptions,
@@ -918,6 +811,7 @@ impl Initialized {
 		Ok(ImportStatementsResult::ValidImport)
 	}
 
+	#[allow(dead_code)]
 	async fn issue_local_statement<Context>(
 		&mut self,
 		ctx: &mut Context,
