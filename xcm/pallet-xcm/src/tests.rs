@@ -23,7 +23,7 @@ use frame_support::{
 	traits::{Currency, Hooks},
 };
 use polkadot_parachain::primitives::Id as ParaId;
-use sp_runtime::traits::{BlakeTwo256, Hash, AccountIdConversion};
+use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, Hash};
 use xcm::prelude::*;
 use xcm_builder::AllowKnownQueryResponses;
 use xcm_executor::{traits::ShouldExecute, XcmExecutor};
