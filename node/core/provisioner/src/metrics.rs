@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#[cfg(feature = "staging-client")]
+use crate::disputes::with_staging_api::PartitionedDisputes;
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
 #[derive(Clone)]
@@ -28,6 +30,10 @@ struct MetricsInner {
 	/// 4 hours on Polkadot. The metrics are updated only when the node authors a block, so values vary across nodes.
 	inherent_data_dispute_statement_sets: prometheus::Counter<prometheus::U64>,
 	inherent_data_dispute_statements: prometheus::CounterVec<prometheus::U64>,
+
+	#[cfg(feature = "staging-client")]
+	// The disputes received from `disputes-coordinator` by partition
+	partitioned_disputes: prometheus::CounterVec<prometheus::U64>,
 }
 
 /// Provisioner metrics.
@@ -95,6 +101,40 @@ impl Metrics {
 				.inc_by(disputes.try_into().unwrap_or(0));
 		}
 	}
+
+	#[cfg(feature = "staging-client")]
+	pub(crate) fn on_partition_recent_disputes(&self, disputes: &PartitionedDisputes) {
+		if let Some(metrics) = &self.0 {
+			let PartitionedDisputes {
+				active_unconcluded_onchain: cant_conclude_onchain,
+				active_unknown_onchain: unknown_onchain,
+				active_concluded_onchain: can_conclude_onchain,
+				inactive_known_onchain: concluded_known_onchain,
+				inactive_unknown_onchain: concluded_unknown_onchain,
+			} = disputes;
+
+			metrics
+				.partitioned_disputes
+				.with_label_values(&["cant_conclude_onchain"])
+				.inc_by(cant_conclude_onchain.len().try_into().unwrap_or(0));
+			metrics
+				.partitioned_disputes
+				.with_label_values(&["unknown_onchain"])
+				.inc_by(unknown_onchain.len().try_into().unwrap_or(0));
+			metrics
+				.partitioned_disputes
+				.with_label_values(&["can_conclude_onchain"])
+				.inc_by(can_conclude_onchain.len().try_into().unwrap_or(0));
+			metrics
+				.partitioned_disputes
+				.with_label_values(&["concluded_known_onchain"])
+				.inc_by(concluded_known_onchain.len().try_into().unwrap_or(0));
+			metrics
+				.partitioned_disputes
+				.with_label_values(&["unknown_onchain"])
+				.inc_by(concluded_unknown_onchain.len().try_into().unwrap_or(0));
+		}
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -149,6 +189,17 @@ impl metrics::Metrics for Metrics {
 					).buckets(vec![0.0, 10.0, 25.0, 50.0, 75.0, 100.0, 150.0, 200.0, 250.0, 300.0]),
 				)?,
 				registry,
+			)?,
+			#[cfg(feature = "staging-client")]
+			partitioned_disputes: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"polkadot_parachain_provisioner_partitioned_disputes",
+						"some fancy description",
+					),
+					&["partition"],
+				)?,
+				&registry,
 			)?,
 		};
 		Ok(Metrics(Some(metrics)))

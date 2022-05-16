@@ -14,29 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_primitives::{DisputeStatus, Timestamp};
+use polkadot_node_primitives::{dispute_is_inactive, DisputeStatus, Timestamp};
 use polkadot_primitives::v2::{CandidateHash, SessionIndex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::LOG_TARGET;
-
-/// The choice here is fairly arbitrary. But any dispute that concluded more than a few minutes ago
-/// is not worth considering anymore. Changing this value has little to no bearing on consensus,
-/// and really only affects the work that the node might do on startup during periods of many
-/// disputes.
-pub const ACTIVE_DURATION_SECS: Timestamp = 180;
 
 /// Get active disputes as iterator, preserving its `DisputeStatus`.
 pub fn get_active_with_status(
 	recent_disputes: impl Iterator<Item = ((SessionIndex, CandidateHash), DisputeStatus)>,
 	now: Timestamp,
 ) -> impl Iterator<Item = ((SessionIndex, CandidateHash), DisputeStatus)> {
-	recent_disputes.filter_map(move |(disputed, status)| {
-		status
-			.concluded_at()
-			.filter(|at| *at + ACTIVE_DURATION_SECS < now)
-			.map_or(Some((disputed, status)), |_| None)
-	})
+	recent_disputes.filter(move |(_, status)| !dispute_is_inactive(status, &now))
 }
 
 pub trait Clock: Send + Sync {

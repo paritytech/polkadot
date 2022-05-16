@@ -110,3 +110,18 @@ impl DisputeStatus {
 		}
 	}
 }
+
+/// The choice here is fairly arbitrary. But any dispute that concluded more than a few minutes ago
+/// is not worth considering anymore. Changing this value has little to no bearing on consensus,
+/// and really only affects the work that the node might do on startup during periods of many
+/// disputes.
+pub const ACTIVE_DURATION_SECS: Timestamp = 180;
+
+/// Checks if dispute is inactive. Returns true if EITHER of the following statements is valid:
+/// - The dispute has concluded OR
+/// - The dispute has been active for duration more than ACTIVE_DURATION_SECS
+pub fn dispute_is_inactive(status: &DisputeStatus, now: &Timestamp) -> bool {
+	let at = status.concluded_at();
+
+	at.is_some() && at.unwrap() + ACTIVE_DURATION_SECS < *now
+}
