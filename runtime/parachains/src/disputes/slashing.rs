@@ -798,7 +798,8 @@ fn is_known_offence<T: Config>(
 				);
 
 			<T::HandleReports as HandleReports<T>>::is_known_for_invalid_offence(
-				&[offender], &time_slot,
+				&[offender],
+				&time_slot,
 			)
 		},
 		SlashingOffenceKind::AgainstValid => {
@@ -809,7 +810,8 @@ fn is_known_offence<T: Config>(
 				);
 
 			<T::HandleReports as HandleReports<T>>::is_known_against_valid_offence(
-				&[offender], &time_slot,
+				&[offender],
+				&time_slot,
 			)
 		},
 	};
@@ -836,14 +838,14 @@ impl<T, R, L> HandleReports<T> for SlashingReportHandler<T::KeyOwnerIdentificati
 where
 	T: Config + frame_system::offchain::SendTransactionTypes<Call<T>>,
 	R: ReportOffence<
-		AccountId<T>,
-		T::KeyOwnerIdentification,
-		ForInvalidOffence<T::KeyOwnerIdentification>,
-	> + ReportOffence<
-		AccountId<T>,
-		T::KeyOwnerIdentification,
-		AgainstValidOffence<T::KeyOwnerIdentification>,
-	>,
+			AccountId<T>,
+			T::KeyOwnerIdentification,
+			ForInvalidOffence<T::KeyOwnerIdentification>,
+		> + ReportOffence<
+			AccountId<T>,
+			T::KeyOwnerIdentification,
+			AgainstValidOffence<T::KeyOwnerIdentification>,
+		>,
 	L: Get<u64>,
 {
 	type OffenceForInvalid = ForInvalidOffence<T::KeyOwnerIdentification>;
