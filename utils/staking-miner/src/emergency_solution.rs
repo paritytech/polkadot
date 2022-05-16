@@ -16,60 +16,60 @@
 
 //! The emergency-solution command.
 
-/*use codec::Encode;
-use pallet_election_provider_multi_phase::RawSolution;
-use std::io::Write;*/
+use crate::{chain, prelude::*, EmergencySolutionConfig};
 
-use crate::{chain::westend::RuntimeApi, prelude::*, EmergencySolutionConfig};
+macro_rules! emergency_cmd_for {
+	($runtime:tt) => {
+		paste::paste! {
 
-/// Ensure that the current phase is emergency.
-async fn ensure_emergency_phase(api: &RuntimeApi, hash: Option<Hash>) -> Result<(), Error> {
-	use pallet_election_provider_multi_phase::Phase;
+					pub(crate) async fn [<run_$runtime>](
+						api: chain::$runtime::RuntimeApi,
+						config: EmergencySolutionConfig,
+						_signer: Signer,
+					) -> Result<(), Error> {
 
-	match api.storage().election_provider_multi_phase().current_phase(hash).await {
-		Ok(Phase::Emergency) => Ok(()),
-		Ok(_phase) => Err(Error::IncorrectPhase),
-		Err(e) => Err(e.into()),
-	}
+					use pallet_election_provider_multi_phase::Phase;
+
+					// Ensure that the current phase is emergency.
+					match api.storage().election_provider_multi_phase().current_phase(config.at).await {
+						Ok(Phase::Emergency) => (),
+						Ok(_phase) => return Err(Error::IncorrectPhase),
+						Err(e) => return Err(e.into()),
+					};
+
+
+					todo!("how to get ReadySolution here?!");
+
+					/*let mut ready_solutions = api
+						.storage()
+						.election_provider_multi_phase()
+						.queued_solution(Some(events.block_hash()))
+						.await?
+						.ok_or(Error::Other("queued solutions were empty".into()))?;
+
+					// maybe truncate.
+					if let Some(take) = config.take {
+						log::info!(
+							target: LOG_TARGET,
+							"truncating {} winners to {}",
+							ready_solutions.supports.len(),
+							take
+						);
+						ready_solutions.supports.sort_unstable_by_key(|(_, s)| s.total);
+						ready_solutions.supports.truncate(take);
+					}
+
+					// write to file and stdout.
+					let encoded_support = ready_solutions.supports.encode();
+					let mut supports_file = std::fs::File::create("solution.supports.bin")?;
+					supports_file.write_all(&encoded_support)?;
+
+					Ok(())*/
+				}
+		}
+	};
 }
 
-pub(crate) async fn run<M>(
-	client: SubxtClient,
-	config: EmergencySolutionConfig,
-	_signer: Signer,
-) -> Result<(), Error>
-where
-	M: MinerConfig<AccountId = AccountId, MaxVotesPerVoter = MinerMaxVotesPerVoter> + 'static,
-	<M as MinerConfig>::Solution: Send + Sync,
-{
-	let api: RuntimeApi = client.to_runtime_api();
-	ensure_emergency_phase(&api, config.at).await?;
-
-	todo!("how to get ReadySolution here?!");
-
-	/*let mut ready_solutions = api
-		.storage()
-		.election_provider_multi_phase()
-		.queued_solution(Some(events.block_hash()))
-		.await?
-		.ok_or(Error::Other("queued solutions were empty".into()))?;
-
-	// maybe truncate.
-	if let Some(take) = config.take {
-		log::info!(
-			target: LOG_TARGET,
-			"truncating {} winners to {}",
-			ready_solutions.supports.len(),
-			take
-		);
-		ready_solutions.supports.sort_unstable_by_key(|(_, s)| s.total);
-		ready_solutions.supports.truncate(take);
-	}
-
-	// write to file and stdout.
-	let encoded_support = ready_solutions.supports.encode();
-	let mut supports_file = std::fs::File::create("solution.supports.bin")?;
-	supports_file.write_all(&encoded_support)?;*/
-
-	Ok(())
-}
+emergency_cmd_for!(polkadot);
+emergency_cmd_for!(kusama);
+emergency_cmd_for!(westend);

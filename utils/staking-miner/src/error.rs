@@ -7,7 +7,7 @@ pub enum Error {
 	#[error("RPC error: `{0}`")]
 	RpcError(#[from] jsonrpsee::core::Error),
 	#[error("subxt error: `{0}`")]
-	SubxtError(#[from] subxt::BasicError),
+	Subxt(#[from] subxt::BasicError),
 	#[error("Codec error: `{0}`")]
 	Codec(#[from] codec::Error),
 	#[error("Crypto error: `{0:?}`")]

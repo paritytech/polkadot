@@ -70,6 +70,33 @@ enum Solver {
 	},
 }
 
+#[macro_export]
+macro_rules! any_runtime {
+	($chain:tt, $($code:tt)*) => {
+			match $chain {
+				// TODO: fix hack for testing.
+				"polkadot" | "development" => {
+					#[allow(unused)]
+					use {$crate::chain::polkadot::RuntimeApi, monitor::run_polkadot as monitor_cmd, dry_run::run_polkadot as dry_run_cmd, emergency_solution::run_polkadot as emergency_cmd};
+					$($code)*
+				},
+				"kusama" => {
+					#[allow(unused)]
+					use {$crate::chain::kusama::RuntimeApi, monitor::run_kusama as monitor_cmd, dry_run::run_kusama as dry_run_cmd, emergency_solution::run_kusama as emergency_cmd};
+					$($code)*
+				},
+				"westend" => {
+					#[allow(unused)]
+					use {$crate::chain::westend::RuntimeApi, monitor::run_westend as monitor_cmd, dry_run::run_westend as dry_run_cmd, emergency_solution::run_westend as emergency_cmd};
+					$($code)*
+				}
+				other => Err(Error::Other(format!(
+					"expected chain to be polkadot, kusama or westend; got: {}", other
+				))),
+			}
+	}
+}
+
 /// Submission strategy to use.
 #[derive(Debug, Copy, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -207,30 +234,31 @@ async fn main() -> Result<(), Error> {
 
 	let client = subxt::ClientBuilder::new().set_url(uri).build().await?;
 	let chain = client.rpc().system_chain().await?.to_lowercase();
-	let signer = signer::signer_from_string(&seed_or_path);
+	let signer = signer::signer_from_string(&seed_or_path)?;
+
+	let chain_str = chain.as_str();
 
 	log::info!("Connected to chain: {}", chain);
 
-	// TODO: fix boiler plate
-	let outcome = match (chain.as_str(), command) {
-		("polkadot", Command::Monitor(cfg)) =>
-			monitor::run_polkadot(client, cfg, Arc::new(signer)).await,
-		("kusama" | "development", Command::Monitor(cfg)) =>
-			monitor::run_kusama(client, cfg, Arc::new(signer)).await,
-		("westend", Command::Monitor(cfg)) =>
-			monitor::run_westend(client, cfg, Arc::new(signer)).await,
-		("polkadot", Command::DryRun(cfg)) => dry_run::run_polkadot(client, cfg, signer).await,
-		("kusama" | "development", Command::DryRun(cfg)) =>
-			dry_run::run_kusama(client, cfg, signer).await,
-		("westend", Command::DryRun(cfg)) => dry_run::run_westend(client, cfg, signer).await,
-		(_, Command::EmergencySolution(_cfg)) => {
-			panic!("emergency not supported yet");
-		},
-		(other, cmd) => Err(Error::Other(format!(
-			"command: {:?} failed; expected chain to be polkadot, kusama or westend; got: {}",
-			cmd, other
-		))),
-	};
+	let outcome = any_runtime!(chain_str, {
+		let api: RuntimeApi = client.to_runtime_api();
+
+		// Start a new tokio task to perform the runtime updates in the background.
+		let update_client = api.client.updates();
+		tokio::spawn(async move {
+			let result = update_client.perform_runtime_updates().await;
+			log::error!("Runtime update failed with result={:?}", result);
+		});
+
+		let account_info = api.storage().system().account(signer.account_id(), None).await?;
+		log::info!("{:?}", account_info.data);
+
+		match command {
+			Command::Monitor(cfg) => monitor_cmd(api, cfg, Arc::new(signer)).await,
+			Command::DryRun(cfg) => dry_run_cmd(api, cfg, signer).await,
+			Command::EmergencySolution(cfg) => emergency_cmd(api, cfg, signer).await,
+		}
+	});
 
 	log::info!(target: LOG_TARGET, "round of execution finished. outcome = {:?}", outcome);
 	outcome

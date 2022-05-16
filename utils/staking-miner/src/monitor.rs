@@ -2,25 +2,13 @@ use crate::{prelude::*, Error, MonitorConfig, SubmissionStrategy};
 use pallet_election_provider_multi_phase::RawSolution;
 use sp_runtime::Perbill;
 use std::sync::Arc;
-use subxt::TransactionStatus;
+use subxt::{BasicError as SubxtError, TransactionStatus};
 
 macro_rules! monitor_cmd_for {
 	($runtime:tt) => {
 		paste::paste! {
 			/// The monitor command.
-			pub(crate) async fn [<run_$runtime>] (client: SubxtClient, config: MonitorConfig, signer: Arc<Signer>) -> Result<(), Error> {
-				let api: Arc<$crate::chain::$runtime::RuntimeApi> = Arc::new(client.to_runtime_api());
-
-				// Start a new tokio task to perform the runtime updates while
-				// utilizing the API for other use cases.
-				let update_client = api.client.updates();
-				tokio::spawn(async move {
-					let result = update_client.perform_runtime_updates().await;
-					log::error!("Runtime update failed with result={:?}", result);
-				});
-
-
-
+			pub(crate) async fn [<run_$runtime>] (api: $crate::chain::$runtime::RuntimeApi, config: MonitorConfig, signer: Arc<Signer>) -> Result<(), Error> {
 				let mut subscription = if config.listen == "head" {
 					api.client.rpc().subscribe_blocks().await
 				} else {
@@ -76,7 +64,7 @@ macro_rules! monitor_cmd_for {
 				async fn send_and_watch_extrinsic(
 					tx: tokio::sync::mpsc::UnboundedSender<Error>,
 					at: Header,
-					api: Arc<$crate::chain::$runtime::RuntimeApi>,
+					api: $crate::chain::$runtime::RuntimeApi,
 					signer: Arc<Signer>,
 					config: MonitorConfig,
 				) {
@@ -99,6 +87,8 @@ macro_rules! monitor_cmd_for {
 							e,
 							at.number
 						);
+
+						kill_main_task_if_critical_err(&tx, e);
 						return;
 					}
 
@@ -109,18 +99,27 @@ macro_rules! monitor_cmd_for {
 							e,
 							at.number
 						);
+
+						kill_main_task_if_critical_err(&tx, e);
 						return;
 					}
 
 					let (solution, score, size) =
-						crate::helpers::[<mine_solution_$runtime>](&api, Some(hash), config.solver)
-						.await
-						.unwrap();
+						match crate::helpers::[<mine_solution_$runtime>](&api, Some(hash), config.solver)
+						.await {
+							Ok(s) => s,
+							Err(e) => {
+								kill_main_task_if_critical_err(&tx, e);
+								return;
+							}
+						};
 
 					let round = match api.storage().election_provider_multi_phase().round(Some(hash)).await {
 						Ok(round) => round,
 						Err(e) => {
 							log::error!(target: LOG_TARGET, "Mining solution failed: {:?}", e);
+
+							kill_main_task_if_critical_err(&tx, e.into());
 							return;
 						},
 					};
@@ -134,6 +133,7 @@ macro_rules! monitor_cmd_for {
 							e,
 							at.number
 						);
+						kill_main_task_if_critical_err(&tx, e);
 						return;
 					}
 
@@ -144,17 +144,29 @@ macro_rules! monitor_cmd_for {
 							e,
 							at.number
 						);
+						kill_main_task_if_critical_err(&tx, e);
 						return;
 					}
 
-					let xt = api
+					let xt = match api
 						.tx()
 						.election_provider_multi_phase()
-						.submit(RawSolution { solution, score, round })
-						.unwrap();
+						.submit(RawSolution { solution, score, round }) {
+							Ok(xt) => xt,
+							Err(e) => {
+								kill_main_task_if_critical_err(&tx, e.into());
+								return;
+							}
+						};
 
 					// This might fail with outdated nonce let it just crash if that happens.
-					let mut status_sub = xt.sign_and_submit_then_watch_default(&*signer).await.unwrap();
+					let mut status_sub = match xt.sign_and_submit_then_watch_default(&*signer).await {
+						Ok(sub) => sub,
+						Err(e) => {
+							kill_main_task_if_critical_err(&tx, e.into());
+							return;
+						}
+					};
 
 					loop {
 						let status = match status_sub.next_item().await {
@@ -166,6 +178,7 @@ macro_rules! monitor_cmd_for {
 									hash,
 									err
 								);
+								kill_main_task_if_critical_err(&tx, err.into());
 								return;
 							},
 							None => {
@@ -283,3 +296,20 @@ macro_rules! monitor_cmd_for {
 monitor_cmd_for!(polkadot);
 monitor_cmd_for!(kusama);
 monitor_cmd_for!(westend);
+
+fn kill_main_task_if_critical_err(tx: &tokio::sync::mpsc::UnboundedSender<Error>, err: Error) {
+	use jsonrpsee::core::Error as RpcError;
+
+	match err {
+		Error::Subxt(SubxtError::InvalidMetadata(e)) => {
+			let _ = tx.send(Error::Subxt(SubxtError::InvalidMetadata(e)));
+		},
+		Error::Subxt(SubxtError::Metadata(e)) => {
+			let _ = tx.send(Error::Subxt(SubxtError::Metadata(e)));
+		},
+		Error::Subxt(SubxtError::Rpc(RpcError::RestartNeeded(e))) => {
+			let _ = tx.send(Error::Subxt(SubxtError::Rpc(RpcError::RestartNeeded(e))));
+		},
+		_ => (),
+	}
+}

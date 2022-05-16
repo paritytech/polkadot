@@ -27,11 +27,9 @@ macro_rules! dry_run_cmd_for {
 	($runtime:tt) => {
 		paste::paste! {
 
-			pub(crate) async fn [<run_$runtime>](client: SubxtClient, config: DryRunConfig, signer: Signer) -> Result<(), Error>
+			pub(crate) async fn [<run_$runtime>](api: chain::$runtime::RuntimeApi, config: DryRunConfig, signer: Signer) -> Result<(), Error>
 
 		{
-			let api: chain::$runtime::RuntimeApi = client.to_runtime_api();
-
 			let (solution, score, _size) =
 				crate::helpers::[<mine_solution_$runtime>](&api, config.at, config.solver).await?;
 

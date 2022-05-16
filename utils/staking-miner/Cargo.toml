@@ -9,7 +9,7 @@ codec = { package = "parity-scale-codec", version = "3.0.0" }
 scale-info = { package = "scale-info", version = "2.1.1" }
 clap = { version = "3.1", features = ["derive", "env"] }
 tracing-subscriber = { version = "0.3.10", features = ["env-filter"]   }
-jsonrpsee = { version = "0.12.0", features = ["ws-client", "macros"] }
+jsonrpsee = { version = "0.13.0", features = ["macros"] }
 log = "0.4.17"
 paste = "1.0.7"
 serde = "1.0.137"
@@ -32,13 +32,6 @@ sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", bra
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-# polkadot
-core-primitives = { package = "polkadot-core-primitives", path = "../../core-primitives" }
-
-sub-tokens = { git = "https://github.com/paritytech/substrate-debug-kit", branch = "master" }
-
-# TODO(niklasad1): remove with proper error type.
-anyhow = "1"
 
 [dev-dependencies]
 assert_cmd = "2.0.2"

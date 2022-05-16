@@ -44,9 +44,6 @@ pub const LOG_TARGET: &str = "staking-miner";
 /// The key pair type being used. We "strongly" assume sr25519 for simplicity.
 pub type Pair = subxt::sp_core::sr25519::Pair;
 
-/// Type alias for the subxt client.
-pub type SubxtClient = subxt::Client<subxt::DefaultConfig>;
-
 pub use pallet_election_provider_multi_phase::{Miner, MinerConfig};
 
 pub type Signer = subxt::PairSigner<subxt::DefaultConfig, subxt::sp_core::sr25519::Pair>;

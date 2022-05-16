@@ -19,30 +19,17 @@
 use crate::prelude::*;
 use subxt::{sp_core::Pair as _, PairSigner};
 
-/*pub(crate) async fn get_account_info<T: frame_system::Config<Hash = Hash> + EPM::Config>(
-	rpc: &SharedRpcClient,
-	who: &T::AccountId,
-	maybe_at: Option<T::Hash>,
-) -> Result<Option<AccountInfo<Index, T::AccountData>>, Error<T>> {
-	rpc.get_storage_and_decode::<AccountInfo<Index, T::AccountData>>(
-		&StorageKey(<frame_system::Account<T>>::hashed_key_for(&who)),
-		maybe_at,
-	)
-	.await
-	.map_err(Into::into)
-}*/
-
 /// Read the signer account's URI
-pub(crate) fn signer_from_string(mut seed_or_path: &str) -> Signer {
+pub(crate) fn signer_from_string(mut seed_or_path: &str) -> Result<Signer, Error> {
 	seed_or_path = seed_or_path.trim();
 
 	let seed = match std::fs::read(seed_or_path) {
-		Ok(s) => String::from_utf8(s).unwrap(),
+		Ok(s) => String::from_utf8(s).map_err(|e| Error::Other(e.to_string()))?,
 		Err(_) => seed_or_path.to_string(),
 	};
 	let seed = seed.trim();
 
-	let pair = Pair::from_string(seed, None).unwrap();
+	let pair = Pair::from_string(seed, None).map_err(|e| Error::Crypto(e))?;
 
-	PairSigner::new(pair)
+	Ok(PairSigner::new(pair))
 }
