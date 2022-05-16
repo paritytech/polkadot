@@ -160,7 +160,7 @@ impl<T> MeteredSender<T> {
 	{
 		match self.try_send(msg) {
 			Err(send_err) => {
-				if send_err.is_disconnected() {
+				if !send_err.is_full() {
 					return Err(send_err.into_send_error())
 				}
 
