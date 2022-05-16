@@ -37,7 +37,7 @@ const SEND_AMOUNT: u128 = 10;
 #[test]
 fn report_outcome_notify_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE)];
 	let sender = AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
 	let mut message = Xcm(vec![TransferAsset {
 		assets: (Here, SEND_AMOUNT).into(),
@@ -97,7 +97,7 @@ fn report_outcome_notify_works() {
 #[test]
 fn report_outcome_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE)];
 	let sender = AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
 	let mut message = Xcm(vec![TransferAsset {
 		assets: (Here, SEND_AMOUNT).into(),
@@ -149,7 +149,7 @@ fn report_outcome_works() {
 #[test]
 fn send_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let sender: MultiLocation =
 			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
@@ -186,7 +186,7 @@ fn send_works() {
 #[test]
 fn send_fails_when_xcm_router_blocks() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let sender: MultiLocation =
 			Junction::AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
@@ -213,7 +213,7 @@ fn send_fails_when_xcm_router_blocks() {
 #[test]
 fn teleport_assets_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 2 * BaseXcmWeight::get();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
@@ -254,7 +254,7 @@ fn teleport_assets_works() {
 #[test]
 fn limmited_teleport_assets_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 2 * BaseXcmWeight::get();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
@@ -296,7 +296,7 @@ fn limmited_teleport_assets_works() {
 #[test]
 fn unlimmited_teleport_assets_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 2 * BaseXcmWeight::get();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
@@ -336,7 +336,7 @@ fn unlimmited_teleport_assets_works() {
 #[test]
 fn reserve_transfer_assets_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = BaseXcmWeight::get();
 		let dest: MultiLocation =
@@ -352,7 +352,7 @@ fn reserve_transfer_assets_works() {
 		// Alice spent amount
 		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - SEND_AMOUNT);
 		// Destination account (parachain account) has amount
-		let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+		let para_acc: AccountId = ParaId::from(PARA_ID).into_account_truncating();
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE + SEND_AMOUNT);
 		assert_eq!(
 			sent_xcm(),
@@ -382,7 +382,7 @@ fn reserve_transfer_assets_works() {
 #[test]
 fn limited_reserve_transfer_assets_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = BaseXcmWeight::get();
 		let dest: MultiLocation =
@@ -399,7 +399,7 @@ fn limited_reserve_transfer_assets_works() {
 		// Alice spent amount
 		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - SEND_AMOUNT);
 		// Destination account (parachain account) has amount
-		let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+		let para_acc: AccountId = ParaId::from(PARA_ID).into_account_truncating();
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE + SEND_AMOUNT);
 		assert_eq!(
 			sent_xcm(),
@@ -429,7 +429,7 @@ fn limited_reserve_transfer_assets_works() {
 #[test]
 fn unlimited_reserve_transfer_assets_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = BaseXcmWeight::get();
 		let dest: MultiLocation =
@@ -446,7 +446,7 @@ fn unlimited_reserve_transfer_assets_works() {
 		// Alice spent amount
 		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - SEND_AMOUNT);
 		// Destination account (parachain account) has amount
-		let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+		let para_acc: AccountId = ParaId::from(PARA_ID).into_account_truncating();
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE + SEND_AMOUNT);
 		assert_eq!(
 			sent_xcm(),
@@ -474,7 +474,7 @@ fn unlimited_reserve_transfer_assets_works() {
 #[test]
 fn execute_withdraw_to_deposit_works() {
 	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 3 * BaseXcmWeight::get();
 		let dest: MultiLocation =
