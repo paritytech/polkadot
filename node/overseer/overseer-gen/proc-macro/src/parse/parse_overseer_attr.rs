@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::kw;
 use proc_macro2::Span;
 use quote::{quote, ToTokens};
 use std::collections::{hash_map::RandomState, HashMap};
@@ -24,21 +25,9 @@ use syn::{
 	Error, Ident, LitInt, Path, Result, Token,
 };
 
-mod kw {
-	syn::custom_keyword!(event);
-	syn::custom_keyword!(signal);
-	syn::custom_keyword!(error);
-	syn::custom_keyword!(network);
-	syn::custom_keyword!(outgoing);
-	syn::custom_keyword!(gen);
-	syn::custom_keyword!(signal_capacity);
-	syn::custom_keyword!(message_capacity);
-}
-
 #[derive(Clone, Debug)]
 enum OverseerAttrItem {
 	ExternEventType { tag: kw::event, eq_token: Token![=], value: Path },
-	ExternNetworkType { tag: kw::network, eq_token: Token![=], value: Path },
 	ExternOverseerSignalType { tag: kw::signal, eq_token: Token![=], value: Path },
 	ExternErrorType { tag: kw::error, eq_token: Token![=], value: Path },
 	OutgoingType { tag: kw::outgoing, eq_token: Token![=], value: Path },
@@ -51,9 +40,6 @@ impl ToTokens for OverseerAttrItem {
 	fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
 		let ts = match self {
 			Self::ExternEventType { tag, eq_token, value } => {
-				quote! { #tag #eq_token, #value }
-			},
-			Self::ExternNetworkType { tag, eq_token, value } => {
 				quote! { #tag #eq_token, #value }
 			},
 			Self::ExternOverseerSignalType { tag, eq_token, value } => {
@@ -100,12 +86,6 @@ impl Parse for OverseerAttrItem {
 				eq_token: input.parse()?,
 				value: input.parse()?,
 			})
-		} else if lookahead.peek(kw::network) {
-			Ok(OverseerAttrItem::ExternNetworkType {
-				tag: input.parse::<kw::network>()?,
-				eq_token: input.parse()?,
-				value: input.parse()?,
-			})
 		} else if lookahead.peek(kw::outgoing) {
 			Ok(OverseerAttrItem::OutgoingType {
 				tag: input.parse::<kw::outgoing>()?,
@@ -138,15 +118,11 @@ impl Parse for OverseerAttrItem {
 
 /// Attribute arguments
 #[derive(Clone, Debug)]
-pub(crate) struct AttrArgs {
+pub(crate) struct OverseerAttrArgs {
 	pub(crate) message_wrapper: Ident,
 	pub(crate) extern_event_ty: Path,
 	pub(crate) extern_signal_ty: Path,
 	pub(crate) extern_error_ty: Path,
-	/// A external subsystem that both consumes and produces messages
-	/// but is not part of the band of subsystems, it's a mere proxy
-	/// to another entity that consumes/produces messages.
-	pub(crate) extern_network_ty: Option<Path>,
 	pub(crate) outgoing_ty: Option<Path>,
 	pub(crate) signal_channel_capacity: usize,
 	pub(crate) message_channel_capacity: usize,
@@ -170,7 +146,7 @@ macro_rules! extract_variant {
 	};
 }
 
-impl Parse for AttrArgs {
+impl Parse for OverseerAttrArgs {
 	fn parse(input: &ParseBuffer) -> Result<Self> {
 		let items: Punctuated<OverseerAttrItem, Token![,]> =
 			input.parse_terminated(OverseerAttrItem::parse)?;
@@ -198,18 +174,16 @@ impl Parse for AttrArgs {
 
 		let error = extract_variant!(unique, ExternErrorType; err = "Must declare the overseer error type via `error=..`.")?;
 		let event = extract_variant!(unique, ExternEventType; err = "Must declare the overseer event type via `event=..`.")?;
-		let signal = extract_variant!(unique, ExternOverseerSignalType; err = "Must declare the overseer signal type via `span=..`.")?;
+		let signal = extract_variant!(unique, ExternOverseerSignalType; err = "Must declare the overseer signal type via `signal=..`.")?;
 		let message_wrapper = extract_variant!(unique, MessageWrapperName; err = "Must declare the overseer generated wrapping message type via `gen=..`.")?;
-		let network = extract_variant!(unique, ExternNetworkType);
 		let outgoing = extract_variant!(unique, OutgoingType);
 
-		Ok(AttrArgs {
+		Ok(OverseerAttrArgs {
 			signal_channel_capacity,
 			message_channel_capacity,
 			extern_event_ty: event,
 			extern_signal_ty: signal,
 			extern_error_ty: error,
-			extern_network_ty: network,
 			outgoing_ty: outgoing,
 			message_wrapper,
 		})

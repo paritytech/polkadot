@@ -86,7 +86,7 @@ pub const MAX_FINALITY_LAG: u32 = 500;
 /// We are not using `NonZeroU32` here because `expect` and `unwrap` are not yet const, so global
 /// constants of `SessionWindowSize` would require `lazy_static` in that case.
 ///
-/// See: https://github.com/rust-lang/rust/issues/67441
+/// See: <https://github.com/rust-lang/rust/issues/67441>
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct SessionWindowSize(SessionIndex);
 

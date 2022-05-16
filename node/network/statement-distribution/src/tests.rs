@@ -29,7 +29,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{Statement, UncheckedSignedFullStatement};
 use polkadot_node_subsystem::{
 	jaeger,
-	messages::{network_bridge_event, RuntimeApiMessage, RuntimeApiRequest},
+	messages::{network_bridge_event, AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;

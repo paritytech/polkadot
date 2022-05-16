@@ -773,7 +773,7 @@ async fn import_block(
 ) {
 	let (new_head, new_header) = &hashes[hashes.len() - 1];
 	let candidates = config.candidates.clone().unwrap_or(vec![(
-		make_candidate(0.into(), &new_head),
+		make_candidate(ParaId::from(0_u32), &new_head),
 		CoreIndex(0),
 		GroupIndex(0),
 	)]);
@@ -1127,7 +1127,7 @@ fn subsystem_rejects_approval_if_no_candidate_entry() {
 		let candidate_index = 0;
 		let validator = ValidatorIndex(0);
 
-		let candidate_descriptor = make_candidate(1.into(), &block_hash);
+		let candidate_descriptor = make_candidate(ParaId::from(1_u32), &block_hash);
 		let candidate_hash = candidate_descriptor.hash();
 
 		let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -1233,7 +1233,7 @@ fn subsystem_rejects_approval_before_assignment() {
 		let candidate_hash = {
 			let mut candidate_receipt =
 				dummy_candidate_receipt_bad_sig(block_hash, Some(Default::default()));
-			candidate_receipt.descriptor.para_id = 0.into();
+			candidate_receipt.descriptor.para_id = ParaId::from(0_u32);
 			candidate_receipt.descriptor.relay_parent = block_hash;
 			candidate_receipt.hash()
 		};
@@ -1448,7 +1448,7 @@ fn subsystem_accepts_and_imports_approval_after_assignment() {
 		let candidate_hash = {
 			let mut candidate_receipt =
 				dummy_candidate_receipt_bad_sig(block_hash, Some(Default::default()));
-			candidate_receipt.descriptor.para_id = 0.into();
+			candidate_receipt.descriptor.para_id = ParaId::from(0_u32);
 			candidate_receipt.descriptor.relay_parent = block_hash;
 			candidate_receipt.hash()
 		};
@@ -1519,7 +1519,7 @@ fn subsystem_second_approval_import_only_schedules_wakeups() {
 		let candidate_hash = {
 			let mut candidate_receipt =
 				dummy_candidate_receipt_bad_sig(block_hash, Some(Default::default()));
-			candidate_receipt.descriptor.para_id = 0.into();
+			candidate_receipt.descriptor.para_id = ParaId::from(0_u32);
 			candidate_receipt.descriptor.relay_parent = block_hash;
 			candidate_receipt.hash()
 		};
@@ -1883,7 +1883,7 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			..session_info(&validators)
 		};
 
-		let candidate_descriptor = make_candidate(1.into(), &block_hash);
+		let candidate_descriptor = make_candidate(ParaId::from(1_u32), &block_hash);
 		let candidate_hash = candidate_descriptor.hash();
 
 		let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -2009,12 +2009,12 @@ fn subsystem_import_checked_approval_sets_one_block_bit_at_a_time() {
 
 		let candidate_receipt1 = {
 			let mut receipt = dummy_candidate_receipt(block_hash);
-			receipt.descriptor.para_id = 1.into();
+			receipt.descriptor.para_id = ParaId::from(1_u32);
 			receipt
 		};
 		let candidate_receipt2 = {
 			let mut receipt = dummy_candidate_receipt(block_hash);
-			receipt.descriptor.para_id = 2.into();
+			receipt.descriptor.para_id = ParaId::from(2_u32);
 			receipt
 		};
 		let candidate_hash1 = candidate_receipt1.hash();
@@ -2867,7 +2867,7 @@ fn pre_covers_dont_stall_approval() {
 			..session_info(&validators)
 		};
 
-		let candidate_descriptor = make_candidate(1.into(), &block_hash);
+		let candidate_descriptor = make_candidate(ParaId::from(1_u32), &block_hash);
 		let candidate_hash = candidate_descriptor.hash();
 
 		let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -3046,7 +3046,7 @@ fn waits_until_approving_assignments_are_old_enough() {
 			..session_info(&validators)
 		};
 
-		let candidate_descriptor = make_candidate(1.into(), &block_hash);
+		let candidate_descriptor = make_candidate(ParaId::from(1_u32), &block_hash);
 		let candidate_hash = candidate_descriptor.hash();
 
 		let head: Hash = ChainBuilder::GENESIS_HASH;

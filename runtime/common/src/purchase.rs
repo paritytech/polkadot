@@ -133,19 +133,19 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A [new] account was created.
-		AccountCreated(T::AccountId),
-		/// Someone's account validity was updated. [who, validity]
-		ValidityUpdated(T::AccountId, AccountValidity),
-		/// Someone's purchase balance was updated. [who, free, locked]
-		BalanceUpdated(T::AccountId, BalanceOf<T>, BalanceOf<T>),
-		/// A payout was made to a purchaser. [who, free, locked]
-		PaymentComplete(T::AccountId, BalanceOf<T>, BalanceOf<T>),
-		/// A new payment account was set. [who]
-		PaymentAccountSet(T::AccountId),
+		AccountCreated { who: T::AccountId },
+		/// Someone's account validity was updated.
+		ValidityUpdated { who: T::AccountId, validity: AccountValidity },
+		/// Someone's purchase balance was updated.
+		BalanceUpdated { who: T::AccountId, free: BalanceOf<T>, locked: BalanceOf<T> },
+		/// A payout was made to a purchaser.
+		PaymentComplete { who: T::AccountId, free: BalanceOf<T>, locked: BalanceOf<T> },
+		/// A new payment account was set.
+		PaymentAccountSet { who: T::AccountId },
 		/// A new statement was set.
 		StatementUpdated,
 		/// A new statement was set. `[block_number]`
-		UnlockBlockUpdated(T::BlockNumber),
+		UnlockBlockUpdated { block_number: T::BlockNumber },
 	}
 
 	#[pallet::error]
@@ -222,7 +222,7 @@ pub mod pallet {
 				vat: Permill::zero(),
 			};
 			Accounts::<T>::insert(&who, status);
-			Self::deposit_event(Event::<T>::AccountCreated(who));
+			Self::deposit_event(Event::<T>::AccountCreated { who });
 			Ok(())
 		}
 
@@ -251,7 +251,7 @@ pub mod pallet {
 					Ok(())
 				},
 			)?;
-			Self::deposit_event(Event::<T>::ValidityUpdated(who, validity));
+			Self::deposit_event(Event::<T>::ValidityUpdated { who, validity });
 			Ok(())
 		}
 
@@ -283,7 +283,11 @@ pub mod pallet {
 					Ok(())
 				},
 			)?;
-			Self::deposit_event(Event::<T>::BalanceUpdated(who, free_balance, locked_balance));
+			Self::deposit_event(Event::<T>::BalanceUpdated {
+				who,
+				free: free_balance,
+				locked: locked_balance,
+			});
 			Ok(())
 		}
 
@@ -346,11 +350,11 @@ pub mod pallet {
 
 					// Setting the user account to `Completed` ends the purchase process for this user.
 					status.validity = AccountValidity::Completed;
-					Self::deposit_event(Event::<T>::PaymentComplete(
-						who.clone(),
-						status.free_balance,
-						status.locked_balance,
-					));
+					Self::deposit_event(Event::<T>::PaymentComplete {
+						who: who.clone(),
+						free: status.free_balance,
+						locked: status.locked_balance,
+					});
 					Ok(())
 				},
 			)?;
@@ -367,7 +371,7 @@ pub mod pallet {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			// Possibly this is worse than having the caller account be the payment account?
 			PaymentAccount::<T>::put(who.clone());
-			Self::deposit_event(Event::<T>::PaymentAccountSet(who));
+			Self::deposit_event(Event::<T>::PaymentAccountSet { who });
 			Ok(())
 		}
 
@@ -402,7 +406,7 @@ pub mod pallet {
 			);
 			// Possibly this is worse than having the caller account be the payment account?
 			UnlockBlock::<T>::set(unlock_block);
-			Self::deposit_event(Event::<T>::UnlockBlockUpdated(unlock_block));
+			Self::deposit_event(Event::<T>::UnlockBlockUpdated { block_number: unlock_block });
 			Ok(())
 		}
 	}
