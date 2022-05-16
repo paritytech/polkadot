@@ -107,7 +107,7 @@ use parity_util_mem::MemoryAllocationTracker;
 
 pub use polkadot_overseer_gen as gen;
 pub use polkadot_overseer_gen::{
-	contextbounds, overlord, subsystem, FromOverseer, MapSubsystem, MessagePacket, SignalsReceived,
+	contextbounds, orchestra, subsystem, FromOverseer, MapSubsystem, MessagePacket, SignalsReceived,
 	SpawnNamed, Subsystem, SubsystemContext, SubsystemIncomingMessages, SubsystemInstance,
 	SubsystemMeterReadouts, SubsystemMeters, SubsystemSender, TimeoutExt, ToOverseer,
 };
@@ -408,7 +408,7 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 /// # 	});
 /// # }
 /// ```
-#[overlord(
+#[orchestra(
 	gen=AllMessages,
 	event=Event,
 	signal=OverseerSignal,

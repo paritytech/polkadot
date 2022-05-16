@@ -4,12 +4,13 @@ version = "0.9.22"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Channels with attached Meters"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 futures = "0.3.21"
 futures-timer = "3.0.2"
 derive_more = "0.99"
-gum = { package = "tracing-gum", path = "../gum" }
+tracing = "0.1.34"
 thiserror = "1.0.31"
 crossbeam-queue = "0.3.5"
 nanorand = { version = "0.7.0", default-features = false, features = ["wyrand"] }

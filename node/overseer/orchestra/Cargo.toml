@@ -1,0 +1,39 @@
+[package]
+name = "orchestra"
+version = "0.9.22"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2021"
+description = "Generate an orchestra of subsystems from a single struct."
+license = "MIT OR Apache-2.0"
+autoexamples = false
+
+[dependencies]
+tracing = "0.1.34"
+futures = "0.3"
+async-trait = "0.1"
+thiserror = "1"
+metered = { package = "metered-channel", path = "../../metered-channel" }
+orchestra-proc-macro = { path = "./proc-macro" }
+polkadot-node-network-protocol = { path = "../../network/protocol"}
+# FIXME TODO
+# trait Spawner
+polkadot-node-primitives = { path = "../../primitives" }
+futures-timer = "3.0.2"
+pin-project = "1.0"
+
+[dev-dependencies]
+trybuild = "1.0.61"
+rustversion = "1.0.6"
+
+
+[[example]]
+name = "duo"
+crate-type = ["bin"]
+
+[[example]]
+name = "solo"
+crate-type = ["bin"]
+
+[features]
+default = []
+expand = ["orchestra-proc-macro/expand"]

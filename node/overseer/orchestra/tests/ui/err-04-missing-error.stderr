@@ -1,0 +1,13 @@
+error: Must declare the overseer error type via `error=..`.
+  --> $DIR/err-04-missing-error.rs:16:1
+   |
+16 | #[orchestra(signal=SigSigSig, event=Event, gen=AllMessages)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `orchestra` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0433]: failed to resolve: use of undeclared type `Overseer`
+  --> $DIR/err-04-missing-error.rs:30:10
+   |
+30 |     let _ = Overseer::builder()
+   |             ^^^^^^^^ use of undeclared type `Overseer`

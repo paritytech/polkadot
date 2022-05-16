@@ -15,7 +15,7 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-node-metrics = { path = "../metrics" }
 polkadot-primitives = { path = "../../primitives" }
-polkadot-overseer-gen = { path = "./overseer-gen" }
+orchestra = { path = "./orchestra" }
 gum = { package = "tracing-gum", path = "../gum" }
 lru = "0.7"
 parity-util-mem = { version = "0.11.0", default-features = false }
@@ -30,4 +30,4 @@ test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../pri
 
 [features]
 default = []
-expand = ["polkadot-overseer-gen/expand"]
+expand = ["orchestra/expand"]

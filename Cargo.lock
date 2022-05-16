@@ -6980,7 +6980,7 @@ dependencies = [
  "polkadot-overseer-gen-proc-macro",
  "rustversion",
  "thiserror",
- "tracing-gum",
+ "tracing",
  "trybuild",
 ]
 
