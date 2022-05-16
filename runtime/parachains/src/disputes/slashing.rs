@@ -682,6 +682,18 @@ pub mod pallet {
 			Ok(Pays::No.into())
 		}
 	}
+
+	#[pallet::validate_unsigned]
+	impl<T: Config> ValidateUnsigned for Pallet<T> {
+		type Call = Call<T>;
+		fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+			Self::validate_unsigned(source, call)
+		}
+
+		fn pre_dispatch(call: &Self::Call) -> Result<(), TransactionValidityError> {
+			Self::pre_dispatch(call)
+		}
+	}
 }
 
 impl<T: Config> Pallet<T> {
@@ -809,17 +821,18 @@ fn is_known_offence<T: Config>(
 	}
 }
 
-struct SlashingReportHandler<T, R, L> {
-	_phantom: sp_std::marker::PhantomData<(T, R, L)>,
+// TODO: docs
+pub struct SlashingReportHandler<I, R, L> {
+	_phantom: sp_std::marker::PhantomData<(I, R, L)>,
 }
 
-impl<T, R, L> Default for SlashingReportHandler<T, R, L> {
+impl<I, R, L> Default for SlashingReportHandler<I, R, L> {
 	fn default() -> Self {
 		Self { _phantom: Default::default() }
 	}
 }
 
-impl<T, R, L> HandleReports<T> for SlashingReportHandler<T, R, L>
+impl<T, R, L> HandleReports<T> for SlashingReportHandler<T::KeyOwnerIdentification, R, L>
 where
 	T: Config + frame_system::offchain::SendTransactionTypes<Call<T>>,
 	R: ReportOffence<
