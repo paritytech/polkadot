@@ -615,15 +615,15 @@ pub mod pallet {
 			// validator index and candidate hash
 			let candidate_hash = dispute_proof.time_slot.candidate_hash;
 			let try_remove = |v: &mut Option<Losers>| -> Result<(), DispatchError> {
-				let mut indices = v.take().ok_or(Error::<T>::InvalidCandidateHash)?;
+				let indices = v.as_mut().ok_or(Error::<T>::InvalidCandidateHash)?;
 
 				ensure!(
 					indices.remove(&dispute_proof.validator_index),
 					Error::<T>::InvalidValidatorIndex,
 				);
 
-				if !indices.is_empty() {
-					*v = Some(indices);
+				if indices.is_empty() {
+					*v = None;
 				}
 
 				Ok(())
