@@ -18,7 +18,7 @@
 
 use crate::{
 	configuration, disputes, dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent,
-	scheduler, session_info, shared,
+	scheduler, session_info, shared, disputes::slashing,
 	ump::{self, MessageId, UmpSink},
 	ParaId,
 };
@@ -68,6 +68,7 @@ frame_support::construct_runtime!(
 		SessionInfo: session_info,
 		Disputes: disputes,
 		Babe: pallet_babe,
+		Slashing: slashing,
 	}
 );
 

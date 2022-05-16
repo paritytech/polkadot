@@ -714,6 +714,7 @@ construct_runtime! {
 		Dmp: parachains_dmp::{Pallet, Call, Storage},
 		Xcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
 		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
+		ParasSlashing: parachains_slashing::{Pallet, Storage, Call, ValidateUnsigned},
 
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
 
