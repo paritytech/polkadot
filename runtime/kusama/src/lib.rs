@@ -1622,7 +1622,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(InitiatePoolConfigs, pallet_nomination_pools::migration::v1::MigrateToV1<Runtime>) ,
+	(InitiatePoolConfigs, pallet_nomination_pools::migration::v1::MigrateToV1<Runtime>),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
