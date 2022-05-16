@@ -32,7 +32,7 @@ use polkadot_node_subsystem::{
 		CandidateBackingMessage, ChainApiMessage, DisputeCoordinatorMessage, ProvisionableData,
 		ProvisionerInherentData, ProvisionerMessage,
 	},
-	ActivatedLeaf, LeafStatus, PerLeafSpan, SubsystemSender,
+	overseer, ActivatedLeaf, LeafStatus, PerLeafSpan,
 };
 use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data, JobSender, JobSubsystem,
@@ -95,8 +95,12 @@ impl InherentAfter {
 	}
 }
 
+/// Provisioner run arguments.
+#[derive(Debug, Clone, Copy)]
+pub struct ProvisionerConfig;
+
 /// A per-relay-parent job for the provisioning subsystem.
-pub struct ProvisionerJob {
+pub struct ProvisionerJob<Sender> {
 	leaf: ActivatedLeaf,
 	receiver: mpsc::Receiver<ProvisionerMessage>,
 	backed_candidates: Vec<CandidateReceipt>,
@@ -104,14 +108,16 @@ pub struct ProvisionerJob {
 	metrics: Metrics,
 	inherent_after: InherentAfter,
 	awaiting_inherent: Vec<oneshot::Sender<ProvisionerInherentData>>,
+	_phantom: std::marker::PhantomData<Sender>,
 }
 
-/// Provisioner run arguments.
-#[derive(Debug, Clone, Copy)]
-pub struct ProvisionerConfig;
-
-impl JobTrait for ProvisionerJob {
+impl<Sender> JobTrait for ProvisionerJob<Sender>
+where
+	Sender: overseer::ProvisionerSenderTrait + std::marker::Unpin,
+{
 	type ToJob = ProvisionerMessage;
+	type OutgoingMessages = overseer::ProvisionerOutgoingMessages;
+	type Sender = Sender;
 	type Error = Error;
 	type RunArgs = ProvisionerConfig;
 	type Metrics = Metrics;
@@ -121,12 +127,12 @@ impl JobTrait for ProvisionerJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
-	fn run<S: SubsystemSender>(
+	fn run(
 		leaf: ActivatedLeaf,
 		_: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<ProvisionerMessage>,
-		mut sender: JobSender<S>,
+		mut sender: JobSender<Sender>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		let span = leaf.span.clone();
 		async move {
@@ -139,7 +145,10 @@ impl JobTrait for ProvisionerJob {
 	}
 }
 
-impl ProvisionerJob {
+impl<Sender> ProvisionerJob<Sender>
+where
+	Sender: overseer::ProvisionerSenderTrait,
+{
 	fn new(
 		leaf: ActivatedLeaf,
 		metrics: Metrics,
@@ -153,14 +162,11 @@ impl ProvisionerJob {
 			metrics,
 			inherent_after: InherentAfter::new_from_now(),
 			awaiting_inherent: Vec::new(),
+			_phantom: std::marker::PhantomData::<Sender>::default(),
 		}
 	}
 
-	async fn run_loop(
-		mut self,
-		sender: &mut impl SubsystemSender,
-		span: PerLeafSpan,
-	) -> Result<(), Error> {
+	async fn run_loop(mut self, sender: &mut Sender, span: PerLeafSpan) -> Result<(), Error> {
 		loop {
 			futures::select! {
 				msg = self.receiver.next() => match msg {
@@ -197,7 +203,7 @@ impl ProvisionerJob {
 
 	async fn send_inherent_data(
 		&mut self,
-		sender: &mut impl SubsystemSender,
+		sender: &mut Sender,
 		return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
 	) {
 		if let Err(err) = send_inherent_data(
@@ -275,7 +281,7 @@ async fn send_inherent_data(
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[CandidateReceipt],
 	return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
-	from_job: &mut impl SubsystemSender,
+	from_job: &mut impl overseer::ProvisionerSenderTrait,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
 	let availability_cores = request_availability_cores(leaf.hash, from_job)
@@ -394,7 +400,7 @@ async fn select_candidates(
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[CandidateReceipt],
 	relay_parent: Hash,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::ProvisionerSenderTrait,
 ) -> Result<Vec<BackedCandidate>, Error> {
 	let block_number = get_block_number_under_construction(relay_parent, sender).await?;
 
@@ -472,14 +478,11 @@ async fn select_candidates(
 	// now get the backed candidates corresponding to these candidate receipts
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send_message(
-			CandidateBackingMessage::GetBackedCandidates(
-				relay_parent,
-				selected_candidates.clone(),
-				tx,
-			)
-			.into(),
-		)
+		.send_message(CandidateBackingMessage::GetBackedCandidates(
+			relay_parent,
+			selected_candidates.clone(),
+			tx,
+		))
 		.await;
 	let mut candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
 
@@ -530,10 +533,10 @@ async fn select_candidates(
 /// in the event of an invalid `relay_parent`, returns `Ok(0)`
 async fn get_block_number_under_construction(
 	relay_parent: Hash,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::ProvisionerSenderTrait,
 ) -> Result<BlockNumber, Error> {
 	let (tx, rx) = oneshot::channel();
-	sender.send_message(ChainApiMessage::BlockNumber(relay_parent, tx).into()).await;
+	sender.send_message(ChainApiMessage::BlockNumber(relay_parent, tx)).await;
 
 	match rx.await.map_err(|err| Error::CanceledBlockNumber(err))? {
 		Ok(Some(n)) => Ok(n + 1),
@@ -591,7 +594,7 @@ enum RequestType {
 
 /// Request open disputes identified by `CandidateHash` and the `SessionIndex`.
 async fn request_disputes(
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::ProvisionerSenderTrait,
 	active_or_recent: RequestType,
 ) -> Vec<(SessionIndex, CandidateHash)> {
 	let (tx, rx) = oneshot::channel();
@@ -600,7 +603,7 @@ async fn request_disputes(
 		RequestType::Active => DisputeCoordinatorMessage::ActiveDisputes(tx),
 	};
 	// Bounded by block production - `ProvisionerMessage::RequestInherentData`.
-	sender.send_unbounded_message(msg.into());
+	sender.send_unbounded_message(msg);
 
 	let recent_disputes = match rx.await {
 		Ok(r) => r,
@@ -614,14 +617,15 @@ async fn request_disputes(
 
 /// Request the relevant dispute statements for a set of disputes identified by `CandidateHash` and the `SessionIndex`.
 async fn request_votes(
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::ProvisionerSenderTrait,
 	disputes_to_query: Vec<(SessionIndex, CandidateHash)>,
 ) -> Vec<(SessionIndex, CandidateHash, CandidateVotes)> {
 	let (tx, rx) = oneshot::channel();
 	// Bounded by block production - `ProvisionerMessage::RequestInherentData`.
-	sender.send_unbounded_message(
-		DisputeCoordinatorMessage::QueryCandidateVotes(disputes_to_query, tx).into(),
-	);
+	sender.send_unbounded_message(DisputeCoordinatorMessage::QueryCandidateVotes(
+		disputes_to_query,
+		tx,
+	));
 
 	match rx.await {
 		Ok(v) => v,
@@ -665,7 +669,7 @@ fn extend_by_random_subset_without_repetition(
 const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 1_000;
 
 async fn select_disputes(
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::ProvisionerSenderTrait,
 	metrics: &metrics::Metrics,
 	_leaf: &ActivatedLeaf,
 ) -> Result<MultiDisputeStatementSet, Error> {
@@ -804,4 +808,4 @@ async fn select_disputes(
 }
 
 /// The provisioner subsystem.
-pub type ProvisionerSubsystem<Spawner> = JobSubsystem<ProvisionerJob, Spawner>;
+pub type ProvisionerSubsystem<Spawner, Sender> = JobSubsystem<ProvisionerJob<Sender>, Spawner>;

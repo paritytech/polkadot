@@ -40,8 +40,8 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::DISPUTE_WINDOW;
 use polkadot_node_subsystem::{
-	messages::{AllMessages, DisputeCoordinatorMessage, ImportStatementsResult},
-	SubsystemSender,
+	messages::{DisputeCoordinatorMessage, ImportStatementsResult},
+	overseer,
 };
 use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 
@@ -132,9 +132,10 @@ impl MuxedMessage {
 	}
 }
 
-impl<Sender: SubsystemSender, AD> DisputesReceiver<Sender, AD>
+impl<Sender, AD> DisputesReceiver<Sender, AD>
 where
 	AD: AuthorityDiscovery,
+	Sender: overseer::DisputeDistributionSenderTrait,
 {
 	/// Create a new receiver which can be `run`.
 	pub fn new(
@@ -265,15 +266,13 @@ where
 		let (pending_confirmation, confirmation_rx) = oneshot::channel();
 		let candidate_hash = candidate_receipt.hash();
 		self.sender
-			.send_message(AllMessages::DisputeCoordinator(
-				DisputeCoordinatorMessage::ImportStatements {
-					candidate_hash,
-					candidate_receipt,
-					session: valid_vote.0.session_index(),
-					statements: vec![valid_vote, invalid_vote],
-					pending_confirmation: Some(pending_confirmation),
-				},
-			))
+			.send_message(DisputeCoordinatorMessage::ImportStatements {
+				candidate_hash,
+				candidate_receipt,
+				session: valid_vote.0.session_index(),
+				statements: vec![valid_vote, invalid_vote],
+				pending_confirmation: Some(pending_confirmation),
+			})
 			.await;
 
 		self.pending_imports.push(peer, confirmation_rx, pending_response);

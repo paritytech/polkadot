@@ -17,32 +17,36 @@
 use proc_macro2::{Span, TokenStream};
 use std::collections::{hash_map::RandomState, HashMap, HashSet};
 use syn::{
+	parenthesized,
 	parse::{Parse, ParseStream},
 	punctuated::Punctuated,
 	spanned::Spanned,
-	AttrStyle, Attribute, Error, Field, FieldsNamed, GenericParam, Ident, ItemStruct, Path, Result,
-	Token, Type, Visibility,
+	token::Bracket,
+	AttrStyle, Error, Field, FieldsNamed, GenericParam, Ident, ItemStruct, Path, Result, Token,
+	Type, Visibility,
 };
 
 use quote::{quote, ToTokens};
 
 mod kw {
 	syn::custom_keyword!(wip);
-	syn::custom_keyword!(no_dispatch);
 	syn::custom_keyword!(blocking);
+	syn::custom_keyword!(consumes);
+	syn::custom_keyword!(sends);
 }
 
 #[derive(Clone, Debug)]
-enum SubSysAttrItem {
+pub(crate) enum SubSysAttrItem {
 	/// The subsystem is still a work in progress
 	/// and should not be communicated with.
 	Wip(kw::wip),
 	/// The subsystem is blocking and requires to be
 	/// spawned on an exclusive thread.
 	Blocking(kw::blocking),
-	/// External messages should not be - after being converted -
-	/// be dispatched to the annotated subsystem.
-	NoDispatch(kw::no_dispatch),
+	/// Message to be sent by this subsystem.
+	Sends(Sends),
+	/// Message to be consumed by this subsystem.
+	Consumes(Consumes),
 }
 
 impl Parse for SubSysAttrItem {
@@ -52,10 +56,10 @@ impl Parse for SubSysAttrItem {
 			Self::Wip(input.parse::<kw::wip>()?)
 		} else if lookahead.peek(kw::blocking) {
 			Self::Blocking(input.parse::<kw::blocking>()?)
-		} else if lookahead.peek(kw::no_dispatch) {
-			Self::NoDispatch(input.parse::<kw::no_dispatch>()?)
+		} else if lookahead.peek(kw::sends) {
+			Self::Sends(input.parse::<Sends>()?)
 		} else {
-			return Err(lookahead.error())
+			Self::Consumes(input.parse::<Consumes>()?)
 		})
 	}
 }
@@ -69,8 +73,11 @@ impl ToTokens for SubSysAttrItem {
 			Self::Blocking(blocking) => {
 				quote! { #blocking }
 			},
-			Self::NoDispatch(no_dispatch) => {
-				quote! { #no_dispatch }
+			Self::Sends(_) => {
+				quote! {}
+			},
+			Self::Consumes(_) => {
+				quote! {}
 			},
 		};
 		tokens.extend(ts.into_iter());
@@ -78,7 +85,7 @@ impl ToTokens for SubSysAttrItem {
 }
 
 /// A field of the struct annotated with
-/// `#[subsystem(no_dispatch, , A | B | C)]`
+/// `#[subsystem(A, B, C)]`
 #[derive(Clone, Debug)]
 pub(crate) struct SubSysField {
 	/// Name of the field.
@@ -87,11 +94,10 @@ pub(crate) struct SubSysField {
 	/// which is also used `#wrapper_message :: #variant` variant
 	/// part.
 	pub(crate) generic: Ident,
-	/// Type to be consumed by the subsystem.
-	pub(crate) consumes: Path,
-	/// If `no_dispatch` is present, if the message is incoming via
-	/// an `extern` `Event`, it will not be dispatched to all subsystems.
-	pub(crate) no_dispatch: bool,
+	/// Type of message to be consumed by the subsystem.
+	pub(crate) message_to_consume: Path,
+	/// Types of messages to be sent by the subsystem.
+	pub(crate) messages_to_send: Vec<Path>,
 	/// If the subsystem implementation is blocking execution and hence
 	/// has to be spawned on a separate thread or thread pool.
 	pub(crate) blocking: bool,
@@ -115,6 +121,15 @@ macro_rules! extract_variant {
 	($unique:expr, $variant:ident ; err = $err:expr) => {
 		extract_variant!($unique, $variant).ok_or_else(|| Error::new(Span::call_site(), $err))
 	};
+	($unique:expr, $variant:ident take) => {
+		$unique.values().find_map(|item| {
+			if let SubSysAttrItem::$variant(value) = item {
+				Some(value.clone())
+			} else {
+				None
+			}
+		})
+	};
 	($unique:expr, $variant:ident) => {
 		$unique.values().find_map(|item| {
 			if let SubSysAttrItem::$variant(_) = item {
@@ -126,57 +141,113 @@ macro_rules! extract_variant {
 	};
 }
 
-pub(crate) struct SubSystemTags {
+#[derive(Debug, Clone)]
+pub(crate) struct Sends {
 	#[allow(dead_code)]
-	pub(crate) attrs: Vec<Attribute>,
+	pub(crate) keyword_sends: kw::sends,
 	#[allow(dead_code)]
-	pub(crate) no_dispatch: bool,
-	/// The subsystem is in progress, only generate the `Wrapper` variant, but do not forward messages
-	/// and also not include the subsystem in the list of subsystems.
-	pub(crate) wip: bool,
-	pub(crate) blocking: bool,
+	pub(crate) colon: Token![:],
+	#[allow(dead_code)]
+	pub(crate) bracket: Option<Bracket>,
+	pub(crate) sends: Punctuated<Path, Token![,]>,
+}
+
+impl Parse for Sends {
+	fn parse(input: syn::parse::ParseStream) -> Result<Self> {
+		let content;
+		let keyword_sends = input.parse()?;
+		let colon = input.parse()?;
+		let (bracket, sends) = if !input.peek(syn::token::Bracket) {
+			let mut sends = Punctuated::new();
+			sends.push_value(input.parse::<Path>()?);
+			(None, sends)
+		} else {
+			let bracket = Some(syn::bracketed!(content in input));
+			let sends = Punctuated::parse_terminated(&content)?;
+			(bracket, sends)
+		};
+		Ok(Self { keyword_sends, colon, bracket, sends })
+	}
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct Consumes {
+	#[allow(dead_code)]
+	pub(crate) keyword_consumes: Option<kw::consumes>,
+	#[allow(dead_code)]
+	pub(crate) colon: Option<Token![:]>,
 	pub(crate) consumes: Path,
 }
 
-impl Parse for SubSystemTags {
+impl Parse for Consumes {
 	fn parse(input: syn::parse::ParseStream) -> Result<Self> {
-		let attrs = Attribute::parse_outer(input)?;
+		let lookahead = input.lookahead1();
+		Ok(if lookahead.peek(kw::consumes) {
+			Self {
+				keyword_consumes: Some(input.parse()?),
+				colon: input.parse()?,
+				consumes: input.parse()?,
+			}
+		} else {
+			Self { keyword_consumes: None, colon: None, consumes: input.parse()? }
+		})
+	}
+}
 
-		let input = input;
+/// Parses `(Foo, sends = [Bar, Baz])`
+/// including the `(` and `)`.
+#[derive(Debug, Clone)]
+pub(crate) struct SubSystemAttrItems {
+	/// The subsystem is in progress, only generate the `Wrapper` variant, but do not forward messages
+	/// and also not include the subsystem in the list of subsystems.
+	pub(crate) wip: bool,
+	/// If there are blocking components in the subsystem and hence it should be
+	/// spawned on a dedicated thread pool for such subssytems.
+	pub(crate) blocking: bool,
+	/// The message type being consumed by the subsystem.
+	pub(crate) consumes: Option<Consumes>,
+	pub(crate) sends: Option<Sends>,
+}
+
+impl Parse for SubSystemAttrItems {
+	fn parse(input: syn::parse::ParseStream) -> Result<Self> {
+		let span = input.span();
+
 		let content;
-		let _ = syn::parenthesized!(content in input);
+		let _paren_token = parenthesized!(content in input);
 
-		let mut items = Punctuated::new();
-		while let Ok(tag) = content.call(SubSysAttrItem::parse) {
-			items.push_value(tag);
-			items.push_punct(content.call(<Token![,]>::parse)?);
-		}
-
-		assert!(items.empty_or_trailing(), "Always followed by the message type to consume. qed");
-
-		let consumes = content.parse::<Path>()?;
+		let items = content.call(Punctuated::<SubSysAttrItem, Token![,]>::parse_terminated)?;
 
 		let mut unique = HashMap::<
 			std::mem::Discriminant<SubSysAttrItem>,
 			SubSysAttrItem,
 			RandomState,
 		>::default();
+
 		for item in items {
 			if let Some(first) = unique.insert(std::mem::discriminant(&item), item.clone()) {
-				let mut e = Error::new(
-					item.span(),
-					format!("Duplicate definition of subsystem attribute found"),
-				);
+				let mut e =
+					Error::new(item.span(), "Duplicate definition of subsystem attribute found");
 				e.combine(Error::new(first.span(), "previously defined here."));
 				return Err(e)
 			}
 		}
 
-		let no_dispatch = extract_variant!(unique, NoDispatch; default = false);
+		// A subsystem makes no sense if not one of them is provided
+		let sends = extract_variant!(unique, Sends take);
+		let consumes = extract_variant!(unique, Consumes take);
+		if sends.as_ref().map(|sends| sends.sends.is_empty()).unwrap_or(true) && consumes.is_none()
+		{
+			return Err(Error::new(
+				span,
+				"Must have at least one of `consumes: [..]` and `sends: [..]`.",
+			))
+		}
+
 		let blocking = extract_variant!(unique, Blocking; default = false);
 		let wip = extract_variant!(unique, Wip; default = false);
 
-		Ok(Self { attrs, no_dispatch, blocking, consumes, wip })
+		Ok(Self { blocking, wip, sends, consumes })
 	}
 }
 
@@ -192,7 +263,7 @@ pub(crate) struct BaggageField {
 #[derive(Clone, Debug)]
 pub(crate) struct OverseerInfo {
 	/// Where the support crate `::polkadot_overseer_gen` lives.
-	pub(crate) support_crate_name: TokenStream,
+	pub(crate) support_crate: Path,
 
 	/// Fields annotated with `#[subsystem(..)]`.
 	pub(crate) subsystems: Vec<SubSysField>,
@@ -216,11 +287,8 @@ pub(crate) struct OverseerInfo {
 	/// Incoming event type from the outer world, usually an external framework of some sort.
 	pub(crate) extern_event_ty: Path,
 
-	/// Incoming event type from an external entity, commonly from the network.
-	pub(crate) extern_network_ty: Option<Path>,
-
 	/// Type of messages that are sent to an external subsystem.
-	/// Merely here to be included during generation of `message_wrapper` type.
+	/// Merely here to be included during generation of `#message_wrapper` type.
 	pub(crate) outgoing_ty: Option<Path>,
 
 	/// Incoming event type from the outer world, commonly from the network.
@@ -228,8 +296,8 @@ pub(crate) struct OverseerInfo {
 }
 
 impl OverseerInfo {
-	pub(crate) fn support_crate_name(&self) -> &TokenStream {
-		&self.support_crate_name
+	pub(crate) fn support_crate_name(&self) -> &Path {
+		&self.support_crate
 	}
 
 	pub(crate) fn variant_names(&self) -> Vec<Ident> {
@@ -297,8 +365,11 @@ impl OverseerInfo {
 			.collect::<Vec<_>>()
 	}
 
-	pub(crate) fn consumes(&self) -> Vec<Path> {
-		self.subsystems.iter().map(|ssf| ssf.consumes.clone()).collect::<Vec<_>>()
+	pub(crate) fn any_message(&self) -> Vec<Path> {
+		self.subsystems
+			.iter()
+			.map(|ssf| ssf.message_to_consume.clone())
+			.collect::<Vec<_>>()
 	}
 
 	pub(crate) fn channel_names_without_wip(&self, suffix: &'static str) -> Vec<Ident> {
@@ -313,7 +384,7 @@ impl OverseerInfo {
 		self.subsystems
 			.iter()
 			.filter(|ssf| !ssf.wip)
-			.map(|ssf| ssf.consumes.clone())
+			.map(|ssf| ssf.message_to_consume.clone())
 			.collect::<Vec<_>>()
 	}
 }
@@ -341,7 +412,8 @@ impl OverseerGuts {
 		// for the builder pattern besides other places.
 		let mut unique_subsystem_idents = HashSet::<Ident>::new();
 		for Field { attrs, vis, ident, ty, .. } in fields.named.into_iter() {
-			let mut consumes =
+			// collect all subsystem annotations per field
+			let mut subsystem_attr =
 				attrs.iter().filter(|attr| attr.style == AttrStyle::Outer).filter_map(|attr| {
 					let span = attr.path.span();
 					attr.path.get_ident().filter(|ident| *ident == "subsystem").map(move |_ident| {
@@ -349,53 +421,75 @@ impl OverseerGuts {
 						(attr_tokens, span)
 					})
 				});
-			let ident =
-				ident.ok_or_else(|| Error::new(ty.span(), "Missing identifier for member. BUG"))?;
+			let ident = ident.ok_or_else(|| {
+				Error::new(
+					ty.span(),
+					"Missing identifier for field, only named fields are expceted.",
+				)
+			})?;
 
-			if let Some((attr_tokens, span)) = consumes.next() {
-				if let Some((_attr_tokens2, span2)) = consumes.next() {
+			// a `#[subsystem(..)]` annotation exists
+			if let Some((attr_tokens, span)) = subsystem_attr.next() {
+				if let Some((_attr_tokens2, span2)) = subsystem_attr.next() {
 					return Err({
 						let mut err = Error::new(span, "The first subsystem annotation is at");
 						err.combine(Error::new(span2, "but another here for the same field."));
 						err
 					})
 				}
-				let mut consumes_paths = Vec::with_capacity(attrs.len());
+
+				let span = attr_tokens.span();
+
 				let attr_tokens = attr_tokens.clone();
-				let variant: SubSystemTags = syn::parse2(attr_tokens.clone())?;
-				consumes_paths.push(variant.consumes);
+				let subsystem_attrs: SubSystemAttrItems = syn::parse2(attr_tokens.clone())?;
 
 				let field_ty = try_type_to_path(ty, span)?;
 				let generic = field_ty
 					.get_ident()
 					.ok_or_else(|| {
-						Error::new(field_ty.span(), "Must be an identifier, not a path.")
+						Error::new(
+							field_ty.span(),
+							"Must be an identifier, not a path. It will be used as a generic.",
+						)
 					})?
 					.clone();
+				// check for unique subsystem name, otherwise we'd create invalid code:
 				if let Some(previous) = unique_subsystem_idents.get(&generic) {
-					let mut e = Error::new(
-						generic.span(),
-						format!("Duplicate subsystem names `{}`", generic),
-					);
+					let mut e = Error::new(generic.span(), "Duplicate subsystem names");
 					e.combine(Error::new(previous.span(), "previously defined here."));
 					return Err(e)
 				}
 				unique_subsystem_idents.insert(generic.clone());
 
+				let SubSystemAttrItems { wip, blocking, consumes, sends, .. } = subsystem_attrs;
+
+				// messages to be sent
+				let sends = if let Some(sends) = sends {
+					Vec::from_iter(sends.sends.iter().cloned())
+				} else {
+					vec![]
+				};
+				// messages deemed for consumption
+				let consumes = if let Some(consumes) = consumes {
+					consumes.consumes
+				} else {
+					return Err(Error::new(span, "Must provide exactly one consuming message type"))
+				};
+
 				subsystems.push(SubSysField {
 					name: ident,
 					generic,
-					consumes: consumes_paths[0].clone(),
-					no_dispatch: variant.no_dispatch,
-					wip: variant.wip,
-					blocking: variant.blocking,
+					message_to_consume: consumes,
+					messages_to_send: sends,
+					wip,
+					blocking,
 				});
 			} else {
 				let field_ty = try_type_to_path(ty, ident.span())?;
 				let generic = field_ty
 					.get_ident()
 					.map(|ident| baggage_generics.contains(ident))
-					.unwrap_or_default();
+					.unwrap_or(false);
 				baggage.push(BaggageField { field_name: ident, generic, field_ty, vis });
 			}
 		}

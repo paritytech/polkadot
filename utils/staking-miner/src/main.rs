@@ -472,8 +472,7 @@ where
 	>,
 {
 	ext.execute_with(|| {
-		let (solution, _) =
-			<EPM::Pallet<T>>::mine_solution().map_err::<Error<T>, _>(Into::into)?;
+		let (solution, _) = <EPM::Pallet<T>>::mine_solution().map_err::<Error<T>, _>(Into::into)?;
 		if do_feasibility {
 			let _ = <EPM::Pallet<T>>::feasibility_check(
 				solution.clone(),

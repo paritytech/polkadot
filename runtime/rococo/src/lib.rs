@@ -603,7 +603,9 @@ impl parachains_paras::Config for Runtime {
 	type NextSessionRotation = Babe;
 }
 
-impl parachains_session_info::Config for Runtime {}
+impl parachains_session_info::Config for Runtime {
+	type ValidatorSet = Historical;
+}
 
 parameter_types! {
 	pub const FirstMessageFactorPercent: u64 = 100;

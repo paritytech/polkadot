@@ -77,15 +77,14 @@ use polkadot_primitives::{
 };
 use sp_api::{ApiExt, ProvideRuntimeApi};
 
-use polkadot_node_network_protocol::VersionedValidationProtocol;
 use polkadot_node_subsystem_types::messages::{
 	ApprovalDistributionMessage, ApprovalVotingMessage, AvailabilityDistributionMessage,
 	AvailabilityRecoveryMessage, AvailabilityStoreMessage, BitfieldDistributionMessage,
 	BitfieldSigningMessage, CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage,
 	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
 	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
-	NetworkBridgeEvent, NetworkBridgeMessage, ProvisionerMessage, PvfCheckerMessage,
-	RuntimeApiMessage, StatementDistributionMessage,
+	NetworkBridgeMessage, ProvisionerMessage, PvfCheckerMessage, RuntimeApiMessage,
+	StatementDistributionMessage,
 };
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
@@ -108,9 +107,9 @@ use parity_util_mem::MemoryAllocationTracker;
 
 pub use polkadot_overseer_gen as gen;
 pub use polkadot_overseer_gen::{
-	overlord, FromOverseer, MapSubsystem, MessagePacket, SignalsReceived, SpawnNamed, Subsystem,
-	SubsystemContext, SubsystemIncomingMessages, SubsystemInstance, SubsystemMeterReadouts,
-	SubsystemMeters, SubsystemSender, TimeoutExt, ToOverseer,
+	contextbounds, overlord, subsystem, FromOverseer, MapSubsystem, MessagePacket, SignalsReceived,
+	SpawnNamed, Subsystem, SubsystemContext, SubsystemIncomingMessages, SubsystemInstance,
+	SubsystemMeterReadouts, SubsystemMeters, SubsystemSender, TimeoutExt, ToOverseer,
 };
 
 /// Store 2 days worth of blocks, not accounting for forks,
@@ -414,71 +413,155 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 	event=Event,
 	signal=OverseerSignal,
 	error=SubsystemError,
-	network=NetworkBridgeEvent<VersionedValidationProtocol>,
 	message_capacity=2048,
 )]
 pub struct Overseer<SupportsParachains> {
-	#[subsystem(no_dispatch, CandidateValidationMessage)]
+	#[subsystem(CandidateValidationMessage, sends: [
+		RuntimeApiMessage,
+	])]
 	candidate_validation: CandidateValidation,
 
-	#[subsystem(no_dispatch, PvfCheckerMessage)]
+	#[subsystem(PvfCheckerMessage, sends: [
+		CandidateValidationMessage,
+		RuntimeApiMessage,
+	])]
 	pvf_checker: PvfChecker,
 
-	#[subsystem(no_dispatch, CandidateBackingMessage)]
+	#[subsystem(CandidateBackingMessage, sends: [
+		CandidateValidationMessage,
+		CollatorProtocolMessage,
+		AvailabilityDistributionMessage,
+		AvailabilityStoreMessage,
+		StatementDistributionMessage,
+		ProvisionerMessage,
+		RuntimeApiMessage,
+		DisputeCoordinatorMessage,
+	])]
 	candidate_backing: CandidateBacking,
 
-	#[subsystem(StatementDistributionMessage)]
+	#[subsystem(StatementDistributionMessage, sends: [
+		NetworkBridgeMessage,
+		CandidateBackingMessage,
+		RuntimeApiMessage,
+	])]
 	statement_distribution: StatementDistribution,
 
-	#[subsystem(no_dispatch, AvailabilityDistributionMessage)]
+	#[subsystem(AvailabilityDistributionMessage, sends: [
+		AvailabilityStoreMessage,
+		AvailabilityRecoveryMessage,
+		ChainApiMessage,
+		RuntimeApiMessage,
+		NetworkBridgeMessage,
+	])]
 	availability_distribution: AvailabilityDistribution,
 
-	#[subsystem(no_dispatch, AvailabilityRecoveryMessage)]
+	#[subsystem(AvailabilityRecoveryMessage, sends: [
+		NetworkBridgeMessage,
+		RuntimeApiMessage,
+		AvailabilityStoreMessage,
+	])]
 	availability_recovery: AvailabilityRecovery,
 
-	#[subsystem(blocking, no_dispatch, BitfieldSigningMessage)]
+	#[subsystem(blocking, BitfieldSigningMessage, sends: [
+		AvailabilityStoreMessage,
+		RuntimeApiMessage,
+		BitfieldDistributionMessage,
+	])]
 	bitfield_signing: BitfieldSigning,
 
-	#[subsystem(BitfieldDistributionMessage)]
+	#[subsystem(BitfieldDistributionMessage, sends: [
+		RuntimeApiMessage,
+		NetworkBridgeMessage,
+		ProvisionerMessage,
+	])]
 	bitfield_distribution: BitfieldDistribution,
 
-	#[subsystem(no_dispatch, ProvisionerMessage)]
+	#[subsystem(ProvisionerMessage, sends: [
+		RuntimeApiMessage,
+		CandidateBackingMessage,
+		ChainApiMessage,
+		DisputeCoordinatorMessage,
+	])]
 	provisioner: Provisioner,
 
-	#[subsystem(no_dispatch, blocking, RuntimeApiMessage)]
+	#[subsystem(blocking, RuntimeApiMessage, sends: [])]
 	runtime_api: RuntimeApi,
 
-	#[subsystem(no_dispatch, blocking, AvailabilityStoreMessage)]
+	#[subsystem(blocking, AvailabilityStoreMessage, sends: [
+		ChainApiMessage,
+		RuntimeApiMessage,
+	])]
 	availability_store: AvailabilityStore,
 
-	#[subsystem(no_dispatch, NetworkBridgeMessage)]
+	#[subsystem(NetworkBridgeMessage, sends: [
+		BitfieldDistributionMessage,
+		StatementDistributionMessage,
+		ApprovalDistributionMessage,
+		GossipSupportMessage,
+		DisputeDistributionMessage,
+		CollationGenerationMessage,
+		CollatorProtocolMessage,
+	])]
 	network_bridge: NetworkBridge,
 
-	#[subsystem(no_dispatch, blocking, ChainApiMessage)]
+	#[subsystem(blocking, ChainApiMessage, sends: [])]
 	chain_api: ChainApi,
 
-	#[subsystem(no_dispatch, CollationGenerationMessage)]
+	#[subsystem(CollationGenerationMessage, sends: [
+		RuntimeApiMessage,
+		CollatorProtocolMessage,
+	])]
 	collation_generation: CollationGeneration,
 
-	#[subsystem(no_dispatch, CollatorProtocolMessage)]
+	#[subsystem(CollatorProtocolMessage, sends: [
+		NetworkBridgeMessage,
+		RuntimeApiMessage,
+		CandidateBackingMessage,
+	])]
 	collator_protocol: CollatorProtocol,
 
-	#[subsystem(ApprovalDistributionMessage)]
+	#[subsystem(ApprovalDistributionMessage, sends: [
+		NetworkBridgeMessage,
+		ApprovalVotingMessage,
+	])]
 	approval_distribution: ApprovalDistribution,
 
-	#[subsystem(no_dispatch, blocking, ApprovalVotingMessage)]
+	#[subsystem(blocking, ApprovalVotingMessage, sends: [
+		RuntimeApiMessage,
+		ChainApiMessage,
+		ChainSelectionMessage,
+		DisputeCoordinatorMessage,
+		AvailabilityRecoveryMessage,
+		ApprovalDistributionMessage,
+		CandidateValidationMessage,
+	])]
 	approval_voting: ApprovalVoting,
 
-	#[subsystem(GossipSupportMessage)]
+	#[subsystem(GossipSupportMessage, sends: [
+		NetworkBridgeMessage,
+		RuntimeApiMessage,
+		ChainSelectionMessage,
+	])]
 	gossip_support: GossipSupport,
 
-	#[subsystem(no_dispatch, blocking, DisputeCoordinatorMessage)]
+	#[subsystem(blocking, DisputeCoordinatorMessage, sends: [
+		RuntimeApiMessage,
+		ChainApiMessage,
+		DisputeDistributionMessage,
+		CandidateValidationMessage,
+		AvailabilityStoreMessage,
+		AvailabilityRecoveryMessage,
+	])]
 	dispute_coordinator: DisputeCoordinator,
 
-	#[subsystem(no_dispatch, DisputeDistributionMessage)]
+	#[subsystem(DisputeDistributionMessage, sends: [
+		RuntimeApiMessage,
+		DisputeCoordinatorMessage,
+		NetworkBridgeMessage,
+	])]
 	dispute_distribution: DisputeDistribution,
 
-	#[subsystem(no_dispatch, blocking, ChainSelectionMessage)]
+	#[subsystem(blocking, ChainSelectionMessage, sends: [ChainApiMessage])]
 	chain_selection: ChainSelection,
 
 	/// External listeners waiting for a hash to be in the active-leave set.

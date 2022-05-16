@@ -432,10 +432,17 @@ fn basic_end_to_end_works() {
 			// Auction ends at block 110 + offset
 			run_to_block(109 + offset);
 			assert!(contains_event(
-				crowdloan::Event::<Test>::HandleBidResult(ParaId::from(para_2), Ok(())).into()
+				crowdloan::Event::<Test>::HandleBidResult {
+					para_id: ParaId::from(para_2),
+					result: Ok(())
+				}
+				.into()
 			));
 			run_to_block(110 + offset);
-			assert_eq!(last_event(), auctions::Event::<Test>::AuctionClosed(1).into());
+			assert_eq!(
+				last_event(),
+				auctions::Event::<Test>::AuctionClosed { auction_index: 1 }.into()
+			);
 
 			// Paras should have won slots
 			assert_eq!(
