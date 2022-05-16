@@ -343,7 +343,7 @@ mod tests {
 			let bridge = MILLAU_CHAIN_ID;
 			let call: Call = SystemCall::set_heap_pages { pages: 64 }.into();
 			let dispatch_weight = call.get_dispatch_info().weight;
-			let dispatch_fee = <Runtime as pallet_transaction_payment::Config>::WeightToFee::calc(
+			let dispatch_fee = <Runtime as pallet_transaction_payment::Config>::WeightToFee::wight_to_fee(
 				&dispatch_weight,
 			);
 			assert!(dispatch_fee > 0);
@@ -508,7 +508,7 @@ mod tests {
 			}
 
 			let dispatch_weight = 500;
-			let dispatch_fee = <Runtime as pallet_transaction_payment::Config>::WeightToFee::calc(
+			let dispatch_fee = <Runtime as pallet_transaction_payment::Config>::WeightToFee::wight_to_fee(
 				&dispatch_weight,
 			);
 			assert!(dispatch_fee > 0);
