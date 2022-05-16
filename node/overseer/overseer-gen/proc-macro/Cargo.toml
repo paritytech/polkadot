@@ -26,7 +26,7 @@ thiserror = "1"
 gum = { package = "tracing-gum", path = "../../../gum" }
 
 [features]
-default = ["graph", "expand"]
+default = []
 # write the expanded version to a `overlord-expansion.[a-f0-9]{10}.rs`
 # in the `OUT_DIR` as defined by `cargo` for the `expander` crate.
 expand = []
