@@ -38,7 +38,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::{self as util, Validator};
 use polkadot_primitives::v2::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
-use std::{iter::FromIterator, time::Duration};
+use std::{collections::HashMap, iter::FromIterator, time::Duration};
 use wasm_timer::{Delay, Instant};
 
 mod metrics;
@@ -211,23 +211,33 @@ async fn run<Context>(
 	keystore: SyncCryptoStorePtr,
 	metrics: Metrics,
 ) -> SubsystemResult<()> {
+	// Track spawned jobs per active leaf.
+	let mut running = HashMap::<Hash, future::AbortHandle>::new();
+
 	loop {
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+				// Abort jobs for deactivated leaves.
+				for leaf in &update.deactivated {
+					if let Some(handle) = running.remove(leaf) {
+						handle.abort();
+					}
+				}
+
 				for leaf in update.activated {
 					let sender = ctx.sender().clone();
+					let leaf_hash = leaf.hash;
 
-					ctx.spawn(
-						"bitfield-signing-job",
-						handle_active_leaves_update(
-							sender,
-							leaf,
-							keystore.clone(),
-							metrics.clone(),
-						)
-						.map(drop)
-						.boxed(),
-					)?;
+					let (fut, handle) = future::abortable(handle_active_leaves_update(
+						sender,
+						leaf,
+						keystore.clone(),
+						metrics.clone(),
+					));
+
+					running.insert(leaf_hash, handle);
+
+					ctx.spawn("bitfield-signing-job", fut.map(drop).boxed())?;
 				}
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
