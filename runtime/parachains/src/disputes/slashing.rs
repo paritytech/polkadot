@@ -16,8 +16,6 @@
 
 //! Dispute slashing types for the substrate offences pallet.
 
-// use pallet_session::KeyOwner;
-// use super::{Config, IdentificationTuple, IdentifyValidatorsInSession};
 use crate::{
 	initializer::SessionChangeNotification,
 	session_info::{AccountId, IdentificationTuple},
@@ -217,6 +215,7 @@ where
 impl<T, R> super::PunishValidators for SlashValidatorsForDisputes<T, R>
 where
 	T: Config + crate::session_info::Config,
+	// TODO: use HandleReports instead?
 	R: ReportOffence<
 			AccountId<T>,
 			IdentificationTuple<T>,
@@ -234,6 +233,10 @@ where
 		winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		let losers: Losers = losers.into_iter().collect();
+		if losers.is_empty() {
+			// Nothing to do
+			return
+		}
 		let account_keys = crate::session_info::Pallet::<T>::account_keys(session_index);
 		let account_ids = match account_keys {
 			Some(account_keys) => account_keys,
@@ -267,6 +270,10 @@ where
 		winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		let losers: Losers = losers.into_iter().collect();
+		if losers.is_empty() {
+			// Nothing to do
+			return
+		}
 		let account_keys = crate::session_info::Pallet::<T>::account_keys(session_index);
 		let account_ids = match account_keys {
 			Some(account_keys) => account_keys,
@@ -408,24 +415,22 @@ pub trait HandleReports<T: Config> {
 		offence: Self::OffenceAgainstValid,
 	) -> Result<(), OffenceError>;
 
-	/// Returns true if the offender at the given time slot has already been reported.
+	/// Returns true if the offenders at the given time slot has already been reported.
 	fn is_known_for_invalid_offence(
-		offenders: &T::KeyOwnerIdentification,
+		offenders: &[T::KeyOwnerIdentification],
 		time_slot: &<Self::OffenceForInvalid as Offence<T::KeyOwnerIdentification>>::TimeSlot,
 	) -> bool;
 
-	/// Returns true if the offender at the given time slot has already been reported.
+	/// Returns true if the offenders at the given time slot has already been reported.
 	fn is_known_against_valid_offence(
-		offenders: &T::KeyOwnerIdentification,
+		offenders: &[T::KeyOwnerIdentification],
 		time_slot: &<Self::OffenceAgainstValid as Offence<T::KeyOwnerIdentification>>::TimeSlot,
 	) -> bool;
 
 	/// Create and dispatch a slashing report extrinsic.
 	/// This should be called offchain.
 	fn submit_unsigned_slashing_report(
-		session_index: SessionIndex,
-		candidate_hash: CandidateHash,
-		kind: SlashingOffenceKind,
+		dispute_proof: DisputeProof,
 		key_owner_proof: T::KeyOwnerProof,
 	) -> DispatchResult;
 }
@@ -450,23 +455,21 @@ impl<T: Config> HandleReports<T> for () {
 	}
 
 	fn is_known_for_invalid_offence(
-		_offenders: &T::KeyOwnerIdentification,
+		_offenders: &[T::KeyOwnerIdentification],
 		_time_slot: &<Self::OffenceForInvalid as Offence<T::KeyOwnerIdentification>>::TimeSlot,
 	) -> bool {
 		true
 	}
 
 	fn is_known_against_valid_offence(
-		_offenders: &T::KeyOwnerIdentification,
+		_offenders: &[T::KeyOwnerIdentification],
 		_time_slot: &<Self::OffenceAgainstValid as Offence<T::KeyOwnerIdentification>>::TimeSlot,
 	) -> bool {
 		true
 	}
 
 	fn submit_unsigned_slashing_report(
-		_session_index: SessionIndex,
-		_candidate_hash: CandidateHash,
-		_kind: SlashingOffenceKind,
+		_dispute_proof: DisputeProof,
 		_key_owner_proof: T::KeyOwnerProof,
 	) -> DispatchResult {
 		Ok(())
@@ -582,7 +585,8 @@ pub mod pallet {
 		))]
 		pub fn report_dispute_lost_unsigned(
 			origin: OriginFor<T>,
-			dispute_proof: DisputeProof,
+			// box to decrease the size of the call
+			dispute_proof: Box<DisputeProof>,
 			key_owner_proof: T::KeyOwnerProof,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
@@ -782,7 +786,7 @@ fn is_known_offence<T: Config>(
 				);
 
 			<T::HandleReports as HandleReports<T>>::is_known_for_invalid_offence(
-				&offender, &time_slot,
+				&[offender], &time_slot,
 			)
 		},
 		SlashingOffenceKind::AgainstValid => {
@@ -793,7 +797,7 @@ fn is_known_offence<T: Config>(
 				);
 
 			<T::HandleReports as HandleReports<T>>::is_known_against_valid_offence(
-				&offender, &time_slot,
+				&[offender], &time_slot,
 			)
 		},
 	};
@@ -801,6 +805,108 @@ fn is_known_offence<T: Config>(
 	if is_known_offence {
 		Err(InvalidTransaction::Stale.into())
 	} else {
+		Ok(())
+	}
+}
+
+struct SlashingReportHandler<T, R, L> {
+	_phantom: sp_std::marker::PhantomData<(T, R, L)>,
+}
+
+impl<T, R, L> Default for SlashingReportHandler<T, R, L> {
+	fn default() -> Self {
+		Self { _phantom: Default::default() }
+	}
+}
+
+impl<T, R, L> HandleReports<T> for SlashingReportHandler<T, R, L>
+where
+	T: Config + frame_system::offchain::SendTransactionTypes<Call<T>>,
+	R: ReportOffence<
+		AccountId<T>,
+		T::KeyOwnerIdentification,
+		ForInvalidOffence<T::KeyOwnerIdentification>,
+	> + ReportOffence<
+		AccountId<T>,
+		T::KeyOwnerIdentification,
+		AgainstValidOffence<T::KeyOwnerIdentification>,
+	>,
+	L: Get<u64>,
+{
+	type OffenceForInvalid = ForInvalidOffence<T::KeyOwnerIdentification>;
+
+	type OffenceAgainstValid = AgainstValidOffence<T::KeyOwnerIdentification>;
+
+	type ReportLongevity = L;
+
+	fn report_for_invalid_offence(
+		reporters: Vec<AccountId<T>>,
+		offence: Self::OffenceForInvalid,
+	) -> Result<(), OffenceError> {
+		R::report_offence(reporters, offence)
+	}
+
+	fn report_against_valid_offence(
+		reporters: Vec<AccountId<T>>,
+		offence: Self::OffenceAgainstValid,
+	) -> Result<(), OffenceError> {
+		R::report_offence(reporters, offence)
+	}
+
+	fn is_known_for_invalid_offence(
+		offenders: &[T::KeyOwnerIdentification],
+		time_slot: &DisputesTimeSlot,
+	) -> bool {
+		<R as ReportOffence<
+			AccountId<T>,
+			T::KeyOwnerIdentification,
+			ForInvalidOffence<T::KeyOwnerIdentification>,
+		>>::is_known_offence(offenders, time_slot)
+	}
+
+	fn is_known_against_valid_offence(
+		offenders: &[T::KeyOwnerIdentification],
+		time_slot: &DisputesTimeSlot,
+	) -> bool {
+		<R as ReportOffence<
+			AccountId<T>,
+			T::KeyOwnerIdentification,
+			AgainstValidOffence<T::KeyOwnerIdentification>,
+		>>::is_known_offence(offenders, time_slot)
+	}
+
+	fn submit_unsigned_slashing_report(
+		dispute_proof: DisputeProof,
+		key_owner_proof: <T as Config>::KeyOwnerProof,
+	) -> DispatchResult {
+		use frame_system::offchain::SubmitTransaction;
+
+		let session_index = dispute_proof.time_slot.session_index;
+		let validator_index = dispute_proof.validator_index.0;
+		let kind = dispute_proof.kind;
+
+		let call = Call::report_dispute_lost_unsigned {
+			dispute_proof: Box::new(dispute_proof),
+			key_owner_proof,
+		};
+
+		match SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into()) {
+			Ok(()) => log::info!(
+				target: LOG_TARGET,
+				"Submitted dispute slashing report, session: {}, validator: {}, kind: {:?}",
+				session_index,
+				validator_index,
+				kind,
+			),
+			Err(()) => log::error!(
+				target: LOG_TARGET,
+				"Error submitting dispute slashing report, session: {}, validator: {}, kind: {:?}",
+				session_index,
+				validator_index,
+				kind,
+			),
+		}
+
 		Ok(())
 	}
 }
