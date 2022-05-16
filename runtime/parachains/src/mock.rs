@@ -17,8 +17,10 @@
 //! Mocks for all the traits.
 
 use crate::{
-	configuration, disputes, dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent,
-	scheduler, session_info, shared, disputes::slashing,
+	configuration, disputes,
+	disputes::slashing,
+	dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent, scheduler, session_info,
+	shared,
 	ump::{self, MessageId, UmpSink},
 	ParaId,
 };
