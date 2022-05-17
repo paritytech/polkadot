@@ -15,6 +15,19 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Dispute slashing types for the substrate offences pallet.
+//!
+//! The implementation relies on the `offences` pallet and
+//! looks like a hybrid of `im-online` and `grandpa` equivocation handlers.
+//! Meaning, we submit an `offence` for the concluded disputes about
+//! the current session candidate directly from the runtime.
+//! If, however, the dispute is about past session, we record pending
+//! slashes on chain, without FullIdentification of the offenders.
+//! Later on, a block producer can submit an unsigned transaction with
+//! `KeyOwnershipProof` of an offender and submit it to the runtime
+//! to produce an offence.
+//! The reason for this separation is that we do not want to rely on
+//! `FullIdentification` to be available on chain for the past sessions
+//!  because it is quite heavy.
 
 use crate::{
 	initializer::SessionChangeNotification,
@@ -336,11 +349,14 @@ pub struct DisputeProof {
 	pub validator_id: ValidatorId,
 }
 
-// TODO: docs
+/// Indices of the validators who lost a dispute and are pending slashes.
 pub type Losers = BTreeSet<ValidatorIndex>;
+/// `AccountId`s of the validators who were on the winning side of a dispute.
 pub type Winners<T> = Vec<AccountId<T>>;
 
-// TODO: docs
+/// A trait that defines methods to report an offence
+/// (after the slashing report has been validated) and for submitting a
+/// transaction to report a slash (from an offchain context).
 pub trait HandleReports<T: Config> {
 	/// The longevity, in blocks, that the offence report is valid for. When using the staking
 	/// pallet this should be equal to the bonding duration (in blocks, not eras).
@@ -653,9 +669,26 @@ impl<T: Config> Pallet<T> {
 
 		let old_session = notification.session_index - config.dispute_period - 1;
 
-		// TODO: warn if there were pending slashes?
-		<PendingForInvalidLosers<T>>::remove_prefix(old_session, None);
-		<PendingAgainstValidLosers<T>>::remove_prefix(old_session, None);
+		match <PendingForInvalidLosers<T>>::remove_prefix(old_session, None) {
+			sp_io::KillStorageResult::AllRemoved(x) if x > 0 => {
+				log::warn!(
+					target: LOG_TARGET,
+					"No slashing for {} validators that lost a ForInvalid dispute",
+					x
+				);
+			},
+			_ => {},
+		}
+		match <PendingAgainstValidLosers<T>>::remove_prefix(old_session, None) {
+			sp_io::KillStorageResult::AllRemoved(x) if x > 0 => {
+				log::warn!(
+					target: LOG_TARGET,
+					"No slashing for {} validators that lost a AgainstValid dispute",
+					x
+				);
+			},
+			_ => {},
+		}
 		<ForInvalidWinners<T>>::remove_prefix(old_session, None);
 		<AgainstValidWinners<T>>::remove_prefix(old_session, None);
 	}
@@ -746,7 +779,11 @@ fn is_known_offence<T: Config>(
 	}
 }
 
-// TODO: docs
+/// Actual `HandleReports` implemention.
+///
+/// When configured properly, should be instantiated with
+/// `T::KeyOwnerIdentification, Offences, ReportLongevity`
+/// parameters.
 pub struct SlashingReportHandler<I, R, L> {
 	_phantom: sp_std::marker::PhantomData<(I, R, L)>,
 }
@@ -827,14 +864,14 @@ where
 		match SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into()) {
 			Ok(()) => log::info!(
 				target: LOG_TARGET,
-				"Submitted dispute slashing report, session: {}, validator: {}, kind: {:?}",
+				"Submitted dispute slashing report, session({}), index({}), kind({:?})",
 				session_index,
 				validator_index,
 				kind,
 			),
 			Err(()) => log::error!(
 				target: LOG_TARGET,
-				"Error submitting dispute slashing report, session: {}, validator: {}, kind: {:?}",
+				"Error submitting dispute slashing report, session({}), index({}), kind({:?})",
 				session_index,
 				validator_index,
 				kind,
