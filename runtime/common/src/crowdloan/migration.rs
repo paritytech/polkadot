@@ -25,7 +25,12 @@ pub mod crowdloan_index_migration {
 	type NextTrieIndex<T: Config> = StorageValue<Pallet<T>, FundIndex>;
 
 	#[storage_alias]
-	type Leases<T: Config> = StorageMap<Slots, Twox64Concat, ParaId, Vec<Option<(<T as frame_system::Config>::AccountId, BalanceOf<T>)>>>;
+	type Leases<T: Config> = StorageMap<
+		Slots,
+		Twox64Concat,
+		ParaId,
+		Vec<Option<(<T as frame_system::Config>::AccountId, BalanceOf<T>)>>,
+	>;
 
 	// The old way we generated fund accounts.
 	fn old_fund_account_id<T: Config>(index: ParaId) -> T::AccountId {
