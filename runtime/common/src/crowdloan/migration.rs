@@ -15,11 +15,22 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use frame_support::{generate_storage_alias, Twox64Concat};
+use frame_support::{storage_alias, Twox64Concat};
 
 /// Migrations for using fund index to create fund accounts instead of para ID.
 pub mod crowdloan_index_migration {
 	use super::*;
+
+	#[storage_alias]
+	type NextTrieIndex<T: Config> = StorageValue<Pallet<T>, FundIndex>;
+
+	#[storage_alias]
+	type Leases<T: Config> = StorageMap<
+		Slots,
+		Twox64Concat,
+		ParaId,
+		Vec<Option<(<T as frame_system::Config>::AccountId, BalanceOf<T>)>>,
+	>;
 
 	// The old way we generated fund accounts.
 	fn old_fund_account_id<T: Config>(index: ParaId) -> T::AccountId {
@@ -28,13 +39,8 @@ pub mod crowdloan_index_migration {
 
 	pub fn pre_migrate<T: Config>() -> Result<(), &'static str> {
 		// `NextTrieIndex` should have a value.
-		generate_storage_alias!(Crowdloan, NextTrieIndex => Value<FundIndex>);
 
-		generate_storage_alias!(
-			Slots,
-			Leases<T: Config> => Map<(Twox64Concat, ParaId), Vec<Option<(T::AccountId, BalanceOf<T>)>>>
-		);
-		let next_index = NextTrieIndex::get().unwrap_or_default();
+		let next_index = NextTrieIndex::<T>::get().unwrap_or_default();
 		ensure!(next_index > 0, "Next index is zero, which implies no migration is needed.");
 
 		log::info!(
@@ -87,13 +93,8 @@ pub mod crowdloan_index_migration {
 		let mut weight = 0;
 
 		// First migrate `NextTrieIndex` counter to `NextFundIndex`.
-		generate_storage_alias!(Crowdloan, NextTrieIndex => Value<FundIndex>);
 
-		generate_storage_alias!(
-			Slots,
-			Leases<T: Config> => Map<(Twox64Concat, ParaId), Vec<Option<(T::AccountId, BalanceOf<T>)>>>
-		);
-		let next_index = NextTrieIndex::take().unwrap_or_default();
+		let next_index = NextTrieIndex::<T>::take().unwrap_or_default();
 		NextFundIndex::<T>::set(next_index);
 
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 2));
@@ -127,13 +128,7 @@ pub mod crowdloan_index_migration {
 
 	pub fn post_migrate<T: Config>() -> Result<(), &'static str> {
 		// `NextTrieIndex` should not have a value, and `NextFundIndex` should.
-		generate_storage_alias!(Crowdloan, NextTrieIndex => Value<FundIndex>);
-		ensure!(NextTrieIndex::get().is_none(), "NextTrieIndex still has a value.");
-
-		generate_storage_alias!(
-			Slots,
-			Leases<T: Config> => Map<(Twox64Concat, ParaId), Vec<Option<(T::AccountId, BalanceOf<T>)>>>
-		);
+		ensure!(NextTrieIndex::<T>::get().is_none(), "NextTrieIndex still has a value.");
 
 		let next_index = NextFundIndex::<T>::get();
 		log::info!(
