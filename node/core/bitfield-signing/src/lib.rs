@@ -48,9 +48,10 @@ use self::metrics::Metrics;
 mod tests;
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
-const JOB_DELAY: Duration = Duration::from_millis(1500);
+const SPAWNED_TASK_DELAY: Duration = Duration::from_millis(1500);
 const LOG_TARGET: &str = "parachain::bitfield-signing";
 
+// TODO: use `fatality` (https://github.com/paritytech/polkadot/issues/5540).
 /// Errors we may encounter in the course of executing the `BitfieldSigningSubsystem`.
 #[derive(Debug, thiserror::Error)]
 #[allow(missing_docs)]
@@ -242,7 +243,7 @@ async fn run<Context>(
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-			FromOverseer::Communication { msg } => match msg {},
+			FromOverseer::Communication { .. } => {},
 		}
 	}
 }
@@ -259,16 +260,16 @@ where
 	if let LeafStatus::Stale = leaf.status {
 		gum::debug!(
 			target: LOG_TARGET,
-			hash = ?leaf.hash,
+			relay_parent = ?leaf.hash,
 			block_number =  ?leaf.number,
-			"Stale leaf - don't sign bitfields."
+			"Skip bitfield signing for stale leaf"
 		);
 		return Ok(())
 	}
 
 	let span = PerLeafSpan::new(leaf.span, "bitfield-signing");
-	let _span = span.child("delay");
-	let wait_until = Instant::now() + JOB_DELAY;
+	let span_delay = span.child("delay");
+	let wait_until = Instant::now() + SPAWNED_TASK_DELAY;
 
 	// now do all the work we can before we need to wait for the availability store
 	// if we're not a validator, we can just succeed effortlessly
@@ -282,10 +283,10 @@ where
 	Delay::new_at(wait_until).await?;
 
 	// this timer does not appear at the head of the function because we don't want to include
-	// JOB_DELAY each time.
+	// SPAWNED_TASK_DELAY each time.
 	let _timer = metrics.time_run();
 
-	drop(_span);
+	drop(span_delay);
 	let span_availability = span.child("availability");
 
 	let bitfield = match construct_availability_bitfield(
@@ -306,7 +307,7 @@ where
 	};
 
 	drop(span_availability);
-	let _span = span.child("signing");
+	let span_signing = span.child("signing");
 
 	let signed_bitfield =
 		match validator.sign(keystore, bitfield).await.map_err(|e| Error::Keystore(e))? {
@@ -322,8 +323,8 @@ where
 
 	metrics.on_bitfield_signed();
 
-	drop(_span);
-	let _span = span.child("gossip");
+	drop(span_signing);
+	let _span_gossip = span.child("gossip");
 
 	sender
 		.send_message(BitfieldDistributionMessage::DistributeBitfield(leaf.hash, signed_bitfield))
