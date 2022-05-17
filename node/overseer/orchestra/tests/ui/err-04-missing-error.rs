@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use polkadot_overseer_gen::*;
+use orchestra::*;
 
 #[derive(Default)]
 struct AwesomeSubSys;
@@ -14,7 +14,7 @@ struct Event;
 struct MsgStrukt(u8);
 
 #[orchestra(signal=SigSigSig, event=Event, gen=AllMessages)]
-struct Overseer {
+struct Orchestra {
 	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
 
@@ -27,7 +27,7 @@ struct DummySpawner;
 struct DummyCtx;
 
 fn main() {
-	let _ = Overseer::builder()
+	let _ = Orchestra::builder()
 		.sub0(AwesomeSubSys::default())
 		.i_like_pie(std::f64::consts::PI)
 		.spawner(DummySpawner)

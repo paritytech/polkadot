@@ -50,8 +50,8 @@ impl std::fmt::Display for Yikes {
 
 impl std::error::Error for Yikes {}
 
-impl From<orchestra::OverseerError> for Yikes {
-	fn from(_: orchestra::OverseerError) -> Yikes {
+impl From<orchestra::OrchestraError> for Yikes {
+	fn from(_: orchestra::OrchestraError) -> Yikes {
 		Yikes
 	}
 }

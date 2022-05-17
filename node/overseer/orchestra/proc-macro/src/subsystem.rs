@@ -28,8 +28,8 @@
 //! # #[derive(Debug, thiserror::Error)]
 //! # #[error("Yikes!")]
 //! # pub struct Yikes;
-//! # impl From<OverseerError> for Yikes {
-//! #   fn from(_: OverseerError) -> Yikes { Yikes }
+//! # impl From<OrchestraError> for Yikes {
+//! #   fn from(_: OrchestraError) -> Yikes { Yikes }
 //! # }
 //! # impl From<mpsc::SendError> for Yikes {
 //! #   fn from(_: mpsc::SendError) -> Yikes { Yikes }
@@ -79,8 +79,8 @@
 //! # #[derive(Debug, thiserror::Error)]
 //! # #[error("Yikes!")]
 //! # pub struct Yikes;
-//! # impl From<OverseerError> for Yikes {
-//! #   fn from(_: OverseerError) -> Yikes { Yikes }
+//! # impl From<OrchestraError> for Yikes {
+//! #   fn from(_: OrchestraError) -> Yikes { Yikes }
 //! # }
 //! # impl From<mpsc::SendError> for Yikes {
 //! #   fn from(_: mpsc::SendError) -> Yikes { Yikes }

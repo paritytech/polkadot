@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 
-use polkadot_overseer_gen::*;
+use orchestra::*;
 
 #[derive(Default)]
 struct AwesomeSubSys;
 
-impl ::polkadot_overseer_gen::Subsystem<OverseerSubsystemContext<MsgStrukt>, OverseerError> for AwesomeSubSys {
-	fn start(self, _ctx: OverseerSubsystemContext<MsgStrukt>) -> SpawnedSubsystem<OverseerError> {
+impl ::orchestra::Subsystem<OrchestraSubsystemContext<MsgStrukt>, OrchestraError> for AwesomeSubSys {
+	fn start(self, _ctx: OrchestraSubsystemContext<MsgStrukt>) -> SpawnedSubsystem<OrchestraError> {
 		unimplemented!("starting yay!")
 	}
 }
@@ -19,8 +19,8 @@ pub struct Event;
 #[derive(Clone, Debug)]
 pub struct MsgStrukt(u8);
 
-#[orchestra(signal=SigSigSig, error=OverseerError, event=Event, gen=AllMessages)]
-struct Overseer {
+#[orchestra(signal=SigSigSig, error=OrchestraError, event=Event, gen=AllMessages)]
+struct Orchestra {
 	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
 	i_like_pie: f64,
@@ -52,7 +52,7 @@ impl SpawnNamed for DummySpawner {
 struct DummyCtx;
 
 fn main() {
-	let _ = Overseer::builder()
+	let _ = Orchestra::builder()
 		.sub0(AwesomeSubSys::default())
 		.sub0(AwesomeSubSys::default()) // Duplicate subsystem
 		.i_like_pie(std::f64::consts::PI)

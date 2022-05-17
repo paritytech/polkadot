@@ -52,7 +52,7 @@ fn graphviz(
 }
 
 /// Generates all subsystem types and related accumulation traits.
-pub(crate) fn impl_subsystem_types_all(info: &OverseerInfo) -> Result<TokenStream> {
+pub(crate) fn impl_subsystem_types_all(info: &OrchestraInfo) -> Result<TokenStream> {
 	let mut ts = TokenStream::new();
 
 	let overseer_name = &info.overseer_name;
@@ -125,7 +125,7 @@ pub(crate) fn impl_subsystem_types_all(info: &OverseerInfo) -> Result<TokenStrea
 						// And everything that's not WIP but no subsystem consumes it
 						#[allow(unreachable_patterns)]
 						unused_msg => {
-							#support_crate :: gum :: warn!("Nothing consumes {:?}", unused_msg);
+							#support_crate :: tracing :: warn!("Nothing consumes {:?}", unused_msg);
 							#all_messages_wrapper :: Empty
 						}
 					}
@@ -436,32 +436,32 @@ pub(crate) fn impl_subsystem_context_trait_for(
 			type Sender = #subsystem_sender_name < #outgoing_wrapper >;
 			type Error = #error_ty;
 
-			async fn try_recv(&mut self) -> ::std::result::Result<Option<FromOverseer< Self::Message, #signal>>, ()> {
+			async fn try_recv(&mut self) -> ::std::result::Result<Option<FromOrchestra< Self::Message, #signal>>, ()> {
 				match #support_crate ::poll!(self.recv()) {
 					#support_crate ::Poll::Ready(msg) => Ok(Some(msg.map_err(|_| ())?)),
 					#support_crate ::Poll::Pending => Ok(None),
 				}
 			}
 
-			async fn recv(&mut self) -> ::std::result::Result<FromOverseer<Self::Message, #signal>, #error_ty> {
+			async fn recv(&mut self) -> ::std::result::Result<FromOrchestra<Self::Message, #signal>, #error_ty> {
 				loop {
 					// If we have a message pending an overseer signal, we only poll for signals
 					// in the meantime.
 					if let Some((needs_signals_received, msg)) = self.pending_incoming.take() {
 						if needs_signals_received <= self.signals_received.load() {
-							return Ok( #support_crate ::FromOverseer::Communication { msg });
+							return Ok( #support_crate ::FromOrchestra::Communication { msg });
 						} else {
 							self.pending_incoming = Some((needs_signals_received, msg));
 
 							// wait for next signal.
 							let signal = self.signals.next().await
-								.ok_or(#support_crate ::OverseerError::Context(
+								.ok_or(#support_crate ::OrchestraError::Context(
 									"Signal channel is terminated and empty."
 									.to_owned()
 								))?;
 
 							self.signals_received.inc();
-							return Ok( #support_crate ::FromOverseer::Signal(signal))
+							return Ok( #support_crate ::FromOrchestra::Signal(signal))
 						}
 					}
 
@@ -474,16 +474,16 @@ pub(crate) fn impl_subsystem_context_trait_for(
 					let from_overseer = #support_crate ::futures::select_biased! {
 						signal = await_signal => {
 							let signal = signal
-								.ok_or( #support_crate ::OverseerError::Context(
+								.ok_or( #support_crate ::OrchestraError::Context(
 									"Signal channel is terminated and empty."
 									.to_owned()
 								))?;
 
-							#support_crate ::FromOverseer::Signal(signal)
+							#support_crate ::FromOrchestra::Signal(signal)
 						}
 						msg = await_message => {
 							let packet = msg
-								.ok_or( #support_crate ::OverseerError::Context(
+								.ok_or( #support_crate ::OrchestraError::Context(
 									"Message channel is terminated and empty."
 									.to_owned()
 								))?;
@@ -494,12 +494,12 @@ pub(crate) fn impl_subsystem_context_trait_for(
 								continue;
 							} else {
 								// we know enough to return this message.
-								#support_crate ::FromOverseer::Communication { msg: packet.message}
+								#support_crate ::FromOrchestra::Communication { msg: packet.message}
 							}
 						}
 					};
 
-					if let #support_crate ::FromOverseer::Signal(_) = from_overseer {
+					if let #support_crate ::FromOrchestra::Signal(_) = from_overseer {
 						self.signals_received.inc();
 					}
 
@@ -514,22 +514,22 @@ pub(crate) fn impl_subsystem_context_trait_for(
 			fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 				-> ::std::result::Result<(), #error_ty>
 			{
-				self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnJob {
+				self.to_overseer.unbounded_send(#support_crate ::ToOrchestra::SpawnJob {
 					name,
 					subsystem: Some(self.name()),
 					s,
-				}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
+				}).map_err(|_| #support_crate ::OrchestraError::TaskSpawn(name))?;
 				Ok(())
 			}
 
 			fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 				-> ::std::result::Result<(), #error_ty>
 			{
-				self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnBlockingJob {
+				self.to_overseer.unbounded_send(#support_crate ::ToOrchestra::SpawnBlockingJob {
 					name,
 					subsystem: Some(self.name()),
 					s,
-				}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
+				}).map_err(|_| #support_crate ::OrchestraError::TaskSpawn(name))?;
 				Ok(())
 			}
 		}
@@ -539,7 +539,7 @@ pub(crate) fn impl_subsystem_context_trait_for(
 /// Implement the additional subsystem accumulation traits, for simplified usage,
 /// i.e. `${Subsystem}SenderTrait` and `${Subsystem}ContextTrait`.
 pub(crate) fn impl_per_subsystem_helper_traits(
-	info: &OverseerInfo,
+	info: &OrchestraInfo,
 	subsystem_ctx_name: &Ident,
 	subsystem_ctx_trait: &Ident,
 	subsystem_sender_name: &Ident,
@@ -645,7 +645,7 @@ pub(crate) fn impl_per_subsystem_helper_traits(
 ///
 /// Note: The generated `fn new` is used by the [builder pattern](../impl_builder.rs).
 pub(crate) fn impl_subsystem_context(
-	info: &OverseerInfo,
+	info: &OrchestraInfo,
 	subsystem_sender_name: &Ident,
 	subsystem_ctx_name: &Ident,
 ) -> TokenStream {
@@ -657,7 +657,7 @@ pub(crate) fn impl_subsystem_context(
 		/// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
 		/// or to spawn it's [`SubsystemJob`]s.
 		///
-		/// [`Overseer`]: struct.Overseer.html
+		/// [`Orchestra`]: struct.Orchestra.html
 		/// [`Subsystem`]: trait.Subsystem.html
 		/// [`SubsystemJob`]: trait.SubsystemJob.html
 		#[derive(Debug)]
@@ -667,7 +667,7 @@ pub(crate) fn impl_subsystem_context(
 			messages: SubsystemIncomingMessages< M >,
 			to_subsystems: #subsystem_sender_name < <M as AssociateOutgoing>::OutgoingMessages >,
 			to_overseer: #support_crate ::metered::UnboundedMeteredSender<
-				#support_crate ::ToOverseer
+				#support_crate ::ToOrchestra
 				>,
 			signals_received: SignalsReceived,
 			pending_incoming: Option<(usize, M)>,
@@ -683,7 +683,7 @@ pub(crate) fn impl_subsystem_context(
 				signals: #support_crate ::metered::MeteredReceiver< #signal_ty >,
 				messages: SubsystemIncomingMessages< M >,
 				to_subsystems: ChannelsOut,
-				to_overseer: #support_crate ::metered::UnboundedMeteredSender<#support_crate:: ToOverseer>,
+				to_overseer: #support_crate ::metered::UnboundedMeteredSender<#support_crate:: ToOrchestra>,
 				name: &'static str
 			) -> Self {
 				let signals_received = SignalsReceived::default();

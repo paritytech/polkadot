@@ -1,11 +1,11 @@
 error: expected `struct`
   --> $DIR/err-02-enum.rs:16:1
    |
-16 | enum Overseer {
+16 | enum Orchestra {
    | ^^^^
 
-error[E0433]: failed to resolve: use of undeclared type `Overseer`
+error[E0433]: failed to resolve: use of undeclared type `Orchestra`
   --> $DIR/err-02-enum.rs:27:17
    |
-27 |     let overseer = Overseer::<_,_>::builder()
-   |                    ^^^^^^^^ use of undeclared type `Overseer`
+27 |     let overseer = Orchestra::<_,_>::builder()
+   |                    ^^^^^^^^ use of undeclared type `Orchestra`

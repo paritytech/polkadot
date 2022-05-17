@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use polkadot_overseer_gen::*;
+use orchestra::*;
 
 #[derive(Default)]
 struct AwesomeSubSys;
@@ -16,8 +16,8 @@ struct Event;
 #[derive(Clone)]
 struct MsgStrukt(u8);
 
-#[orchestra(signal=SigSigSig, event=Event, gen=AllMessages, error=OverseerError)]
-struct Overseer {
+#[orchestra(signal=SigSigSig, event=Event, gen=AllMessages, error=OrchestraError)]
+struct Orchestra {
 	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
 
@@ -31,7 +31,7 @@ struct DummySpawner;
 struct DummyCtx;
 
 fn main() {
-	let overseer = Overseer::<_,_>::builder()
+	let overseer = Orchestra::<_,_>::builder()
 		.sub0(AwesomeSubSys::default())
 		.spawner(DummySpawner)
 		.build(|| -> DummyCtx { DummyCtx } );

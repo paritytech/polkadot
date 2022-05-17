@@ -4341,7 +4341,6 @@ dependencies = [
  "nanorand",
  "thiserror",
  "tracing",
- "tracing-gum",
 ]
 
 [[package]]
@@ -4826,6 +4825,38 @@ dependencies = [
  "libc",
  "pkg-config",
  "vcpkg",
+]
+
+[[package]]
+name = "orchestra"
+version = "0.9.22"
+dependencies = [
+ "async-trait",
+ "futures 0.3.21",
+ "futures-timer",
+ "metered-channel",
+ "orchestra-proc-macro",
+ "pin-project 1.0.10",
+ "rustversion",
+ "thiserror",
+ "tracing",
+ "trybuild",
+]
+
+[[package]]
+name = "orchestra-proc-macro"
+version = "0.9.22"
+dependencies = [
+ "assert_matches",
+ "expander 0.0.6",
+ "orchestra",
+ "petgraph",
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -6889,10 +6920,10 @@ version = "0.9.22"
 dependencies = [
  "derive_more",
  "futures 0.3.21",
+ "orchestra",
  "polkadot-node-jaeger",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
- "polkadot-overseer-gen",
  "polkadot-primitives",
  "polkadot-statement-table",
  "sc-network",
@@ -6951,52 +6982,18 @@ dependencies = [
  "futures-timer",
  "lru 0.7.5",
  "metered-channel",
+ "orchestra",
  "parity-util-mem",
  "parking_lot 0.12.0",
  "polkadot-node-metrics",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem-types",
- "polkadot-overseer-gen",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
  "sc-client-api",
  "sp-api",
  "sp-core",
- "tracing-gum",
-]
-
-[[package]]
-name = "polkadot-overseer-gen"
-version = "0.9.22"
-dependencies = [
- "async-trait",
- "futures 0.3.21",
- "futures-timer",
- "metered-channel",
- "pin-project 1.0.10",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
- "polkadot-overseer-gen-proc-macro",
- "rustversion",
- "thiserror",
- "tracing",
- "trybuild",
-]
-
-[[package]]
-name = "polkadot-overseer-gen-proc-macro"
-version = "0.9.22"
-dependencies = [
- "assert_matches",
- "expander 0.0.6",
- "petgraph",
- "polkadot-overseer-gen",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
- "thiserror",
  "tracing-gum",
 ]
 

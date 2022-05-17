@@ -261,7 +261,7 @@ pub(crate) struct BaggageField {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct OverseerInfo {
+pub(crate) struct OrchestraInfo {
 	/// Where the support crate `::orchestra` lives.
 	pub(crate) support_crate: Path,
 
@@ -295,7 +295,7 @@ pub(crate) struct OverseerInfo {
 	pub(crate) extern_error_ty: Path,
 }
 
-impl OverseerInfo {
+impl OrchestraInfo {
 	pub(crate) fn support_crate_name(&self) -> &Path {
 		&self.support_crate
 	}
@@ -391,13 +391,13 @@ impl OverseerInfo {
 
 /// Internals of the overseer.
 #[derive(Debug, Clone)]
-pub(crate) struct OverseerGuts {
+pub(crate) struct OrchestraGuts {
 	pub(crate) name: Ident,
 	pub(crate) subsystems: Vec<SubSysField>,
 	pub(crate) baggage: Vec<BaggageField>,
 }
 
-impl OverseerGuts {
+impl OrchestraGuts {
 	pub(crate) fn parse_fields(
 		name: Ident,
 		baggage_generics: HashSet<Ident>,
@@ -497,7 +497,7 @@ impl OverseerGuts {
 	}
 }
 
-impl Parse for OverseerGuts {
+impl Parse for OrchestraGuts {
 	fn parse(input: ParseStream) -> Result<Self> {
 		let ds: ItemStruct = input.parse()?;
 		match ds.fields {

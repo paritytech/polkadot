@@ -25,11 +25,11 @@ mod attr {
 
 	#[test]
 	fn attr_full_works() {
-		let attr: OverseerAttrArgs = parse_quote! {
+		let attr: OrchestraAttrArgs = parse_quote! {
 			gen=AllMessage, event=::some::why::ExternEvent, signal=SigSigSig, signal_capacity=111, message_capacity=222,
-			error=OverseerError,
+			error=OrchestraError,
 		};
-		assert_matches!(attr, OverseerAttrArgs {
+		assert_matches!(attr, OrchestraAttrArgs {
 			message_channel_capacity,
 			signal_channel_capacity,
 			..
@@ -41,11 +41,11 @@ mod attr {
 
 	#[test]
 	fn attr_partial_works() {
-		let attr: OverseerAttrArgs = parse_quote! {
+		let attr: OrchestraAttrArgs = parse_quote! {
 			gen=AllMessage, event=::some::why::ExternEvent, signal=::foo::SigSigSig,
-			error=OverseerError,
+			error=OrchestraError,
 		};
-		assert_matches!(attr, OverseerAttrArgs {
+		assert_matches!(attr, OrchestraAttrArgs {
 			message_channel_capacity: _,
 			signal_channel_capacity: _,
 			..
@@ -249,7 +249,7 @@ mod strukt {
 
 	#[test]
 	fn struct_parse_baggage() {
-		let item: OverseerGuts = parse_quote! {
+		let item: OrchestraGuts = parse_quote! {
 			pub struct Ooooh<X = Pffffffft> where X: Secrit {
 				#[subsystem(consumes: Foo, sends: [])]
 				sub0: FooSubsystem,
@@ -262,7 +262,7 @@ mod strukt {
 
 	#[test]
 	fn struct_parse_full() {
-		let item: OverseerGuts = parse_quote! {
+		let item: OrchestraGuts = parse_quote! {
 			pub struct Ooooh<X = Pffffffft> where X: Secrit {
 				#[subsystem(consumes: Foo, sends: [])]
 				sub0: FooSubsystem,
@@ -284,7 +284,7 @@ mod strukt {
 
 	#[test]
 	fn struct_parse_basic() {
-		let item: OverseerGuts = parse_quote! {
+		let item: OrchestraGuts = parse_quote! {
 			pub struct Ooooh {
 				#[subsystem(consumes: Foo, sends: [])]
 				sub0: FooSubsystem,

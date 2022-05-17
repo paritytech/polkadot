@@ -14,10 +14,6 @@ async-trait = "0.1"
 thiserror = "1"
 metered = { package = "metered-channel", path = "../../metered-channel" }
 orchestra-proc-macro = { path = "./proc-macro" }
-polkadot-node-network-protocol = { path = "../../network/protocol"}
-# FIXME TODO
-# trait Spawner
-polkadot-node-primitives = { path = "../../primitives" }
 futures-timer = "3.0.2"
 pin-project = "1.0"
 

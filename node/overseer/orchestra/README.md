@@ -9,8 +9,8 @@ where at it's core it creates and spawns a set of subsystems, which are purely
 declarative.
 
 ```rust
-    #[orchestra(signal=SigSigSig, event=Event, gen=AllMessages, error=OverseerError)]
-    pub struct Overseer {
+    #[orchestra(signal=SigSigSig, event=Event, gen=AllMessages, error=OrchestraError)]
+    pub struct Orchestra {
         #[subsystem(MsgA, sends: [MsgB])]
         sub_a: AwesomeSubSysA,
 
@@ -40,7 +40,7 @@ into the overseer, without participating in the subsystem pattern.
     pub struct DummySpawner;
 
     fn main() {
-        let _overseer = Overseer::builder()
+        let _overseer = Orchestra::builder()
             .sub_a(AwesomeSubSysA::default())
             .sub_b(AwesomeSubSysB::default())
             .spawner(DummySpawner)
@@ -61,11 +61,11 @@ for the specific struct field. Therefore, if you see a compile time error that b
 not set prior to the `build` call.
 
 To exclude subsystems from such a check, one can set `wip` attribute on some subsystem that
-is not ready to be included in the Overseer:
+is not ready to be included in the Orchestra:
 
 ```rust
-    #[orchestra(signal=SigSigSig, event=Event, gen=AllMessages, error=OverseerError)]
-    pub struct Overseer {
+    #[orchestra(signal=SigSigSig, event=Event, gen=AllMessages, error=OrchestraError)]
+    pub struct Orchestra {
         #[subsystem(MsgA, sends: MsgB)]
         sub_a: AwesomeSubSysA,
 

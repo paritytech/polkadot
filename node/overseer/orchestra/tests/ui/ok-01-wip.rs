@@ -1,18 +1,18 @@
 #![allow(dead_code)]
 
-use polkadot_overseer_gen::*;
+use orchestra::*;
 
 #[derive(Default)]
 struct AwesomeSubSysA;
 
 
-impl ::polkadot_overseer_gen::Subsystem<OverseerSubsystemContext<MsgA>, OverseerError> for AwesomeSubSysA {
-	fn start(self, _ctx: OverseerSubsystemContext<MsgA>) -> SpawnedSubsystem<OverseerError> {
+impl ::orchestra::Subsystem<OrchestraSubsystemContext<MsgA>, OrchestraError> for AwesomeSubSysA {
+	fn start(self, _ctx: OrchestraSubsystemContext<MsgA>) -> SpawnedSubsystem<OrchestraError> {
 		SpawnedSubsystem { name: "sub A", future: Box::pin(async move { Ok(()) }) }
 	}
 }
-impl ::polkadot_overseer_gen::Subsystem<OverseerSubsystemContext<MsgB>, OverseerError> for AwesomeSubSysB {
-	fn start(self, _ctx: OverseerSubsystemContext<MsgB>) -> SpawnedSubsystem<OverseerError> {
+impl ::orchestra::Subsystem<OrchestraSubsystemContext<MsgB>, OrchestraError> for AwesomeSubSysB {
+	fn start(self, _ctx: OrchestraSubsystemContext<MsgB>) -> SpawnedSubsystem<OrchestraError> {
 		SpawnedSubsystem { name: "sub B", future: Box::pin(async move { Ok(()) }) }
 	}
 }
@@ -54,8 +54,8 @@ pub struct MsgA(u8);
 #[derive(Clone, Debug)]
 pub struct MsgB(u8);
 
-#[orchestra(signal=SigSigSig, event=Event, gen=AllMessages, error=OverseerError)]
-pub struct Overseer {
+#[orchestra(signal=SigSigSig, event=Event, gen=AllMessages, error=OrchestraError)]
+pub struct Orchestra {
 	#[subsystem(MsgA)]
 	sub_a: AwesomeSubSysA,
 
@@ -66,7 +66,7 @@ pub struct Overseer {
 pub struct DummyCtx;
 
 fn main() {
-	let _overseer_builder = Overseer::builder()
+	let _overseer_builder = Orchestra::builder()
 		.sub_a(AwesomeSubSysA::default())
 		// b is tagged as `wip`
 		// .sub_b(AwesomeSubSysB::default())

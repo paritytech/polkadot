@@ -18,7 +18,7 @@ use quote::quote;
 
 use super::*;
 
-pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStream {
+pub(crate) fn impl_orchestra_struct(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 	let message_wrapper = &info.message_wrapper.clone();
 	let overseer_name = info.overseer_name.clone();
 	let subsystem_name = &info.subsystem_names_without_wip();
@@ -71,7 +71,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStr
 
 			#(
 				/// A subsystem instance.
-				#subsystem_name: OverseenSubsystem< #consumes >,
+				#subsystem_name: OrchestratedSubsystem< #consumes >,
 			)*
 
 			#(
@@ -89,7 +89,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStr
 
 			/// Gather running subsystems' outbound streams into one.
 			to_overseer_rx: #support_crate ::stream::Fuse<
-				#support_crate ::metered::UnboundedMeteredReceiver< #support_crate ::ToOverseer >
+				#support_crate ::metered::UnboundedMeteredReceiver< #support_crate ::ToOrchestra >
 			>,
 
 			/// Events that are sent to the overseer from the outside world.
@@ -141,7 +141,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStr
 				match message {
 					#(
 						#message_wrapper :: #consumes_variant ( inner ) =>
-							OverseenSubsystem::< #consumes >::send_message2(&mut self. #subsystem_name, inner, origin ).await?,
+							OrchestratedSubsystem::< #consumes >::send_message2(&mut self. #subsystem_name, inner, origin ).await?,
 					)*
 					// subsystems that are still work in progress
 					#(
@@ -152,7 +152,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStr
 					// And everything that's not WIP but no subsystem consumes it
 					#[allow(unreachable_patterns)]
 					unused_msg => {
-						#support_crate :: gum :: warn!("Nothing consumes {:?}", unused_msg);
+						#support_crate :: tracing :: warn!("Nothing consumes {:?}", unused_msg);
 					}
 				}
 				Ok(())
@@ -163,7 +163,7 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStr
 			-> Vec<Output>
 				where
 				#(
-					Mapper: MapSubsystem<&'a OverseenSubsystem< #consumes >, Output=Output>,
+					Mapper: MapSubsystem<&'a OrchestratedSubsystem< #consumes >, Output=Output>,
 				)*
 			{
 				vec![
@@ -184,27 +184,27 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStr
 	ts
 }
 
-pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> proc_macro2::TokenStream {
+pub(crate) fn impl_orchestrated_subsystem(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 	let signal = &info.extern_signal_ty;
 	let error_ty = &info.extern_error_ty;
 	let support_crate = info.support_crate_name();
 
 	let ts = quote::quote! {
-		/// A subsystem that the overseer oversees.
+		/// A subsystem that the orchestrator orchestrates.
 		///
 		/// Ties together the [`Subsystem`] itself and it's running instance
 		/// (which may be missing if the [`Subsystem`] is not running at the moment
 		/// for whatever reason).
 		///
 		/// [`Subsystem`]: trait.Subsystem.html
-		pub struct OverseenSubsystem<M> {
+		pub struct OrchestratedSubsystem<M> {
 			/// The instance.
 			pub instance: std::option::Option<
 				#support_crate ::SubsystemInstance<M, #signal>
 			>,
 		}
 
-		impl<M> OverseenSubsystem<M> {
+		impl<M> OrchestratedSubsystem<M> {
 			/// Send a message to the wrapped subsystem.
 			///
 			/// If the inner `instance` is `None`, nothing is happening.
@@ -218,14 +218,14 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> proc_macro2::Token
 					}).timeout(MESSAGE_TIMEOUT).await
 					{
 						None => {
-							#support_crate ::gum::error!(
+							#support_crate ::tracing::error!(
 								target: LOG_TARGET,
 								%origin,
 								"Subsystem {} appears unresponsive.",
 								instance.name,
 							);
 							Err(#error_ty :: from(
-								#support_crate ::OverseerError::SubsystemStalled(instance.name)
+								#support_crate ::OrchestraError::SubsystemStalled(instance.name)
 							))
 						}
 						Some(res) => res.map_err(Into::into),
@@ -245,7 +245,7 @@ pub(crate) fn impl_overseen_subsystem(info: &OverseerInfo) -> proc_macro2::Token
 					match instance.tx_signal.send(signal).timeout(SIGNAL_TIMEOUT).await {
 						None => {
 							Err(#error_ty :: from(
-								#support_crate ::OverseerError::SubsystemStalled(instance.name)
+								#support_crate ::OrchestraError::SubsystemStalled(instance.name)
 							))
 						}
 						Some(res) => {

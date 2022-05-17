@@ -27,7 +27,7 @@ fn print() {
 		signal=SigSigSig,
 		signal_capacity=111,
 		message_capacity=222,
-		error=OverseerError,
+		error=OrchestraError,
 	};
 
 	let item = quote! {
@@ -55,7 +55,7 @@ fn print() {
 
 #[test]
 fn struct_parse_full() {
-	let item: OverseerGuts = parse_quote! {
+	let item: OrchestraGuts = parse_quote! {
 		pub struct Ooooh<X = Pffffffft> where X: Secrit {
 			#[subsystem(Foo)]
 			sub0: FooSubsystem,
@@ -77,7 +77,7 @@ fn struct_parse_full() {
 
 #[test]
 fn struct_parse_basic() {
-	let item: OverseerGuts = parse_quote! {
+	let item: OrchestraGuts = parse_quote! {
 		pub struct Ooooh {
 			#[subsystem(Foo)]
 			sub0: FooSubsystem,
@@ -88,11 +88,11 @@ fn struct_parse_basic() {
 
 #[test]
 fn attr_full() {
-	let attr: OverseerAttrArgs = parse_quote! {
+	let attr: OrchestraAttrArgs = parse_quote! {
 		gen=AllMessage, event=::some::why::ExternEvent, signal=SigSigSig, signal_capacity=111, message_capacity=222,
-		error=OverseerError,
+		error=OrchestraError,
 	};
-	assert_matches!(attr, OverseerAttrArgs {
+	assert_matches!(attr, OrchestraAttrArgs {
 		message_channel_capacity,
 		signal_channel_capacity,
 		..
@@ -104,11 +104,11 @@ fn attr_full() {
 
 #[test]
 fn attr_partial() {
-	let attr: OverseerAttrArgs = parse_quote! {
+	let attr: OrchestraAttrArgs = parse_quote! {
 		gen=AllMessage, event=::some::why::ExternEvent, signal=::foo::SigSigSig,
-		error=OverseerError,
+		error=OrchestraError,
 	};
-	assert_matches!(attr, OverseerAttrArgs {
+	assert_matches!(attr, OrchestraAttrArgs {
 		message_channel_capacity: _,
 		signal_channel_capacity: _,
 		..

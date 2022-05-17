@@ -23,13 +23,13 @@ pub(crate) fn impl_orchestra_gen(
 	attr: TokenStream,
 	orig: TokenStream,
 ) -> Result<proc_macro2::TokenStream> {
-	let args: OverseerAttrArgs = parse2(attr)?;
+	let args: OrchestraAttrArgs = parse2(attr)?;
 	let message_wrapper = args.message_wrapper;
 
-	let of: OverseerGuts = parse2(orig)?;
+	let of: OrchestraGuts = parse2(orig)?;
 
 	let support_crate = support_crate().expect("The crate this macro is run for, includes the proc-macro support as dependency, otherwise it could not be run in the first place. qed");
-	let info = OverseerInfo {
+	let info = OrchestraInfo {
 		support_crate,
 		subsystems: of.subsystems,
 		baggage: of.baggage,
@@ -43,10 +43,10 @@ pub(crate) fn impl_orchestra_gen(
 		outgoing_ty: args.outgoing_ty,
 	};
 
-	let mut additive = impl_overseer_struct(&info);
+	let mut additive = impl_orchestra_struct(&info);
 	additive.extend(impl_builder(&info));
 
-	additive.extend(impl_overseen_subsystem(&info));
+	additive.extend(impl_orchestrated_subsystem(&info));
 	additive.extend(impl_channels_out_struct(&info));
 	additive.extend(impl_subsystem_types_all(&info)?);
 

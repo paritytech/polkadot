@@ -26,11 +26,11 @@ fn recollect_without_idx<T: Clone>(x: &[T], idx: usize) -> Vec<T> {
 	v
 }
 
-/// Implement a builder pattern for the `Overseer`-type,
+/// Implement a builder pattern for the `Orchestra`-type,
 /// which acts as the gateway to constructing the overseer.
 ///
 /// Elements tagged with `wip` are not covered here.
-pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
+pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 	let overseer_name = info.overseer_name.clone();
 	let builder = format_ident!("{}Builder", overseer_name);
 	let handle = format_ident!("{}Handle", overseer_name);
@@ -305,7 +305,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 	let event = &info.extern_event_ty;
 	let initialized_builder = format_ident!("Initialized{}", builder);
-	// The direct generics as expected by the `Overseer<_,_,..>`, without states
+	// The direct generics as expected by the `Orchestra<_,_,..>`, without states
 	let initialized_builder_generics = quote! {
 		S, #( #baggage_generic_ty, )* #( #subsystem_generics, )*
 	};
@@ -352,10 +352,10 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		pub struct Missing<T>(::core::marker::PhantomData<T>);
 
 		/// Trait used to mark fields status in a builder
-		trait OverseerFieldState<T> {}
+		trait OrchestraFieldState<T> {}
 
-		impl<T> OverseerFieldState<T> for Init<T> {}
-		impl<T> OverseerFieldState<T> for Missing<T> {}
+		impl<T> OrchestraFieldState<T> for Init<T> {}
+		impl<T> OrchestraFieldState<T> for Missing<T> {}
 
 		impl<T> ::std::default::Default for Missing<T> {
 			fn default() -> Self {
@@ -455,7 +455,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				// explicitly assure the required traits are implemented
 				fn trait_from_must_be_implemented<E>()
 				where
-					E: std::error::Error + Send + Sync + 'static + From<#support_crate ::OverseerError>
+					E: std::error::Error + Send + Sync + 'static + From<#support_crate ::OrchestraError>
 				{}
 
 				trait_from_must_be_implemented::< #error_ty >();
@@ -560,7 +560,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				let handle = events_tx.clone();
 
 				let (to_overseer_tx, to_overseer_rx) = #support_crate ::metered::unbounded::<
-					ToOverseer
+					ToOrchestra
 				>();
 
 				#(
@@ -622,7 +622,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 						#subsystem_name_str_literal
 					);
 
-					let #subsystem_name: OverseenSubsystem< #consumes > =
+					let #subsystem_name: OrchestratedSubsystem< #consumes > =
 						spawn::<_,_, #blocking, _, _, _>(
 							&mut spawner,
 							#channel_name_tx,
@@ -667,7 +667,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	ts
 }
 
-pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
+pub(crate) fn impl_task_kind(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 	let signal = &info.extern_signal_ty;
 	let error_ty = &info.extern_error_ty;
 	let support_crate = info.support_crate_name();
@@ -706,13 +706,13 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			s: SubSys,
 			subsystem_name: &'static str,
 			futures: &mut #support_crate ::FuturesUnordered<BoxFuture<'static, ::std::result::Result<(), #error_ty> >>,
-		) -> ::std::result::Result<OverseenSubsystem<M>, #error_ty >
+		) -> ::std::result::Result<OrchestratedSubsystem<M>, #error_ty >
 		where
 			S: #support_crate ::Spawner,
 			M: std::fmt::Debug + Send + 'static,
 			TK: TaskKind,
 			Ctx: #support_crate ::SubsystemContext<Message=M>,
-			E: std::error::Error + Send + Sync + 'static + From<#support_crate ::OverseerError>,
+			E: std::error::Error + Send + Sync + 'static + From<#support_crate ::OrchestraError>,
 			SubSys: #support_crate ::Subsystem<Ctx, E>,
 		{
 			let #support_crate ::SpawnedSubsystem::<E> { future, name } = s.start(ctx);
@@ -721,9 +721,9 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 			let fut = Box::pin(async move {
 				if let Err(e) = future.await {
-					#support_crate ::gum::error!(subsystem=name, err = ?e, "subsystem exited with error");
+					#support_crate ::tracing::error!(subsystem=name, err = ?e, "subsystem exited with error");
 				} else {
-					#support_crate ::gum::debug!(subsystem=name, "subsystem exited without an error");
+					#support_crate ::tracing::debug!(subsystem=name, "subsystem exited without an error");
 				}
 				let _ = tx.send(());
 			});
@@ -732,7 +732,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 			futures.push(Box::pin(
 				rx.map(|e| {
-					gum::warn!(err = ?e, "dropping error");
+					tracing::warn!(err = ?e, "dropping error");
 					Ok(())
 				})
 			));
@@ -749,7 +749,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				name,
 			});
 
-			Ok(OverseenSubsystem {
+			Ok(OrchestratedSubsystem {
 				instance,
 			})
 		}

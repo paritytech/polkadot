@@ -26,9 +26,9 @@ use syn::{
 };
 
 #[derive(Clone, Debug)]
-enum OverseerAttrItem {
+enum OrchestraAttrItem {
 	ExternEventType { tag: kw::event, eq_token: Token![=], value: Path },
-	ExternOverseerSignalType { tag: kw::signal, eq_token: Token![=], value: Path },
+	ExternOrchestraSignalType { tag: kw::signal, eq_token: Token![=], value: Path },
 	ExternErrorType { tag: kw::error, eq_token: Token![=], value: Path },
 	OutgoingType { tag: kw::outgoing, eq_token: Token![=], value: Path },
 	MessageWrapperName { tag: kw::gen, eq_token: Token![=], value: Ident },
@@ -36,13 +36,13 @@ enum OverseerAttrItem {
 	MessageChannelCapacity { tag: kw::message_capacity, eq_token: Token![=], value: usize },
 }
 
-impl ToTokens for OverseerAttrItem {
+impl ToTokens for OrchestraAttrItem {
 	fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
 		let ts = match self {
 			Self::ExternEventType { tag, eq_token, value } => {
 				quote! { #tag #eq_token, #value }
 			},
-			Self::ExternOverseerSignalType { tag, eq_token, value } => {
+			Self::ExternOrchestraSignalType { tag, eq_token, value } => {
 				quote! { #tag #eq_token, #value }
 			},
 			Self::ExternErrorType { tag, eq_token, value } => {
@@ -65,47 +65,47 @@ impl ToTokens for OverseerAttrItem {
 	}
 }
 
-impl Parse for OverseerAttrItem {
+impl Parse for OrchestraAttrItem {
 	fn parse(input: &ParseBuffer) -> Result<Self> {
 		let lookahead = input.lookahead1();
 		if lookahead.peek(kw::event) {
-			Ok(OverseerAttrItem::ExternEventType {
+			Ok(OrchestraAttrItem::ExternEventType {
 				tag: input.parse::<kw::event>()?,
 				eq_token: input.parse()?,
 				value: input.parse()?,
 			})
 		} else if lookahead.peek(kw::signal) {
-			Ok(OverseerAttrItem::ExternOverseerSignalType {
+			Ok(OrchestraAttrItem::ExternOrchestraSignalType {
 				tag: input.parse::<kw::signal>()?,
 				eq_token: input.parse()?,
 				value: input.parse()?,
 			})
 		} else if lookahead.peek(kw::error) {
-			Ok(OverseerAttrItem::ExternErrorType {
+			Ok(OrchestraAttrItem::ExternErrorType {
 				tag: input.parse::<kw::error>()?,
 				eq_token: input.parse()?,
 				value: input.parse()?,
 			})
 		} else if lookahead.peek(kw::outgoing) {
-			Ok(OverseerAttrItem::OutgoingType {
+			Ok(OrchestraAttrItem::OutgoingType {
 				tag: input.parse::<kw::outgoing>()?,
 				eq_token: input.parse()?,
 				value: input.parse()?,
 			})
 		} else if lookahead.peek(kw::gen) {
-			Ok(OverseerAttrItem::MessageWrapperName {
+			Ok(OrchestraAttrItem::MessageWrapperName {
 				tag: input.parse::<kw::gen>()?,
 				eq_token: input.parse()?,
 				value: input.parse()?,
 			})
 		} else if lookahead.peek(kw::signal_capacity) {
-			Ok(OverseerAttrItem::SignalChannelCapacity {
+			Ok(OrchestraAttrItem::SignalChannelCapacity {
 				tag: input.parse::<kw::signal_capacity>()?,
 				eq_token: input.parse()?,
 				value: input.parse::<LitInt>()?.base10_parse::<usize>()?,
 			})
 		} else if lookahead.peek(kw::message_capacity) {
-			Ok(OverseerAttrItem::MessageChannelCapacity {
+			Ok(OrchestraAttrItem::MessageChannelCapacity {
 				tag: input.parse::<kw::message_capacity>()?,
 				eq_token: input.parse()?,
 				value: input.parse::<LitInt>()?.base10_parse::<usize>()?,
@@ -118,7 +118,7 @@ impl Parse for OverseerAttrItem {
 
 /// Attribute arguments
 #[derive(Clone, Debug)]
-pub(crate) struct OverseerAttrArgs {
+pub(crate) struct OrchestraAttrArgs {
 	pub(crate) message_wrapper: Ident,
 	pub(crate) extern_event_ty: Path,
 	pub(crate) extern_signal_ty: Path,
@@ -137,7 +137,7 @@ macro_rules! extract_variant {
 	};
 	($unique:expr, $variant:ident) => {
 		$unique.values().find_map(|item| {
-			if let OverseerAttrItem::$variant { value, .. } = item {
+			if let OrchestraAttrItem::$variant { value, .. } = item {
 				Some(value.clone())
 			} else {
 				None
@@ -146,14 +146,14 @@ macro_rules! extract_variant {
 	};
 }
 
-impl Parse for OverseerAttrArgs {
+impl Parse for OrchestraAttrArgs {
 	fn parse(input: &ParseBuffer) -> Result<Self> {
-		let items: Punctuated<OverseerAttrItem, Token![,]> =
-			input.parse_terminated(OverseerAttrItem::parse)?;
+		let items: Punctuated<OrchestraAttrItem, Token![,]> =
+			input.parse_terminated(OrchestraAttrItem::parse)?;
 
 		let mut unique = HashMap::<
-			std::mem::Discriminant<OverseerAttrItem>,
-			OverseerAttrItem,
+			std::mem::Discriminant<OrchestraAttrItem>,
+			OrchestraAttrItem,
 			RandomState,
 		>::default();
 		for item in items {
@@ -174,11 +174,11 @@ impl Parse for OverseerAttrArgs {
 
 		let error = extract_variant!(unique, ExternErrorType; err = "Must declare the overseer error type via `error=..`.")?;
 		let event = extract_variant!(unique, ExternEventType; err = "Must declare the overseer event type via `event=..`.")?;
-		let signal = extract_variant!(unique, ExternOverseerSignalType; err = "Must declare the overseer signal type via `signal=..`.")?;
+		let signal = extract_variant!(unique, ExternOrchestraSignalType; err = "Must declare the overseer signal type via `signal=..`.")?;
 		let message_wrapper = extract_variant!(unique, MessageWrapperName; err = "Must declare the overseer generated wrapping message type via `gen=..`.")?;
 		let outgoing = extract_variant!(unique, OutgoingType);
 
-		Ok(OverseerAttrArgs {
+		Ok(OrchestraAttrArgs {
 			signal_channel_capacity,
 			message_channel_capacity,
 			extern_event_ty: event,

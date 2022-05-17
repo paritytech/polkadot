@@ -20,7 +20,7 @@ use syn::Result;
 use super::*;
 
 /// Implement the helper type `ChannelsOut` and `MessagePacket<T>`.
-pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn impl_channels_out_struct(info: &OrchestraInfo) -> Result<proc_macro2::TokenStream> {
 	let message_wrapper = info.message_wrapper.clone();
 
 	let channel_name = &info.channel_names_without_wip("");
@@ -84,13 +84,13 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 					#[allow(unreachable_patterns)]
 					// And everything that's not WIP but no subsystem consumes it
 					unused_msg => {
-						#support_crate :: gum :: warn!("Nothing consumes {:?}", unused_msg);
+						#support_crate :: tracing :: warn!("Nothing consumes {:?}", unused_msg);
 						Ok(())
 					}
 				};
 
 				if let Err(subsystem_name) = res {
-					#support_crate ::gum::debug!(
+					#support_crate ::tracing::debug!(
 						target: LOG_TARGET,
 						"Failed to send (bounded) a message to {} subsystem",
 						subsystem_name
@@ -123,13 +123,13 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 					// And everything that's not WIP but no subsystem consumes it
 					#[allow(unreachable_patterns)]
 					unused_msg => {
-						#support_crate :: gum :: warn!("Nothing consumes {:?}", unused_msg);
+						#support_crate :: tracing :: warn!("Nothing consumes {:?}", unused_msg);
 						Ok(())
 					}
 				};
 
 				if let Err(subsystem_name) = res {
-					#support_crate ::gum::debug!(
+					#support_crate ::tracing::debug!(
 						target: LOG_TARGET,
 						"Failed to send_unbounded a message to {} subsystem",
 						subsystem_name

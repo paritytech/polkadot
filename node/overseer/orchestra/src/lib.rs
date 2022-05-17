@@ -14,29 +14,31 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! # Overseer
+//! # Orchestra
 //!
-//! `overseer` implements the Overseer architecture described in the
-//! [implementers-guide](https://w3f.github.io/parachain-implementers-guide/node/index.html).
-//! For the motivations behind implementing the overseer itself you should
-//! check out that guide, documentation in this crate will be mostly discussing
-//! technical stuff.
+//! `orchestra` provides a global information flow of what a token of information.
+//! The token is arbitrary, but is used to notify all `Subsystem`s of what is relevant
+//! and what is not.
 //!
-//! An `Overseer` is something that allows spawning/stopping and overseeing
+//! For the motivations behind implementing the orchestra itself you should
+//! check out that guide, documentation in this crate will focus and be of
+//! technical nature.
+//!
+//! An `Orchestra` is something that allows spawning/stopping and orchestrating
 //! asynchronous tasks as well as establishing a well-defined and easy to use
 //! protocol that the tasks can use to communicate with each other. It is desired
 //! that this protocol is the only way tasks communicate with each other, however
 //! at this moment there are no foolproof guards against other ways of communication.
 //!
-//! The `Overseer` is instantiated with a pre-defined set of `Subsystems` that
-//! share the same behavior from `Overseer`'s point of view.
+//! The `Orchestra` is instantiated with a pre-defined set of `Subsystems` that
+//! share the same behavior from `Orchestra`'s point of view.
 //!
 //! ```text
 //!                              +-----------------------------+
-//!                              |         Overseer            |
+//!                              |         Orchesta            |
 //!                              +-----------------------------+
 //!
-//!             ................|  Overseer "holds" these and uses |..............
+//!             ................|  Orchestra "holds" these and uses |.............
 //!             .                  them to (re)start things                      .
 //!             .                                                                .
 //!             .  +-------------------+                +---------------------+  .
@@ -47,7 +49,7 @@
 //!                         |                                       |
 //!                       start()                                 start()
 //!                         V                                       V
-//!             ..................| Overseer "runs" these |.......................
+//!             ..................| Orchestra "runs" these |.......................
 //!             .  +--------------------+               +---------------------+  .
 //!             .  | SubsystemInstance1 | <-- bidir --> | SubsystemInstance2  |  .
 //!             .  +--------------------+               +---------------------+  .
@@ -63,12 +65,9 @@
 pub use orchestra_proc_macro::{contextbounds, orchestra, subsystem};
 
 #[doc(hidden)]
-pub use gum;
+pub use tracing;
 #[doc(hidden)]
 pub use metered;
-
-#[doc(hidden)]
-pub use polkadot_node_primitives::Spawner;
 
 #[doc(hidden)]
 pub use async_trait::async_trait;
@@ -94,8 +93,6 @@ pub use std::time::Duration;
 
 #[doc(hidden)]
 pub use futures_timer::Delay;
-
-pub use polkadot_node_network_protocol::WrongVariant;
 
 use std::fmt;
 
@@ -129,7 +126,7 @@ pub trait Spawner: Clone + Send + Sync {
 /// A type of messages that are sent from a [`Subsystem`] to the declared overseer.
 ///
 /// Used to launch jobs.
-pub enum ToOverseer {
+pub enum ToOrchestra {
 	/// A message that wraps something the `Subsystem` is desiring to
 	/// spawn on the overseer and a `oneshot::Sender` to signal the result
 	/// of the spawn.
@@ -154,7 +151,7 @@ pub enum ToOverseer {
 	},
 }
 
-impl fmt::Debug for ToOverseer {
+impl fmt::Debug for ToOrchestra {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::SpawnJob { name, subsystem, .. } => {
@@ -251,7 +248,7 @@ pub trait AnnotateErrorOrigin: 'static + Send + Sync + std::error::Error {
 /// In essence it's just a new type wrapping a `BoxFuture`.
 pub struct SpawnedSubsystem<E>
 where
-	E: std::error::Error + Send + Sync + 'static + From<self::OverseerError>,
+	E: std::error::Error + Send + Sync + 'static + From<self::OrchestraError>,
 {
 	/// Name of the subsystem being spawned.
 	pub name: &'static str,
@@ -268,7 +265,7 @@ where
 ///   * etc.
 #[derive(thiserror::Error, Debug)]
 #[allow(missing_docs)]
-pub enum OverseerError {
+pub enum OrchestraError {
 	#[error(transparent)]
 	NotifyCancellation(#[from] oneshot::Canceled),
 
@@ -298,8 +295,8 @@ pub enum OverseerError {
 	},
 }
 
-/// Alias for a result with error type `OverseerError`.
-pub type OverseerResult<T> = std::result::Result<T, self::OverseerError>;
+/// Alias for a result with error type `OrchestraError`.
+pub type OrchestraResult<T> = std::result::Result<T, self::OrchestraError>;
 
 /// Collection of meters related to a subsystem.
 #[derive(Clone)]
@@ -359,8 +356,8 @@ pub struct SubsystemInstance<Message, Signal> {
 ///
 /// It is generic over over the message type `M` that a particular `Subsystem` may use.
 #[derive(Debug)]
-pub enum FromOverseer<Message, Signal> {
-	/// Signal from the `Overseer`.
+pub enum FromOrchestra<Message, Signal> {
+	/// Signal from the `Orchestra`.
 	Signal(Signal),
 
 	/// Some other `Subsystem`'s message.
@@ -370,7 +367,7 @@ pub enum FromOverseer<Message, Signal> {
 	},
 }
 
-impl<Signal, Message> From<Signal> for FromOverseer<Message, Signal> {
+impl<Signal, Message> From<Signal> for FromOrchestra<Message, Signal> {
 	fn from(signal: Signal) -> Self {
 		Self::Signal(signal)
 	}
@@ -380,7 +377,7 @@ impl<Signal, Message> From<Signal> for FromOverseer<Message, Signal> {
 /// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
 /// or spawn jobs.
 ///
-/// [`Overseer`]: struct.Overseer.html
+/// [`Orchestra`]: struct.Orchestra.html
 /// [`SubsystemJob`]: trait.SubsystemJob.html
 #[async_trait::async_trait]
 pub trait SubsystemContext: Send + 'static {
@@ -399,16 +396,16 @@ pub trait SubsystemContext: Send + 'static {
 	/// The sender type as provided by `sender()` and underlying.
 	type Sender: Clone + Send + 'static + SubsystemSender<Self::OutgoingMessages>;
 	/// The error type.
-	type Error: ::std::error::Error + ::std::convert::From<OverseerError> + Sync + Send + 'static;
+	type Error: ::std::error::Error + ::std::convert::From<OrchestraError> + Sync + Send + 'static;
 
 	/// Try to asynchronously receive a message.
 	///
 	/// Has to be used with caution, if you loop over this without
 	/// using `pending!()` macro you will end up with a busy loop!
-	async fn try_recv(&mut self) -> Result<Option<FromOverseer<Self::Message, Self::Signal>>, ()>;
+	async fn try_recv(&mut self) -> Result<Option<FromOrchestra<Self::Message, Self::Signal>>, ()>;
 
 	/// Receive a message.
-	async fn recv(&mut self) -> Result<FromOverseer<Self::Message, Self::Signal>, Self::Error>;
+	async fn recv(&mut self) -> Result<FromOrchestra<Self::Message, Self::Signal>, Self::Error>;
 
 	/// Spawn a child task on the executor.
 	fn spawn(
@@ -462,18 +459,18 @@ pub trait SubsystemContext: Send + 'static {
 	fn sender(&mut self) -> &mut Self::Sender;
 }
 
-/// A trait that describes the [`Subsystem`]s that can run on the [`Overseer`].
+/// A trait that describes the [`Subsystem`]s that can run on the [`Orchestra`].
 ///
 /// It is generic over the message type circulating in the system.
 /// The idea that we want some type containing persistent state that
 /// can spawn actually running subsystems when asked.
 ///
-/// [`Overseer`]: struct.Overseer.html
+/// [`Orchestra`]: struct.Orchestra.html
 /// [`Subsystem`]: trait.Subsystem.html
 pub trait Subsystem<Ctx, E>
 where
 	Ctx: SubsystemContext,
-	E: std::error::Error + Send + Sync + 'static + From<self::OverseerError>,
+	E: std::error::Error + Send + Sync + 'static + From<self::OrchestraError>,
 {
 	/// Start this `Subsystem` and return `SpawnedSubsystem`.
 	fn start(self, ctx: Ctx) -> SpawnedSubsystem<E>;

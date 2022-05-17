@@ -20,7 +20,7 @@ use syn::{spanned::Spanned, Result};
 use super::*;
 
 /// Generates the wrapper type enum.
-pub(crate) fn impl_message_wrapper_enum(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn impl_message_wrapper_enum(info: &OrchestraInfo) -> Result<proc_macro2::TokenStream> {
 	let consumes = info.any_message();
 	let consumes_variant = info.variant_names();
 

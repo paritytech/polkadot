@@ -1,7 +1,7 @@
-error[E0599]: no method named `sub0` found for struct `OverseerBuilder<Missing<_>, Init<AwesomeSubSys>, Missing<f64>>` in the current scope
+error[E0599]: no method named `sub0` found for struct `OrchestraBuilder<Missing<_>, Init<AwesomeSubSys>, Missing<f64>>` in the current scope
   --> tests/ui/err-08-duplicate-subsystem.rs:57:4
    |
-22 | #[orchestra(signal=SigSigSig, error=OverseerError, event=Event, gen=AllMessages)]
+22 | #[orchestra(signal=SigSigSig, error=OrchestraError, event=Event, gen=AllMessages)]
    | -------------------------------------------------------------------------------- method `sub0` not found for this
 ...
 57 |         .sub0(AwesomeSubSys::default()) // Duplicate subsystem

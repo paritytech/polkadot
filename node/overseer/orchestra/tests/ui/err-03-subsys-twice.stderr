@@ -10,8 +10,8 @@ error: previously defined here.
 22 |     sub0: AwesomeSubSys,
    |           ^^^^^^^^^^^^^
 
-error[E0433]: failed to resolve: use of undeclared type `Overseer`
+error[E0433]: failed to resolve: use of undeclared type `Orchestra`
   --> $DIR/err-03-subsys-twice.rs:34:17
    |
-34 |     let overseer = Overseer::<_,_>::builder()
-   |                    ^^^^^^^^ use of undeclared type `Overseer`
+34 |     let overseer = Orchestra::<_,_>::builder()
+   |                    ^^^^^^^^ use of undeclared type `Orchestra`

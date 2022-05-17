@@ -20,9 +20,9 @@ use syn::{parse_quote, spanned::Spanned, Path};
 mod impl_builder;
 mod impl_channels_out;
 mod impl_message_wrapper;
-mod impl_overseer;
+mod impl_orchestra;
 mod impl_subsystem_ctx_sender;
-mod overseer;
+mod orchestra;
 mod parse;
 mod subsystem;
 
@@ -32,11 +32,11 @@ mod tests;
 use impl_builder::*;
 use impl_channels_out::*;
 use impl_message_wrapper::*;
-use impl_overseer::*;
+use impl_orchestra::*;
 use impl_subsystem_ctx_sender::*;
 use parse::*;
 
-use self::{overseer::*, subsystem::*};
+use self::{orchestra::*, subsystem::*};
 
 /// Obtain the support crate `Path` as `TokenStream`.
 pub(crate) fn support_crate() -> Result<Path, proc_macro_crate::Error> {

@@ -1,14 +1,14 @@
-error[E0599]: no method named `build` found for struct `OverseerBuilder<Init<DummySpawner>, Missing<_>, Init<f64>>` in the current scope
+error[E0599]: no method named `build` found for struct `OrchestraBuilder<Init<DummySpawner>, Missing<_>, Init<f64>>` in the current scope
   --> tests/ui/err-06-missing-subsystem.rs:59:4
    |
-22 | #[orchestra(signal=SigSigSig, error=OverseerError, event=Event, gen=AllMessages)]
+22 | #[orchestra(signal=SigSigSig, error=OrchestraError, event=Event, gen=AllMessages)]
    | -------------------------------------------------------------------------------- method `build` not found for this
 ...
 59 |         .build()
-   |          ^^^^^ method not found in `OverseerBuilder<Init<DummySpawner>, Missing<_>, Init<f64>>`
+   |          ^^^^^ method not found in `OrchestraBuilder<Init<DummySpawner>, Missing<_>, Init<f64>>`
    |
    = note: the method was found for
-           - `OverseerBuilder<Init<S>, Init<AwesomeSubSys>, Init<f64>>`
+           - `OrchestraBuilder<Init<S>, Init<AwesomeSubSys>, Init<f64>>`
    = help: items from traits can only be used if the trait is implemented and in scope
    = note: the following traits define an item `build`, perhaps you need to implement one of them:
            candidate #1: `frame_support::traits::hooks::GenesisBuild`
