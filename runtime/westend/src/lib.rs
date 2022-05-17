@@ -1020,6 +1020,7 @@ impl sp_runtime::traits::Convert<sp_core::U256, Balance> for U256ToBalance {
 
 parameter_types! {
 	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
+	pub const MinPointsToBalance: u32 = 10;
 }
 
 impl pallet_nomination_pools::Config for Runtime {
@@ -1034,6 +1035,7 @@ impl pallet_nomination_pools::Config for Runtime {
 	// we use the same number of allowed unlocking chunks as with staking.
 	type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
 	type PalletId = PoolsPalletId;
+	type MinPointsToBalance = MinPointsToBalance;
 }
 
 construct_runtime! {
