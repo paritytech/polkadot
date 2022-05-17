@@ -15,14 +15,17 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::error::GetOnchainDisputesError;
-use polkadot_node_subsystem::SubsystemSender;
+use polkadot_node_subsystem::overseer;
 use polkadot_primitives::v2::{CandidateHash, DisputeState, Hash, SessionIndex};
 use std::collections::HashMap;
 
-pub async fn get_onchain_disputes(
-	_sender: &mut impl SubsystemSender,
+pub async fn get_onchain_disputes<Sender>(
+	_sender: &mut Sender,
 	_relay_parent: Hash,
-) -> Result<HashMap<(SessionIndex, CandidateHash), DisputeState>, GetOnchainDisputesError> {
+) -> Result<HashMap<(SessionIndex, CandidateHash), DisputeState>, GetOnchainDisputesError>
+where
+	Sender: overseer::ProvisionerSenderTrait,
+{
 	let _onchain = Result::<
 		HashMap<(SessionIndex, CandidateHash), DisputeState>,
 		GetOnchainDisputesError,
@@ -46,8 +49,8 @@ mod staging_impl {
 	};
 
 	/// Gets the on-chain disputes at a given block number and returns them as a `HashSet` so that searching in them is cheap.
-	pub async fn get_onchain_disputes(
-		sender: &mut impl SubsystemSender,
+	pub async fn get_onchain_disputes<Sender>(
+		sender: &mut Sender,
 		relay_parent: Hash,
 	) -> Result<HashMap<(SessionIndex, CandidateHash), DisputeState>, GetOnchainDisputesError> {
 		gum::trace!(target: LOG_TARGET, ?relay_parent, "Fetching on-chain disputes");

@@ -19,7 +19,7 @@ use std::collections::HashSet;
 use lru::LruCache;
 use rand::{seq::SliceRandom, thread_rng};
 
-use polkadot_node_subsystem::SubsystemContext;
+use polkadot_node_subsystem::overseer;
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex, ValidatorIndex,
@@ -79,6 +79,7 @@ pub struct BadValidators {
 	pub bad_validators: Vec<AuthorityDiscoveryId>,
 }
 
+#[overseer::contextbounds(AvailabilityDistribution, prefix = self::overseer)]
 impl SessionCache {
 	/// Create a new `SessionCache`.
 	pub fn new() -> Self {
@@ -103,7 +104,6 @@ impl SessionCache {
 		with_info: F,
 	) -> Result<Option<R>>
 	where
-		Context: SubsystemContext,
 		F: FnOnce(&SessionInfo) -> R,
 	{
 		if let Some(o_info) = self.session_info_cache.get(&session_index) {
@@ -178,10 +178,7 @@ impl SessionCache {
 		runtime: &mut RuntimeInfo,
 		relay_parent: Hash,
 		session_index: SessionIndex,
-	) -> Result<Option<SessionInfo>>
-	where
-		Context: SubsystemContext,
-	{
+	) -> Result<Option<SessionInfo>> {
 		let info = runtime
 			.get_session_info_by_index(ctx.sender(), relay_parent, session_index)
 			.await?;

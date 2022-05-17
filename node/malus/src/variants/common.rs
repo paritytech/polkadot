@@ -131,11 +131,7 @@ where
 		subsystem_sender: Sender,
 		response_sender: oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	) where
-		Sender: overseer::SubsystemSender<AllMessages>
-			+ overseer::SubsystemSender<CandidateValidationMessage>
-			+ Clone
-			+ Send
-			+ 'static,
+		Sender: overseer::CandidateValidationSenderTrait + Clone + Send + 'static,
 	{
 		let _candidate_descriptor = candidate_descriptor.clone();
 		let mut subsystem_sender = subsystem_sender.clone();
@@ -200,11 +196,7 @@ fn create_validation_response(
 
 impl<Sender, Spawner> MessageInterceptor<Sender> for ReplaceValidationResult<Spawner>
 where
-	Sender: overseer::SubsystemSender<CandidateValidationMessage>
-		+ overseer::SubsystemSender<AllMessages>
-		+ Clone
-		+ Send
-		+ 'static,
+	Sender: overseer::CandidateValidationSenderTrait + Clone + Send + 'static,
 	Spawner: SpawnNamed + Clone + 'static,
 {
 	type Message = CandidateValidationMessage;
@@ -336,7 +328,10 @@ where
 		}
 	}
 
-	fn intercept_outgoing(&self, msg: AllMessages) -> Option<AllMessages> {
+	fn intercept_outgoing(
+		&self,
+		msg: overseer::CandidateValidationOutgoingMessages,
+	) -> Option<overseer::CandidateValidationOutgoingMessages> {
 		Some(msg)
 	}
 }

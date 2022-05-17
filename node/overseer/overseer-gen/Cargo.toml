@@ -1,9 +1,10 @@
 [package]
 name = "polkadot-overseer-gen"
-version = "0.9.19"
+version = "0.9.22"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Generate an overseer including builder pattern and message wrapper from a single struct."
+autoexamples = false
 
 [dependencies]
 gum = { package = "tracing-gum", path = "../../gum" }
@@ -21,6 +22,16 @@ pin-project = "1.0"
 [dev-dependencies]
 trybuild = "1.0.61"
 rustversion = "1.0.6"
+
+
+
+[[example]]
+name = "duo"
+crate-type = ["bin"]
+
+[[example]]
+name = "solo"
+crate-type = ["bin"]
 
 [features]
 default = []

@@ -34,8 +34,7 @@ use polkadot_node_subsystem::{
 		ApprovalCheckResult, ApprovalDistributionMessage, ApprovalVotingMessage,
 		AssignmentCheckResult, NetworkBridgeEvent, NetworkBridgeMessage,
 	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError,
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
@@ -321,11 +320,11 @@ enum PendingMessage {
 	Approval(IndirectSignedApprovalVote),
 }
 
+#[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]
 impl State {
-	async fn handle_network_msg(
+	async fn handle_network_msg<Context>(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut Context,
 		metrics: &Metrics,
 		event: NetworkBridgeEvent<net_protocol::ApprovalDistributionMessage>,
 		rng: &mut (impl CryptoRng + Rng),
@@ -377,10 +376,9 @@ impl State {
 		}
 	}
 
-	async fn handle_new_blocks(
+	async fn handle_new_blocks<Context>(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut Context,
 		metrics: &Metrics,
 		metas: Vec<BlockApprovalMeta>,
 		rng: &mut (impl CryptoRng + Rng),
@@ -421,11 +419,12 @@ impl State {
 		);
 
 		{
+			let sender = ctx.sender();
 			for (peer_id, view) in self.peer_views.iter() {
 				let intersection = view.iter().filter(|h| new_hashes.contains(h));
 				let view_intersection = View::new(intersection.cloned(), view.finalized_number);
 				Self::unify_with_peer(
-					ctx,
+					sender,
 					metrics,
 					&mut self.blocks,
 					&self.topologies,
@@ -496,10 +495,9 @@ impl State {
 		self.enable_aggression(ctx, Resend::Yes, metrics).await;
 	}
 
-	async fn handle_new_session_topology(
+	async fn handle_new_session_topology<Context>(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut Context,
 		session: SessionIndex,
 		topology: SessionGridTopology,
 	) {
@@ -520,15 +518,16 @@ impl State {
 		.await;
 	}
 
-	async fn process_incoming_peer_message(
+	async fn process_incoming_peer_message<Context, R>(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut Context,
 		metrics: &Metrics,
 		peer_id: PeerId,
 		msg: protocol_v1::ApprovalDistributionMessage,
-		rng: &mut (impl CryptoRng + Rng),
-	) {
+		rng: &mut R,
+	) where
+		R: CryptoRng + Rng,
+	{
 		match msg {
 			protocol_v1::ApprovalDistributionMessage::Assignments(assignments) => {
 				gum::trace!(
@@ -612,15 +611,16 @@ impl State {
 
 	// handle a peer view change: requires that the peer is already connected
 	// and has an entry in the `PeerData` struct.
-	async fn handle_peer_view_change(
+	async fn handle_peer_view_change<Context, R>(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut Context,
 		metrics: &Metrics,
 		peer_id: PeerId,
 		view: View,
-		rng: &mut (impl CryptoRng + Rng),
-	) {
+		rng: &mut R,
+	) where
+		R: CryptoRng + Rng,
+	{
 		gum::trace!(target: LOG_TARGET, ?view, "Peer view change");
 		let finalized_number = view.finalized_number;
 		let old_view =
@@ -646,7 +646,7 @@ impl State {
 		}
 
 		Self::unify_with_peer(
-			ctx,
+			ctx.sender(),
 			metrics,
 			&mut self.blocks,
 			&self.topologies,
@@ -658,10 +658,9 @@ impl State {
 		.await;
 	}
 
-	async fn handle_block_finalized(
+	async fn handle_block_finalized<Context>(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut Context,
 		metrics: &Metrics,
 		finalized_number: BlockNumber,
 	) {
@@ -687,16 +686,17 @@ impl State {
 		self.enable_aggression(ctx, Resend::No, metrics).await;
 	}
 
-	async fn import_and_circulate_assignment(
+	async fn import_and_circulate_assignment<Context, R>(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut Context,
 		metrics: &Metrics,
 		source: MessageSource,
 		assignment: IndirectAssignmentCert,
 		claimed_candidate_index: CandidateIndex,
-		rng: &mut (impl CryptoRng + Rng),
-	) {
+		rng: &mut R,
+	) where
+		R: CryptoRng + Rng,
+	{
 		let block_hash = assignment.block_hash.clone();
 		let validator_index = assignment.validator;
 
@@ -712,7 +712,7 @@ impl State {
 						"Unexpected assignment",
 					);
 					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
-						modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+						modify_reputation(ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
 					}
 				}
 				return
@@ -737,7 +737,7 @@ impl State {
 								?message_subject,
 								"Duplicate assignment",
 							);
-							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
+							modify_reputation(ctx.sender(), peer_id, COST_DUPLICATE_MESSAGE).await;
 						}
 						return
 					}
@@ -749,13 +749,13 @@ impl State {
 						?message_subject,
 						"Assignment from a peer is out of view",
 					);
-					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(ctx.sender(), peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
 				},
 			}
 
 			// if the assignment is known to be valid, reward the peer
 			if entry.knowledge.contains(&message_subject, message_kind) {
-				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
+				modify_reputation(ctx.sender(), peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known assignment");
 					peer_knowledge.received.insert(message_subject, message_kind);
@@ -791,7 +791,8 @@ impl State {
 			);
 			match result {
 				AssignmentCheckResult::Accepted => {
-					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
+					modify_reputation(ctx.sender(), peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST)
+						.await;
 					entry.knowledge.known_messages.insert(message_subject.clone(), message_kind);
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(message_subject.clone(), message_kind);
@@ -819,7 +820,8 @@ impl State {
 						?peer_id,
 						"Got an assignment too far in the future",
 					);
-					modify_reputation(ctx, peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE).await;
+					modify_reputation(ctx.sender(), peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE)
+						.await;
 					return
 				},
 				AssignmentCheckResult::Bad(error) => {
@@ -830,7 +832,7 @@ impl State {
 						%error,
 						"Got a bad assignment from peer",
 					);
-					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
+					modify_reputation(ctx.sender(), peer_id, COST_INVALID_MESSAGE).await;
 					return
 				},
 			}
@@ -946,10 +948,9 @@ impl State {
 		}
 	}
 
-	async fn import_and_circulate_approval(
+	async fn import_and_circulate_approval<Context>(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut Context,
 		metrics: &Metrics,
 		source: MessageSource,
 		vote: IndirectSignedApprovalVote,
@@ -963,7 +964,7 @@ impl State {
 			_ => {
 				if let Some(peer_id) = source.peer_id() {
 					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
-						modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+						modify_reputation(ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
 					}
 				}
 				return
@@ -982,7 +983,7 @@ impl State {
 					?message_subject,
 					"Unknown approval assignment",
 				);
-				modify_reputation(ctx, peer_id, COST_UNEXPECTED_MESSAGE).await;
+				modify_reputation(ctx.sender(), peer_id, COST_UNEXPECTED_MESSAGE).await;
 				return
 			}
 
@@ -999,7 +1000,7 @@ impl State {
 								"Duplicate approval",
 							);
 
-							modify_reputation(ctx, peer_id, COST_DUPLICATE_MESSAGE).await;
+							modify_reputation(ctx.sender(), peer_id, COST_DUPLICATE_MESSAGE).await;
 						}
 						return
 					}
@@ -1011,14 +1012,14 @@ impl State {
 						?message_subject,
 						"Approval from a peer is out of view",
 					);
-					modify_reputation(ctx, peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
+					modify_reputation(ctx.sender(), peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
 				},
 			}
 
 			// if the approval is known to be valid, reward the peer
 			if entry.knowledge.contains(&message_subject, message_kind) {
 				gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Known approval");
-				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
+				modify_reputation(ctx.sender(), peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					peer_knowledge.received.insert(message_subject.clone(), message_kind);
 				}
@@ -1049,7 +1050,8 @@ impl State {
 			);
 			match result {
 				ApprovalCheckResult::Accepted => {
-					modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST).await;
+					modify_reputation(ctx.sender(), peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST)
+						.await;
 
 					entry.knowledge.insert(message_subject.clone(), message_kind);
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
@@ -1057,7 +1059,7 @@ impl State {
 					}
 				},
 				ApprovalCheckResult::Bad(error) => {
-					modify_reputation(ctx, peer_id, COST_INVALID_MESSAGE).await;
+					modify_reputation(ctx.sender(), peer_id, COST_INVALID_MESSAGE).await;
 					gum::info!(
 						target: LOG_TARGET,
 						?peer_id,
@@ -1209,8 +1211,7 @@ impl State {
 	}
 
 	async fn unify_with_peer(
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		sender: &mut impl overseer::ApprovalDistributionSenderTrait,
 		metrics: &Metrics,
 		entries: &mut HashMap<Hash, BlockEntry>,
 		topologies: &SessionGridTopologies,
@@ -1326,13 +1327,14 @@ impl State {
 				"Sending assignments to unified peer",
 			);
 
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
-				vec![peer_id.clone()],
-				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Assignments(assignments_to_send),
-				)),
-			))
-			.await;
+			sender
+				.send_message(NetworkBridgeMessage::SendValidationMessage(
+					vec![peer_id.clone()],
+					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
+						protocol_v1::ApprovalDistributionMessage::Assignments(assignments_to_send),
+					)),
+				))
+				.await;
 		}
 
 		if !approvals_to_send.is_empty() {
@@ -1343,20 +1345,20 @@ impl State {
 				"Sending approvals to unified peer",
 			);
 
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
-				vec![peer_id],
-				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Approvals(approvals_to_send),
-				)),
-			))
-			.await;
+			sender
+				.send_message(NetworkBridgeMessage::SendValidationMessage(
+					vec![peer_id],
+					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
+						protocol_v1::ApprovalDistributionMessage::Approvals(approvals_to_send),
+					)),
+				))
+				.await;
 		}
 	}
 
-	async fn enable_aggression(
+	async fn enable_aggression<Context>(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-		          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+		ctx: &mut Context,
 		resend: Resend,
 		metrics: &Metrics,
 	) {
@@ -1457,14 +1459,17 @@ impl State {
 //
 // Note that the required routing of a message can be modified even if the
 // topology is unknown yet.
-async fn adjust_required_routing_and_propagate(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-	          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+#[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]
+async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModifier>(
+	ctx: &mut Context,
 	blocks: &mut HashMap<Hash, BlockEntry>,
 	topologies: &SessionGridTopologies,
-	block_filter: impl Fn(&mut BlockEntry) -> bool,
-	routing_modifier: impl Fn(&mut RequiredRouting, bool, &ValidatorIndex),
-) {
+	block_filter: BlockFilter,
+	routing_modifier: RoutingModifier,
+) where
+	BlockFilter: Fn(&mut BlockEntry) -> bool,
+	RoutingModifier: Fn(&mut RequiredRouting, bool, &ValidatorIndex),
+{
 	let mut peer_assignments = HashMap::new();
 	let mut peer_approvals = HashMap::new();
 
@@ -1566,8 +1571,7 @@ async fn adjust_required_routing_and_propagate(
 
 /// Modify the reputation of a peer based on its behavior.
 async fn modify_reputation(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalDistributionMessage>
-	          + overseer::SubsystemContext<Message = ApprovalDistributionMessage>),
+	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
 	peer_id: PeerId,
 	rep: Rep,
 ) {
@@ -1578,20 +1582,17 @@ async fn modify_reputation(
 		"Reputation change for peer",
 	);
 
-	ctx.send_message(NetworkBridgeMessage::ReportPeer(peer_id, rep)).await;
+	sender.send_message(NetworkBridgeMessage::ReportPeer(peer_id, rep)).await;
 }
 
+#[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]
 impl ApprovalDistribution {
 	/// Create a new instance of the [`ApprovalDistribution`] subsystem.
 	pub fn new(metrics: Metrics) -> Self {
 		Self { metrics }
 	}
 
-	async fn run<Context>(self, ctx: Context)
-	where
-		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
-		Context: overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
-	{
+	async fn run<Context>(self, ctx: Context) {
 		let mut state = State::default();
 
 		// According to the docs of `rand`, this is a ChaCha12 RNG in practice
@@ -1606,10 +1607,7 @@ impl ApprovalDistribution {
 		mut ctx: Context,
 		state: &mut State,
 		rng: &mut (impl CryptoRng + Rng),
-	) where
-		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
-		Context: overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
-	{
+	) {
 		loop {
 			let message = match ctx.recv().await {
 				Ok(message) => message,
@@ -1644,10 +1642,7 @@ impl ApprovalDistribution {
 		msg: ApprovalDistributionMessage,
 		metrics: &Metrics,
 		rng: &mut (impl CryptoRng + Rng),
-	) where
-		Context: SubsystemContext<Message = ApprovalDistributionMessage>,
-		Context: overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
-	{
+	) {
 		match msg {
 			ApprovalDistributionMessage::NetworkBridgeUpdate(event) => {
 				state.handle_network_msg(ctx, metrics, event, rng).await;
@@ -1690,11 +1685,8 @@ impl ApprovalDistribution {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for ApprovalDistribution
-where
-	Context: SubsystemContext<Message = ApprovalDistributionMessage>,
-	Context: overseer::SubsystemContext<Message = ApprovalDistributionMessage>,
-{
+#[overseer::subsystem(ApprovalDistribution, error=SubsystemError, prefix=self::overseer)]
+impl<Context> ApprovalDistribution {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self.run(ctx).map(|_| Ok(())).boxed();
 

@@ -22,7 +22,7 @@ use polkadot_node_core_pvf::PrepareError;
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::reexports::SubsystemContext;
-use polkadot_primitives::v2::{HeadData, UpwardMessage};
+use polkadot_primitives::v2::{HeadData, Id as ParaId, UpwardMessage};
 use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 
@@ -33,7 +33,7 @@ fn correctly_checks_included_assumption() {
 
 	let persisted_validation_data_hash = validation_data.hash();
 	let relay_parent = [2; 32].into();
-	let para_id = 5.into();
+	let para_id = ParaId::from(5_u32);
 
 	let descriptor = make_valid_candidate_descriptor(
 		para_id,
@@ -105,7 +105,7 @@ fn correctly_checks_timed_out_assumption() {
 
 	let persisted_validation_data_hash = validation_data.hash();
 	let relay_parent = [2; 32].into();
-	let para_id = 5.into();
+	let para_id = ParaId::from(5_u32);
 
 	let descriptor = make_valid_candidate_descriptor(
 		para_id,
@@ -175,7 +175,7 @@ fn check_is_bad_request_if_no_validation_data() {
 	let validation_data: PersistedValidationData = Default::default();
 	let persisted_validation_data_hash = validation_data.hash();
 	let relay_parent = [2; 32].into();
-	let para_id = 5.into();
+	let para_id = ParaId::from(5_u32);
 
 	let descriptor = make_valid_candidate_descriptor(
 		para_id,
@@ -229,7 +229,7 @@ fn check_is_bad_request_if_no_validation_code() {
 	let validation_data: PersistedValidationData = Default::default();
 	let persisted_validation_data_hash = validation_data.hash();
 	let relay_parent = [2; 32].into();
-	let para_id = 5.into();
+	let para_id = ParaId::from(5_u32);
 
 	let descriptor = make_valid_candidate_descriptor(
 		para_id,
@@ -294,8 +294,8 @@ fn check_is_bad_request_if_no_validation_code() {
 #[test]
 fn check_does_not_match() {
 	let validation_data: PersistedValidationData = Default::default();
-	let relay_parent = [2; 32].into();
-	let para_id = 5.into();
+	let relay_parent = Hash::repeat_byte(0x02);
+	let para_id = ParaId::from(5_u32);
 
 	let descriptor = make_valid_candidate_descriptor(
 		para_id,
@@ -379,7 +379,7 @@ fn candidate_validation_ok_is_ok() {
 	let validation_code = ValidationCode(vec![2; 16]);
 
 	let descriptor = make_valid_candidate_descriptor(
-		1.into(),
+		ParaId::from(1_u32),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
@@ -446,7 +446,7 @@ fn candidate_validation_bad_return_is_invalid() {
 	let validation_code = ValidationCode(vec![2; 16]);
 
 	let descriptor = make_valid_candidate_descriptor(
-		1.into(),
+		ParaId::from(1_u32),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
@@ -490,7 +490,7 @@ fn candidate_validation_timeout_is_internal_error() {
 	let validation_code = ValidationCode(vec![2; 16]);
 
 	let descriptor = make_valid_candidate_descriptor(
-		1.into(),
+		ParaId::from(1_u32),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
@@ -534,7 +534,7 @@ fn candidate_validation_commitment_hash_mismatch_is_invalid() {
 
 	let candidate_receipt = CandidateReceipt {
 		descriptor: make_valid_candidate_descriptor(
-			1.into(),
+			ParaId::from(1_u32),
 			validation_data.parent_head.hash(),
 			validation_data.hash(),
 			pov.hash(),
@@ -579,7 +579,7 @@ fn candidate_validation_code_mismatch_is_invalid() {
 	let validation_code = ValidationCode(vec![2; 16]);
 
 	let descriptor = make_valid_candidate_descriptor(
-		1.into(),
+		ParaId::from(1_u32),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
@@ -627,7 +627,7 @@ fn compressed_code_works() {
 		.unwrap();
 
 	let descriptor = make_valid_candidate_descriptor(
-		1.into(),
+		ParaId::from(1_u32),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
@@ -683,7 +683,7 @@ fn code_decompression_failure_is_invalid() {
 			.unwrap();
 
 	let descriptor = make_valid_candidate_descriptor(
-		1.into(),
+		ParaId::from(1_u32),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),
@@ -731,7 +731,7 @@ fn pov_decompression_failure_is_invalid() {
 	let validation_code = ValidationCode(vec![2; 16]);
 
 	let descriptor = make_valid_candidate_descriptor(
-		1.into(),
+		ParaId::from(1_u32),
 		dummy_hash(),
 		validation_data.hash(),
 		pov.hash(),

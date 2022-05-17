@@ -34,7 +34,7 @@ use polkadot_node_subsystem::{
 		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		ImportStatementsResult,
 	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SubsystemContext,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 };
 use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
@@ -83,6 +83,7 @@ pub struct Initialized {
 	error: Option<SessionsUnavailable>,
 }
 
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
 impl Initialized {
 	/// Make initialized subsystem, ready to `run`.
 	pub fn new(
@@ -123,8 +124,6 @@ impl Initialized {
 		clock: Box<dyn Clock>,
 	) -> FatalResult<()>
 	where
-		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 		B: Backend,
 	{
 		loop {
@@ -161,8 +160,6 @@ impl Initialized {
 		clock: &dyn Clock,
 	) -> Result<()>
 	where
-		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 		B: Backend,
 	{
 		for (priority, request) in participations.drain(..) {
@@ -253,10 +250,9 @@ impl Initialized {
 		}
 	}
 
-	async fn process_active_leaves_update(
+	async fn process_active_leaves_update<Context>(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>
-		          + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
+		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		update: ActiveLeavesUpdate,
 		now: u64,
@@ -268,7 +264,7 @@ impl Initialized {
 		if let Some(new_leaf) = update.activated {
 			match self
 				.rolling_session_window
-				.cache_session_info_for_head(ctx, new_leaf.hash)
+				.cache_session_info_for_head(ctx.sender(), new_leaf.hash)
 				.await
 			{
 				Err(e) => {
@@ -318,10 +314,9 @@ impl Initialized {
 
 	/// Scrapes on-chain votes (backing votes and concluded disputes) for a active leaf of the
 	/// relay chain.
-	async fn process_on_chain_votes(
+	async fn process_on_chain_votes<Context>(
 		&mut self,
-		ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>
-		          + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
+		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		votes: ScrapedOnChainVotes,
 		now: u64,
@@ -497,9 +492,9 @@ impl Initialized {
 		Ok(())
 	}
 
-	async fn handle_incoming(
+	async fn handle_incoming<Context>(
 		&mut self,
-		ctx: &mut impl SubsystemContext,
+		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		message: DisputeCoordinatorMessage,
 		now: Timestamp,
@@ -634,9 +629,9 @@ impl Initialized {
 		Ok(())
 	}
 
-	async fn handle_import_statements(
+	async fn handle_import_statements<Context>(
 		&mut self,
-		ctx: &mut impl SubsystemContext,
+		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		candidate_hash: CandidateHash,
 		candidate_receipt: MaybeCandidateReceipt,
@@ -923,9 +918,9 @@ impl Initialized {
 		Ok(ImportStatementsResult::ValidImport)
 	}
 
-	async fn issue_local_statement(
+	async fn issue_local_statement<Context>(
 		&mut self,
-		ctx: &mut impl SubsystemContext,
+		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		candidate_hash: CandidateHash,
 		candidate_receipt: CandidateReceipt,
@@ -1054,10 +1049,10 @@ enum MuxedMessage {
 	Participation(participation::WorkerMessage),
 }
 
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
 impl MuxedMessage {
-	async fn receive(
-		ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>
-		          + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
+	async fn receive<Context>(
+		ctx: &mut Context,
 		from_sender: &mut participation::WorkerMessageReceiver,
 	) -> FatalResult<Self> {
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream

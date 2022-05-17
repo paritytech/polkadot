@@ -34,8 +34,8 @@ use polkadot_node_network_protocol::{
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
-		ApprovalDistributionMessage, BitfieldDistributionMessage, GossipSupportMessage,
-		StatementDistributionMessage,
+		AllMessages, ApprovalDistributionMessage, BitfieldDistributionMessage,
+		GossipSupportMessage, StatementDistributionMessage,
 	},
 	ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
 };
@@ -313,8 +313,9 @@ async fn assert_sends_validation_event_to_all(
 	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
 	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeMessage>,
 ) {
-	// Ordering must match the enum variant order
-	// in `AllMessages`.
+	// Ordering must be consistent across:
+	// `fn dispatch_validation_event_to_all_unbounded`
+	// `dispatch_validation_events_to_all`
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::StatementDistribution(
@@ -1188,54 +1189,6 @@ fn send_messages_to_peers() {
 		}
 		virtual_overseer
 	});
-}
-
-#[test]
-fn spread_event_to_subsystems_is_up_to_date() {
-	// Number of subsystems expected to be interested in a network event,
-	// and hence the network event broadcasted to.
-	const EXPECTED_COUNT: usize = 4;
-
-	let mut cnt = 0_usize;
-	for msg in AllMessages::dispatch_iter(NetworkBridgeEvent::PeerDisconnected(PeerId::random())) {
-		match msg {
-			AllMessages::Empty => unreachable!("Nobody cares about the dummy"),
-			AllMessages::CandidateValidation(_) => unreachable!("Not interested in network events"),
-			AllMessages::CandidateBacking(_) => unreachable!("Not interested in network events"),
-			AllMessages::ChainApi(_) => unreachable!("Not interested in network events"),
-			AllMessages::CollatorProtocol(_) => unreachable!("Not interested in network events"),
-			AllMessages::StatementDistribution(_) => {
-				cnt += 1;
-			},
-			AllMessages::AvailabilityDistribution(_) =>
-				unreachable!("Not interested in network events"),
-			AllMessages::AvailabilityRecovery(_) =>
-				unreachable!("Not interested in network events"),
-			AllMessages::BitfieldDistribution(_) => {
-				cnt += 1;
-			},
-			AllMessages::BitfieldSigning(_) => unreachable!("Not interested in network events"),
-			AllMessages::Provisioner(_) => unreachable!("Not interested in network events"),
-			AllMessages::RuntimeApi(_) => unreachable!("Not interested in network events"),
-			AllMessages::AvailabilityStore(_) => unreachable!("Not interested in network events"),
-			AllMessages::NetworkBridge(_) => unreachable!("Not interested in network events"),
-			AllMessages::CollationGeneration(_) => unreachable!("Not interested in network events"),
-			AllMessages::ApprovalVoting(_) => unreachable!("Not interested in network events"),
-			AllMessages::ApprovalDistribution(_) => {
-				cnt += 1;
-			},
-			AllMessages::GossipSupport(_) => {
-				cnt += 1;
-			},
-			AllMessages::DisputeCoordinator(_) => unreachable!("Not interested in network events"),
-			AllMessages::DisputeDistribution(_) => unreachable!("Not interested in network events"),
-			AllMessages::ChainSelection(_) => unreachable!("Not interested in network events"),
-			AllMessages::PvfChecker(_) => unreachable!("Not interested in network events"),
-			// Add variants here as needed, `{ cnt += 1; }` for those that need to be
-			// notified, `unreachable!()` for those that should not.
-		}
-	}
-	assert_eq!(cnt, EXPECTED_COUNT);
 }
 
 #[test]

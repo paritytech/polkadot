@@ -64,7 +64,7 @@ pub trait RpcApi {
 		at: Option<&Hash>,
 	) -> RpcResult<RuntimeDispatchInfo<Balance>>;
 
-	/// Dry run an extrinsic at a given block. Return SCALE encoded [`sp_runtine::ApplyExtrinsicResult`].
+	/// Dry run an extrinsic at a given block. Return SCALE encoded [`sp_runtime::ApplyExtrinsicResult`].
 	#[method(name = "system_dryRun")]
 	async fn dry_run(&self, extrinsic: &Bytes, at: Option<Hash>) -> RpcResult<Bytes>;
 
