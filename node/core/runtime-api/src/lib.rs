@@ -39,7 +39,7 @@ use sp_core::traits::SpawnNamed;
 
 use cache::{RequestResult, RequestResultCache};
 use futures::{channel::oneshot, prelude::*, select, stream::FuturesUnordered};
-use std::{collections::VecDeque, pin::Pin, sync::Arc};
+use std::sync::Arc;
 
 mod cache;
 
@@ -62,15 +62,12 @@ pub struct RuntimeApiSubsystem<Client> {
 	client: Arc<Client>,
 	metrics: Metrics,
 	spawn_handle: Box<dyn SpawnNamed>,
-	/// If there are [`MAX_PARALLEL_REQUESTS`] requests being executed, we buffer them in here until they can be executed.
-	waiting_requests: VecDeque<(
-		Pin<Box<dyn Future<Output = ()> + Send>>,
-		oneshot::Receiver<Option<RequestResult>>,
-	)>,
 	/// All the active runtime API requests that are currently being executed.
 	active_requests: FuturesUnordered<oneshot::Receiver<Option<RequestResult>>>,
 	/// Requests results cache
 	requests_cache: RequestResultCache,
+	/// Active requests cache
+	
 }
 
 impl<Client> RuntimeApiSubsystem<Client> {
@@ -84,7 +81,6 @@ impl<Client> RuntimeApiSubsystem<Client> {
 			client,
 			metrics,
 			spawn_handle: Box::new(spawn_handle),
-			waiting_requests: Default::default(),
 			active_requests: Default::default(),
 			requests_cache: RequestResultCache::default(),
 		}
@@ -294,21 +290,9 @@ where
 		}
 		.boxed();
 
-		if self.active_requests.len() >= MAX_PARALLEL_REQUESTS {
-			self.waiting_requests.push_back((request, receiver));
-
-			if self.waiting_requests.len() > MAX_PARALLEL_REQUESTS * 10 {
-				gum::warn!(
-					target: LOG_TARGET,
-					"{} runtime API requests waiting to be executed.",
-					self.waiting_requests.len(),
-				)
-			}
-		} else {
-			self.spawn_handle
-				.spawn_blocking(API_REQUEST_TASK_NAME, Some("runtime-api"), request);
-			self.active_requests.push(receiver);
-		}
+		self.spawn_handle
+			.spawn_blocking(API_REQUEST_TASK_NAME, Some("runtime-api"), request);
+		self.active_requests.push(receiver);
 	}
 
 	/// Poll the active runtime API requests.
@@ -322,12 +306,11 @@ where
 		if let Some(Ok(Some(result))) = self.active_requests.next().await {
 			self.store_cache(result);
 		}
+	}
 
-		if let Some((req, recv)) = self.waiting_requests.pop_front() {
-			self.spawn_handle
-				.spawn_blocking(API_REQUEST_TASK_NAME, Some("runtime-api"), req);
-			self.active_requests.push(recv);
-		}
+	/// Returns true if our active_requeusts queue is full.
+	fn is_busy(&self) -> bool {
+		self.active_requests.len() >= MAX_PARALLEL_REQUESTS
 	}
 }
 
@@ -341,6 +324,10 @@ where
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 {
 	loop {
+		if subsystem.is_busy() {
+			let _ = subsystem.poll_requests().await;
+		}
+
 		select! {
 			req = ctx.recv().fuse() => match req? {
 				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),

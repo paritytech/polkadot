@@ -17,7 +17,6 @@
 use super::*;
 
 use ::test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code};
-use futures::channel::oneshot;
 use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_primitives::v2::{
@@ -847,8 +846,7 @@ fn multiple_requests_in_parallel_are_working() {
 		let lock = mutex.lock().unwrap();
 
 		let mut receivers = Vec::new();
-
-		for _ in 0..MAX_PARALLEL_REQUESTS * 10 {
+		for _ in 0..MAX_PARALLEL_REQUESTS {
 			let (tx, rx) = oneshot::channel();
 
 			ctx_handle
@@ -856,13 +854,24 @@ fn multiple_requests_in_parallel_are_working() {
 					msg: RuntimeApiMessage::Request(relay_parent, Request::AvailabilityCores(tx)),
 				})
 				.await;
+			receivers.push(rx);
+		}
 
+		// The backpressure from reaching `MAX_PARALLEL_REQUESTS` will make the test block, we need to drop the lock.
+		drop(lock);
+
+		for _ in 0..MAX_PARALLEL_REQUESTS * 100 {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle
+				.send(FromOverseer::Communication {
+					msg: RuntimeApiMessage::Request(relay_parent, Request::AvailabilityCores(tx)),
+				})
+				.await;
 			receivers.push(rx);
 		}
 
 		let join = future::join_all(receivers);
-
-		drop(lock);
 
 		join.await
 			.into_iter()
