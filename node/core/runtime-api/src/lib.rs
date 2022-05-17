@@ -51,8 +51,9 @@ mod tests;
 
 const LOG_TARGET: &str = "parachain::runtime-api";
 
-/// The number of maximum runtime API requests can be executed in parallel. Further requests will be buffered.
-const MAX_PARALLEL_REQUESTS: usize = 1;
+/// The number of maximum runtime API requests can be executed in parallel.
+/// Further requests will backpressure the overseer channels.
+const MAX_PARALLEL_REQUESTS: usize = 4;
 
 /// The name of the blocking task that executes a runtime API request.
 const API_REQUEST_TASK_NAME: &str = "polkadot-runtime-api-request";
@@ -277,6 +278,7 @@ where
 		let metrics = self.metrics.clone();
 		let (sender, receiver) = oneshot::channel();
 
+		// TODO: Check if an existing request is already running.
 		let request = match self.query_cache(relay_parent.clone(), request) {
 			Some(request) => request,
 			None => return,
