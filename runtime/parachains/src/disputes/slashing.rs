@@ -14,14 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Dispute slashing types for the substrate offences pallet.
+//! Dispute slashing pallet.
 //!
 //! The implementation relies on the `offences` pallet and
 //! looks like a hybrid of `im-online` and `grandpa` equivocation handlers.
 //! Meaning, we submit an `offence` for the concluded disputes about
 //! the current session candidate directly from the runtime.
-//! If, however, the dispute is about past session, we record pending
-//! slashes on chain, without FullIdentification of the offenders.
+//! If, however, the dispute is about a past session, we record pending
+//! slashes on chain, without `FullIdentification` of the offenders.
 //! Later on, a block producer can submit an unsigned transaction with
 //! `KeyOwnershipProof` of an offender and submit it to the runtime
 //! to produce an offence.
@@ -673,7 +673,7 @@ impl<T: Config> Pallet<T> {
 			sp_io::KillStorageResult::AllRemoved(x) if x > 0 => {
 				log::warn!(
 					target: LOG_TARGET,
-					"No slashing for {} validators that lost a ForInvalid dispute",
+					"No slashing for {} validators that lost a `ForInvalid` dispute",
 					x
 				);
 			},
@@ -683,7 +683,7 @@ impl<T: Config> Pallet<T> {
 			sp_io::KillStorageResult::AllRemoved(x) if x > 0 => {
 				log::warn!(
 					target: LOG_TARGET,
-					"No slashing for {} validators that lost a AgainstValid dispute",
+					"No slashing for {} validators that lost an `AgainstValid` dispute",
 					x
 				);
 			},
