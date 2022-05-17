@@ -105,7 +105,7 @@ where
 	}
 
 	fn slash_fraction(_offenders: u32, _validator_set_count: u32) -> Perbill {
-		Perbill::from_percent(100) // TODO
+		Perbill::from_percent(100)
 	}
 }
 
@@ -155,7 +155,7 @@ where
 	}
 
 	fn slash_fraction(_offenders: u32, _validator_set_count: u32) -> Perbill {
-		Perbill::from_percent(1) // TODO
+		Perbill::from_percent(1)
 	}
 }
 
@@ -170,18 +170,9 @@ impl<C, R> Default for SlashValidatorsForDisputes<C, R> {
 	}
 }
 
-impl<T, R> SlashValidatorsForDisputes<T, R>
+impl<T, R> SlashValidatorsForDisputes<Pallet<T>, R>
 where
 	T: Config + crate::session_info::Config,
-	R: ReportOffence<
-			AccountId<T>,
-			IdentificationTuple<T>,
-			ForInvalidOffence<IdentificationTuple<T>>,
-		> + ReportOffence<
-			AccountId<T>,
-			IdentificationTuple<T>,
-			AgainstValidOffence<IdentificationTuple<T>>,
-		>,
 {
 	/// If in the current session, returns the identified validators
 	/// along with the validator set count for that session. `None` otherwise.
@@ -212,7 +203,7 @@ where
 	}
 }
 
-impl<T, R> super::PunishValidators for SlashValidatorsForDisputes<T, R>
+impl<T, R> super::SlashingHandler<T::BlockNumber> for SlashValidatorsForDisputes<Pallet<T>, R>
 where
 	T: Config + crate::session_info::Config,
 	// TODO: use HandleReports instead?
@@ -298,6 +289,18 @@ where
 
 		<PendingAgainstValidLosers<T>>::insert(session_index, candidate_hash, losers);
 		<AgainstValidWinners<T>>::insert(session_index, candidate_hash, winners);
+	}
+
+	fn initializer_initialize(now: T::BlockNumber) -> Weight {
+		Pallet::<T>::initializer_initialize(now)
+	}
+
+	fn initializer_finalize() {
+		Pallet::<T>::initializer_finalize()
+	}
+
+	fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
+		Pallet::<T>::initializer_on_new_session(notification)
 	}
 }
 
@@ -690,17 +693,15 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the disputes slashing module.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+	fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
 	}
 
 	/// Called by the initializer to finalize the disputes slashing pallet.
-	pub(crate) fn initializer_finalize() {}
+	fn initializer_finalize() {}
 
 	/// Called by the initializer to note a new session in the disputes slashing pallet.
-	pub(crate) fn initializer_on_new_session(
-		notification: &SessionChangeNotification<T::BlockNumber>,
-	) {
+	fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
 		let config = <super::configuration::Pallet<T>>::config();
 		if notification.session_index <= config.dispute_period + 1 {
 			return

@@ -245,7 +245,7 @@ impl crate::hrmp::Config for Test {
 
 impl crate::disputes::Config for Test {
 	type Event = Event;
-	type PunishValidators = Self;
+	type SlashingHandler = Self;
 	type WeightInfo = crate::disputes::TestWeightInfo;
 }
 
@@ -266,7 +266,7 @@ thread_local! {
 	pub static PUNISH_VALIDATORS_AGAINST: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 }
 
-impl crate::disputes::PunishValidators for Test {
+impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 	fn punish_for_invalid(
 		session: SessionIndex,
 		_: CandidateHash,
@@ -285,6 +285,14 @@ impl crate::disputes::PunishValidators for Test {
 		PUNISH_VALIDATORS_AGAINST
 			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
 	}
+
+	fn initializer_initialize(_now: BlockNumber) -> Weight {
+		0
+	}
+
+	fn initializer_finalize() {}
+
+	fn initializer_on_new_session(_: &initializer::SessionChangeNotification<BlockNumber>) {}
 }
 
 impl crate::scheduler::Config for Test {}

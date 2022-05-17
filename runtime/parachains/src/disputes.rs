@@ -62,7 +62,7 @@ pub enum DisputeResult {
 }
 
 /// Punishment hooks for disputes.
-pub trait PunishValidators {
+pub trait SlashingHandler<BlockNumber> {
 	/// Punish a series of validators who were for an invalid parablock. This is expected to be a major
 	/// punishment.
 	fn punish_for_invalid(
@@ -80,9 +80,18 @@ pub trait PunishValidators {
 		losers: impl IntoIterator<Item = ValidatorIndex>,
 		winners: impl IntoIterator<Item = ValidatorIndex>,
 	);
+
+	/// Called by the initializer to initialize the slashing pallet.
+	fn initializer_initialize(now: BlockNumber) -> Weight;
+
+	/// Called by the initializer to finalize the slashing pallet.
+	fn initializer_finalize();
+
+	/// Called by the initializer to note that a new session has started.
+	fn initializer_on_new_session(notification: &SessionChangeNotification<BlockNumber>);
 }
 
-impl PunishValidators for () {
+impl<BlockNumber> SlashingHandler<BlockNumber> for () {
 	fn punish_for_invalid(
 		_: SessionIndex,
 		_: CandidateHash,
@@ -98,6 +107,14 @@ impl PunishValidators for () {
 		_: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 	}
+
+	fn initializer_initialize(_now: BlockNumber) -> Weight {
+		0
+	}
+
+	fn initializer_finalize() {}
+
+	fn initializer_on_new_session(_notification: &SessionChangeNotification<BlockNumber>) {}
 }
 
 /// Binary discriminator to determine if the expensive signature
@@ -408,7 +425,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config + configuration::Config + session_info::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
-		type PunishValidators: PunishValidators;
+		type SlashingHandler: SlashingHandler<Self::BlockNumber>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -1209,7 +1226,7 @@ impl<T: Config> Pallet<T> {
 		// Slash participants on a losing side.
 		{
 			// a valid candidate, according to 2/3. Punish those on the 'against' side.
-			T::PunishValidators::punish_against_valid(
+			T::SlashingHandler::punish_against_valid(
 				session,
 				candidate_hash,
 				summary.slash_against,
@@ -1217,7 +1234,7 @@ impl<T: Config> Pallet<T> {
 			);
 
 			// an invalid candidate, according to 2/3. Punish those on the 'for' side.
-			T::PunishValidators::punish_for_invalid(
+			T::SlashingHandler::punish_for_invalid(
 				session,
 				candidate_hash,
 				summary.slash_for,
