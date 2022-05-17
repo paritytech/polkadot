@@ -21,8 +21,8 @@
 //! which doesn't currently mention availability bitfields. As such, we don't reward them
 //! for the time being, although we will build schemes to do so in the future.
 
-use crate::shared;
-use pallet_staking::SessionInterface;
+use crate::{session_info, shared};
+use frame_support::traits::ValidatorSet;
 use primitives::v2::ValidatorIndex;
 
 /// The amount of era points given by backing a candidate that is included.
@@ -31,34 +31,30 @@ pub const BACKING_POINTS: u32 = 20;
 /// Rewards validators for participating in parachains with era points in pallet-staking.
 pub struct RewardValidatorsWithEraPoints<C>(sp_std::marker::PhantomData<C>);
 
-fn validators_to_reward<C, T, I>(
-	validators: &'_ [T],
-	indirect_indices: I,
-) -> impl IntoIterator<Item = &'_ T>
-where
-	C: shared::Config,
-	I: IntoIterator<Item = ValidatorIndex>,
-{
-	let validator_indirection = <shared::Pallet<C>>::active_validator_indices();
-
-	indirect_indices
-		.into_iter()
-		.filter_map(move |i| validator_indirection.get(i.0 as usize).map(|v| v.clone()))
-		.filter_map(move |i| validators.get(i.0 as usize))
-}
-
 impl<C> crate::inclusion::RewardValidators for RewardValidatorsWithEraPoints<C>
 where
-	C: pallet_staking::Config + shared::Config,
+	C: pallet_staking::Config + shared::Config + session_info::Config,
+	C::ValidatorSet: ValidatorSet<C::AccountId, ValidatorId = C::AccountId>,
 {
-	fn reward_backing(indirect_indices: impl IntoIterator<Item = ValidatorIndex>) {
+	fn reward_backing(indices: impl IntoIterator<Item = ValidatorIndex>) {
 		// Fetch the validators from the _session_ because sessions are offset from eras
 		// and we are rewarding for behavior in current session.
-		let validators = C::SessionInterface::validators();
+		let session_index = shared::Pallet::<C>::session_index();
+		let validators = session_info::Pallet::<C>::account_keys(&session_index);
+		let validators = match validators {
+			Some(validators) => validators,
+			None => {
+				// Account keys are missing for the current session.
+				// This might happen only for the first session after
+				// `AccountKeys` were introduced via runtime upgrade.
+				return
+			},
+		};
 
-		let rewards = validators_to_reward::<C, _, _>(&validators, indirect_indices)
+		let rewards = indices
 			.into_iter()
-			.map(|v| (v.clone(), BACKING_POINTS));
+			.filter_map(|i| validators.get(i.0 as usize).cloned())
+			.map(|v| (v, BACKING_POINTS));
 
 		<pallet_staking::Pallet<C>>::reward_by_ids(rewards);
 	}
@@ -134,3 +130,4 @@ mod tests {
 		})
 	}
 }
+
