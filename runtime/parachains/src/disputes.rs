@@ -591,9 +591,6 @@ struct ImportSummary<BlockNumber> {
 	slash_against: Vec<ValidatorIndex>,
 	/// Validators to slash for being (wrongly) on the FOR side.
 	slash_for: Vec<ValidatorIndex>,
-	// New participants in the dispute.
-	#[allow(unused)] // FIXME
-	new_participants: bitvec::vec::BitVec<u8, BitOrderLsb0>,
 	// Difference in state flags from previous.
 	new_flags: DisputeStateFlags,
 }
@@ -765,7 +762,6 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 			spam_slot_changes,
 			slash_against,
 			slash_for,
-			new_participants: self.new_participants,
 			new_flags: post_flags - pre_flags,
 		}
 	}
@@ -1243,12 +1239,6 @@ impl<T: Config> Pallet<T> {
 				));
 			}
 		}
-
-		// Reward statements.
-		// T::RewardValidators::reward_dispute_statement(
-		// 	session,
-		// 	summary.new_participants.iter_ones().map(|i| ValidatorIndex(i as _)),
-		// );
 
 		// Slash participants on a losing side.
 		{
