@@ -832,9 +832,9 @@ fn para_incoming_at_session() {
 	new_test_ext(genesis_config).execute_with(|| {
 		run_to_block(1, Some(vec![1]));
 
-		let b = ParaId::from(525);
-		let a = ParaId::from(999);
-		let c = ParaId::from(333);
+		let b = ParaId::from(525_u32);
+		let a = ParaId::from(999_u32);
+		let c = ParaId::from(333_u32);
 
 		assert_ok!(Paras::schedule_para_initialize(
 			b,
@@ -868,7 +868,7 @@ fn para_incoming_at_session() {
 				accept: true,
 				subject: code_a.hash(),
 				session_index: 1,
-				validator_index: (i_u32).into(),
+				validator_index: (i as u32).into(),
 			})
 			.for_each(sign_and_include_pvf_check_statement);
 
@@ -877,7 +877,7 @@ fn para_incoming_at_session() {
 				accept: true,
 				subject: code_b.hash(),
 				session_index: 1,
-				validator_index: (i_u32).into(),
+				validator_index: (i as u32).into(),
 			})
 			.for_each(sign_and_include_pvf_check_statement);
 
@@ -886,7 +886,7 @@ fn para_incoming_at_session() {
 				accept: true,
 				subject: code_c.hash(),
 				session_index: 1,
-				validator_index: (i_u32).into(),
+				validator_index: (i as u32).into(),
 			})
 			.for_each(sign_and_include_pvf_check_statement);
 
@@ -1015,8 +1015,8 @@ fn code_ref_is_cleaned_correctly() {
 fn pvf_check_coalescing_onboarding_and_upgrade() {
 	let validation_upgrade_delay = 5;
 
-	let a = ParaId::from(111);
-	let b = ParaId::from(222);
+	let a = ParaId::from(111_u32);
+	let b = ParaId::from(222_u32);
 	let existing_code: ValidationCode = vec![1, 2, 3].into();
 	let validation_code: ValidationCode = vec![3, 2, 1].into();
 
@@ -1077,7 +1077,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 				accept: true,
 				subject: validation_code.hash(),
 				session_index: EXPECTED_SESSION,
-				validator_index: (i_u32).into(),
+				validator_index: (i as u32).into(),
 			})
 			.for_each(sign_and_include_pvf_check_statement);
 
@@ -1103,7 +1103,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 #[test]
 fn pvf_check_onboarding_reject_on_expiry() {
 	let pvf_voting_ttl = 2;
-	let a = ParaId::from(111);
+	let a = ParaId::from(111_u32);
 	let validation_code: ValidationCode = vec![3, 2, 1].into();
 
 	let genesis_config = MockGenesisConfig {
@@ -1156,7 +1156,7 @@ fn pvf_check_onboarding_reject_on_expiry() {
 
 #[test]
 fn pvf_check_upgrade_reject() {
-	let a = ParaId::from(111);
+	let a = ParaId::from(111_u32);
 	let old_code: ValidationCode = vec![1, 2, 3].into();
 	let new_code: ValidationCode = vec![3, 2, 1].into();
 
@@ -1197,7 +1197,7 @@ fn pvf_check_upgrade_reject() {
 				accept: false,
 				subject: new_code.hash(),
 				session_index: EXPECTED_SESSION,
-				validator_index: (i_u32).into(),
+				validator_index: (i as u32).into(),
 			})
 			.for_each(sign_and_include_pvf_check_statement);
 
@@ -1378,7 +1378,7 @@ fn pvf_check_submit_vote() {
 
 #[test]
 fn include_pvf_check_statement_refunds_weight() {
-	let a = ParaId::from(111);
+	let a = ParaId::from(111_u32);
 	let old_code: ValidationCode = vec![1, 2, 3].into();
 	let new_code: ValidationCode = vec![3, 2, 1].into();
 
@@ -1418,7 +1418,7 @@ fn include_pvf_check_statement_refunds_weight() {
 					accept: true,
 					subject: new_code.hash(),
 					session_index: EXPECTED_SESSION,
-					validator_index: (i_u32).into(),
+					validator_index: (i as u32).into(),
 				};
 				let sig = VALIDATORS[i].sign(&stmt.signing_payload());
 				(stmt, sig)
