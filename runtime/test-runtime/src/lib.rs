@@ -26,7 +26,7 @@ use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use polkadot_runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
-	disputes::slashing as parachains_slashing, dmp as parachains_dmp, hrmp as parachains_hrmp,
+	dmp as parachains_dmp, hrmp as parachains_hrmp,
 	inclusion as parachains_inclusion, initializer as parachains_initializer,
 	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, runtime_api_impl::v2 as runtime_impl,
@@ -489,18 +489,6 @@ impl parachains_disputes::Config for Runtime {
 	type WeightInfo = parachains_disputes::TestWeightInfo;
 }
 
-impl parachains_slashing::Config for Runtime {
-	type KeyOwnerProofSystem = ();
-	type KeyOwnerProof =
-		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, ValidatorId)>>::Proof;
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		ValidatorId,
-	)>>::IdentificationTuple;
-	type HandleReports = (); // TODO
-	type WeightInfo = parachains_slashing::TestWeightInfo;
-}
-
 impl parachains_paras_inherent::Config for Runtime {
 	type WeightInfo = parachains_paras_inherent::TestWeightInfo;
 }
@@ -714,7 +702,6 @@ construct_runtime! {
 		Dmp: parachains_dmp::{Pallet, Call, Storage},
 		Xcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
 		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
-		ParasSlashing: parachains_slashing::{Pallet, Storage, Call, ValidateUnsigned},
 
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
 

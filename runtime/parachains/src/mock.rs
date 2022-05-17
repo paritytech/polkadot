@@ -17,10 +17,8 @@
 //! Mocks for all the traits.
 
 use crate::{
-	configuration, disputes,
-	disputes::slashing,
-	dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent, scheduler, session_info,
-	shared,
+	configuration, disputes, dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent,
+	scheduler, session_info, shared,
 	ump::{self, MessageId, UmpSink},
 	ParaId,
 };
@@ -34,7 +32,7 @@ use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
 use primitives::v2::{
 	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Header, Moment, SessionIndex,
-	UpwardMessage, ValidatorId, ValidatorIndex,
+	UpwardMessage, ValidatorIndex,
 };
 use sp_core::H256;
 use sp_io::TestExternalities;
@@ -70,7 +68,6 @@ frame_support::construct_runtime!(
 		SessionInfo: session_info,
 		Disputes: disputes,
 		Babe: pallet_babe,
-		Slashing: slashing,
 	}
 );
 
@@ -247,18 +244,6 @@ impl crate::disputes::Config for Test {
 	type Event = Event;
 	type SlashingHandler = Self;
 	type WeightInfo = crate::disputes::TestWeightInfo;
-}
-
-impl crate::disputes::slashing::Config for Test {
-	type KeyOwnerProofSystem = ();
-	type KeyOwnerProof =
-		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, ValidatorId)>>::Proof;
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		ValidatorId,
-	)>>::IdentificationTuple;
-	type HandleReports = ();
-	type WeightInfo = crate::disputes::slashing::TestWeightInfo;
 }
 
 thread_local! {
