@@ -299,14 +299,6 @@ where
 		<PendingAgainstValidLosers<T>>::insert(session_index, candidate_hash, losers);
 		<AgainstValidWinners<T>>::insert(session_index, candidate_hash, winners);
 	}
-
-	fn punish_inconclusive(
-		_session_index: SessionIndex,
-		_candidate_hash: CandidateHash,
-		_validators: impl IntoIterator<Item = ValidatorIndex>,
-	) {
-		// TODO
-	}
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Encode, Decode, RuntimeDebug, TypeInfo)]

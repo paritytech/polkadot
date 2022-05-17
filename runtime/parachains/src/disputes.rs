@@ -80,14 +80,6 @@ pub trait PunishValidators {
 		losers: impl IntoIterator<Item = ValidatorIndex>,
 		winners: impl IntoIterator<Item = ValidatorIndex>,
 	);
-
-	/// Punish a series of validators who were part of a dispute which never concluded. This is expected
-	/// to be a minor punishment.
-	fn punish_inconclusive(
-		session: SessionIndex,
-		candidate_hash: CandidateHash,
-		losers: impl IntoIterator<Item = ValidatorIndex>,
-	);
 }
 
 impl PunishValidators for () {
@@ -103,13 +95,6 @@ impl PunishValidators for () {
 		_: SessionIndex,
 		_: CandidateHash,
 		_: impl IntoIterator<Item = ValidatorIndex>,
-		_: impl IntoIterator<Item = ValidatorIndex>,
-	) {
-	}
-
-	fn punish_inconclusive(
-		_: SessionIndex,
-		_: CandidateHash,
 		_: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 	}
@@ -422,17 +407,6 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + configuration::Config + session_info::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-
-		/// A type that gives us the ability to submit dispute offence reports.
-		// type ReportDisputeOffences: ReportOffence<
-		// 		Self::AccountId,
-		// 		IdentificationTuple<Self>,
-		// 		slashing::ForInvalidOffence<IdentificationTuple<Self>>,
-		// 	> + ReportOffence<
-		// 		Self::AccountId,
-		// 		IdentificationTuple<Self>,
-		// 		slashing::AgainstValidOffence<IdentificationTuple<Self>>,
-		// 	>;
 
 		type PunishValidators: PunishValidators;
 
@@ -850,15 +824,7 @@ impl<T: Config> Pallet<T> {
 					// it would be unexpected for any change here to occur when the dispute has not concluded
 					// in time, as a dispute guaranteed to have at least one honest participant should
 					// conclude quickly.
-					let participating = decrement_spam(spam_slots, &dispute);
-
-					// Slight punishment as these validators have failed to make data available to
-					// others in a timely manner.
-					T::PunishValidators::punish_inconclusive(
-						session_index,
-						candidate_hash,
-						participating.iter_ones().map(|i| ValidatorIndex(i as _)),
-					);
+					let _participating = decrement_spam(spam_slots, &dispute);
 				});
 
 				weight += T::DbWeight::get().reads_writes(2, 2);

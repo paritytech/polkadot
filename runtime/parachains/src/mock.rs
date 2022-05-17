@@ -264,7 +264,6 @@ impl crate::disputes::slashing::Config for Test {
 thread_local! {
 	pub static PUNISH_VALIDATORS_FOR: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_AGAINST: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
-	pub static PUNISH_VALIDATORS_INCONCLUSIVE: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 }
 
 impl crate::disputes::PunishValidators for Test {
@@ -285,15 +284,6 @@ impl crate::disputes::PunishValidators for Test {
 	) {
 		PUNISH_VALIDATORS_AGAINST
 			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
-	}
-
-	fn punish_inconclusive(
-		session: SessionIndex,
-		_: CandidateHash,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
-	) {
-		PUNISH_VALIDATORS_INCONCLUSIVE
-			.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
 	}
 }
 
