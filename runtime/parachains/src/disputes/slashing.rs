@@ -159,18 +159,42 @@ where
 	}
 }
 
-/// This type implements `PunishValidators`.
-pub struct SlashValidatorsForDisputes<C, R> {
-	_phantom: sp_std::marker::PhantomData<(C, R)>,
+impl<KeyOwnerIdentification> ForInvalidOffence<KeyOwnerIdentification> {
+	fn new(
+		session_index: SessionIndex,
+		candidate_hash: CandidateHash,
+		validator_set_count: u32,
+		offender: KeyOwnerIdentification,
+	) -> Self {
+		let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
+		Self { time_slot, validator_set_count, offenders: vec![offender] }
+	}
 }
 
-impl<C, R> Default for SlashValidatorsForDisputes<C, R> {
+impl<KeyOwnerIdentification> AgainstValidOffence<KeyOwnerIdentification> {
+	fn new(
+		session_index: SessionIndex,
+		candidate_hash: CandidateHash,
+		validator_set_count: u32,
+		offender: KeyOwnerIdentification,
+	) -> Self {
+		let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
+		Self { time_slot, validator_set_count, offenders: vec![offender] }
+	}
+}
+
+/// This type implements `PunishValidators`.
+pub struct SlashValidatorsForDisputes<C> {
+	_phantom: sp_std::marker::PhantomData<C>,
+}
+
+impl<C> Default for SlashValidatorsForDisputes<C> {
 	fn default() -> Self {
 		Self { _phantom: Default::default() }
 	}
 }
 
-impl<T, R> SlashValidatorsForDisputes<Pallet<T>, R>
+impl<T> SlashValidatorsForDisputes<Pallet<T>>
 where
 	T: Config + crate::session_info::Config,
 {
@@ -203,19 +227,9 @@ where
 	}
 }
 
-impl<T, R> super::SlashingHandler<T::BlockNumber> for SlashValidatorsForDisputes<Pallet<T>, R>
+impl<T> super::SlashingHandler<T::BlockNumber> for SlashValidatorsForDisputes<Pallet<T>>
 where
-	T: Config + crate::session_info::Config,
-	// TODO: use HandleReports instead?
-	R: ReportOffence<
-			AccountId<T>,
-			IdentificationTuple<T>,
-			ForInvalidOffence<IdentificationTuple<T>>,
-		> + ReportOffence<
-			AccountId<T>,
-			IdentificationTuple<T>,
-			AgainstValidOffence<IdentificationTuple<T>>,
-		>,
+	T: Config<KeyOwnerIdentification = IdentificationTuple<T>> + crate::session_info::Config,
 {
 	fn punish_for_invalid(
 		session_index: SessionIndex,
@@ -231,10 +245,7 @@ where
 		let account_keys = crate::session_info::Pallet::<T>::account_keys(session_index);
 		let account_ids = match account_keys {
 			Some(account_keys) => account_keys,
-			None => {
-				// TODO: warn
-				return
-			},
+			None => return, // can not really happen
 		};
 		let winners: Winners<T> = winners
 			.into_iter()
@@ -245,8 +256,9 @@ where
 		if let Some((offenders, validator_set_count)) = maybe {
 			let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
 			let offence = ForInvalidOffence { validator_set_count, time_slot, offenders };
-			// TODO: log error?
-			let _ = R::report_offence(winners, offence);
+			// This is the first time we report an offence for this dispute,
+			// so it is not a duplicate
+			let _ = T::HandleReports::report_for_invalid_offence(winners, offence);
 			return
 		}
 
@@ -268,10 +280,7 @@ where
 		let account_keys = crate::session_info::Pallet::<T>::account_keys(session_index);
 		let account_ids = match account_keys {
 			Some(account_keys) => account_keys,
-			None => {
-				// TODO: warn
-				return
-			},
+			None => return, // can not really happen
 		};
 		let winners: Winners<T> = winners
 			.into_iter()
@@ -282,8 +291,9 @@ where
 		if let Some((offenders, validator_set_count)) = maybe {
 			let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
 			let offence = AgainstValidOffence { validator_set_count, time_slot, offenders };
-			// TODO: log error?
-			let _ = R::report_offence(winners, offence);
+			// This is the first time we report an offence for this dispute,
+			// so it is not a duplicate
+			let _ = T::HandleReports::report_against_valid_offence(winners, offence);
 			return
 		}
 
@@ -330,96 +340,34 @@ pub struct DisputeProof {
 pub type Losers = BTreeSet<ValidatorIndex>;
 pub type Winners<T> = Vec<AccountId<T>>;
 
-pub trait SlashingOffence<KeyOwnerIdentification>: Offence<KeyOwnerIdentification> {
-	/// Create a new dispute offence using the given details.
-	fn new(
-		session_index: SessionIndex,
-		candidate_hash: CandidateHash,
-		validator_set_count: u32,
-		offender: KeyOwnerIdentification,
-	) -> Self;
-
-	/// Create a new dispute offence time slot.
-	fn new_time_slot(session_index: SessionIndex, candidate_hash: CandidateHash) -> Self::TimeSlot;
-}
-
-impl<KeyOwnerIdentification> SlashingOffence<KeyOwnerIdentification>
-	for ForInvalidOffence<KeyOwnerIdentification>
-where
-	KeyOwnerIdentification: Clone,
-{
-	fn new(
-		session_index: SessionIndex,
-		candidate_hash: CandidateHash,
-		validator_set_count: u32,
-		offender: KeyOwnerIdentification,
-	) -> Self {
-		let time_slot = Self::new_time_slot(session_index, candidate_hash);
-		Self { time_slot, validator_set_count, offenders: vec![offender] }
-	}
-
-	fn new_time_slot(session_index: SessionIndex, candidate_hash: CandidateHash) -> Self::TimeSlot {
-		DisputesTimeSlot { session_index, candidate_hash }
-	}
-}
-
-impl<KeyOwnerIdentification> SlashingOffence<KeyOwnerIdentification>
-	for AgainstValidOffence<KeyOwnerIdentification>
-where
-	KeyOwnerIdentification: Clone,
-{
-	fn new(
-		session_index: SessionIndex,
-		candidate_hash: CandidateHash,
-		validator_set_count: u32,
-		offender: KeyOwnerIdentification,
-	) -> Self {
-		let time_slot = Self::new_time_slot(session_index, candidate_hash);
-		Self { time_slot, validator_set_count, offenders: vec![offender] }
-	}
-
-	fn new_time_slot(session_index: SessionIndex, candidate_hash: CandidateHash) -> Self::TimeSlot {
-		DisputesTimeSlot { session_index, candidate_hash }
-	}
-}
-
-// TODO: does it need to be that generic?
+// TODO: docs
 pub trait HandleReports<T: Config> {
-	/// The offence type used for reporting offences on valid reports for disputes
-	/// lost about a valid candidate.
-	type OffenceForInvalid: SlashingOffence<T::KeyOwnerIdentification>;
-
-	/// The offence type used for reporting offences on valid reports for disputes
-	/// lost about an invalid candidate.
-	type OffenceAgainstValid: SlashingOffence<T::KeyOwnerIdentification>;
-
 	/// The longevity, in blocks, that the offence report is valid for. When using the staking
 	/// pallet this should be equal to the bonding duration (in blocks, not eras).
 	type ReportLongevity: Get<u64>;
 
-	/// Report a for valid offence.
-	// TODO: generic over reporter type?
+	/// Report a `for valid` offence.
 	fn report_for_invalid_offence(
 		reporters: Vec<AccountId<T>>,
-		offence: Self::OffenceForInvalid,
+		offence: ForInvalidOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError>;
 
 	/// Report an against invalid offence.
 	fn report_against_valid_offence(
 		reporters: Vec<AccountId<T>>,
-		offence: Self::OffenceAgainstValid,
+		offence: AgainstValidOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError>;
 
 	/// Returns true if the offenders at the given time slot has already been reported.
 	fn is_known_for_invalid_offence(
 		offenders: &[T::KeyOwnerIdentification],
-		time_slot: &<Self::OffenceForInvalid as Offence<T::KeyOwnerIdentification>>::TimeSlot,
+		time_slot: &DisputesTimeSlot,
 	) -> bool;
 
 	/// Returns true if the offenders at the given time slot has already been reported.
 	fn is_known_against_valid_offence(
 		offenders: &[T::KeyOwnerIdentification],
-		time_slot: &<Self::OffenceAgainstValid as Offence<T::KeyOwnerIdentification>>::TimeSlot,
+		time_slot: &DisputesTimeSlot,
 	) -> bool;
 
 	/// Create and dispatch a slashing report extrinsic.
@@ -431,34 +379,32 @@ pub trait HandleReports<T: Config> {
 }
 
 impl<T: Config> HandleReports<T> for () {
-	type OffenceForInvalid = ForInvalidOffence<T::KeyOwnerIdentification>;
-	type OffenceAgainstValid = AgainstValidOffence<T::KeyOwnerIdentification>;
 	type ReportLongevity = ();
 
 	fn report_for_invalid_offence(
 		_reporters: Vec<AccountId<T>>,
-		_offence: Self::OffenceForInvalid,
+		_offence: ForInvalidOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError> {
 		Ok(())
 	}
 
 	fn report_against_valid_offence(
 		_reporters: Vec<AccountId<T>>,
-		_offence: Self::OffenceAgainstValid,
+		_offence: AgainstValidOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError> {
 		Ok(())
 	}
 
 	fn is_known_for_invalid_offence(
 		_offenders: &[T::KeyOwnerIdentification],
-		_time_slot: &<Self::OffenceForInvalid as Offence<T::KeyOwnerIdentification>>::TimeSlot,
+		_time_slot: &DisputesTimeSlot,
 	) -> bool {
 		true
 	}
 
 	fn is_known_against_valid_offence(
 		_offenders: &[T::KeyOwnerIdentification],
-		_time_slot: &<Self::OffenceAgainstValid as Offence<T::KeyOwnerIdentification>>::TimeSlot,
+		_time_slot: &DisputesTimeSlot,
 	) -> bool {
 		true
 	}
@@ -491,11 +437,9 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + crate::disputes::Config {
-		// type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-
 		/// The proof of key ownership, used for validating slashing reports.
 		/// The proof must include the session index and validator count of the
-		/// session at which the equivocation occurred.
+		/// session at which the offence occurred.
 		type KeyOwnerProof: Parameter + GetSessionNumber + GetValidatorCount;
 
 		/// The identification of a key owner, used when reporting slashes.
@@ -634,7 +578,7 @@ pub mod pallet {
 					let winners = <ForInvalidWinners<T>>::get(&session_index, &candidate_hash)
 						.unwrap_or_default();
 
-					let offence = <T::HandleReports as HandleReports<T>>::OffenceForInvalid::new(
+					let offence = ForInvalidOffence::new(
 						session_index,
 						candidate_hash,
 						validator_set_count,
@@ -659,7 +603,7 @@ pub mod pallet {
 						.unwrap_or_default();
 
 					// submit an offence report
-					let offence = <T::HandleReports as HandleReports<T>>::OffenceAgainstValid::new(
+					let offence = AgainstValidOffence::new(
 						session_index,
 						candidate_hash,
 						validator_set_count,
@@ -783,30 +727,16 @@ fn is_known_offence<T: Config>(
 	// check if the offence has already been reported,
 	// and if so then we can discard the report.
 	let is_known_offence = match dispute_proof.kind {
-		SlashingOffenceKind::ForInvalid => {
-			let time_slot =
-				<T::HandleReports as HandleReports<T>>::OffenceForInvalid::new_time_slot(
-					dispute_proof.time_slot.session_index,
-					dispute_proof.time_slot.candidate_hash,
-				);
-
+		SlashingOffenceKind::ForInvalid =>
 			<T::HandleReports as HandleReports<T>>::is_known_for_invalid_offence(
 				&[offender],
-				&time_slot,
-			)
-		},
-		SlashingOffenceKind::AgainstValid => {
-			let time_slot =
-				<T::HandleReports as HandleReports<T>>::OffenceAgainstValid::new_time_slot(
-					dispute_proof.time_slot.session_index,
-					dispute_proof.time_slot.candidate_hash,
-				);
-
+				&dispute_proof.time_slot,
+			),
+		SlashingOffenceKind::AgainstValid =>
 			<T::HandleReports as HandleReports<T>>::is_known_against_valid_offence(
 				&[offender],
-				&time_slot,
-			)
-		},
+				&dispute_proof.time_slot,
+			),
 	};
 
 	if is_known_offence {
@@ -841,22 +771,18 @@ where
 		>,
 	L: Get<u64>,
 {
-	type OffenceForInvalid = ForInvalidOffence<T::KeyOwnerIdentification>;
-
-	type OffenceAgainstValid = AgainstValidOffence<T::KeyOwnerIdentification>;
-
 	type ReportLongevity = L;
 
 	fn report_for_invalid_offence(
 		reporters: Vec<AccountId<T>>,
-		offence: Self::OffenceForInvalid,
+		offence: ForInvalidOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError> {
 		R::report_offence(reporters, offence)
 	}
 
 	fn report_against_valid_offence(
 		reporters: Vec<AccountId<T>>,
-		offence: Self::OffenceAgainstValid,
+		offence: AgainstValidOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError> {
 		R::report_offence(reporters, offence)
 	}
