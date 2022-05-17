@@ -52,7 +52,7 @@ mod tests;
 const LOG_TARGET: &str = "parachain::runtime-api";
 
 /// The number of maximum runtime API requests can be executed in parallel. Further requests will be buffered.
-const MAX_PARALLEL_REQUESTS: usize = 4;
+const MAX_PARALLEL_REQUESTS: usize = 1;
 
 /// The name of the blocking task that executes a runtime API request.
 const API_REQUEST_TASK_NAME: &str = "polkadot-runtime-api-request";
@@ -66,8 +66,6 @@ pub struct RuntimeApiSubsystem<Client> {
 	active_requests: FuturesUnordered<oneshot::Receiver<Option<RequestResult>>>,
 	/// Requests results cache
 	requests_cache: RequestResultCache,
-	/// Active requests cache
-	
 }
 
 impl<Client> RuntimeApiSubsystem<Client> {
