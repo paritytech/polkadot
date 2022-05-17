@@ -10,7 +10,7 @@
 <!-- Edit above this line -->
 
 This release switches to a new JSON-RPC server library, which imposes the following changes:
-    - IPC transport support has removed.
+    - IPC transport support has been removed.
     - DEPRECATED CLI `--rpc-max-payload`: has been deprecated in favor of `--rpc-max-request-size` or `rpc-max-response-size`.
     - DEPRECATED CLI `--ws-max-out-buffer-capacity`: has been been deprecated in favour of `rpc-max-response-size`.
     - DEPRECATED CLI `--ipc-path`: has been been deprecated and does nothing.
