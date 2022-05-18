@@ -548,7 +548,7 @@ pub mod pallet {
 
 			// check the membership proof to extract the offender's id
 			let key = (primitives::v2::PARACHAIN_KEY_TYPE_ID, dispute_proof.validator_id.clone());
-			let offender = T::KeyOwnerProofSystem::check_proof(key, key_owner_proof.clone())
+			let offender = T::KeyOwnerProofSystem::check_proof(key, key_owner_proof)
 				.ok_or(Error::<T>::InvalidKeyOwnershipProof)?;
 
 			// check that `validator_index` matches `validator_id`
