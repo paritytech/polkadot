@@ -62,7 +62,7 @@ use polkadot_node_subsystem_util::inclusion_emulator::staging::{
 	ConstraintModifications, Constraints, Fragment, ProspectiveCandidate, RelayChainBlockInfo,
 };
 use polkadot_primitives::vstaging::{
-	BlockNumber, CandidateHash, CommittedCandidateReceipt, Hash, Id as ParaId,
+	BlockNumber, CandidateHash, CommittedCandidateReceipt, Hash, HeadData, Id as ParaId,
 	PersistedValidationData,
 };
 
@@ -156,6 +156,17 @@ impl CandidateStorage {
 			children.retain(|h| pred(h));
 			!children.is_empty()
 		})
+	}
+
+	/// Get head-data by hash.
+	pub(crate) fn head_data_by_hash(&self, hash: &Hash) -> Option<&HeadData> {
+		// Get some candidate which has a parent-head with the same hash as requested.
+		let a_candidate_hash = self.by_parent_head.get(hash).and_then(|m| m.iter().next())?;
+
+		// Extract the full parent head from that candidate's `PersistedValidationData`.
+		self.by_candidate_hash
+			.get(a_candidate_hash)
+			.map(|e| &e.candidate.persisted_validation_data.parent_head)
 	}
 
 	fn iter_para_children<'a>(
@@ -271,12 +282,18 @@ impl Scope {
 			.unwrap_or_else(|| self.relay_parent.clone())
 	}
 
-	fn ancestor_by_hash(&self, hash: &Hash) -> Option<RelayChainBlockInfo> {
+	/// Get the ancestor of the fragment tree by hash.
+	pub fn ancestor_by_hash(&self, hash: &Hash) -> Option<RelayChainBlockInfo> {
 		if hash == &self.relay_parent.hash {
 			return Some(self.relay_parent.clone())
 		}
 
 		self.ancestors_by_hash.get(hash).map(|info| info.clone())
+	}
+
+	/// Get the base constraints of the scope
+	pub fn base_constraints(&self) -> &Constraints {
+		&self.base_constraints
 	}
 }
 

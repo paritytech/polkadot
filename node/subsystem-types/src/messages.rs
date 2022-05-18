@@ -956,6 +956,21 @@ pub struct HypotheticalDepthRequest {
 	pub fragment_tree_relay_parent: Hash,
 }
 
+/// A request for the persisted validation data stored in the prospective
+/// parachains subsystem.
+#[derive(Debug)]
+pub struct ProspectiveValidationDataRequest {
+	/// The para-id of the candidate.
+	pub para_id: ParaId,
+	/// The relay-parent of the candidate.
+	pub candidate_relay_parent: Hash,
+	/// The parent head-data hash.
+	pub parent_head_data_hash: Hash,
+	/// The maximum POV size expected of this candidate. This should be
+	/// the maximum as configured during the session.
+	pub max_pov_size: u32,
+}
+
 /// Indicates the relay-parents whose fragment tree a candidate
 /// is present in and the depths of that tree the candidate is present in.
 pub type FragmentTreeMembership = Vec<(Hash, Vec<usize>)>;
@@ -999,4 +1014,11 @@ pub enum ProspectiveParachainsMessage {
 	/// in this para-id, this returns the minimum relay-parent block number in the
 	/// same chain which is accepted in the fragment tree for the para-id.
 	GetMinimumRelayParent(ParaId, Hash, oneshot::Sender<Option<BlockNumber>>),
+	/// Get the validation data of some prospective candidate. The candidate doesn't need
+	/// to be part of any fragment tree, but this only succeeds if the parent head-data and
+	/// relay-parent are part of some fragment tree.
+	GetProspectiveValidationData(
+		ProspectiveValidationDataRequest,
+		oneshot::Sender<Option<PersistedValidationData>>,
+	),
 }

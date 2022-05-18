@@ -446,20 +446,13 @@ struct View<Context> {
 
 impl<Context> View<Context> {
 	fn new() -> Self {
-		View {
-			active_leaves: HashMap::new(),
-			implicit_view: HashMap::new(),
-		}
+		View { active_leaves: HashMap::new(), implicit_view: HashMap::new() }
 	}
 
 	/// Add a leaf to the view, with the given implicit ancestry.
 	///
 	/// Jobs may not already exist for the implicit ancestry, so
-	fn add_leaf_with_implicit_ancestry(
-		&mut self,
-		leaf: Hash,
-		implicit_ancestry: Vec<Hash>,
-	) {
+	fn add_leaf_with_implicit_ancestry(&mut self, leaf: Hash, implicit_ancestry: Vec<Hash>) {
 		let ancestry = match self.active_leaves.entry(leaf) {
 			Entry::Vacant(mut vacant) => vacant.insert(implicit_ancestry),
 			Entry::Occupied(_) => {
@@ -470,14 +463,14 @@ impl<Context> View<Context> {
 				);
 
 				return
-			}
+			},
 		};
 
 		for fresh in ancestry.iter().cloned().chain(std::iter::once(leaf)) {
-			self.implicit_view.entry(fresh).or_insert_with(|| ViewEntry {
-				ref_count: 0,
-				job: None,
-			}).ref_count += 1;
+			self.implicit_view
+				.entry(fresh)
+				.or_insert_with(|| ViewEntry { ref_count: 0, job: None })
+				.ref_count += 1;
 		}
 	}
 
@@ -502,7 +495,7 @@ impl<Context> View<Context> {
 				?relay_parent,
 				"Attempted to supply unneeded job to view."
 			);
-			return;
+			return
 		}
 
 		// sanity: is always Some; guarded by job_status check above.
@@ -515,11 +508,12 @@ impl<Context> View<Context> {
 	fn job_status(&self, relay_parent: &Hash) -> JobStatus {
 		match self.implicit_view.get(relay_parent) {
 			None => JobStatus::Unneeded,
-			Some(entry) => if entry.job.is_some() {
-				JobStatus::Existing
-			} else {
-				JobStatus::Needed
-			},
+			Some(entry) =>
+				if entry.job.is_some() {
+					JobStatus::Existing
+				} else {
+					JobStatus::Needed
+				},
 		}
 	}
 
