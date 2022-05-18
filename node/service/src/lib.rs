@@ -37,7 +37,9 @@ use {
 	beefy_gadget::notification::{BeefyBestBlockSender, BeefySignedCommitmentSender},
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
 	gum::info,
-	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
+	polkadot_node_core_approval_voting::{
+		self as approval_voting_subsystem, Config as ApprovalVotingConfig,
+	},
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
 	polkadot_node_core_av_store::Error as AvailabilityError,
 	polkadot_node_core_candidate_validation::Config as CandidateValidationConfig,
@@ -65,7 +67,7 @@ pub use {
 };
 
 #[cfg(feature = "full-node")]
-use polkadot_subsystem::jaeger;
+use polkadot_node_subsystem::jaeger;
 
 use std::{sync::Arc, time::Duration};
 
@@ -221,7 +223,7 @@ pub enum Error {
 	Telemetry(#[from] telemetry::Error),
 
 	#[error(transparent)]
-	Jaeger(#[from] polkadot_subsystem::jaeger::JaegerError),
+	Jaeger(#[from] polkadot_node_subsystem::jaeger::JaegerError),
 
 	#[cfg(feature = "full-node")]
 	#[error(transparent)]
@@ -444,7 +446,10 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 		sc_consensus::DefaultImportQueue<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
 		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
 		(
-			impl service::RpcExtensionBuilder,
+			impl Fn(
+				polkadot_rpc::DenyUnsafe,
+				polkadot_rpc::SubscriptionTaskExecutor,
+			) -> Result<polkadot_rpc::RpcExtension, SubstrateServiceError>,
 			(
 				babe::BabeBlockImport<
 					Block,
@@ -938,7 +943,7 @@ where
 		client: client.clone(),
 		keystore: keystore_container.sync_keystore(),
 		network: network.clone(),
-		rpc_extensions_builder: Box::new(rpc_extensions_builder),
+		rpc_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
 		task_manager: &mut task_manager,
 		system_rpc_tx,
@@ -1177,9 +1182,22 @@ where
 		}
 	}
 
+	// Reduce grandpa load on Kusama and test networks. This will slow down finality by
+	// approximately one slot duration, but will reduce load. We would like to see the impact on
+	// Kusama, see: https://github.com/paritytech/polkadot/issues/5464
+	let gossip_duration = if chain_spec.is_versi() ||
+		chain_spec.is_wococo() ||
+		chain_spec.is_rococo() ||
+		chain_spec.is_kusama()
+	{
+		Duration::from_millis(2000)
+	} else {
+		Duration::from_millis(1000)
+	};
+
 	let config = grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
-		gossip_duration: Duration::from_millis(1000),
+		gossip_duration,
 		justification_period: 512,
 		name: Some(name),
 		observer_enabled: false,
@@ -1413,6 +1431,78 @@ pub fn build_full(
 	Err(Error::NoRuntime)
 }
 
+/// Reverts the node state down to at most the last finalized block.
+///
+/// In particular this reverts:
+/// - `ApprovalVotingSubsystem` data in the parachains-db;
+/// - `ChainSelectionSubsystem` data in the parachains-db;
+/// - Low level Babe and Grandpa consensus data.
+#[cfg(feature = "full-node")]
+pub fn revert_backend(
+	client: Arc<Client>,
+	backend: Arc<FullBackend>,
+	blocks: BlockNumber,
+	config: Configuration,
+) -> Result<(), Error> {
+	let best_number = client.info().best_number;
+	let finalized = client.info().finalized_number;
+	let revertible = blocks.min(best_number - finalized);
+
+	if revertible == 0 {
+		return Ok(())
+	}
+
+	let number = best_number - revertible;
+	let hash = client.block_hash_from_id(&BlockId::Number(number))?.ok_or(
+		sp_blockchain::Error::Backend(format!(
+			"Unexpected hash lookup failure for block number: {}",
+			number
+		)),
+	)?;
+
+	let parachains_db = open_database(&config.database)
+		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))?;
+
+	revert_approval_voting(parachains_db.clone(), hash)?;
+	revert_chain_selection(parachains_db, hash)?;
+	// Revert Substrate consensus related components
+	client.execute_with(RevertConsensus { blocks, backend })?;
+
+	Ok(())
+}
+
+fn revert_chain_selection(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::Result<()> {
+	let config = chain_selection_subsystem::Config {
+		col_data: parachains_db::REAL_COLUMNS.col_chain_selection_data,
+		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
+	};
+
+	let chain_selection = chain_selection_subsystem::ChainSelectionSubsystem::new(config, db);
+
+	chain_selection
+		.revert_to(hash)
+		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))
+}
+
+fn revert_approval_voting(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::Result<()> {
+	let config = approval_voting_subsystem::Config {
+		col_data: parachains_db::REAL_COLUMNS.col_approval_data,
+		slot_duration_millis: Default::default(),
+	};
+
+	let approval_voting = approval_voting_subsystem::ApprovalVotingSubsystem::with_config(
+		config,
+		db,
+		Arc::new(sc_keystore::LocalKeystore::in_memory()),
+		Box::new(consensus_common::NoNetwork),
+		approval_voting_subsystem::Metrics::default(),
+	);
+
+	approval_voting
+		.revert_to(hash)
+		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))
+}
+
 struct RevertConsensus {
 	blocks: BlockNumber,
 	backend: Arc<FullBackend>,
@@ -1429,52 +1519,10 @@ impl ExecuteWithClient for RevertConsensus {
 		Api: polkadot_client::RuntimeApiCollection<StateBackend = Backend::State>,
 		Client: AbstractClient<Block, Backend, Api = Api> + 'static,
 	{
+		// Revert consensus-related components.
+		// The operations are not correlated, thus call order is not relevant.
 		babe::revert(client.clone(), self.backend, self.blocks)?;
 		grandpa::revert(client, self.blocks)?;
 		Ok(())
 	}
-}
-
-/// Reverts the node state down to at most the last finalized block.
-///
-/// In particular this reverts:
-/// - `ChainSelectionSubsystem` data in the parachains-db.
-/// - Low level Babe and Grandpa consensus data.
-#[cfg(feature = "full-node")]
-pub fn revert_backend(
-	client: Arc<Client>,
-	backend: Arc<FullBackend>,
-	blocks: BlockNumber,
-	config: Configuration,
-) -> Result<(), Error> {
-	let best_number = client.info().best_number;
-	let finalized = client.info().finalized_number;
-	let revertible = blocks.min(best_number - finalized);
-
-	let number = best_number - revertible;
-	let hash = client.block_hash_from_id(&BlockId::Number(number))?.ok_or(
-		sp_blockchain::Error::Backend(format!(
-			"Unexpected hash lookup failure for block number: {}",
-			number
-		)),
-	)?;
-
-	let parachains_db = open_database(&config.database)
-		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))?;
-
-	let config = chain_selection_subsystem::Config {
-		col_data: parachains_db::REAL_COLUMNS.col_chain_selection_data,
-		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
-	};
-
-	let chain_selection =
-		chain_selection_subsystem::ChainSelectionSubsystem::new(config, parachains_db);
-
-	chain_selection
-		.revert(hash)
-		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))?;
-
-	client.execute_with(RevertConsensus { blocks, backend })?;
-
-	Ok(())
 }

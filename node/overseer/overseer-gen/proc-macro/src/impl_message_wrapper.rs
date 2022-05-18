@@ -21,7 +21,7 @@ use super::*;
 
 /// Generates the wrapper type enum.
 pub(crate) fn impl_message_wrapper_enum(info: &OverseerInfo) -> Result<proc_macro2::TokenStream> {
-	let consumes = info.consumes();
+	let consumes = info.any_message();
 	let consumes_variant = info.variant_names();
 
 	let outgoing = &info.outgoing_ty;
@@ -52,7 +52,8 @@ pub(crate) fn impl_message_wrapper_enum(info: &OverseerInfo) -> Result<proc_macr
 	};
 
 	let ts = quote! {
-		/// Generated message type wrapper
+		/// Generated message type wrapper over all possible messages
+		/// used by any subsystem.
 		#[allow(missing_docs)]
 		#[derive(Debug)]
 		pub enum #message_wrapper {

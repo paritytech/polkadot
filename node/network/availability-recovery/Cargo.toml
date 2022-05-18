@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-availability-recovery"
-version = "0.9.19"
+version = "0.9.22"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -15,7 +15,7 @@ gum = { package = "tracing-gum", path = "../../gum" }
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
@@ -32,5 +32,5 @@ sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-polkadot-subsystem-test-helpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }

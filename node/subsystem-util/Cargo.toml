@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-subsystem-util"
-version = "0.9.19"
+version = "0.9.22"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Subsystem traits and message definitions"
@@ -19,7 +19,7 @@ gum = { package = "tracing-gum", path = "../gum" }
 derive_more = "0.99.17"
 lru = "0.7.5"
 
-polkadot-node-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
+polkadot-node-subsystem = {path = "../subsystem" }
 polkadot-node-jaeger = { path = "../jaeger" }
 polkadot-node-metrics = { path = "../metrics" }
 polkadot-node-network-protocol = { path = "../network/protocol" }

@@ -39,12 +39,12 @@ fn try_send_try_next() {
 		assert_matches!(rx.meter().read(), Readout { sent: 4, received: 1, .. });
 		rx.try_next().unwrap();
 		rx.try_next().unwrap();
-		assert_matches!(tx.meter().read(), Readout { sent: 4, received: 3, tof } => {
+		assert_matches!(tx.meter().read(), Readout { sent: 4, received: 3, blocked: 0, tof } => {
 			// every second in test, consumed before
 			assert_eq!(dbg!(tof).len(), 1);
 		});
 		rx.try_next().unwrap();
-		assert_matches!(rx.meter().read(), Readout { sent: 4, received: 4, tof } => {
+		assert_matches!(rx.meter().read(), Readout { sent: 4, received: 4, blocked: 0, tof } => {
 			// every second in test, consumed before
 			assert_eq!(dbg!(tof).len(), 0);
 		});
@@ -125,5 +125,26 @@ fn failed_send_does_not_inc_sent() {
 
 		assert!(unbounded.unbounded_send(Msg::default()).is_err());
 		assert_matches!(unbounded.meter().read(), Readout { sent: 0, received: 0, .. });
+	});
+}
+
+#[test]
+fn blocked_send_is_metered() {
+	let (mut bounded_sender, mut bounded_receiver) = channel::<Msg>(1);
+
+	block_on(async move {
+		assert!(bounded_sender.send(Msg::default()).await.is_ok());
+		assert!(bounded_sender.send(Msg::default()).await.is_ok());
+		assert!(bounded_sender.try_send(Msg::default()).is_err());
+
+		assert_matches!(
+			bounded_sender.meter().read(),
+			Readout { sent: 2, received: 0, blocked: 1, .. }
+		);
+		bounded_receiver.try_next().unwrap();
+		assert_matches!(
+			bounded_receiver.meter().read(),
+			Readout { sent: 2, received: 1, blocked: 1, .. }
+		);
 	});
 }

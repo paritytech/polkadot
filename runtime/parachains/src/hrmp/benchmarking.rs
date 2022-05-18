@@ -36,7 +36,7 @@ fn register_parachain_with_balance<T: Config>(id: ParaId, balance: BalanceOf<T>)
 			validation_code: vec![1].into(),
 		},
 	);
-	T::Currency::make_free_balance_be(&id.into_account(), balance);
+	T::Currency::make_free_balance_be(&id.into_account_truncating(), balance);
 }
 
 fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
@@ -201,7 +201,7 @@ frame_benchmarking::benchmarks! {
 		let para: ParaId = 1u32.into();
 		let para_origin: crate::Origin = 1u32.into();
 		register_parachain_with_balance::<T>(para, deposit);
-		T::Currency::make_free_balance_be(&para.into_account(), deposit * 256u32.into());
+		T::Currency::make_free_balance_be(&para.into_account_truncating(), deposit * 256u32.into());
 
 		for ingress_para_id in 0..i {
 			// establish ingress channels to `para`.
