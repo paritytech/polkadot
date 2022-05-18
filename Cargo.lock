@@ -4832,6 +4832,7 @@ name = "orchestra"
 version = "0.9.22"
 dependencies = [
  "async-trait",
+ "dyn-clonable",
  "futures 0.3.21",
  "futures-timer",
  "metered-channel",

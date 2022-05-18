@@ -83,7 +83,7 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 
 	// Helpers to use within quote! macros
 	let spawner_where_clause: syn::TypeParam = parse_quote! {
-			S: #support_crate ::Spawner + Send
+			S: #support_crate ::Spawner
 	};
 
 	// Field names and real types
@@ -732,7 +732,7 @@ pub(crate) fn impl_task_kind(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 
 			futures.push(Box::pin(
 				rx.map(|e| {
-					tracing::warn!(err = ?e, "dropping error");
+					#support_crate ::tracing::warn!(err = ?e, "dropping error");
 					Ok(())
 				})
 			));

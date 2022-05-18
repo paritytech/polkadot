@@ -19,7 +19,7 @@ use std::{future::Future, sync::Arc};
 use futures::FutureExt;
 
 use polkadot_node_network_protocol::jaeger;
-use polkadot_node_primitives::{BlockData, ErasureChunk, PoV, SpawnNamed};
+use polkadot_node_primitives::{BlockData, ErasureChunk, PoV};
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::v2::{
 	BlockNumber, CoreState, GroupIndex, Hash, Id, ScheduledCore, SessionIndex, SessionInfo,
@@ -30,7 +30,7 @@ use polkadot_node_subsystem::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
 		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
-	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::{
 	make_subsystem_context, mock::make_ferdie_keystore, TestSubsystemContext,

@@ -37,10 +37,10 @@ where
 	fn intercept_incoming(
 		&self,
 		_sender: &mut Sender,
-		msg: FromOverseer<Self::Message>,
-	) -> Option<FromOverseer<Self::Message>> {
+		msg: FromOrchestra<Self::Message>,
+	) -> Option<FromOrchestra<Self::Message>> {
 		match msg {
-			FromOverseer::Communication { msg: _msg } => None,
+			FromOrchestra::Communication { msg: _msg } => None,
 			// to conclude the test cleanly
 			sig => Some(sig),
 		}
@@ -60,7 +60,7 @@ where
 }
 
 async fn overseer_send<T: Into<AllMessages>>(overseer: &mut TestSubsystemContextHandle<T>, msg: T) {
-	overseer.send(FromOverseer::Communication { msg }).await;
+	overseer.send(FromOrchestra::Communication { msg }).await;
 }
 
 fn launch_harness<F, M, Sub, G>(test_gen: G)
@@ -84,7 +84,7 @@ where
 	futures::executor::block_on(futures::future::join(
 		async move {
 			let mut overseer = test_fut.await;
-			overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 		},
 		subsystem,
 	))

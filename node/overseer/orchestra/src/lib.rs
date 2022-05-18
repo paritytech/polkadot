@@ -65,9 +65,9 @@
 pub use orchestra_proc_macro::{contextbounds, orchestra, subsystem};
 
 #[doc(hidden)]
-pub use tracing;
-#[doc(hidden)]
 pub use metered;
+#[doc(hidden)]
+pub use tracing;
 
 #[doc(hidden)]
 pub use async_trait::async_trait;
@@ -99,9 +99,8 @@ use std::fmt;
 #[cfg(test)]
 mod tests;
 
-
-
 /// A spawner
+#[dyn_clonable::clonable]
 pub trait Spawner: Clone + Send + Sync {
 	/// Spawn the given blocking future.
 	///

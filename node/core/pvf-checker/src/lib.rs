@@ -23,7 +23,7 @@ use futures::{channel::oneshot, future::BoxFuture, prelude::*, stream::FuturesUn
 
 use polkadot_node_subsystem::{
 	messages::{CandidateValidationMessage, PreCheckOutcome, PvfCheckerMessage, RuntimeApiMessage},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 	SubsystemResult, SubsystemSender,
 };
 use polkadot_primitives::v2::{
@@ -244,22 +244,22 @@ async fn handle_from_overseer(
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	keystore: &SyncCryptoStorePtr,
 	metrics: &Metrics,
-	from_overseer: FromOverseer<PvfCheckerMessage>,
+	from_overseer: FromOrchestra<PvfCheckerMessage>,
 ) -> Option<Conclude> {
 	match from_overseer {
-		FromOverseer::Signal(OverseerSignal::Conclude) => {
+		FromOrchestra::Signal(OverseerSignal::Conclude) => {
 			gum::info!(target: LOG_TARGET, "Received `Conclude` signal, exiting");
 			Some(Conclude)
 		},
-		FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {
+		FromOrchestra::Signal(OverseerSignal::BlockFinalized(_, _)) => {
 			// ignore
 			None
 		},
-		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+		FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			handle_leaves_update(state, sender, keystore, metrics, update).await;
 			None
 		},
-		FromOverseer::Communication { msg } => match msg {
+		FromOrchestra::Communication { msg } => match msg {
 				// uninhabited type, thus statically unreachable.
 			},
 	}

@@ -29,7 +29,7 @@ struct Orchestra<T> {
 #[derive(Debug, Clone)]
 pub struct DummySpawner;
 
-impl SpawnNamed for DummySpawner {
+impl Spawner for DummySpawner {
 	fn spawn_blocking(
 		&self,
 		task_name: &'static str,

@@ -105,11 +105,12 @@ pub use polkadot_node_metrics::{
 
 use parity_util_mem::MemoryAllocationTracker;
 
-pub use polkadot_overseer_gen as gen;
-pub use polkadot_overseer_gen::{
-	contextbounds, orchestra, subsystem, FromOverseer, MapSubsystem, MessagePacket, SignalsReceived,
-	SpawnNamed, Subsystem, SubsystemContext, SubsystemIncomingMessages, SubsystemInstance,
-	SubsystemMeterReadouts, SubsystemMeters, SubsystemSender, TimeoutExt, ToOverseer,
+pub use orchestra as gen;
+pub use orchestra::{
+	contextbounds, orchestra, subsystem, FromOrchestra, MapSubsystem, MessagePacket,
+	SignalsReceived, Spawner, Subsystem, SubsystemContext, SubsystemIncomingMessages,
+	SubsystemInstance, SubsystemMeterReadouts, SubsystemMeters, SubsystemSender, TimeoutExt,
+	ToOrchestra,
 };
 
 /// Store 2 days worth of blocks, not accounting for forks,
@@ -118,6 +119,42 @@ pub const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
 
 #[cfg(test)]
 mod tests;
+
+use sp_core::traits::SpawnNamed;
+
+/// Glue to connect `trait orchestra::Spawner` and `SpawnNamed` from `substrate`.
+pub struct SpawnGlue<S>(pub S);
+
+impl<S> AsRef<S> for SpawnGlue<S> {
+	fn as_ref(&self) -> &S {
+		&self.0
+	}
+}
+
+impl<S: Clone> Clone for SpawnGlue<S> {
+	fn clone(&self) -> Self {
+		Self(self.0.clone())
+	}
+}
+
+impl<S: SpawnNamed + Clone + Send + Sync> crate::gen::Spawner for SpawnGlue<S> {
+	fn spawn_blocking(
+		&self,
+		name: &'static str,
+		group: Option<&'static str>,
+		future: futures::future::BoxFuture<'static, ()>,
+	) {
+		SpawnNamed::spawn_blocking(&self.0, name, group, future)
+	}
+	fn spawn(
+		&self,
+		name: &'static str,
+		group: Option<&'static str>,
+		future: futures::future::BoxFuture<'static, ()>,
+	) {
+		SpawnNamed::spawn(&self.0, name, group, future)
+	}
+}
 
 /// Whether a header supports parachain consensus or not.
 pub trait HeadSupportsParachains {
@@ -346,7 +383,7 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 /// # 	SubsystemError,
 /// # 	gen::{
 /// # 		SubsystemContext,
-/// # 		FromOverseer,
+/// # 		FromOrchestra,
 /// # 		SpawnedSubsystem,
 /// # 	},
 /// # };
@@ -594,15 +631,15 @@ pub fn spawn_metronome_metrics<S, SupportsParachains>(
 	metronome_metrics: OverseerMetrics,
 ) -> Result<(), SubsystemError>
 where
-	S: SpawnNamed,
+	S: Spawner,
 	SupportsParachains: HeadSupportsParachains,
 {
 	struct ExtractNameAndMeters;
 
-	impl<'a, T: 'a> MapSubsystem<&'a OverseenSubsystem<T>> for ExtractNameAndMeters {
+	impl<'a, T: 'a> MapSubsystem<&'a OrchestratedSubsystem<T>> for ExtractNameAndMeters {
 		type Output = Option<(&'static str, SubsystemMeters)>;
 
-		fn map_subsystem(&self, subsystem: &'a OverseenSubsystem<T>) -> Self::Output {
+		fn map_subsystem(&self, subsystem: &'a OrchestratedSubsystem<T>) -> Self::Output {
 			subsystem
 				.instance
 				.as_ref()
@@ -662,7 +699,7 @@ where
 impl<S, SupportsParachains> Overseer<S, SupportsParachains>
 where
 	SupportsParachains: HeadSupportsParachains,
-	S: SpawnNamed,
+	S: Spawner,
 {
 	/// Stop the `Overseer`.
 	async fn stop(mut self) {
@@ -709,10 +746,10 @@ where
 				},
 				msg = self.to_overseer_rx.select_next_some() => {
 					match msg {
-						ToOverseer::SpawnJob { name, subsystem, s } => {
+						ToOrchestra::SpawnJob { name, subsystem, s } => {
 							self.spawn_job(name, subsystem, s);
 						}
-						ToOverseer::SpawnBlockingJob { name, subsystem, s } => {
+						ToOrchestra::SpawnBlockingJob { name, subsystem, s } => {
 							self.spawn_blocking_job(name, subsystem, s);
 						}
 					}
