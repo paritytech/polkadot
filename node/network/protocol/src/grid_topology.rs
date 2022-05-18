@@ -37,6 +37,8 @@ use std::{
 	fmt::Debug,
 };
 
+const LOG_TARGET: &str = "parachain::grid-topology";
+
 /// The sample rate for randomly propagating messages. This
 /// reduces the left tail of the binomial distribution but also
 /// introduces a bias towards peers who we sample before others
@@ -47,6 +49,7 @@ pub const DEFAULT_RANDOM_SAMPLE_RATE: usize = crate::MIN_GOSSIP_PEERS;
 pub const DEFAULT_RANDOM_CIRCULATION: usize = 4;
 
 /// Topology representation
+#[derive(Default, Clone, Debug)]
 pub struct SessionGridTopology {
 	/// Represent peers in the X axis
 	pub peers_x: HashSet<PeerId>,
@@ -59,9 +62,13 @@ pub struct SessionGridTopology {
 }
 
 impl SessionGridTopology {
-	/// Given the originator of a message, indicates the part of the topology
+	/// Given the originator of a message as a validator index, indicates the part of the topology
 	/// we're meant to send the message to.
-	pub fn required_routing_for(&self, originator: ValidatorIndex, local: bool) -> RequiredRouting {
+	pub fn required_routing_by_index(
+		&self,
+		originator: ValidatorIndex,
+		local: bool,
+	) -> RequiredRouting {
 		if local {
 			return RequiredRouting::GridXY
 		}
@@ -77,6 +84,31 @@ impl SessionGridTopology {
 		}
 	}
 
+	/// Given the originator of a message as a peer index, indicates the part of the topology
+	/// we're meant to send the message to.
+	pub fn required_routing_by_peer_id(&self, originator: PeerId, local: bool) -> RequiredRouting {
+		if local {
+			return RequiredRouting::GridXY
+		}
+
+		let grid_x = self.peers_x.contains(&originator);
+		let grid_y = self.peers_y.contains(&originator);
+
+		match (grid_x, grid_y) {
+			(false, false) => RequiredRouting::None,
+			(true, false) => RequiredRouting::GridY, // messages from X go to Y
+			(false, true) => RequiredRouting::GridX, // messages from Y go to X
+			(true, true) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					?originator,
+					"Grid topology is unexpected, play it safe and send to X AND Y"
+				);
+				RequiredRouting::GridXY
+			}, // if the grid works as expected, this shouldn't happen.
+		}
+	}
+
 	/// Get a filter function based on this topology and the required routing
 	/// which returns `true` for peers that are within the required routing set
 	/// and false otherwise.
@@ -89,7 +121,23 @@ impl SessionGridTopology {
 			RequiredRouting::None | RequiredRouting::PendingTopology => false,
 		}
 	}
+
+	/// Returns the difference between this and the `other` topology as a vector of peers
+	pub fn peers_diff(&self, other: &SessionGridTopology) -> Vec<PeerId> {
+		self.peers_x
+			.iter()
+			.chain(self.peers_y.iter())
+			.filter(|peer_id| !(other.peers_x.contains(peer_id) || other.peers_y.contains(peer_id)))
+			.cloned()
+			.collect::<Vec<_>>()
+	}
+
+	/// A convenience method that returns total number of peers in the topology
+	pub fn len(&self) -> usize {
+		self.peers_x.len().saturating_add(self.peers_y.len())
+	}
 }
+
 /// A set of topologies indexed by session
 #[derive(Default)]
 pub struct SessionGridTopologies {
@@ -125,6 +173,59 @@ impl SessionGridTopologies {
 		}
 	}
 }
+
+/// A simple storage for a topology and the corresponding session index
+#[derive(Default, Debug)]
+pub struct GridTopologySessionBound {
+	topology: SessionGridTopology,
+	session_index: SessionIndex,
+}
+
+/// A storage for the current and maybe previous topology
+#[derive(Default, Debug)]
+pub struct SessionBoundGridTopologyStorage {
+	current_topology: GridTopologySessionBound,
+	prev_topology: Option<GridTopologySessionBound>,
+}
+
+impl SessionBoundGridTopologyStorage {
+	/// Return a grid topology based on the session index:
+	/// If we need a previous session and it is registered in the storage, then return that session.
+	/// Otherwise, return a current session to have some grid topology in any case
+	pub fn get_topology_or_fallback(&self, idx: SessionIndex) -> &SessionGridTopology {
+		self.get_topology(idx).unwrap_or(&self.current_topology.topology)
+	}
+
+	/// Return the grid topology for the specific session index, if no such a session is stored
+	/// returns `None`.
+	pub fn get_topology(&self, idx: SessionIndex) -> Option<&SessionGridTopology> {
+		if let Some(prev_topology) = &self.prev_topology {
+			if idx == prev_topology.session_index {
+				return Some(&prev_topology.topology)
+			}
+		}
+		if self.current_topology.session_index == idx {
+			return Some(&self.current_topology.topology)
+		}
+
+		None
+	}
+
+	/// Update the current topology preserving the previous one
+	pub fn update_topology(&mut self, session_index: SessionIndex, topology: SessionGridTopology) {
+		let old_current = std::mem::replace(
+			&mut self.current_topology,
+			GridTopologySessionBound { topology, session_index },
+		);
+		self.prev_topology.replace(old_current);
+	}
+
+	/// Returns a current grid topology
+	pub fn get_current_topology(&self) -> &SessionGridTopology {
+		&self.current_topology.topology
+	}
+}
+
 /// A representation of routing based on sample
 #[derive(Debug, Clone, Copy)]
 pub struct RandomRouting {
@@ -191,5 +292,77 @@ impl RequiredRouting {
 			RequiredRouting::PendingTopology | RequiredRouting::None => true,
 			_ => false,
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use rand::SeedableRng;
+	use rand_chacha::ChaCha12Rng;
+
+	fn dummy_rng() -> ChaCha12Rng {
+		rand_chacha::ChaCha12Rng::seed_from_u64(12345)
+	}
+
+	#[test]
+	fn test_random_routing_sample() {
+		// This test is fragile as it relies on a specific ChaCha12Rng
+		// sequence that might be implementation defined even for a static seed
+		let mut rng = dummy_rng();
+		let mut random_routing = RandomRouting { target: 4, sent: 0, sample_rate: 8 };
+
+		assert_eq!(random_routing.sample(16, &mut rng), true);
+		random_routing.inc_sent();
+		assert_eq!(random_routing.sample(16, &mut rng), false);
+		assert_eq!(random_routing.sample(16, &mut rng), false);
+		assert_eq!(random_routing.sample(16, &mut rng), true);
+		random_routing.inc_sent();
+		assert_eq!(random_routing.sample(16, &mut rng), true);
+		random_routing.inc_sent();
+		assert_eq!(random_routing.sample(16, &mut rng), false);
+		assert_eq!(random_routing.sample(16, &mut rng), false);
+		assert_eq!(random_routing.sample(16, &mut rng), false);
+		assert_eq!(random_routing.sample(16, &mut rng), true);
+		random_routing.inc_sent();
+
+		for _ in 0..16 {
+			assert_eq!(random_routing.sample(16, &mut rng), false);
+		}
+	}
+
+	fn run_random_routing(
+		random_routing: &mut RandomRouting,
+		rng: &mut (impl CryptoRng + Rng),
+		npeers: usize,
+		iters: usize,
+	) -> usize {
+		let mut ret = 0_usize;
+
+		for _ in 0..iters {
+			if random_routing.sample(npeers, rng) {
+				random_routing.inc_sent();
+				ret += 1;
+			}
+		}
+
+		ret
+	}
+
+	#[test]
+	fn test_random_routing_distribution() {
+		let mut rng = dummy_rng();
+
+		let mut random_routing = RandomRouting { target: 4, sent: 0, sample_rate: 8 };
+		assert_eq!(run_random_routing(&mut random_routing, &mut rng, 100, 10000), 4);
+
+		let mut random_routing = RandomRouting { target: 8, sent: 0, sample_rate: 100 };
+		assert_eq!(run_random_routing(&mut random_routing, &mut rng, 100, 10000), 8);
+
+		let mut random_routing = RandomRouting { target: 0, sent: 0, sample_rate: 100 };
+		assert_eq!(run_random_routing(&mut random_routing, &mut rng, 100, 10000), 0);
+
+		let mut random_routing = RandomRouting { target: 10, sent: 0, sample_rate: 10 };
+		assert_eq!(run_random_routing(&mut random_routing, &mut rng, 10, 100), 10);
 	}
 }

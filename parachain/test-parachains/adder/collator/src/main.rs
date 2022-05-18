@@ -65,11 +65,12 @@ fn main() -> Result<()> {
 							config,
 							polkadot_service::IsCollator::Yes(collator.collator_key()),
 							None,
-							true,
+							false,
 							None,
 							None,
 							false,
 							polkadot_service::RealOverseerGen,
+							None,
 							None,
 						)
 						.map_err(|e| e.to_string())?;

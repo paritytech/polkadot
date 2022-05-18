@@ -308,7 +308,7 @@ mod tests {
 			CandidateVotes {
 				candidate_receipt: {
 					let mut receipt = dummy_candidate_receipt(dummy_hash());
-					receipt.descriptor.para_id = 5.into();
+					receipt.descriptor.para_id = ParaId::from(5_u32);
 
 					receipt
 				},
@@ -401,7 +401,7 @@ mod tests {
 			CandidateVotes {
 				candidate_receipt: {
 					let mut receipt = dummy_candidate_receipt(dummy_hash());
-					receipt.descriptor.para_id = 5.into();
+					receipt.descriptor.para_id = ParaId::from(5_u32);
 
 					receipt
 				},

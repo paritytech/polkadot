@@ -22,15 +22,14 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
+use polkadot_node_subsystem::{
+	errors::RuntimeApiError,
+	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
+	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
+};
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
 	v2::{Block, BlockId, Hash},
-};
-use polkadot_subsystem::{
-	errors::RuntimeApiError,
-	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
-	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
-	SubsystemResult,
 };
 
 use sp_api::ProvideRuntimeApi;
@@ -40,7 +39,7 @@ use sp_core::traits::SpawnNamed;
 
 use cache::{RequestResult, RequestResultCache};
 use futures::{channel::oneshot, prelude::*, select, stream::FuturesUnordered};
-use std::{collections::VecDeque, pin::Pin, sync::Arc};
+use std::sync::Arc;
 
 mod cache;
 
@@ -52,7 +51,8 @@ mod tests;
 
 const LOG_TARGET: &str = "parachain::runtime-api";
 
-/// The number of maximum runtime API requests can be executed in parallel. Further requests will be buffered.
+/// The number of maximum runtime API requests can be executed in parallel.
+/// Further requests will backpressure the bounded channel.
 const MAX_PARALLEL_REQUESTS: usize = 4;
 
 /// The name of the blocking task that executes a runtime API request.
@@ -63,11 +63,6 @@ pub struct RuntimeApiSubsystem<Client> {
 	client: Arc<Client>,
 	metrics: Metrics,
 	spawn_handle: Box<dyn SpawnNamed>,
-	/// If there are [`MAX_PARALLEL_REQUESTS`] requests being executed, we buffer them in here until they can be executed.
-	waiting_requests: VecDeque<(
-		Pin<Box<dyn Future<Output = ()> + Send>>,
-		oneshot::Receiver<Option<RequestResult>>,
-	)>,
 	/// All the active runtime API requests that are currently being executed.
 	active_requests: FuturesUnordered<oneshot::Receiver<Option<RequestResult>>>,
 	/// Requests results cache
@@ -85,19 +80,17 @@ impl<Client> RuntimeApiSubsystem<Client> {
 			client,
 			metrics,
 			spawn_handle: Box::new(spawn_handle),
-			waiting_requests: Default::default(),
 			active_requests: Default::default(),
 			requests_cache: RequestResultCache::default(),
 		}
 	}
 }
 
-impl<Client, Context> overseer::Subsystem<Context, SubsystemError> for RuntimeApiSubsystem<Client>
+#[overseer::subsystem(RuntimeApi, error = SubsystemError, prefix = self::overseer)]
+impl<Client, Context> RuntimeApiSubsystem<Client>
 where
 	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-	Context: SubsystemContext<Message = RuntimeApiMessage>,
-	Context: overseer::SubsystemContext<Message = RuntimeApiMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem { future: run(ctx, self).boxed(), name: "runtime-api-subsystem" }
@@ -169,6 +162,8 @@ where
 				.cache_validation_code_hash((relay_parent, para_id, assumption), hash),
 			Version(relay_parent, version) =>
 				self.requests_cache.cache_version(relay_parent, version),
+			StagingDisputes(relay_parent, disputes) =>
+				self.requests_cache.cache_disputes(relay_parent, disputes),
 		}
 	}
 
@@ -270,17 +265,18 @@ where
 			Request::ValidationCodeHash(para, assumption, sender) =>
 				query!(validation_code_hash(para, assumption), sender)
 					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
+			Request::StagingDisputes(sender) =>
+				query!(disputes(), sender).map(|sender| Request::StagingDisputes(sender)),
 		}
 	}
 
 	/// Spawn a runtime API request.
-	///
-	/// If there are already [`MAX_PARALLEL_REQUESTS`] requests being executed, the request will be buffered.
 	fn spawn_request(&mut self, relay_parent: Hash, request: Request) {
 		let client = self.client.clone();
 		let metrics = self.metrics.clone();
 		let (sender, receiver) = oneshot::channel();
 
+		// TODO: make the cache great again https://github.com/paritytech/polkadot/issues/5546
 		let request = match self.query_cache(relay_parent.clone(), request) {
 			Some(request) => request,
 			None => return,
@@ -292,21 +288,9 @@ where
 		}
 		.boxed();
 
-		if self.active_requests.len() >= MAX_PARALLEL_REQUESTS {
-			self.waiting_requests.push_back((request, receiver));
-
-			if self.waiting_requests.len() > MAX_PARALLEL_REQUESTS * 10 {
-				gum::warn!(
-					target: LOG_TARGET,
-					"{} runtime API requests waiting to be executed.",
-					self.waiting_requests.len(),
-				)
-			}
-		} else {
-			self.spawn_handle
-				.spawn_blocking(API_REQUEST_TASK_NAME, Some("runtime-api"), request);
-			self.active_requests.push(receiver);
-		}
+		self.spawn_handle
+			.spawn_blocking(API_REQUEST_TASK_NAME, Some("runtime-api"), request);
+		self.active_requests.push(receiver);
 	}
 
 	/// Poll the active runtime API requests.
@@ -320,15 +304,15 @@ where
 		if let Some(Ok(Some(result))) = self.active_requests.next().await {
 			self.store_cache(result);
 		}
+	}
 
-		if let Some((req, recv)) = self.waiting_requests.pop_front() {
-			self.spawn_handle
-				.spawn_blocking(API_REQUEST_TASK_NAME, Some("runtime-api"), req);
-			self.active_requests.push(recv);
-		}
+	/// Returns true if our `active_requests` queue is full.
+	fn is_busy(&self) -> bool {
+		self.active_requests.len() >= MAX_PARALLEL_REQUESTS
 	}
 }
 
+#[overseer::contextbounds(RuntimeApi, prefix = self::overseer)]
 async fn run<Client, Context>(
 	mut ctx: Context,
 	mut subsystem: RuntimeApiSubsystem<Client>,
@@ -336,10 +320,19 @@ async fn run<Client, Context>(
 where
 	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-	Context: SubsystemContext<Message = RuntimeApiMessage>,
-	Context: overseer::SubsystemContext<Message = RuntimeApiMessage>,
 {
 	loop {
+		// Let's add some back pressure when the subsystem is running at `MAX_PARALLEL_REQUESTS`.
+		// This can never block forever, because `active_requests` is owned by this task and any mutations
+		// happen either in `poll_requests` or `spawn_request` - so if `is_busy` returns true, then
+		// even if all of the requests finish before us calling `poll_requests` the `active_requests` length
+		// remains invariant.
+		if subsystem.is_busy() {
+			// Since we are not using any internal waiting queues, we need to wait for exactly
+			// one request to complete before we can read the next one from the overseer channel.
+			let _ = subsystem.poll_requests().await;
+		}
+
 		select! {
 			req = ctx.recv().fuse() => match req? {
 				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
@@ -526,5 +519,7 @@ where
 		},
 		Request::ValidationCodeHash(para, assumption, sender) =>
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
+		Request::StagingDisputes(sender) =>
+			query!(StagingDisputes, staging_get_disputes(), ver = 2, sender),
 	}
 }

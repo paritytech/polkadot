@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#![cfg(test)]
+
 use super::*;
 use assert_matches::assert_matches;
 use executor::block_on;
@@ -44,8 +46,9 @@ use thiserror::Error;
 
 // job structs are constructed within JobTrait::run
 // most will want to retain the sender and receiver, as well as whatever other data they like
-struct FakeCollatorProtocolJob {
+struct FakeCollatorProtocolJob<Sender> {
 	receiver: mpsc::Receiver<CollatorProtocolMessage>,
+	_phantom: std::marker::PhantomData<Sender>,
 }
 
 // Error will mostly be a wrapper to make the try operator more convenient;
@@ -57,8 +60,18 @@ enum Error {
 	Sending(#[from] mpsc::SendError),
 }
 
-impl JobTrait for FakeCollatorProtocolJob {
+impl<Sender> JobTrait for FakeCollatorProtocolJob<Sender>
+where
+	Sender: overseer::CollatorProtocolSenderTrait
+		+ std::marker::Unpin
+		+ overseer::SubsystemSender<CollatorProtocolMessage>,
+	JobSender<Sender>: overseer::CollatorProtocolSenderTrait
+		+ std::marker::Unpin
+		+ overseer::SubsystemSender<CollatorProtocolMessage>,
+{
 	type ToJob = CollatorProtocolMessage;
+	type OutgoingMessages = overseer::CollatorProtocolOutgoingMessages;
+	type Sender = Sender;
 	type Error = Error;
 	type RunArgs = bool;
 	type Metrics = ();
@@ -68,20 +81,21 @@ impl JobTrait for FakeCollatorProtocolJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
-	fn run<S: SubsystemSender>(
+	fn run(
 		_: ActivatedLeaf,
 		run_args: Self::RunArgs,
 		_metrics: Self::Metrics,
 		receiver: mpsc::Receiver<CollatorProtocolMessage>,
-		mut sender: JobSender<S>,
+		mut sender: JobSender<Sender>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
-			let job = FakeCollatorProtocolJob { receiver };
+			let job =
+				FakeCollatorProtocolJob { receiver, _phantom: std::marker::PhantomData::<Sender> };
 
 			if run_args {
 				sender
 					.send_message(CollatorProtocolMessage::Invalid(
-						Default::default(),
+						dummy_hash(),
 						dummy_candidate_receipt(dummy_hash()),
 					))
 					.await;
@@ -95,7 +109,10 @@ impl JobTrait for FakeCollatorProtocolJob {
 	}
 }
 
-impl FakeCollatorProtocolJob {
+impl<Sender> FakeCollatorProtocolJob<Sender>
+where
+	Sender: overseer::CollatorProtocolSenderTrait,
+{
 	async fn run_loop(mut self) -> Result<(), Error> {
 		loop {
 			match self.receiver.next().await {
@@ -111,7 +128,8 @@ impl FakeCollatorProtocolJob {
 }
 
 // with the job defined, it's straightforward to get a subsystem implementation.
-type FakeCollatorProtocolSubsystem<Spawner> = JobSubsystem<FakeCollatorProtocolJob, Spawner>;
+type FakeCollatorProtocolSubsystem<Spawner> =
+	JobSubsystem<FakeCollatorProtocolJob<test_helpers::TestSubsystemSender>, Spawner>;
 
 // this type lets us pretend to be the overseer
 type OverseerHandle = test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>;
