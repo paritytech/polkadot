@@ -206,6 +206,7 @@ where
 		sender: &mut Sender,
 		return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
 	) {
+
 		if let Err(err) = send_inherent_data(
 			&self.leaf,
 			&self.signed_bitfields,
