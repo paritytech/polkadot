@@ -1129,6 +1129,7 @@ pub struct AbridgedHrmpChannel {
 
 /// A possible upgrade restriction that prevents a parachain from performing an upgrade.
 #[derive(Copy, Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum UpgradeRestriction {
 	/// There is an upgrade restriction and there are no details about its specifics nor how long
 	/// it could last.

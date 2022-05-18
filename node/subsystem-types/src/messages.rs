@@ -38,14 +38,17 @@ use polkadot_node_primitives::{
 	CollationSecondedSignal, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement,
 	SignedFullStatement, ValidationResult,
 };
-use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
-	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
-	DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
-	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+use polkadot_primitives::{
+	v2::{
+		AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
+		CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
+		DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
+		InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
+		OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, SessionIndex,
+		SessionInfo, SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode,
+		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	vstaging as vstaging_primitives,
 };
 use polkadot_statement_table::v2::Misbehavior;
 use std::{
@@ -697,6 +700,9 @@ pub enum RuntimeApiRequest {
 	StagingDisputes(
 		RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
 	),
+	/// Get the validity constraints of the given para.
+	/// This is a staging API that will not be available on production runtimes.
+	StagingValidityConstraints(ParaId, RuntimeApiSender<Option<vstaging_primitives::Constraints>>),
 }
 
 /// A message to the Runtime API subsystem.
@@ -933,3 +939,64 @@ pub enum GossipSupportMessage {
 /// Currently non-instantiable.
 #[derive(Debug)]
 pub enum PvfCheckerMessage {}
+
+/// A request for the depths a hypothetical candidate would occupy within
+/// some fragment tree.
+#[derive(Debug)]
+pub struct HypotheticalDepthRequest {
+	/// The hash of the potential candidate.
+	pub candidate_hash: CandidateHash,
+	/// The para of the candidate.
+	pub candidate_para: ParaId,
+	/// The hash of the parent head-data of the candidate.
+	pub parent_head_data_hash: Hash,
+	/// The relay-parent of the candidate.
+	pub candidate_relay_parent: Hash,
+	/// The relay-parent of the fragment tree we are comparing to.
+	pub fragment_tree_relay_parent: Hash,
+}
+
+/// Indicates the relay-parents whose fragment tree a candidate
+/// is present in and the depths of that tree the candidate is present in.
+pub type FragmentTreeMembership = Vec<(Hash, Vec<usize>)>;
+
+/// Messages sent to the Prospective Parachains subsystem.
+#[derive(Debug)]
+pub enum ProspectiveParachainsMessage {
+	/// Inform the Prospective Parachains Subsystem of a new candidate.
+	///
+	/// The response sender accepts the candidate membership, which is empty
+	/// if the candidate was already known.
+	CandidateSeconded(
+		ParaId,
+		CommittedCandidateReceipt,
+		PersistedValidationData,
+		oneshot::Sender<FragmentTreeMembership>,
+	),
+	/// Inform the Prospective Parachains Subsystem that a previously seconded candidate
+	/// has been backed. This requires that `CandidateSeconded` was sent for the candidate
+	/// some time in the past.
+	CandidateBacked(ParaId, CandidateHash),
+	/// Get a backable candidate hash for the given parachain, under the given relay-parent hash,
+	/// which is a descendant of the given candidate hashes. Returns `None` on the channel
+	/// if no such candidate exists.
+	GetBackableCandidate(Hash, ParaId, Vec<CandidateHash>, oneshot::Sender<Option<CandidateHash>>),
+	/// Get the hypothetical depths that a candidate with the given properties would
+	/// occupy in the fragment tree for the given relay-parent.
+	///
+	/// If the candidate is already known, this returns the depths the candidate
+	/// occupies.
+	///
+	/// Returns an empty vector either if there is no such depth or the fragment tree relay-parent
+	/// is unknown.
+	GetHypotheticalDepth(HypotheticalDepthRequest, oneshot::Sender<Vec<usize>>),
+	/// Get the membership of the candidate in all fragment trees.
+	GetTreeMembership(ParaId, CandidateHash, oneshot::Sender<FragmentTreeMembership>),
+	/// Get the minimum accepted relay-parent number in the fragment tree
+	/// for the given relay-parent and para-id.
+	///
+	/// That is, if the relay-parent is known and there's a fragment tree for it,
+	/// in this para-id, this returns the minimum relay-parent block number in the
+	/// same chain which is accepted in the fragment tree for the para-id.
+	GetMinimumRelayParent(ParaId, Hash, oneshot::Sender<Option<BlockNumber>>),
+}

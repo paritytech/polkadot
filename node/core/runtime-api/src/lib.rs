@@ -160,6 +160,11 @@ where
 			ValidationCodeHash(relay_parent, para_id, assumption, hash) => self
 				.requests_cache
 				.cache_validation_code_hash((relay_parent, para_id, assumption), hash),
+
+			StagingValidityConstraints(relay_parent, para_id, constraints) => self
+				.requests_cache
+				.cache_staging_validity_constraints((relay_parent, para_id), constraints),
+
 			Version(relay_parent, version) =>
 				self.requests_cache.cache_version(relay_parent, version),
 			StagingDisputes(relay_parent, disputes) =>
@@ -267,6 +272,9 @@ where
 					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
 			Request::StagingDisputes(sender) =>
 				query!(disputes(), sender).map(|sender| Request::StagingDisputes(sender)),
+			Request::StagingValidityConstraints(para, sender) =>
+				query!(staging_validity_constraints(para), sender)
+					.map(|sender| Request::StagingValidityConstraints(para, sender)),
 		}
 	}
 
@@ -521,5 +529,8 @@ where
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
 		Request::StagingDisputes(sender) =>
 			query!(StagingDisputes, staging_get_disputes(), ver = 2, sender),
+		Request::StagingValidityConstraints(para, sender) => {
+			query!(StagingValidityConstraints, staging_validity_constraints(para), ver = 2, sender)
+		},
 	}
 }

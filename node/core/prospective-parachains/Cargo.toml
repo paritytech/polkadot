@@ -1,0 +1,26 @@
+[package]
+name = "polkadot-node-core-prospective-parachains"
+version = "0.9.16"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.3.19"
+gum = { package = "tracing-gum", path = "../../gum" }
+parity-scale-codec = "2"
+thiserror = "1.0.30"
+fatality = "0.0.6"
+bitvec = "1"
+
+polkadot-primitives = { path = "../../../primitives" }
+polkadot-node-primitives = { path = "../../primitives" }
+polkadot-node-subsystem = { path = "../../subsystem" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+
+[dev-dependencies]
+assert_matches = "1"
+polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }
+
+[features]
+# If not enabled, the dispute coordinator will do nothing.
+disputes = []
