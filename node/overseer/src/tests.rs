@@ -30,7 +30,7 @@ use polkadot_node_subsystem_types::{
 };
 use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, CollatorPair, InvalidDisputeStatementKind,
-	ValidDisputeStatementKind, ValidatorIndex,
+	ValidDisputeStatementKind, ValidatorIndex, Id as ParaId,
 };
 
 use crate::{
@@ -910,6 +910,10 @@ fn test_chain_selection_msg() -> ChainSelectionMessage {
 	ChainSelectionMessage::Approved(Default::default())
 }
 
+fn test_prospective_parachains_msg() -> ProspectiveParachainsMessage {
+	ProspectiveParachainsMessage::CandidateBacked(ParaId::from(5), CandidateHash(Hash::repeat_byte(0)))
+}
+
 // Checks that `stop`, `broadcast_signal` and `broadcast_message` are implemented correctly.
 #[test]
 fn overseer_all_subsystems_receive_signals_and_messages() {
@@ -997,6 +1001,9 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 			.await;
 		handle
 			.send_msg_anon(AllMessages::ChainSelection(test_chain_selection_msg()))
+			.await;
+		handle
+			.send_msg_anon(AllMessages::ProspectiveParachains(test_prospective_parachains_msg()))
 			.await;
 		// handle.send_msg_anon(AllMessages::PvfChecker(test_pvf_checker_msg())).await;
 
