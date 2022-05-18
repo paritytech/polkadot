@@ -8,3 +8,14 @@
 <!-- Such a comment will be rendered but remain invisible in the rendered markdown -->
 <!-- Edit below this line -->
 <!-- Edit above this line -->
+
+This release switches to a new JSON-RPC server library, which imposes the following changes:
+    - IPC transport support has been removed.
+    - DEPRECATED CLI `--rpc-max-payload`: has been deprecated in favor of `--rpc-max-request-size` or `rpc-max-response-size`.
+    - DEPRECATED CLI `--ws-max-out-buffer-capacity`: has been been deprecated in favour of `rpc-max-response-size`.
+    - DEPRECATED CLI `--ipc-path`: has been been deprecated and does nothing.
+    - NEW CLI `--ws-max-request-size`: to limit maximum size of a incoming request.
+    - NEW CLI `--ws-max-response-size`: to limit max size of a produced response.
+    - The maximum number of subscriptions per connection has been hardcoded to 1024, this will be configurable in the next release via a `CLI flag`.
+    - The logging has slightly changed if you rely on waiting for the output `Listening for new connections <ADDR>`
+      it has changed to `Running JSON-RPC WS server: addr=<ADDR>` to determine when RPC servers has been started.
