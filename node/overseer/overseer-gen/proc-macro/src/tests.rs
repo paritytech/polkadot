@@ -32,13 +32,13 @@ fn print() {
 
 	let item = quote! {
 		pub struct Ooooh<X = Pffffffft> where X: Secrit {
-			#[subsystem(no_dispatch, Foo)]
+			#[subsystem(Foo)]
 			sub0: FooSubsystem,
 
 			#[subsystem(blocking, Bar)]
 			yyy: BaersBuyBilliardBalls,
 
-			#[subsystem(no_dispatch, blocking, Twain)]
+			#[subsystem(blocking, Twain)]
 			fff: Beeeeep,
 
 			#[subsystem(Rope)]
@@ -57,13 +57,13 @@ fn print() {
 fn struct_parse_full() {
 	let item: OverseerGuts = parse_quote! {
 		pub struct Ooooh<X = Pffffffft> where X: Secrit {
-			#[subsystem(no_dispatch, Foo)]
+			#[subsystem(Foo)]
 			sub0: FooSubsystem,
 
 			#[subsystem(blocking, Bar)]
 			yyy: BaersBuyBilliardBalls,
 
-			#[subsystem(no_dispatch, blocking, Twain)]
+			#[subsystem(blocking, Twain)]
 			fff: Beeeeep,
 
 			#[subsystem(Rope)]
@@ -88,11 +88,11 @@ fn struct_parse_basic() {
 
 #[test]
 fn attr_full() {
-	let attr: AttrArgs = parse_quote! {
+	let attr: OverseerAttrArgs = parse_quote! {
 		gen=AllMessage, event=::some::why::ExternEvent, signal=SigSigSig, signal_capacity=111, message_capacity=222,
 		error=OverseerError,
 	};
-	assert_matches!(attr, AttrArgs {
+	assert_matches!(attr, OverseerAttrArgs {
 		message_channel_capacity,
 		signal_channel_capacity,
 		..
@@ -104,11 +104,11 @@ fn attr_full() {
 
 #[test]
 fn attr_partial() {
-	let attr: AttrArgs = parse_quote! {
+	let attr: OverseerAttrArgs = parse_quote! {
 		gen=AllMessage, event=::some::why::ExternEvent, signal=::foo::SigSigSig,
 		error=OverseerError,
 	};
-	assert_matches!(attr, AttrArgs {
+	assert_matches!(attr, OverseerAttrArgs {
 		message_channel_capacity: _,
 		signal_channel_capacity: _,
 		..

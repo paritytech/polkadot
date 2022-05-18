@@ -21,7 +21,7 @@ use polkadot_node_network_protocol::{our_view, view, ObservedRole};
 use polkadot_node_primitives::approval::{
 	AssignmentCertKind, VRFOutput, VRFProof, RELAY_VRF_MODULO_CONTEXT,
 };
-use polkadot_node_subsystem::messages::{AllMessages, ApprovalCheckError};
+use polkadot_node_subsystem::messages::{network_bridge_event, AllMessages, ApprovalCheckError};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
 use polkadot_primitives::v2::{AuthorityDiscoveryId, BlakeTwo256, HashT};
@@ -75,7 +75,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	state
 }
 
-const TIMEOUT: Duration = Duration::from_millis(100);
+const TIMEOUT: Duration = Duration::from_millis(200);
 
 async fn overseer_send(overseer: &mut VirtualOverseer, msg: ApprovalDistributionMessage) {
 	gum::trace!(msg = ?msg, "Sending message");

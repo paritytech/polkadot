@@ -6,7 +6,7 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.9.19"
+version = "0.9.22"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 rust-version = "1.57.0" # custom profiles
@@ -19,9 +19,9 @@ parity-util-mem = { version = "0.11.0", default-features = false, features = ["j
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
-nix = "0.23.1"
+nix = "0.24.1"
 tempfile = "3.2.0"
-tokio = "1.17.0"
+tokio = "1.18.2"
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-core-primitives = { path = "core-primitives" }
 
@@ -203,6 +203,7 @@ try-runtime = [ "polkadot-cli/try-runtime" ]
 fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
+staging-client = ["polkadot-cli/staging-client"]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
@@ -235,5 +236,4 @@ polkadot = { path = "/usr/bin/polkadot" }
 "../scripts/packaging/polkadot.service" = { path = "/usr/lib/systemd/system/polkadot.service", mode = "644" }
 
 [package.metadata.spellcheck]
-config = "./scripts/gitlab/spellcheck.toml"
-
+config = "./scripts/ci/gitlab/spellcheck.toml"

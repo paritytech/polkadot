@@ -22,15 +22,14 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
+use polkadot_node_subsystem::{
+	errors::RuntimeApiError,
+	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
+	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
+};
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
 	v2::{Block, BlockId, Hash},
-};
-use polkadot_subsystem::{
-	errors::RuntimeApiError,
-	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
-	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
-	SubsystemResult,
 };
 
 use sp_api::ProvideRuntimeApi;
@@ -92,12 +91,11 @@ impl<Client> RuntimeApiSubsystem<Client> {
 	}
 }
 
-impl<Client, Context> overseer::Subsystem<Context, SubsystemError> for RuntimeApiSubsystem<Client>
+#[overseer::subsystem(RuntimeApi, error = SubsystemError, prefix = self::overseer)]
+impl<Client, Context> RuntimeApiSubsystem<Client>
 where
 	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-	Context: SubsystemContext<Message = RuntimeApiMessage>,
-	Context: overseer::SubsystemContext<Message = RuntimeApiMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem { future: run(ctx, self).boxed(), name: "runtime-api-subsystem" }
@@ -169,6 +167,8 @@ where
 				.cache_validation_code_hash((relay_parent, para_id, assumption), hash),
 			Version(relay_parent, version) =>
 				self.requests_cache.cache_version(relay_parent, version),
+			StagingDisputes(relay_parent, disputes) =>
+				self.requests_cache.cache_disputes(relay_parent, disputes),
 		}
 	}
 
@@ -270,6 +270,8 @@ where
 			Request::ValidationCodeHash(para, assumption, sender) =>
 				query!(validation_code_hash(para, assumption), sender)
 					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
+			Request::StagingDisputes(sender) =>
+				query!(disputes(), sender).map(|sender| Request::StagingDisputes(sender)),
 		}
 	}
 
@@ -329,6 +331,7 @@ where
 	}
 }
 
+#[overseer::contextbounds(RuntimeApi, prefix = self::overseer)]
 async fn run<Client, Context>(
 	mut ctx: Context,
 	mut subsystem: RuntimeApiSubsystem<Client>,
@@ -336,8 +339,6 @@ async fn run<Client, Context>(
 where
 	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-	Context: SubsystemContext<Message = RuntimeApiMessage>,
-	Context: overseer::SubsystemContext<Message = RuntimeApiMessage>,
 {
 	loop {
 		select! {
@@ -526,5 +527,7 @@ where
 		},
 		Request::ValidationCodeHash(para, assumption, sender) =>
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
+		Request::StagingDisputes(sender) =>
+			query!(StagingDisputes, staging_get_disputes(), ver = 2, sender),
 	}
 }

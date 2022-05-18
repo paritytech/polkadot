@@ -41,18 +41,18 @@ use polkadot_node_network_protocol::{
 	IfDisconnected,
 };
 use polkadot_node_primitives::{CandidateVotes, UncheckedDisputeMessage};
-use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, SessionInfo,
-};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, DisputeCoordinatorMessage, DisputeDistributionMessage, ImportStatementsResult,
 		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, Span,
 };
-use polkadot_subsystem_testhelpers::{
+use polkadot_node_subsystem_test_helpers::{
 	mock::make_ferdie_keystore, subsystem_test_harness, TestSubsystemContextHandle,
+};
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, SessionInfo,
 };
 
 use self::mock::{

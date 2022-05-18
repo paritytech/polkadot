@@ -61,7 +61,7 @@ decl_test_network! {
 }
 
 pub fn para_account_id(id: u32) -> relay_chain::AccountId {
-	ParaId::from(id).into_account()
+	ParaId::from(id).into_account_truncating()
 }
 
 pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
