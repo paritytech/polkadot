@@ -157,7 +157,7 @@ where
 		+ Subsystem<OverseerSubsystemContext<DisputeDistributionMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<PvfCheckerMessage>, SubsystemError>
-		+ Subsystem<OverseerSubsystemContext<ProspectiveParachainsMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<ProspectiveParachainsMessage>, SubsystemError>,
 {
 	let metrics = <OverseerMetrics as MetricsTrait>::register(registry)?;
 

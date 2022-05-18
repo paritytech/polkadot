@@ -83,8 +83,8 @@ use polkadot_node_subsystem_types::messages::{
 	BitfieldSigningMessage, CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage,
 	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
 	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
-	NetworkBridgeMessage, ProvisionerMessage, PvfCheckerMessage, RuntimeApiMessage,
-	StatementDistributionMessage, ProspectiveParachainsMessage,
+	NetworkBridgeMessage, ProspectiveParachainsMessage, ProvisionerMessage, PvfCheckerMessage,
+	RuntimeApiMessage, StatementDistributionMessage,
 };
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
