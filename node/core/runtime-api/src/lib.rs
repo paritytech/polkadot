@@ -322,7 +322,11 @@ where
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 {
 	loop {
-		// This adds some back pressure when the subsystem is running at `MAX_PARALLEL_REQUESTS`.
+		// Let's add some back pressure when the subsystem is running at `MAX_PARALLEL_REQUESTS`.
+		// This can never block forever, because `active_requests` is owned by this task and any mutations
+		// happen either in `poll_requests` or `spawn_request` - so if `is_busy` returns true, then
+		// even if all of the requests finish before us calling `poll_requests` the `active_requests` length
+		// remains invariant.
 		if subsystem.is_busy() {
 			// Since we are not using any internal waiting queues, we need to wait for exactly
 			// one request to complete before we can read the next one from the overseer channel.
