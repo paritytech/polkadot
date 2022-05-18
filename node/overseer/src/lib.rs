@@ -68,6 +68,7 @@ use std::{
 };
 
 use futures::{channel::oneshot, future::BoxFuture, select, Future, FutureExt, Stream, StreamExt};
+use gen::async_trait;
 use lru::LruCache;
 
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
@@ -143,10 +144,9 @@ impl<Client> HeadSupportsParachains for Arc<Client>
 where
 	Client: OverseerRuntimeClient,
 {
+	// TODO Introduce actual check here
 	fn head_supports_parachains(&self, head: &Hash) -> bool {
-		let id = BlockId::Hash(*head);
-		// Check that the `ParachainHost` runtime api is at least with version 1 present on chain.
-		self.api_version_parachain_host(&id).ok().flatten().unwrap_or(0) >= 1
+		true
 	}
 }
 
@@ -850,17 +850,18 @@ where
 	}
 }
 
+#[async_trait]
 pub trait OverseerRuntimeClient {
-	fn validators(&self, at: &BlockId) -> Result<Vec<ValidatorId>, ApiError>;
+	async fn validators(&self, at: &BlockId) -> Result<Vec<ValidatorId>, ApiError>;
 
-	fn validator_groups(
+	async fn validator_groups(
 		&self,
 		at: &BlockId,
 	) -> Result<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>), ApiError>;
 
 	/// Yields information on all availability cores as relevant to the child block.
 	/// Cores are either free or occupied. Free cores can have paras assigned to them.
-	fn availability_cores(
+	async fn availability_cores(
 		&self,
 		at: &BlockId,
 	) -> Result<Vec<CoreState<Hash, BlockNumber>>, ApiError>;
@@ -870,7 +871,7 @@ pub trait OverseerRuntimeClient {
 	///
 	/// Returns `None` if either the para is not registered or the assumption is `Freed`
 	/// and the para already occupies a core.
-	fn persisted_validation_data(
+	async fn persisted_validation_data(
 		&self,
 		at: &BlockId,
 		para_id: Id,
@@ -880,7 +881,7 @@ pub trait OverseerRuntimeClient {
 	/// Returns the persisted validation data for the given `ParaId` along with the corresponding
 	/// validation code hash. Instead of accepting assumption about the para, matches the validation
 	/// data hash against an expected one and yields `None` if they're not equal.
-	fn assumed_validation_data(
+	async fn assumed_validation_data(
 		&self,
 		at: &BlockId,
 		para_id: Id,
@@ -888,7 +889,7 @@ pub trait OverseerRuntimeClient {
 	) -> Result<Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)>, ApiError>;
 
 	/// Checks if the given validation outputs pass the acceptance criteria.
-	fn check_validation_outputs(
+	async fn check_validation_outputs(
 		&self,
 		at: &BlockId,
 		para_id: Id,
@@ -898,13 +899,13 @@ pub trait OverseerRuntimeClient {
 	/// Returns the session index expected at a child of the block.
 	///
 	/// This can be used to instantiate a `SigningContext`.
-	fn session_index_for_child(&self, at: &BlockId) -> Result<SessionIndex, ApiError>;
+	async fn session_index_for_child(&self, at: &BlockId) -> Result<SessionIndex, ApiError>;
 
 	/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 	///
 	/// Returns `None` if either the para is not registered or the assumption is `Freed`
 	/// and the para already occupies a core.
-	fn validation_code(
+	async fn validation_code(
 		&self,
 		at: &BlockId,
 		para_id: Id,
@@ -913,17 +914,17 @@ pub trait OverseerRuntimeClient {
 
 	/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
 	/// assigned to occupied cores in `availability_cores` and `None` otherwise.
-	fn candidate_pending_availability(
+	async fn candidate_pending_availability(
 		&self,
 		at: &BlockId,
 		para_id: Id,
 	) -> Result<Option<CommittedCandidateReceipt<Hash>>, ApiError>;
 
 	/// Get a vector of events concerning candidates that occurred within a block.
-	fn candidate_events(&self, at: &BlockId) -> Result<Vec<CandidateEvent<Hash>>, ApiError>;
+	async fn candidate_events(&self, at: &BlockId) -> Result<Vec<CandidateEvent<Hash>>, ApiError>;
 
 	/// Get all the pending inbound messages in the downward message queue for a para.
-	fn dmq_contents(
+	async fn dmq_contents(
 		&self,
 		at: &BlockId,
 		recipient: Id,
@@ -931,28 +932,31 @@ pub trait OverseerRuntimeClient {
 
 	/// Get the contents of all channels addressed to the given recipient. Channels that have no
 	/// messages in them are also included.
-	fn inbound_hrmp_channels_contents(
+	async fn inbound_hrmp_channels_contents(
 		&self,
 		at: &BlockId,
 		recipient: Id,
 	) -> Result<BTreeMap<Id, Vec<InboundHrmpMessage<BlockNumber>>>, ApiError>;
 
 	/// Get the validation code from its hash.
-	fn validation_code_by_hash(
+	async fn validation_code_by_hash(
 		&self,
 		at: &BlockId,
 		hash: ValidationCodeHash,
 	) -> Result<Option<ValidationCode>, ApiError>;
 
 	/// Scrape dispute relevant from on-chain, backing votes and resolved disputes.
-	fn on_chain_votes(&self, at: &BlockId) -> Result<Option<ScrapedOnChainVotes<Hash>>, ApiError>;
+	async fn on_chain_votes(
+		&self,
+		at: &BlockId,
+	) -> Result<Option<ScrapedOnChainVotes<Hash>>, ApiError>;
 
 	/***** Added in v2 *****/
 
 	/// Get the session info for the given session, if stored.
 	///
 	/// NOTE: This function is only available since parachain host version 2.
-	fn session_info(
+	async fn session_info(
 		&self,
 		at: &BlockId,
 		index: SessionIndex,
@@ -961,7 +965,7 @@ pub trait OverseerRuntimeClient {
 	/// Get the session info for the given session, if stored.
 	///
 	/// NOTE: This function is only available since parachain host version 2.
-	fn session_info_before_version_2(
+	async fn session_info_before_version_2(
 		&self,
 		at: &BlockId,
 		index: SessionIndex,
@@ -970,7 +974,7 @@ pub trait OverseerRuntimeClient {
 	/// Submits a PVF pre-checking statement into the transaction pool.
 	///
 	/// NOTE: This function is only available since parachain host version 2.
-	fn submit_pvf_check_statement(
+	async fn submit_pvf_check_statement(
 		&self,
 		at: &BlockId,
 		stmt: PvfCheckStatement,
@@ -980,12 +984,15 @@ pub trait OverseerRuntimeClient {
 	/// Returns code hashes of PVFs that require pre-checking by validators in the active set.
 	///
 	/// NOTE: This function is only available since parachain host version 2.
-	fn pvfs_require_precheck(&self, at: &BlockId) -> Result<Vec<ValidationCodeHash>, ApiError>;
+	async fn pvfs_require_precheck(
+		&self,
+		at: &BlockId,
+	) -> Result<Vec<ValidationCodeHash>, ApiError>;
 
 	/// Fetch the hash of the validation code used by a para, making the given `OccupiedCoreAssumption`.
 	///
 	/// NOTE: This function is only available since parachain host version 2.
-	fn validation_code_hash(
+	async fn validation_code_hash(
 		&self,
 		at: &BlockId,
 		para_id: Id,
@@ -996,17 +1003,17 @@ pub trait OverseerRuntimeClient {
 	///
 	///
 	/// Return the genesis configuration for BABE. The configuration is only read on genesis.
-	fn configuration(&self, at: &BlockId) -> Result<BabeGenesisConfiguration, ApiError>;
+	async fn configuration(&self, at: &BlockId) -> Result<BabeGenesisConfiguration, ApiError>;
 
 	/// Returns the slot that started the current epoch.
-	fn current_epoch_start(&self, at: &BlockId) -> Result<Slot, ApiError>;
+	async fn current_epoch_start(&self, at: &BlockId) -> Result<Slot, ApiError>;
 
 	/// Returns information regarding the current epoch.
-	fn current_epoch(&self, at: &BlockId) -> Result<Epoch, ApiError>;
+	async fn current_epoch(&self, at: &BlockId) -> Result<Epoch, ApiError>;
 
 	/// Returns information regarding the next epoch (which was already
 	/// previously announced).
-	fn next_epoch(&self, at: &BlockId) -> Result<Epoch, ApiError>;
+	async fn next_epoch(&self, at: &BlockId) -> Result<Epoch, ApiError>;
 
 	/// Generates a proof of key ownership for the given authority in the
 	/// current epoch. An example usage of this module is coupled with the
@@ -1019,7 +1026,7 @@ pub trait OverseerRuntimeClient {
 	/// which the epoch for the given slot is live on-chain. Future
 	/// implementations will instead use indexed data through an offchain
 	/// worker, not requiring older states to be available.
-	fn generate_key_ownership_proof(
+	async fn generate_key_ownership_proof(
 		&self,
 		at: &BlockId,
 		slot: Slot,
@@ -1034,50 +1041,51 @@ pub trait OverseerRuntimeClient {
 	/// `None` when creation of the extrinsic fails, e.g. if equivocation
 	/// reporting is disabled for the given runtime (i.e. this method is
 	/// hardcoded to return `None`). Only useful in an offchain context.
-	fn submit_report_equivocation_unsigned_extrinsic(
+	async fn submit_report_equivocation_unsigned_extrinsic(
 		&self,
 		at: &BlockId,
 		equivocation_proof: EquivocationProof<Header>,
 		key_owner_proof: OpaqueKeyOwnershipProof,
 	) -> Result<Option<()>, ApiError>;
 
-	fn authorities(
+	async fn authorities(
 		&self,
 		at: &BlockId,
 	) -> std::result::Result<Vec<sp_authority_discovery::AuthorityId>, ApiError>;
 
-	fn api_version_parachain_host(&self, at: &BlockId) -> Result<Option<u32>, ApiError>;
+	async fn api_version_parachain_host(&self, at: &BlockId) -> Result<Option<u32>, ApiError>;
 
-	fn staging_get_disputes(
+	async fn staging_get_disputes(
 		&self,
 		at: &BlockId,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError>;
 }
 
+#[async_trait]
 impl<T> OverseerRuntimeClient for T
 where
-	T: ProvideRuntimeApi<Block>,
+	T: ProvideRuntimeApi<Block> + Send + Sync,
 	T::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 {
-	fn validators(&self, at: &BlockId) -> Result<Vec<ValidatorId>, ApiError> {
+	async fn validators(&self, at: &BlockId) -> Result<Vec<ValidatorId>, ApiError> {
 		self.runtime_api().validators(at)
 	}
 
-	fn validator_groups(
+	async fn validator_groups(
 		&self,
 		at: &BlockId,
 	) -> Result<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>), ApiError> {
 		self.runtime_api().validator_groups(at)
 	}
 
-	fn availability_cores(
+	async fn availability_cores(
 		&self,
 		at: &BlockId,
 	) -> Result<Vec<CoreState<Hash, BlockNumber>>, ApiError> {
 		self.runtime_api().availability_cores(at)
 	}
 
-	fn persisted_validation_data(
+	async fn persisted_validation_data(
 		&self,
 		at: &BlockId,
 		para_id: Id,
@@ -1086,7 +1094,7 @@ where
 		self.runtime_api().persisted_validation_data(at, para_id, assumption)
 	}
 
-	fn assumed_validation_data(
+	async fn assumed_validation_data(
 		&self,
 		at: &BlockId,
 		para_id: Id,
@@ -1100,7 +1108,7 @@ where
 		)
 	}
 
-	fn check_validation_outputs(
+	async fn check_validation_outputs(
 		&self,
 		at: &BlockId,
 		para_id: Id,
@@ -1109,11 +1117,11 @@ where
 		self.runtime_api().check_validation_outputs(at, para_id, outputs)
 	}
 
-	fn session_index_for_child(&self, at: &BlockId) -> Result<SessionIndex, ApiError> {
+	async fn session_index_for_child(&self, at: &BlockId) -> Result<SessionIndex, ApiError> {
 		self.runtime_api().session_index_for_child(at)
 	}
 
-	fn validation_code(
+	async fn validation_code(
 		&self,
 		at: &BlockId,
 		para_id: Id,
@@ -1122,7 +1130,7 @@ where
 		self.runtime_api().validation_code(at, para_id, assumption)
 	}
 
-	fn candidate_pending_availability(
+	async fn candidate_pending_availability(
 		&self,
 		at: &BlockId,
 		para_id: Id,
@@ -1130,11 +1138,11 @@ where
 		self.runtime_api().candidate_pending_availability(at, para_id)
 	}
 
-	fn candidate_events(&self, at: &BlockId) -> Result<Vec<CandidateEvent<Hash>>, ApiError> {
+	async fn candidate_events(&self, at: &BlockId) -> Result<Vec<CandidateEvent<Hash>>, ApiError> {
 		self.runtime_api().candidate_events(at)
 	}
 
-	fn dmq_contents(
+	async fn dmq_contents(
 		&self,
 		at: &BlockId,
 		recipient: Id,
@@ -1142,7 +1150,7 @@ where
 		self.runtime_api().dmq_contents(at, recipient)
 	}
 
-	fn inbound_hrmp_channels_contents(
+	async fn inbound_hrmp_channels_contents(
 		&self,
 		at: &BlockId,
 		recipient: Id,
@@ -1150,7 +1158,7 @@ where
 		self.runtime_api().inbound_hrmp_channels_contents(at, recipient)
 	}
 
-	fn validation_code_by_hash(
+	async fn validation_code_by_hash(
 		&self,
 		at: &BlockId,
 		hash: ValidationCodeHash,
@@ -1158,11 +1166,14 @@ where
 		self.runtime_api().validation_code_by_hash(at, hash)
 	}
 
-	fn on_chain_votes(&self, at: &BlockId) -> Result<Option<ScrapedOnChainVotes<Hash>>, ApiError> {
+	async fn on_chain_votes(
+		&self,
+		at: &BlockId,
+	) -> Result<Option<ScrapedOnChainVotes<Hash>>, ApiError> {
 		self.runtime_api().on_chain_votes(at)
 	}
 
-	fn session_info(
+	async fn session_info(
 		&self,
 		at: &BlockId,
 		index: SessionIndex,
@@ -1170,7 +1181,7 @@ where
 		self.runtime_api().session_info(at, index)
 	}
 
-	fn submit_pvf_check_statement(
+	async fn submit_pvf_check_statement(
 		&self,
 		at: &BlockId,
 		stmt: PvfCheckStatement,
@@ -1179,11 +1190,14 @@ where
 		self.runtime_api().submit_pvf_check_statement(at, stmt, signature)
 	}
 
-	fn pvfs_require_precheck(&self, at: &BlockId) -> Result<Vec<ValidationCodeHash>, ApiError> {
+	async fn pvfs_require_precheck(
+		&self,
+		at: &BlockId,
+	) -> Result<Vec<ValidationCodeHash>, ApiError> {
 		self.runtime_api().pvfs_require_precheck(at)
 	}
 
-	fn validation_code_hash(
+	async fn validation_code_hash(
 		&self,
 		at: &BlockId,
 		para_id: Id,
@@ -1192,23 +1206,23 @@ where
 		self.runtime_api().validation_code_hash(at, para_id, assumption)
 	}
 
-	fn configuration(&self, at: &BlockId) -> Result<BabeGenesisConfiguration, ApiError> {
+	async fn configuration(&self, at: &BlockId) -> Result<BabeGenesisConfiguration, ApiError> {
 		self.runtime_api().configuration(at)
 	}
 
-	fn current_epoch_start(&self, at: &BlockId) -> Result<Slot, ApiError> {
+	async fn current_epoch_start(&self, at: &BlockId) -> Result<Slot, ApiError> {
 		self.runtime_api().current_epoch_start(at)
 	}
 
-	fn current_epoch(&self, at: &BlockId) -> Result<Epoch, ApiError> {
+	async fn current_epoch(&self, at: &BlockId) -> Result<Epoch, ApiError> {
 		self.runtime_api().current_epoch(at)
 	}
 
-	fn next_epoch(&self, at: &BlockId) -> Result<Epoch, ApiError> {
+	async fn next_epoch(&self, at: &BlockId) -> Result<Epoch, ApiError> {
 		self.runtime_api().next_epoch(at)
 	}
 
-	fn generate_key_ownership_proof(
+	async fn generate_key_ownership_proof(
 		&self,
 		at: &BlockId,
 		slot: Slot,
@@ -1217,7 +1231,7 @@ where
 		self.runtime_api().generate_key_ownership_proof(at, slot, authority_id)
 	}
 
-	fn submit_report_equivocation_unsigned_extrinsic(
+	async fn submit_report_equivocation_unsigned_extrinsic(
 		&self,
 		at: &BlockId,
 		equivocation_proof: EquivocationProof<Header>,
@@ -1230,18 +1244,18 @@ where
 		)
 	}
 
-	fn authorities(
+	async fn authorities(
 		&self,
 		at: &BlockId,
 	) -> std::result::Result<Vec<sp_authority_discovery::AuthorityId>, ApiError> {
 		self.runtime_api().authorities(at)
 	}
 
-	fn api_version_parachain_host(&self, at: &BlockId) -> Result<Option<u32>, ApiError> {
+	async fn api_version_parachain_host(&self, at: &BlockId) -> Result<Option<u32>, ApiError> {
 		self.runtime_api().api_version::<dyn ParachainHost<Block>>(at)
 	}
 
-	fn session_info_before_version_2(
+	async fn session_info_before_version_2(
 		&self,
 		at: &BlockId,
 		index: SessionIndex,
@@ -1250,7 +1264,7 @@ where
 		todo!()
 	}
 
-	fn staging_get_disputes(
+	async fn staging_get_disputes(
 		&self,
 		at: &BlockId,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError> {

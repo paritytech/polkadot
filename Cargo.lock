@@ -6911,6 +6911,7 @@ name = "polkadot-overseer"
 version = "0.9.19"
 dependencies = [
  "assert_matches",
+ "async-trait",
  "femme",
  "futures 0.3.21",
  "futures-timer",

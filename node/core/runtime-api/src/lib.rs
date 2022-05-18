@@ -282,14 +282,13 @@ where
 		let metrics = self.metrics.clone();
 		let (sender, receiver) = oneshot::channel();
 
-		gum::debug!(target: LOG_TARGET, "Runtime API call was requested: {:?}", request);
 		let request = match self.query_cache(relay_parent.clone(), request) {
 			Some(request) => request,
 			None => return,
 		};
 
 		let request = async move {
-			let result = make_runtime_api_request(client, metrics, relay_parent, request);
+			let result = make_runtime_api_request(client, metrics, relay_parent, request).await;
 			let _ = sender.send(result);
 		}
 		.boxed();
@@ -357,7 +356,7 @@ where
 	}
 }
 
-fn make_runtime_api_request<Client>(
+async fn make_runtime_api_request<Client>(
 	client: Arc<Client>,
 	metrics: Metrics,
 	relay_parent: Hash,
@@ -373,7 +372,7 @@ where
 			let sender = $sender;
 			let api = client;
 
-			let runtime_version = api.api_version_parachain_host(&BlockId::Hash(relay_parent))
+			let runtime_version = api.api_version_parachain_host(&BlockId::Hash(relay_parent)).await
 				.unwrap_or_else(|e| {
 					gum::warn!(
 						target: LOG_TARGET,
@@ -391,7 +390,7 @@ where
 				});
 
 			let res = if runtime_version >= $version {
-				api.$api_name(&BlockId::Hash(relay_parent) $(, $param.clone() )*)
+				api.$api_name(&BlockId::Hash(relay_parent) $(, $param.clone() )*).await
 					.map_err(|e| RuntimeApiError::Execution {
 						runtime_api_name: stringify!($api_name),
 						source: std::sync::Arc::new(e),
@@ -412,15 +411,16 @@ where
 		Request::Version(sender) => {
 			let api = client;
 
-			let runtime_version = match api.api_version_parachain_host(&BlockId::Hash(relay_parent))
-			{
-				Ok(Some(v)) => Ok(v),
-				Ok(None) => Err(RuntimeApiError::NotSupported { runtime_api_name: "api_version" }),
-				Err(e) => Err(RuntimeApiError::Execution {
-					runtime_api_name: "api_version",
-					source: std::sync::Arc::new(e),
-				}),
-			};
+			let runtime_version =
+				match api.api_version_parachain_host(&BlockId::Hash(relay_parent)).await {
+					Ok(Some(v)) => Ok(v),
+					Ok(None) =>
+						Err(RuntimeApiError::NotSupported { runtime_api_name: "api_version" }),
+					Err(e) => Err(RuntimeApiError::Execution {
+						runtime_api_name: "api_version",
+						source: std::sync::Arc::new(e),
+					}),
+				};
 
 			let _ = sender.send(runtime_version.clone());
 			runtime_version.ok().map(|v| RequestResult::Version(relay_parent, v))
@@ -475,20 +475,23 @@ where
 
 			let api_version = api
 				.api_version_parachain_host(&BlockId::Hash(relay_parent))
+				.await
 				.unwrap_or_default()
 				.unwrap_or_default();
 
 			let res = if api_version >= 2 {
-				let res =
-					api.session_info(&block_id, index).map_err(|e| RuntimeApiError::Execution {
+				let res = api
+					.session_info(&block_id, index)
+					.map_err(|e| RuntimeApiError::Execution {
 						runtime_api_name: "SessionInfo",
 						source: std::sync::Arc::new(e),
-					});
+					})
+					.await;
 				metrics.on_request(res.is_ok());
 				res
 			} else {
 				#[allow(deprecated)]
-				let res = api.session_info_before_version_2(&block_id, index).map_err(|e| {
+				let res = api.session_info_before_version_2(&block_id, index).await.map_err(|e| {
 					RuntimeApiError::Execution {
 						runtime_api_name: "SessionInfo",
 						source: std::sync::Arc::new(e),
