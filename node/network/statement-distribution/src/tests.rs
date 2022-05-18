@@ -505,10 +505,11 @@ fn peer_view_update_sends_messages() {
 	let peer = PeerId::random();
 
 	executor::block_on(async move {
-		let gossip_peers = HashSet::from_iter(vec![peer.clone()].into_iter());
+		let mut topology: SessionGridTopology = Default::default();
+		topology.peers_x = HashSet::from_iter(vec![peer.clone()].into_iter());
 		update_peer_view_and_maybe_send_unlocked(
 			peer.clone(),
-			&gossip_peers,
+			&topology,
 			&mut peer_data,
 			&mut ctx,
 			&active_heads,
@@ -634,10 +635,12 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 		};
 		let statement = StoredStatement { comparator: &comparator, statement: &statement };
 
-		let gossip_peers =
+		let mut topology: SessionGridTopology = Default::default();
+		topology.peers_x =
 			HashSet::from_iter(vec![peer_a.clone(), peer_b.clone(), peer_c.clone()].into_iter());
 		let needs_dependents = circulate_statement(
-			&gossip_peers,
+			RequiredRouting::GridXY,
+			&topology,
 			&mut peer_data,
 			&mut ctx,
 			hash_b,
@@ -2004,19 +2007,31 @@ fn handle_multiple_seconded_statements() {
 				our_neighbors_y: HashMap::new(),
 			};
 
-			// This is relying on the fact that statement distribution
-			// just extracts the peer IDs from this struct and does nothing else
-			// with it.
+			// Create a topology to ensure that we send messages not to `peer_a`/`peer_b`
 			for (i, peer) in lucky_peers.iter().enumerate() {
 				let authority_id = AuthorityPair::generate().0.public();
-				t.our_neighbors_x.insert(
+				t.our_neighbors_y.insert(
 					authority_id,
 					network_bridge_event::TopologyPeerInfo {
 						peer_ids: vec![peer.clone()],
-						validator_index: (i as u32).into(),
+						validator_index: (i as u32 + 2_u32).into(),
 					},
 				);
 			}
+			t.our_neighbors_x.insert(
+				AuthorityPair::generate().0.public(),
+				network_bridge_event::TopologyPeerInfo {
+					peer_ids: vec![peer_a.clone()],
+					validator_index: 0_u32.into(),
+				},
+			);
+			t.our_neighbors_x.insert(
+				AuthorityPair::generate().0.public(),
+				network_bridge_event::TopologyPeerInfo {
+					peer_ids: vec![peer_b.clone()],
+					validator_index: 1_u32.into(),
+				},
+			);
 
 			t
 		};

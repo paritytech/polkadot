@@ -6831,6 +6831,7 @@ dependencies = [
  "sc-network",
  "strum 0.24.0",
  "thiserror",
+ "tracing-gum",
 ]
 
 [[package]]
