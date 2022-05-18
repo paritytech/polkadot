@@ -36,7 +36,7 @@ use polkadot_node_subsystem::{
 		ChainApiMessage, FragmentTreeMembership, HypotheticalDepthRequest,
 		ProspectiveParachainsMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemError,
 };
 use polkadot_node_subsystem_util::inclusion_emulator::staging::{Constraints, RelayChainBlockInfo};
@@ -88,10 +88,10 @@ impl View {
 #[derive(Default)]
 pub struct ProspectiveParachainsSubsystem;
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for ProspectiveParachainsSubsystem
+#[overseer::subsystem(ProspectiveParachains, error = SubsystemError, prefix = self::overseer)]
+impl<Context> ProspectiveParachainsSubsystem
 where
-	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
+	Context: Send + Sync
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
@@ -103,11 +103,8 @@ where
 	}
 }
 
-async fn run<Context>(mut ctx: Context) -> FatalResult<()>
-where
-	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
-{
+#[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
+async fn run<Context>(mut ctx: Context) -> FatalResult<()> {
 	let mut view = View::new();
 	loop {
 		crate::error::log_error(
@@ -117,11 +114,8 @@ where
 	}
 }
 
-async fn run_iteration<Context>(ctx: &mut Context, view: &mut View) -> Result<()>
-where
-	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
-{
+#[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
+async fn run_iteration<Context>(ctx: &mut Context, view: &mut View) -> Result<()> {
 	loop {
 		match ctx.recv().await.map_err(FatalError::SubsystemReceive)? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
@@ -151,15 +145,12 @@ where
 	}
 }
 
+#[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
 async fn handle_active_leaves_update<Context>(
 	ctx: &mut Context,
 	view: &mut View,
 	update: ActiveLeavesUpdate,
-) -> JfyiErrorResult<()>
-where
-	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
-{
+) -> JfyiErrorResult<()> {
 	// 1. clean up inactive leaves
 	// 2. determine all scheduled para at new block
 	// 3. construct new fragment tree for each para for each new leaf
@@ -264,6 +255,7 @@ fn prune_view_candidate_storage(view: &mut View) {
 	})
 }
 
+#[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
 async fn handle_candidate_seconded<Context>(
 	_ctx: &mut Context,
 	view: &mut View,
@@ -272,9 +264,6 @@ async fn handle_candidate_seconded<Context>(
 	pvd: PersistedValidationData,
 	tx: oneshot::Sender<FragmentTreeMembership>,
 ) -> JfyiErrorResult<()>
-where
-	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
 	// Add the candidate to storage.
 	// Then attempt to add it to all trees.
@@ -331,15 +320,13 @@ where
 	Ok(())
 }
 
+#[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
 async fn handle_candidate_backed<Context>(
 	_ctx: &mut Context,
 	view: &mut View,
 	para: ParaId,
 	candidate_hash: CandidateHash,
 ) -> JfyiErrorResult<()>
-where
-	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
 	let storage = match view.candidate_storage.get_mut(&para) {
 		None => {
@@ -492,14 +479,12 @@ fn answer_minimum_relay_parent_request(
 	let _ = tx.send(res);
 }
 
+#[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
 async fn fetch_base_constraints<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
 	para_id: ParaId,
 ) -> JfyiErrorResult<Option<Constraints>>
-where
-	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(RuntimeApiMessage::Request(
@@ -511,13 +496,11 @@ where
 	Ok(rx.await.map_err(JfyiError::RuntimeApiRequestCanceled)??.map(From::from))
 }
 
+#[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
 async fn fetch_upcoming_paras<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
 ) -> JfyiErrorResult<Vec<ParaId>>
-where
-	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 
@@ -552,14 +535,12 @@ where
 }
 
 // Fetch ancestors in descending order, up to the amount requested.
+#[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
 async fn fetch_ancestry<Context>(
 	ctx: &mut Context,
 	relay_hash: Hash,
 	ancestors: usize,
 ) -> JfyiErrorResult<Vec<RelayChainBlockInfo>>
-where
-	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(ChainApiMessage::Ancestors {
@@ -592,13 +573,11 @@ where
 	Ok(block_info)
 }
 
+#[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
 async fn fetch_block_info<Context>(
 	ctx: &mut Context,
 	relay_hash: Hash,
 ) -> JfyiErrorResult<Option<RelayChainBlockInfo>>
-where
-	Context: SubsystemContext<Message = ProspectiveParachainsMessage>,
-	Context: overseer::SubsystemContext<Message = ProspectiveParachainsMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 

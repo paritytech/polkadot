@@ -84,7 +84,7 @@ use polkadot_node_subsystem_types::messages::{
 	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
 	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
 	NetworkBridgeMessage, ProvisionerMessage, PvfCheckerMessage, RuntimeApiMessage,
-	StatementDistributionMessage,
+	StatementDistributionMessage, ProspectiveParachainsMessage,
 };
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
@@ -563,6 +563,12 @@ pub struct Overseer<SupportsParachains> {
 
 	#[subsystem(blocking, ChainSelectionMessage, sends: [ChainApiMessage])]
 	chain_selection: ChainSelection,
+
+	#[subsystem(ProspectiveParachainsMessage, sends: [
+		RuntimeApiMessage,
+		ChainApiMessage,
+	])]
+	prospective_parachains: ProspectiveParachains,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
 	pub activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<SubsystemResult<()>>>>,

@@ -178,6 +178,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		DisputeCoordinatorSubsystem,
 		DisputeDistributionSubsystem<AuthorityDiscoveryService>,
 		ChainSelectionSubsystem,
+		polkadot_overseer::DummySubsystem, // TODO [now]: use real prospective parachains
 	>,
 	Error,
 >
@@ -291,6 +292,7 @@ where
 			Metrics::register(registry)?,
 		))
 		.chain_selection(ChainSelectionSubsystem::new(chain_selection_config, parachains_db))
+		.prospective_parachains(polkadot_overseer::DummySubsystem)
 		.leaves(Vec::from_iter(
 			leaves
 				.into_iter()
