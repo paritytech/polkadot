@@ -271,14 +271,12 @@ where
 	}
 
 	/// Spawn a runtime API request.
-	///
-	/// If there are already [`MAX_PARALLEL_REQUESTS`] requests being executed, the request will be buffered.
 	fn spawn_request(&mut self, relay_parent: Hash, request: Request) {
 		let client = self.client.clone();
 		let metrics = self.metrics.clone();
 		let (sender, receiver) = oneshot::channel();
 
-		// TODO: Check if an existing request is already running.
+		// TODO: https://github.com/paritytech/polkadot/issues/5486
 		let request = match self.query_cache(relay_parent.clone(), request) {
 			Some(request) => request,
 			None => return,
@@ -308,7 +306,7 @@ where
 		}
 	}
 
-	/// Returns true if our active_requeusts queue is full.
+	/// Returns true if our `active_requests` queue is full.
 	fn is_busy(&self) -> bool {
 		self.active_requests.len() >= MAX_PARALLEL_REQUESTS
 	}
@@ -324,7 +322,10 @@ where
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 {
 	loop {
+		// This adds some back pressure when the subsystem is running at `MAX_PARALLEL_REQUESTS`.
 		if subsystem.is_busy() {
+			// Since we are not using any internal waiting queues, we need to wait for exactly
+			// one request to complete before we can read the next one from the overseer channel.
 			let _ = subsystem.poll_requests().await;
 		}
 
