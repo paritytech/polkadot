@@ -325,9 +325,9 @@ fn make_vdata_hash_with_block_number(
 
 #[test]
 fn collect_pending_cleans_up_pending() {
-	let chain_a = ParaId::from(1);
-	let chain_b = ParaId::from(2);
-	let thread_a = ParaId::from(3);
+	let chain_a = ParaId::from(1_u32);
+	let chain_b = ParaId::from(2_u32);
+	let thread_a = ParaId::from(3_u32);
 
 	let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
 	new_test_ext(genesis_config(paras)).execute_with(|| {
@@ -383,9 +383,9 @@ fn collect_pending_cleans_up_pending() {
 
 #[test]
 fn bitfield_checks() {
-	let chain_a = ParaId::from(1);
-	let chain_b = ParaId::from(2);
-	let thread_a = ParaId::from(3);
+	let chain_a = ParaId::from(1_u32);
+	let chain_b = ParaId::from(2_u32);
+	let thread_a = ParaId::from(3_u32);
 
 	let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
 	let validators = vec![
@@ -724,9 +724,9 @@ fn bitfield_checks() {
 
 #[test]
 fn supermajority_bitfields_trigger_availability() {
-	let chain_a = ParaId::from(1);
-	let chain_b = ParaId::from(2);
-	let thread_a = ParaId::from(3);
+	let chain_a = ParaId::from(1_u32);
+	let chain_b = ParaId::from(2_u32);
+	let thread_a = ParaId::from(3_u32);
 
 	let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
 	let validators = vec![
@@ -909,9 +909,9 @@ fn supermajority_bitfields_trigger_availability() {
 
 #[test]
 fn candidate_checks() {
-	let chain_a = ParaId::from(1);
-	let chain_b = ParaId::from(2);
-	let thread_a = ParaId::from(3);
+	let chain_a = ParaId::from(1_u32);
+	let chain_b = ParaId::from(2_u32);
+	let thread_a = ParaId::from(3_u32);
 
 	// The block number of the relay-parent for testing.
 	const RELAY_PARENT_NUM: BlockNumber = 4;
@@ -1481,9 +1481,9 @@ fn candidate_checks() {
 
 #[test]
 fn backing_works() {
-	let chain_a = ParaId::from(1);
-	let chain_b = ParaId::from(2);
-	let thread_a = ParaId::from(3);
+	let chain_a = ParaId::from(1_u32);
+	let chain_b = ParaId::from(2_u32);
+	let thread_a = ParaId::from(3_u32);
 
 	// The block number of the relay-parent for testing.
 	const RELAY_PARENT_NUM: BlockNumber = 4;
@@ -1770,7 +1770,7 @@ fn backing_works() {
 
 #[test]
 fn can_include_candidate_with_ok_code_upgrade() {
-	let chain_a = ParaId::from(1);
+	let chain_a = ParaId::from(1_u32);
 
 	// The block number of the relay-parent for testing.
 	const RELAY_PARENT_NUM: BlockNumber = 4;
@@ -2074,9 +2074,9 @@ fn check_allowed_relay_parents() {
 
 #[test]
 fn session_change_wipes() {
-	let chain_a = ParaId::from(1);
-	let chain_b = ParaId::from(2);
-	let thread_a = ParaId::from(3);
+	let chain_a = ParaId::from(1_u32);
+	let chain_b = ParaId::from(2_u32);
+	let thread_a = ParaId::from(3_u32);
 
 	let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
 	let validators = vec![

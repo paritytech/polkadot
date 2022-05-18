@@ -127,11 +127,12 @@ impl SubstrateCli for Cli {
 			#[cfg(not(feature = "rococo-native"))]
 			name if name.starts_with("wococo-") =>
 				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
-			"versi" => Box::new(service::chain_spec::versi_config()?),
 			#[cfg(feature = "rococo-native")]
 			"versi-dev" => Box::new(service::chain_spec::versi_development_config()?),
 			#[cfg(feature = "rococo-native")]
 			"versi-local" => Box::new(service::chain_spec::versi_local_testnet_config()?),
+			#[cfg(feature = "rococo-native")]
+			"versi-staging" => Box::new(service::chain_spec::versi_staging_testnet_config()?),
 			#[cfg(not(feature = "rococo-native"))]
 			name if name.starts_with("versi-") =>
 				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
@@ -331,6 +332,7 @@ where
 				None,
 				false,
 				overseer_gen,
+				cli.run.overseer_channel_capacity_override,
 				hwbench,
 			)
 			.map(|full| full.task_manager)
@@ -433,7 +435,19 @@ pub fn run() -> Result<()> {
 
 			Ok(runner.async_run(|mut config| {
 				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-				Ok((cmd.run(client, backend, None).map_err(Error::SubstrateCli), task_manager))
+				let aux_revert = Box::new(|client, backend, blocks| {
+					service::revert_backend(client, backend, blocks, config).map_err(|err| {
+						match err {
+							service::Error::Blockchain(err) => err.into(),
+							// Generic application-specific error.
+							err => sc_cli::Error::Application(err.into()),
+						}
+					})
+				});
+				Ok((
+					cmd.run(client, backend, Some(aux_revert)).map_err(Error::SubstrateCli),
+					task_manager,
+				))
 			})?)
 		},
 		Some(Subcommand::PvfPrepareWorker(cmd)) => {

@@ -1404,6 +1404,22 @@ pub struct DisputeState<N = BlockNumber> {
 	pub concluded_at: Option<N>,
 }
 
+#[cfg(feature = "std")]
+impl MallocSizeOf for DisputeState {
+	fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
+		// destructuring to make sure no new fields are added to the struct without modifying this function
+		let Self { validators_for, validators_against, start, concluded_at } = self;
+
+		// According to the documentation `.capacity()` might not return a byte aligned value, so just in case:
+		let align_eight = |d: usize| (d + 7) / 8;
+
+		align_eight(validators_for.capacity()) +
+			align_eight(validators_against.capacity()) +
+			start.size_of(ops) +
+			concluded_at.size_of(ops)
+	}
+}
+
 /// Parachains inherent-data passed into the runtime by a block author
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct InherentData<HDR: HeaderT = Header> {

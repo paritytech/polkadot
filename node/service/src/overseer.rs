@@ -24,14 +24,16 @@ use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
 use polkadot_node_core_provisioner::ProvisionerConfig;
 use polkadot_node_network_protocol::request_response::{v1 as request_v1, IncomingRequestReceiver};
+use polkadot_node_subsystem_types::messages::{BitfieldSigningMessage, ProvisionerMessage};
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::{
 	dummy::{dummy_overseer_builder, DummySubsystem},
 	HeadSupportsParachains,
 };
 use polkadot_overseer::{
-	metrics::Metrics as OverseerMetrics, BlockInfo, InitializedOverseerBuilder, MetricsTrait,
-	Overseer, OverseerConnector, OverseerHandle,
+	gen::SubsystemContext, metrics::Metrics as OverseerMetrics, BlockInfo,
+	InitializedOverseerBuilder, MetricsTrait, Overseer, OverseerConnector, OverseerHandle,
+	OverseerSubsystemContext,
 };
 
 use polkadot_primitives::runtime_api::ParachainHost;
@@ -111,6 +113,8 @@ where
 	pub dispute_coordinator_config: DisputeCoordinatorConfig,
 	/// Enable PVF pre-checking
 	pub pvf_checker_enabled: bool,
+	/// Overseer channel capacity override.
+	pub overseer_message_channel_capacity_override: Option<usize>,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -138,6 +142,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		chain_selection_config,
 		dispute_coordinator_config,
 		pvf_checker_enabled,
+		overseer_message_channel_capacity_override,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
@@ -149,9 +154,15 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		StatementDistributionSubsystem<rand::rngs::StdRng>,
 		AvailabilityDistributionSubsystem,
 		AvailabilityRecoverySubsystem,
-		BitfieldSigningSubsystem<Spawner>,
+		BitfieldSigningSubsystem<
+			Spawner,
+			<OverseerSubsystemContext<BitfieldSigningMessage> as SubsystemContext>::Sender,
+		>,
 		BitfieldDistributionSubsystem,
-		ProvisionerSubsystem<Spawner>,
+		ProvisionerSubsystem<
+			Spawner,
+			<OverseerSubsystemContext<ProvisionerMessage> as SubsystemContext>::Sender,
+		>,
 		RuntimeApiSubsystem<RuntimeClient>,
 		AvailabilityStoreSubsystem,
 		NetworkBridgeSubsystem<
@@ -292,7 +303,12 @@ where
 		.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
 		.metrics(metrics)
 		.spawner(spawner);
-	Ok(builder)
+
+	if let Some(capacity) = overseer_message_channel_capacity_override {
+		Ok(builder.message_channel_capacity(capacity))
+	} else {
+		Ok(builder)
+	}
 }
 
 /// Trait for the `fn` generating the overseer.

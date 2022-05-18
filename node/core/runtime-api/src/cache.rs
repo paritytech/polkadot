@@ -22,8 +22,8 @@ use sp_consensus_babe::Epoch;
 
 use polkadot_primitives::{
 	v2::{
-		AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
-		CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Id as ParaId,
+		AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
+		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
 		InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
 		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
 		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
@@ -50,6 +50,7 @@ const ON_CHAIN_VOTES_CACHE_SIZE: usize = 3 * 1024;
 const PVFS_REQUIRE_PRECHECK_SIZE: usize = 1024;
 const VALIDATION_CODE_HASH_CACHE_SIZE: usize = 64 * 1024;
 const VERSION_CACHE_SIZE: usize = 4 * 1024;
+const DISPUTES_CACHE_SIZE: usize = 64 * 1024;
 
 const STAGING_VALIDITY_CONSTRAINTS_CACHE_SIZE: usize = 10 * 1024;
 
@@ -124,6 +125,10 @@ pub(crate) struct RequestResultCache {
 		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Option<vstaging_primitives::Constraints>>>,
 
 	version: MemoryLruCache<Hash, ResidentSizeOf<u32>>,
+	disputes: MemoryLruCache<
+		Hash,
+		ResidentSizeOf<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
+	>,
 }
 
 impl Default for RequestResultCache {
@@ -156,6 +161,7 @@ impl Default for RequestResultCache {
 			),
 
 			version: MemoryLruCache::new(VERSION_CACHE_SIZE),
+			disputes: MemoryLruCache::new(DISPUTES_CACHE_SIZE),
 		}
 	}
 }
@@ -436,6 +442,21 @@ impl RequestResultCache {
 	pub(crate) fn cache_version(&mut self, key: Hash, value: u32) {
 		self.version.insert(key, ResidentSizeOf(value));
 	}
+
+	pub(crate) fn disputes(
+		&mut self,
+		relay_parent: &Hash,
+	) -> Option<&Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>> {
+		self.disputes.get(relay_parent).map(|v| &v.0)
+	}
+
+	pub(crate) fn cache_disputes(
+		&mut self,
+		relay_parent: Hash,
+		value: Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>,
+	) {
+		self.disputes.insert(relay_parent, ResidentSizeOf(value));
+	}
 }
 
 pub(crate) enum RequestResult {
@@ -474,4 +495,5 @@ pub(crate) enum RequestResult {
 	StagingValidityConstraints(Hash, ParaId, Option<vstaging_primitives::Constraints>),
 
 	Version(Hash, u32),
+	StagingDisputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
 }

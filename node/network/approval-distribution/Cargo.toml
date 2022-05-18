@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-approval-distribution"
-version = "0.9.19"
+version = "0.9.22"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -27,4 +27,4 @@ schnorrkel = { version = "0.9.1", default-features = false }
 rand_core = "0.5.1" # should match schnorrkel
 rand_chacha = "0.3.1"
 env_logger = "0.9.0"
-log = "0.4.16"
+log = "0.4.17"

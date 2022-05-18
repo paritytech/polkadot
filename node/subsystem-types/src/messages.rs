@@ -42,7 +42,7 @@ use polkadot_primitives::{
 	v2::{
 		AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
 		CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
-		GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
+		DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
 		InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
 		OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, SessionIndex,
 		SessionInfo, SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode,
@@ -696,6 +696,10 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCodeHash>>,
 	),
+	/// Returns all on-chain disputes at given block number.
+	StagingDisputes(
+		RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
+	),
 	/// Get the validity constraints of the given para.
 	/// This is a staging API that will not be available on production runtimes.
 	StagingValidityConstraints(ParaId, RuntimeApiSender<Option<vstaging_primitives::Constraints>>),
@@ -816,8 +820,8 @@ pub enum AssignmentCheckError {
 	InvalidCandidateIndex(CandidateIndex),
 	#[error("Invalid candidate {0}: {1:?}")]
 	InvalidCandidate(CandidateIndex, CandidateHash),
-	#[error("Invalid cert: {0:?}")]
-	InvalidCert(ValidatorIndex),
+	#[error("Invalid cert: {0:?}, reason: {1}")]
+	InvalidCert(ValidatorIndex, String),
 	#[error("Internal state mismatch: {0:?}, {1:?}")]
 	Internal(Hash, CandidateHash),
 }

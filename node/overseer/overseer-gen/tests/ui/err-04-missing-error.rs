@@ -15,7 +15,7 @@ struct MsgStrukt(u8);
 
 #[overlord(signal=SigSigSig, event=Event, gen=AllMessages)]
 struct Overseer {
-	#[subsystem(no_dispatch, MsgStrukt)]
+	#[subsystem(MsgStrukt)]
 	sub0: AwesomeSubSys,
 
 	i_like_pie: f64,

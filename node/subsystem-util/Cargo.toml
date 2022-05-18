@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-subsystem-util"
-version = "0.9.19"
+version = "0.9.22"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Subsystem traits and message definitions"
@@ -13,13 +13,13 @@ parity-scale-codec = { version = "3.1.2", default-features = false, features = [
 parking_lot = "0.11.2"
 pin-project = "1.0.9"
 rand = "0.8.5"
-thiserror = "1.0.30"
+thiserror = "1.0.31"
 fatality = "0.0.6"
 gum = { package = "tracing-gum", path = "../gum" }
 derive_more = "0.99.17"
 lru = "0.7.5"
 
-polkadot-node-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
+polkadot-node-subsystem = {path = "../subsystem" }
 polkadot-node-jaeger = { path = "../jaeger" }
 polkadot-node-metrics = { path = "../metrics" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
@@ -34,13 +34,13 @@ sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 
 kvdb = "0.11.0"
 parity-util-mem = { version = "0.11", default-features = false }
-parity-db = { version = "0.3.11" }
+parity-db = { version = "0.3.13" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"
 env_logger = "0.9.0"
 futures = { version = "0.3.21", features = ["thread-pool"] }
-log = "0.4.16"
+log = "0.4.17"
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 lazy_static = "1.4.0"
 polkadot-primitives-test-helpers = { path = "../../primitives/test-helpers" }
