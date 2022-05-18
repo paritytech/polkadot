@@ -1053,6 +1053,7 @@ fn context_holds_onto_message_until_enough_signals_received() {
 	let (dispute_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (chain_selection_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (pvf_checker_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+	let (prospective_parachains_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 
 	let (candidate_validation_unbounded_tx, _) = metered::unbounded();
 	let (candidate_backing_unbounded_tx, _) = metered::unbounded();
@@ -1075,6 +1076,7 @@ fn context_holds_onto_message_until_enough_signals_received() {
 	let (dispute_distribution_unbounded_tx, _) = metered::unbounded();
 	let (chain_selection_unbounded_tx, _) = metered::unbounded();
 	let (pvf_checker_unbounded_tx, _) = metered::unbounded();
+	let (prospective_parachains_unbounded_tx, _) = metered::unbounded();
 
 	let channels_out = ChannelsOut {
 		candidate_validation: candidate_validation_bounded_tx.clone(),
@@ -1098,6 +1100,7 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		dispute_distribution: dispute_distribution_bounded_tx.clone(),
 		chain_selection: chain_selection_bounded_tx.clone(),
 		pvf_checker: pvf_checker_bounded_tx.clone(),
+		prospective_parachains: prospective_parachains_bounded_tx.clone(),
 
 		candidate_validation_unbounded: candidate_validation_unbounded_tx.clone(),
 		candidate_backing_unbounded: candidate_backing_unbounded_tx.clone(),
@@ -1120,6 +1123,7 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		dispute_distribution_unbounded: dispute_distribution_unbounded_tx.clone(),
 		chain_selection_unbounded: chain_selection_unbounded_tx.clone(),
 		pvf_checker_unbounded: pvf_checker_unbounded_tx.clone(),
+		prospective_parachains_unbounded: prospective_parachains_unbounded_tx.clone(),
 	};
 
 	let (mut signal_tx, signal_rx) = metered::channel(CHANNEL_CAPACITY);
