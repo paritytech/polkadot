@@ -211,20 +211,19 @@ impl<T> SlashValidatorsForDisputes<Pallet<T>>
 where
 	T: Config + crate::session_info::Config,
 {
-	/// If in the current session, returns the identified validators
-	/// along with the validator set count for that session. `None` otherwise.
+	/// If in the current session, returns the identified validators.
+	/// `None` otherwise.
 	fn maybe_identify_validators(
 		session_index: SessionIndex,
 		account_ids: &[AccountId<T>],
 		validators: impl IntoIterator<Item = ValidatorIndex>,
-	) -> Option<(Vec<IdentificationTuple<T>>, u32)> {
+	) -> Option<Vec<IdentificationTuple<T>>> {
 		// We use `ValidatorSet::session_index` and not `shared::Pallet<T>::session_index()`
 		// because at the first block of a new era, the `IdentificationOf` of a validator
 		// in the previous session might be missing, while `shared` pallet would return
 		// the same session index as being updated at the end of the block.
 		let current_session = T::ValidatorSet::session_index();
 		if session_index == current_session {
-			let validator_set_count = account_ids.len() as u32;
 			let fully_identified = validators
 				.into_iter()
 				.flat_map(|i| account_ids.get(i.0 as usize).cloned())
@@ -234,7 +233,7 @@ where
 					).map(|full_id| (id, full_id))
 				})
 				.collect::<Vec<IdentificationTuple<T>>>();
-			return Some((fully_identified, validator_set_count))
+			return Some(fully_identified)
 		}
 		None
 	}
@@ -260,17 +259,23 @@ where
 			Some(account_keys) => account_keys,
 			None => return, // can not really happen
 		};
+		let session_info = crate::session_info::Pallet::<T>::session_info(session_index);
+		let session_info = match session_info {
+			Some(info) => info,
+			None => return, // can not really happen
+		};
+		let validator_set_count = session_info.discovery_keys.len() as u32;
 		let winners: Winners<T> = winners
 			.into_iter()
 			.filter_map(|i| account_ids.get(i.0 as usize).cloned())
 			.collect();
 		let maybe =
 			Self::maybe_identify_validators(session_index, &account_ids, losers.iter().cloned());
-		if let Some((offenders, validator_set_count)) = maybe {
+		if let Some(offenders) = maybe {
 			let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
 			let offence = ForInvalidOffence { validator_set_count, time_slot, offenders };
 			// This is the first time we report an offence for this dispute,
-			// so it is not a duplicate
+			// so it is not a duplicate.
 			let _ = T::HandleReports::report_for_invalid_offence(winners, offence);
 			return
 		}
@@ -295,17 +300,23 @@ where
 			Some(account_keys) => account_keys,
 			None => return, // can not really happen
 		};
+		let session_info = crate::session_info::Pallet::<T>::session_info(session_index);
+		let session_info = match session_info {
+			Some(info) => info,
+			None => return, // can not really happen
+		};
+		let validator_set_count = session_info.discovery_keys.len() as u32;
 		let winners: Winners<T> = winners
 			.into_iter()
 			.filter_map(|i| account_ids.get(i.0 as usize).cloned())
 			.collect();
 		let maybe =
 			Self::maybe_identify_validators(session_index, &account_ids, losers.iter().cloned());
-		if let Some((offenders, validator_set_count)) = maybe {
+		if let Some(offenders) = maybe {
 			let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
 			let offence = AgainstValidOffence { validator_set_count, time_slot, offenders };
 			// This is the first time we report an offence for this dispute,
-			// so it is not a duplicate
+			// so it is not a duplicate.
 			let _ = T::HandleReports::report_against_valid_offence(winners, offence);
 			return
 		}
