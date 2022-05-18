@@ -29,8 +29,8 @@ use polkadot_node_subsystem_types::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_primitives::v2::{
-	CandidateHash, CandidateReceipt, CollatorPair, InvalidDisputeStatementKind,
-	ValidDisputeStatementKind, ValidatorIndex, Id as ParaId,
+	CandidateHash, CandidateReceipt, CollatorPair, Id as ParaId, InvalidDisputeStatementKind,
+	ValidDisputeStatementKind, ValidatorIndex,
 };
 
 use crate::{
@@ -911,7 +911,10 @@ fn test_chain_selection_msg() -> ChainSelectionMessage {
 }
 
 fn test_prospective_parachains_msg() -> ProspectiveParachainsMessage {
-	ProspectiveParachainsMessage::CandidateBacked(ParaId::from(5), CandidateHash(Hash::repeat_byte(0)))
+	ProspectiveParachainsMessage::CandidateBacked(
+		ParaId::from(5),
+		CandidateHash(Hash::repeat_byte(0)),
+	)
 }
 
 // Checks that `stop`, `broadcast_signal` and `broadcast_message` are implemented correctly.
