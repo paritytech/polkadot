@@ -72,14 +72,16 @@ impl DisputesTimeSlot {
 	}
 }
 
+/// Number of validators (not only parachain) in a session.
+type ValidatorSetCount = u32;
+
 /// An offence that is filed when a series of validators lost a dispute
 /// about an invalid candidate.
 #[derive(RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Clone, PartialEq, Eq))]
 pub struct ForInvalidOffence<KeyOwnerIdentification> {
 	/// The size of the validator set in that session.
-	/// Note: this includes not only parachain validators.
-	pub validator_set_count: u32,
+	pub validator_set_count: ValidatorSetCount,
 	/// Should be unique per dispute.
 	pub time_slot: DisputesTimeSlot,
 	/// Staking information about the validators that lost the dispute
@@ -103,7 +105,7 @@ where
 		self.time_slot.session_index
 	}
 
-	fn validator_set_count(&self) -> u32 {
+	fn validator_set_count(&self) -> ValidatorSetCount {
 		self.validator_set_count
 	}
 
@@ -117,7 +119,7 @@ where
 		DisableStrategy::Always
 	}
 
-	fn slash_fraction(_offenders: u32, _validator_set_count: u32) -> Perbill {
+	fn slash_fraction(_offenders: u32, _: ValidatorSetCount) -> Perbill {
 		Perbill::from_percent(100)
 	}
 }
@@ -130,8 +132,7 @@ where
 #[cfg_attr(feature = "std", derive(Clone, PartialEq, Eq))]
 pub struct AgainstValidOffence<KeyOwnerIdentification> {
 	/// The size of the validator set in that session.
-	/// Note: this includes not only parachain validators.
-	pub validator_set_count: u32,
+	pub validator_set_count: ValidatorSetCount,
 	/// Should be unique per dispute.
 	pub time_slot: DisputesTimeSlot,
 	/// Staking information about the validators that lost the dispute
@@ -155,7 +156,7 @@ where
 		self.time_slot.session_index
 	}
 
-	fn validator_set_count(&self) -> u32 {
+	fn validator_set_count(&self) -> ValidatorSetCount {
 		self.validator_set_count
 	}
 
@@ -167,7 +168,7 @@ where
 		DisableStrategy::Never
 	}
 
-	fn slash_fraction(_offenders: u32, _validator_set_count: u32) -> Perbill {
+	fn slash_fraction(_offenders: u32, _: ValidatorSetCount) -> Perbill {
 		Perbill::from_percent(1)
 	}
 }
@@ -176,7 +177,7 @@ impl<KeyOwnerIdentification> ForInvalidOffence<KeyOwnerIdentification> {
 	fn new(
 		session_index: SessionIndex,
 		candidate_hash: CandidateHash,
-		validator_set_count: u32,
+		validator_set_count: ValidatorSetCount,
 		offender: KeyOwnerIdentification,
 	) -> Self {
 		let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
@@ -188,7 +189,7 @@ impl<KeyOwnerIdentification> AgainstValidOffence<KeyOwnerIdentification> {
 	fn new(
 		session_index: SessionIndex,
 		candidate_hash: CandidateHash,
-		validator_set_count: u32,
+		validator_set_count: ValidatorSetCount,
 		offender: KeyOwnerIdentification,
 	) -> Self {
 		let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
@@ -264,7 +265,7 @@ where
 			Some(info) => info,
 			None => return, // can not really happen
 		};
-		let validator_set_count = session_info.discovery_keys.len() as u32;
+		let validator_set_count = session_info.discovery_keys.len() as ValidatorSetCount;
 		let winners: Winners<T> = winners
 			.into_iter()
 			.filter_map(|i| account_ids.get(i.0 as usize).cloned())
@@ -305,7 +306,7 @@ where
 			Some(info) => info,
 			None => return, // can not really happen
 		};
-		let validator_set_count = session_info.discovery_keys.len() as u32;
+		let validator_set_count = session_info.discovery_keys.len() as ValidatorSetCount;
 		let winners: Winners<T> = winners
 			.into_iter()
 			.filter_map(|i| account_ids.get(i.0 as usize).cloned())
@@ -445,12 +446,12 @@ impl<T: Config> HandleReports<T> for () {
 }
 
 pub trait WeightInfo {
-	fn report_dispute_lost(validator_count: u32) -> Weight;
+	fn report_dispute_lost(validator_count: ValidatorSetCount) -> Weight;
 }
 
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
-	fn report_dispute_lost(_validator_count: u32) -> Weight {
+	fn report_dispute_lost(_validator_count: ValidatorSetCount) -> Weight {
 		0
 	}
 }
@@ -572,7 +573,7 @@ pub mod pallet {
 						Error::<T>::ValidatorIndexIdMismatch
 					);
 					// number of all validators (not only parachain) in the session
-					info.discovery_keys.len() as u32
+					info.discovery_keys.len() as ValidatorSetCount
 				} else {
 					return Err(Error::<T>::InvalidSessionIndex.into())
 				};
