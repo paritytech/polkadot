@@ -277,7 +277,7 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 
 	fn initializer_finalize() {}
 
-	fn initializer_on_new_session(_: &initializer::SessionChangeNotification<BlockNumber>) {}
+	fn initializer_on_new_session(_: SessionIndex, _: u32) {}
 }
 
 impl crate::scheduler::Config for Test {}

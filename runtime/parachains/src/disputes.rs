@@ -16,7 +16,7 @@
 
 //! Runtime component for handling disputes of parachain candidates.
 
-use crate::{configuration, initializer::SessionChangeNotification, session_info};
+use crate::{configuration, initializer::{SessionChangeNotification, ValidatorSetCount}, session_info};
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use frame_support::{ensure, traits::Get, weights::Weight};
 use frame_system::pallet_prelude::*;
@@ -88,7 +88,7 @@ pub trait SlashingHandler<BlockNumber> {
 	fn initializer_finalize();
 
 	/// Called by the initializer to note that a new session has started.
-	fn initializer_on_new_session(notification: &SessionChangeNotification<BlockNumber>);
+	fn initializer_on_new_session(session_index: SessionIndex, count: ValidatorSetCount);
 }
 
 impl<BlockNumber> SlashingHandler<BlockNumber> for () {
@@ -114,7 +114,7 @@ impl<BlockNumber> SlashingHandler<BlockNumber> for () {
 
 	fn initializer_finalize() {}
 
-	fn initializer_on_new_session(_notification: &SessionChangeNotification<BlockNumber>) {}
+	fn initializer_on_new_session(_: SessionIndex, _: ValidatorSetCount) {}
 }
 
 /// Binary discriminator to determine if the expensive signature

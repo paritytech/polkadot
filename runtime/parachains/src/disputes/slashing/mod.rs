@@ -30,7 +30,7 @@
 //!  because it is quite heavy.
 
 use crate::{
-	initializer::SessionChangeNotification,
+	initializer::ValidatorSetCount,
 	session_info::{AccountId, IdentificationTuple},
 };
 use frame_support::{
@@ -50,7 +50,7 @@ use sp_runtime::{
 };
 use sp_session::{GetSessionNumber, GetValidatorCount};
 use sp_staking::offence::{DisableStrategy, Kind, Offence, OffenceError, ReportOffence};
-use sp_std::{collections::btree_set::BTreeSet, prelude::*};
+use sp_std::{collections::btree_map::{BTreeMap, Entry}, prelude::*};
 
 const LOG_TARGET: &str = "runtime::slashing";
 
@@ -71,9 +71,6 @@ impl DisputesTimeSlot {
 		Self { session_index, candidate_hash }
 	}
 }
-
-/// Number of validators (not only parachain) in a session.
-type ValidatorSetCount = u32;
 
 /// An offence that is filed when a series of validators lost a dispute
 /// about an invalid candidate.
@@ -250,7 +247,7 @@ where
 		losers: impl IntoIterator<Item = ValidatorIndex>,
 		winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		let losers: Losers = losers.into_iter().collect();
+		let losers: Vec<ValidatorIndex> = losers.into_iter().collect();
 		if losers.is_empty() {
 			// Nothing to do
 			return
@@ -281,6 +278,9 @@ where
 			return
 		}
 
+		let losers: Losers = losers.into_iter()
+			.filter_map(|i| session_info.validators.get(i.0 as usize).cloned().map(|id| (i, id)))
+			.collect();
 		<PendingForInvalidLosers<T>>::insert(session_index, candidate_hash, losers);
 		<ForInvalidWinners<T>>::insert(session_index, candidate_hash, winners);
 	}
@@ -291,7 +291,7 @@ where
 		losers: impl IntoIterator<Item = ValidatorIndex>,
 		winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		let losers: Losers = losers.into_iter().collect();
+		let losers: Vec<ValidatorIndex> = losers.into_iter().collect();
 		if losers.is_empty() {
 			// Nothing to do
 			return
@@ -322,6 +322,9 @@ where
 			return
 		}
 
+		let losers: Losers = losers.into_iter()
+			.filter_map(|i| session_info.validators.get(i.0 as usize).cloned().map(|id| (i, id)))
+			.collect();
 		<PendingAgainstValidLosers<T>>::insert(session_index, candidate_hash, losers);
 		<AgainstValidWinners<T>>::insert(session_index, candidate_hash, winners);
 	}
@@ -334,8 +337,8 @@ where
 		Pallet::<T>::initializer_finalize()
 	}
 
-	fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
-		Pallet::<T>::initializer_on_new_session(notification)
+	fn initializer_on_new_session(session_index: SessionIndex, count: ValidatorSetCount) {
+		Pallet::<T>::initializer_on_new_session(session_index, count)
 	}
 }
 
@@ -361,8 +364,8 @@ pub struct DisputeProof {
 	pub validator_id: ValidatorId,
 }
 
-/// Indices of the validators who lost a dispute and are pending slashes.
-pub type Losers = BTreeSet<ValidatorIndex>;
+/// Indices and keys of the validators who lost a dispute and are pending slashes.
+pub type Losers = BTreeMap<ValidatorIndex, ValidatorId>;
 /// `AccountId`s of the validators who were on the winning side of a dispute.
 pub type Winners<T> = Vec<AccountId<T>>;
 
@@ -513,6 +516,15 @@ pub mod pallet {
 		Winners<T>,
 	>;
 
+	/// `ValidatorSetCount` per session.
+	#[pallet::storage]
+	pub(super) type ValidatorSetCounts<T> = StorageMap<
+		_,
+		Twox64Concat,
+		SessionIndex,
+		ValidatorSetCount,
+	>;
+
 	/// Indices of the validators pending "against valid" dispute slashes.
 	#[pallet::storage]
 	pub(super) type PendingAgainstValidLosers<T> =
@@ -563,20 +575,9 @@ pub mod pallet {
 			let offender = T::KeyOwnerProofSystem::check_proof(key, key_owner_proof)
 				.ok_or(Error::<T>::InvalidKeyOwnershipProof)?;
 
-			// check that `validator_index` matches `validator_id`
 			let session_index = dispute_proof.time_slot.session_index;
-			let validator_set_count =
-				if let Some(info) = crate::session_info::Pallet::<T>::session_info(session_index) {
-					let i = dispute_proof.validator_index.0 as usize;
-					ensure!(
-						info.validators.get(i) == Some(&dispute_proof.validator_id),
-						Error::<T>::ValidatorIndexIdMismatch
-					);
-					// number of all validators (not only parachain) in the session
-					info.discovery_keys.len() as ValidatorSetCount
-				} else {
-					return Err(Error::<T>::InvalidSessionIndex.into())
-				};
+			let validator_set_count = <ValidatorSetCounts<T>>::get(session_index)
+				.ok_or(Error::<T>::InvalidSessionIndex)?;
 
 			// check that there is a pending slash for the given
 			// validator index and candidate hash
@@ -584,10 +585,18 @@ pub mod pallet {
 			let try_remove = |v: &mut Option<Losers>| -> Result<(), DispatchError> {
 				let indices = v.as_mut().ok_or(Error::<T>::InvalidCandidateHash)?;
 
-				ensure!(
-					indices.remove(&dispute_proof.validator_index),
-					Error::<T>::InvalidValidatorIndex,
-				);
+				match indices.entry(dispute_proof.validator_index) {
+					Entry::Vacant(_) => {
+						return Err(Error::<T>::InvalidValidatorIndex.into())
+					}
+					// check that `validator_index` matches `validator_id`
+					Entry::Occupied(e) if e.get() != &dispute_proof.validator_id => {
+						return Err(Error::<T>::ValidatorIndexIdMismatch.into())
+					}
+					Entry::Occupied(e) => {
+						e.remove(); // all good
+					}
+				}
 
 				if indices.is_empty() {
 					*v = None;
@@ -673,13 +682,18 @@ impl<T: Config> Pallet<T> {
 	fn initializer_finalize() {}
 
 	/// Called by the initializer to note a new session in the disputes slashing pallet.
-	fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
+	fn initializer_on_new_session(
+		session_index: SessionIndex,
+		validator_set_count: ValidatorSetCount,
+	) {
+		<ValidatorSetCounts<T>>::insert(session_index, validator_set_count);
+
 		let config = <super::configuration::Pallet<T>>::config();
-		if notification.session_index <= config.dispute_period + 1 {
+		if session_index <= config.dispute_period + 1 {
 			return
 		}
 
-		let old_session = notification.session_index - config.dispute_period - 1;
+		let old_session = session_index - config.dispute_period - 1;
 
 		match <PendingForInvalidLosers<T>>::remove_prefix(old_session, None) {
 			sp_io::KillStorageResult::AllRemoved(x) if x > 0 => {
@@ -703,6 +717,7 @@ impl<T: Config> Pallet<T> {
 		}
 		<ForInvalidWinners<T>>::remove_prefix(old_session, None);
 		<AgainstValidWinners<T>>::remove_prefix(old_session, None);
+		<ValidatorSetCounts<T>>::remove(old_session);
 	}
 }
 
