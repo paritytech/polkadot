@@ -50,7 +50,10 @@ use sp_runtime::{
 };
 use sp_session::{GetSessionNumber, GetValidatorCount};
 use sp_staking::offence::{DisableStrategy, Kind, Offence, OffenceError, ReportOffence};
-use sp_std::{collections::btree_map::{BTreeMap, Entry}, prelude::*};
+use sp_std::{
+	collections::btree_map::{BTreeMap, Entry},
+	prelude::*,
+};
 
 const LOG_TARGET: &str = "runtime::slashing";
 
@@ -278,7 +281,8 @@ where
 			return
 		}
 
-		let losers: Losers = losers.into_iter()
+		let losers: Losers = losers
+			.into_iter()
 			.filter_map(|i| session_info.validators.get(i.0 as usize).cloned().map(|id| (i, id)))
 			.collect();
 		<PendingForInvalidLosers<T>>::insert(session_index, candidate_hash, losers);
@@ -322,7 +326,8 @@ where
 			return
 		}
 
-		let losers: Losers = losers.into_iter()
+		let losers: Losers = losers
+			.into_iter()
 			.filter_map(|i| session_info.validators.get(i.0 as usize).cloned().map(|id| (i, id)))
 			.collect();
 		<PendingAgainstValidLosers<T>>::insert(session_index, candidate_hash, losers);
@@ -518,12 +523,8 @@ pub mod pallet {
 
 	/// `ValidatorSetCount` per session.
 	#[pallet::storage]
-	pub(super) type ValidatorSetCounts<T> = StorageMap<
-		_,
-		Twox64Concat,
-		SessionIndex,
-		ValidatorSetCount,
-	>;
+	pub(super) type ValidatorSetCounts<T> =
+		StorageMap<_, Twox64Concat, SessionIndex, ValidatorSetCount>;
 
 	/// Indices of the validators pending "against valid" dispute slashes.
 	#[pallet::storage]
@@ -586,16 +587,13 @@ pub mod pallet {
 				let indices = v.as_mut().ok_or(Error::<T>::InvalidCandidateHash)?;
 
 				match indices.entry(dispute_proof.validator_index) {
-					Entry::Vacant(_) => {
-						return Err(Error::<T>::InvalidValidatorIndex.into())
-					}
+					Entry::Vacant(_) => return Err(Error::<T>::InvalidValidatorIndex.into()),
 					// check that `validator_index` matches `validator_id`
-					Entry::Occupied(e) if e.get() != &dispute_proof.validator_id => {
-						return Err(Error::<T>::ValidatorIndexIdMismatch.into())
-					}
+					Entry::Occupied(e) if e.get() != &dispute_proof.validator_id =>
+						return Err(Error::<T>::ValidatorIndexIdMismatch.into()),
 					Entry::Occupied(e) => {
 						e.remove(); // all good
-					}
+					},
 				}
 
 				if indices.is_empty() {
