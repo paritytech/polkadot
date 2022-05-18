@@ -52,7 +52,7 @@ mod tests;
 const LOG_TARGET: &str = "parachain::runtime-api";
 
 /// The number of maximum runtime API requests can be executed in parallel.
-/// Further requests will backpressure the overseer channels.
+/// Further requests will backpressure the bounded channel.
 const MAX_PARALLEL_REQUESTS: usize = 4;
 
 /// The name of the blocking task that executes a runtime API request.
