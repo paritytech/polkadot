@@ -19,3 +19,7 @@ updates:
       - dependency-name: "sub-tokens"
     schedule:
       interval: "daily"
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: daily
