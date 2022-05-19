@@ -712,7 +712,7 @@ pub(crate) fn impl_task_kind(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 			M: std::fmt::Debug + Send + 'static,
 			TK: TaskKind,
 			Ctx: #support_crate ::SubsystemContext<Message=M>,
-			E: std::error::Error + Send + Sync + 'static + From<#support_crate ::OrchestraError>,
+			E: ::std::error::Error + Send + Sync + 'static + ::std::convert::From<#support_crate ::OrchestraError>,
 			SubSys: #support_crate ::Subsystem<Ctx, E>,
 		{
 			let #support_crate ::SpawnedSubsystem::<E> { future, name } = s.start(ctx);
