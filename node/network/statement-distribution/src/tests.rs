@@ -739,7 +739,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 	let test_fut = async move {
 		// register our active heads.
 		handle
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
@@ -773,7 +773,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 
 		// notify of peers and view
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full, 1, None),
 				),
@@ -781,7 +781,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, 1, None),
 				),
@@ -789,7 +789,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
 				),
@@ -797,7 +797,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a]),
 				),
@@ -832,7 +832,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		};
 
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
@@ -874,7 +874,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 				assert_eq!(s, statement.into());
 			}
 		);
-		handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::pin_mut!(test_fut);
@@ -932,7 +932,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let test_fut = async move {
 		// register our active heads.
 		handle
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
@@ -966,7 +966,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 
 		// notify of peers and view
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
@@ -979,7 +979,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
@@ -991,7 +991,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_c.clone(),
@@ -1003,7 +1003,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_bad.clone(),
@@ -1016,7 +1016,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
 				),
@@ -1024,21 +1024,21 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a]),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_c.clone(), view![hash_a]),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_bad.clone(), view![hash_a]),
 				),
@@ -1076,7 +1076,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		let metadata = derive_metadata_assuming_seconded(hash_a, statement.clone().into());
 
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
@@ -1114,7 +1114,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		Delay::new(Duration::from_millis(20)).await;
 
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_c.clone(),
@@ -1128,7 +1128,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 
 		// Malicious peer:
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_bad.clone(),
@@ -1369,7 +1369,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			Decode::decode(&mut response_rx.await.unwrap().result.unwrap().as_ref()).unwrap();
 		assert_eq!(committed, candidate);
 
-		handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::pin_mut!(test_fut);
@@ -1444,7 +1444,7 @@ fn share_prioritizes_backing_group() {
 	let test_fut = async move {
 		// register our active heads.
 		handle
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
@@ -1479,7 +1479,7 @@ fn share_prioritizes_backing_group() {
 		// notify of dummy peers and view
 		for (peer, pair) in dummy_peers.clone().into_iter().zip(dummy_pairs) {
 			handle
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: StatementDistributionMessage::NetworkBridgeUpdate(
 						NetworkBridgeEvent::PeerConnected(
 							peer,
@@ -1492,7 +1492,7 @@ fn share_prioritizes_backing_group() {
 				.await;
 
 			handle
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: StatementDistributionMessage::NetworkBridgeUpdate(
 						NetworkBridgeEvent::PeerViewChange(peer, view![hash_a]),
 					),
@@ -1502,7 +1502,7 @@ fn share_prioritizes_backing_group() {
 
 		// notify of peers and view
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
@@ -1514,7 +1514,7 @@ fn share_prioritizes_backing_group() {
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
@@ -1526,7 +1526,7 @@ fn share_prioritizes_backing_group() {
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_c.clone(),
@@ -1538,7 +1538,7 @@ fn share_prioritizes_backing_group() {
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_bad.clone(),
@@ -1550,7 +1550,7 @@ fn share_prioritizes_backing_group() {
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_other_group.clone(),
@@ -1563,7 +1563,7 @@ fn share_prioritizes_backing_group() {
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
 				),
@@ -1571,28 +1571,28 @@ fn share_prioritizes_backing_group() {
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a]),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_c.clone(), view![hash_a]),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_bad.clone(), view![hash_a]),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_other_group.clone(), view![hash_a]),
 				),
@@ -1630,7 +1630,7 @@ fn share_prioritizes_backing_group() {
 		let metadata = derive_metadata_assuming_seconded(hash_a, statement.clone().into());
 
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::Share(hash_a, statement.clone()),
 			})
 			.await;
@@ -1682,7 +1682,7 @@ fn share_prioritizes_backing_group() {
 			Decode::decode(&mut response_rx.await.unwrap().result.unwrap().as_ref()).unwrap();
 		assert_eq!(committed, candidate);
 
-		handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::pin_mut!(test_fut);
@@ -1738,7 +1738,7 @@ fn peer_cant_flood_with_large_statements() {
 	let test_fut = async move {
 		// register our active heads.
 		handle
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
@@ -1772,7 +1772,7 @@ fn peer_cant_flood_with_large_statements() {
 
 		// notify of peers and view
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
@@ -1785,7 +1785,7 @@ fn peer_cant_flood_with_large_statements() {
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
 				),
@@ -1822,7 +1822,7 @@ fn peer_cant_flood_with_large_statements() {
 
 		for _ in 0..MAX_LARGE_STATEMENTS_PER_SENDER + 1 {
 			handle
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: StatementDistributionMessage::NetworkBridgeUpdate(
 						NetworkBridgeEvent::PeerMessage(
 							peer_a.clone(),
@@ -1872,7 +1872,7 @@ fn peer_cant_flood_with_large_statements() {
 		assert!(requested, "large data has not been requested.");
 		assert!(punished, "Peer should have been punished for flooding.");
 
-		handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::pin_mut!(test_fut);
@@ -1943,7 +1943,7 @@ fn handle_multiple_seconded_statements() {
 	let test_fut = async move {
 		// register our active heads.
 		handle
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: relay_parent_hash,
 					number: 1,
@@ -1978,7 +1978,7 @@ fn handle_multiple_seconded_statements() {
 		// notify of peers and view
 		for peer in all_peers.iter() {
 			handle
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: StatementDistributionMessage::NetworkBridgeUpdate(
 						NetworkBridgeEvent::PeerConnected(
 							peer.clone(),
@@ -1990,7 +1990,7 @@ fn handle_multiple_seconded_statements() {
 				})
 				.await;
 			handle
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: StatementDistributionMessage::NetworkBridgeUpdate(
 						NetworkBridgeEvent::PeerViewChange(peer.clone(), view![relay_parent_hash]),
 					),
@@ -2037,7 +2037,7 @@ fn handle_multiple_seconded_statements() {
 		};
 
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::NewGossipTopology(gossip_topology),
 				),
@@ -2073,7 +2073,7 @@ fn handle_multiple_seconded_statements() {
 
 		// `PeerA` sends a `Seconded` message
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
@@ -2125,7 +2125,7 @@ fn handle_multiple_seconded_statements() {
 
 		// `PeerB` sends a `Seconded` message: valid but known
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_b.clone(),
@@ -2176,7 +2176,7 @@ fn handle_multiple_seconded_statements() {
 
 		// `PeerA` sends a `Valid` message
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
@@ -2227,7 +2227,7 @@ fn handle_multiple_seconded_statements() {
 
 		// `PeerB` sends a `Valid` message
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_b.clone(),
@@ -2252,7 +2252,7 @@ fn handle_multiple_seconded_statements() {
 			}
 		);
 
-		handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::pin_mut!(test_fut);

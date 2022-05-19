@@ -32,7 +32,7 @@ use polkadot_node_subsystem::{
 	messages::{
 		AvailabilityStoreMessage, BitfieldDistributionMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
-	overseer, ActivatedLeaf, FromOverseer, LeafStatus, OverseerSignal, PerLeafSpan,
+	overseer, ActivatedLeaf, FromOrchestra, LeafStatus, OverseerSignal, PerLeafSpan,
 	SpawnedSubsystem, SubsystemError, SubsystemResult, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{self as util, Validator};
@@ -217,7 +217,7 @@ async fn run<Context>(
 
 	loop {
 		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 				// Abort jobs for deactivated leaves.
 				for leaf in &update.deactivated {
 					if let Some(handle) = running.remove(leaf) {
@@ -241,9 +241,9 @@ async fn run<Context>(
 					ctx.spawn("bitfield-signing-job", fut.map(drop).boxed())?;
 				}
 			},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-			FromOverseer::Communication { .. } => {},
+			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
+			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+			FromOrchestra::Communication { .. } => {},
 		}
 	}
 }

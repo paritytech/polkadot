@@ -70,12 +70,12 @@ where
 				let mut i = 0;
 				loop {
 					match ctx.recv().await {
-						Ok(FromOverseer::Communication { .. }) => {
+						Ok(FromOrchestra::Communication { .. }) => {
 							let _ = sender.send(i).await;
 							i += 1;
 							continue
 						},
-						Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
+						Ok(FromOrchestra::Signal(OverseerSignal::Conclude)) => return Ok(()),
 						Err(_) => return Ok(()),
 						_ => (),
 					}
@@ -121,7 +121,7 @@ where
 						continue
 					}
 					match ctx.try_recv().await {
-						Ok(Some(FromOverseer::Signal(OverseerSignal::Conclude))) => break,
+						Ok(Some(FromOrchestra::Signal(OverseerSignal::Conclude))) => break,
 						Ok(Some(_)) => continue,
 						Err(_) => return Ok(()),
 						_ => (),
@@ -318,8 +318,8 @@ where
 			future: Box::pin(async move {
 				loop {
 					match ctx.try_recv().await {
-						Ok(Some(FromOverseer::Signal(OverseerSignal::Conclude))) => break,
-						Ok(Some(FromOverseer::Signal(s))) => {
+						Ok(Some(FromOrchestra::Signal(OverseerSignal::Conclude))) => break,
+						Ok(Some(FromOrchestra::Signal(s))) => {
 							sender.send(s).await.unwrap();
 							continue
 						},
@@ -350,8 +350,8 @@ where
 			future: Box::pin(async move {
 				loop {
 					match ctx.try_recv().await {
-						Ok(Some(FromOverseer::Signal(OverseerSignal::Conclude))) => break,
-						Ok(Some(FromOverseer::Signal(s))) => {
+						Ok(Some(FromOrchestra::Signal(OverseerSignal::Conclude))) => break,
+						Ok(Some(FromOrchestra::Signal(s))) => {
 							sender.send(s).await.unwrap();
 							continue
 						},
@@ -754,15 +754,15 @@ where
 			future: Box::pin(async move {
 				loop {
 					match ctx.try_recv().await {
-						Ok(Some(FromOverseer::Signal(OverseerSignal::Conclude))) => {
+						Ok(Some(FromOrchestra::Signal(OverseerSignal::Conclude))) => {
 							self.stop_signals_received.fetch_add(1, atomic::Ordering::SeqCst);
 							break
 						},
-						Ok(Some(FromOverseer::Signal(_))) => {
+						Ok(Some(FromOrchestra::Signal(_))) => {
 							self.signals_received.fetch_add(1, atomic::Ordering::SeqCst);
 							continue
 						},
-						Ok(Some(FromOverseer::Communication { .. })) => {
+						Ok(Some(FromOrchestra::Communication { .. })) => {
 							self.msgs_received.fetch_add(1, atomic::Ordering::SeqCst);
 							continue
 						},
@@ -1139,7 +1139,7 @@ fn context_holds_onto_message_until_enough_signals_received() {
 
 	let test_fut = async move {
 		signal_tx.send(OverseerSignal::Conclude).await.unwrap();
-		assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Signal(OverseerSignal::Conclude));
+		assert_matches!(ctx.recv().await.unwrap(), FromOrchestra::Signal(OverseerSignal::Conclude));
 
 		assert_eq!(ctx.signals_received.load(), 1);
 		bounded_tx
@@ -1158,9 +1158,9 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		assert!(ctx.pending_incoming.is_some());
 
 		signal_tx.send(OverseerSignal::Conclude).await.unwrap();
-		assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Signal(OverseerSignal::Conclude));
-		assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Communication { msg: () });
-		assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Communication { msg: () });
+		assert_matches!(ctx.recv().await.unwrap(), FromOrchestra::Signal(OverseerSignal::Conclude));
+		assert_matches!(ctx.recv().await.unwrap(), FromOrchestra::Communication { msg: () });
+		assert_matches!(ctx.recv().await.unwrap(), FromOrchestra::Communication { msg: () });
 		assert!(ctx.pending_incoming.is_none());
 	};
 
