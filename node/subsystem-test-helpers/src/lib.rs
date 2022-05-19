@@ -381,6 +381,7 @@ mod tests {
 	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
 	use polkadot_overseer::{dummy::dummy_overseer_builder, Handle, HeadSupportsParachains};
 	use polkadot_primitives::v2::Hash;
+	use sp_core::traits::SpawnNamed;
 
 	struct AlwaysSupportsParachains;
 	impl HeadSupportsParachains for AlwaysSupportsParachains {

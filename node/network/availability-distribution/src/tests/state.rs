@@ -31,7 +31,7 @@ use futures_timer::Delay;
 
 use sc_network as network;
 use sc_network::{config as netconfig, config::RequestResponseConfig, IfDisconnected};
-use sp_core::testing::TaskExecutor;
+use sp_core::{testing::TaskExecutor, traits::SpawnNamed};
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::{

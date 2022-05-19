@@ -22,15 +22,17 @@ use polkadot_node_network_protocol::jaeger;
 use polkadot_node_primitives::{BlockData, ErasureChunk, PoV};
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::v2::{
-	BlockNumber, CoreState, GroupIndex, Hash, Id, ScheduledCore, SessionIndex, SessionInfo,
+	BlockNumber, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore, SessionIndex,
+	SessionInfo,
 };
+use sp_core::traits::SpawnNamed;
 
 use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
 		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SpawnGlue,
 };
 use polkadot_node_subsystem_test_helpers::{
 	make_subsystem_context, mock::make_ferdie_keystore, TestSubsystemContext,
@@ -117,7 +119,7 @@ fn spawn_virtual_overseer(
 									.expect("Receiver should be alive.");
 							},
 							RuntimeApiRequest::AvailabilityCores(tx) => {
-								let para_id = Id::from(1);
+								let para_id = ParaId::from(1_u32);
 								let maybe_block_position =
 									test_state.relay_chain.iter().position(|h| *h == hash);
 								let cores = match maybe_block_position {
@@ -173,7 +175,9 @@ fn spawn_virtual_overseer(
 
 fn test_harness<T: Future<Output = ()>>(
 	test_state: TestState,
-	test_fx: impl FnOnce(TestSubsystemContext<AvailabilityDistributionMessage, TaskExecutor>) -> T,
+	test_fx: impl FnOnce(
+		TestSubsystemContext<AvailabilityDistributionMessage, SpawnGlue<TaskExecutor>>,
+	) -> T,
 ) {
 	let pool = TaskExecutor::new();
 	let (ctx, ctx_handle) = make_subsystem_context(pool.clone());
