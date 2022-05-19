@@ -37,6 +37,7 @@ mod monitor;
 mod prelude;
 mod signer;
 
+use jsonrpsee::ws_client::WsClientBuilder;
 pub(crate) use prelude::*;
 
 use clap::Parser;
@@ -131,7 +132,7 @@ impl FromStr for SubmissionStrategy {
 			let percent: u32 = s[15..].parse().map_err(|e| format!("{:?}", e))?;
 			Self::ClaimBetterThan(Perbill::from_percent(percent))
 		} else {
-			return Err(s.into())
+			return Err(s.into());
 		};
 		Ok(res)
 	}
@@ -232,13 +233,18 @@ async fn main() -> Result<(), Error> {
 	let Opt { uri, seed_or_path, command } = Opt::parse();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
 
-	let client = subxt::ClientBuilder::new().set_url(uri).build().await?;
+	let rpc = WsClientBuilder::default()
+		.max_request_body_size(u32::MAX)
+		.build(uri)
+		.await
+		.unwrap();
+	let client = subxt::ClientBuilder::new().set_client(rpc).build().await?;
 	let chain = client.rpc().system_chain().await?.to_lowercase();
 	let signer = signer::signer_from_string(&seed_or_path)?;
 
 	let chain_str = chain.as_str();
 
-	log::info!("Connected to chain: {}", chain);
+	log::info!(target: LOG_TARGET, "Connected to chain: {}", chain);
 
 	let outcome = any_runtime!(chain_str, {
 		let api: RuntimeApi = client.to_runtime_api();
@@ -251,7 +257,7 @@ async fn main() -> Result<(), Error> {
 		});
 
 		let account_info = api.storage().system().account(signer.account_id(), None).await?;
-		log::info!("{:?}", account_info.data);
+		log::info!(target: LOG_TARGET, "account_info: {:?}", account_info.data);
 
 		match command {
 			Command::Monitor(cfg) => monitor_cmd(api, cfg, Arc::new(signer)).await,
