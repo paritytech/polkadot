@@ -156,7 +156,7 @@ default:
   script:
     - git clone
         --depth=1
-        --branch=debug-polkadot-5337
+        --branch=fix-patching
         https://github.com/joao-paulo-parity/pipeline-scripts
     - ./pipeline-scripts/check_dependent_project.sh
         --org paritytech
