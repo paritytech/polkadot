@@ -4,29 +4,6 @@ use crate::prelude::*;
 use frame_support::{traits::ConstU32, weights::Weight};
 use sp_runtime::PerU16;
 
-#[derive(Debug, Clone)]
-pub(crate) enum Chain {
-	Polkadot,
-	Kusama,
-	Westend,
-}
-
-impl std::str::FromStr for Chain {
-	type Err = Error;
-
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		match s.to_lowercase().as_str() {
-			"polkadot" => Ok(Self::Polkadot),
-			"kusama" => Ok(Self::Kusama),
-			"westend" | "development" => Ok(Self::Westend),
-			other => Err(Error::Other(format!(
-				"expected chain to be polkadot, kusama or westend; got: {}",
-				other
-			))),
-		}
-	}
-}
-
 pub mod westend {
 	use super::*;
 

@@ -131,7 +131,7 @@ impl FromStr for SubmissionStrategy {
 			let percent: u32 = s[15..].parse().map_err(|e| format!("{:?}", e))?;
 			Self::ClaimBetterThan(Perbill::from_percent(percent))
 		} else {
-			return Err(s.into());
+			return Err(s.into())
 		};
 		Ok(res)
 	}
@@ -257,11 +257,11 @@ async fn main() -> Result<(), Error> {
 		let update_client = api.client.updates();
 		tokio::spawn(async move {
 			let result = update_client.perform_runtime_updates().await;
-			log::error!("Runtime update failed with result={:?}", result);
+			log::error!(target: LOG_TARGET, "Runtime update failed with result: {:?}", result);
 		});
 
 		let account_info = api.storage().system().account(signer.account_id(), None).await?;
-		log::info!(target: LOG_TARGET, "account_info: {:?}", account_info.data);
+		log::info!(target: LOG_TARGET, "Loaded account: {:?}", account_info);
 
 		match command {
 			Command::Monitor(cfg) => monitor_cmd(api, cfg, Arc::new(signer)).await,
