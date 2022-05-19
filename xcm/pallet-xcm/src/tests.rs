@@ -148,7 +148,10 @@ fn report_outcome_works() {
 		assert_eq!(r, Outcome::Complete(1_000));
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::ResponseReady(0, Response::ExecutionResult(None),))
+			Event::XcmPallet(crate::Event::ResponseReady {
+				query_id: 0,
+				response: Response::ExecutionResult(None)
+			})
 		);
 
 		let response = Some((Response::ExecutionResult(None), 1));
@@ -192,12 +195,12 @@ fn custom_querier_works() {
 		assert_eq!(r, Outcome::Complete(1_000));
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::InvalidQuerier(
-				AccountId32 { network: None, id: ALICE.into() }.into(),
-				0,
-				querier.clone(),
-				None,
-			)),
+			Event::XcmPallet(crate::Event::InvalidQuerier {
+				origin: AccountId32 { network: None, id: ALICE.into() }.into(),
+				query_id: 0,
+				expected_querier: querier.clone(),
+				actual_querier: None,
+			}),
 		);
 
 		// Supplying the wrong querier will also fail
@@ -218,12 +221,12 @@ fn custom_querier_works() {
 		assert_eq!(r, Outcome::Complete(1_000));
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::InvalidQuerier(
-				AccountId32 { network: None, id: ALICE.into() }.into(),
-				0,
-				querier.clone(),
-				Some(MultiLocation::here()),
-			)),
+			Event::XcmPallet(crate::Event::InvalidQuerier {
+				origin: AccountId32 { network: None, id: ALICE.into() }.into(),
+				query_id: 0,
+				expected_querier: querier.clone(),
+				actual_querier: Some(MultiLocation::here()),
+			}),
 		);
 
 		// Multiple failures should not have changed the query state

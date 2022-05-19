@@ -203,9 +203,11 @@ pub mod pallet {
 		/// An XCM version change notification message has been attempted to be sent.
 		///
 		/// The cost of sending it (borne by the chain) is included.
-		///
-		/// \[ destination, result, cost \]
-		VersionChangeNotified(MultiLocation, XcmVersion, MultiAssets),
+		VersionChangeNotified {
+			destination: MultiLocation,
+			xcm_version: XcmVersion,
+			cost: MultiAssets,
+		},
 		/// The supported version of a location has been changed. This might be through an
 		/// automatic notification or a manual intervention.
 		SupportedVersionChanged { location: MultiLocation, xcm_version: XcmVersion },
@@ -214,9 +216,7 @@ pub mod pallet {
 		NotifyTargetSendFail { location: MultiLocation, query_id: QueryId, error: XcmError },
 		/// A given location which had a version change subscription was dropped owing to an error
 		/// migrating the location to our new XCM format.
-		///
-		/// \[ location, query ID \]
-		NotifyTargetMigrationFail(VersionedMultiLocation, QueryId),
+		NotifyTargetMigrationFail { location: VersionedMultiLocation, query_id: QueryId },
 		/// Expected query response has been received but the expected querier location placed in
 		/// storage by this runtime previously cannot be decoded. The query remains registered.
 		///
@@ -224,32 +224,25 @@ pub mod pallet {
 		/// runtime should be readable prior to query timeout) and dangerous since the possibly
 		/// valid response will be dropped. Manual governance intervention is probably going to be
 		/// needed.
-		///
-		/// \[ origin location, id \]
-		InvalidQuerierVersion(MultiLocation, QueryId),
+		InvalidQuerierVersion { origin: MultiLocation, query_id: QueryId },
 		/// Expected query response has been received but the querier location of the response does
 		/// not match the expected. The query remains registered for a later, valid, response to
 		/// be received and acted upon.
-		///
-		/// \[ origin location, id, expected querier, maybe actual querier \]
-		InvalidQuerier(MultiLocation, QueryId, MultiLocation, Option<MultiLocation>),
+		InvalidQuerier {
+			origin: MultiLocation,
+			query_id: QueryId,
+			expected_querier: MultiLocation,
+			actual_querier: Option<MultiLocation>,
+		},
 		/// A remote has requested XCM version change notification from us and we have honored it.
 		/// A version information message is sent to them and its cost is included.
-		///
-		/// \[ destination location, cost \]
-		VersionNotifyStarted(MultiLocation, MultiAssets),
+		VersionNotifyStarted { destination: MultiLocation, cost: MultiAssets },
 		/// We have requested that a remote chain sends us XCM version change notifications.
-		///
-		/// \[ destination location, cost \]
-		VersionNotifyRequested(MultiLocation, MultiAssets),
+		VersionNotifyRequested { destination: MultiLocation, cost: MultiAssets },
 		/// We have requested that a remote chain stops sending us XCM version change notifications.
-		///
-		/// \[ destination location, cost \]
-		VersionNotifyUnrequested(MultiLocation, MultiAssets),
+		VersionNotifyUnrequested { destination: MultiLocation, cost: MultiAssets },
 		/// Fees were paid from a location for an operation (often for using `SendXcm`).
-		///
-		/// \[ paying location, fees \]
-		FeesPaid(MultiLocation, MultiAssets),
+		FeesPaid { location: MultiLocation, fees: MultiAssets },
 	}
 
 	#[pallet::origin]
@@ -630,7 +623,11 @@ pub mod pallet {
 			let message: Xcm<()> = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
 
 			Self::send_xcm(interior, dest.clone(), message.clone()).map_err(Error::<T>::from)?;
-			Self::deposit_event(Event::Sent(origin_location, dest, message));
+			Self::deposit_event(Event::Sent {
+				origin: origin_location,
+				destination: dest,
+				message,
+			});
 			Ok(())
 		}
 
@@ -999,7 +996,7 @@ impl<T: Config> Pallet<T> {
 		let hash = message.using_encoded(sp_io::hashing::blake2_256);
 		let outcome =
 			T::XcmExecutor::execute_xcm_in_credit(origin_location, message, hash, weight, weight);
-		Self::deposit_event(Event::Attempted(outcome));
+		Self::deposit_event(Event::Attempted { outcome });
 		Ok(())
 	}
 
@@ -1058,7 +1055,7 @@ impl<T: Config> Pallet<T> {
 		let hash = message.using_encoded(sp_io::hashing::blake2_256);
 		let outcome =
 			T::XcmExecutor::execute_xcm_in_credit(origin_location, message, hash, weight, weight);
-		Self::deposit_event(Event::Attempted(outcome));
+		Self::deposit_event(Event::Attempted { outcome });
 		Ok(())
 	}
 
@@ -1139,11 +1136,11 @@ impl<T: Config> Pallet<T> {
 					Ok((_hash, cost)) => {
 						let value = (query_id, max_weight, xcm_version);
 						VersionNotifyTargets::<T>::insert(XCM_VERSION, key, value);
-						Event::VersionChangeNotified(new_key, xcm_version, cost)
+						Event::VersionChangeNotified { destination: new_key, xcm_version, cost }
 					},
 					Err(e) => {
 						VersionNotifyTargets::<T>::remove(XCM_VERSION, key);
-						Event::NotifyTargetSendFail(new_key, query_id, e.into())
+						Event::NotifyTargetSendFail { location: new_key, query_id, error: e.into() }
 					},
 				};
 				Self::deposit_event(event);
@@ -1162,7 +1159,10 @@ impl<T: Config> Pallet<T> {
 					let new_key = match MultiLocation::try_from(old_key.clone()) {
 						Ok(k) => k,
 						Err(()) => {
-							Self::deposit_event(Event::NotifyTargetMigrationFail(old_key, value.0));
+							Self::deposit_event(Event::NotifyTargetMigrationFail {
+								location: old_key,
+								query_id: value.0,
+							});
 							weight_used.saturating_accrue(todo_vnt_migrate_fail_weight);
 							if weight_used >= weight_cutoff {
 								return (weight_used, Some(stage))
@@ -1191,9 +1191,17 @@ impl<T: Config> Pallet<T> {
 									versioned_key,
 									(query_id, max_weight, xcm_version),
 								);
-								Event::VersionChangeNotified(new_key, xcm_version, cost)
+								Event::VersionChangeNotified {
+									destination: new_key,
+									xcm_version,
+									cost,
+								}
 							},
-							Err(e) => Event::NotifyTargetSendFail(new_key, query_id, e.into()),
+							Err(e) => Event::NotifyTargetSendFail {
+								location: new_key,
+								query_id,
+								error: e.into(),
+							},
 						};
 						Self::deposit_event(event);
 						weight_used.saturating_accrue(todo_vnt_notify_migrate_weight);
@@ -1221,7 +1229,7 @@ impl<T: Config> Pallet<T> {
 		// TODO #3735: Correct weight.
 		let instruction = SubscribeVersion { query_id, max_response_weight: 0 };
 		let (_hash, cost) = send_xcm::<T::XcmRouter>(dest.clone(), Xcm(vec![instruction]))?;
-		Self::deposit_event(Event::VersionNotifyRequested(dest, cost));
+		Self::deposit_event(Event::VersionNotifyRequested { destination: dest, cost });
 		VersionNotifiers::<T>::insert(XCM_VERSION, &versioned_dest, query_id);
 		let query_status =
 			QueryStatus::VersionNotifier { origin: versioned_dest, is_active: false };
@@ -1236,7 +1244,7 @@ impl<T: Config> Pallet<T> {
 		let query_id = VersionNotifiers::<T>::take(XCM_VERSION, versioned_dest)
 			.ok_or(XcmError::InvalidLocation)?;
 		let (_hash, cost) = send_xcm::<T::XcmRouter>(dest.clone(), Xcm(vec![UnsubscribeVersion]))?;
-		Self::deposit_event(Event::VersionNotifyUnrequested(dest, cost));
+		Self::deposit_event(Event::VersionNotifyUnrequested { destination: dest, cost });
 		Queries::<T>::remove(query_id);
 		Ok(())
 	}
@@ -1394,7 +1402,7 @@ impl<T: Config> Pallet<T> {
 		if let Some(QueryStatus::Ready { response, at }) = Queries::<T>::get(query_id) {
 			let response = response.try_into().ok()?;
 			Queries::<T>::remove(query_id);
-			Self::deposit_event(Event::ResponseTaken(query_id));
+			Self::deposit_event(Event::ResponseTaken { query_id });
 			Some((response, at))
 		} else {
 			None
@@ -1428,7 +1436,7 @@ impl<T: Config> Pallet<T> {
 	fn charge_fees(location: MultiLocation, assets: MultiAssets) -> DispatchResult {
 		T::XcmExecutor::charge_fees(location.clone(), assets.clone())
 			.map_err(|_| Error::<T>::FeesNotMet)?;
-		Self::deposit_event(Event::FeesPaid(location, assets));
+		Self::deposit_event(Event::FeesPaid { location, fees: assets });
 		Ok(())
 	}
 }
@@ -1662,7 +1670,7 @@ impl<T: Config> VersionChangeNotifier for Pallet<T> {
 		let response = Response::Version(xcm_version);
 		let instruction = QueryResponse { query_id, response, max_weight, querier: None };
 		let (_hash, cost) = send_xcm::<T::XcmRouter>(dest.clone(), Xcm(vec![instruction]))?;
-		Self::deposit_event(Event::<T>::VersionNotifyStarted(dest.clone(), cost));
+		Self::deposit_event(Event::<T>::VersionNotifyStarted { destination: dest.clone(), cost });
 
 		let value = (query_id, max_weight, xcm_version);
 		VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_dest, value);
@@ -1691,7 +1699,11 @@ impl<T: Config> DropAssets for Pallet<T> {
 		let versioned = VersionedMultiAssets::from(MultiAssets::from(assets));
 		let hash = BlakeTwo256::hash_of(&(&origin, &versioned));
 		AssetTraps::<T>::mutate(hash, |n| *n += 1);
-		Self::deposit_event(Event::AssetsTrapped(hash, origin.clone(), versioned));
+		Self::deposit_event(Event::AssetsTrapped {
+			hash,
+			origin: origin.clone(),
+			assets: versioned,
+		});
 		// TODO #3735: Put the real weight in there.
 		0
 	}
@@ -1760,19 +1772,19 @@ impl<T: Config> OnResponse for Pallet<T> {
 				let origin: MultiLocation = match expected_origin.try_into() {
 					Ok(o) if &o == origin => o,
 					Ok(o) => {
-						Self::deposit_event(Event::InvalidResponder(
-							origin.clone(),
+						Self::deposit_event(Event::InvalidResponder {
+							origin: origin.clone(),
 							query_id,
-							Some(o),
-						));
+							expected_location: Some(o),
+						});
 						return 0
 					},
 					_ => {
-						Self::deposit_event(Event::InvalidResponder(
-							origin.clone(),
+						Self::deposit_event(Event::InvalidResponder {
+							origin: origin.clone(),
 							query_id,
-							None,
-						));
+							expected_location: None,
+						});
 						// TODO #3735: Correct weight for this.
 						return 0
 					},
@@ -1793,7 +1805,10 @@ impl<T: Config> OnResponse for Pallet<T> {
 					LatestVersionedMultiLocation(&origin),
 					v,
 				);
-				Self::deposit_event(Event::SupportedVersionChanged(origin, v));
+				Self::deposit_event(Event::SupportedVersionChanged {
+					location: origin,
+					xcm_version: v,
+				});
 				0
 			},
 			(
@@ -1804,39 +1819,39 @@ impl<T: Config> OnResponse for Pallet<T> {
 					let match_querier = match MultiLocation::try_from(match_querier) {
 						Ok(mq) => mq,
 						Err(_) => {
-							Self::deposit_event(Event::InvalidQuerierVersion(
-								origin.clone(),
+							Self::deposit_event(Event::InvalidQuerierVersion {
+								origin: origin.clone(),
 								query_id,
-							));
+							});
 							return 0
 						},
 					};
 					if querier.map_or(true, |q| q != &match_querier) {
-						Self::deposit_event(Event::InvalidQuerier(
-							origin.clone(),
+						Self::deposit_event(Event::InvalidQuerier {
+							origin: origin.clone(),
 							query_id,
-							match_querier,
-							querier.cloned(),
-						));
+							expected_querier: match_querier,
+							actual_querier: querier.cloned(),
+						});
 						return 0
 					}
 				}
 				let responder = match MultiLocation::try_from(responder) {
 					Ok(r) => r,
 					Err(_) => {
-						Self::deposit_event(Event::InvalidResponderVersion(
-							origin.clone(),
+						Self::deposit_event(Event::InvalidResponderVersion {
+							origin: origin.clone(),
 							query_id,
-						));
+						});
 						return 0
 					},
 				};
 				if origin != &responder {
-					Self::deposit_event(Event::InvalidResponder(
-						origin.clone(),
+					Self::deposit_event(Event::InvalidResponder {
+						origin: origin.clone(),
 						query_id,
-						Some(responder),
-					));
+						expected_location: Some(responder),
+					});
 					return 0
 				}
 				return match maybe_notify {
@@ -1851,29 +1866,29 @@ impl<T: Config> OnResponse for Pallet<T> {
 							Queries::<T>::remove(query_id);
 							let weight = call.get_dispatch_info().weight;
 							if weight > max_weight {
-								let e = Event::NotifyOverweight(
+								let e = Event::NotifyOverweight {
 									query_id,
 									pallet_index,
 									call_index,
-									weight,
-									max_weight,
-								);
+									actual_weight: weight,
+									max_budgeted_weight: max_weight,
+								};
 								Self::deposit_event(e);
 								return 0
 							}
 							let dispatch_origin = Origin::Response(origin.clone()).into();
 							match call.dispatch(dispatch_origin) {
 								Ok(post_info) => {
-									let e = Event::Notified(query_id, pallet_index, call_index);
+									let e = Event::Notified { query_id, pallet_index, call_index };
 									Self::deposit_event(e);
 									post_info.actual_weight
 								},
 								Err(error_and_info) => {
-									let e = Event::NotifyDispatchError(
+									let e = Event::NotifyDispatchError {
 										query_id,
 										pallet_index,
 										call_index,
-									);
+									};
 									Self::deposit_event(e);
 									// Not much to do with the result as it is. It's up to the parachain to ensure that the
 									// message makes sense.
@@ -1882,13 +1897,14 @@ impl<T: Config> OnResponse for Pallet<T> {
 							}
 							.unwrap_or(weight)
 						} else {
-							let e = Event::NotifyDecodeFailed(query_id, pallet_index, call_index);
+							let e =
+								Event::NotifyDecodeFailed { query_id, pallet_index, call_index };
 							Self::deposit_event(e);
 							0
 						}
 					},
 					None => {
-						let e = Event::ResponseReady(query_id, response.clone());
+						let e = Event::ResponseReady { query_id, response: response.clone() };
 						Self::deposit_event(e);
 						let at = frame_system::Pallet::<T>::current_block_number();
 						let response = response.into();
@@ -1898,7 +1914,7 @@ impl<T: Config> OnResponse for Pallet<T> {
 				}
 			},
 			_ => {
-				Self::deposit_event(Event::UnexpectedResponse(origin.clone(), query_id));
+				Self::deposit_event(Event::UnexpectedResponse { origin: origin.clone(), query_id });
 				return 0
 			},
 		}
