@@ -227,6 +227,7 @@ where
 				leaf_hash = ?self.leaf.hash,
 				"inherent data sent successfully"
 			);
+			self.metrics.observe_inherent_data_bitfields_count(self.signed_bitfields.len());
 		}
 	}
 
