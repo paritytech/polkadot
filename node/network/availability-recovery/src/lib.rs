@@ -51,7 +51,7 @@ use polkadot_node_subsystem::{
 	errors::RecoveryError,
 	jaeger,
 	messages::{AvailabilityRecoveryMessage, AvailabilityStoreMessage, NetworkBridgeMessage},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 	SubsystemResult,
 };
 use polkadot_node_subsystem_util::request_session_info;
@@ -988,13 +988,13 @@ impl AvailabilityRecoverySubsystem {
 			futures::select! {
 				v = ctx.recv().fuse() => {
 					match v? {
-						FromOverseer::Signal(signal) => if handle_signal(
+						FromOrchestra::Signal(signal) => if handle_signal(
 							&mut state,
 							signal,
 						).await? {
 							return Ok(());
 						}
-						FromOverseer::Communication { msg } => {
+						FromOrchestra::Communication { msg } => {
 							match msg {
 								AvailabilityRecoveryMessage::RecoverAvailableData(
 									receipt,

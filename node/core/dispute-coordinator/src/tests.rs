@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 		ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		ImportStatementsResult,
 	},
-	overseer::FromOverseer,
+	overseer::FromOrchestra,
 	OverseerSignal,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
@@ -225,7 +225,7 @@ impl TestState {
 
 		gum::debug!(?block_number, "Activating block in activate_leaf_at_session.");
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: block_hash,
 					span: Arc::new(jaeger::Span::Disabled),
@@ -347,7 +347,7 @@ impl TestState {
 				"Activating block in handle resume sync."
 			);
 			virtual_overseer
-				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+				.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 					ActiveLeavesUpdate::start_work(ActivatedLeaf {
 						hash: *leaf,
 						number: n as u32,
@@ -511,7 +511,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 				.await;
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash: candidate_hash1,
 						candidate_receipt: candidate_receipt1.clone(),
@@ -531,7 +531,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 			{
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 					})
 					.await;
@@ -540,7 +540,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
 							vec![(session, candidate_hash1)],
 							tx,
@@ -555,7 +555,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash: candidate_hash2,
 						candidate_receipt: candidate_receipt2.clone(),
@@ -572,7 +572,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 			{
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
 							vec![(session, candidate_hash2)],
 							tx,
@@ -586,7 +586,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 			// Result should be invalid, because it should be considered spam.
 			assert_matches!(confirmation_rx.await, Ok(ImportStatementsResult::InvalidImport));
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 
 			// No more messages expected:
 			assert!(virtual_overseer.try_recv().await.is_none());
@@ -628,7 +628,7 @@ fn dispute_gets_confirmed_via_participation() {
 				.await;
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash: candidate_hash1,
 						candidate_receipt: candidate_receipt1.clone(),
@@ -652,7 +652,7 @@ fn dispute_gets_confirmed_via_participation() {
 			{
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 					})
 					.await;
@@ -661,7 +661,7 @@ fn dispute_gets_confirmed_via_participation() {
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
 							vec![(session, candidate_hash1)],
 							tx,
@@ -676,7 +676,7 @@ fn dispute_gets_confirmed_via_participation() {
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash: candidate_hash2,
 						candidate_receipt: candidate_receipt2.clone(),
@@ -695,7 +695,7 @@ fn dispute_gets_confirmed_via_participation() {
 			{
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
 							vec![(session, candidate_hash2)],
 							tx,
@@ -711,7 +711,7 @@ fn dispute_gets_confirmed_via_participation() {
 			// Result should be valid, because our node participated, so spam slots are cleared:
 			assert_matches!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 
 			// No more messages expected:
 			assert!(virtual_overseer.try_recv().await.is_none());
@@ -761,7 +761,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 				.await;
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash: candidate_hash1,
 						candidate_receipt: candidate_receipt1.clone(),
@@ -782,7 +782,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 			{
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 					})
 					.await;
@@ -791,7 +791,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
 							vec![(session, candidate_hash1)],
 							tx,
@@ -806,7 +806,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash: candidate_hash2,
 						candidate_receipt: candidate_receipt2.clone(),
@@ -825,7 +825,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 			{
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
 							vec![(session, candidate_hash2)],
 							tx,
@@ -842,7 +842,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 			// import, so spam slots are cleared:
 			assert_matches!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 
 			// No more messages expected:
 			assert!(virtual_overseer.try_recv().await.is_none());
@@ -873,7 +873,7 @@ fn backing_statements_import_works_and_no_spam() {
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -892,7 +892,7 @@ fn backing_statements_import_works_and_no_spam() {
 				// Just backing votes - we should not have any active disputes now.
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 					})
 					.await;
@@ -901,7 +901,7 @@ fn backing_statements_import_works_and_no_spam() {
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
 							vec![(session, candidate_hash)],
 							tx,
@@ -927,7 +927,7 @@ fn backing_statements_import_works_and_no_spam() {
 			// Backing vote import should not have accounted to spam slots, so this should succeed
 			// as well:
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -944,7 +944,7 @@ fn backing_statements_import_works_and_no_spam() {
 			// Result should be valid, because our node participated, so spam slots are cleared:
 			assert_matches!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 
 			// No more messages expected:
 			assert!(virtual_overseer.try_recv().await.is_none());
@@ -980,7 +980,7 @@ fn conflicting_votes_lead_to_dispute_participation() {
 				.await;
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -1004,7 +1004,7 @@ fn conflicting_votes_lead_to_dispute_participation() {
 			{
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 					})
 					.await;
@@ -1013,7 +1013,7 @@ fn conflicting_votes_lead_to_dispute_participation() {
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
 							vec![(session, candidate_hash)],
 							tx,
@@ -1027,7 +1027,7 @@ fn conflicting_votes_lead_to_dispute_participation() {
 			}
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -1041,7 +1041,7 @@ fn conflicting_votes_lead_to_dispute_participation() {
 			{
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
 							vec![(session, candidate_hash)],
 							tx,
@@ -1054,7 +1054,7 @@ fn conflicting_votes_lead_to_dispute_participation() {
 				assert_eq!(votes.invalid.len(), 2);
 			}
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 
 			// This confirms that the second vote doesn't lead to participation again.
 			assert!(virtual_overseer.try_recv().await.is_none());
@@ -1086,7 +1086,7 @@ fn positive_votes_dont_trigger_participation() {
 				.await;
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -1100,7 +1100,7 @@ fn positive_votes_dont_trigger_participation() {
 			{
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 					})
 					.await;
@@ -1109,7 +1109,7 @@ fn positive_votes_dont_trigger_participation() {
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
 							vec![(session, candidate_hash)],
 							tx,
@@ -1123,7 +1123,7 @@ fn positive_votes_dont_trigger_participation() {
 			}
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -1137,7 +1137,7 @@ fn positive_votes_dont_trigger_participation() {
 			{
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 					})
 					.await;
@@ -1146,7 +1146,7 @@ fn positive_votes_dont_trigger_participation() {
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
 							vec![(session, candidate_hash)],
 							tx,
@@ -1159,7 +1159,7 @@ fn positive_votes_dont_trigger_participation() {
 				assert!(votes.invalid.is_empty());
 			}
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 
 			// This confirms that no participation request is made.
 			assert!(virtual_overseer.try_recv().await.is_none());
@@ -1191,7 +1191,7 @@ fn wrong_validator_index_is_ignored() {
 				.await;
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -1208,7 +1208,7 @@ fn wrong_validator_index_is_ignored() {
 			{
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 					})
 					.await;
@@ -1217,7 +1217,7 @@ fn wrong_validator_index_is_ignored() {
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
 							vec![(session, candidate_hash)],
 							tx,
@@ -1230,7 +1230,7 @@ fn wrong_validator_index_is_ignored() {
 				assert!(votes.invalid.is_empty());
 			}
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 
 			// This confirms that no participation request is made.
 			assert!(virtual_overseer.try_recv().await.is_none());
@@ -1262,7 +1262,7 @@ fn finality_votes_ignore_disputed_candidates() {
 				.await;
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -1291,7 +1291,7 @@ fn finality_votes_ignore_disputed_candidates() {
 				let block_hash_b = Hash::repeat_byte(0x0b);
 
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::DetermineUndisputedChain {
 							base: (10, base_block),
 							block_descriptions: vec![BlockDescription {
@@ -1308,7 +1308,7 @@ fn finality_votes_ignore_disputed_candidates() {
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::DetermineUndisputedChain {
 							base: (10, base_block),
 							block_descriptions: vec![
@@ -1331,7 +1331,7 @@ fn finality_votes_ignore_disputed_candidates() {
 				assert_eq!(rx.await.unwrap(), (11, block_hash_a));
 			}
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
@@ -1364,7 +1364,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 				.await;
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -1395,7 +1395,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 			}
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -1414,7 +1414,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 				let block_hash_b = Hash::repeat_byte(0x0b);
 
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::DetermineUndisputedChain {
 							base: (10, base_hash),
 							block_descriptions: vec![BlockDescription {
@@ -1431,7 +1431,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::DetermineUndisputedChain {
 							base: (10, base_hash),
 							block_descriptions: vec![
@@ -1454,7 +1454,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 				assert_eq!(rx.await.unwrap(), (12, block_hash_b));
 			}
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
@@ -1487,7 +1487,7 @@ fn concluded_supermajority_for_non_active_after_time() {
 				.await;
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -1519,7 +1519,7 @@ fn concluded_supermajority_for_non_active_after_time() {
 			}
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -1536,7 +1536,7 @@ fn concluded_supermajority_for_non_active_after_time() {
 				let (tx, rx) = oneshot::channel();
 
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 					})
 					.await;
@@ -1546,7 +1546,7 @@ fn concluded_supermajority_for_non_active_after_time() {
 				let (tx, rx) = oneshot::channel();
 
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::RecentDisputes(tx),
 					})
 					.await;
@@ -1554,7 +1554,7 @@ fn concluded_supermajority_for_non_active_after_time() {
 				assert_eq!(rx.await.unwrap().len(), 1);
 			}
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
@@ -1589,7 +1589,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -1625,7 +1625,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 			}
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -1642,7 +1642,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 				let (tx, rx) = oneshot::channel();
 
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 					})
 					.await;
@@ -1651,7 +1651,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 				let (tx, rx) = oneshot::channel();
 
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::RecentDisputes(tx),
 					})
 					.await;
@@ -1659,7 +1659,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 				assert_eq!(rx.await.unwrap().len(), 1);
 			}
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert_matches!(
 				virtual_overseer.try_recv().await,
 				None => {}
@@ -1693,7 +1693,7 @@ fn resume_dispute_without_local_statement() {
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -1716,7 +1716,7 @@ fn resume_dispute_without_local_statement() {
 				let (tx, rx) = oneshot::channel();
 
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 					})
 					.await;
@@ -1724,7 +1724,7 @@ fn resume_dispute_without_local_statement() {
 				assert_eq!(rx.await.unwrap().len(), 1);
 			}
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
@@ -1766,7 +1766,7 @@ fn resume_dispute_without_local_statement() {
 				.await;
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -1792,7 +1792,7 @@ fn resume_dispute_without_local_statement() {
 				let (tx, rx) = oneshot::channel();
 
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 					})
 					.await;
@@ -1800,7 +1800,7 @@ fn resume_dispute_without_local_statement() {
 				assert!(rx.await.unwrap().is_empty());
 			}
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
@@ -1835,7 +1835,7 @@ fn resume_dispute_with_local_statement() {
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -1856,7 +1856,7 @@ fn resume_dispute_with_local_statement() {
 				let (tx, rx) = oneshot::channel();
 
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 					})
 					.await;
@@ -1864,7 +1864,7 @@ fn resume_dispute_with_local_statement() {
 				assert_eq!(rx.await.unwrap().len(), 1);
 			}
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
@@ -1879,7 +1879,7 @@ fn resume_dispute_with_local_statement() {
 			// Assert that subsystem is not sending Participation messages because we issued a local statement
 			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
@@ -1913,7 +1913,7 @@ fn resume_dispute_without_local_statement_or_local_key() {
 
 				let (pending_confirmation, confirmation_rx) = oneshot::channel();
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ImportStatements {
 							candidate_hash,
 							candidate_receipt: candidate_receipt.clone(),
@@ -1933,7 +1933,7 @@ fn resume_dispute_without_local_statement_or_local_key() {
 					let (tx, rx) = oneshot::channel();
 
 					virtual_overseer
-						.send(FromOverseer::Communication {
+						.send(FromOrchestra::Communication {
 							msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 						})
 						.await;
@@ -1941,7 +1941,7 @@ fn resume_dispute_without_local_statement_or_local_key() {
 					assert_eq!(rx.await.unwrap().len(), 1);
 				}
 
-				virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+				virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 				assert_matches!(
 					virtual_overseer.try_recv().await,
 					None => {}
@@ -1959,7 +1959,7 @@ fn resume_dispute_without_local_statement_or_local_key() {
 				// Assert that subsystem is not sending Participation messages because we issued a local statement
 				assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
 
-				virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+				virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 				assert!(virtual_overseer.try_recv().await.is_none());
 
 				test_state
@@ -1995,7 +1995,7 @@ fn resume_dispute_with_local_statement_without_local_key() {
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -2016,7 +2016,7 @@ fn resume_dispute_with_local_statement_without_local_key() {
 				let (tx, rx) = oneshot::channel();
 
 				virtual_overseer
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 					})
 					.await;
@@ -2024,7 +2024,7 @@ fn resume_dispute_with_local_statement_without_local_key() {
 				assert_eq!(rx.await.unwrap().len(), 1);
 			}
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
@@ -2043,7 +2043,7 @@ fn resume_dispute_with_local_statement_without_local_key() {
 			// have a key.
 			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
@@ -2079,7 +2079,7 @@ fn issue_local_statement_does_cause_distribution_but_not_duplicate_participation
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -2094,7 +2094,7 @@ fn issue_local_statement_does_cause_distribution_but_not_duplicate_participation
 
 			// Initiate dispute locally:
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::IssueLocalStatement(
 						session,
 						candidate_hash,
@@ -2118,7 +2118,7 @@ fn issue_local_statement_does_cause_distribution_but_not_duplicate_participation
 			// Make sure we won't participate:
 			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
@@ -2140,7 +2140,7 @@ fn negative_issue_local_statement_only_triggers_import() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::IssueLocalStatement(
 						session,
 						candidate_hash,
@@ -2162,7 +2162,7 @@ fn negative_issue_local_statement_only_triggers_import() {
 			// Assert that subsystem is not participating.
 			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
@@ -2185,7 +2185,7 @@ fn empty_import_still_writes_candidate_receipt() {
 
 			let (tx, rx) = oneshot::channel();
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -2205,7 +2205,7 @@ fn empty_import_still_writes_candidate_receipt() {
 			assert_eq!(votes.valid.len(), 0);
 			assert_eq!(votes.candidate_receipt, candidate_receipt);
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
@@ -2236,7 +2236,7 @@ fn redundant_votes_ignored() {
 
 			let (tx, rx) = oneshot::channel();
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -2251,7 +2251,7 @@ fn redundant_votes_ignored() {
 
 			let (tx, rx) = oneshot::channel();
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
@@ -2271,7 +2271,7 @@ fn redundant_votes_ignored() {
 			assert_eq!(votes.valid.len(), 1);
 			assert_eq!(&votes.valid[0].2, valid_vote.validator_signature());
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state

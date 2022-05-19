@@ -44,7 +44,7 @@ use polkadot_node_subsystem::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
 		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
-	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
+	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::v2::{
@@ -295,12 +295,14 @@ impl TestState {
 }
 
 async fn overseer_signal(
-	mut tx: SingleItemSink<FromOverseer<AvailabilityDistributionMessage>>,
+	mut tx: SingleItemSink<FromOrchestra<AvailabilityDistributionMessage>>,
 	msg: impl Into<OverseerSignal>,
 ) {
 	let msg = msg.into();
 	gum::trace!(target: LOG_TARGET, msg = ?msg, "sending message");
-	tx.send(FromOverseer::Signal(msg)).await.expect("Test subsystem no longer live");
+	tx.send(FromOrchestra::Signal(msg))
+		.await
+		.expect("Test subsystem no longer live");
 }
 
 async fn overseer_recv(rx: &mut mpsc::UnboundedReceiver<AllMessages>) -> AllMessages {
