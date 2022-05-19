@@ -190,7 +190,7 @@ impl OverseerGen for BehaveMaleficient {
  where
   RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
   RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-  Spawner: 'static + SpawnNamed + Clone + Unpin,
+  Spawner: 'static + overseer::gen::Spawner + Clone + Unpin,
  {
   let spawner = args.spawner.clone();
   let leaves = args.leaves.clone();

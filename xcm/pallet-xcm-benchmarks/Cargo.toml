@@ -2,14 +2,14 @@
 name = "pallet-xcm-benchmarks"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
-version = "0.9.19"
+version = "0.9.22"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
 frame-support = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 frame-system = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-runtime = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }

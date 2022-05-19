@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use futures::prelude::*;
-use polkadot_node_primitives::SpawnNamed;
+use sp_core::traits::SpawnNamed;
 
 pub const MALUS: &str = "MALUS";
 

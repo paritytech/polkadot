@@ -34,7 +34,7 @@ use polkadot_node_subsystem::{
 		ApprovalCheckResult, ApprovalDistributionMessage, ApprovalVotingMessage,
 		AssignmentCheckResult, NetworkBridgeEvent, NetworkBridgeMessage,
 	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
@@ -511,7 +511,7 @@ impl State {
 			|block_entry| block_entry.session == session,
 			|required_routing, local, validator_index| {
 				if *required_routing == RequiredRouting::PendingTopology {
-					*required_routing = topology.required_routing_for(*validator_index, local);
+					*required_routing = topology.required_routing_by_index(*validator_index, local);
 				}
 			},
 		)
@@ -861,7 +861,7 @@ impl State {
 		let local = source == MessageSource::Local;
 
 		let required_routing = topology.map_or(RequiredRouting::PendingTopology, |t| {
-			t.required_routing_for(validator_index, local)
+			t.required_routing_by_index(validator_index, local)
 		});
 
 		let message_state = match entry.candidates.get_mut(claimed_candidate_index as usize) {
@@ -1617,9 +1617,9 @@ impl ApprovalDistribution {
 				},
 			};
 			match message {
-				FromOverseer::Communication { msg } =>
+				FromOrchestra::Communication { msg } =>
 					Self::handle_incoming(&mut ctx, state, msg, &self.metrics, rng).await,
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					..
 				})) => {
 					gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
@@ -1627,11 +1627,11 @@ impl ApprovalDistribution {
 					// are those that are available, but not finalized yet
 					// actived and deactivated heads hence are irrelevant to this subsystem
 				},
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
+				FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
 					gum::trace!(target: LOG_TARGET, number = %number, "finalized signal");
 					state.handle_block_finalized(&mut ctx, &self.metrics, number).await;
 				},
-				FromOverseer::Signal(OverseerSignal::Conclude) => return,
+				FromOrchestra::Signal(OverseerSignal::Conclude) => return,
 			}
 		}
 	}
