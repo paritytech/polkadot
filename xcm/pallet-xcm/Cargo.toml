@@ -18,12 +18,12 @@ frame-system = { git = "https://github.com/paritytech/substrate", default-featur
 
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
+xcm-builder = { path = "../xcm-builder", default-features = false, optional = true }
 
 [dev-dependencies]
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-xcm-builder = { path = "../xcm-builder" }
 polkadot-parachain = { path = "../../parachain" }
 
 [features]
@@ -42,5 +42,5 @@ std = [
 ]
 runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
-	"xcm-builder/runtime-benchmarks",
+	"xcm-builder",
 ]
