@@ -145,7 +145,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
 						"polkadot_parachain_provisioner_inherent_data_response_bitfields_sent",
-						"Number of ineherent bitfields sent in response to `ProvisionerMessage::RequestInherentData`.",
+						"Number of inherent bitfields sent in response to `ProvisionerMessage::RequestInherentData`.",
 					).buckets(vec![0.0, 10.0, 25.0, 50.0, 75.0, 100.0, 150.0, 200.0, 250.0, 300.0]),
 				)?,
 				registry,
