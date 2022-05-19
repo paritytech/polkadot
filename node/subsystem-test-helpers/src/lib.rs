@@ -19,14 +19,14 @@
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem::{
-	messages::AllMessages, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	messages::AllMessages, overseer, FromOrchestra, OverseerSignal, SpawnGlue, SpawnedSubsystem,
 	SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 
 use futures::{channel::mpsc, poll, prelude::*};
 use parking_lot::Mutex;
-use sp_core::{testing::TaskExecutor, traits::SpawnNamed};
+use sp_core::testing::TaskExecutor;
 
 use std::{
 	convert::Infallible,
@@ -176,7 +176,7 @@ where
 /// A test subsystem context.
 pub struct TestSubsystemContext<M, S> {
 	tx: TestSubsystemSender,
-	rx: SingleItemStream<FromOverseer<M>>,
+	rx: SingleItemStream<FromOrchestra<M>>,
 	spawn: S,
 }
 
@@ -186,7 +186,7 @@ where
 	M: overseer::AssociateOutgoing + std::fmt::Debug + Send + 'static,
 	AllMessages: From<<M as overseer::AssociateOutgoing>::OutgoingMessages>,
 	AllMessages: From<M>,
-	Spawner: SpawnNamed + Send + 'static,
+	Spawner: overseer::gen::Spawner + Send + 'static,
 {
 	type Message = M;
 	type Sender = TestSubsystemSender;
@@ -194,7 +194,7 @@ where
 	type OutgoingMessages = <M as overseer::AssociateOutgoing>::OutgoingMessages;
 	type Error = SubsystemError;
 
-	async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {
+	async fn try_recv(&mut self) -> Result<Option<FromOrchestra<M>>, ()> {
 		match poll!(self.rx.next()) {
 			Poll::Ready(Some(msg)) => Ok(Some(msg)),
 			Poll::Ready(None) => Err(()),
@@ -202,7 +202,7 @@ where
 		}
 	}
 
-	async fn recv(&mut self) -> SubsystemResult<FromOverseer<M>> {
+	async fn recv(&mut self) -> SubsystemResult<FromOrchestra<M>> {
 		self.rx
 			.next()
 			.await
@@ -238,7 +238,7 @@ pub struct TestSubsystemContextHandle<M> {
 	///
 	/// Useful for shared ownership situations (one can have multiple senders, but only one
 	/// receiver.
-	pub tx: SingleItemSink<FromOverseer<M>>,
+	pub tx: SingleItemSink<FromOrchestra<M>>,
 
 	/// Direct access to the receiver.
 	pub rx: mpsc::UnboundedReceiver<AllMessages>,
@@ -247,7 +247,7 @@ pub struct TestSubsystemContextHandle<M> {
 impl<M> TestSubsystemContextHandle<M> {
 	/// Send a message or signal to the subsystem. This resolves at the point in time when the
 	/// subsystem has _read_ the message.
-	pub async fn send(&mut self, from_overseer: FromOverseer<M>) {
+	pub async fn send(&mut self, from_overseer: FromOrchestra<M>) {
 		self.tx.send(from_overseer).await.expect("Test subsystem no longer live");
 	}
 
@@ -264,8 +264,8 @@ impl<M> TestSubsystemContextHandle<M> {
 
 /// Make a test subsystem context.
 pub fn make_subsystem_context<M, S>(
-	spawn: S,
-) -> (TestSubsystemContext<M, S>, TestSubsystemContextHandle<M>) {
+	spawner: S,
+) -> (TestSubsystemContext<M, SpawnGlue<S>>, TestSubsystemContextHandle<M>) {
 	let (overseer_tx, overseer_rx) = single_item_sink();
 	let (all_messages_tx, all_messages_rx) = mpsc::unbounded();
 
@@ -273,7 +273,7 @@ pub fn make_subsystem_context<M, S>(
 		TestSubsystemContext {
 			tx: TestSubsystemSender { tx: all_messages_tx },
 			rx: overseer_rx,
-			spawn,
+			spawn: SpawnGlue(spawner),
 		},
 		TestSubsystemContextHandle { tx: overseer_tx, rx: all_messages_rx },
 	)
@@ -290,7 +290,7 @@ pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 ) where
 	OverseerFactory: FnOnce(TestSubsystemContextHandle<M>) -> Overseer,
 	Overseer: Future<Output = ()>,
-	TestFactory: FnOnce(TestSubsystemContext<M, TaskExecutor>) -> Test,
+	TestFactory: FnOnce(TestSubsystemContext<M, overseer::SpawnGlue<TaskExecutor>>) -> Test,
 	Test: Future<Output = ()>,
 {
 	let pool = TaskExecutor::new();
@@ -330,8 +330,8 @@ where
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
-					Ok(FromOverseer::Communication { msg }) => {
+					Ok(FromOrchestra::Signal(OverseerSignal::Conclude)) => return Ok(()),
+					Ok(FromOrchestra::Communication { msg }) => {
 						let _ = self.0.send(msg).await;
 					},
 					Err(_) => return Ok(()),
@@ -381,6 +381,7 @@ mod tests {
 	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
 	use polkadot_overseer::{dummy::dummy_overseer_builder, Handle, HeadSupportsParachains};
 	use polkadot_primitives::v2::Hash;
+	use sp_core::traits::SpawnNamed;
 
 	struct AlwaysSupportsParachains;
 	impl HeadSupportsParachains for AlwaysSupportsParachains {

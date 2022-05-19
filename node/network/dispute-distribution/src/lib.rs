@@ -32,8 +32,8 @@ use sp_keystore::SyncCryptoStorePtr;
 use polkadot_node_network_protocol::request_response::{incoming::IncomingRequestReceiver, v1};
 use polkadot_node_primitives::DISPUTE_WINDOW;
 use polkadot_node_subsystem::{
-	messages::DisputeDistributionMessage, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemError,
+	messages::DisputeDistributionMessage, overseer, FromOrchestra, OverseerSignal,
+	SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 
@@ -177,17 +177,17 @@ where
 			match message {
 				MuxedMessage::Subsystem(result) => {
 					let result = match result? {
-						FromOverseer::Signal(signal) => {
+						FromOrchestra::Signal(signal) => {
 							match self.handle_signals(&mut ctx, signal).await {
 								Ok(SignalResult::Conclude) => return Ok(()),
 								Ok(SignalResult::Continue) => Ok(()),
 								Err(f) => Err(f),
 							}
 						},
-						FromOverseer::Communication { msg } =>
+						FromOrchestra::Communication { msg } =>
 							self.handle_subsystem_message(&mut ctx, msg).await,
 					};
-					log_error(result, "on FromOverseer")?;
+					log_error(result, "on FromOrchestra")?;
 				},
 				MuxedMessage::Sender(result) => {
 					self.disputes_sender
@@ -232,7 +232,7 @@ where
 #[derive(Debug)]
 enum MuxedMessage {
 	/// Messages from other subsystems.
-	Subsystem(FatalResult<FromOverseer<DisputeDistributionMessage>>),
+	Subsystem(FatalResult<FromOrchestra<DisputeDistributionMessage>>),
 	/// Messages from spawned sender background tasks.
 	Sender(Option<TaskFinish>),
 }

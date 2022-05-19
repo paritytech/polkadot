@@ -27,12 +27,12 @@
 use polkadot_node_subsystem::{
 	errors::{RuntimeApiError, SubsystemError},
 	messages::{BoundToRelayParent, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemSender,
 };
 
 pub use overseer::{
-	gen::{OverseerError, Timeout},
+	gen::{OrchestraError as OverseerError, Timeout},
 	Subsystem, TimeoutExt,
 };
 
@@ -56,7 +56,7 @@ use polkadot_primitives::v2::{
 };
 pub use rand;
 use sp_application_crypto::AppKey;
-use sp_core::{traits::SpawnNamed, ByteArray};
+use sp_core::ByteArray;
 use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
 use std::{
 	collections::{hash_map::Entry, HashMap},
@@ -75,7 +75,7 @@ pub use determine_new_blocks::determine_new_blocks;
 
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {
-	pub use polkadot_overseer::gen::{SpawnNamed, SpawnedSubsystem, Subsystem, SubsystemContext};
+	pub use polkadot_overseer::gen::{SpawnedSubsystem, Spawner, Subsystem, SubsystemContext};
 }
 
 /// A rolling session window cache.
@@ -548,7 +548,7 @@ struct Jobs<Spawner, ToJob> {
 
 impl<Spawner, ToJob> Jobs<Spawner, ToJob>
 where
-	Spawner: SpawnNamed,
+	Spawner: overseer::gen::Spawner + Clone,
 	ToJob: Send + 'static,
 {
 	/// Create a new Jobs manager which handles spawning appropriate jobs.
@@ -622,7 +622,7 @@ where
 
 impl<Spawner, ToJob> Stream for Jobs<Spawner, ToJob>
 where
-	Spawner: SpawnNamed,
+	Spawner: overseer::gen::Spawner + Clone,
 {
 	type Item = FromJobCommand;
 
@@ -637,7 +637,7 @@ where
 
 impl<Spawner, ToJob> stream::FusedStream for Jobs<Spawner, ToJob>
 where
-	Spawner: SpawnNamed,
+	Spawner: overseer::gen::Spawner + Clone,
 {
 	fn is_terminated(&self) -> bool {
 		false
@@ -680,7 +680,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 	/// Run the subsystem to completion.
 	pub async fn run<Context>(self, mut ctx: Context)
 	where
-		Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
+		Spawner: overseer::gen::Spawner + Clone + Unpin + 'static,
 		Context: SubsystemContext<
 			Message = <Job as JobTrait>::ToJob,
 			OutgoingMessages = <Job as JobTrait>::OutgoingMessages,
@@ -701,7 +701,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 			select! {
 				incoming = ctx.recv().fuse() => {
 					match incoming {
-						Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+						Ok(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 							activated,
 							deactivated,
 						}))) => {
@@ -719,12 +719,12 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 								jobs.stop_job(hash).await;
 							}
 						}
-						Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => {
+						Ok(FromOrchestra::Signal(OverseerSignal::Conclude)) => {
 							jobs.running.clear();
 							break;
 						}
-						Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(..))) => {}
-						Ok(FromOverseer::Communication { msg }) => {
+						Ok(FromOrchestra::Signal(OverseerSignal::BlockFinalized(..))) => {}
+						Ok(FromOrchestra::Communication { msg }) => {
 							if let Ok(to_job) = <<Context as SubsystemContext>::Message>::try_from(msg) {
 								jobs.send_msg(to_job.relay_parent(), to_job).await;
 							}
@@ -760,7 +760,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 
 impl<Context, Job, Spawner> Subsystem<Context, SubsystemError> for JobSubsystem<Job, Spawner>
 where
-	Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
+	Spawner: overseer::gen::Spawner + Clone + Unpin + 'static,
 	Context: SubsystemContext<
 		Message = Job::ToJob,
 		Signal = OverseerSignal,
