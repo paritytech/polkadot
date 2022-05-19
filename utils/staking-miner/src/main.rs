@@ -75,8 +75,7 @@ enum Solver {
 macro_rules! any_runtime {
 	($chain:tt, $($code:tt)*) => {
 			match $chain {
-				// TODO: fix hack for testing.
-				"polkadot" | "development" => {
+				"polkadot" => {
 					#[allow(unused)]
 					use {$crate::chain::polkadot::RuntimeApi, monitor::run_polkadot as monitor_cmd, dry_run::run_polkadot as dry_run_cmd, emergency_solution::run_polkadot as emergency_cmd};
 					$($code)*
@@ -233,15 +232,20 @@ async fn main() -> Result<(), Error> {
 	let Opt { uri, seed_or_path, command } = Opt::parse();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
 
+	// TODO: fix unwrap
 	let rpc = WsClientBuilder::default()
 		.max_request_body_size(u32::MAX)
 		.build(uri)
 		.await
 		.unwrap();
+
 	let client = subxt::ClientBuilder::new().set_client(rpc).build().await?;
-	let chain = client.rpc().system_chain().await?.to_lowercase();
+	let runtime_version = client.rpc().runtime_version(None).await?;
 	let signer = signer::signer_from_string(&seed_or_path)?;
 
+	// TODO: fix unwrap and cleanup.
+	let json = &runtime_version.other["specName"];
+	let chain = serde_json::to_string(&json).unwrap().to_lowercase();
 	let chain_str = chain.as_str();
 
 	log::info!(target: LOG_TARGET, "Connected to chain: {}", chain);
