@@ -181,7 +181,7 @@ impl Contains<Call> for BaseFilter {
 			Call::Registrar(_) |
 			Call::Auctions(_) |
 			Call::Crowdloan(_) |
-			Call::VoterList(_) |
+			Call::BagsList(_) |
 			Call::XcmPallet(_) => true,
 			// All pallets are allowed, but exhaustive match is defensive
 			// in the case of adding new pallets.
@@ -485,18 +485,18 @@ impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
 	type MaxWeight = OffchainSolutionWeightLimit;
 	type Solution = NposCompactSolution16;
 	type MaxVotesPerVoter = <
-		<Self as pallet_election_provider_multi_phase::Config>::DataProvider
-		as
-		frame_election_provider_support::ElectionDataProvider
+	<Self as pallet_election_provider_multi_phase::Config>::DataProvider
+	as
+	frame_election_provider_support::ElectionDataProvider
 	>::MaxVotesPerVoter;
 
 	// The unsigned submissions have to respect the weight of the submit_unsigned call, thus their
 	// weight estimate function is wired to this call's weight.
 	fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
 		<
-			<Self as pallet_election_provider_multi_phase::Config>::WeightInfo
-			as
-			pallet_election_provider_multi_phase::WeightInfo
+		<Self as pallet_election_provider_multi_phase::Config>::WeightInfo
+		as
+		pallet_election_provider_multi_phase::WeightInfo
 		>::submit_unsigned(v, t, a, d)
 	}
 }
@@ -608,7 +608,7 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
-	type VoterList = VoterList;
+	type VoterList = BagsList;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type OnStakerSlash = ();
@@ -1177,7 +1177,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
 				Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
-				Call::VoterList(..)
+				Call::BagsList(..)
 			),
 			ProxyType::Governance => matches!(
 				c,
@@ -1453,7 +1453,7 @@ construct_runtime! {
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 36,
 
 		// Provides a semi-sorted list of nominators for staking.
-		VoterList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
+		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
 
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
@@ -1512,25 +1512,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(RenameBagsListToVoterList, pallet_bags_list::migrations::AddScore<Runtime>),
+	(),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-/// A migration which renames the pallet `BagsList` to `VoterList`
-pub struct RenameBagsListToVoterList;
-impl frame_support::traits::OnRuntimeUpgrade for RenameBagsListToVoterList {
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		// For other pre-upgrade checks, we need the storage to already be migrated.
-		frame_support::storage::migration::move_pallet(b"BagsList", b"VoterList");
-		Ok(())
-	}
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		frame_support::storage::migration::move_pallet(b"BagsList", b"VoterList");
-		frame_support::weights::Weight::MAX
-	}
-}
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
@@ -1554,7 +1539,7 @@ mod benches {
 		[runtime_parachains::paras_inherent, ParaInherent]
 		[runtime_parachains::ump, Ump]
 		// Substrate
-		[pallet_bags_list, VoterList]
+		[pallet_bags_list, BagsList]
 		[pallet_balances, Balances]
 		[frame_benchmarking::baseline, Baseline::<Runtime>]
 		[pallet_bounties, Bounties]
