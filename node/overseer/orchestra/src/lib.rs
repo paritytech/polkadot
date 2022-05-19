@@ -77,7 +77,7 @@ pub use futures::{
 	channel::{mpsc, oneshot},
 	future::{BoxFuture, Fuse, Future},
 	poll, select,
-	stream::{self, select, FuturesUnordered, select_with_strategy, PollNext},
+	stream::{self, select, select_with_strategy, FuturesUnordered, PollNext},
 	task::{Context, Poll},
 	FutureExt, StreamExt,
 };
