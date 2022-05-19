@@ -744,7 +744,7 @@ where
 						}
 					}
 				},
-				msg = self.to_overseer_rx.select_next_some() => {
+				msg = self.to_orchestra_rx.select_next_some() => {
 					match msg {
 						ToOrchestra::SpawnJob { name, subsystem, s } => {
 							self.spawn_job(name, subsystem, s);
