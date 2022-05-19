@@ -455,7 +455,7 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 				// explicitly assure the required traits are implemented
 				fn trait_from_must_be_implemented<E>()
 				where
-					E: std::error::Error + Send + Sync + 'static + From<#support_crate ::OrchestraError>
+					E: ::std::error::Error + Send + Sync + 'static + From<#support_crate ::OrchestraError>
 				{}
 
 				trait_from_must_be_implemented::< #error_ty >();
