@@ -881,7 +881,7 @@ fn multiple_requests_in_parallel_are_working() {
 			let (tx, rx) = oneshot::channel();
 
 			ctx_handle
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: RuntimeApiMessage::Request(relay_parent, Request::AvailabilityCores(tx)),
 				})
 				.await;
