@@ -138,8 +138,8 @@ async fn run_iteration<Context>(ctx: &mut Context, view: &mut View) -> Result<()
 					answer_hypothetical_depths_request(&view, request, tx),
 				ProspectiveParachainsMessage::GetTreeMembership(para, candidate, tx) =>
 					answer_tree_membership_request(&view, para, candidate, tx),
-				ProspectiveParachainsMessage::GetMinimumRelayParent(para, relay_parent, tx) =>
-					answer_minimum_relay_parent_request(&view, para, relay_parent, tx),
+				ProspectiveParachainsMessage::GetMinimumRelayParents(relay_parent, tx) =>
+					answer_minimum_relay_parents_request(&view, relay_parent, tx),
 				ProspectiveParachainsMessage::GetProspectiveValidationData(request, tx) =>
 					answer_prospective_validation_data_request(&view, request, tx),
 			},
@@ -464,19 +464,19 @@ fn answer_tree_membership_request(
 	let _ = tx.send(membership);
 }
 
-fn answer_minimum_relay_parent_request(
+fn answer_minimum_relay_parents_request(
 	view: &View,
-	para: ParaId,
 	relay_parent: Hash,
-	tx: oneshot::Sender<Option<BlockNumber>>,
+	tx: oneshot::Sender<Vec<(ParaId, BlockNumber)>>,
 ) {
-	let res = view
-		.active_leaves
-		.get(&relay_parent)
-		.and_then(|data| data.fragment_trees.get(&para))
-		.map(|tree| tree.scope().earliest_relay_parent().number);
+	let mut v = Vec::new();
+	if let Some(leaf_data) = view.active_leaves.get(&relay_parent) {
+		for (para_id, fragment_tree) in &leaf_data.fragment_trees {
+			v.push((*para_id, fragment_tree.scope().earliest_relay_parent().number));
+		}
+	}
 
-	let _ = tx.send(res);
+	let _ = tx.send(v);
 }
 
 fn answer_prospective_validation_data_request(

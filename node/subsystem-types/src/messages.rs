@@ -1007,13 +1007,20 @@ pub enum ProspectiveParachainsMessage {
 	GetHypotheticalDepth(HypotheticalDepthRequest, oneshot::Sender<Vec<usize>>),
 	/// Get the membership of the candidate in all fragment trees.
 	GetTreeMembership(ParaId, CandidateHash, oneshot::Sender<FragmentTreeMembership>),
-	/// Get the minimum accepted relay-parent number in the fragment tree
-	/// for the given relay-parent and para-id.
+	/// Get the minimum accepted relay-parent number for each para in the fragment tree
+	/// for the given relay-chain block hash.
 	///
-	/// That is, if the relay-parent is known and there's a fragment tree for it,
-	/// in this para-id, this returns the minimum relay-parent block number in the
-	/// same chain which is accepted in the fragment tree for the para-id.
-	GetMinimumRelayParent(ParaId, Hash, oneshot::Sender<Option<BlockNumber>>),
+	/// That is, if the block hash is known and is an active leaf, this returns the
+	/// minimum relay-parent block number in the same branch of the relay chain which
+	/// is accepted in the fragment tree for each para-id.
+	///
+	/// If the block hash is not an active leaf, this will return an empty vector.
+	///
+	/// Para-IDs which are omitted from this list can be assumed to have no
+	/// valid candidate relay-parents under the given relay-chain block hash.
+	///
+	/// Para-IDs are returned in no particular order.
+	GetMinimumRelayParents(Hash, oneshot::Sender<Vec<(ParaId, BlockNumber)>>),
 	/// Get the validation data of some prospective candidate. The candidate doesn't need
 	/// to be part of any fragment tree, but this only succeeds if the parent head-data and
 	/// relay-parent are part of some fragment tree.
