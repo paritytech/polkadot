@@ -7053,6 +7053,7 @@ dependencies = [
  "sp-std",
  "sp-trie",
  "sp-version",
+ "typed-index-collections",
 ]
 
 [[package]]
@@ -11785,6 +11786,15 @@ dependencies = [
  "digest 0.10.3",
  "rand 0.8.5",
  "static_assertions",
+]
+
+[[package]]
+name = "typed-index-collections"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed2198514940bb6574216fde5d5c349c3f578fa719b225352f0eaaf45983c930"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
