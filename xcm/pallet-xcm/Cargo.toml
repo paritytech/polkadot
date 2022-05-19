@@ -22,8 +22,8 @@ xcm-executor = { path = "../xcm-executor", default-features = false }
 [dev-dependencies]
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
-xcm-builder = { path = "../xcm-builder" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+xcm-builder = { path = "../xcm-builder" }
 polkadot-parachain = { path = "../../parachain" }
 
 [features]
