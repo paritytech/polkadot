@@ -242,10 +242,7 @@ async fn main() -> Result<(), Error> {
 	let client = subxt::ClientBuilder::new().set_client(rpc).build().await?;
 	let runtime_version = client.rpc().runtime_version(None).await?;
 	let signer = signer::signer_from_string(&seed_or_path)?;
-
-	// TODO: fix unwrap and cleanup.
-	let json = &runtime_version.other["specName"];
-	let chain = serde_json::to_string(&json).unwrap().to_lowercase();
+	let chain = into_chain_name(runtime_version);
 	let chain_str = chain.as_str();
 
 	log::info!(target: LOG_TARGET, "Connected to chain: {}", chain);
@@ -272,6 +269,17 @@ async fn main() -> Result<(), Error> {
 
 	log::info!(target: LOG_TARGET, "round of execution finished. outcome = {:?}", outcome);
 	outcome
+}
+
+fn into_chain_name(rv: subxt::rpc::RuntimeVersion) -> String {
+	let json = rv
+		.other
+		.get("specName")
+		.expect("RuntimeVersion must have specName; qed")
+		.clone();
+	serde_json::from_value::<String>(json)
+		.expect("specName must be String; qed")
+		.to_lowercase()
 }
 
 #[cfg(test)]
