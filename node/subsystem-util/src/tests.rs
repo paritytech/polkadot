@@ -23,7 +23,7 @@ use futures::{channel::mpsc, executor, future, Future, FutureExt, SinkExt, Strea
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_subsystem::{
 	messages::{AllMessages, CollatorProtocolMessage},
-	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, SpawnedSubsystem,
+	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal, SpawnedSubsystem,
 };
 use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
 use polkadot_primitives::v2::Hash;
@@ -143,7 +143,8 @@ fn test_harness<T: Future<Output = ()>>(run_args: bool, test: impl FnOnce(Overse
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (context, overseer_handle) = make_subsystem_context(pool.clone());
 
-	let subsystem = FakeCollatorProtocolSubsystem::new(pool, run_args, ()).run(context);
+	let subsystem =
+		FakeCollatorProtocolSubsystem::new(overseer::SpawnGlue(pool), run_args, ()).run(context);
 	let test_future = test(overseer_handle);
 
 	futures::pin_mut!(subsystem, test_future);
@@ -162,7 +163,7 @@ fn starting_and_stopping_job_works() {
 
 	test_harness(true, |mut overseer_handle| async move {
 		overseer_handle
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: relay_parent,
 					number: 1,
@@ -173,12 +174,12 @@ fn starting_and_stopping_job_works() {
 			.await;
 		assert_matches!(overseer_handle.recv().await, AllMessages::CollatorProtocol(_));
 		overseer_handle
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(relay_parent),
 			)))
 			.await;
 
-		overseer_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		overseer_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	});
 }
 
@@ -188,7 +189,7 @@ fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
 
 	test_harness(true, |mut overseer_handle| async move {
 		overseer_handle
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: relay_parent,
 					number: 1,
@@ -200,13 +201,13 @@ fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
 
 		// send to a non running job
 		overseer_handle
-			.send(FromOverseer::Communication { msg: Default::default() })
+			.send(FromOrchestra::Communication { msg: Default::default() })
 			.await;
 
 		// the subsystem is still alive
 		assert_matches!(overseer_handle.recv().await, AllMessages::CollatorProtocol(_));
 
-		overseer_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		overseer_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	});
 }
 
@@ -216,7 +217,7 @@ fn test_subsystem_impl_and_name_derivation() {
 	let (context, _) = make_subsystem_context::<CollatorProtocolMessage, _>(pool.clone());
 
 	let SpawnedSubsystem { name, .. } =
-		FakeCollatorProtocolSubsystem::new(pool, false, ()).start(context);
+		FakeCollatorProtocolSubsystem::new(overseer::SpawnGlue(pool), false, ()).start(context);
 	assert_eq!(name, "fake-collator-protocol");
 }
 

@@ -585,7 +585,7 @@ async fn assert_leaves_query(virtual_overseer: &mut VirtualOverseer, leaves: Vec
 
 	let (tx, rx) = oneshot::channel();
 	virtual_overseer
-		.send(FromOverseer::Communication { msg: ChainSelectionMessage::Leaves(tx) })
+		.send(FromOrchestra::Communication { msg: ChainSelectionMessage::Leaves(tx) })
 		.await;
 
 	assert_eq!(rx.await.unwrap(), leaves);
@@ -598,7 +598,7 @@ async fn assert_finalized_leaves_query(
 ) {
 	let (tx, rx) = oneshot::channel();
 	virtual_overseer
-		.send(FromOverseer::Communication { msg: ChainSelectionMessage::Leaves(tx) })
+		.send(FromOrchestra::Communication { msg: ChainSelectionMessage::Leaves(tx) })
 		.await;
 
 	answer_finalized_block_info(virtual_overseer, finalized_number, finalized_hash).await;
@@ -612,7 +612,7 @@ async fn best_leaf_containing(
 ) -> Option<Hash> {
 	let (tx, rx) = oneshot::channel();
 	virtual_overseer
-		.send(FromOverseer::Communication {
+		.send(FromOrchestra::Communication {
 			msg: ChainSelectionMessage::BestLeafContaining(required, tx),
 		})
 		.await;
@@ -627,7 +627,7 @@ async fn approve_block(
 ) {
 	let (_, write_rx) = backend.await_next_write();
 	virtual_overseer
-		.send(FromOverseer::Communication { msg: ChainSelectionMessage::Approved(approved) })
+		.send(FromOrchestra::Communication { msg: ChainSelectionMessage::Approved(approved) })
 		.await;
 
 	write_rx.await.unwrap()
@@ -1709,7 +1709,9 @@ fn approve_nonexistent_has_no_effect() {
 
 		let nonexistent = Hash::repeat_byte(1);
 		virtual_overseer
-			.send(FromOverseer::Communication { msg: ChainSelectionMessage::Approved(nonexistent) })
+			.send(FromOrchestra::Communication {
+				msg: ChainSelectionMessage::Approved(nonexistent),
+			})
 			.await;
 
 		// None are approved.

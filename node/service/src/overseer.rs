@@ -14,7 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{AuthorityDiscoveryApi, Block, Error, Hash, IsCollator, Registry, SpawnNamed};
+use super::{AuthorityDiscoveryApi, Block, Error, Hash, IsCollator, Registry};
+use sp_core::traits::SpawnNamed;
+
 use lru::LruCache;
 use polkadot_availability_distribution::IncomingRequestReceivers;
 use polkadot_node_core_approval_voting::Config as ApprovalVotingConfig;
@@ -30,7 +32,7 @@ pub use polkadot_overseer::{
 };
 use polkadot_overseer::{
 	metrics::Metrics as OverseerMetrics, BlockInfo, InitializedOverseerBuilder, MetricsTrait,
-	Overseer, OverseerConnector, OverseerHandle,
+	Overseer, OverseerConnector, OverseerHandle, SpawnGlue,
 };
 
 use polkadot_primitives::runtime_api::ParachainHost;
@@ -143,7 +145,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
-		Spawner,
+		SpawnGlue<Spawner>,
 		Arc<RuntimeClient>,
 		CandidateValidationSubsystem,
 		PvfCheckerSubsystem,
@@ -180,6 +182,8 @@ where
 	use polkadot_node_subsystem_util::metrics::Metrics;
 
 	let metrics = <OverseerMetrics as MetricsTrait>::register(registry)?;
+
+	let spawner = SpawnGlue(spawner);
 
 	let builder = Overseer::builder()
 		.availability_distribution(AvailabilityDistributionSubsystem::new(
@@ -307,7 +311,7 @@ pub trait OverseerGen {
 		&self,
 		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
-	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
+	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
@@ -331,7 +335,7 @@ impl OverseerGen for RealOverseerGen {
 		&self,
 		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
-	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
+	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,

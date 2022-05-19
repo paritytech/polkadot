@@ -32,7 +32,7 @@ use polkadot_node_subsystem::{
 		CandidateBackingMessage, ChainApiMessage, DisputeCoordinatorMessage, ProvisionableData,
 		ProvisionerInherentData, ProvisionerMessage,
 	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
 	PerLeafSpan, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::{request_availability_cores, request_persisted_validation_data};
@@ -140,11 +140,11 @@ async fn run_iteration<Context>(
 		futures::select! {
 			from_overseer = ctx.recv().fuse() => {
 				match from_overseer? {
-					FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) =>
+					FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) =>
 						handle_active_leaves_update(update, per_relay_parent, inherent_delays),
-					FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
-					FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-					FromOverseer::Communication { msg } => {
+					FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
+					FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+					FromOrchestra::Communication { msg } => {
 						handle_communication(ctx, per_relay_parent, msg, metrics).await?;
 					},
 				}
@@ -249,6 +249,7 @@ async fn send_inherent_data_bg<Context>(
 				leaf_hash = ?leaf.hash,
 				"inherent data sent successfully"
 			);
+			metrics.observe_inherent_data_bitfields_count(signed_bitfields.len());
 		}
 	};
 

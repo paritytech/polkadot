@@ -13,7 +13,7 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-statement-table = { path = "../../statement-table" }
 polkadot-node-jaeger = { path = "../jaeger" }
-polkadot-overseer-gen = { path = "../overseer/overseer-gen" }
+orchestra = { path = "../overseer/orchestra" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 smallvec = "1.8.0"
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
