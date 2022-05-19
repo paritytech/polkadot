@@ -78,6 +78,10 @@ pub mod reexports {
 	pub use polkadot_overseer::gen::{SpawnNamed, SpawnedSubsystem, Subsystem, SubsystemContext};
 }
 
+/// A utility for managing the implicit view of the relay-chain derived from active
+/// leaves and the minimum allowed relay-parents that parachain candidates can have
+/// and be backed in those leaves' children.
+pub mod backing_implicit_view;
 /// An emulator for node-side code to predict the results of on-chain parachain inclusion
 /// and predict future constraints.
 pub mod inclusion_emulator;
