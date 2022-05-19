@@ -1,0 +1,15 @@
+error[E0599]: no method named `build` found for struct `OrchestraBuilder<Init<DummySpawner>, Init<AwesomeSubSys>, Missing<_>>` in the current scope
+  --> tests/ui/err-09-uninit_generic_baggage.rs:59:4
+   |
+22 | #[orchestra(signal=SigSigSig, error=OrchestraError, event=Event, gen=AllMessages)]
+   | -------------------------------------------------------------------------------- method `build` not found for this
+...
+59 |         .build()
+   |          ^^^^^ method not found in `OrchestraBuilder<Init<DummySpawner>, Init<AwesomeSubSys>, Missing<_>>`
+   |
+   = note: the method was found for
+           - `OrchestraBuilder<Init<S>, Init<AwesomeSubSys>, Init<T>>`
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following traits define an item `build`, perhaps you need to implement one of them:
+           candidate #1: `frame_support::traits::hooks::GenesisBuild`
+           candidate #2: `prometheus::vec::MetricVecBuilder`

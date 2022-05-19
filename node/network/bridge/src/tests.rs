@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 		AllMessages, ApprovalDistributionMessage, BitfieldDistributionMessage,
 		GossipSupportMessage, StatementDistributionMessage,
 	},
-	ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
+	ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
 };
 use polkadot_node_subsystem_test_helpers::{
 	SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
@@ -303,7 +303,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let _ = executor::block_on(future::join(
 		async move {
 			let mut virtual_overseer = test_fut.await;
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 		},
 		network_bridge,
 	));
@@ -367,7 +367,7 @@ fn send_our_view_upon_connection() {
 
 		let head = Hash::repeat_byte(1);
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: head,
 					number: 1,
@@ -418,7 +418,7 @@ fn sends_view_updates_to_peers() {
 		let peer_b = PeerId::random();
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				activated: Default::default(),
 				deactivated: Default::default(),
 			})))
@@ -450,7 +450,7 @@ fn sends_view_updates_to_peers() {
 		let hash_a = Hash::repeat_byte(1);
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
@@ -518,7 +518,7 @@ fn do_not_send_view_update_until_synced() {
 		let hash_b = Hash::repeat_byte(1);
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
@@ -534,7 +534,7 @@ fn do_not_send_view_update_until_synced() {
 		handle.set_done();
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: hash_b,
 					number: 1,
@@ -589,19 +589,21 @@ fn do_not_send_view_update_when_only_finalized_block_changed() {
 		let hash_a = Hash::repeat_byte(1);
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::BlockFinalized(Hash::random(), 5)))
+			.send(FromOrchestra::Signal(OverseerSignal::BlockFinalized(Hash::random(), 5)))
 			.await;
 
 		// Send some empty active leaves update
 		//
 		// This should not trigger a view update to our peers.
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::default())))
+			.send(FromOrchestra::Signal(
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::default()),
+			))
 			.await;
 
 		// This should trigger the view update to our peers.
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
@@ -797,7 +799,7 @@ fn peer_disconnect_from_just_one_peerset() {
 		let hash_a = Hash::repeat_byte(1);
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
@@ -1009,10 +1011,10 @@ fn sent_views_include_finalized_number_update() {
 		let hash_b = Hash::repeat_byte(2);
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::BlockFinalized(hash_a, 1)))
+			.send(FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash_a, 1)))
 			.await;
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: hash_b,
 					number: 1,
@@ -1139,7 +1141,7 @@ fn send_messages_to_peers() {
 			);
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: NetworkBridgeMessage::SendValidationMessage(
 						vec![peer.clone()],
 						Versioned::V1(message_v1.clone()),
@@ -1170,7 +1172,7 @@ fn send_messages_to_peers() {
 				protocol_v1::CollationProtocol::CollatorProtocol(collator_protocol_message.clone());
 
 			virtual_overseer
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: NetworkBridgeMessage::SendCollationMessage(
 						vec![peer.clone()],
 						Versioned::V1(message_v1.clone()),
@@ -1204,7 +1206,7 @@ fn our_view_updates_decreasing_order_and_limited_to_max() {
 			// These are in reverse order, so the subsystem must sort internally to
 			// get the correct view.
 			virtual_overseer
-				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+				.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 					ActiveLeavesUpdate::start_work(ActivatedLeaf {
 						hash,
 						number: i as _,
