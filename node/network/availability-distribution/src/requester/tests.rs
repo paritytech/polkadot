@@ -32,7 +32,7 @@ use polkadot_node_subsystem::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
 		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SpawnGlue,
+	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SpawnGlue,
 };
 use polkadot_node_subsystem_test_helpers::{
 	make_subsystem_context, mock::make_ferdie_keystore, TestSubsystemContext,
