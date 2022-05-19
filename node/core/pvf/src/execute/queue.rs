@@ -80,6 +80,10 @@ impl Workers {
 		self.spawn_inflight + self.running.len() < self.capacity
 	}
 
+	fn is_overloaded(&self) -> bool {
+		self.running.len() >= self.capacity
+	}
+
 	fn find_available(&self) -> Option<Worker> {
 		self.running
 			.iter()
@@ -141,6 +145,12 @@ impl Queue {
 
 	async fn run(mut self) {
 		loop {
+			// Add backpressure when we are running requests at full capacity.
+			while self.workers.is_overloaded() {
+				let event = self.mux.select_next_some().await;
+				handle_mux(&mut self, event).await;
+			}
+
 			futures::select! {
 				to_queue = self.to_queue_rx.next() => {
 					if let Some(to_queue) = to_queue {
