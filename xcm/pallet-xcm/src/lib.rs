@@ -150,52 +150,46 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Execution of an XCM message was attempted.
-		///
-		/// \[ outcome \]
-		Attempted(xcm::latest::Outcome),
+		Attempted { outcome: xcm::latest::Outcome },
 		/// A XCM message was sent.
-		///
-		/// \[ origin, destination, message \]
-		Sent(MultiLocation, MultiLocation, Xcm<()>),
+		Sent { origin: MultiLocation, destination: MultiLocation, message: Xcm<()> },
 		/// Query response received which does not match a registered query. This may be because a
 		/// matching query was never registered, it may be because it is a duplicate response, or
 		/// because the query timed out.
-		///
-		/// \[ origin location, id \]
-		UnexpectedResponse(MultiLocation, QueryId),
+		UnexpectedResponse { origin: MultiLocation, id: QueryId },
 		/// Query response has been received and is ready for taking with `take_response`. There is
 		/// no registered notification call.
-		///
-		/// \[ id, response \]
-		ResponseReady(QueryId, Response),
+		ResponseReady { id: QueryId, response: Response },
 		/// Query response has been received and query is removed. The registered notification has
 		/// been dispatched and executed successfully.
-		///
-		/// \[ id, pallet index, call index \]
-		Notified(QueryId, u8, u8),
+		Notified { id: QueryId, pallet_index: u8, call_index: u8 },
 		/// Query response has been received and query is removed. The registered notification could
 		/// not be dispatched because the dispatch weight is greater than the maximum weight
 		/// originally budgeted by this runtime for the query result.
-		///
-		/// \[ id, pallet index, call index, actual weight, max budgeted weight \]
-		NotifyOverweight(QueryId, u8, u8, Weight, Weight),
+		NotifyOverweight {
+			id: QueryId,
+			pallet_index: u8,
+			call_index: u8,
+			actual_weight: Weight,
+			max_budgeted_weight: Weight,
+		},
 		/// Query response has been received and query is removed. There was a general error with
 		/// dispatching the notification call.
-		///
-		/// \[ id, pallet index, call index \]
-		NotifyDispatchError(QueryId, u8, u8),
+		NotifyDispatchError { id: QueryId, pallet_index: u8, call_index: u8 },
 		/// Query response has been received and query is removed. The dispatch was unable to be
 		/// decoded into a `Call`; this might be due to dispatch function having a signature which
 		/// is not `(origin, QueryId, Response)`.
 		///
 		/// \[ id, pallet index, call index \]
-		NotifyDecodeFailed(QueryId, u8, u8),
+		NotifyDecodeFailed { id: QueryId, pallet_index: u8, call_index: u8 },
 		/// Expected query response has been received but the origin location of the response does
 		/// not match that expected. The query remains registered for a later, valid, response to
 		/// be received and acted upon.
-		///
-		/// \[ origin location, id, expected location \]
-		InvalidResponder(MultiLocation, QueryId, Option<MultiLocation>),
+		InvalidResponder {
+			origin: MultiLocation,
+			id: QueryId,
+			expected_location: Option<MultiLocation>,
+		},
 		/// Expected query response has been received but the expected origin location placed in
 		/// storage by this runtime previously cannot be decoded. The query remains registered.
 		///
@@ -203,17 +197,11 @@ pub mod pallet {
 		/// runtime should be readable prior to query timeout) and dangerous since the possibly
 		/// valid response will be dropped. Manual governance intervention is probably going to be
 		/// needed.
-		///
-		/// \[ origin location, id \]
-		InvalidResponderVersion(MultiLocation, QueryId),
+		InvalidResponderVersion { origin: MultiLocation, id: QueryId },
 		/// Received query response has been read and removed.
-		///
-		/// \[ id \]
-		ResponseTaken(QueryId),
+		ResponseTaken { id: QueryId },
 		/// Some assets have been placed in an asset trap.
-		///
-		/// \[ hash, origin, assets \]
-		AssetsTrapped(H256, MultiLocation, VersionedMultiAssets),
+		AssetsTrapped { hash: H256, origin: MultiLocation, assets: VersionedMultiAssets },
 		/// An XCM version change notification message has been attempted to be sent.
 		///
 		/// The cost of sending it (borne by the chain) is included.
@@ -222,14 +210,10 @@ pub mod pallet {
 		VersionChangeNotified(MultiLocation, XcmVersion, MultiAssets),
 		/// The supported version of a location has been changed. This might be through an
 		/// automatic notification or a manual intervention.
-		///
-		/// \[ location, XCM version \]
-		SupportedVersionChanged(MultiLocation, XcmVersion),
+		SupportedVersionChanged { location: MultiLocation, xcm_version: XcmVersion },
 		/// A given location which had a version change subscription was dropped owing to an error
 		/// sending the notification to it.
-		///
-		/// \[ location, query ID, error \]
-		NotifyTargetSendFail(MultiLocation, QueryId, XcmError),
+		NotifyTargetSendFail { location: MultiLocation, id: QueryId, error: XcmError },
 		/// A given location which had a version change subscription was dropped owing to an error
 		/// migrating the location to our new XCM format.
 		///
@@ -773,7 +757,7 @@ pub mod pallet {
 				max_weight,
 			);
 			let result = Ok(Some(outcome.weight_used().saturating_add(100_000_000)).into());
-			Self::deposit_event(Event::Attempted(outcome));
+			Self::deposit_event(Event::Attempted { outcome });
 			result
 		}
 
@@ -796,7 +780,7 @@ pub mod pallet {
 				LatestVersionedMultiLocation(&location),
 				xcm_version,
 			);
-			Self::deposit_event(Event::SupportedVersionChanged(location, xcm_version));
+			Self::deposit_event(Event::SupportedVersionChanged { location, xcm_version });
 			Ok(())
 		}
 
