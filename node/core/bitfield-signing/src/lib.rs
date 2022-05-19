@@ -49,7 +49,7 @@ use self::metrics::Metrics;
 mod tests;
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
-const JOB_DELAY: Duration = Duration::from_millis(1500);
+const JOB_DELAY: Duration = Duration::from_millis(1000);
 const LOG_TARGET: &str = "parachain::bitfield-signing";
 
 /// Each `BitfieldSigningJob` prepares a signed bitfield for a single relay parent.
