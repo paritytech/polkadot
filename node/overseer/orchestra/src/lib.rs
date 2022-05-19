@@ -77,7 +77,7 @@ pub use futures::{
 	channel::{mpsc, oneshot},
 	future::{BoxFuture, Fuse, Future},
 	poll, select,
-	stream::{self, select, FuturesUnordered},
+	stream::{self, select, FuturesUnordered, select_with_strategy, PollNext},
 	task::{Context, Poll},
 	FutureExt, StreamExt,
 };
@@ -205,9 +205,11 @@ pub fn make_packet<T>(signals_received: usize, message: T) -> MessagePacket<T> {
 }
 
 /// Incoming messages from both the bounded and unbounded channel.
-pub type SubsystemIncomingMessages<M> = self::stream::Select<
+pub type SubsystemIncomingMessages<M> = self::stream::SelectWithStrategy<
 	self::metered::MeteredReceiver<MessagePacket<M>>,
 	self::metered::UnboundedMeteredReceiver<MessagePacket<M>>,
+	fn(&mut ()) -> self::stream::PollNext,
+	(),
 >;
 
 /// Watermark to track the received signals.
