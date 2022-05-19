@@ -255,7 +255,7 @@ pub(crate) fn impl_subsystem_context_trait_bounds(
 				let error_path = error_path.ok_or_else(|| {
 					syn::Error::new(
 						span,
-						"Must annotate the identical overseer error type via `error=..`.",
+						"Must annotate the identical orchestra error type via `error=..`.",
 					)
 				})?;
 				// Only replace the subsystem trait if it's desired.

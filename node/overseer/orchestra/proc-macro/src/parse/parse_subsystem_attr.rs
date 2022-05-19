@@ -29,13 +29,13 @@ use syn::{
 enum SubsystemAttrItem {
 	/// Error type provided by the user.
 	Error { tag: kw::error, eq_token: Token![=], value: Path },
-	/// For which slot in the overseer this should be plugged.
+	/// For which slot in the orchestra this should be plugged.
 	///
 	/// The subsystem implementation can and should have a different name
-	/// from the declared parameter type in the overseer.
+	/// from the declared parameter type in the orchestra.
 	Subsystem { tag: Option<kw::subsystem>, eq_token: Option<Token![=]>, value: Ident },
 	/// The prefix to apply when a subsystem is implemented in a different file/crate
-	/// than the overseer itself.
+	/// than the orchestra itself.
 	///
 	/// Important for `#[subsystem(..)]` to reference the traits correctly.
 	TraitPrefix { tag: kw::prefix, eq_token: Token![=], value: Path },
@@ -137,7 +137,7 @@ impl Parse for SubsystemAttrArgs {
 			}
 		}
 		let error_path = extract_variant!(unique, Error);
-		let subsystem_ident = extract_variant!(unique, Subsystem; err = "Must annotate the identical overseer error type via `subsystem=..` or plainly as `Subsystem` as specified in the overseer declaration.")?;
+		let subsystem_ident = extract_variant!(unique, Subsystem; err = "Must annotate the identical orchestra error type via `subsystem=..` or plainly as `Subsystem` as specified in the orchestra declaration.")?;
 		let trait_prefix_path = extract_variant!(unique, TraitPrefix);
 		Ok(SubsystemAttrArgs { span, error_path, subsystem_ident, trait_prefix_path })
 	}

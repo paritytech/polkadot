@@ -13,5 +13,5 @@ error: previously defined here.
 error[E0433]: failed to resolve: use of undeclared type `Orchestra`
   --> $DIR/err-03-subsys-twice.rs:34:17
    |
-34 |     let overseer = Orchestra::<_,_>::builder()
+34 |     let orchestra = Orchestra::<_,_>::builder()
    |                    ^^^^^^^^ use of undeclared type `Orchestra`

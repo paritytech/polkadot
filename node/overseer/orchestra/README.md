@@ -1,6 +1,7 @@
-# overseer pattern
+# orchestra
 
-The overseer pattern is a partial actor pattern
+The orchestra pattern is a partial actor pattern, with a global orchestrator regarding
+relevant work items.
 
 ## proc-macro
 
@@ -10,7 +11,7 @@ declarative.
 
 ```rust
     #[orchestra(signal=SigSigSig, event=Event, gen=AllMessages, error=OrchestraError)]
-    pub struct Orchestra {
+    pub struct Opera {
         #[subsystem(MsgA, sends: [MsgB])]
         sub_a: AwesomeSubSysA,
 
@@ -25,22 +26,23 @@ trait with the correct trait bounds. Commonly this is achieved
 by using `#[subsystem]` and `#[contextbounds]` macro.
   * `#[contextbounds(Foo, error=Yikes, prefix=wherethetraitsat)]` can applied to `impl`-blocks and `fn`-blocks. It will add additional trait bounds for the generic `Context` with `Context: FooContextTrait` for `<Context as FooContextTrait>::Sender: FooSenderTrait` besides a few more. Note that `Foo` here references the name of the subsystem as declared in `#[orchestra(..)]` macro.
   * `#[subsystem(Foo, error=Yikes, prefix=wherethetraitsat)]` is a extension to the above, implementing `trait Subsystem<Context, Yikes>`.
-* `error=` tells the overseer to use the user provided
+* `error=` tells the orchestra to use the user provided
 error type, if not provided a builtin one is used. Note that this is the one error type used throughout all calls, so make sure it does impl `From<E>` for all other error types `E` that are relevant to your application.
 * `event=` declares an external event type, that injects certain events
-into the overseer, without participating in the subsystem pattern.
-* `signal=` defines a signal type to be used for the overseer. This is a shared "clock" for all subsystems.
+into the orchestra, without participating in the subsystem pattern.
+* `signal=` defines a signal type to be used for the orchestra. This is a shared "tick" or "clock" for all subsystems.
 * `gen=` defines a wrapping `enum` type that is used to wrap all messages that can be consumed by _any_ subsystem.
 
 ```rust
-    /// Execution context, always requred.
+    /// Execution context, always required.
     pub struct DummyCtx;
 
-    /// Task spawner, always required.
+    /// Task spawner, always required
+    /// and must implement `trait orchestra::Spawner`.
     pub struct DummySpawner;
 
     fn main() {
-        let _overseer = Orchestra::builder()
+        let _orchestra = Opera::builder()
             .sub_a(AwesomeSubSysA::default())
             .sub_b(AwesomeSubSysB::default())
             .spawner(DummySpawner)
@@ -48,7 +50,7 @@ into the overseer, without participating in the subsystem pattern.
     }
 ```
 
-In the shown `main`, the overseer is created by means of a generated, compile time erroring
+In the shown `main`, the orchestra is created by means of a generated, compile time erroring
 builder pattern.
 
 The builder requires all subsystems, baggage fields (additional struct data) and spawner to be
@@ -65,7 +67,7 @@ is not ready to be included in the Orchestra:
 
 ```rust
     #[orchestra(signal=SigSigSig, event=Event, gen=AllMessages, error=OrchestraError)]
-    pub struct Orchestra {
+    pub struct Opera {
         #[subsystem(MsgA, sends: MsgB)]
         sub_a: AwesomeSubSysA,
 
@@ -85,6 +87,4 @@ A task spawner and subsystem context are required to be defined with `Spawner` a
 As always, debugging is notoriously annoying with bugged proc-macros.
 
 Therefore [`expander`](https://github.com/drahnr/expander) is employed to yield better
-error messages. Enable with `--feature=orchestra/expand` or
-`--feature=polkadot-overseer/expand` from the root of the project or
-make `"expand"` part of the default feature set.
+error messages. Enable with `--feature=orchestra/expand`.

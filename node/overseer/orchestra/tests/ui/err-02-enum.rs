@@ -24,7 +24,7 @@ struct DummySpawner;
 struct DummyCtx;
 
 fn main() {
-	let overseer = Orchestra::<_,_>::builder()
+	let orchestra = Orchestra::<_,_>::builder()
 		.sub0(AwesomeSubSys::default())
 		.i_like_pie(std::f64::consts::PI)
 		.spawner(DummySpawner)

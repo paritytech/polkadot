@@ -160,7 +160,7 @@ impl Parse for OrchestraAttrArgs {
 			if let Some(first) = unique.insert(std::mem::discriminant(&item), item.clone()) {
 				let mut e = Error::new(
 					item.span(),
-					format!("Duplicate definition of overseer generation type found"),
+					format!("Duplicate definition of orchestra generation type found"),
 				);
 				e.combine(Error::new(first.span(), "previously defined here."));
 				return Err(e)
@@ -172,10 +172,10 @@ impl Parse for OrchestraAttrArgs {
 		let message_channel_capacity =
 			extract_variant!(unique, MessageChannelCapacity; default = 1024_usize);
 
-		let error = extract_variant!(unique, ExternErrorType; err = "Must declare the overseer error type via `error=..`.")?;
-		let event = extract_variant!(unique, ExternEventType; err = "Must declare the overseer event type via `event=..`.")?;
-		let signal = extract_variant!(unique, ExternOrchestraSignalType; err = "Must declare the overseer signal type via `signal=..`.")?;
-		let message_wrapper = extract_variant!(unique, MessageWrapperName; err = "Must declare the overseer generated wrapping message type via `gen=..`.")?;
+		let error = extract_variant!(unique, ExternErrorType; err = "Must declare the orchestra error type via `error=..`.")?;
+		let event = extract_variant!(unique, ExternEventType; err = "Must declare the orchestra event type via `event=..`.")?;
+		let signal = extract_variant!(unique, ExternOrchestraSignalType; err = "Must declare the orchestra signal type via `signal=..`.")?;
+		let message_wrapper = extract_variant!(unique, MessageWrapperName; err = "Must declare the orchestra generated wrapping message type via `gen=..`.")?;
 		let outgoing = extract_variant!(unique, OutgoingType);
 
 		Ok(OrchestraAttrArgs {

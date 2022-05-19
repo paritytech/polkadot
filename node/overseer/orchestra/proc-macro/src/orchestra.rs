@@ -33,7 +33,7 @@ pub(crate) fn impl_orchestra_gen(
 		support_crate,
 		subsystems: of.subsystems,
 		baggage: of.baggage,
-		overseer_name: of.name,
+		orchestra_name: of.name,
 		message_wrapper,
 		message_channel_capacity: args.message_channel_capacity,
 		signal_channel_capacity: args.signal_channel_capacity,
@@ -53,7 +53,7 @@ pub(crate) fn impl_orchestra_gen(
 	additive.extend(impl_message_wrapper_enum(&info)?);
 
 	let ts = expander::Expander::new("orchestra-expansion")
-		.add_comment("Generated overseer code by `#[orchestra(..)]`".to_owned())
+		.add_comment("Generated orchestra code by `#[orchestra(..)]`".to_owned())
 		.dry(!cfg!(feature = "expand"))
 		.verbose(true)
 		// once all our needed format options are available on stable

@@ -1,8 +1,8 @@
-#![allow(dead_code)] // overseer events are not used
+#![allow(dead_code)] // orchestra events are not used
 
 //! A dummy to be used with cargo expand
 
-use orchestra::{self as overseer, Spawner, *};
+use orchestra::{self as orchestra, Spawner, *};
 use std::collections::HashMap;
 mod misc;
 
@@ -12,7 +12,7 @@ pub use self::misc::*;
 #[derive(Default)]
 pub struct AwesomeSubSys;
 
-#[overseer::subsystem(Awesome, error=Yikes)]
+#[orchestra::subsystem(Awesome, error=Yikes)]
 impl<Context> AwesomeSubSys {
 	fn start(self, mut ctx: Context) -> SpawnedSubsystem<Yikes> {
 		let mut sender = ctx.sender().clone();
@@ -30,7 +30,7 @@ impl<Context> AwesomeSubSys {
 #[derive(Default)]
 pub struct Fortified;
 
-#[overseer::subsystem(GoblinTower, error=Yikes)]
+#[orchestra::subsystem(GoblinTower, error=Yikes)]
 impl<Context> Fortified {
 	fn start(self, mut ctx: Context) -> SpawnedSubsystem<Yikes> {
 		let mut sender = ctx.sender().clone();
@@ -62,7 +62,7 @@ fn main() {
 	use futures::{executor, pin_mut};
 
 	executor::block_on(async move {
-		let (overseer, _handle): (Duo<_, f64>, _) = Duo::builder()
+		let (orchestra, _handle): (Duo<_, f64>, _) = Duo::builder()
 			.sub0(AwesomeSubSys::default())
 			.plinkos(Fortified::default())
 			.i_like_pi(::std::f64::consts::PI)
@@ -72,18 +72,18 @@ fn main() {
 			.build()
 			.unwrap();
 
-		assert_eq!(overseer.i_like_pi.floor() as i8, 3);
-		assert_eq!(overseer.i_like_generic.floor() as i8, 42);
-		assert_eq!(overseer.i_like_hash.len() as i8, 0);
+		assert_eq!(orchestra.i_like_pi.floor() as i8, 3);
+		assert_eq!(orchestra.i_like_generic.floor() as i8, 42);
+		assert_eq!(orchestra.i_like_hash.len() as i8, 0);
 
-		let overseer_fut = overseer
+		let orchestra_fut = orchestra
 			.running_subsystems
 			.into_future()
 			.timeout(std::time::Duration::from_millis(300))
 			.fuse();
 
-		pin_mut!(overseer_fut);
+		pin_mut!(orchestra_fut);
 
-		overseer_fut.await
+		orchestra_fut.await
 	});
 }

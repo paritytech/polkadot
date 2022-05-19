@@ -20,7 +20,7 @@ use super::*;
 
 pub(crate) fn impl_orchestra_struct(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 	let message_wrapper = &info.message_wrapper.clone();
-	let overseer_name = info.overseer_name.clone();
+	let orchestra_name = info.orchestra_name.clone();
 	let subsystem_name = &info.subsystem_names_without_wip();
 	let support_crate = info.support_crate_name();
 
@@ -53,21 +53,21 @@ pub(crate) fn impl_orchestra_struct(info: &OrchestraInfo) -> proc_macro2::TokenS
 	let signal_channel_capacity = info.signal_channel_capacity;
 
 	let log_target =
-		syn::LitStr::new(overseer_name.to_string().to_lowercase().as_str(), overseer_name.span());
+		syn::LitStr::new(orchestra_name.to_string().to_lowercase().as_str(), orchestra_name.span());
 
 	let ts = quote! {
-		/// Capacity of a bounded message channel between overseer and subsystem
+		/// Capacity of a bounded message channel between orchestra and subsystem
 		/// but also for bounded channels between two subsystems.
 		const CHANNEL_CAPACITY: usize = #message_channel_capacity;
 
-		/// Capacity of a signal channel between a subsystem and the overseer.
+		/// Capacity of a signal channel between a subsystem and the orchestra.
 		const SIGNAL_CHANNEL_CAPACITY: usize = #signal_channel_capacity;
 
 		/// The log target tag.
 		const LOG_TARGET: &'static str = #log_target;
 
-		/// The overseer.
-		pub struct #overseer_name #generics {
+		/// The orchestra.
+		pub struct #orchestra_name #generics {
 
 			#(
 				/// A subsystem instance.
@@ -88,15 +88,15 @@ pub(crate) fn impl_orchestra_struct(info: &OrchestraInfo) -> proc_macro2::TokenS
 			>,
 
 			/// Gather running subsystems' outbound streams into one.
-			to_overseer_rx: #support_crate ::stream::Fuse<
+			to_orchestra_rx: #support_crate ::stream::Fuse<
 				#support_crate ::metered::UnboundedMeteredReceiver< #support_crate ::ToOrchestra >
 			>,
 
-			/// Events that are sent to the overseer from the outside world.
+			/// Events that are sent to the orchestra from the outside world.
 			events_rx: #support_crate ::metered::MeteredReceiver< #event_ty >,
 		}
 
-		impl #generics #overseer_name #generics #where_clause {
+		impl #generics #orchestra_name #generics #where_clause {
 			/// Send the given signal, a termination signal, to all subsystems
 			/// and wait for all subsystems to go down.
 			///

@@ -1,8 +1,8 @@
-#![allow(dead_code)] // overseer events are not used
+#![allow(dead_code)] // orchestra events are not used
 
 //! A minimal demo to be used with cargo expand.
 
-use orchestra::{self as overseer, Spawner, *};
+use orchestra::{self as orchestra, Spawner, *};
 mod misc;
 
 pub use self::misc::*;
@@ -16,7 +16,7 @@ struct Solo<T> {
 #[derive(Default)]
 pub struct Fortified;
 
-#[overseer::subsystem(GoblinTower, error=Yikes)]
+#[orchestra::subsystem(GoblinTower, error=Yikes)]
 impl<Context> Fortified {
 	fn start(self, mut ctx: Context) -> SpawnedSubsystem<Yikes> {
 		let mut sender = ctx.sender().clone();
@@ -35,20 +35,20 @@ fn main() {
 	use futures::{executor, pin_mut};
 
 	executor::block_on(async move {
-		let (overseer, _handle): (Solo<_>, _) = Solo::builder()
+		let (orchestra, _handle): (Solo<_>, _) = Solo::builder()
 			.goblin_tower(Fortified::default())
 			.spawner(DummySpawner)
 			.build()
 			.unwrap();
 
-		let overseer_fut = overseer
+		let orchestra_fut = orchestra
 			.running_subsystems
 			.into_future()
 			.timeout(std::time::Duration::from_millis(300))
 			.fuse();
 
-		pin_mut!(overseer_fut);
+		pin_mut!(orchestra_fut);
 
-		overseer_fut.await
+		orchestra_fut.await
 	});
 }

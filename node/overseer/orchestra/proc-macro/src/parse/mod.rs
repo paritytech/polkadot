@@ -26,14 +26,14 @@ mod kw {
 	syn::custom_keyword!(prefix);
 }
 
-mod parse_overseer_attr;
-mod parse_overseer_struct;
+mod parse_orchestra_attr;
+mod parse_orchestra_struct;
 
 mod parse_subsystem_attr;
 
 #[cfg(test)]
 mod tests;
 
-pub(crate) use self::{parse_overseer_attr::*, parse_overseer_struct::*};
+pub(crate) use self::{parse_orchestra_attr::*, parse_orchestra_struct::*};
 
 pub(crate) use self::parse_subsystem_attr::*;

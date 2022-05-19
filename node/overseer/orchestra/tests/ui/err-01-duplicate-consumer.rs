@@ -31,7 +31,7 @@ struct DummySpawner;
 struct DummyCtx;
 
 fn main() {
-	let overseer = Orchestra::<_,_>::builder()
+	let orchestra = Orchestra::<_,_>::builder()
 		.sub0(AwesomeSubSys::default())
 		.spawner(DummySpawner)
 		.build(|| -> DummyCtx { DummyCtx } );

@@ -27,15 +27,15 @@ fn recollect_without_idx<T: Clone>(x: &[T], idx: usize) -> Vec<T> {
 }
 
 /// Implement a builder pattern for the `Orchestra`-type,
-/// which acts as the gateway to constructing the overseer.
+/// which acts as the gateway to constructing the orchestra.
 ///
 /// Elements tagged with `wip` are not covered here.
 pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
-	let overseer_name = info.overseer_name.clone();
-	let builder = format_ident!("{}Builder", overseer_name);
-	let handle = format_ident!("{}Handle", overseer_name);
-	let connector = format_ident!("{}Connector", overseer_name);
-	let subsystem_ctx_name = format_ident!("{}SubsystemContext", overseer_name);
+	let orchestra_name = info.orchestra_name.clone();
+	let builder = format_ident!("{}Builder", orchestra_name);
+	let handle = format_ident!("{}Handle", orchestra_name);
+	let connector = format_ident!("{}Connector", orchestra_name);
+	let subsystem_ctx_name = format_ident!("{}SubsystemContext", orchestra_name);
 
 	let subsystem_name = &info.subsystem_names_without_wip();
 	let subsystem_generics = &info.subsystem_generic_types();
@@ -336,7 +336,7 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 		/// Convenience alias.
 		type SubsystemInitFn<T> = Box<dyn FnOnce(#handle) -> ::std::result::Result<T, #error_ty> >;
 
-		/// Type for the initialized field of the overseer builder
+		/// Type for the initialized field of the orchestra builder
 		pub enum Init<T> {
 			/// Defer initialization to a point where the `handle` is available.
 			Fn(SubsystemInitFn<T>),
@@ -344,7 +344,7 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 			/// Also used for baggage fields
 			Value(T),
 		}
-		/// Type marker for the uninitialized field of the overseer builder.
+		/// Type marker for the uninitialized field of the orchestra builder.
 		/// `PhantomData` is used for type hinting when creating uninitialized
 		/// builder, e.g. to avoid specifying the generics when instantiating
 		/// the `FooBuilder` when calling `Foo::builder()`
@@ -363,11 +363,11 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 			}
 		}
 
-		impl<S #(, #baggage_generic_ty )*> #overseer_name <S #(, #baggage_generic_ty)*>
+		impl<S #(, #baggage_generic_ty )*> #orchestra_name <S #(, #baggage_generic_ty)*>
 		where
 			#spawner_where_clause,
 		{
-			/// Create a new overseer utilizing the builder.
+			/// Create a new orchestra utilizing the builder.
 			pub fn builder< #( #subsystem_generics),* >() ->
 				#builder<Missing<S> #(, Missing< #field_type > )* >
 			where
@@ -379,7 +379,7 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 	};
 
 	ts.extend(quote! {
-		/// Handle for an overseer.
+		/// Handle for an orchestra.
 		pub type #handle = #support_crate ::metered::MeteredSender< #event >;
 
 		/// External connector.
@@ -390,16 +390,16 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 			///
 			/// For subsystems, use the `_with` variants of the builder.
 			handle: #handle,
-			/// The side consumed by the `spawned` side of the overseer pattern.
+			/// The side consumed by the `spawned` side of the orchestra pattern.
 			consumer: #support_crate ::metered::MeteredReceiver < #event >,
 		}
 
 		impl #connector {
-			/// Obtain access to the overseer handle.
+			/// Obtain access to the orchestra handle.
 			pub fn as_handle_mut(&mut self) -> &mut #handle {
 				&mut self.handle
 			}
-			/// Obtain access to the overseer handle.
+			/// Obtain access to the orchestra handle.
 			pub fn as_handle(&self) -> &#handle {
 				&self.handle
 			}
@@ -530,7 +530,7 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 		.collect::<Vec<_>>();
 
 	ts.extend(quote! {
-		/// Type used to represent a builder where all fields are initialized and the overseer could be constructed.
+		/// Type used to represent a builder where all fields are initialized and the orchestra could be constructed.
 		pub type #initialized_builder<#initialized_builder_generics> = #builder<Init<S>, #( Init<#field_type>, )*>;
 
 		// A builder specialization where all fields are set
@@ -539,18 +539,18 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 			#spawner_where_clause,
 			#builder_where_clause
 		{
-			/// Complete the construction and create the overseer type.
+			/// Complete the construction and create the orchestra type.
 			pub fn build(self)
-				-> ::std::result::Result<(#overseer_name<S, #( #baggage_generic_ty, )*>, #handle), #error_ty> {
+				-> ::std::result::Result<(#orchestra_name<S, #( #baggage_generic_ty, )*>, #handle), #error_ty> {
 				let connector = #connector ::with_event_capacity(
 					self.signal_capacity.unwrap_or(SIGNAL_CHANNEL_CAPACITY)
 				);
 				self.build_with_connector(connector)
 			}
 
-			/// Complete the construction and create the overseer type based on an existing `connector`.
+			/// Complete the construction and create the orchestra type based on an existing `connector`.
 			pub fn build_with_connector(self, connector: #connector)
-				-> ::std::result::Result<(#overseer_name<S, #( #baggage_generic_ty, )*>, #handle), #error_ty>
+				-> ::std::result::Result<(#orchestra_name<S, #( #baggage_generic_ty, )*>, #handle), #error_ty>
 			{
 				let #connector {
 					handle: events_tx,
@@ -559,7 +559,7 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 
 				let handle = events_tx.clone();
 
-				let (to_overseer_tx, to_overseer_rx) = #support_crate ::metered::unbounded::<
+				let (to_orchestra_tx, to_orchestra_rx) = #support_crate ::metered::unbounded::<
 					ToOrchestra
 				>();
 
@@ -618,7 +618,7 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 						signal_rx,
 						message_rx,
 						channels_out.clone(),
-						to_overseer_tx.clone(),
+						to_orchestra_tx.clone(),
 						#subsystem_name_str_literal
 					);
 
@@ -637,8 +637,8 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 
 				use #support_crate ::StreamExt;
 
-				let to_overseer_rx = to_overseer_rx.fuse();
-				let overseer = #overseer_name {
+				let to_orchestra_rx = to_orchestra_rx.fuse();
+				let orchestra = #orchestra_name {
 					#(
 						#subsystem_name,
 					)*
@@ -653,10 +653,10 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 					spawner,
 					running_subsystems,
 					events_rx,
-					to_overseer_rx,
+					to_orchestra_rx,
 				};
 
-				Ok((overseer, handle))
+				Ok((orchestra, handle))
 			}
 		}
 	});

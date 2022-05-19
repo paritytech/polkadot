@@ -272,9 +272,9 @@ pub(crate) struct OrchestraInfo {
 	pub(crate) baggage: Vec<BaggageField>,
 	/// Name of the wrapping enum for all messages, defaults to `AllMessages`.
 	pub(crate) message_wrapper: Ident,
-	/// Name of the overseer struct, used as a prefix for
+	/// Name of the orchestra struct, used as a prefix for
 	/// almost all generated types.
-	pub(crate) overseer_name: Ident,
+	pub(crate) orchestra_name: Ident,
 
 	/// Size of the bounded channel.
 	pub(crate) message_channel_capacity: usize,
@@ -389,7 +389,7 @@ impl OrchestraInfo {
 	}
 }
 
-/// Internals of the overseer.
+/// Internals of the orchestra.
 #[derive(Debug, Clone)]
 pub(crate) struct OrchestraGuts {
 	pub(crate) name: Ident,

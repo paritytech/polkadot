@@ -122,12 +122,12 @@ pub trait Spawner: Clone + Send + Sync {
 	);
 }
 
-/// A type of messages that are sent from a [`Subsystem`] to the declared overseer.
+/// A type of messages that are sent from a [`Subsystem`] to the declared orchestra.
 ///
 /// Used to launch jobs.
 pub enum ToOrchestra {
 	/// A message that wraps something the `Subsystem` is desiring to
-	/// spawn on the overseer and a `oneshot::Sender` to signal the result
+	/// spawn on the orchestra and a `oneshot::Sender` to signal the result
 	/// of the spawn.
 	SpawnJob {
 		/// Name of the task to spawn which be shown in jaeger and tracing logs.
@@ -349,8 +349,8 @@ pub struct SubsystemInstance<Message, Signal> {
 	pub name: &'static str,
 }
 
-/// A message type that a subsystem receives from an overseer.
-/// It wraps signals from an overseer and messages that are circulating
+/// A message type that a subsystem receives from an orchestra.
+/// It wraps signals from an orchestra and messages that are circulating
 /// between subsystems.
 ///
 /// It is generic over over the message type `M` that a particular `Subsystem` may use.

@@ -7,5 +7,5 @@ error: expected `struct`
 error[E0433]: failed to resolve: use of undeclared type `Orchestra`
   --> $DIR/err-02-enum.rs:27:17
    |
-27 |     let overseer = Orchestra::<_,_>::builder()
+27 |     let orchestra = Orchestra::<_,_>::builder()
    |                    ^^^^^^^^ use of undeclared type `Orchestra`

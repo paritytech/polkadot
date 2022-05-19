@@ -66,7 +66,7 @@ pub struct Orchestra {
 pub struct DummyCtx;
 
 fn main() {
-	let _overseer_builder = Orchestra::builder()
+	let _orchestra_builder = Orchestra::builder()
 		.sub_a(AwesomeSubSysA::default())
 		// b is tagged as `wip`
 		// .sub_b(AwesomeSubSysB::default())

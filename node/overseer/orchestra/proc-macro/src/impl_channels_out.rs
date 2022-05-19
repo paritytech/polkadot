@@ -36,7 +36,7 @@ pub(crate) fn impl_channels_out_struct(info: &OrchestraInfo) -> Result<proc_macr
 	let ts = quote! {
 		/// Collection of channels to the individual subsystems.
 		///
-		/// Naming is from the point of view of the overseer.
+		/// Naming is from the point of view of the orchestra.
 		#[derive(Debug, Clone)]
 		pub struct ChannelsOut {
 			#(

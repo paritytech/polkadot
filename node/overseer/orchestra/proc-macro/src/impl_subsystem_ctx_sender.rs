@@ -55,8 +55,8 @@ fn graphviz(
 pub(crate) fn impl_subsystem_types_all(info: &OrchestraInfo) -> Result<TokenStream> {
 	let mut ts = TokenStream::new();
 
-	let overseer_name = &info.overseer_name;
-	let span = overseer_name.span();
+	let orchestra_name = &info.orchestra_name;
+	let span = orchestra_name.span();
 	let all_messages_wrapper = &info.message_wrapper;
 	let support_crate = info.support_crate_name();
 	let signal_ty = &info.extern_signal_ty;
@@ -137,7 +137,7 @@ pub(crate) fn impl_subsystem_types_all(info: &OrchestraInfo) -> Result<TokenStre
 	// Dump the graph to file.
 	if cfg!(feature = "graph") || true {
 		let path = std::path::PathBuf::from(env!("OUT_DIR"))
-			.join(overseer_name.to_string().to_lowercase() + "-subsystem-messaging.dot");
+			.join(orchestra_name.to_string().to_lowercase() + "-subsystem-messaging.dot");
 		if let Err(e) = std::fs::OpenOptions::new()
 			.truncate(true)
 			.create(true)
@@ -151,8 +151,8 @@ pub(crate) fn impl_subsystem_types_all(info: &OrchestraInfo) -> Result<TokenStre
 		}
 	}
 
-	let subsystem_sender_name = &Ident::new(&(overseer_name.to_string() + "Sender"), span);
-	let subsystem_ctx_name = &Ident::new(&(overseer_name.to_string() + "SubsystemContext"), span);
+	let subsystem_sender_name = &Ident::new(&(orchestra_name.to_string() + "Sender"), span);
+	let subsystem_ctx_name = &Ident::new(&(orchestra_name.to_string() + "SubsystemContext"), span);
 	ts.extend(impl_subsystem_context(info, &subsystem_sender_name, &subsystem_ctx_name));
 
 	ts.extend(impl_associate_outgoing_messages_trait(&all_messages_wrapper));
@@ -300,7 +300,7 @@ pub(crate) fn impl_subsystem_sender(
 	// Create the same for a wrapping enum:
 	//
 	// 1. subsystem specific `*OutgoingMessages`-type
-	// 2. overseer-global-`AllMessages`-type
+	// 2. orchestra-global-`AllMessages`-type
 	let wrapped = |outgoing_wrapper: &TokenStream| {
 		quote! {
 			#[#support_crate ::async_trait]
@@ -445,7 +445,7 @@ pub(crate) fn impl_subsystem_context_trait_for(
 
 			async fn recv(&mut self) -> ::std::result::Result<FromOrchestra<Self::Message, #signal>, #error_ty> {
 				loop {
-					// If we have a message pending an overseer signal, we only poll for signals
+					// If we have a message pending an orchestra signal, we only poll for signals
 					// in the meantime.
 					if let Some((needs_signals_received, msg)) = self.pending_incoming.take() {
 						if needs_signals_received <= self.signals_received.load() {
@@ -471,7 +471,7 @@ pub(crate) fn impl_subsystem_context_trait_for(
 					let pending_incoming = &mut self.pending_incoming;
 
 					// Otherwise, wait for the next signal or incoming message.
-					let from_overseer = #support_crate ::futures::select_biased! {
+					let from_orchestra = #support_crate ::futures::select_biased! {
 						signal = await_signal => {
 							let signal = signal
 								.ok_or( #support_crate ::OrchestraError::Context(
@@ -499,11 +499,11 @@ pub(crate) fn impl_subsystem_context_trait_for(
 						}
 					};
 
-					if let #support_crate ::FromOrchestra::Signal(_) = from_overseer {
+					if let #support_crate ::FromOrchestra::Signal(_) = from_orchestra {
 						self.signals_received.inc();
 					}
 
-					return Ok(from_overseer);
+					return Ok(from_orchestra);
 				}
 			}
 
@@ -514,7 +514,7 @@ pub(crate) fn impl_subsystem_context_trait_for(
 			fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 				-> ::std::result::Result<(), #error_ty>
 			{
-				self.to_overseer.unbounded_send(#support_crate ::ToOrchestra::SpawnJob {
+				self.to_orchestra.unbounded_send(#support_crate ::ToOrchestra::SpawnJob {
 					name,
 					subsystem: Some(self.name()),
 					s,
@@ -525,7 +525,7 @@ pub(crate) fn impl_subsystem_context_trait_for(
 			fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
 				-> ::std::result::Result<(), #error_ty>
 			{
-				self.to_overseer.unbounded_send(#support_crate ::ToOrchestra::SpawnBlockingJob {
+				self.to_orchestra.unbounded_send(#support_crate ::ToOrchestra::SpawnBlockingJob {
 					name,
 					subsystem: Some(self.name()),
 					s,
@@ -666,7 +666,7 @@ pub(crate) fn impl_subsystem_context(
 			signals: #support_crate ::metered::MeteredReceiver< #signal_ty >,
 			messages: SubsystemIncomingMessages< M >,
 			to_subsystems: #subsystem_sender_name < <M as AssociateOutgoing>::OutgoingMessages >,
-			to_overseer: #support_crate ::metered::UnboundedMeteredSender<
+			to_orchestra: #support_crate ::metered::UnboundedMeteredSender<
 				#support_crate ::ToOrchestra
 				>,
 			signals_received: SignalsReceived,
@@ -683,7 +683,7 @@ pub(crate) fn impl_subsystem_context(
 				signals: #support_crate ::metered::MeteredReceiver< #signal_ty >,
 				messages: SubsystemIncomingMessages< M >,
 				to_subsystems: ChannelsOut,
-				to_overseer: #support_crate ::metered::UnboundedMeteredSender<#support_crate:: ToOrchestra>,
+				to_orchestra: #support_crate ::metered::UnboundedMeteredSender<#support_crate:: ToOrchestra>,
 				name: &'static str
 			) -> Self {
 				let signals_received = SignalsReceived::default();
@@ -695,7 +695,7 @@ pub(crate) fn impl_subsystem_context(
 						signals_received: signals_received.clone(),
 						_phantom: ::core::marker::PhantomData::default(),
 					},
-					to_overseer,
+					to_orchestra,
 					signals_received,
 					pending_incoming: None,
 					name
