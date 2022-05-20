@@ -45,7 +45,7 @@ macro_rules! dry_run_cmd_for {
 			);
 
 			let uxt = api.tx().election_provider_multi_phase().submit(raw_solution)?;
-			let sxt = uxt.create_signed(&signer, subxt::PolkadotExtrinsicParamsBuilder::default()).await?;
+			let sxt = uxt.create_signed(&signer, chain::$runtime::ExtrinsicParams::default()).await?;
 
 
 			let encoded_xt = Bytes(sxt.encode());
@@ -61,10 +61,7 @@ macro_rules! dry_run_cmd_for {
 
 			log::info!(target: LOG_TARGET, "dry-run outcome is {:?}", outcome);
 
-			match outcome {
-				Ok(Ok(r)) => Ok(r),
-				err => panic!("{:?}", err),
-			}
+			Ok(())
 		}
 
 	}

@@ -20,9 +20,7 @@
 //! It is actually easy to convert the rest as well, but it'll be a lot of noise in our codebase,
 //! needing to sprinkle `any_runtime` in a few extra places.
 
-use frame_support::{parameter_types, weights::Weight};
-
-const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+use frame_support::{traits::ConstU32, weights::Weight};
 
 /// The account id type.
 pub type AccountId = subxt::sp_core::crypto::AccountId32;
@@ -50,17 +48,19 @@ pub type Signer = subxt::PairSigner<subxt::DefaultConfig, subxt::sp_core::sr2551
 
 pub use sp_runtime::Perbill;
 
-pub type BoundedVec = frame_support::BoundedVec<AccountId, MinerMaxVotesPerVoter>;
+pub type BoundedVec = frame_support::BoundedVec<AccountId, MaxVotesPerVoter>;
 
-parameter_types! {
+frame_support::parameter_types! {
 	// TODO: this is part of the metadata check again if we can fetch this from subxt.
+	// TODO: check with Kian.
 	pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights
-		::with_sensible_defaults(2 * frame_support::weights::constants::WEIGHT_PER_SECOND, NORMAL_DISPATCH_RATIO);
-	pub static MinerMaxWeight: Weight = BlockWeights::get().max_block;
-	// TODO: align with the chains
-	pub static MinerMaxLength: u32 = 256;
-	// TODO: align with the chains
-	pub static MinerMaxVotesPerVoter: u32 = 256;
+		::with_sensible_defaults(u64::MAX, Perbill::from_percent(75));
+	pub static MaxWeight: Weight = BlockWeights::get().max_block;
 }
+
+// TODO check with Kian.
+pub type MaxLength = ConstU32<4294967295>;
+// TODO check with Kian.
+pub type MaxVotesPerVoter = ConstU32<256>;
 
 pub use crate::error::Error;

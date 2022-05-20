@@ -92,18 +92,6 @@ macro_rules! monitor_cmd_for {
 						return;
 					}
 
-					if let Err(e) = ensure_no_previous_solution(&api, hash, signer.account_id()).await {
-						log::debug!(
-							target: LOG_TARGET,
-							"ensure_no_previous_solution failed: {:?}; skipping block: {}",
-							e,
-							at.number
-						);
-
-						kill_main_task_if_critical_err(&tx, e);
-						return;
-					}
-
 					let (solution, score, size) =
 						match crate::helpers::[<mine_solution_$runtime>](&api, Some(hash), config.solver)
 						.await {
@@ -124,19 +112,6 @@ macro_rules! monitor_cmd_for {
 						},
 					};
 
-					log::info!(target: LOG_TARGET, "mined solution with {:?} size: {:?}", score, size);
-
-					if let Err(e) = ensure_no_better_solution(&api, hash, score, config.submission_strategy).await {
-						log::debug!(
-							target: LOG_TARGET,
-							"ensure_no_better_solution failed: {:?}; skipping block: {}",
-							e,
-							at.number
-						);
-						kill_main_task_if_critical_err(&tx, e);
-						return;
-					}
-
 					if let Err(e) = ensure_signed_phase(&api, hash).await {
 						log::debug!(
 							target: LOG_TARGET,
@@ -147,6 +122,8 @@ macro_rules! monitor_cmd_for {
 						kill_main_task_if_critical_err(&tx, e);
 						return;
 					}
+
+					log::info!(target: LOG_TARGET, "mined solution with {:?} size: {:?} round: {:?}", score, size, round);
 
 					let xt = match api
 						.tx()
@@ -159,14 +136,43 @@ macro_rules! monitor_cmd_for {
 							}
 						};
 
+
+					if let Err(e) = ensure_no_better_solution(&api, hash, score, config.submission_strategy).await {
+						log::debug!(
+							target: LOG_TARGET,
+							"ensure_no_better_solution failed: {:?}; skipping block: {}",
+							e,
+							at.number
+						);
+						kill_main_task_if_critical_err(&tx, e);
+						return;
+					}
+
+
+					if let Err(e) = ensure_no_previous_solution(&api, hash, signer.account_id()).await {
+						log::debug!(
+							target: LOG_TARGET,
+							"ensure_no_previous_solution failed: {:?}; skipping block: {}",
+							e,
+							at.number
+						);
+
+						kill_main_task_if_critical_err(&tx, e);
+						return;
+					}
+
+
+
 					// This might fail with outdated nonce let it just crash if that happens.
 					let mut status_sub = match xt.sign_and_submit_then_watch_default(&*signer).await {
 						Ok(sub) => sub,
 						Err(e) => {
+							log::warn!(target: LOG_TARGET, "submit solution failed: {:?}", e);
 							kill_main_task_if_critical_err(&tx, e.into());
 							return;
 						}
 					};
+
 
 					loop {
 						let status = match status_sub.next_item().await {
@@ -179,13 +185,15 @@ macro_rules! monitor_cmd_for {
 									err
 								);
 								kill_main_task_if_critical_err(&tx, err.into());
-								return;
+								break;
 							},
 							None => {
 								log::error!(target: LOG_TARGET, "watch submit extrinsic at {:?} closed", hash,);
-								return;
+								break;
 							},
 						};
+
+						log::info!("status: {:?}", status);
 
 						match status {
 							TransactionStatus::Ready
@@ -201,22 +209,24 @@ macro_rules! monitor_cmd_for {
 									log::info!(target: LOG_TARGET, "included at {:?}", event);
 								} else {
 									log::error!(target: LOG_TARGET, "no SolutionStored event emitted");
-									break;
+									break
 								}
+								break
 							},
 							TransactionStatus::Retracted(hash) => {
 								log::info!(target: LOG_TARGET, "Retracted at {:?}", hash);
 							},
 							TransactionStatus::Finalized(details) => {
 								log::info!(target: LOG_TARGET, "Finalized at {:?}", details.block_hash());
-								return;
-							},
+								break
+							}
 							_ => {
 								log::warn!(target: LOG_TARGET, "Stopping listen due to other status {:?}", status);
-								return;
+								break
 							},
 						}
 					}
+
 				}
 
 				/// Ensure that now is the signed phase.
@@ -299,6 +309,8 @@ monitor_cmd_for!(westend);
 
 fn kill_main_task_if_critical_err(tx: &tokio::sync::mpsc::UnboundedSender<Error>, err: Error) {
 	use jsonrpsee::core::Error as RpcError;
+
+	log::debug!(target: LOG_TARGET, "closing task: {:?}", err);
 
 	match err {
 		Error::Subxt(SubxtError::InvalidMetadata(e)) => {
