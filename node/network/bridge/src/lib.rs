@@ -1101,7 +1101,14 @@ async fn dispatch_validation_events_to_all<I>(
 			.send_messages(event.focus().map(StatementDistributionMessage::from))
 			.await;
 		sender.send_messages(event.focus().map(BitfieldDistributionMessage::from)).await;
-		sender.send_messages(event.focus().map(ApprovalDistributionMessage::from)).await;
+
+		// Just a test: avoid blocking here, this subsystem is really busy all the time.
+		event
+			.focus()
+			.ok()
+			.map(ApprovalDistributionMessage::from)
+			.and_then(|msg| Some(sender.send_unbounded_message(msg)));
+
 		sender.send_messages(event.focus().map(GossipSupportMessage::from)).await;
 	}
 }
