@@ -111,30 +111,42 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
 		/// Message has been rejected before reaching dispatch.
-		MessageRejected(ChainId, BridgeMessageIdOf<T, I>),
+		MessageRejected { source_chain: ChainId, id: BridgeMessageIdOf<T, I> },
 		/// Message has been rejected by dispatcher because of spec version mismatch.
-		/// Last two arguments are: expected and passed spec version.
-		MessageVersionSpecMismatch(ChainId, BridgeMessageIdOf<T, I>, SpecVersion, SpecVersion),
+		MessageVersionSpecMismatch {
+			source_chain: ChainId,
+			id: BridgeMessageIdOf<T, I>,
+			expected_version: SpecVersion,
+			passed_version: SpecVersion,
+		},
 		/// Message has been rejected by dispatcher because of weight mismatch.
-		/// Last two arguments are: expected and passed call weight.
-		MessageWeightMismatch(ChainId, BridgeMessageIdOf<T, I>, Weight, Weight),
+		MessageWeightMismatch {
+			source_chain: ChainId,
+			id: BridgeMessageIdOf<T, I>,
+			expected_weight: Weight,
+			passed_weight: Weight,
+		},
 		/// Message signature mismatch.
-		MessageSignatureMismatch(ChainId, BridgeMessageIdOf<T, I>),
+		MessageSignatureMismatch { source_chain: ChainId, id: BridgeMessageIdOf<T, I> },
 		/// We have failed to decode Call from the message.
-		MessageCallDecodeFailed(ChainId, BridgeMessageIdOf<T, I>),
+		MessageCallDecodeFailed { source_chain: ChainId, id: BridgeMessageIdOf<T, I> },
 		/// The call from the message has been rejected by the call filter.
-		MessageCallRejected(ChainId, BridgeMessageIdOf<T, I>),
+		MessageCallRejected { source_chain: ChainId, id: BridgeMessageIdOf<T, I> },
 		/// The origin account has failed to pay fee for dispatching the message.
-		MessageDispatchPaymentFailed(
-			ChainId,
-			BridgeMessageIdOf<T, I>,
-			<T as frame_system::Config>::AccountId,
-			Weight,
-		),
+		MessageDispatchPaymentFailed {
+			source_chain: ChainId,
+			id: BridgeMessageIdOf<T, I>,
+			origin_account: <T as frame_system::Config>::AccountId,
+			weight: Weight,
+		},
 		/// Message has been dispatched with given result.
-		MessageDispatched(ChainId, BridgeMessageIdOf<T, I>, DispatchResult),
+		MessageDispatched {
+			source_chain: ChainId,
+			id: BridgeMessageIdOf<T, I>,
+			result: DispatchResult,
+		},
 		/// Phantom member, never used. Needed to handle multiple pallet instances.
-		_Dummy(PhantomData<I>),
+		_Dummy { phantom_member: PhantomData<I> },
 	}
 }
 
@@ -167,7 +179,7 @@ impl<T: Config<I>, I: 'static> MessageDispatch<T::AccountId, T::BridgeMessageId>
 					source_chain,
 					id,
 				);
-				Self::deposit_event(Event::MessageRejected(source_chain, id));
+				Self::deposit_event(Event::MessageRejected { source_chain, id });
 				return MessageDispatchResult {
 					dispatch_result: false,
 					unspent_weight: 0,
@@ -192,12 +204,12 @@ impl<T: Config<I>, I: 'static> MessageDispatch<T::AccountId, T::BridgeMessageId>
 				expected_version,
 				message.spec_version,
 			);
-			Self::deposit_event(Event::MessageVersionSpecMismatch(
+			Self::deposit_event(Event::MessageVersionSpecMismatch {
 				source_chain,
 				id,
 				expected_version,
-				message.spec_version,
-			));
+				passed_version: message.spec_version,
+			});
 			return dispatch_result
 		}
 
@@ -211,7 +223,7 @@ impl<T: Config<I>, I: 'static> MessageDispatch<T::AccountId, T::BridgeMessageId>
 					source_chain,
 					id,
 				);
-				Self::deposit_event(Event::MessageCallDecodeFailed(source_chain, id));
+				Self::deposit_event(Event::MessageCallDecodeFailed { source_chain, id });
 				return dispatch_result
 			},
 		};
@@ -244,7 +256,7 @@ impl<T: Config<I>, I: 'static> MessageDispatch<T::AccountId, T::BridgeMessageId>
 						target_account,
 						target_signature,
 					);
-					Self::deposit_event(Event::MessageSignatureMismatch(source_chain, id));
+					Self::deposit_event(Event::MessageSignatureMismatch { source_chain, id });
 					return dispatch_result
 				}
 
@@ -269,7 +281,7 @@ impl<T: Config<I>, I: 'static> MessageDispatch<T::AccountId, T::BridgeMessageId>
 				id,
 				call,
 			);
-			Self::deposit_event(Event::MessageCallRejected(source_chain, id));
+			Self::deposit_event(Event::MessageCallRejected { source_chain, id });
 			return dispatch_result
 		}
 
@@ -287,12 +299,12 @@ impl<T: Config<I>, I: 'static> MessageDispatch<T::AccountId, T::BridgeMessageId>
 				expected_weight,
 				message.weight,
 			);
-			Self::deposit_event(Event::MessageWeightMismatch(
+			Self::deposit_event(Event::MessageWeightMismatch {
 				source_chain,
 				id,
 				expected_weight,
-				message.weight,
-			));
+				passed_weight: message.weight,
+			});
 			return dispatch_result
 		}
 
@@ -309,12 +321,12 @@ impl<T: Config<I>, I: 'static> MessageDispatch<T::AccountId, T::BridgeMessageId>
 				id,
 				message.weight,
 			);
-			Self::deposit_event(Event::MessageDispatchPaymentFailed(
+			Self::deposit_event(Event::MessageDispatchPaymentFailed {
 				source_chain,
 				id,
 				origin_account,
-				message.weight,
-			));
+				weight: message.weight,
+			});
 			return dispatch_result
 		}
 		dispatch_result.dispatch_fee_paid_during_dispatch = pay_dispatch_fee_at_target_chain;
@@ -339,11 +351,11 @@ impl<T: Config<I>, I: 'static> MessageDispatch<T::AccountId, T::BridgeMessageId>
 			result,
 		);
 
-		Self::deposit_event(Event::MessageDispatched(
+		Self::deposit_event(Event::MessageDispatched {
 			source_chain,
 			id,
-			result.map(drop).map_err(|e| e.error),
-		));
+			result: result.map(drop).map_err(|e| e.error),
+		});
 
 		dispatch_result
 	}
@@ -632,12 +644,12 @@ mod tests {
 				vec![EventRecord {
 					phase: Phase::Initialization,
 					event: Event::Dispatch(
-						call_dispatch::Event::<TestRuntime>::MessageVersionSpecMismatch(
-							SOURCE_CHAIN_ID,
+						call_dispatch::Event::<TestRuntime>::MessageVersionSpecMismatch {
+							source_chain: SOURCE_CHAIN_ID,
 							id,
-							TEST_SPEC_VERSION,
-							BAD_SPEC_VERSION
-						)
+							expected_version: TEST_SPEC_VERSION,
+							passed_version: BAD_SPEC_VERSION
+						}
 					),
 					topics: vec![],
 				}],
@@ -671,12 +683,12 @@ mod tests {
 				vec![EventRecord {
 					phase: Phase::Initialization,
 					event: Event::Dispatch(
-						call_dispatch::Event::<TestRuntime>::MessageWeightMismatch(
-							SOURCE_CHAIN_ID,
+						call_dispatch::Event::<TestRuntime>::MessageWeightMismatch {
+							source_chain: SOURCE_CHAIN_ID,
 							id,
-							call_weight,
-							7,
-						)
+							expected_weight: call_weight,
+							passed_weight: 7,
+						}
 					),
 					topics: vec![],
 				}],
@@ -712,10 +724,10 @@ mod tests {
 				vec![EventRecord {
 					phase: Phase::Initialization,
 					event: Event::Dispatch(
-						call_dispatch::Event::<TestRuntime>::MessageSignatureMismatch(
-							SOURCE_CHAIN_ID,
+						call_dispatch::Event::<TestRuntime>::MessageSignatureMismatch {
+							source_chain: SOURCE_CHAIN_ID,
 							id
-						)
+						}
 					),
 					topics: vec![],
 				}],
@@ -741,10 +753,10 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageRejected(
-						SOURCE_CHAIN_ID,
+					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageRejected {
+						source_chain: SOURCE_CHAIN_ID,
 						id
-					)),
+					}),
 					topics: vec![],
 				}],
 			);
@@ -778,10 +790,10 @@ mod tests {
 				vec![EventRecord {
 					phase: Phase::Initialization,
 					event: Event::Dispatch(
-						call_dispatch::Event::<TestRuntime>::MessageCallDecodeFailed(
-							SOURCE_CHAIN_ID,
+						call_dispatch::Event::<TestRuntime>::MessageCallDecodeFailed {
+							source_chain: SOURCE_CHAIN_ID,
 							id
-						)
+						}
 					),
 					topics: vec![],
 				}],
@@ -816,10 +828,10 @@ mod tests {
 				vec![EventRecord {
 					phase: Phase::Initialization,
 					event: Event::Dispatch(
-						call_dispatch::Event::<TestRuntime>::MessageCallRejected(
-							SOURCE_CHAIN_ID,
+						call_dispatch::Event::<TestRuntime>::MessageCallRejected {
+							source_chain: SOURCE_CHAIN_ID,
 							id
-						)
+						}
 					),
 					topics: vec![],
 				}],
@@ -851,15 +863,17 @@ mod tests {
 				vec![EventRecord {
 					phase: Phase::Initialization,
 					event: Event::Dispatch(
-						call_dispatch::Event::<TestRuntime>::MessageDispatchPaymentFailed(
-							SOURCE_CHAIN_ID,
+						call_dispatch::Event::<TestRuntime>::MessageDispatchPaymentFailed {
+							source_chain: SOURCE_CHAIN_ID,
 							id,
-							AccountIdConverter::convert(derive_account_id::<AccountId>(
+							origin_account: AccountIdConverter::convert(derive_account_id::<
+								AccountId,
+							>(
 								SOURCE_CHAIN_ID,
 								SourceAccount::Root
 							)),
-							TEST_WEIGHT,
-						)
+							weight: TEST_WEIGHT,
+						}
 					),
 					topics: vec![],
 				}],
@@ -892,11 +906,13 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
-						SOURCE_CHAIN_ID,
-						id,
-						Ok(())
-					)),
+					event: Event::Dispatch(
+						call_dispatch::Event::<TestRuntime>::MessageDispatched {
+							source_chain: SOURCE_CHAIN_ID,
+							id,
+							result: Ok(())
+						}
+					),
 					topics: vec![],
 				}],
 			);
@@ -926,11 +942,13 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
-						SOURCE_CHAIN_ID,
-						id,
-						Err(sp_runtime::DispatchError::BadOrigin)
-					)),
+					event: Event::Dispatch(
+						call_dispatch::Event::<TestRuntime>::MessageDispatched {
+							source_chain: SOURCE_CHAIN_ID,
+							id,
+							result: Err(sp_runtime::DispatchError::BadOrigin)
+						}
+					),
 					topics: vec![],
 				}],
 			);
@@ -960,11 +978,13 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
-						SOURCE_CHAIN_ID,
-						id,
-						Ok(())
-					)),
+					event: Event::Dispatch(
+						call_dispatch::Event::<TestRuntime>::MessageDispatched {
+							source_chain: SOURCE_CHAIN_ID,
+							id,
+							result: Ok(())
+						}
+					),
 					topics: vec![],
 				}],
 			);
@@ -994,11 +1014,13 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
-						SOURCE_CHAIN_ID,
-						id,
-						Ok(())
-					)),
+					event: Event::Dispatch(
+						call_dispatch::Event::<TestRuntime>::MessageDispatched {
+							source_chain: SOURCE_CHAIN_ID,
+							id,
+							result: Ok(())
+						}
+					),
 					topics: vec![],
 				}],
 			);
@@ -1028,11 +1050,13 @@ mod tests {
 				System::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageDispatched(
-						SOURCE_CHAIN_ID,
-						id,
-						Ok(())
-					)),
+					event: Event::Dispatch(
+						call_dispatch::Event::<TestRuntime>::MessageDispatched {
+							source_chain: SOURCE_CHAIN_ID,
+							id,
+							result: Ok(())
+						}
+					),
 					topics: vec![],
 				}],
 			);
