@@ -115,14 +115,14 @@ where
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::StateBackend<sp_runtime::traits::HashFor<Block>>,
 {
-	use beefy_gadget_rpc::{BeefyApiServer, BeefyRpcHandler};
+	use beefy_gadget_rpc::{BeefyApiServer, BeefyRpc};
 	use frame_rpc_system::{SystemApiServer, SystemRpc};
 	use pallet_mmr_rpc::{MmrApiServer, MmrRpc};
 	use pallet_transaction_payment_rpc::{TransactionPaymentApiServer, TransactionPaymentRpc};
 	use sc_consensus_babe_rpc::{BabeApiServer, BabeRpc};
 	use sc_finality_grandpa_rpc::{GrandpaApiServer, GrandpaRpc};
-	use sc_sync_state_rpc::{SyncStateRpc, SyncStateRpcApiServer};
-	use substrate_state_trie_migration_rpc::StateMigrationApiServer;
+	use sc_sync_state_rpc::{SyncStateApiServer, SyncStateRpc};
+	use substrate_state_trie_migration_rpc::{StateMigrationApiServer, StateMigrationRpc};
 
 	let mut io = RpcModule::new(());
 	let FullDeps { client, pool, select_chain, chain_spec, deny_unsafe, babe, grandpa, beefy } =
@@ -136,10 +136,7 @@ where
 		finality_provider,
 	} = grandpa;
 
-	io.merge(
-		substrate_state_trie_migration_rpc::MigrationRpc::new(client.clone(), backend, deny_unsafe)
-			.into_rpc(),
-	)?;
+	io.merge(StateMigrationRpc::new(client.clone(), backend, deny_unsafe).into_rpc())?;
 	io.merge(SystemRpc::new(client.clone(), pool.clone(), deny_unsafe).into_rpc())?;
 	io.merge(TransactionPaymentRpc::new(client.clone()).into_rpc())?;
 	io.merge(MmrRpc::new(client.clone()).into_rpc())?;
@@ -170,7 +167,7 @@ where
 	)?;
 
 	io.merge(
-		BeefyRpcHandler::<Block>::new(
+		BeefyRpc::<Block>::new(
 			beefy.beefy_commitment_stream,
 			beefy.beefy_best_block_stream,
 			beefy.subscription_executor,
