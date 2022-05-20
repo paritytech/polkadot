@@ -161,7 +161,7 @@ impl FromStr for SubmissionStrategy {
 			let percent: u32 = s[15..].parse().map_err(|e| format!("{:?}", e))?;
 			Self::ClaimBetterThan(Perbill::from_percent(percent))
 		} else {
-			return Err(s.into())
+			return Err(s.into());
 		};
 		Ok(res)
 	}
@@ -177,9 +177,9 @@ mod test_super {
 			env!("CARGO_PKG_NAME"),
 			"--uri",
 			"hi",
+			"monitor",
 			"--seed-or-path",
 			"//Alice",
-			"monitor",
 			"--listen",
 			"head",
 			"seq-phragmen",
@@ -190,8 +190,8 @@ mod test_super {
 			opt,
 			Opt {
 				uri: "hi".to_string(),
-				seed_or_path: "//Alice".to_string(),
 				command: Command::Monitor(MonitorConfig {
+					seed_or_path: "//Alice".to_string(),
 					listen: "head".to_string(),
 					solver: Solver::SeqPhragmen { iterations: 10 },
 					submission_strategy: SubmissionStrategy::IfLeading,
@@ -206,9 +206,9 @@ mod test_super {
 			env!("CARGO_PKG_NAME"),
 			"--uri",
 			"hi",
+			"dry-run",
 			"--seed-or-path",
 			"//Alice",
-			"dry-run",
 			"phrag-mms",
 		])
 		.unwrap();
@@ -217,8 +217,8 @@ mod test_super {
 			opt,
 			Opt {
 				uri: "hi".to_string(),
-				seed_or_path: "//Alice".to_string(),
 				command: Command::DryRun(DryRunConfig {
+					seed_or_path: "//Alice".to_string(),
 					at: None,
 					solver: Solver::PhragMMS { iterations: 10 },
 					force_snapshot: false,
@@ -233,8 +233,6 @@ mod test_super {
 			env!("CARGO_PKG_NAME"),
 			"--uri",
 			"hi",
-			"--seed-or-path",
-			"//Alice",
 			"emergency-solution",
 			"99",
 			"phrag-mms",
@@ -247,7 +245,6 @@ mod test_super {
 			opt,
 			Opt {
 				uri: "hi".to_string(),
-				seed_or_path: "//Alice".to_string(),
 				command: Command::EmergencySolution(EmergencySolutionConfig {
 					take: Some(99),
 					at: None,
@@ -255,6 +252,13 @@ mod test_super {
 				}),
 			}
 		);
+	}
+
+	#[test]
+	fn cli_info_works() {
+		let opt = Opt::try_parse_from([env!("CARGO_PKG_NAME"), "--uri", "hi", "info"]).unwrap();
+
+		assert_eq!(opt, Opt { uri: "hi".to_string(), command: Command::Info(InfoOpts {}) });
 	}
 
 	#[test]
