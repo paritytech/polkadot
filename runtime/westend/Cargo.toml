@@ -227,6 +227,7 @@ try-runtime = [
 	"pallet-authorship/try-runtime",
 	"pallet-authority-discovery/try-runtime",
 	"pallet-balances/try-runtime",
+	"pallet-bags-list/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"pallet-collective/try-runtime",
 	"pallet-elections-phragmen/try-runtime",
