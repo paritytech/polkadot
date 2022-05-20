@@ -30,6 +30,7 @@
 
 mod dry_run;
 mod emergency_solution;
+mod info;
 mod monitor;
 mod opts;
 mod prelude;
@@ -43,6 +44,7 @@ use crate::opts::*;
 use clap::Parser;
 use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
+use info::*;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use rpc::{RpcApiClient, SharedRpcClient};
@@ -437,7 +439,7 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 async fn main() {
 	fmt().with_env_filter(EnvFilter::from_default_env()).init();
 
-	let Opt { uri, seed_or_path, command } = Opt::parse();
+	let Opt { uri, command } = Opt::parse();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
 
 	let rpc = loop {
@@ -503,26 +505,41 @@ async fn main() {
 		check_versions::<Runtime>(&rpc).await
 	};
 
-	let signer_account = any_runtime! {
-		signer::signer_uri_from_string::<Runtime>(&seed_or_path, &rpc)
-			.await
-			.expect("Provided account is invalid, terminating.")
-	};
-
 	let outcome = any_runtime! {
 		match command {
-			Command::Monitor(cmd) => monitor_cmd(rpc, cmd, signer_account).await
+			Command::Monitor(monitor_config) =>
+			{
+				let signer_account = any_runtime! {
+					signer::signer_uri_from_string::<Runtime>(&monitor_config.seed_or_path , &rpc)
+						.await
+						.expect("Provided account is invalid, terminating.")
+				};
+				monitor_cmd(rpc, monitor_config, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "Monitor error: {:?}", e);
-				}),
-			Command::DryRun(cmd) => dry_run_cmd(rpc, cmd, signer_account).await
+				})},
+			Command::DryRun(dryrun_config) => {
+				let signer_account = any_runtime! {
+					signer::signer_uri_from_string::<Runtime>(&dryrun_config.seed_or_path , &rpc)
+						.await
+						.expect("Provided account is invalid, terminating.")
+				};
+				dry_run_cmd(rpc, dryrun_config, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "DryRun error: {:?}", e);
-				}),
-			Command::EmergencySolution(cmd) => emergency_solution_cmd(rpc, cmd).await
+				})},
+			Command::EmergencySolution(emergency_solution_config) => {
+				emergency_solution_cmd(rpc, emergency_solution_config).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "EmergencySolution error: {:?}", e);
-				}),
+				})},
+			Command::Info(_info_opts) => {
+				let runtime_version: RuntimeVersion = rpc.runtime_version(None).await.expect("runtime_version infallible; qed.");
+				let info = Info::new(runtime_version.spec_name.to_string(), runtime_version.spec_version);
+				let info = serde_json::to_string_pretty(&info).expect("Failed serializing infos");
+				println!("{}", info);
+				Ok(())
+			}
 		}
 	};
 	log::info!(target: LOG_TARGET, "round of execution finished. outcome = {:?}", outcome);

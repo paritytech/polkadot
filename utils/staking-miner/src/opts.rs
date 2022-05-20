@@ -5,7 +5,45 @@ use std::str::FromStr;
 
 #[derive(Debug, Clone, Parser)]
 #[cfg_attr(test, derive(PartialEq))]
+#[clap(author, version, about)]
+pub(crate) struct Opt {
+	/// The `ws` node to connect to.
+	#[clap(long, short, default_value = DEFAULT_URI, env = "URI")]
+	pub uri: String,
+
+	#[clap(subcommand)]
+	pub command: Command,
+}
+
+#[derive(Debug, Clone, Parser)]
+#[cfg_attr(test, derive(PartialEq))]
+pub(crate) enum Command {
+	/// Monitor for the phase being signed, then compute.
+	Monitor(MonitorConfig),
+
+	/// Just compute a solution now, and don't submit it.
+	DryRun(DryRunConfig),
+
+	/// Provide a solution that can be submitted to the chain as an emergency response.
+	EmergencySolution(EmergencySolutionConfig),
+
+	/// Return information about the current version
+	Info(InfoOpts),
+}
+
+#[derive(Debug, Clone, Parser)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct MonitorConfig {
+	/// The path to a file containing the seed of the account. If the file is not found, the seed is
+	/// used as-is.
+	///
+	/// Can also be provided via the `SEED` environment variable.
+	///
+	/// WARNING: Don't use an account with a large stash for this. Based on how the bot is
+	/// configured, it might re-try and lose funds through transaction fees/deposits.
+	#[clap(long, short, env = "SEED")]
+	pub seed_or_path: String,
+
 	/// They type of event to listen to.
 	///
 	/// Typically, finalized is safer and there is no chance of anything going wrong, but it can be
@@ -33,22 +71,17 @@ pub(crate) struct MonitorConfig {
 
 #[derive(Debug, Clone, Parser)]
 #[cfg_attr(test, derive(PartialEq))]
-pub(crate) struct EmergencySolutionConfig {
-	/// The block hash at which scraping happens. If none is provided, the latest head is used.
-	#[clap(long)]
-	pub at: Option<Hash>,
-
-	/// The solver algorithm to use.
-	#[clap(subcommand)]
-	pub solver: Solver,
-
-	/// The number of top backed winners to take. All are taken, if not provided.
-	pub take: Option<usize>,
-}
-
-#[derive(Debug, Clone, Parser)]
-#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct DryRunConfig {
+	/// The path to a file containing the seed of the account. If the file is not found, the seed is
+	/// used as-is.
+	///
+	/// Can also be provided via the `SEED` environment variable.
+	///
+	/// WARNING: Don't use an account with a large stash for this. Based on how the bot is
+	/// configured, it might re-try and lose funds through transaction fees/deposits.
+	#[clap(long, short, env = "SEED")]
+	pub seed_or_path: String,
+
 	/// The block hash at which scraping happens. If none is provided, the latest head is used.
 	#[clap(long)]
 	pub at: Option<Hash>,
@@ -64,25 +97,22 @@ pub(crate) struct DryRunConfig {
 
 #[derive(Debug, Clone, Parser)]
 #[cfg_attr(test, derive(PartialEq))]
-#[clap(author, version, about)]
-pub(crate) struct Opt {
-	/// The `ws` node to connect to.
-	#[clap(long, short, default_value = DEFAULT_URI, env = "URI")]
-	pub uri: String,
+pub(crate) struct EmergencySolutionConfig {
+	/// The block hash at which scraping happens. If none is provided, the latest head is used.
+	#[clap(long)]
+	pub at: Option<Hash>,
 
-	/// The path to a file containing the seed of the account. If the file is not found, the seed is
-	/// used as-is.
-	///
-	/// Can also be provided via the `SEED` environment variable.
-	///
-	/// WARNING: Don't use an account with a large stash for this. Based on how the bot is
-	/// configured, it might re-try and lose funds through transaction fees/deposits.
-	#[clap(long, short, env = "SEED")]
-	pub seed_or_path: String,
-
+	/// The solver algorithm to use.
 	#[clap(subcommand)]
-	pub command: Command,
+	pub solver: Solver,
+
+	/// The number of top backed winners to take. All are taken, if not provided.
+	pub take: Option<usize>,
 }
+
+#[derive(Debug, Clone, Parser)]
+#[cfg_attr(test, derive(PartialEq))]
+pub(crate) struct InfoOpts {}
 
 /// Submission strategy to use.
 #[derive(Debug, Copy, Clone)]
@@ -95,17 +125,6 @@ pub enum SubmissionStrategy {
 	// Submit if we are leading, or if the solution that's leading is more that the given `Perbill`
 	// better than us. This helps detect obviously fake solutions and still combat them.
 	ClaimBetterThan(Perbill),
-}
-
-#[derive(Debug, Clone, Parser)]
-#[cfg_attr(test, derive(PartialEq))]
-pub(crate) enum Command {
-	/// Monitor for the phase being signed, then compute.
-	Monitor(MonitorConfig),
-	/// Just compute a solution now, and don't submit it.
-	DryRun(DryRunConfig),
-	/// Provide a solution that can be submitted to the chain as an emergency response.
-	EmergencySolution(EmergencySolutionConfig),
 }
 
 #[derive(Debug, Clone, Parser)]
