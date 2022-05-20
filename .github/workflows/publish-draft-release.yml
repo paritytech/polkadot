@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Cache target dir
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: "${{ github.workspace }}/runtime/${{ matrix.runtime }}/target"
           key: srtool-target-${{ matrix.runtime }}-${{ github.sha }}
