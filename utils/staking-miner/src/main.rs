@@ -385,7 +385,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 		voters.into_iter().for_each(|(who, stake, targets)| {
 			if targets.is_empty() {
 				println!("target = {:?}", (who, stake, targets));
-				return
+				return;
 			}
 			let share: u128 = (stake as u128) / (targets.len() as u128);
 			for target in targets {
@@ -496,7 +496,7 @@ async fn main() {
 		},
 		_ => {
 			eprintln!("unexpected chain: {:?}", chain);
-			return
+			return;
 		},
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
@@ -528,11 +528,11 @@ async fn main() {
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "DryRun error: {:?}", e);
 				})},
-			Command::EmergencySolution(emergency_solution_config) => {
+			Command::EmergencySolution(emergency_solution_config) =>
 				emergency_solution_cmd(rpc, emergency_solution_config).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "EmergencySolution error: {:?}", e);
-				})},
+				}),
 			Command::Info(_info_opts) => {
 				let runtime_version: RuntimeVersion = rpc.runtime_version(None).await.expect("runtime_version infallible; qed.");
 				let info = Info::new(runtime_version.spec_name.to_string(), runtime_version.spec_version);
