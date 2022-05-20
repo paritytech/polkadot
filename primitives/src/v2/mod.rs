@@ -1627,7 +1627,7 @@ impl<K: From<usize>, V: Clone> TypeVec<K, V> {
 impl<K: From<usize>, V: Clone> From<Vec<V>> for TypeVec<K, V> {
 	fn from(vec: Vec<V>) -> Self {
 		let mut type_vec: TypeVec<K, V> = TypeVec::new();
-		for value in vec.into_iter() {
+		for value in vec {
 			type_vec.0.push(value)
 		}
 		type_vec
