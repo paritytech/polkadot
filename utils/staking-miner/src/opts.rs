@@ -8,7 +8,7 @@ use std::str::FromStr;
 #[clap(author, version, about)]
 pub(crate) struct Opt {
 	/// The `ws` node to connect to.
-	#[clap(long, short, default_value = DEFAULT_URI, env = "URI")]
+	#[clap(long, short, default_value = DEFAULT_URI, env = "URI", global = true)]
 	pub uri: String,
 
 	#[clap(subcommand)]
