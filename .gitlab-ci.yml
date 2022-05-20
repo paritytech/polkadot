@@ -287,14 +287,16 @@ build-malus:
         --github-api-token "$GITHUB_PR_TOKEN"
         --extra-dependencies "$EXTRA_DEPENDENCIES"
 
-check-dependent-cumulus:
-  <<: *check-dependent-project
-  variables:
-    DEPENDENT_REPO: cumulus
-    EXTRA_DEPENDENCIES: substrate
-    COMPANION_OVERRIDES: |
-      polkadot: release-v*
-      cumulus: polkadot-v*
+# TODO: re-enable after https://github.com/bkchr/diener/issues/15 is dealt with
+# Related to https://github.com/paritytech/pipeline-scripts/issues/45
+#check-dependent-cumulus:
+#  <<: *check-dependent-project
+#  variables:
+#    DEPENDENT_REPO: cumulus
+#    EXTRA_DEPENDENCIES: substrate
+#    COMPANION_OVERRIDES: |
+#      polkadot: release-v*
+#      cumulus: polkadot-v*
 
 test-node-metrics:
   stage:                           stage2
