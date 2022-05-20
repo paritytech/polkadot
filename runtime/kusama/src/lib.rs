@@ -1628,6 +1628,7 @@ pub type Executive = frame_executive::Executive<
 		RenameBagsListToVoterList,
 		pallet_bags_list::migrations::AddScore<Runtime>,
 		InitiatePoolConfigs,
+		pallet_nomination_pools::migration::v1::MigrateToV1<Runtime>,
 	),
 >;
 /// The payload being signed in the transactions.
