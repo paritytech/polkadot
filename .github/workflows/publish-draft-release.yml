@@ -82,7 +82,7 @@ jobs:
           ruby-version: 3.0.0
 
       - name: Download srtool json output
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
 
       - name: Prepare tooling
         run: |
@@ -152,7 +152,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
