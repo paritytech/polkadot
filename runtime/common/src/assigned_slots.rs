@@ -154,9 +154,9 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A para was assigned a permanent parachain slot
-		PermanentSlotAssigned(ParaId),
+		PermanentSlotAssigned { para_id: ParaId },
 		/// A para was assigned a temporary parachain slot
-		TemporarySlotAssigned(ParaId),
+		TemporarySlotAssigned { para_id: ParaId },
 	}
 
 	#[pallet::error]
@@ -250,7 +250,7 @@ pub mod pallet {
 			);
 			<PermanentSlotCount<T>>::mutate(|count| count.saturating_inc());
 
-			Self::deposit_event(Event::<T>::PermanentSlotAssigned(id));
+			Self::deposit_event(Event::<T>::PermanentSlotAssigned { para_id: id });
 			Ok(())
 		}
 
@@ -334,7 +334,7 @@ pub mod pallet {
 			TemporarySlots::<T>::insert(id, temp_slot);
 			<TemporarySlotCount<T>>::mutate(|count| count.saturating_inc());
 
-			Self::deposit_event(Event::<T>::TemporarySlotAssigned(id));
+			Self::deposit_event(Event::<T>::TemporarySlotAssigned { para_id: id });
 
 			Ok(())
 		}
