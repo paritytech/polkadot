@@ -149,6 +149,7 @@ impl Queue {
 			while self.workers.is_overloaded() {
 				let event = self.mux.select_next_some().await;
 				handle_mux(&mut self, event).await;
+				purge_dead(&self.metrics, &mut self.workers).await;
 			}
 
 			futures::select! {
