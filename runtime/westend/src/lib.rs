@@ -1161,7 +1161,11 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(RenameBagsListToVoterList, pallet_bags_list::migrations::AddScore<Runtime>),
+	(
+		RenameBagsListToVoterList,
+		pallet_bags_list::migrations::AddScore<Runtime>,
+		pallet_nomination_pools::migration::v1::MigrateToV1<Runtime>,
+	),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
