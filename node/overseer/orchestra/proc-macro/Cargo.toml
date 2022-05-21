@@ -1,9 +1,10 @@
 [package]
 name = "orchestra-proc-macro"
-version = "0.9.22"
+version = "0.0.1"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Generate an orchestra of subsystems from a single annotated struct definition."
+repository = "https://github.com/paritytech/polkadot"
 license = "MIT OR Apache-2.0"
 
 [package.metadata.docs.rs]

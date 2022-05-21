@@ -1,9 +1,10 @@
 [package]
-name = "metered-channel"
-version = "0.9.22"
+name = "prioritized-metered-channel"
+version = "0.1.1"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
-description = "Channels with attached Meters"
+description = "Channels with attached Meters, prioritization coming soon™"
+repository = "https://github.com/paritytech/polkadot.git"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
