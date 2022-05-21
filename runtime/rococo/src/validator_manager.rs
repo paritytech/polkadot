@@ -47,9 +47,9 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// New validators were added to the set.
-		ValidatorsRegistered(Vec<T::ValidatorId>),
+		ValidatorsRegistered { validators: Vec<T::ValidatorId> },
 		/// Validators were removed from the set.
-		ValidatorsDeregistered(Vec<T::ValidatorId>),
+		ValidatorsDeregistered { validators: Vec<T::ValidatorId> },
 	}
 
 	/// Validators that should be retired, because their Parachain was deregistered.
@@ -75,7 +75,7 @@ pub mod pallet {
 
 			validators.clone().into_iter().for_each(|v| ValidatorsToAdd::<T>::append(v));
 
-			Self::deposit_event(Event::ValidatorsRegistered(validators));
+			Self::deposit_event(Event::ValidatorsRegistered { validators });
 			Ok(())
 		}
 
@@ -91,7 +91,7 @@ pub mod pallet {
 
 			validators.clone().into_iter().for_each(|v| ValidatorsToRetire::<T>::append(v));
 
-			Self::deposit_event(Event::ValidatorsDeregistered(validators));
+			Self::deposit_event(Event::ValidatorsDeregistered { validators });
 			Ok(())
 		}
 	}
