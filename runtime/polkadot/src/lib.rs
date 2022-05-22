@@ -182,7 +182,8 @@ impl Contains<Call> for BaseFilter {
 			Call::Auctions(_) |
 			Call::Crowdloan(_) |
 			Call::VoterList(_) |
-			Call::XcmPallet(_) => true,
+			Call::XcmPallet(_) |
+			Call::NominationPools(_) => true,
 			// All pallets are allowed, but exhaustive match is defensive
 			// in the case of adding new pallets.
 		}
@@ -1177,7 +1178,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
 				Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
-				Call::VoterList(..)
+				Call::VoterList(..) |
+				Call::NominationPools(..)
 			),
 			ProxyType::Governance => matches!(
 				c,
@@ -1386,6 +1388,52 @@ impl auctions::Config for Runtime {
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
+parameter_types! {
+	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
+	pub const MinPointsToBalance: u32 = 10;
+}
+
+impl pallet_nomination_pools::Config for Runtime {
+	type Event = Event;
+	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
+	type Currency = Balances;
+	type BalanceToU256 = runtime_common::BalanceToU256;
+	type U256ToBalance = runtime_common::U256ToBalance;
+	type StakingInterface = Staking;
+	type PostUnbondingPoolsWindow = frame_support::traits::ConstU32<4>;
+	type MaxMetadataLen = frame_support::traits::ConstU32<256>;
+	// we use the same number of allowed unlocking chunks as with staking.
+	type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
+	type PalletId = PoolsPalletId;
+	type MinPointsToBalance = MinPointsToBalance;
+}
+
+pub struct InitiatePoolConfigs;
+impl frame_support::traits::OnRuntimeUpgrade for InitiatePoolConfigs {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		// we use one as an indicator if this has already been set.
+		if pallet_nomination_pools::MaxPools::<Runtime>::get().is_none() {
+			// 1 DOT to join a pool.
+			pallet_nomination_pools::MinJoinBond::<Runtime>::put(1 * UNITS);
+			// 100 DOT to create a pool.
+			pallet_nomination_pools::MinCreateBond::<Runtime>::put(100 * UNITS);
+
+			// 64 initial pools: only for initial safety: can be set to infinity when needed.
+			pallet_nomination_pools::MaxPools::<Runtime>::put(64);
+			// 4096 members per pool: only for initial safety: can be set to infinity when needed.
+			pallet_nomination_pools::MaxPoolMembersPerPool::<Runtime>::put(4 * 1024);
+			// 128k total pool members: only for initial safety: can be set to infinity when needed.
+			pallet_nomination_pools::MaxPoolMembers::<Runtime>::put(128 * 1024);
+
+			log::info!(target: "runtime::polkadot", "pools config initiated 🎉");
+			<Runtime as frame_system::Config>::DbWeight::get().reads_writes(1, 5)
+		} else {
+			log::info!(target: "runtime::polkadot", "pools config already initiated 😏");
+			<Runtime as frame_system::Config>::DbWeight::get().reads(1)
+		}
+	}
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1454,6 +1502,9 @@ construct_runtime! {
 
 		// Provides a semi-sorted list of nominators for staking.
 		VoterList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
+
+		// nomination pools: extension to staking.
+		NominationPools: pallet_nomination_pools::{Pallet, Call, Storage, Event<T>, Config<T>} = 39,
 
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
@@ -1570,6 +1621,7 @@ mod benches {
 		[pallet_indices, Indices]
 		[pallet_membership, TechnicalMembership]
 		[pallet_multisig, Multisig]
+		[pallet_nomination_pools, NominationPoolsBench::<Runtime>]
 		[pallet_offences, OffencesBench::<Runtime>]
 		[pallet_preimage, Preimage]
 		[pallet_proxy, Proxy]
@@ -1950,6 +2002,7 @@ sp_api::impl_runtime_apis! {
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
+			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 
@@ -1972,6 +2025,7 @@ sp_api::impl_runtime_apis! {
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
+			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 
@@ -1980,6 +2034,7 @@ sp_api::impl_runtime_apis! {
 			impl pallet_election_provider_support_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl frame_benchmarking::baseline::Config for Runtime {}
+			impl pallet_nomination_pools_benchmarking::Config for Runtime {}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number

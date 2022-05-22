@@ -240,6 +240,7 @@ try-runtime = [
 	"pallet-membership/try-runtime",
 	"pallet-multisig/try-runtime",
 	"pallet-nicks/try-runtime",
+	"pallet-nomination-pools/try-runtime",
 	"pallet-offences/try-runtime",
 	"pallet-preimage/try-runtime",
 	"pallet-proxy/try-runtime",
