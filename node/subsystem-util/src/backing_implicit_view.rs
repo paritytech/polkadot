@@ -16,6 +16,7 @@
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{
+	errors::ChainApiError,
 	messages::{ChainApiMessage, ProspectiveParachainsMessage},
 	SubsystemSender,
 };
@@ -23,12 +24,15 @@ use polkadot_primitives::vstaging::{BlockNumber, Hash, Id as ParaId};
 
 use std::collections::HashMap;
 
+// Always aim to retain 1 block before the active leaves.
+const MINIMUM_RETAIN_LENGTH: BlockNumber = 2;
+
 /// Handles the implicit view of the relay chain derived from the immediate view, which
 /// is composed of active leaves, and the minimum relay-parents allowed for
 /// candidates of various parachains at those leaves.
 #[derive(Default, Clone)]
 pub struct View {
-	leaves: HashMap<Hash, ActiveLeafMinAncestor>,
+	leaves: HashMap<Hash, ActiveLeafPruningInfo>,
 	block_info_storage: HashMap<Hash, BlockInfo>,
 }
 
@@ -40,7 +44,7 @@ struct AllowedRelayParents {
 	// witnessed as active leaves.
 	minimum_relay_parents: HashMap<ParaId, BlockNumber>,
 	// Ancestry, in descending order, starting from the block hash itself down
-	// to and including the `minimum_relay_ancestor`.
+	// to and including the minimum of `minimum_relay_parentes`.
 	allowed_relay_parents_contiguous: Vec<Hash>,
 }
 
@@ -64,10 +68,10 @@ impl AllowedRelayParents {
 }
 
 #[derive(Clone)]
-struct ActiveLeafMinAncestor {
-	// The minimum of all minimum relay parents for all paras
-	// in `minimum_relay_parents` for this block.
-	minimum_relay_ancestor: BlockNumber,
+struct ActiveLeafPruningInfo {
+	// The mimimum block in the same branch of the relay-chain that should be
+	// preserved.
+	retain_minimum: BlockNumber,
 }
 
 #[derive(Clone)]
@@ -91,8 +95,12 @@ impl View {
 	/// about blocks. This will request the minimum relay parents from the
 	/// Prospective Parachains subsystem for each leaf and will load headers in the ancestry of each
 	/// leaf in the view as needed.
-	pub async fn update<Sender>(&mut self, sender: &mut Sender, new_view: Vec<Hash>)
-	where
+	pub async fn update<Sender>(
+		&mut self,
+		sender: &mut Sender,
+		new_view: Vec<Hash>,
+		observe_err: impl Fn(Hash, FetchError),
+	) where
 		Sender: SubsystemSender<ChainApiMessage>,
 		Sender: SubsystemSender<ProspectiveParachainsMessage>,
 	{
@@ -115,8 +123,16 @@ impl View {
 			)
 			.await;
 
-			if let Some(x) = res {
-				self.leaves.insert(leaf_hash, x);
+			match res {
+				Ok(fetched) => {
+					let retain_minimum = std::cmp::max(
+						fetched.minimum_ancestor_number,
+						fetched.leaf_number.saturating_sub(MINIMUM_RETAIN_LENGTH),
+					);
+
+					self.leaves.insert(leaf_hash, ActiveLeafPruningInfo { retain_minimum });
+				},
+				Err(e) => observe_err(leaf_hash, e),
 			}
 		}
 
@@ -126,7 +142,7 @@ impl View {
 		// Pruning by block number does leave behind orphaned forks slightly longer
 		// but the memory overhead is negligible.
 		{
-			let minimum = self.leaves.values().map(|l| l.minimum_relay_ancestor).min();
+			let minimum = self.leaves.values().map(|l| l.retain_minimum).min();
 
 			self.block_info_storage
 				.retain(|_, i| minimum.map_or(false, |m| i.block_number < m));
@@ -160,11 +176,40 @@ impl View {
 	}
 }
 
+/// Errors when fetching a leaf and associated ancestry.
+#[derive(Debug)]
+pub enum FetchError {
+	/// The prospective parachains subsystem was uavailable.
+	ProspectiveParachainsUnavailable,
+	/// A block header was unavailable.
+	BlockHeaderUnavailable(Hash, BlockHeaderUnavailableReason),
+	/// A block header was unavailable due to a chain API error.
+	ChainApiError(Hash, ChainApiError),
+	/// The chain API subsystem was unavailable.
+	ChainApiUnavailable,
+}
+
+/// Reasons a block header might have been unavailable.
+#[derive(Debug)]
+pub enum BlockHeaderUnavailableReason {
+	/// Block header simply unknown.
+	Unknown,
+	/// Internal Chain API error.
+	Internal(ChainApiError),
+	/// The subsystem was unavailable.
+	SubsystemUnavailable,
+}
+
+struct FetchSummary {
+	minimum_ancestor_number: BlockNumber,
+	leaf_number: BlockNumber,
+}
+
 async fn fetch_fresh_leaf_and_insert_ancestry<Sender>(
 	leaf_hash: Hash,
 	block_info_storage: &mut HashMap<Hash, BlockInfo>,
 	sender: &mut Sender,
-) -> Option<ActiveLeafMinAncestor>
+) -> Result<FetchSummary, FetchError>
 where
 	Sender: SubsystemSender<ChainApiMessage>,
 	Sender: SubsystemSender<ProspectiveParachainsMessage>,
@@ -177,7 +222,7 @@ where
 
 		match rx.await {
 			Ok(m) => m,
-			Err(_) => return None,
+			Err(_) => return Err(FetchError::ProspectiveParachainsUnavailable),
 		}
 	};
 
@@ -187,19 +232,32 @@ where
 
 		match rx.await {
 			Ok(Ok(Some(header))) => header,
-			Ok(Ok(None)) => return None,
-			Ok(Err(_)) => return None,
-			Err(_) => return None,
+			Ok(Ok(None)) =>
+				return Err(FetchError::BlockHeaderUnavailable(
+					leaf_hash,
+					BlockHeaderUnavailableReason::Unknown,
+				)),
+			Ok(Err(e)) =>
+				return Err(FetchError::BlockHeaderUnavailable(
+					leaf_hash,
+					BlockHeaderUnavailableReason::Internal(e),
+				)),
+			Err(_) =>
+				return Err(FetchError::BlockHeaderUnavailable(
+					leaf_hash,
+					BlockHeaderUnavailableReason::SubsystemUnavailable,
+				)),
 		}
 	};
 
 	let min_min = min_relay_parents_raw.iter().map(|x| x.1).min().unwrap_or(leaf_header.number);
+	let expected_ancestry_len = (leaf_header.number.saturating_sub(min_min) as usize) + 1;
 
 	let ancestry = if leaf_header.number > 0 {
 		let mut next_ancestor_number = leaf_header.number - 1;
 		let mut next_ancestor_hash = leaf_header.parent_hash;
-		let mut ancestry =
-			Vec::with_capacity((leaf_header.number.saturating_sub(min_min) as usize) + 1);
+
+		let mut ancestry = Vec::with_capacity(expected_ancestry_len);
 		ancestry.push(leaf_hash);
 
 		// Ensure all ancestors up to and including `min_min` are in the
@@ -215,9 +273,21 @@ where
 
 				let header = match rx.await {
 					Ok(Ok(Some(header))) => header,
-					Ok(Ok(None)) => break,
-					Ok(Err(_)) => break,
-					Err(_) => break,
+					Ok(Ok(None)) =>
+						return Err(FetchError::BlockHeaderUnavailable(
+							next_ancestor_hash,
+							BlockHeaderUnavailableReason::Unknown,
+						)),
+					Ok(Err(e)) =>
+						return Err(FetchError::BlockHeaderUnavailable(
+							next_ancestor_hash,
+							BlockHeaderUnavailableReason::Internal(e),
+						)),
+					Err(_) =>
+						return Err(FetchError::BlockHeaderUnavailable(
+							next_ancestor_hash,
+							BlockHeaderUnavailableReason::SubsystemUnavailable,
+						)),
 				};
 
 				block_info_storage.insert(
@@ -246,6 +316,9 @@ where
 		Vec::new()
 	};
 
+	let fetched_ancestry =
+		FetchSummary { minimum_ancestor_number: min_min, leaf_number: leaf_header.number };
+
 	let allowed_relay_parents = AllowedRelayParents {
 		minimum_relay_parents: min_relay_parents_raw.iter().cloned().collect(),
 		allowed_relay_parents_contiguous: ancestry,
@@ -259,5 +332,5 @@ where
 
 	block_info_storage.insert(leaf_hash, leaf_block_info);
 
-	Some(ActiveLeafMinAncestor { minimum_relay_ancestor: min_min })
+	Ok(fetched_ancestry)
 }
