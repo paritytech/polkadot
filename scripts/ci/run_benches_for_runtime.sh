@@ -38,7 +38,6 @@ for PALLET in "${PALLETS[@]}"; do
     --extrinsic="*" \
     --execution=wasm \
     --wasm-execution=compiled \
-    --heap-pages=4096 \
     --header=./file_header.txt \
     --output="./runtime/${runtime}/src/weights/${PALLET/::/_}.rs" 2>&1
   )
