@@ -334,3 +334,16 @@ where
 
 	Ok(fetched_ancestry)
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	// TODO [now]: test update into fresh view, and that it constructs `AllowedRelayParents` correctly
+
+	// TODO [now]: test update that reuses some existing block info
+
+	// TODO [now]: test pruning
+
+	// TODO [now]: test that former leaves still have `AllowedRelayParents`
+}
