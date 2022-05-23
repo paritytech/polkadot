@@ -17,7 +17,7 @@
 //! Dispute coordinator subsystem in initialized state (after first active leaf is received).
 
 use std::{
-	collections::{BTreeMap, HashSet},
+	collections::{BTreeMap, HashSet, btree_map::Entry},
 	sync::Arc,
 };
 
@@ -787,14 +787,14 @@ impl Initialized {
 		// Potential spam:
 		if !is_confirmed && !fresh_invalid_statement_issuers.is_empty() {
 			let mut free_spam_slots_available = true;
-			// Only allow import if all validators voting invalid, have not exceeded
+			// Only allow import if there exist validators voting invalid, who have not exceeded
 			// their spam slots:
 			for index in fresh_invalid_statement_issuers {
 				// Disputes can only be triggered via an invalidity stating vote, thus we only
 				// need to increase spam slots on invalid votes. (If we did not, we would also
 				// increase spam slots for backing validators for example - as validators have to
 				// provide some opposing vote for dispute-distribution).
-				free_spam_slots_available &=
+				free_spam_slots_available |=
 					self.spam_slots.add_unconfirmed(session, candidate_hash, index);
 			}
 			// Only validity stating votes or validator had free spam slot?
@@ -835,7 +835,7 @@ impl Initialized {
 			} else {
 				self.metrics.on_queued_best_effort_participation();
 			}
-			// Participate whenever the imported vote was local & we did not had no cast
+			// Participate whenever the imported vote was local & we have not cast a vote
 			// previously:
 			let r = self
 				.participation
@@ -848,18 +848,22 @@ impl Initialized {
 			log_error(r)?;
 		}
 
-		let prev_status = recent_disputes.get(&(session, candidate_hash)).map(|x| x.clone());
-
-		let status = if is_disputed {
-			let status = recent_disputes.entry((session, candidate_hash)).or_insert_with(|| {
-				gum::info!(
-					target: LOG_TARGET,
-					?candidate_hash,
-					session,
-					"New dispute initiated for candidate.",
-				);
-				DisputeStatus::active()
-			});
+		let (prev_status, status) = if is_disputed {
+			let (prev_status, status) = match recent_disputes.entry((session, candidate_hash)) {
+				Entry::Vacant(vacant) => {
+					gum::info!(
+						target: LOG_TARGET,
+						?candidate_hash,
+						session,
+						"New dispute initiated for candidate.",
+						);
+				
+					(None, vacant.insert(DisputeStatus::active()))
+				}
+				Entry::Occupied(occupied) => {
+					(Some(*occupied.get()), occupied.into_mut())
+				}
+			};
 
 			if is_confirmed {
 				*status = status.confirm();
@@ -876,9 +880,9 @@ impl Initialized {
 				*status = status.concluded_against(now);
 			}
 
-			Some(*status)
+			(prev_status, Some(*status))
 		} else {
-			None
+			(None, None)
 		};
 
 		if status != prev_status {
