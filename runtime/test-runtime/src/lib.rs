@@ -321,6 +321,8 @@ parameter_types! {
 	pub const MaxAuthorities: u32 = 100_000;
 	// Conservative value, unbounded to keep backward compatibility.
 	pub const MaxWinnersPerPage: u32 = u32::max_value();
+	/// We take the top 12500 nominators as electing voters..
+	pub const MaxElectingVoters: u32 = 12_500;
 }
 
 pub struct OnChainSeqPhragmen;
