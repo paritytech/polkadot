@@ -607,7 +607,7 @@ struct ImportUndo {
 struct DisputeStateImporter<BlockNumber> {
 	state: DisputeState<BlockNumber>,
 	now: BlockNumber,
-	new_participants: bitvec::vec::BitVec<BitOrderLsb0, u8>,
+	new_participants: bitvec::vec::BitVec<u8, BitOrderLsb0>,
 	pre_flags: DisputeStateFlags,
 }
 
@@ -965,7 +965,7 @@ impl<T: Config> Pallet<T> {
 		};
 
 		// Check and import all votes.
-		let summary = {
+		let mut summary = {
 			let mut importer = DisputeStateImporter::new(dispute_state, now);
 			for (i, (statement, validator_index, signature)) in set.statements.iter().enumerate() {
 				// assure the validator index and is present in the session info
@@ -1095,26 +1095,24 @@ impl<T: Config> Pallet<T> {
 				let mut vote_against_count = 0_u64;
 				// Since this is the first set of statements for the dispute,
 				// it's sufficient to count the votes in the statement set after they
-				set.statements.iter().for_each(|(statement, v_i)| {
-					match statement {
-						// `summary.new_flags` contains the spam free votes.
-						// Note that this does not distinguish between pro or cons votes,
-						// since allowing both of them, even if the spam threshold would be reached
-						// is a good thing.
-						// Overflow is no concern, disputes are limited by weight.
-						DisputeStatement::Valid(_) =>
-							if Some(true) == summary.new_participants.get(v_i) {
-								vote_for_count += 1;
-							},
-						DisputeStatement::Invalid(_) => {
-							if Some(true) == summary.new_participants.get(v_i) {
-								vote_against_count += 1;
-							}
-						},
+				set.statements.iter().for_each(|(statement, v_i, _signature)| {
+					if Some(true) ==
+						summary.new_participants.get(v_i.0 as usize).map(|b| b.as_ref().clone())
+					{
+						match statement {
+							// `summary.new_flags` contains the spam free votes.
+							// Note that this does not distinguish between pro or con votes,
+							// since allowing both of them, even if the spam threshold would be reached
+							// is a good thing.
+							// Overflow of the counters is no concern, disputes are limited by weight.
+							DisputeStatement::Valid(_) => vote_for_count += 1,
+							DisputeStatement::Invalid(_) => vote_against_count += 1,
+						}
 					}
 				});
 				if vote_for_count.is_zero() || vote_against_count.is_zero() {
-					// It wasn't one-sided before the spam filters, but now it is.
+					// It wasn't one-sided before the spam filters, but now it is,
+					// so we need to be thorough and not import that dispute.
 					return StatementSetFilter::RemoveAll
 				}
 			}
