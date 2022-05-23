@@ -687,7 +687,7 @@ impl<T: Config> Pallet<T> {
 			// Return the deposit of the sender, but only if it is not the para being offboarded.
 			if !outgoing.contains(&req_id.sender) {
 				T::Currency::unreserve(
-					&req_id.sender.into_account(),
+					&req_id.sender.into_account_truncating(),
 					req_data.sender_deposit.unique_saturated_into(),
 				);
 			}
@@ -700,7 +700,7 @@ impl<T: Config> Pallet<T> {
 			if req_data.confirmed {
 				if !outgoing.contains(&req_id.recipient) {
 					T::Currency::unreserve(
-						&req_id.recipient.into_account(),
+						&req_id.recipient.into_account_truncating(),
 						config.hrmp_recipient_deposit.unique_saturated_into(),
 					);
 				}
@@ -817,11 +817,11 @@ impl<T: Config> Pallet<T> {
 			<Self as Store>::HrmpChannels::take(channel_id)
 		{
 			T::Currency::unreserve(
-				&channel_id.sender.into_account(),
+				&channel_id.sender.into_account_truncating(),
 				sender_deposit.unique_saturated_into(),
 			);
 			T::Currency::unreserve(
-				&channel_id.recipient.into_account(),
+				&channel_id.recipient.into_account_truncating(),
 				recipient_deposit.unique_saturated_into(),
 			);
 		}
@@ -1137,7 +1137,7 @@ impl<T: Config> Pallet<T> {
 		);
 
 		T::Currency::reserve(
-			&origin.into_account(),
+			&origin.into_account_truncating(),
 			config.hrmp_sender_deposit.unique_saturated_into(),
 		)?;
 
@@ -1210,7 +1210,7 @@ impl<T: Config> Pallet<T> {
 		);
 
 		T::Currency::reserve(
-			&origin.into_account(),
+			&origin.into_account_truncating(),
 			config.hrmp_recipient_deposit.unique_saturated_into(),
 		)?;
 
@@ -1264,7 +1264,7 @@ impl<T: Config> Pallet<T> {
 		// Unreserve the sender's deposit. The recipient could not have left their deposit because
 		// we ensured that the request is not confirmed.
 		T::Currency::unreserve(
-			&channel_id.sender.into_account(),
+			&channel_id.sender.into_account_truncating(),
 			open_channel_req.sender_deposit.unique_saturated_into(),
 		);
 

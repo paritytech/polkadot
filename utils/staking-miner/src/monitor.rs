@@ -139,12 +139,6 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				maybe_rp = subscription.next() => {
 					match maybe_rp {
 						Some(Ok(r)) => r,
-						// Custom `jsonrpsee` message sent by the server if the subscription was closed on the server side.
-						Some(Err(RpcError::SubscriptionClosed(reason))) => {
-							log::warn!(target: LOG_TARGET, "subscription to `subscribeNewHeads/subscribeFinalizedHeads` terminated: {:?}. Retrying..", reason);
-							subscription = heads_subscription().await?;
-							continue;
-						}
 						Some(Err(e)) => {
 							log::error!(target: LOG_TARGET, "subscription failed to decode Header {:?}, this is bug please file an issue", e);
 							return Err(e.into());
@@ -312,15 +306,6 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			while let Some(rp) = tx_subscription.next().await {
 				let status_update = match rp {
 					Ok(r) => r,
-					// Custom `jsonrpsee` message sent by the server if the subscription was closed on the server side.
-					Err(RpcError::SubscriptionClosed(reason)) => {
-						log::warn!(
-							target: LOG_TARGET,
-							"tx subscription closed by the server: {:?}; skip block: {}",
-							reason, at.number
-						);
-						return;
-					},
 					Err(e) => {
 						log::error!(target: LOG_TARGET, "subscription failed to decode TransactionStatus {:?}, this is a bug please file an issue", e);
 						let _ = tx.send(e.into());

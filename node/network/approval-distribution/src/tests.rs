@@ -21,7 +21,7 @@ use polkadot_node_network_protocol::{our_view, view, ObservedRole};
 use polkadot_node_primitives::approval::{
 	AssignmentCertKind, VRFOutput, VRFProof, RELAY_VRF_MODULO_CONTEXT,
 };
-use polkadot_node_subsystem::messages::{AllMessages, ApprovalCheckError};
+use polkadot_node_subsystem::messages::{network_bridge_event, AllMessages, ApprovalCheckError};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
 use polkadot_primitives::v2::{AuthorityDiscoveryId, BlakeTwo256, HashT};
@@ -63,7 +63,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 			async move {
 				let mut overseer = test_fut.await;
 				overseer
-					.send(FromOverseer::Signal(OverseerSignal::Conclude))
+					.send(FromOrchestra::Signal(OverseerSignal::Conclude))
 					.timeout(TIMEOUT)
 					.await
 					.expect("Conclude send timeout");
@@ -80,7 +80,7 @@ const TIMEOUT: Duration = Duration::from_millis(200);
 async fn overseer_send(overseer: &mut VirtualOverseer, msg: ApprovalDistributionMessage) {
 	gum::trace!(msg = ?msg, "Sending message");
 	overseer
-		.send(FromOverseer::Communication { msg })
+		.send(FromOrchestra::Communication { msg })
 		.timeout(TIMEOUT)
 		.await
 		.expect("msg send timeout");
@@ -90,7 +90,7 @@ async fn overseer_signal_block_finalized(overseer: &mut VirtualOverseer, number:
 	gum::trace!(?number, "Sending a finalized signal");
 	// we don't care about the block hash
 	overseer
-		.send(FromOverseer::Signal(OverseerSignal::BlockFinalized(Hash::zero(), number)))
+		.send(FromOrchestra::Signal(OverseerSignal::BlockFinalized(Hash::zero(), number)))
 		.timeout(TIMEOUT)
 		.await
 		.expect("signal send timeout");

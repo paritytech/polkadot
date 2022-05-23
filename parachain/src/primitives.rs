@@ -65,7 +65,7 @@ impl ValidationCode {
 	}
 }
 
-/// Unit type wrapper around [`Hash`] that represents a validation code hash.
+/// Unit type wrapper around [`type@Hash`] that represents a validation code hash.
 ///
 /// This type is produced by [`ValidationCode::hash`].
 ///
@@ -271,59 +271,6 @@ impl From<u32> for Sibling {
 impl IsSystem for Sibling {
 	fn is_system(&self) -> bool {
 		IsSystem::is_system(&self.0)
-	}
-}
-
-/// This type can be converted into and possibly from an [`AccountId`] (which itself is generic).
-pub trait AccountIdConversion<AccountId>: Sized {
-	/// Convert into an account ID. This is infallible.
-	fn into_account(&self) -> AccountId;
-
-	/// Try to convert an account ID into this type. Might not succeed.
-	fn try_from_account(a: &AccountId) -> Option<Self>;
-}
-
-// TODO: Remove all of this, move sp-runtime::AccountIdConversion to own crate and and use that.
-// #360
-struct TrailingZeroInput<'a>(&'a [u8]);
-impl<'a> parity_scale_codec::Input for TrailingZeroInput<'a> {
-	fn remaining_len(&mut self) -> Result<Option<usize>, parity_scale_codec::Error> {
-		Ok(None)
-	}
-
-	fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
-		let len = into.len().min(self.0.len());
-		into[..len].copy_from_slice(&self.0[..len]);
-		for i in &mut into[len..] {
-			*i = 0;
-		}
-		self.0 = &self.0[len..];
-		Ok(())
-	}
-}
-
-/// Format is b"para" ++ encode(parachain ID) ++ 00.... where 00... is indefinite trailing
-/// zeroes to fill [`AccountId`].
-impl<T: Encode + Decode> AccountIdConversion<T> for Id {
-	fn into_account(&self) -> T {
-		(b"para", self)
-			.using_encoded(|b| T::decode(&mut TrailingZeroInput(b)))
-			.expect("infinite length input; no invalid inputs for type; qed")
-	}
-
-	fn try_from_account(x: &T) -> Option<Self> {
-		x.using_encoded(|d| {
-			if &d[0..4] != b"para" {
-				return None
-			}
-			let mut cursor = &d[4..];
-			let result = Decode::decode(&mut cursor).ok()?;
-			if cursor.iter().all(|x| *x == 0) {
-				Some(result)
-			} else {
-				None
-			}
-		})
 	}
 }
 

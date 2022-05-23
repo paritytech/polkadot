@@ -33,7 +33,7 @@ use polkadot_node_subsystem::{
 		AllMessages, DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest,
 		ValidationFailed,
 	},
-	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
+	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SpawnGlue,
 };
 use polkadot_node_subsystem_test_helpers::{
 	make_subsystem_context, TestSubsystemContext, TestSubsystemContextHandle,
@@ -45,24 +45,23 @@ use polkadot_primitives::v2::{
 type VirtualOverseer = TestSubsystemContextHandle<DisputeCoordinatorMessage>;
 
 pub fn make_our_subsystem_context<S>(
-	spawn: S,
+	spawner: S,
 ) -> (
-	TestSubsystemContext<DisputeCoordinatorMessage, S>,
+	TestSubsystemContext<DisputeCoordinatorMessage, SpawnGlue<S>>,
 	TestSubsystemContextHandle<DisputeCoordinatorMessage>,
 ) {
-	make_subsystem_context(spawn)
+	make_subsystem_context(spawner)
 }
 
-async fn participate(
-	ctx: &mut impl SubsystemContext,
-	participation: &mut Participation,
-) -> Result<()> {
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
+async fn participate<Context>(ctx: &mut Context, participation: &mut Participation) -> Result<()> {
 	let commitments = CandidateCommitments::default();
 	participate_with_commitments_hash(ctx, participation, commitments.hash()).await
 }
 
-async fn participate_with_commitments_hash(
-	ctx: &mut impl SubsystemContext,
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
+async fn participate_with_commitments_hash<Context>(
+	ctx: &mut Context,
 	participation: &mut Participation,
 	commitments_hash: Hash,
 ) -> Result<()> {
@@ -81,8 +80,9 @@ async fn participate_with_commitments_hash(
 		.await
 }
 
-async fn activate_leaf(
-	ctx: &mut impl SubsystemContext,
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
+async fn activate_leaf<Context>(
+	ctx: &mut Context,
 	participation: &mut Participation,
 	block_number: BlockNumber,
 ) -> FatalResult<()> {

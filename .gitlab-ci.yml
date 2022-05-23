@@ -33,9 +33,6 @@ variables:
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
   ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.2.25"
-  VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
-  VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
-  VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
   PIPELINE_SCRIPTS_TAG:            "v0.4"
 
 default:
@@ -115,49 +112,6 @@ default:
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
-
-#### Vault secrets
-.vault-secrets:                    &vault-secrets
-  secrets:
-    AWS_ACCESS_KEY_ID:
-      vault:                       cicd/gitlab/parity/polkadot/AWS_ACCESS_KEY_ID@kv
-      file:                        false
-    AWS_SECRET_ACCESS_KEY:
-      vault:                       cicd/gitlab/parity/polkadot/AWS_SECRET_ACCESS_KEY@kv
-      file:                        false
-    GITHUB_PR_TOKEN:
-      vault:                       cicd/gitlab/parity/GITHUB_PR_TOKEN@kv
-      file:                        false
-    GITHUB_TOKEN:
-      vault:                       cicd/gitlab/parity/GITHUB_TOKEN@kv
-      file:                        false
-    GITHUB_USER:
-      vault:                       cicd/gitlab/parity/polkadot/GITHUB_USER@kv
-      file:                        false
-    GITHUB_RELEASE_TOKEN:
-      vault:                       cicd/gitlab/parity/polkadot/GITHUB_RELEASE_TOKEN@kv
-      file:                        false
-    GITHUB_SSH_PRIV_KEY:
-      vault:                       cicd/gitlab/parity/polkadot/GITHUB_SSH_PRIV_KEY@kv
-      file:                        false
-    MATRIX_ACCESS_TOKEN:
-      vault:                       cicd/gitlab/parity/polkadot/MATRIX_ACCESS_TOKEN@kv
-      file:                        false
-    MATRIX_ROOM_ID:
-      vault:                       cicd/gitlab/parity/polkadot/MATRIX_ROOM_ID@kv
-      file:                        false
-    PARITYPR_USER:
-      vault:                       cicd/gitlab/parity/polkadot/PARITYPR_USER@kv
-      file:                        false
-    PARITYPR_PASS:
-      vault:                       cicd/gitlab/parity/polkadot/PARITYPR_PASS@kv
-      file:                        false
-    PIPELINE_TOKEN:
-      vault:                       cicd/gitlab/parity/polkadot/PIPELINE_TOKEN@kv
-      file:                        false
-    REL_MAN_ROOM_ID:
-      vault:                       cicd/gitlab/parity/polkadot/REL_MAN_ROOM_ID@kv
-      file:                        false
 
 .build-push-image:                 &build-push-image
   <<:                              *kubernetes-env
@@ -240,9 +194,7 @@ build-linux-stable:
     - sha256sum polkadot | tee polkadot.sha256
     - shasum -c polkadot.sha256
     - popd
-    - EXTRATAG="$(./artifacts/polkadot --version |
-        sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')"
-    - EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)"
+    - EXTRATAG="${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}"
     - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
     - echo -n ${VERSION} > ./artifacts/VERSION
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
@@ -340,6 +292,9 @@ check-dependent-cumulus:
   variables:
     DEPENDENT_REPO: cumulus
     EXTRA_DEPENDENCIES: substrate
+    COMPANION_OVERRIDES: |
+      polkadot: release-v*
+      cumulus: polkadot-v*
 
 test-node-metrics:
   stage:                           stage2
@@ -475,7 +430,6 @@ publish-s3-release:                &publish-s3
     - job:                         build-linux-stable
       artifacts:                   true
   <<:                              *kubernetes-env
-  <<:                              *vault-secrets
   image:                           paritytech/awscli:latest
   variables:
     GIT_STRATEGY:                  none
@@ -560,7 +514,8 @@ build-rustdoc:
     - ./crate-docs/
   script:
     # FIXME: it fails with `RUSTDOCFLAGS="-Dwarnings"` and `--all-features`
-    - time cargo doc --workspace --verbose
+    # FIXME: return to stable when https://github.com/rust-lang/rust/issues/96937 gets into stable
+    - time cargo +nightly doc --workspace --verbose
     - rm -f ./target/doc/.lock
     - mv ./target/doc ./crate-docs
     # FIXME: remove me after CI image gets nonroot
@@ -762,7 +717,6 @@ zombienet-tests-malus-dispute-valid:
 publish-rustdoc:
   stage:                           stage4
   <<:                              *kubernetes-env
-  <<:                              *vault-secrets
   image:                           paritytech/tools:latest
   variables:
     GIT_DEPTH:                     100

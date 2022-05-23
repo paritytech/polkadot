@@ -138,6 +138,12 @@ pub struct RunCmd {
 	/// telemetry, if telemetry is enabled.
 	#[clap(long)]
 	pub no_hardware_benchmarks: bool,
+
+	/// Overseer message capacity override.
+	///
+	/// **Dangerous!** Do not touch unless explicitly adviced to.
+	#[clap(long)]
+	pub overseer_channel_capacity_override: Option<usize>,
 }
 
 #[allow(missing_docs)]

@@ -401,7 +401,10 @@ pub mod pallet {
 				PendingMessages::<T, I>::insert(sent_message.nonce, swap_hash);
 
 				// finally - emit the event
-				Self::deposit_event(Event::SwapStarted(swap_hash, sent_message.nonce));
+				Self::deposit_event(Event::SwapStarted {
+					swap_hash,
+					message_nonce: sent_message.nonce
+				});
 
 				sp_runtime::TransactionOutcome::Commit(Ok(sent_message.weight))
 			})?;
@@ -448,7 +451,7 @@ pub mod pallet {
 				None => fail!(Error::<T, I>::SwapIsInactive),
 			}
 
-			complete_claim::<T, I>(swap, swap_hash, origin_account, Event::SwapClaimed(swap_hash))
+			complete_claim::<T, I>(swap, swap_hash, origin_account, Event::SwapClaimed { swap_hash })
 		}
 
 		/// Return previously reserved `source_balance_at_this_chain` back to the
@@ -483,7 +486,7 @@ pub mod pallet {
 				None => fail!(Error::<T, I>::SwapIsInactive),
 			}
 
-			complete_claim::<T, I>(swap, swap_hash, origin_account, Event::SwapCanceled(swap_hash))
+			complete_claim::<T, I>(swap, swap_hash, origin_account, Event::SwapCanceled { swap_hash })
 		}
 	}
 
@@ -491,13 +494,11 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
 		/// Tokens swap has been started and message has been sent to the bridged message.
-		///
-		/// The payload is the swap hash and the transfer message nonce.
-		SwapStarted(H256, MessageNonce),
+		SwapStarted { swap_hash: H256, message_nonce: MessageNonce },
 		/// Token swap has been claimed.
-		SwapClaimed(H256),
+		SwapClaimed { swap_hash: H256 },
 		/// Token swap has been canceled.
-		SwapCanceled(H256),
+		SwapCanceled { swap_hash: H256 },
 	}
 
 	#[pallet::error]
@@ -646,8 +647,8 @@ pub mod pallet {
 				swap,
 				swap_hash,
 				match event {
-					Event::SwapClaimed(_) => "claimed",
-					Event::SwapCanceled(_) => "canceled",
+					Event::SwapClaimed { swap_hash: _ } => "claimed",
+					Event::SwapCanceled { swap_hash: _ } => "canceled",
 					_ => "<unknown>",
 				},
 			);
@@ -870,10 +871,10 @@ mod tests {
 			);
 			assert!(
 				frame_system::Pallet::<TestRuntime>::events().iter().any(|e| e.event ==
-					crate::mock::Event::TokenSwap(crate::Event::SwapStarted(
+					crate::mock::Event::TokenSwap(crate::Event::SwapStarted {
 						swap_hash,
-						MESSAGE_NONCE,
-					))),
+						message_nonce: MESSAGE_NONCE,
+					})),
 				"Missing SwapStarted event: {:?}",
 				frame_system::Pallet::<TestRuntime>::events(),
 			);
@@ -1013,7 +1014,7 @@ mod tests {
 			);
 			assert!(
 				frame_system::Pallet::<TestRuntime>::events().iter().any(|e| e.event ==
-					crate::mock::Event::TokenSwap(crate::Event::SwapClaimed(swap_hash,))),
+					crate::mock::Event::TokenSwap(crate::Event::SwapClaimed { swap_hash })),
 				"Missing SwapClaimed event: {:?}",
 				frame_system::Pallet::<TestRuntime>::events(),
 			);
@@ -1129,7 +1130,7 @@ mod tests {
 			);
 			assert!(
 				frame_system::Pallet::<TestRuntime>::events().iter().any(|e| e.event ==
-					crate::mock::Event::TokenSwap(crate::Event::SwapCanceled(swap_hash,))),
+					crate::mock::Event::TokenSwap(crate::Event::SwapCanceled { swap_hash })),
 				"Missing SwapCanceled event: {:?}",
 				frame_system::Pallet::<TestRuntime>::events(),
 			);

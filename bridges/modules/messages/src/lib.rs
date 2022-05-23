@@ -266,7 +266,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_owner_or_root::<T, I>(origin)?;
 			parameter.save();
-			Self::deposit_event(Event::ParameterUpdated(parameter));
+			Self::deposit_event(Event::ParameterUpdated { parameter });
 			Ok(())
 		}
 
@@ -631,7 +631,10 @@ pub mod pallet {
 
 				// emit 'delivered' event
 				let received_range = confirmed_messages.begin..=confirmed_messages.end;
-				Self::deposit_event(Event::MessagesDelivered(lane_id, confirmed_messages));
+				Self::deposit_event(Event::MessagesDelivered {
+					lane_id,
+					messages: confirmed_messages,
+				});
 
 				// if some new messages have been confirmed, reward relayers
 				let relayer_fund_account =
@@ -663,11 +666,11 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config<I>, I: 'static = ()> {
 		/// Pallet parameter has been updated.
-		ParameterUpdated(T::Parameter),
+		ParameterUpdated { parameter: T::Parameter },
 		/// Message has been accepted and is waiting to be delivered.
-		MessageAccepted(LaneId, MessageNonce),
+		MessageAccepted { lane_id: LaneId, nonce: MessageNonce },
 		/// Messages in the inclusive range have been delivered to the bridged chain.
-		MessagesDelivered(LaneId, DeliveredMessages),
+		MessagesDelivered { lane_id: LaneId, messages: DeliveredMessages },
 	}
 
 	#[pallet::error]
@@ -928,7 +931,7 @@ fn send_message<T: Config<I>, I: 'static>(
 		encoded_payload_len,
 	);
 
-	Pallet::<T, I>::deposit_event(Event::MessageAccepted(lane_id, nonce));
+	Pallet::<T, I>::deposit_event(Event::MessageAccepted { lane_id, nonce });
 
 	Ok(SendMessageArtifacts { nonce, weight: Weight::from_computation(actual_weight) })
 }
@@ -1154,7 +1157,10 @@ mod tests {
 			System::<TestRuntime>::events(),
 			vec![EventRecord {
 				phase: Phase::Initialization,
-				event: TestEvent::Messages(Event::MessageAccepted(TEST_LANE_ID, message_nonce)),
+				event: TestEvent::Messages(Event::MessageAccepted {
+					lane_id: TEST_LANE_ID,
+					nonce: message_nonce,
+				}),
 				topics: vec![],
 			}],
 		);
@@ -1197,10 +1203,10 @@ mod tests {
 			System::<TestRuntime>::events(),
 			vec![EventRecord {
 				phase: Phase::Initialization,
-				event: TestEvent::Messages(Event::MessagesDelivered(
-					TEST_LANE_ID,
-					DeliveredMessages::new(1, true),
-				)),
+				event: TestEvent::Messages(Event::MessagesDelivered {
+					lane_id: TEST_LANE_ID,
+					messages: DeliveredMessages::new(1, true),
+				}),
 				topics: vec![],
 			}],
 		);
@@ -1301,7 +1307,7 @@ mod tests {
 				System::<TestRuntime>::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: TestEvent::Messages(Event::ParameterUpdated(parameter)),
+					event: TestEvent::Messages(Event::ParameterUpdated { parameter }),
 					topics: vec![],
 				}],
 			);
@@ -1325,7 +1331,7 @@ mod tests {
 				System::<TestRuntime>::events(),
 				vec![EventRecord {
 					phase: Phase::Initialization,
-					event: TestEvent::Messages(Event::ParameterUpdated(parameter)),
+					event: TestEvent::Messages(Event::ParameterUpdated { parameter }),
 					topics: vec![],
 				}],
 			);
