@@ -4325,23 +4325,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "metered-channel"
-version = "0.9.22"
-dependencies = [
- "assert_matches",
- "coarsetime",
- "crossbeam-queue",
- "derive_more",
- "env_logger 0.9.0",
- "futures 0.3.21",
- "futures-timer",
- "log",
- "nanorand",
- "thiserror",
- "tracing",
-]
-
-[[package]]
 name = "mick-jaeger"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4827,15 +4810,15 @@ dependencies = [
 
 [[package]]
 name = "orchestra"
-version = "0.9.22"
+version = "0.0.1"
 dependencies = [
  "async-trait",
  "dyn-clonable",
  "futures 0.3.21",
  "futures-timer",
- "metered-channel",
  "orchestra-proc-macro",
  "pin-project 1.0.10",
+ "prioritized-metered-channel",
  "rustversion",
  "thiserror",
  "tracing",
@@ -4844,7 +4827,7 @@ dependencies = [
 
 [[package]]
 name = "orchestra-proc-macro"
-version = "0.9.22"
+version = "0.0.1"
 dependencies = [
  "assert_matches",
  "expander 0.0.6",
@@ -6825,11 +6808,11 @@ dependencies = [
  "futures-timer",
  "hyper",
  "log",
- "metered-channel",
  "nix 0.24.1",
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-test-service",
+ "prioritized-metered-channel",
  "prometheus-parse",
  "sc-cli",
  "sc-client-api",
@@ -6947,7 +6930,6 @@ dependencies = [
  "lazy_static",
  "log",
  "lru 0.7.5",
- "metered-channel",
  "parity-db",
  "parity-scale-codec",
  "parity-util-mem",
@@ -6962,6 +6944,7 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
+ "prioritized-metered-channel",
  "rand 0.8.5",
  "sp-application-crypto",
  "sp-core",
@@ -6980,7 +6963,6 @@ dependencies = [
  "futures 0.3.21",
  "futures-timer",
  "lru 0.7.5",
- "metered-channel",
  "orchestra",
  "parity-util-mem",
  "parking_lot 0.12.0",
@@ -6990,6 +6972,7 @@ dependencies = [
  "polkadot-node-subsystem-types",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
+ "prioritized-metered-channel",
  "sc-client-api",
  "sp-api",
  "sp-core",
@@ -7764,6 +7747,23 @@ dependencies = [
  "impl-serde",
  "scale-info",
  "uint",
+]
+
+[[package]]
+name = "prioritized-metered-channel"
+version = "0.2.0"
+dependencies = [
+ "assert_matches",
+ "coarsetime",
+ "crossbeam-queue",
+ "derive_more",
+ "env_logger 0.9.0",
+ "futures 0.3.21",
+ "futures-timer",
+ "log",
+ "nanorand",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]
