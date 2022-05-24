@@ -39,7 +39,7 @@ use crate::{
 	gen::Delay,
 	HeadSupportsParachains,
 };
-use metered_channel as metered;
+use metered;
 
 use assert_matches::assert_matches;
 use sp_core::crypto::Pair as _;
