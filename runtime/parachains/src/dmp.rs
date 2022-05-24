@@ -116,7 +116,7 @@ pub mod pallet {
 
 	/// The downward messages addressed for a certain para.
 	#[pallet::storage]
-	pub(crate) type DownwardMessageQueues<T: Config> =
+	pub(crate) type DownwardMessageQueueFragments<T: Config> =
 		StorageMap<_, Twox64Concat, QueueFragmentId, QueueFragment<T>, ValueQuery>;
 
 	/// A mapping that stores the downward message queue MQC head for each para.
@@ -179,7 +179,10 @@ impl<T: Config> Pallet<T> {
 	/// Remove all relevant storage items for an outgoing parachain.
 	fn clean_dmp_after_outgoing(outgoing_para: &ParaId) {
 		for index in 0..u8::MAX {
-			<Self as Store>::DownwardMessageQueues::remove(QueueFragmentId(*outgoing_para, index));
+			<Self as Store>::DownwardMessageQueueFragments::remove(QueueFragmentId(
+				*outgoing_para,
+				index,
+			));
 		}
 		<Self as Store>::DownwardMessageQueueHeads::remove(outgoing_para);
 	}
@@ -213,7 +216,7 @@ impl<T: Config> Pallet<T> {
 			Self::update_tail(&para, tail);
 		}
 
-		let tail_fragment_len = <Self as Store>::DownwardMessageQueues::decode_len(
+		let tail_fragment_len = <Self as Store>::DownwardMessageQueueFragments::decode_len(
 			QueueFragmentId(para, (tail - Wrapping(1)).0),
 		)
 		.unwrap_or(0)
@@ -242,7 +245,7 @@ impl<T: Config> Pallet<T> {
 		});
 
 		// Insert message in the tail queue fragment.
-		<Self as Store>::DownwardMessageQueues::mutate(
+		<Self as Store>::DownwardMessageQueueFragments::mutate(
 			QueueFragmentId(para, (tail - Wrapping(1)).0),
 			|v| {
 				v.push(inbound);
@@ -281,17 +284,20 @@ impl<T: Config> Pallet<T> {
 
 		// Prune all processed messages in multiple fragments in the ring buffer.
 		while messages_to_prune > 0 && head != tail {
-			<Self as Store>::DownwardMessageQueues::mutate(QueueFragmentId(para, head.0), |q| {
-				if messages_to_prune > q.len() {
-					messages_to_prune = messages_to_prune.saturating_sub(q.len());
-					q.clear();
-					// Advance head.
-					head += 1;
-				} else {
-					*q = q.split_off(messages_to_prune);
-					messages_to_prune = 0;
-				}
-			});
+			<Self as Store>::DownwardMessageQueueFragments::mutate(
+				QueueFragmentId(para, head.0),
+				|q| {
+					if messages_to_prune > q.len() {
+						messages_to_prune = messages_to_prune.saturating_sub(q.len());
+						q.clear();
+						// Advance head.
+						head += 1;
+					} else {
+						*q = q.split_off(messages_to_prune);
+						messages_to_prune = 0;
+					}
+				},
+			);
 			total_weight += T::DbWeight::get().reads_writes(1, 1);
 		}
 
@@ -315,10 +321,11 @@ impl<T: Config> Pallet<T> {
 		let mut length = 0;
 
 		while head != tail {
-			length +=
-				<Self as Store>::DownwardMessageQueues::decode_len(QueueFragmentId(para, head.0))
-					.unwrap_or(0)
-					.saturated_into::<u32>();
+			length += <Self as Store>::DownwardMessageQueueFragments::decode_len(QueueFragmentId(
+				para, head.0,
+			))
+			.unwrap_or(0)
+			.saturated_into::<u32>();
 			head += 1;
 		}
 
@@ -338,7 +345,7 @@ impl<T: Config> Pallet<T> {
 		while head != tail &&
 			result.len() <= (MAX_FRAGMENTS_PER_QUERY * QUEUE_FRAGMENT_SIZE) as usize
 		{
-			result.extend(<Self as Store>::DownwardMessageQueues::get(QueueFragmentId(
+			result.extend(<Self as Store>::DownwardMessageQueueFragments::get(QueueFragmentId(
 				recipient, head.0,
 			)));
 			// Advance to next fragment.
