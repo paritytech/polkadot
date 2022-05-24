@@ -599,7 +599,7 @@ pub mod target {
 				message.data.payload.map_err(drop),
 				|dispatch_origin, dispatch_weight| {
 					let unadjusted_weight_fee =
-						ThisRuntime::WeightToFee::wight_to_fee(&dispatch_weight);
+						ThisRuntime::WeightToFee::weight_to_fee(&dispatch_weight);
 					let fee_multiplier =
 						pallet_transaction_payment::Pallet::<ThisRuntime>::next_fee_multiplier();
 					let adjusted_weight_fee =

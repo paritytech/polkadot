@@ -103,7 +103,7 @@ pub(crate) mod tests {
 		// for simplicity - add extra weight for base tx fee + fee that is paid for the tx size +
 		// adjusted fee
 		let single_source_header_submit_tx_weight = single_source_header_submit_call_weight * 3 / 2;
-		let single_source_header_tx_cost = W::wight_to_fee(&single_source_header_submit_tx_weight);
+		let single_source_header_tx_cost = W::weight_to_fee(&single_source_header_submit_tx_weight);
 		single_source_header_tx_cost * B::from(expected_source_headers_per_day)
 	}
 
