@@ -336,7 +336,7 @@ impl<T: Config> Pallet<T> {
 		let mut result = Vec::new();
 
 		while head != tail &&
-			result.len() < (MAX_FRAGMENTS_PER_QUERY * QUEUE_FRAGMENT_SIZE) as usize
+			result.len() <= (MAX_FRAGMENTS_PER_QUERY * QUEUE_FRAGMENT_SIZE) as usize
 		{
 			result.extend(<Self as Store>::DownwardMessageQueues::get(QueueFragmentId(
 				recipient, head.0,
@@ -344,6 +344,9 @@ impl<T: Config> Pallet<T> {
 			// Advance to next fragment.
 			head += 1;
 		}
+
+		// Clamp result as the simple logic above just accumulates all messages from fragments.
+		let _ = result.split_off((MAX_FRAGMENTS_PER_QUERY * QUEUE_FRAGMENT_SIZE) as usize);
 
 		result
 	}
