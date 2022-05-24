@@ -73,9 +73,9 @@ fn clean_dmp_works() {
 		let outgoing_paras = vec![a, b];
 		Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 
-		assert!(<Dmp as Store>::DownwardMessageQueues::get(&a).is_empty());
-		assert!(<Dmp as Store>::DownwardMessageQueues::get(&b).is_empty());
-		assert!(!<Dmp as Store>::DownwardMessageQueues::get(&c).is_empty());
+		assert!(<Dmp as Store>::DownwardMessageQueues::get(QueueFragmentId(a, 0)).is_empty());
+		assert!(<Dmp as Store>::DownwardMessageQueues::get(QueueFragmentId(b, 0)).is_empty());
+		assert!(!<Dmp as Store>::DownwardMessageQueues::get(QueueFragmentId(c, 0)).is_empty());
 	});
 }
 
