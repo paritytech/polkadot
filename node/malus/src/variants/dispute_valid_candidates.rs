@@ -27,10 +27,12 @@ use polkadot_cli::{
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
 		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
-		ProvideRuntimeApi, SpawnNamed,
+		ProvideRuntimeApi,
 	},
 	RunCmd,
 };
+use polkadot_node_subsystem::SpawnGlue;
+use sp_core::traits::SpawnNamed;
 
 // Filter wrapping related types.
 use super::common::{FakeCandidateValidation, FakeCandidateValidationError};
@@ -73,7 +75,7 @@ impl OverseerGen for DisputeValidCandidates {
 		&self,
 		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
-	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
+	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
@@ -83,7 +85,7 @@ impl OverseerGen for DisputeValidCandidates {
 		let validation_filter = ReplaceValidationResult::new(
 			self.opts.fake_validation,
 			self.opts.fake_validation_error,
-			spawner.clone(),
+			SpawnGlue(spawner.clone()),
 		);
 
 		prepared_overseer_builder(args)?

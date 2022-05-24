@@ -168,7 +168,7 @@ const TIMEOUT: Duration = Duration::from_millis(200);
 async fn overseer_send(overseer: &mut VirtualOverseer, msg: CollatorProtocolMessage) {
 	gum::trace!("Sending message:\n{:?}", &msg);
 	overseer
-		.send(FromOverseer::Communication { msg })
+		.send(FromOrchestra::Communication { msg })
 		.timeout(TIMEOUT)
 		.await
 		.expect(&format!("{:?} is enough for sending messages.", TIMEOUT));
@@ -194,7 +194,7 @@ async fn overseer_recv_with_timeout(
 
 async fn overseer_signal(overseer: &mut VirtualOverseer, signal: OverseerSignal) {
 	overseer
-		.send(FromOverseer::Signal(signal))
+		.send(FromOrchestra::Signal(signal))
 		.timeout(TIMEOUT)
 		.await
 		.expect(&format!("{:?} is more than enough for sending signals.", TIMEOUT));

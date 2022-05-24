@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-subsystem-util"
-version = "0.9.19"
+version = "0.9.22"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Subsystem traits and message definitions"
@@ -26,7 +26,7 @@ polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-overseer = { path = "../overseer" }
-metered-channel = { path = "../metered-channel" }
+metered = { package = "prioritized-metered-channel", path = "../metered-channel" , "version" = "0.2.0" }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }

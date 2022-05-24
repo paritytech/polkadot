@@ -28,7 +28,7 @@ use polkadot_node_subsystem_types::messages::CandidateValidationMessage;
 use polkadot_overseer::{
 	self as overseer,
 	dummy::dummy_overseer_builder,
-	gen::{FromOverseer, SpawnedSubsystem},
+	gen::{FromOrchestra, SpawnedSubsystem},
 	HeadSupportsParachains, SubsystemError,
 };
 use polkadot_primitives::v2::{CandidateReceipt, Hash};
@@ -50,7 +50,7 @@ impl Subsystem1 {
 		'louy: loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
-					if let FromOverseer::Communication { msg } = msg {
+					if let FromOrchestra::Communication { msg } = msg {
 						gum::info!("msg {:?}", msg);
 					}
 					continue 'louy

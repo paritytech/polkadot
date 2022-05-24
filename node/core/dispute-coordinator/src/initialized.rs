@@ -34,7 +34,7 @@ use polkadot_node_subsystem::{
 		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		ImportStatementsResult,
 	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
 };
 use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
@@ -220,8 +220,8 @@ impl Initialized {
 						default_confirm
 					},
 					MuxedMessage::Subsystem(msg) => match msg {
-						FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-						FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+						FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+						FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 							self.process_active_leaves_update(
 								ctx,
 								&mut overlay_db,
@@ -231,11 +231,11 @@ impl Initialized {
 							.await?;
 							default_confirm
 						},
-						FromOverseer::Signal(OverseerSignal::BlockFinalized(_, n)) => {
+						FromOrchestra::Signal(OverseerSignal::BlockFinalized(_, n)) => {
 							self.scraper.process_finalized_block(&n);
 							default_confirm
 						},
-						FromOverseer::Communication { msg } =>
+						FromOrchestra::Communication { msg } =>
 							self.handle_incoming(ctx, &mut overlay_db, msg, clock.now()).await?,
 					},
 				};
@@ -1044,7 +1044,7 @@ impl Initialized {
 /// Messages to be handled in this subsystem.
 enum MuxedMessage {
 	/// Messages from other subsystems.
-	Subsystem(FromOverseer<DisputeCoordinatorMessage>),
+	Subsystem(FromOrchestra<DisputeCoordinatorMessage>),
 	/// Messages from participation workers.
 	Participation(participation::WorkerMessage),
 }
