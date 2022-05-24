@@ -45,7 +45,7 @@ use polkadot_primitives::v2::{
 	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
 	PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
 	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+	ValidatorId, ValidatorIndex, ValidatorSignature, SigningContext, ApprovalVote,
 };
 use polkadot_statement_table::v2::Misbehavior;
 use std::{
@@ -230,6 +230,16 @@ impl BoundToRelayParent for CollatorProtocolMessage {
 /// properly initialized for some reason.
 #[derive(Debug)]
 pub enum DisputeCoordinatorMessage {
+	ImportBackingStatement {
+		/// The backing statement to import into the dispute coordinator.
+		statement: SignedFullStatement,
+		/// Context used for signing the statement.
+		session: SessionIndex,
+	},
+	ImportApprovalVote {
+		vote: ApprovalVote,
+		session: SessionIndex,
+	},
 	/// Import statements by validators about a candidate.
 	///
 	/// The subsystem will silently discard ancient statements or sets of only dispute-specific statements for
