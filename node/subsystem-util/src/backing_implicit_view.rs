@@ -91,49 +91,58 @@ struct BlockInfo {
 }
 
 impl View {
-	/// Update the view to a new view, preserving any previous still-relevant information
-	/// about blocks. This will request the minimum relay parents from the
+	/// Activate a leaf in the view.
+	/// This will request the minimum relay parents from the
 	/// Prospective Parachains subsystem for each leaf and will load headers in the ancestry of each
-	/// leaf in the view as needed.
-	pub async fn update<Sender>(
+	/// leaf in the view as needed. These are the 'implicit ancestors' of the leaf.
+	///
+	/// To maximize reuse of outdated leaves, it's best to activate new leaves before
+	/// deactivating old ones.
+	///
+	/// This returns a list of para-ids which are relevant to the leaf,
+	/// and the allowed relay parents for these paras under this leaf can be
+	/// queried with [`known_allowed_relay_parents_under`].
+	///
+	/// No-op for known leaves.
+	pub async fn activate_leaf<Sender>(
 		&mut self,
 		sender: &mut Sender,
-		new_view: Vec<Hash>,
-		observe_err: impl Fn(Hash, FetchError),
-	) where
+		leaf_hash: Hash,
+	) -> Result<Vec<ParaId>, FetchError>
+	where
 		Sender: SubsystemSender<ChainApiMessage>,
 		Sender: SubsystemSender<ProspectiveParachainsMessage>,
 	{
-		// Remove all leaves not present in the new view.
-		self.leaves.retain(|prev, _| new_view.contains(prev));
+		if self.leaves.contains_key(&leaf_hash) {
+			return Err(FetchError::AlreadyKnown)
+		}
 
-		let fresh: Vec<Hash> = {
-			new_view
-				.iter()
-				.filter(|head| !self.leaves.contains_key(head))
-				.cloned()
-				.collect()
-		};
+		let res = fetch_fresh_leaf_and_insert_ancestry(
+			leaf_hash,
+			&mut self.block_info_storage,
+			&mut *sender,
+		)
+		.await;
 
-		for leaf_hash in fresh {
-			let res = fetch_fresh_leaf_and_insert_ancestry(
-				leaf_hash,
-				&mut self.block_info_storage,
-				&mut *sender,
-			)
-			.await;
+		match res {
+			Ok(fetched) => {
+				let retain_minimum = std::cmp::max(
+					fetched.minimum_ancestor_number,
+					fetched.leaf_number.saturating_sub(MINIMUM_RETAIN_LENGTH),
+				);
 
-			match res {
-				Ok(fetched) => {
-					let retain_minimum = std::cmp::max(
-						fetched.minimum_ancestor_number,
-						fetched.leaf_number.saturating_sub(MINIMUM_RETAIN_LENGTH),
-					);
+				self.leaves.insert(leaf_hash, ActiveLeafPruningInfo { retain_minimum });
 
-					self.leaves.insert(leaf_hash, ActiveLeafPruningInfo { retain_minimum });
-				},
-				Err(e) => observe_err(leaf_hash, e),
-			}
+				Ok(fetched.relevant_paras)
+			},
+			Err(e) => Err(e),
+		}
+	}
+
+	/// Deactivate a leaf in the view. This prunes any outdated implicit ancestors as well.
+	pub fn deactivate_leaf(&mut self, leaf_hash: Hash) {
+		if self.leaves.remove(&leaf_hash).is_none() {
+			return
 		}
 
 		// Prune everything before the minimum out of all leaves,
@@ -179,6 +188,8 @@ impl View {
 /// Errors when fetching a leaf and associated ancestry.
 #[derive(Debug)]
 pub enum FetchError {
+	/// Leaf was already known.
+	AlreadyKnown,
 	/// The prospective parachains subsystem was uavailable.
 	ProspectiveParachainsUnavailable,
 	/// A block header was unavailable.
@@ -203,6 +214,7 @@ pub enum BlockHeaderUnavailableReason {
 struct FetchSummary {
 	minimum_ancestor_number: BlockNumber,
 	leaf_number: BlockNumber,
+	relevant_paras: Vec<ParaId>,
 }
 
 async fn fetch_fresh_leaf_and_insert_ancestry<Sender>(
@@ -251,6 +263,7 @@ where
 	};
 
 	let min_min = min_relay_parents_raw.iter().map(|x| x.1).min().unwrap_or(leaf_header.number);
+	let relevant_paras = min_relay_parents_raw.iter().map(|x| x.0).collect();
 	let expected_ancestry_len = (leaf_header.number.saturating_sub(min_min) as usize) + 1;
 
 	let ancestry = if leaf_header.number > 0 {
@@ -316,8 +329,11 @@ where
 		Vec::new()
 	};
 
-	let fetched_ancestry =
-		FetchSummary { minimum_ancestor_number: min_min, leaf_number: leaf_header.number };
+	let fetched_ancestry = FetchSummary {
+		minimum_ancestor_number: min_min,
+		leaf_number: leaf_header.number,
+		relevant_paras,
+	};
 
 	let allowed_relay_parents = AllowedRelayParents {
 		minimum_relay_parents: min_relay_parents_raw.iter().cloned().collect(),
