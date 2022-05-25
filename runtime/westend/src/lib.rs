@@ -52,8 +52,9 @@ use runtime_parachains::{
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
+	runtime_api_impl::v2 as parachains_runtime_api_impl,
+	scheduler as parachains_scheduler, session_info as parachains_session_info,
+	shared as parachains_shared, ump as parachains_ump,
 };
 use scale_info::TypeInfo;
 use sp_core::{OpaqueMetadata, RuntimeDebug};
@@ -1339,6 +1340,10 @@ sp_api::impl_runtime_apis! {
 
 		fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<BlockNumber>> {
 			parachains_runtime_api_impl::dmq_contents::<Runtime>(recipient)
+		}
+
+		fn dmq_contents_bounded(recipient: ParaId, count: u32) -> Vec<InboundDownwardMessage<BlockNumber>> {
+			runtime_parachains::runtime_api_impl::v3::dmq_contents_bounded::<Runtime>(recipient, count)
 		}
 
 		fn inbound_hrmp_channels_contents(

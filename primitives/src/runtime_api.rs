@@ -105,10 +105,17 @@ sp_api::decl_runtime_apis! {
 		/// Get a vector of events concerning candidates that occurred within a block.
 		fn candidate_events() -> Vec<v2::CandidateEvent<H>>;
 
-		/// Get all the pending inbound messages in the downward message queue for a para.
+		/// Get inbound messages in the downward message queue for a para.
 		fn dmq_contents(
 			recipient: ppp::Id,
 		) -> Vec<pcp::v2::InboundDownwardMessage<N>>;
+
+		/// Get inbound messages in the downward message queue for a para.
+		fn dmq_contents_bounded(
+			recipient: ppp::Id,
+			count: u32,
+		) -> Vec<pcp::v2::InboundDownwardMessage<N>>;
+
 
 		/// Get the contents of all channels addressed to the given recipient. Channels that have no
 		/// messages in them are also included.

@@ -1815,6 +1815,10 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::dmq_contents::<Runtime>(recipient)
 		}
 
+		fn dmq_contents_bounded(recipient: ParaId, count: u32) -> Vec<InboundDownwardMessage<BlockNumber>> {
+			runtime_parachains::runtime_api_impl::v3::dmq_contents_bounded::<Runtime>(recipient, count)
+		}
+
 		fn inbound_hrmp_channels_contents(
 			recipient: ParaId
 		) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>> {
