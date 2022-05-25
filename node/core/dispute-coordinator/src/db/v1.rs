@@ -38,7 +38,7 @@ const RECENT_DISPUTES_KEY: &[u8; 15] = b"recent-disputes";
 const EARLIEST_SESSION_KEY: &[u8; 16] = b"earliest-session";
 const CANDIDATE_VOTES_SUBKEY: &[u8; 15] = b"candidate-votes";
 /// Until what session have votes been cleaned up already?
-const CLEANED_VOTES_WATERMARK_KEY: &[u8; 24] = b"earliest-cleaned-session";
+const CLEANED_VOTES_WATERMARK_KEY: &[u8; 23] = b"cleaned-votes-watermark";
 
 /// Restrict number of cleanup operations.
 ///
