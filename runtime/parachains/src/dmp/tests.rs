@@ -57,7 +57,7 @@ fn queue_downward_message(
 	Dmp::queue_downward_message(&Configuration::config(), para_id, msg)
 }
 
-fn dmq_contents_bounded(para_id: ParaId, count: usize) -> Vec<InboundDownwardMessage<BlockNumber>> {
+fn dmq_contents_bounded(para_id: ParaId, count: u32) -> Vec<InboundDownwardMessage<BlockNumber>> {
 	Dmp::dmq_contents_bounded(para_id, count)
 }
 
@@ -196,7 +196,7 @@ struct Message(u32);
 
 #[test]
 fn dmq_contents_is_bounded() {
-	let a = ParaId::from(1312);
+	let a = ParaId::from(1337);
 
 	new_test_ext(default_genesis_config()).execute_with(|| {
 		let max_queue_size = QUEUE_FRAGMENT_CAPACITY * (u8::MAX as u32);
@@ -206,8 +206,9 @@ fn dmq_contents_is_bounded() {
 			assert!(queue_downward_message(a, Message(i).encode()).is_ok());
 		}
 
-		let messages =  Dmp::dmq_contents_bounded(a, usize::MAX);
-		let max_response_len: usize = (QUEUE_FRAGMENT_CAPACITY * MAX_FRAGMENTS_PER_QUERY).try_into().unwrap();
+		let messages = Dmp::dmq_contents_bounded(a, u32::MAX);
+		let max_response_len: usize =
+			(QUEUE_FRAGMENT_CAPACITY * MAX_FRAGMENTS_PER_QUERY).try_into().unwrap();
 		assert_eq!(messages.len(), max_response_len);
 
 		let messages = Dmp::dmq_contents(a);
@@ -273,11 +274,10 @@ fn queue_downward_message_queue_full() {
 
 		// Now lets fetch all messages using different chunk sizes (0 to 4 * QUEUE_FRAGMENT_SIZE - 1).
 		let mut chunk_size = 1;
-		// let queue_len = Dmp::dmq_length(a) as u64;
 		let mut sum = 0;
 		let mut count = 0;
 		loop {
-			let page_size = chunk_size % (QUEUE_FRAGMENT_CAPACITY * 4) as usize;
+			let page_size = chunk_size % (QUEUE_FRAGMENT_CAPACITY * 4);
 			let mut messages = dmq_contents_bounded(a, page_size);
 
 			if page_size > 0 && messages.len() == 0 {
