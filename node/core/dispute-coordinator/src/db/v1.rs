@@ -144,13 +144,6 @@ fn candidate_votes_key(session: SessionIndex, candidate_hash: &CandidateHash) ->
 	// big-endian encoding is used to ensure lexicographic ordering.
 	buf[15..][..4].copy_from_slice(&session.to_be_bytes());
 	candidate_hash.using_encoded(|s| buf[(15 + 4)..].copy_from_slice(s));
-	gum::warn!(
-		target: LOG_TARGET,
-		?session,
-		?candidate_hash,
-		?buf,
-		"Buf for given session and candidate hash"
-	);
 
 	buf
 }
