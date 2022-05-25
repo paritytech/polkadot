@@ -87,7 +87,7 @@ impl fmt::Debug for ProcessedDownwardMessagesAcceptanceErr {
 /// Defines the queue fragment capacity.
 pub const QUEUE_FRAGMENT_CAPACITY: u32 = 256;
 /// Defines the maximum amount of messages returned by `dmq_contents`/`dmq_contents_bounded`.
-pub const MAX_FRAGMENTS_PER_QUERY: u32 = 4;
+pub const MAX_MESSAGES_PER_QUERY: u32 = 2048;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -213,7 +213,7 @@ impl<T: Config> Pallet<T> {
 
 		// Ring buffer is empty.
 		if head == tail {
-			// Tail always points to the next buffer unused fragment.
+			// Tail always points to the next unused fragment.
 			tail += 1;
 			Self::update_tail(&para, tail);
 		}
@@ -336,7 +336,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Deprecated API. Please use `dmq_contents_bounded`.
 	pub(crate) fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-		Self::dmq_contents_bounded(recipient, MAX_FRAGMENTS_PER_QUERY * QUEUE_FRAGMENT_CAPACITY)
+		Self::dmq_contents_bounded(recipient, MAX_MESSAGES_PER_QUERY)
 	}
 
 	/// Returns up to `MAX_FRAGMENTS_PER_QUERY * QUEUE_FRAGMENT_CAPACITY` oldest messages from the queue contents for the given para.
@@ -347,8 +347,8 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn dmq_contents_bounded(
 		recipient: ParaId,
 		count: u32,
-	) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-		let count = cmp::min(count, MAX_FRAGMENTS_PER_QUERY * QUEUE_FRAGMENT_CAPACITY);
+	) -> Vec<InboundDownwardMessage<T::BlockNumber>>{
+		let count = cmp::min(count, MAX_MESSAGES_PER_QUERY);
 		let count = count as usize;
 		let mut head = Wrapping(Self::dmp_queue_head(recipient));
 		let tail = Wrapping(Self::dmp_queue_tail(recipient));

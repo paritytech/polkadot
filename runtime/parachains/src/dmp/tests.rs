@@ -208,7 +208,7 @@ fn dmq_contents_is_bounded() {
 
 		let messages = Dmp::dmq_contents_bounded(a, u32::MAX);
 		let max_response_len: usize =
-			(QUEUE_FRAGMENT_CAPACITY * MAX_FRAGMENTS_PER_QUERY).try_into().unwrap();
+			(MAX_MESSAGES_PER_QUERY).try_into().unwrap();
 		assert_eq!(messages.len(), max_response_len);
 
 		let messages = Dmp::dmq_contents(a);
