@@ -150,23 +150,21 @@ struct PeerData {
 	version: ProtocolVersion,
 }
 
-#[derive(Debug)]
-enum UnexpectedAbort {
+#[fatality::fatality(splitable)]
+enum Error {
 	/// Received error from overseer:
-	SubsystemError(SubsystemError),
+	#[fatal]
+	#[error(transparent)]
+	SubsystemError(#[from] SubsystemError),
 	/// The stream of incoming events concluded.
+	#[fatal]
+	#[error("Event stream closed unexpectedly")]
 	EventStreamConcluded,
 }
 
-impl From<SubsystemError> for UnexpectedAbort {
-	fn from(e: SubsystemError) -> Self {
-		UnexpectedAbort::SubsystemError(e)
-	}
-}
-
-impl From<OverseerError> for UnexpectedAbort {
+impl From<OverseerError> for Error {
 	fn from(e: OverseerError) -> Self {
-		UnexpectedAbort::SubsystemError(SubsystemError::from(e))
+		Error::SubsystemError(SubsystemError::from(e))
 	}
 }
 
@@ -193,7 +191,7 @@ async fn handle_subsystem_messages<Context, N, AD>(
 	shared: Shared,
 	sync_oracle: Box<dyn SyncOracle + Send>,
 	metrics: Metrics,
-) -> Result<(), UnexpectedAbort>
+) -> Result<(), Error>
 where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
@@ -206,253 +204,258 @@ where
 	let mut mode = Mode::Syncing(sync_oracle);
 
 	loop {
-		futures::select! {
-			msg = ctx.recv().fuse() => match msg {
-				Ok(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(active_leaves))) => {
-					let ActiveLeavesUpdate { activated, deactivated } = active_leaves;
-					gum::trace!(
-						target: LOG_TARGET,
-						action = "ActiveLeaves",
-						has_activated = activated.is_some(),
-						num_deactivated = %deactivated.len(),
-					);
+		match ctx.recv().fuse()? {
+			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(active_leaves)) => {
+				let ActiveLeavesUpdate { activated, deactivated } = active_leaves;
+				gum::trace!(
+					target: LOG_TARGET,
+					action = "ActiveLeaves",
+					has_activated = activated.is_some(),
+					num_deactivated = %deactivated.len(),
+				);
 
-					for activated in activated {
-						let pos = live_heads
-							.binary_search_by(|probe| probe.number.cmp(&activated.number).reverse())
-							.unwrap_or_else(|i| i);
+				for activated in activated {
+					let pos = live_heads
+						.binary_search_by(|probe| probe.number.cmp(&activated.number).reverse())
+						.unwrap_or_else(|i| i);
 
-						live_heads.insert(pos, activated);
-					}
-					live_heads.retain(|h| !deactivated.contains(&h.hash));
+					live_heads.insert(pos, activated);
+				}
+				live_heads.retain(|h| !deactivated.contains(&h.hash));
 
-					// if we're done syncing, set the mode to `Mode::Active`.
-					// Otherwise, we don't need to send view updates.
-					{
-						let is_done_syncing = match mode {
-							Mode::Active => true,
-							Mode::Syncing(ref mut sync_oracle) => !sync_oracle.is_major_syncing(),
-						};
+				// if we're done syncing, set the mode to `Mode::Active`.
+				// Otherwise, we don't need to send view updates.
+				{
+					let is_done_syncing = match mode {
+						Mode::Active => true,
+						Mode::Syncing(ref mut sync_oracle) => !sync_oracle.is_major_syncing(),
+					};
 
-						if is_done_syncing {
-							mode = Mode::Active;
+					if is_done_syncing {
+						mode = Mode::Active;
 
-							update_our_view(
-								&mut network_service,
-								&mut ctx,
-								&live_heads,
-								&shared,
-								finalized_number,
-								&metrics,
-							);
-						}
+						update_our_view(
+							&mut network_service,
+							&mut ctx,
+							&live_heads,
+							&shared,
+							finalized_number,
+							&metrics,
+						);
 					}
 				}
-				Ok(FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number))) => {
-					gum::trace!(
-						target: LOG_TARGET,
-						action = "BlockFinalized"
-					);
+			}
+			FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
+				gum::trace!(
+					target: LOG_TARGET,
+					action = "BlockFinalized"
+				);
 
-					debug_assert!(finalized_number < number);
+				debug_assert!(finalized_number < number);
 
-					// we don't send the view updates here, but delay them until the next `ActiveLeaves`
-					// otherwise it might break assumptions of some of the subsystems
-					// that we never send the same `ActiveLeavesUpdate`
-					finalized_number = number;
+				// we don't send the view updates here, but delay them until the next `ActiveLeaves`
+				// otherwise it might break assumptions of some of the subsystems
+				// that we never send the same `ActiveLeavesUpdate`
+				finalized_number = number;
+			}
+			FromOrchestra::Signal(OverseerSignal::Conclude) => {
+				return Ok(());
+			}
+			FromOrchestra::Communication { msg } => {
+				handle_incoming(&mut ctx, &mut network_service, msg).await;
+			}
+		}
+	}
+	Ok(())
+}
+
+#[overseer::contextbounds(NetworkBridge, prefix = self::overseer)]
+async fn handle_incoming<Context, N: Network>(ctx: &mut Context, network_service: &mut N, msg: NetworkBridgeMessage) {
+	match msg {
+		NetworkBridgeMessage::ReportPeer(peer, rep) => {
+			if !rep.is_benefit() {
+				gum::debug!(
+					target: LOG_TARGET,
+					?peer,
+					?rep,
+					action = "ReportPeer"
+				);
+			}
+
+			metrics.on_report_event();
+			network_service.report_peer(peer, rep);
+		}
+		NetworkBridgeMessage::DisconnectPeer(peer, peer_set) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				action = "DisconnectPeer",
+				?peer,
+				peer_set = ?peer_set,
+			);
+
+			network_service.disconnect_peer(peer, peer_set);
+		}
+		NetworkBridgeMessage::SendValidationMessage(peers, msg) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				action = "SendValidationMessages",
+				num_messages = 1usize,
+			);
+
+			match msg {
+				Versioned::V1(msg) => send_validation_message_v1(
+					&mut network_service,
+					peers,
+					WireMessage::ProtocolMessage(msg),
+					&metrics,
+				),
+			}
+		}
+		NetworkBridgeMessage::SendValidationMessages(msgs) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				action = "SendValidationMessages",
+				num_messages = %msgs.len(),
+			);
+
+			for (peers, msg) in msgs {
+				match msg {
+					Versioned::V1(msg) => send_validation_message_v1(
+						&mut network_service,
+						peers,
+						WireMessage::ProtocolMessage(msg),
+						&metrics,
+					),
 				}
-				Ok(FromOrchestra::Signal(OverseerSignal::Conclude)) => {
-					return Ok(());
+			}
+		}
+		NetworkBridgeMessage::SendCollationMessage(peers, msg) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				action = "SendCollationMessages",
+				num_messages = 1usize,
+			);
+
+			match msg {
+				Versioned::V1(msg) => send_collation_message_v1(
+					&mut network_service,
+					peers,
+					WireMessage::ProtocolMessage(msg),
+					&metrics,
+				),
+			}
+		}
+		NetworkBridgeMessage::SendCollationMessages(msgs) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				action = "SendCollationMessages",
+				num_messages = %msgs.len(),
+			);
+
+			for (peers, msg) in msgs {
+				match msg {
+					Versioned::V1(msg) => send_collation_message_v1(
+						&mut network_service,
+						peers,
+						WireMessage::ProtocolMessage(msg),
+						&metrics,
+					),
 				}
-				Ok(FromOrchestra::Communication { msg }) => match msg {
-					NetworkBridgeMessage::ReportPeer(peer, rep) => {
-						if !rep.is_benefit() {
-							gum::debug!(
-								target: LOG_TARGET,
-								?peer,
-								?rep,
-								action = "ReportPeer"
-							);
-						}
+			}
+		}
+		NetworkBridgeMessage::SendRequests(reqs, if_disconnected) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				action = "SendRequests",
+				num_requests = %reqs.len(),
+			);
 
-						metrics.on_report_event();
-						network_service.report_peer(peer, rep);
-					}
-					NetworkBridgeMessage::DisconnectPeer(peer, peer_set) => {
-						gum::trace!(
-							target: LOG_TARGET,
-							action = "DisconnectPeer",
-							?peer,
-							peer_set = ?peer_set,
-						);
+			for req in reqs {
+				network_service
+					.start_request(&mut authority_discovery_service, req, if_disconnected)
+					.await;
+			}
+		}
+		NetworkBridgeMessage::ConnectToValidators {
+			validator_ids,
+			peer_set,
+			failed,
+		} => {
+			gum::trace!(
+				target: LOG_TARGET,
+				action = "ConnectToValidators",
+				peer_set = ?peer_set,
+				ids = ?validator_ids,
+				"Received a validator connection request",
+			);
 
-						network_service.disconnect_peer(peer, peer_set);
-					}
-					NetworkBridgeMessage::SendValidationMessage(peers, msg) => {
-						gum::trace!(
-							target: LOG_TARGET,
-							action = "SendValidationMessages",
-							num_messages = 1usize,
-						);
+			metrics.note_desired_peer_count(peer_set, validator_ids.len());
 
-						match msg {
-							Versioned::V1(msg) => send_validation_message_v1(
-								&mut network_service,
-								peers,
-								WireMessage::ProtocolMessage(msg),
-								&metrics,
-							),
-						}
-					}
-					NetworkBridgeMessage::SendValidationMessages(msgs) => {
-						gum::trace!(
-							target: LOG_TARGET,
-							action = "SendValidationMessages",
-							num_messages = %msgs.len(),
-						);
+			let (ns, ads) = validator_discovery.on_request(
+				validator_ids,
+				peer_set,
+				failed,
+				network_service,
+				authority_discovery_service,
+			).await;
 
-						for (peers, msg) in msgs {
-							match msg {
-								Versioned::V1(msg) => send_validation_message_v1(
-									&mut network_service,
-									peers,
-									WireMessage::ProtocolMessage(msg),
-									&metrics,
-								),
-							}
-						}
-					}
-					NetworkBridgeMessage::SendCollationMessage(peers, msg) => {
-						gum::trace!(
-							target: LOG_TARGET,
-							action = "SendCollationMessages",
-							num_messages = 1usize,
-						);
+			network_service = ns;
+			authority_discovery_service = ads;
+		}
+		NetworkBridgeMessage::ConnectToResolvedValidators {
+			validator_addrs,
+			peer_set,
+		} => {
+			gum::trace!(
+				target: LOG_TARGET,
+				action = "ConnectToPeers",
+				peer_set = ?peer_set,
+				?validator_addrs,
+				"Received a resolved validator connection request",
+			);
 
-						match msg {
-							Versioned::V1(msg) => send_collation_message_v1(
-								&mut network_service,
-								peers,
-								WireMessage::ProtocolMessage(msg),
-								&metrics,
-							),
-						}
-					}
-					NetworkBridgeMessage::SendCollationMessages(msgs) => {
-						gum::trace!(
-							target: LOG_TARGET,
-							action = "SendCollationMessages",
-							num_messages = %msgs.len(),
-						);
+			metrics.note_desired_peer_count(peer_set, validator_addrs.len());
 
-						for (peers, msg) in msgs {
-							match msg {
-								Versioned::V1(msg) => send_collation_message_v1(
-									&mut network_service,
-									peers,
-									WireMessage::ProtocolMessage(msg),
-									&metrics,
-								),
-							}
-						}
-					}
-					NetworkBridgeMessage::SendRequests(reqs, if_disconnected) => {
-						gum::trace!(
-							target: LOG_TARGET,
-							action = "SendRequests",
-							num_requests = %reqs.len(),
-						);
+			let all_addrs = validator_addrs.into_iter().flatten().collect();
+			network_service = validator_discovery.on_resolved_request(
+				all_addrs,
+				peer_set,
+				network_service,
+			).await;
+		}
+		NetworkBridgeMessage::NewGossipTopology {
+			session,
+			our_neighbors_x,
+			our_neighbors_y,
+		} => {
+			gum::debug!(
+				target: LOG_TARGET,
+				action = "NewGossipTopology",
+				neighbors_x = our_neighbors_x.len(),
+				neighbors_y = our_neighbors_y.len(),
+				"Gossip topology has changed",
+			);
 
-						for req in reqs {
-							network_service
-								.start_request(&mut authority_discovery_service, req, if_disconnected)
-								.await;
-						}
-					}
-					NetworkBridgeMessage::ConnectToValidators {
-						validator_ids,
-						peer_set,
-						failed,
-					} => {
-						gum::trace!(
-							target: LOG_TARGET,
-							action = "ConnectToValidators",
-							peer_set = ?peer_set,
-							ids = ?validator_ids,
-							"Received a validator connection request",
-						);
+			let gossip_peers_x = update_gossip_peers_1d(
+				&mut authority_discovery_service,
+				our_neighbors_x,
+			).await;
 
-						metrics.note_desired_peer_count(peer_set, validator_ids.len());
+			let gossip_peers_y = update_gossip_peers_1d(
+				&mut authority_discovery_service,
+				our_neighbors_y,
+			).await;
 
-						let (ns, ads) = validator_discovery.on_request(
-							validator_ids,
-							peer_set,
-							failed,
-							network_service,
-							authority_discovery_service,
-						).await;
-
-						network_service = ns;
-						authority_discovery_service = ads;
-					}
-					NetworkBridgeMessage::ConnectToResolvedValidators {
-						validator_addrs,
-						peer_set,
-					} => {
-						gum::trace!(
-							target: LOG_TARGET,
-							action = "ConnectToPeers",
-							peer_set = ?peer_set,
-							?validator_addrs,
-							"Received a resolved validator connection request",
-						);
-
-						metrics.note_desired_peer_count(peer_set, validator_addrs.len());
-
-						let all_addrs = validator_addrs.into_iter().flatten().collect();
-						network_service = validator_discovery.on_resolved_request(
-							all_addrs,
-							peer_set,
-							network_service,
-						).await;
-					}
-					NetworkBridgeMessage::NewGossipTopology {
+			dispatch_validation_event_to_all_unbounded(
+				NetworkBridgeEvent::NewGossipTopology(
+					NewGossipTopology {
 						session,
-						our_neighbors_x,
-						our_neighbors_y,
-					} => {
-						gum::debug!(
-							target: LOG_TARGET,
-							action = "NewGossipTopology",
-							neighbors_x = our_neighbors_x.len(),
-							neighbors_y = our_neighbors_y.len(),
-							"Gossip topology has changed",
-						);
-
-						let gossip_peers_x = update_gossip_peers_1d(
-							&mut authority_discovery_service,
-							our_neighbors_x,
-						).await;
-
-						let gossip_peers_y = update_gossip_peers_1d(
-							&mut authority_discovery_service,
-							our_neighbors_y,
-						).await;
-
-						dispatch_validation_event_to_all_unbounded(
-							NetworkBridgeEvent::NewGossipTopology(
-								NewGossipTopology {
-									session,
-									our_neighbors_x: gossip_peers_x,
-									our_neighbors_y: gossip_peers_y,
-								}
-							),
-							ctx.sender(),
-						);
+						our_neighbors_x: gossip_peers_x,
+						our_neighbors_y: gossip_peers_y,
 					}
-				}
-				Err(e) => return Err(e.into()),
-			},
+				),
+				ctx.sender(),
+			);
 		}
 	}
 }
@@ -486,11 +489,11 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 	mut authority_discovery_service: AD,
 	metrics: Metrics,
 	shared: Shared,
-) -> Result<(), UnexpectedAbort> {
+) -> Result<(), Error> {
 	let mut network_stream = network_stream.fuse();
 	loop {
 		match network_stream.next().await {
-			None => return Err(UnexpectedAbort::EventStreamConcluded),
+			None => return Err(Error::EventStreamConcluded),
 			Some(NetworkEvent::Dht(_)) |
 			Some(NetworkEvent::SyncConnected { .. }) |
 			Some(NetworkEvent::SyncDisconnected { .. }) => {},
@@ -877,7 +880,7 @@ where
 		.0
 	{
 		Ok(()) => Ok(()),
-		Err(UnexpectedAbort::SubsystemError(err)) => {
+		Err(Error::SubsystemError(err)) => {
 			gum::warn!(
 				target: LOG_TARGET,
 				err = ?err,
@@ -889,7 +892,7 @@ where
 				err
 			)))
 		},
-		Err(UnexpectedAbort::EventStreamConcluded) => {
+		Err(Error::EventStreamConcluded) => {
 			gum::info!(
 				target: LOG_TARGET,
 				"Shutting down Network Bridge: underlying request stream concluded"
