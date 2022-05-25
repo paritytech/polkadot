@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 mod parachain;
+mod parachain_2;
 mod relay_chain;
 
 use polkadot_parachain::primitives::Id as ParaId;
@@ -42,6 +43,15 @@ decl_test_parachain! {
 	}
 }
 
+decl_test_parachain! {
+	pub struct ParaC {
+		Runtime = parachain_2::Runtime,
+		XcmpMessageHandler = parachain_2::MsgQueue,
+		DmpMessageHandler = parachain_2::MsgQueue,
+		new_ext = para_ext(3),
+	}
+}
+
 decl_test_relay_chain! {
 	pub struct Relay {
 		Runtime = relay_chain::Runtime,
@@ -56,6 +66,7 @@ decl_test_network! {
 		parachains = vec![
 			(1, ParaA),
 			(2, ParaB),
+			(3, ParaC),
 		],
 	}
 }
@@ -194,6 +205,33 @@ mod tests {
 			assert!(System::events()
 				.iter()
 				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
+		});
+	}
+
+	#[test]
+	fn different_runtime_xcmp() {
+		MockNet::reset();
+
+		let cross_chain_pallet_call =
+			parachain::cross_parachain_pallet::Pallet::<parachain::Runtime>::construct_parachain_2_extrinsic_call();
+
+		ParaA::execute_with(|| {
+			assert_ok!(ParachainPalletXcm::send_xcm(
+				Here,
+				(Parent, Parachain(3)),
+				Xcm(vec![Transact {
+					origin_type: OriginKind::SovereignAccount,
+					require_weight_at_most: INITIAL_BALANCE as u64,
+					call: cross_chain_pallet_call.encode().into(),
+				}]),
+			));
+		});
+
+		ParaC::execute_with(|| {
+			use parachain_2::{mock_pallet, System, Event};
+			assert!(System::events()
+				.iter()
+				.any(|x| matches!(x.event, Event::MockPallet(mock_pallet::Event::StandardEvent))));
 		});
 	}
 
