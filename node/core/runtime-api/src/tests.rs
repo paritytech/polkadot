@@ -16,7 +16,9 @@
 
 use super::*;
 
-use ::test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code, dummy_session_info};
+use ::test_helpers::{
+	dummy_committed_candidate_receipt, dummy_session_info, dummy_validation_code,
+};
 use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
 use polkadot_node_subsystem::SpawnGlue;
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
@@ -523,7 +525,9 @@ fn requests_session_info() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let mut runtime_api = MockRuntimeApi::default();
 	let session_index = 1;
-	runtime_api.session_info.insert(session_index, dummy_session_info(session_index));
+	runtime_api
+		.session_info
+		.insert(session_index, dummy_session_info(session_index));
 	let runtime_api = Arc::new(runtime_api);
 	let spawner = sp_core::testing::TaskExecutor::new();
 
