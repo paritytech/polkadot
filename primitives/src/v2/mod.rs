@@ -1422,8 +1422,7 @@ pub type CheckedMultiDisputeStatementSet = Vec<CheckedDisputeStatementSet>;
 #[derive(Encode, Decode, Clone, RuntimeDebug, PartialEq, TypeInfo)]
 pub struct DisputeState<N = BlockNumber> {
 	/// A bitfield indicating all validators for the candidate.
-	pub validators_for: BitVec<u8, bitvec::order::Lsb0>,
-	// one bit per validator.
+	pub validators_for: BitVec<u8, bitvec::order::Lsb0>, // one bit per validator.
 	/// A bitfield indicating all validators against the candidate.
 	pub validators_against: BitVec<u8, bitvec::order::Lsb0>,
 	// one bit per validator.
@@ -1636,11 +1635,8 @@ impl<K: From<usize>, V: Clone> From<Vec<V>> for TypeVec<K, V> {
 
 #[cfg(feature = "std")]
 impl<K: From<usize>, V: Clone> MallocSizeOf for TypeVec<K, V> {
-	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
-		0
-	}
-	fn constant_size() -> Option<usize> {
-		Some(0)
+	fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
+		self.to_vec().size_of(ops)
 	}
 }
 
