@@ -76,11 +76,8 @@ impl fmt::Debug for ProcessedDownwardMessagesAcceptanceErr {
 	}
 }
 
-/// A slice of the `para dmq`.
-pub type QueueFragment<T: Config> = Vec<InboundDownwardMessage<T::BlockNumber>>;
-
 /// To reduce the runtime memory footprint when sending or receiving messages we will split
-/// the queue in fragments of `QUEUE_FRAGMENT_SIZE` capacity. Tuning this constant allows
+/// the queue in fragments of `QUEUE_FRAGMENT_CAPACITY` capacity. Tuning this constant allows
 /// to control how we trade off the overhead per stored message vs memory footprint of individual
 /// message read/writes from/to storage. The fragments are part of circular buffer per para and
 /// we keep track of the head and tail fragments.
@@ -88,9 +85,9 @@ pub type QueueFragment<T: Config> = Vec<InboundDownwardMessage<T::BlockNumber>>;
 /// TODO(maybe) - make these configuration parameters?
 ///
 /// Defines the queue fragment capacity.
-pub const QUEUE_FRAGMENT_SIZE: u32 = 32;
-/// Defines the maximum amount of fragments to process when calling `dmq_contents`.
-pub const MAX_FRAGMENTS_PER_QUERY: u32 = 8;
+pub const QUEUE_FRAGMENT_CAPACITY: u32 = 256;
+/// Defines the maximum amount of messages returned by `dmq_contents`/`dmq_contents_bounded`.
+pub const MAX_FRAGMENTS_PER_QUERY: u32 = 4;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -117,7 +114,7 @@ pub mod pallet {
 	/// The downward messages addressed for a certain para.
 	#[pallet::storage]
 	pub(crate) type DownwardMessageQueueFragments<T: Config> =
-		StorageMap<_, Twox64Concat, QueueFragmentId, QueueFragment<T>, ValueQuery>;
+		StorageMap<_, Twox64Concat, QueueFragmentId, Vec<InboundDownwardMessage<T::BlockNumber>>, ValueQuery>;
 
 	/// A mapping that stores the downward message queue MQC head for each para.
 	///
@@ -223,7 +220,7 @@ impl<T: Config> Pallet<T> {
 		.saturated_into::<u32>();
 
 		// Check if we need a new fragment.
-		if tail_fragment_len >= QUEUE_FRAGMENT_SIZE {
+		if tail_fragment_len >= QUEUE_FRAGMENT_CAPACITY {
 			// Check if ring buffer is full.
 			if tail + std::num::Wrapping(1) == head {
 				return Err(QueueDownwardMessageError::ExceedsMaxPendingMessageCount)
@@ -282,12 +279,12 @@ impl<T: Config> Pallet<T> {
 		let mut messages_to_prune = processed_downward_messages as usize;
 		let mut total_weight = T::DbWeight::get().reads_writes(2, 0);
 
-		// Prune all processed messages in multiple fragments in the ring buffer.
+		// Prune all processed messages in multiple fragments.
 		while messages_to_prune > 0 && head != tail {
 			<Self as Store>::DownwardMessageQueueFragments::mutate(
 				QueueFragmentId(para, head.0),
 				|q| {
-					if messages_to_prune > q.len() {
+					if messages_to_prune >= q.len() {
 						messages_to_prune = messages_to_prune.saturating_sub(q.len());
 						q.clear();
 						// Advance head.
@@ -332,19 +329,33 @@ impl<T: Config> Pallet<T> {
 		length
 	}
 
-	/// Returns up to `MAX_FRAGMENTS_PER_QUERY*QUEUE_FRAGMENT_SIZE` messages from the queue contents for the given para.
+	/// Deprecated API. Please use `dmq_contents_bounded`.
+	pub(crate) fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
+		Self::dmq_contents_bounded(
+			recipient,
+			(MAX_FRAGMENTS_PER_QUERY * QUEUE_FRAGMENT_CAPACITY) as usize,
+		)
+	}
+
+	/// Returns up to `MAX_FRAGMENTS_PER_QUERY * QUEUE_FRAGMENT_CAPACITY` oldest messages from the queue contents for the given para.
 	/// The result will be an empty vector if the para doesn't exist or it's queue is empty.
 	/// The result preserves the original message ordering - first element of vec is oldest message, while last is most
 	/// recent.
 	/// This is to be used in conjuction with `prune_dmq` to achieve pagination of arbitrary large queues.
-	pub(crate) fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
+	pub(crate) fn dmq_contents_bounded(
+		recipient: ParaId,
+		count: usize,
+	) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
+		let count = std::cmp::min(
+			count,
+			(MAX_FRAGMENTS_PER_QUERY * QUEUE_FRAGMENT_CAPACITY).try_into().unwrap(),
+		);
 		let mut head = std::num::Wrapping(Self::dmp_queue_head(recipient));
 		let tail = std::num::Wrapping(Self::dmp_queue_tail(recipient));
 		let mut result = Vec::new();
 
-		while head != tail &&
-			result.len() <= (MAX_FRAGMENTS_PER_QUERY * QUEUE_FRAGMENT_SIZE) as usize
-		{
+		// Loop until we reach the tail, or we've gathered at least `count` messages.
+		while head != tail && result.len() <= count {
 			result.extend(<Self as Store>::DownwardMessageQueueFragments::get(QueueFragmentId(
 				recipient, head.0,
 			)));
@@ -352,8 +363,10 @@ impl<T: Config> Pallet<T> {
 			head += 1;
 		}
 
-		// Clamp result as the simple logic above just accumulates all messages from fragments.
-		let _ = result.split_off((MAX_FRAGMENTS_PER_QUERY * QUEUE_FRAGMENT_SIZE) as usize);
+		// Clamp result as the simple loop above just accumulates all messages from fragments in `result`.
+		if result.len() > count {
+			let _ = result.split_off(count);
+		}
 
 		result
 	}

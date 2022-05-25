@@ -17,7 +17,7 @@
 use super::*;
 use crate::mock::{new_test_ext, Configuration, Dmp, MockGenesisConfig, Paras, System};
 use hex_literal::hex;
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Decode, Encode};
 use primitives::v2::BlockNumber;
 
 pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
@@ -55,6 +55,10 @@ fn queue_downward_message(
 	msg: DownwardMessage,
 ) -> Result<(), QueueDownwardMessageError> {
 	Dmp::queue_downward_message(&Configuration::config(), para_id, msg)
+}
+
+fn dmq_contents_bounded(para_id: ParaId, count: usize) -> Vec<InboundDownwardMessage<BlockNumber>> {
+	Dmp::dmq_contents_bounded(para_id, count)
 }
 
 #[test]
@@ -184,6 +188,119 @@ fn queue_downward_message_critical() {
 		// that's too big
 		assert_eq!(big.encode().len(), 9);
 		assert!(queue_downward_message(a, big).is_err());
+	});
+}
+
+#[derive(Encode, Decode)]
+struct Message(u32);
+
+#[test]
+fn dmq_contents_is_bounded() {
+	let a = ParaId::from(1312);
+
+	new_test_ext(default_genesis_config()).execute_with(|| {
+		let max_queue_size = QUEUE_FRAGMENT_CAPACITY * (u8::MAX as u32);
+
+		// Fill queue.
+		for i in 0..max_queue_size {
+			assert!(queue_downward_message(a, Message(i).encode()).is_ok());
+		}
+
+		let messages =  Dmp::dmq_contents_bounded(a, usize::MAX);
+		let max_response_len: usize = (QUEUE_FRAGMENT_CAPACITY * MAX_FRAGMENTS_PER_QUERY).try_into().unwrap();
+		assert_eq!(messages.len(), max_response_len);
+
+		let messages = Dmp::dmq_contents(a);
+		assert_eq!(messages.len(), max_response_len);
+	});
+}
+
+#[test]
+fn queue_downward_message_fragment_ordering() {
+	let a = ParaId::from(1312);
+
+	let mut genesis = default_genesis_config();
+	genesis.configuration.config.max_downward_message_size = 100;
+
+	new_test_ext(genesis).execute_with(|| {
+		let max_queue_size = QUEUE_FRAGMENT_CAPACITY * (u8::MAX as u32);
+
+		// Fill queue.
+		for i in 0..max_queue_size {
+			assert!(queue_downward_message(a, Message(i).encode()).is_ok());
+		}
+
+		let mut all_messages = Vec::new();
+
+		loop {
+			let messages = dmq_contents_bounded(a, 1000);
+			if messages.len() == 0 {
+				break
+			}
+
+			Dmp::prune_dmq(a, messages.len() as u32);
+			all_messages.extend(messages);
+		}
+
+		// Check message ordering.
+		assert!(all_messages.windows(2).all(|e| {
+			let left = Message::decode(&mut e[0].msg.as_ref()).unwrap().0;
+			let right = Message::decode(&mut e[1].msg.as_ref()).unwrap().0;
+			left < right
+		}));
+	});
+}
+
+#[test]
+fn queue_downward_message_queue_full() {
+	let a = ParaId::from(1337);
+
+	let mut genesis = default_genesis_config();
+	genesis.configuration.config.max_downward_message_size = 17;
+
+	new_test_ext(genesis).execute_with(|| {
+		let max_queue_size = QUEUE_FRAGMENT_CAPACITY * (u8::MAX as u32);
+
+		for i in 0..max_queue_size {
+			assert!(queue_downward_message(a, Message(i).encode()).is_ok());
+		}
+
+		assert_eq!(max_queue_size, Dmp::dmq_length(a));
+
+		let msg = Message(0);
+		// This one should fail, the queue is now full.
+		assert!(queue_downward_message(a, msg.encode()).is_err());
+
+		// Now lets fetch all messages using different chunk sizes (0 to 4 * QUEUE_FRAGMENT_SIZE - 1).
+		let mut chunk_size = 1;
+		// let queue_len = Dmp::dmq_length(a) as u64;
+		let mut sum = 0;
+		let mut count = 0;
+		loop {
+			let page_size = chunk_size % (QUEUE_FRAGMENT_CAPACITY * 4) as usize;
+			let mut messages = dmq_contents_bounded(a, page_size);
+
+			if page_size > 0 && messages.len() == 0 {
+				break
+			}
+			count += messages.len() as u32;
+
+			sum += messages
+				.iter_mut()
+				.map(|e| Message::decode(&mut e.msg.as_ref()).unwrap().0 as u64)
+				.sum::<u64>();
+
+			chunk_size += 1;
+			Dmp::prune_dmq(a, messages.len() as u32);
+		}
+		// Check if we collected and pruned all messages.
+		let expected_count = max_queue_size;
+		assert_eq!(count, expected_count);
+		assert_eq!(0, Dmp::dmq_length(a));
+
+		// Check if the messages we retrieved are the expected ones.
+		let expected_sum = (max_queue_size as u64 * (max_queue_size as u64 - 1)) / 2;
+		assert_eq!(sum, expected_sum);
 	});
 }
 
