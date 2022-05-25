@@ -28,3 +28,4 @@ pub fn get_session_disputes<T: disputes::Config>(
 
 // TODO [now]: implicit `validity_constraints`. Ensure that `min_relay_parent`
 // never goes lower than the point at which asynchronous backing was enabled.
+// Also, never cross session boundaries.

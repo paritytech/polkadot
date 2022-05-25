@@ -49,7 +49,11 @@ struct AllowedRelayParents {
 }
 
 impl AllowedRelayParents {
-	fn allowed_relay_parents_for(&self, para_id: Option<ParaId>, base_number: BlockNumber) -> &[Hash] {
+	fn allowed_relay_parents_for(
+		&self,
+		para_id: Option<ParaId>,
+		base_number: BlockNumber,
+	) -> &[Hash] {
 		let para_id = match para_id {
 			None => return &self.allowed_relay_parents_contiguous[..],
 			Some(p) => p,

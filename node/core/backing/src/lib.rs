@@ -87,21 +87,23 @@ use polkadot_node_subsystem::{
 	messages::{
 		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
 		CandidateValidationMessage, CollatorProtocolMessage, DisputeCoordinatorMessage,
-		ProvisionableData, ProvisionerMessage, RuntimeApiRequest, StatementDistributionMessage,
-		ProspectiveParachainsMessage,
+		ProspectiveParachainsMessage, ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
+		StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
 	Stage, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
-	self as util, backing_implicit_view::{FetchError as ImplicitViewFetchError, View as ImplicitView}, request_from_runtime,
-	request_session_index_for_child, request_validator_groups, request_validators, Validator,
+	self as util,
+	backing_implicit_view::{FetchError as ImplicitViewFetchError, View as ImplicitView},
+	request_from_runtime, request_session_index_for_child, request_validator_groups,
+	request_validators, Validator,
 };
 use polkadot_primitives::v2::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
-	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
-	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
-	PersistedValidationData,
+	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, PersistedValidationData,
+	SessionIndex, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature,
+	ValidityAttestation,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{
@@ -216,8 +218,6 @@ struct PerRelayParentState {
 	awaiting_validation: HashSet<CandidateHash>,
 	/// Data needed for retrying in case of `ValidatedCandidateCommand::AttestNoPoV`.
 	fallbacks: HashMap<CandidateHash, (AttestingData, Option<jaeger::Span>)>,
-	/// Spans for all candidates that are not yet backable.
-	unbacked_candidates: HashMap<CandidateHash, jaeger::Span>,
 }
 
 struct PerCandidateState {
@@ -421,15 +421,15 @@ async fn handle_active_leaves_update_new<Context>(
 		let mode = prospective_parachains_mode(ctx, leaf.hash).await;
 
 		let leaf_hash = leaf.hash;
-		Some((leaf, match mode {
-			ProspectiveParachainsMode::Disabled => LeafHasProspectiveParachains::Disabled,
-			ProspectiveParachainsMode::Enabled => LeafHasProspectiveParachains::Enabled(
-				state.implicit_view.activate_leaf(
-					ctx.sender(),
-					leaf_hash,
-				).await
-			)
-		}))
+		Some((
+			leaf,
+			match mode {
+				ProspectiveParachainsMode::Disabled => LeafHasProspectiveParachains::Disabled,
+				ProspectiveParachainsMode::Enabled => LeafHasProspectiveParachains::Enabled(
+					state.implicit_view.activate_leaf(ctx.sender(), leaf_hash).await,
+				),
+			},
+		))
 	} else {
 		None
 	};
@@ -454,7 +454,9 @@ async fn handle_active_leaves_update_new<Context>(
 	//
 	// when prospective parachains are disabled, we clean up all candidates
 	// because we've cleaned up all relay parents. this is correct.
-	state.per_candidate.retain(|_, pc| state.per_relay_parent.contains_key(&pc.relay_parent));
+	state
+		.per_candidate
+		.retain(|_, pc| state.per_relay_parent.contains_key(&pc.relay_parent));
 
 	// Get relay parents which might be fresh but might be known already
 	// that are explicit or implicit from the new active leaf.
@@ -462,7 +464,9 @@ async fn handle_active_leaves_update_new<Context>(
 		None => return Ok(()),
 		Some((leaf, LeafHasProspectiveParachains::Disabled)) => {
 			// defensive in this case - for enabled, this manifests as an error.
-			if state.per_leaf.contains_key(&leaf.hash) { return Ok(()) }
+			if state.per_leaf.contains_key(&leaf.hash) {
+				return Ok(())
+			}
 
 			state.per_leaf.insert(
 				leaf.hash,
@@ -473,23 +477,23 @@ async fn handle_active_leaves_update_new<Context>(
 					// respectively. We've just learned about the leaf hash, so we cannot
 					// have any candidates seconded with it as a relay-parent yet.
 					seconded_at_depth: BTreeMap::new(),
-				}
+				},
 			);
 
 			vec![leaf.hash]
-		}
+		},
 		Some((leaf, LeafHasProspectiveParachains::Enabled(Ok(_)))) => {
-			let fresh_relay_parents = state.implicit_view.known_allowed_relay_parents_under(
-				&leaf.hash,
-				None,
-			);
+			let fresh_relay_parents =
+				state.implicit_view.known_allowed_relay_parents_under(&leaf.hash, None);
 
 			// At this point, all candidates outside of the implicit view
 			// have been cleaned up. For all which remain, which we've seconded,
 			// we ask the prospective parachains subsystem where they land in the fragment
 			// tree for the given active leaf. This comprises our `seconded_at_depth`.
 
-			let remaining_seconded = state.per_candidate.iter()
+			let remaining_seconded = state
+				.per_candidate
+				.iter()
 				.filter(|(_, cd)| cd.seconded_locally)
 				.map(|(c_hash, cd)| (*c_hash, cd.para_id));
 
@@ -500,9 +504,12 @@ async fn handle_active_leaves_update_new<Context>(
 				let (tx, rx) = oneshot::channel();
 				membership_answers.push(rx.map_ok(move |membership| (candidate_hash, membership)));
 
-				ctx.send_message(
-					ProspectiveParachainsMessage::GetTreeMembership(para_id, candidate_hash, tx)
-				).await;
+				ctx.send_message(ProspectiveParachainsMessage::GetTreeMembership(
+					para_id,
+					candidate_hash,
+					tx,
+				))
+				.await;
 			}
 
 			let mut seconded_at_depth = BTreeMap::new();
@@ -515,27 +522,29 @@ async fn handle_active_leaves_update_new<Context>(
 						);
 
 						continue
-					}
+					},
 					Ok((candidate_hash, membership)) => {
 						// This request gives membership in all fragment trees. We have some
 						// wasted data here, and it can be optimized if it proves
 						// relevant to performance.
-						if let Some((_, depths)) = membership
-							.into_iter()
-							.find(|(leaf_hash, _)| leaf_hash == &leaf.hash)
+						if let Some((_, depths)) =
+							membership.into_iter().find(|(leaf_hash, _)| leaf_hash == &leaf.hash)
 						{
 							for depth in depths {
 								seconded_at_depth.insert(depth, candidate_hash);
 							}
 						}
-					}
+					},
 				}
 			}
 
-			state.per_leaf.insert(leaf.hash, ActiveLeafState {
-				prospective_parachains_mode: ProspectiveParachainsMode::Enabled,
-				seconded_at_depth,
-			});
+			state.per_leaf.insert(
+				leaf.hash,
+				ActiveLeafState {
+					prospective_parachains_mode: ProspectiveParachainsMode::Enabled,
+					seconded_at_depth,
+				},
+			);
 
 			match fresh_relay_parents {
 				Some(f) => f.to_vec(),
@@ -547,9 +556,9 @@ async fn handle_active_leaves_update_new<Context>(
 					);
 
 					vec![leaf.hash]
-				}
+				},
 			}
-		}
+		},
 		Some((leaf, LeafHasProspectiveParachains::Enabled(Err(e)))) => {
 			gum::debug!(
 				target: LOG_TARGET,
@@ -559,18 +568,126 @@ async fn handle_active_leaves_update_new<Context>(
 			);
 
 			return Ok(())
-		}
+		},
 	};
 
 	// add entries in `per_relay_parent`. for all new relay-parents.
 	for maybe_new in fresh_relay_parents {
-		if state.per_relay_parent.contains_key(&maybe_new) { continue }
+		if state.per_relay_parent.contains_key(&maybe_new) {
+			continue
+		}
 
-		// TODO [now]: construct a `PerRelayParent` from the runtime API
+		// construct a `PerRelayParent` from the runtime API
 		// and insert it.
+		let per = construct_per_relay_parent_state(ctx, maybe_new, &state.keystore).await?;
+
+		if let Some(per) = per {
+			state.per_relay_parent.insert(maybe_new, per);
+		}
 	}
 
 	Ok(())
+}
+
+/// Load the data necessary to do backing work on top of a relay-parent.
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn construct_per_relay_parent_state<Context>(
+	ctx: &mut Context,
+	relay_parent: Hash,
+	keystore: &SyncCryptoStorePtr,
+) -> Result<Option<PerRelayParentState>, Error> {
+	macro_rules! try_runtime_api {
+		($x: expr) => {
+			match $x {
+				Ok(x) => x,
+				Err(e) => {
+					gum::warn!(
+						target: LOG_TARGET,
+						err = ?e,
+						"Failed to fetch runtime API data for job",
+					);
+
+					// We can't do candidate validation work if we don't have the
+					// requisite runtime API data. But these errors should not take
+					// down the node.
+					return Ok(None);
+				}
+			}
+		}
+	}
+
+	let parent = relay_parent;
+
+	let (validators, groups, session_index, cores) = futures::try_join!(
+		request_validators(parent, ctx.sender()).await,
+		request_validator_groups(parent, ctx.sender()).await,
+		request_session_index_for_child(parent, ctx.sender()).await,
+		request_from_runtime(parent, ctx.sender(), |tx| {
+			RuntimeApiRequest::AvailabilityCores(tx)
+		},)
+		.await,
+	)
+	.map_err(Error::JoinMultiple)?;
+
+	let validators: Vec<_> = try_runtime_api!(validators);
+	let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
+	let session_index = try_runtime_api!(session_index);
+	let cores = try_runtime_api!(cores);
+
+	let signing_context = SigningContext { parent_hash: parent, session_index };
+	let validator =
+		match Validator::construct(&validators, signing_context.clone(), keystore.clone()).await {
+			Ok(v) => Some(v),
+			Err(util::Error::NotAValidator) => None,
+			Err(e) => {
+				gum::warn!(
+					target: LOG_TARGET,
+					err = ?e,
+					"Cannot participate in candidate backing",
+				);
+
+				return Ok(None)
+			},
+		};
+
+	let mut groups = HashMap::new();
+	let n_cores = cores.len();
+	let mut assignment = None;
+
+	for (idx, core) in cores.into_iter().enumerate() {
+		// Ignore prospective assignments on occupied cores for the time being.
+		if let CoreState::Scheduled(scheduled) = core {
+			let core_index = CoreIndex(idx as _);
+			let group_index = group_rotation_info.group_for_core(core_index, n_cores);
+			if let Some(g) = validator_groups.get(group_index.0 as usize) {
+				if validator.as_ref().map_or(false, |v| g.contains(&v.index())) {
+					assignment = Some((scheduled.para_id, scheduled.collator));
+				}
+				groups.insert(scheduled.para_id, g.clone());
+			}
+		}
+	}
+
+	let table_context = TableContext { groups, validators, validator };
+
+	// TODO [now]: I've removed the `required_collator` more broadly,
+	// because it's not used in practice and was intended for parathreads.
+	//
+	// We should attempt parathreads another way, I think, so it makes sense
+	// to remove.
+	let assignment = assignment.map(|(a, _required_collator)| a);
+
+	Ok(Some(PerRelayParentState {
+		parent,
+		session_index,
+		assignment,
+		backed: HashSet::new(),
+		table: Table::default(),
+		table_context,
+		issued_statements: HashSet::new(),
+		awaiting_validation: HashSet::new(),
+		fallbacks: HashMap::new(),
+	}))
 }
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
@@ -590,125 +707,6 @@ async fn handle_active_leaves_update<Context>(
 	// TODO [now]: update view. no ancestry if mode is not
 	// `ProspectiveParachains`.
 
-	macro_rules! try_runtime_api {
-		($x: expr) => {
-			match $x {
-				Ok(x) => x,
-				Err(e) => {
-					gum::warn!(
-						target: LOG_TARGET,
-						err = ?e,
-						"Failed to fetch runtime API data for job",
-					);
-
-					// We can't do candidate validation work if we don't have the
-					// requisite runtime API data. But these errors should not take
-					// down the node.
-					return Ok(());
-				}
-			}
-		}
-	}
-
-	let parent = leaf.hash;
-	let span = PerLeafSpan::new(leaf.span, "backing");
-	let _span = span.child("runtime-apis");
-
-	let (validators, groups, session_index, cores) = futures::try_join!(
-		request_validators(parent, ctx.sender()).await,
-		request_validator_groups(parent, ctx.sender()).await,
-		request_session_index_for_child(parent, ctx.sender()).await,
-		request_from_runtime(parent, ctx.sender(), |tx| {
-			RuntimeApiRequest::AvailabilityCores(tx)
-		},)
-		.await,
-	)
-	.map_err(Error::JoinMultiple)?;
-
-	let validators: Vec<_> = try_runtime_api!(validators);
-	let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
-	let session_index = try_runtime_api!(session_index);
-	let cores = try_runtime_api!(cores);
-
-	drop(_span);
-	let _span = span.child("validator-construction");
-
-	let signing_context = SigningContext { parent_hash: parent, session_index };
-	let validator =
-		match Validator::construct(&validators, signing_context.clone(), keystore.clone()).await {
-			Ok(v) => Some(v),
-			Err(util::Error::NotAValidator) => None,
-			Err(e) => {
-				gum::warn!(
-					target: LOG_TARGET,
-					err = ?e,
-					"Cannot participate in candidate backing",
-				);
-
-				return Ok(())
-			},
-		};
-
-	drop(_span);
-	let mut assignments_span = span.child("compute-assignments");
-
-	let mut groups = HashMap::new();
-
-	let n_cores = cores.len();
-
-	let mut assignment = None;
-
-	for (idx, core) in cores.into_iter().enumerate() {
-		// Ignore prospective assignments on occupied cores for the time being.
-		if let CoreState::Scheduled(scheduled) = core {
-			let core_index = CoreIndex(idx as _);
-			let group_index = group_rotation_info.group_for_core(core_index, n_cores);
-			if let Some(g) = validator_groups.get(group_index.0 as usize) {
-				if validator.as_ref().map_or(false, |v| g.contains(&v.index())) {
-					assignment = Some((scheduled.para_id, scheduled.collator));
-				}
-				groups.insert(scheduled.para_id, g.clone());
-			}
-		}
-	}
-
-	let table_context = TableContext { groups, validators, validator };
-
-	let (assignment, required_collator) = match assignment {
-		None => {
-			assignments_span.add_string_tag("assigned", "false");
-			(None, None)
-		},
-		Some((assignment, required_collator)) => {
-			assignments_span.add_string_tag("assigned", "true");
-			assignments_span.add_para_id(assignment);
-			(Some(assignment), required_collator)
-		},
-	};
-
-	drop(assignments_span);
-	let _span = span.child("wait-for-job");
-
-	// TODO [now] bound unneeded
-	let job = CandidateBackingJob::<Context> {
-		parent,
-		session_index,
-		assignment,
-		required_collator,
-		issued_statements: HashSet::new(),
-		awaiting_validation: HashSet::new(),
-		fallbacks: HashMap::new(),
-		seconded: None,
-		unbacked_candidates: HashMap::new(),
-		backed: HashSet::new(),
-		keystore: keystore.clone(),
-		table: Table::default(),
-		table_context,
-		background_validation_tx: background_validation_tx.clone(),
-		metrics: metrics.clone(),
-		_marker: std::marker::PhantomData,
-	};
-
 	// TODO [now] view.insert(parent, JobAndSpan { job, span });
 
 	Ok(())
@@ -722,7 +720,6 @@ struct JobAndSpan<Context> {
 struct ViewEntry<Context> {
 	job: Option<JobAndSpan<Context>>,
 }
-
 
 struct View<Context> {
 	// maps relay-parents to jobs and spans.
