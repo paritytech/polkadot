@@ -49,7 +49,12 @@ struct AllowedRelayParents {
 }
 
 impl AllowedRelayParents {
-	fn allowed_relay_parents_for(&self, para_id: ParaId, base_number: BlockNumber) -> &[Hash] {
+	fn allowed_relay_parents_for(&self, para_id: Option<ParaId>, base_number: BlockNumber) -> &[Hash] {
+		let para_id = match para_id {
+			None => return &self.allowed_relay_parents_contiguous[..],
+			Some(p) => p,
+		};
+
 		let para_min = match self.minimum_relay_parents.get(&para_id) {
 			Some(p) => *p,
 			None => return &[],
@@ -158,11 +163,19 @@ impl View {
 		}
 	}
 
+	/// Get an iterator over all allowed relay-parents in the view.
+	pub fn all_allowed_relay_parents<'a>(&'a self) -> impl Iterator<Item = &'a Hash> + 'a {
+		self.block_info_storage.keys()
+	}
+
 	/// Get the known, allowed relay-parents that are valid for parachain candidates
 	/// which could be backed in a child of a given block for a given para ID.
 	///
 	/// This is expressed as a contiguous slice of relay-chain block hashes which may
 	/// include the provided block hash itself.
+	///
+	/// If `para_id` is `None`, this returns all valid relay-parents across all paras
+	/// for the leaf.
 	///
 	/// `None` indicates that the block hash isn't part of the implicit view or that
 	/// there are no known allowed relay parents.
@@ -175,7 +188,7 @@ impl View {
 	pub fn known_allowed_relay_parents_under(
 		&self,
 		block_hash: &Hash,
-		para_id: ParaId,
+		para_id: Option<ParaId>,
 	) -> Option<&[Hash]> {
 		let block_info = self.block_info_storage.get(block_hash)?;
 		block_info

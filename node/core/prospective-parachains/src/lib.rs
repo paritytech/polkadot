@@ -163,6 +163,9 @@ async fn handle_active_leaves_update<Context>(
 	}
 
 	for activated in update.activated.into_iter() {
+		// TODO [now]: skip leaves which don't have prospective parachains
+		// enabled. This should be a runtime API version check.
+
 		let hash = activated.hash;
 		let scheduled_paras = fetch_upcoming_paras(&mut *ctx, hash).await?;
 

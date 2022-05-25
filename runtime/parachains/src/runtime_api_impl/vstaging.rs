@@ -25,3 +25,6 @@ pub fn get_session_disputes<T: disputes::Config>(
 ) -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
 	<disputes::Pallet<T>>::disputes()
 }
+
+// TODO [now]: implicit `validity_constraints`. Ensure that `min_relay_parent`
+// never goes lower than the point at which asynchronous backing was enabled.

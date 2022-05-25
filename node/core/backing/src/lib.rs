@@ -33,7 +33,9 @@
 //! Depth is a concept relating to asynchronous backing, by which validators
 //! short sub-chains of candidates are backed and extended off-chain, and then placed
 //! asynchronously into blocks of the relay chain as those are authored and as the
-//! relay-chain state becomes ready for them.
+//! relay-chain state becomes ready for them. Asynchronous backing allows parachains to
+//! grow mostly independently from the state of the relay chain, which gives more time for
+//! parachains to be validated and thereby increases performance.
 //!
 //! Most of the work of asynchronous backing is handled by the Prospective Parachains
 //! subsystem. The 'depth' of a parachain block with respect to a relay chain block is
@@ -71,7 +73,8 @@ use std::{
 use bitvec::vec::BitVec;
 use futures::{
 	channel::{mpsc, oneshot},
-	FutureExt, SinkExt, StreamExt,
+	stream::FuturesOrdered,
+	FutureExt, SinkExt, StreamExt, TryFutureExt,
 };
 
 use error::{Error, FatalResult};
@@ -85,12 +88,13 @@ use polkadot_node_subsystem::{
 		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
 		CandidateValidationMessage, CollatorProtocolMessage, DisputeCoordinatorMessage,
 		ProvisionableData, ProvisionerMessage, RuntimeApiRequest, StatementDistributionMessage,
+		ProspectiveParachainsMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
 	Stage, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
-	self as util, backing_implicit_view::View as ImplicitView, request_from_runtime,
+	self as util, backing_implicit_view::{FetchError as ImplicitViewFetchError, View as ImplicitView}, request_from_runtime,
 	request_session_index_for_child, request_validator_groups, request_validators, Validator,
 };
 use polkadot_primitives::v2::{
@@ -220,6 +224,7 @@ struct PerCandidateState {
 	persisted_validation_data: PersistedValidationData,
 	seconded_locally: bool,
 	para_id: ParaId,
+	relay_parent: Hash,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -381,6 +386,188 @@ async fn handle_communication<Context>(
 			if let Some(job) = view.job_mut(&relay_parent) {
 				job.job.handle_get_backed_candidates_message(requested_candidates, tx)?;
 			},
+	}
+
+	Ok(())
+}
+
+async fn prospective_parachains_mode<Context>(
+	_ctx: &mut Context,
+	_leaf_hash: Hash,
+) -> ProspectiveParachainsMode {
+	// TODO [now]: this should be a runtime API version call
+	// cc https://github.com/paritytech/substrate/discussions/11338
+	unimplemented!()
+}
+
+// TODO [now]: rename once this is no longer 'new'
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn handle_active_leaves_update_new<Context>(
+	ctx: &mut Context,
+	update: ActiveLeavesUpdate,
+	state: &mut State,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	enum LeafHasProspectiveParachains {
+		Enabled(Result<Vec<ParaId>, ImplicitViewFetchError>),
+		Disabled,
+	}
+
+	// Activate in implicit view before deactivate, per the docs
+	// on ImplicitView, this is more efficient.
+	let res = if let Some(leaf) = update.activated {
+		// Only activate in implicit view if prospective
+		// parachains are enabled.
+		let mode = prospective_parachains_mode(ctx, leaf.hash).await;
+
+		let leaf_hash = leaf.hash;
+		Some((leaf, match mode {
+			ProspectiveParachainsMode::Disabled => LeafHasProspectiveParachains::Disabled,
+			ProspectiveParachainsMode::Enabled => LeafHasProspectiveParachains::Enabled(
+				state.implicit_view.activate_leaf(
+					ctx.sender(),
+					leaf_hash,
+				).await
+			)
+		}))
+	} else {
+		None
+	};
+
+	for deactivated in update.deactivated {
+		state.per_leaf.remove(&deactivated);
+		state.implicit_view.deactivate_leaf(deactivated);
+	}
+
+	// clean up `per_relay_parent` according to ancestry
+	// of leaves. we do this so we can clean up candidates right after
+	// as a result.
+	//
+	// when prospective parachains are disabled, the implicit view is empty,
+	// which means we'll clean up everything. This is correct.
+	for relay_parent in state.implicit_view.all_allowed_relay_parents() {
+		state.per_relay_parent.remove(relay_parent);
+	}
+
+	// clean up `per_candidate` according to which relay-parents
+	// are known.
+	//
+	// when prospective parachains are disabled, we clean up all candidates
+	// because we've cleaned up all relay parents. this is correct.
+	state.per_candidate.retain(|_, pc| state.per_relay_parent.contains_key(&pc.relay_parent));
+
+	// Get relay parents which might be fresh but might be known already
+	// that are explicit or implicit from the new active leaf.
+	let fresh_relay_parents = match res {
+		None => return Ok(()),
+		Some((leaf, LeafHasProspectiveParachains::Disabled)) => {
+			// defensive in this case - for enabled, this manifests as an error.
+			if state.per_leaf.contains_key(&leaf.hash) { return Ok(()) }
+
+			state.per_leaf.insert(
+				leaf.hash,
+				ActiveLeafState {
+					prospective_parachains_mode: ProspectiveParachainsMode::Disabled,
+					// This is empty because the only allowed relay-parent and depth
+					// when prospective parachains are disabled is the leaf hash and 0,
+					// respectively. We've just learned about the leaf hash, so we cannot
+					// have any candidates seconded with it as a relay-parent yet.
+					seconded_at_depth: BTreeMap::new(),
+				}
+			);
+
+			vec![leaf.hash]
+		}
+		Some((leaf, LeafHasProspectiveParachains::Enabled(Ok(_)))) => {
+			let fresh_relay_parents = state.implicit_view.known_allowed_relay_parents_under(
+				&leaf.hash,
+				None,
+			);
+
+			// At this point, all candidates outside of the implicit view
+			// have been cleaned up. For all which remain, which we've seconded,
+			// we ask the prospective parachains subsystem where they land in the fragment
+			// tree for the given active leaf. This comprises our `seconded_at_depth`.
+
+			let remaining_seconded = state.per_candidate.iter()
+				.filter(|(_, cd)| cd.seconded_locally)
+				.map(|(c_hash, cd)| (*c_hash, cd.para_id));
+
+			// one-to-one correspondence to remaining_seconded
+			let mut membership_answers = FuturesOrdered::new();
+
+			for (candidate_hash, para_id) in remaining_seconded {
+				let (tx, rx) = oneshot::channel();
+				membership_answers.push(rx.map_ok(move |membership| (candidate_hash, membership)));
+
+				ctx.send_message(
+					ProspectiveParachainsMessage::GetTreeMembership(para_id, candidate_hash, tx)
+				).await;
+			}
+
+			let mut seconded_at_depth = BTreeMap::new();
+			for response in membership_answers.next().await {
+				match response {
+					Err(oneshot::Canceled) => {
+						gum::warn!(
+							target: LOG_TARGET,
+							"Prospective parachains subsystem unreachable for membership request",
+						);
+
+						continue
+					}
+					Ok((candidate_hash, membership)) => {
+						// This request gives membership in all fragment trees. We have some
+						// wasted data here, and it can be optimized if it proves
+						// relevant to performance.
+						if let Some((_, depths)) = membership
+							.into_iter()
+							.find(|(leaf_hash, _)| leaf_hash == &leaf.hash)
+						{
+							for depth in depths {
+								seconded_at_depth.insert(depth, candidate_hash);
+							}
+						}
+					}
+				}
+			}
+
+			state.per_leaf.insert(leaf.hash, ActiveLeafState {
+				prospective_parachains_mode: ProspectiveParachainsMode::Enabled,
+				seconded_at_depth,
+			});
+
+			match fresh_relay_parents {
+				Some(f) => f.to_vec(),
+				None => {
+					gum::warn!(
+						target: LOG_TARGET,
+						leaf_hash = ?leaf.hash,
+						"Implicit view gave no relay-parents"
+					);
+
+					vec![leaf.hash]
+				}
+			}
+		}
+		Some((leaf, LeafHasProspectiveParachains::Enabled(Err(e)))) => {
+			gum::debug!(
+				target: LOG_TARGET,
+				leaf_hash = ?leaf.hash,
+				err = ?e,
+				"Failed to load implicit view for leaf."
+			);
+
+			return Ok(())
+		}
+	};
+
+	// add entries in `per_relay_parent`. for all new relay-parents.
+	for maybe_new in fresh_relay_parents {
+		if state.per_relay_parent.contains_key(&maybe_new) { continue }
+
+		// TODO [now]: construct a `PerRelayParent` from the runtime API
+		// and insert it.
 	}
 
 	Ok(())
