@@ -493,8 +493,8 @@ fn compute_fee_multiplier<C: Chain>(
 ) -> FixedU128 {
 	let adjusted_weight_fee_difference =
 		larger_adjusted_weight_fee.saturating_sub(smaller_adjusted_weight_fee);
-	let smaller_tx_unadjusted_weight_fee = WeightToFeeOf::<C>::calc(&smaller_tx_weight);
-	let larger_tx_unadjusted_weight_fee = WeightToFeeOf::<C>::calc(&larger_tx_weight);
+	let smaller_tx_unadjusted_weight_fee = WeightToFeeOf::<C>::weight_to_fee(&smaller_tx_weight);
+	let larger_tx_unadjusted_weight_fee = WeightToFeeOf::<C>::weight_to_fee(&larger_tx_weight);
 	FixedU128::saturating_from_rational(
 		adjusted_weight_fee_difference,
 		larger_tx_unadjusted_weight_fee.saturating_sub(smaller_tx_unadjusted_weight_fee),
@@ -507,7 +507,7 @@ fn compute_prepaid_messages_refund<C: ChainWithMessages>(
 	total_prepaid_nonces: MessageNonce,
 	fee_multiplier: FixedU128,
 ) -> BalanceOf<C> {
-	fee_multiplier.saturating_mul_int(WeightToFeeOf::<C>::calc(
+	fee_multiplier.saturating_mul_int(WeightToFeeOf::<C>::weight_to_fee(
 		&C::PAY_INBOUND_DISPATCH_FEE_WEIGHT_AT_CHAIN.saturating_mul(total_prepaid_nonces),
 	))
 }
@@ -554,11 +554,11 @@ mod tests {
 
 		let smaller_weight = 1_000_000;
 		let smaller_adjusted_weight_fee =
-			multiplier.saturating_mul_int(WeightToFeeOf::<Rococo>::calc(&smaller_weight));
+			multiplier.saturating_mul_int(WeightToFeeOf::<Rococo>::weight_to_fee(&smaller_weight));
 
 		let larger_weight = smaller_weight + 200_000;
 		let larger_adjusted_weight_fee =
-			multiplier.saturating_mul_int(WeightToFeeOf::<Rococo>::calc(&larger_weight));
+			multiplier.saturating_mul_int(WeightToFeeOf::<Rococo>::weight_to_fee(&larger_weight));
 
 		assert_eq!(
 			compute_fee_multiplier::<Rococo>(
