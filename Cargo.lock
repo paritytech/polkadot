@@ -6891,6 +6891,7 @@ dependencies = [
  "polkadot-primitives",
  "sc-keystore",
  "sp-application-crypto",
+ "sp-consensus",
  "sp-core",
  "sp-keyring",
  "sp-keystore",

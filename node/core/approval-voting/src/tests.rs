@@ -29,6 +29,7 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
+use polkadot_node_subsystem_test_helpers::{make_sync_oracle, TestSyncOracleHandle};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_overseer::HeadSupportsParachains;
 use polkadot_primitives::v2::{
@@ -41,13 +42,7 @@ use assert_matches::assert_matches;
 use parking_lot::Mutex;
 use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 use sp_keystore::CryptoStore;
-use std::{
-	pin::Pin,
-	sync::{
-		atomic::{AtomicBool, Ordering},
-		Arc,
-	},
-};
+use std::{pin::Pin, sync::Arc};
 
 use super::{
 	approval_db::v1::StoredBlockRange,
@@ -61,50 +56,6 @@ use super::{
 use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig};
 
 const SLOT_DURATION_MILLIS: u64 = 5000;
-
-#[derive(Clone)]
-struct TestSyncOracle {
-	flag: Arc<AtomicBool>,
-	done_syncing_sender: Arc<Mutex<Option<oneshot::Sender<()>>>>,
-}
-
-struct TestSyncOracleHandle {
-	done_syncing_receiver: oneshot::Receiver<()>,
-}
-
-impl TestSyncOracleHandle {
-	async fn await_mode_switch(self) {
-		let _ = self.done_syncing_receiver.await;
-	}
-}
-
-impl SyncOracle for TestSyncOracle {
-	fn is_major_syncing(&mut self) -> bool {
-		let is_major_syncing = self.flag.load(Ordering::SeqCst);
-
-		if !is_major_syncing {
-			if let Some(sender) = self.done_syncing_sender.lock().take() {
-				let _ = sender.send(());
-			}
-		}
-
-		is_major_syncing
-	}
-
-	fn is_offline(&mut self) -> bool {
-		unimplemented!("not used in network bridge")
-	}
-}
-
-// val - result of `is_major_syncing`.
-fn make_sync_oracle(val: bool) -> (Box<dyn SyncOracle + Send>, TestSyncOracleHandle) {
-	let (tx, rx) = oneshot::channel();
-	let flag = Arc::new(AtomicBool::new(val));
-	let oracle = TestSyncOracle { flag, done_syncing_sender: Arc::new(Mutex::new(Some(tx))) };
-	let handle = TestSyncOracleHandle { done_syncing_receiver: rx };
-
-	(Box::new(oracle), handle)
-}
 
 #[cfg(test)]
 pub mod test_constants {

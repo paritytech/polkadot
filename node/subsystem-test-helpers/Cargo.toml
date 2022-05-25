@@ -17,6 +17,7 @@ sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 polkadot-overseer = { path = "../overseer" }
