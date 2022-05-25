@@ -102,7 +102,7 @@ mod tests {
 		fee::WeightToFee,
 	};
 	use crate::weights::ExtrinsicBaseWeight;
-	use frame_support::weights::WeightToFeePolynomial;
+	use frame_support::weights::WeightToFee as WeightToFeeT;
 	use runtime_common::MAXIMUM_BLOCK_WEIGHT;
 
 	#[test]
