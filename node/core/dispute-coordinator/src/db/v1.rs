@@ -45,10 +45,16 @@ const CLEANED_VOTES_WATERMARK_KEY: &[u8; 23] = b"cleaned-votes-watermark";
 /// On the first run we are starting at session 0 going up all the way to the current session -
 /// this should not be done at once, but rather in smaller batches so nodes won't get stalled by
 /// this.
+///
+/// 300 is with session duration of 1h and 30 parachains around <3_000_000 key purges in the worst
+/// case. Which is already quite a lot, at the same time we have around 21_000 sessions on
+/// Kusama. This means at 300 purged sessions per session, cleaning everything up will take
+/// around 3 days. Depending on how severe disk usage becomes, we might want to bump the batch
+/// size, at the cost of risking issues at session boundaries (performance).
 #[cfg(test)]
 const MAX_CLEAN_BATCH_SIZE: u32 = 10;
 #[cfg(not(test))]
-const MAX_CLEAN_BATCH_SIZE: u32 = 500;
+const MAX_CLEAN_BATCH_SIZE: u32 = 300;
 
 pub struct DbBackend {
 	inner: Arc<dyn Database>,
