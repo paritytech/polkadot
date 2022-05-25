@@ -2009,7 +2009,7 @@ sp_api::impl_runtime_apis! {
 #[cfg(test)]
 mod test_fees {
 	use super::*;
-	use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
+	use frame_support::weights::{GetDispatchInfo, WeightToFee as WeightToFeeT};
 	use keyring::Sr25519Keyring::Charlie;
 	use pallet_transaction_payment::Multiplier;
 	use runtime_common::MinimumMultiplier;
@@ -2038,7 +2038,7 @@ mod test_fees {
 	#[ignore]
 	fn block_cost() {
 		let max_block_weight = BlockWeights::get().max_block;
-		let raw_fee = WeightToFee::calc(&max_block_weight);
+		let raw_fee = WeightToFee::weight_to_fee(&max_block_weight);
 
 		println!(
 			"Full Block weight == {} // WeightToFee(full_block) == {} plank",
