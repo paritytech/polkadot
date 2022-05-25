@@ -19,7 +19,7 @@
 #![deny(unused_crate_dependencies)]
 
 use std::{
-	collections::{hash_map::Entry, HashMap, HashSet},
+	collections::{BTreeMap, HashMap, HashSet},
 	sync::Arc,
 };
 
@@ -45,13 +45,14 @@ use polkadot_node_subsystem::{
 	Stage, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
-	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
-	request_validators, Validator,
+	self as util, backing_implicit_view::View as ImplicitView, request_from_runtime,
+	request_session_index_for_child, request_validator_groups, request_validators, Validator,
 };
 use polkadot_primitives::v2::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
 	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
 	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+	PersistedValidationData,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{
@@ -147,16 +148,83 @@ where
 	}
 }
 
-// The mode is determined on a per-relay-parent basis, based
-// on the runtime API version.
-enum Mode {
-	// This mode makes use of the prospective parachains subsystem,
-	// to participate in asynchronous backing.
-	ProspectiveParachains,
-	// This mode considers the 'base' block of the relay-chain only.
-	// This is a compatibility mode for the pre-asynchronous-backing
-	// era.
-	BaseOnly,
+struct PerRelayParentState {
+	/// The hash of the relay parent on top of which this job is doing it's work.
+	parent: Hash,
+	/// The session index this corresponds to.
+	session_index: SessionIndex,
+	/// The `ParaId` assigned to the local validator at this relay parent.
+	assignment: Option<ParaId>,
+	/// The candidates that are backed by enough validators in their group, by hash.
+	backed: HashSet<CandidateHash>,
+	/// The table of candidates and statements under this relay-parent.
+	table: Table<TableContext>,
+	/// The table context, including groups.
+	table_context: TableContext,
+	/// We issued `Seconded` or `Valid` statements on about these candidates.
+	issued_statements: HashSet<CandidateHash>,
+	/// These candidates are undergoing validation in the background.
+	awaiting_validation: HashSet<CandidateHash>,
+	/// Data needed for retrying in case of `ValidatedCandidateCommand::AttestNoPoV`.
+	fallbacks: HashMap<CandidateHash, (AttestingData, Option<jaeger::Span>)>,
+	/// Spans for all candidates that are not yet backable.
+	unbacked_candidates: HashMap<CandidateHash, jaeger::Span>,
+}
+
+struct PerCandidateState {
+	persisted_validation_data: PersistedValidationData,
+	seconded_locally: bool,
+	para_id: ParaId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ProspectiveParachainsMode {
+	// v2 runtime API: no prospective parachains.
+	Disabled,
+	// vstaging runtime API: prospective parachains.
+	Enabled,
+}
+
+impl ProspectiveParachainsMode {
+	fn is_disabled(&self) -> bool {
+		self == &ProspectiveParachainsMode::Disabled
+	}
+
+	fn is_enabled(&self) -> bool {
+		self == &ProspectiveParachainsMode::Enabled
+	}
+}
+
+struct ActiveLeafState {
+	prospective_parachains_mode: ProspectiveParachainsMode,
+	/// The candidates seconded at various depths under this active
+	/// leaf. A candidate can only be seconded when its hypothetical
+	/// depth under every active leaf has an empty entry in this map.
+	///
+	/// When prospective parachains are disabled, the only depth
+	/// which is allowed is '0'.
+	seconded_at_depth: BTreeMap<usize, CandidateHash>,
+}
+
+/// The state of the subsystem.
+struct State {
+	/// The utility for managing the implicit and explicit views ina consistent way.
+	///
+	/// We only feed leaves which have prospective parachains enabled to this view.
+	implicit_view: ImplicitView,
+	/// State tracked for all active leaves, whether or not they have prospective parachains
+	/// enabled.
+	per_leaf: HashMap<Hash, ActiveLeafState>,
+	/// State tracked for all relay-parents backing work is ongoing for. This includes
+	/// all active leaves.
+	per_relay_parent: HashMap<Hash, PerRelayParentState>,
+	/// State tracked for all candidates relevant to the implicit view.
+	per_candidate: HashMap<CandidateHash, PerCandidateState>,
+	/// A cloneable sender which is dispatched to background candidate validation tasks to inform
+	/// the main task of the result.
+	background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
+	/// The handle to the keystore used for signing.
+	keystore: SyncCryptoStorePtr,
 }
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
@@ -282,10 +350,6 @@ async fn handle_active_leaves_update<Context>(
 	background_validation_tx: &mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
-	for deactivated in update.deactivated {
-		jobs.remove(&deactivated);
-	}
-
 	let leaf = match update.activated {
 		None => return Ok(()),
 		Some(a) => a,
@@ -424,97 +488,18 @@ struct JobAndSpan<Context> {
 }
 
 struct ViewEntry<Context> {
-	ref_count: usize,
 	job: Option<JobAndSpan<Context>>,
 }
 
-#[derive(Debug, PartialEq)]
-enum JobStatus {
-	Unneeded,
-	Needed,
-	Existing,
-}
 
 struct View<Context> {
-	// Maps active-leaves to relevant ancestry, according to the
-	// prospective-parachains subsystem.
-	active_leaves: HashMap<Hash, Vec<Hash>>,
-
 	// maps relay-parents to jobs and spans.
 	implicit_view: HashMap<Hash, ViewEntry<Context>>,
 }
 
 impl<Context> View<Context> {
 	fn new() -> Self {
-		View { active_leaves: HashMap::new(), implicit_view: HashMap::new() }
-	}
-
-	/// Add a leaf to the view, with the given implicit ancestry.
-	///
-	/// Jobs may not already exist for the implicit ancestry, so
-	fn add_leaf_with_implicit_ancestry(&mut self, leaf: Hash, implicit_ancestry: Vec<Hash>) {
-		let ancestry = match self.active_leaves.entry(leaf) {
-			Entry::Vacant(mut vacant) => vacant.insert(implicit_ancestry),
-			Entry::Occupied(_) => {
-				gum::debug!(
-					target: LOG_TARGET,
-					relay_parent = ?leaf,
-					"Attempted to add leaf to view more than once.",
-				);
-
-				return
-			},
-		};
-
-		for fresh in ancestry.iter().cloned().chain(std::iter::once(leaf)) {
-			self.implicit_view
-				.entry(fresh)
-				.or_insert_with(|| ViewEntry { ref_count: 0, job: None })
-				.ref_count += 1;
-		}
-	}
-
-	/// Given a deactivated leaf, this does book-keeping on deactivated leaves
-	fn prune(&mut self, deactivated: Hash) {
-		if let Some(ancestry) = self.active_leaves.remove(&deactivated) {
-			for outdated in ancestry.into_iter().chain(std::iter::once(deactivated)) {
-				if let Entry::Occupied(mut entry) = self.implicit_view.entry(outdated) {
-					entry.get_mut().ref_count = entry.get().ref_count.saturating_sub(1);
-					if entry.get().ref_count == 0 {
-						let _ = entry.remove();
-					}
-				}
-			}
-		}
-	}
-
-	fn supply_needed_job(&mut self, relay_parent: Hash, job: JobAndSpan<Context>) {
-		if self.job_status(&relay_parent) != JobStatus::Needed {
-			gum::debug!(
-				target: LOG_TARGET,
-				?relay_parent,
-				"Attempted to supply unneeded job to view."
-			);
-			return
-		}
-
-		// sanity: is always Some; guarded by job_status check above.
-		if let Some(x) = self.implicit_view.get_mut(&relay_parent) {
-			x.job = Some(job);
-		}
-	}
-
-	/// The status of the job for a given relay-parent.
-	fn job_status(&self, relay_parent: &Hash) -> JobStatus {
-		match self.implicit_view.get(relay_parent) {
-			None => JobStatus::Unneeded,
-			Some(entry) =>
-				if entry.job.is_some() {
-					JobStatus::Existing
-				} else {
-					JobStatus::Needed
-				},
-		}
+		View { implicit_view: HashMap::new() }
 	}
 
 	fn job_mut<'a>(&'a mut self, relay_parent: &Hash) -> Option<&'a mut JobAndSpan<Context>> {
@@ -707,7 +692,7 @@ async fn make_pov_available(
 	n_validators: usize,
 	pov: Arc<PoV>,
 	candidate_hash: CandidateHash,
-	validation_data: polkadot_primitives::v2::PersistedValidationData,
+	validation_data: PersistedValidationData,
 	expected_erasure_root: Hash,
 	span: Option<&jaeger::Span>,
 ) -> Result<Result<(), InvalidErasureRoot>, Error> {
