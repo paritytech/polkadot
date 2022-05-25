@@ -3312,7 +3312,6 @@ dependencies = [
  "pallet-indices",
  "pallet-membership",
  "pallet-multisig",
- "pallet-nicks",
  "pallet-nomination-pools",
  "pallet-nomination-pools-benchmarking",
  "pallet-offences",
@@ -5387,20 +5386,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-nicks"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#eddf888394cba28b048bd79e319e8b27f4b414f3"
-dependencies = [
- "frame-support",
- "frame-system",
- "parity-scale-codec",
- "scale-info",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "pallet-nomination-pools"
 version = "1.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=master#eddf888394cba28b048bd79e319e8b27f4b414f3"
@@ -7114,7 +7099,6 @@ dependencies = [
  "pallet-indices",
  "pallet-membership",
  "pallet-multisig",
- "pallet-nicks",
  "pallet-offences",
  "pallet-offences-benchmarking",
  "pallet-preimage",
@@ -7519,7 +7503,6 @@ dependencies = [
  "pallet-balances",
  "pallet-grandpa",
  "pallet-indices",
- "pallet-nicks",
  "pallet-offences",
  "pallet-session",
  "pallet-staking",
@@ -12375,7 +12358,6 @@ dependencies = [
  "pallet-indices",
  "pallet-membership",
  "pallet-multisig",
- "pallet-nicks",
  "pallet-nomination-pools",
  "pallet-nomination-pools-benchmarking",
  "pallet-offences",
