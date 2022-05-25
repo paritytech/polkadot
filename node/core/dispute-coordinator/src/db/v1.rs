@@ -31,7 +31,7 @@ use crate::{
 	backend::{Backend, BackendWriteOp, OverlayedBackend},
 	error::{FatalError, FatalResult},
 	status::DisputeStatus,
-	DISPUTE_WINDOW, LOG_TARGET,
+	DISPUTE_WINDOW,
 };
 
 const RECENT_DISPUTES_KEY: &[u8; 15] = b"recent-disputes";
