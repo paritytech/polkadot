@@ -277,6 +277,22 @@ struct State {
 	keystore: SyncCryptoStorePtr,
 }
 
+impl State {
+	fn new(
+		background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
+		keystore: SyncCryptoStorePtr,
+	) -> Self {
+		State {
+			implicit_view: ImplicitView::default(),
+			per_leaf: HashMap::default(),
+			per_relay_parent: HashMap::default(),
+			per_candidate: HashMap::new(),
+			background_validation_tx,
+			keystore,
+		}
+	}
+}
+
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
@@ -284,18 +300,11 @@ async fn run<Context>(
 	metrics: Metrics,
 ) -> FatalResult<()> {
 	let (background_validation_tx, mut background_validation_rx) = mpsc::channel(16);
-	let mut view = View::new();
+	let mut state = State::new(background_validation_tx, keystore);
 
 	loop {
-		let res = run_iteration(
-			&mut ctx,
-			keystore.clone(),
-			&metrics,
-			&mut view,
-			background_validation_tx.clone(),
-			&mut background_validation_rx,
-		)
-		.await;
+		let res =
+			run_iteration(&mut ctx, &mut state, &metrics, &mut background_validation_rx).await;
 
 		match res {
 			Ok(()) => break,
@@ -309,39 +318,41 @@ async fn run<Context>(
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn run_iteration<Context>(
 	ctx: &mut Context,
-	keystore: SyncCryptoStorePtr,
+	state: &mut State,
 	metrics: &Metrics,
-	view: &mut View<Context>,
-	background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	background_validation_rx: &mut mpsc::Receiver<(Hash, ValidatedCandidateCommand)>,
 ) -> Result<(), Error> {
 	loop {
 		futures::select!(
 			validated_command = background_validation_rx.next().fuse() => {
-				if let Some((relay_parent, command)) = validated_command {
-					handle_validated_candidate_command(
-						&mut *ctx,
-						view,
-						relay_parent,
-						command,
-					).await?;
-				} else {
-					panic!("background_validation_tx always alive at this point; qed");
-				}
+				// TODO [now]
+				// if let Some((relay_parent, command)) = validated_command {
+				// 	handle_validated_candidate_command(
+				// 		&mut *ctx,
+				// 		view,
+				// 		relay_parent,
+				// 		command,
+				// 	).await?;
+				// } else {
+				// 	panic!("background_validation_tx always alive at this point; qed");
+				// }
 			}
 			from_overseer = ctx.recv().fuse() => {
 				match from_overseer? {
-					FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => handle_active_leaves_update(
-						&mut *ctx,
-						update,
-						view,
-						&keystore,
-						&background_validation_tx,
-						&metrics,
-					).await?,
+					FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+						handle_active_leaves_update(
+							&mut *ctx,
+							update,
+							state,
+							&metrics,
+						).await?;
+					}
 					FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
 					FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-					FromOverseer::Communication { msg } => handle_communication(&mut *ctx, view, msg).await?,
+					FromOverseer::Communication { msg } => {
+						// TODO [now]
+						// handle_communication(&mut *ctx, view, msg).await?,
+					}
 				}
 			}
 		)
@@ -400,9 +411,8 @@ async fn prospective_parachains_mode<Context>(
 	unimplemented!()
 }
 
-// TODO [now]: rename once this is no longer 'new'
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn handle_active_leaves_update_new<Context>(
+async fn handle_active_leaves_update<Context>(
 	ctx: &mut Context,
 	update: ActiveLeavesUpdate,
 	state: &mut State,
@@ -688,28 +698,6 @@ async fn construct_per_relay_parent_state<Context>(
 		awaiting_validation: HashSet::new(),
 		fallbacks: HashMap::new(),
 	}))
-}
-
-#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn handle_active_leaves_update<Context>(
-	ctx: &mut Context,
-	update: ActiveLeavesUpdate,
-	view: &mut View<Context>,
-	keystore: &SyncCryptoStorePtr,
-	background_validation_tx: &mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
-	metrics: &Metrics,
-) -> Result<(), Error> {
-	let leaf = match update.activated {
-		None => return Ok(()),
-		Some(a) => a,
-	};
-
-	// TODO [now]: update view. no ancestry if mode is not
-	// `ProspectiveParachains`.
-
-	// TODO [now] view.insert(parent, JobAndSpan { job, span });
-
-	Ok(())
 }
 
 struct JobAndSpan<Context> {
