@@ -2,7 +2,7 @@
 name = "pallet-xcm-benchmarks"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
-version = "0.9.22"
+version = "0.9.23"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
