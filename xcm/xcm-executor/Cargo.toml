@@ -3,7 +3,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 name = "xcm-executor"
 description = "An abstract and configurable XCM message executor."
-version = "0.9.22"
+version = "0.9.23"
 
 [dependencies]
 impl-trait-for-tuples = "0.2.2"

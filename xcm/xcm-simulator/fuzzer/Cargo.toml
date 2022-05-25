@@ -1,6 +1,6 @@
 [package]
 name = "xcm-simulator-fuzzer"
-version = "0.9.22"
+version = "0.9.23"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Examples of xcm-simulator usage."
 edition = "2021"

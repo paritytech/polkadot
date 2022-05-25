@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-subsystem-test-helpers"
-version = "0.9.22"
+version = "0.9.23"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Subsystem traits and message definitions"

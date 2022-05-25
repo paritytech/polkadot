@@ -2,7 +2,7 @@
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 name = "pallet-xcm"
-version = "0.9.22"
+version = "0.9.23"
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
