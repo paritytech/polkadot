@@ -31,7 +31,7 @@ use crate::{
 	backend::{Backend, BackendWriteOp, OverlayedBackend},
 	error::{FatalError, FatalResult},
 	status::DisputeStatus,
-	DISPUTE_WINDOW,
+	DISPUTE_WINDOW, LOG_TARGET,
 };
 
 const RECENT_DISPUTES_KEY: &[u8; 15] = b"recent-disputes";
@@ -48,7 +48,7 @@ const CLEANED_VOTES_WATERMARK_KEY: &[u8; 24] = b"earliest-cleaned-session";
 #[cfg(test)]
 const MAX_CLEAN_BATCH_SIZE: u32 = 10;
 #[cfg(not(test))]
-const MAX_CLEAN_BATCH_SIZE: u32 = 1000;
+const MAX_CLEAN_BATCH_SIZE: u32 = 500;
 
 pub struct DbBackend {
 	inner: Arc<dyn Database>,
@@ -101,7 +101,22 @@ impl Backend for DbBackend {
 					} else {
 						session
 					};
+					gum::trace!(
+						target: LOG_TARGET,
+						?watermark,
+						?clean_until,
+						?session,
+						?MAX_CLEAN_BATCH_SIZE,
+						"WriteEarliestSession"
+					);
+
 					for index in watermark..clean_until {
+						gum::trace!(
+							target: LOG_TARGET,
+							?index,
+							encoded = ?candidate_votes_session_prefix(index),
+							"Cleaning votes for session index"
+						);
 						tx.delete_prefix(
 							self.config.col_data,
 							&candidate_votes_session_prefix(index),
@@ -121,6 +136,7 @@ impl Backend for DbBackend {
 					tx.put_vec(self.config.col_data, RECENT_DISPUTES_KEY, recent_disputes.encode());
 				},
 				BackendWriteOp::WriteCandidateVotes(session, candidate_hash, votes) => {
+					gum::trace!(target: LOG_TARGET, ?session, "Writing candidate votes");
 					tx.put_vec(
 						self.config.col_data,
 						&candidate_votes_key(session, &candidate_hash),
@@ -315,6 +331,7 @@ fn load_cleaned_votes_watermark(
 
 #[cfg(test)]
 mod tests {
+
 	use super::*;
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use polkadot_primitives::v2::{Hash, Id as ParaId};
@@ -325,6 +342,89 @@ mod tests {
 		let store = Arc::new(db);
 		let config = ColumnConfiguration { col_data: 0 };
 		DbBackend::new(store, config)
+	}
+
+	#[test]
+	fn max_clean_batch_size_is_honored() {
+		let mut backend = make_db();
+
+		let mut overlay_db = OverlayedBackend::new(&backend);
+		let current_session = MAX_CLEAN_BATCH_SIZE + DISPUTE_WINDOW.get() + 3;
+		let earliest_session = current_session - DISPUTE_WINDOW.get();
+
+		overlay_db.write_earliest_session(0);
+		let candidate_hash = CandidateHash(Hash::repeat_byte(1));
+
+		for session in 0..current_session + 1 {
+			overlay_db.write_candidate_votes(
+				session,
+				candidate_hash,
+				CandidateVotes {
+					candidate_receipt: dummy_candidate_receipt(dummy_hash()),
+					valid: Vec::new(),
+					invalid: Vec::new(),
+				},
+			);
+		}
+		assert!(overlay_db.load_candidate_votes(0, &candidate_hash).unwrap().is_some());
+		assert!(overlay_db
+			.load_candidate_votes(MAX_CLEAN_BATCH_SIZE - 1, &candidate_hash)
+			.unwrap()
+			.is_some());
+		assert!(overlay_db
+			.load_candidate_votes(MAX_CLEAN_BATCH_SIZE, &candidate_hash)
+			.unwrap()
+			.is_some());
+
+		// Cleanup only works for votes that have been written already - so write.
+		let write_ops = overlay_db.into_write_ops();
+		backend.write(write_ops).unwrap();
+
+		let mut overlay_db = OverlayedBackend::new(&backend);
+
+		gum::trace!(target: LOG_TARGET, ?current_session, "Noting current session");
+		note_current_session(&mut overlay_db, current_session).unwrap();
+
+		let write_ops = overlay_db.into_write_ops();
+		backend.write(write_ops).unwrap();
+
+		let mut overlay_db = OverlayedBackend::new(&backend);
+
+		assert!(overlay_db
+			.load_candidate_votes(MAX_CLEAN_BATCH_SIZE - 1, &candidate_hash)
+			.unwrap()
+			.is_none());
+		// After batch size votes should still be there:
+		assert!(overlay_db
+			.load_candidate_votes(MAX_CLEAN_BATCH_SIZE, &candidate_hash)
+			.unwrap()
+			.is_some());
+
+		let current_session = current_session + 1;
+		let earliest_session = earliest_session + 1;
+
+		note_current_session(&mut overlay_db, current_session).unwrap();
+
+		let write_ops = overlay_db.into_write_ops();
+		backend.write(write_ops).unwrap();
+
+		let overlay_db = OverlayedBackend::new(&backend);
+
+		// All should be gone now:
+		assert!(overlay_db
+			.load_candidate_votes(earliest_session - 1, &candidate_hash)
+			.unwrap()
+			.is_none());
+		// Earliest session should still be there:
+		assert!(overlay_db
+			.load_candidate_votes(earliest_session, &candidate_hash)
+			.unwrap()
+			.is_some());
+		// Old current session should still be there as well:
+		assert!(overlay_db
+			.load_candidate_votes(current_session - 1, &candidate_hash)
+			.unwrap()
+			.is_some());
 	}
 
 	#[test]
@@ -472,6 +572,7 @@ mod tests {
 		let new_earliest_session = 5;
 		let current_session = 5 + DISPUTE_WINDOW.get();
 
+		let super_old_no_dispute = 1;
 		let very_old = 3;
 		let slightly_old = 4;
 		let very_recent = current_session - 1;
@@ -495,6 +596,7 @@ mod tests {
 			.collect(),
 		);
 
+		overlay_db.write_candidate_votes(super_old_no_dispute, hash_a, blank_candidate_votes());
 		overlay_db.write_candidate_votes(very_old, hash_a, blank_candidate_votes());
 
 		overlay_db.write_candidate_votes(slightly_old, hash_b, blank_candidate_votes());
@@ -527,6 +629,10 @@ mod tests {
 
 		let overlay_db = OverlayedBackend::new(&backend);
 
+		assert!(overlay_db
+			.load_candidate_votes(super_old_no_dispute, &hash_a)
+			.unwrap()
+			.is_none());
 		assert!(overlay_db.load_candidate_votes(very_old, &hash_a).unwrap().is_none());
 		assert!(overlay_db.load_candidate_votes(slightly_old, &hash_b).unwrap().is_none());
 		assert!(overlay_db
