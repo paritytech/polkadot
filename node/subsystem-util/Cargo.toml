@@ -26,7 +26,7 @@ polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-overseer = { path = "../overseer" }
-metered = { package = "prioritized-metered-channel", path = "../metered-channel" }
+metered = { package = "prioritized-metered-channel", path = "../metered-channel" , "version" = "0.2.0" }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
