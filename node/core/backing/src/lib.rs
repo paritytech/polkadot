@@ -14,7 +14,52 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Implements a `CandidateBackingSubsystem`.
+//! Implements the `CandidateBackingSubsystem`.
+//!
+//! This subsystem maintains the entire responsibility of tracking parachain
+//! candidates which can be backed, as well as the issuance of statements
+//! about candidates when run on a validator node.
+//!
+//! There are two types of statements: `Seconded` and `Valid`.
+//! `Seconded` implies `Valid`, and nothing should be stated as
+//! `Valid` unless its already been `Seconded`.
+//!
+//! Validators may only second candidates which fall under their own group
+//! assignment, and they may only second one candidate per depth per active leaf.
+//! Candidates which are stated as either `Second` or `Valid` by a majority of the
+//! assigned group of validators may be backed on-chain and proceed to the availability
+//! stage.
+//!
+//! Depth is a concept relating to asynchronous backing, by which validators
+//! short sub-chains of candidates are backed and extended off-chain, and then placed
+//! asynchronously into blocks of the relay chain as those are authored and as the
+//! relay-chain state becomes ready for them.
+//!
+//! Most of the work of asynchronous backing is handled by the Prospective Parachains
+//! subsystem. The 'depth' of a parachain block with respect to a relay chain block is
+//! a measure of how many parachain blocks are between the most recent included parachain block
+//! in the post-state of the relay-chain block and the candidate. For instance,
+//! a candidate that descends directly from the most recent parachain block in the relay-chain
+//! state has depth 0. The child of that candidate would have depth 1. And so on.
+//!
+//! The candidate backing subsystem keeps track of a set of 'active leaves' which are the
+//! most recent blocks in the relay-chain (which is in fact a tree) which could be built
+//! upon. Depth is always measured against active leaves, and the valid relay-parent that
+//! each candidate can have is determined by the active leaves. The Prospective Parachains
+//! subsystem enforces that the relay-parent increases monotonoically, so that logic
+//! is not handled here. By communicating with the Prospective Parachains subsystem,
+//! this subsystem extrapolates an "implicit view" from the set of currently active leaves,
+//! which determines the set of all recent relay-chain block hashes which could be relay-parents
+//! for candidates backed in children of the active leaves.
+//!
+//! In fact, this subsystem relies on the Statement Distribution subsystem to prevent spam
+//! by enforcing the rule that each validator may second at most one candidate per depth per
+//! active leaf. This bounds the number of candidates that the system needs to consider and
+//! is not handled within this subsystem, except for candidates seconded locally.
+//!
+//! This subsystem also handles relay-chain heads which don't support asynchronous backing.
+//! For such active leaves, the only valid relay-parent is the leaf hash itself and the only
+//! allowed depth is 0.
 
 #![deny(unused_crate_dependencies)]
 
