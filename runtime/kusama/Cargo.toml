@@ -57,7 +57,6 @@ pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-nomination-pools = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -148,7 +147,6 @@ std = [
 	"pallet-indices/std",
 	"pallet-membership/std",
 	"pallet-multisig/std",
-	"pallet-nicks/std",
 	"pallet-nomination-pools/std",
 	"pallet-offences/std",
 	"pallet-preimage/std",
@@ -241,6 +239,7 @@ try-runtime = [
 	"pallet-authority-discovery/try-runtime",
 	"pallet-authorship/try-runtime",
 	"pallet-balances/try-runtime",
+	"pallet-bags-list/try-runtime",
 	"pallet-bounties/try-runtime",
 	"pallet-child-bounties/try-runtime",
 	"pallet-transaction-payment/try-runtime",
@@ -254,7 +253,6 @@ try-runtime = [
 	"pallet-indices/try-runtime",
 	"pallet-membership/try-runtime",
 	"pallet-multisig/try-runtime",
-	"pallet-nicks/try-runtime",
 	"pallet-offences/try-runtime",
 	"pallet-preimage/try-runtime",
 	"pallet-proxy/try-runtime",

@@ -10,7 +10,7 @@ futures = "0.3.21"
 futures-timer = "3.0.2"
 gum = { package = "tracing-gum", path = "../gum" }
 
-metered-channel = { path = "../metered-channel" }
+metered = { package = "prioritized-metered-channel", path = "../metered-channel" , "version" = "0.2.0" }
 
 # Both `sc-service` and `sc-cli` are required by runtime metrics `logger_hook()`.
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
