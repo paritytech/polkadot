@@ -16,8 +16,8 @@
 
 use crate::{barriers::AllowSubscriptionsFrom, test_utils::*};
 pub use crate::{
-	AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
-	FixedRateOfFungible, FixedWeightBounds, TakeWeightCredit,
+	AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, AllowExplicitUnpaidExecutionFrom,
+	AllowUnpaidExecutionFrom, FixedRateOfFungible, FixedWeightBounds, TakeWeightCredit,
 };
 use frame_support::traits::ContainsPair;
 pub use frame_support::{
@@ -407,6 +407,7 @@ parameter_types! {
 }
 parameter_types! {
 	// Nothing is allowed to be paid/unpaid by default.
+	pub static AllowExplicitUnpaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowUnpaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowSubsFrom: Vec<MultiLocation> = vec![];
@@ -419,6 +420,7 @@ pub type TestBarrier = (
 	TakeWeightCredit,
 	AllowKnownQueryResponses<TestResponseHandler>,
 	AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
+	AllowExplicitUnpaidExecutionFrom<IsInVec<AllowExplicitUnpaidFrom>>,
 	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>,
 	AllowSubscriptionsFrom<IsInVec<AllowSubsFrom>>,
 );

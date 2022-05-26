@@ -197,9 +197,10 @@ impl<
 	}
 }
 
-/// Allows execution from any origin that is contained in `T` (i.e. `T::Contains(origin)`) without
-/// any payments.
-/// Use only for executions from trusted origin groups.
+/// Allows execution from any origin that is contained in `T` (i.e. `T::Contains(origin)`).
+///
+/// Use only for executions from completely trusted origins, from which no unpermissioned messages
+/// can be sent.
 pub struct AllowUnpaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 	fn should_execute<Call>(
@@ -215,6 +216,32 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 		);
 		ensure!(T::contains(origin), ());
 		Ok(())
+	}
+}
+
+/// Allows execution from any origin that is contained in `T` (i.e. `T::Contains(origin)`) if the
+/// message begins with the instruction `UnpaidExecution`.
+///
+/// Use only for executions from trusted origin groups.
+pub struct AllowExplicitUnpaidExecutionFrom<T>(PhantomData<T>);
+impl<T: Contains<MultiLocation>> ShouldExecute for AllowExplicitUnpaidExecutionFrom<T> {
+	fn should_execute<Call>(
+		origin: &MultiLocation,
+		instructions: &mut [Instruction<Call>],
+		max_weight: Weight,
+		_weight_credit: &mut Weight,
+	) -> Result<(), ()> {
+		log::trace!(
+			target: "xcm::barriers",
+			"AllowUnpaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			origin, instructions, max_weight, _weight_credit,
+		);
+		ensure!(T::contains(origin), ());
+		match instructions.first() {
+			Some(UnpaidExecution { weight_limit: Limited(m), .. }) if *m >= max_weight => Ok(()),
+			Some(UnpaidExecution { weight_limit: Unlimited, .. }) => Ok(()),
+			_ => Err(()),
+		}
 	}
 }
 

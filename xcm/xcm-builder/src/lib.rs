@@ -48,7 +48,8 @@ pub use asset_conversion::{ConvertedAbstractAssetId, ConvertedConcreteAssetId};
 mod barriers;
 pub use barriers::{
 	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
-	AllowUnpaidExecutionFrom, IsChildSystemParachain, TakeWeightCredit, WithComputedOrigin,
+	AllowUnpaidExecutionFrom, AllowExplicitUnpaidExecutionFrom, IsChildSystemParachain,
+	TakeWeightCredit, WithComputedOrigin,
 };
 
 mod currency_adapter;

@@ -861,6 +861,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			AliasOrigin(_) => Err(XcmError::NoPermission),
+			UnpaidExecution { check_origin, .. } => {
+				ensure!(check_origin.is_none() || self.context.origin == check_origin, XcmError::BadOrigin);
+				Ok(())
+			},
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelClosing { .. } => Err(XcmError::Unimplemented),
