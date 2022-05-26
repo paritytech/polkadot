@@ -300,6 +300,7 @@ pub fn force_approve(
 			if state == State::WalkTo {
 				gum::debug!(
 					target: LOG_TARGET,
+					block_hash = ?chain_head,
 					?cur_hash,
 					?cur_block_number,
 					"Start forced approval from block",
