@@ -75,7 +75,10 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		);
 
 		ensure!(T::contains(origin), ());
-		let mut iter = instructions.iter_mut();
+		// We will read up to 5 instructions. This allows up to 3 `ClearOrigin`s instructions. We
+		// allow for more than one since anything beyond the first is a no-op and it's conceivable
+		// that composition of operations might result in more than one being appended.
+		let mut iter = instructions.iter_mut().take(5);
 		let i = iter.next().ok_or(())?;
 		match i {
 			ReceiveTeleportedAsset(..) |
@@ -271,6 +274,7 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 			"AllowKnownQueryResponses origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, _max_weight, _weight_credit,
 		);
+		ensure!(instructions.len() == 1, ());
 		match instructions.first() {
 			Some(QueryResponse { query_id, querier, .. })
 				if ResponseHandler::expecting_response(origin, *query_id, querier.as_ref()) =>
