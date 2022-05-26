@@ -566,7 +566,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				target: LOG_TARGET,
 				?block_hash,
 				up_to,
-				"Emitting force-approve messages for {} blocks",
+				"Force-approving {} blocks",
 				approved_hashes.len()
 			);
 
