@@ -42,6 +42,9 @@ pub enum Error {
 	#[error("FetchPoV failed")]
 	FetchPoV,
 
+	#[error("Candidate rejected by prospective parachains subsystem")]
+	RejectedByProspectiveParachains,
+
 	#[fatal]
 	#[error("Failed to spawn background task")]
 	FailedToSpawnBackgroundTask,
