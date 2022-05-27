@@ -200,6 +200,7 @@ where
 }
 
 struct PerRelayParentState {
+	// TODO [now]: add a `ProspectiveParachainsMode` to the leaf.
 	/// The hash of the relay parent on top of which this job is doing it's work.
 	parent: Hash,
 	/// The session index this corresponds to.
@@ -267,6 +268,19 @@ struct State {
 	per_leaf: HashMap<Hash, ActiveLeafState>,
 	/// State tracked for all relay-parents backing work is ongoing for. This includes
 	/// all active leaves.
+	///
+	/// relay-parents fall into one of 3 categories.
+	///   1. active leaves which do support prospective parachains
+	///   2. active leaves which do not support prospective parachains
+	///   3. relay-chain blocks which are ancestors of an active leaf and
+	///      do support prospective parachains.
+	///
+	/// Relay-chain blocks which don't support prospective parachains are
+	/// never included in the fragment trees of active leaves which do.
+	///
+	/// While it would be technically possible to support such leaves in
+	/// fragment trees, it only benefits the transition period when asynchronous
+	/// backing is being enabled and complicates code complexity.
 	per_relay_parent: HashMap<Hash, PerRelayParentState>,
 	/// State tracked for all candidates relevant to the implicit view.
 	per_candidate: HashMap<CandidateHash, PerCandidateState>,
@@ -704,16 +718,20 @@ async fn handle_validated_candidate_command<Context>(
 						// outdated - we now allow seconding multiple candidates
 						// per relay-parent. update it to properly defend against
 						// seconding stuff wrongly.
+						//
+						// The way we'll do this is by asking the prospective parachains
+						// subsystem about the hypothetical depth of the candidate at all
+						// active leaves and then ensuring we've not seconded anything with
+						// those depths at any of our active leaves.
 						if !rp_state.issued_statements.contains(&candidate_hash) {
-							// TODO [now]: note the candidate as seconded.
-							rp_state.issued_statements.insert(candidate_hash);
-							metrics.on_candidate_seconded();
-
 							let statement = Statement::Seconded(CommittedCandidateReceipt {
 								descriptor: candidate.descriptor.clone(),
 								commitments,
 							});
 
+							// TODO [now]: if we get an Error::RejectedByProspectiveParachains,
+							// then the statement has not been distributed. In this case,
+							// we should expunge the candidate from the rp_state,
 							if let Some(stmt) = sign_import_and_distribute_statement(
 								ctx,
 								rp_state,
@@ -723,6 +741,11 @@ async fn handle_validated_candidate_command<Context>(
 							)
 							.await?
 							{
+								// TODO [now]: note the candidate as seconded in the
+								// per-candidate state.
+								rp_state.issued_statements.insert(candidate_hash);
+
+								metrics.on_candidate_seconded();
 								ctx.send_message(CollatorProtocolMessage::Seconded(
 									rp_state.parent,
 									stmt,
@@ -914,6 +937,17 @@ async fn import_statement<Context>(
 		.as_ref()
 		.and_then(|s| rp_state.table.attested_candidate(&s.candidate, &rp_state.table_context))
 	{
+		// TODO [now]
+		//
+		// If this is a new candidate, we need to create an entry in the
+		// `PerCandidateState` map.
+		//
+		// If the relay parent supports prospective parachains, we also need
+		// to inform the prospective parachains subsystem of the seconded candidate
+		// If `ProspectiveParachainsMessage::Second` fails, then we expunge the
+		// statement from the table and return an error, which should be handled
+		// to avoid distribution of the statement.
+
 		let candidate_hash = attested.candidate.hash();
 		// `HashSet::insert` returns true if the thing wasn't in there already.
 		if rp_state.backed.insert(candidate_hash) {
@@ -925,6 +959,9 @@ async fn import_statement<Context>(
 					para_id = %backed.candidate.descriptor.para_id,
 					"Candidate backed",
 				);
+
+				// TODO [now]: inform the prospective parachains subsystem
+				// that the candidate is now backed.
 
 				// The provisioner waits on candidate-backing, which means
 				// that we need to send unbounded messages to avoid cycles.
@@ -977,6 +1014,10 @@ async fn sign_import_and_distribute_statement<Context>(
 ) -> Result<Option<SignedFullStatement>, Error> {
 	if let Some(signed_statement) = sign_statement(&*rp_state, statement, keystore, metrics).await {
 		import_statement(ctx, rp_state, &signed_statement).await?;
+
+		// TODO [now]: if we get an Error::RejectedByProspectiveParachains,
+		// we _do not_ distribute - it has been expunged.
+		// Propagate the error onwards.
 		let smsg = StatementDistributionMessage::Share(rp_state.parent, signed_statement.clone());
 		ctx.send_unbounded_message(smsg);
 
@@ -1095,9 +1136,12 @@ async fn maybe_validate_and_import<Context>(
 		},
 	};
 
+	// TODO [now]: if we get an Error::RejectedByProspectiveParachains,
+	// we will do nothing.
 	if let Some(summary) = import_statement(ctx, rp_state, &statement).await? {
-		// TODO [now]: if this is a new candidate, we need to create
-		// an entry in the `PerCandidateState`.
+		// import_statement already takes care of communicating with the
+		// prospective parachains subsystem. At this point, the candidate
+		// has already been accepted into the fragment trees.
 
 		if Some(summary.group_id) != rp_state.assignment {
 			return Ok(())
@@ -1161,6 +1205,102 @@ async fn handle_statement_message<Context>(
 		Err(e) => Err(e),
 		Ok(()) => Ok(()),
 	}
+}
+
+/// Kick off background validation with intent to second.
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn validate_and_second<Context>(
+	ctx: &mut Context,
+	rp_state: &mut PerRelayParentState,
+	candidate: &CandidateReceipt,
+	pov: Arc<PoV>,
+	background_validation_tx: &mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
+) -> Result<(), Error> {
+	let candidate_hash = candidate.hash();
+
+	gum::debug!(
+		target: LOG_TARGET,
+		candidate_hash = ?candidate_hash,
+		candidate_receipt = ?candidate,
+		"Validate and second candidate",
+	);
+
+	let bg_sender = ctx.sender().clone();
+	background_validate_and_make_available(
+		ctx,
+		rp_state,
+		BackgroundValidationParams {
+			sender: bg_sender,
+			tx_command: background_validation_tx.clone(),
+			candidate: candidate.clone(),
+			relay_parent: rp_state.parent,
+			pov: PoVData::Ready(pov),
+			n_validators: rp_state.table_context.validators.len(),
+			span: None,
+			make_command: ValidatedCandidateCommand::Second,
+		},
+	)
+	.await?;
+
+	Ok(())
+}
+
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn handle_second_msg<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	candidate: CandidateReceipt,
+	pov: PoV,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	let _timer = metrics.time_process_second();
+
+	let candidate_hash = candidate.hash();
+	let relay_parent = candidate.descriptor().relay_parent;
+
+	let rp_state = match state.per_relay_parent.get_mut(&relay_parent) {
+		None => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?candidate_hash,
+				"We were asked to second a candidate outside of our view."
+			);
+
+			return Ok(())
+		}
+		Some(r) => r,
+	};
+
+	// Sanity check that candidate is from our assignment.
+	if Some(candidate.descriptor().para_id) != rp_state.assignment {
+		gum::debug!(
+			target: LOG_TARGET,
+			our_assignment = ?rp_state.assignment,
+			collation = ?candidate.descriptor().para_id,
+			"Subsystem asked to second for para outside of our assignment",
+		);
+
+		return Ok(())
+	}
+
+	// If the message is a `CandidateBackingMessage::Second`, sign and dispatch a
+	// Seconded statement only if we have not seconded any other candidate and
+	// have not signed a Valid statement for the requested candidate.
+	//
+	// TODO [now]: this check is outdated. we need to only second when we have seconded
+	// nothing else with the hypothetical depth of the candidate in all our active leaves.
+
+	// if self.seconded.is_none() {
+	// 	// This job has not seconded a candidate yet.
+
+	// 	if !self.issued_statements.contains(&candidate_hash) {
+	// 		let pov = Arc::new(pov);
+	// 		self.validate_and_second(&span, &root_span, ctx, &candidate, pov).await?;
+	// 	}
+	// }
+
+	Ok(())
 }
 
 struct JobAndSpan<Context> {
@@ -1366,7 +1506,6 @@ async fn store_available_data(
 //
 // This will compute the erasure root internally and compare it to the expected erasure root.
 // This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
-
 async fn make_pov_available(
 	sender: &mut impl overseer::CandidateBackingSenderTrait,
 	n_validators: usize,
@@ -1429,6 +1568,7 @@ async fn request_candidate_validation(
 ) -> Result<ValidationResult, Error> {
 	let (tx, rx) = oneshot::channel();
 
+	// TODO [now]: always do exhaustive validation.
 	sender
 		.send_message(CandidateValidationMessage::ValidateFromChainState(
 			candidate_receipt,
