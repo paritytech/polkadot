@@ -217,7 +217,7 @@ struct PerRelayParentState {
 	/// These candidates are undergoing validation in the background.
 	awaiting_validation: HashSet<CandidateHash>,
 	/// Data needed for retrying in case of `ValidatedCandidateCommand::AttestNoPoV`.
-	fallbacks: HashMap<CandidateHash, (AttestingData, Option<jaeger::Span>)>,
+	fallbacks: HashMap<CandidateHash, AttestingData>,
 }
 
 struct PerCandidateState {
@@ -760,15 +760,18 @@ async fn handle_validated_candidate_command<Context>(
 					}
 				},
 				ValidatedCandidateCommand::AttestNoPoV(candidate_hash) => {
-					if let Some((attesting, span)) = rp_state.fallbacks.get_mut(&candidate_hash) {
+					if let Some(attesting) = rp_state.fallbacks.get_mut(&candidate_hash) {
 						if let Some(index) = attesting.backing.pop() {
 							attesting.from_validator = index;
-							// Ok, another try:
-							let c_span = span.as_ref().map(|s| s.child("try"));
 							let attesting = attesting.clone();
 
-							// TODO [now]: kick off validation work is unimplemented
-							// rp_state.kick_off_validation_work(ctx, attesting, c_span).await?
+							kick_off_validation_work(
+								ctx,
+								rp_state,
+								&state.background_validation_tx,
+								attesting,
+							)
+							.await?;
 						}
 					} else {
 						gum::warn!(
@@ -980,6 +983,183 @@ async fn sign_import_and_distribute_statement<Context>(
 		Ok(Some(signed_statement))
 	} else {
 		Ok(None)
+	}
+}
+
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn background_validate_and_make_available<Context>(
+	ctx: &mut Context,
+	rp_state: &mut PerRelayParentState,
+	params: BackgroundValidationParams<
+		impl overseer::CandidateBackingSenderTrait,
+		impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static + Sync,
+	>,
+) -> Result<(), Error> {
+	let candidate_hash = params.candidate.hash();
+	if rp_state.awaiting_validation.insert(candidate_hash) {
+		// spawn background task.
+		let bg = async move {
+			if let Err(e) = validate_and_make_available(params).await {
+				if let Error::BackgroundValidationMpsc(error) = e {
+					gum::debug!(
+						target: LOG_TARGET,
+						?error,
+						"Mpsc background validation mpsc died during validation- leaf no longer active?"
+					);
+				} else {
+					gum::error!(
+						target: LOG_TARGET,
+						"Failed to validate and make available: {:?}",
+						e
+					);
+				}
+			}
+		};
+
+		ctx.spawn("backing-validation", bg.boxed())
+			.map_err(|_| Error::FailedToSpawnBackgroundTask)?;
+	}
+
+	Ok(())
+}
+
+/// Kick off validation work and distribute the result as a signed statement.
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn kick_off_validation_work<Context>(
+	ctx: &mut Context,
+	rp_state: &mut PerRelayParentState,
+	background_validation_tx: &mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
+	attesting: AttestingData,
+) -> Result<(), Error> {
+	let candidate_hash = attesting.candidate.hash();
+	if rp_state.issued_statements.contains(&candidate_hash) {
+		return Ok(())
+	}
+
+	let descriptor = attesting.candidate.descriptor().clone();
+
+	gum::debug!(
+		target: LOG_TARGET,
+		candidate_hash = ?candidate_hash,
+		candidate_receipt = ?attesting.candidate,
+		"Kicking off validation",
+	);
+
+	let bg_sender = ctx.sender().clone();
+	let pov = PoVData::FetchFromValidator {
+		from_validator: attesting.from_validator,
+		candidate_hash,
+		pov_hash: attesting.pov_hash,
+	};
+
+	// TODO [now]: as we refactor validation to always take
+	// exhaustive parameters, this will need to change.
+	//
+	// Also, we will probably need to account for depth here, maybe.
+	background_validate_and_make_available(
+		ctx,
+		rp_state,
+		BackgroundValidationParams {
+			sender: bg_sender,
+			tx_command: background_validation_tx.clone(),
+			candidate: attesting.candidate,
+			relay_parent: rp_state.parent,
+			pov,
+			n_validators: rp_state.table_context.validators.len(),
+			span: None,
+			make_command: ValidatedCandidateCommand::Attest,
+		},
+	)
+	.await
+}
+
+/// Import the statement and kick off validation work if it is a part of our assignment.
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn maybe_validate_and_import<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	relay_parent: Hash,
+	statement: SignedFullStatement,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	let rp_state = match state.per_relay_parent.get_mut(&relay_parent) {
+		Some(r) => r,
+		None => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				"Received statement for unknown relay-parent"
+			);
+
+			return Ok(())
+		},
+	};
+
+	if let Some(summary) = import_statement(ctx, rp_state, &statement).await? {
+		// TODO [now]: if this is a new candidate, we need to create
+		// an entry in the `PerCandidateState`.
+
+		if Some(summary.group_id) != rp_state.assignment {
+			return Ok(())
+		}
+		let attesting = match statement.payload() {
+			Statement::Seconded(receipt) => {
+				let candidate_hash = summary.candidate;
+
+				let attesting = AttestingData {
+					candidate: rp_state
+						.table
+						.get_candidate(&candidate_hash)
+						.ok_or(Error::CandidateNotFound)?
+						.to_plain(),
+					pov_hash: receipt.descriptor.pov_hash,
+					from_validator: statement.validator_index(),
+					backing: Vec::new(),
+				};
+				rp_state.fallbacks.insert(summary.candidate, attesting.clone());
+				attesting
+			},
+			Statement::Valid(candidate_hash) => {
+				if let Some(attesting) = rp_state.fallbacks.get_mut(candidate_hash) {
+					let our_index = rp_state.table_context.validator.as_ref().map(|v| v.index());
+					if our_index == Some(statement.validator_index()) {
+						return Ok(())
+					}
+
+					if rp_state.awaiting_validation.contains(candidate_hash) {
+						// Job already running:
+						attesting.backing.push(statement.validator_index());
+						return Ok(())
+					} else {
+						// No job, so start another with current validator:
+						attesting.from_validator = statement.validator_index();
+						attesting.clone()
+					}
+				} else {
+					return Ok(())
+				}
+			},
+		};
+
+		kick_off_validation_work(ctx, rp_state, &state.background_validation_tx, attesting).await?;
+	}
+	Ok(())
+}
+
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn handle_statement_message<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	relay_parent: Hash,
+	statement: SignedFullStatement,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	let _timer = metrics.time_process_statement();
+
+	match maybe_validate_and_import(ctx, state, relay_parent, statement, metrics).await {
+		Err(Error::ValidationFailed(_)) => Ok(()),
+		Err(e) => Err(e),
+		Ok(()) => Ok(()),
 	}
 }
 
@@ -1478,177 +1658,6 @@ impl<Context> CandidateBackingJob<Context> {
 		Ok(())
 	}
 
-	/// Check if there have happened any new misbehaviors and issue necessary messages.
-	fn issue_new_misbehaviors(&mut self, sender: &mut impl overseer::CandidateBackingSenderTrait) {
-		// collect the misbehaviors to avoid double mutable self borrow issues
-		let misbehaviors: Vec<_> = self.table.drain_misbehaviors().collect();
-		for (validator_id, report) in misbehaviors {
-			// The provisioner waits on candidate-backing, which means
-			// that we need to send unbounded messages to avoid cycles.
-			//
-			// Misbehaviors are bounded by the number of validators and
-			// the block production protocol.
-			sender.send_unbounded_message(ProvisionerMessage::ProvisionableData(
-				self.parent,
-				ProvisionableData::MisbehaviorReport(self.parent, validator_id, report),
-			));
-		}
-	}
-
-	/// Import a statement into the statement table and return the summary of the import.
-	async fn import_statement(
-		&mut self,
-		ctx: &mut Context,
-		statement: &SignedFullStatement,
-		root_span: &jaeger::Span,
-	) -> Result<Option<TableSummary>, Error> {
-		gum::debug!(
-			target: LOG_TARGET,
-			statement = ?statement.payload().to_compact(),
-			validator_index = statement.validator_index().0,
-			"Importing statement",
-		);
-
-		let candidate_hash = statement.payload().candidate_hash();
-		let import_statement_span = {
-			// create a span only for candidates we're already aware of.
-			self.get_unbacked_statement_child(
-				root_span,
-				candidate_hash,
-				statement.validator_index(),
-			)
-		};
-
-		if let Err(ValidatorIndexOutOfBounds) = self
-			.dispatch_new_statement_to_dispute_coordinator(ctx.sender(), candidate_hash, &statement)
-			.await
-		{
-			gum::warn!(
-				target: LOG_TARGET,
-				session_index = ?self.session_index,
-				relay_parent = ?self.parent,
-				validator_index = statement.validator_index().0,
-				"Supposedly 'Signed' statement has validator index out of bounds."
-			);
-
-			return Ok(None)
-		}
-
-		let stmt = primitive_statement_to_table(statement);
-
-		let summary = self.table.import_statement(&self.table_context, stmt);
-
-		let unbacked_span = if let Some(attested) = summary
-			.as_ref()
-			.and_then(|s| self.table.attested_candidate(&s.candidate, &self.table_context))
-		{
-			let candidate_hash = attested.candidate.hash();
-			// `HashSet::insert` returns true if the thing wasn't in there already.
-			if self.backed.insert(candidate_hash) {
-				let span = self.remove_unbacked_span(&candidate_hash);
-
-				if let Some(backed) = table_attested_to_backed(attested, &self.table_context) {
-					gum::debug!(
-						target: LOG_TARGET,
-						candidate_hash = ?candidate_hash,
-						relay_parent = ?self.parent,
-						para_id = %backed.candidate.descriptor.para_id,
-						"Candidate backed",
-					);
-
-					// The provisioner waits on candidate-backing, which means
-					// that we need to send unbounded messages to avoid cycles.
-					//
-					// Backed candidates are bounded by the number of validators,
-					// parachains, and the block production rate of the relay chain.
-					let message = ProvisionerMessage::ProvisionableData(
-						self.parent,
-						ProvisionableData::BackedCandidate(backed.receipt()),
-					);
-					ctx.send_unbounded_message(message);
-
-					span.as_ref().map(|s| s.child("backed"));
-					span
-				} else {
-					None
-				}
-			} else {
-				None
-			}
-		} else {
-			None
-		};
-
-		self.issue_new_misbehaviors(ctx.sender());
-
-		// It is important that the child span is dropped before its parent span (`unbacked_span`)
-		drop(import_statement_span);
-		drop(unbacked_span);
-
-		Ok(summary)
-	}
-
-	/// The dispute coordinator keeps track of all statements by validators about every recent
-	/// candidate.
-	///
-	/// When importing a statement, this should be called access the candidate receipt either
-	/// from the statement itself or from the underlying statement table in order to craft
-	/// and dispatch the notification to the dispute coordinator.
-	///
-	/// This also does bounds-checking on the validator index and will return an error if the
-	/// validator index is out of bounds for the current validator set. It's expected that
-	/// this should never happen due to the interface of the candidate backing subsystem -
-	/// the networking component responsible for feeding statements to the backing subsystem
-	/// is meant to check the signature and provenance of all statements before submission.
-	async fn dispatch_new_statement_to_dispute_coordinator(
-		&self,
-		sender: &mut impl overseer::CandidateBackingSenderTrait,
-		candidate_hash: CandidateHash,
-		statement: &SignedFullStatement,
-	) -> Result<(), ValidatorIndexOutOfBounds> {
-		// Dispatch the statement to the dispute coordinator.
-		let validator_index = statement.validator_index();
-		let signing_context =
-			SigningContext { parent_hash: self.parent, session_index: self.session_index };
-
-		let validator_public = match self.table_context.validators.get(validator_index.0 as usize) {
-			None => return Err(ValidatorIndexOutOfBounds),
-			Some(v) => v,
-		};
-
-		let maybe_candidate_receipt = match statement.payload() {
-			Statement::Seconded(receipt) => Some(receipt.to_plain()),
-			Statement::Valid(candidate_hash) => {
-				// Valid statements are only supposed to be imported
-				// once we've seen at least one `Seconded` statement.
-				self.table.get_candidate(&candidate_hash).map(|c| c.to_plain())
-			},
-		};
-
-		let maybe_signed_dispute_statement = SignedDisputeStatement::from_backing_statement(
-			statement.as_unchecked(),
-			signing_context,
-			validator_public.clone(),
-		)
-		.ok();
-
-		if let (Some(candidate_receipt), Some(dispute_statement)) =
-			(maybe_candidate_receipt, maybe_signed_dispute_statement)
-		{
-			sender
-				.send_message(DisputeCoordinatorMessage::ImportStatements {
-					candidate_hash,
-					candidate_receipt,
-					session: self.session_index,
-					statements: vec![(dispute_statement, validator_index)],
-					pending_confirmation: None,
-				})
-				.await;
-		}
-
-		Ok(())
-	}
-
 	async fn handle_second_msg(
 		&mut self,
 		root_span: &jaeger::Span,
@@ -1699,18 +1708,8 @@ impl<Context> CandidateBackingJob<Context> {
 		ctx: &mut Context,
 		statement: SignedFullStatement,
 	) -> Result<(), Error> {
-		let _timer = self.metrics.time_process_statement();
-		let _span = root_span
-			.child("statement")
-			.with_stage(jaeger::Stage::CandidateBacking)
-			.with_candidate(statement.payload().candidate_hash())
-			.with_relay_parent(self.parent);
-
-		match self.maybe_validate_and_import(&root_span, ctx, statement).await {
-			Err(Error::ValidationFailed(_)) => Ok(()),
-			Err(e) => Err(e),
-			Ok(()) => Ok(()),
-		}
+		// function pending removal.
+		unimplemented!()
 	}
 
 	fn handle_get_backed_candidates_message(
@@ -1784,68 +1783,6 @@ impl<Context> CandidateBackingJob<Context> {
 			},
 		)
 		.await
-	}
-
-	/// Import the statement and kick off validation work if it is a part of our assignment.
-	async fn maybe_validate_and_import(
-		&mut self,
-		root_span: &jaeger::Span,
-		ctx: &mut Context,
-		statement: SignedFullStatement,
-	) -> Result<(), Error> {
-		if let Some(summary) = self.import_statement(ctx, &statement, root_span).await? {
-			if Some(summary.group_id) != self.assignment {
-				return Ok(())
-			}
-			let (attesting, span) = match statement.payload() {
-				Statement::Seconded(receipt) => {
-					let candidate_hash = summary.candidate;
-
-					let span = self.get_unbacked_validation_child(
-						root_span,
-						summary.candidate,
-						summary.group_id,
-					);
-
-					let attesting = AttestingData {
-						candidate: self
-							.table
-							.get_candidate(&candidate_hash)
-							.ok_or(Error::CandidateNotFound)?
-							.to_plain(),
-						pov_hash: receipt.descriptor.pov_hash,
-						from_validator: statement.validator_index(),
-						backing: Vec::new(),
-					};
-					let child = span.as_ref().map(|s| s.child("try"));
-					self.fallbacks.insert(summary.candidate, (attesting.clone(), span));
-					(attesting, child)
-				},
-				Statement::Valid(candidate_hash) => {
-					if let Some((attesting, span)) = self.fallbacks.get_mut(candidate_hash) {
-						let our_index = self.table_context.validator.as_ref().map(|v| v.index());
-						if our_index == Some(statement.validator_index()) {
-							return Ok(())
-						}
-
-						if self.awaiting_validation.contains(candidate_hash) {
-							// Job already running:
-							attesting.backing.push(statement.validator_index());
-							return Ok(())
-						} else {
-							// No job, so start another with current validator:
-							attesting.from_validator = statement.validator_index();
-							(attesting.clone(), span.as_ref().map(|s| s.child("try")))
-						}
-					} else {
-						return Ok(())
-					}
-				},
-			};
-
-			self.kick_off_validation_work(ctx, attesting, span).await?;
-		}
-		Ok(())
 	}
 
 	/// Insert or get the unbacked-span for the given candidate hash.
