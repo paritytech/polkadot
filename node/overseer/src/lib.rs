@@ -230,6 +230,12 @@ pub struct BlockInfo {
 	pub number: BlockNumber,
 }
 
+impl From<Header> for BlockInfo {
+	fn from(h: Header) -> Self {
+		BlockInfo { hash: h.hash(), parent_hash: h.parent_hash, number: h.number }
+	}
+}
+
 impl From<BlockImportNotification<Block>> for BlockInfo {
 	fn from(n: BlockImportNotification<Block>) -> Self {
 		BlockInfo { hash: n.hash, parent_hash: n.header.parent_hash, number: n.header.number }
@@ -303,48 +309,6 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 	}
 }
 
-/// Glues together the [`Overseer`] and `BlockchainEvents` by forwarding
-/// import and finality notifications into the [`OverseerHandle`].
-pub async fn forward_collator_events<P: client::BlockchainRPCEvents<Block>>(
-	client: Arc<P>,
-	mut handle: Handle,
-) {
-	let mut finality = client.finality_notification_stream().fuse();
-	let mut imports = client.import_notification_stream().fuse();
-
-	loop {
-		select! {
-			f = finality.next() => {
-				match f {
-					Some(header) => {
-						/// TODO Implement into
-						let block_info = BlockInfo {
-							hash: header.hash(),
-							parent_hash: header.parent_hash,
-							number: header.number
-						};
-						handle.block_finalized(block_info).await;
-					}
-					None => break,
-				}
-			},
-			i = imports.next() => {
-				match i {
-					Some(header) => {
-						let block_info = BlockInfo {
-							hash: header.hash(),
-							parent_hash: header.parent_hash,
-							number: header.number
-						};
-						handle.block_imported(block_info).await;
-					}
-					None => break,
-				}
-			},
-			complete => break,
-		}
-	}
-}
 /// Create a new instance of the [`Overseer`] with a fixed set of [`Subsystem`]s.
 ///
 /// This returns the overseer along with an [`OverseerHandle`] which can
