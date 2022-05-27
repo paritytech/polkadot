@@ -90,8 +90,8 @@ use polkadot_node_subsystem::{
 		ProspectiveParachainsMessage, ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
 		StatementDistributionMessage,
 	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
-	Stage, SubsystemError,
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	SubsystemError,
 };
 use polkadot_node_subsystem_util::{
 	self as util,
@@ -100,7 +100,7 @@ use polkadot_node_subsystem_util::{
 	request_validators, Validator,
 };
 use polkadot_primitives::v2::{
-	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
+	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt,
 	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, PersistedValidationData,
 	SessionIndex, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature,
 	ValidityAttestation,
@@ -364,8 +364,7 @@ async fn run_iteration<Context>(
 					FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
 					FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 					FromOverseer::Communication { msg } => {
-						// TODO [now]
-						// handle_communication(&mut *ctx, view, msg).await?,
+						handle_communication(&mut *ctx, state, msg, metrics).await?;
 					}
 				}
 			}
@@ -373,26 +372,382 @@ async fn run_iteration<Context>(
 	}
 }
 
+/// In case a backing validator does not provide a PoV, we need to retry with other backing
+/// validators.
+///
+/// This is the data needed to accomplish this. Basically all the data needed for spawning a
+/// validation job and a list of backing validators, we can try.
+#[derive(Clone)]
+struct AttestingData {
+	/// The candidate to attest.
+	candidate: CandidateReceipt,
+	/// Hash of the PoV we need to fetch.
+	pov_hash: Hash,
+	/// Validator we are currently trying to get the PoV from.
+	from_validator: ValidatorIndex,
+	/// Other backing validators we can try in case `from_validator` failed.
+	backing: Vec<ValidatorIndex>,
+}
+
+/// How many votes we need to consider a candidate backed.
+///
+/// WARNING: This has to be kept in sync with the runtime check in the inclusion module.
+fn minimum_votes(n_validators: usize) -> usize {
+	std::cmp::min(2, n_validators)
+}
+
+#[derive(Default)]
+struct TableContext {
+	validator: Option<Validator>,
+	groups: HashMap<ParaId, Vec<ValidatorIndex>>,
+	validators: Vec<ValidatorId>,
+}
+
+impl TableContextTrait for TableContext {
+	type AuthorityId = ValidatorIndex;
+	type Digest = CandidateHash;
+	type GroupId = ParaId;
+	type Signature = ValidatorSignature;
+	type Candidate = CommittedCandidateReceipt;
+
+	fn candidate_digest(candidate: &CommittedCandidateReceipt) -> CandidateHash {
+		candidate.hash()
+	}
+
+	fn candidate_group(candidate: &CommittedCandidateReceipt) -> ParaId {
+		candidate.descriptor().para_id
+	}
+
+	fn is_member_of(&self, authority: &ValidatorIndex, group: &ParaId) -> bool {
+		self.groups
+			.get(group)
+			.map_or(false, |g| g.iter().position(|a| a == authority).is_some())
+	}
+
+	fn requisite_votes(&self, group: &ParaId) -> usize {
+		self.groups.get(group).map_or(usize::MAX, |g| minimum_votes(g.len()))
+	}
+}
+
+struct InvalidErasureRoot;
+
+// It looks like it's not possible to do an `impl From` given the current state of
+// the code. So this does the necessary conversion.
+fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement {
+	let statement = match s.payload() {
+		Statement::Seconded(c) => TableStatement::Seconded(c.clone()),
+		Statement::Valid(h) => TableStatement::Valid(h.clone()),
+	};
+
+	TableSignedStatement {
+		statement,
+		signature: s.signature().clone(),
+		sender: s.validator_index(),
+	}
+}
+
+fn table_attested_to_backed(
+	attested: TableAttestedCandidate<
+		ParaId,
+		CommittedCandidateReceipt,
+		ValidatorIndex,
+		ValidatorSignature,
+	>,
+	table_context: &TableContext,
+) -> Option<BackedCandidate> {
+	let TableAttestedCandidate { candidate, validity_votes, group_id: para_id } = attested;
+
+	let (ids, validity_votes): (Vec<_>, Vec<ValidityAttestation>) =
+		validity_votes.into_iter().map(|(id, vote)| (id, vote.into())).unzip();
+
+	let group = table_context.groups.get(&para_id)?;
+
+	let mut validator_indices = BitVec::with_capacity(group.len());
+
+	validator_indices.resize(group.len(), false);
+
+	// The order of the validity votes in the backed candidate must match
+	// the order of bits set in the bitfield, which is not necessarily
+	// the order of the `validity_votes` we got from the table.
+	let mut vote_positions = Vec::with_capacity(validity_votes.len());
+	for (orig_idx, id) in ids.iter().enumerate() {
+		if let Some(position) = group.iter().position(|x| x == id) {
+			validator_indices.set(position, true);
+			vote_positions.push((orig_idx, position));
+		} else {
+			gum::warn!(
+				target: LOG_TARGET,
+				"Logic error: Validity vote from table does not correspond to group",
+			);
+
+			return None
+		}
+	}
+	vote_positions.sort_by_key(|(_orig, pos_in_group)| *pos_in_group);
+
+	Some(BackedCandidate {
+		candidate,
+		validity_votes: vote_positions
+			.into_iter()
+			.map(|(pos_in_votes, _pos_in_group)| validity_votes[pos_in_votes].clone())
+			.collect(),
+		validator_indices,
+	})
+}
+
+async fn store_available_data(
+	sender: &mut impl overseer::CandidateBackingSenderTrait,
+	n_validators: u32,
+	candidate_hash: CandidateHash,
+	available_data: AvailableData,
+) -> Result<(), Error> {
+	let (tx, rx) = oneshot::channel();
+	sender
+		.send_message(AvailabilityStoreMessage::StoreAvailableData {
+			candidate_hash,
+			n_validators,
+			available_data,
+			tx,
+		})
+		.await;
+
+	let _ = rx.await.map_err(Error::StoreAvailableData)?;
+
+	Ok(())
+}
+
+// Make a `PoV` available.
+//
+// This will compute the erasure root internally and compare it to the expected erasure root.
+// This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
+async fn make_pov_available(
+	sender: &mut impl overseer::CandidateBackingSenderTrait,
+	n_validators: usize,
+	pov: Arc<PoV>,
+	candidate_hash: CandidateHash,
+	validation_data: PersistedValidationData,
+	expected_erasure_root: Hash,
+	span: Option<&jaeger::Span>,
+) -> Result<Result<(), InvalidErasureRoot>, Error> {
+	let available_data = AvailableData { pov, validation_data };
+
+	{
+		let _span = span.as_ref().map(|s| s.child("erasure-coding").with_candidate(candidate_hash));
+
+		let chunks = erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;
+
+		let branches = erasure_coding::branches(chunks.as_ref());
+		let erasure_root = branches.root();
+
+		if erasure_root != expected_erasure_root {
+			return Ok(Err(InvalidErasureRoot))
+		}
+	}
+
+	{
+		let _span = span.as_ref().map(|s| s.child("store-data").with_candidate(candidate_hash));
+
+		store_available_data(sender, n_validators as u32, candidate_hash, available_data).await?;
+	}
+
+	Ok(Ok(()))
+}
+
+async fn request_pov(
+	sender: &mut impl overseer::CandidateBackingSenderTrait,
+	relay_parent: Hash,
+	from_validator: ValidatorIndex,
+	candidate_hash: CandidateHash,
+	pov_hash: Hash,
+) -> Result<Arc<PoV>, Error> {
+	let (tx, rx) = oneshot::channel();
+	sender
+		.send_message(AvailabilityDistributionMessage::FetchPoV {
+			relay_parent,
+			from_validator,
+			candidate_hash,
+			pov_hash,
+			tx,
+		})
+		.await;
+
+	let pov = rx.await.map_err(|_| Error::FetchPoV)?;
+	Ok(Arc::new(pov))
+}
+
+async fn request_candidate_validation(
+	sender: &mut impl overseer::CandidateBackingSenderTrait,
+	candidate_receipt: CandidateReceipt,
+	pov: Arc<PoV>,
+) -> Result<ValidationResult, Error> {
+	let (tx, rx) = oneshot::channel();
+
+	// TODO [now]: always do exhaustive validation.
+	sender
+		.send_message(CandidateValidationMessage::ValidateFromChainState(
+			candidate_receipt,
+			pov,
+			BACKING_EXECUTION_TIMEOUT,
+			tx,
+		))
+		.await;
+
+	match rx.await {
+		Ok(Ok(validation_result)) => Ok(validation_result),
+		Ok(Err(err)) => Err(Error::ValidationFailed(err)),
+		Err(err) => Err(Error::ValidateFromChainState(err)),
+	}
+}
+
+type BackgroundValidationResult =
+	Result<(CandidateReceipt, CandidateCommitments, Arc<PoV>), CandidateReceipt>;
+
+struct BackgroundValidationParams<S: overseer::CandidateBackingSenderTrait, F> {
+	sender: S,
+	tx_command: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
+	candidate: CandidateReceipt,
+	relay_parent: Hash,
+	pov: PoVData,
+	n_validators: usize,
+	span: Option<jaeger::Span>,
+	make_command: F,
+}
+
+async fn validate_and_make_available(
+	params: BackgroundValidationParams<
+		impl overseer::CandidateBackingSenderTrait,
+		impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Sync,
+	>,
+) -> Result<(), Error> {
+	let BackgroundValidationParams {
+		mut sender,
+		mut tx_command,
+		candidate,
+		relay_parent,
+		pov,
+		n_validators,
+		span,
+		make_command,
+	} = params;
+
+	let pov = match pov {
+		PoVData::Ready(pov) => pov,
+		PoVData::FetchFromValidator { from_validator, candidate_hash, pov_hash } => {
+			let _span = span.as_ref().map(|s| s.child("request-pov"));
+			match request_pov(&mut sender, relay_parent, from_validator, candidate_hash, pov_hash)
+				.await
+			{
+				Err(Error::FetchPoV) => {
+					tx_command
+						.send((
+							relay_parent,
+							ValidatedCandidateCommand::AttestNoPoV(candidate.hash()),
+						))
+						.await
+						.map_err(Error::BackgroundValidationMpsc)?;
+					return Ok(())
+				},
+				Err(err) => return Err(err),
+				Ok(pov) => pov,
+			}
+		},
+	};
+
+	let v = {
+		let _span = span.as_ref().map(|s| {
+			s.child("request-validation")
+				.with_pov(&pov)
+				.with_para_id(candidate.descriptor().para_id)
+		});
+		request_candidate_validation(&mut sender, candidate.clone(), pov.clone()).await?
+	};
+
+	let res = match v {
+		ValidationResult::Valid(commitments, validation_data) => {
+			gum::debug!(
+				target: LOG_TARGET,
+				candidate_hash = ?candidate.hash(),
+				"Validation successful",
+			);
+
+			let erasure_valid = make_pov_available(
+				&mut sender,
+				n_validators,
+				pov.clone(),
+				candidate.hash(),
+				validation_data,
+				candidate.descriptor.erasure_root,
+				span.as_ref(),
+			)
+			.await?;
+
+			match erasure_valid {
+				Ok(()) => Ok((candidate, commitments, pov.clone())),
+				Err(InvalidErasureRoot) => {
+					gum::debug!(
+						target: LOG_TARGET,
+						candidate_hash = ?candidate.hash(),
+						actual_commitments = ?commitments,
+						"Erasure root doesn't match the announced by the candidate receipt",
+					);
+					Err(candidate)
+				},
+			}
+		},
+		ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch) => {
+			// If validation produces a new set of commitments, we vote the candidate as invalid.
+			gum::warn!(
+				target: LOG_TARGET,
+				candidate_hash = ?candidate.hash(),
+				"Validation yielded different commitments",
+			);
+			Err(candidate)
+		},
+		ValidationResult::Invalid(reason) => {
+			gum::debug!(
+				target: LOG_TARGET,
+				candidate_hash = ?candidate.hash(),
+				reason = ?reason,
+				"Validation yielded an invalid candidate",
+			);
+			Err(candidate)
+		},
+	};
+
+	tx_command.send((relay_parent, make_command(res))).await.map_err(Into::into)
+}
+
+struct ValidatorIndexOutOfBounds;
+
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn handle_communication<Context>(
 	ctx: &mut Context,
-	view: &mut View<Context>,
+	state: &mut State,
 	message: CandidateBackingMessage,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	match message {
-		CandidateBackingMessage::Second(relay_parent, candidate, pov) => {
-			if let Some(job) = view.job_mut(&relay_parent) {
-				job.job.handle_second_msg(&job.span, ctx, candidate, pov).await?;
-			}
+		CandidateBackingMessage::Second(_relay_parent, candidate, pov) => {
+			handle_second_message(
+				ctx,
+				state,
+				candidate,
+				pov,
+				metrics,
+			).await?;
 		},
 		CandidateBackingMessage::Statement(relay_parent, statement) => {
-			if let Some(job) = view.job_mut(&relay_parent) {
-				job.job.handle_statement_message(&job.span, ctx, statement).await?;
-			}
+			handle_statement_message(
+				ctx,
+				state,
+				relay_parent,
+				statement,
+				metrics,
+			).await?;
 		},
 		CandidateBackingMessage::GetBackedCandidates(relay_parent, requested_candidates, tx) =>
-			if let Some(job) = view.job_mut(&relay_parent) {
-				job.job.handle_get_backed_candidates_message(requested_candidates, tx)?;
+			if let Some(rp_state) = state.per_relay_parent.get(&relay_parent) {
+				handle_get_backed_candidates_message(rp_state, requested_candidates, tx, metrics)?;
 			},
 	}
 
@@ -1190,23 +1545,6 @@ async fn maybe_validate_and_import<Context>(
 	Ok(())
 }
 
-#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn handle_statement_message<Context>(
-	ctx: &mut Context,
-	state: &mut State,
-	relay_parent: Hash,
-	statement: SignedFullStatement,
-	metrics: &Metrics,
-) -> Result<(), Error> {
-	let _timer = metrics.time_process_statement();
-
-	match maybe_validate_and_import(ctx, state, relay_parent, statement, metrics).await {
-		Err(Error::ValidationFailed(_)) => Ok(()),
-		Err(e) => Err(e),
-		Ok(()) => Ok(()),
-	}
-}
-
 /// Kick off background validation with intent to second.
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn validate_and_second<Context>(
@@ -1246,7 +1584,7 @@ async fn validate_and_second<Context>(
 }
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn handle_second_msg<Context>(
+async fn handle_second_message<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	candidate: CandidateReceipt,
@@ -1303,678 +1641,40 @@ async fn handle_second_msg<Context>(
 	Ok(())
 }
 
-struct JobAndSpan<Context> {
-	job: CandidateBackingJob<Context>,
-	span: PerLeafSpan,
-}
-
-struct ViewEntry<Context> {
-	job: Option<JobAndSpan<Context>>,
-}
-
-struct View<Context> {
-	// maps relay-parents to jobs and spans.
-	implicit_view: HashMap<Hash, ViewEntry<Context>>,
-}
-
-impl<Context> View<Context> {
-	fn new() -> Self {
-		View { implicit_view: HashMap::new() }
-	}
-
-	fn job_mut<'a>(&'a mut self, relay_parent: &Hash) -> Option<&'a mut JobAndSpan<Context>> {
-		self.implicit_view.get_mut(relay_parent).and_then(|x| x.job.as_mut())
-	}
-}
-
-/// Holds all data needed for candidate backing job operation.
-struct CandidateBackingJob<Context> {
-	/// The hash of the relay parent on top of which this job is doing it's work.
-	parent: Hash,
-	/// The session index this corresponds to.
-	session_index: SessionIndex,
-	/// The `ParaId` assigned to this validator
-	assignment: Option<ParaId>,
-	/// The collator required to author the candidate, if any.
-	required_collator: Option<CollatorId>,
-	/// Spans for all candidates that are not yet backable.
-	unbacked_candidates: HashMap<CandidateHash, jaeger::Span>,
-	/// We issued `Seconded`, `Valid` or `Invalid` statements on about these candidates.
-	issued_statements: HashSet<CandidateHash>,
-	/// These candidates are undergoing validation in the background.
-	awaiting_validation: HashSet<CandidateHash>,
-	/// Data needed for retrying in case of `ValidatedCandidateCommand::AttestNoPoV`.
-	fallbacks: HashMap<CandidateHash, (AttestingData, Option<jaeger::Span>)>,
-	/// `Some(h)` if this job has already issued `Seconded` statement for some candidate with `h` hash.
-	seconded: Option<CandidateHash>,
-	/// The candidates that are includable, by hash. Each entry here indicates
-	/// that we've sent the provisioner the backed candidate.
-	backed: HashSet<CandidateHash>,
-	keystore: SyncCryptoStorePtr,
-	table: Table<TableContext>,
-	table_context: TableContext,
-	background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
-	metrics: Metrics,
-	_marker: std::marker::PhantomData<Context>,
-}
-
-/// In case a backing validator does not provide a PoV, we need to retry with other backing
-/// validators.
-///
-/// This is the data needed to accomplish this. Basically all the data needed for spawning a
-/// validation job and a list of backing validators, we can try.
-#[derive(Clone)]
-struct AttestingData {
-	/// The candidate to attest.
-	candidate: CandidateReceipt,
-	/// Hash of the PoV we need to fetch.
-	pov_hash: Hash,
-	/// Validator we are currently trying to get the PoV from.
-	from_validator: ValidatorIndex,
-	/// Other backing validators we can try in case `from_validator` failed.
-	backing: Vec<ValidatorIndex>,
-}
-
-/// How many votes we need to consider a candidate backed.
-///
-/// WARNING: This has to be kept in sync with the runtime check in the inclusion module.
-fn minimum_votes(n_validators: usize) -> usize {
-	std::cmp::min(2, n_validators)
-}
-
-#[derive(Default)]
-struct TableContext {
-	validator: Option<Validator>,
-	groups: HashMap<ParaId, Vec<ValidatorIndex>>,
-	validators: Vec<ValidatorId>,
-}
-
-impl TableContextTrait for TableContext {
-	type AuthorityId = ValidatorIndex;
-	type Digest = CandidateHash;
-	type GroupId = ParaId;
-	type Signature = ValidatorSignature;
-	type Candidate = CommittedCandidateReceipt;
-
-	fn candidate_digest(candidate: &CommittedCandidateReceipt) -> CandidateHash {
-		candidate.hash()
-	}
-
-	fn candidate_group(candidate: &CommittedCandidateReceipt) -> ParaId {
-		candidate.descriptor().para_id
-	}
-
-	fn is_member_of(&self, authority: &ValidatorIndex, group: &ParaId) -> bool {
-		self.groups
-			.get(group)
-			.map_or(false, |g| g.iter().position(|a| a == authority).is_some())
-	}
-
-	fn requisite_votes(&self, group: &ParaId) -> usize {
-		self.groups.get(group).map_or(usize::MAX, |g| minimum_votes(g.len()))
-	}
-}
-
-struct InvalidErasureRoot;
-
-// It looks like it's not possible to do an `impl From` given the current state of
-// the code. So this does the necessary conversion.
-fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement {
-	let statement = match s.payload() {
-		Statement::Seconded(c) => TableStatement::Seconded(c.clone()),
-		Statement::Valid(h) => TableStatement::Valid(h.clone()),
-	};
-
-	TableSignedStatement {
-		statement,
-		signature: s.signature().clone(),
-		sender: s.validator_index(),
-	}
-}
-
-fn table_attested_to_backed(
-	attested: TableAttestedCandidate<
-		ParaId,
-		CommittedCandidateReceipt,
-		ValidatorIndex,
-		ValidatorSignature,
-	>,
-	table_context: &TableContext,
-) -> Option<BackedCandidate> {
-	let TableAttestedCandidate { candidate, validity_votes, group_id: para_id } = attested;
-
-	let (ids, validity_votes): (Vec<_>, Vec<ValidityAttestation>) =
-		validity_votes.into_iter().map(|(id, vote)| (id, vote.into())).unzip();
-
-	let group = table_context.groups.get(&para_id)?;
-
-	let mut validator_indices = BitVec::with_capacity(group.len());
-
-	validator_indices.resize(group.len(), false);
-
-	// The order of the validity votes in the backed candidate must match
-	// the order of bits set in the bitfield, which is not necessarily
-	// the order of the `validity_votes` we got from the table.
-	let mut vote_positions = Vec::with_capacity(validity_votes.len());
-	for (orig_idx, id) in ids.iter().enumerate() {
-		if let Some(position) = group.iter().position(|x| x == id) {
-			validator_indices.set(position, true);
-			vote_positions.push((orig_idx, position));
-		} else {
-			gum::warn!(
-				target: LOG_TARGET,
-				"Logic error: Validity vote from table does not correspond to group",
-			);
-
-			return None
-		}
-	}
-	vote_positions.sort_by_key(|(_orig, pos_in_group)| *pos_in_group);
-
-	Some(BackedCandidate {
-		candidate,
-		validity_votes: vote_positions
-			.into_iter()
-			.map(|(pos_in_votes, _pos_in_group)| validity_votes[pos_in_votes].clone())
-			.collect(),
-		validator_indices,
-	})
-}
-
-async fn store_available_data(
-	sender: &mut impl overseer::CandidateBackingSenderTrait,
-	n_validators: u32,
-	candidate_hash: CandidateHash,
-	available_data: AvailableData,
-) -> Result<(), Error> {
-	let (tx, rx) = oneshot::channel();
-	sender
-		.send_message(AvailabilityStoreMessage::StoreAvailableData {
-			candidate_hash,
-			n_validators,
-			available_data,
-			tx,
-		})
-		.await;
-
-	let _ = rx.await.map_err(Error::StoreAvailableData)?;
-
-	Ok(())
-}
-
-// Make a `PoV` available.
-//
-// This will compute the erasure root internally and compare it to the expected erasure root.
-// This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
-async fn make_pov_available(
-	sender: &mut impl overseer::CandidateBackingSenderTrait,
-	n_validators: usize,
-	pov: Arc<PoV>,
-	candidate_hash: CandidateHash,
-	validation_data: PersistedValidationData,
-	expected_erasure_root: Hash,
-	span: Option<&jaeger::Span>,
-) -> Result<Result<(), InvalidErasureRoot>, Error> {
-	let available_data = AvailableData { pov, validation_data };
-
-	{
-		let _span = span.as_ref().map(|s| s.child("erasure-coding").with_candidate(candidate_hash));
-
-		let chunks = erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;
-
-		let branches = erasure_coding::branches(chunks.as_ref());
-		let erasure_root = branches.root();
-
-		if erasure_root != expected_erasure_root {
-			return Ok(Err(InvalidErasureRoot))
-		}
-	}
-
-	{
-		let _span = span.as_ref().map(|s| s.child("store-data").with_candidate(candidate_hash));
-
-		store_available_data(sender, n_validators as u32, candidate_hash, available_data).await?;
-	}
-
-	Ok(Ok(()))
-}
-
-async fn request_pov(
-	sender: &mut impl overseer::CandidateBackingSenderTrait,
-	relay_parent: Hash,
-	from_validator: ValidatorIndex,
-	candidate_hash: CandidateHash,
-	pov_hash: Hash,
-) -> Result<Arc<PoV>, Error> {
-	let (tx, rx) = oneshot::channel();
-	sender
-		.send_message(AvailabilityDistributionMessage::FetchPoV {
-			relay_parent,
-			from_validator,
-			candidate_hash,
-			pov_hash,
-			tx,
-		})
-		.await;
-
-	let pov = rx.await.map_err(|_| Error::FetchPoV)?;
-	Ok(Arc::new(pov))
-}
-
-async fn request_candidate_validation(
-	sender: &mut impl overseer::CandidateBackingSenderTrait,
-	candidate_receipt: CandidateReceipt,
-	pov: Arc<PoV>,
-) -> Result<ValidationResult, Error> {
-	let (tx, rx) = oneshot::channel();
-
-	// TODO [now]: always do exhaustive validation.
-	sender
-		.send_message(CandidateValidationMessage::ValidateFromChainState(
-			candidate_receipt,
-			pov,
-			BACKING_EXECUTION_TIMEOUT,
-			tx,
-		))
-		.await;
-
-	match rx.await {
-		Ok(Ok(validation_result)) => Ok(validation_result),
-		Ok(Err(err)) => Err(Error::ValidationFailed(err)),
-		Err(err) => Err(Error::ValidateFromChainState(err)),
-	}
-}
-
-type BackgroundValidationResult =
-	Result<(CandidateReceipt, CandidateCommitments, Arc<PoV>), CandidateReceipt>;
-
-struct BackgroundValidationParams<S: overseer::CandidateBackingSenderTrait, F> {
-	sender: S,
-	tx_command: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
-	candidate: CandidateReceipt,
-	relay_parent: Hash,
-	pov: PoVData,
-	n_validators: usize,
-	span: Option<jaeger::Span>,
-	make_command: F,
-}
-
-async fn validate_and_make_available(
-	params: BackgroundValidationParams<
-		impl overseer::CandidateBackingSenderTrait,
-		impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Sync,
-	>,
-) -> Result<(), Error> {
-	let BackgroundValidationParams {
-		mut sender,
-		mut tx_command,
-		candidate,
-		relay_parent,
-		pov,
-		n_validators,
-		span,
-		make_command,
-	} = params;
-
-	let pov = match pov {
-		PoVData::Ready(pov) => pov,
-		PoVData::FetchFromValidator { from_validator, candidate_hash, pov_hash } => {
-			let _span = span.as_ref().map(|s| s.child("request-pov"));
-			match request_pov(&mut sender, relay_parent, from_validator, candidate_hash, pov_hash)
-				.await
-			{
-				Err(Error::FetchPoV) => {
-					tx_command
-						.send((
-							relay_parent,
-							ValidatedCandidateCommand::AttestNoPoV(candidate.hash()),
-						))
-						.await
-						.map_err(Error::BackgroundValidationMpsc)?;
-					return Ok(())
-				},
-				Err(err) => return Err(err),
-				Ok(pov) => pov,
-			}
-		},
-	};
-
-	let v = {
-		let _span = span.as_ref().map(|s| {
-			s.child("request-validation")
-				.with_pov(&pov)
-				.with_para_id(candidate.descriptor().para_id)
-		});
-		request_candidate_validation(&mut sender, candidate.clone(), pov.clone()).await?
-	};
-
-	let res = match v {
-		ValidationResult::Valid(commitments, validation_data) => {
-			gum::debug!(
-				target: LOG_TARGET,
-				candidate_hash = ?candidate.hash(),
-				"Validation successful",
-			);
-
-			let erasure_valid = make_pov_available(
-				&mut sender,
-				n_validators,
-				pov.clone(),
-				candidate.hash(),
-				validation_data,
-				candidate.descriptor.erasure_root,
-				span.as_ref(),
-			)
-			.await?;
-
-			match erasure_valid {
-				Ok(()) => Ok((candidate, commitments, pov.clone())),
-				Err(InvalidErasureRoot) => {
-					gum::debug!(
-						target: LOG_TARGET,
-						candidate_hash = ?candidate.hash(),
-						actual_commitments = ?commitments,
-						"Erasure root doesn't match the announced by the candidate receipt",
-					);
-					Err(candidate)
-				},
-			}
-		},
-		ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch) => {
-			// If validation produces a new set of commitments, we vote the candidate as invalid.
-			gum::warn!(
-				target: LOG_TARGET,
-				candidate_hash = ?candidate.hash(),
-				"Validation yielded different commitments",
-			);
-			Err(candidate)
-		},
-		ValidationResult::Invalid(reason) => {
-			gum::debug!(
-				target: LOG_TARGET,
-				candidate_hash = ?candidate.hash(),
-				reason = ?reason,
-				"Validation yielded an invalid candidate",
-			);
-			Err(candidate)
-		},
-	};
-
-	tx_command.send((relay_parent, make_command(res))).await.map_err(Into::into)
-}
-
-struct ValidatorIndexOutOfBounds;
-
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-impl<Context> CandidateBackingJob<Context> {
-	async fn background_validate_and_make_available(
-		&mut self,
-		ctx: &mut Context,
-		params: BackgroundValidationParams<
-			impl overseer::CandidateBackingSenderTrait,
-			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static + Sync,
-		>,
-	) -> Result<(), Error> {
-		let candidate_hash = params.candidate.hash();
-		if self.awaiting_validation.insert(candidate_hash) {
-			// spawn background task.
-			let bg = async move {
-				if let Err(e) = validate_and_make_available(params).await {
-					if let Error::BackgroundValidationMpsc(error) = e {
-						gum::debug!(
-							target: LOG_TARGET,
-							?error,
-							"Mpsc background validation mpsc died during validation- leaf no longer active?"
-						);
-					} else {
-						gum::error!(
-							target: LOG_TARGET,
-							"Failed to validate and make available: {:?}",
-							e
-						);
-					}
-				}
-			};
+async fn handle_statement_message<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	relay_parent: Hash,
+	statement: SignedFullStatement,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	let _timer = metrics.time_process_statement();
 
-			ctx.spawn("backing-validation", bg.boxed())
-				.map_err(|_| Error::FailedToSpawnBackgroundTask)?;
-		}
-
-		Ok(())
+	match maybe_validate_and_import(ctx, state, relay_parent, statement, metrics).await {
+		Err(Error::ValidationFailed(_)) => Ok(()),
+		Err(e) => Err(e),
+		Ok(()) => Ok(()),
 	}
+}
 
-	/// Kick off background validation with intent to second.
-	async fn validate_and_second(
-		&mut self,
-		parent_span: &jaeger::Span,
-		root_span: &jaeger::Span,
-		ctx: &mut Context,
-		candidate: &CandidateReceipt,
-		pov: Arc<PoV>,
-	) -> Result<(), Error> {
-		// Check that candidate is collated by the right collator.
-		if self
-			.required_collator
-			.as_ref()
-			.map_or(false, |c| c != &candidate.descriptor().collator)
-		{
-			ctx.send_message(CollatorProtocolMessage::Invalid(self.parent, candidate.clone()))
-				.await;
-			return Ok(())
-		}
+fn handle_get_backed_candidates_message(
+	rp_state: &PerRelayParentState,
+	requested_candidates: Vec<CandidateHash>,
+	tx: oneshot::Sender<Vec<BackedCandidate>>,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	let _timer = metrics.time_get_backed_candidates();
 
-		let candidate_hash = candidate.hash();
-		let mut span = self.get_unbacked_validation_child(
-			root_span,
-			candidate_hash,
-			candidate.descriptor().para_id,
-		);
-
-		span.as_mut().map(|span| span.add_follows_from(parent_span));
-
-		gum::debug!(
-			target: LOG_TARGET,
-			candidate_hash = ?candidate_hash,
-			candidate_receipt = ?candidate,
-			"Validate and second candidate",
-		);
-
-		let bg_sender = ctx.sender().clone();
-		self.background_validate_and_make_available(
-			ctx,
-			BackgroundValidationParams {
-				sender: bg_sender,
-				tx_command: self.background_validation_tx.clone(),
-				candidate: candidate.clone(),
-				relay_parent: self.parent,
-				pov: PoVData::Ready(pov),
-				n_validators: self.table_context.validators.len(),
-				span,
-				make_command: ValidatedCandidateCommand::Second,
-			},
-		)
-		.await?;
-
-		Ok(())
-	}
-
-	async fn handle_second_msg(
-		&mut self,
-		root_span: &jaeger::Span,
-		ctx: &mut Context,
-		candidate: CandidateReceipt,
-		pov: PoV,
-	) -> Result<(), Error> {
-		let _timer = self.metrics.time_process_second();
-
-		let candidate_hash = candidate.hash();
-		let span = root_span
-			.child("second")
-			.with_stage(jaeger::Stage::CandidateBacking)
-			.with_pov(&pov)
-			.with_candidate(candidate_hash)
-			.with_relay_parent(self.parent);
-
-		// Sanity check that candidate is from our assignment.
-		if Some(candidate.descriptor().para_id) != self.assignment {
-			gum::debug!(
-				target: LOG_TARGET,
-				our_assignment = ?self.assignment,
-				collation = ?candidate.descriptor().para_id,
-				"Subsystem asked to second for para outside of our assignment",
-			);
-
-			return Ok(())
-		}
-
-		// If the message is a `CandidateBackingMessage::Second`, sign and dispatch a
-		// Seconded statement only if we have not seconded any other candidate and
-		// have not signed a Valid statement for the requested candidate.
-		if self.seconded.is_none() {
-			// This job has not seconded a candidate yet.
-
-			if !self.issued_statements.contains(&candidate_hash) {
-				let pov = Arc::new(pov);
-				self.validate_and_second(&span, &root_span, ctx, &candidate, pov).await?;
-			}
-		}
-
-		Ok(())
-	}
-
-	async fn handle_statement_message(
-		&mut self,
-		root_span: &jaeger::Span,
-		ctx: &mut Context,
-		statement: SignedFullStatement,
-	) -> Result<(), Error> {
-		// function pending removal.
-		unimplemented!()
-	}
-
-	fn handle_get_backed_candidates_message(
-		&mut self,
-		requested_candidates: Vec<CandidateHash>,
-		tx: oneshot::Sender<Vec<BackedCandidate>>,
-	) -> Result<(), Error> {
-		let _timer = self.metrics.time_get_backed_candidates();
-
-		let backed = requested_candidates
-			.into_iter()
-			.filter_map(|hash| {
-				self.table
-					.attested_candidate(&hash, &self.table_context)
-					.and_then(|attested| table_attested_to_backed(attested, &self.table_context))
-			})
-			.collect();
-
-		tx.send(backed).map_err(|data| Error::Send(data))?;
-		Ok(())
-	}
-
-	/// Kick off validation work and distribute the result as a signed statement.
-	async fn kick_off_validation_work(
-		&mut self,
-		ctx: &mut Context,
-		attesting: AttestingData,
-		span: Option<jaeger::Span>,
-	) -> Result<(), Error> {
-		let candidate_hash = attesting.candidate.hash();
-		if self.issued_statements.contains(&candidate_hash) {
-			return Ok(())
-		}
-
-		let descriptor = attesting.candidate.descriptor().clone();
-
-		gum::debug!(
-			target: LOG_TARGET,
-			candidate_hash = ?candidate_hash,
-			candidate_receipt = ?attesting.candidate,
-			"Kicking off validation",
-		);
-
-		// Check that candidate is collated by the right collator.
-		if self.required_collator.as_ref().map_or(false, |c| c != &descriptor.collator) {
-			// If not, we've got the statement in the table but we will
-			// not issue validation work for it.
-			//
-			// Act as though we've issued a statement.
-			self.issued_statements.insert(candidate_hash);
-			return Ok(())
-		}
-
-		let bg_sender = ctx.sender().clone();
-		let pov = PoVData::FetchFromValidator {
-			from_validator: attesting.from_validator,
-			candidate_hash,
-			pov_hash: attesting.pov_hash,
-		};
-		self.background_validate_and_make_available(
-			ctx,
-			BackgroundValidationParams {
-				sender: bg_sender,
-				tx_command: self.background_validation_tx.clone(),
-				candidate: attesting.candidate,
-				relay_parent: self.parent,
-				pov,
-				n_validators: self.table_context.validators.len(),
-				span,
-				make_command: ValidatedCandidateCommand::Attest,
-			},
-		)
-		.await
-	}
-
-	/// Insert or get the unbacked-span for the given candidate hash.
-	fn insert_or_get_unbacked_span(
-		&mut self,
-		parent_span: &jaeger::Span,
-		hash: CandidateHash,
-		para_id: Option<ParaId>,
-	) -> Option<&jaeger::Span> {
-		if !self.backed.contains(&hash) {
-			// only add if we don't consider this backed.
-			let span = self.unbacked_candidates.entry(hash).or_insert_with(|| {
-				let s = parent_span.child("unbacked-candidate").with_candidate(hash);
-				if let Some(para_id) = para_id {
-					s.with_para_id(para_id)
-				} else {
-					s
-				}
-			});
-			Some(span)
-		} else {
-			None
-		}
-	}
-
-	fn get_unbacked_validation_child(
-		&mut self,
-		parent_span: &jaeger::Span,
-		hash: CandidateHash,
-		para_id: ParaId,
-	) -> Option<jaeger::Span> {
-		self.insert_or_get_unbacked_span(parent_span, hash, Some(para_id)).map(|span| {
-			span.child("validation")
-				.with_candidate(hash)
-				.with_stage(Stage::CandidateBacking)
+	let backed = requested_candidates
+		.into_iter()
+		.filter_map(|hash| {
+			rp_state.table
+				.attested_candidate(&hash, &rp_state.table_context)
+				.and_then(|attested| table_attested_to_backed(attested, &rp_state.table_context))
 		})
-	}
+		.collect();
 
-	fn get_unbacked_statement_child(
-		&mut self,
-		parent_span: &jaeger::Span,
-		hash: CandidateHash,
-		validator: ValidatorIndex,
-	) -> Option<jaeger::Span> {
-		self.insert_or_get_unbacked_span(parent_span, hash, None).map(|span| {
-			span.child("import-statement")
-				.with_candidate(hash)
-				.with_validator_index(validator)
-		})
-	}
-
-	fn remove_unbacked_span(&mut self, hash: &CandidateHash) -> Option<jaeger::Span> {
-		self.unbacked_candidates.remove(hash)
-	}
+	tx.send(backed).map_err(|data| Error::Send(data))?;
+	Ok(())
 }
