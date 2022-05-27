@@ -704,8 +704,7 @@ async fn handle_validated_candidate_command<Context>(
 						// outdated - we now allow seconding multiple candidates
 						// per relay-parent. update it to properly defend against
 						// seconding stuff wrongly.
-						if !rp_state.issued_statements.contains(&candidate_hash)
-						{
+						if !rp_state.issued_statements.contains(&candidate_hash) {
 							// TODO [now]: note the candidate as seconded.
 							rp_state.issued_statements.insert(candidate_hash);
 							metrics.on_candidate_seconded();
@@ -715,26 +714,29 @@ async fn handle_validated_candidate_command<Context>(
 								commitments,
 							});
 
-
-							// TODO [now]:
-							// implement `sign_import_and_distribute_statement`
-							// for PerRelayParentState.
-							//
-							// if let Some(stmt) = self
-							// 	.sign_import_and_distribute_statement(ctx, statement, root_span)
-							// 	.await?
-							// {
-							// 	ctx.send_message(CollatorProtocolMessage::Seconded(
-							// 		rp_state.parent,
-							// 		stmt,
-							// 	))
-							// 	.await;
-							// }
+							if let Some(stmt) = sign_import_and_distribute_statement(
+								ctx,
+								rp_state,
+								statement,
+								state.keystore.clone(),
+								metrics,
+							)
+							.await?
+							{
+								ctx.send_message(CollatorProtocolMessage::Seconded(
+									rp_state.parent,
+									stmt,
+								))
+								.await;
+							}
 						}
 					},
 					Err(candidate) => {
-						ctx.send_message(CollatorProtocolMessage::Invalid(rp_state.parent, candidate))
-							.await;
+						ctx.send_message(CollatorProtocolMessage::Invalid(
+							rp_state.parent,
+							candidate,
+						))
+						.await;
 					},
 				},
 				ValidatedCandidateCommand::Attest(res) => {
@@ -745,13 +747,18 @@ async fn handle_validated_candidate_command<Context>(
 						if res.is_ok() {
 							let statement = Statement::Valid(candidate_hash);
 
-							// TODO [now]: needs implementation of `sign_import_and_distribute`
-							// self.sign_import_and_distribute_statement(ctx, statement, &root_span)
-							// 	.await?;
+							sign_import_and_distribute_statement(
+								ctx,
+								rp_state,
+								statement,
+								state.keystore.clone(),
+								metrics,
+							)
+							.await?;
 						}
 						rp_state.issued_statements.insert(candidate_hash);
 					}
-				}
+				},
 				ValidatedCandidateCommand::AttestNoPoV(candidate_hash) => {
 					if let Some((attesting, span)) = rp_state.fallbacks.get_mut(&candidate_hash) {
 						if let Some(index) = attesting.backing.pop() {
@@ -770,16 +777,210 @@ async fn handle_validated_candidate_command<Context>(
 						);
 						debug_assert!(false);
 					}
-				}
+				},
 			}
-		}
+		},
 		None => {
 			// simple race condition; can be ignored = this relay-parent
 			// is no longer relevant.
-		}
+		},
 	}
 
 	Ok(())
+}
+
+async fn sign_statement(
+	rp_state: &PerRelayParentState,
+	statement: Statement,
+	keystore: SyncCryptoStorePtr,
+	metrics: &Metrics,
+) -> Option<SignedFullStatement> {
+	let signed = rp_state
+		.table_context
+		.validator
+		.as_ref()?
+		.sign(keystore, statement)
+		.await
+		.ok()
+		.flatten()?;
+	metrics.on_statement_signed();
+	Some(signed)
+}
+
+/// The dispute coordinator keeps track of all statements by validators about every recent
+/// candidate.
+///
+/// When importing a statement, this should be called access the candidate receipt either
+/// from the statement itself or from the underlying statement table in order to craft
+/// and dispatch the notification to the dispute coordinator.
+///
+/// This also does bounds-checking on the validator index and will return an error if the
+/// validator index is out of bounds for the current validator set. It's expected that
+/// this should never happen due to the interface of the candidate backing subsystem -
+/// the networking component responsible for feeding statements to the backing subsystem
+/// is meant to check the signature and provenance of all statements before submission.
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn dispatch_new_statement_to_dispute_coordinator<Context>(
+	ctx: &mut Context,
+	rp_state: &PerRelayParentState,
+	candidate_hash: CandidateHash,
+	statement: &SignedFullStatement,
+) -> Result<(), ValidatorIndexOutOfBounds> {
+	// Dispatch the statement to the dispute coordinator.
+	let validator_index = statement.validator_index();
+	let signing_context =
+		SigningContext { parent_hash: rp_state.parent, session_index: rp_state.session_index };
+
+	let validator_public = match rp_state.table_context.validators.get(validator_index.0 as usize) {
+		None => return Err(ValidatorIndexOutOfBounds),
+		Some(v) => v,
+	};
+
+	let maybe_candidate_receipt = match statement.payload() {
+		Statement::Seconded(receipt) => Some(receipt.to_plain()),
+		Statement::Valid(candidate_hash) => {
+			// Valid statements are only supposed to be imported
+			// once we've seen at least one `Seconded` statement.
+			rp_state.table.get_candidate(&candidate_hash).map(|c| c.to_plain())
+		},
+	};
+
+	let maybe_signed_dispute_statement = SignedDisputeStatement::from_backing_statement(
+		statement.as_unchecked(),
+		signing_context,
+		validator_public.clone(),
+	)
+	.ok();
+
+	if let (Some(candidate_receipt), Some(dispute_statement)) =
+		(maybe_candidate_receipt, maybe_signed_dispute_statement)
+	{
+		ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
+			candidate_hash,
+			candidate_receipt,
+			session: rp_state.session_index,
+			statements: vec![(dispute_statement, validator_index)],
+			pending_confirmation: None,
+		})
+		.await;
+	}
+
+	Ok(())
+}
+
+/// Import a statement into the statement table and return the summary of the import.
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn import_statement<Context>(
+	ctx: &mut Context,
+	rp_state: &mut PerRelayParentState,
+	statement: &SignedFullStatement,
+) -> Result<Option<TableSummary>, Error> {
+	gum::debug!(
+		target: LOG_TARGET,
+		statement = ?statement.payload().to_compact(),
+		validator_index = statement.validator_index().0,
+		"Importing statement",
+	);
+
+	let candidate_hash = statement.payload().candidate_hash();
+
+	if let Err(ValidatorIndexOutOfBounds) =
+		dispatch_new_statement_to_dispute_coordinator(ctx, rp_state, candidate_hash, &statement)
+			.await
+	{
+		gum::warn!(
+			target: LOG_TARGET,
+			session_index = ?rp_state.session_index,
+			relay_parent = ?rp_state.parent,
+			validator_index = statement.validator_index().0,
+			"Supposedly 'Signed' statement has validator index out of bounds."
+		);
+
+		return Ok(None)
+	}
+
+	let stmt = primitive_statement_to_table(statement);
+
+	// TODO [now]: we violate the pre-existing checks that each validator may
+	// only second one candidate.
+	//
+	// We will need to address this so we don't get errors incorrectly.
+	let summary = rp_state.table.import_statement(&rp_state.table_context, stmt);
+
+	if let Some(attested) = summary
+		.as_ref()
+		.and_then(|s| rp_state.table.attested_candidate(&s.candidate, &rp_state.table_context))
+	{
+		let candidate_hash = attested.candidate.hash();
+		// `HashSet::insert` returns true if the thing wasn't in there already.
+		if rp_state.backed.insert(candidate_hash) {
+			if let Some(backed) = table_attested_to_backed(attested, &rp_state.table_context) {
+				gum::debug!(
+					target: LOG_TARGET,
+					candidate_hash = ?candidate_hash,
+					relay_parent = ?rp_state.parent,
+					para_id = %backed.candidate.descriptor.para_id,
+					"Candidate backed",
+				);
+
+				// The provisioner waits on candidate-backing, which means
+				// that we need to send unbounded messages to avoid cycles.
+				//
+				// Backed candidates are bounded by the number of validators,
+				// parachains, and the block production rate of the relay chain.
+				let message = ProvisionerMessage::ProvisionableData(
+					rp_state.parent,
+					ProvisionableData::BackedCandidate(backed.receipt()),
+				);
+				ctx.send_unbounded_message(message);
+			}
+		}
+	}
+
+	issue_new_misbehaviors(ctx, rp_state.parent, &mut rp_state.table);
+
+	Ok(summary)
+}
+
+/// Check if there have happened any new misbehaviors and issue necessary messages.
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+fn issue_new_misbehaviors<Context>(
+	ctx: &mut Context,
+	relay_parent: Hash,
+	table: &mut Table<TableContext>,
+) {
+	// collect the misbehaviors to avoid double mutable self borrow issues
+	let misbehaviors: Vec<_> = table.drain_misbehaviors().collect();
+	for (validator_id, report) in misbehaviors {
+		// The provisioner waits on candidate-backing, which means
+		// that we need to send unbounded messages to avoid cycles.
+		//
+		// Misbehaviors are bounded by the number of validators and
+		// the block production protocol.
+		ctx.send_unbounded_message(ProvisionerMessage::ProvisionableData(
+			relay_parent,
+			ProvisionableData::MisbehaviorReport(relay_parent, validator_id, report),
+		));
+	}
+}
+
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn sign_import_and_distribute_statement<Context>(
+	ctx: &mut Context,
+	rp_state: &mut PerRelayParentState,
+	statement: Statement,
+	keystore: SyncCryptoStorePtr,
+	metrics: &Metrics,
+) -> Result<Option<SignedFullStatement>, Error> {
+	if let Some(signed_statement) = sign_statement(&*rp_state, statement, keystore, metrics).await {
+		import_statement(ctx, rp_state, &signed_statement).await?;
+		let smsg = StatementDistributionMessage::Share(rp_state.parent, signed_statement.clone());
+		ctx.send_unbounded_message(smsg);
+
+		Ok(Some(signed_statement))
+	} else {
+		Ok(None)
+	}
 }
 
 struct JobAndSpan<Context> {
@@ -1277,23 +1478,6 @@ impl<Context> CandidateBackingJob<Context> {
 		Ok(())
 	}
 
-	async fn sign_import_and_distribute_statement(
-		&mut self,
-		ctx: &mut Context,
-		statement: Statement,
-		root_span: &jaeger::Span,
-	) -> Result<Option<SignedFullStatement>, Error> {
-		if let Some(signed_statement) = self.sign_statement(statement).await {
-			self.import_statement(ctx, &signed_statement, root_span).await?;
-			let smsg = StatementDistributionMessage::Share(self.parent, signed_statement.clone());
-			ctx.send_unbounded_message(smsg);
-
-			Ok(Some(signed_statement))
-		} else {
-			Ok(None)
-		}
-	}
-
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
 	fn issue_new_misbehaviors(&mut self, sender: &mut impl overseer::CandidateBackingSenderTrait) {
 		// collect the misbehaviors to avoid double mutable self borrow issues
@@ -1662,19 +1846,6 @@ impl<Context> CandidateBackingJob<Context> {
 			self.kick_off_validation_work(ctx, attesting, span).await?;
 		}
 		Ok(())
-	}
-
-	async fn sign_statement(&mut self, statement: Statement) -> Option<SignedFullStatement> {
-		let signed = self
-			.table_context
-			.validator
-			.as_ref()?
-			.sign(self.keystore.clone(), statement)
-			.await
-			.ok()
-			.flatten()?;
-		self.metrics.on_statement_signed();
-		Some(signed)
 	}
 
 	/// Insert or get the unbacked-span for the given candidate hash.
