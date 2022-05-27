@@ -200,7 +200,7 @@ where
 }
 
 struct PerRelayParentState {
-	// TODO [now]: add a `ProspectiveParachainsMode` to the leaf.
+	mode: ProspectiveParachainsMode,
 	/// The hash of the relay parent on top of which this job is doing it's work.
 	parent: Hash,
 	/// The session index this corresponds to.
@@ -259,7 +259,7 @@ struct ActiveLeafState {
 
 /// The state of the subsystem.
 struct State {
-	/// The utility for managing the implicit and explicit views ina consistent way.
+	/// The utility for managing the implicit and explicit views in a consistent way.
 	///
 	/// We only feed leaves which have prospective parachains enabled to this view.
 	implicit_view: ImplicitView,
@@ -939,9 +939,21 @@ async fn handle_active_leaves_update<Context>(
 			continue
 		}
 
+		let mode = match state.per_leaf.get(&maybe_new) {
+			None => {
+				// If the relay-parent isn't a leaf itself,
+				// then it is guaranteed by the prospective parachains
+				// subsystem that it is an ancestor of a leaf which
+				// has prospective parachains enabled and that the
+				// block itself did.
+				ProspectiveParachainsMode::Enabled
+			}
+			Some(l) => l.prospective_parachains_mode,
+		};
+
 		// construct a `PerRelayParent` from the runtime API
 		// and insert it.
-		let per = construct_per_relay_parent_state(ctx, maybe_new, &state.keystore).await?;
+		let per = construct_per_relay_parent_state(ctx, maybe_new, &state.keystore, mode).await?;
 
 		if let Some(per) = per {
 			state.per_relay_parent.insert(maybe_new, per);
@@ -957,6 +969,7 @@ async fn construct_per_relay_parent_state<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
 	keystore: &SyncCryptoStorePtr,
+	mode: ProspectiveParachainsMode,
 ) -> Result<Option<PerRelayParentState>, Error> {
 	macro_rules! try_runtime_api {
 		($x: expr) => {
@@ -1040,6 +1053,7 @@ async fn construct_per_relay_parent_state<Context>(
 	let assignment = assignment.map(|(a, _required_collator)| a);
 
 	Ok(Some(PerRelayParentState {
+		mode,
 		parent,
 		session_index,
 		assignment,
