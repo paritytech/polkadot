@@ -325,17 +325,17 @@ async fn run_iteration<Context>(
 	loop {
 		futures::select!(
 			validated_command = background_validation_rx.next().fuse() => {
-				// TODO [now]
-				// if let Some((relay_parent, command)) = validated_command {
-				// 	handle_validated_candidate_command(
-				// 		&mut *ctx,
-				// 		view,
-				// 		relay_parent,
-				// 		command,
-				// 	).await?;
-				// } else {
-				// 	panic!("background_validation_tx always alive at this point; qed");
-				// }
+				if let Some((relay_parent, command)) = validated_command {
+					handle_validated_candidate_command(
+						&mut *ctx,
+						state,
+						relay_parent,
+						command,
+						metrics,
+					).await?;
+				} else {
+					panic!("background_validation_tx always alive at this point; qed");
+				}
 			}
 			from_overseer = ctx.recv().fuse() => {
 				match from_overseer? {
@@ -357,23 +357,6 @@ async fn run_iteration<Context>(
 			}
 		)
 	}
-}
-
-#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn handle_validated_candidate_command<Context>(
-	ctx: &mut Context,
-	view: &mut View<Context>,
-	relay_parent: Hash,
-	command: ValidatedCandidateCommand,
-) -> Result<(), Error> {
-	if let Some(job) = view.job_mut(&relay_parent) {
-		job.job.handle_validated_candidate_command(&job.span, ctx, command).await?;
-	} else {
-		// simple race condition; can be ignored - this relay-parent
-		// is no longer relevant.
-	}
-
-	Ok(())
 }
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
@@ -408,7 +391,7 @@ async fn prospective_parachains_mode<Context>(
 ) -> ProspectiveParachainsMode {
 	// TODO [now]: this should be a runtime API version call
 	// cc https://github.com/paritytech/substrate/discussions/11338
-	unimplemented!()
+	ProspectiveParachainsMode::Disabled
 }
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
@@ -698,6 +681,105 @@ async fn construct_per_relay_parent_state<Context>(
 		awaiting_validation: HashSet::new(),
 		fallbacks: HashMap::new(),
 	}))
+}
+
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn handle_validated_candidate_command<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	relay_parent: Hash,
+	command: ValidatedCandidateCommand,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	match state.per_relay_parent.get_mut(&relay_parent) {
+		Some(rp_state) => {
+			let candidate_hash = command.candidate_hash();
+			rp_state.awaiting_validation.remove(&candidate_hash);
+
+			match command {
+				ValidatedCandidateCommand::Second(res) => match res {
+					Ok((candidate, commitments, _)) => {
+						// sanity check.
+						// TODO [now]: this sanity check is almost certainly
+						// outdated - we now allow seconding multiple candidates
+						// per relay-parent. update it to properly defend against
+						// seconding stuff wrongly.
+						if !rp_state.issued_statements.contains(&candidate_hash)
+						{
+							// TODO [now]: note the candidate as seconded.
+							rp_state.issued_statements.insert(candidate_hash);
+							metrics.on_candidate_seconded();
+
+							let statement = Statement::Seconded(CommittedCandidateReceipt {
+								descriptor: candidate.descriptor.clone(),
+								commitments,
+							});
+
+
+							// TODO [now]:
+							// implement `sign_import_and_distribute_statement`
+							// for PerRelayParentState.
+							//
+							// if let Some(stmt) = self
+							// 	.sign_import_and_distribute_statement(ctx, statement, root_span)
+							// 	.await?
+							// {
+							// 	ctx.send_message(CollatorProtocolMessage::Seconded(
+							// 		rp_state.parent,
+							// 		stmt,
+							// 	))
+							// 	.await;
+							// }
+						}
+					},
+					Err(candidate) => {
+						ctx.send_message(CollatorProtocolMessage::Invalid(rp_state.parent, candidate))
+							.await;
+					},
+				},
+				ValidatedCandidateCommand::Attest(res) => {
+					// We are done - avoid new validation spawns:
+					rp_state.fallbacks.remove(&candidate_hash);
+					// sanity check.
+					if !rp_state.issued_statements.contains(&candidate_hash) {
+						if res.is_ok() {
+							let statement = Statement::Valid(candidate_hash);
+
+							// TODO [now]: needs implementation of `sign_import_and_distribute`
+							// self.sign_import_and_distribute_statement(ctx, statement, &root_span)
+							// 	.await?;
+						}
+						rp_state.issued_statements.insert(candidate_hash);
+					}
+				}
+				ValidatedCandidateCommand::AttestNoPoV(candidate_hash) => {
+					if let Some((attesting, span)) = rp_state.fallbacks.get_mut(&candidate_hash) {
+						if let Some(index) = attesting.backing.pop() {
+							attesting.from_validator = index;
+							// Ok, another try:
+							let c_span = span.as_ref().map(|s| s.child("try"));
+							let attesting = attesting.clone();
+
+							// TODO [now]: kick off validation work is unimplemented
+							// rp_state.kick_off_validation_work(ctx, attesting, c_span).await?
+						}
+					} else {
+						gum::warn!(
+							target: LOG_TARGET,
+							"AttestNoPoV was triggered without fallback being available."
+						);
+						debug_assert!(false);
+					}
+				}
+			}
+		}
+		None => {
+			// simple race condition; can be ignored = this relay-parent
+			// is no longer relevant.
+		}
+	}
+
+	Ok(())
 }
 
 struct JobAndSpan<Context> {
@@ -1104,84 +1186,6 @@ struct ValidatorIndexOutOfBounds;
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 impl<Context> CandidateBackingJob<Context> {
-	async fn handle_validated_candidate_command(
-		&mut self,
-		root_span: &jaeger::Span,
-		ctx: &mut Context,
-		command: ValidatedCandidateCommand,
-	) -> Result<(), Error> {
-		let candidate_hash = command.candidate_hash();
-		self.awaiting_validation.remove(&candidate_hash);
-
-		match command {
-			ValidatedCandidateCommand::Second(res) => {
-				match res {
-					Ok((candidate, commitments, _)) => {
-						// sanity check.
-						if self.seconded.is_none() &&
-							!self.issued_statements.contains(&candidate_hash)
-						{
-							self.seconded = Some(candidate_hash);
-							self.issued_statements.insert(candidate_hash);
-							self.metrics.on_candidate_seconded();
-
-							let statement = Statement::Seconded(CommittedCandidateReceipt {
-								descriptor: candidate.descriptor.clone(),
-								commitments,
-							});
-							if let Some(stmt) = self
-								.sign_import_and_distribute_statement(ctx, statement, root_span)
-								.await?
-							{
-								ctx.send_message(CollatorProtocolMessage::Seconded(
-									self.parent,
-									stmt,
-								))
-								.await;
-							}
-						}
-					},
-					Err(candidate) => {
-						ctx.send_message(CollatorProtocolMessage::Invalid(self.parent, candidate))
-							.await;
-					},
-				}
-			},
-			ValidatedCandidateCommand::Attest(res) => {
-				// We are done - avoid new validation spawns:
-				self.fallbacks.remove(&candidate_hash);
-				// sanity check.
-				if !self.issued_statements.contains(&candidate_hash) {
-					if res.is_ok() {
-						let statement = Statement::Valid(candidate_hash);
-						self.sign_import_and_distribute_statement(ctx, statement, &root_span)
-							.await?;
-					}
-					self.issued_statements.insert(candidate_hash);
-				}
-			},
-			ValidatedCandidateCommand::AttestNoPoV(candidate_hash) => {
-				if let Some((attesting, span)) = self.fallbacks.get_mut(&candidate_hash) {
-					if let Some(index) = attesting.backing.pop() {
-						attesting.from_validator = index;
-						// Ok, another try:
-						let c_span = span.as_ref().map(|s| s.child("try"));
-						let attesting = attesting.clone();
-						self.kick_off_validation_work(ctx, attesting, c_span).await?
-					}
-				} else {
-					gum::warn!(
-						target: LOG_TARGET,
-						"AttestNoPoV was triggered without fallback being available."
-					);
-					debug_assert!(false);
-				}
-			},
-		}
-
-		Ok(())
-	}
-
 	async fn background_validate_and_make_available(
 		&mut self,
 		ctx: &mut Context,
