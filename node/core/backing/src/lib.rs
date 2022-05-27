@@ -90,8 +90,7 @@ use polkadot_node_subsystem::{
 		ProspectiveParachainsMessage, ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
 		StatementDistributionMessage,
 	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemError,
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
 	self as util,
@@ -728,22 +727,10 @@ async fn handle_communication<Context>(
 ) -> Result<(), Error> {
 	match message {
 		CandidateBackingMessage::Second(_relay_parent, candidate, pov) => {
-			handle_second_message(
-				ctx,
-				state,
-				candidate,
-				pov,
-				metrics,
-			).await?;
+			handle_second_message(ctx, state, candidate, pov, metrics).await?;
 		},
 		CandidateBackingMessage::Statement(relay_parent, statement) => {
-			handle_statement_message(
-				ctx,
-				state,
-				relay_parent,
-				statement,
-				metrics,
-			).await?;
+			handle_statement_message(ctx, state, relay_parent, statement, metrics).await?;
 		},
 		CandidateBackingMessage::GetBackedCandidates(relay_parent, requested_candidates, tx) =>
 			if let Some(rp_state) = state.per_relay_parent.get(&relay_parent) {
@@ -947,7 +934,7 @@ async fn handle_active_leaves_update<Context>(
 				// has prospective parachains enabled and that the
 				// block itself did.
 				ProspectiveParachainsMode::Enabled
-			}
+			},
 			Some(l) => l.prospective_parachains_mode,
 		};
 
@@ -1620,7 +1607,7 @@ async fn handle_second_message<Context>(
 			);
 
 			return Ok(())
-		}
+		},
 		Some(r) => r,
 	};
 
@@ -1683,7 +1670,8 @@ fn handle_get_backed_candidates_message(
 	let backed = requested_candidates
 		.into_iter()
 		.filter_map(|hash| {
-			rp_state.table
+			rp_state
+				.table
 				.attested_candidate(&hash, &rp_state.table_context)
 				.and_then(|attested| table_attested_to_backed(attested, &rp_state.table_context))
 		})
