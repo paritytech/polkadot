@@ -23,6 +23,7 @@ use frame_support::{
 use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::{Convert, Error as MatchError, MatchesNonFungibles, TransactAsset};
+use crate::{AssetChecking, MintLocation};
 
 pub struct NonFungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
 	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>,
@@ -63,12 +64,57 @@ pub struct NonFungiblesMutateAdapter<
 	CheckAsset,
 	CheckingAccount,
 >(PhantomData<(Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount)>);
+
 impl<
 		Assets: nonfungibles::Mutate<AccountId>,
 		Matcher: MatchesNonFungibles<Assets::ClassId, Assets::InstanceId>,
 		AccountIdConverter: Convert<MultiLocation, AccountId>,
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
-		CheckAsset: Contains<Assets::ClassId>,
+		CheckAsset: AssetChecking<Assets::ClassId>,
+		CheckingAccount: Get<Option<AccountId>>,
+	> NonFungiblesMutateAdapter<
+		Assets,
+		Matcher,
+		AccountIdConverter,
+		AccountId,
+		CheckAsset,
+		CheckingAccount,
+	>
+{
+	fn can_accrue_checked(class: Assets::ClassId, instance: Assets::InstanceId) -> XcmResult {
+		ensure!(Assets::owner(&class, &instance).is_none(), XcmError::NotDepositable);
+		Ok(())
+	}
+	fn can_reduce_checked(class: Assets::ClassId, instance: Assets::InstanceId) -> XcmResult {
+		if let Some(checking_account) = CheckingAccount::get() {
+			// This is an asset whose teleports we track.
+			let owner = Assets::owner(&class, &instance);
+			ensure!(owner == Some(checking_account), XcmError::NotWithdrawable);
+			ensure!(Assets::can_transfer(&class, &instance), XcmError::NotWithdrawable);
+		}
+		Ok(())
+	}
+	fn accrue_checked(class: Assets::ClassId, instance: Assets::InstanceId) {
+		if let Some(checking_account) = CheckingAccount::get() {
+			let ok = Assets::mint_into(&class, &instance, &checking_account).is_ok();
+			debug_assert!(ok, "`mint_into` cannot generally fail; qed");
+		}
+}
+	fn reduce_checked(class: Assets::ClassId, instance: Assets::InstanceId) {
+		let ok = Assets::burn(&class, &instance, None).is_ok();
+		debug_assert!(
+			ok,
+			"`can_check_in` must have returned `true` immediately prior; qed"
+		);
+	}
+}
+
+impl<
+		Assets: nonfungibles::Mutate<AccountId>,
+		Matcher: MatchesNonFungibles<Assets::ClassId, Assets::InstanceId>,
+		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
+		CheckAsset: AssetChecking<Assets::ClassId>,
 		CheckingAccount: Get<Option<AccountId>>,
 	> TransactAsset
 	for NonFungiblesMutateAdapter<
@@ -88,15 +134,13 @@ impl<
 		);
 		// Check we handle this asset.
 		let (class, instance) = Matcher::matches_nonfungibles(what)?;
-		if CheckAsset::contains(&class) {
-			if let Some(checking_account) = CheckingAccount::get() {
-				// This is an asset whose teleports we track.
-				let owner = Assets::owner(&class, &instance);
-				ensure!(owner == Some(checking_account), XcmError::NotWithdrawable);
-				ensure!(Assets::can_transfer(&class, &instance), XcmError::NotWithdrawable);
-			}
+		match CheckAsset::asset_checking(&class) {
+			// We track this asset's teleports to ensure no more come in than have gone out.
+			Some(MintLocation::Local) => Self::can_reduce_checked(class, instance),
+			// We track this asset's teleports to ensure no more go out than have come in.
+			Some(MintLocation::NonLocal) => Self::can_accrue_checked(class, instance),
+			_ => Ok(()),
 		}
-		Ok(())
 	}
 
 	fn check_in(_origin: &MultiLocation, what: &MultiAsset, context: &XcmContext) {
@@ -106,13 +150,30 @@ impl<
 			_origin, what, context,
 		);
 		if let Ok((class, instance)) = Matcher::matches_nonfungibles(what) {
-			if CheckAsset::contains(&class) {
-				let ok = Assets::burn(&class, &instance, None).is_ok();
-				debug_assert!(
-					ok,
-					"`can_check_in` must have returned `true` immediately prior; qed"
-				);
+			match CheckAsset::asset_checking(&class) {
+				// We track this asset's teleports to ensure no more come in than have gone out.
+				Some(MintLocation::Local) => Self::reduce_checked(class, instance),
+				// We track this asset's teleports to ensure no more go out than have come in.
+				Some(MintLocation::NonLocal) => Self::accrue_checked(class, instance),
+				_ => (),
 			}
+		}
+	}
+
+	fn can_check_out(_dest: &MultiLocation, what: &MultiAsset, context: &XcmContext) -> XcmResult {
+		log::trace!(
+			target: "xcm::fungibles_adapter",
+			"can_check_out dest: {:?}, what: {:?}, context: {:?}",
+			_dest, what, context,
+		);
+		// Check we handle this asset.
+		let (class, instance) = Matcher::matches_nonfungibles(what)?;
+		match CheckAsset::asset_checking(&class) {
+			// We track this asset's teleports to ensure no more come in than have gone out.
+			Some(MintLocation::Local) => Self::can_accrue_checked(class, instance),
+			// We track this asset's teleports to ensure no more go out than have come in.
+			Some(MintLocation::NonLocal) => Self::can_reduce_checked(class, instance),
+			_ => Ok(()),
 		}
 	}
 
@@ -123,11 +184,12 @@ impl<
 			_dest, what, context,
 		);
 		if let Ok((class, instance)) = Matcher::matches_nonfungibles(what) {
-			if CheckAsset::contains(&class) {
-				if let Some(checking_account) = CheckingAccount::get() {
-					let ok = Assets::mint_into(&class, &instance, &checking_account).is_ok();
-					debug_assert!(ok, "`mint_into` cannot generally fail; qed");
-				}
+			match CheckAsset::asset_checking(&class) {
+				// We track this asset's teleports to ensure no more come in than have gone out.
+				Some(MintLocation::Local) => Self::accrue_checked(class, instance),
+				// We track this asset's teleports to ensure no more go out than have come in.
+				Some(MintLocation::NonLocal) => Self::reduce_checked(class, instance),
+				_ => (),
 			}
 		}
 	}
@@ -179,7 +241,7 @@ impl<
 		Matcher: MatchesNonFungibles<Assets::ClassId, Assets::InstanceId>,
 		AccountIdConverter: Convert<MultiLocation, AccountId>,
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
-		CheckAsset: Contains<Assets::ClassId>,
+		CheckAsset: AssetChecking<Assets::ClassId>,
 		CheckingAccount: Get<Option<AccountId>>,
 	> TransactAsset
 	for NonFungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>
@@ -204,6 +266,17 @@ impl<
 			CheckAsset,
 			CheckingAccount,
 		>::check_in(origin, what, context)
+	}
+
+	fn can_check_out(dest: &MultiLocation, what: &MultiAsset, context: &XcmContext) -> XcmResult {
+		NonFungiblesMutateAdapter::<
+			Assets,
+			Matcher,
+			AccountIdConverter,
+			AccountId,
+			CheckAsset,
+			CheckingAccount,
+		>::can_check_out(dest, what, context)
 	}
 
 	fn check_out(dest: &MultiLocation, what: &MultiAsset, context: &XcmContext) {

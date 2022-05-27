@@ -26,7 +26,7 @@ use xcm::latest::{Error as XcmError, MultiAsset, MultiLocation, Result as XcmRes
 /// Can be amalgamated as a tuple of items that implement this trait. In such executions, if any of the transactors
 /// returns `Ok(())`, then it will short circuit. Else, execution is passed to the next transactor.
 pub trait TransactAsset {
-	/// Ensure that `check_in` will result in `Ok`.
+	/// Ensure that `check_in` will do as expected.
 	///
 	/// When composed as a tuple, all type-items are called and at least one must result in `Ok`.
 	fn can_check_in(
@@ -51,6 +51,17 @@ pub trait TransactAsset {
 	/// When composed as a tuple, all type-items are called. It is up to the implementer that there exists no
 	/// value for `_what` which can cause side-effects for more than one of the type-items.
 	fn check_in(_origin: &MultiLocation, _what: &MultiAsset, _context: &XcmContext) {}
+
+	/// Ensure that `check_out` will do as expected.
+	///
+	/// When composed as a tuple, all type-items are called and at least one must result in `Ok`.
+	fn can_check_out(
+		_dest: &MultiLocation,
+		_what: &MultiAsset,
+		_context: &XcmContext,
+	) -> XcmResult {
+		Err(XcmError::Unimplemented)
+	}
 
 	/// An asset has been teleported out to the given destination. This should do whatever housekeeping is needed.
 	///
@@ -145,6 +156,23 @@ impl TransactAsset for Tuple {
 		)* );
 	}
 
+	fn can_check_out(dest: &MultiLocation, what: &MultiAsset, context: &XcmContext) -> XcmResult {
+		for_tuples!( #(
+			match Tuple::can_check_out(dest, what, context) {
+				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
+				r => return r,
+			}
+		)* );
+		log::trace!(
+			target: "xcm::TransactAsset::can_check_out",
+			"asset not found: what: {:?}, dest: {:?}, context: {:?}",
+			what,
+			dest,
+			context,
+		);
+		Err(XcmError::AssetNotFound)
+	}
+
 	fn check_out(dest: &MultiLocation, what: &MultiAsset, context: &XcmContext) {
 		for_tuples!( #(
 			Tuple::check_out(dest, what, context);
@@ -231,6 +259,14 @@ mod tests {
 			Err(XcmError::AssetNotFound)
 		}
 
+		fn can_check_out(
+			_dest: &MultiLocation,
+			_what: &MultiAsset,
+			_context: &XcmContext,
+		) -> XcmResult {
+			Err(XcmError::AssetNotFound)
+		}
+
 		fn deposit_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
@@ -267,6 +303,14 @@ mod tests {
 			Err(XcmError::Overflow)
 		}
 
+		fn can_check_out(
+			_dest: &MultiLocation,
+			_what: &MultiAsset,
+			_context: &XcmContext,
+		) -> XcmResult {
+			Err(XcmError::Overflow)
+		}
+
 		fn deposit_asset(
 			_what: &MultiAsset,
 			_who: &MultiLocation,
@@ -297,6 +341,14 @@ mod tests {
 	impl TransactAsset for SuccessfulTransactor {
 		fn can_check_in(
 			_origin: &MultiLocation,
+			_what: &MultiAsset,
+			_context: &XcmContext,
+		) -> XcmResult {
+			Ok(())
+		}
+
+		fn can_check_out(
+			_dest: &MultiLocation,
 			_what: &MultiAsset,
 			_context: &XcmContext,
 		) -> XcmResult {

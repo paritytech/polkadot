@@ -56,7 +56,7 @@ mod currency_adapter;
 pub use currency_adapter::CurrencyAdapter;
 
 mod fungibles_adapter;
-pub use fungibles_adapter::{FungiblesAdapter, FungiblesMutateAdapter, FungiblesTransferAdapter};
+pub use fungibles_adapter::{FungiblesAdapter, FungiblesMutateAdapter, FungiblesTransferAdapter, MintLocation, LocalMint, NonLocalMint, DualMint, AssetChecking};
 
 mod nonfungibles_adapter;
 pub use nonfungibles_adapter::{

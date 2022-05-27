@@ -605,6 +605,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// We must do this first in order to resolve wildcards.
 				let assets = self.holding.saturating_take(assets);
 				for asset in assets.assets_iter() {
+					// We should check that the asset can actually be teleported out (for this to
+					// be in error, there would need to be an accounting violation by ourselves,
+					// so it's unlikely, but we don't want to allow that kind of bug to leak into
+					// a trusted chain.
+					Config::AssetTransactor::can_check_out(&dest, &asset, &self.context)?;
+				}
+				for asset in assets.assets_iter() {
 					Config::AssetTransactor::check_out(&dest, &asset, &self.context);
 				}
 				// Note that we pass `None` as `maybe_failed_bin` and drop any assets which cannot
