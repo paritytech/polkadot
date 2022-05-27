@@ -87,11 +87,11 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 			ClaimAsset { .. } => (),
 			_ => return Err(()),
 		}
-		let i = iter.next().ok_or(())?;
-		if !matches!(i, ClearOrigin) {
-			return Err(())
+		let mut i = iter.next().ok_or(())?;
+		while let ClearOrigin = i {
+			i = iter.next().ok_or(())?;
 		}
-		match iter.next().ok_or(())? {
+		match i {
 			BuyExecution { weight_limit: Limited(ref mut weight), .. } if *weight >= max_weight => {
 				*weight = max_weight;
 				Ok(())
