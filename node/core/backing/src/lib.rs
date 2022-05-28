@@ -159,9 +159,9 @@ impl std::fmt::Debug for ValidatedCandidateCommand {
 impl ValidatedCandidateCommand {
 	fn candidate_hash(&self) -> CandidateHash {
 		match *self {
-			ValidatedCandidateCommand::Second(Ok((ref candidate, _, _))) => candidate.hash(),
+			ValidatedCandidateCommand::Second(Ok(ref outputs)) => outputs.candidate.hash(),
 			ValidatedCandidateCommand::Second(Err(ref candidate)) => candidate.hash(),
-			ValidatedCandidateCommand::Attest(Ok((ref candidate, _, _))) => candidate.hash(),
+			ValidatedCandidateCommand::Attest(Ok(ref outputs)) => outputs.candidate.hash(),
 			ValidatedCandidateCommand::Attest(Err(ref candidate)) => candidate.hash(),
 			ValidatedCandidateCommand::AttestNoPoV(candidate_hash) => candidate_hash,
 		}
@@ -282,6 +282,9 @@ struct State {
 	/// backing is being enabled and complicates code complexity.
 	per_relay_parent: HashMap<Hash, PerRelayParentState>,
 	/// State tracked for all candidates relevant to the implicit view.
+	///
+	/// This is guaranteed to have an entry for each candidate with a relay parent in the implicit
+	/// or explicit view for which a `Seconded` statement has been successfully imported.
 	per_candidate: HashMap<CandidateHash, PerCandidateState>,
 	/// A cloneable sender which is dispatched to background candidate validation tasks to inform
 	/// the main task of the result.
@@ -596,8 +599,15 @@ async fn request_candidate_validation(
 	}
 }
 
+struct BackgroundValidationOutputs {
+	candidate: CandidateReceipt,
+	commitments: CandidateCommitments,
+	pov: Arc<PoV>,
+	persisted_validation_data: PersistedValidationData,
+}
+
 type BackgroundValidationResult =
-	Result<(CandidateReceipt, CandidateCommitments, Arc<PoV>), CandidateReceipt>;
+	Result<BackgroundValidationOutputs, CandidateReceipt>;
 
 struct BackgroundValidationParams<S: overseer::CandidateBackingSenderTrait, F> {
 	sender: S,
@@ -690,13 +700,18 @@ async fn validate_and_make_available(
 				n_validators,
 				pov.clone(),
 				candidate.hash(),
-				validation_data,
+				validation_data.clone(),
 				candidate.descriptor.erasure_root,
 			)
 			.await?;
 
 			match erasure_valid {
-				Ok(()) => Ok((candidate, commitments, pov.clone())),
+				Ok(()) => Ok(BackgroundValidationOutputs {
+					candidate,
+					commitments,
+					pov: pov.clone(),
+					persisted_validation_data: validation_data,
+				}),
 				Err(InvalidErasureRoot) => {
 					gum::debug!(
 						target: LOG_TARGET,
@@ -1083,7 +1098,14 @@ async fn handle_validated_candidate_command<Context>(
 
 			match command {
 				ValidatedCandidateCommand::Second(res) => match res {
-					Ok((candidate, commitments, _)) => {
+					Ok(outputs) => {
+						let BackgroundValidationOutputs {
+							candidate,
+							commitments,
+							persisted_validation_data,
+							..
+						} = outputs;
+
 						// sanity check.
 						// TODO [now]: this sanity check is almost certainly
 						// outdated - we now allow seconding multiple candidates
@@ -1103,14 +1125,12 @@ async fn handle_validated_candidate_command<Context>(
 							// TODO [now]: if we get an Error::RejectedByProspectiveParachains,
 							// then the statement has not been distributed. We need to handle this case
 
-							// TODO [now]: get this from changing `BackgroundValidationResult`.
-							let persisted_validation_data = unimplemented!();
 							if let Some(stmt) = sign_import_and_distribute_statement(
 								ctx,
 								rp_state,
 								&mut state.per_candidate,
 								statement,
-								persisted_validation_data,
+								Some(persisted_validation_data),
 								state.keystore.clone(),
 								metrics,
 							)
