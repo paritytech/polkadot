@@ -1122,10 +1122,11 @@ async fn handle_validated_candidate_command<Context>(
 								commitments,
 							});
 
-							// TODO [now]: if we get an Error::RejectedByProspectiveParachains,
-							// then the statement has not been distributed. We need to handle this case
 
-							if let Some(stmt) = sign_import_and_distribute_statement(
+							// If we get an Error::RejectedByProspectiveParachains,
+							// then the statement has not been distributed or imported into
+							// the table.
+							let res = sign_import_and_distribute_statement(
 								ctx,
 								rp_state,
 								&mut state.per_candidate,
@@ -1133,9 +1134,27 @@ async fn handle_validated_candidate_command<Context>(
 								Some(persisted_validation_data),
 								state.keystore.clone(),
 								metrics,
-							)
-							.await?
-							{
+							).await;
+
+							if let Err(Error::RejectedByProspectiveParachains) = res {
+								let candidate_hash = candidate.hash();
+								gum::debug!(
+									target: LOG_TARGET,
+									relay_parent = ?candidate.descriptor().relay_parent,
+									?candidate_hash,
+									"Attempted to second candidate but was rejected by prospective parachains",
+								);
+
+								// Ensure the collator is reported.
+								ctx.send_message(CollatorProtocolMessage::Invalid(
+									candidate.descriptor().relay_parent,
+									candidate,
+								)).await;
+
+								return Ok(())
+							}
+
+							if let Some(stmt) = res? {
 								match state.per_candidate.get_mut(&candidate_hash) {
 									None => {
 										gum::warn!(
@@ -1511,9 +1530,6 @@ async fn sign_import_and_distribute_statement<Context>(
 		)
 		.await?;
 
-		// TODO [now]: if we get an Error::RejectedByProspectiveParachains,
-		// we _do not_ distribute - it has been expunged.
-		// Propagate the error onwards.
 		let smsg = StatementDistributionMessage::Share(rp_state.parent, signed_statement.clone());
 		ctx.send_unbounded_message(smsg);
 
@@ -1633,17 +1649,28 @@ async fn maybe_validate_and_import<Context>(
 		},
 	};
 
-	// TODO [now]: if we get an Error::RejectedByProspectiveParachains,
-	// we will do nothing.
-	if let Some(summary) = import_statement(
+
+	let res = import_statement(
 		ctx,
 		rp_state,
 		&mut state.per_candidate,
 		&statement,
 		persisted_validation_data,
-	)
-	.await?
-	{
+	).await;
+
+	// if we get an Error::RejectedByProspectiveParachains,
+	// we will do nothing.
+	if let Err(Error::RejectedByProspectiveParachains) = res {
+		gum::debug!(
+			target: LOG_TARGET,
+			?relay_parent,
+			"Statement rejected by prospective parachains."
+		);
+
+		return Ok(())
+	}
+
+	if let Some(summary) = res? {
 		// import_statement already takes care of communicating with the
 		// prospective parachains subsystem. At this point, the candidate
 		// has already been accepted into the fragment trees.
