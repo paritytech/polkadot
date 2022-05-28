@@ -111,7 +111,7 @@ use statement_table::{
 		SignedStatement as TableSignedStatement, Statement as TableStatement,
 		Summary as TableSummary,
 	},
-	Context as TableContextTrait, Table,
+	Config as TableConfig, Context as TableContextTrait, Table,
 };
 
 mod error;
@@ -1061,6 +1061,12 @@ async fn construct_per_relay_parent_state<Context>(
 	}
 
 	let table_context = TableContext { groups, validators, validator };
+	let table_config = TableConfig {
+		allow_multiple_seconded: match mode {
+			ProspectiveParachainsMode::Enabled => true,
+			ProspectiveParachainsMode::Disabled => false,
+		},
+	};
 
 	// TODO [now]: I've removed the `required_collator` more broadly,
 	// because it's not used in practice and was intended for parathreads.
@@ -1075,7 +1081,7 @@ async fn construct_per_relay_parent_state<Context>(
 		session_index,
 		assignment,
 		backed: HashSet::new(),
-		table: Table::default(),
+		table: Table::new(table_config),
 		table_context,
 		issued_statements: HashSet::new(),
 		awaiting_validation: HashSet::new(),
@@ -1544,10 +1550,6 @@ async fn import_statement<Context>(
 
 	let stmt = primitive_statement_to_table(statement);
 
-	// TODO [now]: we violate the pre-existing checks that each validator may
-	// only second one candidate.
-	//
-	// We will need to address this so we don't get errors incorrectly.
 	let summary = rp_state.table.import_statement(&rp_state.table_context, stmt);
 
 	if let Some(attested) = summary
