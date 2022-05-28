@@ -87,8 +87,8 @@ use polkadot_node_subsystem::{
 	messages::{
 		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
 		CandidateValidationMessage, CollatorProtocolMessage, DisputeCoordinatorMessage,
-		ProspectiveParachainsMessage, ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
-		StatementDistributionMessage,
+		ProspectiveParachainsMessage, ProvisionableData, ProvisionerMessage, RuntimeApiMessage,
+		RuntimeApiRequest, StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -101,7 +101,7 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v2::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt,
 	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, PersistedValidationData,
-	SessionIndex, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature,
+	SessionIndex, SigningContext, ValidationCode, ValidatorId, ValidatorIndex, ValidatorSignature,
 	ValidityAttestation,
 };
 use sp_keystore::SyncCryptoStorePtr;
@@ -526,13 +526,10 @@ async fn make_pov_available(
 	candidate_hash: CandidateHash,
 	validation_data: PersistedValidationData,
 	expected_erasure_root: Hash,
-	span: Option<&jaeger::Span>,
 ) -> Result<Result<(), InvalidErasureRoot>, Error> {
 	let available_data = AvailableData { pov, validation_data };
 
 	{
-		let _span = span.as_ref().map(|s| s.child("erasure-coding").with_candidate(candidate_hash));
-
 		let chunks = erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;
 
 		let branches = erasure_coding::branches(chunks.as_ref());
@@ -544,8 +541,6 @@ async fn make_pov_available(
 	}
 
 	{
-		let _span = span.as_ref().map(|s| s.child("store-data").with_candidate(candidate_hash));
-
 		store_available_data(sender, n_validators as u32, candidate_hash, available_data).await?;
 	}
 
@@ -576,14 +571,17 @@ async fn request_pov(
 
 async fn request_candidate_validation(
 	sender: &mut impl overseer::CandidateBackingSenderTrait,
+	pvd: PersistedValidationData,
+	code: ValidationCode,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 ) -> Result<ValidationResult, Error> {
 	let (tx, rx) = oneshot::channel();
 
-	// TODO [now]: always do exhaustive validation.
 	sender
-		.send_message(CandidateValidationMessage::ValidateFromChainState(
+		.send_message(CandidateValidationMessage::ValidateFromExhaustive(
+			pvd,
+			code,
 			candidate_receipt,
 			pov,
 			BACKING_EXECUTION_TIMEOUT,
@@ -594,7 +592,7 @@ async fn request_candidate_validation(
 	match rx.await {
 		Ok(Ok(validation_result)) => Ok(validation_result),
 		Ok(Err(err)) => Err(Error::ValidationFailed(err)),
-		Err(err) => Err(Error::ValidateFromChainState(err)),
+		Err(err) => Err(Error::ValidateFromExhaustive(err)),
 	}
 }
 
@@ -606,9 +604,9 @@ struct BackgroundValidationParams<S: overseer::CandidateBackingSenderTrait, F> {
 	tx_command: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	candidate: CandidateReceipt,
 	relay_parent: Hash,
+	persisted_validation_data: PersistedValidationData,
 	pov: PoVData,
 	n_validators: usize,
-	span: Option<jaeger::Span>,
 	make_command: F,
 }
 
@@ -623,16 +621,33 @@ async fn validate_and_make_available(
 		mut tx_command,
 		candidate,
 		relay_parent,
+		persisted_validation_data,
 		pov,
 		n_validators,
-		span,
 		make_command,
 	} = params;
 
+	let validation_code = {
+		let validation_code_hash = candidate.descriptor().validation_code_hash;
+		let (tx, rx) = oneshot::channel();
+		sender
+			.send_message(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::ValidationCodeByHash(validation_code_hash, tx),
+			))
+			.await;
+
+		let code = rx.await.map_err(Error::RuntimeApiUnavailable)?;
+		match code {
+			Err(e) => return Err(Error::FetchValidationCode(validation_code_hash, e)),
+			Ok(None) => return Err(Error::NoValidationCode(validation_code_hash)),
+			Ok(Some(c)) => c,
+		}
+	};
+
 	let pov = match pov {
 		PoVData::Ready(pov) => pov,
-		PoVData::FetchFromValidator { from_validator, candidate_hash, pov_hash } => {
-			let _span = span.as_ref().map(|s| s.child("request-pov"));
+		PoVData::FetchFromValidator { from_validator, candidate_hash, pov_hash } =>
 			match request_pov(&mut sender, relay_parent, from_validator, candidate_hash, pov_hash)
 				.await
 			{
@@ -648,17 +663,18 @@ async fn validate_and_make_available(
 				},
 				Err(err) => return Err(err),
 				Ok(pov) => pov,
-			}
-		},
+			},
 	};
 
 	let v = {
-		let _span = span.as_ref().map(|s| {
-			s.child("request-validation")
-				.with_pov(&pov)
-				.with_para_id(candidate.descriptor().para_id)
-		});
-		request_candidate_validation(&mut sender, candidate.clone(), pov.clone()).await?
+		request_candidate_validation(
+			&mut sender,
+			persisted_validation_data,
+			validation_code,
+			candidate.clone(),
+			pov.clone(),
+		)
+		.await?
 	};
 
 	let res = match v {
@@ -676,7 +692,6 @@ async fn validate_and_make_available(
 				candidate.hash(),
 				validation_data,
 				candidate.descriptor.erasure_root,
-				span.as_ref(),
 			)
 			.await?;
 
@@ -1108,8 +1123,8 @@ async fn handle_validated_candidate_command<Context>(
 											?candidate_hash,
 											"Missing `per_candidate` for seconded candidate.",
 										);
-									}
-									Some(p) => { p.seconded_locally = true }
+									},
+									Some(p) => p.seconded_locally = true,
 								}
 								// TODO [now]: update seconded depths in active leaves.
 								rp_state.issued_statements.insert(candidate_hash);
@@ -1159,13 +1174,25 @@ async fn handle_validated_candidate_command<Context>(
 							attesting.from_validator = index;
 							let attesting = attesting.clone();
 
-							kick_off_validation_work(
-								ctx,
-								rp_state,
-								&state.background_validation_tx,
-								attesting,
-							)
-							.await?;
+							// The candidate state should be available because we've
+							// validated it before, the relay-parent is still around,
+							// and candidates are pruned on the basis of relay-parents.
+							//
+							// If it's not, then no point in validating it anyway.
+							if let Some(pvd) = state
+								.per_candidate
+								.get(&candidate_hash)
+								.map(|pc| pc.persisted_validation_data.clone())
+							{
+								kick_off_validation_work(
+									ctx,
+									rp_state,
+									pvd,
+									&state.background_validation_tx,
+									attesting,
+								)
+								.await?;
+							}
 						}
 					} else {
 						gum::warn!(
@@ -1329,7 +1356,8 @@ async fn import_statement<Context>(
 					candidate.clone(),
 					pvd,
 					tx,
-				)).await;
+				))
+				.await;
 
 				match rx.await {
 					Err(oneshot::Canceled) => {
@@ -1338,13 +1366,12 @@ async fn import_statement<Context>(
 							"Could not reach the Prospective Parachains subsystem."
 						);
 
-						return Err(Error::RejectedByProspectiveParachains);
-					}
-					Ok(membership) => {
+						return Err(Error::RejectedByProspectiveParachains)
+					},
+					Ok(membership) =>
 						if membership.is_empty() {
-							return Err(Error::RejectedByProspectiveParachains);
-						}
-					}
+							return Err(Error::RejectedByProspectiveParachains)
+						},
 				}
 			}
 		}
@@ -1395,7 +1422,8 @@ async fn import_statement<Context>(
 					ctx.send_message(ProspectiveParachainsMessage::CandidateBacked(
 						para_id,
 						candidate_hash,
-					)).await;
+					))
+					.await;
 				}
 
 				// The provisioner waits on candidate-backing, which means
@@ -1454,7 +1482,14 @@ async fn sign_import_and_distribute_statement<Context>(
 	metrics: &Metrics,
 ) -> Result<Option<SignedFullStatement>, Error> {
 	if let Some(signed_statement) = sign_statement(&*rp_state, statement, keystore, metrics).await {
-		import_statement(ctx, rp_state, per_candidate, &signed_statement, persisted_validation_data).await?;
+		import_statement(
+			ctx,
+			rp_state,
+			per_candidate,
+			&signed_statement,
+			persisted_validation_data,
+		)
+		.await?;
 
 		// TODO [now]: if we get an Error::RejectedByProspectiveParachains,
 		// we _do not_ distribute - it has been expunged.
@@ -1510,6 +1545,7 @@ async fn background_validate_and_make_available<Context>(
 async fn kick_off_validation_work<Context>(
 	ctx: &mut Context,
 	rp_state: &mut PerRelayParentState,
+	persisted_validation_data: PersistedValidationData,
 	background_validation_tx: &mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	attesting: AttestingData,
 ) -> Result<(), Error> {
@@ -1534,10 +1570,6 @@ async fn kick_off_validation_work<Context>(
 		pov_hash: attesting.pov_hash,
 	};
 
-	// TODO [now]: as we refactor validation to always take
-	// exhaustive parameters, this will need to change.
-	//
-	// Also, we will probably need to account for depth here, maybe.
 	background_validate_and_make_available(
 		ctx,
 		rp_state,
@@ -1546,9 +1578,9 @@ async fn kick_off_validation_work<Context>(
 			tx_command: background_validation_tx.clone(),
 			candidate: attesting.candidate,
 			relay_parent: rp_state.parent,
+			persisted_validation_data,
 			pov,
 			n_validators: rp_state.table_context.validators.len(),
-			span: None,
 			make_command: ValidatedCandidateCommand::Attest,
 		},
 	)
@@ -1583,18 +1615,26 @@ async fn maybe_validate_and_import<Context>(
 
 	// TODO [now]: if we get an Error::RejectedByProspectiveParachains,
 	// we will do nothing.
-	if let Some(summary) = import_statement(ctx, rp_state, &mut state.per_candidate, &statement, persisted_validation_data).await? {
+	if let Some(summary) = import_statement(
+		ctx,
+		rp_state,
+		&mut state.per_candidate,
+		&statement,
+		persisted_validation_data,
+	)
+	.await?
+	{
 		// import_statement already takes care of communicating with the
 		// prospective parachains subsystem. At this point, the candidate
 		// has already been accepted into the fragment trees.
+
+		let candidate_hash = summary.candidate;
 
 		if Some(summary.group_id) != rp_state.assignment {
 			return Ok(())
 		}
 		let attesting = match statement.payload() {
 			Statement::Seconded(receipt) => {
-				let candidate_hash = summary.candidate;
-
 				let attesting = AttestingData {
 					candidate: rp_state
 						.table
@@ -1630,7 +1670,22 @@ async fn maybe_validate_and_import<Context>(
 			},
 		};
 
-		kick_off_validation_work(ctx, rp_state, &state.background_validation_tx, attesting).await?;
+		// After `import_statement` succeeds, the candidate entry is guaranteed
+		// to exist.
+		if let Some(pvd) = state
+			.per_candidate
+			.get(&candidate_hash)
+			.map(|pc| pc.persisted_validation_data.clone())
+		{
+			kick_off_validation_work(
+				ctx,
+				rp_state,
+				pvd,
+				&state.background_validation_tx,
+				attesting,
+			)
+			.await?;
+		}
 	}
 	Ok(())
 }
@@ -1640,6 +1695,7 @@ async fn maybe_validate_and_import<Context>(
 async fn validate_and_second<Context>(
 	ctx: &mut Context,
 	rp_state: &mut PerRelayParentState,
+	persisted_validation_data: PersistedValidationData,
 	candidate: &CandidateReceipt,
 	pov: Arc<PoV>,
 	background_validation_tx: &mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
@@ -1662,9 +1718,9 @@ async fn validate_and_second<Context>(
 			tx_command: background_validation_tx.clone(),
 			candidate: candidate.clone(),
 			relay_parent: rp_state.parent,
+			persisted_validation_data,
 			pov: PoVData::Ready(pov),
 			n_validators: rp_state.table_context.validators.len(),
-			span: None,
 			make_command: ValidatedCandidateCommand::Second,
 		},
 	)
@@ -1743,7 +1799,16 @@ async fn handle_statement_message<Context>(
 
 	// TODO [now]: get this from the message.
 	let persisted_validation_data: Option<PersistedValidationData> = unimplemented!();
-	match maybe_validate_and_import(ctx, state, relay_parent, statement, persisted_validation_data, metrics).await {
+	match maybe_validate_and_import(
+		ctx,
+		state,
+		relay_parent,
+		statement,
+		persisted_validation_data,
+		metrics,
+	)
+	.await
+	{
 		Err(Error::ValidationFailed(_)) => Ok(()),
 		Err(e) => Err(e),
 		Ok(()) => Ok(()),
