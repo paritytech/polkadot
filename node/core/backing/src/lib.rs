@@ -1927,20 +1927,26 @@ async fn handle_second_message<Context>(
 	}
 
 	// If the message is a `CandidateBackingMessage::Second`, sign and dispatch a
-	// Seconded statement only if we have not seconded any other candidate and
-	// have not signed a Valid statement for the requested candidate.
+	// Seconded statement only if we have not signed a Valid statement for the requested candidate.
 	//
-	// TODO [now]: this check is outdated. we need to only second when we have seconded
-	// nothing else with the hypothetical depth of the candidate in all our active leaves.
+	// The actual logic of issuing the signed statement checks that this isn't
+	// conflicting with other seconded candidates. Not doing that check here
+	// gives other subsystems the ability to get us to execute arbitrary candidates,
+	// but no more.
+	if !rp_state.issued_statements.contains(&candidate_hash) {
+		let pov = Arc::new(pov);
 
-	// if self.seconded.is_none() {
-	// 	// This job has not seconded a candidate yet.
-
-	// 	if !self.issued_statements.contains(&candidate_hash) {
-	// 		let pov = Arc::new(pov);
-	// 		self.validate_and_second(&span, &root_span, ctx, &candidate, pov).await?;
-	// 	}
-	// }
+		// TODO [now]: get from message.
+		let persisted_validation_data = unimplemented!();
+		validate_and_second(
+			ctx,
+			rp_state,
+			persisted_validation_data,
+			&candidate,
+			pov,
+			&state.background_validation_tx,
+		).await?;
+	}
 
 	Ok(())
 }
