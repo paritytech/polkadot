@@ -88,7 +88,7 @@ use polkadot_node_subsystem::{
 		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
 		CandidateValidationMessage, CollatorProtocolMessage, DisputeCoordinatorMessage,
 		ProspectiveParachainsMessage, ProvisionableData, ProvisionerMessage, RuntimeApiMessage,
-		RuntimeApiRequest, StatementDistributionMessage,
+		RuntimeApiRequest, StatementDistributionMessage, HypotheticalDepthRequest,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -1083,6 +1083,89 @@ async fn construct_per_relay_parent_state<Context>(
 	}))
 }
 
+enum SecondingAllowed {
+	No,
+	Yes(Vec<(Hash, Vec<usize>)>),
+}
+
+/// Checks whether a candidate can be seconded based on its hypothetical
+/// depths in the fragment tree and what we've already seconded in all
+/// active leaves.
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn seconding_sanity_check<Context>(
+	ctx: &mut Context,
+	active_leaves: &HashMap<Hash, ActiveLeafState>,
+	candidate_hash: CandidateHash,
+	candidate_para: ParaId,
+	parent_head_data_hash: Hash,
+	head_data_hash: Hash,
+	candidate_relay_parent: Hash,
+) -> SecondingAllowed {
+	// Note that `GetHypotheticalDepths` doesn't account for recursion,
+	// i.e. candidates can appear at multiple depths in the tree and in fact
+	// at all depths, and we don't know what depths a candidate will ultimately occupy
+	// because that's dependent on other candidates we haven't yet received.
+	//
+	// The only way to effectively rule this out is to have candidate receipts
+	// directly commit to the parachain block number or some other incrementing
+	// counter. That requires a major primitives format upgrade, so for now
+	// we just rule out trivial cycles.
+	if parent_head_data_hash == head_data_hash {
+		return SecondingAllowed::No
+	}
+
+	let mut membership = Vec::new();
+	let mut responses = FuturesOrdered::new();
+	for (head, leaf_state) in active_leaves {
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(ProspectiveParachainsMessage::GetHypotheticalDepth(
+			HypotheticalDepthRequest {
+				candidate_hash,
+				candidate_para,
+				parent_head_data_hash,
+				candidate_relay_parent,
+				fragment_tree_relay_parent: *head,
+			},
+			tx,
+		)).await;
+		responses.push(rx.map_ok(move |depths| (depths, head, leaf_state)));
+	}
+
+	for response in responses.next().await {
+		match response {
+			Err(oneshot::Canceled) => {
+				gum::warn!(
+					target: LOG_TARGET,
+					"Failed to reach prospective parachains subsystem for hypothetical depths",
+				);
+
+				return SecondingAllowed::No;
+			}
+			Ok((depths, head, leaf_state)) => {
+				for depth in &depths {
+					if leaf_state.seconded_at_depth.contains_key(&depth) {
+						gum::debug!(
+							target: LOG_TARGET,
+							?candidate_hash,
+							depth,
+							leaf_hash = ?head,
+							"Refusing to second candidate at depth - already occupied."
+						);
+
+						return SecondingAllowed::No;
+					}
+				}
+
+				membership.push((*head, depths));
+			}
+		}
+	}
+
+	// At this point we've checked the depths of the candidate against all active
+	// leaves.
+	SecondingAllowed::Yes(membership)
+}
+
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn handle_validated_candidate_command<Context>(
 	ctx: &mut Context,
@@ -1106,75 +1189,103 @@ async fn handle_validated_candidate_command<Context>(
 							..
 						} = outputs;
 
-						// sanity check.
-						// TODO [now]: this sanity check is almost certainly
-						// outdated - we now allow seconding multiple candidates
-						// per relay-parent. update it to properly defend against
-						// seconding stuff wrongly.
-						//
-						// The way we'll do this is by asking the prospective parachains
-						// subsystem about the hypothetical depth of the candidate at all
-						// active leaves and then ensuring we've not seconded anything with
-						// those depths at any of our active leaves.
-						if !rp_state.issued_statements.contains(&candidate_hash) {
-							let statement = Statement::Seconded(CommittedCandidateReceipt {
-								descriptor: candidate.descriptor.clone(),
-								commitments,
-							});
+						if rp_state.issued_statements.contains(&candidate_hash) {
+							return Ok(())
+						}
+
+						// sanity check that we're allowed to second the candidate
+						// and that it doesn't conflict with other candidates we've
+						// seconded.
+						let fragment_tree_membership = match seconding_sanity_check(
+							ctx,
+							&state.per_leaf,
+							candidate_hash,
+							candidate.descriptor().para_id,
+							persisted_validation_data.parent_head.hash(),
+							candidate.descriptor().relay_parent,
+							commitments.head_data.hash(),
+						).await {
+							SecondingAllowed::No => return Ok(()),
+							SecondingAllowed::Yes(membership) => membership,
+						};
+
+						let statement = Statement::Seconded(CommittedCandidateReceipt {
+							descriptor: candidate.descriptor.clone(),
+							commitments,
+						});
 
 
-							// If we get an Error::RejectedByProspectiveParachains,
-							// then the statement has not been distributed or imported into
-							// the table.
-							let res = sign_import_and_distribute_statement(
-								ctx,
-								rp_state,
-								&mut state.per_candidate,
-								statement,
-								Some(persisted_validation_data),
-								state.keystore.clone(),
-								metrics,
-							).await;
+						// If we get an Error::RejectedByProspectiveParachains,
+						// then the statement has not been distributed or imported into
+						// the table.
+						let res = sign_import_and_distribute_statement(
+							ctx,
+							rp_state,
+							&mut state.per_candidate,
+							statement,
+							Some(persisted_validation_data),
+							state.keystore.clone(),
+							metrics,
+						).await;
 
-							if let Err(Error::RejectedByProspectiveParachains) = res {
-								let candidate_hash = candidate.hash();
-								gum::debug!(
-									target: LOG_TARGET,
-									relay_parent = ?candidate.descriptor().relay_parent,
-									?candidate_hash,
-									"Attempted to second candidate but was rejected by prospective parachains",
-								);
+						if let Err(Error::RejectedByProspectiveParachains) = res {
+							let candidate_hash = candidate.hash();
+							gum::debug!(
+								target: LOG_TARGET,
+								relay_parent = ?candidate.descriptor().relay_parent,
+								?candidate_hash,
+								"Attempted to second candidate but was rejected by prospective parachains",
+							);
 
-								// Ensure the collator is reported.
-								ctx.send_message(CollatorProtocolMessage::Invalid(
-									candidate.descriptor().relay_parent,
-									candidate,
-								)).await;
+							// Ensure the collator is reported.
+							ctx.send_message(CollatorProtocolMessage::Invalid(
+								candidate.descriptor().relay_parent,
+								candidate,
+							)).await;
 
-								return Ok(())
+							return Ok(())
+						}
+
+						if let Some(stmt) = res? {
+							match state.per_candidate.get_mut(&candidate_hash) {
+								None => {
+									gum::warn!(
+										target: LOG_TARGET,
+										?candidate_hash,
+										"Missing `per_candidate` for seconded candidate.",
+									);
+								},
+								Some(p) => p.seconded_locally = true,
 							}
 
-							if let Some(stmt) = res? {
-								match state.per_candidate.get_mut(&candidate_hash) {
+							// update seconded depths in active leaves.
+							for (leaf, depths) in fragment_tree_membership {
+								let leaf_data = match state.per_leaf.get_mut(&leaf) {
 									None => {
 										gum::warn!(
 											target: LOG_TARGET,
-											?candidate_hash,
-											"Missing `per_candidate` for seconded candidate.",
+											leaf_hash = ?leaf,
+											"Missing `per_leaf` for known active leaf."
 										);
-									},
-									Some(p) => p.seconded_locally = true,
-								}
-								// TODO [now]: update seconded depths in active leaves.
-								rp_state.issued_statements.insert(candidate_hash);
 
-								metrics.on_candidate_seconded();
-								ctx.send_message(CollatorProtocolMessage::Seconded(
-									rp_state.parent,
-									stmt,
-								))
-								.await;
+										continue
+									}
+									Some(d) => d,
+								};
+
+								for depth in depths {
+									leaf_data.seconded_at_depth.insert(depth, candidate_hash);
+								}
 							}
+
+							rp_state.issued_statements.insert(candidate_hash);
+
+							metrics.on_candidate_seconded();
+							ctx.send_message(CollatorProtocolMessage::Seconded(
+								rp_state.parent,
+								stmt,
+							))
+							.await;
 						}
 					},
 					Err(candidate) => {
