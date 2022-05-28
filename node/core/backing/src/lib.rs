@@ -199,7 +199,7 @@ where
 }
 
 struct PerRelayParentState {
-	mode: ProspectiveParachainsMode,
+	prospective_parachains_mode: ProspectiveParachainsMode,
 	/// The hash of the relay parent on top of which this job is doing it's work.
 	parent: Hash,
 	/// The session index this corresponds to.
@@ -1040,7 +1040,7 @@ async fn construct_per_relay_parent_state<Context>(
 	let assignment = assignment.map(|(a, _required_collator)| a);
 
 	Ok(Some(PerRelayParentState {
-		mode,
+		prospective_parachains_mode: mode,
 		parent,
 		session_index,
 		assignment,
@@ -1086,19 +1086,32 @@ async fn handle_validated_candidate_command<Context>(
 							});
 
 							// TODO [now]: if we get an Error::RejectedByProspectiveParachains,
-							// then the statement has not been distributed. In this case,
-							// we should expunge the candidate from the rp_state,
+							// then the statement has not been distributed. We need to handle this case
+
+							// TODO [now]: get this from changing `BackgroundValidationResult`.
+							let persisted_validation_data = unimplemented!();
 							if let Some(stmt) = sign_import_and_distribute_statement(
 								ctx,
 								rp_state,
+								&mut state.per_candidate,
 								statement,
+								persisted_validation_data,
 								state.keystore.clone(),
 								metrics,
 							)
 							.await?
 							{
-								// TODO [now]: note the candidate as seconded in the
-								// per-candidate state.
+								match state.per_candidate.get_mut(&candidate_hash) {
+									None => {
+										gum::warn!(
+											target: LOG_TARGET,
+											?candidate_hash,
+											"Missing `per_candidate` for seconded candidate.",
+										);
+									}
+									Some(p) => { p.seconded_locally = true }
+								}
+								// TODO [now]: update seconded depths in active leaves.
 								rp_state.issued_statements.insert(candidate_hash);
 
 								metrics.on_candidate_seconded();
@@ -1129,7 +1142,9 @@ async fn handle_validated_candidate_command<Context>(
 							sign_import_and_distribute_statement(
 								ctx,
 								rp_state,
+								&mut state.per_candidate,
 								statement,
+								None, // only needed when seconding.
 								state.keystore.clone(),
 								metrics,
 							)
@@ -1251,11 +1266,21 @@ async fn dispatch_new_statement_to_dispute_coordinator<Context>(
 }
 
 /// Import a statement into the statement table and return the summary of the import.
+///
+/// This will fail with `Error::RejectedByProspectiveParachains` if the message type
+/// is seconded, the candidate is fresh,
+/// and any of the following are true:
+/// 1. There is no `PersistedValidationData` attached.
+/// 2. Prospective parachains are enabled for the relay parent and the prospective parachains
+///    subsystem returned an empty `FragmentTreeMembership`
+///    i.e. did not recognize the candidate as being applicable to any of the active leaves.
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn import_statement<Context>(
 	ctx: &mut Context,
 	rp_state: &mut PerRelayParentState,
+	per_candidate: &mut HashMap<CandidateHash, PerCandidateState>,
 	statement: &SignedFullStatement,
+	persisted_validation_data: Option<PersistedValidationData>,
 ) -> Result<Option<TableSummary>, Error> {
 	gum::debug!(
 		target: LOG_TARGET,
@@ -1265,6 +1290,65 @@ async fn import_statement<Context>(
 	);
 
 	let candidate_hash = statement.payload().candidate_hash();
+
+	// If this is a new candidate (statement is 'seconded' and candidate is unknown),
+	// we need to create an entry in the `PerCandidateState` map.
+	//
+	// If the relay parent supports prospective parachains, we also need
+	// to inform the prospective parachains subsystem of the seconded candidate
+	// If `ProspectiveParachainsMessage::Second` fails, then we return
+	// Error::RejectedByProspectiveParachains.
+	//
+	// Persisted Validation Data should be available - it may already be available
+	// if this is a candidate we are seconding.
+	//
+	// We should also not accept any candidates which have no valid depths under any of
+	// our active leaves.
+	if let Statement::Seconded(candidate) = statement.payload() {
+		if !per_candidate.contains_key(&candidate_hash) {
+			let pvd = match persisted_validation_data {
+				None => return Err(Error::RejectedByProspectiveParachains),
+				Some(pvd) => pvd,
+			};
+
+			per_candidate.insert(
+				candidate_hash,
+				PerCandidateState {
+					persisted_validation_data: pvd.clone(),
+					// This is set after importing when seconding locally.
+					seconded_locally: false,
+					para_id: candidate.descriptor().para_id,
+					relay_parent: candidate.descriptor().relay_parent,
+				},
+			);
+
+			if rp_state.prospective_parachains_mode.is_enabled() {
+				let (tx, rx) = oneshot::channel();
+				ctx.send_message(ProspectiveParachainsMessage::CandidateSeconded(
+					candidate.descriptor().para_id,
+					candidate.clone(),
+					pvd,
+					tx,
+				)).await;
+
+				match rx.await {
+					Err(oneshot::Canceled) => {
+						gum::warn!(
+							target: LOG_TARGET,
+							"Could not reach the Prospective Parachains subsystem."
+						);
+
+						return Err(Error::RejectedByProspectiveParachains);
+					}
+					Ok(membership) => {
+						if membership.is_empty() {
+							return Err(Error::RejectedByProspectiveParachains);
+						}
+					}
+				}
+			}
+		}
+	}
 
 	if let Err(ValidatorIndexOutOfBounds) =
 		dispatch_new_statement_to_dispute_coordinator(ctx, rp_state, candidate_hash, &statement)
@@ -1293,31 +1377,26 @@ async fn import_statement<Context>(
 		.as_ref()
 		.and_then(|s| rp_state.table.attested_candidate(&s.candidate, &rp_state.table_context))
 	{
-		// TODO [now]
-		//
-		// If this is a new candidate, we need to create an entry in the
-		// `PerCandidateState` map.
-		//
-		// If the relay parent supports prospective parachains, we also need
-		// to inform the prospective parachains subsystem of the seconded candidate
-		// If `ProspectiveParachainsMessage::Second` fails, then we expunge the
-		// statement from the table and return an error, which should be handled
-		// to avoid distribution of the statement.
-
-		let candidate_hash = attested.candidate.hash();
 		// `HashSet::insert` returns true if the thing wasn't in there already.
 		if rp_state.backed.insert(candidate_hash) {
 			if let Some(backed) = table_attested_to_backed(attested, &rp_state.table_context) {
+				let para_id = backed.candidate.descriptor.para_id;
 				gum::debug!(
 					target: LOG_TARGET,
 					candidate_hash = ?candidate_hash,
 					relay_parent = ?rp_state.parent,
-					para_id = %backed.candidate.descriptor.para_id,
+					%para_id,
 					"Candidate backed",
 				);
 
-				// TODO [now]: inform the prospective parachains subsystem
+				// Inform the prospective parachains subsystem
 				// that the candidate is now backed.
+				if rp_state.prospective_parachains_mode.is_enabled() {
+					ctx.send_message(ProspectiveParachainsMessage::CandidateBacked(
+						para_id,
+						candidate_hash,
+					)).await;
+				}
 
 				// The provisioner waits on candidate-backing, which means
 				// that we need to send unbounded messages to avoid cycles.
@@ -1360,16 +1439,22 @@ fn issue_new_misbehaviors<Context>(
 	}
 }
 
+/// Sign, import, and distribute a statement.
+///
+/// If the statement is a `Seconded` statement, the `persisted_validation_data`
+/// must be `Some`.
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn sign_import_and_distribute_statement<Context>(
 	ctx: &mut Context,
 	rp_state: &mut PerRelayParentState,
+	per_candidate: &mut HashMap<CandidateHash, PerCandidateState>,
 	statement: Statement,
+	persisted_validation_data: Option<PersistedValidationData>,
 	keystore: SyncCryptoStorePtr,
 	metrics: &Metrics,
 ) -> Result<Option<SignedFullStatement>, Error> {
 	if let Some(signed_statement) = sign_statement(&*rp_state, statement, keystore, metrics).await {
-		import_statement(ctx, rp_state, &signed_statement).await?;
+		import_statement(ctx, rp_state, per_candidate, &signed_statement, persisted_validation_data).await?;
 
 		// TODO [now]: if we get an Error::RejectedByProspectiveParachains,
 		// we _do not_ distribute - it has been expunged.
@@ -1471,12 +1556,16 @@ async fn kick_off_validation_work<Context>(
 }
 
 /// Import the statement and kick off validation work if it is a part of our assignment.
+///
+/// If the statement type is `Seconded`, the `persisted_validation_data` must be
+/// `Some`.
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn maybe_validate_and_import<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	relay_parent: Hash,
 	statement: SignedFullStatement,
+	persisted_validation_data: Option<PersistedValidationData>,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
 	let rp_state = match state.per_relay_parent.get_mut(&relay_parent) {
@@ -1494,7 +1583,7 @@ async fn maybe_validate_and_import<Context>(
 
 	// TODO [now]: if we get an Error::RejectedByProspectiveParachains,
 	// we will do nothing.
-	if let Some(summary) = import_statement(ctx, rp_state, &statement).await? {
+	if let Some(summary) = import_statement(ctx, rp_state, &mut state.per_candidate, &statement, persisted_validation_data).await? {
 		// import_statement already takes care of communicating with the
 		// prospective parachains subsystem. At this point, the candidate
 		// has already been accepted into the fragment trees.
@@ -1652,7 +1741,9 @@ async fn handle_statement_message<Context>(
 ) -> Result<(), Error> {
 	let _timer = metrics.time_process_statement();
 
-	match maybe_validate_and_import(ctx, state, relay_parent, statement, metrics).await {
+	// TODO [now]: get this from the message.
+	let persisted_validation_data: Option<PersistedValidationData> = unimplemented!();
+	match maybe_validate_and_import(ctx, state, relay_parent, statement, persisted_validation_data, metrics).await {
 		Err(Error::ValidationFailed(_)) => Ok(()),
 		Err(e) => Err(e),
 		Ok(()) => Ok(()),
