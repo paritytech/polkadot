@@ -22,6 +22,7 @@ use sc_executor_common::{
 };
 use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
+use sp_externalities::MultiRemovalResults;
 use std::{
 	any::{Any, TypeId},
 	path::Path,
@@ -160,15 +161,31 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("child_storage: unsupported feature for parachain validation")
 	}
 
-	fn kill_child_storage(&mut self, _: &ChildInfo, _: Option<u32>) -> (bool, u32) {
+	fn kill_child_storage(
+		&mut self,
+		_child_info: &ChildInfo,
+		_maybe_limit: Option<u32>,
+		_maybe_cursor: Option<&[u8]>,
+	) -> MultiRemovalResults {
 		panic!("kill_child_storage: unsupported feature for parachain validation")
 	}
 
-	fn clear_prefix(&mut self, _: &[u8], _: Option<u32>) -> (bool, u32) {
+	fn clear_prefix(
+		&mut self,
+		_prefix: &[u8],
+		_maybe_limit: Option<u32>,
+		_maybe_cursor: Option<&[u8]>,
+	) -> MultiRemovalResults {
 		panic!("clear_prefix: unsupported feature for parachain validation")
 	}
 
-	fn clear_child_prefix(&mut self, _: &ChildInfo, _: &[u8], _: Option<u32>) -> (bool, u32) {
+	fn clear_child_prefix(
+		&mut self,
+		_child_info: &ChildInfo,
+		_prefix: &[u8],
+		_maybe_limit: Option<u32>,
+		_maybe_cursor: Option<&[u8]>,
+	) -> MultiRemovalResults {
 		panic!("clear_child_prefix: unsupported feature for parachain validation")
 	}
 
