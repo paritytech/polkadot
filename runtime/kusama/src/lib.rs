@@ -1455,32 +1455,6 @@ impl pallet_nomination_pools::Config for Runtime {
 	type MinPointsToBalance = MinPointsToBalance;
 }
 
-pub struct InitiatePoolConfigs;
-impl OnRuntimeUpgrade for InitiatePoolConfigs {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		// we use one as an indicator if this has already been set.
-		if pallet_nomination_pools::MaxPools::<Runtime>::get().is_none() {
-			// 1/600 KSM to join a pool.
-			pallet_nomination_pools::MinJoinBond::<Runtime>::put(50 * CENTS);
-			// 1 KSM to create a pool.
-			pallet_nomination_pools::MinCreateBond::<Runtime>::put(UNITS);
-
-			// 128 initial pools: only for initial safety: can be set to infinity when needed.
-			pallet_nomination_pools::MaxPools::<Runtime>::put(128);
-			// 64k total pool members: only for initial safety: can be set to infinity when needed.
-			pallet_nomination_pools::MaxPoolMembers::<Runtime>::put(64 * 1024);
-			// 1024 members per pool: only for initial safety: can be set to infinity when needed.
-			pallet_nomination_pools::MaxPoolMembersPerPool::<Runtime>::put(1024);
-
-			log::info!(target: "runtime::kusama", "pools config initiated 🎉");
-			<Runtime as frame_system::Config>::DbWeight::get().reads_writes(1, 5)
-		} else {
-			log::info!(target: "runtime::kusama", "pools config already initiated 😏");
-			<Runtime as frame_system::Config>::DbWeight::get().reads(1)
-		}
-	}
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1627,7 +1601,6 @@ pub type Executive = frame_executive::Executive<
 	(
 		RenameBagsListToVoterList,
 		pallet_bags_list::migrations::AddScore<Runtime>,
-		InitiatePoolConfigs,
 		pallet_nomination_pools::migration::v1::MigrateToV1<Runtime>,
 	),
 >;
