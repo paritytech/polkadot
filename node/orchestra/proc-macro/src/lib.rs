@@ -24,6 +24,7 @@ mod impl_subsystem_ctx_sender;
 mod orchestra;
 mod parse;
 mod subsystem;
+mod graph;
 
 #[cfg(test)]
 mod tests;

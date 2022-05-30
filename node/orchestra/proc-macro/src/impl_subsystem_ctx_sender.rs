@@ -61,37 +61,8 @@ pub(crate) fn impl_subsystem_types_all(info: &OrchestraInfo) -> Result<TokenStre
 	let signal_ty = &info.extern_signal_ty;
 	let error_ty = &info.extern_error_ty;
 
-	// create a directed graph with all the subsystems as nodes and the messages as edges
-	// key is always the message path, values are node indices in the graph and the subsystem generic identifier
-	// store the message path and the source sender, both in the graph as well as identifier
-	let mut outgoing_lut = HashMap::<&Path, Vec<(Ident, NodeIndex)>>::with_capacity(128);
-	// same for consuming the incoming messages
-	let mut consuming_lut = HashMap::<&Path, (Ident, NodeIndex)>::with_capacity(128);
-
-	// Ident = Node = subsystem generic names
-	// Path = Edge = messages
-	let mut graph = petgraph::Graph::<Ident, Path>::new();
-
-	// prepare the full index of outgoing and source subsystems
-	for ssf in info.subsystems() {
-		let node_index = graph.add_node(ssf.generic.clone());
-		for outgoing in ssf.messages_to_send.iter() {
-			outgoing_lut
-				.entry(outgoing)
-				.or_default()
-				.push((ssf.generic.clone(), node_index));
-		}
-		consuming_lut.insert(&ssf.message_to_consume, (ssf.generic.clone(), node_index));
-	}
-
-	for (message_ty, (_consuming_subsystem_ident, consuming_node_index)) in consuming_lut.iter() {
-		// match the outgoing ones that were registered above with the consumed message
-		if let Some(origin_subsystems) = outgoing_lut.get(message_ty) {
-			for (_origin_subsystem_ident, sending_node_index) in origin_subsystems.iter() {
-				graph.add_edge(*sending_node_index, *consuming_node_index, (*message_ty).clone());
-			}
-		}
-	}
+	let g = graph::construct_graph(info.subsystems())?;
+	let graph = &g.graph;
 
 	// All outgoing edges are now usable to derive everything we need
 	for node_index in graph.node_indices() {
@@ -142,7 +113,7 @@ pub(crate) fn impl_subsystem_types_all(info: &OrchestraInfo) -> Result<TokenStre
 			.create(true)
 			.write(true)
 			.open(&path)
-			.and_then(|mut f| graphviz(&graph, &mut f))
+			.and_then(|mut f| g.graphviz(&mut f))
 		{
 			eprintln!("Failed to write dot graph to {}: {:?}", path.display(), e);
 		} else {
