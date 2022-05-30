@@ -33,15 +33,14 @@ use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
+use polkadot_node_subsystem::{
+	errors::{ChainApiError, RuntimeApiError},
+	messages::{AvailabilityStoreMessage, ChainApiMessage},
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
+};
 use polkadot_node_subsystem_util as util;
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Header, ValidatorIndex,
-};
-use polkadot_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
-	messages::{AvailabilityStoreMessage, ChainApiMessage},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError,
 };
 
 mod metrics;
@@ -519,23 +518,17 @@ impl KnownUnfinalizedBlocks {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for AvailabilityStoreSubsystem
-where
-	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
-	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
-{
+#[overseer::subsystem(AvailabilityStore, error=SubsystemError, prefix=self::overseer)]
+impl<Context> AvailabilityStoreSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = run(self, ctx).map(|_| Ok(())).boxed();
+		let future = run::<Context>(self, ctx).map(|_| Ok(())).boxed();
 
 		SpawnedSubsystem { name: "availability-store-subsystem", future }
 	}
 }
 
-async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
-where
-	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
-	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
-{
+#[overseer::contextbounds(AvailabilityStore, prefix = self::overseer)]
+async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context) {
 	let mut next_pruning = Delay::new(subsystem.pruning_config.pruning_interval).fuse();
 
 	loop {
@@ -556,20 +549,17 @@ where
 	}
 }
 
+#[overseer::contextbounds(AvailabilityStore, prefix = self::overseer)]
 async fn run_iteration<Context>(
 	ctx: &mut Context,
 	subsystem: &mut AvailabilityStoreSubsystem,
 	mut next_pruning: &mut future::Fuse<Delay>,
-) -> Result<bool, Error>
-where
-	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
-	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
-{
+) -> Result<bool, Error> {
 	select! {
 		incoming = ctx.recv().fuse() => {
 			match incoming.map_err(|_| Error::ContextChannelClosed)? {
-				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(true),
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+				FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(true),
+				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 					ActiveLeavesUpdate { activated, .. })
 				) => {
 					for activated in activated.into_iter() {
@@ -577,7 +567,7 @@ where
 						process_block_activated(ctx, subsystem, activated.hash).await?;
 					}
 				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
+				FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
 					let _timer = subsystem.metrics.time_process_block_finalized();
 
 					subsystem.finalized_number = Some(number);
@@ -589,7 +579,7 @@ where
 						number,
 					).await?;
 				}
-				FromOverseer::Communication { msg } => {
+				FromOrchestra::Communication { msg } => {
 					let _timer = subsystem.metrics.time_process_message();
 					process_message(subsystem, msg)?;
 				}
@@ -608,15 +598,12 @@ where
 	Ok(false)
 }
 
+#[overseer::contextbounds(AvailabilityStore, prefix = self::overseer)]
 async fn process_block_activated<Context>(
 	ctx: &mut Context,
 	subsystem: &mut AvailabilityStoreSubsystem,
 	activated: Hash,
-) -> Result<(), Error>
-where
-	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
-	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
-{
+) -> Result<(), Error> {
 	let now = subsystem.clock.now()?;
 
 	let block_header = {
@@ -663,6 +650,7 @@ where
 	Ok(())
 }
 
+#[overseer::contextbounds(AvailabilityStore, prefix = self::overseer)]
 async fn process_new_head<Context>(
 	ctx: &mut Context,
 	db: &Arc<dyn Database>,
@@ -672,11 +660,7 @@ async fn process_new_head<Context>(
 	now: Duration,
 	hash: Hash,
 	header: Header,
-) -> Result<(), Error>
-where
-	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
-	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
-{
+) -> Result<(), Error> {
 	let candidate_events = util::request_candidate_events(hash, ctx.sender()).await.await??;
 
 	// We need to request the number of validators based on the parent state,
@@ -814,16 +798,13 @@ macro_rules! peek_num {
 	};
 }
 
+#[overseer::contextbounds(AvailabilityStore, prefix = self::overseer)]
 async fn process_block_finalized<Context>(
 	ctx: &mut Context,
 	subsystem: &AvailabilityStoreSubsystem,
 	finalized_hash: Hash,
 	finalized_number: BlockNumber,
-) -> Result<(), Error>
-where
-	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
-	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
-{
+) -> Result<(), Error> {
 	let now = subsystem.clock.now()?;
 
 	let mut next_possible_batch = 0;

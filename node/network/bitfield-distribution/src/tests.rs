@@ -19,14 +19,16 @@ use assert_matches::assert_matches;
 use bitvec::bitvec;
 use futures::executor;
 use maplit::hashmap;
-use polkadot_node_network_protocol::{our_view, view, ObservedRole};
-use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v2::{AvailabilityBitfield, Signed, ValidatorIndex};
-use polkadot_subsystem::{
+use polkadot_node_network_protocol::{
+	grid_topology::SessionBoundGridTopologyStorage, our_view, view, ObservedRole,
+};
+use polkadot_node_subsystem::{
 	jaeger,
 	jaeger::{PerLeafSpan, Span},
 };
+use polkadot_node_subsystem_test_helpers::make_subsystem_context;
+use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_primitives::v2::{AvailabilityBitfield, Signed, ValidatorIndex};
 use rand_chacha::ChaCha12Rng;
 use sp_application_crypto::AppKey;
 use sp_core::Pair as PairT;
@@ -60,7 +62,7 @@ fn prewarmed_state(
 	let relay_parent = known_message.relay_parent.clone();
 	let mut topology: SessionGridTopology = Default::default();
 	topology.peers_x = peers.iter().cloned().collect();
-	let mut topologies: BitfieldGridTopologyStorage = Default::default();
+	let mut topologies = SessionBoundGridTopologyStorage::default();
 	topologies.update_topology(0_u32, topology);
 	ProtocolState {
 		per_relay_parent: hashmap! {

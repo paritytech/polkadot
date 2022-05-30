@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-common"
-version = "0.9.19"
+version = "0.9.22"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -10,7 +10,7 @@ bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
 serde = { version = "1.0.137", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
@@ -58,7 +58,7 @@ pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "maste
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 trie-db = "0.23.1"
-serde_json = "1.0.79"
+serde_json = "1.0.81"
 libsecp256k1 = "0.7.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers" }
 

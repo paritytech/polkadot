@@ -33,18 +33,19 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, ObservedRole, OurView, PeerId, ProtocolVersion,
 	UnifiedReputationChange as Rep, Versioned, View,
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_overseer::gen::{OverseerError, Subsystem};
-use polkadot_primitives::v2::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
-use polkadot_subsystem::{
+
+use polkadot_node_subsystem::{
 	errors::{SubsystemError, SubsystemResult},
 	messages::{
 		network_bridge_event::{NewGossipTopology, TopologyPeerInfo},
-		AllMessages, CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage,
+		ApprovalDistributionMessage, BitfieldDistributionMessage, CollatorProtocolMessage,
+		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage,
+		StatementDistributionMessage,
 	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemSender,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
 };
+use polkadot_overseer::gen::OrchestraError as OverseerError;
+use polkadot_primitives::v2::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
 
 /// Peer set info for network initialization.
 ///
@@ -67,6 +68,9 @@ use network::{send_message, Network};
 
 use crate::network::get_peer_id_by_authority_id;
 
+mod metrics;
+use self::metrics::Metrics;
+
 #[cfg(test)]
 mod tests;
 
@@ -82,206 +86,6 @@ const EMPTY_VIEW_COST: Rep = Rep::CostMajor("Peer sent us an empty view");
 
 // network bridge log target
 const LOG_TARGET: &'static str = "parachain::network-bridge";
-
-/// Metrics for the network bridge.
-#[derive(Clone, Default)]
-pub struct Metrics(Option<MetricsInner>);
-
-fn peer_set_label(peer_set: PeerSet, version: ProtocolVersion) -> &'static str {
-	// Higher level code is meant to protect against this ever happening.
-	peer_set.get_protocol_name_static(version).unwrap_or("<internal error>")
-}
-
-impl Metrics {
-	fn on_peer_connected(&self, peer_set: PeerSet, version: ProtocolVersion) {
-		self.0.as_ref().map(|metrics| {
-			metrics
-				.connected_events
-				.with_label_values(&[peer_set_label(peer_set, version)])
-				.inc()
-		});
-	}
-
-	fn on_peer_disconnected(&self, peer_set: PeerSet, version: ProtocolVersion) {
-		self.0.as_ref().map(|metrics| {
-			metrics
-				.disconnected_events
-				.with_label_values(&[peer_set_label(peer_set, version)])
-				.inc()
-		});
-	}
-
-	fn note_peer_count(&self, peer_set: PeerSet, version: ProtocolVersion, count: usize) {
-		self.0.as_ref().map(|metrics| {
-			metrics
-				.peer_count
-				.with_label_values(&[peer_set_label(peer_set, version)])
-				.set(count as u64)
-		});
-	}
-
-	fn on_notification_received(&self, peer_set: PeerSet, version: ProtocolVersion, size: usize) {
-		if let Some(metrics) = self.0.as_ref() {
-			metrics
-				.notifications_received
-				.with_label_values(&[peer_set_label(peer_set, version)])
-				.inc();
-
-			metrics
-				.bytes_received
-				.with_label_values(&[peer_set_label(peer_set, version)])
-				.inc_by(size as u64);
-		}
-	}
-
-	fn on_notification_sent(
-		&self,
-		peer_set: PeerSet,
-		version: ProtocolVersion,
-		size: usize,
-		to_peers: usize,
-	) {
-		if let Some(metrics) = self.0.as_ref() {
-			metrics
-				.notifications_sent
-				.with_label_values(&[peer_set_label(peer_set, version)])
-				.inc_by(to_peers as u64);
-
-			metrics
-				.bytes_sent
-				.with_label_values(&[peer_set_label(peer_set, version)])
-				.inc_by((size * to_peers) as u64);
-		}
-	}
-
-	fn note_desired_peer_count(&self, peer_set: PeerSet, size: usize) {
-		self.0.as_ref().map(|metrics| {
-			metrics
-				.desired_peer_count
-				.with_label_values(&[peer_set.get_default_protocol_name()])
-				.set(size as u64)
-		});
-	}
-
-	fn on_report_event(&self) {
-		if let Some(metrics) = self.0.as_ref() {
-			metrics.report_events.inc()
-		}
-	}
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	peer_count: prometheus::GaugeVec<prometheus::U64>,
-	connected_events: prometheus::CounterVec<prometheus::U64>,
-	disconnected_events: prometheus::CounterVec<prometheus::U64>,
-	desired_peer_count: prometheus::GaugeVec<prometheus::U64>,
-	report_events: prometheus::Counter<prometheus::U64>,
-
-	notifications_received: prometheus::CounterVec<prometheus::U64>,
-	notifications_sent: prometheus::CounterVec<prometheus::U64>,
-
-	bytes_received: prometheus::CounterVec<prometheus::U64>,
-	bytes_sent: prometheus::CounterVec<prometheus::U64>,
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(
-		registry: &prometheus::Registry,
-	) -> std::result::Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			peer_count: prometheus::register(
-				prometheus::GaugeVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_peer_count",
-						"The number of peers on a parachain-related peer-set",
-					),
-					&["protocol"]
-				)?,
-				registry,
-			)?,
-			connected_events: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_peer_connect_events_total",
-						"The number of peer connect events on a parachain notifications protocol",
-					),
-					&["protocol"]
-				)?,
-				registry,
-			)?,
-			disconnected_events: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_peer_disconnect_events_total",
-						"The number of peer disconnect events on a parachain notifications protocol",
-					),
-					&["protocol"]
-				)?,
-				registry,
-			)?,
-			desired_peer_count: prometheus::register(
-				prometheus::GaugeVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_desired_peer_count",
-						"The number of peers that the local node is expected to connect to on a parachain-related peer-set (either including or not including unresolvable authorities, depending on whether `ConnectToValidators` or `ConnectToValidatorsResolved` was used.)",
-					),
-					&["protocol"]
-				)?,
-				registry,
-			)?,
-			report_events: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_network_report_events_total",
-					"The amount of reputation changes issued by subsystems",
-				)?,
-				registry,
-			)?,
-			notifications_received: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_notifications_received_total",
-						"The number of notifications received on a parachain protocol",
-					),
-					&["protocol"]
-				)?,
-				registry,
-			)?,
-			notifications_sent: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_notifications_sent_total",
-						"The number of notifications sent on a parachain protocol",
-					),
-					&["protocol"]
-				)?,
-				registry,
-			)?,
-			bytes_received: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_notification_bytes_received_total",
-						"The number of bytes received on a parachain notification protocol",
-					),
-					&["protocol"]
-				)?,
-				registry,
-			)?,
-			bytes_sent: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_notification_bytes_sent_total",
-						"The number of bytes sent on a parachain notification protocol",
-					),
-					&["protocol"]
-				)?,
-				registry,
-			)?,
-		};
-
-		Ok(Metrics(Some(metrics)))
-	}
-}
 
 /// Messages from and to the network.
 ///
@@ -320,12 +124,11 @@ impl<N, AD> NetworkBridge<N, AD> {
 	}
 }
 
-impl<Net, AD, Context> Subsystem<Context, SubsystemError> for NetworkBridge<Net, AD>
+#[overseer::subsystem(NetworkBridge, error = SubsystemError, prefix = self::overseer)]
+impl<Net, AD, Context> NetworkBridge<Net, AD>
 where
 	Net: Network + Sync,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
-	Context: SubsystemContext<Message = NetworkBridgeMessage>
-		+ overseer::SubsystemContext<Message = NetworkBridgeMessage>,
 {
 	fn start(mut self, ctx: Context) -> SpawnedSubsystem {
 		// The stream of networking events has to be created at initialization, otherwise the
@@ -382,6 +185,7 @@ enum Mode {
 	Active,
 }
 
+#[overseer::contextbounds(NetworkBridge, prefix = self::overseer)]
 async fn handle_subsystem_messages<Context, N, AD>(
 	mut ctx: Context,
 	mut network_service: N,
@@ -391,8 +195,6 @@ async fn handle_subsystem_messages<Context, N, AD>(
 	metrics: Metrics,
 ) -> Result<(), UnexpectedAbort>
 where
-	Context: SubsystemContext<Message = NetworkBridgeMessage>,
-	Context: overseer::SubsystemContext<Message = NetworkBridgeMessage>,
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
@@ -406,7 +208,7 @@ where
 	loop {
 		futures::select! {
 			msg = ctx.recv().fuse() => match msg {
-				Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(active_leaves))) => {
+				Ok(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(active_leaves))) => {
 					let ActiveLeavesUpdate { activated, deactivated } = active_leaves;
 					gum::trace!(
 						target: LOG_TARGET,
@@ -446,7 +248,7 @@ where
 						}
 					}
 				}
-				Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number))) => {
+				Ok(FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number))) => {
 					gum::trace!(
 						target: LOG_TARGET,
 						action = "BlockFinalized"
@@ -459,10 +261,10 @@ where
 					// that we never send the same `ActiveLeavesUpdate`
 					finalized_number = number;
 				}
-				Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => {
+				Ok(FromOrchestra::Signal(OverseerSignal::Conclude)) => {
 					return Ok(());
 				}
-				Ok(FromOverseer::Communication { msg }) => match msg {
+				Ok(FromOrchestra::Communication { msg }) => match msg {
 					NetworkBridgeMessage::ReportPeer(peer, rep) => {
 						if !rep.is_benefit() {
 							gum::debug!(
@@ -678,7 +480,7 @@ where
 }
 
 async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
-	mut sender: impl SubsystemSender,
+	mut sender: impl overseer::NetworkBridgeSenderTrait,
 	mut network_service: impl Network,
 	network_stream: BoxStream<'static, NetworkEvent>,
 	mut authority_discovery_service: AD,
@@ -1031,6 +833,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 /// #fn is_send<T: Send>();
 /// #is_send::<parking_lot::MutexGuard<'static, ()>();
 /// ```
+#[overseer::contextbounds(NetworkBridge, prefix = self::overseer)]
 async fn run_network<N, AD, Context>(
 	bridge: NetworkBridge<N, AD>,
 	mut ctx: Context,
@@ -1039,8 +842,6 @@ async fn run_network<N, AD, Context>(
 where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
-	Context: SubsystemContext<Message = NetworkBridgeMessage>
-		+ overseer::SubsystemContext<Message = NetworkBridgeMessage>,
 {
 	let shared = Shared::default();
 
@@ -1105,14 +906,17 @@ fn construct_view(
 	View::new(live_heads.take(MAX_VIEW_HEADS), finalized_number)
 }
 
-fn update_our_view(
-	net: &mut impl Network,
-	ctx: &mut impl SubsystemContext<Message = NetworkBridgeMessage, AllMessages = AllMessages>,
+#[overseer::contextbounds(NetworkBridge, prefix = self::overseer)]
+fn update_our_view<Net, Context>(
+	net: &mut Net,
+	ctx: &mut Context,
 	live_heads: &[ActivatedLeaf],
 	shared: &Shared,
 	finalized_number: BlockNumber,
 	metrics: &Metrics,
-) {
+) where
+	Net: Network,
+{
 	let new_view = construct_view(live_heads.iter().map(|v| v.hash), finalized_number);
 
 	let (validation_peers, collation_peers) = {
@@ -1238,54 +1042,79 @@ fn send_collation_message_v1(
 
 async fn dispatch_validation_event_to_all(
 	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
-	ctx: &mut impl SubsystemSender,
+	ctx: &mut impl overseer::NetworkBridgeSenderTrait,
 ) {
 	dispatch_validation_events_to_all(std::iter::once(event), ctx).await
 }
 
 async fn dispatch_collation_event_to_all(
 	event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>,
-	ctx: &mut impl SubsystemSender,
+	ctx: &mut impl overseer::NetworkBridgeSenderTrait,
 ) {
 	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
 }
 
 fn dispatch_validation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
-	ctx: &mut impl SubsystemSender,
+	sender: &mut impl overseer::NetworkBridgeSenderTrait,
 ) {
-	for msg in AllMessages::dispatch_iter(event) {
-		ctx.send_unbounded_message(msg);
-	}
+	event
+		.focus()
+		.ok()
+		.map(StatementDistributionMessage::from)
+		.and_then(|msg| Some(sender.send_unbounded_message(msg)));
+	event
+		.focus()
+		.ok()
+		.map(BitfieldDistributionMessage::from)
+		.and_then(|msg| Some(sender.send_unbounded_message(msg)));
+	event
+		.focus()
+		.ok()
+		.map(ApprovalDistributionMessage::from)
+		.and_then(|msg| Some(sender.send_unbounded_message(msg)));
+	event
+		.focus()
+		.ok()
+		.map(GossipSupportMessage::from)
+		.and_then(|msg| Some(sender.send_unbounded_message(msg)));
 }
 
 fn dispatch_collation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>,
-	ctx: &mut impl SubsystemSender,
+	sender: &mut impl overseer::NetworkBridgeSenderTrait,
 ) {
-	if let Some(msg) = event.focus().ok().map(CollatorProtocolMessage::NetworkBridgeUpdate) {
-		ctx.send_unbounded_message(msg.into());
+	if let Ok(msg) = event.focus() {
+		sender.send_unbounded_message(CollatorProtocolMessage::NetworkBridgeUpdate(msg))
 	}
 }
 
-async fn dispatch_validation_events_to_all<I>(events: I, ctx: &mut impl SubsystemSender)
-where
+async fn dispatch_validation_events_to_all<I>(
+	events: I,
+	sender: &mut impl overseer::NetworkBridgeSenderTrait,
+) where
 	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>>,
 	I::IntoIter: Send,
 {
-	ctx.send_messages(events.into_iter().flat_map(AllMessages::dispatch_iter)).await
+	for event in events {
+		sender
+			.send_messages(event.focus().map(StatementDistributionMessage::from))
+			.await;
+		sender.send_messages(event.focus().map(BitfieldDistributionMessage::from)).await;
+		sender.send_messages(event.focus().map(ApprovalDistributionMessage::from)).await;
+		sender.send_messages(event.focus().map(GossipSupportMessage::from)).await;
+	}
 }
 
-async fn dispatch_collation_events_to_all<I>(events: I, ctx: &mut impl SubsystemSender)
-where
+async fn dispatch_collation_events_to_all<I>(
+	events: I,
+	ctx: &mut impl overseer::NetworkBridgeSenderTrait,
+) where
 	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>>,
 	I::IntoIter: Send,
 {
 	let messages_for = |event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>| {
-		event
-			.focus()
-			.ok()
-			.map(|m| AllMessages::CollatorProtocol(CollatorProtocolMessage::NetworkBridgeUpdate(m)))
+		event.focus().ok().map(|m| CollatorProtocolMessage::NetworkBridgeUpdate(m))
 	};
 
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await

@@ -499,7 +499,9 @@ impl parachains_initializer::Config for Runtime {
 	type WeightInfo = ();
 }
 
-impl parachains_session_info::Config for Runtime {}
+impl parachains_session_info::Config for Runtime {
+	type ValidatorSet = Historical;
+}
 
 parameter_types! {
 	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();

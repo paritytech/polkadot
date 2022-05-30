@@ -26,17 +26,18 @@ use futures::{channel::oneshot, FutureExt};
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
-	grid_topology::{RandomRouting, RequiredRouting, SessionGridTopology},
+	grid_topology::{
+		RandomRouting, RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology,
+	},
 	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
+use polkadot_node_subsystem::{
+	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan,
+	SpawnedSubsystem, SubsystemError, SubsystemResult,
+};
 use polkadot_node_subsystem_util::{self as util};
-use polkadot_primitives::v2::{
-	Hash, SessionIndex, SignedAvailabilityBitfield, SigningContext, ValidatorId,
-};
-use polkadot_subsystem::{
-	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
-	SpawnedSubsystem, SubsystemContext, SubsystemError, SubsystemResult,
-};
+
+use polkadot_primitives::v2::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
 use rand::{CryptoRng, Rng, SeedableRng};
 use std::collections::{HashMap, HashSet};
 
@@ -80,44 +81,6 @@ impl BitfieldGossipMessage {
 	}
 }
 
-/// A simple storage for a topology and the corresponding session index
-#[derive(Default, Debug)]
-struct GridTopologySessionBound(SessionGridTopology, SessionIndex);
-
-/// A storage for the current and maybe previous topology
-#[derive(Default, Debug)]
-struct BitfieldGridTopologyStorage {
-	current_topology: GridTopologySessionBound,
-	prev_topology: Option<GridTopologySessionBound>,
-}
-
-impl BitfieldGridTopologyStorage {
-	/// Return a grid topology based on the session index:
-	/// If we need a previous session and it is registered in the storage, then return that session.
-	/// Otherwise, return a current session to have some grid topology in any case
-	fn get_topology(&self, idx: SessionIndex) -> &SessionGridTopology {
-		if let Some(prev_topology) = &self.prev_topology {
-			if idx == prev_topology.1 {
-				return &prev_topology.0
-			}
-		}
-		// Return the current topology by default
-		&self.current_topology.0
-	}
-
-	/// Update the current topology preserving the previous one
-	fn update_topology(&mut self, idx: SessionIndex, topology: SessionGridTopology) {
-		let old_current =
-			std::mem::replace(&mut self.current_topology, GridTopologySessionBound(topology, idx));
-		self.prev_topology.replace(old_current);
-	}
-
-	/// Returns a current grid topology
-	fn get_current_topology(&self) -> &SessionGridTopology {
-		&self.current_topology.0
-	}
-}
-
 /// Data used to track information of peers and relay parents the
 /// overseer ordered us to work on.
 #[derive(Default, Debug)]
@@ -127,7 +90,7 @@ struct ProtocolState {
 	peer_views: HashMap<PeerId, View>,
 
 	/// The current and previous gossip topologies
-	topologies: BitfieldGridTopologyStorage,
+	topologies: SessionBoundGridTopologyStorage,
 
 	/// Our current view.
 	view: OurView,
@@ -204,6 +167,7 @@ pub struct BitfieldDistribution {
 	metrics: Metrics,
 }
 
+#[overseer::contextbounds(BitfieldDistribution, prefix = self::overseer)]
 impl BitfieldDistribution {
 	/// Create a new instance of the `BitfieldDistribution` subsystem.
 	pub fn new(metrics: Metrics) -> Self {
@@ -211,11 +175,7 @@ impl BitfieldDistribution {
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	async fn run<Context>(self, ctx: Context)
-	where
-		Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-		Context: overseer::SubsystemContext<Message = BitfieldDistributionMessage>,
-	{
+	async fn run<Context>(self, ctx: Context) {
 		let mut state = ProtocolState::default();
 		let mut rng = rand::rngs::StdRng::from_entropy();
 		self.run_inner(ctx, &mut state, &mut rng).await
@@ -226,10 +186,7 @@ impl BitfieldDistribution {
 		mut ctx: Context,
 		state: &mut ProtocolState,
 		rng: &mut (impl CryptoRng + Rng),
-	) where
-		Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-		Context: overseer::SubsystemContext<Message = BitfieldDistributionMessage>,
-	{
+	) {
 		// work: process incoming messages from the overseer and process accordingly.
 
 		loop {
@@ -245,7 +202,7 @@ impl BitfieldDistribution {
 				},
 			};
 			match message {
-				FromOverseer::Communication {
+				FromOrchestra::Communication {
 					msg:
 						BitfieldDistributionMessage::DistributeBitfield(
 							relay_parent,
@@ -263,14 +220,14 @@ impl BitfieldDistribution {
 					)
 					.await;
 				},
-				FromOverseer::Communication {
+				FromOrchestra::Communication {
 					msg: BitfieldDistributionMessage::NetworkBridgeUpdate(event),
 				} => {
 					gum::trace!(target: LOG_TARGET, "Processing NetworkMessage");
 					// a network message was received
 					handle_network_msg(&mut ctx, state, &self.metrics, event, rng).await;
 				},
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated,
 					..
 				})) => {
@@ -303,10 +260,10 @@ impl BitfieldDistribution {
 						}
 					}
 				},
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
+				FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
 					gum::trace!(target: LOG_TARGET, ?hash, %number, "block finalized");
 				},
-				FromOverseer::Signal(OverseerSignal::Conclude) => {
+				FromOrchestra::Signal(OverseerSignal::Conclude) => {
 					gum::info!(target: LOG_TARGET, "Conclude");
 					return
 				},
@@ -316,17 +273,20 @@ impl BitfieldDistribution {
 }
 
 /// Modify the reputation of a peer based on its behavior.
-async fn modify_reputation<Context>(ctx: &mut Context, relay_parent: Hash, peer: PeerId, rep: Rep)
-where
-	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-{
+async fn modify_reputation(
+	sender: &mut impl overseer::BitfieldDistributionSenderTrait,
+	relay_parent: Hash,
+	peer: PeerId,
+	rep: Rep,
+) {
 	gum::trace!(target: LOG_TARGET, ?relay_parent, ?rep, %peer, "reputation change");
 
-	ctx.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
+	sender.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
 }
 /// Distribute a given valid and signature checked bitfield message.
 ///
 /// For this variant the source is this node.
+#[overseer::contextbounds(BitfieldDistribution, prefix=self::overseer)]
 async fn handle_bitfield_distribution<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -334,9 +294,7 @@ async fn handle_bitfield_distribution<Context>(
 	relay_parent: Hash,
 	signed_availability: SignedAvailabilityBitfield,
 	rng: &mut (impl CryptoRng + Rng),
-) where
-	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-{
+) {
 	let _timer = metrics.time_handle_bitfield_distribution();
 
 	// Ignore anything the overseer did not tell this subsystem to work on
@@ -369,8 +327,9 @@ async fn handle_bitfield_distribution<Context>(
 	};
 
 	let msg = BitfieldGossipMessage { relay_parent, signed_availability };
-	let topology = state.topologies.get_topology(session_idx);
-	let required_routing = topology.required_routing_for(validator_index, true);
+	let topology = state.topologies.get_topology_or_fallback(session_idx);
+	let required_routing = topology.required_routing_by_index(validator_index, true);
+
 	relay_message(
 		ctx,
 		job_data,
@@ -389,6 +348,7 @@ async fn handle_bitfield_distribution<Context>(
 /// Distribute a given valid and signature checked bitfield message.
 ///
 /// Can be originated by another subsystem or received via network from another peer.
+#[overseer::contextbounds(BitfieldDistribution, prefix=self::overseer)]
 async fn relay_message<Context>(
 	ctx: &mut Context,
 	job_data: &mut PerRelayParentData,
@@ -398,9 +358,7 @@ async fn relay_message<Context>(
 	message: BitfieldGossipMessage,
 	required_routing: RequiredRouting,
 	rng: &mut (impl CryptoRng + Rng),
-) where
-	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-{
+) {
 	let relay_parent = message.relay_parent;
 	let span = job_data.span.child("relay-msg");
 
@@ -478,6 +436,7 @@ async fn relay_message<Context>(
 }
 
 /// Handle an incoming message from a peer.
+#[overseer::contextbounds(BitfieldDistribution, prefix=self::overseer)]
 async fn process_incoming_peer_message<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
@@ -485,9 +444,7 @@ async fn process_incoming_peer_message<Context>(
 	origin: PeerId,
 	message: protocol_v1::BitfieldDistributionMessage,
 	rng: &mut (impl CryptoRng + Rng),
-) where
-	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-{
+) {
 	let protocol_v1::BitfieldDistributionMessage::Bitfield(relay_parent, bitfield) = message;
 	gum::trace!(
 		target: LOG_TARGET,
@@ -497,7 +454,7 @@ async fn process_incoming_peer_message<Context>(
 	);
 	// we don't care about this, not part of our view.
 	if !state.view.contains(&relay_parent) {
-		modify_reputation(ctx, relay_parent, origin, COST_NOT_IN_VIEW).await;
+		modify_reputation(ctx.sender(), relay_parent, origin, COST_NOT_IN_VIEW).await;
 		return
 	}
 
@@ -506,7 +463,7 @@ async fn process_incoming_peer_message<Context>(
 	let job_data: &mut _ = if let Some(ref mut job_data) = job_data {
 		job_data
 	} else {
-		modify_reputation(ctx, relay_parent, origin, COST_NOT_IN_VIEW).await;
+		modify_reputation(ctx.sender(), relay_parent, origin, COST_NOT_IN_VIEW).await;
 		return
 	};
 
@@ -523,7 +480,7 @@ async fn process_incoming_peer_message<Context>(
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
 		gum::trace!(target: LOG_TARGET, ?relay_parent, ?origin, "Validator set is empty",);
-		modify_reputation(ctx, relay_parent, origin, COST_MISSING_PEER_SESSION_KEY).await;
+		modify_reputation(ctx.sender(), relay_parent, origin, COST_MISSING_PEER_SESSION_KEY).await;
 		return
 	}
 
@@ -533,7 +490,7 @@ async fn process_incoming_peer_message<Context>(
 	let validator = if let Some(validator) = validator_set.get(validator_index.0 as usize) {
 		validator.clone()
 	} else {
-		modify_reputation(ctx, relay_parent, origin, COST_VALIDATOR_INDEX_INVALID).await;
+		modify_reputation(ctx.sender(), relay_parent, origin, COST_VALIDATOR_INDEX_INVALID).await;
 		return
 	};
 
@@ -546,7 +503,7 @@ async fn process_incoming_peer_message<Context>(
 		received_set.insert(validator.clone());
 	} else {
 		gum::trace!(target: LOG_TARGET, ?validator_index, ?origin, "Duplicate message");
-		modify_reputation(ctx, relay_parent, origin, COST_PEER_DUPLICATE_MESSAGE).await;
+		modify_reputation(ctx.sender(), relay_parent, origin, COST_PEER_DUPLICATE_MESSAGE).await;
 		return
 	};
 
@@ -560,13 +517,13 @@ async fn process_incoming_peer_message<Context>(
 			"already received a message for validator",
 		);
 		if old_message.signed_availability.as_unchecked() == &bitfield {
-			modify_reputation(ctx, relay_parent, origin, BENEFIT_VALID_MESSAGE).await;
+			modify_reputation(ctx.sender(), relay_parent, origin, BENEFIT_VALID_MESSAGE).await;
 		}
 		return
 	}
 	let signed_availability = match bitfield.try_into_checked(&signing_context, &validator) {
 		Err(_) => {
-			modify_reputation(ctx, relay_parent, origin, COST_SIGNATURE_INVALID).await;
+			modify_reputation(ctx.sender(), relay_parent, origin, COST_SIGNATURE_INVALID).await;
 			return
 		},
 		Ok(bitfield) => bitfield,
@@ -574,8 +531,10 @@ async fn process_incoming_peer_message<Context>(
 
 	let message = BitfieldGossipMessage { relay_parent, signed_availability };
 
-	let topology = state.topologies.get_topology(job_data.signing_context.session_index);
-	let required_routing = topology.required_routing_for(validator_index, false);
+	let topology = state
+		.topologies
+		.get_topology_or_fallback(job_data.signing_context.session_index);
+	let required_routing = topology.required_routing_by_index(validator_index, false);
 
 	metrics.on_bitfield_received();
 	one_per_validator.insert(validator.clone(), message.clone());
@@ -592,20 +551,19 @@ async fn process_incoming_peer_message<Context>(
 	)
 	.await;
 
-	modify_reputation(ctx, relay_parent, origin, BENEFIT_VALID_MESSAGE_FIRST).await
+	modify_reputation(ctx.sender(), relay_parent, origin, BENEFIT_VALID_MESSAGE_FIRST).await
 }
 
 /// Deal with network bridge updates and track what needs to be tracked
 /// which depends on the message type received.
+#[overseer::contextbounds(BitfieldDistribution, prefix=self::overseer)]
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
 	metrics: &Metrics,
 	bridge_message: NetworkBridgeEvent<net_protocol::BitfieldDistributionMessage>,
 	rng: &mut (impl CryptoRng + Rng),
-) where
-	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-{
+) {
 	let _timer = metrics.time_handle_network_msg();
 
 	match bridge_message {
@@ -677,15 +635,14 @@ fn handle_our_view_change(state: &mut ProtocolState, view: OurView) {
 
 // Send the difference between two views which were not sent
 // to that particular peer.
+#[overseer::contextbounds(BitfieldDistribution, prefix=self::overseer)]
 async fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
 	origin: PeerId,
 	view: View,
 	rng: &mut (impl CryptoRng + Rng),
-) where
-	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-{
+) {
 	let added = state
 		.peer_views
 		.entry(origin.clone())
@@ -736,15 +693,14 @@ async fn handle_peer_view_change<Context>(
 }
 
 /// Send a gossip message and track it in the per relay parent data.
+#[overseer::contextbounds(BitfieldDistribution, prefix=self::overseer)]
 async fn send_tracked_gossip_message<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
 	dest: PeerId,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
-) where
-	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-{
+) {
 	let job_data = if let Some(job_data) = state.per_relay_parent.get_mut(&message.relay_parent) {
 		job_data
 	} else {
@@ -773,11 +729,8 @@ async fn send_tracked_gossip_message<Context>(
 	.await;
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for BitfieldDistribution
-where
-	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-	Context: overseer::SubsystemContext<Message = BitfieldDistributionMessage>,
-{
+#[overseer::subsystem(BitfieldDistribution, error=SubsystemError, prefix=self::overseer)]
+impl<Context> BitfieldDistribution {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self.run(ctx).map(|_| Ok(())).boxed();
 
@@ -786,13 +739,11 @@ where
 }
 
 /// Query our validator set and signing context for a particular relay parent.
+#[overseer::contextbounds(BitfieldDistribution, prefix=self::overseer)]
 async fn query_basics<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
-) -> SubsystemResult<Option<(Vec<ValidatorId>, SigningContext)>>
-where
-	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
-{
+) -> SubsystemResult<Option<(Vec<ValidatorId>, SigningContext)>> {
 	let (validators_tx, validators_rx) = oneshot::channel();
 	let (session_tx, session_rx) = oneshot::channel();
 

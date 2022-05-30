@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-runtime-api"
-version = "0.9.19"
+version = "0.9.22"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -15,7 +15,7 @@ sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = 
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-overseer = { path = "../../overseer" }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [dev-dependencies]
