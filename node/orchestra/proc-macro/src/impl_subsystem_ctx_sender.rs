@@ -17,38 +17,9 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Ident, Path, Result, Type};
 
-use petgraph::{
-	dot::{self, Dot},
-	graph::NodeIndex,
-	visit::EdgeRef,
-	Direction,
-};
-use std::collections::HashMap;
+use petgraph::{visit::EdgeRef, Direction};
 
 use super::*;
-
-/// Render a graphviz (aka dot graph) to a file.
-fn graphviz(
-	graph: &petgraph::Graph<Ident, Path>,
-	dest: &mut impl std::io::Write,
-) -> std::io::Result<()> {
-	let config = &[dot::Config::EdgeNoLabel, dot::Config::NodeNoLabel][..];
-	let dot = Dot::with_attr_getters(
-		graph,
-		config,
-		&|_graph, edge| -> String {
-			format!(
-				r#"label="{}""#,
-				edge.weight().get_ident().expect("Must have a trailing identifier. qed")
-			)
-		},
-		&|_graph, (_node_index, subsystem_name)| -> String {
-			format!(r#"label="{}""#, subsystem_name,)
-		},
-	);
-	dest.write_all(format!("{:?}", &dot).as_bytes())?;
-	Ok(())
-}
 
 /// Generates all subsystem types and related accumulation traits.
 pub(crate) fn impl_subsystem_types_all(info: &OrchestraInfo) -> Result<TokenStream> {
@@ -61,8 +32,8 @@ pub(crate) fn impl_subsystem_types_all(info: &OrchestraInfo) -> Result<TokenStre
 	let signal_ty = &info.extern_signal_ty;
 	let error_ty = &info.extern_error_ty;
 
-	let g = graph::construct_graph(info.subsystems())?;
-	let graph = &g.graph;
+	let cg = graph::ConnectionGraph::construct(info.subsystems());
+	let graph = &cg.graph;
 
 	// All outgoing edges are now usable to derive everything we need
 	for node_index in graph.node_indices() {
@@ -113,7 +84,7 @@ pub(crate) fn impl_subsystem_types_all(info: &OrchestraInfo) -> Result<TokenStre
 			.create(true)
 			.write(true)
 			.open(&path)
-			.and_then(|mut f| g.graphviz(&mut f))
+			.and_then(|mut f| cg.graphviz(&mut f))
 		{
 			eprintln!("Failed to write dot graph to {}: {:?}", path.display(), e);
 		} else {
