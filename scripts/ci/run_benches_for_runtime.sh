@@ -1,54 +1,71 @@
 #!/bin/bash
 
-set -e
-
 # Runs all benchmarks for all pallets, for a given runtime, provided by $1
 # Should be run on a reference machine to gain accurate benchmarks
 # current reference machine: https://github.com/paritytech/substrate/pull/5848
 
 runtime="$1"
 
-echo "[+] Running all benchmarks for $runtime"
+echo "[+] Compiling benchmarks..."
+cargo build --profile production --locked --features=runtime-benchmarks
 
-cargo +nightly build --profile production --locked --features=runtime-benchmarks
+# Load all pallet names in an array.
+PALLETS=($(
+  ./target/production/polkadot benchmark pallet --list --chain="${runtime}-dev" |\
+    tail -n+2 |\
+    cut -d',' -f1 |\
+    sort |\
+    uniq
+))
 
-./target/production/polkadot benchmark pallet \
-    --chain "${runtime}-dev" \
-    --list |\
-  tail -n+2 |\
-  cut -d',' -f1 |\
-  uniq > "${runtime}_pallets"
+echo "[+] Benchmarking ${#PALLETS[@]} pallets for runtime $runtime"
 
-# For each pallet found in the previous command, run benches on each function
-while read -r line; do
-  pallet="$(echo "$line" | cut -d' ' -f1)";
-  echo "Runtime: $runtime. Pallet: $pallet";
-  # '!' has the side effect of bypassing errexit / set -e
-  ! ./target/production/polkadot benchmark pallet \
+# Define the error file.
+ERR_FILE="benchmarking_errors.txt"
+# Delete the error file before each run.
+rm -f $ERR_FILE
+
+# Benchmark each pallet.
+for PALLET in "${PALLETS[@]}"; do
+  echo "[+] Benchmarking $PALLET for $runtime";
+
+  OUTPUT=$(
+    ./target/production/polkadot benchmark pallet \
     --chain="${runtime}-dev" \
     --steps=50 \
     --repeat=20 \
-    --pallet="$pallet" \
+    --pallet="$PALLET" \
     --extrinsic="*" \
     --execution=wasm \
     --wasm-execution=compiled \
-    --heap-pages=4096 \
     --header=./file_header.txt \
-    --output="./runtime/${runtime}/src/weights/${pallet/::/_}.rs"
-done < "${runtime}_pallets"
-rm "${runtime}_pallets"
+    --output="./runtime/${runtime}/src/weights/${PALLET/::/_}.rs" 2>&1
+  )
+  if [ $? -ne 0 ]; then
+    echo "$OUTPUT" >> "$ERR_FILE"
+    echo "[-] Failed to benchmark $PALLET. Error written to $ERR_FILE; continuing..."
+  fi
+done
 
-# Benchmark base weights
-! ./target/production/polkadot benchmark overhead \
+# Update the block and extrinsic overhead weights.
+echo "[+] Benchmarking block and extrinsic overheads..."
+OUTPUT=$(
+  ./target/production/polkadot benchmark overhead \
   --chain="${runtime}-dev" \
   --execution=wasm \
   --wasm-execution=compiled \
   --weight-path="runtime/${runtime}/constants/src/weights/" \
   --warmup=10 \
   --repeat=100
+)
+if [ $? -ne 0 ]; then
+  echo "$OUTPUT" >> "$ERR_FILE"
+  echo "[-] Failed to benchmark the block and extrinsic overheads. Error written to $ERR_FILE; continuing..."
+fi
 
-
-# This true makes sure that $? is 0 instead of
-# carrying over a failure which would otherwise cause
-# the whole CI job to abort.
-true
+# Check if the error file exists.
+if [ -f "$ERR_FILE" ]; then
+  echo "[-] Some benchmarks failed. See: $ERR_FILE"
+else
+  echo "[+] All benchmarks passed."
+fi
