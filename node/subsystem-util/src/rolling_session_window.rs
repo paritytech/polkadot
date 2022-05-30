@@ -28,7 +28,6 @@ use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
 	overseer,
 };
-use thiserror::Error;
 
 /// Sessions unavailable in state to cache.
 #[derive(Debug, Clone, thiserror::Error)]
