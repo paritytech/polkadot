@@ -128,7 +128,7 @@ impl<N, AD> NetworkBridge<N, AD> {
 impl<Net, AD, Context> NetworkBridge<Net, AD>
 where
 	Net: Network + Sync,
-	AD: validator_discovery::AuthorityDiscovery + Clone,
+	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
 {
 	fn start(mut self, ctx: Context) -> SpawnedSubsystem {
 		// The stream of networking events has to be created at initialization, otherwise the
@@ -204,7 +204,7 @@ where
 	let mut mode = Mode::Syncing(sync_oracle);
 
 	loop {
-		match ctx.recv().fuse()? {
+		match ctx.recv().fuse().await? {
 			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(active_leaves)) => {
 				let ActiveLeavesUpdate { activated, deactivated } = active_leaves;
 				gum::trace!(
@@ -262,15 +262,25 @@ where
 				return Ok(());
 			}
 			FromOrchestra::Communication { msg } => {
-				handle_incoming(&mut ctx, &mut network_service, msg).await;
+				(network_service, authority_discovery_service) = handle_incoming(&mut ctx, network_service, &mut validator_discovery, authority_discovery_service.clone(), msg, &metrics).await;
 			}
 		}
 	}
-	Ok(())
 }
 
 #[overseer::contextbounds(NetworkBridge, prefix = self::overseer)]
-async fn handle_incoming<Context, N: Network>(ctx: &mut Context, network_service: &mut N, msg: NetworkBridgeMessage) {
+async fn handle_incoming<Context, N, AD>(
+	ctx: &mut Context,
+	mut network_service: N,
+	validator_discovery: &mut validator_discovery::Service<N, AD>,
+	mut authority_discovery_service: AD,
+	msg: NetworkBridgeMessage,
+	metrics: &Metrics,
+) -> (N, AD)
+where
+	N: Network,
+	AD: validator_discovery::AuthorityDiscovery + Clone,
+{
 	match msg {
 		NetworkBridgeMessage::ReportPeer(peer, rep) => {
 			if !rep.is_benefit() {
@@ -391,7 +401,7 @@ async fn handle_incoming<Context, N: Network>(ctx: &mut Context, network_service
 
 			metrics.note_desired_peer_count(peer_set, validator_ids.len());
 
-			let (ns, ads) = validator_discovery.on_request(
+			let (network_service, ads) = validator_discovery.on_request(
 				validator_ids,
 				peer_set,
 				failed,
@@ -399,8 +409,7 @@ async fn handle_incoming<Context, N: Network>(ctx: &mut Context, network_service
 				authority_discovery_service,
 			).await;
 
-			network_service = ns;
-			authority_discovery_service = ads;
+			return (network_service, ads);
 		}
 		NetworkBridgeMessage::ConnectToResolvedValidators {
 			validator_addrs,
@@ -417,11 +426,12 @@ async fn handle_incoming<Context, N: Network>(ctx: &mut Context, network_service
 			metrics.note_desired_peer_count(peer_set, validator_addrs.len());
 
 			let all_addrs = validator_addrs.into_iter().flatten().collect();
-			network_service = validator_discovery.on_resolved_request(
+			let network_service = validator_discovery.on_resolved_request(
 				all_addrs,
 				peer_set,
 				network_service,
 			).await;
+			return (network_service, authority_discovery_service);
 		}
 		NetworkBridgeMessage::NewGossipTopology {
 			session,
@@ -458,6 +468,7 @@ async fn handle_incoming<Context, N: Network>(ctx: &mut Context, network_service
 			);
 		}
 	}
+	(network_service, authority_discovery_service)
 }
 
 async fn update_gossip_peers_1d<AD, N>(
@@ -482,14 +493,17 @@ where
 	peers
 }
 
-async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
+async fn handle_network_messages<AD>(
 	mut sender: impl overseer::NetworkBridgeSenderTrait,
 	mut network_service: impl Network,
 	network_stream: BoxStream<'static, NetworkEvent>,
 	mut authority_discovery_service: AD,
 	metrics: Metrics,
 	shared: Shared,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+	AD: validator_discovery::AuthorityDiscovery + Send,
+{
 	let mut network_stream = network_stream.fuse();
 	loop {
 		match network_stream.next().await {
@@ -844,7 +858,7 @@ async fn run_network<N, AD, Context>(
 ) -> SubsystemResult<()>
 where
 	N: Network,
-	AD: validator_discovery::AuthorityDiscovery + Clone,
+	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
 {
 	let shared = Shared::default();
 

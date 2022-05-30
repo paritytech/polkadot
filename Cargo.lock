@@ -6477,6 +6477,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "bytes",
+ "fatality",
  "futures",
  "futures-timer",
  "parity-scale-codec",
@@ -6492,6 +6493,7 @@ dependencies = [
  "sp-consensus",
  "sp-core",
  "sp-keyring",
+ "thiserror",
  "tracing-gum",
 ]
 
