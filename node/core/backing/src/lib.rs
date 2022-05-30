@@ -79,12 +79,10 @@ use futures::{
 
 use error::{Error, FatalResult};
 use polkadot_node_primitives::{
-	AvailableData, InvalidCandidate, PoV, SignedDisputeStatement, SignedFullStatement,
-	SignedFullStatementWithPVD, Statement, StatementWithPVD, ValidationResult,
-	BACKING_EXECUTION_TIMEOUT,
+	AvailableData, InvalidCandidate, PoV, SignedDisputeStatement, SignedFullStatementWithPVD,
+	StatementWithPVD, ValidationResult, BACKING_EXECUTION_TIMEOUT,
 };
 use polkadot_node_subsystem::{
-	jaeger,
 	messages::{
 		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
 		CandidateValidationMessage, CollatorProtocolMessage, DisputeCoordinatorMessage,
@@ -237,10 +235,6 @@ enum ProspectiveParachainsMode {
 }
 
 impl ProspectiveParachainsMode {
-	fn is_disabled(&self) -> bool {
-		self == &ProspectiveParachainsMode::Disabled
-	}
-
 	fn is_enabled(&self) -> bool {
 		self == &ProspectiveParachainsMode::Enabled
 	}
@@ -361,7 +355,6 @@ async fn run_iteration<Context>(
 							&mut *ctx,
 							update,
 							state,
-							&metrics,
 						).await?;
 					}
 					FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
@@ -603,7 +596,6 @@ async fn request_candidate_validation(
 struct BackgroundValidationOutputs {
 	candidate: CandidateReceipt,
 	commitments: CandidateCommitments,
-	pov: Arc<PoV>,
 	persisted_validation_data: PersistedValidationData,
 }
 
@@ -709,7 +701,6 @@ async fn validate_and_make_available(
 				Ok(()) => Ok(BackgroundValidationOutputs {
 					candidate,
 					commitments,
-					pov: pov.clone(),
 					persisted_validation_data: validation_data,
 				}),
 				Err(InvalidErasureRoot) => {
@@ -785,7 +776,6 @@ async fn handle_active_leaves_update<Context>(
 	ctx: &mut Context,
 	update: ActiveLeavesUpdate,
 	state: &mut State,
-	metrics: &Metrics,
 ) -> Result<(), Error> {
 	enum LeafHasProspectiveParachains {
 		Enabled(Result<Vec<ParaId>, ImplicitViewFetchError>),
@@ -1193,7 +1183,6 @@ async fn handle_validated_candidate_command<Context>(
 							candidate,
 							commitments,
 							persisted_validation_data,
-							..
 						} = outputs;
 
 						if rp_state.issued_statements.contains(&candidate_hash) {
@@ -1694,8 +1683,6 @@ async fn kick_off_validation_work<Context>(
 		return Ok(())
 	}
 
-	let descriptor = attesting.candidate.descriptor().clone();
-
 	gum::debug!(
 		target: LOG_TARGET,
 		candidate_hash = ?candidate_hash,
@@ -1734,7 +1721,6 @@ async fn maybe_validate_and_import<Context>(
 	state: &mut State,
 	relay_parent: Hash,
 	statement: SignedFullStatementWithPVD,
-	metrics: &Metrics,
 ) -> Result<(), Error> {
 	let rp_state = match state.per_relay_parent.get_mut(&relay_parent) {
 		Some(r) => r,
@@ -1953,7 +1939,7 @@ async fn handle_statement_message<Context>(
 ) -> Result<(), Error> {
 	let _timer = metrics.time_process_statement();
 
-	match maybe_validate_and_import(ctx, state, relay_parent, statement, metrics).await {
+	match maybe_validate_and_import(ctx, state, relay_parent, statement).await {
 		Err(Error::ValidationFailed(_)) => Ok(()),
 		Err(e) => Err(e),
 		Ok(()) => Ok(()),
