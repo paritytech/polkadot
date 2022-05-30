@@ -19,9 +19,7 @@ use assert_matches::assert_matches;
 use bitvec::bitvec;
 use futures::executor;
 use maplit::hashmap;
-use polkadot_node_network_protocol::{
-	grid_topology::SessionBoundGridTopologyStorage, our_view, view, ObservedRole,
-};
+use polkadot_node_network_protocol::{our_view, view, ObservedRole};
 use polkadot_node_subsystem::{
 	jaeger,
 	jaeger::{PerLeafSpan, Span},
@@ -62,7 +60,7 @@ fn prewarmed_state(
 	let relay_parent = known_message.relay_parent.clone();
 	let mut topology: SessionGridTopology = Default::default();
 	topology.peers_x = peers.iter().cloned().collect();
-	let mut topologies = SessionBoundGridTopologyStorage::default();
+	let mut topologies: BitfieldGridTopologyStorage = Default::default();
 	topologies.update_topology(0_u32, topology);
 	ProtocolState {
 		per_relay_parent: hashmap! {

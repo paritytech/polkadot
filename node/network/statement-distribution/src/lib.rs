@@ -27,7 +27,6 @@ use parity_scale_codec::Encode;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
-	grid_topology::{RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology},
 	peer_set::{IsAuthority, PeerSet},
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	v1::{self as protocol_v1, StatementMetadata},
@@ -889,7 +888,7 @@ fn check_statement_signature(
 /// them but now can.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn circulate_statement_and_dependents<Context>(
-	topology_store: &SessionBoundGridTopologyStorage,
+	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut Context,
@@ -910,7 +909,6 @@ async fn circulate_statement_and_dependents<Context>(
 		.with_candidate(statement.payload().candidate_hash())
 		.with_stage(jaeger::Stage::StatementDistribution);
 
-	let topology = topology_store.get_topology_or_fallback(active_head.session_index);
 	// First circulate the statement directly to all peers needing it.
 	// The borrow of `active_head` needs to encompass only this (Rust) statement.
 	let outputs: Option<(CandidateHash, Vec<PeerId>)> = {
@@ -918,8 +916,7 @@ async fn circulate_statement_and_dependents<Context>(
 			NotedStatement::Fresh(stored) => Some((
 				*stored.compact().candidate_hash(),
 				circulate_statement(
-					RequiredRouting::GridXY,
-					topology,
+					gossip_peers,
 					peers,
 					ctx,
 					relay_parent,
@@ -1008,8 +1005,7 @@ fn is_statement_large(statement: &SignedFullStatement) -> (bool, Option<usize>) 
 /// an iterator over peers who need to have dependent statements sent.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn circulate_statement<'a, Context>(
-	required_routing: RequiredRouting,
-	topology: &SessionGridTopology,
+	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -1040,7 +1036,7 @@ async fn circulate_statement<'a, Context>(
 	peers_to_send.retain(|p| !priority_set.contains(p));
 
 	util::choose_random_subset_with_rng(
-		|e| topology.route_to_peer(required_routing, e),
+		|e| gossip_peers.contains(e),
 		&mut peers_to_send,
 		rng,
 		MIN_GOSSIP_PEERS,
@@ -1304,7 +1300,7 @@ async fn launch_request<Context>(
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn handle_incoming_message_and_circulate<'a, Context, R>(
 	peer: PeerId,
-	topology_storage: &SessionBoundGridTopologyStorage,
+	gossip_peers: &HashSet<PeerId>,
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	recent_outdated_heads: &RecentOutdatedHeads,
@@ -1312,7 +1308,6 @@ async fn handle_incoming_message_and_circulate<'a, Context, R>(
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
-	runtime: &mut RuntimeInfo,
 	rng: &mut R,
 ) where
 	R: rand::Rng,
@@ -1343,27 +1338,8 @@ async fn handle_incoming_message_and_circulate<'a, Context, R>(
 		// that require dependents. Thus, if this is a `Seconded` statement for a candidate we
 		// were not aware of before, we cannot have any dependent statements from the candidate.
 		let _ = metrics.time_network_bridge_update_v1("circulate_statement");
-
-		let session_index = runtime.get_session_index_for_child(ctx.sender(), relay_parent).await;
-		let topology = match session_index {
-			Ok(session_index) => topology_storage.get_topology_or_fallback(session_index),
-			Err(e) => {
-				gum::debug!(
-					target: LOG_TARGET,
-					%relay_parent,
-					"cannot get session index for the specific relay parent: {:?}",
-					e
-				);
-
-				topology_storage.get_current_topology()
-			},
-		};
-		let required_routing =
-			topology.required_routing_by_index(statement.statement.validator_index(), false);
-
 		let _ = circulate_statement(
-			required_routing,
-			topology,
+			gossip_peers,
 			peers,
 			ctx,
 			relay_parent,
@@ -1582,7 +1558,7 @@ async fn handle_incoming_message<'a, Context>(
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn update_peer_view_and_maybe_send_unlocked<Context, R>(
 	peer: PeerId,
-	topology: &SessionGridTopology,
+	gossip_peers: &HashSet<PeerId>,
 	peer_data: &mut PeerData,
 	ctx: &mut Context,
 	active_heads: &HashMap<Hash, ActiveHeadData>,
@@ -1599,11 +1575,10 @@ async fn update_peer_view_and_maybe_send_unlocked<Context, R>(
 		let _ = peer_data.view_knowledge.remove(removed);
 	}
 
-	// Use both grid directions
-	let is_gossip_peer = topology.route_to_peer(RequiredRouting::GridXY, &peer);
+	let is_gossip_peer = gossip_peers.contains(&peer);
 	let lucky = is_gossip_peer ||
 		util::gen_ratio_rng(
-			util::MIN_GOSSIP_PEERS.saturating_sub(topology.len()),
+			util::MIN_GOSSIP_PEERS.saturating_sub(gossip_peers.len()),
 			util::MIN_GOSSIP_PEERS,
 			rng,
 		);
@@ -1625,7 +1600,7 @@ async fn update_peer_view_and_maybe_send_unlocked<Context, R>(
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn handle_network_update<Context, R>(
 	peers: &mut HashMap<PeerId, PeerData>,
-	topology_storage: &mut SessionBoundGridTopologyStorage,
+	gossip_peers: &mut HashSet<PeerId>,
 	authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
 	recent_outdated_heads: &RecentOutdatedHeads,
@@ -1633,7 +1608,6 @@ async fn handle_network_update<Context, R>(
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	update: NetworkBridgeEvent<net_protocol::StatementDistributionMessage>,
 	metrics: &Metrics,
-	runtime: &mut RuntimeInfo,
 	rng: &mut R,
 ) where
 	R: rand::Rng,
@@ -1664,19 +1638,22 @@ async fn handle_network_update<Context, R>(
 			}
 		},
 		NetworkBridgeEvent::NewGossipTopology(topology) => {
+			// Combine all peers in the x & y direction as we don't make any distinction.
+			let new_peers: HashSet<PeerId> = topology
+				.our_neighbors_x
+				.values()
+				.chain(topology.our_neighbors_y.values())
+				.flat_map(|peer_info| peer_info.peer_ids.iter().cloned())
+				.collect();
 			let _ = metrics.time_network_bridge_update_v1("new_gossip_topology");
-
-			let new_session_index = topology.session;
-			let new_topology: SessionGridTopology = topology.into();
-			let old_topology = topology_storage.get_current_topology();
-			let newly_added = new_topology.peers_diff(old_topology);
-			topology_storage.update_topology(new_session_index, new_topology);
+			let newly_added: Vec<PeerId> = new_peers.difference(gossip_peers).cloned().collect();
+			*gossip_peers = new_peers;
 			for peer in newly_added {
 				if let Some(data) = peers.get_mut(&peer) {
 					let view = std::mem::take(&mut data.view);
 					update_peer_view_and_maybe_send_unlocked(
 						peer,
-						topology_storage.get_current_topology(),
+						gossip_peers,
 						data,
 						ctx,
 						&*active_heads,
@@ -1691,7 +1668,7 @@ async fn handle_network_update<Context, R>(
 		NetworkBridgeEvent::PeerMessage(peer, Versioned::V1(message)) => {
 			handle_incoming_message_and_circulate(
 				peer,
-				topology_storage,
+				gossip_peers,
 				peers,
 				active_heads,
 				&*recent_outdated_heads,
@@ -1699,7 +1676,6 @@ async fn handle_network_update<Context, R>(
 				message,
 				req_sender,
 				metrics,
-				runtime,
 				rng,
 			)
 			.await;
@@ -1711,7 +1687,7 @@ async fn handle_network_update<Context, R>(
 				Some(data) =>
 					update_peer_view_and_maybe_send_unlocked(
 						peer,
-						topology_storage.get_current_topology(),
+						gossip_peers,
 						data,
 						ctx,
 						&*active_heads,
@@ -1743,7 +1719,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 
 	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError> {
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
-		let mut topology_storage: SessionBoundGridTopologyStorage = Default::default();
+		let mut gossip_peers: HashSet<PeerId> = HashSet::new();
 		let mut authorities: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
 		let mut recent_outdated_heads = RecentOutdatedHeads::default();
@@ -1775,7 +1751,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 							&mut ctx,
 							&mut runtime,
 							&mut peers,
-							&mut topology_storage,
+							&mut gossip_peers,
 							&mut authorities,
 							&mut active_heads,
 							&mut recent_outdated_heads,
@@ -1793,12 +1769,11 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					let result = self
 						.handle_requester_message(
 							&mut ctx,
-							&topology_storage,
+							&gossip_peers,
 							&mut peers,
 							&mut active_heads,
 							&recent_outdated_heads,
 							&req_sender,
-							&mut runtime,
 							result.ok_or(FatalError::RequesterReceiverFinished)?,
 						)
 						.await;
@@ -1861,12 +1836,11 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 	async fn handle_requester_message<Context>(
 		&mut self,
 		ctx: &mut Context,
-		topology_storage: &SessionBoundGridTopologyStorage,
+		gossip_peers: &HashSet<PeerId>,
 		peers: &mut HashMap<PeerId, PeerData>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		recent_outdated_heads: &RecentOutdatedHeads,
 		req_sender: &mpsc::Sender<RequesterMessage>,
-		runtime: &mut RuntimeInfo,
 		message: RequesterMessage,
 	) -> JfyiErrorResult<()> {
 		match message {
@@ -1910,7 +1884,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					for message in messages {
 						handle_incoming_message_and_circulate(
 							peer,
-							topology_storage,
+							gossip_peers,
 							peers,
 							active_heads,
 							recent_outdated_heads,
@@ -1918,7 +1892,6 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 							message,
 							req_sender,
 							&self.metrics,
-							runtime,
 							&mut self.rng,
 						)
 						.await;
@@ -1973,7 +1946,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		peers: &mut HashMap<PeerId, PeerData>,
-		topology_storage: &mut SessionBoundGridTopologyStorage,
+		gossip_peers: &mut HashSet<PeerId>,
 		authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		recent_outdated_heads: &mut RecentOutdatedHeads,
@@ -2073,7 +2046,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						}
 					};
 					circulate_statement_and_dependents(
-						topology_storage,
+						gossip_peers,
 						peers,
 						active_heads,
 						ctx,
@@ -2088,7 +2061,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				StatementDistributionMessage::NetworkBridgeUpdate(event) => {
 					handle_network_update(
 						peers,
-						topology_storage,
+						gossip_peers,
 						authorities,
 						active_heads,
 						&*recent_outdated_heads,
@@ -2096,7 +2069,6 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						req_sender,
 						event,
 						metrics,
-						runtime,
 						&mut self.rng,
 					)
 					.await;
