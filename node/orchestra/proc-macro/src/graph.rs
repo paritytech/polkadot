@@ -86,8 +86,8 @@ impl ConnectionGraph {
 
 	/// Render a graphviz (aka dot graph) to a file.
 	pub(crate) fn graphviz(&self, dest: &mut impl std::io::Write) -> std::io::Result<()> {
-		// TODO render unconnected
-		// TODO highlight unconnected nodes
+		// TODO render isolated s
+		// TODO highlight unconnected subsystems
 		// TODO highlight circles
 		let config = &[dot::Config::EdgeNoLabel, dot::Config::NodeNoLabel][..];
 		let dot = Dot::with_attr_getters(
@@ -106,12 +106,4 @@ impl ConnectionGraph {
 		dest.write_all(format!("{:?}", &dot).as_bytes())?;
 		Ok(())
 	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn foo() {}
 }
