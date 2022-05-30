@@ -36,7 +36,7 @@ use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
 	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig,
 	CollationSecondedSignal, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement,
-	SignedFullStatement, ValidationResult,
+	SignedFullStatement, SignedFullStatementWithPVD, ValidationResult,
 };
 use polkadot_primitives::{
 	v2::{
@@ -75,17 +75,17 @@ pub enum CandidateBackingMessage {
 	GetBackedCandidates(Hash, Vec<CandidateHash>, oneshot::Sender<Vec<BackedCandidate>>),
 	/// Note that the Candidate Backing subsystem should second the given candidate in the context of the
 	/// given relay-parent (ref. by hash). This candidate must be validated.
-	Second(Hash, CandidateReceipt, PoV),
-	/// Note a validator's statement about a particular candidate. Disagreements about validity must be escalated
-	/// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
-	Statement(Hash, SignedFullStatement),
+	Second(Hash, CandidateReceipt, PersistedValidationData, PoV),
+	/// Note a validator's statement about a particular candidate.
+	/// Agreements are simply tallied until a quorum is reached.
+	Statement(Hash, SignedFullStatementWithPVD),
 }
 
 impl BoundToRelayParent for CandidateBackingMessage {
 	fn relay_parent(&self) -> Hash {
 		match self {
 			Self::GetBackedCandidates(hash, _, _) => *hash,
-			Self::Second(hash, _, _) => *hash,
+			Self::Second(hash, _, _, _) => *hash,
 			Self::Statement(hash, _) => *hash,
 		}
 	}

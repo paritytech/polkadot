@@ -79,16 +79,17 @@ use futures::{
 
 use error::{Error, FatalResult};
 use polkadot_node_primitives::{
-	AvailableData, InvalidCandidate, PoV, SignedDisputeStatement, SignedFullStatement, Statement,
-	ValidationResult, BACKING_EXECUTION_TIMEOUT,
+	AvailableData, InvalidCandidate, PoV, SignedDisputeStatement, SignedFullStatement,
+	SignedFullStatementWithPVD, Statement, StatementWithPVD, ValidationResult,
+	BACKING_EXECUTION_TIMEOUT,
 };
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
 		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
 		CandidateValidationMessage, CollatorProtocolMessage, DisputeCoordinatorMessage,
-		ProspectiveParachainsMessage, ProvisionableData, ProvisionerMessage, RuntimeApiMessage,
-		RuntimeApiRequest, StatementDistributionMessage, HypotheticalDepthRequest,
+		HypotheticalDepthRequest, ProspectiveParachainsMessage, ProvisionableData,
+		ProvisionerMessage, RuntimeApiMessage, RuntimeApiRequest, StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -435,10 +436,10 @@ struct InvalidErasureRoot;
 
 // It looks like it's not possible to do an `impl From` given the current state of
 // the code. So this does the necessary conversion.
-fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement {
+fn primitive_statement_to_table(s: &SignedFullStatementWithPVD) -> TableSignedStatement {
 	let statement = match s.payload() {
-		Statement::Seconded(c) => TableStatement::Seconded(c.clone()),
-		Statement::Valid(h) => TableStatement::Valid(h.clone()),
+		StatementWithPVD::Seconded(c, _) => TableStatement::Seconded(c.clone()),
+		StatementWithPVD::Valid(h) => TableStatement::Valid(h.clone()),
 	};
 
 	TableSignedStatement {
@@ -606,8 +607,7 @@ struct BackgroundValidationOutputs {
 	persisted_validation_data: PersistedValidationData,
 }
 
-type BackgroundValidationResult =
-	Result<BackgroundValidationOutputs, CandidateReceipt>;
+type BackgroundValidationResult = Result<BackgroundValidationOutputs, CandidateReceipt>;
 
 struct BackgroundValidationParams<S: overseer::CandidateBackingSenderTrait, F> {
 	sender: S,
@@ -756,8 +756,8 @@ async fn handle_communication<Context>(
 	metrics: &Metrics,
 ) -> Result<(), Error> {
 	match message {
-		CandidateBackingMessage::Second(_relay_parent, candidate, pov) => {
-			handle_second_message(ctx, state, candidate, pov, metrics).await?;
+		CandidateBackingMessage::Second(_relay_parent, candidate, pvd, pov) => {
+			handle_second_message(ctx, state, candidate, pvd, pov, metrics).await?;
 		},
 		CandidateBackingMessage::Statement(relay_parent, statement) => {
 			handle_statement_message(ctx, state, relay_parent, statement, metrics).await?;
@@ -1133,7 +1133,8 @@ async fn seconding_sanity_check<Context>(
 				fragment_tree_relay_parent: *head,
 			},
 			tx,
-		)).await;
+		))
+		.await;
 		responses.push(rx.map_ok(move |depths| (depths, head, leaf_state)));
 	}
 
@@ -1145,8 +1146,8 @@ async fn seconding_sanity_check<Context>(
 					"Failed to reach prospective parachains subsystem for hypothetical depths",
 				);
 
-				return SecondingAllowed::No;
-			}
+				return SecondingAllowed::No
+			},
 			Ok((depths, head, leaf_state)) => {
 				for depth in &depths {
 					if leaf_state.seconded_at_depth.contains_key(&depth) {
@@ -1158,12 +1159,12 @@ async fn seconding_sanity_check<Context>(
 							"Refusing to second candidate at depth - already occupied."
 						);
 
-						return SecondingAllowed::No;
+						return SecondingAllowed::No
 					}
 				}
 
 				membership.push((*head, depths));
-			}
+			},
 		}
 	}
 
@@ -1210,16 +1211,20 @@ async fn handle_validated_candidate_command<Context>(
 							persisted_validation_data.parent_head.hash(),
 							candidate.descriptor().relay_parent,
 							commitments.head_data.hash(),
-						).await {
+						)
+						.await
+						{
 							SecondingAllowed::No => return Ok(()),
 							SecondingAllowed::Yes(membership) => membership,
 						};
 
-						let statement = Statement::Seconded(CommittedCandidateReceipt {
-							descriptor: candidate.descriptor.clone(),
-							commitments,
-						});
-
+						let statement = StatementWithPVD::Seconded(
+							CommittedCandidateReceipt {
+								descriptor: candidate.descriptor.clone(),
+								commitments,
+							},
+							persisted_validation_data,
+						);
 
 						// If we get an Error::RejectedByProspectiveParachains,
 						// then the statement has not been distributed or imported into
@@ -1229,10 +1234,10 @@ async fn handle_validated_candidate_command<Context>(
 							rp_state,
 							&mut state.per_candidate,
 							statement,
-							Some(persisted_validation_data),
 							state.keystore.clone(),
 							metrics,
-						).await;
+						)
+						.await;
 
 						if let Err(Error::RejectedByProspectiveParachains) = res {
 							let candidate_hash = candidate.hash();
@@ -1247,7 +1252,8 @@ async fn handle_validated_candidate_command<Context>(
 							ctx.send_message(CollatorProtocolMessage::Invalid(
 								candidate.descriptor().relay_parent,
 								candidate,
-							)).await;
+							))
+							.await;
 
 							return Ok(())
 						}
@@ -1275,7 +1281,7 @@ async fn handle_validated_candidate_command<Context>(
 										);
 
 										continue
-									}
+									},
 									Some(d) => d,
 								};
 
@@ -1289,7 +1295,7 @@ async fn handle_validated_candidate_command<Context>(
 							metrics.on_candidate_seconded();
 							ctx.send_message(CollatorProtocolMessage::Seconded(
 								rp_state.parent,
-								stmt,
+								StatementWithPVD::drop_pvd_from_signed(stmt),
 							))
 							.await;
 						}
@@ -1308,14 +1314,13 @@ async fn handle_validated_candidate_command<Context>(
 					// sanity check.
 					if !rp_state.issued_statements.contains(&candidate_hash) {
 						if res.is_ok() {
-							let statement = Statement::Valid(candidate_hash);
+							let statement = StatementWithPVD::Valid(candidate_hash);
 
 							sign_import_and_distribute_statement(
 								ctx,
 								rp_state,
 								&mut state.per_candidate,
 								statement,
-								None, // only needed when seconding.
 								state.keystore.clone(),
 								metrics,
 							)
@@ -1371,10 +1376,10 @@ async fn handle_validated_candidate_command<Context>(
 
 async fn sign_statement(
 	rp_state: &PerRelayParentState,
-	statement: Statement,
+	statement: StatementWithPVD,
 	keystore: SyncCryptoStorePtr,
 	metrics: &Metrics,
-) -> Option<SignedFullStatement> {
+) -> Option<SignedFullStatementWithPVD> {
 	let signed = rp_state
 		.table_context
 		.validator
@@ -1404,7 +1409,7 @@ async fn dispatch_new_statement_to_dispute_coordinator<Context>(
 	ctx: &mut Context,
 	rp_state: &PerRelayParentState,
 	candidate_hash: CandidateHash,
-	statement: &SignedFullStatement,
+	statement: &SignedFullStatementWithPVD,
 ) -> Result<(), ValidatorIndexOutOfBounds> {
 	// Dispatch the statement to the dispute coordinator.
 	let validator_index = statement.validator_index();
@@ -1417,8 +1422,8 @@ async fn dispatch_new_statement_to_dispute_coordinator<Context>(
 	};
 
 	let maybe_candidate_receipt = match statement.payload() {
-		Statement::Seconded(receipt) => Some(receipt.to_plain()),
-		Statement::Valid(candidate_hash) => {
+		StatementWithPVD::Seconded(receipt, _) => Some(receipt.to_plain()),
+		StatementWithPVD::Valid(candidate_hash) => {
 			// Valid statements are only supposed to be imported
 			// once we've seen at least one `Seconded` statement.
 			rp_state.table.get_candidate(&candidate_hash).map(|c| c.to_plain())
@@ -1462,8 +1467,7 @@ async fn import_statement<Context>(
 	ctx: &mut Context,
 	rp_state: &mut PerRelayParentState,
 	per_candidate: &mut HashMap<CandidateHash, PerCandidateState>,
-	statement: &SignedFullStatement,
-	persisted_validation_data: Option<PersistedValidationData>,
+	statement: &SignedFullStatementWithPVD,
 ) -> Result<Option<TableSummary>, Error> {
 	gum::debug!(
 		target: LOG_TARGET,
@@ -1487,13 +1491,8 @@ async fn import_statement<Context>(
 	//
 	// We should also not accept any candidates which have no valid depths under any of
 	// our active leaves.
-	if let Statement::Seconded(candidate) = statement.payload() {
+	if let StatementWithPVD::Seconded(candidate, pvd) = statement.payload() {
 		if !per_candidate.contains_key(&candidate_hash) {
-			let pvd = match persisted_validation_data {
-				None => return Err(Error::RejectedByProspectiveParachains),
-				Some(pvd) => pvd,
-			};
-
 			per_candidate.insert(
 				candidate_hash,
 				PerCandidateState {
@@ -1510,7 +1509,7 @@ async fn import_statement<Context>(
 				ctx.send_message(ProspectiveParachainsMessage::CandidateSeconded(
 					candidate.descriptor().para_id,
 					candidate.clone(),
-					pvd,
+					pvd.clone(),
 					tx,
 				))
 				.await;
@@ -1534,7 +1533,7 @@ async fn import_statement<Context>(
 	}
 
 	if let Err(ValidatorIndexOutOfBounds) =
-		dispatch_new_statement_to_dispute_coordinator(ctx, rp_state, candidate_hash, &statement)
+		dispatch_new_statement_to_dispute_coordinator(ctx, rp_state, candidate_hash, statement)
 			.await
 	{
 		gum::warn!(
@@ -1620,30 +1619,22 @@ fn issue_new_misbehaviors<Context>(
 }
 
 /// Sign, import, and distribute a statement.
-///
-/// If the statement is a `Seconded` statement, the `persisted_validation_data`
-/// must be `Some`.
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn sign_import_and_distribute_statement<Context>(
 	ctx: &mut Context,
 	rp_state: &mut PerRelayParentState,
 	per_candidate: &mut HashMap<CandidateHash, PerCandidateState>,
-	statement: Statement,
-	persisted_validation_data: Option<PersistedValidationData>,
+	statement: StatementWithPVD,
 	keystore: SyncCryptoStorePtr,
 	metrics: &Metrics,
-) -> Result<Option<SignedFullStatement>, Error> {
+) -> Result<Option<SignedFullStatementWithPVD>, Error> {
 	if let Some(signed_statement) = sign_statement(&*rp_state, statement, keystore, metrics).await {
-		import_statement(
-			ctx,
-			rp_state,
-			per_candidate,
-			&signed_statement,
-			persisted_validation_data,
-		)
-		.await?;
+		import_statement(ctx, rp_state, per_candidate, &signed_statement).await?;
 
-		let smsg = StatementDistributionMessage::Share(rp_state.parent, signed_statement.clone());
+		let smsg = StatementDistributionMessage::Share(
+			rp_state.parent,
+			StatementWithPVD::drop_pvd_from_signed(signed_statement.clone()),
+		);
 		ctx.send_unbounded_message(smsg);
 
 		Ok(Some(signed_statement))
@@ -1737,16 +1728,12 @@ async fn kick_off_validation_work<Context>(
 }
 
 /// Import the statement and kick off validation work if it is a part of our assignment.
-///
-/// If the statement type is `Seconded`, the `persisted_validation_data` must be
-/// `Some`.
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn maybe_validate_and_import<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	relay_parent: Hash,
-	statement: SignedFullStatement,
-	persisted_validation_data: Option<PersistedValidationData>,
+	statement: SignedFullStatementWithPVD,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
 	let rp_state = match state.per_relay_parent.get_mut(&relay_parent) {
@@ -1762,14 +1749,7 @@ async fn maybe_validate_and_import<Context>(
 		},
 	};
 
-
-	let res = import_statement(
-		ctx,
-		rp_state,
-		&mut state.per_candidate,
-		&statement,
-		persisted_validation_data,
-	).await;
+	let res = import_statement(ctx, rp_state, &mut state.per_candidate, &statement).await;
 
 	// if we get an Error::RejectedByProspectiveParachains,
 	// we will do nothing.
@@ -1794,7 +1774,7 @@ async fn maybe_validate_and_import<Context>(
 			return Ok(())
 		}
 		let attesting = match statement.payload() {
-			Statement::Seconded(receipt) => {
+			StatementWithPVD::Seconded(receipt, _) => {
 				let attesting = AttestingData {
 					candidate: rp_state
 						.table
@@ -1808,7 +1788,7 @@ async fn maybe_validate_and_import<Context>(
 				rp_state.fallbacks.insert(summary.candidate, attesting.clone());
 				attesting
 			},
-			Statement::Valid(candidate_hash) => {
+			StatementWithPVD::Valid(candidate_hash) => {
 				if let Some(attesting) = rp_state.fallbacks.get_mut(candidate_hash) {
 					let our_index = rp_state.table_context.validator.as_ref().map(|v| v.index());
 					if our_index == Some(statement.validator_index()) {
@@ -1894,6 +1874,7 @@ async fn handle_second_message<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	candidate: CandidateReceipt,
+	persisted_validation_data: PersistedValidationData,
 	pov: PoV,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
@@ -1901,6 +1882,16 @@ async fn handle_second_message<Context>(
 
 	let candidate_hash = candidate.hash();
 	let relay_parent = candidate.descriptor().relay_parent;
+
+	if candidate.descriptor().persisted_validation_data_hash != persisted_validation_data.hash() {
+		gum::warn!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			"Candidate backing was asked to second candidate with wrong PVD",
+		);
+
+		return Ok(())
+	}
 
 	let rp_state = match state.per_relay_parent.get_mut(&relay_parent) {
 		None => {
@@ -1938,8 +1929,6 @@ async fn handle_second_message<Context>(
 	if !rp_state.issued_statements.contains(&candidate_hash) {
 		let pov = Arc::new(pov);
 
-		// TODO [now]: get from message.
-		let persisted_validation_data = unimplemented!();
 		validate_and_second(
 			ctx,
 			rp_state,
@@ -1947,7 +1936,8 @@ async fn handle_second_message<Context>(
 			&candidate,
 			pov,
 			&state.background_validation_tx,
-		).await?;
+		)
+		.await?;
 	}
 
 	Ok(())
@@ -1958,23 +1948,12 @@ async fn handle_statement_message<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	relay_parent: Hash,
-	statement: SignedFullStatement,
+	statement: SignedFullStatementWithPVD,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
 	let _timer = metrics.time_process_statement();
 
-	// TODO [now]: get this from the message.
-	let persisted_validation_data: Option<PersistedValidationData> = unimplemented!();
-	match maybe_validate_and_import(
-		ctx,
-		state,
-		relay_parent,
-		statement,
-		persisted_validation_data,
-		metrics,
-	)
-	.await
-	{
+	match maybe_validate_and_import(ctx, state, relay_parent, statement, metrics).await {
 		Err(Error::ValidationFailed(_)) => Ok(()),
 		Err(e) => Err(e),
 		Ok(()) => Ok(()),

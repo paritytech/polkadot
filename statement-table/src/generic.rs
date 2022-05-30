@@ -425,7 +425,9 @@ impl<Ctx: Context> Table<Ctx> {
 					}
 
 					false
-				} else if self.config.allow_multiple_seconded && existing.proposals.iter().find(|(ref od, _)| od == &digest).is_some() {
+				} else if self.config.allow_multiple_seconded &&
+					existing.proposals.iter().find(|(ref od, _)| od == &digest).is_some()
+				{
 					false
 				} else {
 					existing.proposals.push((digest.clone(), signature.clone()));
@@ -585,15 +587,11 @@ mod tests {
 	use std::collections::HashMap;
 
 	fn create_single_seconded<Candidate: Context>() -> Table<Candidate> {
-		Table::new(Config {
-			allow_multiple_seconded: false,
-		})
+		Table::new(Config { allow_multiple_seconded: false })
 	}
 
 	fn create_many_seconded<Candidate: Context>() -> Table<Candidate> {
-		Table::new(Config {
-			allow_multiple_seconded: true,
-		})
+		Table::new(Config { allow_multiple_seconded: true })
 	}
 
 	#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
