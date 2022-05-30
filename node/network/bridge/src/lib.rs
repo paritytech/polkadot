@@ -244,12 +244,9 @@ where
 						);
 					}
 				}
-			}
+			},
 			FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
-				gum::trace!(
-					target: LOG_TARGET,
-					action = "BlockFinalized"
-				);
+				gum::trace!(target: LOG_TARGET, action = "BlockFinalized");
 
 				debug_assert!(finalized_number < number);
 
@@ -257,13 +254,19 @@ where
 				// otherwise it might break assumptions of some of the subsystems
 				// that we never send the same `ActiveLeavesUpdate`
 				finalized_number = number;
-			}
-			FromOrchestra::Signal(OverseerSignal::Conclude) => {
-				return Ok(());
-			}
+			},
+			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOrchestra::Communication { msg } => {
-				(network_service, authority_discovery_service) = handle_incoming(&mut ctx, network_service, &mut validator_discovery, authority_discovery_service.clone(), msg, &metrics).await;
-			}
+				(network_service, authority_discovery_service) = handle_incoming(
+					&mut ctx,
+					network_service,
+					&mut validator_discovery,
+					authority_discovery_service.clone(),
+					msg,
+					&metrics,
+				)
+				.await;
+			},
 		}
 	}
 }
@@ -284,17 +287,12 @@ where
 	match msg {
 		NetworkBridgeMessage::ReportPeer(peer, rep) => {
 			if !rep.is_benefit() {
-				gum::debug!(
-					target: LOG_TARGET,
-					?peer,
-					?rep,
-					action = "ReportPeer"
-				);
+				gum::debug!(target: LOG_TARGET, ?peer, ?rep, action = "ReportPeer");
 			}
 
 			metrics.on_report_event();
 			network_service.report_peer(peer, rep);
-		}
+		},
 		NetworkBridgeMessage::DisconnectPeer(peer, peer_set) => {
 			gum::trace!(
 				target: LOG_TARGET,
@@ -304,7 +302,7 @@ where
 			);
 
 			network_service.disconnect_peer(peer, peer_set);
-		}
+		},
 		NetworkBridgeMessage::SendValidationMessage(peers, msg) => {
 			gum::trace!(
 				target: LOG_TARGET,
@@ -320,7 +318,7 @@ where
 					&metrics,
 				),
 			}
-		}
+		},
 		NetworkBridgeMessage::SendValidationMessages(msgs) => {
 			gum::trace!(
 				target: LOG_TARGET,
@@ -338,7 +336,7 @@ where
 					),
 				}
 			}
-		}
+		},
 		NetworkBridgeMessage::SendCollationMessage(peers, msg) => {
 			gum::trace!(
 				target: LOG_TARGET,
@@ -354,7 +352,7 @@ where
 					&metrics,
 				),
 			}
-		}
+		},
 		NetworkBridgeMessage::SendCollationMessages(msgs) => {
 			gum::trace!(
 				target: LOG_TARGET,
@@ -372,7 +370,7 @@ where
 					),
 				}
 			}
-		}
+		},
 		NetworkBridgeMessage::SendRequests(reqs, if_disconnected) => {
 			gum::trace!(
 				target: LOG_TARGET,
@@ -385,12 +383,8 @@ where
 					.start_request(&mut authority_discovery_service, req, if_disconnected)
 					.await;
 			}
-		}
-		NetworkBridgeMessage::ConnectToValidators {
-			validator_ids,
-			peer_set,
-			failed,
-		} => {
+		},
+		NetworkBridgeMessage::ConnectToValidators { validator_ids, peer_set, failed } => {
 			gum::trace!(
 				target: LOG_TARGET,
 				action = "ConnectToValidators",
@@ -401,20 +395,19 @@ where
 
 			metrics.note_desired_peer_count(peer_set, validator_ids.len());
 
-			let (network_service, ads) = validator_discovery.on_request(
-				validator_ids,
-				peer_set,
-				failed,
-				network_service,
-				authority_discovery_service,
-			).await;
+			let (network_service, ads) = validator_discovery
+				.on_request(
+					validator_ids,
+					peer_set,
+					failed,
+					network_service,
+					authority_discovery_service,
+				)
+				.await;
 
-			return (network_service, ads);
-		}
-		NetworkBridgeMessage::ConnectToResolvedValidators {
-			validator_addrs,
-			peer_set,
-		} => {
+			return (network_service, ads)
+		},
+		NetworkBridgeMessage::ConnectToResolvedValidators { validator_addrs, peer_set } => {
 			gum::trace!(
 				target: LOG_TARGET,
 				action = "ConnectToPeers",
@@ -426,18 +419,12 @@ where
 			metrics.note_desired_peer_count(peer_set, validator_addrs.len());
 
 			let all_addrs = validator_addrs.into_iter().flatten().collect();
-			let network_service = validator_discovery.on_resolved_request(
-				all_addrs,
-				peer_set,
-				network_service,
-			).await;
-			return (network_service, authority_discovery_service);
-		}
-		NetworkBridgeMessage::NewGossipTopology {
-			session,
-			our_neighbors_x,
-			our_neighbors_y,
-		} => {
+			let network_service = validator_discovery
+				.on_resolved_request(all_addrs, peer_set, network_service)
+				.await;
+			return (network_service, authority_discovery_service)
+		},
+		NetworkBridgeMessage::NewGossipTopology { session, our_neighbors_x, our_neighbors_y } => {
 			gum::debug!(
 				target: LOG_TARGET,
 				action = "NewGossipTopology",
@@ -446,27 +433,21 @@ where
 				"Gossip topology has changed",
 			);
 
-			let gossip_peers_x = update_gossip_peers_1d(
-				&mut authority_discovery_service,
-				our_neighbors_x,
-			).await;
+			let gossip_peers_x =
+				update_gossip_peers_1d(&mut authority_discovery_service, our_neighbors_x).await;
 
-			let gossip_peers_y = update_gossip_peers_1d(
-				&mut authority_discovery_service,
-				our_neighbors_y,
-			).await;
+			let gossip_peers_y =
+				update_gossip_peers_1d(&mut authority_discovery_service, our_neighbors_y).await;
 
 			dispatch_validation_event_to_all_unbounded(
-				NetworkBridgeEvent::NewGossipTopology(
-					NewGossipTopology {
-						session,
-						our_neighbors_x: gossip_peers_x,
-						our_neighbors_y: gossip_peers_y,
-					}
-				),
+				NetworkBridgeEvent::NewGossipTopology(NewGossipTopology {
+					session,
+					our_neighbors_x: gossip_peers_x,
+					our_neighbors_y: gossip_peers_y,
+				}),
 				ctx.sender(),
 			);
-		}
+		},
 	}
 	(network_service, authority_discovery_service)
 }
