@@ -16,7 +16,7 @@
 // limitations under the License.
 
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2022-04-21 (Y/M/D)
+//! DATE: 2022-05-26 (Y/M/D)
 //!
 //! SHORT-NAME: `extrinsic`, LONG-NAME: `ExtrinsicBase`, RUNTIME: `Development`
 //! WARMUPS: `10`, REPEAT: `100`
@@ -43,17 +43,17 @@ parameter_types! {
 	/// Time to execute a NO-OP extrinsic, for example `System::remark`.
 	/// Calculated by multiplying the *Average* with `1` and adding `0`.
 	///
-	/// Stats [NS]:
-	///   Min, Max: 77_361, 78_466
-	///   Average:  77_592
-	///   Median:   77_522
-	///   Std-Dev:  234.67
+	/// Stats nanoseconds:
+	///   Min, Max: 78_822, 82_445
+	///   Average:  79_088
+	///   Median:   79_012
+	///   Std-Dev:  422.84
 	///
-	/// Percentiles [NS]:
-	///   99th: 78_413
-	///   95th: 78_216
-	///   75th: 77_596
-	pub const ExtrinsicBaseWeight: Weight = 77_592 * WEIGHT_PER_NANOS;
+	/// Percentiles nanoseconds:
+	///   99th: 80_770
+	///   95th: 79_394
+	///   75th: 79_071
+	pub const ExtrinsicBaseWeight: Weight = 79_088 * WEIGHT_PER_NANOS;
 }
 
 #[cfg(test)]
