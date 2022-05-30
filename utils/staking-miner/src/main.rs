@@ -300,6 +300,10 @@ enum Solver {
 		#[clap(long, default_value = "10")]
 		iterations: usize,
 	},
+	MMS {
+		#[clap(long, default_value = "10")]
+		iterations: usize,
+	},
 }
 
 /// Submission strategy to use.
@@ -493,7 +497,7 @@ where
 	T: EPM::Config,
 	T::Solver: NposSolver<Error = sp_npos_elections::Error>,
 {
-	use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
+	use frame_election_provider_support::{PhragMMS, SequentialPhragmen, MMS};
 
 	match solver {
 		Solver::SeqPhragmen { iterations } => {
@@ -512,6 +516,13 @@ where
 			mine_solution::<
 				T,
 				PhragMMS<<T as frame_system::Config>::AccountId, sp_runtime::Perbill, Balancing>,
+			>(ext, do_feasibility)
+		},
+		Solver::MMS { iterations } => {
+			BalanceIterations::set(*iterations);
+			mine_solution::<
+				T,
+				MMS<<T as frame_system::Config>::AccountId, sp_runtime::Perbill, Balancing>,
 			>(ext, do_feasibility)
 		},
 	}
@@ -720,6 +731,35 @@ mod tests {
 				command: Command::Monitor(MonitorConfig {
 					listen: "head".to_string(),
 					solver: Solver::SeqPhragmen { iterations: 10 },
+					submission_strategy: SubmissionStrategy::IfLeading,
+				}),
+			}
+		);
+	}
+
+	#[test]
+	fn cli_monitor_mms_works() {
+		let opt = Opt::try_parse_from([
+			env!("CARGO_PKG_NAME"),
+			"--uri",
+			"hi",
+			"--seed-or-path",
+			"//Alice",
+			"monitor",
+			"--listen",
+			"head",
+			"mms",
+		])
+		.unwrap();
+
+		assert_eq!(
+			opt,
+			Opt {
+				uri: "hi".to_string(),
+				seed_or_path: "//Alice".to_string(),
+				command: Command::Monitor(MonitorConfig {
+					listen: "head".to_string(),
+					solver: Solver::MMS { iterations: 10 },
 					submission_strategy: SubmissionStrategy::IfLeading,
 				}),
 			}
