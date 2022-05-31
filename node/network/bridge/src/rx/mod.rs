@@ -466,7 +466,7 @@ where
 						if expected_versions[PeerSet::Validation] ==
 							Some(ValidationVersion::V1.into())
 						{
-							handle_v1_peer_messages::<protocol_v1::ValidationProtocol, _>(
+							handle_peer_messages::<protocol_v1::ValidationProtocol, _>(
 								remote.clone(),
 								PeerSet::Validation,
 								&mut shared.0.lock().validation_peers,
@@ -476,8 +476,13 @@ where
 						} else if expected_versions[PeerSet::Validation] ==
 							Some(ValidationVersion::VStaging.into())
 						{
-							// TODO [now]
-							unimplemented!()
+							handle_peer_messages::<protocol_vstaging::ValidationProtocol, _>(
+								remote.clone(),
+								PeerSet::Validation,
+								&mut shared.0.lock().validation_peers,
+								v_messages,
+								&metrics,
+							)
 						} else {
 							gum::warn!(
 								target: LOG_TARGET,
@@ -504,7 +509,7 @@ where
 						if expected_versions[PeerSet::Collation] ==
 							Some(CollationVersion::V1.into())
 						{
-							handle_v1_peer_messages::<protocol_v1::CollationProtocol, _>(
+							handle_peer_messages::<protocol_v1::CollationProtocol, _>(
 								remote.clone(),
 								PeerSet::Collation,
 								&mut shared.0.lock().collation_peers,
@@ -514,8 +519,13 @@ where
 						} else if expected_versions[PeerSet::Collation] ==
 							Some(CollationVersion::VStaging.into())
 						{
-							// TODO [now]
-							unimplemented!()
+							handle_peer_messages::<protocol_vstaging::CollationProtocol, _>(
+								remote.clone(),
+								PeerSet::Collation,
+								&mut shared.0.lock().collation_peers,
+								c_messages,
+								&metrics,
+							)
 						} else {
 							gum::warn!(
 								target: LOG_TARGET,
@@ -830,7 +840,7 @@ fn update_our_view<Net, Context>(
 
 // Handle messages on a specific v1 peer-set. The peer is expected to be connected on that
 // peer-set.
-fn handle_v1_peer_messages<RawMessage: Decode, OutMessage: From<RawMessage>>(
+fn handle_peer_messages<RawMessage: Decode, OutMessage: From<RawMessage>>(
 	peer: PeerId,
 	peer_set: PeerSet,
 	peers: &mut HashMap<PeerId, PeerData>,
