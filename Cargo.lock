@@ -5165,6 +5165,7 @@ dependencies = [
 [[package]]
 name = "pallet-conviction-voting"
 version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=master#54d6f2cbae12fa314f2bcaf6d57fba585162438f"
 dependencies = [
  "assert_matches",
  "frame-benchmarking",
@@ -5528,6 +5529,7 @@ dependencies = [
 [[package]]
 name = "pallet-referenda"
 version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=master#54d6f2cbae12fa314f2bcaf6d57fba585162438f"
 dependencies = [
  "assert_matches",
  "frame-benchmarking",
@@ -5796,6 +5798,7 @@ dependencies = [
 [[package]]
 name = "pallet-whitelist"
 version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=master#54d6f2cbae12fa314f2bcaf6d57fba585162438f"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -12874,235 +12877,3 @@ dependencies = [
  "cc",
  "libc",
 ]
-
-[[patch.unused]]
-name = "chain-spec-builder"
-version = "2.0.0"
-
-[[patch.unused]]
-name = "frame-election-solution-type-fuzzer"
-version = "2.0.0-alpha.5"
-
-[[patch.unused]]
-name = "frame-support-test-compile-pass"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "node-bench"
-version = "0.9.0-dev"
-
-[[patch.unused]]
-name = "node-cli"
-version = "3.0.0-dev"
-
-[[patch.unused]]
-name = "node-executor"
-version = "3.0.0-dev"
-
-[[patch.unused]]
-name = "node-inspect"
-version = "0.9.0-dev"
-
-[[patch.unused]]
-name = "node-primitives"
-version = "2.0.0"
-
-[[patch.unused]]
-name = "node-rpc"
-version = "3.0.0-dev"
-
-[[patch.unused]]
-name = "node-runtime"
-version = "3.0.0-dev"
-
-[[patch.unused]]
-name = "node-runtime-generate-bags"
-version = "3.0.0"
-
-[[patch.unused]]
-name = "node-template"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "node-template-runtime"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "node-testing"
-version = "3.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-asset-tx-payment"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-atomic-swap"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-aura"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-bags-list-fuzzer"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-contracts"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-contracts-primitives"
-version = "6.0.0"
-
-[[patch.unused]]
-name = "pallet-contracts-proc-macro"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-contracts-rpc"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-contracts-rpc-runtime-api"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-example-basic"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-example-offchain-worker"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-example-parallel"
-version = "3.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-lottery"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-node-authorization"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-randomness-collective-flip"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-remark"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-scored-pool"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-state-trie-migration"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-template"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-transaction-storage"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-uniques"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "sc-consensus-aura"
-version = "0.10.0-dev"
-
-[[patch.unused]]
-name = "sc-consensus-manual-seal"
-version = "0.10.0-dev"
-
-[[patch.unused]]
-name = "sc-consensus-pow"
-version = "0.10.0-dev"
-
-[[patch.unused]]
-name = "sc-network-test"
-version = "0.8.0"
-
-[[patch.unused]]
-name = "sc-runtime-test"
-version = "2.0.0"
-
-[[patch.unused]]
-name = "sc-service-test"
-version = "2.0.0"
-
-[[patch.unused]]
-name = "sp-api-test"
-version = "2.0.1"
-
-[[patch.unused]]
-name = "sp-application-crypto-test"
-version = "2.0.0"
-
-[[patch.unused]]
-name = "sp-arithmetic-fuzzer"
-version = "2.0.0"
-
-[[patch.unused]]
-name = "sp-consensus-aura"
-version = "0.10.0-dev"
-
-[[patch.unused]]
-name = "sp-consensus-pow"
-version = "0.10.0-dev"
-
-[[patch.unused]]
-name = "sp-npos-elections-fuzzer"
-version = "2.0.0-alpha.5"
-
-[[patch.unused]]
-name = "sp-runtime-interface-test"
-version = "2.0.0"
-
-[[patch.unused]]
-name = "sp-runtime-interface-test-wasm"
-version = "2.0.0"
-
-[[patch.unused]]
-name = "sp-runtime-interface-test-wasm-deprecated"
-version = "2.0.0"
-
-[[patch.unused]]
-name = "sp-test-primitives"
-version = "2.0.0"
-
-[[patch.unused]]
-name = "subkey"
-version = "2.0.1"
-
-[[patch.unused]]
-name = "substrate-frame-cli"
-version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "substrate-frame-rpc-support"
-version = "3.0.0"
-
-[[patch.unused]]
-name = "substrate-test-runtime"
-version = "2.0.0"
-
-[[patch.unused]]
-name = "substrate-test-runtime-client"
-version = "2.0.0"
-
-[[patch.unused]]
-name = "substrate-test-runtime-transaction-pool"
-version = "2.0.0"
-
-[[patch.unused]]
-name = "substrate-test-utils-test-crate"
-version = "0.1.0"
