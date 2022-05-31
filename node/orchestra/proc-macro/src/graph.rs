@@ -35,10 +35,10 @@ pub(crate) struct ConnectionGraph<'a> {
 	pub(crate) cycles: Vec<Vec<NodeIndex>>,
 	/// Messages that are never being sent (and by which subsystem), but are consumed
 	/// Maps the message `Path` to the subsystem `Ident` represented by `NodeIndex`.
-	pub(crate) unsent_messages: HashMap<&'a Path, (Ident, NodeIndex)>,
+	pub(crate) unsent_messages: HashMap<&'a Path, (&'a Ident, NodeIndex)>,
 	/// Messages being sent (and by which subsystem), but not consumed by any subsystem
 	/// Maps the message `Path` to the subsystem `Ident` represented by `NodeIndex`.
-	pub(crate) unconsumed_messages: HashMap<&'a Path, Vec<(Ident, NodeIndex)>>,
+	pub(crate) unconsumed_messages: HashMap<&'a Path, Vec<(&'a Ident, NodeIndex)>>,
 }
 
 impl<'a> ConnectionGraph<'a> {
@@ -47,9 +47,9 @@ impl<'a> ConnectionGraph<'a> {
 		// create a directed graph with all the subsystems as nodes and the messages as edges
 		// key is always the message path, values are node indices in the graph and the subsystem generic identifier
 		// store the message path and the source sender, both in the graph as well as identifier
-		let mut outgoing_lut = HashMap::<&Path, Vec<(Ident, NodeIndex)>>::with_capacity(128);
+		let mut outgoing_lut = HashMap::<&Path, Vec<(&Ident, NodeIndex)>>::with_capacity(128);
 		// same for consuming the incoming messages
-		let mut consuming_lut = HashMap::<&Path, (Ident, NodeIndex)>::with_capacity(128);
+		let mut consuming_lut = HashMap::<&Path, (&Ident, NodeIndex)>::with_capacity(128);
 
 		let mut graph = Graph::<Ident, Path>::new();
 
@@ -60,9 +60,11 @@ impl<'a> ConnectionGraph<'a> {
 				outgoing_lut
 					.entry(outgoing)
 					.or_default()
-					.push((ssf.generic.clone(), node_index));
+					.push((&ssf.generic, node_index));
 			}
-			consuming_lut.insert(&ssf.message_to_consume, (ssf.generic.clone(), node_index));
+			if let Some(_first_consument) = consuming_lut.insert(&ssf.message_to_consume, (&ssf.generic, node_index)) {
+				// bail, two subsystems consuming the same message
+			}
 		}
 
 		for (message_ty, (_consuming_subsystem_ident, consuming_node_index)) in consuming_lut.iter()
