@@ -146,11 +146,6 @@ impl Contains<Call> for BaseFilter {
 	}
 }
 
-type MoreThanHalfCouncil = EnsureOneOf<
-	EnsureRoot<AccountId>,
-	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
->;
-
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 	pub const SS58Prefix: u8 = 2;
@@ -756,6 +751,11 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
 	type WeightInfo = weights::pallet_collective_technical_committee::WeightInfo<Runtime>;
 }
+
+type MoreThanHalfCouncil = EnsureOneOf<
+	EnsureRoot<AccountId>,
+	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
+>;
 
 impl pallet_membership::Config<pallet_membership::Instance1> for Runtime {
 	type Event = Event;
@@ -1495,7 +1495,6 @@ construct_runtime! {
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 2,
 		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>} = 3,
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 4,
-		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 33,
 
 		// Consensus support.
 		// Authorship must be before session in order to note author in the correct session and era
@@ -1503,7 +1502,6 @@ construct_runtime! {
 		Authorship: pallet_authorship::{Pallet, Call, Storage} = 5,
 		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>} = 6,
 		Offences: pallet_offences::{Pallet, Storage, Event} = 7,
-		Historical: session_historical::{Pallet} = 34,
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 8,
 		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned} = 10,
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
@@ -1546,6 +1544,12 @@ construct_runtime! {
 
 		// Preimage registrar.
 		Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>} = 32,
+
+		// Trasaction Payment module
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 33,
+
+		// Historical module
+		Historical: session_historical::{Pallet} = 34,
 
 		// Bounties modules.
 		Bounties: pallet_bounties::{Pallet, Call, Storage, Event<T>} = 35,

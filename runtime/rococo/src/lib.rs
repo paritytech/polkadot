@@ -48,7 +48,7 @@ use beefy_primitives::{
 	crypto::AuthorityId as BeefyId,
 	mmr::{BeefyDataProvider, MmrLeafVersion},
 };
-// TODO: Rococo
+// TODO: Election
 // use frame_election_provider_support::{
 // 	generate_solution_type, onchain, NposSolution, SequentialPhragmen,
 // };
@@ -56,14 +56,14 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Contains, InstanceFilter, KeyOwnerProofSystem},
 	weights::ConstantMultiplier,
-	PalletId,
+	PalletId, RuntimeDebug
 };
 use frame_system::EnsureRoot;
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
-use sp_core::{OpaqueMetadata, RuntimeDebug, H256};
+use sp_core::{OpaqueMetadata, H256};
 use sp_mmr_primitives as mmr;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -78,7 +78,7 @@ use sp_staking::SessionIndex;
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
-// TODO: Rococo
+// TODO: Elections Phragmen
 // use static_assertions::const_assert;
 
 pub use frame_system::Call as SystemCall;
@@ -91,24 +91,20 @@ pub use frame_system::Call as SystemCall;
 /// Constant values used within the runtime.
 use rococo_runtime_constants::{currency::*, fee::*, time::*};
 
-
-
 // Weights used in the runtime.
 mod weights;
 
-// TODO: Rococo
+// TODO: Bags List
 //// Voter bag threshold definitions.
 // mod bag_thresholds;
 
 // XCM configurations.
 pub mod xcm_config;
 
-// TODO: Rococo | not in Kusama
 mod validator_manager;
 
-// TODO: Rococo | not in Kusama
 mod bridge_messages;
-// TODO: Rococo | not in Kusama
+
 use bridge_runtime_common::messages::{
 	source::estimate_message_dispatch_and_delivery_fee, MessageBridge,
 };
@@ -128,7 +124,7 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v2.0"),
-	authoring_version: 0,
+	authoring_version: 0, // TODO: Params -> authoring_version: 2
 	spec_version: 9220,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
@@ -152,6 +148,7 @@ pub fn native_version() -> NativeVersion {
 	NativeVersion { runtime_version: VERSION, can_author_with: Default::default() }
 }
 
+/// We currently allow all calls.
 pub struct BaseFilter;
 impl Contains<Call> for BaseFilter {
 	fn contains(_call: &Call) -> bool {
@@ -159,16 +156,9 @@ impl Contains<Call> for BaseFilter {
 	}
 }
 
-// TODO: Rococo
-// type MoreThanHalfCouncil = EnsureOneOf<
-// 	EnsureRoot<AccountId>,
-// 	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
-// >;
-
-// TODO: Questions
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
-	pub const SS58Prefix: u8 = 42;
+	pub const SS58Prefix: u8 = 42; // TODO: Params -> pub const SS58Prefix: u8 = 2;
 }
 
 impl frame_system::Config for Runtime {
@@ -271,11 +261,12 @@ impl frame_system::Config for Runtime {
 // }
 
 parameter_types! {
-	pub EpochDuration: u64 = prod_or_fast!(
-		EPOCH_DURATION_IN_SLOTS as u64,
-		2 * MINUTES as u64,
-		"ROC_EPOCH_DURATION"
-	);
+	// TODO: Babe
+	// pub EpochDuration: u64 = prod_or_fast!(
+	// 	EPOCH_DURATION_IN_SLOTS as u64,
+	// 	2 * MINUTES as u64,
+	// 	"ROC_EPOCH_DURATION"
+	// );
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 	// TODO: Staking
 	// pub ReportLongevity: u64 =
@@ -284,7 +275,7 @@ parameter_types! {
 }
 
 impl pallet_babe::Config for Runtime {
-	type EpochDuration = EpochDuration;
+	type EpochDuration = EpochDurationInBlocks; // TODO: Babe -> type EpochDuration = EpochDuration;
 	type ExpectedBlockTime = ExpectedBlockTime;
 
 	// session module is the trigger
@@ -312,7 +303,7 @@ impl pallet_babe::Config for Runtime {
 	type MaxAuthorities = MaxAuthorities;
 }
 
-// TODO: Questions
+// TODO: Indices
 parameter_types! {
 	pub const IndexDeposit: Balance = 1 * DOLLARS;
 }
@@ -387,7 +378,7 @@ impl_opaque_keys! {
 		pub para_validator: Initializer,
 		pub para_assignment: ParaSessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
-		pub beefy: Beefy, // TODO: Rococo | not in Kusama
+		pub beefy: Beefy,
 	}
 }
 
@@ -731,8 +722,8 @@ impl pallet_collective::Config for Runtime { // TODO: Collective -> impl pallet_
 	type MotionDuration = MotionDuration; // TODO: Collective -> type MotionDuration = CouncilMotionDuration;
 	type MaxProposals = MaxProposals; // TODO: Collective -> type MaxProposals = CouncilMaxProposals;
 	type MaxMembers = MaxMembers; // TODO: Collective -> type MaxMembers = CouncilMaxMembers;
-	type DefaultVote = pallet_collective::PrimeDefaultVote; // TODO: Collective -> type DefaultVote = pallet_collective::PrimeDefaultVote;
-	type WeightInfo = weights::pallet_collective::WeightInfo<Runtime>;  // TODO: Collective -> type WeightInfo = weights::pallet_collective_council::WeightInfo<Runtime>;
+	type DefaultVote = pallet_collective::PrimeDefaultVote;
+	type WeightInfo = weights::pallet_collective::WeightInfo<Runtime>;
 }
 
 // TODO: Elections Phragmen
@@ -792,16 +783,22 @@ impl pallet_collective::Config for Runtime { // TODO: Collective -> impl pallet_
 // 	type WeightInfo = weights::pallet_collective_technical_committee::WeightInfo<Runtime>;
 // }
 
+// TODO: Membership
+// type MoreThanHalfCouncil = EnsureOneOf<
+// 	EnsureRoot<AccountId>,
+// 	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
+// >;
+
 impl pallet_membership::Config for Runtime {
 	type Event = Event;
 	type AddOrigin = EnsureRoot<AccountId>; // TODO: Membership -> type AddOrigin = MoreThanHalfCouncil;
-	type RemoveOrigin = EnsureRoot<AccountId>; // TODO: Membership -> type AddOrigin = MoreThanHalfCouncil;
-	type SwapOrigin = EnsureRoot<AccountId>; // TODO: Membership -> type AddOrigin = MoreThanHalfCouncil;
-	type ResetOrigin = EnsureRoot<AccountId>; // TODO: Membership -> type AddOrigin = MoreThanHalfCouncil;
-	type PrimeOrigin = EnsureRoot<AccountId>; // TODO: Membership -> type AddOrigin = MoreThanHalfCouncil;
-	type MembershipInitialized = Collective; // TODO: Membership -> type AddOrigin = TechnicalCommittee;
-	type MembershipChanged = Collective; // TODO: Membership -> type AddOrigin = TechnicalCommittee;
-	type MaxMembers = MaxMembers; // TODO: Membership -> type AddOrigin = TechnicalMaxMembers;
+	type RemoveOrigin = EnsureRoot<AccountId>; // TODO: Membership -> type RemoveOrigin = MoreThanHalfCouncil;
+	type SwapOrigin = EnsureRoot<AccountId>; // TODO: Membership -> type SwapOrigin = MoreThanHalfCouncil;
+	type ResetOrigin = EnsureRoot<AccountId>; // TODO: Membership -> type ResetOrigin = MoreThanHalfCouncil;
+	type PrimeOrigin = EnsureRoot<AccountId>; // TODO: Membership -> type PrimeOrigin = MoreThanHalfCouncil;
+	type MembershipInitialized = Collective; // TODO: Membership -> type MembershipInitialized = TechnicalCommittee;
+	type MembershipChanged = Collective; // TODO: Membership -> type MembershipChanged = TechnicalCommittee;
+	type MaxMembers = MaxMembers; // TODO: Membership -> type MaxMembers = TechnicalMaxMembers;
 	type WeightInfo = weights::pallet_membership::WeightInfo<Runtime>;
 }
 
@@ -1024,8 +1021,8 @@ impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
 where
 	Call: From<C>,
 {
-	type OverarchingCall = Call;
 	type Extrinsic = UncheckedExtrinsic;
+	type OverarchingCall = Call;
 }
 
 // TODO: Claims
@@ -1422,7 +1419,7 @@ impl slots::Config for Runtime {
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type LeaseOffset = ();
-	type ForceOrigin = EnsureRoot<AccountId>;
+	type ForceOrigin = EnsureRoot<AccountId>; // TODO: Slots -> type ForceOrigin = MoreThanHalfCouncil;
 	type WeightInfo = weights::runtime_common_slots::WeightInfo<Runtime>;
 }
 
@@ -1809,7 +1806,6 @@ construct_runtime! {
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 2,
 		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>} = 3,
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 4,
-		TransactionPayment: pallet_transaction_payment::{Pallet, Storage, Config} = 33,
 
 		// Consensus support.
 		// Authorship must be before session in order to note author in the correct session and era
@@ -1818,7 +1814,6 @@ construct_runtime! {
 		// TODO: Staking
 		// Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>} = 6,
 		Offences: pallet_offences::{Pallet, Storage, Event} = 7,
-		Historical: session_historical::{Pallet} = 34,
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 8,
 		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned} = 10,
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
@@ -1829,7 +1824,6 @@ construct_runtime! {
 		// Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 13,
 		// TODO: Collective -> Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 14,
 		Collective: pallet_collective::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 14,
-		// Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 14,
 		// TODO: Collective
 		// TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
 		// TODO: Elections Prhargmen
@@ -1876,6 +1870,12 @@ construct_runtime! {
 		// TODO: Preimage
 		//// Preimage registrar.
 		// Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>} = 32,
+
+		// Trasaction Payment module
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 33,
+
+		// Historical module
+		Historical: session_historical::{Pallet} = 34,
 
 		// TODO: Bounties
 		//// Bounties modules.
@@ -1928,7 +1928,7 @@ construct_runtime! {
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
 
 		// Rococo specific pallets (not included in Kusama). Start indices at 240
-
+		//
 		// BEEFY Bridges support.
 		Beefy: pallet_beefy::{Pallet, Storage, Config<T>} = 240,
 		Mmr: pallet_mmr::{Pallet, Storage} = 241,
@@ -2360,7 +2360,7 @@ sp_api::impl_runtime_apis! {
 			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
 			babe_primitives::BabeGenesisConfiguration {
 				slot_duration: Babe::slot_duration(),
-				epoch_length: EpochDuration::get().into(),
+				epoch_length: EpochDurationInBlocks::get().into(), // TODO: Babe -> epoch_length: EpochDuration::get().into()
 				c: BABE_GENESIS_EPOCH_CONFIG.c,
 				genesis_authorities: Babe::authorities().to_vec(),
 				randomness: Babe::randomness(),

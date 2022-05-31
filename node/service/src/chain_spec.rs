@@ -1065,7 +1065,6 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
-		transaction_payment: Default::default(),
 		bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
 			owner: Some(endowed_accounts[0].clone()),
 			..Default::default()
@@ -1628,7 +1627,6 @@ pub fn rococo_testnet_genesis(
 			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
-		transaction_payment: Default::default(),
 		bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
 			owner: Some(root_key.clone()),
 			..Default::default()
