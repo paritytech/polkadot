@@ -133,21 +133,30 @@ impl<'a> ConnectionGraph<'a> {
 			let first = cycle[0].clone();
 			let mut node_idx = first;
 			let print_idx = cycle_idx + 1;
-			let mut visited = HashSet::new();
+			// track which ones were visited and which step
+			// the step is required to truncate the output
+			let mut visited = HashMap::new();
 			for step in 0..cycle.len() {
 				if let Some(edge) =
 					graph.edges_directed(node_idx, petgraph::Direction::Outgoing).find(|edge| {
 						cycle
 							.iter()
 							.find(|&cycle_node_idx| {
-								!visited.contains(cycle_node_idx) &&
 									*cycle_node_idx == edge.target()
 							})
 							.is_some()
 					}) {
 					let next = edge.target();
-					visited.insert(node_idx);
+					visited.insert(node_idx, step);
 
+					if let Some(step) = visited.get(&next) {
+						// we've been there, so there is a cycle
+						// cut off the extra tail
+						acc.drain(..step);
+						// there might be more cycles in this cluster,
+						// but for they are ignored, the graph shows
+						// the entire strongly connected cluster.
+					}
 					let subsystem_name = &graph[node_idx].to_string();
 					let message_name = &graph[edge.id()].to_token_stream().to_string();
 					acc.push(format!("{subsystem_name} ~~{{{message_name:?}}}~~> "));
