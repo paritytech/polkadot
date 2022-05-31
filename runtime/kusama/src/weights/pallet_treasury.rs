@@ -86,4 +86,11 @@ impl<T: frame_system::Config> pallet_treasury::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes((3 as Weight).saturating_mul(p as Weight)))
 	}
+	// Storage: Treasury ProposalCount (r:1 w:1)
+	// Storage: Treasury Proposals (r:0 w:1)
+	fn spend() -> Weight {
+		(20_270_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+	}
 }
