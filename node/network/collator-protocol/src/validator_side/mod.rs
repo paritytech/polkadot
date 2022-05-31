@@ -1451,7 +1451,7 @@ async fn handle_collation_fetched_result<Context>(
 			ctx.send_message(CandidateBackingMessage::Second(
 				relay_parent.clone(),
 				candidate_receipt,
-				unimplemented!(), // TODO [now]
+				pvd,
 				pov,
 			))
 			.await;
