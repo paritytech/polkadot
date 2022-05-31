@@ -6188,6 +6188,7 @@ dependencies = [
 name = "polkadot-availability-bitfield-distribution"
 version = "0.9.22"
 dependencies = [
+ "always-assert",
  "assert_matches",
  "bitvec 1.0.0",
  "env_logger 0.9.0",
