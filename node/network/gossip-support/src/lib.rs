@@ -395,8 +395,12 @@ where
 			NetworkBridgeEvent::OurViewChange(_) => {},
 			NetworkBridgeEvent::PeerViewChange(_, _) => {},
 			NetworkBridgeEvent::NewGossipTopology { .. } => {},
-			NetworkBridgeEvent::PeerMessage(_, Versioned::V1(v)) => {
-				match v {};
+			NetworkBridgeEvent::PeerMessage(_, message) => {
+				// match void -> LLVM unreachable
+				match message {
+					Versioned::V1(m) => match m {},
+					Versioned::VStaging(m) => match m {},
+				}
 			},
 		}
 	}
