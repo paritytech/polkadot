@@ -1521,8 +1521,8 @@ where
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn successful_origin() -> O {
-		O::from(Origin::Xcm(Here.into()))
+	fn try_successful_origin() -> Result<O, ()> {
+		Ok(O::from(Origin::Xcm(Here.into())))
 	}
 }
 
@@ -1546,8 +1546,8 @@ where
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn successful_origin() -> O {
-		O::from(Origin::Response(Here.into()))
+	fn try_successful_origin() -> Result<O, ()> {
+		Ok(O::from(Origin::Response(Here.into())))
 	}
 }
 
