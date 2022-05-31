@@ -53,7 +53,10 @@ use polkadot_node_subsystem::{
 	overseer, FromOverseer, OverseerSignal, PerLeafSpan, SubsystemSender,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::v2::{CandidateReceipt, CollatorId, Hash, Id as ParaId};
+use polkadot_primitives::v2::{
+	CandidateReceipt, CollatorId, Hash, Id as ParaId, OccupiedCoreAssumption,
+	PersistedValidationData,
+};
 
 use crate::error::Result;
 
@@ -1307,6 +1310,39 @@ async fn dequeue_next_collation_and_fetch<Context>(
 	}
 }
 
+#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
+async fn request_persisted_validation_data<Context>(
+	ctx: &mut Context,
+	relay_parent: Hash,
+	para_id: ParaId,
+) -> Option<PersistedValidationData> {
+	// TODO [https://github.com/paritytech/polkadot/issues/5054]
+	//
+	// As of https://github.com/paritytech/polkadot/pull/5557 the
+	// `Second` message requires the `PersistedValidationData` to be
+	// supplied.
+	//
+	// Without asynchronous backing, this can be easily fetched from the
+	// chain state.
+	//
+	// This assumes the core is _scheduled_, in keeping with the effective
+	// current behavior. If the core is occupied, we simply don't return
+	// anything. Likewise with runtime API errors, which are rare.
+	let res = polkadot_node_subsystem_util::request_persisted_validation_data(
+		relay_parent,
+		para_id,
+		OccupiedCoreAssumption::Free,
+		ctx.sender(),
+	)
+	.await
+	.await;
+
+	match res {
+		Ok(Ok(Some(pvd))) => Some(pvd),
+		_ => None,
+	}
+}
+
 /// Handle a fetched collation result.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn handle_collation_fetched_result<Context>(
@@ -1351,13 +1387,31 @@ async fn handle_collation_fetched_result<Context>(
 
 	if let Entry::Vacant(entry) = state.pending_candidates.entry(relay_parent) {
 		collation_event.1.commitments_hash = Some(candidate_receipt.commitments_hash);
-		ctx.sender()
-			.send_message(CandidateBackingMessage::Second(
+
+		if let Some(pvd) = request_persisted_validation_data(
+			ctx,
+			candidate_receipt.descriptor().relay_parent,
+			candidate_receipt.descriptor().para_id,
+		)
+		.await
+		{
+			// TODO [https://github.com/paritytech/polkadot/issues/5054]
+			//
+			// If PVD isn't available (core occupied) then we'll silently
+			// just not second this. But prior to asynchronous backing
+			// we wouldn't second anyway because the core is occupied.
+			//
+			// The proper refactoring would be to accept declares from collators
+			// but not even fetch from them if the core is occupied. Given 5054,
+			// there's no reason to do this right now.
+			ctx.send_message(CandidateBackingMessage::Second(
 				relay_parent.clone(),
 				candidate_receipt,
+				pvd,
 				pov,
 			))
 			.await;
+		}
 
 		entry.insert(collation_event);
 	} else {
