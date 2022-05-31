@@ -936,3 +936,10 @@ fn need_message_works() {
 	// also not ok for Bob
 	assert!(false == pretend_send(&mut state, peer_b, &validator_set[1]));
 }
+
+// TODO [now]: vstaging peers are accepted.
+
+// TODO [now]: vstaging messages are accepted.
+
+// TODO [now]: always sends v1 messages to v1 peers.
+// TODO [now]: always sends vstaging messages to vstaging peers.
