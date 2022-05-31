@@ -22,7 +22,11 @@ use sc_executor_common::{
 };
 use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
-use std::any::{Any, TypeId};
+use sp_externalities::MultiRemovalResults;
+use std::{
+	any::{Any, TypeId},
+	path::Path,
+};
 
 // Memory configuration
 //
@@ -40,15 +44,17 @@ const DEFAULT_HEAP_PAGES_ESTIMATE: u64 = 32;
 const EXTRA_HEAP_PAGES: u64 = 2048;
 
 const CONFIG: Config = Config {
-	// NOTE: This is specified in bytes, so we multiply by WASM page size.
-	max_memory_size: Some(((DEFAULT_HEAP_PAGES_ESTIMATE + EXTRA_HEAP_PAGES) * 65536) as usize),
-
 	allow_missing_func_imports: true,
 	cache_path: None,
 	semantics: Semantics {
 		extra_heap_pages: EXTRA_HEAP_PAGES,
 
-		fast_instance_reuse: false,
+		// NOTE: This is specified in bytes, so we multiply by WASM page size.
+		max_memory_size: Some(((DEFAULT_HEAP_PAGES_ESTIMATE + EXTRA_HEAP_PAGES) * 65536) as usize),
+
+		instantiation_strategy:
+			sc_executor_wasmtime::InstantiationStrategy::RecreateInstanceCopyOnWrite,
+
 		// Enable deterministic stack limit to pin down the exact number of items the wasmtime stack
 		// can contain before it traps with stack overflow.
 		//
@@ -87,7 +93,7 @@ pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error
 }
 
 /// Runs preparation on the given runtime blob. If successful, it returns a serialized compiled
-/// artifact which can then be used to pass into [`execute`].
+/// artifact which can then be used to pass into [`execute`] after writing it to the disk.
 pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::WasmError> {
 	sc_executor_wasmtime::prepare_runtime_artifact(blob, &CONFIG.semantics)
 }
@@ -97,10 +103,16 @@ pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::
 ///
 /// # Safety
 ///
-/// The compiled artifact must be produced with [`prepare`]. Not following this guidance can lead
-/// to arbitrary code execution.
+/// The caller must ensure that the compiled artifact passed here was:
+///   1) produced by [`prepare`],
+///   2) written to the disk as a file,
+///   3) was not modified,
+///   4) will not be modified while any runtime using this artifact is alive, or is being
+///      instantiated.
+///
+/// Failure to adhere to these requirements might lead to crashes and arbitrary code execution.
 pub unsafe fn execute(
-	compiled_artifact: &[u8],
+	compiled_artifact_path: &Path,
 	params: &[u8],
 	spawner: impl sp_core::traits::SpawnNamed + 'static,
 ) -> Result<Vec<u8>, sc_executor_common::error::Error> {
@@ -113,7 +125,7 @@ pub unsafe fn execute(
 
 	sc_executor::with_externalities_safe(&mut ext, || {
 		let runtime = sc_executor_wasmtime::create_runtime_from_artifact::<HostFunctions>(
-			compiled_artifact,
+			compiled_artifact_path,
 			CONFIG,
 		)?;
 		runtime.new_instance()?.call(InvokeMethod::Export("validate_block"), params)
@@ -149,15 +161,31 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("child_storage: unsupported feature for parachain validation")
 	}
 
-	fn kill_child_storage(&mut self, _: &ChildInfo, _: Option<u32>) -> (bool, u32) {
+	fn kill_child_storage(
+		&mut self,
+		_child_info: &ChildInfo,
+		_maybe_limit: Option<u32>,
+		_maybe_cursor: Option<&[u8]>,
+	) -> MultiRemovalResults {
 		panic!("kill_child_storage: unsupported feature for parachain validation")
 	}
 
-	fn clear_prefix(&mut self, _: &[u8], _: Option<u32>) -> (bool, u32) {
+	fn clear_prefix(
+		&mut self,
+		_prefix: &[u8],
+		_maybe_limit: Option<u32>,
+		_maybe_cursor: Option<&[u8]>,
+	) -> MultiRemovalResults {
 		panic!("clear_prefix: unsupported feature for parachain validation")
 	}
 
-	fn clear_child_prefix(&mut self, _: &ChildInfo, _: &[u8], _: Option<u32>) -> (bool, u32) {
+	fn clear_child_prefix(
+		&mut self,
+		_child_info: &ChildInfo,
+		_prefix: &[u8],
+		_maybe_limit: Option<u32>,
+		_maybe_cursor: Option<&[u8]>,
+	) -> MultiRemovalResults {
 		panic!("clear_child_prefix: unsupported feature for parachain validation")
 	}
 

@@ -48,7 +48,7 @@ use polkadot_node_subsystem::{
 		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage, RuntimeApiMessage,
 		RuntimeApiRequest,
 	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util as util;
 use polkadot_primitives::v2::{
@@ -164,10 +164,10 @@ where
 					}
 			);
 			match message {
-				FromOverseer::Communication {
+				FromOrchestra::Communication {
 					msg: GossipSupportMessage::NetworkBridgeUpdate(ev),
 				} => self.handle_connect_disconnect(ev),
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated,
 					..
 				})) => {
@@ -178,8 +178,8 @@ where
 						gum::debug!(target: LOG_TARGET, error = ?e);
 					}
 				},
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, _number)) => {},
-				FromOverseer::Signal(OverseerSignal::Conclude) => return self,
+				FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, _number)) => {},
+				FromOrchestra::Signal(OverseerSignal::Conclude) => return self,
 			}
 		}
 	}

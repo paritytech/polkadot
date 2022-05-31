@@ -1,6 +1,6 @@
 [package]
 name = "kusama-runtime"
-version = "0.9.19"
+version = "0.9.23"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 build = "build.rs"
@@ -8,7 +8,7 @@ build = "build.rs"
 [dependencies]
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 serde = { version = "1.0.137", default-features = false }
@@ -57,7 +57,6 @@ pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-nomination-pools = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -103,7 +102,7 @@ tiny-keccak = "2.0.2"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 separator = "0.4.1"
-serde_json = "1.0.79"
+serde_json = "1.0.81"
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -148,7 +147,6 @@ std = [
 	"pallet-indices/std",
 	"pallet-membership/std",
 	"pallet-multisig/std",
-	"pallet-nicks/std",
 	"pallet-nomination-pools/std",
 	"pallet-offences/std",
 	"pallet-preimage/std",
@@ -241,6 +239,7 @@ try-runtime = [
 	"pallet-authority-discovery/try-runtime",
 	"pallet-authorship/try-runtime",
 	"pallet-balances/try-runtime",
+	"pallet-bags-list/try-runtime",
 	"pallet-bounties/try-runtime",
 	"pallet-child-bounties/try-runtime",
 	"pallet-transaction-payment/try-runtime",
@@ -254,7 +253,6 @@ try-runtime = [
 	"pallet-indices/try-runtime",
 	"pallet-membership/try-runtime",
 	"pallet-multisig/try-runtime",
-	"pallet-nicks/try-runtime",
 	"pallet-offences/try-runtime",
 	"pallet-preimage/try-runtime",
 	"pallet-proxy/try-runtime",

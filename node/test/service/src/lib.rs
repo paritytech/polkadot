@@ -42,7 +42,10 @@ use sc_network::{
 	multiaddr,
 };
 use sc_service::{
-	config::{DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
+	config::{
+		DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod,
+		WasmtimeInstantiationStrategy,
+	},
 	BasePath, Configuration, KeepBlocks, Role, RpcHandlers, TaskManager,
 };
 use sp_arithmetic::traits::SaturatedConversion;
@@ -176,7 +179,9 @@ pub fn node_config(
 		state_pruning: Default::default(),
 		keep_blocks: KeepBlocks::All,
 		chain_spec: Box::new(spec),
-		wasm_method: WasmExecutionMethod::Compiled,
+		wasm_method: WasmExecutionMethod::Compiled {
+			instantiation_strategy: WasmtimeInstantiationStrategy::PoolingCopyOnWrite,
+		},
 		wasm_runtime_overrides: Default::default(),
 		// NOTE: we enforce the use of the native runtime to make the errors more debuggable
 		execution_strategies: ExecutionStrategies {
