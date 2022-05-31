@@ -131,7 +131,7 @@ impl<'a> ConnectionGraph<'a> {
 		}
 
 		// TODO adjust rendering for cycles
-		let unsent_edge_label = r#"label="⛲",fillcolor=darkgreen,shape=doublecircle,style=filled,fontname="NotoColorEmoji""#;
+		let unsent_edge_label = r#"label="✨",fillcolor=darkgreen,shape=doublecircle,style=filled,fontname="NotoColorEmoji""#;
 		let unconsumed_edge_label = r#"label="💀",fillcolor=black,shape=doublecircle,style=filled,fontname="NotoColorEmoji""#;
 		let edge_attr = move |_graph: &Graph<Ident, Path>,
 		                      edge: <&Graph<Ident, Path> as IntoEdgeReferences>::EdgeRef|
