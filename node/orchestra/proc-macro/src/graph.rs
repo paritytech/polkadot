@@ -141,9 +141,7 @@ impl<'a> ConnectionGraph<'a> {
 					graph.edges_directed(node_idx, petgraph::Direction::Outgoing).find(|edge| {
 						cycle
 							.iter()
-							.find(|&cycle_node_idx| {
-									*cycle_node_idx == edge.target()
-							})
+							.find(|&cycle_node_idx| *cycle_node_idx == edge.target())
 							.is_some()
 					}) {
 					let next = edge.target();
