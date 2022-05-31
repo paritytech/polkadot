@@ -27,9 +27,12 @@ use super::*;
 
 /// Representation of all subsystem connections
 pub(crate) struct ConnectionGraph<'a> {
-	// Ident = Node = subsystem generic names
-	// Path = Edge = messages
+
 	/// Graph of connected subsystems
+	///
+	/// The graph represents a subsystem as a node or `NodeIndex`
+	/// and edges are messages sent, directed from the sender to
+	/// the receiver of the message.
 	pub(crate) graph: Graph<Ident, Path>,
 	/// Cycles within the graph
 	pub(crate) cycles: Vec<Vec<NodeIndex>>,
