@@ -85,6 +85,7 @@ pub fn dummy_overseer_builder<'a, Spawner, SupportsParachains>(
 		DummySubsystem,
 		DummySubsystem,
 		DummySubsystem,
+		DummySubsystem,
 	>,
 	SubsystemError,
 >
@@ -126,6 +127,7 @@ pub fn one_for_all_overseer_builder<'a, Spawner, SupportsParachains, Sub>(
 		Sub,
 		Sub,
 		Sub,
+		Sub,
 	>,
 	SubsystemError,
 >
@@ -143,6 +145,7 @@ where
 		+ Subsystem<OverseerSubsystemContext<ChainApiMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<CollationGenerationMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<NetworkBridgeInMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<ProvisionerMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<RuntimeApiMessage>, SubsystemError>
@@ -169,6 +172,7 @@ where
 		.chain_api(subsystem.clone())
 		.collation_generation(subsystem.clone())
 		.collator_protocol(subsystem.clone())
+		.network_bridge_in(subsystem.clone())
 		.network_bridge(subsystem.clone())
 		.provisioner(subsystem.clone())
 		.runtime_api(subsystem.clone())

@@ -83,8 +83,8 @@ use polkadot_node_subsystem_types::messages::{
 	BitfieldSigningMessage, CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage,
 	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
 	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
-	NetworkBridgeMessage, ProvisionerMessage, PvfCheckerMessage, RuntimeApiMessage,
-	StatementDistributionMessage,
+	NetworkBridgeInMessage, NetworkBridgeMessage, ProvisionerMessage, PvfCheckerMessage,
+	RuntimeApiMessage, StatementDistributionMessage,
 };
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
@@ -530,7 +530,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	availability_store: AvailabilityStore,
 
-	#[subsystem(NetworkBridgeMessage, sends: [
+	#[subsystem(NetworkBridgeInMessage, sends: [
 		BitfieldDistributionMessage,
 		StatementDistributionMessage,
 		ApprovalDistributionMessage,
@@ -539,7 +539,10 @@ pub struct Overseer<SupportsParachains> {
 		CollationGenerationMessage,
 		CollatorProtocolMessage,
 	])]
-	network_bridge: NetworkBridge,
+	network_bridge_in: NetworkBridgeIn,
+
+	#[subsystem(NetworkBridgeMessage, sends: [])]
+	network_bridge: NetworkBridgeOut,
 
 	#[subsystem(blocking, ChainApiMessage, sends: [])]
 	chain_api: ChainApi,
@@ -576,6 +579,7 @@ pub struct Overseer<SupportsParachains> {
 
 	#[subsystem(GossipSupportMessage, sends: [
 		NetworkBridgeMessage,
+		NetworkBridgeInMessage, // FIXME move this into the GossipSupport subsystem
 		RuntimeApiMessage,
 		ChainSelectionMessage,
 	])]

@@ -22,7 +22,7 @@
 //! which limits the amount of messages sent and received
 //! to be an order of sqrt of the validators. Our neighbors
 //! in this graph will be forwarded to the network bridge with
-//! the `NetworkBridgeMessage::NewGossipTopology` message.
+//! the `NetworkBridgeInMessage::NewGossipTopology` message.
 
 use std::{
 	collections::{HashMap, HashSet},
@@ -45,8 +45,8 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_subsystem::{
 	messages::{
-		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage, RuntimeApiMessage,
-		RuntimeApiRequest,
+		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeInMessage, NetworkBridgeMessage,
+		RuntimeApiMessage, RuntimeApiRequest,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -538,7 +538,7 @@ async fn update_gossip_topology(
 		.collect();
 
 	sender
-		.send_message(NetworkBridgeMessage::NewGossipTopology {
+		.send_message(NetworkBridgeInMessage::NewGossipTopology {
 			session: session_index,
 			our_neighbors_x: row_neighbors,
 			our_neighbors_y: column_neighbors,

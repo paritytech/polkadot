@@ -51,7 +51,9 @@ pub use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
 pub use polkadot_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
 pub use polkadot_dispute_distribution::DisputeDistributionSubsystem;
 pub use polkadot_gossip_support::GossipSupport as GossipSupportSubsystem;
-pub use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
+pub use polkadot_network_bridge::{
+	NetworkBridgeIn as NetworkBridgeInSubsystem, NetworkBridgeOut as NetworkBridgeOutSubsystem,
+};
 pub use polkadot_node_collation_generation::CollationGenerationSubsystem;
 pub use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
 pub use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
@@ -158,7 +160,11 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		ProvisionerSubsystem,
 		RuntimeApiSubsystem<RuntimeClient>,
 		AvailabilityStoreSubsystem,
-		NetworkBridgeSubsystem<
+		NetworkBridgeInSubsystem<
+			Arc<sc_network::NetworkService<Block, Hash>>,
+			AuthorityDiscoveryService,
+		>,
+		NetworkBridgeOutSubsystem<
 			Arc<sc_network::NetworkService<Block, Hash>>,
 			AuthorityDiscoveryService,
 		>,
@@ -237,7 +243,13 @@ where
 			};
 			CollatorProtocolSubsystem::new(side)
 		})
-		.network_bridge(NetworkBridgeSubsystem::new(
+		.network_bridge_in(NetworkBridgeInSubsystem::new(
+			network_service.clone(),
+			authority_discovery_service.clone(),
+			Box::new(network_service.clone()),
+			Metrics::register(registry)?,
+		))
+		.network_bridge(NetworkBridgeOutSubsystem::new(
 			network_service.clone(),
 			authority_discovery_service.clone(),
 			Box::new(network_service.clone()),

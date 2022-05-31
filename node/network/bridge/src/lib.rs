@@ -39,7 +39,7 @@ use polkadot_node_subsystem::{
 	messages::{
 		network_bridge_event::{NewGossipTopology, TopologyPeerInfo},
 		ApprovalDistributionMessage, BitfieldDistributionMessage, CollatorProtocolMessage,
-		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage,
+		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeInMessage, NetworkBridgeMessage,
 		StatementDistributionMessage,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
@@ -101,7 +101,7 @@ pub enum WireMessage<M> {
 }
 
 /// The network bridge subsystem.
-pub struct NetworkBridge<N, AD> {
+pub struct NetworkBridgeIn<N, AD> {
 	/// `Network` trait implementing type.
 	network_service: N,
 	authority_discovery_service: AD,
@@ -109,7 +109,7 @@ pub struct NetworkBridge<N, AD> {
 	metrics: Metrics,
 }
 
-impl<N, AD> NetworkBridge<N, AD> {
+impl<N, AD> NetworkBridgeIn<N, AD> {
 	/// Create a new network bridge subsystem with underlying network service and authority discovery service.
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
@@ -120,12 +120,12 @@ impl<N, AD> NetworkBridge<N, AD> {
 		sync_oracle: Box<dyn SyncOracle + Send>,
 		metrics: Metrics,
 	) -> Self {
-		NetworkBridge { network_service, authority_discovery_service, sync_oracle, metrics }
+		Self { network_service, authority_discovery_service, sync_oracle, metrics }
 	}
 }
 
-#[overseer::subsystem(NetworkBridge, error = SubsystemError, prefix = self::overseer)]
-impl<Net, AD, Context> NetworkBridge<Net, AD>
+#[overseer::subsystem(NetworkBridgeIn, error = SubsystemError, prefix = self::overseer)]
+impl<Net, AD, Context> NetworkBridgeIn<Net, AD>
 where
 	Net: Network + Sync,
 	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
@@ -135,9 +135,51 @@ where
 		// networking might open connections before the stream of events has been grabbed.
 		let network_stream = self.network_service.event_stream();
 
+		let shared = Shared::default();
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run_network`.
-		let future = run_network(self, ctx, network_stream)
+		let future = run_network_in(self, ctx, network_stream, shared)
+			.map_err(|e| SubsystemError::with_origin("network-bridge", e))
+			.boxed();
+		SpawnedSubsystem { name: "network-bridge-subsystem", future }
+	}
+}
+
+/// The network bridge subsystem.
+pub struct NetworkBridgeOut<N, AD> {
+	/// `Network` trait implementing type.
+	network_service: N,
+	authority_discovery_service: AD,
+	sync_oracle: Box<dyn SyncOracle + Send>,
+	metrics: Metrics,
+}
+
+impl<N, AD> NetworkBridgeOut<N, AD> {
+	/// Create a new network bridge subsystem with underlying network service and authority discovery service.
+	///
+	/// This assumes that the network service has had the notifications protocol for the network
+	/// bridge already registered. See [`peers_sets_info`](peers_sets_info).
+	pub fn new(
+		network_service: N,
+		authority_discovery_service: AD,
+		sync_oracle: Box<dyn SyncOracle + Send>,
+		metrics: Metrics,
+	) -> Self {
+		Self { network_service, authority_discovery_service, sync_oracle, metrics }
+	}
+}
+
+#[overseer::subsystem(NetworkBridgeOut, error = SubsystemError, prefix = self::overseer)]
+impl<Net, AD, Context> NetworkBridgeOut<Net, AD>
+where
+	Net: Network + Sync,
+	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
+{
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let shared = Shared::default(); // FIXME must be shared
+								// Swallow error because failure is fatal to the node and we log with more precision
+								// within `run_network`.
+		let future = run_network_out(self, ctx, shared)
 			.map_err(|e| SubsystemError::with_origin("network-bridge", e))
 			.boxed();
 		SpawnedSubsystem { name: "network-bridge-subsystem", future }
@@ -183,7 +225,7 @@ enum Mode {
 	Active,
 }
 
-#[overseer::contextbounds(NetworkBridge, prefix = self::overseer)]
+#[overseer::contextbounds(NetworkBridgeOut, prefix = self::overseer)]
 async fn handle_subsystem_messages<Context, N, AD>(
 	mut ctx: Context,
 	mut network_service: N,
@@ -196,83 +238,30 @@ where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
-	// This is kept sorted, descending, by block number.
-	let mut live_heads: Vec<ActivatedLeaf> = Vec::with_capacity(MAX_VIEW_HEADS);
-	let mut finalized_number = 0;
 	let mut validator_discovery = validator_discovery::Service::<N, AD>::new();
-
-	let mut mode = Mode::Syncing(sync_oracle);
 
 	loop {
 		match ctx.recv().fuse().await? {
-			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(active_leaves)) => {
-				let ActiveLeavesUpdate { activated, deactivated } = active_leaves;
-				gum::trace!(
-					target: LOG_TARGET,
-					action = "ActiveLeaves",
-					has_activated = activated.is_some(),
-					num_deactivated = %deactivated.len(),
-				);
-
-				for activated in activated {
-					let pos = live_heads
-						.binary_search_by(|probe| probe.number.cmp(&activated.number).reverse())
-						.unwrap_or_else(|i| i);
-
-					live_heads.insert(pos, activated);
-				}
-				live_heads.retain(|h| !deactivated.contains(&h.hash));
-
-				// if we're done syncing, set the mode to `Mode::Active`.
-				// Otherwise, we don't need to send view updates.
-				{
-					let is_done_syncing = match mode {
-						Mode::Active => true,
-						Mode::Syncing(ref mut sync_oracle) => !sync_oracle.is_major_syncing(),
-					};
-
-					if is_done_syncing {
-						mode = Mode::Active;
-
-						update_our_view(
-							&mut network_service,
-							&mut ctx,
-							&live_heads,
-							&shared,
-							finalized_number,
-							&metrics,
-						);
-					}
-				}
-			},
-			FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
-				gum::trace!(target: LOG_TARGET, action = "BlockFinalized");
-
-				debug_assert!(finalized_number < number);
-
-				// we don't send the view updates here, but delay them until the next `ActiveLeaves`
-				// otherwise it might break assumptions of some of the subsystems
-				// that we never send the same `ActiveLeavesUpdate`
-				finalized_number = number;
-			},
 			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+			FromOrchestra::Signal(_) => { /* handled by incoming */ },
 			FromOrchestra::Communication { msg } => {
-				(network_service, authority_discovery_service) = handle_incoming(
-					&mut ctx,
-					network_service,
-					&mut validator_discovery,
-					authority_discovery_service.clone(),
-					msg,
-					&metrics,
-				)
-				.await;
+				(network_service, authority_discovery_service) =
+					handle_incoming_subsystem_communication(
+						&mut ctx,
+						network_service,
+						&mut validator_discovery,
+						authority_discovery_service.clone(),
+						msg,
+						&metrics,
+					)
+					.await;
 			},
 		}
 	}
 }
 
-#[overseer::contextbounds(NetworkBridge, prefix = self::overseer)]
-async fn handle_incoming<Context, N, AD>(
+#[overseer::contextbounds(NetworkBridgeOut, prefix = self::overseer)]
+async fn handle_incoming_subsystem_communication<Context, N, AD>(
 	ctx: &mut Context,
 	mut network_service: N,
 	validator_discovery: &mut validator_discovery::Service<N, AD>,
@@ -424,30 +413,6 @@ where
 				.await;
 			return (network_service, authority_discovery_service)
 		},
-		NetworkBridgeMessage::NewGossipTopology { session, our_neighbors_x, our_neighbors_y } => {
-			gum::debug!(
-				target: LOG_TARGET,
-				action = "NewGossipTopology",
-				neighbors_x = our_neighbors_x.len(),
-				neighbors_y = our_neighbors_y.len(),
-				"Gossip topology has changed",
-			);
-
-			let gossip_peers_x =
-				update_gossip_peers_1d(&mut authority_discovery_service, our_neighbors_x).await;
-
-			let gossip_peers_y =
-				update_gossip_peers_1d(&mut authority_discovery_service, our_neighbors_y).await;
-
-			dispatch_validation_event_to_all_unbounded(
-				NetworkBridgeEvent::NewGossipTopology(NewGossipTopology {
-					session,
-					our_neighbors_x: gossip_peers_x,
-					our_neighbors_y: gossip_peers_y,
-				}),
-				ctx.sender(),
-			);
-		},
 	}
 	(network_service, authority_discovery_service)
 }
@@ -475,7 +440,7 @@ where
 }
 
 async fn handle_network_messages<AD>(
-	mut sender: impl overseer::NetworkBridgeSenderTrait,
+	mut sender: impl overseer::NetworkBridgeInSenderTrait,
 	mut network_service: impl Network,
 	network_stream: BoxStream<'static, NetworkEvent>,
 	mut authority_discovery_service: AD,
@@ -831,22 +796,154 @@ where
 /// #fn is_send<T: Send>();
 /// #is_send::<parking_lot::MutexGuard<'static, ()>();
 /// ```
-#[overseer::contextbounds(NetworkBridge, prefix = self::overseer)]
-async fn run_network<N, AD, Context>(
-	bridge: NetworkBridge<N, AD>,
-	mut ctx: Context,
-	network_stream: BoxStream<'static, NetworkEvent>,
-) -> SubsystemResult<()>
+#[overseer::contextbounds(NetworkBridgeOut, prefix = self::overseer)]
+async fn run_network_out<N, AD, Context>(
+	bridge: NetworkBridgeOut<N, AD>,
+	ctx: Context,
+	shared: Shared,
+) -> Result<(), Error>
 where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
 {
-	let shared = Shared::default();
-
-	let NetworkBridge { network_service, authority_discovery_service, metrics, sync_oracle } =
+	let NetworkBridgeOut { network_service, authority_discovery_service, metrics, sync_oracle } =
 		bridge;
 
-	let (remote, network_event_handler) = handle_network_messages(
+	handle_subsystem_messages(
+		ctx,
+		network_service,
+		authority_discovery_service,
+		shared,
+		sync_oracle,
+		metrics,
+	)
+	.await?;
+
+	Ok(())
+}
+
+#[overseer::contextbounds(NetworkBridgeIn, prefix = self::overseer)]
+async fn run_incoming_orchestra_signals<Context, N, AD>(
+	mut ctx: Context,
+	mut network_service: N,
+	mut authority_discovery_service: AD,
+	shared: Shared,
+	sync_oracle: Box<dyn SyncOracle + Send>,
+	metrics: Metrics,
+) -> Result<(), Error>
+where
+	N: Network,
+	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
+{
+	// This is kept sorted, descending, by block number.
+	let mut live_heads: Vec<ActivatedLeaf> = Vec::with_capacity(MAX_VIEW_HEADS);
+	let mut finalized_number = 0;
+
+	let mut mode = Mode::Syncing(sync_oracle);
+	loop {
+		match ctx.recv().fuse().await? {
+			FromOrchestra::Communication {
+				msg:
+					NetworkBridgeInMessage::NewGossipTopology {
+						session,
+						our_neighbors_x,
+						our_neighbors_y,
+					},
+			} => {
+				gum::debug!(
+					target: LOG_TARGET,
+					action = "NewGossipTopology",
+					neighbors_x = our_neighbors_x.len(),
+					neighbors_y = our_neighbors_y.len(),
+					"Gossip topology has changed",
+				);
+
+				let gossip_peers_x =
+					update_gossip_peers_1d(&mut authority_discovery_service, our_neighbors_x).await;
+
+				let gossip_peers_y =
+					update_gossip_peers_1d(&mut authority_discovery_service, our_neighbors_y).await;
+
+				dispatch_validation_event_to_all_unbounded(
+					NetworkBridgeEvent::NewGossipTopology(NewGossipTopology {
+						session,
+						our_neighbors_x: gossip_peers_x,
+						our_neighbors_y: gossip_peers_y,
+					}),
+					ctx.sender(),
+				);
+			},
+			FromOrchestra::Communication { msg: _ } => { /* handled by outgoing */ },
+			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(active_leaves)) => {
+				let ActiveLeavesUpdate { activated, deactivated } = active_leaves;
+				gum::trace!(
+					target: LOG_TARGET,
+					action = "ActiveLeaves",
+					has_activated = activated.is_some(),
+					num_deactivated = %deactivated.len(),
+				);
+
+				for activated in activated {
+					let pos = live_heads
+						.binary_search_by(|probe| probe.number.cmp(&activated.number).reverse())
+						.unwrap_or_else(|i| i);
+
+					live_heads.insert(pos, activated);
+				}
+				live_heads.retain(|h| !deactivated.contains(&h.hash));
+
+				// if we're done syncing, set the mode to `Mode::Active`.
+				// Otherwise, we don't need to send view updates.
+				{
+					let is_done_syncing = match mode {
+						Mode::Active => true,
+						Mode::Syncing(ref mut sync_oracle) => !sync_oracle.is_major_syncing(),
+					};
+
+					if is_done_syncing {
+						mode = Mode::Active;
+
+						update_our_view(
+							&mut network_service,
+							&mut ctx,
+							&live_heads,
+							&shared,
+							finalized_number,
+							&metrics,
+						);
+					}
+				}
+			},
+			FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
+				gum::trace!(target: LOG_TARGET, action = "BlockFinalized");
+
+				debug_assert!(finalized_number < number);
+
+				// we don't send the view updates here, but delay them until the next `ActiveLeaves`
+				// otherwise it might break assumptions of some of the subsystems
+				// that we never send the same `ActiveLeavesUpdate`
+				finalized_number = number;
+			},
+		}
+	}
+}
+
+#[overseer::contextbounds(NetworkBridgeIn, prefix = self::overseer)]
+async fn run_network_in<N, AD, Context>(
+	bridge: NetworkBridgeIn<N, AD>,
+	mut ctx: Context,
+	network_stream: BoxStream<'static, NetworkEvent>,
+	shared: Shared,
+) -> Result<(), Error>
+where
+	N: Network,
+	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
+{
+	let NetworkBridgeIn { network_service, authority_discovery_service, metrics, sync_oracle } =
+		bridge;
+
+	let (task, network_event_handler) = handle_network_messages(
 		ctx.sender().clone(),
 		network_service.clone(),
 		network_stream,
@@ -856,9 +953,10 @@ where
 	)
 	.remote_handle();
 
-	ctx.spawn("network-bridge-network-worker", Box::pin(remote))?;
+	ctx.spawn("network-bridge-in-network-worker", Box::pin(task))?;
+	futures::pin_mut!(network_event_handler);
 
-	let subsystem_event_handler = handle_subsystem_messages(
+	let orchestra_signal_handler = run_incoming_orchestra_signals(
 		ctx,
 		network_service,
 		authority_discovery_service,
@@ -867,34 +965,10 @@ where
 		metrics,
 	);
 
-	futures::pin_mut!(subsystem_event_handler);
+	futures::pin_mut!(orchestra_signal_handler);
 
-	match futures::future::select(subsystem_event_handler, network_event_handler)
-		.await
-		.factor_first()
-		.0
-	{
-		Ok(()) => Ok(()),
-		Err(Error::SubsystemError(err)) => {
-			gum::warn!(
-				target: LOG_TARGET,
-				err = ?err,
-				"Shutting down Network Bridge due to error"
-			);
-
-			Err(SubsystemError::Context(format!(
-				"Received SubsystemError from overseer: {:?}",
-				err
-			)))
-		},
-		Err(Error::EventStreamConcluded) => {
-			gum::info!(
-				target: LOG_TARGET,
-				"Shutting down Network Bridge: underlying request stream concluded"
-			);
-			Err(SubsystemError::Context("Incoming network event stream concluded.".to_string()))
-		},
-	}
+	futures::future::select(orchestra_signal_handler, network_event_handler);
+	Ok(())
 }
 
 fn construct_view(
@@ -904,7 +978,7 @@ fn construct_view(
 	View::new(live_heads.take(MAX_VIEW_HEADS), finalized_number)
 }
 
-#[overseer::contextbounds(NetworkBridge, prefix = self::overseer)]
+#[overseer::contextbounds(NetworkBridgeIn, prefix = self::overseer)]
 fn update_our_view<Net, Context>(
 	net: &mut Net,
 	ctx: &mut Context,
@@ -1040,21 +1114,21 @@ fn send_collation_message_v1(
 
 async fn dispatch_validation_event_to_all(
 	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
-	ctx: &mut impl overseer::NetworkBridgeSenderTrait,
+	ctx: &mut impl overseer::NetworkBridgeInSenderTrait,
 ) {
 	dispatch_validation_events_to_all(std::iter::once(event), ctx).await
 }
 
 async fn dispatch_collation_event_to_all(
 	event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>,
-	ctx: &mut impl overseer::NetworkBridgeSenderTrait,
+	ctx: &mut impl overseer::NetworkBridgeInSenderTrait,
 ) {
 	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
 }
 
 fn dispatch_validation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
-	sender: &mut impl overseer::NetworkBridgeSenderTrait,
+	sender: &mut impl overseer::NetworkBridgeInSenderTrait,
 ) {
 	event
 		.focus()
@@ -1080,7 +1154,7 @@ fn dispatch_validation_event_to_all_unbounded(
 
 fn dispatch_collation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>,
-	sender: &mut impl overseer::NetworkBridgeSenderTrait,
+	sender: &mut impl overseer::NetworkBridgeInSenderTrait,
 ) {
 	if let Ok(msg) = event.focus() {
 		sender.send_unbounded_message(CollatorProtocolMessage::NetworkBridgeUpdate(msg))
@@ -1089,7 +1163,7 @@ fn dispatch_collation_event_to_all_unbounded(
 
 async fn dispatch_validation_events_to_all<I>(
 	events: I,
-	sender: &mut impl overseer::NetworkBridgeSenderTrait,
+	sender: &mut impl overseer::NetworkBridgeInSenderTrait,
 ) where
 	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>>,
 	I::IntoIter: Send,
@@ -1106,7 +1180,7 @@ async fn dispatch_validation_events_to_all<I>(
 
 async fn dispatch_collation_events_to_all<I>(
 	events: I,
-	ctx: &mut impl overseer::NetworkBridgeSenderTrait,
+	ctx: &mut impl overseer::NetworkBridgeInSenderTrait,
 ) where
 	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>>,
 	I::IntoIter: Send,

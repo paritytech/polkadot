@@ -318,7 +318,36 @@ pub enum DisputeDistributionMessage {
 	SendDispute(DisputeMessage),
 }
 
-/// Messages received by the network bridge subsystem.
+/// Messages received from other subsystems.
+///
+/// A dummy.
+#[derive(Debug)]
+pub enum NetworkBridgeInMessage {
+	/// Inform the distribution subsystems about the new
+	/// gossip network topology formed.
+	///
+	/// The only reason to have this here, is the availability of the
+	/// authority discovery service, otherwise, the `GossipSupport`
+	/// subsystem would make more sense.
+	NewGossipTopology {
+		/// The session info this gossip topology is concerned with.
+		session: SessionIndex,
+		/// Ids of our neighbors in the X dimensions of the new gossip topology,
+		/// along with their validator indices within the session.
+		///
+		/// We're not necessarily connected to all of them, but we should
+		/// try to be.
+		our_neighbors_x: HashMap<AuthorityDiscoveryId, ValidatorIndex>,
+		/// Ids of our neighbors in the X dimensions of the new gossip topology,
+		/// along with their validator indices within the session.
+		///
+		/// We're not necessarily connected to all of them, but we should
+		/// try to be.
+		our_neighbors_y: HashMap<AuthorityDiscoveryId, ValidatorIndex>,
+	},
+}
+
+/// Messages received from other subsystems by the network bridge subsystem.
 #[derive(Debug)]
 pub enum NetworkBridgeMessage {
 	/// Report a peer for their actions.
@@ -375,24 +404,6 @@ pub enum NetworkBridgeMessage {
 		/// The peer set we want the connection on.
 		peer_set: PeerSet,
 	},
-	/// Inform the distribution subsystems about the new
-	/// gossip network topology formed.
-	NewGossipTopology {
-		/// The session info this gossip topology is concerned with.
-		session: SessionIndex,
-		/// Ids of our neighbors in the X dimensions of the new gossip topology,
-		/// along with their validator indices within the session.
-		///
-		/// We're not necessarily connected to all of them, but we should
-		/// try to be.
-		our_neighbors_x: HashMap<AuthorityDiscoveryId, ValidatorIndex>,
-		/// Ids of our neighbors in the X dimensions of the new gossip topology,
-		/// along with their validator indices within the session.
-		///
-		/// We're not necessarily connected to all of them, but we should
-		/// try to be.
-		our_neighbors_y: HashMap<AuthorityDiscoveryId, ValidatorIndex>,
-	},
 }
 
 impl NetworkBridgeMessage {
@@ -408,7 +419,6 @@ impl NetworkBridgeMessage {
 			Self::ConnectToValidators { .. } => None,
 			Self::ConnectToResolvedValidators { .. } => None,
 			Self::SendRequests { .. } => None,
-			Self::NewGossipTopology { .. } => None,
 		}
 	}
 }
