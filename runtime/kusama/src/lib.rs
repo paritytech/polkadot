@@ -102,15 +102,12 @@ mod bag_thresholds;
 pub mod xcm_config;
 
 // Governance configurations.
-pub mod gov_config;
-use gov_config::{
-	pallet_custom_origins, StakingAdmin, Treasurer, GeneralAdmin, AuctionAdmin, LeaseAdmin,
-	TreasurySpender,
+pub mod governance;
+use governance::{
+	StakingAdmin, Treasurer, GeneralAdmin, AuctionAdmin, LeaseAdmin, TreasurySpender,
+	FellowshipCollectiveInstance, FellowshipReferendaInstance,
 };
-
-// Old governance configurations.
-pub mod old_gov_config;
-use old_gov_config::CouncilCollective;
+use governance::old::CouncilCollective;
 
 #[cfg(test)]
 mod tests;
@@ -225,7 +222,7 @@ impl pallet_scheduler::Config for Runtime {
 	type PalletsOrigin = OriginCaller;
 	type Call = Call;
 	type MaximumWeight = MaximumSchedulerWeight;
-	type ScheduleOrigin = EnsureRoot<AccountId>; // TODO
+	type ScheduleOrigin = EnsureRoot<AccountId>;
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
 	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
 	type OriginPrivilegeCmp = OriginPrivilegeCmp;
@@ -243,7 +240,7 @@ impl pallet_preimage::Config for Runtime {
 	type WeightInfo = weights::pallet_preimage::WeightInfo<Runtime>;
 	type Event = Event;
 	type Currency = Balances;
-	type ManagerOrigin = EnsureRoot<AccountId>; // TODO
+	type ManagerOrigin = EnsureRoot<AccountId>; // This might be too strong a requirenent?
 	type MaxSize = PreimageMaxSize;
 	type BaseDeposit = PreimageBaseDeposit;
 	type ByteDeposit = PreimageByteDeposit;
@@ -1353,9 +1350,13 @@ construct_runtime! {
 
 		ConvictionVoting: pallet_conviction_voting::{Pallet, Call, Storage, Event<T>} = 20,
 		Referenda: pallet_referenda::{Pallet, Call, Storage, Event<T>} = 21,
-		Fellowship: pallet_collective::<Instance3>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 22,
-		FellowshipMembership: pallet_membership::<Instance2>::{Pallet, Call, Storage, Event<T>, Config<T>} = 23,
-		Origins: pallet_custom_origins::{Origin} = 43,
+		FellowshipCollective: pallet_ranked_collective::<FellowshipCollectiveInstance>::{
+			Pallet, Call, Storage, Event<T>
+		} = 22,
+		FellowshipReferenda: pallet_referenda::<FellowshipReferendaInstance>::{
+			Pallet, Call, Storage, Event<T>
+		} = 23,
+		Origins: governance::origins::{Origin} = 43,
 		Whitelist: pallet_whitelist::{Pallet, Call, Storage, Event<T>} = 42,
 
 		// Claims. Usable initially.
