@@ -810,11 +810,8 @@ async fn send_tracked_gossip_message<Context>(
 		"Sending gossip message"
 	);
 
-	let version = if let Some(peer_data) = state.peer_data.get(&dest) {
-		peer_data.version
-	} else {
-		return
-	};
+	let version =
+		if let Some(peer_data) = state.peer_data.get(&dest) { peer_data.version } else { return };
 
 	job_data
 		.message_sent_to_peer
