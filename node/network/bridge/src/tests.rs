@@ -1241,3 +1241,12 @@ fn our_view_updates_decreasing_order_and_limited_to_max() {
 		virtual_overseer
 	});
 }
+
+// TODO [now]: test that vstaging peers are accepted.
+
+// TODO [now]: test that vstaging peers are sent view update wire messages with the
+// vstaging format.
+
+// TODO [now]: check that v2 messages are sent to the correct subsystem.
+
+// TODO [now]: check that `send_validation_message_vstaging` and `send_collation_message_vstaging` work correctly.
