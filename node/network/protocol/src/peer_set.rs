@@ -16,7 +16,7 @@
 
 //! All peersets and protocols used for parachains.
 
-use super::ProtocolVersion;
+use super::{v1 as protocol_v1, vstaging as protocol_vstaging, ProtocolVersion};
 use sc_network::config::{NonDefaultSetConfig, SetConfig};
 use std::{
 	borrow::Cow,
@@ -27,6 +27,9 @@ use strum::{EnumIter, IntoEnumIterator};
 // Only supported protocol versions should be defined here.
 const VALIDATION_PROTOCOL_V1: &str = "/polkadot/validation/1";
 const COLLATION_PROTOCOL_V1: &str = "/polkadot/collation/1";
+
+const VALIDATION_PROTOCOL_VSTAGING: &str = "/polkadot/validation/2";
+const COLLATION_PROTOCOL_VSTAGING: &str = "/polkadot/collation/2";
 
 /// The default validation protocol version.
 pub const DEFAULT_VALIDATION_PROTOCOL_VERSION: ProtocolVersion = 1;
@@ -67,6 +70,8 @@ impl PeerSet {
 			.expect("default version always has protocol name; qed");
 		let max_notification_size = 100 * 1024;
 
+		// TODO [now] if a feature flag is set, use the vstaging
+		// protocol version as default.
 		match self {
 			PeerSet::Validation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
@@ -122,8 +127,14 @@ impl PeerSet {
 	/// and the given version, if any, as static str.
 	pub const fn get_protocol_name_static(self, version: ProtocolVersion) -> Option<&'static str> {
 		match (self, version) {
+			// v1
 			(PeerSet::Validation, 1) => Some(VALIDATION_PROTOCOL_V1),
 			(PeerSet::Collation, 1) => Some(COLLATION_PROTOCOL_V1),
+
+			// vstaging
+			(PeerSet::Validation, 2) => Some(VALIDATION_PROTOCOL_VSTAGING),
+			(PeerSet::Collation, 2) => Some(COLLATION_PROTOCOL_VSTAGING),
+
 			_ => None,
 		}
 	}
@@ -144,8 +155,16 @@ impl PeerSet {
 	/// This only succeeds on supported versions.
 	pub fn try_from_protocol_name(name: &Cow<'static, str>) -> Option<(PeerSet, ProtocolVersion)> {
 		match name {
-			n if n == VALIDATION_PROTOCOL_V1 => Some((PeerSet::Validation, 1)),
-			n if n == COLLATION_PROTOCOL_V1 => Some((PeerSet::Collation, 1)),
+			// v1
+			n if n == VALIDATION_PROTOCOL_V1 => Some((PeerSet::Validation, protocol_v1::VERSION)),
+			n if n == COLLATION_PROTOCOL_V1 => Some((PeerSet::Collation, protocol_v1::VERSION)),
+
+			// vstaging
+			n if n == VALIDATION_PROTOCOL_VSTAGING =>
+				Some((PeerSet::Validation, protocol_vstaging::VERSION)),
+			n if n == COLLATION_PROTOCOL_VSTAGING =>
+				Some((PeerSet::Collation, protocol_vstaging::VERSION)),
+
 			_ => None,
 		}
 	}

@@ -30,8 +30,8 @@ use sp_consensus::SyncOracle;
 use polkadot_node_network_protocol::{
 	self as net_protocol,
 	peer_set::{PeerSet, PerPeerSet},
-	v1 as protocol_v1, ObservedRole, OurView, PeerId, ProtocolVersion,
-	UnifiedReputationChange as Rep, Versioned, View,
+	v1 as protocol_v1, vstaging as protocol_vstaging, ObservedRole, OurView, PeerId,
+	ProtocolVersion, UnifiedReputationChange as Rep, Versioned, View,
 };
 
 use polkadot_node_subsystem::{
@@ -302,6 +302,12 @@ where
 								WireMessage::ProtocolMessage(msg),
 								&metrics,
 							),
+							Versioned::VStaging(msg) => send_validation_message_vstaging(
+								&mut network_service,
+								peers,
+								WireMessage::ProtocolMessage(msg),
+								&metrics,
+							),
 						}
 					}
 					NetworkBridgeMessage::SendValidationMessages(msgs) => {
@@ -314,6 +320,12 @@ where
 						for (peers, msg) in msgs {
 							match msg {
 								Versioned::V1(msg) => send_validation_message_v1(
+									&mut network_service,
+									peers,
+									WireMessage::ProtocolMessage(msg),
+									&metrics,
+								),
+								Versioned::VStaging(msg) => send_validation_message_vstaging(
 									&mut network_service,
 									peers,
 									WireMessage::ProtocolMessage(msg),
@@ -336,6 +348,12 @@ where
 								WireMessage::ProtocolMessage(msg),
 								&metrics,
 							),
+							Versioned::VStaging(msg) => send_collation_message_vstaging(
+								&mut network_service,
+								peers,
+								WireMessage::ProtocolMessage(msg),
+								&metrics,
+							),
 						}
 					}
 					NetworkBridgeMessage::SendCollationMessages(msgs) => {
@@ -348,6 +366,12 @@ where
 						for (peers, msg) in msgs {
 							match msg {
 								Versioned::V1(msg) => send_collation_message_v1(
+									&mut network_service,
+									peers,
+									WireMessage::ProtocolMessage(msg),
+									&metrics,
+								),
+								Versioned::VStaging(msg) => send_collation_message_vstaging(
 									&mut network_service,
 									peers,
 									WireMessage::ProtocolMessage(msg),
@@ -581,7 +605,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 								NetworkBridgeEvent::PeerConnected(
 									peer.clone(),
 									role,
-									1,
+									version,
 									maybe_authority,
 								),
 								NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
@@ -590,14 +614,25 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 						)
 						.await;
 
-						send_message(
-							&mut network_service,
-							vec![peer],
-							PeerSet::Validation,
-							version,
-							WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(local_view),
-							&metrics,
-						);
+						match version {
+							x if x == protocol_v1::VERSION => send_message(
+								&mut network_service,
+								vec![peer],
+								PeerSet::Validation,
+								version,
+								WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(local_view),
+								&metrics,
+							),
+							x if x == protocol_vstaging::VERSION => send_message(
+								&mut network_service,
+								vec![peer],
+								PeerSet::Validation,
+								version,
+								WireMessage::<protocol_vstaging::ValidationProtocol>::ViewUpdate(local_view),
+								&metrics,
+							),
+							_ => unreachable!("version has just been checked to fall into the allowable categories; qed"),
+						}
 					},
 					PeerSet::Collation => {
 						dispatch_collation_events_to_all(
@@ -605,7 +640,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 								NetworkBridgeEvent::PeerConnected(
 									peer.clone(),
 									role,
-									1,
+									version,
 									maybe_authority,
 								),
 								NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
@@ -614,14 +649,25 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 						)
 						.await;
 
-						send_message(
-							&mut network_service,
-							vec![peer],
-							PeerSet::Collation,
-							version,
-							WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(local_view),
-							&metrics,
-						);
+						match version {
+							x if x == protocol_v1::VERSION => send_message(
+								&mut network_service,
+								vec![peer],
+								PeerSet::Collation,
+								version,
+								WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(local_view),
+								&metrics,
+							),
+							x if x == protocol_vstaging::VERSION => send_message(
+								&mut network_service,
+								vec![peer],
+								PeerSet::Collation,
+								version,
+								WireMessage::<protocol_vstaging::CollationProtocol>::ViewUpdate(local_view),
+								&metrics,
+							),
+							_ => unreachable!("version has just been checked to fall into the allowable categories; qed"),
+						}
 					},
 				}
 			},
@@ -758,7 +804,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 
 				if !v_messages.is_empty() {
 					let (events, reports) =
-						if expected_versions[PeerSet::Validation] == Some(1) {
+						if expected_versions[PeerSet::Validation] == Some(protocol_v1::VERSION) {
 							handle_v1_peer_messages::<protocol_v1::ValidationProtocol, _>(
 								remote.clone(),
 								PeerSet::Validation,
@@ -766,6 +812,11 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 								v_messages,
 								&metrics,
 							)
+						} else if expected_versions[PeerSet::Validation] ==
+							Some(protocol_vstaging::VERSION)
+						{
+							// TODO [now]
+							unimplemented!()
 						} else {
 							gum::warn!(
 								target: LOG_TARGET,
@@ -773,7 +824,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 								"Major logic bug. Peer somehow has unsupported validation protocol version."
 							);
 
-							never!("Only version 1 is supported; peer set connection checked above; qed");
+							never!("Only versions 1 and 2 are supported; peer set connection checked above; qed");
 
 							// If a peer somehow triggers this, we'll disconnect them
 							// eventually.
@@ -789,7 +840,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 
 				if !c_messages.is_empty() {
 					let (events, reports) =
-						if expected_versions[PeerSet::Collation] == Some(1) {
+						if expected_versions[PeerSet::Collation] == Some(protocol_v1::VERSION) {
 							handle_v1_peer_messages::<protocol_v1::CollationProtocol, _>(
 								remote.clone(),
 								PeerSet::Collation,
@@ -797,6 +848,11 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 								c_messages,
 								&metrics,
 							)
+						} else if expected_versions[PeerSet::Collation] ==
+							Some(protocol_vstaging::VERSION)
+						{
+							// TODO [now]
+							unimplemented!()
 						} else {
 							gum::warn!(
 								target: LOG_TARGET,
@@ -804,7 +860,7 @@ async fn handle_network_messages<AD: validator_discovery::AuthorityDiscovery>(
 								"Major logic bug. Peer somehow has unsupported collation protocol version."
 							);
 
-							never!("Only version 1 is supported; peer set connection checked above; qed");
+							never!("Only versions 1 and 2 are supported; peer set connection checked above; qed");
 
 							// If a peer somehow triggers this, we'll disconnect them
 							// eventually.
@@ -939,19 +995,61 @@ fn update_our_view<Net, Context>(
 		}
 
 		(
-			shared.validation_peers.keys().cloned().collect::<Vec<_>>(),
-			shared.collation_peers.keys().cloned().collect::<Vec<_>>(),
+			shared
+				.validation_peers
+				.iter()
+				.map(|(peer_id, data)| (peer_id.clone(), data.version))
+				.collect::<Vec<_>>(),
+			shared
+				.collation_peers
+				.iter()
+				.map(|(peer_id, data)| (peer_id.clone(), data.version))
+				.collect::<Vec<_>>(),
 		)
 	};
 
+	let filter_by_version = |peers: &[(PeerId, ProtocolVersion)], version| {
+		peers
+			.iter()
+			.filter(|(_, v)| v == &version)
+			.map(|(p, _)| p.clone())
+			.collect::<Vec<_>>()
+	};
+
+	let v1_validation_peers = filter_by_version(&validation_peers, protocol_v1::VERSION);
+	let v1_collation_peers = filter_by_version(&collation_peers, protocol_v1::VERSION);
+
+	let vstaging_validation_peers =
+		filter_by_version(&validation_peers, protocol_vstaging::VERSION);
+	let vstaging_collation_peers = filter_by_version(&collation_peers, protocol_vstaging::VERSION);
+
 	send_validation_message_v1(
 		net,
-		validation_peers,
+		v1_validation_peers,
 		WireMessage::ViewUpdate(new_view.clone()),
 		metrics,
 	);
 
-	send_collation_message_v1(net, collation_peers, WireMessage::ViewUpdate(new_view), metrics);
+	send_validation_message_vstaging(
+		net,
+		vstaging_validation_peers,
+		WireMessage::ViewUpdate(new_view.clone()),
+		metrics,
+	);
+
+	send_collation_message_v1(
+		net,
+		v1_collation_peers,
+		WireMessage::ViewUpdate(new_view.clone()),
+		metrics,
+	);
+
+	send_collation_message_vstaging(
+		net,
+		vstaging_collation_peers,
+		WireMessage::ViewUpdate(new_view),
+		metrics,
+	);
 
 	let our_view = OurView::new(
 		live_heads.iter().take(MAX_VIEW_HEADS).cloned().map(|a| (a.hash, a.span)),
@@ -1028,7 +1126,7 @@ fn send_validation_message_v1(
 	message: WireMessage<protocol_v1::ValidationProtocol>,
 	metrics: &Metrics,
 ) {
-	send_message(net, peers, PeerSet::Validation, 1, message, metrics);
+	send_message(net, peers, PeerSet::Validation, protocol_v1::VERSION, message, metrics);
 }
 
 fn send_collation_message_v1(
@@ -1037,7 +1135,25 @@ fn send_collation_message_v1(
 	message: WireMessage<protocol_v1::CollationProtocol>,
 	metrics: &Metrics,
 ) {
-	send_message(net, peers, PeerSet::Collation, 1, message, metrics)
+	send_message(net, peers, PeerSet::Collation, protocol_v1::VERSION, message, metrics)
+}
+
+fn send_validation_message_vstaging(
+	net: &mut impl Network,
+	peers: Vec<PeerId>,
+	message: WireMessage<protocol_vstaging::ValidationProtocol>,
+	metrics: &Metrics,
+) {
+	send_message(net, peers, PeerSet::Validation, protocol_vstaging::VERSION, message, metrics);
+}
+
+fn send_collation_message_vstaging(
+	net: &mut impl Network,
+	peers: Vec<PeerId>,
+	message: WireMessage<protocol_vstaging::CollationProtocol>,
+	metrics: &Metrics,
+) {
+	send_message(net, peers, PeerSet::Collation, protocol_vstaging::VERSION, message, metrics)
 }
 
 async fn dispatch_validation_event_to_all(
