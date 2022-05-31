@@ -1,22 +1,23 @@
 [package]
 name = "rococo-runtime"
-version = "0.9.18"
+version = "0.9.23"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 build = "build.rs"
 
 [dependencies]
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { version = "2.0.0", default-features = false, features = ["derive"] }
-serde = { version = "1.0.136", default-features = false }
+scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
+serde = { version = "1.0.137", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 smallvec = "1.8.0"
-log = { version = "0.4.16", default-features = false }
+log = { version = "0.4.17", default-features = false }
 
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -44,7 +45,6 @@ pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -118,7 +118,6 @@ std = [
 	"pallet-sudo/std",
 	"pallet-membership/std",
 	"pallet-mmr/std",
-	"pallet-mmr-primitives/std",
 	"pallet-indices/std",
 	"pallet-im-online/std",
 	"pallet-session/std",
@@ -137,6 +136,7 @@ std = [
 	"sp-api/std",
 	"sp-core/std",
 	"sp-io/std",
+	"sp-mmr-primitives/std",
 	"sp-runtime/std",
 	"sp-session/std",
 	"sp-staking/std",

@@ -27,10 +27,10 @@ jobs:
         runtime: ["polkadot", "kusama", "westend", "rococo"]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Cache target dir
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: "${{ github.workspace }}/runtime/${{ matrix.runtime }}/target"
           key: srtool-target-${{ matrix.runtime }}-${{ github.sha }}
@@ -40,9 +40,9 @@ jobs:
 
       - name: Build ${{ matrix.runtime }} runtime
         id: srtool_build
-        uses: chevdor/srtool-actions@v0.3.0
+        uses: chevdor/srtool-actions@v0.4.0
         with:
-          # This is the default with chevdor/srtool-actions@v0.3.0 but we make it clear
+          # This is the default with chevdor/srtool-actions@v0.3.0+ but we make it clear
           image: paritytech/srtool
           chain: ${{ matrix.runtime }}
 
@@ -51,13 +51,13 @@ jobs:
           echo '${{ steps.srtool_build.outputs.json }}' | jq > ${{ matrix.runtime }}_srtool_output.json
 
       - name: Upload ${{ matrix.runtime }} srtool json
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.runtime }}-srtool-json
           path: ${{ matrix.runtime }}_srtool_output.json
 
       - name: Upload ${{ matrix.runtime }} runtime
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.runtime }}-runtime
           path: |
@@ -71,7 +71,7 @@ jobs:
       asset_upload_url: ${{ steps.create-release.outputs.upload_url }}
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
           path: polkadot
@@ -82,11 +82,11 @@ jobs:
           ruby-version: 3.0.0
 
       - name: Download srtool json output
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
 
       - name: Prepare tooling
         run: |
-          cd polkadot/scripts/changelog
+          cd polkadot/scripts/ci/changelog
           gem install bundler changelogerator:0.9.1
           bundle install
           changelogerator --help
@@ -115,18 +115,18 @@ jobs:
           ls -al $KUSAMA_DIGEST
           ls -al $POLKADOT_DIGEST
 
-          cd polkadot/scripts/changelog
+          cd polkadot/scripts/ci/changelog
 
           ./bin/changelog ${GITHUB_REF}
           ls -al release-notes.md
           ls -al context.json
 
       - name: Archive artifact context.json
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: release-notes-context
           path: |
-            polkadot/scripts/changelog/context.json
+            polkadot/scripts/ci/changelog/context.json
             **/*_srtool_output.json
 
       - name: Create draft release
@@ -137,7 +137,7 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           release_name: Polkadot ${{ github.ref }}
-          body_path: ./polkadot/scripts/changelog/release-notes.md
+          body_path: ./polkadot/scripts/ci/changelog/release-notes.md
           draft: true
 
   publish-runtimes:
@@ -150,17 +150,17 @@ jobs:
         runtime: ["polkadot", "kusama", "westend", "rococo"]
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Download artifacts
-        uses: actions/download-artifact@v2
-      - name: Set up Ruby 2.7
+        uses: actions/download-artifact@v3
+      - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: 3.0.0
       - name: Get runtime version
         id: get-runtime-ver
         run: |
-          echo "require './scripts/github/lib.rb'" > script.rb
+          echo "require './scripts/ci/github/lib.rb'" > script.rb
           echo "puts get_runtime(runtime: \"${{ matrix.runtime }}\", runtime_dir: \"$RUNTIME_DIR\")" >> script.rb
 
           echo "Current folder: $PWD"

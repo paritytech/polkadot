@@ -33,16 +33,15 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v2::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
-	ScrapedOnChainVotes, SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
-	ValidatorIndex, ValidatorSignature,
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
+	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionInfo, Signature,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, impl_runtime_weights, impls::ToAuthor, paras_registrar,
@@ -51,6 +50,7 @@ use runtime_common::{
 use runtime_parachains::{self, runtime_api_impl::v2 as runtime_api_impl};
 use scale_info::TypeInfo;
 use sp_core::{OpaqueMetadata, RuntimeDebug, H256};
+use sp_mmr_primitives as mmr;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
@@ -95,11 +95,12 @@ impl_runtime_weights!(rococo_runtime_constants);
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 /// Runtime version (Rococo).
+#[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v2.0"),
 	authoring_version: 0,
-	spec_version: 9180,
+	spec_version: 9230,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -459,9 +460,9 @@ parameter_types! {
 
 impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = CurrencyAdapter<Balances, ToAuthor<Runtime>>;
-	type TransactionByteFee = TransactionByteFee;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
+	type LengthToFee = frame_support::weights::ConstantMultiplier<Balance, TransactionByteFee>;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
 
@@ -602,7 +603,9 @@ impl parachains_paras::Config for Runtime {
 	type NextSessionRotation = Babe;
 }
 
-impl parachains_session_info::Config for Runtime {}
+impl parachains_session_info::Config for Runtime {
+	type ValidatorSet = Historical;
+}
 
 parameter_types! {
 	pub const FirstMessageFactorPercent: u64 = 100;
@@ -1099,6 +1102,8 @@ mod benches {
 	);
 }
 
+pub type MmrHashing = <Runtime as pallet_mmr::Config>::Hashing;
+
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
@@ -1158,7 +1163,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl primitives::v2::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+	impl primitives::runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			runtime_api_impl::validators::<Runtime>()
 		}
@@ -1251,6 +1256,10 @@ sp_api::impl_runtime_apis! {
 			-> Option<ValidationCodeHash>
 		{
 			runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
+		}
+
+		fn staging_get_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
+			unimplemented!()
 		}
 	}
 
@@ -1367,26 +1376,26 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_mmr_primitives::MmrApi<Block, Hash> for Runtime {
+	impl mmr::MmrApi<Block, Hash> for Runtime {
 		fn generate_proof(leaf_index: u64)
 			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
 		{
-			Mmr::generate_proof(leaf_index)
-				.map(|(leaf, proof)| (mmr::EncodableOpaqueLeaf::from_leaf(&leaf), proof))
+			Mmr::generate_batch_proof(vec![leaf_index])
+				.and_then(|(leaves, proof)| Ok((
+					mmr::EncodableOpaqueLeaf::from_leaf(&leaves[0]),
+					mmr::BatchProof::into_single_leaf_proof(proof)?
+				)))
 		}
 
 		fn verify_proof(leaf: mmr::EncodableOpaqueLeaf, proof: mmr::Proof<Hash>)
 			-> Result<(), mmr::Error>
 		{
-			pub type Leaf = <
-				<Runtime as pallet_mmr::Config>::LeafData as mmr::LeafDataProvider
-			>::LeafData;
-
-			let leaf: Leaf = leaf
+			pub type MmrLeaf = <<Runtime as pallet_mmr::Config>::LeafData as mmr::LeafDataProvider>::LeafData;
+			let leaf: MmrLeaf = leaf
 				.into_opaque_leaf()
 				.try_decode()
 				.ok_or(mmr::Error::Verify)?;
-			Mmr::verify_leaf(leaf, proof)
+			Mmr::verify_leaves(vec![leaf], mmr::Proof::into_batch_proof(proof))
 		}
 
 		fn verify_proof_stateless(
@@ -1394,9 +1403,39 @@ sp_api::impl_runtime_apis! {
 			leaf: mmr::EncodableOpaqueLeaf,
 			proof: mmr::Proof<Hash>
 		) -> Result<(), mmr::Error> {
-			type MmrHashing = <Runtime as pallet_mmr::Config>::Hashing;
 			let node = mmr::DataOrHash::Data(leaf.into_opaque_leaf());
-			pallet_mmr::verify_leaf_proof::<MmrHashing, _>(root, node, proof)
+			pallet_mmr::verify_leaves_proof::<MmrHashing, _>(root, vec![node], mmr::Proof::into_batch_proof(proof))
+		}
+
+		fn mmr_root() -> Result<Hash, mmr::Error> {
+			Ok(Mmr::mmr_root())
+		}
+
+		fn generate_batch_proof(leaf_indices: Vec<mmr::LeafIndex>)
+			-> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error>
+		{
+			Mmr::generate_batch_proof(leaf_indices)
+				.map(|(leaves, proof)| (leaves.into_iter().map(|leaf| mmr::EncodableOpaqueLeaf::from_leaf(&leaf)).collect(), proof))
+		}
+
+		fn verify_batch_proof(leaves: Vec<mmr::EncodableOpaqueLeaf>, proof: mmr::BatchProof<Hash>)
+			-> Result<(), mmr::Error>
+		{
+			pub type MmrLeaf = <<Runtime as pallet_mmr::Config>::LeafData as mmr::LeafDataProvider>::LeafData;
+			let leaves = leaves.into_iter().map(|leaf|
+				leaf.into_opaque_leaf()
+				.try_decode()
+				.ok_or(mmr::Error::Verify)).collect::<Result<Vec<MmrLeaf>, mmr::Error>>()?;
+			Mmr::verify_leaves(leaves, proof)
+		}
+
+		fn verify_batch_proof_stateless(
+			root: Hash,
+			leaves: Vec<mmr::EncodableOpaqueLeaf>,
+			proof: mmr::BatchProof<Hash>
+		) -> Result<(), mmr::Error> {
+			let nodes = leaves.into_iter().map(|leaf|mmr::DataOrHash::Data(leaf.into_opaque_leaf())).collect();
+			pallet_mmr::verify_leaves_proof::<MmrHashing, _>(root, nodes, proof)
 		}
 	}
 

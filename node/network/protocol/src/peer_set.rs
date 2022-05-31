@@ -16,12 +16,23 @@
 
 //! All peersets and protocols used for parachains.
 
+use super::ProtocolVersion;
 use sc_network::config::{NonDefaultSetConfig, SetConfig};
 use std::{
 	borrow::Cow,
 	ops::{Index, IndexMut},
 };
 use strum::{EnumIter, IntoEnumIterator};
+
+// Only supported protocol versions should be defined here.
+const VALIDATION_PROTOCOL_V1: &str = "/polkadot/validation/1";
+const COLLATION_PROTOCOL_V1: &str = "/polkadot/collation/1";
+
+/// The default validation protocol version.
+pub const DEFAULT_VALIDATION_PROTOCOL_VERSION: ProtocolVersion = 1;
+
+/// The default collation protocol version.
+pub const DEFAULT_COLLATION_PROTOCOL_VERSION: ProtocolVersion = 1;
 
 /// The peer-sets and thus the protocols which are used for the network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
@@ -45,12 +56,15 @@ pub enum IsAuthority {
 }
 
 impl PeerSet {
-	/// Get `sc_network` peer set configurations for each peerset.
+	/// Get `sc_network` peer set configurations for each peerset on the default version.
 	///
 	/// Those should be used in the network configuration to register the protocols with the
 	/// network service.
 	pub fn get_info(self, is_authority: IsAuthority) -> NonDefaultSetConfig {
-		let protocol = self.into_protocol_name();
+		let version = self.get_default_version();
+		let protocol = self
+			.into_protocol_name(version)
+			.expect("default version always has protocol name; qed");
 		let max_notification_size = 100 * 1024;
 
 		match self {
@@ -88,24 +102,50 @@ impl PeerSet {
 		}
 	}
 
-	/// Get the protocol name associated with each peer set as static str.
-	pub const fn get_protocol_name_static(self) -> &'static str {
+	/// Get the default protocol version for this peer set.
+	pub const fn get_default_version(self) -> ProtocolVersion {
 		match self {
-			PeerSet::Validation => "/polkadot/validation/1",
-			PeerSet::Collation => "/polkadot/collation/1",
+			PeerSet::Validation => DEFAULT_VALIDATION_PROTOCOL_VERSION,
+			PeerSet::Collation => DEFAULT_COLLATION_PROTOCOL_VERSION,
 		}
 	}
 
-	/// Convert a peer set into a protocol name as understood by Substrate.
-	pub fn into_protocol_name(self) -> Cow<'static, str> {
-		self.get_protocol_name_static().into()
+	/// Get the default protocol name as a static str.
+	pub const fn get_default_protocol_name(self) -> &'static str {
+		match self {
+			PeerSet::Validation => VALIDATION_PROTOCOL_V1,
+			PeerSet::Collation => COLLATION_PROTOCOL_V1,
+		}
 	}
 
-	/// Try parsing a protocol name into a peer set.
-	pub fn try_from_protocol_name(name: &Cow<'static, str>) -> Option<PeerSet> {
+	/// Get the protocol name associated with each peer set
+	/// and the given version, if any, as static str.
+	pub const fn get_protocol_name_static(self, version: ProtocolVersion) -> Option<&'static str> {
+		match (self, version) {
+			(PeerSet::Validation, 1) => Some(VALIDATION_PROTOCOL_V1),
+			(PeerSet::Collation, 1) => Some(COLLATION_PROTOCOL_V1),
+			_ => None,
+		}
+	}
+
+	/// Get the protocol name associated with each peer set as understood by Substrate.
+	pub fn into_default_protocol_name(self) -> Cow<'static, str> {
+		self.get_default_protocol_name().into()
+	}
+
+	/// Convert a peer set and the given version into a protocol name, if any,
+	/// as understood by Substrate.
+	pub fn into_protocol_name(self, version: ProtocolVersion) -> Option<Cow<'static, str>> {
+		self.get_protocol_name_static(version).map(|n| n.into())
+	}
+
+	/// Try parsing a protocol name into a peer set and protocol version.
+	///
+	/// This only succeeds on supported versions.
+	pub fn try_from_protocol_name(name: &Cow<'static, str>) -> Option<(PeerSet, ProtocolVersion)> {
 		match name {
-			n if n == &PeerSet::Validation.into_protocol_name() => Some(PeerSet::Validation),
-			n if n == &PeerSet::Collation.into_protocol_name() => Some(PeerSet::Collation),
+			n if n == VALIDATION_PROTOCOL_V1 => Some((PeerSet::Validation, 1)),
+			n if n == COLLATION_PROTOCOL_V1 => Some((PeerSet::Collation, 1)),
 			_ => None,
 		}
 	}
@@ -137,7 +177,7 @@ impl<T> IndexMut<PeerSet> for PerPeerSet<T> {
 	}
 }
 
-/// Get `NonDefaultSetConfig`s for all available peer sets.
+/// Get `NonDefaultSetConfig`s for all available peer sets, at their default versions.
 ///
 /// Should be used during network configuration (added to [`NetworkConfiguration::extra_sets`])
 /// or shortly after startup to register the protocols with the network service.

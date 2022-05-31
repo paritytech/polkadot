@@ -40,19 +40,20 @@ use sp_application_crypto::{AppKey, ByteArray};
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_network_protocol::{
-	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, v1::GossipSuppportNetworkMessage,
-	PeerId,
+	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, GossipSupportNetworkMessage,
+	PeerId, Versioned,
 };
 use polkadot_node_subsystem::{
 	messages::{
 		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage, RuntimeApiMessage,
 		RuntimeApiRequest,
 	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError, SubsystemSender,
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash, SessionIndex};
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, Hash, SessionIndex, SessionInfo, ValidatorIndex,
+};
 
 #[cfg(test)]
 mod tests;
@@ -113,6 +114,7 @@ pub struct GossipSupport<AD> {
 	metrics: Metrics,
 }
 
+#[overseer::contextbounds(GossipSupport, prefix = self::overseer)]
 impl<AD> GossipSupport<AD>
 where
 	AD: AuthorityDiscovery,
@@ -136,11 +138,7 @@ where
 		}
 	}
 
-	async fn run<Context>(mut self, mut ctx: Context) -> Self
-	where
-		Context: SubsystemContext<Message = GossipSupportMessage>,
-		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
-	{
+	async fn run<Context>(mut self, mut ctx: Context) -> Self {
 		fn get_connectivity_check_delay() -> Delay {
 			Delay::new(LOW_CONNECTIVITY_WARN_DELAY)
 		}
@@ -166,22 +164,22 @@ where
 					}
 			);
 			match message {
-				FromOverseer::Communication {
-					msg: GossipSupportMessage::NetworkBridgeUpdateV1(ev),
+				FromOrchestra::Communication {
+					msg: GossipSupportMessage::NetworkBridgeUpdate(ev),
 				} => self.handle_connect_disconnect(ev),
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated,
 					..
 				})) => {
 					gum::trace!(target: LOG_TARGET, "active leaves signal");
 
 					let leaves = activated.into_iter().map(|a| a.hash);
-					if let Err(e) = self.handle_active_leaves(&mut ctx, leaves).await {
+					if let Err(e) = self.handle_active_leaves(ctx.sender(), leaves).await {
 						gum::debug!(target: LOG_TARGET, error = ?e);
 					}
 				},
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, _number)) => {},
-				FromOverseer::Signal(OverseerSignal::Conclude) => return self,
+				FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, _number)) => {},
+				FromOrchestra::Signal(OverseerSignal::Conclude) => return self,
 			}
 		}
 	}
@@ -189,18 +187,13 @@ where
 	/// 1. Determine if the current session index has changed.
 	/// 2. If it has, determine relevant validators
 	///    and issue a connection request.
-	async fn handle_active_leaves<Context>(
+	async fn handle_active_leaves(
 		&mut self,
-		ctx: &mut Context,
+		sender: &mut impl overseer::GossipSupportSenderTrait,
 		leaves: impl Iterator<Item = Hash>,
-	) -> Result<(), util::Error>
-	where
-		Context: SubsystemContext<Message = GossipSupportMessage>,
-		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
-	{
+	) -> Result<(), util::Error> {
 		for leaf in leaves {
-			let current_index =
-				util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
+			let current_index = util::request_session_index_for_child(leaf, sender).await.await??;
 			let since_failure = self.last_failure.map(|i| i.elapsed()).unwrap_or_default();
 			let force_request = since_failure >= BACKOFF_DURATION;
 			let leaf_session = Some((current_index, leaf));
@@ -213,6 +206,24 @@ where
 				if force_request { leaf_session } else { maybe_new_session };
 
 			if let Some((session_index, relay_parent)) = maybe_issue_connection {
+				let session_info =
+					util::request_session_info(leaf, session_index, sender).await.await??;
+
+				let session_info = match session_info {
+					Some(s) => s,
+					None => {
+						gum::warn!(
+							relay_parent = ?leaf,
+							session_index = self.last_session_index,
+							"Failed to get session info.",
+						);
+
+						continue
+					},
+				};
+
+				// Note: we only update `last_session_index` once we've
+				// successfully gotten the `SessionInfo`.
 				let is_new_session = maybe_new_session.is_some();
 				if is_new_session {
 					gum::debug!(
@@ -223,45 +234,52 @@ where
 					self.last_session_index = Some(session_index);
 				}
 
-				let all_authorities = determine_relevant_authorities(ctx, relay_parent).await?;
-				let our_index = ensure_i_am_an_authority(&self.keystore, &all_authorities).await?;
-				let other_authorities = {
-					let mut authorities = all_authorities.clone();
-					authorities.swap_remove(our_index);
-					authorities
-				};
+				// Connect to authorities from the past/present/future.
+				//
+				// This is maybe not the right place for this logic to live,
+				// but at the moment we're limited by the network bridge's ability
+				// to handle connection requests (it only allows one, globally).
+				//
+				// Certain network protocols - mostly req/res, but some gossip,
+				// will require being connected to past/future validators as well
+				// as current. That is, the old authority sets are not made obsolete
+				// by virtue of a new session being entered. Therefore we maintain
+				// connections to a much broader set of validators.
+				{
+					let mut connections = authorities_past_present_future(sender, leaf).await?;
 
-				self.issue_connection_request(ctx, other_authorities).await;
+					// Remove all of our locally controlled validator indices so we don't connect to ourself.
+					// If we control none of them, don't issue connection requests - we're outside
+					// of the 'clique' of recent validators.
+					if remove_all_controlled(&self.keystore, &mut connections).await != 0 {
+						self.issue_connection_request(sender, connections).await;
+					}
+				}
+
+				// Gossip topology is only relevant for authorities in the current session.
+				let our_index =
+					ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys).await?;
 
 				if is_new_session {
-					update_gossip_topology(ctx, our_index, all_authorities, relay_parent).await?;
-					self.update_authority_status_metrics(leaf, ctx.sender()).await?;
+					self.update_authority_status_metrics(&session_info).await;
+
+					update_gossip_topology(
+						sender,
+						our_index,
+						session_info.discovery_keys,
+						relay_parent,
+						session_index,
+					)
+					.await?;
 				}
 			}
 		}
 		Ok(())
 	}
 
-	async fn update_authority_status_metrics(
-		&mut self,
-		leaf: Hash,
-		sender: &mut impl SubsystemSender,
-	) -> Result<(), util::Error> {
-		if let Some(session_info) = util::request_session_info(
-			leaf,
-			self.last_session_index
-				.expect("Last session index is always set on every session index change"),
-			sender,
-		)
-		.await
-		.await??
-		{
-			let maybe_index = match ensure_i_am_an_authority(
-				&self.keystore,
-				&session_info.discovery_keys,
-			)
-			.await
-			{
+	async fn update_authority_status_metrics(&mut self, session_info: &SessionInfo) {
+		let maybe_index =
+			match ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys).await {
 				Ok(index) => {
 					self.metrics.on_is_authority();
 					Some(index)
@@ -275,30 +293,27 @@ where
 				Err(_) => None,
 			};
 
-			if let Some(validator_index) = maybe_index {
-				// The subset of authorities participating in parachain consensus.
-				let parachain_validators_this_session = session_info.validators;
+		if let Some(validator_index) = maybe_index {
+			// The subset of authorities participating in parachain consensus.
+			let parachain_validators_this_session = session_info.validators.len();
 
-				// First `maxValidators` entries are the parachain validators. We'll check
-				// if our index is in this set to avoid searching for the keys.
-				// https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148
-				if validator_index < parachain_validators_this_session.len() {
-					self.metrics.on_is_parachain_validator();
-				} else {
-					self.metrics.on_is_not_parachain_validator();
-				}
+			// First `maxValidators` entries are the parachain validators. We'll check
+			// if our index is in this set to avoid searching for the keys.
+			// https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148
+			if validator_index < parachain_validators_this_session {
+				self.metrics.on_is_parachain_validator();
+			} else {
+				self.metrics.on_is_not_parachain_validator();
 			}
 		}
-		Ok(())
 	}
 
-	async fn issue_connection_request<Context>(
+	async fn issue_connection_request<Sender>(
 		&mut self,
-		ctx: &mut Context,
+		sender: &mut Sender,
 		authorities: Vec<AuthorityDiscoveryId>,
 	) where
-		Context: SubsystemContext<Message = GossipSupportMessage>,
-		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
+		Sender: overseer::GossipSupportSenderTrait,
 	{
 		let num = authorities.len();
 		let mut validator_addrs = Vec::with_capacity(authorities.len());
@@ -322,11 +337,12 @@ where
 		self.resolved_authorities = resolved;
 		gum::debug!(target: LOG_TARGET, %num, "Issuing a connection request");
 
-		ctx.send_message(NetworkBridgeMessage::ConnectToResolvedValidators {
-			validator_addrs,
-			peer_set: PeerSet::Validation,
-		})
-		.await;
+		sender
+			.send_message(NetworkBridgeMessage::ConnectToResolvedValidators {
+				validator_addrs,
+				peer_set: PeerSet::Validation,
+			})
+			.await;
 
 		// issue another request for the same session
 		// if at least a third of the authorities were not resolved.
@@ -358,9 +374,9 @@ where
 		};
 	}
 
-	fn handle_connect_disconnect(&mut self, ev: NetworkBridgeEvent<GossipSuppportNetworkMessage>) {
+	fn handle_connect_disconnect(&mut self, ev: NetworkBridgeEvent<GossipSupportNetworkMessage>) {
 		match ev {
-			NetworkBridgeEvent::PeerConnected(peer_id, _, o_authority) => {
+			NetworkBridgeEvent::PeerConnected(peer_id, _, _, o_authority) => {
 				if let Some(authority_ids) = o_authority {
 					authority_ids.iter().for_each(|a| {
 						self.connected_authorities.insert(a.clone(), peer_id);
@@ -378,8 +394,8 @@ where
 			},
 			NetworkBridgeEvent::OurViewChange(_) => {},
 			NetworkBridgeEvent::PeerViewChange(_, _) => {},
-			NetworkBridgeEvent::NewGossipTopology(_) => {},
-			NetworkBridgeEvent::PeerMessage(_, v) => {
+			NetworkBridgeEvent::NewGossipTopology { .. } => {},
+			NetworkBridgeEvent::PeerMessage(_, Versioned::V1(v)) => {
 				match v {};
 			},
 		}
@@ -416,19 +432,16 @@ where
 	}
 }
 
-async fn determine_relevant_authorities<Context>(
-	ctx: &mut Context,
+// Get the authorities of the past, present, and future.
+async fn authorities_past_present_future(
+	sender: &mut impl overseer::GossipSupportSenderTrait,
 	relay_parent: Hash,
-) -> Result<Vec<AuthorityDiscoveryId>, util::Error>
-where
-	Context: SubsystemContext<Message = GossipSupportMessage>,
-	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
-{
-	let authorities = util::request_authorities(relay_parent, ctx.sender()).await.await??;
+) -> Result<Vec<AuthorityDiscoveryId>, util::Error> {
+	let authorities = util::request_authorities(relay_parent, sender).await.await??;
 	gum::debug!(
 		target: LOG_TARGET,
 		authority_count = ?authorities.len(),
-		"Determined relevant authorities",
+		"Determined past/present/future authorities",
 	);
 	Ok(authorities)
 }
@@ -447,6 +460,25 @@ async fn ensure_i_am_an_authority(
 	Err(util::Error::NotAValidator)
 }
 
+/// Filter out all controlled keys in the given set. Returns the number of keys removed.
+async fn remove_all_controlled(
+	keystore: &SyncCryptoStorePtr,
+	authorities: &mut Vec<AuthorityDiscoveryId>,
+) -> usize {
+	let mut to_remove = Vec::new();
+	for (i, v) in authorities.iter().enumerate() {
+		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), AuthorityDiscoveryId::ID)]).await {
+			to_remove.push(i);
+		}
+	}
+
+	for i in to_remove.iter().rev().copied() {
+		authorities.remove(i);
+	}
+
+	to_remove.len()
+}
+
 /// We partition the list of all sorted `authorities` into `sqrt(len)` groups of `sqrt(len)` size
 /// and form a matrix where each validator is connected to all validators in its row and column.
 /// This is similar to `[web3]` research proposed topology, except for the groups are not parachain
@@ -455,25 +487,25 @@ async fn ensure_i_am_an_authority(
 /// This limits the amount of gossip peers to 2 * `sqrt(len)` and ensures the diameter of 2.
 ///
 /// [web3]: https://research.web3.foundation/en/latest/polkadot/networking/3-avail-valid.html#topology
-async fn update_gossip_topology<Context>(
-	ctx: &mut Context,
+async fn update_gossip_topology(
+	sender: &mut impl overseer::GossipSupportSenderTrait,
 	our_index: usize,
 	authorities: Vec<AuthorityDiscoveryId>,
 	relay_parent: Hash,
-) -> Result<(), util::Error>
-where
-	Context: SubsystemContext<Message = GossipSupportMessage>,
-	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
-{
+	session_index: SessionIndex,
+) -> Result<(), util::Error> {
 	// retrieve BABE randomness
 	let random_seed = {
 		let (tx, rx) = oneshot::channel();
 
-		ctx.send_message(RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::CurrentBabeEpoch(tx),
-		))
-		.await;
+		// TODO https://github.com/paritytech/polkadot/issues/5316:
+		// get the random seed from the `SessionInfo` instead.
+		sender
+			.send_message(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::CurrentBabeEpoch(tx),
+			))
+			.await;
 
 		let randomness = rx.await??.randomness;
 		let mut subject = [0u8; 40];
@@ -493,16 +525,39 @@ where
 		.expect("our_index < len; indices contains it; qed");
 
 	let neighbors = matrix_neighbors(our_shuffled_position, len);
-	let our_neighbors = neighbors.map(|i| authorities[indices[i]].clone()).collect();
+	let row_neighbors = neighbors
+		.row_neighbors
+		.map(|i| indices[i])
+		.map(|i| (authorities[i].clone(), ValidatorIndex::from(i as u32)))
+		.collect();
 
-	ctx.send_message(NetworkBridgeMessage::NewGossipTopology { our_neighbors })
+	let column_neighbors = neighbors
+		.column_neighbors
+		.map(|i| indices[i])
+		.map(|i| (authorities[i].clone(), ValidatorIndex::from(i as u32)))
+		.collect();
+
+	sender
+		.send_message(NetworkBridgeMessage::NewGossipTopology {
+			session: session_index,
+			our_neighbors_x: row_neighbors,
+			our_neighbors_y: column_neighbors,
+		})
 		.await;
 
 	Ok(())
 }
 
+struct MatrixNeighbors<R, C> {
+	row_neighbors: R,
+	column_neighbors: C,
+}
+
 /// Compute our row and column neighbors in a matrix
-fn matrix_neighbors(our_index: usize, len: usize) -> impl Iterator<Item = usize> {
+fn matrix_neighbors(
+	our_index: usize,
+	len: usize,
+) -> MatrixNeighbors<impl Iterator<Item = usize>, impl Iterator<Item = usize>> {
 	assert!(our_index < len, "our_index is computed using `enumerate`; qed");
 
 	// e.g. for size 11 the matrix would be
@@ -520,13 +575,15 @@ fn matrix_neighbors(our_index: usize, len: usize) -> impl Iterator<Item = usize>
 	let row_neighbors = our_row * sqrt..std::cmp::min(our_row * sqrt + sqrt, len);
 	let column_neighbors = (our_column..len).step_by(sqrt);
 
-	row_neighbors.chain(column_neighbors).filter(move |i| *i != our_index)
+	MatrixNeighbors {
+		row_neighbors: row_neighbors.filter(move |i| *i != our_index),
+		column_neighbors: column_neighbors.filter(move |i| *i != our_index),
+	}
 }
 
-impl<Context, AD> overseer::Subsystem<Context, SubsystemError> for GossipSupport<AD>
+#[overseer::subsystem(GossipSupport, error = SubsystemError, prefix = self::overseer)]
+impl<Context, AD> GossipSupport<AD>
 where
-	Context: SubsystemContext<Message = GossipSupportMessage>,
-	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 	AD: AuthorityDiscovery + Clone,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {

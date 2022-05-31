@@ -22,15 +22,17 @@ use ::test_helpers::{
 use assert_matches::assert_matches;
 use futures::{future, Future};
 use polkadot_node_primitives::{BlockData, InvalidCandidate};
+use polkadot_node_subsystem::{
+	messages::{
+		AllMessages, CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest,
+		ValidationFailed,
+	},
+	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
+};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::v2::{
-	CollatorId, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore,
-};
-use polkadot_subsystem::{
-	messages::{
-		CollatorProtocolMessage, ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
-	},
-	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
+	CandidateDescriptor, CollatorId, GroupRotationInfo, HeadData, PersistedValidationData,
+	ScheduledCore,
 };
 use sp_application_crypto::AppKey;
 use sp_keyring::Sr25519Keyring;
@@ -154,8 +156,11 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-	let subsystem =
-		CandidateBackingSubsystem::new(pool.clone(), keystore, Metrics(None)).run(context);
+	let subsystem = async move {
+		if let Err(e) = super::run(context, keystore, Metrics(None)).await {
+			panic!("{:?}", e);
+		}
+	};
 
 	let test_fut = test(virtual_overseer);
 
@@ -164,7 +169,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	futures::executor::block_on(future::join(
 		async move {
 			let mut virtual_overseer = test_fut.await;
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 		},
 		subsystem,
 	));
@@ -217,7 +222,7 @@ impl TestCandidateBuilder {
 async fn test_startup(virtual_overseer: &mut VirtualOverseer, test_state: &TestState) {
 	// Start work on some new parent.
 	virtual_overseer
-		.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+		.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
 			ActivatedLeaf {
 				hash: test_state.relay_parent,
 				number: 1,
@@ -283,7 +288,7 @@ async fn test_dispute_coordinator_notifications(
 					candidate_receipt: c_receipt,
 					session: s,
 					statements,
-					pending_confirmation,
+					pending_confirmation: None,
 				}
 			) => {
 				assert_eq!(c_hash, candidate_hash);
@@ -291,7 +296,6 @@ async fn test_dispute_coordinator_notifications(
 				assert_eq!(s, session);
 				assert_eq!(statements.len(), 1);
 				assert_eq!(statements[0].1, validator_index);
-				let _ = pending_confirmation.send(ImportStatementsResult::ValidImport);
 			}
 		)
 	}
@@ -326,18 +330,18 @@ fn backing_second_works() {
 			pov.clone(),
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::CandidateValidation(
 				CandidateValidationMessage::ValidateFromChainState(
-					c,
+					candidate_receipt,
 					pov,
 					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && &candidate_receipt.descriptor == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT &&  candidate.commitments.hash() == candidate_receipt.commitments_hash => {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
@@ -387,7 +391,7 @@ fn backing_second_works() {
 		);
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
 			)))
 			.await;
@@ -419,6 +423,8 @@ fn backing_works() {
 		.build();
 
 		let candidate_a_hash = candidate_a.hash();
+		let candidate_a_commitments_hash = candidate_a.commitments.hash();
+
 		let public1 = CryptoStore::sr25519_generate_new(
 			&*test_state.keystore,
 			ValidatorId::ID,
@@ -461,7 +467,7 @@ fn backing_works() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
@@ -497,7 +503,7 @@ fn backing_works() {
 					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && c.descriptor() == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && c.commitments_hash == candidate_a_commitments_hash=> {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
@@ -552,7 +558,7 @@ fn backing_works() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_b.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
@@ -563,7 +569,7 @@ fn backing_works() {
 		.await;
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
 			)))
 			.await;
@@ -594,6 +600,8 @@ fn backing_works_while_validation_ongoing() {
 		.build();
 
 		let candidate_a_hash = candidate_a.hash();
+		let candidate_a_commitments_hash = candidate_a.commitments.hash();
+
 		let public1 = CryptoStore::sr25519_generate_new(
 			&*test_state.keystore,
 			ValidatorId::ID,
@@ -654,7 +662,7 @@ fn backing_works_while_validation_ongoing() {
 
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
@@ -691,7 +699,7 @@ fn backing_works_while_validation_ongoing() {
 					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && c.descriptor() == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && candidate_a_commitments_hash == c.commitments_hash => {
 				// we never validate the candidate. our local node
 				// shouldn't issue any statements.
 				std::mem::forget(tx);
@@ -701,7 +709,7 @@ fn backing_works_while_validation_ongoing() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_b.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
@@ -728,7 +736,7 @@ fn backing_works_while_validation_ongoing() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_c.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
@@ -745,7 +753,7 @@ fn backing_works_while_validation_ongoing() {
 			tx,
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg }).await;
 
 		let candidates = rx.await.unwrap();
 		assert_eq!(1, candidates.len());
@@ -766,7 +774,7 @@ fn backing_works_while_validation_ongoing() {
 		);
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
 			)))
 			.await;
@@ -799,6 +807,8 @@ fn backing_misbehavior_works() {
 		.build();
 
 		let candidate_a_hash = candidate_a.hash();
+		let candidate_a_commitments_hash = candidate_a.commitments.hash();
+
 		let public2 = CryptoStore::sr25519_generate_new(
 			&*test_state.keystore,
 			ValidatorId::ID,
@@ -833,7 +843,7 @@ fn backing_misbehavior_works() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, seconded_2.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
@@ -865,7 +875,7 @@ fn backing_misbehavior_works() {
 					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && c.descriptor() == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && candidate_a_commitments_hash == c.commitments_hash => {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
@@ -925,7 +935,7 @@ fn backing_misbehavior_works() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, valid_2.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
@@ -1014,7 +1024,7 @@ fn backing_dont_second_invalid() {
 			pov_block_a.clone(),
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1025,7 +1035,7 @@ fn backing_dont_second_invalid() {
 					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && c.descriptor() == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
 				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn))).unwrap();
 			}
 		);
@@ -1043,7 +1053,7 @@ fn backing_dont_second_invalid() {
 			pov_block_b.clone(),
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1054,7 +1064,7 @@ fn backing_dont_second_invalid() {
 					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate_b.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && c.descriptor() == candidate_b.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
@@ -1098,7 +1108,7 @@ fn backing_dont_second_invalid() {
 		);
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
 			)))
 			.await;
@@ -1151,7 +1161,7 @@ fn backing_second_after_first_fails_works() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
@@ -1185,7 +1195,7 @@ fn backing_second_after_first_fails_works() {
 					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && c.descriptor() == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && c.commitments_hash == candidate.commitments.hash() => {
 				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn))).unwrap();
 			}
 		);
@@ -1198,7 +1208,7 @@ fn backing_second_after_first_fails_works() {
 			pov.clone(),
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		let pov_to_second = PoV { block_data: BlockData(vec![3, 2, 1]) };
 
@@ -1222,7 +1232,7 @@ fn backing_second_after_first_fails_works() {
 		// In order to trigger _some_ actions from subsystem ask it to second another
 		// candidate. The only reason to do so is to make sure that no actions were
 		// triggered on the prev step.
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1285,7 +1295,7 @@ fn backing_works_after_failed_validation() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
@@ -1319,7 +1329,7 @@ fn backing_works_after_failed_validation() {
 					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && c.descriptor() == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && c.commitments_hash == candidate.commitments.hash() => {
 				tx.send(Err(ValidationFailed("Internal test error".into()))).unwrap();
 			}
 		);
@@ -1333,7 +1343,7 @@ fn backing_works_after_failed_validation() {
 			tx,
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg }).await;
 		assert_eq!(rx.await.unwrap().len(), 0);
 		virtual_overseer
 	});
@@ -1373,7 +1383,7 @@ fn backing_doesnt_second_wrong_collator() {
 			pov.clone(),
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1384,7 +1394,7 @@ fn backing_doesnt_second_wrong_collator() {
 		);
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
 			)))
 			.await;
@@ -1441,11 +1451,11 @@ fn validation_work_ignores_wrong_collator() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, seconding.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		// The statement will be ignored because it has the wrong collator.
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
 			)))
 			.await;
@@ -1603,7 +1613,7 @@ fn retry_works() {
 		// Send in a `Statement` with a candidate.
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
@@ -1630,7 +1640,7 @@ fn retry_works() {
 
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_b.clone());
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
@@ -1662,7 +1672,7 @@ fn retry_works() {
 
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_c.clone());
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
@@ -1696,7 +1706,7 @@ fn retry_works() {
 					timeout,
 					_tx,
 				)
-			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT
+			) if pov == pov && c.descriptor() == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && c.commitments_hash == candidate.commitments.hash()
 		);
 		virtual_overseer
 	});
@@ -1789,12 +1799,12 @@ fn observes_backing_even_if_not_validator() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_b.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
@@ -1819,7 +1829,7 @@ fn observes_backing_even_if_not_validator() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_c.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
@@ -1830,7 +1840,7 @@ fn observes_backing_even_if_not_validator() {
 		.await;
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
 			)))
 			.await;

@@ -64,7 +64,7 @@ pub trait RpcApi {
 		at: Option<&Hash>,
 	) -> RpcResult<RuntimeDispatchInfo<Balance>>;
 
-	/// Dry run an extrinsic at a given block. Return SCALE encoded [`sp_runtine::ApplyExtrinsicResult`].
+	/// Dry run an extrinsic at a given block. Return SCALE encoded [`sp_runtime::ApplyExtrinsicResult`].
 	#[method(name = "system_dryRun")]
 	async fn dry_run(&self, extrinsic: &Bytes, at: Option<Hash>) -> RpcResult<Bytes>;
 
@@ -72,27 +72,28 @@ pub trait RpcApi {
 	///
 	/// See [`TransactionStatus`](sc_transaction_pool_api::TransactionStatus) for details on
 	/// transaction life cycle.
-	//
-	// TODO: https://github.com/paritytech/jsonrpsee/issues/698.
 	#[subscription(
 		name = "author_submitAndWatchExtrinsic" => "author_extrinsicUpdate",
-		item = TransactionStatus<Hash, Hash>,
+		unsubscribe = "author_unwatchExtrinsic",
+		item = TransactionStatus<Hash, Hash>
 	)]
-	fn watch_extrinsic(&self, bytes: &Bytes) -> RpcResult<()>;
+	fn watch_extrinsic(&self, bytes: &Bytes);
 
 	/// New head subscription.
 	#[subscription(
 		name = "chain_subscribeNewHeads" => "newHead",
+		unsubscribe = "chain_unsubscribeNewHeads",
 		item = Header
 	)]
-	fn subscribe_new_heads(&self) -> RpcResult<()>;
+	fn subscribe_new_heads(&self);
 
 	/// Finalized head subscription.
 	#[subscription(
 		name = "chain_subscribeFinalizedHeads" => "chain_finalizedHead",
+		unsubscribe = "chain_unsubscribeFinalizedHeads",
 		item = Header
 	)]
-	fn subscribe_finalized_heads(&self) -> RpcResult<()>;
+	fn subscribe_finalized_heads(&self);
 }
 
 /// Wraps a shared web-socket JSON-RPC client that can be cloned.

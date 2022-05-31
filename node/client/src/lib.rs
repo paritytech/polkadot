@@ -19,13 +19,14 @@
 //! Provides the [`AbstractClient`] trait that is a super trait that combines all the traits the client implements.
 //! There is also the [`Client`] enum that combines all the different clients into one common structure.
 
-use polkadot_primitives::v2::{
-	AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce, ParachainHost,
+use polkadot_primitives::{
+	runtime_api::ParachainHost,
+	v2::{AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce},
 };
 use sc_client_api::{AuxStore, Backend as BackendT, BlockchainEvents, KeyIterator, UsageProvider};
 use sc_executor::NativeElseWasmExecutor;
 use sp_api::{CallApiAt, Encode, NumberFor, ProvideRuntimeApi};
-use sp_blockchain::HeaderBackend;
+use sp_blockchain::{HeaderBackend, HeaderMetadata};
 use sp_consensus::BlockStatus;
 use sp_core::{Pair, H256};
 use sp_keyring::Sr25519Keyring;
@@ -127,7 +128,7 @@ pub trait RuntimeApiCollection:
 	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-	+ pallet_mmr_primitives::MmrApi<Block, <Block as BlockT>::Hash>
+	+ sp_mmr_primitives::MmrApi<Block, <Block as BlockT>::Hash>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 	+ sp_api::Metadata<Block>
 	+ sp_offchain::OffchainWorkerApi<Block>
@@ -148,7 +149,7 @@ where
 		+ ParachainHost<Block>
 		+ sp_block_builder::BlockBuilder<Block>
 		+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-		+ pallet_mmr_primitives::MmrApi<Block, <Block as BlockT>::Hash>
+		+ sp_mmr_primitives::MmrApi<Block, <Block as BlockT>::Hash>
 		+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 		+ sp_api::Metadata<Block>
 		+ sp_offchain::OffchainWorkerApi<Block>
@@ -172,6 +173,7 @@ pub trait AbstractClient<Block, Backend>:
 	+ CallApiAt<Block, StateBackend = Backend::State>
 	+ AuxStore
 	+ UsageProvider<Block>
+	+ HeaderMetadata<Block, Error = sp_blockchain::Error>
 where
 	Block: BlockT,
 	Backend: BackendT<Block>,
@@ -193,7 +195,8 @@ where
 		+ Sized
 		+ Send
 		+ Sync
-		+ CallApiAt<Block, StateBackend = Backend::State>,
+		+ CallApiAt<Block, StateBackend = Backend::State>
+		+ HeaderMetadata<Block, Error = sp_blockchain::Error>,
 	Client::Api: RuntimeApiCollection<StateBackend = Backend::State>,
 {
 }
@@ -396,6 +399,16 @@ impl sc_client_api::BlockBackend<Block> for Client {
 			client,
 			{
 				client.block_indexed_body(id)
+			}
+		}
+	}
+
+	fn requires_full_sync(&self) -> bool {
+		with_client! {
+			self,
+			client,
+			{
+				client.requires_full_sync()
 			}
 		}
 	}
