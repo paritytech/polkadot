@@ -226,6 +226,7 @@ impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
 /// 	pub LaunchPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1, "KSM_LAUNCH_PERIOD");
 /// 	pub const VotingPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1 * MINUTES);
 /// }
+/// ```
 #[macro_export]
 macro_rules! prod_or_fast {
 	($prod:expr, $test:expr) => {

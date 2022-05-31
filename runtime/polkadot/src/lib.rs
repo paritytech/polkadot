@@ -41,7 +41,8 @@ use frame_election_provider_support::{generate_solution_type, onchain, Sequentia
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, PrivilegeCmp,
+		Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		PrivilegeCmp,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -111,7 +112,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9220,
+	spec_version: 9230,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -181,7 +182,7 @@ impl Contains<Call> for BaseFilter {
 			Call::Registrar(_) |
 			Call::Auctions(_) |
 			Call::Crowdloan(_) |
-			Call::BagsList(_) |
+			Call::VoterList(_) |
 			Call::XcmPallet(_) => true,
 			// All pallets are allowed, but exhaustive match is defensive
 			// in the case of adding new pallets.
@@ -608,7 +609,7 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
-	type VoterList = BagsList;
+	type VoterList = VoterList;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type OnStakerSlash = ();
@@ -838,7 +839,7 @@ impl pallet_treasury::Config for Runtime {
 	type SpendFunds = Bounties;
 	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
-	type SpendOrigin = frame_support::traits::NeverEnsureOrigin<u128>;
+	type SpendOrigin = frame_support::traits::NeverEnsureOrigin<Balance>;
 }
 
 parameter_types! {
@@ -1178,7 +1179,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
 				Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
-				Call::BagsList(..)
+				Call::VoterList(..)
 			),
 			ProxyType::Governance => matches!(
 				c,
@@ -1454,7 +1455,7 @@ construct_runtime! {
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 36,
 
 		// Provides a semi-sorted list of nominators for staking.
-		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
+		VoterList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
 
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
@@ -1513,10 +1514,25 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(),
+	(RenameBagsListToVoterList, pallet_bags_list::migrations::AddScore<Runtime>),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+/// A migration which renames the pallet `BagsList` to `VoterList`
+pub struct RenameBagsListToVoterList;
+impl frame_support::traits::OnRuntimeUpgrade for RenameBagsListToVoterList {
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		// For other pre-upgrade checks, we need the storage to already be migrated.
+		frame_support::storage::migration::move_pallet(b"BagsList", b"VoterList");
+		Ok(())
+	}
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		frame_support::storage::migration::move_pallet(b"BagsList", b"VoterList");
+		frame_support::weights::Weight::MAX
+	}
+}
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
@@ -1540,7 +1556,7 @@ mod benches {
 		[runtime_parachains::paras_inherent, ParaInherent]
 		[runtime_parachains::ump, Ump]
 		// Substrate
-		[pallet_bags_list, BagsList]
+		[pallet_bags_list, VoterList]
 		[pallet_balances, Balances]
 		[frame_benchmarking::baseline, Baseline::<Runtime>]
 		[pallet_bounties, Bounties]
@@ -1995,7 +2011,7 @@ sp_api::impl_runtime_apis! {
 #[cfg(test)]
 mod test_fees {
 	use super::*;
-	use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
+	use frame_support::weights::{GetDispatchInfo, WeightToFee as WeightToFeeT};
 	use keyring::Sr25519Keyring::Charlie;
 	use pallet_transaction_payment::Multiplier;
 	use runtime_common::MinimumMultiplier;
@@ -2024,7 +2040,7 @@ mod test_fees {
 	#[ignore]
 	fn block_cost() {
 		let max_block_weight = BlockWeights::get().max_block;
-		let raw_fee = WeightToFee::calc(&max_block_weight);
+		let raw_fee = WeightToFee::weight_to_fee(&max_block_weight);
 
 		println!(
 			"Full Block weight == {} // WeightToFee(full_block) == {} plank",

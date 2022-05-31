@@ -143,24 +143,24 @@ impl sp_runtime::BuildStorage for RococoGenesisExt {
 }
 
 pub fn polkadot_config() -> Result<PolkadotChainSpec, String> {
-	PolkadotChainSpec::from_json_bytes(&include_bytes!("../res/polkadot.json")[..])
+	PolkadotChainSpec::from_json_bytes(&include_bytes!("../chain-specs/polkadot.json")[..])
 }
 
 pub fn kusama_config() -> Result<KusamaChainSpec, String> {
-	KusamaChainSpec::from_json_bytes(&include_bytes!("../res/kusama.json")[..])
+	KusamaChainSpec::from_json_bytes(&include_bytes!("../chain-specs/kusama.json")[..])
 }
 
 pub fn westend_config() -> Result<WestendChainSpec, String> {
-	WestendChainSpec::from_json_bytes(&include_bytes!("../res/westend.json")[..])
+	WestendChainSpec::from_json_bytes(&include_bytes!("../chain-specs/westend.json")[..])
 }
 
 pub fn rococo_config() -> Result<RococoChainSpec, String> {
-	RococoChainSpec::from_json_bytes(&include_bytes!("../res/rococo.json")[..])
+	RococoChainSpec::from_json_bytes(&include_bytes!("../chain-specs/rococo.json")[..])
 }
 
 /// This is a temporary testnet that uses the same runtime as rococo.
 pub fn wococo_config() -> Result<RococoChainSpec, String> {
-	RococoChainSpec::from_json_bytes(&include_bytes!("../res/wococo.json")[..])
+	RococoChainSpec::from_json_bytes(&include_bytes!("../chain-specs/wococo.json")[..])
 }
 
 /// The default parachains host configuration.

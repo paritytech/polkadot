@@ -32,7 +32,7 @@ use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW};
 use polkadot_node_subsystem::{
-	overseer, ActivatedLeaf, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
+	overseer, ActivatedLeaf, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
 	database::Database, rolling_session_window::RollingSessionWindow,
@@ -369,14 +369,14 @@ async fn get_rolling_session_window<Context>(
 async fn wait_for_first_leaf<Context>(ctx: &mut Context) -> Result<Option<ActivatedLeaf>> {
 	loop {
 		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(None),
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(None),
+			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 				if let Some(activated) = update.activated {
 					return Ok(Some(activated))
 				}
 			},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
-			FromOverseer::Communication { msg } =>
+			FromOrchestra::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
+			FromOrchestra::Communication { msg } =>
 			// NOTE: We could technically actually handle a couple of message types, even if
 			// not initialized (e.g. all requests that only query the database). The problem
 			// is, we would deliver potentially outdated information, especially in the event
