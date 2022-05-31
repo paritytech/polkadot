@@ -164,6 +164,7 @@ mod tests {
 		type SpendFunds = ();
 		type MaxApprovals = MaxApprovals;
 		type WeightInfo = ();
+		type SpendOrigin = frame_support::traits::NeverEnsureOrigin<u64>;
 	}
 
 	pub struct OneAuthor;
