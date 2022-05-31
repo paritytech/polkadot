@@ -4830,6 +4830,7 @@ version = "0.0.1"
 dependencies = [
  "assert_matches",
  "expander 0.0.6",
+ "itertools",
  "orchestra",
  "petgraph",
  "proc-macro-crate",

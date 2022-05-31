@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use quote::ToTokens;
 use syn::{Ident, Path};
 
 use petgraph::{
@@ -27,7 +28,6 @@ use super::*;
 
 /// Representation of all subsystem connections
 pub(crate) struct ConnectionGraph<'a> {
-
 	/// Graph of connected subsystems
 	///
 	/// The graph represents a subsystem as a node or `NodeIndex`
@@ -60,12 +60,11 @@ impl<'a> ConnectionGraph<'a> {
 		for ssf in ssfs {
 			let node_index = graph.add_node(ssf.generic.clone());
 			for outgoing in ssf.messages_to_send.iter() {
-				outgoing_lut
-					.entry(outgoing)
-					.or_default()
-					.push((&ssf.generic, node_index));
+				outgoing_lut.entry(outgoing).or_default().push((&ssf.generic, node_index));
 			}
-			if let Some(_first_consument) = consuming_lut.insert(&ssf.message_to_consume, (&ssf.generic, node_index)) {
+			if let Some(_first_consument) =
+				consuming_lut.insert(&ssf.message_to_consume, (&ssf.generic, node_index))
+			{
 				// bail, two subsystems consuming the same message
 			}
 		}
@@ -94,21 +93,99 @@ impl<'a> ConnectionGraph<'a> {
 		let mut unconsumed_messages = outgoing_lut;
 		unconsumed_messages.retain(|k, _v| !consuming_set.contains(k));
 
-		// Extract the cycles
+		let cycles = Self::extract_cycles(&graph);
+
+		Self { graph, cycles, unsent_messages, unconsumed_messages }
+	}
+
+	/// Extract the cycles and print them
+	fn extract_cycles(graph: &Graph<Ident, Path>) -> Vec<Vec<NodeIndex>> {
+		use petgraph::visit::EdgeRef;
+
+		// there is no guarantee regarding the node indices in the individual cycles
 		let cycles = petgraph::algo::kosaraju_scc(&graph);
 		match cycles.len() {
 			0 => println!("Found zer0 cycles"),
 			1 => println!("Found 1 cycle"),
 			n => println!("Found {n} cycles"),
 		}
-		Self { graph, cycles, unsent_messages, unconsumed_messages }
+
+		let greek_alphabet = greek_alphabet();
+
+		for (cycle_idx, cycle) in cycles.iter().enumerate() {
+			let cycle_tag = greek_alphabet.get(cycle_idx).copied().unwrap_or('_');
+			let mut acc = String::with_capacity(1024);
+			let first = cycle[0].clone();
+			let mut node_idx = first;
+			for step in 0..cycle.len() {
+				if let Some(edge) = graph
+					.edges_directed(node_idx, petgraph::Direction::Outgoing)
+					.find(|edge| cycle.contains(&edge.target()))
+				{
+					let next = edge.target();
+					let subsystem_name = &graph[node_idx].to_string();
+					let message_name = &graph[edge.id()].to_token_stream().to_string();
+					acc += format!("{subsystem_name} ~~{{{message_name:?}}}~~> ").as_str();
+					node_idx = next;
+					if next == first {
+						println!("{cycle_idx:03} {cycle_tag}: {acc} *");
+						break
+					}
+				} else {
+					eprintln!("{cycle_idx:03} {cycle_tag}: Missing connection in hypothesized cycle after {step} steps, this is a bug 🐛");
+				}
+			}
+		}
+
+		cycles
 	}
 
 	/// Render a graphviz (aka dot graph) to a file.
+	///
+	/// Cycles are annotated with the lower
+	#[cfg(feature = "graph")]
 	pub(crate) fn graphviz(self, dest: &mut impl std::io::Write) -> std::io::Result<()> {
-		let config = &[dot::Config::EdgeNoLabel, dot::Config::NodeNoLabel][..];
+		use petgraph::visit::{EdgeRef, IntoNodeReferences};
+		// only write the grap content
+		let config = &[
+			dot::Config::GraphContentOnly,
+			dot::Config::EdgeNoLabel,
+			dot::Config::NodeNoLabel,
+		][..];
 
-		let Self { mut graph, unsent_messages, unconsumed_messages, cycles: _ } = self;
+		let Self { mut graph, unsent_messages, unconsumed_messages, cycles } = self;
+
+		// the greek alphabet, lowercase
+		let greek_alphabet = greek_alphabet();
+
+		const COLOR_SCHEME_N: usize = 10; // rdylgn10
+
+		// Adding more than 10, is _definitely_ too much visual clutter in the graph.
+		const UPPER_BOUND: usize = 10;
+
+		assert!(UPPER_BOUND <= GREEK_ALPHABET_SIZE);
+		assert!(UPPER_BOUND <= COLOR_SCHEME_N);
+
+		let n = cycles.len();
+		let n = if n > UPPER_BOUND {
+			eprintln!("Too many cycles {n}, only annotating the first {UPPER_BOUND} cycles");
+			UPPER_BOUND
+		} else {
+			n
+		};
+
+		// restructure for lookups
+		let mut cycles_lut = HashMap::<NodeIndex, HashSet<char>>::with_capacity(n);
+		// lookup the color index (which is equiv to the index in the cycle set vector _plus one_)
+		// based on the cycle_tag (the greek char)
+		let mut color_lut = HashMap::<char, usize>::with_capacity(COLOR_SCHEME_N);
+		for (cycle_idx, cycle) in cycles.into_iter().take(UPPER_BOUND).enumerate() {
+			for node_idx in cycle {
+				let _ = cycles_lut.entry(node_idx).or_default().insert(greek_alphabet[cycle_idx]);
+			}
+			color_lut.insert(greek_alphabet[cycle_idx], cycle_idx + 1);
+		}
+		let color_lut = &color_lut;
 
 		// Adding nodes is ok, the `NodeIndex` is append only as long
 		// there are no removals.
@@ -129,34 +206,104 @@ impl<'a> ConnectionGraph<'a> {
 		for (message_name, (_sub_name, sub_node_idx)) in unsent_messages {
 			graph.add_edge(unsent_idx, sub_node_idx, message_name.clone());
 		}
+		let unsent_node_label = r#"label="✨",fillcolor=black,shape=doublecircle,style=filled,fontname="NotoColorEmoji""#;
+		let unconsumed_node_label = r#"label="💀",fillcolor=black,shape=doublecircle,style=filled,fontname="NotoColorEmoji""#;
+		let edge_attr = |_graph: &Graph<Ident, Path>,
+		                 edge: <&Graph<Ident, Path> as IntoEdgeReferences>::EdgeRef|
+		 -> String {
+			let source = edge.source();
+			let sink = edge.target();
 
-		// TODO adjust rendering for cycles
-		let unsent_edge_label = r#"label="✨",fillcolor=darkgreen,shape=doublecircle,style=filled,fontname="NotoColorEmoji""#;
-		let unconsumed_edge_label = r#"label="💀",fillcolor=black,shape=doublecircle,style=filled,fontname="NotoColorEmoji""#;
-		let edge_attr = move |_graph: &Graph<Ident, Path>,
-		                      edge: <&Graph<Ident, Path> as IntoEdgeReferences>::EdgeRef|
-		      -> String {
-			format!(
-				r#"label="{}""#,
-				edge.weight().get_ident().expect("Must have a trailing identifier. qed")
-			)
-		};
-		let node_attr = |_graph, (node_index, subsystem_name)| -> String {
-			if node_index == unsent_idx {
-				unsent_edge_label.to_owned().clone()
-			} else if node_index == unconsumed_idx {
-				unconsumed_edge_label.to_owned().clone()
+			// use the intersection only, that's the set of cycles the edge is part of
+			if let Some(edge_intersecting_cycle_tags) =
+				cycles_lut.get(&source).and_then(|source_set| {
+					cycles_lut.get(&sink).and_then(move |sink_set| {
+						let intersection =
+							HashSet::<_, RandomState>::from_iter(source_set.intersection(sink_set));
+						if intersection.is_empty() {
+							None
+						} else {
+							Some(intersection)
+						}
+					})
+				}) {
+				format!(
+					r#"fontcolor="red",xlabel=<{}>,fontcolor="black",label="{}""#,
+					cycle_tags_to_annotation(edge_intersecting_cycle_tags, color_lut),
+					edge.weight().get_ident().expect("Must have a trailing identifier. qed")
+				)
 			} else {
-				format!(r#"label="{}""#, subsystem_name,)
+				format!(
+					r#"label="{}""#,
+					edge.weight().get_ident().expect("Must have a trailing identifier. qed")
+				)
 			}
 		};
+		let node_attr =
+			|_graph: &Graph<Ident, Path>,
+			 (node_index, subsystem_name): <&Graph<Ident, Path> as IntoNodeReferences>::NodeRef|
+			 -> String {
+				if node_index == unsent_idx {
+					unsent_node_label.to_owned().clone()
+				} else if node_index == unconsumed_idx {
+					unconsumed_node_label.to_owned().clone()
+				} else if let Some(cycle_tags) = cycles_lut.get(&node_index) {
+					format!(
+						r#"fontcolor="red",xlabel=<{}>,fontcolor="black",label="{}""#,
+						cycle_tags_to_annotation(cycle_tags, color_lut),
+						subsystem_name
+					)
+				} else {
+					format!(r#"label="{}""#, subsystem_name)
+				}
+			};
 		let dot = Dot::with_attr_getters(
 			&graph, config, &edge_attr, // with state, the reference is a trouble maker
 			&node_attr,
 		);
-		dest.write_all(format!("{:?}", &dot).as_bytes())?;
+		dest.write_all(
+			format!(
+				r#"
+		digraph {{
+			node [colorscheme=rdylgn10]
+			{:?}
+		}}"#,
+				&dot
+			)
+			.as_bytes(),
+		)?;
 		Ok(())
 	}
+}
+
+fn cycle_tags_to_annotation<'a>(
+	cycle_tags: impl IntoIterator<Item = &'a char>,
+	color_lut: &HashMap<char, usize>,
+) -> String {
+	// Must use fully qualified syntax: <https://github.com/rust-lang/rust/issues/48919>
+	let cycle_annotation = String::from_iter(itertools::Itertools::intersperse(
+		cycle_tags.into_iter().map(|c| {
+			let i = color_lut.get(c).copied().unwrap();
+			format!(r#"<B><FONT COLOR="/rdylgn10/{i}">{c}</FONT></B>"#)
+		}),
+		",".to_owned(),
+	));
+	cycle_annotation
+}
+
+const GREEK_ALPHABET_SIZE: usize = 24;
+
+fn greek_alphabet() -> [char; GREEK_ALPHABET_SIZE] {
+	let mut alphabet = ['\u{03B1}'; 24];
+	alphabet
+		.iter_mut()
+		.enumerate()
+		// closure should never return `None`,
+		// but rather safe than sorry
+		.for_each(|(i, c)| {
+			*c = char::from_u32(*c as u32 + i as u32).unwrap();
+		});
+	alphabet
 }
 
 #[cfg(test)]

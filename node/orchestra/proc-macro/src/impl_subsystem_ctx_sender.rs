@@ -76,7 +76,8 @@ pub(crate) fn impl_subsystem_types_all(info: &OrchestraInfo) -> Result<TokenStre
 	}
 
 	// Dump the graph to file.
-	if cfg!(feature = "graph") || true {
+	#[cfg(feature = "graph")]
+	{
 		let path = std::path::PathBuf::from(env!("OUT_DIR"))
 			.join(orchestra_name.to_string().to_lowercase() + "-subsystem-messaging.dot");
 		if let Err(e) = std::fs::OpenOptions::new()
