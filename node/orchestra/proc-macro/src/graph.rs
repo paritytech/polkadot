@@ -104,6 +104,21 @@ impl<'a> ConnectionGraph<'a> {
 
 		// there is no guarantee regarding the node indices in the individual cycles
 		let cycles = petgraph::algo::kosaraju_scc(&graph);
+		let cycles = Vec::from_iter(cycles.into_iter().filter(|cycle| {
+			match cycle.len() {
+				1 => {
+					// contains cycles of length one,
+					// which do not exists, might be an upstream bug?
+					let node_idx = cycle[0];
+					graph
+						.edges_directed(node_idx, petgraph::Direction::Outgoing)
+						.find(|edge| edge.target() == node_idx)
+						.is_some()
+				},
+				0 => false,
+				_n => true,
+			}
+		}));
 		match cycles.len() {
 			0 => println!("Found zer0 cycles"),
 			1 => println!("Found 1 cycle"),
@@ -114,27 +129,39 @@ impl<'a> ConnectionGraph<'a> {
 
 		for (cycle_idx, cycle) in cycles.iter().enumerate() {
 			let cycle_tag = greek_alphabet.get(cycle_idx).copied().unwrap_or('_');
-			let mut acc = String::with_capacity(1024);
+			let mut acc = Vec::with_capacity(cycle.len());
 			let first = cycle[0].clone();
 			let mut node_idx = first;
+			let print_idx = cycle_idx + 1;
+			let mut visited = HashSet::new();
 			for step in 0..cycle.len() {
-				if let Some(edge) = graph
-					.edges_directed(node_idx, petgraph::Direction::Outgoing)
-					.find(|edge| cycle.contains(&edge.target()))
-				{
+				if let Some(edge) =
+					graph.edges_directed(node_idx, petgraph::Direction::Outgoing).find(|edge| {
+						cycle
+							.iter()
+							.find(|&cycle_node_idx| {
+								!visited.contains(cycle_node_idx) &&
+									*cycle_node_idx == edge.target()
+							})
+							.is_some()
+					}) {
 					let next = edge.target();
+					visited.insert(node_idx);
+
 					let subsystem_name = &graph[node_idx].to_string();
 					let message_name = &graph[edge.id()].to_token_stream().to_string();
-					acc += format!("{subsystem_name} ~~{{{message_name:?}}}~~> ").as_str();
+					acc.push(format!("{subsystem_name} ~~{{{message_name:?}}}~~> "));
 					node_idx = next;
 					if next == first {
-						println!("{cycle_idx:03} {cycle_tag}: {acc} *");
 						break
 					}
 				} else {
-					eprintln!("{cycle_idx:03} {cycle_tag}: Missing connection in hypothesized cycle after {step} steps, this is a bug 🐛");
+					eprintln!("cycle({print_idx:03}={cycle_tag}): Missing connection in hypothesized cycle after {step} steps, this is a bug 🐛");
+					break
 				}
 			}
+			let acc = String::from_iter(acc);
+			println!("cycle({print_idx:03}={cycle_tag}): {acc} *");
 		}
 
 		cycles
@@ -263,11 +290,10 @@ impl<'a> ConnectionGraph<'a> {
 		);
 		dest.write_all(
 			format!(
-				r#"
-		digraph {{
-			node [colorscheme=rdylgn10]
-			{:?}
-		}}"#,
+				r#"digraph {{
+	node [colorscheme=rdylgn10]
+	{:?}
+}}"#,
 				&dot
 			)
 			.as_bytes(),
