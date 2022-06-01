@@ -108,9 +108,9 @@ use parity_util_mem::MemoryAllocationTracker;
 pub use orchestra as gen;
 pub use orchestra::{
 	contextbounds, orchestra, subsystem, FromOrchestra, MapSubsystem, MessagePacket,
-	SignalsReceived, Spawner, Subsystem, SubsystemContext, SubsystemIncomingMessages,
-	SubsystemInstance, SubsystemMeterReadouts, SubsystemMeters, SubsystemSender, TimeoutExt,
-	ToOrchestra,
+	OrchestraError as OverseerError, SignalsReceived, Spawner, Subsystem, SubsystemContext,
+	SubsystemIncomingMessages, SubsystemInstance, SubsystemMeterReadouts, SubsystemMeters,
+	SubsystemSender, TimeoutExt, ToOrchestra,
 };
 
 /// Store 2 days worth of blocks, not accounting for forks,
