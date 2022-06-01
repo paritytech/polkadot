@@ -18,7 +18,9 @@ use crate::cli::{Cli, Subcommand};
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use futures::future::TryFutureExt;
 use log::info;
-use polkadot_client::*;
+use polkadot_client::benchmarking::{
+	benchmark_inherent_data, ExistentialDepositProvider, RemarkBuilder, TransferKeepAliveBuilder,
+};
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
 use service::{self, HeaderBackend, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
