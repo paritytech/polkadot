@@ -17,7 +17,7 @@
 //! New governance configurations for the Kusama runtime.
 
 use super::*;
-use frame_support::{parameter_types, traits::{EitherOf, EitherOfDiverse}};
+use frame_support::{parameter_types, traits::EitherOf};
 use frame_system::EnsureRootWithSuccess;
 
 // Old governance configurations.
@@ -25,10 +25,11 @@ pub mod old;
 
 mod origins;
 pub use origins::{
-	StakingAdmin, Treasurer, FellowshipAdmin, GeneralAdmin, AuctionAdmin, LeaseAdmin,
-	ReferendumCanceller, ReferendumKiller, SmallTipper, BigTipper, SmallSpender, MediumSpender,
-	BigSpender, WhitelistedCaller, FellowshipInitiates, FellowshipApprentices, Fellows,
-	FellowshipMasters, FellowshipElites,
+	pallet_custom_origins,
+	StakingAdmin, FellowshipAdmin, GeneralAdmin, AuctionAdmin, LeaseAdmin,
+	ReferendumCanceller, ReferendumKiller, Spender,
+	WhitelistedCaller, FellowshipInitiates, Fellows,
+	FellowshipExperts, FellowshipMasters,
 };
 mod tracks;
 pub use tracks::TracksInfo;
@@ -58,16 +59,7 @@ parameter_types! {
 parameter_types! {
 	pub const MaxBalance: Balance = Balance::max_value();
 }
-pub type TreasurySpender = EitherOf<
-	EnsureRootWithSuccess<AccountId, MaxBalance>,
-	EitherOf<
-		EitherOf<SmallTipper<AccountId>, BigTipper<AccountId>>,
-		EitherOf<
-			SmallSpender<AccountId>,
-			EitherOf<MediumSpender<AccountId>, BigSpender<AccountId>>
-		>
-	>
->;
+pub type TreasurySpender = EitherOf< EnsureRootWithSuccess<AccountId, MaxBalance>, Spender >;
 
 impl origins::pallet_custom_origins::Config for Runtime {}
 
@@ -75,8 +67,8 @@ impl pallet_whitelist::Config for Runtime {
 	type WeightInfo = pallet_whitelist::weights::SubstrateWeight<Self>; //TODO
 	type Event = Event;
 	type Call = Call;
-	type WhitelistOrigin = Fellows<AccountId>;
-	type DispatchWhitelistedOrigin = WhitelistedCaller<AccountId>;
+	type WhitelistOrigin = Fellows;
+	type DispatchWhitelistedOrigin = WhitelistedCaller;
 	type PreimageProvider = Preimage;
 }
 
@@ -86,8 +78,9 @@ impl pallet_referenda::Config for Runtime {
 	type Event = Event;
 	type Scheduler = Scheduler;
 	type Currency = Balances;
-	type CancelOrigin = ReferendumCanceller<AccountId>;
-	type KillOrigin = ReferendumKiller<AccountId>;
+	type SubmitOrigin = frame_system::EnsureSigned<AccountId>;
+	type CancelOrigin = ReferendumCanceller;
+	type KillOrigin = ReferendumKiller;
 	type Slash = ();
 	type Votes = pallet_conviction_voting::VotesOf<Runtime>;
 	type Tally = pallet_conviction_voting::TallyOf<Runtime>;

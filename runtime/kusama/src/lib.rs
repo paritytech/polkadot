@@ -104,8 +104,8 @@ pub mod xcm_config;
 // Governance configurations.
 pub mod governance;
 use governance::{
-	StakingAdmin, Treasurer, GeneralAdmin, AuctionAdmin, LeaseAdmin, TreasurySpender,
-	FellowshipCollectiveInstance, FellowshipReferendaInstance,
+	pallet_custom_origins,
+	StakingAdmin, GeneralAdmin, AuctionAdmin, LeaseAdmin, TreasurySpender,
 };
 use governance::old::CouncilCollective;
 
@@ -488,7 +488,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 		(),
 	>;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
-	type ForceOrigin = StakingAdmin<AccountId>;
+	type ForceOrigin = StakingAdmin;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
 	type MaxElectingVoters = MaxElectingVoters;
 	type MaxElectableTargets = MaxElectableTargets;
@@ -597,7 +597,7 @@ impl pallet_staking::Config for Runtime {
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
 	// A majority of the council or root can cancel the slash.
-	type SlashCancelOrigin = StakingAdmin<AccountId>;
+	type SlashCancelOrigin = StakingAdmin;
 	type SessionInterface = Self;
 	type EraPayout = EraPayout;
 	type NextNewSession = Session;
@@ -632,8 +632,8 @@ parameter_types! {
 impl pallet_treasury::Config for Runtime {
 	type PalletId = TreasuryPalletId;
 	type Currency = Balances;
-	type ApproveOrigin = Treasurer<AccountId>;
-	type RejectOrigin = Treasurer<AccountId>;
+	type ApproveOrigin = EnsureRoot<AccountId>;
+	type RejectOrigin = EnsureRoot<AccountId>;
 	type Event = Event;
 	type OnSlash = Treasury;
 	type ProposalBond = ProposalBond;
@@ -819,7 +819,7 @@ impl claims::Config for Runtime {
 	type Event = Event;
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
-	type MoveClaimOrigin = Treasurer<AccountId>;
+	type MoveClaimOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::runtime_common_claims::WeightInfo<Runtime>;
 }
 
@@ -843,8 +843,8 @@ impl pallet_identity::Config for Runtime {
 	type MaxAdditionalFields = MaxAdditionalFields;
 	type MaxRegistrars = MaxRegistrars;
 	type Slashed = Treasury;
-	type ForceOrigin = GeneralAdmin<AccountId>;
-	type RegistrarOrigin = GeneralAdmin<AccountId>;
+	type ForceOrigin = GeneralAdmin;
+	type RegistrarOrigin = GeneralAdmin;
 	type WeightInfo = weights::pallet_identity::WeightInfo<Runtime>;
 }
 
@@ -1178,7 +1178,7 @@ impl slots::Config for Runtime {
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type LeaseOffset = ();
-	type ForceOrigin = LeaseAdmin<AccountId>;
+	type ForceOrigin = LeaseAdmin;
 	type WeightInfo = weights::runtime_common_slots::WeightInfo<Runtime>;
 }
 
@@ -1218,7 +1218,7 @@ impl auctions::Config for Runtime {
 	type EndingPeriod = EndingPeriod;
 	type SampleLength = SampleLength;
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-	type InitiateOrigin = AuctionAdmin<AccountId>;
+	type InitiateOrigin = AuctionAdmin;
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
@@ -1237,7 +1237,7 @@ impl pallet_gilt::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;
-	type AdminOrigin = Treasurer<AccountId>;
+	type AdminOrigin = EnsureRoot<AccountId>;
 	type Deficit = (); // Mint
 	type Surplus = (); // Burn
 	type IgnoredIssuance = IgnoredIssuance;
@@ -1350,13 +1350,15 @@ construct_runtime! {
 
 		ConvictionVoting: pallet_conviction_voting::{Pallet, Call, Storage, Event<T>} = 20,
 		Referenda: pallet_referenda::{Pallet, Call, Storage, Event<T>} = 21,
-		FellowshipCollective: pallet_ranked_collective::<FellowshipCollectiveInstance>::{
+//		pub type FellowshipCollectiveInstance = pallet_ranked_collective::Instance1;
+		FellowshipCollective: pallet_ranked_collective::<Instance1>::{
 			Pallet, Call, Storage, Event<T>
 		} = 22,
-		FellowshipReferenda: pallet_referenda::<FellowshipReferendaInstance>::{
+//		pub type FellowshipReferendaInstance = pallet_referenda::Instance2;
+		FellowshipReferenda: pallet_referenda::<Instance2>::{
 			Pallet, Call, Storage, Event<T>
 		} = 23,
-		Origins: governance::origins::{Origin} = 43,
+		Origins: pallet_custom_origins::{Origin} = 43,
 		Whitelist: pallet_whitelist::{Pallet, Call, Storage, Event<T>} = 42,
 
 		// Claims. Usable initially.

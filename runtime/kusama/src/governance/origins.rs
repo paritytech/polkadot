@@ -61,23 +61,39 @@ pub mod pallet_custom_origins {
 		BigSpender,
 		/// Origin able to dispatch a whitelisted call.
 		WhitelistedCaller,
-		/// Origin commanded by the initiates of the Polkadot Fellowship.
+		/// Origin commanded by any members of the Polkadot Fellowship (no Dan grade needed).
 		FellowshipInitiates,
-		/// Origin commanded by the apprentices of the Polkadot Fellowship.
-		FellowshipApprentices,
-		/// Origin commanded by Polkadot Fellows.
+		/// Origin commanded by Polkadot Fellows (3rd Dan fellows or greater).
 		Fellows,
-		/// Origin commanded by the Masters of the Polkadot Fellowship.
+		/// Origin commanded by Polkadot Experts (5th Dan fellows or greater).
+		FellowshipExperts,
+		/// Origin commanded by Polkadot Masters (7th Dan fellows of greater).
 		FellowshipMasters,
-		/// Origin commanded by the Elites of the Polkadot Fellowship.
-		FellowshipElites,
+		/// Origin commanded by rank 1 of the Polkadot Fellowship and with a success of 1.
+		Fellowship1Dan,
+		/// Origin commanded by rank 2 of the Polkadot Fellowship and with a success of 2.
+		Fellowship2Dan,
+		/// Origin commanded by rank 3 of the Polkadot Fellowship and with a success of 3.
+		Fellowship3Dan,
+		/// Origin commanded by rank 4 of the Polkadot Fellowship and with a success of 4.
+		Fellowship4Dan,
+		/// Origin commanded by rank 5 of the Polkadot Fellowship and with a success of 5.
+		Fellowship5Dan,
+		/// Origin commanded by rank 6 of the Polkadot Fellowship and with a success of 6.
+		Fellowship6Dan,
+		/// Origin commanded by rank 7 of the Polkadot Fellowship and with a success of 7.
+		Fellowship7Dan,
+		/// Origin commanded by rank 8 of the Polkadot Fellowship and with a success of 8.
+		Fellowship8Dan,
+		/// Origin commanded by rank 9 of the Polkadot Fellowship and with a success of 9.
+		Fellowship9Dan,
 	}
 
-	macro_rules! decl_ensure {
+	macro_rules! decl_unit_ensures {
 		( $name:ident: $success_type:ty = $success:expr ) => {
-			pub struct $name<AccountId>(sp_std::marker::PhantomData<AccountId>);
-			impl<O: Into<Result<Origin, O>> + From<Origin>, AccountId>
-				EnsureOrigin<O> for $name<AccountId>
+			pub struct $name;
+			impl<O: Into<Result<Origin, O>> + From<Origin>>
+				EnsureOrigin<O> for $name
 			{
 				type Success = $success_type;
 				fn try_origin(o: O) -> Result<Self::Success, O> {
@@ -92,36 +108,83 @@ pub mod pallet_custom_origins {
 				}
 			}
 		};
-		( $name:ident ) => { decl_ensure! { $name : () = () } };
+		( $name:ident ) => { decl_unit_ensures! { $name : () = () } };
 		( $name:ident: $success_type:ty = $success:expr, $( $rest:tt )* ) => {
-			decl_ensure! { $name: $success_type = $success }
-			decl_ensure! { $( $rest )* }
+			decl_unit_ensures! { $name: $success_type = $success }
+			decl_unit_ensures! { $( $rest )* }
 		};
 		( $name:ident, $( $rest:tt )* ) => {
-			decl_ensure! { $name }
-			decl_ensure! { $( $rest )* }
+			decl_unit_ensures! { $name }
+			decl_unit_ensures! { $( $rest )* }
 		};
 		() => {}
 	}
-	decl_ensure!(
+	decl_unit_ensures!(
 		StakingAdmin,
-		Treasurer,
 		FellowshipAdmin,
 		GeneralAdmin,
 		AuctionAdmin,
 		LeaseAdmin,
 		ReferendumCanceller,
 		ReferendumKiller,
-		SmallTipper: Balance = 250 * QUID,
-		BigTipper: Balance = 1 * GRAND,
-		SmallSpender: Balance = 10 * GRAND,
-		MediumSpender: Balance = 100 * GRAND,
-		BigSpender: Balance = 1_000 * GRAND,
 		WhitelistedCaller,
-		FellowshipInitiates,
-		FellowshipApprentices,
-		Fellows,
-		FellowshipMasters,
-		FellowshipElites,
+		FellowshipInitiates: u16 = 0,
+		Fellows: u16 = 3,
+		FellowshipExperts: u16 = 5,
+		FellowshipMasters: u16 = 7,
 	);
+
+	macro_rules! decl_ensure {
+		(
+			$vis:vis type $name:ident: EnsureOrigin<Success = $success_type:ty> {
+				$( $item:ident = $success:expr, )*
+			}
+		) => {
+			$vis struct $name;
+			impl<O: Into<Result<Origin, O>> + From<Origin>>
+				EnsureOrigin<O> for $name
+			{
+				type Success = $success_type;
+				fn try_origin(o: O) -> Result<Self::Success, O> {
+					o.into().and_then(|o| match o {
+						$(
+							Origin::$item => Ok($success),
+						)*
+						r => Err(O::from(r)),
+					})
+				}
+				#[cfg(feature = "runtime-benchmarks")]
+				fn try_successful_origin() -> Result<O, ()> {
+					Err(())
+					$(
+						.or_else(|| Ok(O::from(Origin::$item)))
+					)*
+				}
+			}
+		}
+	}
+
+	decl_ensure! {
+		pub type Spender: EnsureOrigin<Success = Balance> {
+			SmallTipper = 250 * QUID,
+			BigTipper = 1 * GRAND,
+			SmallSpender = 10 * GRAND,
+			MediumSpender = 100 * GRAND,
+			BigSpender = 1_000 * GRAND,
+		}
+	}
+
+	decl_ensure! {
+		pub type EnsureFellowship: EnsureOrigin<Success = u16> {
+			Fellowship1Dan = 1,
+			Fellowship2Dan = 2,
+			Fellowship3Dan = 3,
+			Fellowship4Dan = 4,
+			Fellowship5Dan = 5,
+			Fellowship6Dan = 6,
+			Fellowship7Dan = 7,
+			Fellowship8Dan = 8,
+			Fellowship9Dan = 9,
+		}
+	}
 }

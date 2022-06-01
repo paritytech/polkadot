@@ -265,22 +265,26 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 				frame_system::RawOrigin::Root => Ok(0),
 				_ => Err(()),
 			}
-		} else if let Ok(custom_origin) = pallet_custom_origins::Origin::try_from(id.clone()) {
+		} else if let Ok(custom_origin) = origins::Origin::try_from(id.clone()) {
 			match custom_origin {
-				pallet_custom_origins::Origin::WhitelistedCaller => Ok(1),
-				pallet_custom_origins::Origin::StakingAdmin => Ok(10),
-				pallet_custom_origins::Origin::Treasurer => Ok(11),
-				pallet_custom_origins::Origin::LeaseAdmin => Ok(12),
-				pallet_custom_origins::Origin::FellowshipAdmin => Ok(13),
-				pallet_custom_origins::Origin::GeneralAdmin => Ok(14),
-				pallet_custom_origins::Origin::AuctionAdmin => Ok(15),
-				pallet_custom_origins::Origin::ReferendumCanceller => Ok(20),
-				pallet_custom_origins::Origin::ReferendumKiller => Ok(21),
-				pallet_custom_origins::Origin::SmallTipper => Ok(30),
-				pallet_custom_origins::Origin::BigTipper => Ok(31),
-				pallet_custom_origins::Origin::SmallSpender => Ok(32),
-				pallet_custom_origins::Origin::MediumSpender => Ok(33),
-				pallet_custom_origins::Origin::BigSpender => Ok(34),
+				origins::Origin::WhitelistedCaller => Ok(1),
+				// General admin
+				origins::Origin::StakingAdmin => Ok(10),
+				origins::Origin::Treasurer => Ok(11),
+				origins::Origin::LeaseAdmin => Ok(12),
+				origins::Origin::FellowshipAdmin => Ok(13),
+				origins::Origin::GeneralAdmin => Ok(14),
+				origins::Origin::AuctionAdmin => Ok(15),
+				// Referendum admins
+				origins::Origin::ReferendumCanceller => Ok(20),
+				origins::Origin::ReferendumKiller => Ok(21),
+				// Limited treasury spenders
+				origins::Origin::SmallTipper => Ok(30),
+				origins::Origin::BigTipper => Ok(31),
+				origins::Origin::SmallSpender => Ok(32),
+				origins::Origin::MediumSpender => Ok(33),
+				origins::Origin::BigSpender => Ok(34),
+				_ => Err(())
 			}
 		} else {
 			Err(())

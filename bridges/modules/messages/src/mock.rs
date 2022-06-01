@@ -149,7 +149,7 @@ parameter_types! {
 	pub const MaxUnrewardedRelayerEntriesAtInboundLane: u64 = 16;
 	pub const MaxUnconfirmedMessagesAtInboundLane: u64 = 32;
 	pub storage TokenConversionRate: FixedU128 = 1.into();
-  pub const TestBridgedChainId: bp_runtime::ChainId = *b"test";
+	pub const TestBridgedChainId: bp_runtime::ChainId = *b"test";
 }
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, TypeInfo)]
