@@ -15,10 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use assert_cmd::cargo::cargo_bin;
-use std::{
-	process::{Command, Stdio},
-	result::Result,
-};
+use std::{process::Command, result::Result};
 use tempfile::tempdir;
 
 static RUNTIMES: [&'static str; 4] = ["polkadot", "kusama", "westend", "rococo"];

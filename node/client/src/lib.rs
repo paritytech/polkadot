@@ -606,8 +606,9 @@ impl sp_blockchain::HeaderBackend<Block> for Client {
 	}
 }
 
-/// Provides the existential deposit.
+/// Provides the existential deposit for benchmarking.
 pub trait ExistentialDepositProvider {
+	/// Returns the existential deposit.
 	fn existential_deposit(&self) -> Balance;
 }
 
