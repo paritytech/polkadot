@@ -19,9 +19,9 @@ use super::*;
 
 use always_assert::never;
 use bytes::Bytes;
-use futures::{prelude::*, stream::BoxStream};
-use parity_scale_codec::{Decode, DecodeAll, Encode};
-use parking_lot::Mutex;
+use futures::stream::BoxStream;
+use parity_scale_codec::{Decode, DecodeAll};
+
 use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;
 
@@ -29,20 +29,20 @@ use polkadot_node_network_protocol::{
 	self as net_protocol,
 	peer_set::{PeerSet, PerPeerSet},
 	v1 as protocol_v1, ObservedRole, OurView, PeerId, ProtocolVersion,
-	UnifiedReputationChange as Rep, Versioned, View,
+	UnifiedReputationChange as Rep, View,
 };
 
 use polkadot_node_subsystem::{
-	errors::{SubsystemError, SubsystemResult},
+	errors::SubsystemError,
 	messages::{
 		network_bridge_event::{NewGossipTopology, TopologyPeerInfo},
 		ApprovalDistributionMessage, BitfieldDistributionMessage, CollatorProtocolMessage,
-		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeInMessage, NetworkBridgeMessage,
+		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeInMessage,
 		StatementDistributionMessage,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
 };
-use polkadot_overseer::gen::OrchestraError as OverseerError;
+
 use polkadot_primitives::v2::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
 
 /// Peer set info for network initialization.
@@ -53,7 +53,6 @@ pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
 use std::{
 	collections::{hash_map, HashMap},
 	iter::ExactSizeIterator,
-	sync::Arc,
 };
 
 use super::validator_discovery;
@@ -537,7 +536,6 @@ where
 					ctx.sender(),
 				);
 			},
-			FromOrchestra::Communication { msg: _ } => { /* handled by outgoing */ },
 			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(active_leaves)) => {
 				let ActiveLeavesUpdate { activated, deactivated } = active_leaves;
@@ -642,7 +640,8 @@ where
 
 	futures::pin_mut!(orchestra_signal_handler);
 
-	futures::future::select(orchestra_signal_handler, network_event_handler);
+	// FIXME
+	let _either = futures::future::select(orchestra_signal_handler, network_event_handler).await;
 	Ok(())
 }
 

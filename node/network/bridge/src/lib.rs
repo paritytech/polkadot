@@ -21,44 +21,22 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use always_assert::never;
-use bytes::Bytes;
-use futures::{prelude::*, stream::BoxStream};
-use parity_scale_codec::{Decode, DecodeAll, Encode};
+use futures::prelude::*;
+use parity_scale_codec::{Decode, Encode};
 use parking_lot::Mutex;
-use sc_network::Event as NetworkEvent;
+
 use sp_consensus::SyncOracle;
 
 use polkadot_node_network_protocol::{
-	self as net_protocol,
-	peer_set::{PeerSet, PerPeerSet},
-	v1 as protocol_v1, ObservedRole, OurView, PeerId, ProtocolVersion,
-	UnifiedReputationChange as Rep, Versioned, View,
+	peer_set::PeerSet, PeerId, ProtocolVersion, UnifiedReputationChange as Rep, View,
 };
-
-use polkadot_node_subsystem::{
-	errors::{SubsystemError, SubsystemResult},
-	messages::{
-		network_bridge_event::{NewGossipTopology, TopologyPeerInfo},
-		ApprovalDistributionMessage, BitfieldDistributionMessage, CollatorProtocolMessage,
-		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeInMessage, NetworkBridgeMessage,
-		StatementDistributionMessage,
-	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
-};
-use polkadot_overseer::OverseerError;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
 
 /// Peer set info for network initialization.
 ///
 /// To be added to [`NetworkConfiguration::extra_sets`].
 pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
 
-use std::{
-	collections::{hash_map, HashMap},
-	iter::ExactSizeIterator,
-	sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 mod validator_discovery;
 
@@ -66,15 +44,13 @@ mod validator_discovery;
 ///
 /// Defines the `Network` trait with an implementation for an `Arc<NetworkService>`.
 mod network;
-use self::network::{send_message, Network};
-
-use crate::network::get_peer_id_by_authority_id;
+use self::network::Network;
 
 mod metrics;
 use self::metrics::Metrics;
 
 mod errors;
-pub(crate) use self::errors::{Error, FatalError, JfyiError};
+pub(crate) use self::errors::Error;
 
 mod incoming;
 pub use self::incoming::*;

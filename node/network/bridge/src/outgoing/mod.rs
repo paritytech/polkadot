@@ -17,44 +17,19 @@
 //! The Network Bridge Subsystem - handles _outgoing_ (regarding the network).
 use super::*;
 
-use always_assert::never;
-use bytes::Bytes;
-use futures::{prelude::*, stream::BoxStream};
-use parity_scale_codec::{Decode, DecodeAll, Encode};
-use parking_lot::Mutex;
-use sc_network::Event as NetworkEvent;
 use sp_consensus::SyncOracle;
 
-use polkadot_node_network_protocol::{
-	self as net_protocol,
-	peer_set::{PeerSet, PerPeerSet},
-	v1 as protocol_v1, ObservedRole, OurView, PeerId, ProtocolVersion,
-	UnifiedReputationChange as Rep, Versioned, View,
-};
+use polkadot_node_network_protocol::{peer_set::PeerSet, v1 as protocol_v1, PeerId, Versioned};
 
 use polkadot_node_subsystem::{
-	errors::{SubsystemError, SubsystemResult},
-	messages::{
-		network_bridge_event::{NewGossipTopology, TopologyPeerInfo},
-		ApprovalDistributionMessage, BitfieldDistributionMessage, CollatorProtocolMessage,
-		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage,
-		StatementDistributionMessage,
-	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
+	errors::SubsystemError, messages::NetworkBridgeMessage, overseer, FromOrchestra,
+	OverseerSignal, SpawnedSubsystem,
 };
-use polkadot_overseer::gen::OrchestraError as OverseerError;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
 
 /// Peer set info for network initialization.
 ///
 /// To be added to [`NetworkConfiguration::extra_sets`].
 pub use polkadot_node_network_protocol::peer_set::{peer_sets_info, IsAuthority};
-
-use std::{
-	collections::{hash_map, HashMap},
-	iter::ExactSizeIterator,
-	sync::Arc,
-};
 
 use crate::validator_discovery;
 
@@ -62,8 +37,6 @@ use crate::validator_discovery;
 ///
 /// Defines the `Network` trait with an implementation for an `Arc<NetworkService>`.
 use crate::network::{send_message, Network};
-
-use crate::network::get_peer_id_by_authority_id;
 
 use crate::metrics::Metrics;
 
@@ -119,8 +92,8 @@ async fn handle_subsystem_messages<Context, N, AD>(
 	mut ctx: Context,
 	mut network_service: N,
 	mut authority_discovery_service: AD,
-	shared: Shared,
-	sync_oracle: Box<dyn SyncOracle + Send>,
+	_shared: Shared,
+	_sync_oracle: Box<dyn SyncOracle + Send>,
 	metrics: Metrics,
 ) -> Result<(), Error>
 where
@@ -151,7 +124,7 @@ where
 
 #[overseer::contextbounds(NetworkBridgeOut, prefix = self::overseer)]
 async fn handle_incoming_subsystem_communication<Context, N, AD>(
-	ctx: &mut Context,
+	_ctx: &mut Context,
 	mut network_service: N,
 	validator_discovery: &mut validator_discovery::Service<N, AD>,
 	mut authority_discovery_service: AD,
@@ -304,28 +277,6 @@ where
 		},
 	}
 	(network_service, authority_discovery_service)
-}
-
-async fn update_gossip_peers_1d<AD, N>(
-	ads: &mut AD,
-	neighbors: N,
-) -> HashMap<AuthorityDiscoveryId, TopologyPeerInfo>
-where
-	AD: validator_discovery::AuthorityDiscovery,
-	N: IntoIterator<Item = (AuthorityDiscoveryId, ValidatorIndex)>,
-	N::IntoIter: std::iter::ExactSizeIterator,
-{
-	let neighbors = neighbors.into_iter();
-	let mut peers = HashMap::with_capacity(neighbors.len());
-	for (authority, validator_index) in neighbors {
-		let addr = get_peer_id_by_authority_id(ads, authority.clone()).await;
-
-		if let Some(peer_id) = addr {
-			peers.insert(authority, TopologyPeerInfo { peer_ids: vec![peer_id], validator_index });
-		}
-	}
-
-	peers
 }
 
 #[overseer::contextbounds(NetworkBridgeOut, prefix = self::overseer)]
