@@ -22,36 +22,35 @@ use std::{
 use tempfile::tempdir;
 
 static RUNTIMES: [&'static str; 4] = ["polkadot", "kusama", "westend", "rococo"];
+static EXTRINSICS: [(&'static str, &'static str); 2] =
+	[("system", "remark"), ("balances", "transfer_keep_alive")];
 
 /// `benchmark extrinsic` works for all dev runtimes and some extrinsics.
 #[test]
 fn benchmark_extrinsic_works() {
-	for runtime in RUNTIMES {
+	for (runtime, (pallet, extrinsic)) in RUNTIMES.iter().zip(EXTRINSICS.iter()) {
 		let runtime = format!("{}-dev", runtime);
-		assert!(benchmark_extrinsic(runtime).is_ok());
+		assert!(benchmark_extrinsic(&runtime, pallet, extrinsic).is_ok());
 	}
 }
 
 /// `benchmark extrinsic` rejects all non-dev runtimes.
 #[test]
 fn benchmark_extrinsic_rejects_non_dev_runtimes() {
-	for runtime in RUNTIMES {
-		assert!(benchmark_extrinsic(runtime.into()).is_err());
+	for (runtime, (pallet, extrinsic)) in RUNTIMES.iter().zip(EXTRINSICS.iter()) {
+		assert!(benchmark_extrinsic(runtime, pallet, extrinsic).is_err());
 	}
 }
 
-fn benchmark_extrinsic(runtime: String) -> Result<(), String> {
+fn benchmark_extrinsic(runtime: &str, pallet: &str, extrinsic: &str) -> Result<(), String> {
 	let tmp_dir = tempdir().expect("could not create a temp dir");
 	let base_path = tmp_dir.path();
 
 	let status = Command::new(cargo_bin("polkadot"))
 		.args(["benchmark", "extrinsic", "--chain", &runtime])
-		.arg("-d")
-		.arg(base_path)
-		// Only put 5 extrinsics into the block otherwise it takes forever to build it
-		// especially for a non-release builds.
-		.args(["--max-ext-per-block", "5"])
-		.stderr(Stdio::inherit())
+		.args(&["--pallet", pallet, "--extrinsic", extrinsic])
+		// Run with low repeats for faster execution.
+		.args(["--repeat=10", "--warmup=10", "--max-ext-per-block", "5"])
 		.status()
 		.map_err(|e| format!("command failed: {:?}", e))?;
 

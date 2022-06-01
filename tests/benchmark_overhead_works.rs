@@ -56,7 +56,6 @@ fn benchmark_overhead(runtime: String) -> Result<(), String> {
 		// Only put 5 extrinsics into the block otherwise it takes forever to build it
 		// especially for a non-release builds.
 		.args(["--max-ext-per-block", "5"])
-		.stderr(Stdio::inherit())
 		.status()
 		.map_err(|e| format!("command failed: {:?}", e))?;
 
