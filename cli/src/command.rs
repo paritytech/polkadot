@@ -512,7 +512,7 @@ pub fn run() -> Result<()> {
 
 					unwrap_client!(client, cmd.run(client.clone()).map_err(Error::SubstrateCli))
 				}),
-				// Both commands are very similar and can be handled in nearly the same way.
+				// These commands are very similar and can be handled in nearly the same way.
 				BenchmarkCmd::Extrinsic(_) | BenchmarkCmd::Overhead(_) => {
 					ensure_dev(chain_spec).map_err(Error::Other)?;
 					runner.sync_run(|mut config| {
@@ -538,16 +538,15 @@ pub fn run() -> Result<()> {
 								unwrap_client!(
 									client,
 									cmd.run(client.clone(), inherent_data, &ext_factory)
-										.map_err(Error::SubstrateCli)
 								)
 							},
 							BenchmarkCmd::Overhead(cmd) => unwrap_client!(
 								client,
 								cmd.run(config, client.clone(), inherent_data, &remark_builder)
-									.map_err(Error::SubstrateCli)
 							),
-							_ => unreachable!(),
+							_ => unreachable!("Ensured by the outside match; qed"),
 						}
+						.map_err(Error::SubstrateCli)
 					})
 				},
 				BenchmarkCmd::Pallet(cmd) => {
