@@ -155,10 +155,13 @@ pub mod pallet_custom_origins {
 				}
 				#[cfg(feature = "runtime-benchmarks")]
 				fn try_successful_origin() -> Result<O, ()> {
-					Err(())
+					// By convention the more privileged origins go later, so for greatest chance
+					// of success, we want the last one.
+					let _result: Result<O, ()> = Err(());
 					$(
-						.or_else(|| Ok(O::from(Origin::$item)))
+						let _result: Result<O, ()> = Ok(O::from(Origin::$item));
 					)*
+					_result
 				}
 			}
 		}
