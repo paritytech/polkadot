@@ -382,4 +382,42 @@ mod tests {
 	fn check_ident() {
 		let _ident = quote::format_ident!("x💀x");
 	}
+
+	#[test]
+	fn kosaraju_scc_check_nodes_cannot_be_part_of_two_clusters() {
+		let mut graph = petgraph::graph::DiGraph::<char, &str>::new();
+
+		let a_idx = graph.add_node('A');
+		let b_idx = graph.add_node('B');
+		let c_idx = graph.add_node('C');
+		let d_idx = graph.add_node('D');
+		let e_idx = graph.add_node('E');
+		let f_idx = graph.add_node('F');
+
+		graph.add_edge(a_idx, b_idx, "10");
+		graph.add_edge(b_idx, c_idx, "11");
+		graph.add_edge(c_idx, a_idx, "12");
+
+		graph.add_edge(a_idx, d_idx, "20");
+		graph.add_edge(d_idx, c_idx, "21");
+
+		graph.add_edge(b_idx, e_idx, "30");
+		graph.add_edge(e_idx, c_idx, "31");
+
+		graph.add_edge(c_idx, f_idx, "40");
+
+		let mut sccs = dbg!(petgraph::algo::kosaraju_scc(&graph));
+
+		dbg!(graph);
+
+		sccs.sort_by(|a, b| {
+			if a.len() < b.len() {
+				std::cmp::Ordering::Greater
+			} else {
+				std::cmp::Ordering::Less
+			}
+		});
+		assert_eq!(sccs.len(), 2); // `f` and everything else
+		assert_eq!(sccs[0].len(), 5); // every node but `f`
+	}
 }
