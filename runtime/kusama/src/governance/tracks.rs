@@ -25,33 +25,45 @@ use pallet_referenda::Curve;
 const APP_ROOT: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
 const SUP_ROOT: Curve = Curve::make_linear(28, 28, percent(0), percent(50));
 const APP_STAKING_ADMIN: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
-const SUP_STAKING_ADMIN: Curve = Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
+const SUP_STAKING_ADMIN: Curve =
+	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
 const APP_TREASURER: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
 const SUP_TREASURER: Curve = Curve::make_linear(28, 28, percent(0), percent(50));
 const APP_FELLOWSHIP_ADMIN: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
-const SUP_FELLOWSHIP_ADMIN: Curve = Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
-const APP_GENERAL_ADMIN: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
-const SUP_GENERAL_ADMIN: Curve = Curve::make_reciprocal(7, 28, percent(10), percent(0), percent(50));
-const APP_AUCTION_ADMIN: Curve = Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
-const SUP_AUCTION_ADMIN: Curve = Curve::make_reciprocal(7, 28, percent(10), percent(0), percent(50));
+const SUP_FELLOWSHIP_ADMIN: Curve =
+	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
+const APP_GENERAL_ADMIN: Curve =
+	Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
+const SUP_GENERAL_ADMIN: Curve =
+	Curve::make_reciprocal(7, 28, percent(10), percent(0), percent(50));
+const APP_AUCTION_ADMIN: Curve =
+	Curve::make_reciprocal(4, 28, percent(80), percent(50), percent(100));
+const SUP_AUCTION_ADMIN: Curve =
+	Curve::make_reciprocal(7, 28, percent(10), percent(0), percent(50));
 const APP_LEASE_ADMIN: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
 const SUP_LEASE_ADMIN: Curve = Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
 const APP_REFERENDUM_CANCELLER: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
-const SUP_REFERENDUM_CANCELLER: Curve = Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
+const SUP_REFERENDUM_CANCELLER: Curve =
+	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
 const APP_REFERENDUM_KILLER: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
-const SUP_REFERENDUM_KILLER: Curve = Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
+const SUP_REFERENDUM_KILLER: Curve =
+	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
 const APP_SMALL_TIPPER: Curve = Curve::make_linear(10, 28, percent(50), percent(100));
 const SUP_SMALL_TIPPER: Curve = Curve::make_reciprocal(1, 28, percent(4), percent(0), percent(50));
 const APP_BIG_TIPPER: Curve = Curve::make_linear(10, 28, percent(50), percent(100));
 const SUP_BIG_TIPPER: Curve = Curve::make_reciprocal(8, 28, percent(1), percent(0), percent(50));
 const APP_SMALL_SPENDER: Curve = Curve::make_linear(17, 28, percent(50), percent(100));
-const SUP_SMALL_SPENDER: Curve = Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
+const SUP_SMALL_SPENDER: Curve =
+	Curve::make_reciprocal(12, 28, percent(1), percent(0), percent(50));
 const APP_MEDIUM_SPENDER: Curve = Curve::make_linear(23, 28, percent(50), percent(100));
-const SUP_MEDIUM_SPENDER: Curve = Curve::make_reciprocal(16, 28, percent(1), percent(0), percent(50));
+const SUP_MEDIUM_SPENDER: Curve =
+	Curve::make_reciprocal(16, 28, percent(1), percent(0), percent(50));
 const APP_BIG_SPENDER: Curve = Curve::make_linear(28, 28, percent(50), percent(100));
 const SUP_BIG_SPENDER: Curve = Curve::make_reciprocal(20, 28, percent(1), percent(0), percent(50));
-const APP_WHITELISTED_CALLER: Curve = Curve::make_reciprocal(16, 28 * 24, percent(96), percent(50), percent(100));
-const SUP_WHITELISTED_CALLER: Curve = Curve::make_reciprocal(1, 28, percent(20), percent(10), percent(50));
+const APP_WHITELISTED_CALLER: Curve =
+	Curve::make_reciprocal(16, 28 * 24, percent(96), percent(50), percent(100));
+const SUP_WHITELISTED_CALLER: Curve =
+	Curve::make_reciprocal(1, 28, percent(20), percent(10), percent(50));
 
 const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15] = [
 	(
@@ -67,7 +79,8 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			min_approval: APP_ROOT,
 			min_support: SUP_ROOT,
 		},
-	), (
+	),
+	(
 		1,
 		pallet_referenda::TrackInfo {
 			name: "whitelisted_caller",
@@ -80,7 +93,8 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			min_approval: APP_WHITELISTED_CALLER,
 			min_support: SUP_WHITELISTED_CALLER,
 		},
-	), (
+	),
+	(
 		10,
 		pallet_referenda::TrackInfo {
 			name: "staking_admin",
@@ -93,7 +107,8 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			min_approval: APP_STAKING_ADMIN,
 			min_support: SUP_STAKING_ADMIN,
 		},
-	), (
+	),
+	(
 		11,
 		pallet_referenda::TrackInfo {
 			name: "treasurer",
@@ -106,7 +121,8 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			min_approval: APP_TREASURER,
 			min_support: SUP_TREASURER,
 		},
-	), (
+	),
+	(
 		12,
 		pallet_referenda::TrackInfo {
 			name: "lease_admin",
@@ -119,7 +135,8 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			min_approval: APP_LEASE_ADMIN,
 			min_support: SUP_LEASE_ADMIN,
 		},
-	), (
+	),
+	(
 		13,
 		pallet_referenda::TrackInfo {
 			name: "fellowship_admin",
@@ -132,7 +149,8 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			min_approval: APP_FELLOWSHIP_ADMIN,
 			min_support: SUP_FELLOWSHIP_ADMIN,
 		},
-	), (
+	),
+	(
 		14,
 		pallet_referenda::TrackInfo {
 			name: "general_admin",
@@ -145,7 +163,8 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			min_approval: APP_GENERAL_ADMIN,
 			min_support: SUP_GENERAL_ADMIN,
 		},
-	), (
+	),
+	(
 		15,
 		pallet_referenda::TrackInfo {
 			name: "auction_admin",
@@ -158,7 +177,8 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			min_approval: APP_AUCTION_ADMIN,
 			min_support: SUP_AUCTION_ADMIN,
 		},
-	), (
+	),
+	(
 		20,
 		pallet_referenda::TrackInfo {
 			name: "referendum_canceller",
@@ -171,7 +191,8 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			min_approval: APP_REFERENDUM_CANCELLER,
 			min_support: SUP_REFERENDUM_CANCELLER,
 		},
-	), (
+	),
+	(
 		21,
 		pallet_referenda::TrackInfo {
 			name: "referendum_killer",
@@ -184,7 +205,8 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			min_approval: APP_REFERENDUM_KILLER,
 			min_support: SUP_REFERENDUM_KILLER,
 		},
-	), (
+	),
+	(
 		30,
 		pallet_referenda::TrackInfo {
 			name: "small_tipper",
@@ -197,7 +219,8 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			min_approval: APP_SMALL_TIPPER,
 			min_support: SUP_SMALL_TIPPER,
 		},
-	), (
+	),
+	(
 		31,
 		pallet_referenda::TrackInfo {
 			name: "big_tipper",
@@ -210,7 +233,8 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			min_approval: APP_BIG_TIPPER,
 			min_support: SUP_BIG_TIPPER,
 		},
-	), (
+	),
+	(
 		32,
 		pallet_referenda::TrackInfo {
 			name: "small_spender",
@@ -223,7 +247,8 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			min_approval: APP_SMALL_SPENDER,
 			min_support: SUP_SMALL_SPENDER,
 		},
-	), (
+	),
+	(
 		33,
 		pallet_referenda::TrackInfo {
 			name: "medium_spender",
@@ -236,7 +261,8 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			min_approval: APP_MEDIUM_SPENDER,
 			min_support: SUP_MEDIUM_SPENDER,
 		},
-	), (
+	),
+	(
 		34,
 		pallet_referenda::TrackInfo {
 			name: "big_spender",
@@ -284,7 +310,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 				origins::Origin::SmallSpender => Ok(32),
 				origins::Origin::MediumSpender => Ok(33),
 				origins::Origin::BigSpender => Ok(34),
-				_ => Err(())
+				_ => Err(()),
 			}
 		} else {
 			Err(())

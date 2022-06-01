@@ -52,8 +52,8 @@ use frame_election_provider_support::{
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		ConstU32, Contains, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		OnRuntimeUpgrade, PrivilegeCmp,
+		ConstU32, Contains, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade,
+		PrivilegeCmp,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -104,10 +104,9 @@ pub mod xcm_config;
 // Governance configurations.
 pub mod governance;
 use governance::{
-	pallet_custom_origins,
-	StakingAdmin, GeneralAdmin, AuctionAdmin, LeaseAdmin, TreasurySpender,
+	old::CouncilCollective, pallet_custom_origins, AuctionAdmin, GeneralAdmin, LeaseAdmin,
+	StakingAdmin, TreasurySpender,
 };
-use governance::old::CouncilCollective;
 
 #[cfg(test)]
 mod tests;

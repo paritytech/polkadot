@@ -25,16 +25,14 @@ pub mod old;
 
 mod origins;
 pub use origins::{
-	pallet_custom_origins,
-	StakingAdmin, FellowshipAdmin, GeneralAdmin, AuctionAdmin, LeaseAdmin,
-	ReferendumCanceller, ReferendumKiller, Spender,
-	WhitelistedCaller, FellowshipInitiates, Fellows,
-	FellowshipExperts, FellowshipMasters,
+	pallet_custom_origins, AuctionAdmin, Fellows, FellowshipAdmin, FellowshipExperts,
+	FellowshipInitiates, FellowshipMasters, GeneralAdmin, LeaseAdmin, ReferendumCanceller,
+	ReferendumKiller, Spender, StakingAdmin, WhitelistedCaller,
 };
 mod tracks;
 pub use tracks::TracksInfo;
 mod fellowship;
-pub use fellowship::{FellowshipReferendaInstance, FellowshipCollectiveInstance};
+pub use fellowship::{FellowshipCollectiveInstance, FellowshipReferendaInstance};
 
 parameter_types! {
 	pub const VoteLockingPeriod: BlockNumber = 7 * DAYS;
@@ -59,7 +57,7 @@ parameter_types! {
 parameter_types! {
 	pub const MaxBalance: Balance = Balance::max_value();
 }
-pub type TreasurySpender = EitherOf< EnsureRootWithSuccess<AccountId, MaxBalance>, Spender >;
+pub type TreasurySpender = EitherOf<EnsureRootWithSuccess<AccountId, MaxBalance>, Spender>;
 
 impl origins::pallet_custom_origins::Config for Runtime {}
 

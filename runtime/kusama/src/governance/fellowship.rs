@@ -19,15 +19,15 @@
 //! place, so until then it will need to live here. Once it is in place and there exists a bridge
 //! between Polkadot/Kusama then this code can be removed.
 
+use frame_support::traits::{MapSuccess, TryMapSuccess};
+use sp_arithmetic::traits::CheckedSub;
 use sp_runtime::{
 	morph_types,
-	traits::{Replace, ConstU16, TypedGet}
+	traits::{ConstU16, Replace, TypedGet},
 };
-use sp_arithmetic::traits::CheckedSub;
-use frame_support::traits::{TryMapSuccess, MapSuccess};
 
 use super::*;
-use crate::{QUID, DAYS};
+use crate::{DAYS, QUID};
 
 parameter_types! {
 	pub const AlarmInterval: BlockNumber = 1;
@@ -41,196 +41,226 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 	type Origin = <Origin as frame_support::traits::OriginTrait>::PalletsOrigin;
 	fn tracks() -> &'static [(Self::Id, pallet_referenda::TrackInfo<Balance, BlockNumber>)] {
 		static DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 10] = [
-			(0u16, pallet_referenda::TrackInfo {
-				name: "initiates",
-				max_deciding: 10,
-				decision_deposit: 100 * QUID,
-				prepare_period: 30 * MINUTES,
-				decision_period: 7 * DAYS,
-				confirm_period: 30 * MINUTES,
-				min_enactment_period: 4,
-				min_approval: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(50),
-					ceil: Perbill::from_percent(100),
+			(
+				0u16,
+				pallet_referenda::TrackInfo {
+					name: "initiates",
+					max_deciding: 10,
+					decision_deposit: 100 * QUID,
+					prepare_period: 30 * MINUTES,
+					decision_period: 7 * DAYS,
+					confirm_period: 30 * MINUTES,
+					min_enactment_period: 4,
+					min_approval: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(50),
+						ceil: Perbill::from_percent(100),
+					},
+					min_support: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(0),
+						ceil: Perbill::from_percent(50),
+					},
 				},
-				min_support: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(0),
-					ceil: Perbill::from_percent(50),
+			),
+			(
+				1u16,
+				pallet_referenda::TrackInfo {
+					name: "provisionals",
+					max_deciding: 10,
+					decision_deposit: 10 * QUID,
+					prepare_period: 30 * MINUTES,
+					decision_period: 7 * DAYS,
+					confirm_period: 30 * MINUTES,
+					min_enactment_period: 4,
+					min_approval: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(50),
+						ceil: Perbill::from_percent(100),
+					},
+					min_support: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(0),
+						ceil: Perbill::from_percent(50),
+					},
 				},
-			}),
-			(1u16, pallet_referenda::TrackInfo {
-				name: "provisionals",
-				max_deciding: 10,
-				decision_deposit: 10 * QUID,
-				prepare_period: 30 * MINUTES,
-				decision_period: 7 * DAYS,
-				confirm_period: 30 * MINUTES,
-				min_enactment_period: 4,
-				min_approval: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(50),
-					ceil: Perbill::from_percent(100),
+			),
+			(
+				2u16,
+				pallet_referenda::TrackInfo {
+					name: "proficients",
+					max_deciding: 10,
+					decision_deposit: 10 * QUID,
+					prepare_period: 30 * MINUTES,
+					decision_period: 7 * DAYS,
+					confirm_period: 30 * MINUTES,
+					min_enactment_period: 4,
+					min_approval: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(50),
+						ceil: Perbill::from_percent(100),
+					},
+					min_support: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(0),
+						ceil: Perbill::from_percent(50),
+					},
 				},
-				min_support: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(0),
-					ceil: Perbill::from_percent(50),
+			),
+			(
+				3u16,
+				pallet_referenda::TrackInfo {
+					name: "fellows",
+					max_deciding: 10,
+					decision_deposit: 10 * QUID,
+					prepare_period: 30 * MINUTES,
+					decision_period: 7 * DAYS,
+					confirm_period: 30 * MINUTES,
+					min_enactment_period: 4,
+					min_approval: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(50),
+						ceil: Perbill::from_percent(100),
+					},
+					min_support: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(0),
+						ceil: Perbill::from_percent(50),
+					},
 				},
-			}),
-			(2u16, pallet_referenda::TrackInfo {
-				name: "proficients",
-				max_deciding: 10,
-				decision_deposit: 10 * QUID,
-				prepare_period: 30 * MINUTES,
-				decision_period: 7 * DAYS,
-				confirm_period: 30 * MINUTES,
-				min_enactment_period: 4,
-				min_approval: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(50),
-					ceil: Perbill::from_percent(100),
+			),
+			(
+				4u16,
+				pallet_referenda::TrackInfo {
+					name: "senior fellows",
+					max_deciding: 10,
+					decision_deposit: 10 * QUID,
+					prepare_period: 30 * MINUTES,
+					decision_period: 7 * DAYS,
+					confirm_period: 30 * MINUTES,
+					min_enactment_period: 4,
+					min_approval: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(50),
+						ceil: Perbill::from_percent(100),
+					},
+					min_support: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(0),
+						ceil: Perbill::from_percent(50),
+					},
 				},
-				min_support: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(0),
-					ceil: Perbill::from_percent(50),
+			),
+			(
+				5u16,
+				pallet_referenda::TrackInfo {
+					name: "experts",
+					max_deciding: 10,
+					decision_deposit: 1 * QUID,
+					prepare_period: 30 * MINUTES,
+					decision_period: 7 * DAYS,
+					confirm_period: 30 * MINUTES,
+					min_enactment_period: 4,
+					min_approval: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(50),
+						ceil: Perbill::from_percent(100),
+					},
+					min_support: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(0),
+						ceil: Perbill::from_percent(50),
+					},
 				},
-			}),
-			(3u16, pallet_referenda::TrackInfo {
-				name: "fellows",
-				max_deciding: 10,
-				decision_deposit: 10 * QUID,
-				prepare_period: 30 * MINUTES,
-				decision_period: 7 * DAYS,
-				confirm_period: 30 * MINUTES,
-				min_enactment_period: 4,
-				min_approval: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(50),
-					ceil: Perbill::from_percent(100),
+			),
+			(
+				6u16,
+				pallet_referenda::TrackInfo {
+					name: "senior experts",
+					max_deciding: 10,
+					decision_deposit: 1 * QUID,
+					prepare_period: 30 * MINUTES,
+					decision_period: 7 * DAYS,
+					confirm_period: 30 * MINUTES,
+					min_enactment_period: 4,
+					min_approval: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(50),
+						ceil: Perbill::from_percent(100),
+					},
+					min_support: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(0),
+						ceil: Perbill::from_percent(50),
+					},
 				},
-				min_support: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(0),
-					ceil: Perbill::from_percent(50),
+			),
+			(
+				7u16,
+				pallet_referenda::TrackInfo {
+					name: "masters",
+					max_deciding: 10,
+					decision_deposit: 1 * QUID,
+					prepare_period: 30 * MINUTES,
+					decision_period: 7 * DAYS,
+					confirm_period: 30 * MINUTES,
+					min_enactment_period: 4,
+					min_approval: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(50),
+						ceil: Perbill::from_percent(100),
+					},
+					min_support: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(0),
+						ceil: Perbill::from_percent(50),
+					},
 				},
-			}),
-			(4u16, pallet_referenda::TrackInfo {
-				name: "senior fellows",
-				max_deciding: 10,
-				decision_deposit: 10 * QUID,
-				prepare_period: 30 * MINUTES,
-				decision_period: 7 * DAYS,
-				confirm_period: 30 * MINUTES,
-				min_enactment_period: 4,
-				min_approval: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(50),
-					ceil: Perbill::from_percent(100),
+			),
+			(
+				8u16,
+				pallet_referenda::TrackInfo {
+					name: "senior masters",
+					max_deciding: 10,
+					decision_deposit: 1 * QUID,
+					prepare_period: 30 * MINUTES,
+					decision_period: 7 * DAYS,
+					confirm_period: 30 * MINUTES,
+					min_enactment_period: 4,
+					min_approval: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(50),
+						ceil: Perbill::from_percent(100),
+					},
+					min_support: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(0),
+						ceil: Perbill::from_percent(50),
+					},
 				},
-				min_support: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(0),
-					ceil: Perbill::from_percent(50),
+			),
+			(
+				9u16,
+				pallet_referenda::TrackInfo {
+					name: "grand masters",
+					max_deciding: 10,
+					decision_deposit: 1 * QUID,
+					prepare_period: 30 * MINUTES,
+					decision_period: 7 * DAYS,
+					confirm_period: 30 * MINUTES,
+					min_enactment_period: 4,
+					min_approval: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(50),
+						ceil: Perbill::from_percent(100),
+					},
+					min_support: pallet_referenda::Curve::LinearDecreasing {
+						length: Perbill::from_percent(100),
+						floor: Perbill::from_percent(0),
+						ceil: Perbill::from_percent(50),
+					},
 				},
-			}),
-			(5u16, pallet_referenda::TrackInfo {
-				name: "experts",
-				max_deciding: 10,
-				decision_deposit: 1 * QUID,
-				prepare_period: 30 * MINUTES,
-				decision_period: 7 * DAYS,
-				confirm_period: 30 * MINUTES,
-				min_enactment_period: 4,
-				min_approval: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(50),
-					ceil: Perbill::from_percent(100),
-				},
-				min_support: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(0),
-					ceil: Perbill::from_percent(50),
-				},
-			}),
-			(6u16, pallet_referenda::TrackInfo {
-				name: "senior experts",
-				max_deciding: 10,
-				decision_deposit: 1 * QUID,
-				prepare_period: 30 * MINUTES,
-				decision_period: 7 * DAYS,
-				confirm_period: 30 * MINUTES,
-				min_enactment_period: 4,
-				min_approval: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(50),
-					ceil: Perbill::from_percent(100),
-				},
-				min_support: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(0),
-					ceil: Perbill::from_percent(50),
-				},
-			}),
-			(7u16, pallet_referenda::TrackInfo {
-				name: "masters",
-				max_deciding: 10,
-				decision_deposit: 1 * QUID,
-				prepare_period: 30 * MINUTES,
-				decision_period: 7 * DAYS,
-				confirm_period: 30 * MINUTES,
-				min_enactment_period: 4,
-				min_approval: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(50),
-					ceil: Perbill::from_percent(100),
-				},
-				min_support: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(0),
-					ceil: Perbill::from_percent(50),
-				},
-			}),
-			(8u16, pallet_referenda::TrackInfo {
-				name: "senior masters",
-				max_deciding: 10,
-				decision_deposit: 1 * QUID,
-				prepare_period: 30 * MINUTES,
-				decision_period: 7 * DAYS,
-				confirm_period: 30 * MINUTES,
-				min_enactment_period: 4,
-				min_approval: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(50),
-					ceil: Perbill::from_percent(100),
-				},
-				min_support: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(0),
-					ceil: Perbill::from_percent(50),
-				},
-			}),
-			(9u16, pallet_referenda::TrackInfo {
-				name: "grand masters",
-				max_deciding: 10,
-				decision_deposit: 1 * QUID,
-				prepare_period: 30 * MINUTES,
-				decision_period: 7 * DAYS,
-				confirm_period: 30 * MINUTES,
-				min_enactment_period: 4,
-				min_approval: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(50),
-					ceil: Perbill::from_percent(100),
-				},
-				min_support: pallet_referenda::Curve::LinearDecreasing {
-					length: Perbill::from_percent(100),
-					floor: Perbill::from_percent(0),
-					ceil: Perbill::from_percent(50),
-				},
-			}),
+			),
 		];
 		&DATA[..]
 	}
@@ -260,7 +290,8 @@ impl pallet_referenda::Config<FellowshipReferendaInstance> for Runtime {
 	type Event = Event;
 	type Scheduler = Scheduler;
 	type Currency = Balances;
-	type SubmitOrigin = pallet_ranked_collective::EnsureMember<Runtime, FellowshipCollectiveInstance, 1>;
+	type SubmitOrigin =
+		pallet_ranked_collective::EnsureMember<Runtime, FellowshipCollectiveInstance, 1>;
 	type CancelOrigin = FellowshipExperts;
 	type KillOrigin = FellowshipMasters;
 	type Slash = ();
