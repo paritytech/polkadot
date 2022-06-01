@@ -134,8 +134,8 @@ impl<'a> ConnectionGraph<'a> {
 		for (scc_idx, scc) in sccs.iter().enumerate() {
 			let scc_tag = greek_alphabet.get(scc_idx).copied().unwrap_or('_');
 			let mut acc = Vec::with_capacity(scc.len());
-			let first = scc[0].clone();
-			let mut node_idx = first;
+			assert!(scc.len() > 0);
+			let mut node_idx = scc[0].clone();
 			let print_idx = scc_idx + 1;
 			// track which ones were visited and which step
 			// the step is required to truncate the output
@@ -149,19 +149,19 @@ impl<'a> ConnectionGraph<'a> {
 					let next = edge.target();
 					visited.insert(node_idx, step);
 
-					if let Some(step) = visited.get(&next) {
-						// we've been there, so there is a cycle
-						// cut off the extra tail
-						acc.drain(..step);
-						// there might be more cycles in this cluster,
-						// but for they are ignored, the graph shows
-						// the entire strongly connected cluster.
-					}
 					let subsystem_name = &graph[node_idx].to_string();
 					let message_name = &graph[edge.id()].to_token_stream().to_string();
 					acc.push(format!("{subsystem_name} ~~{{{message_name:?}}}~~> "));
 					node_idx = next;
-					if next == first {
+
+					if let Some(step) = visited.get(&next) {
+						// we've been there, so there is a cycle
+						// cut off the extra tail
+						assert!(acc.len() >= *step);
+						acc.drain(..step);
+						// there might be more cycles in this cluster,
+						// but for they are ignored, the graph shows
+						// the entire strongly connected cluster.
 						break
 					}
 				} else {
@@ -250,6 +250,9 @@ impl<'a> ConnectionGraph<'a> {
 			let source = edge.source();
 			let sink = edge.target();
 
+			let message_name =
+				edge.weight().get_ident().expect("Must have a trailing identifier. qed");
+
 			// use the intersection only, that's the set of cycles the edge is part of
 			if let Some(edge_intersecting_scc_tags) = scc_lut.get(&source).and_then(|source_set| {
 				scc_lut.get(&sink).and_then(move |sink_set| {
@@ -262,16 +265,17 @@ impl<'a> ConnectionGraph<'a> {
 					}
 				})
 			}) {
+				if edge_intersecting_scc_tags.len() != 1 {
+					unreachable!("Strongly connected components are disjunct by definition. qed");
+				}
+				let scc_tag = edge_intersecting_scc_tags.iter().next().unwrap();
+				let color = get_color_by_tag(scc_tag, color_lut);
+				let scc_tag_str = cycle_tags_to_annotation(edge_intersecting_scc_tags, color_lut);
 				format!(
-					r#"fontcolor="red",xlabel=<{}>,fontcolor="black",label="{}""#,
-					scc_tags_to_annotation(edge_intersecting_scc_tags, color_lut),
-					edge.weight().get_ident().expect("Must have a trailing identifier. qed")
+					r#"color="{color}",fontcolor="{color}",xlabel=<{scc_tag_str}>,label="{message_name}""#,
 				)
 			} else {
-				format!(
-					r#"label="{}""#,
-					edge.weight().get_ident().expect("Must have a trailing identifier. qed")
-				)
+				format!(r#"label="{message_name}""#,)
 			}
 		};
 		let node_attr =
@@ -282,14 +286,22 @@ impl<'a> ConnectionGraph<'a> {
 					unsent_node_label.to_owned().clone()
 				} else if node_index == unconsumed_idx {
 					unconsumed_node_label.to_owned().clone()
-				} else if let Some(scc_tags) = scc_lut.get(&node_index) {
+				} else if let Some(edge_intersecting_scc_tags) = scc_lut.get(&node_index) {
+					if edge_intersecting_scc_tags.len() != 1 {
+						unreachable!(
+							"Strongly connected components are disjunct by definition. qed"
+						);
+					};
+					let scc_tag = edge_intersecting_scc_tags.iter().next().unwrap();
+					let color = get_color_by_tag(scc_tag, color_lut);
+
+					let scc_tag_str =
+						cycle_tags_to_annotation(edge_intersecting_scc_tags, color_lut);
 					format!(
-						r#"fontcolor="red",xlabel=<{}>,fontcolor="black",label="{}""#,
-						scc_tags_to_annotation(scc_tags, color_lut),
-						subsystem_name
+						r#"color="{color}",fontcolor="{color}",xlabel=<{scc_tag_str}>,label="{subsystem_name}""#,
 					)
 				} else {
-					format!(r#"label="{}""#, subsystem_name)
+					format!(r#"label="{subsystem_name}""#)
 				}
 			};
 		let dot = Dot::with_attr_getters(
@@ -299,9 +311,10 @@ impl<'a> ConnectionGraph<'a> {
 		dest.write_all(
 			format!(
 				r#"digraph {{
-	node [colorscheme=rdylgn10]
+	node [colorscheme={}]
 	{:?}
 }}"#,
+				color_scheme(),
 				&dot
 			)
 			.as_bytes(),
@@ -310,19 +323,35 @@ impl<'a> ConnectionGraph<'a> {
 	}
 }
 
-fn scc_tags_to_annotation<'a>(
-	scc_tags: impl IntoIterator<Item = &'a char>,
+const fn color_scheme() -> &'static str {
+	"rdylgn10"
+}
+
+fn get_color_by_idx(color_idx: usize) -> String {
+	let scheme = color_scheme();
+	format!("/{scheme}/{color_idx}")
+}
+
+fn get_color_by_tag(scc_tag: &char, color_lut: &HashMap<char, usize>) -> String {
+	get_color_by_idx(color_lut.get(scc_tag).copied().unwrap_or_default())
+}
+
+/// A node can be member of multiple cycles,
+/// but only of one strongly connected component.
+fn cycle_tags_to_annotation<'a>(
+	cycle_tags: impl IntoIterator<Item = &'a char>,
 	color_lut: &HashMap<char, usize>,
 ) -> String {
-	// Must use fully qualified syntax: <https://github.com/rust-lang/rust/issues/48919>
-	let scc_annotation = String::from_iter(itertools::Itertools::intersperse(
-		scc_tags.into_iter().map(|c| {
-			let i = color_lut.get(c).copied().unwrap();
-			format!(r#"<B><FONT COLOR="/rdylgn10/{i}">{c}</FONT></B>"#)
+	// Must use fully qualified syntax:
+	// <https://github.com/rust-lang/rust/issues/48919>
+	let cycle_annotation = String::from_iter(itertools::Itertools::intersperse(
+		cycle_tags.into_iter().map(|scc_tag| {
+			let color = get_color_by_tag(scc_tag, color_lut);
+			format!(r#"<B><FONT COLOR="{color}">{scc_tag}</FONT></B>"#)
 		}),
 		",".to_owned(),
 	));
-	scc_annotation
+	cycle_annotation
 }
 
 const GREEK_ALPHABET_SIZE: usize = 24;
@@ -342,8 +371,6 @@ fn greek_alphabet() -> [char; GREEK_ALPHABET_SIZE] {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
-
 	// whenever this starts working, we should consider
 	// replacing the all caps idents with something like
 	// the below.
