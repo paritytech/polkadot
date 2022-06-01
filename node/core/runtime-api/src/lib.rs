@@ -27,14 +27,8 @@ use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 };
-use polkadot_node_subsystem_util::metrics::prometheus;
 use polkadot_overseer::OverseerRuntimeClient;
-use polkadot_primitives::{
-	runtime_api::ParachainHost,
-	v2::{Block, BlockId, Hash},
-};
-
-use sp_core::traits::SpawnNamed;
+use polkadot_primitives::v2::{BlockId, Hash};
 
 use cache::{RequestResult, RequestResultCache};
 use futures::{channel::oneshot, prelude::*, select, stream::FuturesUnordered};
