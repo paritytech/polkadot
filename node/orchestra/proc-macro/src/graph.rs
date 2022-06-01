@@ -35,7 +35,7 @@ pub(crate) struct ConnectionGraph<'a> {
 	/// the receiver of the message.
 	pub(crate) graph: Graph<Ident, Path>,
 	/// Cycles within the graph
-	pub(crate) cycles: Vec<Vec<NodeIndex>>,
+	pub(crate) sccs: Vec<Vec<NodeIndex>>,
 	/// Messages that are never being sent (and by which subsystem), but are consumed
 	/// Maps the message `Path` to the subsystem `Ident` represented by `NodeIndex`.
 	pub(crate) unsent_messages: HashMap<&'a Path, (&'a Ident, NodeIndex)>,
@@ -93,23 +93,24 @@ impl<'a> ConnectionGraph<'a> {
 		let mut unconsumed_messages = outgoing_lut;
 		unconsumed_messages.retain(|k, _v| !consuming_set.contains(k));
 
-		let cycles = Self::extract_cycles(&graph);
+		let scc = Self::extract_scc(&graph);
 
-		Self { graph, cycles, unsent_messages, unconsumed_messages }
+		Self { graph, sccs: scc, unsent_messages, unconsumed_messages }
 	}
 
-	/// Extract the cycles and print them
-	fn extract_cycles(graph: &Graph<Ident, Path>) -> Vec<Vec<NodeIndex>> {
+	/// Extract the strongly connected clusters (`scc`) which each
+	/// includes at least one cycle each.
+	fn extract_scc(graph: &Graph<Ident, Path>) -> Vec<Vec<NodeIndex>> {
 		use petgraph::visit::EdgeRef;
 
-		// there is no guarantee regarding the node indices in the individual cycles
-		let cycles = petgraph::algo::kosaraju_scc(&graph);
-		let cycles = Vec::from_iter(cycles.into_iter().filter(|cycle| {
-			match cycle.len() {
+		// there is no guarantee regarding the node indices in the individual sccs
+		let sccs = petgraph::algo::kosaraju_scc(&graph);
+		let sccs = Vec::from_iter(sccs.into_iter().filter(|scc| {
+			match scc.len() {
 				1 => {
-					// contains cycles of length one,
+					// contains sccs of length one,
 					// which do not exists, might be an upstream bug?
-					let node_idx = cycle[0];
+					let node_idx = scc[0];
 					graph
 						.edges_directed(node_idx, petgraph::Direction::Outgoing)
 						.find(|edge| edge.target() == node_idx)
@@ -119,30 +120,31 @@ impl<'a> ConnectionGraph<'a> {
 				_n => true,
 			}
 		}));
-		match cycles.len() {
-			0 => println!("Found zer0 cycles"),
-			1 => println!("Found 1 cycle"),
-			n => println!("Found {n} cycles"),
+		match sccs.len() {
+			0 => println!("✅ Found no strongly connected clusters, hence no cycles exist"),
+			1 =>
+				println!("⚡ Found 1 strongly connected cluster which includes at least one cycle"),
+			n => println!(
+				"⚡ Found {n} strongly connected clusters which includes at least one cycle each"
+			),
 		}
 
 		let greek_alphabet = greek_alphabet();
 
-		for (cycle_idx, cycle) in cycles.iter().enumerate() {
-			let cycle_tag = greek_alphabet.get(cycle_idx).copied().unwrap_or('_');
-			let mut acc = Vec::with_capacity(cycle.len());
-			let first = cycle[0].clone();
+		for (scc_idx, scc) in sccs.iter().enumerate() {
+			let scc_tag = greek_alphabet.get(scc_idx).copied().unwrap_or('_');
+			let mut acc = Vec::with_capacity(scc.len());
+			let first = scc[0].clone();
 			let mut node_idx = first;
-			let print_idx = cycle_idx + 1;
+			let print_idx = scc_idx + 1;
 			// track which ones were visited and which step
 			// the step is required to truncate the output
+			// which is required to greedily find a cycle in the strongly connected cluster
 			let mut visited = HashMap::new();
-			for step in 0..cycle.len() {
+			for step in 0..scc.len() {
 				if let Some(edge) =
 					graph.edges_directed(node_idx, petgraph::Direction::Outgoing).find(|edge| {
-						cycle
-							.iter()
-							.find(|&cycle_node_idx| *cycle_node_idx == edge.target())
-							.is_some()
+						scc.iter().find(|&scc_node_idx| *scc_node_idx == edge.target()).is_some()
 					}) {
 					let next = edge.target();
 					visited.insert(node_idx, step);
@@ -163,15 +165,15 @@ impl<'a> ConnectionGraph<'a> {
 						break
 					}
 				} else {
-					eprintln!("cycle({print_idx:03}={cycle_tag}): Missing connection in hypothesized cycle after {step} steps, this is a bug 🐛");
+					eprintln!("cycle({print_idx:03}) ∈ {scc_tag}: Missing connection in hypothesized cycle after {step} steps, this is a bug 🐛");
 					break
 				}
 			}
 			let acc = String::from_iter(acc);
-			println!("cycle({print_idx:03}={cycle_tag}): {acc} *");
+			println!("cycle({print_idx:03}) ∈ {scc_tag}: {acc} *");
 		}
 
-		cycles
+		sccs
 	}
 
 	/// Render a graphviz (aka dot graph) to a file.
@@ -180,14 +182,14 @@ impl<'a> ConnectionGraph<'a> {
 	#[cfg(feature = "graph")]
 	pub(crate) fn graphviz(self, dest: &mut impl std::io::Write) -> std::io::Result<()> {
 		use petgraph::visit::{EdgeRef, IntoNodeReferences};
-		// only write the grap content
+		// only write the grap content, we want a custom color scheme
 		let config = &[
 			dot::Config::GraphContentOnly,
 			dot::Config::EdgeNoLabel,
 			dot::Config::NodeNoLabel,
 		][..];
 
-		let Self { mut graph, unsent_messages, unconsumed_messages, cycles } = self;
+		let Self { mut graph, unsent_messages, unconsumed_messages, sccs } = self;
 
 		// the greek alphabet, lowercase
 		let greek_alphabet = greek_alphabet();
@@ -200,24 +202,24 @@ impl<'a> ConnectionGraph<'a> {
 		assert!(UPPER_BOUND <= GREEK_ALPHABET_SIZE);
 		assert!(UPPER_BOUND <= COLOR_SCHEME_N);
 
-		let n = cycles.len();
+		let n = sccs.len();
 		let n = if n > UPPER_BOUND {
-			eprintln!("Too many cycles {n}, only annotating the first {UPPER_BOUND} cycles");
+			eprintln!("Too many ({n}) strongly connected clusters, only annotating the first {UPPER_BOUND}");
 			UPPER_BOUND
 		} else {
 			n
 		};
 
 		// restructure for lookups
-		let mut cycles_lut = HashMap::<NodeIndex, HashSet<char>>::with_capacity(n);
+		let mut scc_lut = HashMap::<NodeIndex, HashSet<char>>::with_capacity(n);
 		// lookup the color index (which is equiv to the index in the cycle set vector _plus one_)
 		// based on the cycle_tag (the greek char)
 		let mut color_lut = HashMap::<char, usize>::with_capacity(COLOR_SCHEME_N);
-		for (cycle_idx, cycle) in cycles.into_iter().take(UPPER_BOUND).enumerate() {
-			for node_idx in cycle {
-				let _ = cycles_lut.entry(node_idx).or_default().insert(greek_alphabet[cycle_idx]);
+		for (scc_idx, scc) in sccs.into_iter().take(UPPER_BOUND).enumerate() {
+			for node_idx in scc {
+				let _ = scc_lut.entry(node_idx).or_default().insert(greek_alphabet[scc_idx]);
 			}
-			color_lut.insert(greek_alphabet[cycle_idx], cycle_idx + 1);
+			color_lut.insert(greek_alphabet[scc_idx], scc_idx + 1);
 		}
 		let color_lut = &color_lut;
 
@@ -249,21 +251,20 @@ impl<'a> ConnectionGraph<'a> {
 			let sink = edge.target();
 
 			// use the intersection only, that's the set of cycles the edge is part of
-			if let Some(edge_intersecting_cycle_tags) =
-				cycles_lut.get(&source).and_then(|source_set| {
-					cycles_lut.get(&sink).and_then(move |sink_set| {
-						let intersection =
-							HashSet::<_, RandomState>::from_iter(source_set.intersection(sink_set));
-						if intersection.is_empty() {
-							None
-						} else {
-							Some(intersection)
-						}
-					})
-				}) {
+			if let Some(edge_intersecting_scc_tags) = scc_lut.get(&source).and_then(|source_set| {
+				scc_lut.get(&sink).and_then(move |sink_set| {
+					let intersection =
+						HashSet::<_, RandomState>::from_iter(source_set.intersection(sink_set));
+					if intersection.is_empty() {
+						None
+					} else {
+						Some(intersection)
+					}
+				})
+			}) {
 				format!(
 					r#"fontcolor="red",xlabel=<{}>,fontcolor="black",label="{}""#,
-					cycle_tags_to_annotation(edge_intersecting_cycle_tags, color_lut),
+					scc_tags_to_annotation(edge_intersecting_scc_tags, color_lut),
 					edge.weight().get_ident().expect("Must have a trailing identifier. qed")
 				)
 			} else {
@@ -281,10 +282,10 @@ impl<'a> ConnectionGraph<'a> {
 					unsent_node_label.to_owned().clone()
 				} else if node_index == unconsumed_idx {
 					unconsumed_node_label.to_owned().clone()
-				} else if let Some(cycle_tags) = cycles_lut.get(&node_index) {
+				} else if let Some(scc_tags) = scc_lut.get(&node_index) {
 					format!(
 						r#"fontcolor="red",xlabel=<{}>,fontcolor="black",label="{}""#,
-						cycle_tags_to_annotation(cycle_tags, color_lut),
+						scc_tags_to_annotation(scc_tags, color_lut),
 						subsystem_name
 					)
 				} else {
@@ -309,19 +310,19 @@ impl<'a> ConnectionGraph<'a> {
 	}
 }
 
-fn cycle_tags_to_annotation<'a>(
-	cycle_tags: impl IntoIterator<Item = &'a char>,
+fn scc_tags_to_annotation<'a>(
+	scc_tags: impl IntoIterator<Item = &'a char>,
 	color_lut: &HashMap<char, usize>,
 ) -> String {
 	// Must use fully qualified syntax: <https://github.com/rust-lang/rust/issues/48919>
-	let cycle_annotation = String::from_iter(itertools::Itertools::intersperse(
-		cycle_tags.into_iter().map(|c| {
+	let scc_annotation = String::from_iter(itertools::Itertools::intersperse(
+		scc_tags.into_iter().map(|c| {
 			let i = color_lut.get(c).copied().unwrap();
 			format!(r#"<B><FONT COLOR="/rdylgn10/{i}">{c}</FONT></B>"#)
 		}),
 		",".to_owned(),
 	));
-	cycle_annotation
+	scc_annotation
 }
 
 const GREEK_ALPHABET_SIZE: usize = 24;
