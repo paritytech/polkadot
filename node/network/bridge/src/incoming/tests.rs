@@ -284,14 +284,14 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 	let network_stream = network.event_stream();
 
-	let bridge = NetworkBridge {
+	let bridge = NetworkBridgeIn {
 		network_service: network,
 		authority_discovery_service: discovery,
 		metrics: Metrics(None),
 		sync_oracle,
 	};
 
-	let network_bridge = run_network(bridge, context, network_stream)
+	let network_bridge = run_network_in(bridge, context, network_stream)
 		.map_err(|_| panic!("subsystem execution failed"))
 		.map(|_| ());
 
@@ -311,7 +311,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 async fn assert_sends_validation_event_to_all(
 	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
-	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeMessage>,
+	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeInMessage>,
 ) {
 	// Ordering must be consistent across:
 	// `fn dispatch_validation_event_to_all_unbounded`
@@ -347,7 +347,7 @@ async fn assert_sends_validation_event_to_all(
 
 async fn assert_sends_collation_event_to_all(
 	event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>,
-	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeMessage>,
+	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeInMessage>,
 ) {
 	assert_matches!(
 		virtual_overseer.recv().await,
@@ -485,6 +485,7 @@ fn do_not_send_view_update_until_synced() {
 
 		let peer_a = PeerId::random();
 		let peer_b = PeerId::random();
+		assert_ne!(peer_a, peer_b);
 
 		network_handle
 			.connect_peer(peer_a.clone(), PeerSet::Validation, ObservedRole::Full)
