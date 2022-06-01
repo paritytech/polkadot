@@ -243,35 +243,37 @@ pub trait ClientHandle {
 /// provides the concrete runtime as `runtime`.
 macro_rules! with_client {
 	{
-		$self:ident,
+		// The client instance that should be unwrapped.
+		$self:expr,
+		// The name that the unwrapped client can be accessed with.
 		$client:ident,
 		// NOTE: Using an expression here is fine since blocks are also expressions.
 		$code:expr
 	} => {
 		match $self {
 			#[cfg(feature = "polkadot")]
-			Self::Polkadot($client) => {
+			Client::Polkadot($client) => {
 				#[allow(unused_imports)]
 				use polkadot_runtime as runtime;
 
 				$code
 			},
 			#[cfg(feature = "westend")]
-			Self::Westend($client) => {
+			Client::Westend($client) => {
 				#[allow(unused_imports)]
 				use westend_runtime as runtime;
 
 				$code
 			},
 			#[cfg(feature = "kusama")]
-			Self::Kusama($client) => {
+			Client::Kusama($client) => {
 				#[allow(unused_imports)]
 				use kusama_runtime as runtime;
 
 				$code
 			},
 			#[cfg(feature = "rococo")]
-			Self::Rococo($client) => {
+			Client::Rococo($client) => {
 				#[allow(unused_imports)]
 				use rococo_runtime as runtime;
 
@@ -604,17 +606,101 @@ impl sp_blockchain::HeaderBackend<Block> for Client {
 	}
 }
 
-impl frame_benchmarking_cli::ExtrinsicBuilder for Client {
-	fn remark(&self, nonce: u32) -> std::result::Result<OpaqueExtrinsic, &'static str> {
+/// Provides the existential deposit.
+pub trait ExistentialDepositProvider {
+	fn existential_deposit(&self) -> Balance;
+}
+
+impl ExistentialDepositProvider for Client {
+	fn existential_deposit(&self) -> Balance {
 		with_client! {
-			self, client, {
+			self,
+			_client,
+			{
+				runtime::ExistentialDeposit::get()
+			}
+		}
+	}
+}
+
+/// Generates `System::Remark` extrinsics for the benchmarks.
+///
+/// Note: Should only be used for benchmarking.
+pub struct RemarkBuilder {
+	client: Arc<Client>,
+}
+
+/// Generates `Balances::TransferKeepAlive` extrinsics for the benchmarks.
+///
+/// Note: Should only be used for benchmarking.
+pub struct TransferKeepAliveBuilder {
+	client: Arc<Client>,
+	dest: AccountId,
+	value: Balance,
+}
+
+impl RemarkBuilder {
+	pub fn new(client: Arc<Client>) -> Self {
+		Self { client }
+	}
+}
+
+impl frame_benchmarking_cli::ExtrinsicBuilder for RemarkBuilder {
+	fn pallet(&self) -> &str {
+		"system"
+	}
+
+	fn extrinsic(&self) -> &str {
+		"remark"
+	}
+
+	fn build(&self, nonce: u32) -> std::result::Result<OpaqueExtrinsic, &'static str> {
+		with_client! {
+			self.client.as_ref(), client, {
 				use runtime::{Call, SystemCall};
 
 				let call = Call::System(SystemCall::remark { remark: vec![] });
 				let signer = Sr25519Keyring::Bob.pair();
 
 				let period = polkadot_runtime_common::BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
-				let genesis = self.usage_info().chain.best_hash;
+				let genesis = client.usage_info().chain.best_hash;
+
+				Ok(client.sign_call(call, nonce, 0, period, genesis, signer))
+			}
+		}
+	}
+}
+
+impl TransferKeepAliveBuilder {
+	/// Creates a new [`Self`] from the given client.
+	pub fn new(client: Arc<Client>, dest: AccountId, value: Balance) -> Self {
+		Self { client, dest, value }
+	}
+}
+
+impl frame_benchmarking_cli::ExtrinsicBuilder for TransferKeepAliveBuilder {
+	fn pallet(&self) -> &str {
+		"balances"
+	}
+
+	fn extrinsic(&self) -> &str {
+		"transfer_keep_alive"
+	}
+
+	fn build(&self, nonce: u32) -> std::result::Result<OpaqueExtrinsic, &'static str> {
+		with_client! {
+			self.client.as_ref(), client, {
+				use runtime::{Call, BalancesCall};
+				use sp_keyring::Sr25519Keyring;
+
+				let call = Call::Balances(BalancesCall::transfer_keep_alive {
+					dest: self.dest.clone().into(),
+					value: self.value.into(),
+				});
+				let signer = Sr25519Keyring::Bob.pair();
+
+				let period = polkadot_runtime_common::BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
+				let genesis = client.usage_info().chain.best_hash;
 
 				Ok(client.sign_call(call, nonce, 0, period, genesis, signer))
 			}

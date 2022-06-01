@@ -15,10 +15,13 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use assert_cmd::cargo::cargo_bin;
-use std::{process::Command, result::Result};
+use std::{
+	process::{Command, Stdio},
+	result::Result,
+};
 use tempfile::tempdir;
 
-static RUNTIMES: [&'static str; 3] = ["polkadot", "kusama", "westend"];
+static RUNTIMES: [&'static str; 4] = ["polkadot", "kusama", "westend", "rococo"];
 
 /// `benchmark overhead` works for all dev runtimes.
 #[test]
@@ -53,6 +56,7 @@ fn benchmark_overhead(runtime: String) -> Result<(), String> {
 		// Only put 5 extrinsics into the block otherwise it takes forever to build it
 		// especially for a non-release builds.
 		.args(["--max-ext-per-block", "5"])
+		.stderr(Stdio::inherit())
 		.status()
 		.map_err(|e| format!("command failed: {:?}", e))?;
 
