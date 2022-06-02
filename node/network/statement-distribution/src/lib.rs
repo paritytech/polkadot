@@ -31,6 +31,7 @@ use polkadot_node_network_protocol::{
 	peer_set::{IsAuthority, PeerSet},
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	v1::{self as protocol_v1, StatementMetadata},
+	vstaging as protocol_vstaging,
 	IfDisconnected, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_primitives::{SignedFullStatement, Statement, UncheckedSignedFullStatement};
@@ -605,7 +606,7 @@ struct FetchingInfo {
 	///
 	/// We use an `IndexMap` here to preserve the ordering of peers sending us messages. This is
 	/// desirable because we reward first sending peers with reputation.
-	available_peers: IndexMap<PeerId, Vec<protocol_v1::StatementDistributionMessage>>,
+	available_peers: IndexMap<PeerId, Vec<net_protocol::StatementDistributionMessage>>,
 	/// Peers left to try in case the background task needs it.
 	peers_to_try: Vec<PeerId>,
 	/// Sender for sending fresh peers to the fetching task in case of failure.
@@ -1207,11 +1208,11 @@ async fn retrieve_statement_from_message<'a, Context>(
 
 					let is_new_peer = match info.available_peers.entry(peer) {
 						IEntry::Occupied(mut occupied) => {
-							occupied.get_mut().push(message);
+							occupied.get_mut().push(Versioned::V1(message));
 							false
 						},
 						IEntry::Vacant(vacant) => {
-							vacant.insert(vec![message]);
+							vacant.insert(vec![Versioned::V1(message)]);
 							true
 						},
 					};
@@ -1289,7 +1290,7 @@ async fn launch_request<Context>(
 	}
 	let available_peers = {
 		let mut m = IndexMap::new();
-		m.insert(peer, vec![protocol_v1::StatementDistributionMessage::LargeStatement(meta)]);
+		m.insert(peer, vec![Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(meta))]);
 		m
 	};
 	Some(LargeStatementStatus::Fetching(FetchingInfo {
@@ -1309,7 +1310,7 @@ async fn handle_incoming_message_and_circulate<'a, Context, R>(
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	recent_outdated_heads: &RecentOutdatedHeads,
 	ctx: &mut Context,
-	message: protocol_v1::StatementDistributionMessage,
+	message: net_protocol::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 	runtime: &mut RuntimeInfo,
@@ -1342,7 +1343,7 @@ async fn handle_incoming_message_and_circulate<'a, Context, R>(
 		// statement before a `Seconded` statement. `Seconded` statements are the only ones
 		// that require dependents. Thus, if this is a `Seconded` statement for a candidate we
 		// were not aware of before, we cannot have any dependent statements from the candidate.
-		let _ = metrics.time_network_bridge_update_v1("circulate_statement");
+		let _ = metrics.time_network_bridge_update("circulate_statement");
 
 		let session_index = runtime.get_session_index_for_child(ctx.sender(), relay_parent).await;
 		let topology = match session_index {
@@ -1388,12 +1389,19 @@ async fn handle_incoming_message<'a, Context>(
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	recent_outdated_heads: &RecentOutdatedHeads,
 	ctx: &mut Context,
-	message: protocol_v1::StatementDistributionMessage,
+	message: net_protocol::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 ) -> Option<(Hash, StoredStatement<'a>)> {
+	let _ = metrics.time_network_bridge_update("handle_incoming_message");
+
+	// TODO [now] handle vstaging messages
+	let message = match message {
+		Versioned::V1(m) => m,
+		Versioned::VStaging(_) => unimplemented!(),
+	};
+
 	let relay_parent = message.get_relay_parent();
-	let _ = metrics.time_network_bridge_update_v1("handle_incoming_message");
 
 	let active_head = match active_heads.get_mut(&relay_parent) {
 		Some(h) => h,
@@ -1569,7 +1577,7 @@ async fn handle_incoming_message<'a, Context>(
 			// candidate backing subsystem.
 			ctx.send_message(CandidateBackingMessage::Statement(
 				relay_parent,
-				statement.statement.clone(),
+				unimplemented!(), // TODO [now]: fixme
 			))
 			.await;
 
@@ -1664,7 +1672,7 @@ async fn handle_network_update<Context, R>(
 			}
 		},
 		NetworkBridgeEvent::NewGossipTopology(topology) => {
-			let _ = metrics.time_network_bridge_update_v1("new_gossip_topology");
+			let _ = metrics.time_network_bridge_update("new_gossip_topology");
 
 			let new_session_index = topology.session;
 			let new_topology: SessionGridTopology = topology.into();
@@ -1688,7 +1696,7 @@ async fn handle_network_update<Context, R>(
 				}
 			}
 		},
-		NetworkBridgeEvent::PeerMessage(peer, Versioned::V1(message)) => {
+		NetworkBridgeEvent::PeerMessage(peer, message) => {
 			handle_incoming_message_and_circulate(
 				peer,
 				topology_storage,
@@ -1705,7 +1713,7 @@ async fn handle_network_update<Context, R>(
 			.await;
 		},
 		NetworkBridgeEvent::PeerViewChange(peer, view) => {
-			let _ = metrics.time_network_bridge_update_v1("peer_view_change");
+			let _ = metrics.time_network_bridge_update("peer_view_change");
 			gum::trace!(target: LOG_TARGET, ?peer, ?view, "Peer view change");
 			match peers.get_mut(&peer) {
 				Some(data) =>
