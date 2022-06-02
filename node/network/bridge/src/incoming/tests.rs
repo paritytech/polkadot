@@ -17,10 +17,7 @@
 use super::*;
 use futures::{channel::oneshot, executor, stream::BoxStream};
 use polkadot_node_network_protocol::{self as net_protocol, OurView};
-use polkadot_node_subsystem::{
-	messages::{NetworkBridgeEvent, NetworkBridgeMessage},
-	ActivatedLeaf,
-};
+use polkadot_node_subsystem::{messages::NetworkBridgeEvent, ActivatedLeaf};
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
@@ -49,7 +46,7 @@ use polkadot_node_subsystem_test_helpers::{
 };
 use polkadot_node_subsystem_util::metered;
 use polkadot_primitives::v2::AuthorityDiscoveryId;
-use polkadot_primitives_test_helpers::dummy_collator_signature;
+
 use sc_network::Multiaddr;
 use sp_keyring::Sr25519Keyring;
 
@@ -219,18 +216,18 @@ fn assert_network_actions_contains(actions: &[NetworkAction], action: &NetworkAc
 
 #[derive(Clone)]
 struct TestSyncOracle {
-	flag: Arc<AtomicBool>,
+	is_major_syncing: Arc<AtomicBool>,
 	done_syncing_sender: Arc<Mutex<Option<oneshot::Sender<()>>>>,
 }
 
 struct TestSyncOracleHandle {
 	done_syncing_receiver: oneshot::Receiver<()>,
-	flag: Arc<AtomicBool>,
+	is_major_syncing: Arc<AtomicBool>,
 }
 
 impl TestSyncOracleHandle {
 	fn set_done(&self) {
-		self.flag.store(false, Ordering::SeqCst);
+		self.is_major_syncing.store(false, Ordering::SeqCst);
 	}
 
 	async fn await_mode_switch(self) {
@@ -240,7 +237,7 @@ impl TestSyncOracleHandle {
 
 impl SyncOracle for TestSyncOracle {
 	fn is_major_syncing(&mut self) -> bool {
-		let is_major_syncing = self.flag.load(Ordering::SeqCst);
+		let is_major_syncing = self.is_major_syncing.load(Ordering::SeqCst);
 
 		if !is_major_syncing {
 			if let Some(sender) = self.done_syncing_sender.lock().take() {
@@ -257,13 +254,16 @@ impl SyncOracle for TestSyncOracle {
 }
 
 // val - result of `is_major_syncing`.
-fn make_sync_oracle(val: bool) -> (TestSyncOracle, TestSyncOracleHandle) {
+fn make_sync_oracle(is_major_syncing: bool) -> (TestSyncOracle, TestSyncOracleHandle) {
 	let (tx, rx) = oneshot::channel();
-	let flag = Arc::new(AtomicBool::new(val));
+	let is_major_syncing = Arc::new(AtomicBool::new(is_major_syncing));
 
 	(
-		TestSyncOracle { flag: flag.clone(), done_syncing_sender: Arc::new(Mutex::new(Some(tx))) },
-		TestSyncOracleHandle { flag, done_syncing_receiver: rx },
+		TestSyncOracle {
+			is_major_syncing: is_major_syncing.clone(),
+			done_syncing_sender: Arc::new(Mutex::new(Some(tx))),
+		},
+		TestSyncOracleHandle { is_major_syncing, done_syncing_receiver: rx },
 	)
 }
 

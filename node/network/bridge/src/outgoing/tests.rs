@@ -16,11 +16,8 @@
 
 use super::*;
 use futures::{channel::oneshot, executor, stream::BoxStream};
-use polkadot_node_network_protocol::{self as net_protocol, OurView};
-use polkadot_node_subsystem::{messages::NetworkBridgeEvent, ActivatedLeaf};
 use polkadot_node_subsystem_util::TimeoutExt;
 
-use assert_matches::assert_matches;
 use async_trait::async_trait;
 use parking_lot::Mutex;
 use std::{
@@ -32,19 +29,12 @@ use std::{
 use sc_network::{Event as NetworkEvent, IfDisconnected};
 
 use polkadot_node_network_protocol::{
-	request_response::outgoing::Requests, view, ObservedRole, Versioned,
+	request_response::outgoing::Requests, ObservedRole, Versioned,
 };
-use polkadot_node_subsystem::{
-	jaeger,
-	messages::{
-		AllMessages, ApprovalDistributionMessage, BitfieldDistributionMessage,
-		CollatorProtocolMessage, GossipSupportMessage, StatementDistributionMessage,
-	},
-	ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
-};
+use polkadot_node_subsystem::{FromOrchestra, OverseerSignal};
 use polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle;
 use polkadot_node_subsystem_util::metered;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash};
+use polkadot_primitives::v2::AuthorityDiscoveryId;
 use polkadot_primitives_test_helpers::dummy_collator_signature;
 use sc_network::Multiaddr;
 use sp_keyring::Sr25519Keyring;
@@ -167,16 +157,6 @@ impl TestNetworkHandle {
 		self.action_rx.next().await.expect("subsystem concluded early")
 	}
 
-	// Wait for the next N network actions.
-	async fn next_network_actions(&mut self, n: usize) -> Vec<NetworkAction> {
-		let mut v = Vec::with_capacity(n);
-		for _ in 0..n {
-			v.push(self.next_network_action().await);
-		}
-
-		v
-	}
-
 	async fn connect_peer(&mut self, peer: PeerId, peer_set: PeerSet, role: ObservedRole) {
 		self.send_network_event(NetworkEvent::NotificationStreamOpened {
 			remote: peer,
@@ -188,19 +168,11 @@ impl TestNetworkHandle {
 	}
 
 	async fn disconnect_peer(&mut self, peer: PeerId, peer_set: PeerSet) {
-		self.send_network_event(NetworkEvent::NotificationStreamClosed {
-			remote: peer,
-			protocol: peer_set.into_default_protocol_name(),
-		})
-		.await;
+		unreachable!("unused in outgoing tests")
 	}
 
 	async fn peer_message(&mut self, peer: PeerId, peer_set: PeerSet, message: Vec<u8>) {
-		self.send_network_event(NetworkEvent::NotificationsReceived {
-			remote: peer,
-			messages: vec![(peer_set.into_default_protocol_name(), message.into())],
-		})
-		.await;
+		unreachable!("unused in outgoing tests")
 	}
 
 	async fn send_network_event(&mut self, event: NetworkEvent) {
@@ -208,32 +180,10 @@ impl TestNetworkHandle {
 	}
 }
 
-/// Assert that the given actions contain the given `action`.
-fn assert_network_actions_contains(actions: &[NetworkAction], action: &NetworkAction) {
-	if !actions.iter().any(|x| x == action) {
-		panic!("Could not find `{:?}` in `{:?}`", action, actions);
-	}
-}
-
 #[derive(Clone)]
 struct TestSyncOracle {
 	flag: Arc<AtomicBool>,
 	done_syncing_sender: Arc<Mutex<Option<oneshot::Sender<()>>>>,
-}
-
-struct TestSyncOracleHandle {
-	done_syncing_receiver: oneshot::Receiver<()>,
-	flag: Arc<AtomicBool>,
-}
-
-impl TestSyncOracleHandle {
-	fn set_done(&self) {
-		self.flag.store(false, Ordering::SeqCst);
-	}
-
-	async fn await_mode_switch(self) {
-		let _ = self.done_syncing_receiver.await;
-	}
 }
 
 impl SyncOracle for TestSyncOracle {
@@ -255,18 +205,12 @@ impl SyncOracle for TestSyncOracle {
 }
 
 // val - result of `is_major_syncing`.
-fn make_sync_oracle(val: bool) -> (TestSyncOracle, TestSyncOracleHandle) {
-	let (tx, rx) = oneshot::channel();
-	let flag = Arc::new(AtomicBool::new(val));
-
-	(
-		TestSyncOracle { flag: flag.clone(), done_syncing_sender: Arc::new(Mutex::new(Some(tx))) },
-		TestSyncOracleHandle { flag, done_syncing_receiver: rx },
-	)
-}
-
 fn done_syncing_oracle() -> Box<dyn SyncOracle + Send> {
-	let (oracle, _) = make_sync_oracle(false);
+	let is_major_syncing = Arc::new(AtomicBool::new(false));
+	let oracle = TestSyncOracle {
+		flag: is_major_syncing.clone(),
+		done_syncing_sender: Arc::new(Mutex::new(None)),
+	};
 	Box::new(oracle)
 }
 
@@ -286,7 +230,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	let (context, virtual_overseer) =
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
-	let network_stream = network.event_stream();
+	let _network_stream = network.event_stream();
 
 	let bridge_out = NetworkBridgeOut::new(network, discovery, sync_oracle, Metrics(None));
 
@@ -307,54 +251,6 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		},
 		network_bridge_out_fut,
 	));
-}
-
-async fn assert_sends_validation_event_to_all(
-	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
-	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeMessage>,
-) {
-	// Ordering must be consistent across:
-	// `fn dispatch_validation_event_to_all_unbounded`
-	// `dispatch_validation_events_to_all`
-	assert_matches!(
-		virtual_overseer.recv().await,
-		AllMessages::StatementDistribution(
-			StatementDistributionMessage::NetworkBridgeUpdate(e)
-		) if e == event.focus().expect("could not focus message")
-	);
-
-	assert_matches!(
-		virtual_overseer.recv().await,
-		AllMessages::BitfieldDistribution(
-			BitfieldDistributionMessage::NetworkBridgeUpdate(e)
-		) if e == event.focus().expect("could not focus message")
-	);
-
-	assert_matches!(
-		virtual_overseer.recv().await,
-		AllMessages::ApprovalDistribution(
-			ApprovalDistributionMessage::NetworkBridgeUpdate(e)
-		) if e == event.focus().expect("could not focus message")
-	);
-
-	assert_matches!(
-		virtual_overseer.recv().await,
-		AllMessages::GossipSupport(
-			GossipSupportMessage::NetworkBridgeUpdate(e)
-		) if e == event.focus().expect("could not focus message")
-	);
-}
-
-async fn assert_sends_collation_event_to_all(
-	event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>,
-	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeMessage>,
-) {
-	assert_matches!(
-		virtual_overseer.recv().await,
-		AllMessages::CollatorProtocol(
-			CollatorProtocolMessage::NetworkBridgeUpdate(e)
-		) if e == event.focus().expect("could not focus message")
-	)
 }
 
 #[test]
