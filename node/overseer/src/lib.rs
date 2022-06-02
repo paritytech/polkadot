@@ -446,6 +446,7 @@ pub struct Overseer<SupportsParachains> {
 		CandidateBackingMessage,
 		RuntimeApiMessage,
 		ProspectiveParachainsMessage,
+		ChainApiMessage,
 	])]
 	statement_distribution: StatementDistribution,
 
