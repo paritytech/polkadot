@@ -245,7 +245,9 @@ pub struct TestSubsystemContextHandle<M> {
 }
 
 impl<M> TestSubsystemContextHandle<M> {
-	const TIMEOUT: Duration = Duration::from_secs(30);
+	/// Fallback timeout value used to never block test execution
+	/// indefinitely.
+	pub const TIMEOUT: Duration = Duration::from_secs(120);
 
 	/// Send a message or signal to the subsystem. This resolves at the point in time when the
 	/// subsystem has _read_ the message.

@@ -43,13 +43,15 @@ use polkadot_node_subsystem::{
 	ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
 };
 use polkadot_node_subsystem_test_helpers::{
-	SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
+	TestSubsystemContextHandle,
 };
 use polkadot_node_subsystem_util::metered;
 use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash};
 use polkadot_primitives_test_helpers::dummy_collator_signature;
 use sc_network::Multiaddr;
 use sp_keyring::Sr25519Keyring;
+
+const TIMEOUT: std::time::Duration = polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle::<NetworkBridgeMessage>::TIMEOUT;
 
 use crate::{network::Network, validator_discovery::AuthorityDiscovery, Rep};
 
@@ -66,7 +68,7 @@ pub enum NetworkAction {
 // The subsystem's view of the network - only supports a single call to `event_stream`.
 #[derive(Clone)]
 struct TestNetwork {
-	net_events: Arc<Mutex<Option<SingleItemStream<NetworkEvent>>>>,
+	net_events: Arc<Mutex<Option<metered::MeteredReceiver<NetworkEvent>>>>,
 	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
 }
 
@@ -77,11 +79,11 @@ struct TestAuthorityDiscovery;
 // of `NetworkAction`s.
 struct TestNetworkHandle {
 	action_rx: metered::UnboundedMeteredReceiver<NetworkAction>,
-	net_tx: SingleItemSink<NetworkEvent>,
+	net_tx: metered::MeteredSender<NetworkEvent>,
 }
 
 fn new_test_network() -> (TestNetwork, TestNetworkHandle, TestAuthorityDiscovery) {
-	let (net_tx, net_rx) = polkadot_node_subsystem_test_helpers::single_item_sink();
+	let (net_tx, net_rx) = metered::channel(10);
 	let (action_tx, action_rx) = metered::unbounded();
 
 	(
@@ -283,6 +285,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 ) {
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (mut network, network_handle, discovery) = new_test_network();
+
 	let (context, virtual_overseer) =
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 	let network_stream = network.event_stream();
@@ -298,6 +301,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(network_bridge_out_fut);
+
 
 	let _ = executor::block_on(future::join(
 		async move {
@@ -365,12 +369,16 @@ fn send_messages_to_peers() {
 
 		network_handle
 			.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full)
-			.timeout(std::time::Duration::from_secs(1))
+			.timeout(TIMEOUT)
 			.await
 			.expect("Timeout does not occur");
+
+		// the outgoing side does not consume network messages
+		// so the single item sink has to be free explicitly
+
 		network_handle
 			.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full)
-			.timeout(std::time::Duration::from_secs(1))
+			.timeout(TIMEOUT)
 			.await
 			.expect("Timeout does not occur");
 
@@ -391,14 +399,14 @@ fn send_messages_to_peers() {
 						Versioned::V1(message_v1.clone()),
 					),
 				})
-				.timeout(std::time::Duration::from_secs(1))
+				.timeout(TIMEOUT)
 				.await
 				.expect("Timeout does not occur");
 
 			assert_eq!(
 				network_handle
 					.next_network_action()
-					.timeout(std::time::Duration::from_secs(1))
+					.timeout(TIMEOUT)
 					.await
 					.expect("Timeout does not occur"),
 				NetworkAction::WriteNotification(
@@ -433,7 +441,7 @@ fn send_messages_to_peers() {
 			assert_eq!(
 				network_handle
 					.next_network_action()
-					.timeout(std::time::Duration::from_secs(1))
+					.timeout(TIMEOUT)
 					.await
 					.expect("Timeout does not occur"),
 				NetworkAction::WriteNotification(
