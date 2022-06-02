@@ -41,8 +41,8 @@ use crate::{
 /// Errors that can happen on runtime fetches.
 mod error;
 
-use error::{recv_runtime, Result};
-pub use error::{Error, FatalError, JfyiError};
+use error::Result;
+pub use error::{recv_runtime, Error, FatalError, JfyiError};
 
 /// Configuration for construction a `RuntimeInfo`.
 pub struct Config {
