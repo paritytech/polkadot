@@ -73,6 +73,7 @@ use std::{
 use bitvec::vec::BitVec;
 use futures::{
 	channel::{mpsc, oneshot},
+	future::BoxFuture,
 	stream::FuturesOrdered,
 	FutureExt, SinkExt, StreamExt, TryFutureExt,
 };
@@ -1113,6 +1114,7 @@ enum SecondingAllowed {
 async fn seconding_sanity_check<Context>(
 	ctx: &mut Context,
 	active_leaves: &HashMap<Hash, ActiveLeafState>,
+	implicit_view: &ImplicitView,
 	candidate_hash: CandidateHash,
 	candidate_para: ParaId,
 	parent_head_data_hash: Hash,
@@ -1133,21 +1135,44 @@ async fn seconding_sanity_check<Context>(
 	}
 
 	let mut membership = Vec::new();
-	let mut responses = FuturesOrdered::new();
+	let mut responses = FuturesOrdered::<BoxFuture<'_, Result<_, oneshot::Canceled>>>::new();
+
 	for (head, leaf_state) in active_leaves {
-		let (tx, rx) = oneshot::channel();
-		ctx.send_message(ProspectiveParachainsMessage::GetHypotheticalDepth(
-			HypotheticalDepthRequest {
-				candidate_hash,
-				candidate_para,
-				parent_head_data_hash,
-				candidate_relay_parent,
-				fragment_tree_relay_parent: *head,
-			},
-			tx,
-		))
-		.await;
-		responses.push(rx.map_ok(move |depths| (depths, head, leaf_state)));
+		if leaf_state.prospective_parachains_mode.is_enabled() {
+			// Check that the candidate relay parent is allowed for para, skip the
+			// leaf otherwise.
+			let allowed_parents_for_para =
+				implicit_view.known_allowed_relay_parents_under(head, Some(candidate_para));
+			if !allowed_parents_for_para.unwrap_or_default().contains(&candidate_relay_parent) {
+				continue
+			}
+
+			let (tx, rx) = oneshot::channel();
+			ctx.send_message(ProspectiveParachainsMessage::GetHypotheticalDepth(
+				HypotheticalDepthRequest {
+					candidate_hash,
+					candidate_para,
+					parent_head_data_hash,
+					candidate_relay_parent,
+					fragment_tree_relay_parent: *head,
+				},
+				tx,
+			))
+			.await;
+			responses.push(rx.map_ok(move |depths| (depths, head, leaf_state)).boxed());
+		} else {
+			if head == &candidate_relay_parent {
+				if leaf_state.seconded_at_depth.contains_key(&0) {
+					// The leaf is already occupied.
+					return SecondingAllowed::No
+				}
+				responses.push(futures::future::ready(Ok((vec![0], head, leaf_state))).boxed())
+			}
+		}
+	}
+
+	if responses.is_empty() {
+		return SecondingAllowed::No
 	}
 
 	for response in responses.next().await {
@@ -1217,11 +1242,12 @@ async fn handle_validated_candidate_command<Context>(
 						let fragment_tree_membership = match seconding_sanity_check(
 							ctx,
 							&state.per_leaf,
+							&state.implicit_view,
 							candidate_hash,
 							candidate.descriptor().para_id,
 							persisted_validation_data.parent_head.hash(),
-							candidate.descriptor().relay_parent,
 							commitments.head_data.hash(),
+							candidate.descriptor().relay_parent,
 						)
 						.await
 						{
