@@ -16,6 +16,11 @@
 
 use super::*;
 use futures::{channel::oneshot, executor, stream::BoxStream};
+use polkadot_node_network_protocol::{self as net_protocol, OurView};
+use polkadot_node_subsystem::{
+	messages::{NetworkBridgeEvent, NetworkBridgeMessage},
+	ActivatedLeaf,
+};
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
@@ -267,7 +272,7 @@ fn done_syncing_oracle() -> Box<dyn SyncOracle + Send> {
 	Box::new(oracle)
 }
 
-type VirtualOverseer = TestSubsystemContextHandle<NetworkBridgeMessage>;
+type VirtualOverseer = TestSubsystemContextHandle<NetworkBridgeInMessage>;
 
 struct TestHarness {
 	network_handle: TestNetworkHandle,
@@ -291,7 +296,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		sync_oracle,
 	};
 
-	let network_bridge = run_network_in(bridge, context, network_stream)
+	let network_bridge = run_network_in(bridge, context, network_stream, Shared::default())
 		.map_err(|_| panic!("subsystem execution failed"))
 		.map(|_| ());
 
@@ -1079,117 +1084,6 @@ fn view_finalized_number_can_not_go_down() {
 			&actions,
 			&NetworkAction::ReputationChange(peer_a.clone(), MALFORMED_VIEW_COST),
 		);
-		virtual_overseer
-	});
-}
-
-#[test]
-fn send_messages_to_peers() {
-	test_harness(done_syncing_oracle(), |test_harness| async move {
-		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
-
-		let peer = PeerId::random();
-
-		network_handle
-			.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full)
-			.await;
-		network_handle
-			.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full)
-			.await;
-
-		// bridge will inform about all connected peers.
-		{
-			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
-				&mut virtual_overseer,
-			)
-			.await;
-
-			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
-				&mut virtual_overseer,
-			)
-			.await;
-		}
-
-		{
-			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
-				&mut virtual_overseer,
-			)
-			.await;
-
-			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
-				&mut virtual_overseer,
-			)
-			.await;
-		}
-
-		// consume peer view changes
-		{
-			let _peer_view_changes = network_handle.next_network_actions(2).await;
-		}
-
-		// send a validation protocol message.
-
-		{
-			let approval_distribution_message =
-				protocol_v1::ApprovalDistributionMessage::Approvals(Vec::new());
-
-			let message_v1 = protocol_v1::ValidationProtocol::ApprovalDistribution(
-				approval_distribution_message.clone(),
-			);
-
-			virtual_overseer
-				.send(FromOrchestra::Communication {
-					msg: NetworkBridgeMessage::SendValidationMessage(
-						vec![peer.clone()],
-						Versioned::V1(message_v1.clone()),
-					),
-				})
-				.await;
-
-			assert_eq!(
-				network_handle.next_network_action().await,
-				NetworkAction::WriteNotification(
-					peer.clone(),
-					PeerSet::Validation,
-					WireMessage::ProtocolMessage(message_v1).encode(),
-				)
-			);
-		}
-
-		// send a collation protocol message.
-
-		{
-			let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
-				Sr25519Keyring::Alice.public().into(),
-				0_u32.into(),
-				dummy_collator_signature(),
-			);
-
-			let message_v1 =
-				protocol_v1::CollationProtocol::CollatorProtocol(collator_protocol_message.clone());
-
-			virtual_overseer
-				.send(FromOrchestra::Communication {
-					msg: NetworkBridgeMessage::SendCollationMessage(
-						vec![peer.clone()],
-						Versioned::V1(message_v1.clone()),
-					),
-				})
-				.await;
-
-			assert_eq!(
-				network_handle.next_network_action().await,
-				NetworkAction::WriteNotification(
-					peer.clone(),
-					PeerSet::Collation,
-					WireMessage::ProtocolMessage(message_v1).encode(),
-				)
-			);
-		}
 		virtual_overseer
 	});
 }

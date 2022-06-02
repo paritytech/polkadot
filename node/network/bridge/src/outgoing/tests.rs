@@ -16,6 +16,9 @@
 
 use super::*;
 use futures::{channel::oneshot, executor, stream::BoxStream};
+use polkadot_node_network_protocol::{self as net_protocol, OurView};
+use polkadot_node_subsystem::{messages::NetworkBridgeEvent, ActivatedLeaf};
+use polkadot_node_subsystem_util::TimeoutExt;
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
@@ -35,15 +38,13 @@ use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
 		AllMessages, ApprovalDistributionMessage, BitfieldDistributionMessage,
-		GossipSupportMessage, StatementDistributionMessage,
+		CollatorProtocolMessage, GossipSupportMessage, StatementDistributionMessage,
 	},
 	ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
 };
-use polkadot_node_subsystem_test_helpers::{
-	SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
-};
+use polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle;
 use polkadot_node_subsystem_util::metered;
-use polkadot_primitives::v2::AuthorityDiscoveryId;
+use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash};
 use polkadot_primitives_test_helpers::dummy_collator_signature;
 use sc_network::Multiaddr;
 use sp_keyring::Sr25519Keyring;
@@ -63,7 +64,7 @@ pub enum NetworkAction {
 // The subsystem's view of the network - only supports a single call to `event_stream`.
 #[derive(Clone)]
 struct TestNetwork {
-	net_events: Arc<Mutex<Option<SingleItemStream<NetworkEvent>>>>,
+	net_events: Arc<Mutex<Option<futures::channel::mpsc::Receiver<NetworkEvent>>>>,
 	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
 }
 
@@ -74,11 +75,11 @@ struct TestAuthorityDiscovery;
 // of `NetworkAction`s.
 struct TestNetworkHandle {
 	action_rx: metered::UnboundedMeteredReceiver<NetworkAction>,
-	net_tx: SingleItemSink<NetworkEvent>,
+	net_tx: futures::channel::mpsc::Sender<NetworkEvent>,
 }
 
 fn new_test_network() -> (TestNetwork, TestNetworkHandle, TestAuthorityDiscovery) {
-	let (net_tx, net_rx) = polkadot_node_subsystem_test_helpers::single_item_sink();
+	let (net_tx, net_rx) = futures::channel::mpsc::channel(100);
 	let (action_tx, action_rx) = metered::unbounded();
 
 	(
@@ -284,34 +285,30 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 	let network_stream = network.event_stream();
 
-	let bridge = NetworkBridgeIn {
-		network_service: network,
-		authority_discovery_service: discovery,
-		metrics: Metrics(None),
-		sync_oracle,
-	};
+	let bridge_out = NetworkBridgeOut::new(network, discovery, sync_oracle, Metrics(None));
 
-	let network_bridge = run_network_in(bridge, context, network_stream)
-		.map_err(|_| panic!("subsystem execution failed"))
+	let shared = Shared::default();
+	let network_bridge_out_fut = run_network_out(bridge_out, context, shared.clone())
+		.map_err(|e| panic!("bridge-out subsystem execution failed {:?}", e))
 		.map(|_| ());
 
 	let test_fut = test(TestHarness { network_handle, virtual_overseer });
 
 	futures::pin_mut!(test_fut);
-	futures::pin_mut!(network_bridge);
+	futures::pin_mut!(network_bridge_out_fut);
 
 	let _ = executor::block_on(future::join(
 		async move {
 			let mut virtual_overseer = test_fut.await;
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 		},
-		network_bridge,
+		network_bridge_out_fut,
 	));
 }
 
 async fn assert_sends_validation_event_to_all(
 	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
-	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeInMessage>,
+	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeMessage>,
 ) {
 	// Ordering must be consistent across:
 	// `fn dispatch_validation_event_to_all_unbounded`
@@ -347,7 +344,7 @@ async fn assert_sends_validation_event_to_all(
 
 async fn assert_sends_collation_event_to_all(
 	event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>,
-	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeInMessage>,
+	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeMessage>,
 ) {
 	assert_matches!(
 		virtual_overseer.recv().await,
@@ -355,732 +352,6 @@ async fn assert_sends_collation_event_to_all(
 			CollatorProtocolMessage::NetworkBridgeUpdate(e)
 		) if e == event.focus().expect("could not focus message")
 	)
-}
-
-#[test]
-fn send_our_view_upon_connection() {
-	let (oracle, handle) = make_sync_oracle(false);
-	test_harness(Box::new(oracle), |test_harness| async move {
-		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
-
-		let peer = PeerId::random();
-
-		let head = Hash::repeat_byte(1);
-		virtual_overseer
-			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
-				ActiveLeavesUpdate::start_work(ActivatedLeaf {
-					hash: head,
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}),
-			)))
-			.await;
-
-		handle.await_mode_switch().await;
-
-		network_handle
-			.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full)
-			.await;
-		network_handle
-			.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full)
-			.await;
-
-		let view = view![head];
-		let actions = network_handle.next_network_actions(2).await;
-		assert_network_actions_contains(
-			&actions,
-			&NetworkAction::WriteNotification(
-				peer.clone(),
-				PeerSet::Validation,
-				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(view.clone()).encode(),
-			),
-		);
-		assert_network_actions_contains(
-			&actions,
-			&NetworkAction::WriteNotification(
-				peer.clone(),
-				PeerSet::Collation,
-				WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(view.clone()).encode(),
-			),
-		);
-		virtual_overseer
-	});
-}
-
-#[test]
-fn sends_view_updates_to_peers() {
-	let (oracle, handle) = make_sync_oracle(false);
-	test_harness(Box::new(oracle), |test_harness| async move {
-		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
-
-		let peer_a = PeerId::random();
-		let peer_b = PeerId::random();
-
-		virtual_overseer
-			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: Default::default(),
-				deactivated: Default::default(),
-			})))
-			.await;
-
-		handle.await_mode_switch().await;
-
-		network_handle
-			.connect_peer(peer_a.clone(), PeerSet::Validation, ObservedRole::Full)
-			.await;
-		network_handle
-			.connect_peer(peer_b.clone(), PeerSet::Collation, ObservedRole::Full)
-			.await;
-
-		let actions = network_handle.next_network_actions(2).await;
-		let wire_message =
-			WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(View::default()).encode();
-
-		assert_network_actions_contains(
-			&actions,
-			&NetworkAction::WriteNotification(peer_a, PeerSet::Validation, wire_message.clone()),
-		);
-
-		assert_network_actions_contains(
-			&actions,
-			&NetworkAction::WriteNotification(peer_b, PeerSet::Collation, wire_message.clone()),
-		);
-
-		let hash_a = Hash::repeat_byte(1);
-
-		virtual_overseer
-			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
-				ActiveLeavesUpdate::start_work(ActivatedLeaf {
-					hash: hash_a,
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}),
-			)))
-			.await;
-
-		let actions = network_handle.next_network_actions(2).await;
-		let wire_message =
-			WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(view![hash_a]).encode();
-
-		assert_network_actions_contains(
-			&actions,
-			&NetworkAction::WriteNotification(peer_a, PeerSet::Validation, wire_message.clone()),
-		);
-
-		assert_network_actions_contains(
-			&actions,
-			&NetworkAction::WriteNotification(peer_b, PeerSet::Collation, wire_message.clone()),
-		);
-		virtual_overseer
-	});
-}
-
-#[test]
-fn do_not_send_view_update_until_synced() {
-	let (oracle, handle) = make_sync_oracle(true);
-	test_harness(Box::new(oracle), |test_harness| async move {
-		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
-
-		let peer_a = PeerId::random();
-		let peer_b = PeerId::random();
-		assert_ne!(peer_a, peer_b);
-
-		network_handle
-			.connect_peer(peer_a.clone(), PeerSet::Validation, ObservedRole::Full)
-			.await;
-		network_handle
-			.connect_peer(peer_b.clone(), PeerSet::Collation, ObservedRole::Full)
-			.await;
-
-		{
-			let actions = network_handle.next_network_actions(2).await;
-			let wire_message =
-				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(View::default())
-					.encode();
-
-			assert_network_actions_contains(
-				&actions,
-				&NetworkAction::WriteNotification(
-					peer_a,
-					PeerSet::Validation,
-					wire_message.clone(),
-				),
-			);
-
-			assert_network_actions_contains(
-				&actions,
-				&NetworkAction::WriteNotification(peer_b, PeerSet::Collation, wire_message.clone()),
-			);
-		}
-
-		let hash_a = Hash::repeat_byte(1);
-		let hash_b = Hash::repeat_byte(1);
-
-		virtual_overseer
-			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
-				ActiveLeavesUpdate::start_work(ActivatedLeaf {
-					hash: hash_a,
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}),
-			)))
-			.await;
-
-		// delay until the previous update has certainly been processed.
-		futures_timer::Delay::new(std::time::Duration::from_millis(100)).await;
-
-		handle.set_done();
-
-		virtual_overseer
-			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
-				ActiveLeavesUpdate::start_work(ActivatedLeaf {
-					hash: hash_b,
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}),
-			)))
-			.await;
-
-		handle.await_mode_switch().await;
-
-		// There should be a mode switch only for the second view update.
-		{
-			let actions = network_handle.next_network_actions(2).await;
-			let wire_message =
-				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(view![hash_a, hash_b])
-					.encode();
-
-			assert_network_actions_contains(
-				&actions,
-				&NetworkAction::WriteNotification(
-					peer_a,
-					PeerSet::Validation,
-					wire_message.clone(),
-				),
-			);
-
-			assert_network_actions_contains(
-				&actions,
-				&NetworkAction::WriteNotification(peer_b, PeerSet::Collation, wire_message.clone()),
-			);
-		}
-		virtual_overseer
-	});
-}
-
-#[test]
-fn do_not_send_view_update_when_only_finalized_block_changed() {
-	test_harness(done_syncing_oracle(), |test_harness| async move {
-		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
-
-		let peer_a = PeerId::random();
-		let peer_b = PeerId::random();
-
-		network_handle
-			.connect_peer(peer_a.clone(), PeerSet::Validation, ObservedRole::Full)
-			.await;
-		network_handle
-			.connect_peer(peer_b.clone(), PeerSet::Validation, ObservedRole::Full)
-			.await;
-
-		let hash_a = Hash::repeat_byte(1);
-
-		virtual_overseer
-			.send(FromOrchestra::Signal(OverseerSignal::BlockFinalized(Hash::random(), 5)))
-			.await;
-
-		// Send some empty active leaves update
-		//
-		// This should not trigger a view update to our peers.
-		virtual_overseer
-			.send(FromOrchestra::Signal(
-				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::default()),
-			))
-			.await;
-
-		// This should trigger the view update to our peers.
-		virtual_overseer
-			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
-				ActiveLeavesUpdate::start_work(ActivatedLeaf {
-					hash: hash_a,
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}),
-			)))
-			.await;
-
-		let actions = network_handle.next_network_actions(4).await;
-		let wire_message =
-			WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(View::new(vec![hash_a], 5))
-				.encode();
-
-		assert_network_actions_contains(
-			&actions,
-			&NetworkAction::WriteNotification(peer_a, PeerSet::Validation, wire_message.clone()),
-		);
-
-		assert_network_actions_contains(
-			&actions,
-			&NetworkAction::WriteNotification(peer_b, PeerSet::Validation, wire_message.clone()),
-		);
-		virtual_overseer
-	});
-}
-
-#[test]
-fn peer_view_updates_sent_via_overseer() {
-	test_harness(done_syncing_oracle(), |test_harness| async move {
-		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
-
-		let peer = PeerId::random();
-
-		network_handle
-			.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full)
-			.await;
-
-		let view = view![Hash::repeat_byte(1)];
-
-		// bridge will inform about all connected peers.
-		{
-			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
-				&mut virtual_overseer,
-			)
-			.await;
-
-			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
-				&mut virtual_overseer,
-			)
-			.await;
-		}
-
-		network_handle
-			.peer_message(
-				peer.clone(),
-				PeerSet::Validation,
-				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(view.clone()).encode(),
-			)
-			.await;
-
-		assert_sends_validation_event_to_all(
-			NetworkBridgeEvent::PeerViewChange(peer.clone(), view),
-			&mut virtual_overseer,
-		)
-		.await;
-		virtual_overseer
-	});
-}
-
-#[test]
-fn peer_messages_sent_via_overseer() {
-	test_harness(done_syncing_oracle(), |test_harness| async move {
-		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
-
-		let peer = PeerId::random();
-
-		network_handle
-			.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full)
-			.await;
-
-		// bridge will inform about all connected peers.
-		{
-			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
-				&mut virtual_overseer,
-			)
-			.await;
-
-			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
-				&mut virtual_overseer,
-			)
-			.await;
-		}
-
-		let approval_distribution_message =
-			protocol_v1::ApprovalDistributionMessage::Approvals(Vec::new());
-
-		let message_v1 = protocol_v1::ValidationProtocol::ApprovalDistribution(
-			approval_distribution_message.clone(),
-		);
-
-		network_handle
-			.peer_message(
-				peer.clone(),
-				PeerSet::Validation,
-				WireMessage::ProtocolMessage(message_v1.clone()).encode(),
-			)
-			.await;
-
-		network_handle.disconnect_peer(peer.clone(), PeerSet::Validation).await;
-
-		// Approval distribution message comes first, and the message is only sent to that subsystem.
-		// then a disconnection event arises that is sent to all validation networking subsystems.
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::ApprovalDistribution(
-				ApprovalDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(p, Versioned::V1(m))
-				)
-			) => {
-				assert_eq!(p, peer);
-				assert_eq!(m, approval_distribution_message);
-			}
-		);
-
-		assert_sends_validation_event_to_all(
-			NetworkBridgeEvent::PeerDisconnected(peer),
-			&mut virtual_overseer,
-		)
-		.await;
-		virtual_overseer
-	});
-}
-
-#[test]
-fn peer_disconnect_from_just_one_peerset() {
-	test_harness(done_syncing_oracle(), |test_harness| async move {
-		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
-
-		let peer = PeerId::random();
-
-		network_handle
-			.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full)
-			.await;
-		network_handle
-			.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full)
-			.await;
-
-		// bridge will inform about all connected peers.
-		{
-			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
-				&mut virtual_overseer,
-			)
-			.await;
-
-			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
-				&mut virtual_overseer,
-			)
-			.await;
-		}
-
-		{
-			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
-				&mut virtual_overseer,
-			)
-			.await;
-
-			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
-				&mut virtual_overseer,
-			)
-			.await;
-		}
-
-		network_handle.disconnect_peer(peer.clone(), PeerSet::Validation).await;
-
-		assert_sends_validation_event_to_all(
-			NetworkBridgeEvent::PeerDisconnected(peer.clone()),
-			&mut virtual_overseer,
-		)
-		.await;
-
-		// to show that we're still connected on the collation protocol, send a view update.
-
-		let hash_a = Hash::repeat_byte(1);
-
-		virtual_overseer
-			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
-				ActiveLeavesUpdate::start_work(ActivatedLeaf {
-					hash: hash_a,
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}),
-			)))
-			.await;
-
-		let actions = network_handle.next_network_actions(3).await;
-		let wire_message =
-			WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(view![hash_a]).encode();
-
-		assert_network_actions_contains(
-			&actions,
-			&NetworkAction::WriteNotification(
-				peer.clone(),
-				PeerSet::Collation,
-				wire_message.clone(),
-			),
-		);
-		virtual_overseer
-	});
-}
-
-#[test]
-fn relays_collation_protocol_messages() {
-	test_harness(done_syncing_oracle(), |test_harness| async move {
-		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
-
-		let peer_a = PeerId::random();
-		let peer_b = PeerId::random();
-
-		network_handle
-			.connect_peer(peer_a.clone(), PeerSet::Validation, ObservedRole::Full)
-			.await;
-		network_handle
-			.connect_peer(peer_b.clone(), PeerSet::Collation, ObservedRole::Full)
-			.await;
-
-		// bridge will inform about all connected peers.
-		{
-			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full, 1, None),
-				&mut virtual_overseer,
-			)
-			.await;
-
-			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer_a.clone(), View::default()),
-				&mut virtual_overseer,
-			)
-			.await;
-		}
-
-		{
-			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, 1, None),
-				&mut virtual_overseer,
-			)
-			.await;
-
-			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer_b.clone(), View::default()),
-				&mut virtual_overseer,
-			)
-			.await;
-		}
-
-		// peer A gets reported for sending a collation message.
-
-		let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
-			Sr25519Keyring::Alice.public().into(),
-			Default::default(),
-			sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64]),
-		);
-
-		let message_v1 =
-			protocol_v1::CollationProtocol::CollatorProtocol(collator_protocol_message.clone());
-
-		network_handle
-			.peer_message(
-				peer_a.clone(),
-				PeerSet::Collation,
-				WireMessage::ProtocolMessage(message_v1.clone()).encode(),
-			)
-			.await;
-
-		let actions = network_handle.next_network_actions(3).await;
-		assert_network_actions_contains(
-			&actions,
-			&NetworkAction::ReputationChange(peer_a.clone(), UNCONNECTED_PEERSET_COST),
-		);
-
-		// peer B has the message relayed.
-
-		network_handle
-			.peer_message(
-				peer_b.clone(),
-				PeerSet::Collation,
-				WireMessage::ProtocolMessage(message_v1.clone()).encode(),
-			)
-			.await;
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::CollatorProtocol(
-				CollatorProtocolMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(p, Versioned::V1(m))
-				)
-			) => {
-				assert_eq!(p, peer_b);
-				assert_eq!(m, collator_protocol_message);
-			}
-		);
-		virtual_overseer
-	});
-}
-
-#[test]
-fn different_views_on_different_peer_sets() {
-	test_harness(done_syncing_oracle(), |test_harness| async move {
-		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
-
-		let peer = PeerId::random();
-
-		network_handle
-			.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full)
-			.await;
-		network_handle
-			.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full)
-			.await;
-
-		// bridge will inform about all connected peers.
-		{
-			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
-				&mut virtual_overseer,
-			)
-			.await;
-
-			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
-				&mut virtual_overseer,
-			)
-			.await;
-		}
-
-		{
-			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
-				&mut virtual_overseer,
-			)
-			.await;
-
-			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
-				&mut virtual_overseer,
-			)
-			.await;
-		}
-
-		let view_a = view![Hash::repeat_byte(1)];
-		let view_b = view![Hash::repeat_byte(2)];
-
-		network_handle
-			.peer_message(
-				peer.clone(),
-				PeerSet::Validation,
-				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(view_a.clone()).encode(),
-			)
-			.await;
-
-		network_handle
-			.peer_message(
-				peer.clone(),
-				PeerSet::Collation,
-				WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(view_b.clone()).encode(),
-			)
-			.await;
-
-		assert_sends_validation_event_to_all(
-			NetworkBridgeEvent::PeerViewChange(peer.clone(), view_a.clone()),
-			&mut virtual_overseer,
-		)
-		.await;
-
-		assert_sends_collation_event_to_all(
-			NetworkBridgeEvent::PeerViewChange(peer.clone(), view_b.clone()),
-			&mut virtual_overseer,
-		)
-		.await;
-		virtual_overseer
-	});
-}
-
-#[test]
-fn sent_views_include_finalized_number_update() {
-	test_harness(done_syncing_oracle(), |test_harness| async move {
-		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
-
-		let peer_a = PeerId::random();
-
-		network_handle
-			.connect_peer(peer_a.clone(), PeerSet::Validation, ObservedRole::Full)
-			.await;
-
-		let hash_a = Hash::repeat_byte(1);
-		let hash_b = Hash::repeat_byte(2);
-
-		virtual_overseer
-			.send(FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash_a, 1)))
-			.await;
-		virtual_overseer
-			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
-				ActiveLeavesUpdate::start_work(ActivatedLeaf {
-					hash: hash_b,
-					number: 1,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				}),
-			)))
-			.await;
-
-		let actions = network_handle.next_network_actions(2).await;
-		let wire_message =
-			WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(View::new(vec![hash_b], 1))
-				.encode();
-
-		assert_network_actions_contains(
-			&actions,
-			&NetworkAction::WriteNotification(
-				peer_a.clone(),
-				PeerSet::Validation,
-				wire_message.clone(),
-			),
-		);
-		virtual_overseer
-	});
-}
-
-#[test]
-fn view_finalized_number_can_not_go_down() {
-	test_harness(done_syncing_oracle(), |test_harness| async move {
-		let TestHarness { mut network_handle, virtual_overseer } = test_harness;
-
-		let peer_a = PeerId::random();
-
-		network_handle
-			.connect_peer(peer_a.clone(), PeerSet::Validation, ObservedRole::Full)
-			.await;
-
-		network_handle
-			.peer_message(
-				peer_a.clone(),
-				PeerSet::Validation,
-				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(View::new(
-					vec![Hash::repeat_byte(0x01)],
-					1,
-				))
-				.encode(),
-			)
-			.await;
-
-		network_handle
-			.peer_message(
-				peer_a.clone(),
-				PeerSet::Validation,
-				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(View::new(vec![], 0))
-					.encode(),
-			)
-			.await;
-
-		let actions = network_handle.next_network_actions(2).await;
-		assert_network_actions_contains(
-			&actions,
-			&NetworkAction::ReputationChange(peer_a.clone(), MALFORMED_VIEW_COST),
-		);
-		virtual_overseer
-	});
 }
 
 #[test]
@@ -1092,44 +363,14 @@ fn send_messages_to_peers() {
 
 		network_handle
 			.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full)
-			.await;
+			.timeout(std::time::Duration::from_secs(1))
+			.await
+			.expect("Timeout does not occur");
 		network_handle
 			.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full)
-			.await;
-
-		// bridge will inform about all connected peers.
-		{
-			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
-				&mut virtual_overseer,
-			)
-			.await;
-
-			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
-				&mut virtual_overseer,
-			)
-			.await;
-		}
-
-		{
-			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
-				&mut virtual_overseer,
-			)
-			.await;
-
-			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
-				&mut virtual_overseer,
-			)
-			.await;
-		}
-
-		// consume peer view changes
-		{
-			let _peer_view_changes = network_handle.next_network_actions(2).await;
-		}
+			.timeout(std::time::Duration::from_secs(1))
+			.await
+			.expect("Timeout does not occur");
 
 		// send a validation protocol message.
 
@@ -1148,10 +389,16 @@ fn send_messages_to_peers() {
 						Versioned::V1(message_v1.clone()),
 					),
 				})
-				.await;
+				.timeout(std::time::Duration::from_secs(1))
+				.await
+				.expect("Timeout does not occur");
 
 			assert_eq!(
-				network_handle.next_network_action().await,
+				network_handle
+					.next_network_action()
+					.timeout(std::time::Duration::from_secs(1))
+					.await
+					.expect("Timeout does not occur"),
 				NetworkAction::WriteNotification(
 					peer.clone(),
 					PeerSet::Validation,
@@ -1182,7 +429,11 @@ fn send_messages_to_peers() {
 				.await;
 
 			assert_eq!(
-				network_handle.next_network_action().await,
+				network_handle
+					.next_network_action()
+					.timeout(std::time::Duration::from_secs(1))
+					.await
+					.expect("Timeout does not occur"),
 				NetworkAction::WriteNotification(
 					peer.clone(),
 					PeerSet::Collation,
@@ -1190,57 +441,6 @@ fn send_messages_to_peers() {
 				)
 			);
 		}
-		virtual_overseer
-	});
-}
-
-#[test]
-fn our_view_updates_decreasing_order_and_limited_to_max() {
-	test_harness(done_syncing_oracle(), |test_harness| async move {
-		let TestHarness { mut virtual_overseer, .. } = test_harness;
-
-		// to show that we're still connected on the collation protocol, send a view update.
-
-		let hashes = (0..MAX_VIEW_HEADS + 1).map(|i| Hash::repeat_byte(i as u8));
-
-		for (i, hash) in hashes.enumerate().rev() {
-			// These are in reverse order, so the subsystem must sort internally to
-			// get the correct view.
-			virtual_overseer
-				.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
-					ActiveLeavesUpdate::start_work(ActivatedLeaf {
-						hash,
-						number: i as _,
-						status: LeafStatus::Fresh,
-						span: Arc::new(jaeger::Span::Disabled),
-					}),
-				)))
-				.await;
-		}
-
-		let our_views = (1..=MAX_VIEW_HEADS).rev().map(|start| {
-			OurView::new(
-				(start..=MAX_VIEW_HEADS)
-					.rev()
-					.map(|i| (Hash::repeat_byte(i as u8), Arc::new(jaeger::Span::Disabled))),
-				0,
-			)
-		});
-
-		for our_view in our_views {
-			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::OurViewChange(our_view.clone()),
-				&mut virtual_overseer,
-			)
-			.await;
-
-			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::OurViewChange(our_view),
-				&mut virtual_overseer,
-			)
-			.await;
-		}
-
 		virtual_overseer
 	});
 }

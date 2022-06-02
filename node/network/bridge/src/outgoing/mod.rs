@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The Network Bridge Subsystem - handles _outgoing_ (regarding the network).
+//! The Network Bridge Subsystem - handles _outgoing_ messages, from subsystem to the network.
 use super::*;
 
 use sp_consensus::SyncOracle;

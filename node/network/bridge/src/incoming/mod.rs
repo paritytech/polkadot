@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The Network Bridge Subsystem - handles _incoming_ (regarding the network).
+//! The Network Bridge Subsystem - handles _incoming_ messages from the network, forwarded to the relevant subsystems.
 use super::*;
 
 use always_assert::never;
@@ -603,7 +603,7 @@ where
 /// #is_send::<parking_lot::MutexGuard<'static, ()>();
 /// ```
 #[overseer::contextbounds(NetworkBridgeIn, prefix = self::overseer)]
-async fn run_network_in<N, AD, Context>(
+pub(crate) async fn run_network_in<N, AD, Context>(
 	bridge: NetworkBridgeIn<N, AD>,
 	mut ctx: Context,
 	network_stream: BoxStream<'static, NetworkEvent>,
