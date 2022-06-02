@@ -42,7 +42,9 @@ use polkadot_node_subsystem::{
 	},
 	ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
 };
-use polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle;
+use polkadot_node_subsystem_test_helpers::{
+	SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
+};
 use polkadot_node_subsystem_util::metered;
 use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash};
 use polkadot_primitives_test_helpers::dummy_collator_signature;
@@ -64,7 +66,7 @@ pub enum NetworkAction {
 // The subsystem's view of the network - only supports a single call to `event_stream`.
 #[derive(Clone)]
 struct TestNetwork {
-	net_events: Arc<Mutex<Option<futures::channel::mpsc::Receiver<NetworkEvent>>>>,
+	net_events: Arc<Mutex<Option<SingleItemStream<NetworkEvent>>>>,
 	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
 }
 
@@ -75,11 +77,11 @@ struct TestAuthorityDiscovery;
 // of `NetworkAction`s.
 struct TestNetworkHandle {
 	action_rx: metered::UnboundedMeteredReceiver<NetworkAction>,
-	net_tx: futures::channel::mpsc::Sender<NetworkEvent>,
+	net_tx: SingleItemSink<NetworkEvent>,
 }
 
 fn new_test_network() -> (TestNetwork, TestNetworkHandle, TestAuthorityDiscovery) {
-	let (net_tx, net_rx) = futures::channel::mpsc::channel(100);
+	let (net_tx, net_rx) = polkadot_node_subsystem_test_helpers::single_item_sink();
 	let (action_tx, action_rx) = metered::unbounded();
 
 	(

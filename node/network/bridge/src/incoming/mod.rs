@@ -603,7 +603,7 @@ where
 /// #is_send::<parking_lot::MutexGuard<'static, ()>();
 /// ```
 #[overseer::contextbounds(NetworkBridgeIn, prefix = self::overseer)]
-pub(crate) async fn run_network_in<N, AD, Context>(
+async fn run_network_in<N, AD, Context>(
 	bridge: NetworkBridgeIn<N, AD>,
 	mut ctx: Context,
 	network_stream: BoxStream<'static, NetworkEvent>,
