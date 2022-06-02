@@ -245,20 +245,35 @@ pub struct TestSubsystemContextHandle<M> {
 }
 
 impl<M> TestSubsystemContextHandle<M> {
+	const TIMEOUT: Duration = Duration::from_secs(30);
+
 	/// Send a message or signal to the subsystem. This resolves at the point in time when the
 	/// subsystem has _read_ the message.
 	pub async fn send(&mut self, from_overseer: FromOrchestra<M>) {
-		self.tx.send(from_overseer).await.expect("Test subsystem no longer live");
+		self.tx
+			.send(from_overseer)
+			.timeout(Self::TIMEOUT)
+			.await
+			.expect("`fn send` does not timeout")
+			.expect("Test subsystem no longer live");
 	}
 
 	/// Receive the next message from the subsystem.
 	pub async fn recv(&mut self) -> AllMessages {
-		self.try_recv().await.expect("Test subsystem no longer live")
+		self.try_recv()
+			.timeout(Self::TIMEOUT)
+			.await
+			.expect("`fn recv` does not timeout")
+			.expect("Test subsystem no longer live")
 	}
 
 	/// Receive the next message from the subsystem, or `None` if the channel has been closed.
 	pub async fn try_recv(&mut self) -> Option<AllMessages> {
-		self.rx.next().await
+		self.rx
+			.next()
+			.timeout(Self::TIMEOUT)
+			.await
+			.expect("`try_recv` does not timeout")
 	}
 }
 
