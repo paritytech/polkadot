@@ -22,6 +22,7 @@ use futures::{
 	channel::{mpsc, oneshot},
 	future::RemoteHandle,
 	prelude::*,
+	stream::FuturesUnordered,
 };
 use indexmap::IndexMap;
 
@@ -29,16 +30,16 @@ use polkadot_node_network_protocol::{self as net_protocol, PeerId, View as Activ
 use polkadot_node_primitives::SignedFullStatement;
 use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, PerLeafSpan,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, Span,
 };
 use polkadot_node_subsystem_util::{
 	backing_implicit_view::{FetchError as ImplicitViewFetchError, View as ImplicitView},
-	runtime,
+	runtime::{self, RuntimeInfo},
 };
 use polkadot_primitives::v2::{
 	CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash, Id as ParaId,
-	PersistedValidationData, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+	OccupiedCoreAssumption, PersistedValidationData, UncheckedSignedStatement, ValidatorId,
+	ValidatorIndex, ValidatorSignature,
 };
 
 use std::collections::{HashMap, HashSet};
@@ -142,6 +143,7 @@ async fn prospective_parachains_mode<Context>(
 #[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
 pub async fn handle_active_leaves_update<Context>(
 	ctx: &mut Context,
+	runtime: &mut RuntimeInfo,
 	view: &mut View,
 	update: ActiveLeavesUpdate,
 ) -> Result<(), Error> {
@@ -205,7 +207,7 @@ pub async fn handle_active_leaves_update<Context>(
 			vec![(leaf.hash, ProspectiveParachainsMode::Disabled)]
 		},
 		Some((leaf, LeafHasProspectiveParachains::Enabled(Ok(_)))) => {
-			// TODO [now]: create fresh relay parents, clean up old candidates,
+			// TODO [now]: discover fresh relay parents, clean up old candidates,
 			// etc.
 			unimplemented!();
 		},
@@ -213,6 +215,110 @@ pub async fn handle_active_leaves_update<Context>(
 			return Err(Error::ImplicitViewFetchError(leaf.hash, e)),
 	};
 
-	// TODO [now]: create new per-relay-parent entries using `fresh_relay_parents`.
+	for (relay_parent, mode) in fresh_relay_parents {
+		let relay_parent_info = match mode {
+			ProspectiveParachainsMode::Enabled => unimplemented!(),
+			ProspectiveParachainsMode::Disabled => RelayParentInfo::V2(
+				construct_per_relay_parent_state_without_prospective(ctx, runtime, relay_parent)
+					.await?,
+			),
+		};
+
+		view.per_relay_parent.insert(relay_parent, relay_parent_info);
+	}
 	Ok(())
+}
+
+#[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
+async fn construct_per_relay_parent_state_without_prospective<Context>(
+	ctx: &mut Context,
+	runtime: &mut RuntimeInfo,
+	relay_parent: Hash,
+) -> Result<without_prospective::RelayParentInfo, Error> {
+	let span = Span::new(&relay_parent, "statement-distribution-no-prospective");
+
+	// Retrieve the parachain validators at the child of the head we track.
+	let session_index = runtime.get_session_index_for_child(ctx.sender(), relay_parent).await?;
+	let info = runtime
+		.get_session_info_by_index(ctx.sender(), relay_parent, session_index)
+		.await?;
+	let session_info = &info.session_info;
+
+	let valid_pvds = fetch_allowed_pvds_without_prospective(ctx, relay_parent).await?;
+
+	Ok(without_prospective::RelayParentInfo::new(
+		session_info.validators.clone(),
+		session_index,
+		valid_pvds,
+		span,
+	))
+}
+
+#[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
+async fn fetch_allowed_pvds_without_prospective<Context>(
+	ctx: &mut Context,
+	relay_parent: Hash,
+) -> Result<HashMap<ParaId, PersistedValidationData>, Error> {
+	// Load availability cores
+	let availability_cores = {
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(RuntimeApiMessage::Request(
+			relay_parent,
+			RuntimeApiRequest::AvailabilityCores(tx),
+		))
+		.await;
+
+		let cores = runtime::recv_runtime(rx).await?;
+		cores
+	};
+
+	// determine persisted validation data for
+	// all parachains at this relay-parent.
+	let mut valid_pvds = HashMap::new();
+	let mut responses = FuturesUnordered::new();
+	for core in availability_cores {
+		let para_id = match core.para_id() {
+			Some(p) => p,
+			None => continue,
+		};
+
+		let assumption = match core.is_occupied() {
+			true => {
+				// note - this means that we'll reject candidates
+				// building on top of a timed-out assumption but
+				// that rarely happens in practice. limit code
+				// complexity at the cost of adding an extra block's
+				// wait time for backing after a timeout (same as status quo).
+				OccupiedCoreAssumption::Included
+			},
+			false => OccupiedCoreAssumption::Free,
+		};
+
+		let (tx, rx) = oneshot::channel();
+
+		ctx.send_message(RuntimeApiMessage::Request(
+			relay_parent,
+			RuntimeApiRequest::PersistedValidationData(para_id, assumption, tx),
+		))
+		.await;
+
+		responses.push(runtime::recv_runtime(rx).map_ok(move |pvd| (para_id, pvd)));
+	}
+
+	while let Some(res) = responses.next().await {
+		let (para_id, maybe_pvd) = res?;
+		match maybe_pvd {
+			None => gum::warn!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?para_id,
+				"Potential runtime issue: ccupied core assumption lead to no PVD from runtime API"
+			),
+			Some(pvd) => {
+				let _ = valid_pvds.insert(para_id, pvd);
+			},
+		}
+	}
+
+	Ok(valid_pvds)
 }

@@ -25,7 +25,7 @@ use polkadot_node_network_protocol::{
 	self as net_protocol, PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_node_primitives::SignedFullStatement;
-use polkadot_node_subsystem::PerLeafSpan;
+use polkadot_node_subsystem::Span;
 use polkadot_node_subsystem_util::backing_implicit_view::View as ImplicitView;
 use polkadot_primitives::v2::{
 	CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash, Id as ParaId,
@@ -131,7 +131,7 @@ pub struct RelayParentInfo {
 	/// by para-id.
 	valid_pvds: HashMap<ParaId, PersistedValidationData>,
 	/// A Jaeger span for this head, so we can attach data to it.
-	span: PerLeafSpan,
+	span: Span,
 }
 
 #[derive(Debug)]
@@ -142,11 +142,11 @@ enum NotedStatement<'a> {
 }
 
 impl RelayParentInfo {
-	fn new(
+	pub(super) fn new(
 		validators: Vec<ValidatorId>,
 		session_index: sp_staking::SessionIndex,
 		valid_pvds: HashMap<ParaId, PersistedValidationData>,
-		span: PerLeafSpan,
+		span: Span,
 	) -> Self {
 		RelayParentInfo {
 			candidates: Default::default(),
