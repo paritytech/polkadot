@@ -44,7 +44,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 			(
 				0u16,
 				pallet_referenda::TrackInfo {
-					name: "initiates",
+					name: "candidates",
 					max_deciding: 10,
 					decision_deposit: 100 * QUID,
 					prepare_period: 30 * MINUTES,
