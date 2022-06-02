@@ -1,4 +1,4 @@
-name: Send new release notification to matrix channels
+name: Release - Send new release notification to matrix channels
 on:
   release:
     types:
