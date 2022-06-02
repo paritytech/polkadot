@@ -294,9 +294,10 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		authority_discovery_service: discovery,
 		metrics: Metrics(None),
 		sync_oracle,
+		shared: Shared::default(),
 	};
 
-	let network_bridge = run_network_in(bridge, context, network_stream, Shared::default())
+	let network_bridge = run_network_in(bridge, context, network_stream)
 		.map_err(|_| panic!("subsystem execution failed"))
 		.map(|_| ());
 

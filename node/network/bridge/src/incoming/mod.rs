@@ -78,6 +78,7 @@ pub struct NetworkBridgeIn<N, AD> {
 	network_service: N,
 	authority_discovery_service: AD,
 	sync_oracle: Box<dyn SyncOracle + Send>,
+	shared: Shared,
 	metrics: Metrics,
 }
 
@@ -90,9 +91,10 @@ impl<N, AD> NetworkBridgeIn<N, AD> {
 		network_service: N,
 		authority_discovery_service: AD,
 		sync_oracle: Box<dyn SyncOracle + Send>,
+		shared: Shared,
 		metrics: Metrics,
 	) -> Self {
-		Self { network_service, authority_discovery_service, sync_oracle, metrics }
+		Self { network_service, authority_discovery_service, sync_oracle, shared, metrics }
 	}
 }
 
@@ -107,10 +109,9 @@ where
 		// networking might open connections before the stream of events has been grabbed.
 		let network_stream = self.network_service.event_stream();
 
-		let shared = Shared::default();
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run_network`.
-		let future = run_network_in(self, ctx, network_stream, shared)
+		let future = run_network_in(self, ctx, network_stream)
 			.map_err(|e| SubsystemError::with_origin("network-bridge", e))
 			.boxed();
 		SpawnedSubsystem { name: "network-bridge-subsystem", future }
@@ -607,13 +608,12 @@ async fn run_network_in<N, AD, Context>(
 	bridge: NetworkBridgeIn<N, AD>,
 	mut ctx: Context,
 	network_stream: BoxStream<'static, NetworkEvent>,
-	shared: Shared,
 ) -> Result<(), Error>
 where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
-	let NetworkBridgeIn { network_service, authority_discovery_service, metrics, sync_oracle } =
+	let NetworkBridgeIn { network_service, authority_discovery_service, metrics, sync_oracle, shared } =
 		bridge;
 
 	let (task, network_event_handler) = handle_network_messages(

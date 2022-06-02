@@ -218,16 +218,14 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	test: impl FnOnce(TestHarness) -> T,
 ) {
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut network, network_handle, discovery) = new_test_network();
+	let (network, network_handle, discovery) = new_test_network();
 
 	let (context, virtual_overseer) =
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
-	let _network_stream = network.event_stream();
 
 	let bridge_out = NetworkBridgeOut::new(network, discovery, sync_oracle, Metrics(None));
 
-	let shared = Shared::default();
-	let network_bridge_out_fut = run_network_out(bridge_out, context, shared.clone())
+	let network_bridge_out_fut = run_network_out(bridge_out, context)
 		.map_err(|e| panic!("bridge-out subsystem execution failed {:?}", e))
 		.map(|_| ());
 

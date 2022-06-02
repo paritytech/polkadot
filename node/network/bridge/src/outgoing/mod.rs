@@ -52,6 +52,7 @@ pub struct NetworkBridgeOut<N, AD> {
 	network_service: N,
 	authority_discovery_service: AD,
 	sync_oracle: Box<dyn SyncOracle + Send>,
+	shared: Shared,
 	metrics: Metrics,
 }
 
@@ -66,7 +67,15 @@ impl<N, AD> NetworkBridgeOut<N, AD> {
 		sync_oracle: Box<dyn SyncOracle + Send>,
 		metrics: Metrics,
 	) -> Self {
-		Self { network_service, authority_discovery_service, sync_oracle, metrics }
+		let shared = Shared::default();
+		Self { network_service, authority_discovery_service, sync_oracle, shared, metrics }
+	}
+
+	/// Obtain the shared internal state.
+	///
+	/// Should only be used for setting up `NetworkBridgeIn`.
+	pub fn shared(&self) -> Shared {
+		self.shared.clone()
 	}
 }
 
@@ -77,10 +86,7 @@ where
 	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let shared = Shared::default(); // FIXME must be shared
-								// Swallow error because failure is fatal to the node and we log with more precision
-								// within `run_network`.
-		let future = run_network_out(self, ctx, shared)
+		let future = run_network_out(self, ctx)
 			.map_err(|e| SubsystemError::with_origin("network-bridge", e))
 			.boxed();
 		SpawnedSubsystem { name: "network-bridge-subsystem", future }
@@ -283,13 +289,12 @@ where
 async fn run_network_out<N, AD, Context>(
 	bridge: NetworkBridgeOut<N, AD>,
 	ctx: Context,
-	shared: Shared,
 ) -> Result<(), Error>
 where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
 {
-	let NetworkBridgeOut { network_service, authority_discovery_service, metrics, sync_oracle } =
+	let NetworkBridgeOut { network_service, authority_discovery_service, metrics, sync_oracle, shared, } =
 		bridge;
 
 	handle_subsystem_messages(

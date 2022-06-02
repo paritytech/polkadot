@@ -191,7 +191,25 @@ where
 
 	let spawner = SpawnGlue(spawner);
 
+	// bridge in and out are coupled via `Shared`.
+	let bridge_out = NetworkBridgeOutSubsystem::new(
+		network_service.clone(),
+		authority_discovery_service.clone(),
+		Box::new(network_service.clone()),
+		Metrics::register(registry)?,
+	);
+
+	let bridge_in = NetworkBridgeInSubsystem::new(
+		network_service.clone(),
+		authority_discovery_service.clone(),
+		Box::new(network_service.clone()),
+		bridge_out.shared(),
+		Metrics::register(registry)?,
+	);
+
 	let builder = Overseer::builder()
+		.network_bridge(bridge_out)
+		.network_bridge_in(bridge_in)
 		.availability_distribution(AvailabilityDistributionSubsystem::new(
 			keystore.clone(),
 			IncomingRequestReceivers { pov_req_receiver, chunk_req_receiver },
@@ -243,18 +261,6 @@ where
 			};
 			CollatorProtocolSubsystem::new(side)
 		})
-		.network_bridge_in(NetworkBridgeInSubsystem::new(
-			network_service.clone(),
-			authority_discovery_service.clone(),
-			Box::new(network_service.clone()),
-			Metrics::register(registry)?,
-		))
-		.network_bridge(NetworkBridgeOutSubsystem::new(
-			network_service.clone(),
-			authority_discovery_service.clone(),
-			Box::new(network_service.clone()),
-			Metrics::register(registry)?,
-		))
 		.provisioner(ProvisionerSubsystem::new(Metrics::register(registry)?))
 		.runtime_api(RuntimeApiSubsystem::new(
 			runtime_client.clone(),
