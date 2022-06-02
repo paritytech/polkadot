@@ -613,8 +613,13 @@ where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
-	let NetworkBridgeIn { network_service, authority_discovery_service, metrics, sync_oracle, shared } =
-		bridge;
+	let NetworkBridgeIn {
+		network_service,
+		authority_discovery_service,
+		metrics,
+		sync_oracle,
+		shared,
+	} = bridge;
 
 	let (task, network_event_handler) = handle_network_messages(
 		ctx.sender().clone(),
@@ -640,8 +645,10 @@ where
 
 	futures::pin_mut!(orchestra_signal_handler);
 
-	// FIXME
-	let _either = futures::future::select(orchestra_signal_handler, network_event_handler).await;
+	futures::future::select(orchestra_signal_handler, network_event_handler)
+		.await
+		.factor_first()
+		.0?;
 	Ok(())
 }
 

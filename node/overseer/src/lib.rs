@@ -579,7 +579,7 @@ pub struct Overseer<SupportsParachains> {
 
 	#[subsystem(GossipSupportMessage, sends: [
 		NetworkBridgeMessage,
-		NetworkBridgeInMessage, // FIXME move this into the GossipSupport subsystem
+		NetworkBridgeInMessage, // TODO <https://github.com/paritytech/polkadot/issues/5626>
 		RuntimeApiMessage,
 		ChainSelectionMessage,
 	])]

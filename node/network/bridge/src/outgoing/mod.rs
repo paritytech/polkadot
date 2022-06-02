@@ -294,8 +294,13 @@ where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
 {
-	let NetworkBridgeOut { network_service, authority_discovery_service, metrics, sync_oracle, shared, } =
-		bridge;
+	let NetworkBridgeOut {
+		network_service,
+		authority_discovery_service,
+		metrics,
+		sync_oracle,
+		shared,
+	} = bridge;
 
 	handle_subsystem_messages(
 		ctx,
