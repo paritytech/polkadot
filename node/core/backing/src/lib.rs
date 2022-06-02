@@ -767,13 +767,17 @@ async fn prospective_parachains_mode<Context>(
 	ctx: &mut Context,
 	leaf_hash: Hash,
 ) -> Result<ProspectiveParachainsMode, Error> {
+	// TODO: call a Runtime API once staging version is available
+	// https://github.com/paritytech/substrate/discussions/11338
+
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(RuntimeApiMessage::Request(leaf_hash, RuntimeApiRequest::Version(tx)))
 		.await;
 
-	let response = rx.await.map_err(Error::RuntimeApiUnavailable)?;
-
-	let version = response.map_err(Error::FetchRuntimeApiVersion)?;
+	let version = rx
+		.await
+		.map_err(Error::RuntimeApiUnavailable)?
+		.map_err(Error::FetchRuntimeApiVersion)?;
 
 	if version == 3 {
 		Ok(ProspectiveParachainsMode::Enabled)

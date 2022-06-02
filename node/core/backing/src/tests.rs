@@ -23,6 +23,7 @@ use assert_matches::assert_matches;
 use futures::{future, Future};
 use polkadot_node_primitives::{BlockData, InvalidCandidate};
 use polkadot_node_subsystem::{
+	jaeger,
 	messages::{
 		AllMessages, CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest,
 		ValidationFailed,
