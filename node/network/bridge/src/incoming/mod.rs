@@ -496,7 +496,7 @@ async fn run_incoming_orchestra_signals<Context, N, AD>(
 ) -> Result<(), Error>
 where
 	N: Network,
-	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
+	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
 	// This is kept sorted, descending, by block number.
 	let mut live_heads: Vec<ActivatedLeaf> = Vec::with_capacity(MAX_VIEW_HEADS);
@@ -611,7 +611,7 @@ async fn run_network_in<N, AD, Context>(
 ) -> Result<(), Error>
 where
 	N: Network,
-	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
+	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
 	let NetworkBridgeIn { network_service, authority_discovery_service, metrics, sync_oracle } =
 		bridge;
