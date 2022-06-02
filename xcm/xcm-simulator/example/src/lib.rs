@@ -211,10 +211,10 @@ mod tests {
 	#[test]
 	fn different_runtime_xcmp() {
 		MockNet::reset();
-		use parachain::cross_parachain_pallet;
+		use parachain::parachain_2_call_generator;
 
 		let cross_chain_pallet_call =
-			cross_parachain_pallet::Pallet::<parachain::Runtime>::construct_parachain_2_extrinsic_call();
+			parachain_2_call_generator::Pallet::<parachain::Runtime>::construct_mock_pallet_extrinsic_call();
 
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(

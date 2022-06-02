@@ -167,12 +167,12 @@ mod parachain_2 {
 		// we need to know the index of the Pallet we wish to access
 		// which happens to be 42 as defined in parachain_2's construct runtime.
 		#[codec(index = 42)]
-		MockPallet(MockPalletCall),
+		Parachain2Type(MockPalletCall),
 	}
 }
 
 #[frame_support::pallet]
-pub mod cross_parachain_pallet {
+pub mod parachain_2_call_generator {
 	use super::*;
 	use parachain_2::*;
 	use frame_support::pallet_prelude::*;
@@ -195,13 +195,13 @@ pub mod cross_parachain_pallet {
 
 	impl<T: Config> Pallet<T>
 	{
-		pub fn construct_parachain_2_extrinsic_call() -> Parachain2Call {
-			Parachain2Call::MockPallet(MockPalletCall::MockExtrinsic)
+		pub fn construct_mock_pallet_extrinsic_call() -> Parachain2Call {
+			Parachain2Call::Parachain2Type(MockPalletCall::MockExtrinsic)
 		}
 	}
 }
 
-impl cross_parachain_pallet::Config for Runtime {
+impl parachain_2_call_generator::Config for Runtime {
 	type Event = Event;
 }
 
@@ -381,6 +381,6 @@ construct_runtime!(
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		MsgQueue: mock_msg_queue::{Pallet, Storage, Event<T>},
 		PolkadotXcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
-		CrossParachainPallet: cross_parachain_pallet::{Pallet, Call, Event<T>},
+		Parachain2CallGenerator: parachain_2_call_generator::{Pallet, Call, Event<T>},
 	}
 );
