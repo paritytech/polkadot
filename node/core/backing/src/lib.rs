@@ -762,13 +762,31 @@ async fn handle_communication<Context>(
 	Ok(())
 }
 
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn prospective_parachains_mode<Context>(
-	_ctx: &mut Context,
-	_leaf_hash: Hash,
-) -> ProspectiveParachainsMode {
-	// TODO [now]: this should be a runtime API version call
-	// cc https://github.com/paritytech/substrate/discussions/11338
-	ProspectiveParachainsMode::Disabled
+	ctx: &mut Context,
+	leaf_hash: Hash,
+) -> Result<ProspectiveParachainsMode, Error> {
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(RuntimeApiMessage::Request(leaf_hash, RuntimeApiRequest::Version(tx)))
+		.await;
+
+	let response = rx.await.map_err(Error::RuntimeApiUnavailable)?;
+
+	let version = response.map_err(Error::FetchRuntimeApiVersion)?;
+
+	if version == 3 {
+		Ok(ProspectiveParachainsMode::Enabled)
+	} else {
+		if version != 2 {
+			gum::warn!(
+				target: LOG_TARGET,
+				"Runtime API version is {}, expected 2 or 3. Prospective parachains are disabled",
+				version
+			);
+		}
+		Ok(ProspectiveParachainsMode::Disabled)
+	}
 }
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
@@ -787,7 +805,7 @@ async fn handle_active_leaves_update<Context>(
 	let res = if let Some(leaf) = update.activated {
 		// Only activate in implicit view if prospective
 		// parachains are enabled.
-		let mode = prospective_parachains_mode(ctx, leaf.hash).await;
+		let mode = prospective_parachains_mode(ctx, leaf.hash).await?;
 
 		let leaf_hash = leaf.hash;
 		Some((
