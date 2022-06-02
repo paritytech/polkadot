@@ -1,9 +1,16 @@
-name: Publish Docker image for new releases
+name: Release - Publish Docker image (manual dispatch)
 
 on:
-  release:
-    types:
-      - published
+  workflow_dispatch:
+    inputs:
+      version:
+        description: version to build/release
+        default: v0.9.18
+        required: true
+      date:
+        description: release date of version
+        default: "2022-02-23T19:11:58Z"
+        required: true
 
 jobs:
   main:
@@ -33,11 +40,11 @@ jobs:
           file: scripts/ci/dockerfiles/polkadot_injected_release.Dockerfile
           tags: |
             parity/polkadot:latest
-            parity/polkadot:${{ github.event.release.tag_name }}
+            parity/polkadot:${{ github.event.inputs.version }}
           build-args: |
-            POLKADOT_VERSION=${{ github.event.release.tag_name }}
+            POLKADOT_VERSION=${{ github.event.inputs.version }}
             VCS_REF=${{ github.ref }}
-            BUILD_DATE=${{ github.event.release.published_at }}
+            BUILD_DATE=${{ github.event.inputs.date }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
       - name: Image digest

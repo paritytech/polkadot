@@ -1,0 +1,22 @@
+name: Release - Branch check
+on:
+  push:
+    branches:
+      - release-**v[0-9]+.[0-9]+.[0-9]+ # client
+      - release-**v[0-9]+               # runtimes
+      - polkadot-v[0-9]+.[0-9]+.[0-9]+  # cumulus code
+
+  workflow_dispatch:
+
+jobs:
+  tag_rc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Run check
+        shell: bash
+        run: ./scripts/ci/github/check-rel-br
