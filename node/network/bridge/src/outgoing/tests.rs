@@ -42,9 +42,7 @@ use polkadot_node_subsystem::{
 	},
 	ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
 };
-use polkadot_node_subsystem_test_helpers::{
-	TestSubsystemContextHandle,
-};
+use polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle;
 use polkadot_node_subsystem_util::metered;
 use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash};
 use polkadot_primitives_test_helpers::dummy_collator_signature;
@@ -301,7 +299,6 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(network_bridge_out_fut);
-
 
 	let _ = executor::block_on(future::join(
 		async move {
