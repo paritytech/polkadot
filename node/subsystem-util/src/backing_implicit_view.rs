@@ -135,6 +135,9 @@ impl View {
 
 		match res {
 			Ok(fetched) => {
+				// Retain at least `MINIMUM_RETAIN_LENGTH` blocks in storage.
+				// This helps to avoid Chain API calls when activating leaves in the
+				// same chain.
 				let retain_minimum = std::cmp::min(
 					fetched.minimum_ancestor_number,
 					fetched.leaf_number.saturating_sub(MINIMUM_RETAIN_LENGTH),
@@ -167,7 +170,13 @@ impl View {
 		}
 	}
 
-	/// Get an iterator over all allowed relay-parents in the view.
+	/// Get an iterator over all allowed relay-parents in the view with no particular order.
+	///
+	/// **Important**: not all blocks are guaranteed to be allowed for some leaves, it may
+	/// happen that a block info is only kept in the view storage because of a retaining rule.
+	///
+	/// For getting relay-parents that are valid for parachain candidates use
+	/// [`View::known_allowed_relay_parents_under`].
 	pub fn all_allowed_relay_parents<'a>(&'a self) -> impl Iterator<Item = &'a Hash> + 'a {
 		self.block_info_storage.keys()
 	}
