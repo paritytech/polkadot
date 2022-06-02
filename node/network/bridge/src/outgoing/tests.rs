@@ -167,14 +167,6 @@ impl TestNetworkHandle {
 		.await;
 	}
 
-	async fn disconnect_peer(&mut self, peer: PeerId, peer_set: PeerSet) {
-		unreachable!("unused in outgoing tests")
-	}
-
-	async fn peer_message(&mut self, peer: PeerId, peer_set: PeerSet, message: Vec<u8>) {
-		unreachable!("unused in outgoing tests")
-	}
-
 	async fn send_network_event(&mut self, event: NetworkEvent) {
 		self.net_tx.send(event).await.expect("subsystem concluded early");
 	}
