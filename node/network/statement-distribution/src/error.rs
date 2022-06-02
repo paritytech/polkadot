@@ -19,7 +19,9 @@
 
 use polkadot_node_network_protocol::PeerId;
 use polkadot_node_subsystem::SubsystemError;
-use polkadot_node_subsystem_util::runtime;
+use polkadot_node_subsystem_util::{
+	backing_implicit_view::FetchError as ImplicitViewFetchError, runtime,
+};
 use polkadot_primitives::v2::{CandidateHash, Hash};
 
 use crate::LOG_TARGET;
@@ -76,6 +78,9 @@ pub enum Error {
 	// Responder no longer waits for our data. (Should not happen right now.)
 	#[error("Oneshot `GetData` channel closed")]
 	ResponderGetDataCanceled,
+
+	#[error("Failed to load implicit view for leaf.")]
+	ImplicitViewFetchError(Hash, ImplicitViewFetchError),
 }
 
 /// Utility for eating top level errors and log them.

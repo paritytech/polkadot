@@ -27,23 +27,30 @@ use indexmap::IndexMap;
 
 use polkadot_node_network_protocol::{self as net_protocol, PeerId, View as ActiveLeavesView};
 use polkadot_node_primitives::SignedFullStatement;
-use polkadot_node_subsystem::PerLeafSpan;
-use polkadot_node_subsystem_util::backing_implicit_view::View as ImplicitView;
+use polkadot_node_subsystem::{
+	messages::{RuntimeApiMessage, RuntimeApiRequest},
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, PerLeafSpan,
+};
+use polkadot_node_subsystem_util::{
+	backing_implicit_view::{FetchError as ImplicitViewFetchError, View as ImplicitView},
+	runtime,
+};
 use polkadot_primitives::v2::{
-	CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash, UncheckedSignedStatement,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+	CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash, Id as ParaId,
+	PersistedValidationData, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 
 use std::collections::{HashMap, HashSet};
 
-use crate::{LOG_TARGET, VC_THRESHOLD};
+use crate::{Error, LOG_TARGET, VC_THRESHOLD};
 
 mod without_prospective;
 
 /// The local node's view of the protocol state and messages.
 pub struct View {
 	implicit_view: ImplicitView,
-	per_leaf: HashMap<Hash, LeafData>,
+	per_leaf: HashMap<Hash, ActiveLeafState>,
 	/// State tracked for all relay-parents backing work is ongoing for. This includes
 	/// all active leaves.
 	///
@@ -86,8 +93,8 @@ pub enum ProspectiveParachainsMode {
 	Disabled,
 }
 
-struct LeafData {
-	mode: ProspectiveParachainsMode,
+struct ActiveLeafState {
+	prospective_parachains_mode: ProspectiveParachainsMode,
 }
 
 enum RelayParentInfo {
@@ -102,3 +109,110 @@ enum PeerRelayParentKnowledge {
 
 struct RelayParentWithProspective;
 struct PeerRelayParentKnowledgeWithProspective;
+
+#[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
+async fn prospective_parachains_mode<Context>(
+	ctx: &mut Context,
+	leaf_hash: Hash,
+) -> Result<ProspectiveParachainsMode, Error> {
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(RuntimeApiMessage::Request(leaf_hash, RuntimeApiRequest::Version(tx)))
+		.await;
+
+	let version = runtime::recv_runtime(rx).await?;
+
+	// TODO [now]: proper staging API logic.
+	// based on https://github.com/paritytech/substrate/issues/11577#issuecomment-1145347025
+	// this is likely final & correct but we should make thes constants.
+	if version == 3 {
+		Ok(ProspectiveParachainsMode::Enabled)
+	} else {
+		if version != 2 {
+			gum::warn!(
+				target: LOG_TARGET,
+				"Runtime API version is {}, expected 2 or 3. Prospective parachains are disabled",
+				version
+			);
+		}
+		Ok(ProspectiveParachainsMode::Disabled)
+	}
+}
+
+/// Handle an active leaves update and update the view.
+#[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
+pub async fn handle_active_leaves_update<Context>(
+	ctx: &mut Context,
+	view: &mut View,
+	update: ActiveLeavesUpdate,
+) -> Result<(), Error> {
+	enum LeafHasProspectiveParachains {
+		Enabled(Result<Vec<ParaId>, ImplicitViewFetchError>),
+		Disabled,
+	}
+
+	// Activate in implicit view before deactivate, per the docs on ImplicitView,
+	// this is more efficient and also preserves more old data that can be
+	// useful for understanding peers' views.
+	let res = if let Some(leaf) = update.activated {
+		// Only activate in implicit view if prospective
+		// parachains are enabled.
+		let mode = prospective_parachains_mode(ctx, leaf.hash).await?;
+		let leaf_hash = leaf.hash;
+		Some((
+			leaf,
+			match mode {
+				ProspectiveParachainsMode::Disabled => LeafHasProspectiveParachains::Disabled,
+				ProspectiveParachainsMode::Enabled => LeafHasProspectiveParachains::Enabled(
+					view.implicit_view.activate_leaf(ctx.sender(), leaf_hash).await,
+				),
+			},
+		))
+	} else {
+		None
+	};
+
+	for deactivated in update.deactivated {
+		view.per_leaf.remove(&deactivated);
+		view.implicit_view.deactivate_leaf(deactivated);
+	}
+
+	// clean up `per_relay_parent` according to ancestry of leaves.
+	//
+	// when prospective parachains are disabled, the implicit view is empty,
+	// which means we'll clean up everything. This is correct.
+	{
+		let remaining: HashSet<_> = view.implicit_view.all_allowed_relay_parents().collect();
+		view.per_relay_parent.retain(|r, _| remaining.contains(&r));
+	}
+
+	// Get relay parents which might be fresh but might be known already
+	// that are explicit or implicit from the new active leaf.
+	let fresh_relay_parents = match res {
+		None => return Ok(()),
+		Some((leaf, LeafHasProspectiveParachains::Disabled)) => {
+			// defensive in this case - for enabled, this manifests as an error.
+			if view.per_leaf.contains_key(&leaf.hash) {
+				return Ok(())
+			}
+
+			view.per_leaf.insert(
+				leaf.hash,
+				ActiveLeafState {
+					prospective_parachains_mode: ProspectiveParachainsMode::Disabled,
+				},
+			);
+
+			vec![(leaf.hash, ProspectiveParachainsMode::Disabled)]
+		},
+		Some((leaf, LeafHasProspectiveParachains::Enabled(Ok(_)))) => {
+			// TODO [now]: create fresh relay parents, clean up old candidates,
+			// etc.
+			unimplemented!();
+		},
+		Some((leaf, LeafHasProspectiveParachains::Enabled(Err(e)))) =>
+			return Err(Error::ImplicitViewFetchError(leaf.hash, e)),
+	};
+
+	// TODO [now]: create new per-relay-parent entries using `fresh_relay_parents`.
+	Ok(())
+}

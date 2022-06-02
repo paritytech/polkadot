@@ -28,8 +28,9 @@ use polkadot_node_primitives::SignedFullStatement;
 use polkadot_node_subsystem::PerLeafSpan;
 use polkadot_node_subsystem_util::backing_implicit_view::View as ImplicitView;
 use polkadot_primitives::v2::{
-	CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash, UncheckedSignedStatement,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+	CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash, Id as ParaId,
+	PersistedValidationData, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 
 use std::collections::{HashMap, HashSet};
@@ -126,7 +127,9 @@ pub struct RelayParentInfo {
 	session_index: sp_staking::SessionIndex,
 	/// How many `Seconded` statements we've seen per validator.
 	seconded_counts: HashMap<ValidatorIndex, usize>,
-	// TODO [now]: cached persisted-validation-data
+	/// A cache for `PersistedValidationData` at this relay-parent
+	/// by para-id.
+	valid_pvds: HashMap<ParaId, PersistedValidationData>,
 	/// A Jaeger span for this head, so we can attach data to it.
 	span: PerLeafSpan,
 }
@@ -142,6 +145,7 @@ impl RelayParentInfo {
 	fn new(
 		validators: Vec<ValidatorId>,
 		session_index: sp_staking::SessionIndex,
+		valid_pvds: HashMap<ParaId, PersistedValidationData>,
 		span: PerLeafSpan,
 	) -> Self {
 		RelayParentInfo {
@@ -151,6 +155,7 @@ impl RelayParentInfo {
 			validators,
 			session_index,
 			seconded_counts: Default::default(),
+			valid_pvds,
 			span,
 		}
 	}
