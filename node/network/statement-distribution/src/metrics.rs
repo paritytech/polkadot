@@ -81,10 +81,7 @@ impl Metrics {
 		message_type: &'static str,
 	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| {
-			metrics
-				.network_bridge_update
-				.with_label_values(&[message_type])
-				.start_timer()
+			metrics.network_bridge_update.with_label_values(&[message_type]).start_timer()
 		})
 	}
 

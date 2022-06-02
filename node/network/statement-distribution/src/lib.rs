@@ -31,8 +31,8 @@ use polkadot_node_network_protocol::{
 	peer_set::{IsAuthority, PeerSet},
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	v1::{self as protocol_v1, StatementMetadata},
-	vstaging as protocol_vstaging,
-	IfDisconnected, PeerId, UnifiedReputationChange as Rep, Versioned, View,
+	vstaging as protocol_vstaging, IfDisconnected, PeerId, UnifiedReputationChange as Rep,
+	Versioned, View,
 };
 use polkadot_node_primitives::{SignedFullStatement, Statement, UncheckedSignedFullStatement};
 use polkadot_node_subsystem_util::{self as util, rand, MIN_GOSSIP_PEERS};
@@ -75,6 +75,8 @@ use requester::{fetch, RequesterMessage};
 /// Background task logic for responding for large statements.
 mod responder;
 use responder::{respond, ResponderMessage};
+
+mod view;
 
 /// Metrics for the statement distribution
 pub(crate) mod metrics;
@@ -1290,7 +1292,10 @@ async fn launch_request<Context>(
 	}
 	let available_peers = {
 		let mut m = IndexMap::new();
-		m.insert(peer, vec![Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(meta))]);
+		m.insert(
+			peer,
+			vec![Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(meta))],
+		);
 		m
 	};
 	Some(LargeStatementStatus::Fetching(FetchingInfo {
