@@ -27,7 +27,7 @@ struct MetricsInner {
 	received_responses: prometheus::CounterVec<prometheus::U64>,
 	active_leaves_update: prometheus::Histogram,
 	share: prometheus::Histogram,
-	network_bridge_update_v1: prometheus::HistogramVec,
+	network_bridge_update: prometheus::HistogramVec,
 	statements_unexpected: prometheus::CounterVec<prometheus::U64>,
 	created_message_size: prometheus::Gauge<prometheus::U64>,
 }
@@ -75,14 +75,14 @@ impl Metrics {
 		self.0.as_ref().map(|metrics| metrics.share.start_timer())
 	}
 
-	/// Provide a timer for `network_bridge_update_v1` which observes on drop.
-	pub fn time_network_bridge_update_v1(
+	/// Provide a timer for `network_bridge_update` which observes on drop.
+	pub fn time_network_bridge_update(
 		&self,
 		message_type: &'static str,
 	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| {
 			metrics
-				.network_bridge_update_v1
+				.network_bridge_update
 				.with_label_values(&[message_type])
 				.start_timer()
 		})
@@ -166,11 +166,11 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			network_bridge_update_v1: prometheus::register(
+			network_bridge_update: prometheus::register(
 				prometheus::HistogramVec::new(
 					prometheus::HistogramOpts::new(
-						"polkadot_parachain_statement_distribution_network_bridge_update_v1",
-						"Time spent within `statement_distribution::network_bridge_update_v1`",
+						"polkadot_parachain_statement_distribution_network_bridge_update",
+						"Time spent within `statement_distribution::network_bridge_update`",
 					)
 					.buckets(HISTOGRAM_LATENCY_BUCKETS.into()),
 					&["message_type"],
