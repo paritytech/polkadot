@@ -29,7 +29,7 @@ thiserror = "1"
 tracing = "0.1"
 
 [features]
-default = ["graph"]
+default = [] # enable "graph" by default, blocked by <https://github.com/paritytech/ci_cd/issues/433>
 # write the expanded version to a `orchestra-expansion.[a-f0-9]{10}.rs`
 # in the `OUT_DIR` as defined by `cargo` for the `expander` crate.
 expand = []
