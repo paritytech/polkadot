@@ -34,7 +34,7 @@ use bridge_runtime_common::messages::{
 };
 use frame_support::{
 	traits::Get,
-	weights::{Weight, WeightToFeePolynomial},
+	weights::{Weight, WeightToFee as WeightToFeeT},
 	RuntimeDebug,
 };
 use rococo_runtime_constants::fee::WeightToFee;
@@ -141,7 +141,7 @@ impl<B, GI> ThisChainWithMessages for RococoLikeChain<B, GI> {
 				.base_extrinsic,
 			crate::TransactionByteFee::get(),
 			pallet_transaction_payment::Pallet::<Runtime>::next_fee_multiplier(),
-			|weight| WeightToFee::calc(&weight),
+			|weight| WeightToFee::weight_to_fee(&weight),
 			transaction,
 		)
 	}
@@ -199,7 +199,7 @@ impl<B, GI> BridgedChainWithMessages for RococoLikeChain<B, GI> {
 				.base_extrinsic,
 			crate::TransactionByteFee::get(),
 			pallet_transaction_payment::Pallet::<Runtime>::next_fee_multiplier(),
-			|weight| WeightToFee::calc(&weight),
+			|weight| WeightToFee::weight_to_fee(&weight),
 			transaction,
 		)
 	}

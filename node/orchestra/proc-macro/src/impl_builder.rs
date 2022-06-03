@@ -605,9 +605,10 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 					};
 
 					let unbounded_meter = #channel_name_unbounded_rx.meter().clone();
-
-					let message_rx: SubsystemIncomingMessages< #consumes > = #support_crate ::select(
-						#channel_name_rx, #channel_name_unbounded_rx
+					// Prefer unbounded channel when selecting
+					let message_rx: SubsystemIncomingMessages< #consumes > = #support_crate ::select_with_strategy(
+						#channel_name_rx, #channel_name_unbounded_rx,
+						#support_crate ::select_message_channel_strategy
 					);
 					let (signal_tx, signal_rx) = #support_crate ::metered::channel(
 						self.signal_capacity.unwrap_or(SIGNAL_CHANNEL_CAPACITY)

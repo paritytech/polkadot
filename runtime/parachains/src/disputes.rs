@@ -852,10 +852,12 @@ impl<T: Config> Pallet<T> {
 
 			for to_prune in to_prune {
 				// This should be small, as disputes are rare, so `None` is fine.
+				#[allow(deprecated)]
 				<Disputes<T>>::remove_prefix(to_prune, None);
 
 				// This is larger, and will be extracted to the `shared` pallet for more proper pruning.
 				// TODO: https://github.com/paritytech/polkadot/issues/3469
+				#[allow(deprecated)]
 				<Included<T>>::remove_prefix(to_prune, None);
 				SpamSlots::<T>::remove(to_prune);
 			}

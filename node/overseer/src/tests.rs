@@ -1129,7 +1129,11 @@ fn context_holds_onto_message_until_enough_signals_received() {
 
 	let mut ctx = OverseerSubsystemContext::new(
 		signal_rx,
-		stream::select(bounded_rx, unbounded_rx),
+		stream::select_with_strategy(
+			bounded_rx,
+			unbounded_rx,
+			orchestra::select_message_channel_strategy,
+		),
 		channels_out,
 		to_overseer_tx,
 		"test",
