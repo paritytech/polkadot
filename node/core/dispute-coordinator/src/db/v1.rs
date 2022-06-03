@@ -65,6 +65,44 @@ impl DbBackend {
 	pub fn new(db: Arc<dyn Database>, config: ColumnConfiguration) -> Self {
 		Self { inner: db, config }
 	}
+
+	/// Cleanup old votes.
+	///
+	/// Should be called whenever a new ealiest session gets written.
+	fn add_vote_cleanup_tx(
+		&mut self,
+		tx: &mut DBTransaction,
+		earliest_session: SessionIndex,
+	) -> FatalResult<()> {
+		// Cleanup old votes in db:
+		let watermark = load_cleaned_votes_watermark(&*self.inner, &self.config)?.unwrap_or(0);
+		let clean_until = if earliest_session.saturating_sub(watermark) > MAX_CLEAN_BATCH_SIZE {
+			watermark + MAX_CLEAN_BATCH_SIZE
+		} else {
+			earliest_session
+		};
+		gum::trace!(
+			target: LOG_TARGET,
+			?watermark,
+			?clean_until,
+			?earliest_session,
+			?MAX_CLEAN_BATCH_SIZE,
+			"WriteEarliestSession"
+		);
+
+		for index in watermark..clean_until {
+			gum::trace!(
+			target: LOG_TARGET,
+			?index,
+			encoded = ?candidate_votes_session_prefix(index),
+			"Cleaning votes for session index"
+			);
+			tx.delete_prefix(self.config.col_data, &candidate_votes_session_prefix(index));
+		}
+		// New watermark:
+		tx.put_vec(self.config.col_data, CLEANED_VOTES_WATERMARK_KEY, clean_until.encode());
+		Ok(())
+	}
 }
 
 impl Backend for DbBackend {
@@ -99,41 +137,7 @@ impl Backend for DbBackend {
 		for op in ops {
 			match op {
 				BackendWriteOp::WriteEarliestSession(session) => {
-					// Cleanup old votes in db:
-					let watermark =
-						load_cleaned_votes_watermark(&*self.inner, &self.config)?.unwrap_or(0);
-					let clean_until = if session.saturating_sub(watermark) > MAX_CLEAN_BATCH_SIZE {
-						watermark + MAX_CLEAN_BATCH_SIZE
-					} else {
-						session
-					};
-					gum::trace!(
-						target: LOG_TARGET,
-						?watermark,
-						?clean_until,
-						?session,
-						?MAX_CLEAN_BATCH_SIZE,
-						"WriteEarliestSession"
-					);
-
-					for index in watermark..clean_until {
-						gum::trace!(
-							target: LOG_TARGET,
-							?index,
-							encoded = ?candidate_votes_session_prefix(index),
-							"Cleaning votes for session index"
-						);
-						tx.delete_prefix(
-							self.config.col_data,
-							&candidate_votes_session_prefix(index),
-						);
-					}
-					// New watermark:
-					tx.put_vec(
-						self.config.col_data,
-						CLEANED_VOTES_WATERMARK_KEY,
-						clean_until.encode(),
-					);
+					self.add_vote_cleanup_tx(&mut tx, session)?;
 
 					// Actually write the earliest session.
 					tx.put_vec(self.config.col_data, EARLIEST_SESSION_KEY, session.encode());
