@@ -16,12 +16,7 @@
 use quote::ToTokens;
 use syn::{Ident, Path};
 
-use petgraph::{
-	dot::{self, Dot},
-	graph::NodeIndex,
-	visit::IntoEdgeReferences,
-	Graph,
-};
+use petgraph::{graph::NodeIndex, Graph};
 use std::collections::{hash_map::RandomState, HashMap, HashSet};
 
 use super::*;
@@ -35,12 +30,15 @@ pub(crate) struct ConnectionGraph<'a> {
 	/// the receiver of the message.
 	pub(crate) graph: Graph<Ident, Path>,
 	/// Cycles within the graph
+	#[cfg_attr(not(feature = "graph"), allow(dead_code))]
 	pub(crate) sccs: Vec<Vec<NodeIndex>>,
 	/// Messages that are never being sent (and by which subsystem), but are consumed
 	/// Maps the message `Path` to the subsystem `Ident` represented by `NodeIndex`.
+	#[cfg_attr(not(feature = "graph"), allow(dead_code))]
 	pub(crate) unsent_messages: HashMap<&'a Path, (&'a Ident, NodeIndex)>,
 	/// Messages being sent (and by which subsystem), but not consumed by any subsystem
 	/// Maps the message `Path` to the subsystem `Ident` represented by `NodeIndex`.
+	#[cfg_attr(not(feature = "graph"), allow(dead_code))]
 	pub(crate) unconsumed_messages: HashMap<&'a Path, Vec<(&'a Ident, NodeIndex)>>,
 }
 
@@ -182,7 +180,12 @@ impl<'a> ConnectionGraph<'a> {
 	/// Cycles are annotated with the lower
 	#[cfg(feature = "graph")]
 	pub(crate) fn graphviz(self, dest: &mut impl std::io::Write) -> std::io::Result<()> {
-		use petgraph::visit::{EdgeRef, IntoNodeReferences};
+		use self::graph_helpers::*;
+		use petgraph::{
+			dot::{self, Dot},
+			visit::{EdgeRef, IntoEdgeReferences, IntoNodeReferences},
+		};
+
 		// only write the grap content, we want a custom color scheme
 		let config = &[
 			dot::Config::GraphContentOnly,
@@ -324,37 +327,6 @@ impl<'a> ConnectionGraph<'a> {
 	}
 }
 
-const fn color_scheme() -> &'static str {
-	"rdylgn10"
-}
-
-fn get_color_by_idx(color_idx: usize) -> String {
-	let scheme = color_scheme();
-	format!("/{scheme}/{color_idx}")
-}
-
-fn get_color_by_tag(scc_tag: &char, color_lut: &HashMap<char, usize>) -> String {
-	get_color_by_idx(color_lut.get(scc_tag).copied().unwrap_or_default())
-}
-
-/// A node can be member of multiple cycles,
-/// but only of one strongly connected component.
-fn cycle_tags_to_annotation<'a>(
-	cycle_tags: impl IntoIterator<Item = &'a char>,
-	color_lut: &HashMap<char, usize>,
-) -> String {
-	// Must use fully qualified syntax:
-	// <https://github.com/rust-lang/rust/issues/48919>
-	let cycle_annotation = String::from_iter(itertools::Itertools::intersperse(
-		cycle_tags.into_iter().map(|scc_tag| {
-			let color = get_color_by_tag(scc_tag, color_lut);
-			format!(r#"<B><FONT COLOR="{color}">{scc_tag}</FONT></B>"#)
-		}),
-		",".to_owned(),
-	));
-	cycle_annotation
-}
-
 const GREEK_ALPHABET_SIZE: usize = 24;
 
 fn greek_alphabet() -> [char; GREEK_ALPHABET_SIZE] {
@@ -368,6 +340,42 @@ fn greek_alphabet() -> [char; GREEK_ALPHABET_SIZE] {
 			*c = char::from_u32(*c as u32 + i as u32).unwrap();
 		});
 	alphabet
+}
+
+#[cfg(feature = "graph")]
+mod graph_helpers {
+	use super::HashMap;
+
+	pub(crate) const fn color_scheme() -> &'static str {
+		"rdylgn10"
+	}
+
+	pub(crate) fn get_color_by_idx(color_idx: usize) -> String {
+		let scheme = color_scheme();
+		format!("/{scheme}/{color_idx}")
+	}
+
+	pub(crate) fn get_color_by_tag(scc_tag: &char, color_lut: &HashMap<char, usize>) -> String {
+		get_color_by_idx(color_lut.get(scc_tag).copied().unwrap_or_default())
+	}
+
+	/// A node can be member of multiple cycles,
+	/// but only of one strongly connected component.
+	pub(crate) fn cycle_tags_to_annotation<'a>(
+		cycle_tags: impl IntoIterator<Item = &'a char>,
+		color_lut: &HashMap<char, usize>,
+	) -> String {
+		// Must use fully qualified syntax:
+		// <https://github.com/rust-lang/rust/issues/48919>
+		let cycle_annotation = String::from_iter(itertools::Itertools::intersperse(
+			cycle_tags.into_iter().map(|scc_tag| {
+				let color = get_color_by_tag(scc_tag, color_lut);
+				format!(r#"<B><FONT COLOR="{color}">{scc_tag}</FONT></B>"#)
+			}),
+			",".to_owned(),
+		));
+		cycle_annotation
+	}
 }
 
 #[cfg(test)]
