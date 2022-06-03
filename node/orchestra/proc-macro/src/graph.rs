@@ -98,7 +98,7 @@ impl<'a> ConnectionGraph<'a> {
 		Self { graph, sccs: scc, unsent_messages, unconsumed_messages }
 	}
 
-	/// Extract the strongly connected clusters (`scc`) which each
+	/// Extract the strongly connected components (`scc`) which each
 	/// includes at least one cycle each.
 	fn extract_scc(graph: &Graph<Ident, Path>) -> Vec<Vec<NodeIndex>> {
 		use petgraph::visit::EdgeRef;
@@ -121,11 +121,11 @@ impl<'a> ConnectionGraph<'a> {
 			}
 		}));
 		match sccs.len() {
-			0 => println!("✅ Found no strongly connected clusters, hence no cycles exist"),
+			0 => println!("✅ Found no strongly connected components, hence no cycles exist"),
 			1 =>
-				println!("⚡ Found 1 strongly connected cluster which includes at least one cycle"),
+				println!("⚡ Found 1 strongly connected component which includes at least one cycle"),
 			n => println!(
-				"⚡ Found {n} strongly connected clusters which includes at least one cycle each"
+				"⚡ Found {n} strongly connected components which includes at least one cycle each"
 			),
 		}
 
@@ -139,7 +139,7 @@ impl<'a> ConnectionGraph<'a> {
 			let print_idx = scc_idx + 1;
 			// track which ones were visited and which step
 			// the step is required to truncate the output
-			// which is required to greedily find a cycle in the strongly connected cluster
+			// which is required to greedily find a cycle in the strongly connected component
 			let mut visited = HashMap::new();
 			for step in 0..scc.len() {
 				if let Some(edge) =
@@ -161,7 +161,7 @@ impl<'a> ConnectionGraph<'a> {
 						acc.drain(..step);
 						// there might be more cycles in this cluster,
 						// but for they are ignored, the graph shows
-						// the entire strongly connected cluster.
+						// the entire strongly connected component.
 						break
 					}
 				} else {
@@ -204,7 +204,7 @@ impl<'a> ConnectionGraph<'a> {
 
 		let n = sccs.len();
 		let n = if n > UPPER_BOUND {
-			eprintln!("Too many ({n}) strongly connected clusters, only annotating the first {UPPER_BOUND}");
+			eprintln!("Too many ({n}) strongly connected components, only annotating the first {UPPER_BOUND}");
 			UPPER_BOUND
 		} else {
 			n
