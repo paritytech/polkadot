@@ -41,11 +41,20 @@ two: reports polkadot_parachain_approval_checking_finality_lag is 0 within 12 se
 
 # a session covers 3 blocks, so technically `6 seconds/block * 4 blocks` should be sufficient
 # to produce 4 blocks, but we add a factor of 2, so 48 seconds
-alice: reports finalised height is at least 4 within 50 seconds
-bob: reports finalised height is at least 4 within 50 seconds
-charlie: reports finalised height is at least 4 within 50 seconds
-dave: reports finalised height is at least 4 within 50 seconds
-ferdie: reports finalised height is at least 4 within 50 seconds
-eve: reports finalised height is at least 4 within 50 seconds
-one: reports finalised height is at least 4 within 50 seconds
-two: reports finalised height is at least 4 within 50 seconds
+alice: reports block_height{status="best"} is at least 4 within 70 seconds
+bob: reports block_height{status="best"} is at least 4 within 70 seconds
+charlie: reports block_height{status="best"} is at least 4 within 70 seconds
+dave: reports block_height{status="best"} is at least 4 within 70 seconds
+ferdie: reports block_height{status="best"} is at least 4 within 70 seconds
+eve: reports block_height{status="best"} is at least 4 within 70 seconds
+one: reports block_height{status="best"} is at least 4 within 70 seconds
+two: reports block_height{status="best"} is at least 4 within 70 seconds
+
+alice: reports block_height{status="finalized"} is at least 4 within 90 seconds
+bob: reports block_height{status="finalized"} is at least 4 within 90 seconds
+charlie: reports block_height{status="finalized"} is at least 4 within 90 seconds
+dave: reports block_height{status="finalized"} is at least 4 within 90 seconds
+ferdie: reports block_height{status="finalized"} is at least 4 within 90 seconds
+eve: reports block_height{status="finalized"} is at least 4 within 90 seconds
+one: reports block_height{status="finalized"} is at least 4 within 90 seconds
+two: reports block_height{status="finalized"} is at least 4 within 90 seconds
