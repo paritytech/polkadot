@@ -39,4 +39,13 @@ eve: reports polkadot_parachain_approval_checking_finality_lag is 0 within 12 se
 one: reports polkadot_parachain_approval_checking_finality_lag is 0 within 12 seconds
 two: reports polkadot_parachain_approval_checking_finality_lag is 0 within 12 seconds
 
-# TODO assure relay chain progresses
+# a session covers 3 blocks, so technically `6 seconds/block * 4 blocks` should be sufficient
+# to produce 4 blocks, but we add a factor of 2, so 48 seconds
+alice: reports finalised height is at least 4 within 50 seconds
+bob: reports finalised height is at least 4 within 50 seconds
+charlie: reports finalised height is at least 4 within 50 seconds
+dave: reports finalised height is at least 4 within 50 seconds
+ferdie: reports finalised height is at least 4 within 50 seconds
+eve: reports finalised height is at least 4 within 50 seconds
+one: reports finalised height is at least 4 within 50 seconds
+two: reports finalised height is at least 4 within 50 seconds
