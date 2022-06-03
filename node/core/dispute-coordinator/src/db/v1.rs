@@ -50,7 +50,7 @@ impl DbBackend {
 }
 
 impl Backend for DbBackend {
-	/// Load the earliest session, if any.
+	/// Load the earliest ssession, if any.
 	fn load_earliest_session(&self) -> SubsystemResult<Option<SessionIndex>> {
 		load_earliest_session(&*self.inner, &self.config)
 	}
