@@ -122,8 +122,9 @@ impl<'a> ConnectionGraph<'a> {
 		}));
 		match sccs.len() {
 			0 => println!("✅ Found no strongly connected components, hence no cycles exist"),
-			1 =>
-				println!("⚡ Found 1 strongly connected component which includes at least one cycle"),
+			1 => println!(
+				"⚡ Found 1 strongly connected component which includes at least one cycle"
+			),
 			n => println!(
 				"⚡ Found {n} strongly connected components which includes at least one cycle each"
 			),
