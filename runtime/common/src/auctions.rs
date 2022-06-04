@@ -679,7 +679,7 @@ mod tests {
 		assert_noop, assert_ok, assert_storage_noop,
 		dispatch::DispatchError::BadOrigin,
 		ord_parameter_types, parameter_types,
-		traits::{EnsureOneOf, OnFinalize, OnInitialize},
+		traits::{EitherOfDiverse, OnFinalize, OnInitialize},
 	};
 	use frame_system::{EnsureRoot, EnsureSignedBy};
 	use pallet_balances;
@@ -842,7 +842,7 @@ mod tests {
 		pub const Six: u64 = 6;
 	}
 
-	type RootOrSix = EnsureOneOf<EnsureRoot<u64>, EnsureSignedBy<Six, u64>>;
+	type RootOrSix = EitherOfDiverse<EnsureRoot<u64>, EnsureSignedBy<Six, u64>>;
 
 	thread_local! {
 		pub static LAST_RANDOM: RefCell<Option<(H256, u32)>> = RefCell::new(None);
