@@ -68,7 +68,7 @@ impl DbBackend {
 
 	/// Cleanup old votes.
 	///
-	/// Should be called whenever a new ealiest session gets written.
+	/// Should be called whenever a new earliest session gets written.
 	fn add_vote_cleanup_tx(
 		&mut self,
 		tx: &mut DBTransaction,
