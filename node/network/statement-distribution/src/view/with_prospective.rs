@@ -35,8 +35,8 @@ use polkadot_primitives::v2::{
 
 use std::collections::{HashMap, HashSet};
 
+use super::{StatementFingerprint, StoredStatement, StoredStatementComparator};
 use crate::{LOG_TARGET, VC_THRESHOLD};
-use super::{StoredStatement, StoredStatementComparator, StatementFingerprint};
 
 pub(crate) struct View {
 	implicit_view: ImplicitView,
@@ -65,10 +65,7 @@ impl View {
 
 	/// Activate the given relay-parent in the view. This overwrites
 	/// any existing entry, and should only be called for fresh leaves.
-	pub(crate) fn activate_leaf(
-		&mut self,
-		leaf_hash: Hash,
-	) {
+	pub(crate) fn activate_leaf(&mut self, leaf_hash: Hash) {
 		// TODO [now] unimplemented
 	}
 }
@@ -103,7 +100,7 @@ struct PerCandidate {
 }
 
 enum AcceptanceStatus {
-	Accepted, // by backing / prospective parachains.
+	Accepted,          // by backing / prospective parachains.
 	PendingAcceptance, // by backing / prospective parachains
 }
 

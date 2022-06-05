@@ -100,10 +100,7 @@ impl PeerView {
 	/// send the statements to the peer, as higher-level network-topology should determine
 	/// what is actually sent to the peer. Everything returned is guaranteed to pass
 	/// `can_send` checks.
-	pub fn synchronize_with_our_view(
-		&mut self,
-		our_view: &View,
-	) -> Vec<StatementFingerprint> {
+	pub fn synchronize_with_our_view(&mut self, our_view: &View) -> Vec<StatementFingerprint> {
 		// No synchronization needed when prospective parachains are
 		// disabled for the peer as every leaf is a blank slate.
 		if let ProspectiveParachainsMode::Disabled = self.mode {
@@ -216,7 +213,10 @@ pub async fn handle_view_active_leaves_update<Context>(
 			match mode {
 				ProspectiveParachainsMode::Disabled => LeafHasProspectiveParachains::Disabled,
 				ProspectiveParachainsMode::Enabled => LeafHasProspectiveParachains::Enabled(
-					view.with_prospective.implicit_view_mut().activate_leaf(ctx.sender(), leaf_hash).await,
+					view.with_prospective
+						.implicit_view_mut()
+						.activate_leaf(ctx.sender(), leaf_hash)
+						.await,
 				),
 			},
 		))
@@ -255,16 +255,14 @@ pub async fn handle_view_active_leaves_update<Context>(
 			ProspectiveParachainsMode::Enabled => {
 				// TODO [now]
 				unimplemented!()
-			}
+			},
 			ProspectiveParachainsMode::Disabled => {
-				let relay_parent_info = construct_per_relay_parent_info_without_prospective(
-					ctx,
-					runtime,
-					relay_parent,
-				).await?;
+				let relay_parent_info =
+					construct_per_relay_parent_info_without_prospective(ctx, runtime, relay_parent)
+						.await?;
 
 				view.without_prospective.activate_leaf(relay_parent, relay_parent_info);
-			}
+			},
 		}
 	}
 	Ok(())

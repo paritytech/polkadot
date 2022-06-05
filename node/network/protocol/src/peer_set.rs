@@ -32,18 +32,20 @@ const VALIDATION_PROTOCOL_VSTAGING: &str = "/polkadot/validation/2";
 const COLLATION_PROTOCOL_VSTAGING: &str = "/polkadot/collation/2";
 
 /// The default validation protocol version.
-pub const DEFAULT_VALIDATION_PROTOCOL_VERSION: ProtocolVersion = if cfg!(feature = "network-protocol-staging") {
-	protocol_vstaging::VERSION
-} else {
-	protocol_v1::VERSION
-};
+pub const DEFAULT_VALIDATION_PROTOCOL_VERSION: ProtocolVersion =
+	if cfg!(feature = "network-protocol-staging") {
+		protocol_vstaging::VERSION
+	} else {
+		protocol_v1::VERSION
+	};
 
 /// The default collation protocol version.
-pub const DEFAULT_COLLATION_PROTOCOL_VERSION: ProtocolVersion = if cfg!(feature = "network-protocol-staging") {
-	protocol_vstaging::VERSION
-} else {
-	protocol_v1::VERSION
-};
+pub const DEFAULT_COLLATION_PROTOCOL_VERSION: ProtocolVersion =
+	if cfg!(feature = "network-protocol-staging") {
+		protocol_vstaging::VERSION
+	} else {
+		protocol_v1::VERSION
+	};
 
 /// The peer-sets and thus the protocols which are used for the network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]

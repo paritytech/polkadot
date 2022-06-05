@@ -35,8 +35,8 @@ use polkadot_primitives::v2::{
 
 use std::collections::{HashMap, HashSet};
 
-use crate::LOG_TARGET;
 use super::{StatementFingerprint, StoredStatement, StoredStatementComparator};
+use crate::LOG_TARGET;
 
 /// The maximum amount of candidates each validator is allowed to second at any relay-parent.
 /// Short for "Validator Candidate Threshold".
@@ -59,7 +59,7 @@ enum DeniedStatement {
 ///
 /// Therefore, this is a simple mapping from active leaf hashes to
 /// self-contained data relating to those hashes.
-pub(crate) struct View  {
+pub(crate) struct View {
 	per_relay_parent: HashMap<Hash, RelayParentInfo>,
 }
 
@@ -77,11 +77,7 @@ impl View {
 
 	/// Activate the given relay-parent in the view. This overwrites
 	/// any existing entry, and should only be called for fresh leaves.
-	pub(crate) fn activate_leaf(
-		&mut self,
-		leaf_hash: Hash,
-		relay_parent_info: RelayParentInfo,
-	) {
+	pub(crate) fn activate_leaf(&mut self, leaf_hash: Hash, relay_parent_info: RelayParentInfo) {
 		let _ = self.per_relay_parent.insert(leaf_hash, relay_parent_info);
 	}
 }
@@ -409,11 +405,7 @@ impl PeerView {
 	///
 	/// This returns `true` if this is the first time the peer has become aware of a
 	/// candidate with the given hash.
-	fn send(
-		&mut self,
-		relay_parent: &Hash,
-		fingerprint: &StatementFingerprint,
-	) -> bool {
+	fn send(&mut self, relay_parent: &Hash, fingerprint: &StatementFingerprint) -> bool {
 		debug_assert!(
 			self.can_send(relay_parent, fingerprint),
 			"send is only called after `can_send` returns true; qed",
@@ -426,12 +418,10 @@ impl PeerView {
 
 	/// This returns `None` if the peer cannot accept this statement, without altering internal
 	/// state.
-	fn can_send(
-		&self,
-		relay_parent: &Hash,
-		fingerprint: &StatementFingerprint,
-	) -> bool {
-		self.per_relay_parent.get(relay_parent).map_or(false, |k| k.can_send(fingerprint))
+	fn can_send(&self, relay_parent: &Hash, fingerprint: &StatementFingerprint) -> bool {
+		self.per_relay_parent
+			.get(relay_parent)
+			.map_or(false, |k| k.can_send(fingerprint))
 	}
 
 	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based on
@@ -727,16 +717,16 @@ impl PeerRelayParentKnowledge {
 mod tests {
 	use super::*;
 
-	use polkadot_primitives_test_helpers::{
-		dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
-	};
 	use polkadot_node_primitives::Statement;
 	use polkadot_node_subsystem::jaeger;
 	use polkadot_primitives::v2::SigningContext;
+	use polkadot_primitives_test_helpers::{
+		dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
+	};
 
 	use sc_keystore::LocalKeystore;
-	use sp_keyring::Sr25519Keyring;
 	use sp_application_crypto::{sr25519::Pair, AppKey, Pair as TraitPair};
+	use sp_keyring::Sr25519Keyring;
 	use sp_keystore::{CryptoStore, SyncCryptoStore, SyncCryptoStorePtr};
 
 	use assert_matches::assert_matches;
@@ -776,12 +766,8 @@ mod tests {
 			c
 		};
 
-		let mut head_data = RelayParentInfo::new(
-			validators,
-			session_index,
-			HashMap::new(),
-			jaeger::Span::Disabled,
-		);
+		let mut head_data =
+			RelayParentInfo::new(validators, session_index, HashMap::new(), jaeger::Span::Disabled);
 
 		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 		let alice_public = SyncCryptoStore::sr25519_generate_new(
@@ -1046,7 +1032,8 @@ mod tests {
 		);
 
 		assert_eq!(
-			knowledge.check_can_receive(&(CompactStatement::Seconded(hash_c), ValidatorIndex(0)), 3),
+			knowledge
+				.check_can_receive(&(CompactStatement::Seconded(hash_c), ValidatorIndex(0)), 3),
 			Err(crate::COST_UNEXPECTED_STATEMENT_REMOTE),
 		);
 		assert_eq!(
@@ -1065,7 +1052,8 @@ mod tests {
 		);
 
 		assert_eq!(
-			knowledge.check_can_receive(&(CompactStatement::Seconded(hash_b), ValidatorIndex(0)), 3),
+			knowledge
+				.check_can_receive(&(CompactStatement::Seconded(hash_b), ValidatorIndex(0)), 3),
 			Err(crate::COST_DUPLICATE_STATEMENT),
 		);
 		assert_eq!(
