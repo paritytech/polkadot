@@ -36,7 +36,7 @@ use polkadot_primitives::v2::{
 use std::collections::{HashMap, HashSet};
 
 use crate::LOG_TARGET;
-use super::{StoredStatement, StoredStatementComparator};
+use super::{StatementFingerprint, StoredStatement, StoredStatementComparator};
 
 /// The maximum amount of candidates each validator is allowed to second at any relay-parent.
 /// Short for "Validator Candidate Threshold".
@@ -392,10 +392,115 @@ fn note_hash(
 	observed.try_push(h).is_ok()
 }
 
+/// A peer's view of the relay-chain state for relay-parents that
+/// don't support prospective parachains.
+#[derive(Default)]
+pub(crate) struct PeerView {
+	per_relay_parent: HashMap<Hash, PeerRelayParentKnowledge>,
+}
+
+impl PeerView {
+	/// Updates our view of the peer's knowledge with this statement's fingerprint based
+	/// on something that we would like to send to the peer.
+	///
+	/// NOTE: assumes `self.can_send` returned true before this call.
+	///
+	/// Once the knowledge has incorporated a statement, it cannot be incorporated again.
+	///
+	/// This returns `true` if this is the first time the peer has become aware of a
+	/// candidate with the given hash.
+	fn send(
+		&mut self,
+		relay_parent: &Hash,
+		fingerprint: &StatementFingerprint,
+	) -> bool {
+		debug_assert!(
+			self.can_send(relay_parent, fingerprint),
+			"send is only called after `can_send` returns true; qed",
+		);
+		self.per_relay_parent
+			.get_mut(relay_parent)
+			.expect("send is only called after `can_send` returns true; qed")
+			.send(fingerprint)
+	}
+
+	/// This returns `None` if the peer cannot accept this statement, without altering internal
+	/// state.
+	fn can_send(
+		&self,
+		relay_parent: &Hash,
+		fingerprint: &StatementFingerprint,
+	) -> bool {
+		self.per_relay_parent.get(relay_parent).map_or(false, |k| k.can_send(fingerprint))
+	}
+
+	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based on
+	/// a message we are receiving from the peer.
+	///
+	/// Provide the maximum message count that we can receive per candidate. In practice we should
+	/// not receive more statements for any one candidate than there are members in the group assigned
+	/// to that para, but this maximum needs to be lenient to account for equivocations that may be
+	/// cross-group. As such, a maximum of 2 * `n_validators` is recommended.
+	///
+	/// This returns an error if the peer should not have sent us this message according to protocol
+	/// rules for flood protection.
+	///
+	/// If this returns `Ok`, the internal state has been altered. After `receive`ing a new
+	/// candidate, we are then cleared to send the peer further statements about that candidate.
+	///
+	/// This returns `Ok(true)` if this is the first time the peer has become aware of a
+	/// candidate with given hash.
+	fn receive(
+		&mut self,
+		relay_parent: &Hash,
+		fingerprint: &StatementFingerprint,
+		max_message_count: usize,
+	) -> std::result::Result<bool, Rep> {
+		self.per_relay_parent
+			.get_mut(relay_parent)
+			.ok_or(crate::COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE)?
+			.receive(fingerprint, max_message_count)
+	}
+
+	/// This method does the same checks as `receive` without modifying the internal state.
+	/// Returns an error if the peer should not have sent us this message according to protocol
+	/// rules for flood protection.
+	fn check_can_receive(
+		&self,
+		relay_parent: &Hash,
+		fingerprint: &StatementFingerprint,
+		max_message_count: usize,
+	) -> std::result::Result<(), Rep> {
+		self.per_relay_parent
+			.get(relay_parent)
+			.ok_or(crate::COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE)?
+			.check_can_receive(fingerprint, max_message_count)
+	}
+
+	/// Receive a notice about out of view statement and returns the value of the old flag
+	fn receive_unexpected(&mut self, relay_parent: &Hash) -> usize {
+		self.per_relay_parent
+			.get_mut(relay_parent)
+			.map_or(0_usize, |relay_parent_peer_knowledge| {
+				let old = relay_parent_peer_knowledge.unexpected_count;
+				relay_parent_peer_knowledge.unexpected_count += 1_usize;
+				old
+			})
+	}
+
+	/// Basic flood protection for large statements.
+	fn receive_large_statement(&mut self, relay_parent: &Hash) -> std::result::Result<(), Rep> {
+		self.per_relay_parent
+			.get_mut(relay_parent)
+			.ok_or(crate::COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE)?
+			.receive_large_statement()
+	}
+}
+
 /// A peer's knowledge of statements in some relay-parent which doesn't
 /// support prospective parachains.
 #[derive(Default)]
-pub struct PeerRelayParentKnowledge {
+pub(crate) struct PeerRelayParentKnowledge {
 	/// candidates that the peer is aware of because we sent statements to it. This indicates that we can
 	/// send other statements pertaining to that candidate.
 	sent_candidates: HashSet<CandidateHash>,
@@ -403,10 +508,10 @@ pub struct PeerRelayParentKnowledge {
 	received_candidates: HashSet<CandidateHash>,
 	/// fingerprints of all statements a peer should be aware of: those that
 	/// were sent to the peer by us.
-	sent_statements: HashSet<(CompactStatement, ValidatorIndex)>,
+	sent_statements: HashSet<StatementFingerprint>,
 	/// fingerprints of all statements a peer should be aware of: those that
 	/// were sent to us by the peer.
-	received_statements: HashSet<(CompactStatement, ValidatorIndex)>,
+	received_statements: HashSet<StatementFingerprint>,
 	/// How many candidates this peer is aware of for each given validator index.
 	seconded_counts: HashMap<ValidatorIndex, VcPerPeerTracker>,
 	/// How many statements we've received for each candidate that we're aware of.
@@ -449,7 +554,7 @@ impl PeerRelayParentKnowledge {
 	///
 	/// This returns `true` if this is the first time the peer has become aware of a
 	/// candidate with the given hash.
-	fn send(&mut self, fingerprint: &(CompactStatement, ValidatorIndex)) -> bool {
+	fn send(&mut self, fingerprint: &StatementFingerprint) -> bool {
 		debug_assert!(
 			self.can_send(fingerprint),
 			"send is only called after `can_send` returns true; qed",
@@ -473,7 +578,7 @@ impl PeerRelayParentKnowledge {
 
 	/// This returns `true` if the peer cannot accept this statement, without altering internal
 	/// state, `false` otherwise.
-	fn can_send(&self, fingerprint: &(CompactStatement, ValidatorIndex)) -> bool {
+	fn can_send(&self, fingerprint: &StatementFingerprint) -> bool {
 		let already_known = self.sent_statements.contains(fingerprint) ||
 			self.received_statements.contains(fingerprint);
 
@@ -509,7 +614,7 @@ impl PeerRelayParentKnowledge {
 	/// candidate with given hash.
 	fn receive(
 		&mut self,
-		fingerprint: &(CompactStatement, ValidatorIndex),
+		fingerprint: &StatementFingerprint,
 		max_message_count: usize,
 	) -> std::result::Result<bool, Rep> {
 		// We don't check `sent_statements` because a statement could be in-flight from both
@@ -571,7 +676,7 @@ impl PeerRelayParentKnowledge {
 	/// rules for flood protection.
 	fn check_can_receive(
 		&self,
-		fingerprint: &(CompactStatement, ValidatorIndex),
+		fingerprint: &StatementFingerprint,
 		max_message_count: usize,
 	) -> std::result::Result<(), Rep> {
 		// We don't check `sent_statements` because a statement could be in-flight from both

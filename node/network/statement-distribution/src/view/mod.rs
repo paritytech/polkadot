@@ -18,6 +18,9 @@
 //! parents of active leaves, and implements a message store for all known
 //! statements.
 
+// TODO [now]: remove at end
+#![allow(unused)]
+
 use futures::{
 	channel::{mpsc, oneshot},
 	future::RemoteHandle,
@@ -52,18 +55,103 @@ mod without_prospective;
 /// The local node's view of the protocol state and messages.
 pub struct View {
 	// The view for all explicit and implicit view relay-parents which
-	// support prospective parachains.
+	// support prospective parachains. Relay-parents in here are exclusive
+	// with those in `without_prospective`.
 	with_prospective: with_prospective::View,
 	// The view for all explicit view relay-parents which don't support
 	// prospective parachains.
+	// Relay-parents in here are exclusive with those in `with_prospectives`.
 	without_prospective: without_prospective::View,
 }
 
 /// A peer's view of the protocol state and messages.
+///
+/// The [`PeerView`] should be synchronized with the [`View`] every time the
+/// [`View`] changes by using [`PeerView::synchronize_with_our_view`].
+///
+/// When the peer updates their active leaves,
 pub struct PeerView {
 	active_leaves: ActiveLeavesView,
-	// TODO [now]: with/without prospective variants.
+	mode: ProspectiveParachainsMode,
+	with_prospective: with_prospective::PeerView,
+	without_prospective: without_prospective::PeerView,
 }
+
+impl PeerView {
+	/// Create a new [`PeerView`]. The mode should be set according to the
+	/// peer's network protocol version at a higher level.
+	///
+	/// Peers which don't support prospective parachains never will, at least
+	/// until they reconnect.
+	pub fn new(mode: ProspectiveParachainsMode) -> Self {
+		PeerView {
+			active_leaves: Default::default(),
+			mode,
+			with_prospective: Default::default(),
+			without_prospective: Default::default(),
+		}
+	}
+
+	/// Synchronize a peer view with our own. This should be called for each
+	/// peer after our active leaves are updated.
+	///
+	/// This will prune and update internal state within the peer view and may return a set of
+	/// [`StatementFingerprint`]s from our view which are relevant to the peer. It doesn't automatically
+	/// send the statements to the peer, as higher-level network-topology should determine
+	/// what is actually sent to the peer. Everything returned is guaranteed to pass
+	/// `can_send` checks.
+	pub fn synchronize_with_our_view(
+		&mut self,
+		our_view: &View,
+	) -> Vec<StatementFingerprint> {
+		// No synchronization needed when prospective parachains are
+		// disabled for the peer as every leaf is a blank slate.
+		if let ProspectiveParachainsMode::Disabled = self.mode {
+			return Vec::new()
+		}
+
+		// TODO [now]
+		// If mode is prospective, then we prune the peer view to only
+		// contain candidates matching our own needs. If there are leaves in our
+		// view which we previously didn't recognize, then we figure out everything we
+		// can now send and send that.
+		unimplemented!()
+	}
+
+	/// Update a peer's active leaves. This should be called every time the peer
+	/// issues a view update over the network.
+	///
+	/// This will prune and update internal state within the peer view and may return a set of
+	/// [`StatementFingerprint`]s from our view which are relevant to the peer. It doesn't automatically
+	/// send the statements to the peer, as higher-level network-topology should determine
+	/// what is actually sent to the peer. Everything returned is guaranteed to pass
+	/// `can_send` checks.
+	pub fn handle_view_update(
+		&mut self,
+		our_view: &View,
+		new_active_leaves: ActiveLeavesView,
+	) -> Vec<StatementFingerprint> {
+		// TODO [now]: update the local active-leaves view.
+
+		// TODO [now]: prune & create fresh entries accordingly in the
+		// without-prospective.
+
+		if let ProspectiveParachainsMode::Disabled = self.mode {
+			return Vec::new()
+		}
+
+		// TODO [now]: For with-prospective, we do a few things:
+		// 1. clean up old per-relay-parent / per-active-leaf
+		// 2. create new per-relay-parent state only for leaves we have in
+		//    common. initialize the depths of sent/received candidates based on
+		//    what we know in our view.
+
+		unimplemented!()
+	}
+}
+
+/// A light fingerprint of a statement.
+pub type StatementFingerprint = (CompactStatement, ValidatorIndex);
 
 /// Whether a leaf has prospective parachains enabled.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -104,7 +192,7 @@ async fn prospective_parachains_mode<Context>(
 
 /// Handle an active leaves update and update the view.
 #[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
-pub async fn handle_active_leaves_update<Context>(
+pub async fn handle_view_active_leaves_update<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	view: &mut View,
