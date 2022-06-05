@@ -32,14 +32,14 @@ const VALIDATION_PROTOCOL_VSTAGING: &str = "/polkadot/validation/2";
 const COLLATION_PROTOCOL_VSTAGING: &str = "/polkadot/collation/2";
 
 /// The default validation protocol version.
-pub const DEFAULT_VALIDATION_PROTOCOL_VERSION: ProtocolVersion = if cfg!(feature = "staging-network") {
+pub const DEFAULT_VALIDATION_PROTOCOL_VERSION: ProtocolVersion = if cfg!(feature = "network-protocol-staging") {
 	protocol_vstaging::VERSION
 } else {
 	protocol_v1::VERSION
 };
 
 /// The default collation protocol version.
-pub const DEFAULT_COLLATION_PROTOCOL_VERSION: ProtocolVersion = if cfg!(feature = "staging-network") {
+pub const DEFAULT_COLLATION_PROTOCOL_VERSION: ProtocolVersion = if cfg!(feature = "network-protocol-staging") {
 	protocol_vstaging::VERSION
 } else {
 	protocol_v1::VERSION
@@ -81,7 +81,7 @@ impl PeerSet {
 		match self {
 			PeerSet::Validation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
-				fallback_names: if cfg!(feature = "staging-network") {
+				fallback_names: if cfg!(feature = "network-protocol-staging") {
 					vec![VALIDATION_PROTOCOL_V1.into()]
 				} else {
 					Vec::new()
@@ -100,7 +100,7 @@ impl PeerSet {
 			},
 			PeerSet::Collation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
-				fallback_names: if cfg!(feature = "staging-network") {
+				fallback_names: if cfg!(feature = "network-protocol-staging") {
 					vec![COLLATION_PROTOCOL_V1.into()]
 				} else {
 					Vec::new()
@@ -131,13 +131,13 @@ impl PeerSet {
 
 	/// Get the default protocol name as a static str.
 	pub const fn get_default_protocol_name(self) -> &'static str {
-		#[cfg(not(feature = "staging-network"))]
+		#[cfg(not(feature = "network-protocol-staging"))]
 		match self {
 			PeerSet::Validation => VALIDATION_PROTOCOL_V1,
 			PeerSet::Collation => COLLATION_PROTOCOL_V1,
 		}
 
-		#[cfg(feature = "staging-network")]
+		#[cfg(feature = "network-protocol-staging")]
 		match self {
 			PeerSet::Validation => VALIDATION_PROTOCOL_VSTAGING,
 			PeerSet::Collation => COLLATION_PROTOCOL_VSTAGING,

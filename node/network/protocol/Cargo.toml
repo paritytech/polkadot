@@ -25,4 +25,4 @@ gum = { package = "tracing-gum", path = "../../gum" }
 rand_chacha = "0.3.1"
 
 [features]
-staging-network = []
+network-protocol-staging = []
