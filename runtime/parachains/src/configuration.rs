@@ -19,9 +19,9 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use crate::shared;
-use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_PER_MILLIS};
+use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_PER_MILLIS, BoundedVec};
 use frame_system::pallet_prelude::*;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v2::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
@@ -39,7 +39,7 @@ pub mod migration;
 const LOG_TARGET: &str = "runtime::configuration";
 
 /// All configuration of the runtime with respect to parachains and parathreads.
-#[derive(Clone, Encode, Decode, PartialEq, sp_core::RuntimeDebug, scale_info::TypeInfo)]
+#[derive(Clone, Encode, Decode, PartialEq, sp_core::RuntimeDebug, scale_info::TypeInfo, MaxEncodedLen)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct HostConfiguration<BlockNumber> {
 	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct requires
@@ -458,7 +458,6 @@ pub mod pallet {
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::storage_version(migration::STORAGE_VERSION)]
-	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -488,7 +487,7 @@ pub mod pallet {
 	/// 2 items: for the next session and for the `scheduled_session`.
 	#[pallet::storage]
 	pub(crate) type PendingConfigs<T: Config> =
-		StorageValue<_, Vec<(SessionIndex, HostConfiguration<T::BlockNumber>)>, ValueQuery>;
+		StorageValue<_, BoundedVec<(SessionIndex, HostConfiguration<T::BlockNumber>), ConstU32<2>>, ValueQuery>;
 
 	/// If this is set, then the configuration setters will bypass the consistency checks. This
 	/// is meant to be used only as the last resort.
@@ -1177,6 +1176,15 @@ impl<T: Config> Pallet<T> {
 			<Self as Store>::ActiveConfig::put(new_config);
 		}
 
+		if future.len() > 2 {
+			log::warn!(
+				target: LOG_TARGET,
+				"There are more than 2 future pending configs, truncating",
+			);
+		}
+
+		let future = BoundedVec::<_, ConstU32<2>>::truncate_from(future);
+
 		<PendingConfigs<T>>::put(future);
 
 		SessionChangeOutcome { prev_config, new_config }
@@ -1248,7 +1256,7 @@ impl<T: Config> Pallet<T> {
 		let base_config_consistent = base_config.check_consistency().is_ok();
 
 		// Now, we need to decide what the new configuration should be.
-		// We also move the `base_config` to `new_config` to empahsize that the base config was
+		// We also move the `base_config` to `new_config` to emphasize that the base config was
 		// destroyed by the `updater`.
 		updater(&mut base_config);
 		let new_config = base_config;
@@ -1293,7 +1301,7 @@ impl<T: Config> Pallet<T> {
 			*config = new_config;
 		} else {
 			// We are scheduling a new configuration change for the scheduled session.
-			pending_configs.push((scheduled_session, new_config));
+			pending_configs.try_push((scheduled_session, new_config));
 		}
 
 		<PendingConfigs<T>>::put(pending_configs);
