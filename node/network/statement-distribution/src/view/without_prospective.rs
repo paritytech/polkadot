@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright 2022 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -41,6 +41,41 @@ use crate::{LOG_TARGET, VC_THRESHOLD};
 enum DeniedStatement {
 	NotUseful,
 	UsefulButKnown,
+}
+
+/// The view of the protocol state for all relay-parents where prospective
+/// parachains aren't enabled.
+///
+/// Prior to prospective parachains, the only relay-parents that were allowed
+/// were the active leaves directly, and data couldn't be reused across active leaves.
+///
+/// Therefore, this is a simple mapping from active leaf hashes to
+/// self-contained data relating to those hashes.
+pub(crate) struct View  {
+	per_relay_parent: HashMap<Hash, RelayParentInfo>,
+}
+
+impl View {
+	/// Whether the view contains a given relay-parent.
+	pub(crate) fn contains(&self, leaf_hash: &Hash) -> bool {
+		self.per_relay_parent.contains_key(leaf_hash)
+	}
+
+	/// Deactivate the given leaf in the view, if it exists, and
+	/// clean up after it.
+	pub(crate) fn deactivate_leaf(&mut self, leaf_hash: &Hash) {
+		let _ = self.per_relay_parent.remove(leaf_hash);
+	}
+
+	/// Activate the given relay-parent in the view. This overwrites
+	/// any existing entry, and should only be called for fresh leaves.
+	pub(crate) fn activate_leaf(
+		&mut self,
+		leaf_hash: Hash,
+		relay_parent_info: RelayParentInfo,
+	) {
+		let _ = self.per_relay_parent.insert(leaf_hash, relay_parent_info);
+	}
 }
 
 // A value used for comparison of stored statements to each other.

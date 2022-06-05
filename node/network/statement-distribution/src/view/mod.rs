@@ -46,43 +46,23 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{Error, LOG_TARGET, VC_THRESHOLD};
 
+mod with_prospective;
 mod without_prospective;
 
 /// The local node's view of the protocol state and messages.
 pub struct View {
-	implicit_view: ImplicitView,
-	per_leaf: HashMap<Hash, ActiveLeafState>,
-	/// State tracked for all relay-parents backing work is ongoing for. This includes
-	/// all active leaves.
-	///
-	/// relay-parents fall into one of 3 categories.
-	///   1. active leaves which do support prospective parachains
-	///   2. active leaves which do not support prospective parachains
-	///   3. relay-chain blocks which are ancestors of an active leaf and
-	///      do support prospective parachains.
-	///
-	/// Relay-chain blocks which don't support prospective parachains are
-	/// never included in the fragment trees of active leaves which do.
-	///
-	/// While it would be technically possible to support such leaves in
-	/// fragment trees, it only benefits the transition period when asynchronous
-	/// backing is being enabled and complicates code complexity.
-	per_relay_parent: HashMap<Hash, RelayParentInfo>,
+	// The view for all explicit and implicit view relay-parents which
+	// support prospective parachains.
+	with_prospective: with_prospective::View,
+	// The view for all explicit view relay-parents which don't support
+	// prospective parachains.
+	without_prospective: without_prospective::View,
 }
 
 /// A peer's view of the protocol state and messages.
 pub struct PeerView {
 	active_leaves: ActiveLeavesView,
-	/// Our understanding of the peer's knowledge of relay-parents and
-	/// corresponding messages.
-	///
-	/// These are either active leaves we recognize or relay-parents that
-	/// are implicit ancestors of active leaves we do recognize.
-	///
-	/// Furthermore, this is guaranteed to be an intersection of our own
-	/// implicit/explicit view. The intersection defines the shared view,
-	/// which determines the messages that are allowed to flow.
-	known_relay_parents: HashMap<Hash, PeerRelayParentKnowledge>,
+	// TODO [now]: with/without prospective variants.
 }
 
 /// Whether a leaf has prospective parachains enabled.
@@ -93,23 +73,6 @@ pub enum ProspectiveParachainsMode {
 	/// Prospective parachains are disabled at the leaf.
 	Disabled,
 }
-
-struct ActiveLeafState {
-	prospective_parachains_mode: ProspectiveParachainsMode,
-}
-
-enum RelayParentInfo {
-	VStaging(RelayParentWithProspective),
-	V2(without_prospective::RelayParentInfo),
-}
-
-enum PeerRelayParentKnowledge {
-	VStaging(PeerRelayParentKnowledgeWithProspective),
-	V2(without_prospective::PeerRelayParentKnowledge),
-}
-
-struct RelayParentWithProspective;
-struct PeerRelayParentKnowledgeWithProspective;
 
 #[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
 async fn prospective_parachains_mode<Context>(
@@ -165,7 +128,7 @@ pub async fn handle_active_leaves_update<Context>(
 			match mode {
 				ProspectiveParachainsMode::Disabled => LeafHasProspectiveParachains::Disabled,
 				ProspectiveParachainsMode::Enabled => LeafHasProspectiveParachains::Enabled(
-					view.implicit_view.activate_leaf(ctx.sender(), leaf_hash).await,
+					view.with_prospective.implicit_view_mut().activate_leaf(ctx.sender(), leaf_hash).await,
 				),
 			},
 		))
@@ -174,17 +137,8 @@ pub async fn handle_active_leaves_update<Context>(
 	};
 
 	for deactivated in update.deactivated {
-		view.per_leaf.remove(&deactivated);
-		view.implicit_view.deactivate_leaf(deactivated);
-	}
-
-	// clean up `per_relay_parent` according to ancestry of leaves.
-	//
-	// when prospective parachains are disabled, the implicit view is empty,
-	// which means we'll clean up everything. This is correct.
-	{
-		let remaining: HashSet<_> = view.implicit_view.all_allowed_relay_parents().collect();
-		view.per_relay_parent.retain(|r, _| remaining.contains(&r));
+		view.without_prospective.deactivate_leaf(&deactivated);
+		// TODO [now] clean up implicit view
 	}
 
 	// Get relay parents which might be fresh but might be known already
@@ -193,16 +147,9 @@ pub async fn handle_active_leaves_update<Context>(
 		None => return Ok(()),
 		Some((leaf, LeafHasProspectiveParachains::Disabled)) => {
 			// defensive in this case - for enabled, this manifests as an error.
-			if view.per_leaf.contains_key(&leaf.hash) {
+			if view.without_prospective.contains(&leaf.hash) {
 				return Ok(())
 			}
-
-			view.per_leaf.insert(
-				leaf.hash,
-				ActiveLeafState {
-					prospective_parachains_mode: ProspectiveParachainsMode::Disabled,
-				},
-			);
 
 			vec![(leaf.hash, ProspectiveParachainsMode::Disabled)]
 		},
@@ -216,21 +163,27 @@ pub async fn handle_active_leaves_update<Context>(
 	};
 
 	for (relay_parent, mode) in fresh_relay_parents {
-		let relay_parent_info = match mode {
-			ProspectiveParachainsMode::Enabled => unimplemented!(),
-			ProspectiveParachainsMode::Disabled => RelayParentInfo::V2(
-				construct_per_relay_parent_state_without_prospective(ctx, runtime, relay_parent)
-					.await?,
-			),
-		};
+		match mode {
+			ProspectiveParachainsMode::Enabled => {
+				// TODO [now]
+				unimplemented!()
+			}
+			ProspectiveParachainsMode::Disabled => {
+				let relay_parent_info = construct_per_relay_parent_info_without_prospective(
+					ctx,
+					runtime,
+					relay_parent,
+				).await?;
 
-		view.per_relay_parent.insert(relay_parent, relay_parent_info);
+				view.without_prospective.activate_leaf(relay_parent, relay_parent_info);
+			}
+		}
 	}
 	Ok(())
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
-async fn construct_per_relay_parent_state_without_prospective<Context>(
+async fn construct_per_relay_parent_info_without_prospective<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	relay_parent: Hash,
