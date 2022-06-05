@@ -39,7 +39,9 @@ pub mod migration;
 const LOG_TARGET: &str = "runtime::configuration";
 
 /// All configuration of the runtime with respect to parachains and parathreads.
-#[derive(Clone, Encode, Decode, PartialEq, sp_core::RuntimeDebug, scale_info::TypeInfo, MaxEncodedLen)]
+#[derive(
+	Clone, Encode, Decode, PartialEq, sp_core::RuntimeDebug, scale_info::TypeInfo, MaxEncodedLen,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct HostConfiguration<BlockNumber> {
 	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct requires
@@ -486,8 +488,11 @@ pub mod pallet {
 	/// The list is sorted ascending by session index. Also, this list can only contain at most
 	/// 2 items: for the next session and for the `scheduled_session`.
 	#[pallet::storage]
-	pub(crate) type PendingConfigs<T: Config> =
-		StorageValue<_, BoundedVec<(SessionIndex, HostConfiguration<T::BlockNumber>), ConstU32<2>>, ValueQuery>;
+	pub(crate) type PendingConfigs<T: Config> = StorageValue<
+		_,
+		BoundedVec<(SessionIndex, HostConfiguration<T::BlockNumber>), ConstU32<2>>,
+		ValueQuery,
+	>;
 
 	/// If this is set, then the configuration setters will bypass the consistency checks. This
 	/// is meant to be used only as the last resort.
