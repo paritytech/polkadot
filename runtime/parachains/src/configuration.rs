@@ -19,7 +19,9 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use crate::shared;
-use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_PER_MILLIS, BoundedVec};
+use frame_support::{
+	pallet_prelude::*, traits::Defensive, weights::constants::WEIGHT_PER_MILLIS, BoundedVec,
+};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v2::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
@@ -1306,7 +1308,9 @@ impl<T: Config> Pallet<T> {
 			*config = new_config;
 		} else {
 			// We are scheduling a new configuration change for the scheduled session.
-			pending_configs.try_push((scheduled_session, new_config));
+			let _ = pending_configs.try_push((scheduled_session, new_config)).defensive_proof(
+				"applied configuration changes should be removed from pending configs",
+			);
 		}
 
 		<PendingConfigs<T>>::put(pending_configs);
