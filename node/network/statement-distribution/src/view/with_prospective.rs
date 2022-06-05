@@ -36,13 +36,12 @@ use polkadot_primitives::v2::{
 use std::collections::{HashMap, HashSet};
 
 use crate::{LOG_TARGET, VC_THRESHOLD};
-
-pub(crate) struct RelayParentInfo {
-
-}
+use super::{StoredStatement, StoredStatementComparator};
 
 pub(crate) struct View {
 	implicit_view: ImplicitView,
+	per_active_leaf: HashMap<Hash, PerActiveLeaf>,
+	candidate_store: CandidateStore,
 }
 
 impl View {
@@ -69,8 +68,40 @@ impl View {
 	pub(crate) fn activate_leaf(
 		&mut self,
 		leaf_hash: Hash,
-		relay_parent_info: RelayParentInfo,
 	) {
 		// TODO [now] unimplemented
 	}
+}
+
+struct CandidateStore {
+	per_candidate: HashMap<CandidateHash, PerCandidate>,
+}
+
+// Data stored per active leaf.
+struct PerActiveLeaf {
+	live_candidates: HashMap<(ValidatorId, usize), Vec<CandidateHash>>,
+
+	// Allowed relay-parents for each para.
+	relay_parents_by_para: HashMap<ParaId, HashSet<Hash>>,
+}
+
+// Data stored per candidate.
+struct PerCandidate {
+	para_id: ParaId,
+	candidate_hash: CandidateHash,
+	relay_parent: Hash,
+	persisted_validation_data: PersistedValidationData,
+	acceptance_status: AcceptanceStatus,
+
+	// stored in insertion order
+	statements: IndexMap<StoredStatementComparator, SignedFullStatement>,
+}
+
+enum AcceptanceStatus {
+	Accepted, // by backing / prospective parachains.
+	PendingAcceptance, // by backing / prospective parachains
+}
+
+struct AcceptedCandidateStatements {
+
 }

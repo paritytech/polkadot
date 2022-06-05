@@ -275,3 +275,41 @@ async fn fetch_allowed_pvds_without_prospective<Context>(
 
 	Ok(valid_pvds)
 }
+
+// A value used for comparison of stored statements to each other.
+//
+// The compact version of the statement, the validator index, and the signature of the validator
+// is enough to differentiate between all types of equivocations, as long as the signature is
+// actually checked to be valid. The same statement with 2 signatures and 2 statements with
+// different (or same) signatures wll all be correctly judged to be unequal with this comparator.
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+struct StoredStatementComparator {
+	compact: CompactStatement,
+	validator_index: ValidatorIndex,
+	signature: ValidatorSignature,
+}
+
+impl<'a> From<(&'a StoredStatementComparator, &'a SignedFullStatement)> for StoredStatement<'a> {
+	fn from(
+		(comparator, statement): (&'a StoredStatementComparator, &'a SignedFullStatement),
+	) -> Self {
+		Self { comparator, statement }
+	}
+}
+
+// A statement stored while a relay chain head is active.
+#[derive(Debug, Copy, Clone)]
+struct StoredStatement<'a> {
+	comparator: &'a StoredStatementComparator,
+	statement: &'a SignedFullStatement,
+}
+
+impl<'a> StoredStatement<'a> {
+	fn compact(&self) -> &'a CompactStatement {
+		&self.comparator.compact
+	}
+
+	fn fingerprint(&self) -> (CompactStatement, ValidatorIndex) {
+		(self.comparator.compact.clone(), self.statement.validator_index())
+	}
+}
