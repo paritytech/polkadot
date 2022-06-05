@@ -77,7 +77,7 @@ async fn print_info<T: EPM::Config>(
 		);
 	});
 
-	let info = rpc.payment_query_info(&extrinsic, None).await;
+	let info = rpc.payment_query_info(extrinsic, None).await;
 
 	log::info!(
 		target: LOG_TARGET,
