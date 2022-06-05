@@ -32,10 +32,18 @@ const VALIDATION_PROTOCOL_VSTAGING: &str = "/polkadot/validation/2";
 const COLLATION_PROTOCOL_VSTAGING: &str = "/polkadot/collation/2";
 
 /// The default validation protocol version.
-pub const DEFAULT_VALIDATION_PROTOCOL_VERSION: ProtocolVersion = 1;
+pub const DEFAULT_VALIDATION_PROTOCOL_VERSION: ProtocolVersion = if cfg!(feature = "staging-network") {
+	protocol_vstaging::VERSION
+} else {
+	protocol_v1::VERSION
+};
 
 /// The default collation protocol version.
-pub const DEFAULT_COLLATION_PROTOCOL_VERSION: ProtocolVersion = 1;
+pub const DEFAULT_COLLATION_PROTOCOL_VERSION: ProtocolVersion = if cfg!(feature = "staging-network") {
+	protocol_vstaging::VERSION
+} else {
+	protocol_v1::VERSION
+};
 
 /// The peer-sets and thus the protocols which are used for the network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
@@ -70,12 +78,14 @@ impl PeerSet {
 			.expect("default version always has protocol name; qed");
 		let max_notification_size = 100 * 1024;
 
-		// TODO [now] if a feature flag is set, use the vstaging
-		// protocol version as default.
 		match self {
 			PeerSet::Validation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
-				fallback_names: Vec::new(),
+				fallback_names: if cfg!(feature = "staging-network") {
+					vec![VALIDATION_PROTOCOL_V1.into()]
+				} else {
+					Vec::new()
+				},
 				max_notification_size,
 				set_config: sc_network::config::SetConfig {
 					// we allow full nodes to connect to validators for gossip
@@ -90,7 +100,11 @@ impl PeerSet {
 			},
 			PeerSet::Collation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
-				fallback_names: Vec::new(),
+				fallback_names: if cfg!(feature = "staging-network") {
+					vec![COLLATION_PROTOCOL_V1.into()]
+				} else {
+					Vec::new()
+				},
 				max_notification_size,
 				set_config: SetConfig {
 					// Non-authority nodes don't need to accept incoming connections on this peer set:
@@ -117,9 +131,16 @@ impl PeerSet {
 
 	/// Get the default protocol name as a static str.
 	pub const fn get_default_protocol_name(self) -> &'static str {
+		#[cfg(not(feature = "staging-network"))]
 		match self {
 			PeerSet::Validation => VALIDATION_PROTOCOL_V1,
 			PeerSet::Collation => COLLATION_PROTOCOL_V1,
+		}
+
+		#[cfg(feature = "staging-network")]
+		match self {
+			PeerSet::Validation => VALIDATION_PROTOCOL_VSTAGING,
+			PeerSet::Collation => COLLATION_PROTOCOL_VSTAGING,
 		}
 	}
 
