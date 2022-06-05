@@ -16,7 +16,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #[allow(identity_op)]
-
 pub mod weights;
 
 /// Money matters.
