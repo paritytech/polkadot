@@ -43,11 +43,7 @@ pub mod time {
 	use runtime_common::prod_or_fast;
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
-<<<<<<< HEAD
-	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = prod_or_fast!(4 * HOURS, 1 * MINUTES);
-=======
 	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 1 * MINUTES;
->>>>>>> 755a4b69c (sudo for kusama/polkadot + short epoch)
 
 	// These time units are defined in number of blocks.
 	pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
