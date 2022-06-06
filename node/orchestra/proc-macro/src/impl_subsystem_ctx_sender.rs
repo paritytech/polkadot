@@ -17,38 +17,9 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Ident, Path, Result, Type};
 
-use petgraph::{
-	dot::{self, Dot},
-	graph::NodeIndex,
-	visit::EdgeRef,
-	Direction,
-};
-use std::collections::HashMap;
+use petgraph::{visit::EdgeRef, Direction};
 
 use super::*;
-
-/// Render a graphviz (aka dot graph) to a file.
-fn graphviz(
-	graph: &petgraph::Graph<Ident, Path>,
-	dest: &mut impl std::io::Write,
-) -> std::io::Result<()> {
-	let config = &[dot::Config::EdgeNoLabel, dot::Config::NodeNoLabel][..];
-	let dot = Dot::with_attr_getters(
-		graph,
-		config,
-		&|_graph, edge| -> String {
-			format!(
-				r#"label="{}""#,
-				edge.weight().get_ident().expect("Must have a trailing identifier. qed")
-			)
-		},
-		&|_graph, (_node_index, subsystem_name)| -> String {
-			format!(r#"label="{}""#, subsystem_name,)
-		},
-	);
-	dest.write_all(format!("{:?}", &dot).as_bytes())?;
-	Ok(())
-}
 
 /// Generates all subsystem types and related accumulation traits.
 pub(crate) fn impl_subsystem_types_all(info: &OrchestraInfo) -> Result<TokenStream> {
@@ -61,37 +32,8 @@ pub(crate) fn impl_subsystem_types_all(info: &OrchestraInfo) -> Result<TokenStre
 	let signal_ty = &info.extern_signal_ty;
 	let error_ty = &info.extern_error_ty;
 
-	// create a directed graph with all the subsystems as nodes and the messages as edges
-	// key is always the message path, values are node indices in the graph and the subsystem generic identifier
-	// store the message path and the source sender, both in the graph as well as identifier
-	let mut outgoing_lut = HashMap::<&Path, Vec<(Ident, NodeIndex)>>::with_capacity(128);
-	// same for consuming the incoming messages
-	let mut consuming_lut = HashMap::<&Path, (Ident, NodeIndex)>::with_capacity(128);
-
-	// Ident = Node = subsystem generic names
-	// Path = Edge = messages
-	let mut graph = petgraph::Graph::<Ident, Path>::new();
-
-	// prepare the full index of outgoing and source subsystems
-	for ssf in info.subsystems() {
-		let node_index = graph.add_node(ssf.generic.clone());
-		for outgoing in ssf.messages_to_send.iter() {
-			outgoing_lut
-				.entry(outgoing)
-				.or_default()
-				.push((ssf.generic.clone(), node_index));
-		}
-		consuming_lut.insert(&ssf.message_to_consume, (ssf.generic.clone(), node_index));
-	}
-
-	for (message_ty, (_consuming_subsystem_ident, consuming_node_index)) in consuming_lut.iter() {
-		// match the outgoing ones that were registered above with the consumed message
-		if let Some(origin_subsystems) = outgoing_lut.get(message_ty) {
-			for (_origin_subsystem_ident, sending_node_index) in origin_subsystems.iter() {
-				graph.add_edge(*sending_node_index, *consuming_node_index, (*message_ty).clone());
-			}
-		}
-	}
+	let cg = graph::ConnectionGraph::construct(info.subsystems());
+	let graph = &cg.graph;
 
 	// All outgoing edges are now usable to derive everything we need
 	for node_index in graph.node_indices() {
@@ -134,7 +76,8 @@ pub(crate) fn impl_subsystem_types_all(info: &OrchestraInfo) -> Result<TokenStre
 	}
 
 	// Dump the graph to file.
-	if cfg!(feature = "graph") || true {
+	#[cfg(feature = "graph")]
+	{
 		let path = std::path::PathBuf::from(env!("OUT_DIR"))
 			.join(orchestra_name.to_string().to_lowercase() + "-subsystem-messaging.dot");
 		if let Err(e) = std::fs::OpenOptions::new()
@@ -142,7 +85,7 @@ pub(crate) fn impl_subsystem_types_all(info: &OrchestraInfo) -> Result<TokenStre
 			.create(true)
 			.write(true)
 			.open(&path)
-			.and_then(|mut f| graphviz(&graph, &mut f))
+			.and_then(|mut f| cg.graphviz(&mut f))
 		{
 			eprintln!("Failed to write dot graph to {}: {:?}", path.display(), e);
 		} else {
