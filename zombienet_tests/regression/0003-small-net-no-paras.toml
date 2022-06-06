@@ -19,37 +19,10 @@ default_command = "polkadot"
 limits = { memory = "4G", cpu = "2" }
 requests = { memory = "2G", cpu = "1" }
 
-  [[relaychain.nodes]]
-  name = "alice"
-  args = [ "--alice", "-lparachain=debug,runtime=debug,grandpa=trace" ]
-
-  [[relaychain.nodes]]
-  name = "bob"
-  args = [ "--bob", "-lparachain=debug,runtime=debug,grandpa=trace"]
-
-  [[relaychain.nodes]]
-  name = "charlie"
-  args = [ "--charlie", "-lparachain=debug,runtime=debug" ]
-
-  [[relaychain.nodes]]
-  name = "dave"
-  args = [ "--dave", "-lparachain=debug,runtime=debug,grandpa=trace"]
-
-  [[relaychain.nodes]]
-  name = "ferdie"
-  args = [ "--ferdie", "-lparachain=debug,runtime=debug,grandpa=trace" ]
-
-  [[relaychain.nodes]]
-  name = "eve"
-  args = [ "--eve", "-lparachain=debug,runtime=debug,grandpa=trace"]
-
-  [[relaychain.nodes]]
-  name = "one"
-  args = [ "--one", "-lparachain=debug,runtime=debug,grandpa=trace" ]
-
-  [[relaychain.nodes]]
-  name = "two"
-  args = [ "--two", "-lparachain=debug,runtime=debug,grandpa=trace"]
+[[relaychain.node_groups]]
+  name = "honest-validator"
+  count = 10
+  args = ["-lparachain=debug,runtime=debug,afg=trace]
 
 
 # Zer0 parachains
