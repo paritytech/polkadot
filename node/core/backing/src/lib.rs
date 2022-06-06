@@ -1166,7 +1166,7 @@ async fn seconding_sanity_check<Context>(
 					// The leaf is already occupied.
 					return SecondingAllowed::No
 				}
-				responses.push(futures::future::ready(Ok((vec![0], head, leaf_state))).boxed())
+				responses.push(futures::future::ok((vec![0], head, leaf_state)).boxed());
 			}
 		}
 	}
@@ -1175,7 +1175,7 @@ async fn seconding_sanity_check<Context>(
 		return SecondingAllowed::No
 	}
 
-	for response in responses.next().await {
+	while let Some(response) = responses.next().await {
 		match response {
 			Err(oneshot::Canceled) => {
 				gum::warn!(
