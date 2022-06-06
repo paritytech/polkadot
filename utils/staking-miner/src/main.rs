@@ -535,8 +535,8 @@ async fn main() {
 				}),
 			Command::Info(_info_opts) => {
 				let runtime_version: RuntimeVersion = rpc.runtime_version(None).await.expect("runtime_version infallible; qed.");
-				let info = Info::new(runtime_version.spec_name.to_string(), runtime_version.spec_version);
-				let info = serde_json::to_string_pretty(&info).expect("Failed serializing infos");
+				let info = Info::new(&runtime_version);
+				let info = serde_json::to_string_pretty(&info).expect("Failed serializing version info");
 				println!("{}", info);
 				Ok(())
 			}
