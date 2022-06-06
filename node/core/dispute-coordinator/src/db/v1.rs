@@ -30,6 +30,7 @@ use parity_scale_codec::{Decode, Encode};
 use crate::{
 	backend::{Backend, BackendWriteOp, OverlayedBackend},
 	error::{FatalError, FatalResult},
+	metrics::Metrics,
 	status::DisputeStatus,
 	DISPUTE_WINDOW, LOG_TARGET,
 };
@@ -59,11 +60,12 @@ const MAX_CLEAN_BATCH_SIZE: u32 = 300;
 pub struct DbBackend {
 	inner: Arc<dyn Database>,
 	config: ColumnConfiguration,
+	metrics: Metrics,
 }
 
 impl DbBackend {
-	pub fn new(db: Arc<dyn Database>, config: ColumnConfiguration) -> Self {
-		Self { inner: db, config }
+	pub fn new(db: Arc<dyn Database>, config: ColumnConfiguration, metrics: Metrics) -> Self {
+		Self { inner: db, config, metrics }
 	}
 
 	/// Cleanup old votes.
@@ -134,9 +136,15 @@ impl Backend for DbBackend {
 		I: IntoIterator<Item = BackendWriteOp>,
 	{
 		let mut tx = DBTransaction::new();
+		// Make sure the whole process is timed, including the actual transaction flush:
+		let mut cleanup_timer = None;
 		for op in ops {
 			match op {
 				BackendWriteOp::WriteEarliestSession(session) => {
+					cleanup_timer = match cleanup_timer.take() {
+						None => Some(self.metrics.time_vote_cleanup()),
+						Some(t) => Some(t),
+					};
 					self.add_vote_cleanup_tx(&mut tx, session)?;
 
 					// Actually write the earliest session.
@@ -351,7 +359,7 @@ mod tests {
 		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[0]);
 		let store = Arc::new(db);
 		let config = ColumnConfiguration { col_data: 0 };
-		DbBackend::new(store, config)
+		DbBackend::new(store, config, Metrics::default())
 	}
 
 	#[test]
