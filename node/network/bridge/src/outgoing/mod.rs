@@ -44,7 +44,7 @@ use crate::metrics::Metrics;
 mod tests;
 
 // network bridge log target
-const LOG_TARGET: &'static str = "parachain::network-bridge-outgoing";
+const LOG_TARGET: &'static str = "parachain::network-bridge-tx";
 
 /// The network bridge subsystem.
 pub struct NetworkBridgeOut<N, AD> {
