@@ -1,9 +1,6 @@
 [settings]
 timeout = 1000
 
-[relaychain.genesis.runtime.runtime_genesis_config.configuration.config]
-  max_validators_per_core = 5
-  needed_approvals = 2
 
 # cannot be changed after the first block got produced
 [relaychain.genesis.runtime]
