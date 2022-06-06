@@ -1,4 +1,4 @@
-FROM docker.io/library/ubuntu:20.04
+FROM docker.io/alpine:3.16.0 as verifier
 
 # metadata
 ARG VCS_REF
@@ -6,6 +6,21 @@ ARG BUILD_DATE
 ARG POLKADOT_VERSION
 ARG POLKADOT_GPGKEY=9D4B2B6EB8F97156D19669A9FF0812D491B96798
 ARG GPG_KEYSERVER="keyserver.ubuntu.com"
+
+# install tools
+RUN set -eu -o pipefail && \
+	apk add --no-cache curl gnupg && \
+	curl -fsSL -o polkadot https://github.com/paritytech/polkadot/releases/download/${POLKADOT_VERSION}/polkadot && \
+	curl -fsSL -o polkadot.sha256 https://github.com/paritytech/polkadot/releases/download/${POLKADOT_VERSION}/polkadot.sha256 && \
+	curl -fsSL -o polkadot.asc https://github.com/paritytech/polkadot/releases/download/${POLKADOT_VERSION}/polkadot.asc && \
+	sha256sum -c polkadot.sha256 && \
+	gpg --keyserver ${GPG_KEYSERVER} --recv-keys ${POLKADOT_GPGKEY} && \
+	gpg --verify polkadot.asc polkadot && \
+	chmod +x polkadot
+
+# This is the 2nd stage: a very small image where we copy the Polkadot binary
+# gcr.io/distroless/cc-debian11:nonroot
+FROM gcr.io/distroless/cc-debian11@sha256:c2e1b5b0c64e3a44638e79246130d480ff09645d543d27e82ffd46a6e78a3ce3
 
 LABEL io.parity.image.authors="devops-team@parity.io" \
 	io.parity.image.vendor="Parity Technologies" \
@@ -19,33 +34,12 @@ LABEL io.parity.image.authors="devops-team@parity.io" \
 # show backtraces
 ENV RUST_BACKTRACE 1
 
-# install tools and dependencies
-RUN apt-get update && \
-	DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-		libssl1.1 \
-		ca-certificates \
-		gnupg && \
-	useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot && \
-# add repo's gpg keys and install the published polkadot binary
-	gpg --keyserver ${GPG_KEYSERVER} --recv-keys ${POLKADOT_GPGKEY} && \
-	gpg --export ${POLKADOT_GPGKEY} > /usr/share/keyrings/parity.gpg && \
-	echo 'deb [signed-by=/usr/share/keyrings/parity.gpg] https://releases.parity.io/deb release main' > /etc/apt/sources.list.d/parity.list && \
-	apt-get update && \
-	apt-get install -y --no-install-recommends polkadot=${POLKADOT_VERSION#?} && \
-# apt cleanup
-	apt-get autoremove -y && \
-	apt-get clean && \
-	rm -rf /var/lib/apt/lists/* ; \
-	mkdir -p /data /polkadot/.local/share && \
-	chown -R polkadot:polkadot /data && \
-	ln -s /data /polkadot/.local/share/polkadot
-
-USER polkadot
+COPY --from=verifier /polkadot /polkadot
 
 # check if executable works in this container
-RUN /usr/bin/polkadot --version
+RUN ["/polkadot", "--version"]
+USER 1000:1000
+EXPOSE 30333 9933 9944 9615
+VOLUME ["/data"]
 
-EXPOSE 30333 9933 9944
-VOLUME ["/polkadot"]
-
-ENTRYPOINT ["/usr/bin/polkadot"]
+ENTRYPOINT ["/polkadot", "-d", "/data"]

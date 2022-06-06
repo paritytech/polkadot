@@ -6,8 +6,9 @@ COPY . /polkadot
 
 RUN cargo build --locked --release
 
-# This is the 2nd stage: a very small image where we copy the Polkadot binary."
-FROM docker.io/library/ubuntu:20.04
+# This is the 2nd stage: a very small image where we copy the Polkadot binary
+# gcr.io/distroless/cc-debian11:nonroot
+FROM gcr.io/distroless/cc-debian11@sha256:c2e1b5b0c64e3a44638e79246130d480ff09645d543d27e82ffd46a6e78a3ce3
 
 LABEL description="Multistage Docker image for Polkadot: a platform for web3" \
 	io.parity.image.type="builder" \
@@ -17,20 +18,13 @@ LABEL description="Multistage Docker image for Polkadot: a platform for web3" \
 	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/ci/dockerfiles/polkadot/polkadot_builder.Dockerfile" \
 	io.parity.image.documentation="https://github.com/paritytech/polkadot/"
 
-COPY --from=builder /polkadot/target/release/polkadot /usr/local/bin
+COPY --from=builder /polkadot/target/release/polkadot /polkadot
 
-RUN useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot && \
-	mkdir -p /data /polkadot/.local/share && \
-	chown -R polkadot:polkadot /data && \
-	ln -s /data /polkadot/.local/share/polkadot && \
-# unclutter and minimize the attack surface
-	rm -rf /usr/bin /usr/sbin && \
 # check if executable works in this container
-	/usr/local/bin/polkadot --version
+RUN ["/polkadot", "--version"]
 
-USER polkadot
-
+USER 1000:1000
 EXPOSE 30333 9933 9944 9615
 VOLUME ["/data"]
 
-ENTRYPOINT ["/usr/local/bin/polkadot"]
+ENTRYPOINT ["/polkadot", "-d", "/data"]

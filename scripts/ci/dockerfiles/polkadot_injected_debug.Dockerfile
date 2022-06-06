@@ -1,4 +1,4 @@
-FROM docker.io/library/ubuntu:20.04
+FROM docker.io/library/debian:11.3
 
 # metadata
 ARG VCS_REF
