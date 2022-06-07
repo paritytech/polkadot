@@ -10,9 +10,9 @@ ARG GPG_KEYSERVER="keyserver.ubuntu.com"
 # install tools
 RUN set -eu -o pipefail && \
 	apk add --no-cache curl gnupg && \
-	curl -fsSL -o polkadot https://github.com/paritytech/polkadot/releases/download/${POLKADOT_VERSION}/polkadot && \
-	curl -fsSL -o polkadot.sha256 https://github.com/paritytech/polkadot/releases/download/${POLKADOT_VERSION}/polkadot.sha256 && \
-	curl -fsSL -o polkadot.asc https://github.com/paritytech/polkadot/releases/download/${POLKADOT_VERSION}/polkadot.asc && \
+	curl -fsSL -o polkadot https://releases.parity.io/polkadot/x86_64-debian:stretch/${POLKADOT_VERSION}/polkadot && \
+	curl -fsSL -o polkadot.sha256 https://releases.parity.io/polkadot/x86_64-debian:stretch/${POLKADOT_VERSION}/polkadot.sha256 && \
+	curl -fsSL -o polkadot.asc https://releases.parity.io/polkadot/x86_64-debian:stretch/${POLKADOT_VERSION}/polkadot.asc && \
 	sha256sum -c polkadot.sha256 && \
 	gpg --keyserver ${GPG_KEYSERVER} --recv-keys ${POLKADOT_GPGKEY} && \
 	gpg --verify polkadot.asc polkadot && \
