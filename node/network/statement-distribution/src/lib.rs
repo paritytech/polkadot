@@ -33,7 +33,9 @@ use polkadot_node_network_protocol::{
 	v1::{self as protocol_v1, StatementMetadata},
 	IfDisconnected, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
-use polkadot_node_primitives::{SignedFullStatement, Statement, UncheckedSignedFullStatement};
+use polkadot_node_primitives::{
+	SignedFullStatement, Statement, StatementWithPVD, UncheckedSignedFullStatement,
+};
 use polkadot_node_subsystem_util::{self as util, rand, MIN_GOSSIP_PEERS};
 
 use polkadot_node_subsystem::{
@@ -43,12 +45,12 @@ use polkadot_node_subsystem::{
 		StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
-	SubsystemError,
+	StatementDistributionSenderTrait, SubsystemError,
 };
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
-	SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+	Id as ParaId, OccupiedCoreAssumption, PersistedValidationData, SignedStatement, SigningContext,
+	UncheckedSignedStatement, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 
 use futures::{
@@ -657,6 +659,8 @@ enum DeniedStatement {
 struct ActiveHeadData {
 	/// All candidates we are aware of for this head, keyed by hash.
 	candidates: HashSet<CandidateHash>,
+	/// Persisted validation data cache.
+	cached_validation_data: HashMap<ParaId, PersistedValidationData>,
 	/// Stored statements for circulation to peers.
 	///
 	/// These are iterable in insertion order, and `Seconded` statements are always
@@ -682,6 +686,7 @@ impl ActiveHeadData {
 	) -> Self {
 		ActiveHeadData {
 			candidates: Default::default(),
+			cached_validation_data: Default::default(),
 			statements: Default::default(),
 			waiting_large_statements: Default::default(),
 			validators,
@@ -689,6 +694,37 @@ impl ActiveHeadData {
 			seconded_counts: Default::default(),
 			span,
 		}
+	}
+
+	async fn fetch_persisted_validation_data<Sender>(
+		&mut self,
+		sender: &mut Sender,
+		relay_parent: Hash,
+		para_id: ParaId,
+	) -> Result<Option<&PersistedValidationData>>
+	where
+		Sender: StatementDistributionSenderTrait,
+	{
+		if let Entry::Vacant(entry) = self.cached_validation_data.entry(para_id) {
+			let persisted_validation_data =
+				polkadot_node_subsystem_util::request_persisted_validation_data(
+					relay_parent,
+					para_id,
+					OccupiedCoreAssumption::Free,
+					sender,
+				)
+				.await
+				.await
+				.map_err(Error::RuntimeApiUnavailable)?
+				.map_err(|err| Error::FetchPersistedValidationData(para_id, err))?;
+
+			match persisted_validation_data {
+				Some(pvd) => entry.insert(pvd),
+				None => return Ok(None),
+			};
+		}
+
+		Ok(self.cached_validation_data.get(&para_id))
 	}
 
 	/// Note the given statement.
@@ -1554,6 +1590,45 @@ async fn handle_incoming_message<'a, Context>(
 		Ok(false) => {},
 	}
 
+	// TODO [https://github.com/paritytech/polkadot/issues/5055]
+	//
+	// For `Seconded` statements `None` or `Err` means we couldn't fetch the PVD, which
+	// means the statement shouldn't be accepted.
+	//
+	// In case of `Valid` we should have it cached prior, therefore this performs
+	// no Runtime API calls and always returns `Ok(Some(_))`.
+	if let Statement::Seconded(receipt) = statement.payload() {
+		let para_id = receipt.descriptor.para_id;
+		// Either call the Runtime API or check that validation data is cached.
+		let result = active_head
+			.fetch_persisted_validation_data(ctx.sender(), relay_parent, para_id)
+			.await;
+		if !matches!(result, Ok(Some(_))) {
+			return None
+		}
+	}
+
+	// Extend the payload with persisted validation data required by the backing
+	// subsystem.
+	//
+	// Do it in advance before noting the statement because we don't want to borrow active
+	// head mutable and use the cache.
+	let statement_with_pvd = statement
+		.clone()
+		.convert_to_superpayload_with(|statement| match statement {
+			Statement::Seconded(receipt) => {
+				let para_id = &receipt.descriptor.para_id;
+				let persisted_validation_data = active_head
+					.cached_validation_data
+					.get(para_id)
+					.cloned()
+					.expect("pvd is ensured to be cached above; qed");
+				StatementWithPVD::Seconded(receipt, persisted_validation_data)
+			},
+			Statement::Valid(candidate_hash) => StatementWithPVD::Valid(candidate_hash),
+		})
+		.expect("payload was checked with conversion from compact; qed");
+
 	// Note: `peer_data.receive` already ensures that the statement is not an unbounded equivocation
 	// or unpinned to a seconded candidate. So it is safe to place it into the storage.
 	match active_head.note_statement(statement) {
@@ -1567,11 +1642,8 @@ async fn handle_incoming_message<'a, Context>(
 
 			// When we receive a new message from a peer, we forward it to the
 			// candidate backing subsystem.
-			ctx.send_message(CandidateBackingMessage::Statement(
-				relay_parent,
-				statement.statement.clone(),
-			))
-			.await;
+			ctx.send_message(CandidateBackingMessage::Statement(relay_parent, statement_with_pvd))
+				.await;
 
 			Some((relay_parent, statement))
 		},
