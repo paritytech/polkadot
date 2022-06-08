@@ -752,6 +752,7 @@ pub enum ProxyType {
 	SudoBalances,
 	IdentityJudgement,
 	CancelProxy,
+	Sudo,
 	Auction,
 }
 impl Default for ProxyType {
@@ -820,6 +821,9 @@ impl InstanceFilter<Call> for ProxyType {
 			),
 			ProxyType::CancelProxy => {
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. }))
+			},
+			ProxyType::Sudo => {
+				matches!(c, Call::Sudo(..) | Call::Utility(..))
 			},
 			ProxyType::Auction => matches!(
 				c,

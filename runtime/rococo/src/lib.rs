@@ -972,6 +972,7 @@ parameter_types! {
 pub enum ProxyType {
 	Any,
 	CancelProxy,
+	Sudo,
 	Auction,
 }
 impl Default for ProxyType {
@@ -985,6 +986,9 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::Any => true,
 			ProxyType::CancelProxy => {
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. }))
+			},
+			ProxyType::Sudo => {
+				matches!(c, Call::Sudo(..) | Call::Utility(..))
 			},
 			ProxyType::Auction => matches!(
 				c,
