@@ -12,6 +12,6 @@ thiserror = "1.0.31"
 async-trait = "0.1.53"
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-primitives = { path = "../../../primitives" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }

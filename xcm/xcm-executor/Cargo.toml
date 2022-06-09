@@ -9,14 +9,14 @@ version = "0.9.23"
 impl-trait-for-tuples = "0.2.2"
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
 log = { version = "0.4.17", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false, optional = true }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "bkchr-state-access-benchmark" }
 
 [features]
 default = ["std"]

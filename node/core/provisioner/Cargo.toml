@@ -18,8 +18,8 @@ rand = "0.8.5"
 fatality = "0.0.6"
 
 [dev-dependencies]
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
 

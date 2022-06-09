@@ -6,20 +6,20 @@ description = "Integration tests for the XCM Executor"
 version = "0.9.23"
 
 [dependencies]
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
 futures = "0.3.21"
 pallet-xcm = { path = "../../pallet-xcm" }
 polkadot-test-client = { path = "../../../node/test/client" }
 polkadot-test-runtime = { path = "../../../runtime/test-runtime" }
 polkadot-test-service = { path = "../../../node/test/service" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
 xcm = { path = "../..", default-features = false }
 xcm-executor = { path = ".." }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
 
 [features]
 default = ["std"]

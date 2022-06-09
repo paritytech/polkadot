@@ -28,21 +28,21 @@ relay-utils = { path = "../utils" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-rpc = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
 
 #[dev-dependencies]
 futures = "0.3.7"

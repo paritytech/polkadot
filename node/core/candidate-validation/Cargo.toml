@@ -9,7 +9,7 @@ async-trait = "0.1.53"
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
 
-sp-maybe-compressed-blob = { package = "sp-maybe-compressed-blob", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-maybe-compressed-blob = { package = "sp-maybe-compressed-blob", git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["bit-vec", "derive"] }
 
 polkadot-primitives = { path = "../../../primitives" }
@@ -22,9 +22,9 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-core-pvf = { path = "../pvf" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }

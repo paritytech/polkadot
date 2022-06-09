@@ -9,13 +9,13 @@ edition = "2021"
 codec = { package = "parity-scale-codec", version = "3.0.0" }
 scale-info = { version = "2.1.2", features = ["derive"] }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }

@@ -14,13 +14,13 @@ scale-info = { version = "2.0.1", default-features = false, features = ["derive"
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
 
 [dev-dependencies]
 hex-literal = "0.3"

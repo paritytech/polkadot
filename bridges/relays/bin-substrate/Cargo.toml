@@ -59,12 +59,12 @@ substrate-relay-helper = { path = "../lib-substrate-relay" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
 
 # Polkadot Dependencies
 
@@ -77,6 +77,6 @@ polkadot-runtime-parachains = { git = "https://github.com/paritytech/polkadot", 
 bp-test-utils = { path = "../../primitives/test-utils" }
 hex-literal = "0.3"
 pallet-bridge-grandpa = { path = "../../modules/grandpa" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
 tempfile = "3.2"
 finality-grandpa = { version = "0.15.0" }
