@@ -52,15 +52,17 @@ NOTE: If using sudo (example case: when using the Ubuntu user in an AMI provisio
 ```bash
 gpg --export 9D4B2B6EB8F97156D19669A9FF0812D491B96798 > /usr/share/keyrings/parity.gpg
 
-becomes
+# must be changed to
 
 sudo gpg --export 9D4B2B6EB8F97156D19669A9FF0812D491B96798 | sudo tee /usr/share/keyrings/parity.gpg
+```
 
 and
 
+```bash
 echo 'deb [signed-by=/usr/share/keyrings/parity.gpg] https://releases.parity.io/deb release main' > /etc/apt/sources.list.d/parity.list
 
-becomes
+# must be changed to
 
 echo 'deb [signed-by=/usr/share/keyrings/parity.gpg] https://releases.parity.io/deb release main' | sudo tee /etc/apt/sources.list.d/parity.list
 ```
