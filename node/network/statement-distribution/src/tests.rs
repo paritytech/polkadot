@@ -26,14 +26,16 @@ use polkadot_node_network_protocol::{
 	},
 	view, ObservedRole,
 };
-use polkadot_node_primitives::{Statement, UncheckedSignedFullStatement};
+use polkadot_node_primitives::{
+	SignedFullStatementWithPVD, Statement, UncheckedSignedFullStatement,
+};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{network_bridge_event, AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
-use polkadot_primitives::v2::{Hash, SessionInfo, ValidationCode};
+use polkadot_primitives::v2::{Hash, HeadData, SessionInfo, ValidationCode};
 use polkadot_primitives_test_helpers::{
 	dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
 };
@@ -43,6 +45,27 @@ use sp_authority_discovery::AuthorityPair;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{CryptoStore, SyncCryptoStore, SyncCryptoStorePtr};
 use std::{iter::FromIterator as _, sync::Arc, time::Duration};
+
+fn dummy_pvd() -> PersistedValidationData {
+	PersistedValidationData {
+		parent_head: HeadData(vec![7, 8, 9]),
+		relay_parent_number: 5,
+		max_pov_size: 1024,
+		relay_parent_storage_root: Default::default(),
+	}
+}
+
+fn extend_statement_with_pvd(
+	statement: SignedFullStatement,
+	pvd: PersistedValidationData,
+) -> SignedFullStatementWithPVD {
+	statement
+		.convert_to_superpayload_with(|statement| match statement {
+			Statement::Seconded(receipt) => StatementWithPVD::Seconded(receipt, pvd),
+			Statement::Valid(candidate_hash) => StatementWithPVD::Valid(candidate_hash),
+		})
+		.unwrap()
+}
 
 #[test]
 fn active_head_accepts_only_2_seconded_per_validator() {
@@ -699,12 +722,14 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 
 #[test]
 fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
+	const PARA_ID: ParaId = ParaId::new(1);
 	let hash_a = Hash::repeat_byte(1);
+	let pvd = dummy_pvd();
 
 	let candidate = {
 		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_a;
-		c.descriptor.para_id = 1.into();
+		c.descriptor.para_id = PARA_ID;
 		c
 	};
 
@@ -845,18 +870,32 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 			})
 			.await;
 
+		let statement_with_pvd = extend_statement_with_pvd(statement.clone(), pvd.clone());
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				hash,
+				RuntimeApiRequest::PersistedValidationData(para_id, assumption, tx),
+			)) if para_id == PARA_ID &&
+				assumption == OccupiedCoreAssumption::Free &&
+				hash == hash_a =>
+			{
+				tx.send(Ok(Some(pvd))).unwrap();
+			}
+		);
+
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::ReportPeer(p, r)
 			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => {}
 		);
-
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::CandidateBacking(
 				CandidateBackingMessage::Statement(r, s)
-			) if r == hash_a && s == statement => {}
+			) if r == hash_a && s == statement_with_pvd => {}
 		);
 
 		assert_matches!(
@@ -885,6 +924,9 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 
 #[test]
 fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing() {
+	const PARA_ID: ParaId = ParaId::new(1);
+	let pvd = dummy_pvd();
+
 	sp_tracing::try_init_simple();
 	let hash_a = Hash::repeat_byte(1);
 	let hash_b = Hash::repeat_byte(2);
@@ -892,7 +934,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let candidate = {
 		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_a;
-		c.descriptor.para_id = 1.into();
+		c.descriptor.para_id = PARA_ID;
 		c.commitments.new_validation_code = Some(ValidationCode(vec![1, 2, 3]));
 		c
 	};
@@ -1274,6 +1316,20 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			) if p == peer_c && r == BENEFIT_VALID_RESPONSE => {}
 		);
 
+		let statement_with_pvd = extend_statement_with_pvd(statement.clone(), pvd.clone());
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				hash,
+				RuntimeApiRequest::PersistedValidationData(para_id, assumption, tx),
+			)) if para_id == PARA_ID &&
+				assumption == OccupiedCoreAssumption::Free &&
+				hash == hash_a =>
+			{
+				tx.send(Ok(Some(pvd))).unwrap();
+			}
+		);
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
@@ -1285,7 +1341,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			handle.recv().await,
 			AllMessages::CandidateBacking(
 				CandidateBackingMessage::Statement(r, s)
-			) if r == hash_a && s == statement => {}
+			) if r == hash_a && s == statement_with_pvd => {}
 		);
 
 		// Now messages should go out:
@@ -1887,6 +1943,7 @@ fn peer_cant_flood_with_large_statements() {
 #[test]
 fn handle_multiple_seconded_statements() {
 	let relay_parent_hash = Hash::repeat_byte(1);
+	let pvd = dummy_pvd();
 
 	let candidate = dummy_committed_candidate_receipt(relay_parent_hash);
 	let candidate_hash = candidate.hash();
@@ -2086,6 +2143,18 @@ fn handle_multiple_seconded_statements() {
 			})
 			.await;
 
+		let statement_with_pvd = extend_statement_with_pvd(statement.clone(), pvd.clone());
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				_,
+				RuntimeApiRequest::PersistedValidationData(_, assumption, tx),
+			)) if assumption == OccupiedCoreAssumption::Free => {
+				tx.send(Ok(Some(pvd.clone()))).unwrap();
+			}
+		);
+
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
@@ -2103,7 +2172,7 @@ fn handle_multiple_seconded_statements() {
 				CandidateBackingMessage::Statement(r, s)
 			) => {
 				assert_eq!(r, relay_parent_hash);
-				assert_eq!(s, statement);
+				assert_eq!(s, statement_with_pvd);
 			}
 		);
 
@@ -2189,6 +2258,10 @@ fn handle_multiple_seconded_statements() {
 			})
 			.await;
 
+		let statement_with_pvd = extend_statement_with_pvd(statement.clone(), pvd.clone());
+
+		// Persisted validation data is cached.
+
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
@@ -2205,7 +2278,7 @@ fn handle_multiple_seconded_statements() {
 				CandidateBackingMessage::Statement(r, s)
 			) => {
 				assert_eq!(r, relay_parent_hash);
-				assert_eq!(s, statement);
+				assert_eq!(s, statement_with_pvd);
 			}
 		);
 
