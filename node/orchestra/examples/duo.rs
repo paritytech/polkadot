@@ -18,7 +18,7 @@
 //! A dummy to be used with cargo expand
 
 use orchestra::{self as orchestra, Spawner, *};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 mod misc;
 
 pub use self::misc::*;
@@ -69,7 +69,7 @@ struct Duo<T> {
 	plinkos: GoblinTower,
 
 	i_like_pi: f64,
-	i_like_generic: T,
+	i_like_generic: Arc<T>,
 	i_like_hash: HashMap<f64, f64>,
 }
 
@@ -81,7 +81,7 @@ fn main() {
 			.sub0(AwesomeSubSys::default())
 			.plinkos(Fortified::default())
 			.i_like_pi(::std::f64::consts::PI)
-			.i_like_generic(42.0)
+			.i_like_generic(Arc::new(42.0))
 			.i_like_hash(HashMap::new())
 			.spawner(DummySpawner)
 			.build()
