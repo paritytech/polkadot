@@ -249,8 +249,8 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 		post_setter_generics[idx] = parse_quote! { Init<#field_type> };
 
 		// Baggage can also be generic, so we need to include that to a signature
-		let preserved_baggage_generic = if bag_field.generic {
-			quote! {#field_type,}
+		let preserved_baggage_generic = if let Some(gen_ty) = &bag_field.generic_ty {
+			quote! {#gen_ty,}
 		} else {
 			TokenStream::new()
 		};

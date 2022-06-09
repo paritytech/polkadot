@@ -21,8 +21,8 @@ use syn::{
 	punctuated::Punctuated,
 	spanned::Spanned,
 	token::Bracket,
-	AttrStyle, Error, Field, FieldsNamed, GenericParam, Ident, ItemStruct, Path, Result, Token,
-	Type, Visibility,
+	AttrStyle, Error, Field, FieldsNamed, GenericParam, Ident, ItemStruct, Path, PathSegment,
+	Result, Token, Type, Visibility,
 };
 
 use quote::{quote, ToTokens};
@@ -108,9 +108,38 @@ pub(crate) struct SubSysField {
 
 fn try_type_to_path(ty: Type, span: Span) -> Result<Path> {
 	match ty {
-		Type::Path(path) => Ok(path.path),
+		Type::Path(path) => Ok(path.path.clone()),
 		_ => Err(Error::new(span, "Type must be a path expression.")),
 	}
+}
+
+fn flatten_path_segments(path_segment: &PathSegment, span: Span) -> Vec<Ident> {
+	let mut result = vec![path_segment.ident.clone()];
+
+	match &path_segment.arguments {
+		syn::PathArguments::AngleBracketed(args) => {
+			let mut recursive_idents = args
+				.args
+				.iter()
+				.filter_map(|gen| match gen {
+					syn::GenericArgument::Type(ty) =>
+						try_type_to_path(ty.clone(), span.clone()).ok(),
+					_ => None,
+				})
+				.flat_map(|gen_ty| {
+					gen_ty
+						.segments
+						.iter()
+						.flat_map(|seg| flatten_path_segments(seg, span.clone()))
+						.collect::<Vec<_>>()
+				})
+				.collect::<Vec<_>>();
+			result.append(&mut recursive_idents);
+		},
+		_ => {},
+	}
+
+	result
 }
 
 macro_rules! extract_variant {
@@ -255,7 +284,7 @@ impl Parse for SubSystemAttrItems {
 pub(crate) struct BaggageField {
 	pub(crate) field_name: Ident,
 	pub(crate) field_ty: Path,
-	pub(crate) generic: bool,
+	pub(crate) generic_ty: Option<Ident>,
 	pub(crate) vis: Visibility,
 }
 
@@ -359,8 +388,8 @@ impl OrchestraInfo {
 	pub(crate) fn baggage_generic_types(&self) -> Vec<Ident> {
 		self.baggage
 			.iter()
-			.filter(|bag| bag.generic)
-			.filter_map(|bag| bag.field_ty.get_ident().cloned())
+			.filter_map(|bag| bag.generic_ty.as_ref())
+			.cloned()
 			.collect::<Vec<_>>()
 	}
 
@@ -423,7 +452,7 @@ impl OrchestraGuts {
 			let ident = ident.ok_or_else(|| {
 				Error::new(
 					ty.span(),
-					"Missing identifier for field, only named fields are expceted.",
+					"Missing identifier for field, only named fields are expected.",
 				)
 			})?;
 
@@ -485,11 +514,28 @@ impl OrchestraGuts {
 				});
 			} else {
 				let field_ty = try_type_to_path(ty, ident.span())?;
-				let generic = field_ty
-					.get_ident()
-					.map(|ident| baggage_generics.contains(ident))
-					.unwrap_or(false);
-				baggage.push(BaggageField { field_name: ident, generic, field_ty, vis });
+				let generic_ty = if let Some(ident) = field_ty.get_ident() {
+					if let Some(id) = baggage_generics.get(ident) {
+						Some(id.clone())
+					} else {
+						None
+					}
+				} else {
+					field_ty
+						.segments
+						.iter()
+						.flat_map(|path_segment| {
+							flatten_path_segments(path_segment, field_ty.span().clone())
+						})
+						.filter(|seg_ident| baggage_generics.contains(seg_ident))
+						.next()
+						.clone()
+				};
+				let generic_ty = match generic_ty {
+					Some(ty) => Some(ty.clone()),
+					None => None,
+				};
+				baggage.push(BaggageField { field_name: ident, generic_ty, field_ty, vis });
 			}
 		}
 		Ok(Self { name, subsystems, baggage })
@@ -503,7 +549,7 @@ impl Parse for OrchestraGuts {
 			syn::Fields::Named(named) => {
 				let name = ds.ident.clone();
 
-				// collect the indepedentent subsystem generics
+				// collect the independent subsystem generics
 				// which need to be carried along, there are the non-generated ones
 				let mut orig_generics = ds.generics;
 
