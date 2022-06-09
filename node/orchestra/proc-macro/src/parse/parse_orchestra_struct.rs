@@ -515,11 +515,7 @@ impl OrchestraGuts {
 			} else {
 				let field_ty = try_type_to_path(ty, ident.span())?;
 				let generic_ty = if let Some(ident) = field_ty.get_ident() {
-					if let Some(id) = baggage_generics.get(ident) {
-						Some(id.clone())
-					} else {
-						None
-					}
+					baggage_generics.get(ident).cloned()
 				} else {
 					field_ty
 						.segments
@@ -529,11 +525,6 @@ impl OrchestraGuts {
 						})
 						.filter(|seg_ident| baggage_generics.contains(seg_ident))
 						.next()
-						.clone()
-				};
-				let generic_ty = match generic_ty {
-					Some(ty) => Some(ty.clone()),
-					None => None,
 				};
 				baggage.push(BaggageField { field_name: ident, generic_ty, field_ty, vis });
 			}
