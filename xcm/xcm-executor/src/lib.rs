@@ -30,7 +30,7 @@ use xcm::latest::prelude::*;
 
 pub mod traits;
 use traits::{
-	validate_export, AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, DropAssets, Enact,
+	CallDispatcher, validate_export, AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, DropAssets, Enact,
 	ExportXcm, FeeManager, FeeReason, OnResponse, ShouldExecute, TransactAsset,
 	VersionChangeNotifier, WeightBounds, WeightTrader,
 };
@@ -512,7 +512,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					.map_err(|_| XcmError::BadOrigin)?;
 				let weight = message_call.get_dispatch_info().weight;
 				ensure!(weight <= require_weight_at_most, XcmError::MaxWeightInvalid);
-				let maybe_actual_weight = match message_call.dispatch(dispatch_origin) {
+				let maybe_actual_weight = match Config::CallDispatcher::dispatch(message_call, dispatch_origin) {
 					Ok(post_info) => {
 						self.transact_status = MaybeErrorCode::Success;
 						post_info.actual_weight
