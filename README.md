@@ -48,6 +48,23 @@ apt install polkadot
 
 ```
 
+NOTE: If using sudo (example case: when using the Ubuntu user in an AMI provisioned through Ansible), use tee to output the GPG key and updated package list. Change the following lines from the script above:
+```bash
+gpg --export 9D4B2B6EB8F97156D19669A9FF0812D491B96798 > /usr/share/keyrings/parity.gpg
+
+becomes
+
+sudo gpg --export 9D4B2B6EB8F97156D19669A9FF0812D491B96798 | sudo tee /usr/share/keyrings/parity.gpg
+
+and
+
+echo 'deb [signed-by=/usr/share/keyrings/parity.gpg] https://releases.parity.io/deb release main' > /etc/apt/sources.list.d/parity.list
+
+becomes
+
+echo 'deb [signed-by=/usr/share/keyrings/parity.gpg] https://releases.parity.io/deb release main' | sudo tee /etc/apt/sources.list.d/parity.list
+```
+
 ### RPM-based (Fedora, CentOS)
 
 Currently supports Fedora 32 and CentOS 8, and derivatives.
