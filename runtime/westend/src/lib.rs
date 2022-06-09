@@ -752,8 +752,8 @@ pub enum ProxyType {
 	SudoBalances,
 	IdentityJudgement,
 	CancelProxy,
-	Sudo,
 	Auction,
+	Sudo,
 }
 impl Default for ProxyType {
 	fn default() -> Self {

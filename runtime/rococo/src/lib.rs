@@ -972,8 +972,8 @@ parameter_types! {
 pub enum ProxyType {
 	Any,
 	CancelProxy,
-	Sudo,
 	Auction,
+	Sudo,
 }
 impl Default for ProxyType {
 	fn default() -> Self {
