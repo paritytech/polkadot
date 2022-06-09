@@ -53,7 +53,7 @@ where
 	/// incomplete or otherwise invalid proof, this returns an error.
 	pub fn read_value(&self, key: &[u8]) -> Result<Option<Vec<u8>>, Error> {
 		// LayoutV1 or LayoutV0 is identical for proof that only read values.
-		read_trie_value::<LayoutV1<H>, _>(&self.db, &self.root, key)
+		read_trie_value::<LayoutV1<H>, _>(&self.db, &self.root, key, None, None)
 			.map_err(|_| Error::StorageValueUnavailable)
 	}
 }
