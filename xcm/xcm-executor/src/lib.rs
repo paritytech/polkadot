@@ -17,7 +17,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use frame_support::{
-	dispatch::{Dispatchable, Weight},
+	dispatch::Weight,
 	ensure,
 	traits::{Contains, ContainsPair, Get, PalletsInfoAccess},
 	weights::GetDispatchInfo,
