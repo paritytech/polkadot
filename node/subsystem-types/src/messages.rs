@@ -942,7 +942,7 @@ pub enum PvfCheckerMessage {}
 
 /// A request for the depths a hypothetical candidate would occupy within
 /// some fragment tree.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct HypotheticalDepthRequest {
 	/// The hash of the potential candidate.
 	pub candidate_hash: CandidateHash,

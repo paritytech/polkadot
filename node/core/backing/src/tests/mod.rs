@@ -42,9 +42,9 @@ use sp_tracing as _;
 use statement_table::v2::Misbehavior;
 use std::collections::HashMap;
 
-const API_VERSION_PROSPECTIVE_DISABLED: u32 = 2;
+mod prospective_parachains;
 
-const _API_VERSION_PROSPECTIVE_ENABLED: u32 = 3;
+const API_VERSION_PROSPECTIVE_DISABLED: u32 = 2;
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
@@ -61,9 +61,9 @@ fn table_statement_to_primitive(statement: TableStatement) -> Statement {
 fn dummy_pvd() -> PersistedValidationData {
 	PersistedValidationData {
 		parent_head: HeadData(vec![7, 8, 9]),
-		relay_parent_number: 5,
+		relay_parent_number: 0_u32.into(),
 		max_pov_size: 1024,
-		relay_parent_storage_root: Default::default(),
+		relay_parent_storage_root: dummy_hash(),
 	}
 }
 
