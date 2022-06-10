@@ -30,8 +30,8 @@ use xcm::latest::prelude::*;
 
 pub mod traits;
 use traits::{
-	CallDispatcher, validate_export, AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, DropAssets, Enact,
-	ExportXcm, FeeManager, FeeReason, OnResponse, ShouldExecute, TransactAsset,
+	validate_export, AssetExchange, AssetLock, CallDispatcher, ClaimAssets, ConvertOrigin,
+	DropAssets, Enact, ExportXcm, FeeManager, FeeReason, OnResponse, ShouldExecute, TransactAsset,
 	VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
@@ -512,16 +512,17 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					.map_err(|_| XcmError::BadOrigin)?;
 				let weight = message_call.get_dispatch_info().weight;
 				ensure!(weight <= require_weight_at_most, XcmError::MaxWeightInvalid);
-				let maybe_actual_weight = match Config::CallDispatcher::dispatch(message_call, dispatch_origin) {
-					Ok(post_info) => {
-						self.transact_status = MaybeErrorCode::Success;
-						post_info.actual_weight
-					},
-					Err(error_and_info) => {
-						self.transact_status = error_and_info.error.encode().into();
-						error_and_info.post_info.actual_weight
-					},
-				};
+				let maybe_actual_weight =
+					match Config::CallDispatcher::dispatch(message_call, dispatch_origin) {
+						Ok(post_info) => {
+							self.transact_status = MaybeErrorCode::Success;
+							post_info.actual_weight
+						},
+						Err(error_and_info) => {
+							self.transact_status = error_and_info.error.encode().into();
+							error_and_info.post_info.actual_weight
+						},
+					};
 				let actual_weight = maybe_actual_weight.unwrap_or(weight);
 				let surplus = weight.saturating_sub(actual_weight);
 				// We assume that the `Config::Weigher` will counts the `require_weight_at_most`
