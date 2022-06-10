@@ -284,7 +284,7 @@ impl Parse for SubSystemAttrItems {
 pub(crate) struct BaggageField {
 	pub(crate) field_name: Ident,
 	pub(crate) field_ty: Path,
-	pub(crate) generic_ty: Option<Ident>,
+	pub(crate) generic_types: Vec<Ident>,
 	pub(crate) vis: Visibility,
 }
 
@@ -388,8 +388,7 @@ impl OrchestraInfo {
 	pub(crate) fn baggage_generic_types(&self) -> Vec<Ident> {
 		self.baggage
 			.iter()
-			.filter_map(|bag| bag.generic_ty.as_ref())
-			.cloned()
+			.flat_map(|bag| bag.generic_types.clone())
 			.collect::<Vec<_>>()
 	}
 
@@ -514,8 +513,11 @@ impl OrchestraGuts {
 				});
 			} else {
 				let field_ty = try_type_to_path(ty, ident.span())?;
-				let generic_ty = if let Some(ident) = field_ty.get_ident() {
-					baggage_generics.get(ident).cloned()
+				let generic_types = if let Some(ident) = field_ty.get_ident() {
+					match baggage_generics.get(ident) {
+						Some(ident) => vec![ident.clone()],
+						None => vec![],
+					}
 				} else {
 					field_ty
 						.segments
@@ -524,9 +526,9 @@ impl OrchestraGuts {
 							flatten_path_segments(path_segment, field_ty.span().clone())
 						})
 						.filter(|seg_ident| baggage_generics.contains(seg_ident))
-						.next()
+						.collect::<Vec<_>>()
 				};
-				baggage.push(BaggageField { field_name: ident, generic_ty, field_ty, vis });
+				baggage.push(BaggageField { field_name: ident, generic_types, field_ty, vis });
 			}
 		}
 		Ok(Self { name, subsystems, baggage })

@@ -61,7 +61,7 @@ impl<Context> Fortified {
 }
 
 #[orchestra(signal=SigSigSig, event=EvX, error=Yikes, gen=AllMessages)]
-struct Duo<T> {
+struct Duo<T, U, V> {
 	#[subsystem(consumes: MsgStrukt, sends: [Plinko])]
 	sub0: Awesome,
 
@@ -70,14 +70,14 @@ struct Duo<T> {
 
 	i_like_pi: f64,
 	i_like_generic: Arc<T>,
-	i_like_hash: HashMap<f64, f64>,
+	i_like_hash: HashMap<U, Arc<V>>,
 }
 
 fn main() {
 	use futures::{executor, pin_mut};
 
 	executor::block_on(async move {
-		let (orchestra, _handle): (Duo<_, f64>, _) = Duo::builder()
+		let (orchestra, _handle): (Duo<_, f64, u32, f32>, _) = Duo::builder()
 			.sub0(AwesomeSubSys::default())
 			.plinkos(Fortified::default())
 			.i_like_pi(::std::f64::consts::PI)
