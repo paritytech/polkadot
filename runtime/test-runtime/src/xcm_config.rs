@@ -22,7 +22,7 @@ use frame_support::{
 use xcm::latest::prelude::*;
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
 use xcm_executor::{
-	traits::{TransactAsset, WeightTrader},
+	traits::{JustDispatch, TransactAsset, WeightTrader},
 	Assets,
 };
 
@@ -103,4 +103,5 @@ impl xcm_executor::Config for XcmConfig {
 	type FeeManager = ();
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
+	type CallDispatcher = JustDispatch;
 }
