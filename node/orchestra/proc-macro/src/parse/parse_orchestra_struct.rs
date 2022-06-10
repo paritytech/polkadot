@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use itertools::Itertools;
 use proc_macro2::{Span, TokenStream};
 use std::collections::{hash_map::RandomState, HashMap, HashSet};
 use syn::{
@@ -113,7 +114,7 @@ fn try_type_to_path(ty: Type, span: Span) -> Result<Path> {
 	}
 }
 
-fn flatten_path_segments(path_segment: &PathSegment, span: Span) -> Vec<Ident> {
+fn flatten_path_segments(path_segment: &PathSegment, span: Span) -> Result<Vec<Ident>> {
 	let mut result = vec![path_segment.ident.clone()];
 
 	match &path_segment.arguments {
@@ -121,25 +122,40 @@ fn flatten_path_segments(path_segment: &PathSegment, span: Span) -> Vec<Ident> {
 			let mut recursive_idents = args
 				.args
 				.iter()
-				.filter_map(|gen| match gen {
-					syn::GenericArgument::Type(ty) =>
-						try_type_to_path(ty.clone(), span.clone()).ok(),
-					_ => None,
+				.map(|generic_argument| match generic_argument {
+					syn::GenericArgument::Type(ty) => try_type_to_path(ty.clone(), span.clone()),
+					_ => Err(Error::new(
+						span,
+						format!(
+							"Field has a generic with an unsupported parameter {:?}",
+							generic_argument
+						),
+					)),
 				})
-				.flat_map(|gen_ty| {
-					gen_ty
-						.segments
-						.iter()
-						.flat_map(|seg| flatten_path_segments(seg, span.clone()))
-						.collect::<Vec<_>>()
+				.map_ok(|path| {
+					path.segments
+						.into_iter()
+						.map(|seg| flatten_path_segments(&seg, span.clone()))
+						.flatten_ok()
+						.collect::<Result<Vec<_>>>()
 				})
-				.collect::<Vec<_>>();
+				.flatten_ok()
+				.flatten_ok()
+				.collect::<Result<Vec<_>>>()?;
 			result.append(&mut recursive_idents);
 		},
-		_ => {},
+		syn::PathArguments::None => {},
+		_ =>
+			return Err(Error::new(
+				span,
+				format!(
+					"Field has a generic with an unsupported path {:?}",
+					path_segment.arguments
+				),
+			)),
 	}
 
-	result
+	Ok(result)
 }
 
 macro_rules! extract_variant {
@@ -522,11 +538,15 @@ impl OrchestraGuts {
 					field_ty
 						.segments
 						.iter()
-						.flat_map(|path_segment| {
+						.map(|path_segment| {
 							flatten_path_segments(path_segment, field_ty.span().clone())
 						})
-						.filter(|seg_ident| baggage_generics.contains(seg_ident))
-						.collect::<Vec<_>>()
+						.flatten_ok()
+						.filter_ok(|seg_ident| baggage_generics.contains(seg_ident))
+						.fold_ok(vec![], |mut acc, ident| {
+							acc.push(ident);
+							acc
+						})?
 				};
 				baggage.push(BaggageField { field_name: ident, generic_types, field_ty, vis });
 			}
