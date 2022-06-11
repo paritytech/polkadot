@@ -79,6 +79,9 @@ async fn activate_leaf(
 	let ancestry_numbers = (min_min..=leaf_number).rev();
 	let mut ancestry_iter = ancestry_hashes.clone().zip(ancestry_numbers).peekable();
 
+	let mut next_overseer_message = None;
+	// How many blocks were actually requested.
+	let mut requested_len = 0;
 	loop {
 		let (hash, number) = match ancestry_iter.next() {
 			Some((hash, number)) => (hash, number),
@@ -88,8 +91,17 @@ async fn activate_leaf(
 		// May be `None` for the last element.
 		let parent_hash =
 			ancestry_iter.peek().map(|(h, _)| *h).unwrap_or_else(|| get_parent_hash(hash));
+
+		let msg = virtual_overseer.recv().await;
+		// It may happen that some blocks were cached by implicit view,
+		// reuse the message.
+		if !matches!(&msg, AllMessages::ChainApi(ChainApiMessage::BlockHeader(..))) {
+			next_overseer_message.replace(msg);
+			break
+		}
+
 		assert_matches!(
-			virtual_overseer.recv().await,
+			msg,
 			AllMessages::ChainApi(
 				ChainApiMessage::BlockHeader(_hash, tx)
 			) if _hash == hash => {
@@ -104,12 +116,17 @@ async fn activate_leaf(
 				tx.send(Ok(Some(header))).unwrap();
 			}
 		);
+		requested_len += 1;
 	}
 
-	for hash in ancestry_hashes {
+	for hash in ancestry_hashes.take(requested_len) {
 		// Check that subsystem job issues a request for a validator set.
+		let msg = match next_overseer_message.take() {
+			Some(msg) => msg,
+			None => virtual_overseer.recv().await,
+		};
 		assert_matches!(
-			virtual_overseer.recv().await,
+			msg,
 			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(parent, RuntimeApiRequest::Validators(tx))
 			) if parent == hash => {
@@ -149,6 +166,35 @@ async fn activate_leaf(
 	}
 }
 
+async fn assert_hypothetical_depth_requests(
+	virtual_overseer: &mut VirtualOverseer,
+	mut expected_requests: Vec<(HypotheticalDepthRequest, Vec<usize>)>,
+) {
+	// Requests come with no particular order.
+	let requests_num = expected_requests.len();
+
+	for _ in 0..requests_num {
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ProspectiveParachains(
+				ProspectiveParachainsMessage::GetHypotheticalDepth(request, tx),
+			) => {
+				let idx = match expected_requests.iter().position(|r| r.0 == request) {
+					Some(idx) => idx,
+					None => panic!(
+						"unexpected hypothetical depth request, no match found for {:?}",
+						request
+					),
+				};
+				let resp = std::mem::take(&mut expected_requests[idx].1);
+				tx.send(resp).unwrap();
+
+				expected_requests.remove(idx);
+			}
+		);
+	}
+}
+
 // Test that `seconding_sanity_check` works when a candidate is allowed
 // for all leaves.
 #[test]
@@ -160,7 +206,9 @@ fn seconding_sanity_check_allowed() {
 		const LEAF_A_DEPTH: BlockNumber = 3;
 		let para_id = test_state.chain_ids[0];
 
-		let leaf_a_hash = Hash::from_low_u64_be(128);
+		let leaf_b_hash = Hash::from_low_u64_be(128);
+		// `a` is grandparent of `b`.
+		let leaf_a_hash = Hash::from_low_u64_be(130);
 		let leaf_a_parent = get_parent_hash(leaf_a_hash);
 		let activated = ActivatedLeaf {
 			hash: leaf_a_hash,
@@ -171,10 +219,9 @@ fn seconding_sanity_check_allowed() {
 		let min_relay_parents = vec![(para_id, LEAF_A_BLOCK_NUMBER - LEAF_A_DEPTH)];
 		let test_leaf_a = TestLeaf { activated, min_relay_parents };
 
-		const LEAF_B_BLOCK_NUMBER: BlockNumber = 99;
-		const LEAF_B_DEPTH: BlockNumber = 2;
+		const LEAF_B_BLOCK_NUMBER: BlockNumber = LEAF_A_BLOCK_NUMBER + 2;
+		const LEAF_B_DEPTH: BlockNumber = 4;
 
-		let leaf_b_hash = Hash::from_low_u64_be(256);
 		let activated = ActivatedLeaf {
 			hash: leaf_b_hash,
 			number: LEAF_B_BLOCK_NUMBER,
@@ -185,7 +232,7 @@ fn seconding_sanity_check_allowed() {
 		let test_leaf_b = TestLeaf { activated, min_relay_parents };
 
 		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state).await;
-		// activate_leaf(&mut virtual_overseer, test_leaf_b, &test_state).await;
+		activate_leaf(&mut virtual_overseer, test_leaf_b, &test_state).await;
 
 		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
 		let pvd = dummy_pvd();
@@ -266,22 +313,25 @@ fn seconding_sanity_check_allowed() {
 		);
 
 		// `seconding_sanity_check`
-		let expected_request = HypotheticalDepthRequest {
+		let expected_request_a = HypotheticalDepthRequest {
 			candidate_hash: candidate.hash(),
 			candidate_para: para_id,
 			parent_head_data_hash: pvd.parent_head.hash(),
 			candidate_relay_parent: leaf_a_parent,
 			fragment_tree_relay_parent: leaf_a_hash,
 		};
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::ProspectiveParachains(ProspectiveParachainsMessage::GetHypotheticalDepth(
-				request,
-				tx,
-			)) if request == expected_request => {
-				tx.send(vec![0, 1, 2, 3]).unwrap();
-			}
-		);
+		let expected_request_b = HypotheticalDepthRequest {
+			candidate_hash: candidate.hash(),
+			candidate_para: para_id,
+			parent_head_data_hash: pvd.parent_head.hash(),
+			candidate_relay_parent: leaf_a_parent,
+			fragment_tree_relay_parent: leaf_b_hash,
+		};
+		assert_hypothetical_depth_requests(
+			&mut virtual_overseer,
+			vec![(expected_request_a, vec![0, 1, 2, 3]), (expected_request_b, vec![3])],
+		)
+		.await;
 		// Prospective parachains are notified.
 		assert_matches!(
 			virtual_overseer.recv().await,

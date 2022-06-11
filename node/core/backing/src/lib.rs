@@ -839,7 +839,7 @@ async fn handle_active_leaves_update<Context>(
 	// which means we'll clean up everything. This is correct.
 	{
 		let remaining: HashSet<_> = state.implicit_view.all_allowed_relay_parents().collect();
-		state.per_relay_parent.retain(|r, _| remainig.contains(&r));
+		state.per_relay_parent.retain(|r, _| remaining.contains(&r));
 	}
 
 	// clean up `per_candidate` according to which relay-parents
