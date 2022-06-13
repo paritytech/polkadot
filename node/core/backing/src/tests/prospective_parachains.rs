@@ -36,7 +36,7 @@ async fn activate_leaf(
 	virtual_overseer: &mut VirtualOverseer,
 	leaf: TestLeaf,
 	test_state: &TestState,
-	already_seconded: usize,
+	seconded_in_view: usize,
 ) {
 	let TestLeaf { activated, min_relay_parents } = leaf;
 	let leaf_hash = activated.hash;
@@ -120,7 +120,7 @@ async fn activate_leaf(
 		requested_len += 1;
 	}
 
-	for _ in 0..already_seconded {
+	for _ in 0..seconded_in_view {
 		let msg = match next_overseer_message.take() {
 			Some(msg) => msg,
 			None => virtual_overseer.recv().await,
@@ -414,7 +414,7 @@ fn seconding_sanity_check_allowed() {
 }
 
 // Test that `seconding_sanity_check` works when a candidate is disallowed
-// for a at least one leaf.
+// for at least one leaf.
 #[test]
 fn seconding_sanity_check_disallowed() {
 	let test_state = TestState::default();
@@ -611,6 +611,178 @@ fn seconding_sanity_check_disallowed() {
 			.timeout(std::time::Duration::from_millis(50))
 			.await
 			.is_none());
+
+		virtual_overseer
+	});
+}
+
+// Test that a seconded candidate which is not approved by prospective parachains
+// subsystem doesn't change the view.
+#[test]
+fn prospective_parachains_reject_candidate() {
+	let test_state = TestState::default();
+	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
+		// Candidate is seconded in a parent of the activated `leaf_a`.
+		const LEAF_A_BLOCK_NUMBER: BlockNumber = 100;
+		const LEAF_A_DEPTH: BlockNumber = 3;
+		let para_id = test_state.chain_ids[0];
+
+		let leaf_a_hash = Hash::from_low_u64_be(130);
+		let leaf_a_parent = get_parent_hash(leaf_a_hash);
+		let activated = ActivatedLeaf {
+			hash: leaf_a_hash,
+			number: LEAF_A_BLOCK_NUMBER,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		};
+		let min_relay_parents = vec![(para_id, LEAF_A_BLOCK_NUMBER - LEAF_A_DEPTH)];
+		let test_leaf_a = TestLeaf { activated, min_relay_parents };
+
+		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
+
+		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
+		let pvd = dummy_pvd();
+		let validation_code = ValidationCode(vec![1, 2, 3]);
+
+		let expected_head_data = test_state.head_data.get(&para_id).unwrap();
+
+		let pov_hash = pov.hash();
+		let candidate = TestCandidateBuilder {
+			para_id,
+			relay_parent: leaf_a_parent,
+			pov_hash,
+			head_data: expected_head_data.clone(),
+			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			persisted_validation_data_hash: pvd.hash(),
+			validation_code: validation_code.0.clone(),
+			..Default::default()
+		}
+		.build();
+
+		let second = CandidateBackingMessage::Second(
+			leaf_a_hash,
+			candidate.to_plain(),
+			pvd.clone(),
+			pov.clone(),
+		);
+
+		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+
+		assert_validate_seconded_candidate(
+			&mut virtual_overseer,
+			leaf_a_parent,
+			&candidate,
+			&pov,
+			&pvd,
+			&validation_code,
+			expected_head_data,
+		)
+		.await;
+
+		// `seconding_sanity_check`
+		let expected_request_a = vec![(
+			HypotheticalDepthRequest {
+				candidate_hash: candidate.hash(),
+				candidate_para: para_id,
+				parent_head_data_hash: pvd.parent_head.hash(),
+				candidate_relay_parent: leaf_a_parent,
+				fragment_tree_relay_parent: leaf_a_hash,
+			},
+			vec![0, 1, 2, 3],
+		)];
+		assert_hypothetical_depth_requests(&mut virtual_overseer, expected_request_a.clone()).await;
+
+		// Prospective parachains are notified.
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ProspectiveParachains(
+				ProspectiveParachainsMessage::CandidateSeconded(
+					candidate_para,
+					candidate_receipt,
+					_pvd,
+					tx,
+				),
+			) if candidate_receipt == candidate && candidate_para == para_id && pvd == _pvd => {
+				// Reject it.
+				tx.send(Vec::new()).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::CollatorProtocol(CollatorProtocolMessage::Invalid(
+				relay_parent,
+				candidate_receipt,
+			)) if candidate_receipt.descriptor() == candidate.descriptor() &&
+				candidate_receipt.commitments_hash == candidate.commitments.hash() &&
+				relay_parent == leaf_a_parent
+		);
+
+		// Try seconding the same candidate.
+
+		let second = CandidateBackingMessage::Second(
+			leaf_a_hash,
+			candidate.to_plain(),
+			pvd.clone(),
+			pov.clone(),
+		);
+
+		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+
+		assert_validate_seconded_candidate(
+			&mut virtual_overseer,
+			leaf_a_parent,
+			&candidate,
+			&pov,
+			&pvd,
+			&validation_code,
+			expected_head_data,
+		)
+		.await;
+
+		// `seconding_sanity_check`
+		assert_hypothetical_depth_requests(&mut virtual_overseer, expected_request_a).await;
+		// Prospective parachains are notified.
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ProspectiveParachains(
+				ProspectiveParachainsMessage::CandidateSeconded(
+					candidate_para,
+					candidate_receipt,
+					_pvd,
+					tx,
+				),
+			) if candidate_receipt == candidate && candidate_para == para_id && pvd == _pvd => {
+				// Any non-empty response will do.
+				tx.send(vec![(leaf_a_hash, vec![0, 2, 3])]).unwrap();
+			}
+		);
+
+		test_dispute_coordinator_notifications(
+			&mut virtual_overseer,
+			candidate.hash(),
+			test_state.session(),
+			vec![ValidatorIndex(0)],
+		)
+		.await;
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::StatementDistribution(
+				StatementDistributionMessage::Share(
+					parent_hash,
+					_signed_statement,
+				)
+			) if parent_hash == leaf_a_parent => {}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::CollatorProtocol(CollatorProtocolMessage::Seconded(hash, statement)) => {
+				assert_eq!(leaf_a_parent, hash);
+				assert_matches!(statement.payload(), Statement::Seconded(_));
+			}
+		);
 
 		virtual_overseer
 	});
