@@ -1011,6 +1011,7 @@ mod tests {
 	#[test]
 	fn conversion_from_other_types_works() {
 		use crate::v0;
+		use sp_runtime::WeakBoundedVec;
 
 		fn takes_multilocation<Arg: Into<MultiLocation>>(_arg: Arg) {}
 
@@ -1042,10 +1043,13 @@ mod tests {
 			v0::MultiLocation::X3(
 				v0::Junction::Parent,
 				v0::Junction::Parent,
-				v0::Junction::GeneralKey(b"foo".to_vec()),
+				v0::Junction::GeneralKey(b"foo".to_vec().try_into().unwrap()),
 			)
 			.try_into(),
-			Ok(MultiLocation { parents: 2, interior: X1(GeneralKey(b"foo".to_vec())) }),
+			Ok(MultiLocation {
+				parents: 2,
+				interior: X1(GeneralKey(b"foo".to_vec().try_into().unwrap()))
+			}),
 		);
 	}
 }
