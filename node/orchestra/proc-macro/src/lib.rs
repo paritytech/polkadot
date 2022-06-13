@@ -16,6 +16,7 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use syn::{parse_quote, spanned::Spanned, Path};
 
+mod graph;
 mod impl_builder;
 mod impl_channels_out;
 mod impl_message_wrapper;

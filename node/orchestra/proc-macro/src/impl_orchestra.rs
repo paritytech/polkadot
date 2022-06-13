@@ -112,7 +112,7 @@ pub(crate) fn impl_orchestra_struct(info: &OrchestraInfo) -> proc_macro2::TokenS
 					).fuse();
 
 				loop {
-					select! {
+					#support_crate ::futures::select! {
 						_ = self.running_subsystems.next() =>
 						if self.running_subsystems.is_empty() {
 							break;
