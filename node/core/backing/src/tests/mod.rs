@@ -197,7 +197,7 @@ fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
 	erasure_coding::branches(&chunks).root()
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct TestCandidateBuilder {
 	para_id: ParaId,
 	head_data: HeadData,
