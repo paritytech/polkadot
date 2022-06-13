@@ -35,7 +35,6 @@ use xcm_builder::{
 	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
 	UsingComponents, WeightInfoBounds,
 };
-use xcm_executor::traits::JustDispatch;
 
 parameter_types! {
 	/// The location of the KSM token, from the context of this chain. Since this token is native to this
@@ -162,7 +161,7 @@ impl xcm_executor::Config for XcmConfig {
 	// No bridges yet...
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
-	type CallDispatcher = JustDispatch;
+	type CallDispatcher = Call;
 }
 
 parameter_types! {

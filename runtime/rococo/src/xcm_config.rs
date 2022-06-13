@@ -34,7 +34,7 @@ use xcm_builder::{
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsConcrete,
 	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, UsingComponents,
 };
-use xcm_executor::{traits::JustDispatch, XcmExecutor};
+use xcm_executor::XcmExecutor;
 
 parameter_types! {
 	pub const TokenLocation: MultiLocation = Here.into_location();
@@ -144,7 +144,7 @@ impl xcm_executor::Config for XcmConfig {
 	type FeeManager = ();
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
-	type CallDispatcher = JustDispatch;
+	type CallDispatcher = Call;
 }
 
 parameter_types! {

@@ -215,9 +215,9 @@ pub trait CallDispatcher<Call: Dispatchable> {
 	) -> Result<Call::PostInfo, DispatchErrorWithPostInfo<Call::PostInfo>>;
 }
 
-/// Just call `call.dispatch(origin)`.
-pub struct JustDispatch;
-impl<Call: Dispatchable> CallDispatcher<Call> for JustDispatch {
+// We implement it for every calls so they can dispatch themselves
+// (without any change).
+impl<Call: Dispatchable> CallDispatcher<Call> for Call {
 	fn dispatch(
 		call: Call,
 		origin: Call::Origin,

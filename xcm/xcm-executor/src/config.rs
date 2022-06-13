@@ -96,8 +96,9 @@ pub trait Config {
 	/// themselves.
 	type UniversalAliases: Contains<(MultiLocation, Junction)>;
 
-	/// How calls are dispatched from XCM.
-	/// Allows to modify the origin and/or the call based on the other.
-	/// To simply do `call.dispatch(origin)`, use `JustDispatch`.
+	/// The call dispatcher used by XCM.
+	///
+	/// XCM will use this to dispatch any calls. When no special call dispatcher is required,
+	/// this can be set to the same type as `Self::Call`.
 	type CallDispatcher: CallDispatcher<Self::Call>;
 }
