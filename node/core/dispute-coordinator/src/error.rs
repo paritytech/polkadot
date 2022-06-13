@@ -20,7 +20,7 @@ use futures::channel::oneshot;
 use polkadot_node_subsystem::{errors::ChainApiError, SubsystemError};
 use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, runtime};
 
-use crate::{participation, LOG_TARGET};
+use crate::{db, participation, LOG_TARGET};
 use parity_scale_codec::Error as CodecError;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -52,6 +52,10 @@ pub enum Error {
 	#[fatal]
 	#[error("Writing to database failed: {0}")]
 	DbWriteFailed(std::io::Error),
+
+	#[fatal]
+	#[error("Reading from database failed: {0}")]
+	DbReadFailed(db::v1::Error),
 
 	#[fatal]
 	#[error("Oneshot for receiving block number from chain API got cancelled")]
