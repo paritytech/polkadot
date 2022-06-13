@@ -1531,17 +1531,6 @@ async fn import_statement<Context>(
 	// our active leaves.
 	if let StatementWithPVD::Seconded(candidate, pvd) = statement.payload() {
 		if !per_candidate.contains_key(&candidate_hash) {
-			per_candidate.insert(
-				candidate_hash,
-				PerCandidateState {
-					persisted_validation_data: pvd.clone(),
-					// This is set after importing when seconding locally.
-					seconded_locally: false,
-					para_id: candidate.descriptor().para_id,
-					relay_parent: candidate.descriptor().relay_parent,
-				},
-			);
-
 			if rp_state.prospective_parachains_mode.is_enabled() {
 				let (tx, rx) = oneshot::channel();
 				ctx.send_message(ProspectiveParachainsMessage::CandidateSeconded(
@@ -1567,6 +1556,18 @@ async fn import_statement<Context>(
 						},
 				}
 			}
+
+			// Only save the candidate if it was approved by prospective parachains.
+			per_candidate.insert(
+				candidate_hash,
+				PerCandidateState {
+					persisted_validation_data: pvd.clone(),
+					// This is set after importing when seconding locally.
+					seconded_locally: false,
+					para_id: candidate.descriptor().para_id,
+					relay_parent: candidate.descriptor().relay_parent,
+				},
+			);
 		}
 	}
 
