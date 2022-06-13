@@ -27,9 +27,9 @@ polkadot-service = { path = "../../../../node/service", features = ["rococo-nati
 polkadot-node-primitives = { path = "../../../../node/primitives" }
 polkadot-node-subsystem = { path = "../../../../node/subsystem" }
 
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
 
 # This one is tricky. Even though it is not used directly by the collator, we still need it for the
 # `puppet_worker` binary, which is required for the integration test. However, this shouldn't be
@@ -40,8 +40,8 @@ polkadot-node-core-pvf = { path = "../../../../node/core/pvf" }
 polkadot-parachain = { path = "../../.." }
 polkadot-test-service = { path = "../../../../node/test/service" }
 
-substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.23" }
+substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
 
 tokio = { version = "1.18.2", features = ["macros"] }
