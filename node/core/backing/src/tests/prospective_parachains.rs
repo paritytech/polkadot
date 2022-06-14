@@ -190,6 +190,7 @@ async fn assert_validate_seconded_candidate(
 	pvd: &PersistedValidationData,
 	validation_code: &ValidationCode,
 	expected_head_data: &HeadData,
+	fetch_pov: bool,
 ) {
 	assert_matches!(
 		virtual_overseer.recv().await,
@@ -199,6 +200,22 @@ async fn assert_validate_seconded_candidate(
 			tx.send(Ok(Some(validation_code.clone()))).unwrap();
 		}
 	);
+
+	if fetch_pov {
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::AvailabilityDistribution(
+				AvailabilityDistributionMessage::FetchPoV {
+					relay_parent: hash,
+					tx,
+					..
+				}
+			) if hash == relay_parent => {
+				tx.send(pov.clone()).unwrap();
+			}
+		);
+	}
+
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::CandidateValidation(CandidateValidationMessage::ValidateFromExhaustive(
@@ -344,6 +361,7 @@ fn seconding_sanity_check_allowed() {
 			&pvd,
 			&validation_code,
 			expected_head_data,
+			false,
 		)
 		.await;
 
@@ -487,6 +505,7 @@ fn seconding_sanity_check_disallowed() {
 			&pvd,
 			&validation_code,
 			expected_head_data,
+			false,
 		)
 		.await;
 
@@ -579,6 +598,7 @@ fn seconding_sanity_check_disallowed() {
 			&pvd,
 			&validation_code,
 			expected_head_data,
+			false,
 		)
 		.await;
 
@@ -676,6 +696,7 @@ fn prospective_parachains_reject_candidate() {
 			&pvd,
 			&validation_code,
 			expected_head_data,
+			false,
 		)
 		.await;
 
@@ -737,6 +758,7 @@ fn prospective_parachains_reject_candidate() {
 			&pvd,
 			&validation_code,
 			expected_head_data,
+			false,
 		)
 		.await;
 
@@ -855,6 +877,7 @@ fn second_multiple_candidates_per_relay_parent() {
 				&pvd,
 				&validation_code,
 				expected_head_data,
+				false,
 			)
 			.await;
 
@@ -915,6 +938,185 @@ fn second_multiple_candidates_per_relay_parent() {
 			);
 		}
 
+		virtual_overseer
+	});
+}
+
+// Test that the candidate reaches quorum successfully.
+#[test]
+fn backing_works() {
+	let test_state = TestState::default();
+	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
+		// Candidate `a` is seconded in a parent of the activated `leaf`.
+		const LEAF_BLOCK_NUMBER: BlockNumber = 100;
+		const LEAF_DEPTH: BlockNumber = 3;
+		let para_id = test_state.chain_ids[0];
+
+		let leaf_hash = Hash::from_low_u64_be(130);
+		let leaf_parent = get_parent_hash(leaf_hash);
+		let activated = ActivatedLeaf {
+			hash: leaf_hash,
+			number: LEAF_BLOCK_NUMBER,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		};
+		let min_relay_parents = vec![(para_id, LEAF_BLOCK_NUMBER - LEAF_DEPTH)];
+		let test_leaf_a = TestLeaf { activated, min_relay_parents };
+
+		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
+
+		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
+		let pvd = dummy_pvd();
+		let validation_code = ValidationCode(vec![1, 2, 3]);
+
+		let expected_head_data = test_state.head_data.get(&para_id).unwrap();
+
+		let pov_hash = pov.hash();
+
+		let candidate_a = TestCandidateBuilder {
+			para_id,
+			relay_parent: leaf_parent,
+			pov_hash,
+			head_data: expected_head_data.clone(),
+			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			validation_code: validation_code.0.clone(),
+			persisted_validation_data_hash: pvd.hash(),
+			..Default::default()
+		}
+		.build();
+
+		let candidate_a_hash = candidate_a.hash();
+
+		let public1 = CryptoStore::sr25519_generate_new(
+			&*test_state.keystore,
+			ValidatorId::ID,
+			Some(&test_state.validators[5].to_seed()),
+		)
+		.await
+		.expect("Insert key into keystore");
+		let public2 = CryptoStore::sr25519_generate_new(
+			&*test_state.keystore,
+			ValidatorId::ID,
+			Some(&test_state.validators[2].to_seed()),
+		)
+		.await
+		.expect("Insert key into keystore");
+
+		// Signing context should have a parent hash candidate is based on.
+		let signing_context =
+			SigningContext { parent_hash: leaf_parent, session_index: test_state.session() };
+		let signed_a = SignedFullStatementWithPVD::sign(
+			&test_state.keystore,
+			StatementWithPVD::Seconded(candidate_a.clone(), pvd.clone()),
+			&signing_context,
+			ValidatorIndex(2),
+			&public2.into(),
+		)
+		.await
+		.ok()
+		.flatten()
+		.expect("should be signed");
+
+		let signed_b = SignedFullStatementWithPVD::sign(
+			&test_state.keystore,
+			StatementWithPVD::Valid(candidate_a_hash),
+			&signing_context,
+			ValidatorIndex(5),
+			&public1.into(),
+		)
+		.await
+		.ok()
+		.flatten()
+		.expect("should be signed");
+
+		let statement = CandidateBackingMessage::Statement(leaf_parent, signed_a.clone());
+
+		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+
+		// Prospective parachains are notified about candidate seconded first.
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ProspectiveParachains(
+				ProspectiveParachainsMessage::CandidateSeconded(
+					candidate_para,
+					candidate_receipt,
+					_pvd,
+					tx,
+				),
+			) if candidate_receipt == candidate_a && candidate_para == para_id && pvd == _pvd => {
+				// Any non-empty response will do.
+				tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
+			}
+		);
+
+		test_dispute_coordinator_notifications(
+			&mut virtual_overseer,
+			candidate_a_hash,
+			test_state.session(),
+			vec![ValidatorIndex(2)],
+		)
+		.await;
+
+		assert_validate_seconded_candidate(
+			&mut virtual_overseer,
+			candidate_a.descriptor().relay_parent,
+			&candidate_a,
+			&pov,
+			&pvd,
+			&validation_code,
+			expected_head_data,
+			true,
+		)
+		.await;
+
+		test_dispute_coordinator_notifications(
+			&mut virtual_overseer,
+			candidate_a_hash,
+			test_state.session(),
+			vec![ValidatorIndex(0)],
+		)
+		.await;
+		// Prospective parachains are notified about candidate backed.
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ProspectiveParachains(
+				ProspectiveParachainsMessage::CandidateBacked(
+					candidate_para_id, candidate_hash
+				),
+			) if candidate_a_hash == candidate_hash && candidate_para_id == para_id
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::Provisioner(
+				ProvisionerMessage::ProvisionableData(
+					_,
+					ProvisionableData::BackedCandidate(candidate_receipt)
+				)
+			) => {
+				assert_eq!(candidate_receipt, candidate_a.to_plain());
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::StatementDistribution(
+				StatementDistributionMessage::Share(hash, _stmt)
+			) => {
+				assert_eq!(leaf_parent, hash);
+			}
+		);
+
+		let statement = CandidateBackingMessage::Statement(leaf_parent, signed_b.clone());
+
+		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		test_dispute_coordinator_notifications(
+			&mut virtual_overseer,
+			candidate_a_hash,
+			test_state.session(),
+			vec![ValidatorIndex(5)],
+		)
+		.await;
 		virtual_overseer
 	});
 }
