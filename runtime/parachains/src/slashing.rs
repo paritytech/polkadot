@@ -587,7 +587,7 @@ pub mod pallet {
 			// check that there is a pending slash for the given
 			// validator index and candidate hash
 			let candidate_hash = dispute_proof.time_slot.candidate_hash;
-			let try_remove = |v: &mut Option<Losers>| -> Result<(), DispatchError> {
+			let try_remove = |v: &mut Option<Losers>| -> Result<bool, DispatchError> {
 				let indices = v.as_mut().ok_or(Error::<T>::InvalidCandidateHash)?;
 
 				match indices.entry(dispute_proof.validator_index) {
@@ -600,22 +600,30 @@ pub mod pallet {
 					},
 				}
 
-				if indices.is_empty() {
+				let is_empty = if indices.is_empty() {
 					*v = None;
-				}
+					true
+				} else {
+					false
+				};
 
-				Ok(())
+				Ok(is_empty)
 			};
 			match dispute_proof.kind {
 				SlashingOffenceKind::ForInvalid => {
-					<PendingForInvalidLosers<T>>::try_mutate_exists(
+					let is_empty = <PendingForInvalidLosers<T>>::try_mutate_exists(
 						&session_index,
 						&candidate_hash,
 						try_remove,
 					)?;
 
-					let winners = <ForInvalidWinners<T>>::get(&session_index, &candidate_hash)
-						.unwrap_or_default();
+					let winners = if is_empty {
+						<ForInvalidWinners<T>>::take(&session_index, &candidate_hash)
+							.unwrap_or_default()
+					} else {
+						<ForInvalidWinners<T>>::get(&session_index, &candidate_hash)
+							.unwrap_or_default()
+					};
 
 					let offence = ForInvalidOffence::new(
 						session_index,
@@ -632,14 +640,19 @@ pub mod pallet {
 					.map_err(|_| Error::<T>::DuplicateSlashingReport)?;
 				},
 				SlashingOffenceKind::AgainstValid => {
-					<PendingAgainstValidLosers<T>>::try_mutate_exists(
+					let is_empty = <PendingAgainstValidLosers<T>>::try_mutate_exists(
 						&session_index,
 						&candidate_hash,
 						try_remove,
 					)?;
 
-					let winners = <ForInvalidWinners<T>>::get(&session_index, &candidate_hash)
-						.unwrap_or_default();
+					let winners = if is_empty {
+						<AgainstValidWinners<T>>::take(&session_index, &candidate_hash)
+							.unwrap_or_default()
+					} else {
+						<AgainstValidWinners<T>>::get(&session_index, &candidate_hash)
+							.unwrap_or_default()
+					};
 
 					// submit an offence report
 					let offence = AgainstValidOffence::new(
