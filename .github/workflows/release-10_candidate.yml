@@ -1,4 +1,4 @@
-name: Release-candidate automation
+name: Release - RC automation
 on:
   push:
     branches:

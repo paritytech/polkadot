@@ -127,7 +127,11 @@ impl Config {
 impl<Context: Send> DisputeCoordinatorSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async {
-			let backend = DbBackend::new(self.store.clone(), self.config.column_config());
+			let backend = DbBackend::new(
+				self.store.clone(),
+				self.config.column_config(),
+				self.metrics.clone(),
+			);
 			self.run(ctx, backend, Box::new(SystemClock))
 				.await
 				.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
