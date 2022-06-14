@@ -30,9 +30,9 @@
 //!  because it is quite heavy.
 
 use crate::{
+	disputes,
 	initializer::ValidatorSetCount,
 	session_info::{AccountId, IdentificationTuple},
-	disputes,
 };
 use frame_support::{
 	traits::{Get, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
@@ -57,7 +57,6 @@ use sp_std::{
 };
 
 const LOG_TARGET: &str = "runtime::slashing";
-
 
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;

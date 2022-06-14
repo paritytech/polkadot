@@ -217,7 +217,8 @@ parameter_types! {
 }
 
 impl pallet_balances::Config for Runtime {
-	type Balance = Balance; type DustRemoval = ();
+	type Balance = Balance;
+	type DustRemoval = ();
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;

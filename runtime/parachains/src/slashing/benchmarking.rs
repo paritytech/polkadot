@@ -16,13 +16,13 @@
 
 use super::*;
 
-use crate::{initializer, shared, disputes::SlashingHandler};
+use crate::{disputes::SlashingHandler, initializer, shared};
 use frame_benchmarking::{benchmarks, whitelist_account};
+use frame_support::traits::{OnFinalize, OnInitialize};
 use frame_system::RawOrigin;
 use pallet_staking::testing_utils::create_validators;
-use sp_runtime::traits::{One, StaticLookup};
-use frame_support::traits::{OnInitialize, OnFinalize};
 use primitives::v2::{Hash, PARACHAIN_KEY_TYPE_ID};
+use sp_runtime::traits::{One, StaticLookup};
 use sp_session::MembershipProof;
 
 // Candidate hash of the disputed candidate.
@@ -31,9 +31,14 @@ const CANDIDATE_HASH: CandidateHash = CandidateHash(Hash::zero());
 const MAX_VALIDATORS: u32 = 1 * 1024;
 
 pub trait Config:
-	pallet_session::Config + pallet_session::historical::Config + pallet_staking::Config
-	+ super::Config + shared::Config + initializer::Config
-{}
+	pallet_session::Config
+	+ pallet_session::historical::Config
+	+ pallet_staking::Config
+	+ super::Config
+	+ shared::Config
+	+ initializer::Config
+{
+}
 
 fn setup_validator_set<T>(n: u32) -> (SessionIndex, MembershipProof, ValidatorId)
 where
@@ -62,11 +67,8 @@ where
 		let proof: Vec<u8> = vec![];
 
 		whitelist_account!(controller);
-		pallet_session::Pallet::<T>::set_keys(
-			RawOrigin::Signed(controller).into(),
-			keys,
-			proof,
-		).expect("session::set_keys should work");
+		pallet_session::Pallet::<T>::set_keys(RawOrigin::Signed(controller).into(), keys, proof)
+			.expect("session::set_keys should work");
 	}
 
 	pallet_session::Pallet::<T>::on_initialize(T::BlockNumber::one());
@@ -113,18 +115,11 @@ where
 
 	let validator_index = ValidatorIndex(0);
 
-	let losers = [
-		validator_index,
-	].into_iter();
+	let losers = [validator_index].into_iter();
 	// everyone else wins
 	let winners = (1..n_validators).map(|i| ValidatorIndex(i)).into_iter();
 
-	T::SlashingHandler::punish_against_valid(
-		session_index,
-		CANDIDATE_HASH,
-		losers,
-		winners,
-	);
+	T::SlashingHandler::punish_against_valid(session_index, CANDIDATE_HASH, losers, winners);
 
 	let losers = <PendingAgainstValidLosers<T>>::get(session_index, CANDIDATE_HASH);
 	assert_eq!(losers.unwrap().len(), 1);
@@ -140,12 +135,7 @@ fn dispute_proof(
 	let kind = SlashingOffenceKind::AgainstValid;
 	let time_slot = DisputesTimeSlot::new(session_index, CANDIDATE_HASH);
 
-	DisputeProof {
-		time_slot,
-		kind,
-		validator_index,
-		validator_id,
-	}
+	DisputeProof { time_slot, kind, validator_index, validator_id }
 }
 
 benchmarks! {
