@@ -17,7 +17,7 @@ thiserror = "1.0.31"
 fatality = "0.0.6"
 gum = { package = "tracing-gum", path = "../gum" }
 derive_more = "0.99.17"
-lru = "0.7.5"
+lru = "0.7.6"
 
 polkadot-node-subsystem = {path = "../subsystem" }
 polkadot-node-jaeger = { path = "../jaeger" }

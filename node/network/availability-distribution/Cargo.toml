@@ -19,7 +19,7 @@ sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 thiserror = "1.0.31"
 rand = "0.8.5"
 derive_more = "0.99.17"
-lru = "0.7.5"
+lru = "0.7.6"
 fatality = "0.0.6"
 
 [dev-dependencies]

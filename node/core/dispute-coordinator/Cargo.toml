@@ -10,7 +10,7 @@ gum = { package = "tracing-gum", path = "../../gum" }
 parity-scale-codec = "3.1.2"
 kvdb = "0.11.0"
 thiserror = "1.0.31"
-lru = "0.7.5"
+lru = "0.7.6"
 fatality = "0.0.6"
 
 polkadot-primitives = { path = "../../../primitives" }
