@@ -28,7 +28,7 @@ use polkadot_node_subsystem::{
 		AllMessages, CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest,
 		ValidationFailed,
 	},
-	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
+	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, TimeoutExt,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::v2::{
@@ -2096,6 +2096,186 @@ fn observes_backing_even_if_not_validator() {
 				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
 			)))
 			.await;
+		virtual_overseer
+	});
+}
+
+// Tests that it's impossible to second multiple candidates per relay parent
+// without prospective parachains.
+#[test]
+fn cannot_second_multiple_candidates_per_parent() {
+	let test_state = TestState::default();
+	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
+		test_startup(&mut virtual_overseer, &test_state).await;
+
+		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
+		let pvd = dummy_pvd();
+		let validation_code = ValidationCode(vec![1, 2, 3]);
+
+		let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
+
+		let pov_hash = pov.hash();
+		let candidate_builder = TestCandidateBuilder {
+			para_id: test_state.chain_ids[0],
+			relay_parent: test_state.relay_parent,
+			pov_hash,
+			head_data: expected_head_data.clone(),
+			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			persisted_validation_data_hash: pvd.hash(),
+			validation_code: validation_code.0.clone(),
+			..Default::default()
+		};
+		let candidate = candidate_builder.clone().build();
+
+		let second = CandidateBackingMessage::Second(
+			test_state.relay_parent,
+			candidate.to_plain(),
+			pvd.clone(),
+			pov.clone(),
+		);
+
+		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::ValidationCodeByHash(hash, tx))
+			) if hash == validation_code.hash() => {
+				tx.send(Ok(Some(validation_code.clone()))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::CandidateValidation(
+				CandidateValidationMessage::ValidateFromExhaustive(
+					_pvd,
+					_validation_code,
+					candidate_receipt,
+					_pov,
+					timeout,
+					tx,
+				),
+			) if _pvd == pvd &&
+				_validation_code == validation_code &&
+				*_pov == pov && &candidate_receipt.descriptor == candidate.descriptor() &&
+				timeout == BACKING_EXECUTION_TIMEOUT &&
+				candidate.commitments.hash() == candidate_receipt.commitments_hash =>
+			{
+				tx.send(Ok(ValidationResult::Valid(
+					CandidateCommitments {
+						head_data: expected_head_data.clone(),
+						horizontal_messages: Vec::new(),
+						upward_messages: Vec::new(),
+						new_validation_code: None,
+						processed_downward_messages: 0,
+						hrmp_watermark: 0,
+					},
+					test_state.validation_data.clone(),
+				)))
+				.unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::AvailabilityStore(
+				AvailabilityStoreMessage::StoreAvailableData { candidate_hash, tx, .. }
+			) if candidate_hash == candidate.hash() => {
+				tx.send(Ok(())).unwrap();
+			}
+		);
+
+		test_dispute_coordinator_notifications(
+			&mut virtual_overseer,
+			candidate.hash(),
+			test_state.session(),
+			vec![ValidatorIndex(0)],
+		)
+		.await;
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::StatementDistribution(
+				StatementDistributionMessage::Share(
+					parent_hash,
+					_signed_statement,
+				)
+			) if parent_hash == test_state.relay_parent => {}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::CollatorProtocol(CollatorProtocolMessage::Seconded(hash, statement)) => {
+				assert_eq!(test_state.relay_parent, hash);
+				assert_matches!(statement.payload(), Statement::Seconded(_));
+			}
+		);
+
+		// Try to second candidate with the same relay parent again.
+
+		// Make sure the candidate hash is different.
+		let validation_code = ValidationCode(vec![4, 5, 6]);
+		let mut candidate_builder = candidate_builder;
+		candidate_builder.validation_code = validation_code.0.clone();
+		let candidate = candidate_builder.build();
+
+		let second = CandidateBackingMessage::Second(
+			test_state.relay_parent,
+			candidate.to_plain(),
+			pvd.clone(),
+			pov.clone(),
+		);
+
+		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+
+		// The validation is still requested.
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::ValidationCodeByHash(hash, tx))
+			) if hash == validation_code.hash() => {
+				tx.send(Ok(Some(validation_code.clone()))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::CandidateValidation(
+				CandidateValidationMessage::ValidateFromExhaustive(.., tx),
+			) => {
+				tx.send(Ok(ValidationResult::Valid(
+					CandidateCommitments {
+						head_data: expected_head_data.clone(),
+						horizontal_messages: Vec::new(),
+						upward_messages: Vec::new(),
+						new_validation_code: None,
+						processed_downward_messages: 0,
+						hrmp_watermark: 0,
+					},
+					test_state.validation_data.clone(),
+				)))
+				.unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::AvailabilityStore(
+				AvailabilityStoreMessage::StoreAvailableData { candidate_hash, tx, .. }
+			) if candidate_hash == candidate.hash() => {
+				tx.send(Ok(())).unwrap();
+			}
+		);
+
+		// Validation done, but the candidate is rejected cause of 0-depth being already occupied.
+
+		assert!(virtual_overseer
+			.recv()
+			.timeout(std::time::Duration::from_millis(50))
+			.await
+			.is_none());
+
 		virtual_overseer
 	});
 }
