@@ -580,6 +580,8 @@ struct ImportSummary<BlockNumber> {
 	state: DisputeState<BlockNumber>,
 	/// Changes to spam slots. Validator index paired with directional change.
 	spam_slot_changes: Vec<(ValidatorIndex, SpamSlotChange)>,
+	// New participants in the dispute.
+	new_participants: bitvec::vec::BitVec<u8, BitOrderLsb0>,
 	/// Validators to slash for being (wrongly) on the AGAINST side.
 	slash_against: Vec<ValidatorIndex>,
 	/// Validators to slash for being (wrongly) on the FOR side.
@@ -755,6 +757,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 			spam_slot_changes,
 			slash_against,
 			slash_for,
+			new_participants: self.new_participants,
 			new_flags: post_flags - pre_flags,
 		}
 	}

@@ -697,28 +697,13 @@ impl<T: Config> Pallet<T> {
 
 		let old_session = session_index - config.dispute_period - 1;
 
-		match <PendingForInvalidLosers<T>>::remove_prefix(old_session, None) {
-			sp_io::KillStorageResult::AllRemoved(x) if x > 0 => {
-				log::debug!(
-					target: LOG_TARGET,
-					"No slashing for {} validators that lost a `ForInvalid` dispute",
-					x
-				);
-			},
-			_ => {},
-		}
-		match <PendingAgainstValidLosers<T>>::remove_prefix(old_session, None) {
-			sp_io::KillStorageResult::AllRemoved(x) if x > 0 => {
-				log::debug!(
-					target: LOG_TARGET,
-					"No slashing for {} validators that lost an `AgainstValid` dispute",
-					x
-				);
-			},
-			_ => {},
-		}
-		<ForInvalidWinners<T>>::remove_prefix(old_session, None);
-		<AgainstValidWinners<T>>::remove_prefix(old_session, None);
+		// This should be small, as disputes are rare, so no limit is fine.
+		const REMOVE_LIMIT: u32 = u32::MAX;
+		let _ = <PendingForInvalidLosers<T>>::clear_prefix(old_session, REMOVE_LIMIT, None);
+		let _ = <PendingAgainstValidLosers<T>>::clear_prefix(old_session, REMOVE_LIMIT, None);
+		let _ = <ForInvalidWinners<T>>::clear_prefix(old_session, REMOVE_LIMIT, None);
+		let _ = <AgainstValidWinners<T>>::clear_prefix(old_session, REMOVE_LIMIT, None);
+
 		<ValidatorSetCounts<T>>::remove(old_session);
 	}
 }
