@@ -516,14 +516,19 @@ pub mod pallet {
 bitflags::bitflags! {
 	#[derive(Default)]
 	struct DisputeStateFlags: u8 {
+		/// The byzantine threshold of `f + 1` votes (and hence participating validators) was reached.
 		const CONFIRMED = 0b0001;
+		/// Is the supermajority for validity of the dispute reached.
 		const FOR_SUPERMAJORITY = 0b0010;
+		/// Is the supermajority against the validity of the block reached.
 		const AGAINST_SUPERMAJORITY = 0b0100;
 	}
 }
 
 impl DisputeStateFlags {
 	fn from_state<BlockNumber>(state: &DisputeState<BlockNumber>) -> Self {
+		// Only correct since `DisputeState` is _always_ initialized
+		// with the validator set based on the session.
 		let n = state.validators_for.len();
 
 		let byzantine_threshold = byzantine_threshold(n);
@@ -549,18 +554,20 @@ impl DisputeStateFlags {
 
 #[derive(PartialEq, RuntimeDebug)]
 enum SpamSlotChange {
+	/// Add a `+1` to the spam slot for a particular validator index in this session.
 	Inc,
+	/// Subtract `-1` ...
 	Dec,
 }
 
 struct ImportSummary<BlockNumber> {
-	// The new state, with all votes imported.
+	/// The new state, with all votes imported.
 	state: DisputeState<BlockNumber>,
-	// Changes to spam slots. Validator index paired with directional change.
+	/// Changes to spam slots. Validator index paired with directional change.
 	spam_slot_changes: Vec<(ValidatorIndex, SpamSlotChange)>,
-	// Validators to slash for being (wrongly) on the AGAINST side.
+	/// Validators to slash for being (wrongly) on the AGAINST side.
 	slash_against: Vec<ValidatorIndex>,
-	// Validators to slash for being (wrongly) on the FOR side.
+	/// Validators to slash for being (wrongly) on the FOR side.
 	slash_for: Vec<ValidatorIndex>,
 	// New participants in the dispute.
 	new_participants: bitvec::vec::BitVec<u8, BitOrderLsb0>,
@@ -570,7 +577,9 @@ struct ImportSummary<BlockNumber> {
 
 #[derive(RuntimeDebug, PartialEq, Eq)]
 enum VoteImportError {
+	/// Validator index was outside the range of valid validator indices in the given session.
 	ValidatorIndexOutOfBounds,
+	/// Found a duplicate statement in the dispute statement set.
 	DuplicateStatement,
 }
 
@@ -583,10 +592,15 @@ impl<T: Config> From<VoteImportError> for Error<T> {
 	}
 }
 
+/// A transport statement bit change for a single validator.
 #[derive(RuntimeDebug, PartialEq, Eq)]
 struct ImportUndo {
+	/// The validator index to which to associate the statement import.
 	validator_index: ValidatorIndex,
+	/// The direction of the vote, for block validity (`true`) or invalidity (`false`).
 	valid: bool,
+	/// Has the validator participated before, i.e. in backing or
+	/// with an oposing vote.
 	new_participant: bool,
 }
 
@@ -632,9 +646,9 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 
 		bits.set(validator.0 as usize, true);
 
-		// New participants tracks those which didn't appear on either
-		// side of the dispute until now. So we check the other side
-		// and checked the first side before.
+		// New participants tracks those validators by index, which didn't appear on either
+		// side of the dispute until now (so they make a first appearance).
+		// To verify this we need to assure they also were not part of the opposing side before.
 		if other_bits.get(validator.0 as usize).map_or(false, |b| !*b) {
 			undo.new_participant = true;
 			self.new_participants.set(validator.0 as usize, true);
@@ -643,6 +657,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 		Ok(undo)
 	}
 
+	/// Revert a done transaction.
 	fn undo(&mut self, undo: ImportUndo) {
 		if undo.valid {
 			self.state.validators_for.set(undo.validator_index.0 as usize, false);
@@ -655,6 +670,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 		}
 	}
 
+	/// Collect all dispute votes.
 	fn finish(mut self) -> ImportSummary<BlockNumber> {
 		let pre_flags = self.pre_flags;
 		let post_flags = DisputeStateFlags::from_state(&self.state);
@@ -681,8 +697,12 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 					.map(|i| (ValidatorIndex(i as _), SpamSlotChange::Dec))
 					.collect()
 			},
-			(true, true) | (true, false) => {
-				// nothing to do. (true, false) is also impossible.
+			(true, false) => {
+				log::error!("Dispute statements are never removed. This is a bug");
+				Vec::new()
+			},
+			(true, true) => {
+				// No change, nothing to do.
 				Vec::new()
 			},
 		};
@@ -925,27 +945,32 @@ impl<T: Config> Pallet<T> {
 		let n_validators = session_info.validators.len();
 
 		// Check for ancient.
-		let dispute_state = {
+		let (first_votes, dispute_state) = {
 			if let Some(dispute_state) = <Disputes<T>>::get(&set.session, &set.candidate_hash) {
 				if dispute_state.concluded_at.as_ref().map_or(false, |c| c < &oldest_accepted) {
 					return StatementSetFilter::RemoveAll
 				}
 
-				dispute_state
+				(false, dispute_state)
 			} else {
-				DisputeState {
-					validators_for: bitvec![u8, BitOrderLsb0; 0; n_validators],
-					validators_against: bitvec![u8, BitOrderLsb0; 0; n_validators],
-					start: now,
-					concluded_at: None,
-				}
+				// No state in storage, this indicates it's the first dispute statement set as well.
+				(
+					true,
+					DisputeState {
+						validators_for: bitvec![u8, BitOrderLsb0; 0; n_validators],
+						validators_against: bitvec![u8, BitOrderLsb0; 0; n_validators],
+						start: now,
+						concluded_at: None,
+					},
+				)
 			}
 		};
 
 		// Check and import all votes.
-		let summary = {
+		let mut summary = {
 			let mut importer = DisputeStateImporter::new(dispute_state, now);
 			for (i, (statement, validator_index, signature)) in set.statements.iter().enumerate() {
+				// assure the validator index and is present in the session info
 				let validator_public = match session_info.validators.get(validator_index.0 as usize)
 				{
 					None => {
@@ -1005,7 +1030,7 @@ impl<T: Config> Pallet<T> {
 		if !is_local {
 			let mut spam_slots: Vec<u32> =
 				SpamSlots::<T>::get(&set.session).unwrap_or_else(|| vec![0; n_validators]);
-
+			let mut spam_filter_struck = false;
 			for (validator_index, spam_slot_change) in summary.spam_slot_changes {
 				let spam_slot = spam_slots
 					.get_mut(validator_index.0 as usize)
@@ -1013,11 +1038,13 @@ impl<T: Config> Pallet<T> {
 
 				if let SpamSlotChange::Inc = spam_slot_change {
 					if *spam_slot >= max_spam_slots {
+						spam_filter_struck = true;
+
 						// Find the vote by this validator and filter it out.
 						let first_index_in_set = set
 							.statements
 							.iter()
-							.position(|(_, v_i, _)| &validator_index == v_i)
+							.position(|(_statement, v_i, _signature)| &validator_index == v_i)
 							.expect(
 								"spam slots are only incremented when a new statement \
 									from a validator is included; qed",
@@ -1032,6 +1059,10 @@ impl<T: Config> Pallet<T> {
 						// by the duplicate checks above. It's only the first one which
 						// may not already have been filtered out.
 						filter.remove_index(first_index_in_set);
+
+						// Removing individual statments can cause the dispute to become onesided.
+						// Checking that (again) is done after the loop. Remove the bit indices.
+						summary.new_participants.set(validator_index.0 as _, false);
 					}
 
 					// It's also worth noting that the `DisputeStateImporter`
@@ -1057,6 +1088,36 @@ impl<T: Config> Pallet<T> {
 			// However, 3 sequential calls, where the first increments,
 			// the second decrements, and the third increments would be allowed.
 			SpamSlots::<T>::insert(&set.session, spam_slots);
+
+			// This is only relevant in cases where it's the first vote and the state
+			// would hence hold a onesided dispute. If a onesided dispute can never be
+			// started, by induction, we can never enter a state of a one sided dispute.
+			if spam_filter_struck && first_votes {
+				let mut vote_for_count = 0_u64;
+				let mut vote_against_count = 0_u64;
+				// Since this is the first set of statements for the dispute,
+				// it's sufficient to count the votes in the statement set after they
+				set.statements.iter().for_each(|(statement, v_i, _signature)| {
+					if Some(true) ==
+						summary.new_participants.get(v_i.0 as usize).map(|b| b.as_ref().clone())
+					{
+						match statement {
+							// `summary.new_flags` contains the spam free votes.
+							// Note that this does not distinguish between pro or con votes,
+							// since allowing both of them, even if the spam threshold would be reached
+							// is a good thing.
+							// Overflow of the counters is no concern, disputes are limited by weight.
+							DisputeStatement::Valid(_) => vote_for_count += 1,
+							DisputeStatement::Invalid(_) => vote_against_count += 1,
+						}
+					}
+				});
+				if vote_for_count.is_zero() || vote_against_count.is_zero() {
+					// It wasn't one-sided before the spam filters, but now it is,
+					// so we need to be thorough and not import that dispute.
+					return StatementSetFilter::RemoveAll
+				}
+			}
 		}
 
 		filter
