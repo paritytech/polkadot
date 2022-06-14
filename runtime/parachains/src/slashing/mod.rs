@@ -32,6 +32,7 @@
 use crate::{
 	initializer::ValidatorSetCount,
 	session_info::{AccountId, IdentificationTuple},
+	disputes,
 };
 use frame_support::{
 	traits::{Get, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
@@ -56,6 +57,10 @@ use sp_std::{
 };
 
 const LOG_TARGET: &str = "runtime::slashing";
+
+
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
 
 /// Timeslots should uniquely identify offences
 /// and are used for the offence deduplication.
@@ -210,7 +215,7 @@ impl<C> Default for SlashValidatorsForDisputes<C> {
 
 impl<T> SlashValidatorsForDisputes<Pallet<T>>
 where
-	T: Config + crate::session_info::Config,
+	T: Config,
 {
 	/// If in the current session, returns the identified validators.
 	/// `None` otherwise.
@@ -240,9 +245,9 @@ where
 	}
 }
 
-impl<T> super::SlashingHandler<T::BlockNumber> for SlashValidatorsForDisputes<Pallet<T>>
+impl<T> disputes::SlashingHandler<T::BlockNumber> for SlashValidatorsForDisputes<Pallet<T>>
 where
-	T: Config<KeyOwnerIdentification = IdentificationTuple<T>> + crate::session_info::Config,
+	T: Config<KeyOwnerIdentification = IdentificationTuple<T>>,
 {
 	fn punish_for_invalid(
 		session_index: SessionIndex,
@@ -686,7 +691,7 @@ impl<T: Config> Pallet<T> {
 	) {
 		<ValidatorSetCounts<T>>::insert(session_index, validator_set_count);
 
-		let config = <super::configuration::Pallet<T>>::config();
+		let config = <crate::configuration::Pallet<T>>::config();
 		if session_index <= config.dispute_period + 1 {
 			return
 		}
@@ -695,7 +700,7 @@ impl<T: Config> Pallet<T> {
 
 		match <PendingForInvalidLosers<T>>::remove_prefix(old_session, None) {
 			sp_io::KillStorageResult::AllRemoved(x) if x > 0 => {
-				log::warn!(
+				log::debug!(
 					target: LOG_TARGET,
 					"No slashing for {} validators that lost a `ForInvalid` dispute",
 					x
@@ -705,7 +710,7 @@ impl<T: Config> Pallet<T> {
 		}
 		match <PendingAgainstValidLosers<T>>::remove_prefix(old_session, None) {
 			sp_io::KillStorageResult::AllRemoved(x) if x > 0 => {
-				log::warn!(
+				log::debug!(
 					target: LOG_TARGET,
 					"No slashing for {} validators that lost an `AgainstValid` dispute",
 					x

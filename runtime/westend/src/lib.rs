@@ -49,7 +49,7 @@ use runtime_common::{
 };
 use runtime_parachains::{
 	configuration as parachains_configuration,
-	disputes::{self as parachains_disputes, slashing as parachains_slashing},
+	disputes as parachains_disputes, slashing as parachains_slashing,
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
@@ -415,6 +415,11 @@ impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
 	}
 }
 
+#[cfg(feature = "runtime-benchmarks")]
+type Fallback = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+#[cfg(not(feature = "runtime-benchmarks"))]
+type Fallback = pallet_election_provider_multi_phase::NoFallback<Runtime>;
+
 impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
@@ -437,7 +442,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
-	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
+	type Fallback = Fallback;
 	type GovernanceFallback = onchain::UnboundedExecution<OnChainSeqPhragmen>;
 	type Solver = SequentialPhragmen<
 		AccountId,
@@ -1228,6 +1233,7 @@ mod benches {
 		[runtime_common::slots, Slots]
 		[runtime_parachains::configuration, Configuration]
 		[runtime_parachains::disputes, ParasDisputes]
+		[runtime_parachains::slashing, ParasSlashing]
 		[runtime_parachains::hrmp, Hrmp]
 		[runtime_parachains::initializer, Initializer]
 		[runtime_parachains::paras, Paras]
@@ -1665,6 +1671,7 @@ sp_api::impl_runtime_apis! {
 			impl pallet_election_provider_support_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl pallet_nomination_pools_benchmarking::Config for Runtime {}
+			impl runtime_parachains::slashing::benchmarking::Config for Runtime {}
 
 			use xcm::latest::{
 				AssetId::*, Fungibility::*, Junctions::*, MultiAsset, MultiAssets, MultiLocation,
