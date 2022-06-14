@@ -962,7 +962,7 @@ impl parachains_slashing::Config for Runtime {
 		Offences,
 		ReportLongevity,
 	>;
-	type WeightInfo = parachains_slashing::TestWeightInfo; // TODO
+	type WeightInfo = weights::runtime_parachains_slashing::WeightInfo<Runtime>;
 }
 
 parameter_types! {

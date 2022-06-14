@@ -17,6 +17,7 @@
 //!
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
 //! DATE: 2022-06-14, STEPS: `50`, REPEAT: 2, LOW RANGE: `[]`, HIGH RANGE: `[]`
+//! HOSTNAME: `redacted`, CPU: `redacted`
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("westend-dev"), DB CACHE: 1024
 
 // Executed Command:
@@ -47,7 +48,7 @@ impl<T: frame_system::Config> runtime_parachains::slashing::WeightInfo for Weigh
 	// Storage: Historical HistoricalSessions (r:1 w:0)
 	// Storage: ParasSlashing ValidatorSetCounts (r:1 w:0)
 	// Storage: ParasSlashing PendingAgainstValidLosers (r:1 w:1)
-	// Storage: ParasSlashing ForInvalidWinners (r:1 w:0)
+	// Storage: ParasSlashing AgainstValidWinners (r:1 w:1)
 	// Storage: Offences ReportsByKindIndex (r:1 w:1)
 	// Storage: Offences ConcurrentReportsIndex (r:1 w:1)
 	// Storage: Offences Reports (r:1 w:1)
@@ -57,11 +58,12 @@ impl<T: frame_system::Config> runtime_parachains::slashing::WeightInfo for Weigh
 	// Storage: Staking EarliestUnappliedSlash (r:1 w:1)
 	// Storage: Staking Invulnerables (r:1 w:0)
 	// Storage: Staking ValidatorSlashInEra (r:1 w:0)
+	/// The range of component `n` is `[4, 1024]`.
 	fn report_dispute_lost(n: u32, ) -> Weight {
-		(91_256_000 as Weight)
-			// Standard Error: 2_000
-			.saturating_add((54_000 as Weight).saturating_mul(n as Weight))
+		(101_569_000 as Weight)
+			// Standard Error: 4_000
+			.saturating_add((107_000 as Weight).saturating_mul(n as Weight))
 			.saturating_add(T::DbWeight::get().reads(14 as Weight))
-			.saturating_add(T::DbWeight::get().writes(5 as Weight))
+			.saturating_add(T::DbWeight::get().writes(6 as Weight))
 	}
 }
