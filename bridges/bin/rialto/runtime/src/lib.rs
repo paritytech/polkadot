@@ -487,7 +487,7 @@ construct_runtime!(
 
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage, Event<T>},
 
 		// Consensus support.
 		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config},
