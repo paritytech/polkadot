@@ -61,7 +61,7 @@ impl<Context> Fortified {
 }
 
 #[orchestra(signal=SigSigSig, event=EvX, error=Yikes, gen=AllMessages)]
-struct Duo<T, U, V> {
+struct Duo<T, U, V, W> {
 	#[subsystem(consumes: MsgStrukt, sends: [Plinko])]
 	sub0: Awesome,
 
@@ -69,18 +69,20 @@ struct Duo<T, U, V> {
 	plinkos: GoblinTower,
 
 	i_like_pi: f64,
+	i_like_tuple: (f64, f64),
 	i_like_generic: Arc<T>,
-	i_like_hash: HashMap<U, Arc<V>>,
+	i_like_hash: HashMap<(U, V), Arc<W>>,
 }
 
 fn main() {
 	use futures::{executor, pin_mut};
 
 	executor::block_on(async move {
-		let (orchestra, _handle): (Duo<_, f64, u32, f32>, _) = Duo::builder()
+		let (orchestra, _handle): (Duo<_, f64, u32, f32, f64>, _) = Duo::builder()
 			.sub0(AwesomeSubSys::default())
 			.plinkos(Fortified::default())
 			.i_like_pi(::std::f64::consts::PI)
+			.i_like_tuple((::std::f64::consts::PI, ::std::f64::consts::PI))
 			.i_like_generic(Arc::new(42.0))
 			.i_like_hash(HashMap::new())
 			.spawner(DummySpawner)
