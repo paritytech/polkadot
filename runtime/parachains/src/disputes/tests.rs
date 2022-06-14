@@ -24,6 +24,7 @@ use crate::{
 		REWARD_VALIDATORS,
 	},
 };
+use assert_matches::assert_matches;
 use frame_support::{
 	assert_err, assert_noop, assert_ok,
 	traits::{OnFinalize, OnInitialize},
@@ -286,6 +287,217 @@ fn test_import_slash_against() {
 	assert_eq!(summary.slash_against, vec![ValidatorIndex(1), ValidatorIndex(5)]);
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 0, 1, 1, 1, 1, 1]);
 	assert_eq!(summary.new_flags, DisputeStateFlags::FOR_SUPERMAJORITY);
+}
+
+fn generate_dispute_statement_set_entry(
+	session: u32,
+	candidate_hash: CandidateHash,
+	statement: DisputeStatement,
+	validator: &<ValidatorId as CryptoType>::Pair,
+) -> (DisputeStatement, ValidatorSignature) {
+	let valid = match &statement {
+		DisputeStatement::Valid(_) => true,
+		_ => false,
+	};
+	let signature_bytes = validator
+		.sign(&ExplicitDisputeStatement { valid, candidate_hash, session }.signing_payload());
+	let signature = ValidatorSignature::try_from(signature_bytes).unwrap();
+	(statement, signature)
+}
+
+fn generate_dispute_statement_set(
+	session: SessionIndex,
+	candidate_hash: CandidateHash,
+	validators: &[<ValidatorId as CryptoType>::Pair],
+	vidxs: Vec<(usize, DisputeStatement)>,
+) -> DisputeStatementSet {
+	let statements = vidxs
+		.into_iter()
+		.map(|(v_i, statement)| {
+			let validator_index = ValidatorIndex(v_i as u32);
+			let (statement, signature) = generate_dispute_statement_set_entry(
+				session,
+				candidate_hash.clone(),
+				statement,
+				&validators[v_i],
+			);
+			(statement, validator_index, signature)
+		})
+		.collect::<Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>>();
+	DisputeStatementSet { candidate_hash: candidate_hash.clone(), session, statements }
+}
+
+#[test]
+fn dispute_statement_becoming_onesided_due_to_spamslots_is_accepted() {
+	let dispute_conclusion_by_time_out_period = 3;
+	let start = 10;
+	let session = start - 1;
+	let dispute_max_spam_slots = 2;
+	let post_conclusion_acceptance_period = 3;
+
+	let mock_genesis_config = MockGenesisConfig {
+		configuration: crate::configuration::GenesisConfig {
+			config: HostConfiguration {
+				dispute_conclusion_by_time_out_period,
+				dispute_max_spam_slots,
+				..Default::default()
+			},
+			..Default::default()
+		},
+		..Default::default()
+	};
+
+	new_test_ext(mock_genesis_config).execute_with(|| {
+		// We need 6 validators for the byzantine threshold to be 2
+		static ACCOUNT_IDS: &[AccountId] = &[0, 1, 2, 3, 4, 5, 6, 7];
+		let validators = std::iter::repeat(())
+			.take(7)
+			.map(|_| <ValidatorId as CryptoType>::Pair::generate().0)
+			.collect::<Vec<_>>();
+		let validators = &validators;
+
+		// a new session at each block, but always the same validators
+		let session_change_callback = |block_number: u32| -> Option<NewSession<'_>> {
+			let session_validators =
+				Vec::from_iter(ACCOUNT_IDS.iter().zip(validators.iter().map(|pair| pair.public())));
+			Some((true, block_number, session_validators.clone(), Some(session_validators)))
+		};
+
+		run_to_block(start, session_change_callback);
+
+		// Must be _foreign_ parachain candidate
+		// otherwise slots do not trigger.
+		let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(0xA));
+		let candidate_hash_b = CandidateHash(sp_core::H256::repeat_byte(0xB));
+		let candidate_hash_c = CandidateHash(sp_core::H256::repeat_byte(0xC));
+		let candidate_hash_d = CandidateHash(sp_core::H256::repeat_byte(0xD));
+
+		let stmts = vec![
+			// a
+			generate_dispute_statement_set(
+				session,
+				candidate_hash_a,
+				validators,
+				vec![
+					(3, DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)),
+					(6, DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)),
+				],
+			),
+			// b
+			generate_dispute_statement_set(
+				session,
+				candidate_hash_b,
+				validators,
+				vec![
+					(1, DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)),
+					(6, DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)),
+				],
+			),
+			// c
+			generate_dispute_statement_set(
+				session,
+				candidate_hash_c,
+				validators,
+				vec![
+					(2, DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)),
+					(6, DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)),
+				],
+			),
+			// d
+			generate_dispute_statement_set(
+				session,
+				candidate_hash_d,
+				validators,
+				vec![
+					(4, DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)),
+					(5, DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)),
+				],
+			),
+			generate_dispute_statement_set(
+				session,
+				candidate_hash_d,
+				validators,
+				vec![(6, DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit))],
+			),
+		];
+
+		// no filtering happens, host config for `dispute_max_spam_slots: 2` is the default
+		// updates spam slots implicitly
+		let set = stmts[0].clone();
+		let filter = Pallet::<Test>::filter_dispute_data(
+			&set,
+			post_conclusion_acceptance_period,
+			dispute_max_spam_slots,
+			VerifyDisputeSignatures::Skip,
+		);
+		assert_matches!(&filter, StatementSetFilter::RemoveIndices(v) if v.is_empty());
+		assert_matches!(filter.filter_statement_set(set.clone()), Some(modified) => {
+			assert_eq!(&set, modified.as_ref());
+		});
+		assert_eq!(SpamSlots::<Test>::get(session), Some(vec![0, 0, 0, 1, 0, 0, 1]));
+
+		// <----->
+
+		// 2nd, still ok? Should be
+		let set = stmts[1].clone();
+		let filter = Pallet::<Test>::filter_dispute_data(
+			&set,
+			post_conclusion_acceptance_period,
+			dispute_max_spam_slots,
+			VerifyDisputeSignatures::Skip,
+		);
+		assert_matches!(&filter, StatementSetFilter::RemoveIndices(v) if v.is_empty());
+		assert_matches!(filter.filter_statement_set(set.clone()), Some(modified) => {
+			assert_eq!(&set, modified.as_ref());
+		});
+		assert_eq!(SpamSlots::<Test>::get(session), Some(vec![0, 1, 0, 1, 0, 0, 2]));
+
+		// <----->
+
+		// now this is the third spammy participation of validator 6 and hence
+		let set = stmts[2].clone();
+		let filter = Pallet::<Test>::filter_dispute_data(
+			&set,
+			post_conclusion_acceptance_period,
+			dispute_max_spam_slots,
+			VerifyDisputeSignatures::Skip,
+		);
+		assert_matches!(&filter, StatementSetFilter::RemoveAll);
+		// no need to apply the filter,
+		// we don't do anything with the result, and spam slots were updated already
+
+		// <----->
+
+		// now there is no pariticipation in this dispute being initiated
+		// only validator 4 and 5 are part of it
+		// with 3 validators it's not a an unconfirmed dispute anymore
+		// so validator 6, while being considered spammy should work again
+		let set = stmts[3].clone();
+		let filter = Pallet::<Test>::filter_dispute_data(
+			&set,
+			post_conclusion_acceptance_period,
+			dispute_max_spam_slots,
+			VerifyDisputeSignatures::Skip,
+		);
+		assert_matches!(&filter, StatementSetFilter::RemoveIndices(v) if v.is_empty());
+		// no need to apply the filter,
+		// we don't do anything with the result, and spam slots were updated already
+
+		// <----->
+
+		// it's a spammy participant, so a new dispute will not be accepted being initiated by a spammer
+		let set = stmts[4].clone();
+		let filter = Pallet::<Test>::filter_dispute_data(
+			&set,
+			post_conclusion_acceptance_period,
+			dispute_max_spam_slots,
+			VerifyDisputeSignatures::Skip,
+		);
+		assert_matches!(&filter, StatementSetFilter::RemoveAll);
+		assert_matches!(filter.filter_statement_set(set.clone()), None);
+
+		assert_eq!(SpamSlots::<Test>::get(session), Some(vec![0, 1, 1, 1, 1, 1, 3]));
+	});
 }
 
 // Test that punish_inconclusive is correctly called.
