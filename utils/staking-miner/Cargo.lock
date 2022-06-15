@@ -1934,7 +1934,7 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "polkadot-core-primitives"
-version = "0.9.22"
+version = "0.9.23"
 dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
@@ -3681,7 +3681,7 @@ dependencies = [
 
 [[package]]
 name = "staking-miner"
-version = "0.9.22"
+version = "0.9.23"
 dependencies = [
  "anyhow",
  "assert_cmd",
