@@ -337,7 +337,7 @@ fn seconding_sanity_check_allowed() {
 			relay_parent: leaf_a_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
@@ -481,7 +481,7 @@ fn seconding_sanity_check_disallowed() {
 			relay_parent: leaf_a_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
@@ -574,7 +574,7 @@ fn seconding_sanity_check_disallowed() {
 			relay_parent: leaf_a_grandparent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
@@ -672,7 +672,7 @@ fn prospective_parachains_reject_candidate() {
 			relay_parent: leaf_a_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
@@ -846,7 +846,7 @@ fn second_multiple_candidates_per_relay_parent() {
 			relay_parent: leaf_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
@@ -978,7 +978,7 @@ fn backing_works() {
 			relay_parent: leaf_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			validation_code: validation_code.0.clone(),
 			persisted_validation_data_hash: pvd.hash(),
 			..Default::default()
@@ -1117,6 +1117,236 @@ fn backing_works() {
 			vec![ValidatorIndex(5)],
 		)
 		.await;
+		virtual_overseer
+	});
+}
+
+// Tests that validators start work on consecutive prospective parachain blocks.
+#[test]
+fn concurrent_dependent_candidates() {
+	let test_state = TestState::default();
+	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
+		// Candidate `a` is seconded in a grandparent of the activated `leaf`,
+		// candidate `b` -- in parent.
+		const LEAF_BLOCK_NUMBER: BlockNumber = 100;
+		const LEAF_DEPTH: BlockNumber = 3;
+		let para_id = test_state.chain_ids[0];
+
+		let leaf_hash = Hash::from_low_u64_be(130);
+		let leaf_parent = get_parent_hash(leaf_hash);
+		let leaf_grandparent = get_parent_hash(leaf_parent);
+		let activated = ActivatedLeaf {
+			hash: leaf_hash,
+			number: LEAF_BLOCK_NUMBER,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		};
+		let min_relay_parents = vec![(para_id, LEAF_BLOCK_NUMBER - LEAF_DEPTH)];
+		let test_leaf_a = TestLeaf { activated, min_relay_parents };
+
+		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
+
+		let head_data = &[
+			HeadData(vec![10, 20, 30]), // Before `a`.
+			HeadData(vec![11, 21, 31]), // After `a`.
+			HeadData(vec![12, 22]),     // After `b`.
+		];
+
+		let pov_a = PoV { block_data: BlockData(vec![42, 43, 44]) };
+		let pvd_a = PersistedValidationData {
+			parent_head: head_data[0].clone(),
+			relay_parent_number: LEAF_BLOCK_NUMBER - 2,
+			relay_parent_storage_root: Hash::zero(),
+			max_pov_size: 1024,
+		};
+
+		let pov_b = PoV { block_data: BlockData(vec![22, 14, 100]) };
+		let pvd_b = PersistedValidationData {
+			parent_head: head_data[1].clone(),
+			relay_parent_number: LEAF_BLOCK_NUMBER - 1,
+			relay_parent_storage_root: Hash::zero(),
+			max_pov_size: 1024,
+		};
+		let validation_code = ValidationCode(vec![1, 2, 3]);
+
+		let candidate_a = TestCandidateBuilder {
+			para_id,
+			relay_parent: leaf_grandparent,
+			pov_hash: pov_a.hash(),
+			head_data: head_data[1].clone(),
+			erasure_root: make_erasure_root(&test_state, pov_a.clone(), pvd_a.clone()),
+			persisted_validation_data_hash: pvd_a.hash(),
+			validation_code: validation_code.0.clone(),
+			..Default::default()
+		}
+		.build();
+		let candidate_b = TestCandidateBuilder {
+			para_id,
+			relay_parent: leaf_parent,
+			pov_hash: pov_b.hash(),
+			head_data: head_data[2].clone(),
+			erasure_root: make_erasure_root(&test_state, pov_b.clone(), pvd_b.clone()),
+			persisted_validation_data_hash: pvd_b.hash(),
+			validation_code: validation_code.0.clone(),
+			..Default::default()
+		}
+		.build();
+		let candidate_a_hash = candidate_a.hash();
+		let candidate_b_hash = candidate_b.hash();
+
+		let public1 = CryptoStore::sr25519_generate_new(
+			&*test_state.keystore,
+			ValidatorId::ID,
+			Some(&test_state.validators[5].to_seed()),
+		)
+		.await
+		.expect("Insert key into keystore");
+		let public2 = CryptoStore::sr25519_generate_new(
+			&*test_state.keystore,
+			ValidatorId::ID,
+			Some(&test_state.validators[2].to_seed()),
+		)
+		.await
+		.expect("Insert key into keystore");
+
+		// Signing context should have a parent hash candidate is based on.
+		let signing_context =
+			SigningContext { parent_hash: leaf_grandparent, session_index: test_state.session() };
+		let signed_a = SignedFullStatementWithPVD::sign(
+			&test_state.keystore,
+			StatementWithPVD::Seconded(candidate_a.clone(), pvd_a.clone()),
+			&signing_context,
+			ValidatorIndex(2),
+			&public2.into(),
+		)
+		.await
+		.ok()
+		.flatten()
+		.expect("should be signed");
+
+		let signing_context =
+			SigningContext { parent_hash: leaf_parent, session_index: test_state.session() };
+		let signed_b = SignedFullStatementWithPVD::sign(
+			&test_state.keystore,
+			StatementWithPVD::Seconded(candidate_b.clone(), pvd_b.clone()),
+			&signing_context,
+			ValidatorIndex(5),
+			&public1.into(),
+		)
+		.await
+		.ok()
+		.flatten()
+		.expect("should be signed");
+
+		let statement_a = CandidateBackingMessage::Statement(leaf_grandparent, signed_a.clone());
+		let statement_b = CandidateBackingMessage::Statement(leaf_parent, signed_b.clone());
+
+		virtual_overseer.send(FromOverseer::Communication { msg: statement_a }).await;
+		// At this point the subsystem waits for response, the previous message is received,
+		// send a second one without blocking.
+		let _ = virtual_overseer
+			.tx
+			.start_send_unpin(FromOverseer::Communication { msg: statement_b });
+
+		let mut valid_statements = HashSet::new();
+
+		loop {
+			let msg = virtual_overseer
+				.recv()
+				.timeout(std::time::Duration::from_secs(1))
+				.await
+				.expect("overseer recv timed out");
+
+			// Order is not guaranteed since we have 2 statements being handled concurrently.
+			match msg {
+				AllMessages::ProspectiveParachains(
+					ProspectiveParachainsMessage::CandidateSeconded(.., tx),
+				) => {
+					tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
+				},
+				AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ImportStatements {
+					..
+				}) => {},
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_,
+					RuntimeApiRequest::ValidationCodeByHash(_, tx),
+				)) => {
+					tx.send(Ok(Some(validation_code.clone()))).unwrap();
+				},
+				AllMessages::AvailabilityDistribution(
+					AvailabilityDistributionMessage::FetchPoV { candidate_hash, tx, .. },
+				) => {
+					let pov = if candidate_hash == candidate_a_hash {
+						&pov_a
+					} else if candidate_hash == candidate_b_hash {
+						&pov_b
+					} else {
+						panic!("unknown candidate hash")
+					};
+					tx.send(pov.clone()).unwrap();
+				},
+				AllMessages::CandidateValidation(
+					CandidateValidationMessage::ValidateFromExhaustive(.., candidate, _, _, tx),
+				) => {
+					let candidate_hash = candidate.hash();
+					let (head_data, pvd) = if candidate_hash == candidate_a_hash {
+						(&head_data[1], &pvd_a)
+					} else if candidate_hash == candidate_b_hash {
+						(&head_data[2], &pvd_b)
+					} else {
+						panic!("unknown candidate hash")
+					};
+					tx.send(Ok(ValidationResult::Valid(
+						CandidateCommitments {
+							head_data: head_data.clone(),
+							horizontal_messages: Vec::new(),
+							upward_messages: Vec::new(),
+							new_validation_code: None,
+							processed_downward_messages: 0,
+							hrmp_watermark: 0,
+						},
+						pvd.clone(),
+					)))
+					.unwrap();
+				},
+				AllMessages::AvailabilityStore(AvailabilityStoreMessage::StoreAvailableData {
+					tx,
+					..
+				}) => {
+					tx.send(Ok(())).unwrap();
+				},
+				AllMessages::ProspectiveParachains(
+					ProspectiveParachainsMessage::CandidateBacked(..),
+				) => {},
+				AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(..)) => {},
+				AllMessages::StatementDistribution(StatementDistributionMessage::Share(
+					_,
+					statement,
+				)) => {
+					assert_eq!(statement.validator_index(), ValidatorIndex(0));
+					let payload = statement.payload();
+					assert_matches!(
+						payload.clone(),
+						Statement::Valid(hash)
+							if hash == candidate_a_hash || hash == candidate_b_hash =>
+						{
+							assert!(valid_statements.insert(hash));
+						}
+					);
+
+					if valid_statements.len() == 2 {
+						break
+					}
+				},
+				_ => panic!("unexpected message received from overseer: {:?}", msg),
+			}
+		}
+
+		assert!(
+			valid_statements.contains(&candidate_a_hash) &&
+				valid_statements.contains(&candidate_b_hash)
+		);
+
 		virtual_overseer
 	});
 }

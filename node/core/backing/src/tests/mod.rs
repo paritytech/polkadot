@@ -189,9 +189,8 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	));
 }
 
-fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
-	let available_data =
-		AvailableData { validation_data: test.validation_data.clone(), pov: Arc::new(pov) };
+fn make_erasure_root(test: &TestState, pov: PoV, validation_data: PersistedValidationData) -> Hash {
+	let available_data = AvailableData { validation_data, pov: Arc::new(pov) };
 
 	let chunks = erasure_coding::obtain_chunks_v1(test.validators.len(), &available_data).unwrap();
 	erasure_coding::branches(&chunks).root()
@@ -348,7 +347,7 @@ fn backing_second_works() {
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
@@ -469,7 +468,7 @@ fn backing_works() {
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
 		}
@@ -665,7 +664,7 @@ fn backing_works_while_validation_ongoing() {
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
 		}
@@ -890,7 +889,7 @@ fn backing_misbehavior_works() {
 			para_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			head_data: expected_head_data.clone(),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
@@ -1119,7 +1118,7 @@ fn backing_dont_second_invalid() {
 			para_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash: pov_hash_a,
-			erasure_root: make_erasure_root(&test_state, pov_block_a.clone()),
+			erasure_root: make_erasure_root(&test_state, pov_block_a.clone(), pvd_a.clone()),
 			persisted_validation_data_hash: pvd_a.hash(),
 			validation_code: validation_code_a.0.clone(),
 			..Default::default()
@@ -1130,7 +1129,7 @@ fn backing_dont_second_invalid() {
 			para_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash: pov_hash_b,
-			erasure_root: make_erasure_root(&test_state, pov_block_b.clone()),
+			erasure_root: make_erasure_root(&test_state, pov_block_b.clone(), pvd_b.clone()),
 			head_data: expected_head_data.clone(),
 			persisted_validation_data_hash: pvd_b.hash(),
 			validation_code: validation_code_b.0.clone(),
@@ -1227,7 +1226,7 @@ fn backing_dont_second_invalid() {
 						new_validation_code: None,
 						processed_downward_messages: 0,
 						hrmp_watermark: 0,
-					}, test_state.validation_data.clone()),
+					}, pvd_b.clone()),
 				)).unwrap();
 			}
 		);
@@ -1288,7 +1287,7 @@ fn backing_second_after_first_fails_works() {
 			para_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
@@ -1395,7 +1394,11 @@ fn backing_second_after_first_fails_works() {
 			para_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
-			erasure_root: make_erasure_root(&test_state, pov_to_second.clone()),
+			erasure_root: make_erasure_root(
+				&test_state,
+				pov_to_second.clone(),
+				pvd_to_second.clone(),
+			),
 			persisted_validation_data_hash: pvd_to_second.hash(),
 			validation_code: validation_code_to_second.0.clone(),
 			..Default::default()
@@ -1453,7 +1456,7 @@ fn backing_works_after_failed_validation() {
 			para_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
 		}
@@ -1578,7 +1581,7 @@ fn backing_doesnt_second_wrong_collator() {
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
@@ -1636,7 +1639,7 @@ fn validation_work_ignores_wrong_collator() {
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
@@ -1766,7 +1769,7 @@ fn retry_works() {
 			para_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
 			pov_hash,
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
@@ -1980,7 +1983,7 @@ fn observes_backing_even_if_not_validator() {
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
@@ -2120,7 +2123,7 @@ fn cannot_second_multiple_candidates_per_parent() {
 			relay_parent: test_state.relay_parent,
 			pov_hash,
 			head_data: expected_head_data.clone(),
-			erasure_root: make_erasure_root(&test_state, pov.clone()),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
 			persisted_validation_data_hash: pvd.hash(),
 			validation_code: validation_code.0.clone(),
 			..Default::default()
