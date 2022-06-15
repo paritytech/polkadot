@@ -8,7 +8,7 @@ license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
-finality-grandpa = { version = "0.15.0", default-features = false }
+finality-grandpa = { version = "0.16.0", default-features = false }
 scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
 serde = { version = "1.0", optional = true }
 
@@ -25,7 +25,6 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", default-features
 sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
 
 [dev-dependencies]
-assert_matches = "1.5"
 bp-test-utils = { path = "../test-utils" }
 hex = "0.4"
 hex-literal = "0.3"

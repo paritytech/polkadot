@@ -14,7 +14,7 @@
 // limitations under the License.
 
 use quote::{format_ident, quote};
-use syn::{parse_quote, Path, PathSegment};
+use syn::{parse_quote, Path, PathSegment, TypePath};
 
 use super::*;
 
@@ -89,7 +89,12 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 	let field_name = subsystem_name.iter().chain(baggage_name.iter()).collect::<Vec<_>>();
 	let field_type = subsystem_generics
 		.iter()
-		.map(|ident| Path::from(PathSegment::from(ident.clone())))
+		.map(|ident| {
+			syn::Type::Path(TypePath {
+				qself: None,
+				path: Path::from(PathSegment::from(ident.clone())),
+			})
+		})
 		.chain(info.baggage().iter().map(|bag| bag.field_ty.clone()))
 		.collect::<Vec<_>>();
 
@@ -249,14 +254,9 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 		post_setter_generics[idx] = parse_quote! { Init<#field_type> };
 
 		// Baggage can also be generic, so we need to include that to a signature
-		let preserved_baggage_generic = if bag_field.generic {
-			quote! {#field_type,}
-		} else {
-			TokenStream::new()
-		};
-
+		let preserved_baggage_generics = &bag_field.generic_types;
 		quote! {
-			impl <InitStateSpawner, #preserved_baggage_generic #( #subsystem_passthrough_state_generics, )* #( #impl_baggage_state_generics, )* >
+			impl <InitStateSpawner, #( #preserved_baggage_generics, )* #( #subsystem_passthrough_state_generics, )* #( #impl_baggage_state_generics, )* >
 			#builder <InitStateSpawner, #( #subsystem_passthrough_state_generics, )* #( #pre_setter_generics, )* >
 			{
 				/// Specify the baggage in the builder when it was not initialized before
@@ -278,7 +278,7 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 					}
 				}
 			}
-			impl <InitStateSpawner, #preserved_baggage_generic #( #subsystem_passthrough_state_generics, )* #( #impl_baggage_state_generics, )* >
+			impl <InitStateSpawner, #( #preserved_baggage_generics, )* #( #subsystem_passthrough_state_generics, )* #( #impl_baggage_state_generics, )* >
 			#builder <InitStateSpawner, #( #subsystem_passthrough_state_generics, )* #( #post_setter_generics, )* > {
 				/// Specify the baggage in the builder when it has been previously initialized
 				pub fn #fname (self, var: #field_type ) ->
