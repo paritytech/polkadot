@@ -1119,13 +1119,6 @@ impl<Context> CandidateBackingJob<Context> {
 			},
 		};
 
-		let maybe_signed_dispute_statement = SignedDisputeStatement::from_backing_statement(
-			statement.as_unchecked(),
-			signing_context,
-			validator_public.clone(),
-		)
-		.ok();
-
 		if let (Some(candidate_receipt), Some(dispute_statement)) =
 			(maybe_candidate_receipt, maybe_signed_dispute_statement)
 		{
