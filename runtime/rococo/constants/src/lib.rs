@@ -98,7 +98,7 @@ pub mod fee {
 #[cfg(test)]
 mod tests {
 	use super::{
-		currency::{CENTS, UNITRS, MILLICENTS},
+		currency::{CENTS, UNITS, MILLICENTS},
 		fee::WeightToFee,
 	};
 	use crate::weights::ExtrinsicBaseWeight;
