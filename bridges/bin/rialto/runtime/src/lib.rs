@@ -250,6 +250,7 @@ impl pallet_babe::Config for Runtime {
 
 impl pallet_beefy::Config for Runtime {
 	type BeefyId = BeefyId;
+	type MaxAuthorities = MaxAuthorities;
 }
 
 impl pallet_bridge_dispatch::Config for Runtime {

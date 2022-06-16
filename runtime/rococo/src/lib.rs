@@ -679,6 +679,7 @@ impl paras_registrar::Config for Runtime {
 
 impl pallet_beefy::Config for Runtime {
 	type BeefyId = BeefyId;
+	type MaxAuthorities = MaxAuthorities;
 }
 
 type MmrHash = <Keccak256 as sp_runtime::traits::Hash>::Output;

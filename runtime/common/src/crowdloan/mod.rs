@@ -691,6 +691,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub fn crowdloan_kill(index: FundIndex) -> child::KillStorageResult {
+		#[allow(deprecated)]
 		child::kill_storage(&Self::id_from_index(index), Some(T::RemoveKeysLimit::get()))
 	}
 

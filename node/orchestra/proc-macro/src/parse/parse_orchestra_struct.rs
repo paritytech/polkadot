@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use itertools::Itertools;
 use proc_macro2::{Span, TokenStream};
 use std::collections::{hash_map::RandomState, HashMap, HashSet};
 use syn::{
@@ -21,8 +22,8 @@ use syn::{
 	punctuated::Punctuated,
 	spanned::Spanned,
 	token::Bracket,
-	AttrStyle, Error, Field, FieldsNamed, GenericParam, Ident, ItemStruct, Path, Result, Token,
-	Type, Visibility,
+	AttrStyle, Error, Field, FieldsNamed, GenericParam, Ident, ItemStruct, Path, PathSegment,
+	Result, Token, Type, Visibility,
 };
 
 use quote::{quote, ToTokens};
@@ -106,11 +107,71 @@ pub(crate) struct SubSysField {
 	pub(crate) wip: bool,
 }
 
-fn try_type_to_path(ty: Type, span: Span) -> Result<Path> {
+// Converts a type enum to a path if this type is a TypePath
+fn try_type_to_path(ty: &Type, span: Span) -> Result<Path> {
 	match ty {
-		Type::Path(path) => Ok(path.path),
+		Type::Path(path) => Ok(path.path.clone()),
 		_ => Err(Error::new(span, "Type must be a path expression.")),
 	}
+}
+
+// Converts a Rust type to a list of idents recursively checking the possible values
+fn flatten_type(ty: &Type, span: Span) -> Result<Vec<Ident>> {
+	match ty {
+		syn::Type::Array(ar) => flatten_type(&ar.elem, span),
+		syn::Type::Paren(par) => flatten_type(&par.elem, span),
+		syn::Type::Path(type_path) => type_path
+			.path
+			.segments
+			.iter()
+			.map(|seg| flatten_path_segments(seg, span.clone()))
+			.flatten_ok()
+			.collect::<Result<Vec<_>>>(),
+		syn::Type::Tuple(tup) => tup
+			.elems
+			.iter()
+			.map(|element| flatten_type(element, span.clone()))
+			.flatten_ok()
+			.collect::<Result<Vec<_>>>(),
+		_ => Err(Error::new(span, format!("Unsupported type: {:?}", ty))),
+	}
+}
+
+// Flatten segments of some path to a list of idents used in these segments
+fn flatten_path_segments(path_segment: &PathSegment, span: Span) -> Result<Vec<Ident>> {
+	let mut result = vec![path_segment.ident.clone()];
+
+	match &path_segment.arguments {
+		syn::PathArguments::AngleBracketed(args) => {
+			let mut recursive_idents = args
+				.args
+				.iter()
+				.map(|generic_argument| match generic_argument {
+					syn::GenericArgument::Type(ty) => flatten_type(ty, span.clone()),
+					_ => Err(Error::new(
+						span,
+						format!(
+							"Field has a generic with an unsupported parameter {:?}",
+							generic_argument
+						),
+					)),
+				})
+				.flatten_ok()
+				.collect::<Result<Vec<_>>>()?;
+			result.append(&mut recursive_idents);
+		},
+		syn::PathArguments::None => {},
+		_ =>
+			return Err(Error::new(
+				span,
+				format!(
+					"Field has a generic with an unsupported path {:?}",
+					path_segment.arguments
+				),
+			)),
+	}
+
+	Ok(result)
 }
 
 macro_rules! extract_variant {
@@ -254,8 +315,8 @@ impl Parse for SubSystemAttrItems {
 #[derive(Debug, Clone)]
 pub(crate) struct BaggageField {
 	pub(crate) field_name: Ident,
-	pub(crate) field_ty: Path,
-	pub(crate) generic: bool,
+	pub(crate) field_ty: Type,
+	pub(crate) generic_types: Vec<Ident>,
 	pub(crate) vis: Visibility,
 }
 
@@ -359,8 +420,7 @@ impl OrchestraInfo {
 	pub(crate) fn baggage_generic_types(&self) -> Vec<Ident> {
 		self.baggage
 			.iter()
-			.filter(|bag| bag.generic)
-			.filter_map(|bag| bag.field_ty.get_ident().cloned())
+			.flat_map(|bag| bag.generic_types.clone())
 			.collect::<Vec<_>>()
 	}
 
@@ -423,7 +483,7 @@ impl OrchestraGuts {
 			let ident = ident.ok_or_else(|| {
 				Error::new(
 					ty.span(),
-					"Missing identifier for field, only named fields are expceted.",
+					"Missing identifier for field, only named fields are expected.",
 				)
 			})?;
 
@@ -442,7 +502,7 @@ impl OrchestraGuts {
 				let attr_tokens = attr_tokens.clone();
 				let subsystem_attrs: SubSystemAttrItems = syn::parse2(attr_tokens.clone())?;
 
-				let field_ty = try_type_to_path(ty, span)?;
+				let field_ty = try_type_to_path(&ty, span)?;
 				let generic = field_ty
 					.get_ident()
 					.ok_or_else(|| {
@@ -484,12 +544,13 @@ impl OrchestraGuts {
 					blocking,
 				});
 			} else {
-				let field_ty = try_type_to_path(ty, ident.span())?;
-				let generic = field_ty
-					.get_ident()
-					.map(|ident| baggage_generics.contains(ident))
-					.unwrap_or(false);
-				baggage.push(BaggageField { field_name: ident, generic, field_ty, vis });
+				let flattened = flatten_type(&ty, ident.span())?;
+				let generic_types = flattened
+					.iter()
+					.filter(|flat_ident| baggage_generics.contains(flat_ident))
+					.cloned()
+					.collect::<Vec<_>>();
+				baggage.push(BaggageField { field_name: ident, generic_types, field_ty: ty, vis });
 			}
 		}
 		Ok(Self { name, subsystems, baggage })
@@ -503,7 +564,7 @@ impl Parse for OrchestraGuts {
 			syn::Fields::Named(named) => {
 				let name = ds.ident.clone();
 
-				// collect the indepedentent subsystem generics
+				// collect the independent subsystem generics
 				// which need to be carried along, there are the non-generated ones
 				let mut orig_generics = ds.generics;
 
