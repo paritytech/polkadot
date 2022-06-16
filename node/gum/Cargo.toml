@@ -1,6 +1,6 @@
 [package]
 name = "tracing-gum"
-version = "0.9.22"
+version = "0.9.23"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Stick logs together with the TraceID as provided by tempo"

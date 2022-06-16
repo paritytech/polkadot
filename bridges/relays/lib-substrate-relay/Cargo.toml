@@ -20,7 +20,7 @@ log = "0.4.14"
 bp-header-chain = { path = "../../primitives/header-chain" }
 bridge-runtime-common = { path = "../../bin/runtime-common" }
 
-finality-grandpa = { version = "0.15.0" }
+finality-grandpa = { version = "0.16.0" }
 finality-relay = { path = "../finality" }
 relay-utils = { path = "../utils" }
 messages-relay = { path = "../messages" }
