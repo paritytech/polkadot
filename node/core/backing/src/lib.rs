@@ -50,8 +50,8 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v2::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
-	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
-	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SigningContext,
+	ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{

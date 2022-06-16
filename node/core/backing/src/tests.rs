@@ -66,12 +66,6 @@ struct TestState {
 	relay_parent: Hash,
 }
 
-impl TestState {
-	fn session(&self) -> SessionIndex {
-		self.signing_context.session_index
-	}
-}
-
 impl Default for TestState {
 	fn default() -> Self {
 		let chain_a = ParaId::from(1);
