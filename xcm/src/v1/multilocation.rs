@@ -1011,8 +1011,6 @@ mod tests {
 	#[test]
 	fn conversion_from_other_types_works() {
 		use crate::v0;
-		use sp_runtime::WeakBoundedVec;
-
 		fn takes_multilocation<Arg: Into<MultiLocation>>(_arg: Arg) {}
 
 		takes_multilocation(Parent);
