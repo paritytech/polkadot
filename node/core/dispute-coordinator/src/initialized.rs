@@ -740,11 +740,11 @@ impl Initialized {
 				continue
 			}
 
-			match statement.statement().clone() {
+			match statement.statement() {
 				DisputeStatement::Valid(valid_kind) => {
 					let fresh = insert_into_statement_vec(
 						&mut votes.valid,
-						valid_kind,
+						*valid_kind,
 						*val_index,
 						statement.validator_signature().clone(),
 					);
@@ -759,7 +759,7 @@ impl Initialized {
 				DisputeStatement::Invalid(invalid_kind) => {
 					let fresh = insert_into_statement_vec(
 						&mut votes.invalid,
-						invalid_kind,
+						*invalid_kind,
 						*val_index,
 						statement.validator_signature().clone(),
 					);
