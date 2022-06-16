@@ -1015,7 +1015,7 @@ impl<Context> CandidateBackingJob<Context> {
 		};
 
 		if let Err(ValidatorIndexOutOfBounds) = self
-			.dispatch_new_statement_to_dispute_coordinator(ctx.sender(), candidate_hash, &statement)
+			.dispatch_new_statement_to_dispute_coordinator(ctx.sender(), statement.clone())
 			.await
 		{
 			gum::warn!(
@@ -1098,8 +1098,7 @@ impl<Context> CandidateBackingJob<Context> {
 	async fn dispatch_new_statement_to_dispute_coordinator(
 		&self,
 		sender: &mut impl overseer::CandidateBackingSenderTrait,
-		candidate_hash: CandidateHash,
-		statement: &SignedFullStatement,
+		statement: SignedFullStatement,
 	) -> Result<(), ValidatorIndexOutOfBounds> {
 		// Dispatch the statement to the dispute coordinator.
 		let validator_index = statement.validator_index();
@@ -1131,12 +1130,9 @@ impl<Context> CandidateBackingJob<Context> {
 			(maybe_candidate_receipt, maybe_signed_dispute_statement)
 		{
 			sender
-				.send_message(DisputeCoordinatorMessage::ImportStatements {
-					candidate_hash,
-					candidate_receipt,
+				.send_message(DisputeCoordinatorMessage::ImportBackingStatement {
+					statement,
 					session: self.session_index,
-					statements: vec![(dispute_statement, validator_index)],
-					pending_confirmation: None,
 				})
 				.await;
 		}

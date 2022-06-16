@@ -230,12 +230,14 @@ impl BoundToRelayParent for CollatorProtocolMessage {
 /// properly initialized for some reason.
 #[derive(Debug)]
 pub enum DisputeCoordinatorMessage {
+	/// Import backing statements into the dispute coordinator
 	ImportBackingStatement {
 		/// The backing statement to import into the dispute coordinator.
 		statement: SignedFullStatement,
 		/// Context used for signing the statement.
 		session: SessionIndex,
 	},
+	/// Import approval votes.
 	ImportApprovalVote {
 		vote: ApprovalVote,
 		session: SessionIndex,
