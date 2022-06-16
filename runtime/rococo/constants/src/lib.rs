@@ -26,12 +26,11 @@ pub mod currency {
 	pub const EXISTENTIAL_DEPOSIT: Balance = 1 * CENTS;
 
 	pub const UNITS: Balance = 1_000_000_000_000;
-	pub const CENTS: Balance = DOLLARS / 100;
-	pub const DOLLARS: Balance = UNITS;
+	pub const CENTS: Balance = UNITS / 100;
 	pub const MILLICENTS: Balance = CENTS / 1_000;
 
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
-		items as Balance * 1 * DOLLARS + (bytes as Balance) * 5 * MILLICENTS
+		items as Balance * 1 * UNITS + (bytes as Balance) * 5 * MILLICENTS
 	}
 }
 
@@ -98,7 +97,7 @@ pub mod fee {
 #[cfg(test)]
 mod tests {
 	use super::{
-		currency::{CENTS, DOLLARS, MILLICENTS},
+		currency::{CENTS, UNITRS, MILLICENTS},
 		fee::WeightToFee,
 	};
 	use crate::weights::ExtrinsicBaseWeight;
@@ -108,10 +107,10 @@ mod tests {
 	#[test]
 	// Test that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight has sane bounds.
 	fn full_block_fee_is_correct() {
-		// A full block should cost between 10 and 100 DOLLARS.
+		// A full block should cost between 10 and 100 UNITS.
 		let full_block = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
-		assert!(full_block >= 10 * DOLLARS);
-		assert!(full_block <= 100 * DOLLARS);
+		assert!(full_block >= 10 * UNITS);
+		assert!(full_block <= 100 * UNITS);
 	}
 
 	#[test]
