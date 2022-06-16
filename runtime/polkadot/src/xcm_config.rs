@@ -157,7 +157,7 @@ parameter_types! {
 	pub const AdvertisedXcmVersion: u32 = 2;
 }
 
-/// Type to convert a council origin to a Plurality MultiLocation value.
+/// Type to convert a council origin to a Plurality `MultiLocation` value.
 pub type CouncilToPlurality = BackingToPlurality<
 	Origin,
 	pallet_collective::Origin<Runtime, CouncilCollective>,

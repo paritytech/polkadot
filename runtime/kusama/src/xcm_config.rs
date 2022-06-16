@@ -152,7 +152,7 @@ parameter_types! {
 	pub const CouncilBodyId: BodyId = BodyId::Executive;
 }
 
-/// Type to convert the council origin to a Plurality MultiLocation value.
+/// Type to convert the council origin to a Plurality `MultiLocation` value.
 pub type CouncilToPlurality = BackingToPlurality<
 	Origin,
 	pallet_collective::Origin<Runtime, CouncilCollective>,
