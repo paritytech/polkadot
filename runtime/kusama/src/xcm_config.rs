@@ -171,7 +171,7 @@ pub type LocalOriginToLocation = (
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	// We only allow the council to send messages. This is basically safe to enable for everyone
-	// (safe the possibility of someone spamming the parachain if they're willing to pay the DOT to
+	// (safe the possibility of someone spamming the parachain if they're willing to pay the KSM to
 	// send from the Relay-chain), but it's useless until we bring in XCM v3 which will make
 	// `DescendOrigin` a bit more useful.
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, CouncilToPlurality>;
