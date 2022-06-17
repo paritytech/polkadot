@@ -162,10 +162,4 @@ benchmarks! {
 		let losers = <PendingAgainstValidLosers<T>>::get(session_index, CANDIDATE_HASH);
 		assert!(losers.is_none());
 	}
-
-	impl_benchmark_test_suite!(
-		Pallet,
-		crate::mock::new_test_ext(Default::default()),
-		crate::mock::Test
-	);
 }
