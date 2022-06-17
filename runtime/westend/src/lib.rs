@@ -283,6 +283,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Config for Runtime {
+	type Event = Event;
 	type OnChargeTransaction = CurrencyAdapter<Balances, ToAuthor<Runtime>>;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
@@ -1083,7 +1084,7 @@ construct_runtime! {
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 2,
 		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>} = 3,
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 4,
-		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 26,
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage, Event<T>} = 26,
 
 		// Consensus support.
 		// Authorship must be before session in order to note author in the correct session and era
@@ -1192,29 +1193,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(
-		RenameBagsListToVoterList,
-		pallet_bags_list::migrations::AddScore<Runtime>,
-		pallet_nomination_pools::migration::v1::MigrateToV1<Runtime>,
-	),
+	(),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-/// A migration which renames the pallet `BagsList` to `VoterList`
-pub struct RenameBagsListToVoterList;
-impl frame_support::traits::OnRuntimeUpgrade for RenameBagsListToVoterList {
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		// For other pre-upgrade checks, we need the storage to already be migrated.
-		frame_support::storage::migration::move_pallet(b"BagsList", b"VoterList");
-		Ok(())
-	}
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		frame_support::storage::migration::move_pallet(b"BagsList", b"VoterList");
-		frame_support::weights::Weight::MAX
-	}
-}
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
