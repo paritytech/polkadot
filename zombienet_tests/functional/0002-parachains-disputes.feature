@@ -48,6 +48,9 @@ eve: reports parachain_candidate_disputes_total is at least 10 within 15 seconds
 eve: reports parachain_candidate_dispute_concluded{validity="valid"} is at least 10 within 15 seconds
 eve: reports parachain_candidate_dispute_concluded{validity="invalid"} is 0 within 15 seconds
 
+# Check there is an offence report
+alice: system event contains "There is an offence reported"
+
 # Check lag - approval
 alice: reports polkadot_parachain_approval_checking_finality_lag is 0
 bob: reports polkadot_parachain_approval_checking_finality_lag is 0
