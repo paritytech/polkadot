@@ -688,9 +688,9 @@ zombienet-test-parachains-upgrade-smoke-test:
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
   needs:
-    - job:                         publish-polkadot-image
+    - job:                         publish-polkadot-debug-image
     - job:                         publish-malus-image
-    - job:                         publish-adder-collator-image
+    - job:                         publish-test-collator-image
   variables:
     GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke'
   before_script:
