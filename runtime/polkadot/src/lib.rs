@@ -1212,7 +1212,7 @@ impl InstanceFilter<Call> for ProxyType {
 			(x, y) if x == y => true,
 			(ProxyType::Any, _) => true,
 			(_, ProxyType::Any) => false,
-			(ProxyType::NonTransfer, _) => true,
+			(ProxyType::NonTransfer, y) => y != ProxyType::Any,
 			_ => false,
 		}
 	}
