@@ -93,9 +93,6 @@ use crate::{
 	backend::{Backend, OverlayedBackend},
 };
 
-#[cfg(test)]
-mod tests;
-
 pub const APPROVAL_SESSIONS: SessionWindowSize = new_session_window_size!(6);
 
 const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
@@ -691,13 +688,6 @@ enum Action {
 		candidate: CandidateReceipt,
 		backing_group: GroupIndex,
 	},
-	InformDisputeCoordinator {
-		candidate_hash: CandidateHash,
-		candidate_receipt: CandidateReceipt,
-		session: SessionIndex,
-		dispute_statement: SignedDisputeStatement,
-		validator_index: ValidatorIndex,
-	},
 	NoteApprovedInChainSelection(Hash),
 	IssueApproval(CandidateHash, ApprovalVoteRequest),
 	BecomeActive,
@@ -956,18 +946,6 @@ async fn handle_actions<Context>(
 					},
 					Some(_) => {},
 				}
-			},
-			Action::InformDisputeCoordinator {
-				..
-			} => {
-				// ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
-				//     candidate_hash,
-				//     candidate_receipt,
-				//     session,
-				//     statements: vec![(dispute_statement, validator_index)],
-				//     pending_confirmation: None,
-				// })
-				// .await;
 			},
 			Action::NoteApprovedInChainSelection(block_hash) => {
 				ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
@@ -1715,7 +1693,7 @@ fn check_and_import_approval<T>(
 
 	// Transform the approval vote into the wrapper used to import statements into disputes.
 	// This also does signature checking.
-	let signed_dispute_statement = match SignedDisputeStatement::new_checked(
+	let _signed_dispute_statement = match SignedDisputeStatement::new_checked(
 		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
 		approved_candidate_hash,
 		block_entry.session(),
@@ -1766,23 +1744,7 @@ fn check_and_import_approval<T>(
 		"Importing approval vote",
 	);
 
-	let inform_disputes_action = if !candidate_entry.has_approved(approval.validator) {
-		// The approval voting system requires a separate approval for each assignment
-		// to the candidate. It's possible that there are semi-duplicate approvals,
-		// but we only need to inform the dispute coordinator about the first expressed
-		// opinion by the validator about the candidate.
-		Some(Action::InformDisputeCoordinator {
-			candidate_hash: approved_candidate_hash,
-			candidate_receipt: candidate_entry.candidate_receipt().clone(),
-			session: block_entry.session(),
-			dispute_statement: signed_dispute_statement,
-			validator_index: approval.validator,
-		})
-	} else {
-		None
-	};
-
-	let mut actions = advance_approval_state(
+	let actions = advance_approval_state(
 		state,
 		db,
 		&metrics,
@@ -1791,8 +1753,6 @@ fn check_and_import_approval<T>(
 		candidate_entry,
 		ApprovalStateTransition::RemoteApproval(approval.validator),
 	);
-
-	actions.extend(inform_disputes_action);
 
 	Ok((actions, t))
 }
@@ -2464,17 +2424,6 @@ async fn issue_approval<Context>(
 		},
 	};
 
-	// Record our statement in the dispute coordinator for later
-	// participation in disputes on the same candidate.
-	let signed_dispute_statement = SignedDisputeStatement::new_checked(
-		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
-		candidate_hash,
-		session,
-		validator_pubkey.clone(),
-		sig.clone(),
-	)
-	.expect("Statement just signed; should pass checks; qed");
-
 	gum::trace!(
 		target: LOG_TARGET,
 		?candidate_hash,
@@ -2483,25 +2432,7 @@ async fn issue_approval<Context>(
 		"Issuing approval vote",
 	);
 
-	let candidate_receipt = candidate_entry.candidate_receipt().clone();
-
-	let inform_disputes_action = if candidate_entry.has_approved(validator_index) {
-		// The approval voting system requires a separate approval for each assignment
-		// to the candidate. It's possible that there are semi-duplicate approvals,
-		// but we only need to inform the dispute coordinator about the first expressed
-		// opinion by the validator about the candidate.
-		Some(Action::InformDisputeCoordinator {
-			candidate_hash,
-			candidate_receipt,
-			session,
-			dispute_statement: signed_dispute_statement,
-			validator_index,
-		})
-	} else {
-		None
-	};
-
-	let mut actions = advance_approval_state(
+	let actions = advance_approval_state(
 		state,
 		db,
 		metrics,
@@ -2522,9 +2453,6 @@ async fn issue_approval<Context>(
 			signature: sig,
 		},
 	));
-
-	// dispatch to dispute coordinator.
-	actions.extend(inform_disputes_action);
 
 	Ok(actions)
 }
