@@ -958,20 +958,16 @@ async fn handle_actions<Context>(
 				}
 			},
 			Action::InformDisputeCoordinator {
-				candidate_hash,
-				candidate_receipt,
-				session,
-				dispute_statement,
-				validator_index,
+				..
 			} => {
-				ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
-					candidate_hash,
-					candidate_receipt,
-					session,
-					statements: vec![(dispute_statement, validator_index)],
-					pending_confirmation: None,
-				})
-				.await;
+				// ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
+				//     candidate_hash,
+				//     candidate_receipt,
+				//     session,
+				//     statements: vec![(dispute_statement, validator_index)],
+				//     pending_confirmation: None,
+				// })
+				// .await;
 			},
 			Action::NoteApprovedInChainSelection(block_hash) => {
 				ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
