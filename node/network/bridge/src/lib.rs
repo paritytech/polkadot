@@ -91,7 +91,7 @@ pub(crate) struct PeerData {
 /// Shared state between incoming and outgoing.
 
 #[derive(Default, Clone)]
-pub struct Shared(Arc<Mutex<SharedInner>>);
+pub(crate) struct Shared(Arc<Mutex<SharedInner>>);
 
 #[derive(Default)]
 struct SharedInner {

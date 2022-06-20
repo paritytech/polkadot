@@ -91,9 +91,9 @@ impl<N, AD> NetworkBridgeRx<N, AD> {
 		network_service: N,
 		authority_discovery_service: AD,
 		sync_oracle: Box<dyn SyncOracle + Send>,
-		shared: Shared,
 		metrics: Metrics,
 	) -> Self {
+		let shared = Shared::default();
 		Self { network_service, authority_discovery_service, sync_oracle, shared, metrics }
 	}
 }

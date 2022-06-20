@@ -191,25 +191,18 @@ where
 
 	let spawner = SpawnGlue(spawner);
 
-	// bridge in and out are coupled via `Shared`.
-	let bridge_out = NetworkBridgeTxSubsystem::new(
-		network_service.clone(),
-		authority_discovery_service.clone(),
-		Box::new(network_service.clone()),
-		Metrics::register(registry)?,
-	);
-
-	let bridge_in = NetworkBridgeRxSubsystem::new(
-		network_service.clone(),
-		authority_discovery_service.clone(),
-		Box::new(network_service.clone()),
-		bridge_out.shared(),
-		Metrics::register(registry)?,
-	);
-
 	let builder = Overseer::builder()
-		.network_bridge(bridge_out)
-		.network_bridge_in(bridge_in)
+		.network_bridge_tx(NetworkBridgeTxSubsystem::new(
+			network_service.clone(),
+			authority_discovery_service.clone(),
+			Metrics::register(registry)?,
+		))
+		.network_bridge_rx(NetworkBridgeRxSubsystem::new(
+			network_service.clone(),
+			authority_discovery_service.clone(),
+			Box::new(network_service.clone()),
+			Metrics::register(registry)?,
+		))
 		.availability_distribution(AvailabilityDistributionSubsystem::new(
 			keystore.clone(),
 			IncomingRequestReceivers { pov_req_receiver, chunk_req_receiver },

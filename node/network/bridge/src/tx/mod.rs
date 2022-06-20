@@ -49,7 +49,6 @@ pub struct NetworkBridgeTx<N, AD> {
 	/// `Network` trait implementing type.
 	network_service: N,
 	authority_discovery_service: AD,
-	shared: Shared,
 	metrics: Metrics,
 }
 
@@ -59,15 +58,7 @@ impl<N, AD> NetworkBridgeTx<N, AD> {
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`peers_sets_info`](peers_sets_info).
 	pub fn new(network_service: N, authority_discovery_service: AD, metrics: Metrics) -> Self {
-		let shared = Shared::default();
-		Self { network_service, authority_discovery_service, shared, metrics }
-	}
-
-	/// Obtain the shared internal state.
-	///
-	/// Should only be used for setting up `NetworkBridgeRx`.
-	pub fn shared(&self) -> Shared {
-		self.shared.clone()
+		Self { network_service, authority_discovery_service, metrics }
 	}
 }
 
@@ -284,8 +275,7 @@ where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
 {
-	let NetworkBridgeTx { network_service, authority_discovery_service, metrics, shared: _ } =
-		bridge;
+	let NetworkBridgeTx { network_service, authority_discovery_service, metrics } = bridge;
 
 	handle_subsystem_messages(ctx, network_service, authority_discovery_service, metrics).await?;
 
