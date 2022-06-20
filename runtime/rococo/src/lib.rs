@@ -32,7 +32,7 @@ use runtime_common::{
 	assigned_slots, auctions, crowdloan, impl_runtime_weights, impls::ToAuthor, paras_registrar,
 	prod_or_fast, paras_sudo_wrapper, slots, BlockHashCount, BlockLength, SlowAdjustingFeeUpdate,
 };
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
@@ -54,7 +54,7 @@ use beefy_primitives::{
 // };
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, InstanceFilter, KeyOwnerProofSystem},
+	traits::{Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, PrivilegeCmp},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug
 };
@@ -93,10 +93,6 @@ use rococo_runtime_constants::{currency::*, fee::*, time::*};
 
 // Weights used in the runtime.
 mod weights;
-
-// TODO: Bags List
-//// Voter bag threshold definitions.
-// mod bag_thresholds;
 
 // XCM configurations.
 pub mod xcm_config;
@@ -188,77 +184,70 @@ impl frame_system::Config for Runtime {
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
-// TODO: Scheduler
-// parameter_types! {
-// 	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
-// 		BlockWeights::get().max_block;
-// 	pub const MaxScheduledPerBlock: u32 = 50;
-// 	pub const NoPreimagePostponement: Option<u32> = Some(10);
-// }
+parameter_types! {
+	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
+		BlockWeights::get().max_block;
+	pub const MaxScheduledPerBlock: u32 = 50;
+	pub const NoPreimagePostponement: Option<u32> = Some(10);
+}
 
-// TODO: Scheduler
-// type ScheduleOrigin = EnsureOneOf<
-// 	EnsureRoot<AccountId>,
-// 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
-// >;
+type ScheduleOrigin = EnsureOneOf<
+	EnsureRoot<AccountId>,
+	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
+>;
 
-// TODO: Scheduler
-///// Used the compare the privilege of an origin inside the scheduler.
-// pub struct OriginPrivilegeCmp;
+/// Used the compare the privilege of an origin inside the scheduler.
+pub struct OriginPrivilegeCmp;
 
-// TODO: Scheduler
-// impl PrivilegeCmp<OriginCaller> for OriginPrivilegeCmp {
-// 	fn cmp_privilege(left: &OriginCaller, right: &OriginCaller) -> Option<Ordering> {
-// 		if left == right {
-// 			return Some(Ordering::Equal)
-// 		}
+impl PrivilegeCmp<OriginCaller> for OriginPrivilegeCmp {
+	fn cmp_privilege(left: &OriginCaller, right: &OriginCaller) -> Option<Ordering> {
+		if left == right {
+			return Some(Ordering::Equal)
+		}
 
-// 		match (left, right) {
-// 			// Root is greater than anything.
-// 			(OriginCaller::system(frame_system::RawOrigin::Root), _) => Some(Ordering::Greater),
-// 			// Check which one has more yes votes.
-// 			(
-// 				OriginCaller::Council(pallet_collective::RawOrigin::Members(l_yes_votes, l_count)),
-// 				OriginCaller::Council(pallet_collective::RawOrigin::Members(r_yes_votes, r_count)),
-// 			) => Some((l_yes_votes * r_count).cmp(&(r_yes_votes * l_count))),
-// 			// For every other origin we don't care, as they are not used for `ScheduleOrigin`.
-// 			_ => None,
-// 		}
-// 	}
-// }
+		match (left, right) {
+			// Root is greater than anything.
+			(OriginCaller::system(frame_system::RawOrigin::Root), _) => Some(Ordering::Greater),
+			// Check which one has more yes votes.
+			(
+				OriginCaller::Council(pallet_collective::RawOrigin::Members(l_yes_votes, l_count)),
+				OriginCaller::Council(pallet_collective::RawOrigin::Members(r_yes_votes, r_count)),
+			) => Some((l_yes_votes * r_count).cmp(&(r_yes_votes * l_count))),
+			// For every other origin we don't care, as they are not used for `ScheduleOrigin`.
+			_ => None,
+		}
+	}
+}
 
-// TODO: Scheduler
-// impl pallet_scheduler::Config for Runtime {
-// 	type Event = Event;
-// 	type Origin = Origin;
-// 	type PalletsOrigin = OriginCaller;
-// 	type Call = Call;
-// 	type MaximumWeight = MaximumSchedulerWeight;
-// 	type ScheduleOrigin = ScheduleOrigin;
-// 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
-// 	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
-// 	type OriginPrivilegeCmp = OriginPrivilegeCmp;
-// 	type PreimageProvider = Preimage;
-// 	type NoPreimagePostponement = NoPreimagePostponement;
-// }
+impl pallet_scheduler::Config for Runtime {
+	type Event = Event;
+	type Origin = Origin;
+	type PalletsOrigin = OriginCaller;
+	type Call = Call;
+	type MaximumWeight = MaximumSchedulerWeight;
+	type ScheduleOrigin = ScheduleOrigin;
+	type MaxScheduledPerBlock = MaxScheduledPerBlock;
+	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
+	type OriginPrivilegeCmp = OriginPrivilegeCmp;
+	type PreimageProvider = Preimage;
+	type NoPreimagePostponement = NoPreimagePostponement;
+}
 
-// TODO: Preimage
-// parameter_types! {
-// 	pub const PreimageMaxSize: u32 = 4096 * 1024;
-// 	pub const PreimageBaseDeposit: Balance = deposit(2, 64);
-// 	pub const PreimageByteDeposit: Balance = deposit(0, 1);
-// }
+parameter_types! {
+	pub const PreimageMaxSize: u32 = 4096 * 1024;
+	pub const PreimageBaseDeposit: Balance = deposit(2, 64);
+	pub const PreimageByteDeposit: Balance = deposit(0, 1);
+}
 
-// TODO: Preimage
-// impl pallet_preimage::Config for Runtime {
-// 	type WeightInfo = weights::pallet_preimage::WeightInfo<Runtime>;
-// 	type Event = Event;
-// 	type Currency = Balances;
-// 	type ManagerOrigin = EnsureRoot<AccountId>;
-// 	type MaxSize = PreimageMaxSize;
-// 	type BaseDeposit = PreimageBaseDeposit;
-// 	type ByteDeposit = PreimageByteDeposit;
-// }
+impl pallet_preimage::Config for Runtime {
+	type WeightInfo = weights::pallet_preimage::WeightInfo<Runtime>;
+	type Event = Event;
+	type Currency = Balances;
+	type ManagerOrigin = EnsureRoot<AccountId>;
+	type MaxSize = PreimageMaxSize;
+	type BaseDeposit = PreimageBaseDeposit;
+	type ByteDeposit = PreimageByteDeposit;
+}
 
 parameter_types! {
 	// TODO: Babe
@@ -708,20 +697,19 @@ impl pallet_session::historical::Config for Runtime {
 // }
 
 parameter_types! {
-	pub const MotionDuration: BlockNumber = 5;
-	pub const MaxProposals: u32 = 100;
-	pub const MaxMembers: u32 = 100;
+	pub CouncilMotionDuration: BlockNumber = prod_or_fast!(3 * DAYS, 2 * MINUTES, "ROC_MOTION_DURATION");
+	pub const CouncilMaxProposals: u32 = 100;
+	pub const CouncilMaxMembers: u32 = 100;
 }
 
-// TODO: Collective
-// type CouncilCollective = pallet_collective::Instance1;
-impl pallet_collective::Config for Runtime { // TODO: Collective -> impl pallet_collective::Config<CouncilCollective> for Runtime {
+type CouncilCollective = pallet_collective::Instance1;
+impl pallet_collective::Config<CouncilCollective> for Runtime {
 	type Origin = Origin;
 	type Proposal = Call;
 	type Event = Event;
-	type MotionDuration = MotionDuration; // TODO: Collective -> type MotionDuration = CouncilMotionDuration;
-	type MaxProposals = MaxProposals; // TODO: Collective -> type MaxProposals = CouncilMaxProposals;
-	type MaxMembers = MaxMembers; // TODO: Collective -> type MaxMembers = CouncilMaxMembers;
+	type MotionDuration = CouncilMotionDuration;
+	type MaxProposals = CouncilMaxProposals;
+	type MaxMembers = CouncilMaxMembers;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
 	type WeightInfo = weights::pallet_collective::WeightInfo<Runtime>;
 }
@@ -763,42 +751,39 @@ impl pallet_collective::Config for Runtime { // TODO: Collective -> impl pallet_
 // 	type WeightInfo = weights::pallet_elections_phragmen::WeightInfo<Runtime>;
 // }
 
-// TODO: Collective
-// parameter_types! {
-// 	pub TechnicalMotionDuration: BlockNumber = prod_or_fast!(3 * DAYS, 2 * MINUTES, "KSM_MOTION_DURATION");
-// 	pub const TechnicalMaxProposals: u32 = 100;
-// 	pub const TechnicalMaxMembers: u32 = 100;
-// }
+parameter_types! {
+	pub TechnicalMotionDuration: BlockNumber = prod_or_fast!(3 * DAYS, 2 * MINUTES, "KSM_MOTION_DURATION");
+	pub const TechnicalMaxProposals: u32 = 100;
+	pub const TechnicalMaxMembers: u32 = 100;
+}
 
-// TODO: Collective
-// type TechnicalCollective = pallet_collective::Instance2;
-// impl pallet_collective::Config<TechnicalCollective> for Runtime {
-// 	type Origin = Origin;
-// 	type Proposal = Call;
-// 	type Event = Event;
-// 	type MotionDuration = TechnicalMotionDuration;
-// 	type MaxProposals = TechnicalMaxProposals;
-// 	type MaxMembers = TechnicalMaxMembers;
-// 	type DefaultVote = pallet_collective::PrimeDefaultVote;
-// 	type WeightInfo = weights::pallet_collective_technical_committee::WeightInfo<Runtime>;
-// }
-
-// TODO: Membership
-// type MoreThanHalfCouncil = EnsureOneOf<
-// 	EnsureRoot<AccountId>,
-// 	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
-// >;
-
-impl pallet_membership::Config for Runtime {
+type TechnicalCollective = pallet_collective::Instance2;
+impl pallet_collective::Config<TechnicalCollective> for Runtime {
+	type Origin = Origin;
+	type Proposal = Call;
 	type Event = Event;
-	type AddOrigin = EnsureRoot<AccountId>; // TODO: Membership -> type AddOrigin = MoreThanHalfCouncil;
-	type RemoveOrigin = EnsureRoot<AccountId>; // TODO: Membership -> type RemoveOrigin = MoreThanHalfCouncil;
-	type SwapOrigin = EnsureRoot<AccountId>; // TODO: Membership -> type SwapOrigin = MoreThanHalfCouncil;
-	type ResetOrigin = EnsureRoot<AccountId>; // TODO: Membership -> type ResetOrigin = MoreThanHalfCouncil;
-	type PrimeOrigin = EnsureRoot<AccountId>; // TODO: Membership -> type PrimeOrigin = MoreThanHalfCouncil;
-	type MembershipInitialized = Collective; // TODO: Membership -> type MembershipInitialized = TechnicalCommittee;
-	type MembershipChanged = Collective; // TODO: Membership -> type MembershipChanged = TechnicalCommittee;
-	type MaxMembers = MaxMembers; // TODO: Membership -> type MaxMembers = TechnicalMaxMembers;
+	type MotionDuration = TechnicalMotionDuration;
+	type MaxProposals = TechnicalMaxProposals;
+	type MaxMembers = TechnicalMaxMembers;
+	type DefaultVote = pallet_collective::PrimeDefaultVote;
+	type WeightInfo = weights::pallet_collective_technical_committee::WeightInfo<Runtime>;
+}
+
+type MoreThanHalfCouncil = EnsureOneOf<
+	EnsureRoot<AccountId>,
+	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
+>;
+
+impl pallet_membership::Config<pallet_membership::Instance1> for Runtime {
+	type Event = Event;
+	type AddOrigin = MoreThanHalfCouncil;
+	type RemoveOrigin = MoreThanHalfCouncil;
+	type SwapOrigin = MoreThanHalfCouncil;
+	type ResetOrigin = MoreThanHalfCouncil;
+	type PrimeOrigin = MoreThanHalfCouncil;
+	type MembershipInitialized = TechnicalCommittee;
+	type MembershipChanged = TechnicalCommittee;
+	type MaxMembers = TechnicalMaxMembers;
 	type WeightInfo = weights::pallet_membership::WeightInfo<Runtime>;
 }
 
@@ -1822,15 +1807,11 @@ construct_runtime! {
 		// Governance stuff; uncallable initially.
 		// TODO: Democracy
 		// Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 13,
-		// TODO: Collective -> Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 14,
-		Collective: pallet_collective::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 14,
-		// TODO: Collective
-		// TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
+		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 14,
+		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
 		// TODO: Elections Prhargmen
 		// PhragmenElection: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 16,
-		// Membership: pallet_membership = 80, // TODO: Membership
-		// TODO: Membership -> pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
-		Membership: pallet_membership::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
+		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
 		// TODO: Treasury
 		// Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 18,
 
@@ -1857,9 +1838,8 @@ construct_runtime! {
 		//// Vesting. Usable initially, but removed once all vesting is finished.
 		// Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>} = 28,
 
-		// TODO: Scheduler
-		//// System scheduler.
-		// Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>} = 29,
+		// System scheduler.
+		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>} = 29,
 
 		// Proxy module. Late addition.
 		Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 30,
@@ -1867,9 +1847,8 @@ construct_runtime! {
 		// Multisig module. Late addition.
 		Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>} = 31,
 
-		// TODO: Preimage
-		//// Preimage registrar.
-		// Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>} = 32,
+		// Preimage registrar.
+		Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>} = 32,
 
 		// Trasaction Payment module
 		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 33,
@@ -2035,9 +2014,8 @@ mod benches {
 		// [pallet_bounties, Bounties]
 		// TODO: Vhild Bounties
 		// [pallet_child_bounties, ChildBounties]
-		[pallet_collective, Collective] // TODO: Collective -> [pallet_collective, Council]
-		// TODO: Collective
-		// [pallet_collective, TechnicalCommittee]
+		[pallet_collective, Council]
+		[pallet_collective, TechnicalCommittee]
 		// TODO: Democracy
 		// [pallet_democracy, Democracy]
 		// TODO: Elections Phragmen
@@ -2051,18 +2029,16 @@ mod benches {
 		// [pallet_identity, Identity]
 		[pallet_im_online, ImOnline]
 		[pallet_indices, Indices]
-		[pallet_membership, Membership] // TODO: Membership -> [pallet_membership, TechnicalMembership
+		[pallet_membership, TechnicalMembership]
 		[pallet_multisig, Multisig]
 		// TODO: Nomination
 		// [pallet_nomination_pools, NominationPoolsBench::<Runtime>]
 		[pallet_offences, OffencesBench::<Runtime>]
-		// TODO: Preimage
-		// [pallet_preimage, Preimage]
+		[pallet_preimage, Preimage]
 		[pallet_proxy, Proxy]
 		// TODO: Recovery
 		// [pallet_recovery, Recovery]
-		// TODO: Scheduler
-		// [pallet_scheduler, Scheduler]
+		[pallet_scheduler, Scheduler]
 		// TODO: Session
 		// [pallet_session, SessionBench::<Runtime>]
 		// TODO: Staking
@@ -2591,7 +2567,7 @@ sp_api::impl_runtime_apis! {
 					Ok(Statemine::get())
 				}
 				fn worst_case_holding() -> MultiAssets {
-					// Kusama only knows about KSM.
+					// Rococo only knows about ROC
 					vec![MultiAsset{
 						id: Concrete(KsmLocation::get()),
 						fun: Fungible(1_000_000 * UNITS),

@@ -17,8 +17,8 @@
 //! XCM configuration for Rococo.
 
 use super::{
-	parachains_origin, AccountId, Balances, Call, Event, Origin, ParaId, Runtime, WeightToFee,
-	XcmPallet,
+	parachains_origin, AccountId, Balances, Call, CouncilCollective, Event, Origin, ParaId,
+	Runtime, WeightToFee, XcmPallet,
 };
 use frame_support::{match_types, parameter_types, traits::Everything, weights::Weight};
 use runtime_common::{xcm_sender, ToAuthor};
@@ -153,7 +153,7 @@ impl xcm_executor::Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher =
-		WeightInfoBounds<crate::weights::xcm::KusamaXcmWeight<Call>, Call, MaxInstructions>;
+		WeightInfoBounds<crate::weights::xcm::RococoXcmWeight<Call>, Call, MaxInstructions>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
 	type Trader = UsingComponents<WeightToFee, RocLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
@@ -178,7 +178,7 @@ pub type LocalOriginToLocation = (
 	// `Unit` body.
 	BackingToPlurality<
 		Origin,
-		pallet_collective::Origin<Runtime>,
+		pallet_collective::Origin<Runtime, CouncilCollective>,
 		CollectiveBodyId //  TODO: Collective -> CouncilBodyId
 	>,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32

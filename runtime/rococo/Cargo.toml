@@ -54,6 +54,8 @@ pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "maste
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
@@ -127,6 +129,9 @@ std = [
 	"pallet-timestamp/std",
 	"pallet-transaction-payment/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
+  "pallet-collective/std",
+  "pallet-scheduler/std",
+  "pallet-preimage/std",
 	"inherents/std",
 	"frame-support/std",
 	"polkadot-parachain/std",
@@ -171,6 +176,8 @@ runtime-benchmarks = [
 	"pallet-babe/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-collective/runtime-benchmarks",
+  "pallet-collective/std",
+  "pallet-preimage/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
 	"pallet-im-online/runtime-benchmarks",
 	"pallet-indices/runtime-benchmarks",
@@ -186,6 +193,7 @@ runtime-benchmarks = [
 	"hex-literal",
 	"frame-system-benchmarking",
 	"runtime-parachains/runtime-benchmarks",
+  "pallet-scheduler/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
@@ -207,8 +215,10 @@ try-runtime = [
 	"pallet-offences/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
+  "pallet-collective/try-runtime",
 	"runtime-common/try-runtime",
 	"pallet-multisig/try-runtime",
+  "pallet-scheduler/try-runtime",
 ]
 
 # Set timing constants (e.g. session period) to faster versions to speed up testing.
