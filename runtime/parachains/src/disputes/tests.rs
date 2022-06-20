@@ -174,6 +174,7 @@ fn test_import_new_participant_spam_inc() {
 	assert_eq!(summary.spam_slot_changes, vec![(ValidatorIndex(2), SpamSlotChange::Inc)]);
 	assert!(summary.slash_for.is_empty());
 	assert!(summary.slash_against.is_empty());
+	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 0, 0, 0, 0, 0]);
 }
 
 #[test]
@@ -206,6 +207,7 @@ fn test_import_prev_participant_spam_dec_confirmed() {
 	);
 	assert!(summary.slash_for.is_empty());
 	assert!(summary.slash_against.is_empty());
+	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 0, 0, 0, 0, 0]);
 	assert_eq!(summary.new_flags, DisputeStateFlags::CONFIRMED);
 }
 
@@ -244,6 +246,7 @@ fn test_import_prev_participant_spam_dec_confirmed_slash_for() {
 	);
 	assert_eq!(summary.slash_for, vec![ValidatorIndex(0), ValidatorIndex(2)]);
 	assert!(summary.slash_against.is_empty());
+	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 1, 1, 1, 1, 0]);
 	assert_eq!(
 		summary.new_flags,
 		DisputeStateFlags::CONFIRMED | DisputeStateFlags::AGAINST_SUPERMAJORITY,
@@ -281,6 +284,7 @@ fn test_import_slash_against() {
 	assert!(summary.spam_slot_changes.is_empty());
 	assert!(summary.slash_for.is_empty());
 	assert_eq!(summary.slash_against, vec![ValidatorIndex(1), ValidatorIndex(5)]);
+	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 0, 1, 1, 1, 1, 1]);
 	assert_eq!(summary.new_flags, DisputeStateFlags::FOR_SUPERMAJORITY);
 }
 
