@@ -12,7 +12,7 @@ thiserror = "1.0.31"
 gum = { package = "tracing-gum", path = "../../gum" }
 bitvec = "1.0.0"
 
-parity-scale-codec = { version = "3.1.2", features = ["derive"] }
+parity-scale-codec = { version = "3.1.5", features = ["derive"] }
 erasure = { package = "polkadot-erasure-coding", path = "../../../erasure-coding" }
 polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
