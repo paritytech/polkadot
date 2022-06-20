@@ -39,6 +39,9 @@ pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "maste
 pallet-beefy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-beefy-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-bounties = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-child-bounties = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -48,8 +51,10 @@ pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-society = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -110,12 +115,15 @@ std = [
 	"pallet-babe/std",
 	"beefy-primitives/std",
 	"pallet-balances/std",
+  "pallet-bounties/std",
+	"pallet-child-bounties/std",
 	"pallet-bridge-dispatch/std",
 	"pallet-bridge-grandpa/std",
 	"pallet-bridge-messages/std",
 	"pallet-collective/std",
 	"pallet-beefy/std",
 	"pallet-beefy-mmr/std",
+  "pallet-democracy/std",
 	"pallet-grandpa/std",
 	"pallet-sudo/std",
 	"pallet-membership/std",
@@ -123,12 +131,14 @@ std = [
 	"pallet-indices/std",
 	"pallet-im-online/std",
 	"pallet-session/std",
+	"pallet-society/std",
 	"pallet-staking/std",
 	"pallet-offences/std",
 	"pallet-proxy/std",
 	"pallet-timestamp/std",
 	"pallet-transaction-payment/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
+  "pallet-treasury/std",
   "pallet-collective/std",
   "pallet-scheduler/std",
   "pallet-preimage/std",
@@ -175,8 +185,11 @@ runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",
 	"pallet-babe/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
+  "pallet-bounties/runtime-benchmarks",
+	"pallet-child-bounties/runtime-benchmarks",
 	"pallet-collective/runtime-benchmarks",
   "pallet-collective/std",
+  "pallet-democracy/runtime-benchmarks",
   "pallet-preimage/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
 	"pallet-im-online/runtime-benchmarks",
@@ -184,6 +197,7 @@ runtime-benchmarks = [
 	"pallet-membership/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
+  "pallet-society/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-utility/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
@@ -203,7 +217,10 @@ try-runtime = [
 	"pallet-authorship/try-runtime",
 	"pallet-babe/try-runtime",
 	"pallet-balances/try-runtime",
+  "pallet-bounties/try-runtime",
+	"pallet-child-bounties/try-runtime",
 	"pallet-collective/try-runtime",
+  "pallet-democracy/try-runtime",
 	"pallet-grandpa/try-runtime",
 	"pallet-sudo/try-runtime",
 	"pallet-indices/try-runtime",
@@ -211,10 +228,12 @@ try-runtime = [
 	"pallet-membership/try-runtime",
 	"pallet-session/try-runtime",
 	"pallet-proxy/try-runtime",
+  "pallet-society/try-runtime",
 	"pallet-staking/try-runtime",
 	"pallet-offences/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
+  "pallet-treasury/runtime-benchmarks",
   "pallet-collective/try-runtime",
 	"runtime-common/try-runtime",
 	"pallet-multisig/try-runtime",
