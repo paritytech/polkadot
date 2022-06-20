@@ -45,6 +45,7 @@ pallet-child-bounties = { git = "https://github.com/paritytech/substrate", branc
 pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-gilt = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-identity = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -52,6 +53,7 @@ pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-recovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-tips = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -135,6 +137,7 @@ std = [
 	"pallet-sudo/std",
 	"pallet-membership/std",
 	"pallet-mmr/std",
+  "pallet-gilt/std",
 	"pallet-indices/std",
 	"pallet-im-online/std",
 	"pallet-session/std",
@@ -142,6 +145,7 @@ std = [
 	"pallet-staking/std",
 	"pallet-offences/std",
 	"pallet-proxy/std",
+  "pallet-recovery/std",
 	"pallet-timestamp/std",
 	"pallet-tips/std",
 	"pallet-transaction-payment/std",
@@ -201,12 +205,14 @@ runtime-benchmarks = [
   "pallet-elections-phragmen/runtime-benchmarks",
   "pallet-democracy/runtime-benchmarks",
   "pallet-preimage/runtime-benchmarks",
+  "pallet-gilt/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
   "pallet-identity/runtime-benchmarks",
 	"pallet-im-online/runtime-benchmarks",
 	"pallet-indices/runtime-benchmarks",
 	"pallet-membership/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
+  "pallet-recovery/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
   "pallet-society/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
@@ -237,6 +243,7 @@ try-runtime = [
   "pallet-elections-phragmen/try-runtime",
 	"pallet-grandpa/try-runtime",
   "pallet-identity/try-runtime",
+  "pallet-recovery/try-runtime",
 	"pallet-sudo/try-runtime",
 	"pallet-indices/try-runtime",
 	"pallet-im-online/try-runtime",

@@ -24,6 +24,7 @@ pub mod pallet_democracy;
 pub mod pallet_elections_phragmen;
 pub mod pallet_im_online;
 pub mod pallet_identity;
+pub mod pallet_gilt;
 pub mod pallet_indices;
 pub mod pallet_membership;
 pub mod pallet_multisig;

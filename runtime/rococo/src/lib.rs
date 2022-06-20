@@ -1051,25 +1051,23 @@ impl pallet_multisig::Config for Runtime {
 	type WeightInfo = weights::pallet_multisig::WeightInfo<Runtime>;
 }
 
-// TODO: Recovery
-// parameter_types! {
-// 	pub const ConfigDepositBase: Balance = 500 * CENTS;
-// 	pub const FriendDepositFactor: Balance = 50 * CENTS;
-// 	pub const MaxFriends: u16 = 9;
-// 	pub const RecoveryDeposit: Balance = 500 * CENTS;
-// }
+parameter_types! {
+	pub const ConfigDepositBase: Balance = 500 * CENTS;
+	pub const FriendDepositFactor: Balance = 50 * CENTS;
+	pub const MaxFriends: u16 = 9;
+	pub const RecoveryDeposit: Balance = 500 * CENTS;
+}
 
-// TODO: Recovery
-// impl pallet_recovery::Config for Runtime {
-// 	type Event = Event;
-// 	type WeightInfo = ();
-// 	type Call = Call;
-// 	type Currency = Balances;
-// 	type ConfigDepositBase = ConfigDepositBase;
-// 	type FriendDepositFactor = FriendDepositFactor;
-// 	type MaxFriends = MaxFriends;
-// 	type RecoveryDeposit = RecoveryDeposit;
-// }
+impl pallet_recovery::Config for Runtime {
+	type Event = Event;
+	type WeightInfo = ();
+	type Call = Call;
+	type Currency = Balances;
+	type ConfigDepositBase = ConfigDepositBase;
+	type FriendDepositFactor = FriendDepositFactor;
+	type MaxFriends = MaxFriends;
+	type RecoveryDeposit = RecoveryDeposit;
+}
 
 parameter_types! {
 	pub const CandidateDeposit: Balance = 1000 * CENTS;
@@ -1420,36 +1418,34 @@ impl auctions::Config for Runtime {
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
-// TODO: Gilt
-// parameter_types! {
-// 	pub IgnoredIssuance: Balance = Treasury::pot();
-// 	pub const QueueCount: u32 = 300;
-// 	pub const MaxQueueLen: u32 = 1000;
-// 	pub const FifoQueueLen: u32 = 250;
-// 	pub const GiltPeriod: BlockNumber = 30 * DAYS;
-// 	pub const MinFreeze: Balance = 10_000 * CENTS;
-// 	pub const IntakePeriod: BlockNumber = 5 * MINUTES;
-// 	pub const MaxIntakeBids: u32 = 100;
-// }
+parameter_types! {
+	pub IgnoredIssuance: Balance = Treasury::pot();
+	pub const QueueCount: u32 = 300;
+	pub const MaxQueueLen: u32 = 1000;
+	pub const FifoQueueLen: u32 = 250;
+	pub const GiltPeriod: BlockNumber = 30 * DAYS;
+	pub const MinFreeze: Balance = 10_000 * CENTS;
+	pub const IntakePeriod: BlockNumber = 5 * MINUTES;
+	pub const MaxIntakeBids: u32 = 100;
+}
 
-// TODO: Gilt
-// impl pallet_gilt::Config for Runtime {
-// 	type Event = Event;
-// 	type Currency = Balances;
-// 	type CurrencyBalance = Balance;
-// 	type AdminOrigin = MoreThanHalfCouncil;
-// 	type Deficit = (); // Mint
-// 	type Surplus = (); // Burn
-// 	type IgnoredIssuance = IgnoredIssuance;
-// 	type QueueCount = QueueCount;
-// 	type MaxQueueLen = MaxQueueLen;
-// 	type FifoQueueLen = FifoQueueLen;
-// 	type Period = GiltPeriod;
-// 	type MinFreeze = MinFreeze;
-// 	type IntakePeriod = IntakePeriod;
-// 	type MaxIntakeBids = MaxIntakeBids;
-// 	type WeightInfo = weights::pallet_gilt::WeightInfo<Runtime>;
-// }
+impl pallet_gilt::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type CurrencyBalance = Balance;
+	type AdminOrigin = MoreThanHalfCouncil;
+	type Deficit = (); // Mint
+	type Surplus = (); // Burn
+	type IgnoredIssuance = IgnoredIssuance;
+	type QueueCount = QueueCount;
+	type MaxQueueLen = MaxQueueLen;
+	type FifoQueueLen = FifoQueueLen;
+	type Period = GiltPeriod;
+	type MinFreeze = MinFreeze;
+	type IntakePeriod = IntakePeriod;
+	type MaxIntakeBids = MaxIntakeBids;
+	type WeightInfo = weights::pallet_gilt::WeightInfo<Runtime>;
+}
 
 // TODO: Nominations
 // pub struct BalanceToU256;
@@ -1793,9 +1789,8 @@ construct_runtime! {
 		// Society module.
 		Society: pallet_society::{Pallet, Call, Storage, Event<T>} = 26,
 
-		// TODO: Recovery
-		//// Social recovery module.
-		// Recovery: pallet_recovery::{Pallet, Call, Storage, Event<T>} = 27,
+		// Social recovery module.
+		Recovery: pallet_recovery::{Pallet, Call, Storage, Event<T>} = 27,
 
 		// Vesting. Usable initially, but removed once all vesting is finished.
 		Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>} = 28,
@@ -1829,9 +1824,8 @@ construct_runtime! {
 		//// Election pallet. Only works with staking, but placed here to maintain indices.
 		// ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 37,
 
-		// TODO: Gilt
-		//// Gilts pallet.
-		// Gilt: pallet_gilt::{Pallet, Call, Storage, Event<T>, Config} = 38,
+		// Gilts pallet.
+		Gilt: pallet_gilt::{Pallet, Call, Storage, Event<T>, Config} = 38,
 
 		// TODO: Bags List
 		//// Provides a semi-sorted list of nominators for staking.
@@ -1978,8 +1972,7 @@ mod benches {
 		// TODO: Election
 		// [pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
 		// [frame_election_provider_support, ElectionProviderBench::<Runtime>]
-		// TODO: Gilt
-		// [pallet_gilt, Gilt]
+		[pallet_gilt, Gilt]
 		[pallet_identity, Identity]
 		[pallet_im_online, ImOnline]
 		[pallet_indices, Indices]
@@ -1990,8 +1983,7 @@ mod benches {
 		[pallet_offences, OffencesBench::<Runtime>]
 		[pallet_preimage, Preimage]
 		[pallet_proxy, Proxy]
-		// TODO: Recovery
-		// [pallet_recovery, Recovery]
+		[pallet_recovery, Recovery]
 		[pallet_scheduler, Scheduler]
 		// TODO: Session
 		// [pallet_session, SessionBench::<Runtime>]
@@ -2451,8 +2443,6 @@ sp_api::impl_runtime_apis! {
 			.collect()
 		}
 	}
-
-	// I AM HERE
 
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
