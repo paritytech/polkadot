@@ -60,7 +60,7 @@ impl From<Error> for XcmError {
 /// /// Our relay chain's location.
 /// parameter_types! {
 ///     pub RelayChain: MultiLocation = Parent.into();
-///     pub CheckingAccount: AccountId = PalletId(*b"checking").into_account();
+///     pub CheckingAccount: AccountId = PalletId(*b"checking").into_account_truncating();
 /// }
 ///
 /// /// Some items that implement `Convert<MultiLocation, AccountId>`. Can be more, but for now we just assume we accept

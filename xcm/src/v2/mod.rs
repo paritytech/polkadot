@@ -60,8 +60,9 @@ use super::{
 use alloc::{vec, vec::Vec};
 use core::{fmt::Debug, result};
 use derivative::Derivative;
-use parity_scale_codec::{self, Decode, Encode};
+use parity_scale_codec::{self, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
+use sp_runtime::{traits::ConstU32, WeakBoundedVec};
 
 mod junction;
 mod multiasset;
@@ -102,13 +103,13 @@ pub enum OriginKind {
 }
 
 /// A global identifier of an account-bearing consensus system.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum NetworkId {
 	/// Unidentified/any.
 	Any,
 	/// Some named network.
-	Named(Vec<u8>),
+	Named(WeakBoundedVec<u8, ConstU32<32>>),
 	/// The Polkadot Relay chain
 	Polkadot,
 	/// Kusama.
@@ -129,13 +130,13 @@ impl TryInto<NetworkId> for Option<NewNetworkId> {
 }
 
 /// An identifier of a pluralistic body.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum BodyId {
 	/// The only body in its context.
 	Unit,
 	/// A named body.
-	Named(Vec<u8>),
+	Named(WeakBoundedVec<u8, ConstU32<32>>),
 	/// An indexed body.
 	Index(#[codec(compact)] u32),
 	/// The unambiguous executive body (for Polkadot, this would be the Polkadot council).
@@ -155,7 +156,12 @@ impl From<NewBodyId> for BodyId {
 		use NewBodyId::*;
 		match n {
 			Unit => Self::Unit,
-			Moniker(n) => Self::Named(n[..].to_vec()),
+			Moniker(n) => Self::Named(
+				n[..]
+					.to_vec()
+					.try_into()
+					.expect("array size is 4 and so will never be out of bounds; qed"),
+			),
 			Index(n) => Self::Index(n),
 			Executive => Self::Executive,
 			Technical => Self::Technical,
@@ -166,7 +172,7 @@ impl From<NewBodyId> for BodyId {
 }
 
 /// A part of a pluralistic body.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum BodyPart {
 	/// The body's declaration, under whatever means it decides.

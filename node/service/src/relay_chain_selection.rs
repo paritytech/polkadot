@@ -39,14 +39,14 @@ use super::{HeaderProvider, HeaderProviderProvider};
 use consensus_common::{Error as ConsensusError, SelectChain};
 use futures::channel::oneshot;
 use polkadot_node_primitives::MAX_FINALITY_LAG as PRIMITIVES_MAX_FINALITY_LAG;
+use polkadot_node_subsystem::messages::{
+	ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage,
+	HighestApprovedAncestorBlock,
+};
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_overseer::{AllMessages, Handle};
 use polkadot_primitives::v2::{
 	Block as PolkadotBlock, BlockNumber, Hash, Header as PolkadotHeader,
-};
-use polkadot_subsystem::messages::{
-	ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage,
-	HighestApprovedAncestorBlock,
 };
 use std::sync::Arc;
 
@@ -501,7 +501,7 @@ where
 				match rx.await.map_err(Error::DetermineUndisputedChainCanceled) {
 					// If request succeded we will receive (block number, block hash).
 					Ok((subchain_number, subchain_head)) => {
-						// The the total lag accounting for disputes.
+						// The total lag accounting for disputes.
 						let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
 						self.metrics.note_disputes_finality_lag(lag_disputes);
 						(lag_disputes, subchain_head)

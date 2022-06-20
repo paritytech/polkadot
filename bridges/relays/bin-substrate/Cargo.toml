@@ -79,4 +79,4 @@ hex-literal = "0.3"
 pallet-bridge-grandpa = { path = "../../modules/grandpa" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 tempfile = "3.2"
-finality-grandpa = { version = "0.15.0" }
+finality-grandpa = { version = "0.16.0" }

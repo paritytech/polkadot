@@ -39,7 +39,7 @@ use crate::{
 	gen::Delay,
 	HeadSupportsParachains,
 };
-use metered_channel as metered;
+use metered;
 
 use assert_matches::assert_matches;
 use sp_core::crypto::Pair as _;
@@ -60,11 +60,7 @@ struct TestSubsystem1(metered::MeteredSender<usize>);
 
 impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem1
 where
-	C: overseer::SubsystemContext<
-		Message = CandidateValidationMessage,
-		Signal = OverseerSignal,
-		AllMessages = AllMessages,
-	>,
+	C: overseer::SubsystemContext<Message = CandidateValidationMessage, Signal = OverseerSignal>,
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let mut sender = self.0;
@@ -74,12 +70,12 @@ where
 				let mut i = 0;
 				loop {
 					match ctx.recv().await {
-						Ok(FromOverseer::Communication { .. }) => {
+						Ok(FromOrchestra::Communication { .. }) => {
 							let _ = sender.send(i).await;
 							i += 1;
 							continue
 						},
-						Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
+						Ok(FromOrchestra::Signal(OverseerSignal::Conclude)) => return Ok(()),
 						Err(_) => return Ok(()),
 						_ => (),
 					}
@@ -95,8 +91,8 @@ impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem2
 where
 	C: overseer::SubsystemContext<
 		Message = CandidateBackingMessage,
+		OutgoingMessages = <CandidateBackingMessage as AssociateOutgoing>::OutgoingMessages,
 		Signal = OverseerSignal,
-		AllMessages = AllMessages,
 	>,
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
@@ -125,7 +121,7 @@ where
 						continue
 					}
 					match ctx.try_recv().await {
-						Ok(Some(FromOverseer::Signal(OverseerSignal::Conclude))) => break,
+						Ok(Some(FromOrchestra::Signal(OverseerSignal::Conclude))) => break,
 						Ok(Some(_)) => continue,
 						Err(_) => return Ok(()),
 						_ => (),
@@ -143,11 +139,7 @@ struct ReturnOnStart;
 
 impl<C> overseer::Subsystem<C, SubsystemError> for ReturnOnStart
 where
-	C: overseer::SubsystemContext<
-		Message = CandidateBackingMessage,
-		Signal = OverseerSignal,
-		AllMessages = AllMessages,
-	>,
+	C: overseer::SubsystemContext<Message = CandidateBackingMessage, Signal = OverseerSignal>,
 {
 	fn start(self, mut _ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem {
@@ -316,11 +308,7 @@ struct TestSubsystem5(metered::MeteredSender<OverseerSignal>);
 
 impl<C> overseer::Subsystem<C, SubsystemError> for TestSubsystem5
 where
-	C: overseer::SubsystemContext<
-		Message = CandidateValidationMessage,
-		Signal = OverseerSignal,
-		AllMessages = AllMessages,
-	>,
+	C: overseer::SubsystemContext<Message = CandidateValidationMessage, Signal = OverseerSignal>,
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let mut sender = self.0.clone();
@@ -330,8 +318,8 @@ where
 			future: Box::pin(async move {
 				loop {
 					match ctx.try_recv().await {
-						Ok(Some(FromOverseer::Signal(OverseerSignal::Conclude))) => break,
-						Ok(Some(FromOverseer::Signal(s))) => {
+						Ok(Some(FromOrchestra::Signal(OverseerSignal::Conclude))) => break,
+						Ok(Some(FromOrchestra::Signal(s))) => {
 							sender.send(s).await.unwrap();
 							continue
 						},
@@ -352,11 +340,7 @@ struct TestSubsystem6(metered::MeteredSender<OverseerSignal>);
 
 impl<C> Subsystem<C, SubsystemError> for TestSubsystem6
 where
-	C: overseer::SubsystemContext<
-		Message = CandidateBackingMessage,
-		Signal = OverseerSignal,
-		AllMessages = AllMessages,
-	>,
+	C: overseer::SubsystemContext<Message = CandidateBackingMessage, Signal = OverseerSignal>,
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let mut sender = self.0.clone();
@@ -366,8 +350,8 @@ where
 			future: Box::pin(async move {
 				loop {
 					match ctx.try_recv().await {
-						Ok(Some(FromOverseer::Signal(OverseerSignal::Conclude))) => break,
-						Ok(Some(FromOverseer::Signal(s))) => {
+						Ok(Some(FromOrchestra::Signal(OverseerSignal::Conclude))) => break,
+						Ok(Some(FromOrchestra::Signal(s))) => {
 							sender.send(s).await.unwrap();
 							continue
 						},
@@ -761,7 +745,7 @@ impl CounterSubsystem {
 
 impl<C, M> Subsystem<C, SubsystemError> for CounterSubsystem
 where
-	C: overseer::SubsystemContext<Message = M, Signal = OverseerSignal, AllMessages = AllMessages>,
+	C: overseer::SubsystemContext<Message = M, Signal = OverseerSignal>,
 	M: Send,
 {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
@@ -770,15 +754,15 @@ where
 			future: Box::pin(async move {
 				loop {
 					match ctx.try_recv().await {
-						Ok(Some(FromOverseer::Signal(OverseerSignal::Conclude))) => {
+						Ok(Some(FromOrchestra::Signal(OverseerSignal::Conclude))) => {
 							self.stop_signals_received.fetch_add(1, atomic::Ordering::SeqCst);
 							break
 						},
-						Ok(Some(FromOverseer::Signal(_))) => {
+						Ok(Some(FromOrchestra::Signal(_))) => {
 							self.signals_received.fetch_add(1, atomic::Ordering::SeqCst);
 							continue
 						},
-						Ok(Some(FromOverseer::Communication { .. })) => {
+						Ok(Some(FromOrchestra::Communication { .. })) => {
 							self.msgs_received.fetch_add(1, atomic::Ordering::SeqCst);
 							continue
 						},
@@ -848,7 +832,7 @@ fn test_network_bridge_event<M>() -> NetworkBridgeEvent<M> {
 }
 
 fn test_statement_distribution_msg() -> StatementDistributionMessage {
-	StatementDistributionMessage::NetworkBridgeUpdateV1(test_network_bridge_event())
+	StatementDistributionMessage::NetworkBridgeUpdate(test_network_bridge_event())
 }
 
 fn test_availability_recovery_msg() -> AvailabilityRecoveryMessage {
@@ -862,7 +846,7 @@ fn test_availability_recovery_msg() -> AvailabilityRecoveryMessage {
 }
 
 fn test_bitfield_distribution_msg() -> BitfieldDistributionMessage {
-	BitfieldDistributionMessage::NetworkBridgeUpdateV1(test_network_bridge_event())
+	BitfieldDistributionMessage::NetworkBridgeUpdate(test_network_bridge_event())
 }
 
 fn test_provisioner_msg() -> ProvisionerMessage {
@@ -1145,7 +1129,11 @@ fn context_holds_onto_message_until_enough_signals_received() {
 
 	let mut ctx = OverseerSubsystemContext::new(
 		signal_rx,
-		stream::select(bounded_rx, unbounded_rx),
+		stream::select_with_strategy(
+			bounded_rx,
+			unbounded_rx,
+			orchestra::select_message_channel_strategy,
+		),
 		channels_out,
 		to_overseer_tx,
 		"test",
@@ -1155,7 +1143,7 @@ fn context_holds_onto_message_until_enough_signals_received() {
 
 	let test_fut = async move {
 		signal_tx.send(OverseerSignal::Conclude).await.unwrap();
-		assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Signal(OverseerSignal::Conclude));
+		assert_matches!(ctx.recv().await.unwrap(), FromOrchestra::Signal(OverseerSignal::Conclude));
 
 		assert_eq!(ctx.signals_received.load(), 1);
 		bounded_tx
@@ -1174,9 +1162,9 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		assert!(ctx.pending_incoming.is_some());
 
 		signal_tx.send(OverseerSignal::Conclude).await.unwrap();
-		assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Signal(OverseerSignal::Conclude));
-		assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Communication { msg: () });
-		assert_matches!(ctx.recv().await.unwrap(), FromOverseer::Communication { msg: () });
+		assert_matches!(ctx.recv().await.unwrap(), FromOrchestra::Signal(OverseerSignal::Conclude));
+		assert_matches!(ctx.recv().await.unwrap(), FromOrchestra::Communication { msg: () });
+		assert_matches!(ctx.recv().await.unwrap(), FromOrchestra::Communication { msg: () });
 		assert!(ctx.pending_incoming.is_none());
 	};
 

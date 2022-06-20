@@ -38,7 +38,7 @@ use polkadot_node_subsystem::{
 		ApprovalDistributionMessage, ChainApiMessage, ChainSelectionMessage, RuntimeApiMessage,
 		RuntimeApiRequest,
 	},
-	overseer, RuntimeApiError, SubsystemContext, SubsystemError, SubsystemResult,
+	overseer, RuntimeApiError, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{
 	determine_new_blocks,
@@ -107,8 +107,9 @@ enum ImportedBlockInfoError {
 }
 
 /// Computes information about the imported block. Returns an error if the info couldn't be extracted.
-async fn imported_block_info(
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+async fn imported_block_info<Context>(
+	ctx: &mut Context,
 	env: ImportedBlockInfoEnv<'_>,
 	block_hash: Hash,
 	block_header: &Header,
@@ -319,10 +320,11 @@ pub struct BlockImportedCandidates {
 ///   * and return information about all candidates imported under each block.
 ///
 /// It is the responsibility of the caller to schedule wakeups for each block.
-pub(crate) async fn handle_new_head(
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+pub(crate) async fn handle_new_head<Context, B: Backend>(
+	ctx: &mut Context,
 	state: &mut State,
-	db: &mut OverlayedBackend<'_, impl Backend>,
+	db: &mut OverlayedBackend<'_, B>,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
@@ -558,9 +560,15 @@ pub(crate) async fn handle_new_head(
 		// ancestors. this can only be done after writing the block entry above.
 		if let Some(up_to) = force_approve {
 			gum::debug!(target: LOG_TARGET, ?block_hash, up_to, "Enacting force-approve");
-
 			let approved_hashes = crate::ops::force_approve(db, block_hash, up_to)
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+			gum::debug!(
+				target: LOG_TARGET,
+				?block_hash,
+				up_to,
+				"Force-approving {} blocks",
+				approved_hashes.len()
+			);
 
 			// Notify chain-selection of all approved hashes.
 			for hash in approved_hashes {
@@ -574,6 +582,7 @@ pub(crate) async fn handle_new_head(
 			parent_hash: block_header.parent_hash,
 			candidates: included_candidates.iter().map(|(hash, _, _, _)| *hash).collect(),
 			slot,
+			session: session_index,
 		});
 
 		imported_candidates.push(BlockImportedCandidates {
@@ -608,10 +617,10 @@ pub(crate) mod tests {
 	use assert_matches::assert_matches;
 	use merlin::Transcript;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
-	use polkadot_node_subsystem::messages::AllMessages;
+	use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
-	use polkadot_primitives::v2::{SessionInfo, ValidatorIndex};
+	use polkadot_primitives::v2::{Id as ParaId, SessionInfo, ValidatorIndex};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -723,7 +732,8 @@ pub(crate) mod tests {
 	#[test]
 	fn imported_block_info_is_good() {
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) =
+			make_subsystem_context::<ApprovalVotingMessage, _>(pool.clone());
 
 		let session = 5;
 		let session_info = dummy_session_info(session);
@@ -846,7 +856,8 @@ pub(crate) mod tests {
 	#[test]
 	fn imported_block_info_fails_if_no_babe_vrf() {
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) =
+			make_subsystem_context::<ApprovalVotingMessage, _>(pool.clone());
 
 		let session = 5;
 		let session_info = dummy_session_info(session);
@@ -949,7 +960,8 @@ pub(crate) mod tests {
 	#[test]
 	fn imported_block_info_fails_if_ancient_session() {
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) =
+			make_subsystem_context::<ApprovalVotingMessage, _>(pool.clone());
 
 		let session = 5;
 
@@ -1026,7 +1038,7 @@ pub(crate) mod tests {
 	#[test]
 	fn imported_block_info_extracts_force_approve() {
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) = make_subsystem_context(pool.clone());
 
 		let session = 5;
 		let session_info = dummy_session_info(session);
@@ -1157,7 +1169,8 @@ pub(crate) mod tests {
 		let mut overlay_db = OverlayedBackend::new(&db);
 
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) =
+			make_subsystem_context::<ApprovalVotingMessage, _>(pool.clone());
 
 		let session = 5;
 		let irrelevant = 666;
@@ -1205,8 +1218,8 @@ pub(crate) mod tests {
 			r
 		};
 		let candidates = vec![
-			(make_candidate(1.into()), CoreIndex(0), GroupIndex(0)),
-			(make_candidate(2.into()), CoreIndex(1), GroupIndex(1)),
+			(make_candidate(ParaId::from(1)), CoreIndex(0), GroupIndex(0)),
+			(make_candidate(ParaId::from(2)), CoreIndex(1), GroupIndex(1)),
 		];
 		let inclusion_events = candidates
 			.iter()

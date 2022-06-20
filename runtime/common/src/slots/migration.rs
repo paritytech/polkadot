@@ -24,7 +24,7 @@ pub mod slots_crowdloan_index_migration {
 
 	// The old way we generated fund accounts.
 	fn old_fund_account_id<T: Config + crowdloan::Config>(index: ParaId) -> T::AccountId {
-		<T as crowdloan::Config>::PalletId::get().into_sub_account(index)
+		<T as crowdloan::Config>::PalletId::get().into_sub_account_truncating(index)
 	}
 
 	pub fn pre_migrate<T: Config + crowdloan::Config>() -> Result<(), &'static str> {

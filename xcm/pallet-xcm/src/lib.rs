@@ -23,7 +23,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-use codec::{Decode, Encode, EncodeLike};
+use codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::traits::{
 	Contains, ContainsPair, Currency, Defensive, EnsureOrigin, Get, LockableCurrency, OriginTrait,
 };
@@ -271,7 +271,7 @@ pub mod pallet {
 	}
 
 	#[pallet::origin]
-	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 	pub enum Origin {
 		/// It comes from somewhere in the XCM space wanting to transact.
 		Xcm(MultiLocation),
@@ -1281,11 +1281,6 @@ impl<T: Config> Pallet<T> {
 			Self::charge_fees(fee_payer, price).map_err(|_| SendError::Fees)?;
 		}
 		T::XcmRouter::deliver(ticket)
-	}
-
-	pub fn check_account() -> T::AccountId {
-		const ID: PalletId = PalletId(*b"py/xcmch");
-		AccountIdConversion::<T::AccountId>::into_account(&ID)
 	}
 
 	/// Create a new expectation of a query response with the querier being here.
