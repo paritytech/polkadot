@@ -15,16 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use futures::{channel::oneshot, executor, stream::BoxStream};
+use futures::{executor, stream::BoxStream};
 use polkadot_node_subsystem_util::TimeoutExt;
 
 use async_trait::async_trait;
 use parking_lot::Mutex;
-use std::{
-	borrow::Cow,
-	collections::HashSet,
-	sync::atomic::{AtomicBool, Ordering},
-};
+use std::{borrow::Cow, collections::HashSet};
 
 use sc_network::{Event as NetworkEvent, IfDisconnected};
 
@@ -172,40 +168,6 @@ impl TestNetworkHandle {
 	}
 }
 
-#[derive(Clone)]
-struct TestSyncOracle {
-	flag: Arc<AtomicBool>,
-	done_syncing_sender: Arc<Mutex<Option<oneshot::Sender<()>>>>,
-}
-
-impl SyncOracle for TestSyncOracle {
-	fn is_major_syncing(&mut self) -> bool {
-		let is_major_syncing = self.flag.load(Ordering::SeqCst);
-
-		if !is_major_syncing {
-			if let Some(sender) = self.done_syncing_sender.lock().take() {
-				let _ = sender.send(());
-			}
-		}
-
-		is_major_syncing
-	}
-
-	fn is_offline(&mut self) -> bool {
-		unimplemented!("not used in network bridge")
-	}
-}
-
-// val - result of `is_major_syncing`.
-fn done_syncing_oracle() -> Box<dyn SyncOracle + Send> {
-	let is_major_syncing = Arc::new(AtomicBool::new(false));
-	let oracle = TestSyncOracle {
-		flag: is_major_syncing.clone(),
-		done_syncing_sender: Arc::new(Mutex::new(None)),
-	};
-	Box::new(oracle)
-}
-
 type VirtualOverseer = TestSubsystemContextHandle<NetworkBridgeTxMessage>;
 
 struct TestHarness {
@@ -213,17 +175,14 @@ struct TestHarness {
 	virtual_overseer: VirtualOverseer,
 }
 
-fn test_harness<T: Future<Output = VirtualOverseer>>(
-	sync_oracle: Box<dyn SyncOracle + Send>,
-	test: impl FnOnce(TestHarness) -> T,
-) {
+fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarness) -> T) {
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (network, network_handle, discovery) = new_test_network();
 
 	let (context, virtual_overseer) =
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
-	let bridge_out = NetworkBridgeTx::new(network, discovery, sync_oracle, Metrics(None));
+	let bridge_out = NetworkBridgeTx::new(network, discovery, Metrics(None));
 
 	let network_bridge_out_fut = run_network_out(bridge_out, context)
 		.map_err(|e| panic!("bridge-out subsystem execution failed {:?}", e))
@@ -245,7 +204,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 #[test]
 fn send_messages_to_peers() {
-	test_harness(done_syncing_oracle(), |test_harness| async move {
+	test_harness(|test_harness| async move {
 		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
 
 		let peer = PeerId::random();

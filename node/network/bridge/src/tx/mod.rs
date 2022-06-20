@@ -17,8 +17,6 @@
 //! The Network Bridge Subsystem - handles _outgoing_ messages, from subsystem to the network.
 use super::*;
 
-use sp_consensus::SyncOracle;
-
 use polkadot_node_network_protocol::{peer_set::PeerSet, v1 as protocol_v1, PeerId, Versioned};
 
 use polkadot_node_subsystem::{
@@ -51,7 +49,6 @@ pub struct NetworkBridgeTx<N, AD> {
 	/// `Network` trait implementing type.
 	network_service: N,
 	authority_discovery_service: AD,
-	sync_oracle: Box<dyn SyncOracle + Send>,
 	shared: Shared,
 	metrics: Metrics,
 }
@@ -61,14 +58,9 @@ impl<N, AD> NetworkBridgeTx<N, AD> {
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`peers_sets_info`](peers_sets_info).
-	pub fn new(
-		network_service: N,
-		authority_discovery_service: AD,
-		sync_oracle: Box<dyn SyncOracle + Send>,
-		metrics: Metrics,
-	) -> Self {
+	pub fn new(network_service: N, authority_discovery_service: AD, metrics: Metrics) -> Self {
 		let shared = Shared::default();
-		Self { network_service, authority_discovery_service, sync_oracle, shared, metrics }
+		Self { network_service, authority_discovery_service, shared, metrics }
 	}
 
 	/// Obtain the shared internal state.
@@ -98,8 +90,6 @@ async fn handle_subsystem_messages<Context, N, AD>(
 	mut ctx: Context,
 	mut network_service: N,
 	mut authority_discovery_service: AD,
-	_shared: Shared,
-	_sync_oracle: Box<dyn SyncOracle + Send>,
 	metrics: Metrics,
 ) -> Result<(), Error>
 where
@@ -294,23 +284,10 @@ where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
 {
-	let NetworkBridgeTx {
-		network_service,
-		authority_discovery_service,
-		metrics,
-		sync_oracle,
-		shared,
-	} = bridge;
+	let NetworkBridgeTx { network_service, authority_discovery_service, metrics, shared: _ } =
+		bridge;
 
-	handle_subsystem_messages(
-		ctx,
-		network_service,
-		authority_discovery_service,
-		shared,
-		sync_oracle,
-		metrics,
-	)
-	.await?;
+	handle_subsystem_messages(ctx, network_service, authority_discovery_service, metrics).await?;
 
 	Ok(())
 }
