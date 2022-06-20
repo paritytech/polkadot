@@ -1046,6 +1046,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				})
 				.collect::<Vec<_>>(),
 		},
+		phragmen_election: Default::default(),
 		babe: rococo_runtime::BabeConfig {
 			authorities: Default::default(),
 			epoch_config: Some(rococo_runtime::BABE_GENESIS_EPOCH_CONFIG),
@@ -1061,6 +1062,8 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		technical_membership: Default::default(),
 		treasury: Default::default(),
 		authority_discovery: rococo_runtime::AuthorityDiscoveryConfig { keys: vec![] },
+		claims: rococo::ClaimsConfig { claims: vec![], vesting: vec![] },
+		vesting: rococo::VestingConfig { vesting: vec![] },
 		sudo: rococo_runtime::SudoConfig { key: Some(endowed_accounts[0].clone()) },
 		paras: rococo_runtime::ParasConfig { paras: vec![] },
 		hrmp: Default::default(),
@@ -1617,6 +1620,7 @@ pub fn rococo_testnet_genesis(
 		},
 		grandpa: Default::default(),
 		im_online: Default::default(),
+		phragmen_election: Default::default(),
 		democracy: rococo::DemocracyConfig::default(),
 		council: rococo::CouncilConfig { members: vec![], phantom: Default::default() },
 		technical_committee: rococo::TechnicalCommitteeConfig {
@@ -1625,6 +1629,8 @@ pub fn rococo_testnet_genesis(
 		},
 		technical_membership: Default::default(),
 		treasury: Default::default(),
+		claims: rococo::ClaimsConfig { claims: vec![], vesting: vec![] },
+		vesting: rococo::VestingConfig { vesting: vec![] },
 		authority_discovery: rococo_runtime::AuthorityDiscoveryConfig { keys: vec![] },
 		sudo: rococo_runtime::SudoConfig { key: Some(root_key.clone()) },
 		hrmp: Default::default(),

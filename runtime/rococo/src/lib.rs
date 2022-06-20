@@ -29,7 +29,7 @@ use primitives::v2::{
 	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	assigned_slots, auctions, crowdloan, impl_runtime_weights, impls::ToAuthor, paras_registrar,
+	assigned_slots, auctions, claims, crowdloan, impl_runtime_weights, impls::ToAuthor, paras_registrar,
 	prod_or_fast, paras_sudo_wrapper, slots, BlockHashCount, BlockLength, SlowAdjustingFeeUpdate,
 };
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
@@ -54,7 +54,7 @@ use beefy_primitives::{
 // };
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, PrivilegeCmp},
+	traits::{Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, PrivilegeCmp, LockIdentifier},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug
 };
@@ -68,7 +68,7 @@ use sp_mmr_primitives as mmr;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
-		AccountIdLookup, BlakeTwo256, Block as BlockT, Extrinsic as ExtrinsicT, Keccak256,
+		AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic as ExtrinsicT, Keccak256,
 		OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
@@ -78,8 +78,7 @@ use sp_staking::SessionIndex;
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
-// TODO: Elections Phragmen
-// use static_assertions::const_assert;
+use static_assertions::const_assert;
 
 pub use frame_system::Call as SystemCall;
 // TODO: Election
@@ -712,42 +711,39 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
 	type WeightInfo = weights::pallet_collective::WeightInfo<Runtime>;
 }
 
-// TODO: Elections Phragmen
-// parameter_types! {
-// 	pub const CandidacyBond: Balance = 100 * CENTS;
-// 	// 1 storage item created, key size is 32 bytes, value size is 16+16.
-// 	pub const VotingBondBase: Balance = deposit(1, 64);
-// 	// additional data per vote is 32 bytes (account id).
-// 	pub const VotingBondFactor: Balance = deposit(0, 32);
-// 	/// Daily council elections
-// 	pub TermDuration: BlockNumber = prod_or_fast!(24 * HOURS, 2 * MINUTES, "KSM_TERM_DURATION");
-// 	pub const DesiredMembers: u32 = 19;
-// 	pub const DesiredRunnersUp: u32 = 19;
-// 	pub const PhragmenElectionPalletId: LockIdentifier = *b"phrelect";
-// }
+parameter_types! {
+	pub const CandidacyBond: Balance = 100 * CENTS;
+	// 1 storage item created, key size is 32 bytes, value size is 16+16.
+	pub const VotingBondBase: Balance = deposit(1, 64);
+	// additional data per vote is 32 bytes (account id).
+	pub const VotingBondFactor: Balance = deposit(0, 32);
+	/// Daily council elections
+	pub TermDuration: BlockNumber = prod_or_fast!(24 * HOURS, 2 * MINUTES, "ROC_TERM_DURATION");
+	pub const DesiredMembers: u32 = 19;
+	pub const DesiredRunnersUp: u32 = 19;
+	pub const PhragmenElectionPalletId: LockIdentifier = *b"phrelect";
+}
 
-// TODO: Elections Phragmen
-//// Make sure that there are no more than MaxMembers members elected via phragmen.
-// const_assert!(DesiredMembers::get() <= CouncilMaxMembers::get());
+// Make sure that there are no more than MaxMembers members elected via phragmen.
+const_assert!(DesiredMembers::get() <= CouncilMaxMembers::get());
 
-// TODO: Elections Phragmen
-// impl pallet_elections_phragmen::Config for Runtime {
-// 	type Event = Event;
-// 	type Currency = Balances;
-// 	type ChangeMembers = Council;
-// 	type InitializeMembers = Council;
-// 	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
-// 	type CandidacyBond = CandidacyBond;
-// 	type VotingBondBase = VotingBondBase;
-// 	type VotingBondFactor = VotingBondFactor;
-// 	type LoserCandidate = Treasury;
-// 	type KickedMember = Treasury;
-// 	type DesiredMembers = DesiredMembers;
-// 	type DesiredRunnersUp = DesiredRunnersUp;
-// 	type TermDuration = TermDuration;
-// 	type PalletId = PhragmenElectionPalletId;
-// 	type WeightInfo = weights::pallet_elections_phragmen::WeightInfo<Runtime>;
-// }
+impl pallet_elections_phragmen::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type ChangeMembers = Council;
+	type InitializeMembers = Council;
+	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
+	type CandidacyBond = CandidacyBond;
+	type VotingBondBase = VotingBondBase;
+	type VotingBondFactor = VotingBondFactor;
+	type LoserCandidate = Treasury;
+	type KickedMember = Treasury;
+	type DesiredMembers = DesiredMembers;
+	type DesiredRunnersUp = DesiredRunnersUp;
+	type TermDuration = TermDuration;
+	type PalletId = PhragmenElectionPalletId;
+	type WeightInfo = weights::pallet_elections_phragmen::WeightInfo<Runtime>;
+}
 
 parameter_types! {
 	pub TechnicalMotionDuration: BlockNumber = prod_or_fast!(3 * DAYS, 2 * MINUTES, "KSM_MOTION_DURATION");
@@ -865,17 +861,16 @@ impl pallet_child_bounties::Config for Runtime {
 	type WeightInfo = weights::pallet_child_bounties::WeightInfo<Runtime>;
 }
 
-// TODO: Tips
-// impl pallet_tips::Config for Runtime {
-// 	type MaximumReasonLength = MaximumReasonLength;
-// 	type DataDepositPerByte = DataDepositPerByte;
-// 	type Tippers = PhragmenElection;
-// 	type TipCountdown = TipCountdown;
-// 	type TipFindersFee = TipFindersFee;
-// 	type TipReportDepositBase = TipReportDepositBase;
-// 	type Event = Event;
-// 	type WeightInfo = weights::pallet_tips::WeightInfo<Runtime>;
-// }
+impl pallet_tips::Config for Runtime {
+	type MaximumReasonLength = MaximumReasonLength;
+	type DataDepositPerByte = DataDepositPerByte;
+	type Tippers = PhragmenElection;
+	type TipCountdown = TipCountdown;
+	type TipFindersFee = TipFindersFee;
+	type TipReportDepositBase = TipReportDepositBase;
+	type Event = Event;
+	type WeightInfo = weights::pallet_tips::WeightInfo<Runtime>;
+}
 
 impl pallet_offences::Config for Runtime {
 	type Event = Event;
@@ -993,47 +988,43 @@ where
 	type OverarchingCall = Call;
 }
 
-// TODO: Claims
-// parameter_types! {
-// 	pub Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
-// }
+parameter_types! {
+	pub Prefix: &'static [u8] = b"Pay ROCs to the Rococo account:";
+}
 
-// TODO: Claims
-// impl claims::Config for Runtime {
-// 	type Event = Event;
-// 	type VestingSchedule = Vesting;
-// 	type Prefix = Prefix;
-// 	type MoveClaimOrigin =
-// 		pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>;
-// 	type WeightInfo = weights::runtime_common_claims::WeightInfo<Runtime>;
-// }
+impl claims::Config for Runtime {
+	type Event = Event;
+	type VestingSchedule = Vesting;
+	type Prefix = Prefix;
+	type MoveClaimOrigin =
+		pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>;
+	type WeightInfo = weights::runtime_common_claims::WeightInfo<Runtime>;
+}
 
-// TODO: Identity
-// parameter_types! {
-// 	// Minimum 100 bytes/KSM deposited (1 CENT/byte)
-// 	pub const BasicDeposit: Balance = 1000 * CENTS;       // 258 bytes on-chain
-// 	pub const FieldDeposit: Balance = 250 * CENTS;        // 66 bytes on-chain
-// 	pub const SubAccountDeposit: Balance = 200 * CENTS;   // 53 bytes on-chain
-// 	pub const MaxSubAccounts: u32 = 100;
-// 	pub const MaxAdditionalFields: u32 = 100;
-// 	pub const MaxRegistrars: u32 = 20;
-// }
+parameter_types! {
+	// Minimum 100 bytes/KSM deposited (1 CENT/byte)
+	pub const BasicDeposit: Balance = 1000 * CENTS;       // 258 bytes on-chain
+	pub const FieldDeposit: Balance = 250 * CENTS;        // 66 bytes on-chain
+	pub const SubAccountDeposit: Balance = 200 * CENTS;   // 53 bytes on-chain
+	pub const MaxSubAccounts: u32 = 100;
+	pub const MaxAdditionalFields: u32 = 100;
+	pub const MaxRegistrars: u32 = 20;
+}
 
-// TODO: Identity
-// impl pallet_identity::Config for Runtime {
-// 	type Event = Event;
-// 	type Currency = Balances;
-// 	type BasicDeposit = BasicDeposit;
-// 	type FieldDeposit = FieldDeposit;
-// 	type SubAccountDeposit = SubAccountDeposit;
-// 	type MaxSubAccounts = MaxSubAccounts;
-// 	type MaxAdditionalFields = MaxAdditionalFields;
-// 	type MaxRegistrars = MaxRegistrars;
-// 	type Slashed = Treasury;
-// 	type ForceOrigin = MoreThanHalfCouncil;
-// 	type RegistrarOrigin = MoreThanHalfCouncil;
-// 	type WeightInfo = weights::pallet_identity::WeightInfo<Runtime>;
-// }
+impl pallet_identity::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type BasicDeposit = BasicDeposit;
+	type FieldDeposit = FieldDeposit;
+	type SubAccountDeposit = SubAccountDeposit;
+	type MaxSubAccounts = MaxSubAccounts;
+	type MaxAdditionalFields = MaxAdditionalFields;
+	type MaxRegistrars = MaxRegistrars;
+	type Slashed = Treasury;
+	type ForceOrigin = MoreThanHalfCouncil;
+	type RegistrarOrigin = MoreThanHalfCouncil;
+	type WeightInfo = weights::pallet_identity::WeightInfo<Runtime>;
+}
 
 impl pallet_utility::Config for Runtime {
 	type Event = Event;
@@ -1111,20 +1102,18 @@ impl pallet_society::Config for Runtime {
 	type PalletId = SocietyPalletId;
 }
 
-// TODO: Vesting
-// parameter_types! {
-// 	pub const MinVestedTransfer: Balance = 100 * CENTS;
-// }
+parameter_types! {
+	pub const MinVestedTransfer: Balance = 100 * CENTS;
+}
 
-// TODO: Vesting
-// impl pallet_vesting::Config for Runtime {
-// 	type Event = Event;
-// 	type Currency = Balances;
-// 	type BlockNumberToBalance = ConvertInto;
-// 	type MinVestedTransfer = MinVestedTransfer;
-// 	type WeightInfo = weights::pallet_vesting::WeightInfo<Runtime>;
-// 	const MAX_VESTING_SCHEDULES: u32 = 28;
-// }
+impl pallet_vesting::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type BlockNumberToBalance = ConvertInto;
+	type MinVestedTransfer = MinVestedTransfer;
+	type WeightInfo = weights::pallet_vesting::WeightInfo<Runtime>;
+	const MAX_VESTING_SCHEDULES: u32 = 28;
+}
 
 parameter_types! {
 	// One storage item; key size 32, value size 8; .
@@ -1788,21 +1777,18 @@ construct_runtime! {
 		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 13,
 		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 14,
 		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
-		// TODO: Elections Prhargmen
-		// PhragmenElection: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 16,
+		PhragmenElection: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 16,
 		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
 		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 18,
 
-		// TODO: Claims
-		//// Claims. Usable initially.
-		// Claims: claims::{Pallet, Call, Storage, Event<T>, Config<T>, ValidateUnsigned} = 19,
+		// Claims. Usable initially.
+		Claims: claims::{Pallet, Call, Storage, Event<T>, Config<T>, ValidateUnsigned} = 19,
 
 		// Utility module.
 		Utility: pallet_utility::{Pallet, Call, Event} = 24,
 
-		// TODO: Identity
-		//// Less simple identity module.
-		// Identity: pallet_identity::{Pallet, Call, Storage, Event<T>} = 25,
+		// Less simple identity module.
+		Identity: pallet_identity::{Pallet, Call, Storage, Event<T>} = 25,
 
 		// Society module.
 		Society: pallet_society::{Pallet, Call, Storage, Event<T>} = 26,
@@ -1811,9 +1797,8 @@ construct_runtime! {
 		//// Social recovery module.
 		// Recovery: pallet_recovery::{Pallet, Call, Storage, Event<T>} = 27,
 
-		// TODO: Vesting
-		//// Vesting. Usable initially, but removed once all vesting is finished.
-		// Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>} = 28,
+		// Vesting. Usable initially, but removed once all vesting is finished.
+		Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>} = 28,
 
 		// System scheduler.
 		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>} = 29,
@@ -1837,9 +1822,8 @@ construct_runtime! {
 		Bounties: pallet_bounties::{Pallet, Call, Storage, Event<T>} = 35,
 		ChildBounties: pallet_child_bounties = 40,
 
-		// TODO: Tips
-		//// Tips module.
-		// Tips: pallet_tips::{Pallet, Call, Storage, Event<T>} = 36,
+		// Tips module.
+		Tips: pallet_tips::{Pallet, Call, Storage, Event<T>} = 36,
 
 		// TODO: Election
 		//// Election pallet. Only works with staking, but placed here to maintain indices.
@@ -1969,8 +1953,7 @@ mod benches {
 		// the that path resolves correctly in the generated file.
 		[runtime_common::auctions, Auctions]
 		[runtime_common::crowdloan, Crowdloan]
-		// TODO: Claims
-		// [runtime_common::claims, Claims]
+		[runtime_common::claims, Claims]
 		[runtime_common::slots, Slots]
 		[runtime_common::paras_registrar, Registrar]
 		[runtime_parachains::configuration, Configuration]
@@ -1991,15 +1974,13 @@ mod benches {
 		[pallet_collective, Council]
 		[pallet_collective, TechnicalCommittee]
 		[pallet_democracy, Democracy]
-		// TODO: Elections Phragmen
-		// [pallet_elections_phragmen, PhragmenElection]
+		[pallet_elections_phragmen, PhragmenElection]
 		// TODO: Election
 		// [pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
 		// [frame_election_provider_support, ElectionProviderBench::<Runtime>]
 		// TODO: Gilt
 		// [pallet_gilt, Gilt]
-		// TODO: Identity
-		// [pallet_identity, Identity]
+		[pallet_identity, Identity]
 		[pallet_im_online, ImOnline]
 		[pallet_indices, Indices]
 		[pallet_membership, TechnicalMembership]
@@ -2018,8 +1999,7 @@ mod benches {
 		// [pallet_staking, Staking]
 		[frame_system, SystemBench::<Runtime>]
 		[pallet_timestamp, Timestamp]
-		// TODO: Tips
-		// [pallet_tips, Tips]
+		[pallet_tips, Tips]
 		[pallet_treasury, Treasury]
 		[pallet_utility, Utility]
 		// TODO: Vesting
