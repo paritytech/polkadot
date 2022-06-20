@@ -65,9 +65,6 @@ pub mod benchmarking;
 /// and are used for the offence deduplication.
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 pub struct DisputesTimeSlot {
-	// TODO: `TimeSlot` docs says it should fit into `u128`
-	// any proofs?
-
 	// The order of these matters for `derive(Ord)`.
 	session_index: SessionIndex,
 	candidate_hash: CandidateHash,
@@ -128,8 +125,6 @@ where
 	}
 }
 
-// TODO: this can include a multiplier to make slashing worse
-// and enable disabling
 /// An offence that is filed when a series of validators lost a dispute
 /// about an valid candidate.
 #[derive(RuntimeDebug, TypeInfo)]
