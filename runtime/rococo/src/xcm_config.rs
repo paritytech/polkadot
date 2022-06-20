@@ -101,7 +101,7 @@ pub type XcmRouter = (
 parameter_types! {
 	pub const Rococo: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(RocLocation::get()) });
 	pub const Statemine: MultiLocation = Parachain(1000).into();
-	pub const Canvas: MultiLocation = Parachain(1002).into();
+	pub const Contracts: MultiLocation = Parachain(1002).into();
 	pub const Encointer: MultiLocation = Parachain(1003).into();
 	pub const Tick: MultiLocation = Parachain(100).into();
 	pub const Trick: MultiLocation = Parachain(110).into();
@@ -110,7 +110,7 @@ parameter_types! {
 	pub const RococoForTrick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Trick::get());
 	pub const RococoForTrack: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Track::get());
 	pub const RococoForStatemine: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Statemine::get());
-	pub const RococoForCanvas: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Canvas::get());
+	pub const RococoForContracts: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Contracts::get());
 	pub const RococoForEncointer: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Encointer::get());
 }
 pub type TrustedTeleporters = (
@@ -118,7 +118,7 @@ pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTrick>,
 	xcm_builder::Case<RococoForTrack>,
 	xcm_builder::Case<RococoForStatemine>,
-	xcm_builder::Case<RococoForCanvas>,
+	xcm_builder::Case<RococoForContracts>,
 	xcm_builder::Case<RococoForEncointer>,
 );
 

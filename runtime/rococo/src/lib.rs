@@ -249,7 +249,6 @@ impl pallet_preimage::Config for Runtime {
 }
 
 parameter_types! {
-	// TODO: Babe
 	// pub EpochDuration: u64 = prod_or_fast!(
 	// 	EPOCH_DURATION_IN_SLOTS as u64,
 	// 	2 * MINUTES as u64,
@@ -291,9 +290,8 @@ impl pallet_babe::Config for Runtime {
 	type MaxAuthorities = MaxAuthorities;
 }
 
-// TODO: Indices
 parameter_types! {
-	pub const IndexDeposit: Balance = 1 * UNITS;
+	pub const IndexDeposit: Balance = 100 * CENTS;
 }
 
 impl pallet_indices::Config for Runtime {
@@ -578,6 +576,11 @@ impl pallet_session::historical::Config for Runtime {
 // 	}
 // }
 
+// TODO: Stacking -> remove when stacking added
+parameter_types! {
+	pub const SessionsPerEra: SessionIndex = 6;
+	pub const BondingDuration: sp_staking::EraIndex = 28;
+}
 // TODO: Stacking
 // parameter_types! {
 // 	// Six sessions in an era (6 hours).
@@ -1115,12 +1118,12 @@ impl pallet_vesting::Config for Runtime {
 
 parameter_types! {
 	// One storage item; key size 32, value size 8; .
-	pub const ProxyDepositBase: Balance = 10; // TODO: Proxy -> pub const ProxyDepositBase: Balance = deposit(1, 8);
+	pub const ProxyDepositBase: Balance = deposit(1, 8);
 	// Additional storage item size of 33 bytes.
-	pub const ProxyDepositFactor: Balance = 10; // TODO: Proxy -> pub const ProxyDepositFactor: Balance = deposit(0, 33);
+	pub const ProxyDepositFactor: Balance = deposit(0, 33);
 	pub const MaxProxies: u16 = 32;
-	pub const AnnouncementDepositBase: Balance = 10; // TODO: Proxy -> pub const AnnouncementDepositBase: Balance = deposit(1, 8);
-	pub const AnnouncementDepositFactor: Balance = 10; // TODO: Proxy -> pub const AnnouncementDepositFactor: Balance = deposit(0, 66);
+	pub const AnnouncementDepositBase: Balance = deposit(1, 8);
+	pub const AnnouncementDepositFactor: Balance = deposit(0, 66);
 	pub const MaxPending: u16 = 32;
 }
 
@@ -1140,13 +1143,13 @@ parameter_types! {
 )]
 pub enum ProxyType {
 	Any,
-	// TODO: Proxy -> NonTransfer,
-	// TODO: Proxy -> Governance,
-	// TODO: Proxy -> Staking,
-	// TODO: Proxy -> IdentityJudgement,
+	NonTransfer,
+	Governance,
+	// TODO: Proxy & TODO: Staking -> Staking,
+	IdentityJudgement,
 	CancelProxy,
 	Auction,
-	// TODO: Proxy -> Society,
+	Society,
 }
 impl Default for ProxyType {
 	fn default() -> Self {
@@ -1157,77 +1160,76 @@ impl InstanceFilter<Call> for ProxyType {
 	fn filter(&self, c: &Call) -> bool {
 		match self {
 			ProxyType::Any => true,
-			// TODO: Proxy
-			// ProxyType::NonTransfer => matches!(
-			// 	c,
-			// 	Call::System(..) |
-			// 	Call::Babe(..) |
-			// 	Call::Timestamp(..) |
-			// 	Call::Indices(pallet_indices::Call::claim {..}) |
-			// 	Call::Indices(pallet_indices::Call::free {..}) |
-			// 	Call::Indices(pallet_indices::Call::freeze {..}) |
-			// 	// Specifically omitting Indices `transfer`, `force_transfer`
-			// 	// Specifically omitting the entire Balances pallet
-			// 	Call::Authorship(..) |
-			// 	Call::Staking(..) |
-			// 	Call::Session(..) |
-			// 	Call::Grandpa(..) |
-			// 	Call::ImOnline(..) |
-			// 	Call::Democracy(..) |
-			// 	Call::Council(..) |
-			// 	Call::TechnicalCommittee(..) |
-			// 	Call::PhragmenElection(..) |
-			// 	Call::TechnicalMembership(..) |
-			// 	Call::Treasury(..) |
-			// 	Call::Bounties(..) |
-			// 	Call::ChildBounties(..) |
-			// 	Call::Tips(..) |
-			// 	Call::Claims(..) |
-			// 	Call::Utility(..) |
-			// 	Call::Identity(..) |
-			// 	Call::Society(..) |
-			// 	Call::Recovery(pallet_recovery::Call::as_recovered {..}) |
-			// 	Call::Recovery(pallet_recovery::Call::vouch_recovery {..}) |
-			// 	Call::Recovery(pallet_recovery::Call::claim_recovery {..}) |
-			// 	Call::Recovery(pallet_recovery::Call::close_recovery {..}) |
-			// 	Call::Recovery(pallet_recovery::Call::remove_recovery {..}) |
-			// 	Call::Recovery(pallet_recovery::Call::cancel_recovered {..}) |
-			// 	// Specifically omitting Recovery `create_recovery`, `initiate_recovery`
-			// 	Call::Vesting(pallet_vesting::Call::vest {..}) |
-			// 	Call::Vesting(pallet_vesting::Call::vest_other {..}) |
-			// 	// Specifically omitting Vesting `vested_transfer`, and `force_vested_transfer`
-			// 	Call::Scheduler(..) |
-			// 	Call::Proxy(..) |
-			// 	Call::Multisig(..) |
-			// 	Call::Gilt(..) |
-			// 	Call::Registrar(paras_registrar::Call::register {..}) |
-			// 	Call::Registrar(paras_registrar::Call::deregister {..}) |
-			// 	// Specifically omitting Registrar `swap`
-			// 	Call::Registrar(paras_registrar::Call::reserve {..}) |
-			// 	Call::Crowdloan(..) |
-			// 	Call::Slots(..) |
-			// 	Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
-			// 	Call::VoterList(..)
-			// ),
-			// TODO: Proxy
-			// ProxyType::Governance => matches!(
-			// 	c,
-			// 	Call::Democracy(..) |
-			// 		Call::Council(..) | Call::TechnicalCommittee(..) |
-			// 		Call::PhragmenElection(..) |
-			// 		Call::Treasury(..) | Call::Bounties(..) |
-			// 		Call::Tips(..) | Call::Utility(..) |
-			// 		Call::ChildBounties(..)
-			// ),
-			// TODO: Proxy
+			ProxyType::NonTransfer => matches!(
+				c,
+				Call::System(..) |
+				Call::Babe(..) |
+				Call::Timestamp(..) |
+				Call::Indices(pallet_indices::Call::claim {..}) |
+				Call::Indices(pallet_indices::Call::free {..}) |
+				Call::Indices(pallet_indices::Call::freeze {..}) |
+				// Specifically omitting Indices `transfer`, `force_transfer`
+				// Specifically omitting the entire Balances pallet
+				Call::Authorship(..) |
+				// TODO: Staking
+				// Call::Staking(..) |
+				Call::Session(..) |
+				Call::Grandpa(..) |
+				Call::ImOnline(..) |
+				Call::Democracy(..) |
+				Call::Council(..) |
+				Call::TechnicalCommittee(..) |
+				Call::PhragmenElection(..) |
+				Call::TechnicalMembership(..) |
+				Call::Treasury(..) |
+				Call::Bounties(..) |
+				Call::ChildBounties(..) |
+				Call::Tips(..) |
+				Call::Claims(..) |
+				Call::Utility(..) |
+				Call::Identity(..) |
+				Call::Society(..) |
+				Call::Recovery(pallet_recovery::Call::as_recovered {..}) |
+				Call::Recovery(pallet_recovery::Call::vouch_recovery {..}) |
+				Call::Recovery(pallet_recovery::Call::claim_recovery {..}) |
+				Call::Recovery(pallet_recovery::Call::close_recovery {..}) |
+				Call::Recovery(pallet_recovery::Call::remove_recovery {..}) |
+				Call::Recovery(pallet_recovery::Call::cancel_recovered {..}) |
+				// Specifically omitting Recovery `create_recovery`, `initiate_recovery`
+				Call::Vesting(pallet_vesting::Call::vest {..}) |
+				Call::Vesting(pallet_vesting::Call::vest_other {..}) |
+				// Specifically omitting Vesting `vested_transfer`, and `force_vested_transfer`
+				Call::Scheduler(..) |
+				Call::Proxy(..) |
+				Call::Multisig(..) |
+				Call::Gilt(..) |
+				Call::Registrar(paras_registrar::Call::register {..}) |
+				Call::Registrar(paras_registrar::Call::deregister {..}) |
+				// Specifically omitting Registrar `swap`
+				Call::Registrar(paras_registrar::Call::reserve {..}) |
+				Call::Crowdloan(..) |
+				Call::Slots(..) |
+				Call::Auctions(..) // Specifically omitting the entire XCM Pallet
+				// TODO: Proxy & TODO: Bags List
+				// Call::VoterList(..)
+			),
+			ProxyType::Governance => matches!(
+				c,
+				Call::Democracy(..) |
+					Call::Council(..) | Call::TechnicalCommittee(..) |
+					Call::PhragmenElection(..) |
+					Call::Treasury(..) | Call::Bounties(..) |
+					Call::Tips(..) | Call::Utility(..) |
+					Call::ChildBounties(..)
+			),
+			// TODO: Proxy & TODO: Staking
 			// ProxyType::Staking => {
 			// 	matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
 			// },
-			// TODO: Proxy
-			// ProxyType::IdentityJudgement => matches!(
-			// 	c,
-			// 	Call::Identity(pallet_identity::Call::provide_judgement { .. }) | Call::Utility(..)
-			// ),
+			ProxyType::IdentityJudgement => matches!(
+				c,
+				Call::Identity(pallet_identity::Call::provide_judgement { .. }) | Call::Utility(..)
+			),
 			ProxyType::CancelProxy => {
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. }))
 			},
@@ -1238,18 +1240,15 @@ impl InstanceFilter<Call> for ProxyType {
 					Call::Registrar { .. } |
 					Call::Multisig(..) | Call::Slots { .. }
 			),
-			// TODO: Proxy
-			// ProxyType::Society => matches!(c, Call::Society(..)),
+			ProxyType::Society => matches!(c, Call::Society(..)),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
 		match (self, o) {
-			// TODO: Proxy
-			// (x, y) if x == y => true,
+			(x, y) if x == y => true,
 			(ProxyType::Any, _) => true,
-			// TODO: Proxy
-			// (_, ProxyType::Any) => false,
-			// (ProxyType::NonTransfer, _) => true,
+			(_, ProxyType::Any) => false,
+			(ProxyType::NonTransfer, _) => true,
 			_ => false,
 		}
 	}
@@ -1292,7 +1291,9 @@ impl runtime_parachains::inclusion::RewardValidators for RewardValidators {
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
 	type DisputesHandler = ParasDisputes;
-	type RewardValidators = RewardValidators; // TODO: Inclusion -> type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
+	// TODO: Inclusion
+	// type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
+	type RewardValidators = RewardValidators;
 }
 
 parameter_types! {
@@ -1348,7 +1349,7 @@ impl parachains_disputes::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ParaDeposit: Balance = 5 * UNITS;
+	pub const ParaDeposit: Balance = 40 * UNITS;
 }
 
 impl paras_registrar::Config for Runtime {
@@ -1362,7 +1363,7 @@ impl paras_registrar::Config for Runtime {
 }
 
 parameter_types! {
-	pub const LeasePeriod: BlockNumber = 1 * DAYS; // TODO: Slots -> pub LeasePeriod: BlockNumber = prod_or_fast!(6 * WEEKS, 6 * WEEKS, "KSM_LEASE_PERIOD");
+	pub LeasePeriod: BlockNumber = prod_or_fast!(6 * WEEKS, 6 * WEEKS, "ROC_LEASE_PERIOD");
 }
 
 impl slots::Config for Runtime {
@@ -1371,15 +1372,15 @@ impl slots::Config for Runtime {
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type LeaseOffset = ();
-	type ForceOrigin = EnsureRoot<AccountId>; // TODO: Slots -> type ForceOrigin = MoreThanHalfCouncil;
+	type ForceOrigin = MoreThanHalfCouncil;
 	type WeightInfo = weights::runtime_common_slots::WeightInfo<Runtime>;
 }
 
 parameter_types! {
 	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
-	pub const SubmissionDeposit: Balance = 100 * UNITS; // TODO: Crowdloan -> pub const SubmissionDeposit: Balance = 3 * GRAND;
-	pub const MinContribution: Balance = 1 * UNITS; // TODO: Crowdloan -> pub const MinContribution: Balance = 3_000 * CENTS;
-	pub const RemoveKeysLimit: u32 = 500; // TODO: Crowdloan -> pub const RemoveKeysLimit: u32 = 1000;
+	pub const SubmissionDeposit: Balance = 3 * GRAND;
+	pub const MinContribution: Balance = 3_000 * CENTS;
+	pub const RemoveKeysLimit: u32 = 1000;
 	// Allow 32 bytes for an additional memo to a crowdloan.
 	pub const MaxMemoLength: u8 = 32;
 }
@@ -1397,15 +1398,14 @@ impl crowdloan::Config for Runtime {
 }
 
 parameter_types! {
-	pub const EndingPeriod: BlockNumber = 1 * HOURS; // TODO: Auctions -> pub const EndingPeriod: BlockNumber = 5 * DAYS;
-	pub const SampleLength: BlockNumber = 1; // TODO: Auctions -> pub const SampleLength: BlockNumber = 2 * MINUTES;
+	pub const EndingPeriod: BlockNumber = 5 * DAYS;
+	pub const SampleLength: BlockNumber = 2 * MINUTES;
 }
 
-// TODO: Auctions
-// type AuctionInitiate = EnsureOneOf<
-// 	EnsureRoot<AccountId>,
-// 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
-// >;
+type AuctionInitiate = EnsureOneOf<
+	EnsureRoot<AccountId>,
+	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
+>;
 
 impl auctions::Config for Runtime {
 	type Event = Event;
@@ -1414,7 +1414,7 @@ impl auctions::Config for Runtime {
 	type EndingPeriod = EndingPeriod;
 	type SampleLength = SampleLength;
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-	type InitiateOrigin = EnsureRoot<AccountId>; // TODO: Auctions ->  type InitiateOrigin = AuctionInitiate;
+	type InitiateOrigin = AuctionInitiate;
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
@@ -2454,8 +2454,8 @@ sp_api::impl_runtime_apis! {
 			use frame_support::traits::StorageInfoTrait;
 
 			// TODO: Session (added)
-			use pallet_session_benchmarking::Pallet as SessionBench;
-			// TODO: Election
+			// use pallet_session_benchmarking::Pallet as SessionBench;
+			// TODO: Offences
 			// use pallet_offences_benchmarking::Pallet as OffencesBench;
 			// TODO: Election
 			// use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
@@ -2479,7 +2479,7 @@ sp_api::impl_runtime_apis! {
 			// Trying to add benchmarks directly to some pallets caused cyclic dependency issues.
 			// To get around that, we separated the benchmarks into its own crate.
 			// TODO: Session (added)
-			use pallet_session_benchmarking::Pallet as SessionBench;
+			// use pallet_session_benchmarking::Pallet as SessionBench;
 			// TODO: Offences
 			// use pallet_offences_benchmarking::Pallet as OffencesBench;
 			// TODO: Election
@@ -2492,7 +2492,7 @@ sp_api::impl_runtime_apis! {
 			use xcm_config::{CheckAccount, KsmLocation, SovereignAccountOf, Statemine, XcmConfig};
 
 			// TODO: Session (added)
-			impl pallet_session_benchmarking::Config for Runtime {}
+			// impl pallet_session_benchmarking::Config for Runtime {}
 			// TODO: Offences
 			// impl pallet_offences_benchmarking::Config for Runtime {}
 			// TODO: Election Provider
