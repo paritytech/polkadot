@@ -294,7 +294,7 @@ impl pallet_babe::Config for Runtime {
 
 // TODO: Indices
 parameter_types! {
-	pub const IndexDeposit: Balance = 1 * DOLLARS;
+	pub const IndexDeposit: Balance = 1 * UNITS;
 }
 
 impl pallet_indices::Config for Runtime {
@@ -1380,7 +1380,7 @@ impl parachains_disputes::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ParaDeposit: Balance = 5 * DOLLARS;
+	pub const ParaDeposit: Balance = 5 * UNITS;
 	pub const DataDepositPerByte: Balance = deposit(0, 1); // TODO: Registar -> The value is defined in Treasury params
 }
 
@@ -1410,8 +1410,8 @@ impl slots::Config for Runtime {
 
 parameter_types! {
 	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
-	pub const SubmissionDeposit: Balance = 100 * DOLLARS; // TODO: Crowdloan -> pub const SubmissionDeposit: Balance = 3 * GRAND;
-	pub const MinContribution: Balance = 1 * DOLLARS; // TODO: Crowdloan -> pub const MinContribution: Balance = 3_000 * CENTS;
+	pub const SubmissionDeposit: Balance = 100 * UNITS; // TODO: Crowdloan -> pub const SubmissionDeposit: Balance = 3 * GRAND;
+	pub const MinContribution: Balance = 1 * UNITS; // TODO: Crowdloan -> pub const MinContribution: Balance = 3_000 * CENTS;
 	pub const RemoveKeysLimit: u32 = 500; // TODO: Crowdloan -> pub const RemoveKeysLimit: u32 = 1000;
 	// Allow 32 bytes for an additional memo to a crowdloan.
 	pub const MaxMemoLength: u8 = 32;
