@@ -1,12 +1,11 @@
 [package]
 name = "polkadot-test-service"
-version = "0.9.22"
+version = "0.9.23"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
 futures = "0.3.21"
-futures01 = { package = "futures", version = "0.1.29" }
 hex = "0.4.3"
 gum = { package = "tracing-gum", path = "../../gum" }
 rand = "0.8.5"

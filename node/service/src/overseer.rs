@@ -24,18 +24,15 @@ use polkadot_node_core_av_store::Config as AvailabilityConfig;
 use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig;
 use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
-use polkadot_node_core_provisioner::ProvisionerConfig;
 use polkadot_node_network_protocol::request_response::{v1 as request_v1, IncomingRequestReceiver};
-use polkadot_node_subsystem_types::messages::ProvisionerMessage;
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::{
 	dummy::{dummy_overseer_builder, DummySubsystem},
 	HeadSupportsParachains,
 };
 use polkadot_overseer::{
-	gen::SubsystemContext, metrics::Metrics as OverseerMetrics, BlockInfo,
-	InitializedOverseerBuilder, MetricsTrait, Overseer, OverseerConnector, OverseerHandle,
-	OverseerSubsystemContext, SpawnGlue,
+	metrics::Metrics as OverseerMetrics, BlockInfo, InitializedOverseerBuilder, MetricsTrait,
+	Overseer, OverseerConnector, OverseerHandle, SpawnGlue,
 };
 
 use polkadot_primitives::runtime_api::ParachainHost;
@@ -159,10 +156,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		AvailabilityRecoverySubsystem,
 		BitfieldSigningSubsystem,
 		BitfieldDistributionSubsystem,
-		ProvisionerSubsystem<
-			SpawnGlue<Spawner>,
-			<OverseerSubsystemContext<ProvisionerMessage> as SubsystemContext>::Sender,
-		>,
+		ProvisionerSubsystem,
 		RuntimeApiSubsystem<RuntimeClient>,
 		AvailabilityStoreSubsystem,
 		NetworkBridgeSubsystem<
@@ -250,11 +244,7 @@ where
 			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
 		))
-		.provisioner(ProvisionerSubsystem::new(
-			spawner.clone(),
-			ProvisionerConfig,
-			Metrics::register(registry)?,
-		))
+		.provisioner(ProvisionerSubsystem::new(Metrics::register(registry)?))
 		.runtime_api(RuntimeApiSubsystem::new(
 			runtime_client.clone(),
 			Metrics::register(registry)?,

@@ -1,6 +1,6 @@
 [package]
 name = "erasure_coding_fuzzer"
-version = "0.9.22"
+version = "0.9.23"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
