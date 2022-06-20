@@ -683,7 +683,7 @@ zombienet-tests-parachains-disputes:
     - zombienet-polkadot-integration-test
 
 zombienet-test-parachains-upgrade-smoke-test:
-  stage:                           deploy
+  stage:                           stage3
   image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
