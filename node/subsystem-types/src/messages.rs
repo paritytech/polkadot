@@ -319,10 +319,8 @@ pub enum DisputeDistributionMessage {
 }
 
 /// Messages received from other subsystems.
-///
-/// A dummy.
 #[derive(Debug)]
-pub enum NetworkBridgeInMessage {
+pub enum NetworkBridgeRxMessage {
 	/// Inform the distribution subsystems about the new
 	/// gossip network topology formed.
 	///
@@ -349,7 +347,7 @@ pub enum NetworkBridgeInMessage {
 
 /// Messages received from other subsystems by the network bridge subsystem.
 #[derive(Debug)]
-pub enum NetworkBridgeMessage {
+pub enum NetworkBridgeTxMessage {
 	/// Report a peer for their actions.
 	ReportPeer(PeerId, UnifiedReputationChange),
 
@@ -406,7 +404,7 @@ pub enum NetworkBridgeMessage {
 	},
 }
 
-impl NetworkBridgeMessage {
+impl NetworkBridgeTxMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {

@@ -145,8 +145,8 @@ where
 		+ Subsystem<OverseerSubsystemContext<ChainApiMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<CollationGenerationMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>, SubsystemError>
-		+ Subsystem<OverseerSubsystemContext<NetworkBridgeInMessage>, SubsystemError>
-		+ Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<NetworkBridgeRxMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<NetworkBridgeTxMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<ProvisionerMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<RuntimeApiMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<StatementDistributionMessage>, SubsystemError>
@@ -172,8 +172,8 @@ where
 		.chain_api(subsystem.clone())
 		.collation_generation(subsystem.clone())
 		.collator_protocol(subsystem.clone())
-		.network_bridge_in(subsystem.clone())
-		.network_bridge(subsystem.clone())
+		.network_bridge_tx(subsystem.clone())
+		.network_bridge_rx(subsystem.clone())
 		.provisioner(subsystem.clone())
 		.runtime_api(subsystem.clone())
 		.statement_distribution(subsystem.clone())

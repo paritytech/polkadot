@@ -83,7 +83,7 @@ use polkadot_node_subsystem_types::messages::{
 	BitfieldSigningMessage, CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage,
 	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
 	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
-	NetworkBridgeInMessage, NetworkBridgeMessage, ProvisionerMessage, PvfCheckerMessage,
+	NetworkBridgeRxMessage, NetworkBridgeTxMessage, ProvisionerMessage, PvfCheckerMessage,
 	RuntimeApiMessage, StatementDistributionMessage,
 };
 pub use polkadot_node_subsystem_types::{
@@ -389,7 +389,7 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 /// # };
 /// # use polkadot_node_subsystem_types::messages::{
 /// # 	CandidateValidationMessage, CandidateBackingMessage,
-/// # 	NetworkBridgeMessage,
+/// # 	NetworkBridgeTxMessage,
 /// # };
 ///
 /// struct ValidationSubsystem;
@@ -477,7 +477,7 @@ pub struct Overseer<SupportsParachains> {
 	candidate_backing: CandidateBacking,
 
 	#[subsystem(StatementDistributionMessage, sends: [
-		NetworkBridgeMessage,
+		NetworkBridgeTxMessage,
 		CandidateBackingMessage,
 		RuntimeApiMessage,
 	])]
@@ -488,12 +488,12 @@ pub struct Overseer<SupportsParachains> {
 		AvailabilityRecoveryMessage,
 		ChainApiMessage,
 		RuntimeApiMessage,
-		NetworkBridgeMessage,
+		NetworkBridgeTxMessage,
 	])]
 	availability_distribution: AvailabilityDistribution,
 
 	#[subsystem(AvailabilityRecoveryMessage, sends: [
-		NetworkBridgeMessage,
+		NetworkBridgeTxMessage,
 		RuntimeApiMessage,
 		AvailabilityStoreMessage,
 	])]
@@ -508,7 +508,7 @@ pub struct Overseer<SupportsParachains> {
 
 	#[subsystem(BitfieldDistributionMessage, sends: [
 		RuntimeApiMessage,
-		NetworkBridgeMessage,
+		NetworkBridgeTxMessage,
 		ProvisionerMessage,
 	])]
 	bitfield_distribution: BitfieldDistribution,
@@ -530,7 +530,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	availability_store: AvailabilityStore,
 
-	#[subsystem(NetworkBridgeInMessage, sends: [
+	#[subsystem(NetworkBridgeRxMessage, sends: [
 		BitfieldDistributionMessage,
 		StatementDistributionMessage,
 		ApprovalDistributionMessage,
@@ -539,10 +539,10 @@ pub struct Overseer<SupportsParachains> {
 		CollationGenerationMessage,
 		CollatorProtocolMessage,
 	])]
-	network_bridge_in: NetworkBridgeIn,
+	network_bridge_rx: NetworkBridgeRx,
 
-	#[subsystem(NetworkBridgeMessage, sends: [])]
-	network_bridge: NetworkBridgeOut,
+	#[subsystem(NetworkBridgeTxMessage, sends: [])]
+	network_bridge_tx: NetworkBridgeTx,
 
 	#[subsystem(blocking, ChainApiMessage, sends: [])]
 	chain_api: ChainApi,
@@ -554,14 +554,14 @@ pub struct Overseer<SupportsParachains> {
 	collation_generation: CollationGeneration,
 
 	#[subsystem(CollatorProtocolMessage, sends: [
-		NetworkBridgeMessage,
+		NetworkBridgeTxMessage,
 		RuntimeApiMessage,
 		CandidateBackingMessage,
 	])]
 	collator_protocol: CollatorProtocol,
 
 	#[subsystem(ApprovalDistributionMessage, sends: [
-		NetworkBridgeMessage,
+		NetworkBridgeTxMessage,
 		ApprovalVotingMessage,
 	])]
 	approval_distribution: ApprovalDistribution,
@@ -578,8 +578,8 @@ pub struct Overseer<SupportsParachains> {
 	approval_voting: ApprovalVoting,
 
 	#[subsystem(GossipSupportMessage, sends: [
-		NetworkBridgeMessage,
-		NetworkBridgeInMessage, // TODO <https://github.com/paritytech/polkadot/issues/5626>
+		NetworkBridgeTxMessage,
+		NetworkBridgeRxMessage, // TODO <https://github.com/paritytech/polkadot/issues/5626>
 		RuntimeApiMessage,
 		ChainSelectionMessage,
 	])]
@@ -598,7 +598,7 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(DisputeDistributionMessage, sends: [
 		RuntimeApiMessage,
 		DisputeCoordinatorMessage,
-		NetworkBridgeMessage,
+		NetworkBridgeTxMessage,
 	])]
 	dispute_distribution: DisputeDistribution,
 

@@ -549,7 +549,7 @@ fn peer_view_update_sends_messages() {
 
 			assert_matches!(
 				message,
-				AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+				AllMessages::NetworkBridge(NetworkBridgeTxMessage::SendValidationMessage(
 					to,
 					payload,
 				)) => {
@@ -680,7 +680,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 		let message = handle.recv().await;
 		assert_matches!(
 			message,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+			AllMessages::NetworkBridge(NetworkBridgeTxMessage::SendValidationMessage(
 				to,
 				payload,
 			)) => {
@@ -848,7 +848,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => {}
 		);
 
@@ -862,7 +862,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(
+				NetworkBridgeTxMessage::SendValidationMessage(
 					recipients,
 					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::Statement(r, s)
@@ -1091,7 +1091,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(
+				NetworkBridgeTxMessage::SendRequests(
 					mut reqs, IfDisconnected::ImmediateError
 				)
 			) => {
@@ -1144,7 +1144,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(
+				NetworkBridgeTxMessage::SendRequests(
 					mut reqs, IfDisconnected::ImmediateError
 				)
 			) => {
@@ -1164,7 +1164,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(
+				NetworkBridgeTxMessage::SendRequests(
 					mut reqs, IfDisconnected::ImmediateError
 				)
 			) => {
@@ -1185,7 +1185,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(
+				NetworkBridgeTxMessage::SendRequests(
 					mut reqs, IfDisconnected::ImmediateError
 				)
 			) => {
@@ -1212,7 +1212,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) if p == peer_bad && r == COST_WRONG_HASH => {}
 		);
 
@@ -1220,7 +1220,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(
+				NetworkBridgeTxMessage::SendRequests(
 					mut reqs, IfDisconnected::ImmediateError
 				)
 			) => {
@@ -1241,7 +1241,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(
+				NetworkBridgeTxMessage::SendRequests(
 					mut reqs, IfDisconnected::ImmediateError
 				)
 			) => {
@@ -1263,21 +1263,21 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) if p == peer_a && r == COST_FETCH_FAIL => {}
 		);
 
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) if p == peer_c && r == BENEFIT_VALID_RESPONSE => {}
 		);
 
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => {}
 		);
 
@@ -1292,7 +1292,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(
+				NetworkBridgeTxMessage::SendValidationMessage(
 					mut recipients,
 					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::LargeStatement(meta)
@@ -1639,7 +1639,7 @@ fn share_prioritizes_backing_group() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(
+				NetworkBridgeTxMessage::SendValidationMessage(
 					mut recipients,
 					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::LargeStatement(meta)
@@ -1843,7 +1843,7 @@ fn peer_cant_flood_with_large_statements() {
 		let mut punished = false;
 		for _ in 0..2 {
 			match handle.recv().await {
-				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(
+				AllMessages::NetworkBridge(NetworkBridgeTxMessage::SendRequests(
 					mut reqs,
 					IfDisconnected::ImmediateError,
 				)) => {
@@ -1860,7 +1860,7 @@ fn peer_cant_flood_with_large_statements() {
 					requested = true;
 				},
 
-				AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(p, r))
+				AllMessages::NetworkBridge(NetworkBridgeTxMessage::ReportPeer(p, r))
 					if p == peer_a && r == COST_APPARENT_FLOOD =>
 				{
 					punished = true;
@@ -2089,7 +2089,7 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) => {
 				assert_eq!(p, peer_a);
 				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST);
@@ -2110,7 +2110,7 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(
+				NetworkBridgeTxMessage::SendValidationMessage(
 					recipients,
 					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::Statement(r, s)
@@ -2141,7 +2141,7 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) => {
 				assert_eq!(p, peer_b);
 				assert_eq!(r, BENEFIT_VALID_STATEMENT);
@@ -2192,7 +2192,7 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) => {
 				assert_eq!(p, peer_a);
 				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST);
@@ -2212,7 +2212,7 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(
+				NetworkBridgeTxMessage::SendValidationMessage(
 					recipients,
 					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::Statement(r, s)
@@ -2245,7 +2245,7 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) => {
 				assert_eq!(p, peer_b);
 				assert_eq!(r, BENEFIT_VALID_STATEMENT);

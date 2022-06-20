@@ -233,7 +233,7 @@ impl TestRun {
 	) -> bool {
 		let msg = AllMessages::from(msg);
 		match msg {
-			AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(
+			AllMessages::NetworkBridge(NetworkBridgeTxMessage::SendRequests(
 				reqs,
 				IfDisconnected::ImmediateError,
 			)) => {

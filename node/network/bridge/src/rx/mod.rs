@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 	messages::{
 		network_bridge_event::{NewGossipTopology, TopologyPeerInfo},
 		ApprovalDistributionMessage, BitfieldDistributionMessage, CollatorProtocolMessage,
-		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeInMessage,
+		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeRxMessage,
 		StatementDistributionMessage,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
@@ -70,10 +70,10 @@ use super::metrics::Metrics;
 mod tests;
 
 // network bridge log target
-const LOG_TARGET: &'static str = "parachain::network-bridge-incoming";
+const LOG_TARGET: &'static str = "parachain::network-bridge-rx";
 
-/// The network bridge subsystem.
-pub struct NetworkBridgeIn<N, AD> {
+/// The network bridge subsystem - network receiving side.
+pub struct NetworkBridgeRx<N, AD> {
 	/// `Network` trait implementing type.
 	network_service: N,
 	authority_discovery_service: AD,
@@ -82,7 +82,7 @@ pub struct NetworkBridgeIn<N, AD> {
 	metrics: Metrics,
 }
 
-impl<N, AD> NetworkBridgeIn<N, AD> {
+impl<N, AD> NetworkBridgeRx<N, AD> {
 	/// Create a new network bridge subsystem with underlying network service and authority discovery service.
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
@@ -98,8 +98,8 @@ impl<N, AD> NetworkBridgeIn<N, AD> {
 	}
 }
 
-#[overseer::subsystem(NetworkBridgeIn, error = SubsystemError, prefix = self::overseer)]
-impl<Net, AD, Context> NetworkBridgeIn<Net, AD>
+#[overseer::subsystem(NetworkBridgeRx, error = SubsystemError, prefix = self::overseer)]
+impl<Net, AD, Context> NetworkBridgeRx<Net, AD>
 where
 	Net: Network + Sync,
 	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
@@ -141,7 +141,7 @@ where
 }
 
 async fn handle_network_messages<AD>(
-	mut sender: impl overseer::NetworkBridgeInSenderTrait,
+	mut sender: impl overseer::NetworkBridgeRxSenderTrait,
 	mut network_service: impl Network,
 	network_stream: BoxStream<'static, NetworkEvent>,
 	mut authority_discovery_service: AD,
@@ -486,7 +486,7 @@ where
 	}
 }
 
-#[overseer::contextbounds(NetworkBridgeIn, prefix = self::overseer)]
+#[overseer::contextbounds(NetworkBridgeRx, prefix = self::overseer)]
 async fn run_incoming_orchestra_signals<Context, N, AD>(
 	mut ctx: Context,
 	mut network_service: N,
@@ -508,7 +508,7 @@ where
 		match ctx.recv().fuse().await? {
 			FromOrchestra::Communication {
 				msg:
-					NetworkBridgeInMessage::NewGossipTopology {
+					NetworkBridgeRxMessage::NewGossipTopology {
 						session,
 						our_neighbors_x,
 						our_neighbors_y,
@@ -603,9 +603,9 @@ where
 /// #fn is_send<T: Send>();
 /// #is_send::<parking_lot::MutexGuard<'static, ()>();
 /// ```
-#[overseer::contextbounds(NetworkBridgeIn, prefix = self::overseer)]
+#[overseer::contextbounds(NetworkBridgeRx, prefix = self::overseer)]
 async fn run_network_in<N, AD, Context>(
-	bridge: NetworkBridgeIn<N, AD>,
+	bridge: NetworkBridgeRx<N, AD>,
 	mut ctx: Context,
 	network_stream: BoxStream<'static, NetworkEvent>,
 ) -> Result<(), Error>
@@ -613,7 +613,7 @@ where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
-	let NetworkBridgeIn {
+	let NetworkBridgeRx {
 		network_service,
 		authority_discovery_service,
 		metrics,
@@ -659,7 +659,7 @@ fn construct_view(
 	View::new(live_heads.take(MAX_VIEW_HEADS), finalized_number)
 }
 
-#[overseer::contextbounds(NetworkBridgeIn, prefix = self::overseer)]
+#[overseer::contextbounds(NetworkBridgeRx, prefix = self::overseer)]
 fn update_our_view<Net, Context>(
 	net: &mut Net,
 	ctx: &mut Context,
@@ -795,21 +795,21 @@ fn send_collation_message_v1(
 
 async fn dispatch_validation_event_to_all(
 	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
-	ctx: &mut impl overseer::NetworkBridgeInSenderTrait,
+	ctx: &mut impl overseer::NetworkBridgeRxSenderTrait,
 ) {
 	dispatch_validation_events_to_all(std::iter::once(event), ctx).await
 }
 
 async fn dispatch_collation_event_to_all(
 	event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>,
-	ctx: &mut impl overseer::NetworkBridgeInSenderTrait,
+	ctx: &mut impl overseer::NetworkBridgeRxSenderTrait,
 ) {
 	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
 }
 
 fn dispatch_validation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
-	sender: &mut impl overseer::NetworkBridgeInSenderTrait,
+	sender: &mut impl overseer::NetworkBridgeRxSenderTrait,
 ) {
 	event
 		.focus()
@@ -835,7 +835,7 @@ fn dispatch_validation_event_to_all_unbounded(
 
 fn dispatch_collation_event_to_all_unbounded(
 	event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>,
-	sender: &mut impl overseer::NetworkBridgeInSenderTrait,
+	sender: &mut impl overseer::NetworkBridgeRxSenderTrait,
 ) {
 	if let Ok(msg) = event.focus() {
 		sender.send_unbounded_message(CollatorProtocolMessage::NetworkBridgeUpdate(msg))
@@ -844,7 +844,7 @@ fn dispatch_collation_event_to_all_unbounded(
 
 async fn dispatch_validation_events_to_all<I>(
 	events: I,
-	sender: &mut impl overseer::NetworkBridgeInSenderTrait,
+	sender: &mut impl overseer::NetworkBridgeRxSenderTrait,
 ) where
 	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>>,
 	I::IntoIter: Send,
@@ -861,7 +861,7 @@ async fn dispatch_validation_events_to_all<I>(
 
 async fn dispatch_collation_events_to_all<I>(
 	events: I,
-	ctx: &mut impl overseer::NetworkBridgeInSenderTrait,
+	ctx: &mut impl overseer::NetworkBridgeRxSenderTrait,
 ) where
 	I: IntoIterator<Item = NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>>,
 	I::IntoIter: Send,

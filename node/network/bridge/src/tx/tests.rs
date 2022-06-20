@@ -39,7 +39,7 @@ use polkadot_primitives_test_helpers::dummy_collator_signature;
 use sc_network::Multiaddr;
 use sp_keyring::Sr25519Keyring;
 
-const TIMEOUT: std::time::Duration = polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle::<NetworkBridgeMessage>::TIMEOUT;
+const TIMEOUT: std::time::Duration = polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle::<NetworkBridgeTxMessage>::TIMEOUT;
 
 use crate::{network::Network, validator_discovery::AuthorityDiscovery, Rep};
 
@@ -206,7 +206,7 @@ fn done_syncing_oracle() -> Box<dyn SyncOracle + Send> {
 	Box::new(oracle)
 }
 
-type VirtualOverseer = TestSubsystemContextHandle<NetworkBridgeMessage>;
+type VirtualOverseer = TestSubsystemContextHandle<NetworkBridgeTxMessage>;
 
 struct TestHarness {
 	network_handle: TestNetworkHandle,
@@ -223,7 +223,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let (context, virtual_overseer) =
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
-	let bridge_out = NetworkBridgeOut::new(network, discovery, sync_oracle, Metrics(None));
+	let bridge_out = NetworkBridgeTx::new(network, discovery, sync_oracle, Metrics(None));
 
 	let network_bridge_out_fut = run_network_out(bridge_out, context)
 		.map_err(|e| panic!("bridge-out subsystem execution failed {:?}", e))
@@ -277,7 +277,7 @@ fn send_messages_to_peers() {
 
 			virtual_overseer
 				.send(FromOrchestra::Communication {
-					msg: NetworkBridgeMessage::SendValidationMessage(
+					msg: NetworkBridgeTxMessage::SendValidationMessage(
 						vec![peer.clone()],
 						Versioned::V1(message_v1.clone()),
 					),
@@ -314,7 +314,7 @@ fn send_messages_to_peers() {
 
 			virtual_overseer
 				.send(FromOrchestra::Communication {
-					msg: NetworkBridgeMessage::SendCollationMessage(
+					msg: NetworkBridgeTxMessage::SendCollationMessage(
 						vec![peer.clone()],
 						Versioned::V1(message_v1.clone()),
 					),

@@ -44,7 +44,7 @@ use polkadot_node_primitives::{CandidateVotes, UncheckedDisputeMessage};
 use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, DisputeCoordinatorMessage, DisputeDistributionMessage, ImportStatementsResult,
-		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
+		NetworkBridgeTxMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal, Span,
 };
@@ -663,7 +663,7 @@ async fn check_sent_requests(
 	assert_matches!(
 		handle.recv().await,
 		AllMessages::NetworkBridge(
-			NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
+			NetworkBridgeTxMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
 		) => {
 			let reqs: Vec<_> = reqs.into_iter().map(|r|
 				assert_matches!(

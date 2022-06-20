@@ -272,7 +272,7 @@ fn done_syncing_oracle() -> Box<dyn SyncOracle + Send> {
 	Box::new(oracle)
 }
 
-type VirtualOverseer = TestSubsystemContextHandle<NetworkBridgeInMessage>;
+type VirtualOverseer = TestSubsystemContextHandle<NetworkBridgeRxMessage>;
 
 struct TestHarness {
 	network_handle: TestNetworkHandle,
@@ -289,7 +289,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 	let network_stream = network.event_stream();
 
-	let bridge = NetworkBridgeIn {
+	let bridge = NetworkBridgeRx {
 		network_service: network,
 		authority_discovery_service: discovery,
 		metrics: Metrics(None),
@@ -317,7 +317,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 async fn assert_sends_validation_event_to_all(
 	event: NetworkBridgeEvent<net_protocol::VersionedValidationProtocol>,
-	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeInMessage>,
+	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeRxMessage>,
 ) {
 	// Ordering must be consistent across:
 	// `fn dispatch_validation_event_to_all_unbounded`
@@ -353,7 +353,7 @@ async fn assert_sends_validation_event_to_all(
 
 async fn assert_sends_collation_event_to_all(
 	event: NetworkBridgeEvent<net_protocol::VersionedCollationProtocol>,
-	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeInMessage>,
+	virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeRxMessage>,
 ) {
 	assert_matches!(
 		virtual_overseer.recv().await,

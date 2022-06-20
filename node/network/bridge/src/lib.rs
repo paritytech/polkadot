@@ -52,11 +52,11 @@ use self::metrics::Metrics;
 mod errors;
 pub(crate) use self::errors::Error;
 
-mod incoming;
-pub use self::incoming::*;
+mod tx;
+pub use self::tx::*;
 
-mod outgoing;
-pub use self::outgoing::*;
+mod rx;
+pub use self::rx::*;
 
 /// The maximum amount of heads a peer is allowed to have in their view at any time.
 ///
@@ -68,9 +68,6 @@ pub(crate) const UNCONNECTED_PEERSET_COST: Rep =
 	Rep::CostMinor("Message sent to un-connected peer-set");
 pub(crate) const MALFORMED_VIEW_COST: Rep = Rep::CostMajor("Malformed view");
 pub(crate) const EMPTY_VIEW_COST: Rep = Rep::CostMajor("Peer sent us an empty view");
-
-// network bridge log target
-pub(crate) const LOG_TARGET: &'static str = "parachain::network-bridge-rx";
 
 /// Messages from and to the network.
 ///

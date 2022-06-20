@@ -370,7 +370,7 @@ async fn distribute_collation(
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ConnectToValidators {
+				NetworkBridgeTxMessage::ConnectToValidators {
 					..
 				}
 			) => {}
@@ -425,7 +425,7 @@ async fn expect_declare_msg(
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
 		AllMessages::NetworkBridge(
-			NetworkBridgeMessage::SendCollationMessage(
+			NetworkBridgeTxMessage::SendCollationMessage(
 				to,
 				Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 			)
@@ -459,7 +459,7 @@ async fn expect_advertise_collation_msg(
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
 		AllMessages::NetworkBridge(
-			NetworkBridgeMessage::SendCollationMessage(
+			NetworkBridgeTxMessage::SendCollationMessage(
 				to,
 				Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 			)
@@ -570,7 +570,7 @@ fn advertise_and_send_collation() {
 				.unwrap();
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(bad_peer, _)) => {
+				AllMessages::NetworkBridge(NetworkBridgeTxMessage::ReportPeer(bad_peer, _)) => {
 					assert_eq!(bad_peer, peer);
 				}
 			);
@@ -838,7 +838,7 @@ fn collators_reject_declare_messages() {
 
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::DisconnectPeer(
+			AllMessages::NetworkBridge(NetworkBridgeTxMessage::DisconnectPeer(
 				p,
 				PeerSet::Collation,
 			)) if p == peer

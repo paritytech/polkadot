@@ -228,7 +228,7 @@ fn receive_invalid_signature() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep, COST_SIGNATURE_INVALID)
@@ -289,7 +289,7 @@ fn receive_invalid_validator_index() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep, COST_VALIDATOR_INDEX_INVALID)
@@ -365,7 +365,7 @@ fn receive_duplicate_messages() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
@@ -384,7 +384,7 @@ fn receive_duplicate_messages() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_a);
 				assert_eq!(rep, BENEFIT_VALID_MESSAGE)
@@ -403,7 +403,7 @@ fn receive_duplicate_messages() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE)
@@ -485,7 +485,7 @@ fn do_not_relay_message_twice() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(peers, send_msg),
+				NetworkBridgeTxMessage::SendValidationMessage(peers, send_msg),
 			) => {
 				assert_eq!(2, peers.len());
 				assert!(peers.contains(&peer_a));
@@ -608,7 +608,7 @@ fn changing_view() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
@@ -640,7 +640,7 @@ fn changing_view() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE)
@@ -672,7 +672,7 @@ fn changing_view() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_a);
 				assert_eq!(rep, COST_NOT_IN_VIEW)
@@ -746,7 +746,7 @@ fn do_not_send_message_back_to_origin() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(peers, send_msg),
+				NetworkBridgeTxMessage::SendValidationMessage(peers, send_msg),
 			) => {
 				assert_eq!(1, peers.len());
 				assert!(peers.contains(&peer_a));
@@ -757,7 +757,7 @@ fn do_not_send_message_back_to_origin() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
@@ -852,7 +852,7 @@ fn topology_test() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(peers, send_msg),
+				NetworkBridgeTxMessage::SendValidationMessage(peers, send_msg),
 			) => {
 				let topology = state.topologies.get_current_topology();
 				// It should send message to all peers in y direction and to 4 random peers in x direction
@@ -868,7 +868,7 @@ fn topology_test() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(peer, rep)
+				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peers_x[0]);
 				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)

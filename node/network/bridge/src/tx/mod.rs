@@ -22,7 +22,7 @@ use sp_consensus::SyncOracle;
 use polkadot_node_network_protocol::{peer_set::PeerSet, v1 as protocol_v1, PeerId, Versioned};
 
 use polkadot_node_subsystem::{
-	errors::SubsystemError, messages::NetworkBridgeMessage, overseer, FromOrchestra,
+	errors::SubsystemError, messages::NetworkBridgeTxMessage, overseer, FromOrchestra,
 	OverseerSignal, SpawnedSubsystem,
 };
 
@@ -47,7 +47,7 @@ mod tests;
 const LOG_TARGET: &'static str = "parachain::network-bridge-tx";
 
 /// The network bridge subsystem.
-pub struct NetworkBridgeOut<N, AD> {
+pub struct NetworkBridgeTx<N, AD> {
 	/// `Network` trait implementing type.
 	network_service: N,
 	authority_discovery_service: AD,
@@ -56,7 +56,7 @@ pub struct NetworkBridgeOut<N, AD> {
 	metrics: Metrics,
 }
 
-impl<N, AD> NetworkBridgeOut<N, AD> {
+impl<N, AD> NetworkBridgeTx<N, AD> {
 	/// Create a new network bridge subsystem with underlying network service and authority discovery service.
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
@@ -73,14 +73,14 @@ impl<N, AD> NetworkBridgeOut<N, AD> {
 
 	/// Obtain the shared internal state.
 	///
-	/// Should only be used for setting up `NetworkBridgeIn`.
+	/// Should only be used for setting up `NetworkBridgeRx`.
 	pub fn shared(&self) -> Shared {
 		self.shared.clone()
 	}
 }
 
-#[overseer::subsystem(NetworkBridgeOut, error = SubsystemError, prefix = self::overseer)]
-impl<Net, AD, Context> NetworkBridgeOut<Net, AD>
+#[overseer::subsystem(NetworkBridgeTx, error = SubsystemError, prefix = self::overseer)]
+impl<Net, AD, Context> NetworkBridgeTx<Net, AD>
 where
 	Net: Network + Sync,
 	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
@@ -93,7 +93,7 @@ where
 	}
 }
 
-#[overseer::contextbounds(NetworkBridgeOut, prefix = self::overseer)]
+#[overseer::contextbounds(NetworkBridgeTx, prefix = self::overseer)]
 async fn handle_subsystem_messages<Context, N, AD>(
 	mut ctx: Context,
 	mut network_service: N,
@@ -128,13 +128,13 @@ where
 	}
 }
 
-#[overseer::contextbounds(NetworkBridgeOut, prefix = self::overseer)]
+#[overseer::contextbounds(NetworkBridgeTx, prefix = self::overseer)]
 async fn handle_incoming_subsystem_communication<Context, N, AD>(
 	_ctx: &mut Context,
 	mut network_service: N,
 	validator_discovery: &mut validator_discovery::Service<N, AD>,
 	mut authority_discovery_service: AD,
-	msg: NetworkBridgeMessage,
+	msg: NetworkBridgeTxMessage,
 	metrics: &Metrics,
 ) -> (N, AD)
 where
@@ -142,7 +142,7 @@ where
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
 	match msg {
-		NetworkBridgeMessage::ReportPeer(peer, rep) => {
+		NetworkBridgeTxMessage::ReportPeer(peer, rep) => {
 			if !rep.is_benefit() {
 				gum::debug!(target: LOG_TARGET, ?peer, ?rep, action = "ReportPeer");
 			}
@@ -150,7 +150,7 @@ where
 			metrics.on_report_event();
 			network_service.report_peer(peer, rep);
 		},
-		NetworkBridgeMessage::DisconnectPeer(peer, peer_set) => {
+		NetworkBridgeTxMessage::DisconnectPeer(peer, peer_set) => {
 			gum::trace!(
 				target: LOG_TARGET,
 				action = "DisconnectPeer",
@@ -160,7 +160,7 @@ where
 
 			network_service.disconnect_peer(peer, peer_set);
 		},
-		NetworkBridgeMessage::SendValidationMessage(peers, msg) => {
+		NetworkBridgeTxMessage::SendValidationMessage(peers, msg) => {
 			gum::trace!(
 				target: LOG_TARGET,
 				action = "SendValidationMessages",
@@ -176,7 +176,7 @@ where
 				),
 			}
 		},
-		NetworkBridgeMessage::SendValidationMessages(msgs) => {
+		NetworkBridgeTxMessage::SendValidationMessages(msgs) => {
 			gum::trace!(
 				target: LOG_TARGET,
 				action = "SendValidationMessages",
@@ -194,7 +194,7 @@ where
 				}
 			}
 		},
-		NetworkBridgeMessage::SendCollationMessage(peers, msg) => {
+		NetworkBridgeTxMessage::SendCollationMessage(peers, msg) => {
 			gum::trace!(
 				target: LOG_TARGET,
 				action = "SendCollationMessages",
@@ -210,7 +210,7 @@ where
 				),
 			}
 		},
-		NetworkBridgeMessage::SendCollationMessages(msgs) => {
+		NetworkBridgeTxMessage::SendCollationMessages(msgs) => {
 			gum::trace!(
 				target: LOG_TARGET,
 				action = "SendCollationMessages",
@@ -228,7 +228,7 @@ where
 				}
 			}
 		},
-		NetworkBridgeMessage::SendRequests(reqs, if_disconnected) => {
+		NetworkBridgeTxMessage::SendRequests(reqs, if_disconnected) => {
 			gum::trace!(
 				target: LOG_TARGET,
 				action = "SendRequests",
@@ -241,7 +241,7 @@ where
 					.await;
 			}
 		},
-		NetworkBridgeMessage::ConnectToValidators { validator_ids, peer_set, failed } => {
+		NetworkBridgeTxMessage::ConnectToValidators { validator_ids, peer_set, failed } => {
 			gum::trace!(
 				target: LOG_TARGET,
 				action = "ConnectToValidators",
@@ -264,7 +264,7 @@ where
 
 			return (network_service, ads)
 		},
-		NetworkBridgeMessage::ConnectToResolvedValidators { validator_addrs, peer_set } => {
+		NetworkBridgeTxMessage::ConnectToResolvedValidators { validator_addrs, peer_set } => {
 			gum::trace!(
 				target: LOG_TARGET,
 				action = "ConnectToPeers",
@@ -285,16 +285,16 @@ where
 	(network_service, authority_discovery_service)
 }
 
-#[overseer::contextbounds(NetworkBridgeOut, prefix = self::overseer)]
+#[overseer::contextbounds(NetworkBridgeTx, prefix = self::overseer)]
 async fn run_network_out<N, AD, Context>(
-	bridge: NetworkBridgeOut<N, AD>,
+	bridge: NetworkBridgeTx<N, AD>,
 	ctx: Context,
 ) -> Result<(), Error>
 where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
 {
-	let NetworkBridgeOut {
+	let NetworkBridgeTx {
 		network_service,
 		authority_discovery_service,
 		metrics,

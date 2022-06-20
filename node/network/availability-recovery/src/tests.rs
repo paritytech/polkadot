@@ -283,7 +283,7 @@ impl TestState {
 			assert_matches!(
 				overseer_recv(virtual_overseer).await,
 				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendRequests(
+					NetworkBridgeTxMessage::SendRequests(
 						requests,
 						IfDisconnected::ImmediateError,
 					)
@@ -332,7 +332,7 @@ impl TestState {
 			assert_matches!(
 				overseer_recv(virtual_overseer).await,
 				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendRequests(
+					NetworkBridgeTxMessage::SendRequests(
 						mut requests,
 						IfDisconnected::ImmediateError,
 					)

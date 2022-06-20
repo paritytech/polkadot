@@ -52,7 +52,7 @@ pub use polkadot_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
 pub use polkadot_dispute_distribution::DisputeDistributionSubsystem;
 pub use polkadot_gossip_support::GossipSupport as GossipSupportSubsystem;
 pub use polkadot_network_bridge::{
-	NetworkBridgeIn as NetworkBridgeInSubsystem, NetworkBridgeOut as NetworkBridgeOutSubsystem,
+	NetworkBridgeRx as NetworkBridgeRxSubsystem, NetworkBridgeTx as NetworkBridgeTxSubsystem,
 };
 pub use polkadot_node_collation_generation::CollationGenerationSubsystem;
 pub use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
@@ -160,11 +160,11 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		ProvisionerSubsystem,
 		RuntimeApiSubsystem<RuntimeClient>,
 		AvailabilityStoreSubsystem,
-		NetworkBridgeInSubsystem<
+		NetworkBridgeRxSubsystem<
 			Arc<sc_network::NetworkService<Block, Hash>>,
 			AuthorityDiscoveryService,
 		>,
-		NetworkBridgeOutSubsystem<
+		NetworkBridgeTxSubsystem<
 			Arc<sc_network::NetworkService<Block, Hash>>,
 			AuthorityDiscoveryService,
 		>,
@@ -192,14 +192,14 @@ where
 	let spawner = SpawnGlue(spawner);
 
 	// bridge in and out are coupled via `Shared`.
-	let bridge_out = NetworkBridgeOutSubsystem::new(
+	let bridge_out = NetworkBridgeTxSubsystem::new(
 		network_service.clone(),
 		authority_discovery_service.clone(),
 		Box::new(network_service.clone()),
 		Metrics::register(registry)?,
 	);
 
-	let bridge_in = NetworkBridgeInSubsystem::new(
+	let bridge_in = NetworkBridgeRxSubsystem::new(
 		network_service.clone(),
 		authority_discovery_service.clone(),
 		Box::new(network_service.clone()),
