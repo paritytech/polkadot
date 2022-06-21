@@ -27,8 +27,8 @@ pub mod currency {
 
 	pub const UNITS: Balance = 1_000_000_000_000;
 	pub const CENTS: Balance = UNITS / 30_000;
-	pub const MILLICENTS: Balance = CENTS / 1_000;
 	pub const GRAND: Balance = CENTS * 100_000;
+	pub const MILLICENTS: Balance = CENTS / 1_000;
 
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
 		items as Balance * 2_000 * CENTS + (bytes as Balance) * 100 * MILLICENTS
@@ -80,7 +80,7 @@ pub mod fee {
 	impl WeightToFeePolynomial for WeightToFee {
 		type Balance = Balance;
 		fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
-			// in Westend, extrinsic base weight (smallest non-zero weight) is mapped to 1/10 CENT:
+			// in Rococo, extrinsic base weight (smallest non-zero weight) is mapped to 1/10 CENT:
 			let p = super::currency::CENTS;
 			let q = 10 * Balance::from(ExtrinsicBaseWeight::get());
 			smallvec![WeightToFeeCoefficient {
@@ -108,8 +108,8 @@ mod tests {
 	fn full_block_fee_is_correct() {
 		// A full block should cost between 10 and 100 UNITS.
 		let full_block = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
-		assert!(full_block >= 10 * UNITS);
-		assert!(full_block <= 100 * UNITS);
+		assert!(full_block >= 1_000 * UNITS);
+		assert!(full_block <= 10_000 * UNITS);
 	}
 
 	#[test]
