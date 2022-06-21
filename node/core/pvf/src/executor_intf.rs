@@ -43,6 +43,9 @@ use std::{
 const DEFAULT_HEAP_PAGES_ESTIMATE: u64 = 32;
 const EXTRA_HEAP_PAGES: u64 = 2048;
 
+/// The number of bytes devoted for the stack during wasm execution of a PVF.
+const NATIVE_STACK_MAX: u32 = 256 * 1024 * 1024;
+
 const CONFIG: Config = Config {
 	allow_missing_func_imports: true,
 	cache_path: None,
@@ -69,7 +72,7 @@ const CONFIG: Config = Config {
 		// the stack limit set by the wasmtime.
 		deterministic_stack_limit: Some(DeterministicStackLimit {
 			logical_max: 65536,
-			native_stack_max: 256 * 1024 * 1024,
+			native_stack_max: NATIVE_STACK_MAX,
 		}),
 		canonicalize_nans: true,
 		// Rationale for turning the multi-threaded compilation off is to make the preparation time
@@ -112,6 +115,74 @@ pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::
 ///
 /// Failure to adhere to these requirements might lead to crashes and arbitrary code execution.
 pub unsafe fn execute(
+	compiled_artifact_path: &Path,
+	params: &[u8],
+	spawner: impl sp_core::traits::SpawnNamed + 'static,
+) -> Result<Vec<u8>, String> {
+	// Wasmtime powers the Substrate Executor. It compiles the wasm bytecode into native code.
+	// That native code does not create any stacks and just reuses the stack of the thread that
+	// wasmtime was invoked from.
+	//
+	// Also, we configure the executor to provide the deterministic stack and that requires
+	// supplying the amount of the native stack space that wasm is allowed to use. This is
+	// realized by supplying the limit into `wasmtime::Config::max_wasm_stack`.
+	//
+	// There are quirks to that configuration knob:
+	//
+	// 1. It only limits the amount of stack space consumed by wasm but does not ensure nor check
+	//    that the stack space is actually available.
+	//
+	//    That means, if the calling thread has 1 MiB of stack space left and the wasm code consumes
+	//    more, then the wasmtime limit will **not** trigger. Instead, the wasm code will hit the
+	//    guard page and the Rust stack overflow handler will be triggered. That leads to an
+	//    **abort**.
+	//
+	// 2. It cannot and does not limit the stack space consumed by Rust code.
+	//
+	//    Meaning that if the wasm code leaves no stack space for Rust code, then the Rust code
+	//    and that will abort the process as well.
+	//
+	// Typically on Linux the main thread gets the stack size specified by the `ulimit` and
+	// typically it's configured to 8 MiB. Rust's spawned threads are 2 MiB. OTOH, the
+	// NATIVE_STACK_MAX is set to 256 MiB. Not nearly enough.
+	//
+	// Hence we need to increase it.
+	//
+	// The simplest way to fix that is to spawn a new thread with the desired stack limit. One may
+	// think that it may be too expensive, but I disagree. The cost of creating a new thread is
+	// measured in microseconds, negligable compared to other costs.
+	//
+	// The reasoning why we pick this particular size is:
+	//
+	// The default Rust thread stack limit 2 MiB + 256 MiB wasm stack.
+	let thread_stack_size = 2 * 1024 * 1024 + NATIVE_STACK_MAX as usize;
+
+	crossbeam_utils::thread::scope(|s| {
+		s.builder()
+			.name("wasm executor".to_string())
+			.stack_size(thread_stack_size)
+			.spawn(move |_| do_execute(compiled_artifact_path, params, spawner))
+			.map_err(|e| format!("failed to spawn executor thread: {}", e))?
+			.join()
+			.map_err(|e| {
+				format!(
+					"the executor thread panicked: {}",
+					crate::error::stringify_panic_payload(e)
+				)
+			})?
+			.map_err(|e| format!("executor failed: {}", e))
+	})
+	.map_err(|e| {
+		// despite the fact that we join the thread above and handle this, we still got an error.
+		// Not sure how this could've happened, but we just handle by returning an error.
+		format!(
+			"the executor thread panicked regardless of joining: {}",
+			crate::error::stringify_panic_payload(e)
+		)
+	})?
+}
+
+unsafe fn do_execute(
 	compiled_artifact_path: &Path,
 	params: &[u8],
 	spawner: impl sp_core::traits::SpawnNamed + 'static,
