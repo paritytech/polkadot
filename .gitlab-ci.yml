@@ -682,6 +682,35 @@ zombienet-tests-parachains-disputes:
   tags:
     - zombienet-polkadot-integration-test
 
+zombienet-test-parachains-upgrade-smoke-test:
+  stage:                           stage3
+  image:                           "${ZOMBIENET_IMAGE}"
+  <<:                              *kubernetes-env
+  <<:                              *zombienet-refs
+  needs:
+    - job:                         publish-polkadot-debug-image
+    - job:                         publish-malus-image
+    - job:                         publish-test-collators-image
+  variables:
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke'
+  before_script:
+    - echo "ZombieNet Tests Config"
+    - echo "docker.io/parity/polkadot:latest"
+    - echo "docker.io/parity/polkadot-collator:latest"
+    - echo "${ZOMBIENET_IMAGE}"
+    - echo "${GH_DIR}"
+    - export DEBUG=zombie,zombie::network-node
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE="docker.io/parity/polkadot:latest" # Use polkadot latest image
+    - export COL_IMAGE="docker.io/parity/polkadot-collator:latest" # Use cumulus lastest image
+  script:
+    - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
+        --github-remote-dir="${GH_DIR}"
+        --test="0002-parachains-upgrade-smoke-test.feature"
+  allow_failure:                   true
+  retry: 2
+  tags:
+    - zombienet-polkadot-integration-test
+
 zombienet-tests-malus-dispute-valid:
   stage:                           stage3
   image:                           "${ZOMBIENET_IMAGE}"
