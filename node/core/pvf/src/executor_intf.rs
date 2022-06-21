@@ -150,7 +150,7 @@ pub unsafe fn execute(
 	//
 	// The simplest way to fix that is to spawn a new thread with the desired stack limit. One may
 	// think that it may be too expensive, but I disagree. The cost of creating a new thread is
-	// measured in microseconds, negligable compared to other costs.
+	// measured in microseconds, negligible compared to other costs.
 	//
 	// The reasoning why we pick this particular size is:
 	//
