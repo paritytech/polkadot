@@ -48,7 +48,7 @@ use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use rpc::{RpcApiClient, SharedRpcClient};
 use sp_npos_elections::BalancingConfig;
-use sp_runtime::{traits::Block as BlockT, DeserializeOwned, Perbill};
+use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 use std::{ops::Deref, sync::Arc};
 use tracing_subscriber::{fmt, EnvFilter};
 use tracing_subscriber::{fmt, EnvFilter};

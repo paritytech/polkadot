@@ -129,6 +129,7 @@ pub(crate) struct EmergencySolutionConfig {
 #[derive(Debug, Clone, Parser)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct InfoOpts {
+	/// Serialize the output as json
 	#[clap(long, short)]
 	pub json: bool,
 }
