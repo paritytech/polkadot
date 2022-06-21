@@ -278,7 +278,10 @@ mod test_super {
 	fn cli_info_works() {
 		let opt = Opt::try_parse_from([env!("CARGO_PKG_NAME"), "--uri", "hi", "info"]).unwrap();
 
-		assert_eq!(opt, Opt { uri: "hi".to_string(), command: Command::Info(InfoOpts {}) });
+		assert_eq!(
+			opt,
+			Opt { uri: "hi".to_string(), command: Command::Info(InfoOpts { json: true }) }
+		);
 	}
 
 	#[test]

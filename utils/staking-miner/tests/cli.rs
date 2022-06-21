@@ -17,6 +17,7 @@ fn cli_info_works() {
 	let crate_name = env!("CARGO_PKG_NAME");
 	let output = Command::new(cargo_bin(crate_name))
 		.arg("info")
+		.arg("--json")
 		.env("RUST_LOG", "none")
 		.output()
 		.unwrap();
@@ -25,6 +26,8 @@ fn cli_info_works() {
 	let info = String::from_utf8_lossy(&output.stdout).trim().to_owned();
 	let v: Result<Value> = serde_json::from_str(&info);
 	let v = v.unwrap();
-	assert!(!v["spec_name"].to_string().is_empty());
-	assert!(!v["version"].to_string().is_empty());
+	assert!(!v["builtin"].to_string().is_empty());
+	assert!(!v["builtin"]["spec_name"].to_string().is_empty());
+	assert!(!v["builtin"]["spec_version"].to_string().is_empty());
+	assert!(!v["remote"].to_string().is_empty());
 }
