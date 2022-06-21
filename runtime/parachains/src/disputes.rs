@@ -43,6 +43,7 @@ use sp_std::{cmp::Ordering, prelude::*};
 #[allow(unused_imports)]
 pub(crate) use self::tests::run_to_block;
 
+pub mod slashing;
 #[cfg(test)]
 mod tests;
 

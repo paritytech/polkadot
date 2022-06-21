@@ -68,11 +68,11 @@ use sp_version::RuntimeVersion;
 
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
-	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
-	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
+	disputes::slashing as parachains_slashing, dmp as parachains_dmp, hrmp as parachains_hrmp,
+	inclusion as parachains_inclusion, initializer as parachains_initializer,
+	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, scheduler as parachains_scheduler,
-	session_info as parachains_session_info, shared as parachains_shared,
-	slashing as parachains_slashing, ump as parachains_ump,
+	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 
 use bridge_runtime_common::messages::{

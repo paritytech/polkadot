@@ -49,12 +49,12 @@ use runtime_common::{
 };
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
-	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
-	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
+	disputes::slashing as parachains_slashing, dmp as parachains_dmp, hrmp as parachains_hrmp,
+	inclusion as parachains_inclusion, initializer as parachains_initializer,
+	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
 	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	session_info as parachains_session_info, shared as parachains_shared,
-	slashing as parachains_slashing, ump as parachains_ump,
+	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 use scale_info::TypeInfo;
 use sp_core::{OpaqueMetadata, RuntimeDebug};
@@ -963,7 +963,7 @@ impl parachains_slashing::Config for Runtime {
 		Offences,
 		ReportLongevity,
 	>;
-	type WeightInfo = weights::runtime_parachains_slashing::WeightInfo<Runtime>;
+	type WeightInfo = weights::runtime_parachains_disputes_slashing::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1214,7 +1214,7 @@ mod benches {
 		[runtime_common::slots, Slots]
 		[runtime_parachains::configuration, Configuration]
 		[runtime_parachains::disputes, ParasDisputes]
-		[runtime_parachains::slashing, ParasSlashing]
+		[runtime_parachains::disputes::slashing, ParasSlashing]
 		[runtime_parachains::hrmp, Hrmp]
 		[runtime_parachains::initializer, Initializer]
 		[runtime_parachains::paras, Paras]
@@ -1652,7 +1652,7 @@ sp_api::impl_runtime_apis! {
 			impl pallet_election_provider_support_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl pallet_nomination_pools_benchmarking::Config for Runtime {}
-			impl runtime_parachains::slashing::benchmarking::Config for Runtime {}
+			impl runtime_parachains::disputes::slashing::benchmarking::Config for Runtime {}
 
 			use xcm::latest::{
 				AssetId::*, Fungibility::*, Junctions::*, MultiAsset, MultiAssets, MultiLocation,
