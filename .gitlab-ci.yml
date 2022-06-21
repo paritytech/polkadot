@@ -453,10 +453,7 @@ publish-malus-image:
 publish-staking-miner:
   stage:                           stage2
   <<:                              *build-push-image
-  # uncomment after debug
-  # <<:                              *publish-refs
-  # remove after debug
-  <<:                              *common-refs
+  <<:                              *publish-refs
   variables:
     <<:                            *image-variables
     # scripts/ci/dockerfiles/malus_injected.Dockerfile
