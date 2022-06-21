@@ -30,11 +30,11 @@
 
 mod dry_run;
 mod emergency_solution;
-mod info;
 mod monitor;
 mod opts;
 mod prelude;
 mod rpc;
+mod runtime_versions;
 mod signer;
 
 pub(crate) use prelude::*;
@@ -44,14 +44,13 @@ use crate::opts::*;
 use clap::Parser;
 use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
-use info::*;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use rpc::{RpcApiClient, SharedRpcClient};
 use sp_npos_elections::BalancingConfig;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned, Perbill};
-use tracing_subscriber::{fmt, EnvFilter};
 use std::{ops::Deref, sync::Arc};
+use tracing_subscriber::{fmt, EnvFilter};
 use tracing_subscriber::{fmt, EnvFilter};
 
 pub(crate) enum AnyRuntime {
@@ -64,7 +63,6 @@ pub(crate) static mut RUNTIME: AnyRuntime = AnyRuntime::Polkadot;
 
 macro_rules! construct_runtime_prelude {
 	($runtime:ident) => { paste::paste! {
-		#[allow(unused_import)]
 		pub(crate) mod [<$runtime _runtime_exports>] {
 			pub(crate) use crate::prelude::EPM;
 			pub(crate) use [<$runtime _runtime>]::*;
@@ -385,7 +383,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 		voters.into_iter().for_each(|(who, stake, targets)| {
 			if targets.is_empty() {
 				println!("target = {:?}", (who, stake, targets));
-				return
+				return;
 			}
 			let share: u128 = (stake as u128) / (targets.len() as u128);
 			for target in targets {
@@ -496,7 +494,7 @@ async fn main() {
 		},
 		_ => {
 			eprintln!("unexpected chain: {:?}", chain);
-			return
+			return;
 		},
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
@@ -533,11 +531,21 @@ async fn main() {
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "EmergencySolution error: {:?}", e);
 				}),
-			Command::Info(_info_opts) => {
-				let runtime_version: RuntimeVersion = rpc.runtime_version(None).await.expect("runtime_version infallible; qed.");
-				let info = Info::new(&runtime_version);
-				let info = serde_json::to_string_pretty(&info).expect("Failed serializing version info");
-				println!("{}", info);
+			Command::Info(info_opts) => {
+				let remote_runtime_version = rpc.runtime_version(None).await.expect("runtime_version infallible; qed.");
+
+				let builtin_version = any_runtime! {
+					Version::get()
+				};
+
+				let versions = RuntimeVersions::new(&remote_runtime_version, &builtin_version);
+
+				if !info_opts.json {
+					println!("{}", versions);
+				} else {
+					let versions = serde_json::to_string_pretty(&versions).expect("Failed serializing version info");
+					println!("{}", versions);
+				}
 				Ok(())
 			}
 		}

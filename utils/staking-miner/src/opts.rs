@@ -128,7 +128,10 @@ pub(crate) struct EmergencySolutionConfig {
 
 #[derive(Debug, Clone, Parser)]
 #[cfg_attr(test, derive(PartialEq))]
-pub(crate) struct InfoOpts {}
+pub(crate) struct InfoOpts {
+	#[clap(long, short)]
+	pub json: bool,
+}
 
 /// Submission strategy to use.
 #[derive(Debug, Copy, Clone)]
