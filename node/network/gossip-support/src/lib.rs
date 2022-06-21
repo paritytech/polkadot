@@ -257,12 +257,9 @@ where
 				}
 
 				if is_new_session {
-					self.update_authority_status_metrics(&session_info).await;
-
 					// Gossip topology is only relevant for authorities in the current session.
 					let our_index =
-						ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys)
-							.await?;
+						self.check_authority_status_and_update_metrics(&session_info).await?;
 
 					update_gossip_topology(
 						sender,
@@ -278,23 +275,30 @@ where
 		Ok(())
 	}
 
-	async fn update_authority_status_metrics(&mut self, session_info: &SessionInfo) {
-		let maybe_index =
-			match ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys).await {
-				Ok(index) => {
-					gum::trace!(target: LOG_TARGET, "We are now an authority",);
-					self.metrics.on_is_authority();
-					Some(index)
-				},
-				Err(util::Error::NotAValidator) => {
-					gum::trace!(target: LOG_TARGET, "We are no longer an authority",);
-					self.metrics.on_is_not_authority();
-					self.metrics.on_is_not_parachain_validator();
-					None
-				},
-				// Don't update on runtime errors.
-				Err(_) => None,
-			};
+	// Checks if the node is an authority and also updates `polkadot_node_is_authority` and
+	// `polkadot_node_is_parachain_validator` metrics accordingly.
+	async fn check_authority_status_and_update_metrics(
+		&mut self,
+		session_info: &SessionInfo,
+	) -> Result<usize, util::Error> {
+		let authority_check_result =
+			ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys).await;
+
+		let maybe_index = match authority_check_result.as_ref() {
+			Ok(index) => {
+				gum::trace!(target: LOG_TARGET, "We are now an authority",);
+				self.metrics.on_is_authority();
+				Some(*index)
+			},
+			Err(util::Error::NotAValidator) => {
+				gum::trace!(target: LOG_TARGET, "We are no longer an authority",);
+				self.metrics.on_is_not_authority();
+				self.metrics.on_is_not_parachain_validator();
+				None
+			},
+			// Don't update on runtime errors.
+			Err(_) => None,
+		};
 
 		if let Some(validator_index) = maybe_index {
 			// The subset of authorities participating in parachain consensus.
@@ -311,6 +315,8 @@ where
 				self.metrics.on_is_not_parachain_validator();
 			}
 		}
+
+		authority_check_result
 	}
 
 	async fn issue_connection_request<Sender>(
