@@ -249,20 +249,18 @@ impl pallet_preimage::Config for Runtime {
 }
 
 parameter_types! {
-	// pub EpochDuration: u64 = prod_or_fast!(
-	// 	EPOCH_DURATION_IN_SLOTS as u64,
-	// 	2 * MINUTES as u64,
-	// 	"ROC_EPOCH_DURATION"
-	// );
+	pub EpochDuration: u64 = prod_or_fast!(
+		EPOCH_DURATION_IN_SLOTS as u64,
+		2 * MINUTES as u64,
+		"ROC_EPOCH_DURATION"
+	);
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
-	// TODO: Staking
-	// pub ReportLongevity: u64 =
-	// 	BondingDuration::get() as u64 * SessionsPerEra::get() as u64 * EpochDuration::get();
-	pub ReportLongevity: u64 = EpochDurationInBlocks::get() as u64 * 10;
+	pub ReportLongevity: u64 =
+		BondingDuration::get() as u64 * SessionsPerEra::get() as u64 * EpochDuration::get();
 }
 
 impl pallet_babe::Config for Runtime {
-	type EpochDuration = EpochDurationInBlocks; // TODO: Babe -> type EpochDuration = EpochDuration;
+	type EpochDuration = EpochDuration;
 	type ExpectedBlockTime = ExpectedBlockTime;
 
 	// session module is the trigger
@@ -2280,7 +2278,7 @@ sp_api::impl_runtime_apis! {
 			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
 			babe_primitives::BabeGenesisConfiguration {
 				slot_duration: Babe::slot_duration(),
-				epoch_length: EpochDurationInBlocks::get().into(), // TODO: Babe -> epoch_length: EpochDuration::get().into()
+				epoch_length: EpochDuration::get().into(),
 				c: BABE_GENESIS_EPOCH_CONFIG.c,
 				genesis_authorities: Babe::authorities().to_vec(),
 				randomness: Babe::randomness(),

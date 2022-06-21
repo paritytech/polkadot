@@ -106,7 +106,7 @@ pub type WestendChainSpec = DummyChainSpec;
 
 /// The `ChainSpec` parameterized for the rococo runtime.
 #[cfg(feature = "rococo-native")]
-pub type RococoChainSpec = service::GenericChainSpec<RococoGenesisExt, Extensions>;
+pub type RococoChainSpec = service::GenericChainSpec<rococo::GenesisConfig, Extensions>;
 
 /// The `ChainSpec` parameterized for the `versi` runtime.
 ///
@@ -117,30 +117,6 @@ pub type VersiChainSpec = RococoChainSpec;
 // Dummy chain spec, but that is fine when we don't have the native runtime.
 #[cfg(not(feature = "rococo-native"))]
 pub type RococoChainSpec = DummyChainSpec;
-
-/// Extension for the Rococo genesis config to support a custom changes to the genesis state.
-#[derive(serde::Serialize, serde::Deserialize)]
-#[cfg(feature = "rococo-native")]
-pub struct RococoGenesisExt {
-	/// The runtime genesis config.
-	runtime_genesis_config: rococo::GenesisConfig,
-	/// The session length in blocks.
-	///
-	/// If `None` is supplied, the default value is used.
-	session_length_in_blocks: Option<u32>,
-}
-
-#[cfg(feature = "rococo-native")]
-impl sp_runtime::BuildStorage for RococoGenesisExt {
-	fn assimilate_storage(&self, storage: &mut sp_core::storage::Storage) -> Result<(), String> {
-		sp_state_machine::BasicExternalities::execute_with_storage(storage, || {
-			if let Some(length) = self.session_length_in_blocks.as_ref() {
-				rococo_runtime_constants::time::EpochDurationInBlocks::set(length);
-			}
-		});
-		self.runtime_genesis_config.assimilate_storage(storage)
-	}
-}
 
 pub fn polkadot_config() -> Result<PolkadotChainSpec, String> {
 	PolkadotChainSpec::from_json_bytes(&include_bytes!("../res/polkadot.json")[..])
@@ -1183,10 +1159,7 @@ pub fn rococo_staging_testnet_config() -> Result<RococoChainSpec, String> {
 		"Rococo Staging Testnet",
 		"rococo_staging_testnet",
 		ChainType::Live,
-		move || RococoGenesisExt {
-			runtime_genesis_config: rococo_staging_testnet_config_genesis(wasm_binary),
-			session_length_in_blocks: None,
-		},
+		move || rococo_staging_testnet_config_genesis(wasm_binary),
 		boot_nodes,
 		Some(
 			TelemetryEndpoints::new(vec![(ROCOCO_STAGING_TELEMETRY_URL.to_string(), 0)])
@@ -1220,10 +1193,7 @@ pub fn versi_staging_testnet_config() -> Result<RococoChainSpec, String> {
 		"Versi Staging Testnet",
 		"versi_staging_testnet",
 		ChainType::Live,
-		move || RococoGenesisExt {
-			runtime_genesis_config: rococo_staging_testnet_config_genesis(wasm_binary),
-			session_length_in_blocks: Some(100),
-		},
+		move || rococo_staging_testnet_config_genesis(wasm_binary),
 		boot_nodes,
 		Some(
 			TelemetryEndpoints::new(vec![(VERSI_STAGING_TELEMETRY_URL.to_string(), 0)])
@@ -1772,11 +1742,7 @@ pub fn rococo_development_config() -> Result<RococoChainSpec, String> {
 		"Development",
 		"rococo_dev",
 		ChainType::Development,
-		move || RococoGenesisExt {
-			runtime_genesis_config: rococo_development_config_genesis(wasm_binary),
-			// Use 1 minute session length.
-			session_length_in_blocks: Some(10),
-		},
+		move || rococo_development_config_genesis(wasm_binary),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
@@ -1795,11 +1761,7 @@ pub fn versi_development_config() -> Result<RococoChainSpec, String> {
 		"Development",
 		"versi_dev",
 		ChainType::Development,
-		move || RococoGenesisExt {
-			runtime_genesis_config: rococo_development_config_genesis(wasm_binary),
-			// Use 1 minute session length.
-			session_length_in_blocks: Some(10),
-		},
+		move || rococo_development_config_genesis(wasm_binary),
 		vec![],
 		None,
 		Some("versi"),
@@ -1819,11 +1781,7 @@ pub fn wococo_development_config() -> Result<RococoChainSpec, String> {
 		"Development",
 		"wococo_dev",
 		ChainType::Development,
-		move || RococoGenesisExt {
-			runtime_genesis_config: rococo_development_config_genesis(wasm_binary),
-			// Use 1 minute session length.
-			session_length_in_blocks: Some(10),
-		},
+		move || rococo_development_config_genesis(wasm_binary),
 		vec![],
 		None,
 		Some(WOCOCO_DEV_PROTOCOL_ID),
@@ -1948,11 +1906,7 @@ pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		"Rococo Local Testnet",
 		"rococo_local_testnet",
 		ChainType::Local,
-		move || RococoGenesisExt {
-			runtime_genesis_config: rococo_local_testnet_genesis(wasm_binary),
-			// Use 1 minute session length.
-			session_length_in_blocks: Some(10),
-		},
+		move || rococo_local_testnet_genesis(wasm_binary),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
@@ -1987,11 +1941,7 @@ pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		"Wococo Local Testnet",
 		"wococo_local_testnet",
 		ChainType::Local,
-		move || RococoGenesisExt {
-			runtime_genesis_config: wococo_local_testnet_genesis(wasm_binary),
-			// Use 1 minute session length.
-			session_length_in_blocks: Some(10),
-		},
+		move || wococo_local_testnet_genesis(wasm_binary),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
@@ -2026,11 +1976,7 @@ pub fn versi_local_testnet_config() -> Result<RococoChainSpec, String> {
 		"Versi Local Testnet",
 		"versi_local_testnet",
 		ChainType::Local,
-		move || RococoGenesisExt {
-			runtime_genesis_config: versi_local_testnet_genesis(wasm_binary),
-			// Use 1 minute session length.
-			session_length_in_blocks: Some(10),
-		},
+		move || versi_local_testnet_genesis(wasm_binary),
 		vec![],
 		None,
 		Some("versi"),
