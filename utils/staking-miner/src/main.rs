@@ -47,6 +47,7 @@ use frame_support::traits::Get;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use rpc::{RpcApiClient, SharedRpcClient};
+use runtime_versions::RuntimeVersions;
 use sp_npos_elections::BalancingConfig;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 use std::{ops::Deref, sync::Arc};
@@ -382,7 +383,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 		voters.into_iter().for_each(|(who, stake, targets)| {
 			if targets.is_empty() {
 				println!("target = {:?}", (who, stake, targets));
-				return;
+				return
 			}
 			let share: u128 = (stake as u128) / (targets.len() as u128);
 			for target in targets {
@@ -493,7 +494,7 @@ async fn main() {
 		},
 		_ => {
 			eprintln!("unexpected chain: {:?}", chain);
-			return;
+			return
 		},
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
