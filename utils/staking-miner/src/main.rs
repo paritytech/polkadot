@@ -51,7 +51,6 @@ use sp_npos_elections::BalancingConfig;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 use std::{ops::Deref, sync::Arc};
 use tracing_subscriber::{fmt, EnvFilter};
-use tracing_subscriber::{fmt, EnvFilter};
 
 pub(crate) enum AnyRuntime {
 	Polkadot,
