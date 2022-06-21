@@ -38,7 +38,7 @@ parameter_types! {
 	/// the context".
 	pub const RocLocation: MultiLocation = Here.into();
 	/// The Rococo network ID. This is named.
-	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
+	pub const RococoNetwork: NetworkId = NetworkId::Named(b"Rococo".to_vec());
 	/// Our XCM location ancestry - i.e. what, if anything, `Parent` means evaluated in our context. Since
 	/// Rococo is a top-level relay-chain, there is no ancestry.
 	pub const Ancestry: MultiLocation = Here.into();
@@ -166,10 +166,9 @@ parameter_types! {
 	pub const CollectiveBodyId: BodyId = BodyId::Unit;
 }
 
-// TODO: Collective
-// parameter_types! {
-// 	pub const CouncilBodyId: BodyId = BodyId::Executive;
-// }
+parameter_types! {
+	pub const CouncilBodyId: BodyId = BodyId::Executive;
+}
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain.
@@ -179,7 +178,7 @@ pub type LocalOriginToLocation = (
 	BackingToPlurality<
 		Origin,
 		pallet_collective::Origin<Runtime, CouncilCollective>,
-		CollectiveBodyId //  TODO: Collective -> CouncilBodyId
+		CouncilBodyId,
 	>,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
 	SignedToAccountId32<Origin, AccountId, RococoNetwork>,
