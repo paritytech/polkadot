@@ -277,6 +277,7 @@ where
 
 	// Checks if the node is an authority and also updates `polkadot_node_is_authority` and
 	// `polkadot_node_is_parachain_validator` metrics accordingly.
+	// On success, returns the index of our keys in `session_info.discovery_keys`.
 	async fn check_authority_status_and_update_metrics(
 		&mut self,
 		session_info: &SessionInfo,
