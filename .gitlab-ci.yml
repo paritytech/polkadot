@@ -450,7 +450,7 @@ publish-malus-image:
       # this artifact is used in zombienet-tests job
       dotenv: ./artifacts/malus.env
 
-publish-staking-miner:
+publish-staking-miner-image:
   stage:                           stage2
   <<:                              *build-push-image
   <<:                              *publish-refs
