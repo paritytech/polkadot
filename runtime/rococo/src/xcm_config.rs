@@ -38,7 +38,7 @@ parameter_types! {
 	/// the context".
 	pub const RocLocation: MultiLocation = Here.into();
 	/// The Rococo network ID. This is named.
-	pub const RococoNetwork: NetworkId = NetworkId::Named(b"Rococo".to_vec());
+	pub RococoNetwork: NetworkId = NetworkId::Named(b"Rococo".to_vec());
 	/// Our XCM location ancestry - i.e. what, if anything, `Parent` means evaluated in our context. Since
 	/// Rococo is a top-level relay-chain, there is no ancestry.
 	pub const Ancestry: MultiLocation = Here.into();
