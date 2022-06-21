@@ -256,12 +256,13 @@ where
 					}
 				}
 
-				// Gossip topology is only relevant for authorities in the current session.
-				let our_index =
-					ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys).await?;
-
 				if is_new_session {
 					self.update_authority_status_metrics(&session_info).await;
+
+					// Gossip topology is only relevant for authorities in the current session.
+					let our_index =
+						ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys)
+							.await?;
 
 					update_gossip_topology(
 						sender,
@@ -281,10 +282,12 @@ where
 		let maybe_index =
 			match ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys).await {
 				Ok(index) => {
+					gum::trace!(target: LOG_TARGET, "We are now an authority",);
 					self.metrics.on_is_authority();
 					Some(index)
 				},
 				Err(util::Error::NotAValidator) => {
+					gum::trace!(target: LOG_TARGET, "We are no longer an authority",);
 					self.metrics.on_is_not_authority();
 					self.metrics.on_is_not_parachain_validator();
 					None
@@ -301,8 +304,10 @@ where
 			// if our index is in this set to avoid searching for the keys.
 			// https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148
 			if validator_index < parachain_validators_this_session {
+				gum::trace!(target: LOG_TARGET, "We are now a parachain validator",);
 				self.metrics.on_is_parachain_validator();
 			} else {
+				gum::trace!(target: LOG_TARGET, "We are no longer a parachain validator",);
 				self.metrics.on_is_not_parachain_validator();
 			}
 		}
