@@ -85,6 +85,6 @@ impl<'a> fmt::Display for RuntimeVersions<'a> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		let _ = write!(f, "- linked:\n{}", self.linked);
 		let _ = write!(f, "- remote :\n{}", self.remote);
-		write!(f, "Compatibles: {}", if self.compatible { "YES" } else { "NO" })
+		write!(f, "Compatible: {}", if self.compatible { "YES" } else { "NO" })
 	}
 }
