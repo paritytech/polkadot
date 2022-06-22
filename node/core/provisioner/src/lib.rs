@@ -650,7 +650,7 @@ async fn select_candidates(
 	relay_parent: Hash,
 	sender: &mut impl overseer::ProvisionerSenderTrait,
 ) -> Result<Vec<BackedCandidate>, Error> {
-	let selected_hashes = match prospective_parachains_mode {
+	let selected_candidates = match prospective_parachains_mode {
 		ProspectiveParachainsMode::Enabled =>
 			request_backable_candidates(availability_cores, bitfields, relay_parent, sender).await?,
 		ProspectiveParachainsMode::Disabled { backed_candidates } =>
@@ -668,7 +668,7 @@ async fn select_candidates(
 	let (tx, rx) = oneshot::channel();
 	sender.send_unbounded_message(CandidateBackingMessage::GetBackedCandidates(
 		relay_parent,
-		selected_hashes.clone(),
+		selected_candidates.clone(),
 		tx,
 	));
 	let mut candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
@@ -680,8 +680,8 @@ async fn select_candidates(
 	// maps to either 0 or 1 backed candidate, and the hashes correspond. Therefore, by checking them
 	// in order, we can ensure that the backed candidates are also in order.
 	let mut backed_idx = 0;
-	for selected_candidate in selected_hashes {
-		if selected_candidate ==
+	for selected in selected_candidates {
+		if selected ==
 			candidates.get(backed_idx).ok_or(Error::BackedCandidateOrderingProblem)?.hash()
 		{
 			backed_idx += 1;
