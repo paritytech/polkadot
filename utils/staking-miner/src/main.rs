@@ -181,11 +181,9 @@ construct_runtime_prelude!(westend);
 // that is not currently possible as each runtime has its unique `Call`, and all Calls are not
 // sharing any generic trait. In other words, to create the `UncheckedExtrinsic` of each chain, you
 // need the concrete `Call` of that chain as well.
-
 #[macro_export]
 macro_rules! any_runtime {
 	($($code:tt)*) => {
-
 		unsafe {
 			match $crate::RUNTIME {
 				$crate::AnyRuntime::Polkadot => {
@@ -213,7 +211,6 @@ macro_rules! any_runtime {
 #[macro_export]
 macro_rules! any_runtime_unit {
 	($($code:tt)*) => {
-		#[allow(unused_unsafe)]
 		unsafe {
 			match $crate::RUNTIME {
 				$crate::AnyRuntime::Polkadot => {
