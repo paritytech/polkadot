@@ -46,6 +46,9 @@ pub enum Error {
 	#[error("failed to get votes on dispute")]
 	CanceledCandidateVotes(#[source] oneshot::Canceled),
 
+	#[error("failed to get backable candidate")]
+	CanceledProspectiveCandidateChild(#[source] oneshot::Canceled),
+
 	#[error(transparent)]
 	ChainApi(#[from] ChainApiError),
 
