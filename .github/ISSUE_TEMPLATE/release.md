@@ -49,3 +49,4 @@ candidate branch or started an additional release candidate branch (rc-2, rc-3, 
 - [ ] Check that [build artifacts](https://github.com/paritytech/polkadot/blob/master/doc/release-checklist.md#build-artifacts) have been added to the
     draft-release
 - [ ] Check that all items listed in the [milestone](https://github.com/paritytech/polkadot/milestones) are included in the release.
+- [ ] ensure that no `freenotes` were added into the release branch after the latest generated RC
