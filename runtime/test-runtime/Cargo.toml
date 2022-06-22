@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-test-runtime"
-version = "0.9.22"
+version = "0.9.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 build = "build.rs"
@@ -10,7 +10,7 @@ bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
 serde = { version = "1.0.137", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 smallvec = "1.8.0"
@@ -42,7 +42,6 @@ pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/parityt
 frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -109,7 +108,6 @@ std = [
 	"frame-executive/std",
 	"pallet-grandpa/std",
 	"pallet-indices/std",
-	"pallet-nicks/std",
 	"pallet-offences/std",
 	"sp-runtime/std",
 	"sp-staking/std",

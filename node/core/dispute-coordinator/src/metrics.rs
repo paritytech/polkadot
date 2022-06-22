@@ -26,6 +26,8 @@ struct MetricsInner {
 	concluded: prometheus::CounterVec<prometheus::U64>,
 	/// Number of participations that have been queued.
 	queued_participations: prometheus::CounterVec<prometheus::U64>,
+	/// How long vote cleanup batches take.
+	vote_cleanup_time: prometheus::Histogram,
 }
 
 /// Candidate validation metrics.
@@ -74,6 +76,10 @@ impl Metrics {
 			metrics.queued_participations.with_label_values(&["best-effort"]).inc();
 		}
 	}
+
+	pub(crate) fn time_vote_cleanup(&self) -> Option<prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.vote_cleanup_time.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -113,6 +119,16 @@ impl metrics::Metrics for Metrics {
 						"Total number of queued participations, grouped by priority and best-effort. (Not every queueing will necessarily lead to an actual participation because of duplicates.)",
 					),
 					&["priority"],
+				)?,
+				registry,
+			)?,
+			vote_cleanup_time: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_dispute_coordinator_vote_cleanup",
+						"Time spent cleaning up old votes per batch.",
+					)
+					.buckets([0.01, 0.1, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0].into()),
 				)?,
 				registry,
 			)?,

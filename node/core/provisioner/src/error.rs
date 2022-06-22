@@ -15,16 +15,18 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 ///! Error types for provisioner module
-use fatality;
+use fatality::Nested;
 use futures::channel::{mpsc, oneshot};
-use polkadot_node_subsystem::errors::{ChainApiError, RuntimeApiError};
+use polkadot_node_subsystem::errors::{ChainApiError, RuntimeApiError, SubsystemError};
 use polkadot_node_subsystem_util as util;
 use polkadot_primitives::v2::Hash;
-use thiserror::Error;
+
+pub type FatalResult<T> = std::result::Result<T, FatalError>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// Errors in the provisioner.
-#[derive(Debug, Error)]
 #[allow(missing_docs)]
+#[fatality::fatality(splitable)]
 pub enum Error {
 	#[error(transparent)]
 	Util(#[from] util::Error),
@@ -63,6 +65,13 @@ pub enum Error {
 		"backed candidate does not correspond to selected candidate; check logic in provisioner"
 	)]
 	BackedCandidateOrderingProblem,
+
+	#[fatal]
+	#[error("Failed to spawn background task")]
+	FailedToSpawnBackgroundTask,
+
+	#[error(transparent)]
+	SubsystemError(#[from] SubsystemError),
 }
 
 /// Used by `get_onchain_disputes` to represent errors related to fetching on-chain disputes from the Runtime
@@ -80,4 +89,21 @@ pub enum GetOnchainDisputesError {
 		"runtime doesn't support RuntimeApiRequest::Disputes/RuntimeApiRequest::StagingDisputes for parent {1}"
 	)]
 	NotSupported(#[source] RuntimeApiError, Hash),
+}
+
+pub fn log_error(result: Result<()>) -> std::result::Result<(), FatalError> {
+	match result.into_nested()? {
+		Ok(()) => Ok(()),
+		Err(jfyi) => {
+			jfyi.log();
+			Ok(())
+		},
+	}
+}
+
+impl JfyiError {
+	/// Log a `JfyiError`.
+	pub fn log(self) {
+		gum::debug!(target: super::LOG_TARGET, error = ?self);
+	}
 }

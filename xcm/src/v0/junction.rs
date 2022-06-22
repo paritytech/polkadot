@@ -16,17 +16,17 @@
 
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
-use alloc::vec::Vec;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
+use sp_runtime::{traits::ConstU32, WeakBoundedVec};
 
 /// A global identifier of an account-bearing consensus system.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
 pub enum NetworkId {
 	/// Unidentified/any.
 	Any,
 	/// Some named network.
-	Named(Vec<u8>),
+	Named(WeakBoundedVec<u8, ConstU32<32>>),
 	/// The Polkadot Relay chain
 	Polkadot,
 	/// Kusama.
@@ -34,12 +34,12 @@ pub enum NetworkId {
 }
 
 /// An identifier of a pluralistic body.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
 pub enum BodyId {
 	/// The only body in its context.
 	Unit,
 	/// A named body.
-	Named(Vec<u8>),
+	Named(WeakBoundedVec<u8, ConstU32<32>>),
 	/// An indexed body.
 	Index(#[codec(compact)] u32),
 	/// The unambiguous executive body (for Polkadot, this would be the Polkadot council).
@@ -55,7 +55,7 @@ pub enum BodyId {
 }
 
 /// A part of a pluralistic body.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
 pub enum BodyPart {
 	/// The body's declaration, under whatever means it decides.
 	Voice,
@@ -102,7 +102,7 @@ impl BodyPart {
 /// A single item in a path to describe the relative location of a consensus system.
 ///
 /// Each item assumes a pre-existing location as its context and is defined in terms of it.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
 pub enum Junction {
 	/// The consensus system of which the context is a member and state-wise super-set.
 	///
@@ -147,7 +147,7 @@ pub enum Junction {
 	/// Usage will vary widely owing to its generality.
 	///
 	/// NOTE: Try to avoid using this and instead use a more specific item.
-	GeneralKey(Vec<u8>),
+	GeneralKey(WeakBoundedVec<u8, ConstU32<32>>),
 	/// The unambiguous child.
 	///
 	/// Not currently used except as a fallback when deriving ancestry.

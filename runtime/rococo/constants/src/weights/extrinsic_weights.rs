@@ -16,7 +16,7 @@
 // limitations under the License.
 
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2022-04-03 (Y/M/D)
+//! DATE: 2022-05-25 (Y/M/D)
 //!
 //! SHORT-NAME: `extrinsic`, LONG-NAME: `ExtrinsicBase`, RUNTIME: `Development`
 //! WARMUPS: `10`, REPEAT: `100`
@@ -25,7 +25,8 @@
 
 // Executed Command:
 //   ./target/production/polkadot
-//   benchmark-overhead
+//   benchmark
+//   overhead
 //   --chain=rococo-dev
 //   --execution=wasm
 //   --wasm-execution=compiled
@@ -42,17 +43,17 @@ parameter_types! {
 	/// Time to execute a NO-OP extrinsic, for example `System::remark`.
 	/// Calculated by multiplying the *Average* with `1` and adding `0`.
 	///
-	/// Stats [NS]:
-	///   Min, Max: 78_951, 81_171
-	///   Average:  79_545
-	///   Median:   79_348
-	///   Std-Dev:  523.95
+	/// Stats nanoseconds:
+	///   Min, Max: 77_945, 79_607
+	///   Average:  78_269
+	///   Median:   78_211
+	///   Std-Dev:  259.27
 	///
-	/// Percentiles [NS]:
-	///   99th: 81_101
-	///   95th: 80_797
-	///   75th: 79_810
-	pub const ExtrinsicBaseWeight: Weight = 79_545 * WEIGHT_PER_NANOS;
+	/// Percentiles nanoseconds:
+	///   99th: 79_591
+	///   95th: 78_730
+	///   75th: 78_272
+	pub const ExtrinsicBaseWeight: Weight = 78_269 * WEIGHT_PER_NANOS;
 }
 
 #[cfg(test)]

@@ -305,6 +305,7 @@ pub mod pallet {
 			for ((bidder, _), amount) in ReservedAmounts::<T>::drain() {
 				CurrencyOf::<T>::unreserve(&bidder, amount);
 			}
+			#[allow(deprecated)]
 			Winning::<T>::remove_all(None);
 			AuctionInfo::<T>::kill();
 			Ok(())
@@ -557,6 +558,7 @@ impl<T: Config> Pallet<T> {
 						.unwrap_or([Self::EMPTY; SlotRange::SLOT_RANGE_COUNT]);
 					// This `remove_all` statement should remove at most `EndingPeriod` / `SampleLength` items,
 					// which should be bounded and sensibly configured in the runtime.
+					#[allow(deprecated)]
 					Winning::<T>::remove_all(None);
 					AuctionInfo::<T>::kill();
 					return Some((res, lease_period_index))
@@ -677,7 +679,7 @@ mod tests {
 		assert_noop, assert_ok, assert_storage_noop,
 		dispatch::DispatchError::BadOrigin,
 		ord_parameter_types, parameter_types,
-		traits::{EnsureOneOf, OnFinalize, OnInitialize},
+		traits::{EitherOfDiverse, OnFinalize, OnInitialize},
 	};
 	use frame_system::{EnsureRoot, EnsureSignedBy};
 	use pallet_balances;
@@ -840,7 +842,7 @@ mod tests {
 		pub const Six: u64 = 6;
 	}
 
-	type RootOrSix = EnsureOneOf<EnsureRoot<u64>, EnsureSignedBy<Six, u64>>;
+	type RootOrSix = EitherOfDiverse<EnsureRoot<u64>, EnsureSignedBy<Six, u64>>;
 
 	thread_local! {
 		pub static LAST_RANDOM: RefCell<Option<(H256, u32)>> = RefCell::new(None);
