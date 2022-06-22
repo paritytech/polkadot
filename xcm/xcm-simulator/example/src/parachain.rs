@@ -109,10 +109,10 @@ impl pallet_balances::Config for Runtime {
 pub struct UniquesHelper;
 #[cfg(feature = "runtime-benchmarks")]
 impl pallet_uniques::BenchmarkHelper<MultiLocation, AssetInstance> for UniquesHelper {
-	fn class(i: u16) -> MultiLocation {
+	fn collection(i: u16) -> MultiLocation {
 		GeneralIndex(i as u128).into()
 	}
-	fn instance(i: u16) -> AssetInstance {
+	fn item(i: u16) -> AssetInstance {
 		AssetInstance::Index(i as u128)
 	}
 }
