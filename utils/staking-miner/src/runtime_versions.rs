@@ -58,7 +58,7 @@ pub(crate) struct RuntimeVersions<'a> {
 	/// The `RuntimeVersion` reported by the node we connect to via RPC
 	pub remote: RuntimeWrapper<'a>,
 
-	/// This bool reports whether both remote and linked `RuntimeVersion` are compatible
+	/// This `bool` reports whether both remote and linked `RuntimeVersion` are compatible
 	/// and if the staking-miner is expected to work properly against the remote runtime
 	compatible: bool,
 }
