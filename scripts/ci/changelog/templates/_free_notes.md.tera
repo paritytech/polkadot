@@ -8,7 +8,7 @@
 <!-- Such a comment will be rendered but remain invisible in the rendered markdown -->
 <!-- Edit below this line -->
 
-This release requires a database migration on the _parachains_ db, that cannot be automated on _paritydb_.
+This release requires a database migration on the _parachains_ db. While this is handled automatically for the _rocksdb_ users, that cannot be automated on _paritydb_.
 
 Therefore users of paritydb are required to prune the _parachains_ database before upgrading.
 
