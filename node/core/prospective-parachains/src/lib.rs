@@ -337,7 +337,7 @@ async fn handle_candidate_backed<Context>(
 				target: LOG_TARGET,
 				para_id = ?para,
 				?candidate_hash,
-				"Received instructio to back candidate",
+				"Received instruction to back candidate",
 			);
 
 			return Ok(())

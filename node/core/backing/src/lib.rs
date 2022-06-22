@@ -48,7 +48,7 @@
 //! most recent blocks in the relay-chain (which is in fact a tree) which could be built
 //! upon. Depth is always measured against active leaves, and the valid relay-parent that
 //! each candidate can have is determined by the active leaves. The Prospective Parachains
-//! subsystem enforces that the relay-parent increases monotonoically, so that logic
+//! subsystem enforces that the relay-parent increases monotonically, so that logic
 //! is not handled here. By communicating with the Prospective Parachains subsystem,
 //! this subsystem extrapolates an "implicit view" from the set of currently active leaves,
 //! which determines the set of all recent relay-chain block hashes which could be relay-parents
@@ -248,7 +248,7 @@ struct ActiveLeafState {
 	/// depth under every active leaf has an empty entry in this map.
 	///
 	/// When prospective parachains are disabled, the only depth
-	/// which is allowed is '0'.
+	/// which is allowed is 0.
 	seconded_at_depth: BTreeMap<usize, CandidateHash>,
 }
 
