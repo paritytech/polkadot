@@ -662,7 +662,7 @@ async fn check_sent_requests(
 	// Sends to concerned validators:
 	assert_matches!(
 		handle.recv().await,
-		AllMessages::NetworkBridge(
+		AllMessages::NetworkBridgeTx(
 			NetworkBridgeTxMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
 		) => {
 			let reqs: Vec<_> = reqs.into_iter().map(|r|

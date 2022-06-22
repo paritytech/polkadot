@@ -85,7 +85,7 @@ fn spawn_virtual_overseer(
 					break
 				}
 				match msg.unwrap() {
-					AllMessages::NetworkBridge(NetworkBridgeTxMessage::SendRequests(..)) => {},
+					AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(..)) => {},
 					AllMessages::AvailabilityStore(AvailabilityStoreMessage::QueryChunk(
 						..,
 						tx,

@@ -214,7 +214,7 @@ impl TestState {
 			gum::trace!(target: LOG_TARGET, remaining_stores, "Stores left to go");
 			let msg = overseer_recv(&mut rx).await;
 			match msg {
-				AllMessages::NetworkBridge(NetworkBridgeTxMessage::SendRequests(
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(
 					reqs,
 					IfDisconnected::ImmediateError,
 				)) => {

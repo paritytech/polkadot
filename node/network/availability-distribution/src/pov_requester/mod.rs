@@ -195,7 +195,7 @@ mod tests {
 					)) => {
 						tx.send(Ok(Some(make_session_info()))).unwrap();
 					},
-					AllMessages::NetworkBridge(NetworkBridgeTxMessage::SendRequests(
+					AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(
 						mut reqs,
 						_,
 					)) => {

@@ -227,7 +227,7 @@ fn receive_invalid_signature() {
 		// reputation change due to invalid signature
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
+			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
@@ -288,7 +288,7 @@ fn receive_invalid_validator_index() {
 		// reputation change due to invalid validator index
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
+			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
@@ -364,7 +364,7 @@ fn receive_duplicate_messages() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
+			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
@@ -383,7 +383,7 @@ fn receive_duplicate_messages() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
+			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_a);
@@ -402,7 +402,7 @@ fn receive_duplicate_messages() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
+			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
@@ -484,7 +484,7 @@ fn do_not_relay_message_twice() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
+			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::SendValidationMessage(peers, send_msg),
 			) => {
 				assert_eq!(2, peers.len());
@@ -607,7 +607,7 @@ fn changing_view() {
 		// reputation change for peer B
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
+			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
@@ -639,7 +639,7 @@ fn changing_view() {
 		// reputation change for peer B
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
+			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
@@ -671,7 +671,7 @@ fn changing_view() {
 		// reputation change for peer B
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
+			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_a);
@@ -745,7 +745,7 @@ fn do_not_send_message_back_to_origin() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
+			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::SendValidationMessage(peers, send_msg),
 			) => {
 				assert_eq!(1, peers.len());
@@ -756,7 +756,7 @@ fn do_not_send_message_back_to_origin() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
+			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peer_b);
@@ -851,7 +851,7 @@ fn topology_test() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
+			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::SendValidationMessage(peers, send_msg),
 			) => {
 				let topology = state.topologies.get_current_topology();
@@ -867,7 +867,7 @@ fn topology_test() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
+			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::ReportPeer(peer, rep)
 			) => {
 				assert_eq!(peer, peers_x[0]);
