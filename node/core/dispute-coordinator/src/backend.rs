@@ -149,13 +149,6 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		self.candidate_votes.insert((session, candidate_hash), Some(votes));
 	}
 
-	/// Prepare a deletion of the candidate votes under the indicated candidate.
-	///
-	/// Later calls to this function for the same candidate will override earlier ones.
-	pub fn delete_candidate_votes(&mut self, session: SessionIndex, candidate_hash: CandidateHash) {
-		self.candidate_votes.insert((session, candidate_hash), None);
-	}
-
 	/// Transform this backend into a set of write-ops to be written to the inner backend.
 	pub fn into_write_ops(self) -> impl Iterator<Item = BackendWriteOp> {
 		let earliest_session_ops = self

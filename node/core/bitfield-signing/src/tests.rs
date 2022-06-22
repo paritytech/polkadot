@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use futures::{executor::block_on, pin_mut};
+use futures::{executor::block_on, pin_mut, StreamExt};
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_primitives::v2::{CandidateHash, OccupiedCore};
 use test_helpers::dummy_candidate_descriptor;

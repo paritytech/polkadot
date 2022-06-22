@@ -35,7 +35,7 @@ use polkadot_node_subsystem::{
 		CandidateValidationMessage, PreCheckOutcome, RuntimeApiMessage, RuntimeApiRequest,
 		ValidationFailed,
 	},
-	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
+	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 	SubsystemSender,
 };
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
@@ -125,10 +125,10 @@ async fn run<Context>(
 
 	loop {
 		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-			FromOverseer::Communication { msg } => match msg {
+			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(_)) => {},
+			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
+			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+			FromOrchestra::Communication { msg } => match msg {
 				CandidateValidationMessage::ValidateFromChainState(
 					candidate_receipt,
 					pov,
