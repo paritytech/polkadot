@@ -33,7 +33,7 @@ use polkadot_node_subsystem::{
 		AllMessages, DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest,
 		ValidationFailed,
 	},
-	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
+	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SpawnGlue,
 };
 use polkadot_node_subsystem_test_helpers::{
 	make_subsystem_context, TestSubsystemContext, TestSubsystemContextHandle,
@@ -45,12 +45,12 @@ use polkadot_primitives::v2::{
 type VirtualOverseer = TestSubsystemContextHandle<DisputeCoordinatorMessage>;
 
 pub fn make_our_subsystem_context<S>(
-	spawn: S,
+	spawner: S,
 ) -> (
-	TestSubsystemContext<DisputeCoordinatorMessage, S>,
+	TestSubsystemContext<DisputeCoordinatorMessage, SpawnGlue<S>>,
 	TestSubsystemContextHandle<DisputeCoordinatorMessage>,
 ) {
-	make_subsystem_context(spawn)
+	make_subsystem_context(spawner)
 }
 
 #[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]

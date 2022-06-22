@@ -25,7 +25,7 @@
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
-	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
+	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 };
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
@@ -35,7 +35,6 @@ use polkadot_primitives::{
 use sp_api::ProvideRuntimeApi;
 use sp_authority_discovery::AuthorityDiscoveryApi;
 use sp_consensus_babe::BabeApi;
-use sp_core::traits::SpawnNamed;
 
 use cache::{RequestResult, RequestResultCache};
 use futures::{channel::oneshot, prelude::*, select, stream::FuturesUnordered};
@@ -62,7 +61,7 @@ const API_REQUEST_TASK_NAME: &str = "polkadot-runtime-api-request";
 pub struct RuntimeApiSubsystem<Client> {
 	client: Arc<Client>,
 	metrics: Metrics,
-	spawn_handle: Box<dyn SpawnNamed>,
+	spawn_handle: Box<dyn overseer::gen::Spawner>,
 	/// All the active runtime API requests that are currently being executed.
 	active_requests: FuturesUnordered<oneshot::Receiver<Option<RequestResult>>>,
 	/// Requests results cache
@@ -74,12 +73,12 @@ impl<Client> RuntimeApiSubsystem<Client> {
 	pub fn new(
 		client: Arc<Client>,
 		metrics: Metrics,
-		spawn_handle: impl SpawnNamed + 'static,
+		spawner: impl overseer::gen::Spawner + 'static,
 	) -> Self {
 		RuntimeApiSubsystem {
 			client,
 			metrics,
-			spawn_handle: Box::new(spawn_handle),
+			spawn_handle: Box::new(spawner),
 			active_requests: Default::default(),
 			requests_cache: RequestResultCache::default(),
 		}
@@ -343,10 +342,10 @@ where
 
 		select! {
 			req = ctx.recv().fuse() => match req? {
-				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {},
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
-				FromOverseer::Communication { msg } => match msg {
+				FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(_)) => {},
+				FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
+				FromOrchestra::Communication { msg } => match msg {
 					RuntimeApiMessage::Request(relay_parent, request) => {
 						subsystem.spawn_request(relay_parent, request);
 					},

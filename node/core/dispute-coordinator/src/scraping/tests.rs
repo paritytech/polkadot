@@ -29,7 +29,7 @@ use polkadot_node_subsystem::{
 		AllMessages, ChainApiMessage, DisputeCoordinatorMessage, RuntimeApiMessage,
 		RuntimeApiRequest,
 	},
-	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
+	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SpawnGlue,
 };
 use polkadot_node_subsystem_test_helpers::{
 	make_subsystem_context, TestSubsystemContext, TestSubsystemContextHandle, TestSubsystemSender,
@@ -59,7 +59,7 @@ async fn overseer_recv(virtual_overseer: &mut VirtualOverseer) -> AllMessages {
 struct TestState {
 	chain: Vec<Hash>,
 	scraper: ChainScraper,
-	ctx: TestSubsystemContext<DisputeCoordinatorMessage, TaskExecutor>,
+	ctx: TestSubsystemContext<DisputeCoordinatorMessage, SpawnGlue<TaskExecutor>>,
 }
 
 impl TestState {

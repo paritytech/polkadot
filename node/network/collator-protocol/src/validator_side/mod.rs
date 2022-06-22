@@ -50,7 +50,7 @@ use polkadot_node_subsystem::{
 		CandidateBackingMessage, CollatorProtocolMessage, IfDisconnected, NetworkBridgeEvent,
 		NetworkBridgeMessage, RuntimeApiMessage,
 	},
-	overseer, FromOverseer, OverseerSignal, PerLeafSpan, SubsystemSender,
+	overseer, FromOrchestra, OverseerSignal, PerLeafSpan, SubsystemSender,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v2::{
@@ -1209,7 +1209,7 @@ pub(crate) async fn run<Context>(
 		select! {
 			res = ctx.recv().fuse() => {
 				match res {
-					Ok(FromOverseer::Communication { msg }) => {
+					Ok(FromOrchestra::Communication { msg }) => {
 						gum::trace!(target: LOG_TARGET, msg = ?msg, "received a message");
 						process_msg(
 							&mut ctx,
@@ -1218,8 +1218,8 @@ pub(crate) async fn run<Context>(
 							&mut state,
 						).await;
 					}
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) | Err(_) => break,
-					Ok(FromOverseer::Signal(_)) => continue,
+					Ok(FromOrchestra::Signal(OverseerSignal::Conclude)) | Err(_) => break,
+					Ok(FromOrchestra::Signal(_)) => continue,
 				}
 			}
 			_ = next_inactivity_stream.next() => {

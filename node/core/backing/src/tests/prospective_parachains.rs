@@ -43,7 +43,7 @@ async fn activate_leaf(
 	let leaf_number = activated.number;
 	// Start work on some new parent.
 	virtual_overseer
-		.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+		.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
 			activated,
 		))))
 		.await;
@@ -351,7 +351,7 @@ fn seconding_sanity_check_allowed() {
 			pov.clone(),
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_validate_seconded_candidate(
 			&mut virtual_overseer,
@@ -495,7 +495,7 @@ fn seconding_sanity_check_disallowed() {
 			pov.clone(),
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_validate_seconded_candidate(
 			&mut virtual_overseer,
@@ -588,7 +588,7 @@ fn seconding_sanity_check_disallowed() {
 			pov.clone(),
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_validate_seconded_candidate(
 			&mut virtual_overseer,
@@ -686,7 +686,7 @@ fn prospective_parachains_reject_candidate() {
 			pov.clone(),
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_validate_seconded_candidate(
 			&mut virtual_overseer,
@@ -748,7 +748,7 @@ fn prospective_parachains_reject_candidate() {
 			pov.clone(),
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_validate_seconded_candidate(
 			&mut virtual_overseer,
@@ -867,7 +867,7 @@ fn second_multiple_candidates_per_relay_parent() {
 				pov.clone(),
 			);
 
-			virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+			virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 			assert_validate_seconded_candidate(
 				&mut virtual_overseer,
@@ -1031,7 +1031,7 @@ fn backing_works() {
 
 		let statement = CandidateBackingMessage::Statement(leaf_parent, signed_a.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		// Prospective parachains are notified about candidate seconded first.
 		assert_matches!(
@@ -1109,7 +1109,7 @@ fn backing_works() {
 
 		let statement = CandidateBackingMessage::Statement(leaf_parent, signed_b.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 		test_dispute_coordinator_notifications(
 			&mut virtual_overseer,
 			candidate_a_hash,
@@ -1241,12 +1241,12 @@ fn concurrent_dependent_candidates() {
 		let statement_a = CandidateBackingMessage::Statement(leaf_grandparent, signed_a.clone());
 		let statement_b = CandidateBackingMessage::Statement(leaf_parent, signed_b.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement_a }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement_a }).await;
 		// At this point the subsystem waits for response, the previous message is received,
 		// send a second one without blocking.
 		let _ = virtual_overseer
 			.tx
-			.start_send_unpin(FromOverseer::Communication { msg: statement_b });
+			.start_send_unpin(FromOrchestra::Communication { msg: statement_b });
 
 		let mut valid_statements = HashSet::new();
 

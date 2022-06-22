@@ -41,7 +41,7 @@ use polkadot_node_subsystem::{
 	messages::{
 		CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage, RuntimeApiMessage,
 	},
-	overseer, FromOverseer, OverseerSignal, PerLeafSpan,
+	overseer, FromOrchestra, OverseerSignal, PerLeafSpan,
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
@@ -1012,15 +1012,15 @@ pub(crate) async fn run<Context>(
 		pin_mut!(recv_req);
 		select! {
 			msg = ctx.recv().fuse() => match msg.map_err(FatalError::SubsystemReceive)? {
-				FromOverseer::Communication { msg } => {
+				FromOrchestra::Communication { msg } => {
 					log_error(
 						process_msg(&mut ctx, &mut runtime, &mut state, msg).await,
 						"Failed to process message"
 					)?;
 				},
-				FromOverseer::Signal(ActiveLeaves(_update)) => {}
-				FromOverseer::Signal(BlockFinalized(..)) => {}
-				FromOverseer::Signal(Conclude) => return Ok(()),
+				FromOrchestra::Signal(ActiveLeaves(_update)) => {}
+				FromOrchestra::Signal(BlockFinalized(..)) => {}
+				FromOrchestra::Signal(Conclude) => return Ok(()),
 			},
 			(relay_parent, peer_id) = state.active_collation_fetches.select_next_some() => {
 				let next = if let Some(waiting) = state.waiting_collation_fetches.get_mut(&relay_parent) {

@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 		ChainSelectionMessage, DisputeCoordinatorMessage, HighestApprovedAncestorBlock,
 		RuntimeApiMessage, RuntimeApiRequest,
 	},
-	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
+	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 	SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
@@ -1093,12 +1093,12 @@ async fn handle_from_overseer<Context>(
 	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
-	x: FromOverseer<ApprovalVotingMessage>,
+	x: FromOrchestra<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
 	wakeups: &mut Wakeups,
 ) -> SubsystemResult<Vec<Action>> {
 	let actions = match x {
-		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+		FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			let mut actions = Vec::new();
 
 			for activated in update.activated {
@@ -1152,7 +1152,7 @@ async fn handle_from_overseer<Context>(
 
 			actions
 		},
-		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
+		FromOrchestra::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
 			gum::debug!(target: LOG_TARGET, ?block_hash, ?block_number, "Block finalized");
 			*last_finalized_height = Some(block_number);
 
@@ -1163,10 +1163,10 @@ async fn handle_from_overseer<Context>(
 
 			Vec::new()
 		},
-		FromOverseer::Signal(OverseerSignal::Conclude) => {
+		FromOrchestra::Signal(OverseerSignal::Conclude) => {
 			vec![Action::Conclude]
 		},
-		FromOverseer::Communication { msg } => match msg {
+		FromOrchestra::Communication { msg } => match msg {
 			ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
 				let (check_outcome, actions) =
 					check_and_import_assignment(state, db, a, claimed_core)?;

@@ -514,7 +514,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	.unwrap();
 }
 
-async fn overseer_send(overseer: &mut VirtualOverseer, msg: FromOverseer<ApprovalVotingMessage>) {
+async fn overseer_send(overseer: &mut VirtualOverseer, msg: FromOrchestra<ApprovalVotingMessage>) {
 	gum::trace!("Sending message:\n{:?}", &msg);
 	overseer
 		.send(msg)
@@ -544,7 +544,7 @@ async fn overseer_recv_with_timeout(
 const TIMEOUT: Duration = Duration::from_millis(2000);
 async fn overseer_signal(overseer: &mut VirtualOverseer, signal: OverseerSignal) {
 	overseer
-		.send(FromOverseer::Signal(signal))
+		.send(FromOrchestra::Signal(signal))
 		.timeout(TIMEOUT)
 		.await
 		.expect(&format!("{:?} is more than enough for sending signals.", TIMEOUT));
@@ -586,7 +586,7 @@ async fn check_and_import_approval(
 	let (tx, rx) = oneshot::channel();
 	overseer_send(
 		overseer,
-		FromOverseer::Communication {
+		FromOrchestra::Communication {
 			msg: ApprovalVotingMessage::CheckAndImportApproval(
 				IndirectSignedApprovalVote { block_hash, candidate_index, validator, signature },
 				tx,
@@ -626,7 +626,7 @@ async fn check_and_import_assignment(
 	let (tx, rx) = oneshot::channel();
 	overseer_send(
 		overseer,
-		FromOverseer::Communication {
+		FromOrchestra::Communication {
 			msg: ApprovalVotingMessage::CheckAndImportAssignment(
 				IndirectAssignmentCert {
 					block_hash,
@@ -785,7 +785,7 @@ async fn import_block(
 
 	overseer_send(
 		overseer,
-		FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+		FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
 			ActivatedLeaf {
 				hash: *new_head,
 				number,
@@ -1078,7 +1078,7 @@ fn blank_subsystem_act_on_bad_block() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			FromOverseer::Communication {
+			FromOrchestra::Communication {
 				msg: ApprovalVotingMessage::CheckAndImportAssignment(
 					IndirectAssignmentCert {
 						block_hash: bad_block_hash.clone(),
@@ -1752,7 +1752,7 @@ fn linear_import_act_on_leaf() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			FromOverseer::Communication {
+			FromOrchestra::Communication {
 				msg: ApprovalVotingMessage::CheckAndImportAssignment(
 					IndirectAssignmentCert {
 						block_hash: head,
@@ -1822,7 +1822,7 @@ fn forkful_import_at_same_height_act_on_leaf() {
 
 			overseer_send(
 				&mut virtual_overseer,
-				FromOverseer::Communication {
+				FromOrchestra::Communication {
 					msg: ApprovalVotingMessage::CheckAndImportAssignment(
 						IndirectAssignmentCert {
 							block_hash: head,
@@ -2219,7 +2219,7 @@ fn approved_ancestor_test(
 		let (tx, rx) = oneshot::channel();
 		overseer_send(
 			&mut virtual_overseer,
-			FromOverseer::Communication {
+			FromOrchestra::Communication {
 				msg: ApprovalVotingMessage::ApprovedAncestor(target, 0, tx),
 			},
 		)

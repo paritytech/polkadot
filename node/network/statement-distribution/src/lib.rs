@@ -44,7 +44,7 @@ use polkadot_node_subsystem::{
 		CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeMessage,
 		StatementDistributionMessage,
 	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
 	StatementDistributionSenderTrait, SubsystemError,
 };
 use polkadot_primitives::v2::{
@@ -622,7 +622,7 @@ struct FetchingInfo {
 /// Messages to be handled in this subsystem.
 enum MuxedMessage {
 	/// Messages from other subsystems.
-	Subsystem(FatalResult<FromOverseer<StatementDistributionMessage>>),
+	Subsystem(FatalResult<FromOrchestra<StatementDistributionMessage>>),
 	/// Messages from spawned requester background tasks.
 	Requester(Option<RequesterMessage>),
 	/// Messages from spawned responder background task.
@@ -2050,12 +2050,12 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		recent_outdated_heads: &mut RecentOutdatedHeads,
 		req_sender: &mpsc::Sender<RequesterMessage>,
-		message: FromOverseer<StatementDistributionMessage>,
+		message: FromOrchestra<StatementDistributionMessage>,
 	) -> Result<bool> {
 		let metrics = &self.metrics;
 
 		match message {
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				activated,
 				deactivated,
 			})) => {
@@ -2097,11 +2097,11 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					));
 				}
 			},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {
+			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {
 				// do nothing
 			},
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(true),
-			FromOverseer::Communication { msg } => match msg {
+			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(true),
+			FromOrchestra::Communication { msg } => match msg {
 				StatementDistributionMessage::Share(relay_parent, statement) => {
 					let _timer = metrics.time_share();
 

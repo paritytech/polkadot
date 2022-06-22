@@ -90,7 +90,7 @@ use polkadot_node_subsystem::{
 		HypotheticalDepthRequest, ProspectiveParachainsMessage, ProvisionableData,
 		ProvisionerMessage, RuntimeApiMessage, RuntimeApiRequest, StatementDistributionMessage,
 	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
 	self as util,
@@ -351,16 +351,16 @@ async fn run_iteration<Context>(
 			}
 			from_overseer = ctx.recv().fuse() => {
 				match from_overseer? {
-					FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+					FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 						handle_active_leaves_update(
 							&mut *ctx,
 							update,
 							state,
 						).await?;
 					}
-					FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
-					FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-					FromOverseer::Communication { msg } => {
+					FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {}
+					FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+					FromOrchestra::Communication { msg } => {
 						handle_communication(&mut *ctx, state, msg, metrics).await?;
 					}
 				}

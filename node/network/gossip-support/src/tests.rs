@@ -179,7 +179,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>, AD: AuthorityDiscovery>(
 		async move {
 			let mut overseer = test_fut.await;
 			overseer
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
+				.send(FromOrchestra::Signal(OverseerSignal::Conclude))
 				.timeout(TIMEOUT)
 				.await
 				.expect("Conclude send timeout");
@@ -199,7 +199,7 @@ async fn overseer_signal_active_leaves(overseer: &mut VirtualOverseer, leaf: Has
 		span: Arc::new(jaeger::Span::Disabled),
 	};
 	overseer
-		.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+		.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
 			leaf,
 		))))
 		.timeout(TIMEOUT)

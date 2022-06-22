@@ -24,7 +24,7 @@ use polkadot_node_primitives::{
 	MaybeCompressedPoV, PoV, Statement,
 };
 use polkadot_primitives::v2::{CollatorId, CollatorPair, Hash};
-use sp_core::{traits::SpawnNamed, Pair};
+use sp_core::Pair;
 use std::{
 	collections::HashMap,
 	sync::{
@@ -323,10 +323,11 @@ impl Collator {
 	}
 }
 
+use sp_core::traits::SpawnNamed;
+
 #[cfg(test)]
 mod tests {
 	use super::*;
-
 	use futures::executor::block_on;
 	use polkadot_parachain::primitives::{ValidationParams, ValidationResult};
 	use polkadot_primitives::v2::{Hash, PersistedValidationData};

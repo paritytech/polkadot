@@ -46,7 +46,7 @@ pub type SubsystemResult<T> = Result<T, SubsystemError>;
 // subsystems at once.
 
 /// Specialized message type originating from the overseer.
-pub type FromOverseer<M> = polkadot_overseer::gen::FromOverseer<M, OverseerSignal>;
+pub type FromOrchestra<M> = polkadot_overseer::gen::FromOrchestra<M, OverseerSignal>;
 
 /// Specialized subsystem instance type of subsystems consuming a particular message type.
 pub type SubsystemInstance<Message> =
