@@ -33,7 +33,8 @@ pub(crate) mod columns {
 	pub const COL_APPROVAL_DATA: u32 = 2;
 	pub const COL_CHAIN_SELECTION_DATA: u32 = 3;
 	pub const COL_DISPUTE_COORDINATOR_DATA: u32 = 4;
-	pub const ORDERED_COL: &[u32] = &[COL_AVAILABILITY_META, COL_CHAIN_SELECTION_DATA];
+	pub const ORDERED_COL: &[u32] =
+		&[COL_AVAILABILITY_META, COL_CHAIN_SELECTION_DATA, COL_DISPUTE_COORDINATOR_DATA];
 }
 
 /// Columns used by different subsystems.

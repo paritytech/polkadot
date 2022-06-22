@@ -46,7 +46,7 @@ use frame_support::traits::Get;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use rpc::{RpcApiClient, SharedRpcClient};
-use sp_npos_elections::ExtendedBalance;
+use sp_npos_elections::BalancingConfig;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned, Perbill};
 use tracing_subscriber::{fmt, EnvFilter};
 
@@ -238,7 +238,7 @@ enum Error<T: EPM::Config> {
 	Codec(#[from] codec::Error),
 	Crypto(sp_core::crypto::SecretStringError),
 	RemoteExternalities(&'static str),
-	PalletMiner(EPM::unsigned::MinerError<T>),
+	PalletMiner(EPM::unsigned::MinerError),
 	PalletElection(EPM::ElectionError<T>),
 	PalletFeasibility(EPM::FeasibilityError),
 	AccountDoesNotExists,
@@ -254,8 +254,8 @@ impl<T: EPM::Config> From<sp_core::crypto::SecretStringError> for Error<T> {
 	}
 }
 
-impl<T: EPM::Config> From<EPM::unsigned::MinerError<T>> for Error<T> {
-	fn from(e: EPM::unsigned::MinerError<T>) -> Error<T> {
+impl<T: EPM::Config> From<EPM::unsigned::MinerError> for Error<T> {
+	fn from(e: EPM::unsigned::MinerError) -> Error<T> {
 		Error::PalletMiner(e)
 	}
 }
@@ -346,7 +346,7 @@ frame_support::parameter_types! {
 	/// Number of balancing iterations for a solution algorithm. Set based on the [`Solvers`] CLI
 	/// config.
 	pub static BalanceIterations: usize = 10;
-	pub static Balancing: Option<(usize, ExtendedBalance)> = Some((BalanceIterations::get(), 0));
+	pub static Balancing: Option<BalancingConfig> = Some( BalancingConfig { iterations: BalanceIterations::get(), tolerance: 0 } );
 }
 
 #[derive(Debug, Clone, Parser)]
@@ -463,7 +463,7 @@ async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
 fn mine_solution<T, S>(
 	ext: &mut Ext,
 	do_feasibility: bool,
-) -> Result<EPM::RawSolution<EPM::SolutionOf<T>>, Error<T>>
+) -> Result<EPM::RawSolution<EPM::SolutionOf<T::MinerConfig>>, Error<T>>
 where
 	T: EPM::Config,
 	S: NposSolver<
@@ -472,8 +472,7 @@ where
 	>,
 {
 	ext.execute_with(|| {
-		let (solution, _) =
-			<EPM::Pallet<T>>::mine_solution::<S>().map_err::<Error<T>, _>(Into::into)?;
+		let (solution, _) = <EPM::Pallet<T>>::mine_solution().map_err::<Error<T>, _>(Into::into)?;
 		if do_feasibility {
 			let _ = <EPM::Pallet<T>>::feasibility_check(
 				solution.clone(),
@@ -489,7 +488,7 @@ fn mine_with<T>(
 	solver: &Solver,
 	ext: &mut Ext,
 	do_feasibility: bool,
-) -> Result<EPM::RawSolution<EPM::SolutionOf<T>>, Error<T>>
+) -> Result<EPM::RawSolution<EPM::SolutionOf<T::MinerConfig>>, Error<T>>
 where
 	T: EPM::Config,
 	T::Solver: NposSolver<Error = sp_npos_elections::Error>,

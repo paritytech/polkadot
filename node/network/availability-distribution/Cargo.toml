@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-availability-distribution"
-version = "0.9.19"
+version = "0.9.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -10,20 +10,20 @@ gum = { package = "tracing-gum", path = "../../gum" }
 parity-scale-codec = { version = "3.1.2", features = ["std"] }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
+polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-primitives = { path = "../../primitives" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-thiserror = "1.0.30"
+thiserror = "1.0.31"
 rand = "0.8.5"
 derive_more = "0.99.17"
-lru = "0.7.5"
+lru = "0.7.7"
 fatality = "0.0.6"
 
 [dev-dependencies]
-polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }

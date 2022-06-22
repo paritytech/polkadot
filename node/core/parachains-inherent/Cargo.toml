@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-parachains-inherent"
-version = "0.9.19"
+version = "0.9.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -8,7 +8,7 @@ edition = "2021"
 futures = "0.3.21"
 futures-timer = "3.0.2"
 gum = { package = "tracing-gum", path = "../../gum" }
-thiserror = "1.0.30"
+thiserror = "1.0.31"
 async-trait = "0.1.53"
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-primitives = { path = "../../../primitives" }

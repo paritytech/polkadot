@@ -33,9 +33,6 @@ variables:
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
   ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.2.25"
-  VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
-  VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
-  VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
   PIPELINE_SCRIPTS_TAG:            "v0.4"
 
 default:
@@ -109,55 +106,22 @@ default:
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
 
-.publish-refs:                     &publish-refs
+.deploy-testnet-refs:              &deploy-testnet-refs
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
 
-#### Vault secrets
-.vault-secrets:                    &vault-secrets
-  secrets:
-    AWS_ACCESS_KEY_ID:
-      vault:                       cicd/gitlab/parity/polkadot/AWS_ACCESS_KEY_ID@kv
-      file:                        false
-    AWS_SECRET_ACCESS_KEY:
-      vault:                       cicd/gitlab/parity/polkadot/AWS_SECRET_ACCESS_KEY@kv
-      file:                        false
-    GITHUB_PR_TOKEN:
-      vault:                       cicd/gitlab/parity/GITHUB_PR_TOKEN@kv
-      file:                        false
-    GITHUB_TOKEN:
-      vault:                       cicd/gitlab/parity/GITHUB_TOKEN@kv
-      file:                        false
-    GITHUB_USER:
-      vault:                       cicd/gitlab/parity/polkadot/GITHUB_USER@kv
-      file:                        false
-    GITHUB_RELEASE_TOKEN:
-      vault:                       cicd/gitlab/parity/polkadot/GITHUB_RELEASE_TOKEN@kv
-      file:                        false
-    GITHUB_SSH_PRIV_KEY:
-      vault:                       cicd/gitlab/parity/polkadot/GITHUB_SSH_PRIV_KEY@kv
-      file:                        false
-    MATRIX_ACCESS_TOKEN:
-      vault:                       cicd/gitlab/parity/polkadot/MATRIX_ACCESS_TOKEN@kv
-      file:                        false
-    MATRIX_ROOM_ID:
-      vault:                       cicd/gitlab/parity/polkadot/MATRIX_ROOM_ID@kv
-      file:                        false
-    PARITYPR_USER:
-      vault:                       cicd/gitlab/parity/polkadot/PARITYPR_USER@kv
-      file:                        false
-    PARITYPR_PASS:
-      vault:                       cicd/gitlab/parity/polkadot/PARITYPR_PASS@kv
-      file:                        false
-    PIPELINE_TOKEN:
-      vault:                       cicd/gitlab/parity/polkadot/PIPELINE_TOKEN@kv
-      file:                        false
-    REL_MAN_ROOM_ID:
-      vault:                       cicd/gitlab/parity/polkadot/REL_MAN_ROOM_ID@kv
-      file:                        false
+.publish-refs:                     &publish-refs
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web" &&
+          $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
 
 .build-push-image:                 &build-push-image
   <<:                              *kubernetes-env
@@ -204,7 +168,7 @@ check-runtime:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
   script:
-    - ./scripts/gitlab/check_runtime.sh
+    - ./scripts/ci/gitlab/check_runtime.sh
   allow_failure:                   true
 
 cargo-fmt:
@@ -240,9 +204,7 @@ build-linux-stable:
     - sha256sum polkadot | tee polkadot.sha256
     - shasum -c polkadot.sha256
     - popd
-    - EXTRATAG="$(./artifacts/polkadot --version |
-        sed -n -r 's/^polkadot ([0-9.]+.*-[0-9a-f]{7,13})-.*$/\1/p')"
-    - EXTRATAG="${CI_COMMIT_REF_NAME}-${EXTRATAG}-$(cut -c 1-8 ./artifacts/polkadot.sha256)"
+    - EXTRATAG="${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}"
     - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
     - echo -n ${VERSION} > ./artifacts/VERSION
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
@@ -273,7 +235,7 @@ spellcheck:
     - git fetch origin +${CI_DEFAULT_BRANCH}:${CI_DEFAULT_BRANCH}
     - echo "___Spellcheck is going to check your diff___"
     - cargo spellcheck list-files -vvv $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
-    - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1
+    - time cargo spellcheck check -vvv --cfg=scripts/ci/gitlab/spellcheck.toml --checkers hunspell --code 1
         $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
   allow_failure:                   true
 
@@ -295,7 +257,7 @@ build-test-collators:
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
     - echo "undying-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r scripts/* ./artifacts
+    - cp -r ./scripts/* ./artifacts
 
 build-malus:
   stage:                           stage1
@@ -312,7 +274,23 @@ build-malus:
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r scripts/* ./artifacts
+    - cp -r ./scripts/* ./artifacts
+
+build-staking-miner:
+  stage:                           stage1
+  <<:                              *collect-artifacts
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  <<:                              *common-refs
+  script:
+    - time cargo build --locked --release --package staking-miner
+    # pack artifacts
+    - mkdir -p ./artifacts
+    - mv ./target/release/staking-miner ./artifacts/.
+    - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
+    - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
+    - echo "staking-miner = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
+    - cp -r ./scripts/* ./artifacts
 
 #### stage:                        stage2
 
@@ -330,18 +308,19 @@ build-malus:
         "--branch=$PIPELINE_SCRIPTS_TAG"
         https://github.com/paritytech/pipeline-scripts
     - ./pipeline-scripts/check_dependent_project.sh
-        paritytech
-        polkadot
-        --polkadot
-        "$DEPENDENT_REPO"
-        "$GITHUB_PR_TOKEN"
-        "$CARGO_UPDATE_CRATES"
+        --org paritytech
+        --dependent-repo "$DEPENDENT_REPO"
+        --github-api-token "$GITHUB_PR_TOKEN"
+        --extra-dependencies "$EXTRA_DEPENDENCIES"
 
 check-dependent-cumulus:
   <<: *check-dependent-project
   variables:
     DEPENDENT_REPO: cumulus
-    CARGO_UPDATE_CRATES: "sp-io polkadot-runtime-common"
+    EXTRA_DEPENDENCIES: substrate
+    COMPANION_OVERRIDES: |
+      polkadot: release-v*
+      cumulus: polkadot-v*
 
 test-node-metrics:
   stage:                           stage2
@@ -370,7 +349,7 @@ test-deterministic-wasm:
   <<:                              *docker-env
   <<:                              *compiler-info
   script:
-    - ./scripts/gitlab/test_deterministic_wasm.sh
+    - ./scripts/ci/gitlab/test_deterministic_wasm.sh
 
 check-transaction-versions:
   stage:                           stage2
@@ -387,7 +366,7 @@ check-transaction-versions:
     - git config remote.origin.url "https://github.com/paritytech/polkadot.git"
     - git fetch origin release
   script:
-    - scripts/gitlab/check_extrinsics_ordering.sh
+    - ./scripts/ci/gitlab/check_extrinsics_ordering.sh
 
 
 
@@ -408,8 +387,8 @@ publish-polkadot-debug-image:
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
   variables:
     <<:                            *image-variables
-    # scripts/dockerfiles/polkadot_injected_debug.Dockerfile
-    DOCKERFILE:                    dockerfiles/polkadot_injected_debug.Dockerfile
+    # scripts/ci/dockerfiles/polkadot_injected_debug.Dockerfile
+    DOCKERFILE:                    ci/dockerfiles/polkadot_injected_debug.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/polkadot-debug
   needs:
     - job:                         build-linux-stable
@@ -432,8 +411,8 @@ publish-test-collators-image:
   <<:                              *zombienet-refs
   variables:
     <<:                            *image-variables
-    # scripts/dockerfiles/collator_injected.Dockerfile
-    DOCKERFILE:                    dockerfiles/collator_injected.Dockerfile
+    # scripts/ci/dockerfiles/collator_injected.Dockerfile
+    DOCKERFILE:                    ci/dockerfiles/collator_injected.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/colander
   needs:
     - job:                         build-test-collators
@@ -455,8 +434,8 @@ publish-malus-image:
   <<:                              *zombienet-refs
   variables:
     <<:                            *image-variables
-    # scripts/dockerfiles/malus_injected.Dockerfile
-    DOCKERFILE:                    dockerfiles/malus_injected.Dockerfile
+    # scripts/ci/dockerfiles/malus_injected.Dockerfile
+    DOCKERFILE:                    ci/dockerfiles/malus_injected.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/malus
   needs:
     - job:                         build-malus
@@ -471,13 +450,29 @@ publish-malus-image:
       # this artifact is used in zombienet-tests job
       dotenv: ./artifacts/malus.env
 
+publish-staking-miner-image:
+  stage:                           stage2
+  <<:                              *build-push-image
+  <<:                              *publish-refs
+  variables:
+    <<:                            *image-variables
+    # scripts/ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
+    DOCKERFILE:                    ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
+    IMAGE_NAME:                    docker.io/paritytech/staking-miner
+    GIT_STRATEGY:                  none
+    DOCKER_USER:                   ${Docker_Hub_User_Parity}
+    DOCKER_PASS:                   ${Docker_Hub_Pass_Parity}
+  needs:
+    - job:                         build-staking-miner
+      artifacts:                   true
+
+
 publish-s3-release:                &publish-s3
   stage:                           stage3
   needs:
     - job:                         build-linux-stable
       artifacts:                   true
   <<:                              *kubernetes-env
-  <<:                              *vault-secrets
   image:                           paritytech/awscli:latest
   variables:
     GIT_STRATEGY:                  none
@@ -521,7 +516,7 @@ update_polkadot_weights:           &update-weights
     paths:
       - ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
   script:
-    - ./scripts/run_benches_for_runtime.sh $RUNTIME
+    - ./scripts/ci/run_benches_for_runtime.sh $RUNTIME
     - git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
   # uses the "shell" executors
   tags:
@@ -562,7 +557,8 @@ build-rustdoc:
     - ./crate-docs/
   script:
     # FIXME: it fails with `RUSTDOCFLAGS="-Dwarnings"` and `--all-features`
-    - time cargo doc --workspace --verbose
+    # FIXME: return to stable when https://github.com/rust-lang/rust/issues/96937 gets into stable
+    - time cargo +nightly doc --workspace --verbose
     - rm -f ./target/doc/.lock
     - mv ./target/doc ./crate-docs
     # FIXME: remove me after CI image gets nonroot
@@ -582,7 +578,7 @@ generate-impl-guide:
     name: michaelfbryan/mdbook-docker-image:v0.4.4
     entrypoint: [""]
   script:
-    - mdbook build roadmap/implementers-guide
+    - mdbook build ./roadmap/implementers-guide
 
 check-try-runtime:
   stage:                           stage3
@@ -609,8 +605,8 @@ check-no-default-features:
   <<:                              *compiler-info
   script:
     # Check that polkadot-cli will compile no default features.
-    - pushd node/service && cargo check --no-default-features && popd
-    - pushd cli && cargo check --no-default-features --features "service" && popd
+    - pushd ./node/service && cargo check --no-default-features && popd
+    - pushd ./cli && cargo check --no-default-features --features "service" && popd
     - sccache -s
 
 build-short-benchmark:
@@ -633,7 +629,7 @@ deploy-parity-testnet:
   needs:
     - job:                         test-deterministic-wasm
       artifacts:                   false
-  <<:                              *publish-refs
+  <<:                              *deploy-testnet-refs
   variables:
     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
     POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_SHORT_SHA}"
@@ -729,6 +725,35 @@ zombienet-tests-parachains-disputes:
   tags:
     - zombienet-polkadot-integration-test
 
+zombienet-test-parachains-upgrade-smoke-test:
+  stage:                           stage3
+  image:                           "${ZOMBIENET_IMAGE}"
+  <<:                              *kubernetes-env
+  <<:                              *zombienet-refs
+  needs:
+    - job:                         publish-polkadot-debug-image
+    - job:                         publish-malus-image
+    - job:                         publish-test-collators-image
+  variables:
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke'
+  before_script:
+    - echo "ZombieNet Tests Config"
+    - echo "docker.io/parity/polkadot:latest"
+    - echo "docker.io/parity/polkadot-collator:latest"
+    - echo "${ZOMBIENET_IMAGE}"
+    - echo "${GH_DIR}"
+    - export DEBUG=zombie,zombie::network-node
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE="docker.io/parity/polkadot:latest" # Use polkadot latest image
+    - export COL_IMAGE="docker.io/parity/polkadot-collator:latest" # Use cumulus lastest image
+  script:
+    - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
+        --github-remote-dir="${GH_DIR}"
+        --test="0002-parachains-upgrade-smoke-test.feature"
+  allow_failure:                   true
+  retry: 2
+  tags:
+    - zombienet-polkadot-integration-test
+
 zombienet-tests-misc-paritydb:
   stage:                           stage3
   image:                           "${ZOMBIENET_IMAGE}"
@@ -755,7 +780,7 @@ zombienet-tests-misc-paritydb:
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
-
+  
 zombienet-tests-malus-dispute-valid:
   stage:                           stage3
   image:                           "${ZOMBIENET_IMAGE}"
@@ -791,7 +816,6 @@ zombienet-tests-malus-dispute-valid:
 publish-rustdoc:
   stage:                           stage4
   <<:                              *kubernetes-env
-  <<:                              *vault-secrets
   image:                           paritytech/tools:latest
   variables:
     GIT_DEPTH:                     100
@@ -819,7 +843,7 @@ publish-rustdoc:
     - git fetch origin gh-pages
     # Save README and docs
     - cp -r ./crate-docs/ /tmp/doc/
-    - cp README.md /tmp/doc/
+    - cp ./README.md /tmp/doc/
     - git checkout gh-pages
     # Remove everything and restore generated docs and README
     - rm -rf ./*

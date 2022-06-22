@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-metrics"
-version = "0.9.19"
+version = "0.9.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Subsystem metric helpers"
@@ -10,7 +10,7 @@ futures = "0.3.21"
 futures-timer = "3.0.2"
 gum = { package = "tracing-gum", path = "../gum" }
 
-metered-channel = { path = "../metered-channel" }
+metered = { package = "prioritized-metered-channel", path = "../metered-channel" , "version" = "0.2.0" }
 
 # Both `sc-service` and `sc-cli` are required by runtime metrics `logger_hook()`.
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -21,14 +21,14 @@ sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master
 codec = { package = "parity-scale-codec", version = "3.0.0" }
 primitives = { package = "polkadot-primitives", path = "../../primitives/" }
 bs58 = { version = "0.4.0", features = ["alloc"] }
-log = "0.4.16"
+log = "0.4.17"
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
-nix = "0.23.1"
+nix = "0.24.1"
 tempfile = "3.2.0"
-hyper = { version = "0.14.18", default-features = false, features = ["http1", "tcp"] }
-tokio = "1.17.0"
+hyper = { version = "0.14.19", default-features = false, features = ["http1", "tcp"] }
+tokio = "1.18.2"
 polkadot-test-service = { path = "../test/service", features=["runtime-metrics"]}
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }

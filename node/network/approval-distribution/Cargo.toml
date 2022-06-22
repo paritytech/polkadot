@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-approval-distribution"
-version = "0.9.19"
+version = "0.9.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -10,11 +10,13 @@ polkadot-node-network-protocol = { path = "../protocol" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-primitives = { path = "../../../primitives" }
+rand = "0.8"
 
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
 
 [dev-dependencies]
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
@@ -23,5 +25,6 @@ polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"
 schnorrkel = { version = "0.9.1", default-features = false }
 rand_core = "0.5.1" # should match schnorrkel
+rand_chacha = "0.3.1"
 env_logger = "0.9.0"
-log = "0.4.16"
+log = "0.4.17"

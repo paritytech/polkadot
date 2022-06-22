@@ -3,16 +3,16 @@ Network: ./0001-paritydb.toml
 Creds: config
 
 # Check configuration enables ParityDB.
-validator-0: log line contains "💾 Database: ParityDb" 
-validator-1: log line contains "💾 Database: ParityDb"
-validator-2: log line contains "💾 Database: ParityDb"
-validator-3: log line contains "💾 Database: ParityDb"
-validator-4: log line contains "💾 Database: ParityDb"
-validator-5: log line contains "💾 Database: ParityDb"
-validator-6: log line contains "💾 Database: ParityDb"
-validator-7: log line contains "💾 Database: ParityDb"
-validator-8: log line contains "💾 Database: ParityDb"
-validator-9: log line contains "💾 Database: ParityDb"
+validator-0: log line contains "Database: ParityDb" within 20 seconds
+validator-1: log line contains "Database: ParityDb" within 20 seconds
+validator-2: log line contains "Database: ParityDb" within 20 seconds
+validator-3: log line contains "Database: ParityDb" within 20 seconds
+validator-4: log line contains "Database: ParityDb" within 20 seconds
+validator-5: log line contains "Database: ParityDb" within 20 seconds
+validator-6: log line contains "Database: ParityDb" within 20 seconds
+validator-7: log line contains "Database: ParityDb" within 20 seconds
+validator-8: log line contains "Database: ParityDb" within 20 seconds
+validator-9: log line contains "Database: ParityDb" within 20 seconds
 
 validator-0: is up
 validator-1: is up

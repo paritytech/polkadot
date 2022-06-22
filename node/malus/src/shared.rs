@@ -15,9 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use futures::prelude::*;
-use polkadot_node_primitives::SpawnNamed;
+use sp_core::traits::SpawnNamed;
 
-pub const MALUS: &str = "MALUS😈😈😈";
+pub const MALUS: &str = "MALUS";
 
 #[allow(unused)]
 pub(crate) const MALICIOUS_POV: &[u8] = "😈😈pov_looks_valid_to_me😈😈".as_bytes();

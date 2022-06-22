@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-statement-distribution"
-version = "0.9.19"
+version = "0.9.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Statement Distribution Subsystem"
 edition = "2021"
@@ -11,19 +11,20 @@ gum = { package = "tracing-gum", path = "../../gum" }
 polkadot-primitives = { path = "../../../primitives" }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 arrayvec = "0.5.2"
-indexmap = "1.8.1"
+indexmap = "1.9.0"
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
-thiserror = "1.0.30"
+thiserror = "1.0.31"
 fatality = "0.0.6"
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
