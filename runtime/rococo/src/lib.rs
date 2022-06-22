@@ -1443,12 +1443,12 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl beefy_merkle_tree::BeefyMmrApi<Block, Hash> for RuntimeApi {
-		fn authority_set() -> beefy_primitives::mmr::BeefyAuthoritySet<Hash> {
-			MmrLeaf::authority_set()
+		fn authority_set_proof() -> beefy_primitives::mmr::BeefyAuthoritySet<Hash> {
+			MmrLeaf::authority_set_proof()
 		}
 
-		fn next_authority_set() -> beefy_primitives::mmr::BeefyNextAuthoritySet<Hash> {
-			MmrLeaf::next_authority_set()
+		fn next_authority_set_proof() -> beefy_primitives::mmr::BeefyNextAuthoritySet<Hash> {
+			MmrLeaf::next_authority_set_proof()
 		}
 	}
 
