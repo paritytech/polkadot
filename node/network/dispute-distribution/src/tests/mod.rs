@@ -46,7 +46,7 @@ use polkadot_node_subsystem::{
 		AllMessages, DisputeCoordinatorMessage, DisputeDistributionMessage, ImportStatementsResult,
 		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
-	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, Span,
+	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal, Span,
 };
 use polkadot_node_subsystem_test_helpers::{
 	mock::make_ferdie_keystore, subsystem_test_harness, TestSubsystemContextHandle,
@@ -74,7 +74,7 @@ fn send_dispute_sends_dispute() {
 		let candidate = make_candidate_receipt(relay_parent);
 		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: DisputeDistributionMessage::SendDispute(message.clone()),
 			})
 			.await;
@@ -315,7 +315,7 @@ fn send_dispute_gets_cleaned_up() {
 		let candidate = make_candidate_receipt(relay_parent);
 		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: DisputeDistributionMessage::SendDispute(message.clone()),
 			})
 			.await;
@@ -380,7 +380,7 @@ fn dispute_retries_and_works_across_session_boundaries() {
 		let candidate = make_candidate_receipt(relay_parent);
 		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: DisputeDistributionMessage::SendDispute(message.clone()),
 			})
 			.await;
@@ -588,7 +588,7 @@ async fn conclude(handle: &mut TestSubsystemContextHandle<DisputeDistributionMes
 	})
 	.await;
 
-	handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+	handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 }
 
 /// Pass a `new_session` if you expect the subsystem to retrieve `SessionInfo` when given the
@@ -605,7 +605,7 @@ async fn activate_leaf(
 ) {
 	let has_active_disputes = !active_disputes.is_empty();
 	handle
-		.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+		.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 			activated: Some(ActivatedLeaf {
 				hash: activate,
 				number: 10,

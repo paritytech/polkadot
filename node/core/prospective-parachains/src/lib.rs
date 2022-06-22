@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 		ProspectiveParachainsMessage, ProspectiveValidationDataRequest, RuntimeApiMessage,
 		RuntimeApiRequest,
 	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::inclusion_emulator::staging::{Constraints, RelayChainBlockInfo};
 use polkadot_primitives::vstaging::{
@@ -118,12 +118,12 @@ async fn run<Context>(mut ctx: Context) -> FatalResult<()> {
 async fn run_iteration<Context>(ctx: &mut Context, view: &mut View) -> Result<()> {
 	loop {
 		match ctx.recv().await.map_err(FatalError::SubsystemReceive)? {
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 				handle_active_leaves_update(&mut *ctx, view, update).await?;
 			},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
-			FromOverseer::Communication { msg } => match msg {
+			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
+			FromOrchestra::Communication { msg } => match msg {
 				ProspectiveParachainsMessage::CandidateSeconded(para, candidate, pvd, tx) =>
 					handle_candidate_seconded(&mut *ctx, view, para, candidate, pvd, tx).await?,
 				ProspectiveParachainsMessage::CandidateBacked(para, candidate_hash) =>

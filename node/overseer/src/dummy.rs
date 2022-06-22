@@ -16,13 +16,12 @@
 
 use crate::{
 	prometheus::Registry, HeadSupportsParachains, InitializedOverseerBuilder, MetricsTrait,
-	Overseer, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnNamed,
+	Overseer, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnGlue,
 	KNOWN_LEAVES_CACHE_SIZE,
 };
 use lru::LruCache;
+use orchestra::{FromOrchestra, SpawnedSubsystem, Subsystem, SubsystemContext};
 use polkadot_node_subsystem_types::{errors::SubsystemError, messages::*};
-use polkadot_overseer_gen::{FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext};
-
 /// A dummy subsystem that implements [`Subsystem`] for all
 /// types of messages. Used for tests or as a placeholder.
 #[derive(Clone, Copy, Debug)]
@@ -37,7 +36,7 @@ where
 			loop {
 				match ctx.recv().await {
 					Err(_) => return Ok(()),
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
+					Ok(FromOrchestra::Signal(OverseerSignal::Conclude)) => return Ok(()),
 					Ok(overseer_msg) => {
 						gum::debug!(
 							target: "dummy-subsystem",
@@ -63,7 +62,7 @@ pub fn dummy_overseer_builder<'a, Spawner, SupportsParachains>(
 	registry: Option<&'a Registry>,
 ) -> Result<
 	InitializedOverseerBuilder<
-		Spawner,
+		SpawnGlue<Spawner>,
 		SupportsParachains,
 		DummySubsystem,
 		DummySubsystem,
@@ -91,7 +90,7 @@ pub fn dummy_overseer_builder<'a, Spawner, SupportsParachains>(
 	SubsystemError,
 >
 where
-	Spawner: SpawnNamed + Send + Sync + 'static,
+	SpawnGlue<Spawner>: orchestra::Spawner + 'static,
 	SupportsParachains: HeadSupportsParachains,
 {
 	one_for_all_overseer_builder(spawner, supports_parachains, DummySubsystem, registry)
@@ -105,7 +104,7 @@ pub fn one_for_all_overseer_builder<'a, Spawner, SupportsParachains, Sub>(
 	registry: Option<&'a Registry>,
 ) -> Result<
 	InitializedOverseerBuilder<
-		Spawner,
+		SpawnGlue<Spawner>,
 		SupportsParachains,
 		Sub,
 		Sub,
@@ -133,7 +132,7 @@ pub fn one_for_all_overseer_builder<'a, Spawner, SupportsParachains, Sub>(
 	SubsystemError,
 >
 where
-	Spawner: SpawnNamed + Send + Sync + 'static,
+	SpawnGlue<Spawner>: orchestra::Spawner + 'static,
 	SupportsParachains: HeadSupportsParachains,
 	Sub: Clone
 		+ Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>, SubsystemError>
@@ -189,7 +188,7 @@ where
 		.active_leaves(Default::default())
 		.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
 		.leaves(Default::default())
-		.spawner(spawner)
+		.spawner(SpawnGlue(spawner))
 		.metrics(metrics)
 		.supports_parachains(supports_parachains);
 	Ok(builder)

@@ -152,26 +152,29 @@ parameter_types! {
 	pub const CouncilBodyId: BodyId = BodyId::Executive;
 }
 
+/// Type to convert the council origin to a Plurality `MultiLocation` value.
+pub type CouncilToPlurality = BackingToPlurality<
+	Origin,
+	pallet_collective::Origin<Runtime, CouncilCollective>,
+	CouncilBodyId,
+>;
+
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain.
 pub type LocalOriginToLocation = (
 	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
 	// `Unit` body.
-	BackingToPlurality<
-		Origin,
-		pallet_collective::Origin<Runtime, CouncilCollective>,
-		CouncilBodyId,
-	>,
+	CouncilToPlurality,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
 	SignedToAccountId32<Origin, AccountId, KusamaNetwork>,
 );
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
-	// We don't allow any messages to be sent via the transaction yet. This is basically safe to
-	// enable, (safe the possibility of someone spamming the parachain if they're willing to pay
-	// the DOT to send from the Relay-chain). But it's useless until we bring in XCM v3 which will
-	// make `DescendOrigin` a bit more useful.
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, ()>;
+	// We only allow the council to send messages. This is basically safe to enable for everyone
+	// (safe the possibility of someone spamming the parachain if they're willing to pay the KSM to
+	// send from the Relay-chain), but it's useless until we bring in XCM v3 which will make
+	// `DescendOrigin` a bit more useful.
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, CouncilToPlurality>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally.
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;

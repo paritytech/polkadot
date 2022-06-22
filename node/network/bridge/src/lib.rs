@@ -42,9 +42,9 @@ use polkadot_node_subsystem::{
 		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage,
 		StatementDistributionMessage,
 	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
 };
-use polkadot_overseer::gen::OverseerError;
+use polkadot_overseer::gen::OrchestraError as OverseerError;
 use polkadot_primitives::v2::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
 
 /// Peer set info for network initialization.
@@ -208,7 +208,7 @@ where
 	loop {
 		futures::select! {
 			msg = ctx.recv().fuse() => match msg {
-				Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(active_leaves))) => {
+				Ok(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(active_leaves))) => {
 					let ActiveLeavesUpdate { activated, deactivated } = active_leaves;
 					gum::trace!(
 						target: LOG_TARGET,
@@ -248,7 +248,7 @@ where
 						}
 					}
 				}
-				Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, number))) => {
+				Ok(FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number))) => {
 					gum::trace!(
 						target: LOG_TARGET,
 						action = "BlockFinalized"
@@ -261,10 +261,10 @@ where
 					// that we never send the same `ActiveLeavesUpdate`
 					finalized_number = number;
 				}
-				Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => {
+				Ok(FromOrchestra::Signal(OverseerSignal::Conclude)) => {
 					return Ok(());
 				}
-				Ok(FromOverseer::Communication { msg }) => match msg {
+				Ok(FromOrchestra::Communication { msg }) => match msg {
 					NetworkBridgeMessage::ReportPeer(peer, rep) => {
 						if !rep.is_benefit() {
 							gum::debug!(

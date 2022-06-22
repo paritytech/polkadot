@@ -265,15 +265,13 @@ pub fn worker_entrypoint(socket_path: &str) {
 					// worker is only required to send an empty `Ok` to the pool
 					// to indicate the success.
 
-					let artifact_bytes = compiled_artifact.encode();
-
 					gum::debug!(
 						target: LOG_TARGET,
 						worker_pid = %std::process::id(),
 						"worker: writing artifact to {}",
 						dest.display(),
 					);
-					async_std::fs::write(&dest, &artifact_bytes).await?;
+					async_std::fs::write(&dest, &compiled_artifact).await?;
 
 					Ok(())
 				},

@@ -38,7 +38,8 @@ use xcm_builder::{
 parameter_types! {
 	pub const WndLocation: MultiLocation = Here.into();
 	pub const Ancestry: MultiLocation = Here.into();
-	pub WestendNetwork: NetworkId = NetworkId::Named(b"Westend".to_vec());
+	pub WestendNetwork: NetworkId =
+		NetworkId::Named(b"Westend".to_vec().try_into().expect("shorter than length limit; qed"));
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
