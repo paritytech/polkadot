@@ -258,8 +258,7 @@ where
 
 				if is_new_session {
 					// Gossip topology is only relevant for authorities in the current session.
-					let our_index =
-						self.check_authority_status_and_update_metrics(&session_info).await?;
+					let our_index = self.get_key_index_and_update_metrics(&session_info).await?;
 
 					update_gossip_topology(
 						sender,
@@ -278,44 +277,40 @@ where
 	// Checks if the node is an authority and also updates `polkadot_node_is_authority` and
 	// `polkadot_node_is_parachain_validator` metrics accordingly.
 	// On success, returns the index of our keys in `session_info.discovery_keys`.
-	async fn check_authority_status_and_update_metrics(
+	async fn get_key_index_and_update_metrics(
 		&mut self,
 		session_info: &SessionInfo,
 	) -> Result<usize, util::Error> {
 		let authority_check_result =
 			ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys).await;
 
-		let maybe_index = match authority_check_result.as_ref() {
+		match authority_check_result.as_ref() {
 			Ok(index) => {
 				gum::trace!(target: LOG_TARGET, "We are now an authority",);
 				self.metrics.on_is_authority();
-				Some(*index)
+
+				// The subset of authorities participating in parachain consensus.
+				let parachain_validators_this_session = session_info.validators.len();
+
+				// First `maxValidators` entries are the parachain validators. We'll check
+				// if our index is in this set to avoid searching for the keys.
+				// https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148
+				if *index < parachain_validators_this_session {
+					gum::trace!(target: LOG_TARGET, "We are now a parachain validator",);
+					self.metrics.on_is_parachain_validator();
+				} else {
+					gum::trace!(target: LOG_TARGET, "We are no longer a parachain validator",);
+					self.metrics.on_is_not_parachain_validator();
+				}
 			},
 			Err(util::Error::NotAValidator) => {
 				gum::trace!(target: LOG_TARGET, "We are no longer an authority",);
 				self.metrics.on_is_not_authority();
 				self.metrics.on_is_not_parachain_validator();
-				None
 			},
 			// Don't update on runtime errors.
-			Err(_) => None,
+			Err(_) => {},
 		};
-
-		if let Some(validator_index) = maybe_index {
-			// The subset of authorities participating in parachain consensus.
-			let parachain_validators_this_session = session_info.validators.len();
-
-			// First `maxValidators` entries are the parachain validators. We'll check
-			// if our index is in this set to avoid searching for the keys.
-			// https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148
-			if validator_index < parachain_validators_this_session {
-				gum::trace!(target: LOG_TARGET, "We are now a parachain validator",);
-				self.metrics.on_is_parachain_validator();
-			} else {
-				gum::trace!(target: LOG_TARGET, "We are no longer a parachain validator",);
-				self.metrics.on_is_not_parachain_validator();
-			}
-		}
 
 		authority_check_result
 	}
