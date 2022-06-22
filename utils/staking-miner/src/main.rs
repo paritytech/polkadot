@@ -28,6 +28,10 @@
 //!   development. It is intended to run this bot with a `restart = true` way, so that it reports it
 //!   crash, but resumes work thereafter.
 
+// Silence erroneous warning about unsafe not being required whereas it is
+// see https://github.com/rust-lang/rust/issues/49112
+#![allow(unused_unsafe)]
+
 mod dry_run;
 mod emergency_solution;
 mod monitor;
@@ -52,7 +56,6 @@ use sp_npos_elections::BalancingConfig;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 use std::{ops::Deref, sync::Arc};
 use tracing_subscriber::{fmt, EnvFilter};
-
 pub(crate) enum AnyRuntime {
 	Polkadot,
 	Kusama,
@@ -178,9 +181,11 @@ construct_runtime_prelude!(westend);
 // that is not currently possible as each runtime has its unique `Call`, and all Calls are not
 // sharing any generic trait. In other words, to create the `UncheckedExtrinsic` of each chain, you
 // need the concrete `Call` of that chain as well.
+
 #[macro_export]
 macro_rules! any_runtime {
 	($($code:tt)*) => {
+
 		unsafe {
 			match $crate::RUNTIME {
 				$crate::AnyRuntime::Polkadot => {
@@ -208,6 +213,7 @@ macro_rules! any_runtime {
 #[macro_export]
 macro_rules! any_runtime_unit {
 	($($code:tt)*) => {
+		#[allow(unused_unsafe)]
 		unsafe {
 			match $crate::RUNTIME {
 				$crate::AnyRuntime::Polkadot => {
