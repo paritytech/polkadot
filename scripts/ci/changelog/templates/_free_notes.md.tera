@@ -10,7 +10,7 @@
 
 This release requires a database migration on the _parachains_ db. While this is handled automatically for the _rocksdb_ users, that cannot be automated on _paritydb_.
 
-Therefore users of paritydb are required to prune the _parachains_ database before upgrading.
+Therefore users of paritydb are required to prune the _parachains_ database manually before upgrading.
 
 Note: Only delete the `_parachains_` db and _only_ if you are running your node on paritydb!
 If you are not sure, try upgrading and only delete the parachains folder if your node is not running properly and you get an error like this:
