@@ -52,8 +52,15 @@ impl<'a> From<&'a RuntimeVersion> for RuntimeWrapper<'a> {
 
 #[derive(Debug, serde::Serialize)]
 pub(crate) struct RuntimeVersions<'a> {
+	/// The `RuntimeVersion` linked in the staking-miner
 	pub linked: RuntimeWrapper<'a>,
+
+	/// The `RuntimeVersion` reported by the node we connect to via RPC
 	pub remote: RuntimeWrapper<'a>,
+
+	/// This bool reports whether both remote and linked `RuntimeVersion` are compatible
+	/// and if the staking-miner is expected to work properly against the remote runtime
+	compatible: bool,
 }
 
 impl<'a> RuntimeVersions<'a> {
@@ -61,13 +68,23 @@ impl<'a> RuntimeVersions<'a> {
 		remote_runtime_version: &'a RuntimeVersion,
 		linked_runtime_version: &'a RuntimeVersion,
 	) -> Self {
-		Self { remote: remote_runtime_version.into(), linked: linked_runtime_version.into() }
+		Self {
+			remote: remote_runtime_version.into(),
+			linked: linked_runtime_version.into(),
+			compatible: are_runtimes_compatible(remote_runtime_version, linked_runtime_version),
+		}
 	}
+}
+
+/// Check whether runtimes are compatible. Currently we only support equality.
+fn are_runtimes_compatible(r1: &RuntimeVersion, r2: &RuntimeVersion) -> bool {
+	r1 == r2
 }
 
 impl<'a> fmt::Display for RuntimeVersions<'a> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		let _ = write!(f, "- linked:\n{}", self.linked);
-		write!(f, "- remote :\n{}", self.remote)
+		let _ = write!(f, "- remote :\n{}", self.remote);
+		write!(f, "Compatibles: {}", if self.compatible { "YES" } else { "NO" })
 	}
 }
