@@ -456,7 +456,7 @@ publish-staking-miner-image:
   <<:                              *publish-refs
   variables:
     <<:                            *image-variables
-    # scripts/ci/dockerfiles/malus_injected.Dockerfile
+    # scripts/ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
     DOCKERFILE:                    ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
     IMAGE_NAME:                    docker.io/paritytech/staking-miner
     GIT_STRATEGY:                  none
