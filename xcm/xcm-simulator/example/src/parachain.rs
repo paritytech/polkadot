@@ -119,19 +119,20 @@ impl pallet_uniques::BenchmarkHelper<MultiLocation, AssetInstance> for UniquesHe
 
 impl pallet_uniques::Config for Runtime {
 	type Event = Event;
-	type ClassId = MultiLocation;
-	type InstanceId = AssetInstance;
+	type CollectionId = MultiLocation;
+	type ItemId = AssetInstance;
 	type Currency = Balances;
 	type CreateOrigin = ForeignCreators;
 	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
-	type ClassDeposit = frame_support::traits::ConstU128<1_000>;
-	type InstanceDeposit = frame_support::traits::ConstU128<1_000>;
+	type CollectionDeposit = frame_support::traits::ConstU128<1_000>;
+	type ItemDeposit = frame_support::traits::ConstU128<1_000>;
 	type MetadataDepositBase = frame_support::traits::ConstU128<1_000>;
 	type AttributeDepositBase = frame_support::traits::ConstU128<1_000>;
 	type DepositPerByte = frame_support::traits::ConstU128<1>;
 	type StringLimit = frame_support::traits::ConstU32<64>;
 	type KeyLimit = frame_support::traits::ConstU32<64>;
 	type ValueLimit = frame_support::traits::ConstU32<128>;
+	type Locker = ();
 	type WeightInfo = ();
 	#[cfg(feature = "runtime-benchmarks")]
 	type Helper = UniquesHelper;

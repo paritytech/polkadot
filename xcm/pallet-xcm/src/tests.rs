@@ -158,8 +158,10 @@ fn report_outcome_works() {
 
 #[test]
 fn custom_querier_works() {
-	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+	let balances = vec![
+		(ALICE, INITIAL_BALANCE),
+		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
+	];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let querier: MultiLocation =
 			(Parent, AccountId32 { network: None, id: ALICE.into() }).into();
