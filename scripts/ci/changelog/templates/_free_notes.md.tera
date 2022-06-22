@@ -7,4 +7,19 @@
 
 <!-- Such a comment will be rendered but remain invisible in the rendered markdown -->
 <!-- Edit below this line -->
+
+This release requires a database migration on the _parachains_ db, that cannot be automated on _paritydb_.
+
+Therefore users of paritydb are required to prune the _parachains_ database before upgrading.
+
+Note: Only delete the `_parachains_` db and _only_ if you are running your node on paritydb!
+If you are not sure, try upgrading and only delete the parachains folder if your node is not running properly and you get an error like this:
+
+```
+Error:
+ InvalidConfiguration("Column config mismatch for column 4. Expected \"preimage: false, uniform: false, refc: false, compression: 0, ordered: true\", got \"preimage: false, uniform: false, refc: false, compression: 0, ordered: false\"")
+```
+
+Nodes run by default on rocksdb, so if you have not tweaked configurations you should not be affected and should therefore not delete anything.
+
 <!-- Edit above this line -->
