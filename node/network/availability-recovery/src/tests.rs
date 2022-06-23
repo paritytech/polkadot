@@ -29,15 +29,15 @@ use sc_network::config::RequestResponseConfig;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_primitives::{BlockData, PoV, Proof};
-use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
-use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
-use polkadot_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_primitives::v2::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
+use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 
 type VirtualOverseer = TestSubsystemContextHandle<AvailabilityRecoveryMessage>;
 
@@ -124,7 +124,7 @@ async fn overseer_signal(
 ) {
 	delay!(50);
 	overseer
-		.send(FromOverseer::Signal(signal))
+		.send(FromOrchestra::Signal(signal))
 		.timeout(TIMEOUT)
 		.await
 		.expect("10ms is more than enough for sending signals.");
@@ -136,7 +136,7 @@ async fn overseer_send(
 ) {
 	gum::trace!(msg = ?msg, "sending message");
 	overseer
-		.send(FromOverseer::Communication { msg })
+		.send(FromOrchestra::Communication { msg })
 		.timeout(TIMEOUT)
 		.await
 		.expect("10ms is more than enough for sending messages.");
@@ -292,7 +292,7 @@ impl TestState {
 						i += 1;
 						assert_matches!(
 							req,
-							Requests::ChunkFetching(req) => {
+							Requests::ChunkFetchingV1(req) => {
 								assert_eq!(req.payload.candidate_hash, candidate_hash);
 
 								let validator_index = req.payload.index.0 as usize;
@@ -341,7 +341,7 @@ impl TestState {
 
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AvailableDataFetching(req) => {
+						Requests::AvailableDataFetchingV1(req) => {
 							assert_eq!(req.payload.candidate_hash, candidate_hash);
 							let validator_index = self.validator_authority_id
 								.iter()

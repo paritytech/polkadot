@@ -16,7 +16,7 @@
 // limitations under the License.
 
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2022-03-24 (Y/M/D)
+//! DATE: 2022-05-26 (Y/M/D)
 //!
 //! SHORT-NAME: `extrinsic`, LONG-NAME: `ExtrinsicBase`, RUNTIME: `Development`
 //! WARMUPS: `10`, REPEAT: `100`
@@ -25,17 +25,14 @@
 
 // Executed Command:
 //   ./target/production/polkadot
-//   benchmark-overhead
-//   --chain
-//   westend-dev
+//   benchmark
+//   overhead
+//   --chain=westend-dev
 //   --execution=wasm
 //   --wasm-execution=compiled
-//   --weight-path
-//   runtime/westend/constants/src/weights/
-//   --warmup
-//   10
-//   --repeat
-//   100
+//   --weight-path=runtime/westend/constants/src/weights/
+//   --warmup=10
+//   --repeat=100
 
 use frame_support::{
 	parameter_types,
@@ -46,17 +43,17 @@ parameter_types! {
 	/// Time to execute a NO-OP extrinsic, for example `System::remark`.
 	/// Calculated by multiplying the *Average* with `1` and adding `0`.
 	///
-	/// Stats [NS]:
-	///   Min, Max: 72_528, 72_806
-	///   Average:  72_650
-	///   Median:   72_642
-	///   Std-Dev:  62.3
+	/// Stats nanoseconds:
+	///   Min, Max: 78_822, 82_445
+	///   Average:  79_088
+	///   Median:   79_012
+	///   Std-Dev:  422.84
 	///
-	/// Percentiles [NS]:
-	///   99th: 72_767
-	///   95th: 72_755
-	///   75th: 72_700
-	pub const ExtrinsicBaseWeight: Weight = 72_650 * WEIGHT_PER_NANOS;
+	/// Percentiles nanoseconds:
+	///   99th: 80_770
+	///   95th: 79_394
+	///   75th: 79_071
+	pub const ExtrinsicBaseWeight: Weight = 79_088 * WEIGHT_PER_NANOS;
 }
 
 #[cfg(test)]

@@ -41,7 +41,7 @@ fn buy_execution<C>() -> Instruction<C> {
 /// Asserts that the parachain accounts are updated as expected.
 #[test]
 fn withdraw_and_deposit_works() {
-	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+	let para_acc: AccountId = ParaId::from(PARA_ID).into_account_truncating();
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
 		let other_para_id = 3000;
@@ -58,7 +58,7 @@ fn withdraw_and_deposit_works() {
 		let hash = fake_message_hash(&message);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
-		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
+		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account_truncating();
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
 		assert_eq!(Balances::free_balance(other_para_acc), amount);
 	});
@@ -108,7 +108,7 @@ fn transfer_asset_works() {
 #[test]
 fn report_holding_works() {
 	use xcm::opaque::latest::prelude::*;
-	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+	let para_acc: AccountId = ParaId::from(PARA_ID).into_account_truncating();
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
 		let other_para_id = 3000;
@@ -156,7 +156,7 @@ fn report_holding_works() {
 		let hash = fake_message_hash(&message);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
-		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
+		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account_truncating();
 		assert_eq!(Balances::free_balance(other_para_acc), amount);
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - 2 * amount);
 		let expected_msg = Xcm(vec![QueryResponse {
@@ -184,7 +184,7 @@ fn report_holding_works() {
 #[test]
 fn teleport_to_statemine_works() {
 	use xcm::opaque::latest::prelude::*;
-	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+	let para_acc: AccountId = ParaId::from(PARA_ID).into_account_truncating();
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
 		let statemine_id = 1000;
@@ -261,7 +261,7 @@ fn teleport_to_statemine_works() {
 #[test]
 fn reserve_based_transfer_works() {
 	use xcm::opaque::latest::prelude::*;
-	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+	let para_acc: AccountId = ParaId::from(PARA_ID).into_account_truncating();
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
 		let other_para_id = 3000;

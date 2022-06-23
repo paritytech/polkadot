@@ -31,7 +31,7 @@ pub mod pallet {
 
 		/// A `Junction` that is one of the `UniversalAliases` configured by the XCM executor.
 		///
-		/// If set to `None`, benchmarks which rely on a universal alais will be skipped.
+		/// If set to `None`, benchmarks which rely on a universal alias will be skipped.
 		fn universal_alias() -> Result<Junction, BenchmarkError>;
 
 		/// The `MultiLocation` used for successful transaction XCMs.

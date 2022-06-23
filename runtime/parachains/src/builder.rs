@@ -638,7 +638,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	pub(crate) fn build(self) -> Bench<T> {
 		// Make sure relevant storage is cleared. This is just to get the asserts to work when
 		// running tests because it seems the storage is not cleared in between.
+		#[allow(deprecated)]
 		inclusion::PendingAvailabilityCommitments::<T>::remove_all(None);
+		#[allow(deprecated)]
 		inclusion::PendingAvailability::<T>::remove_all(None);
 
 		// We don't allow a core to have both disputes and be marked fully available at this block.

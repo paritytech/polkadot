@@ -23,13 +23,15 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-use codec::{Decode, Encode, EncodeLike};
+use codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::traits::{
 	Contains, ContainsPair, Currency, Defensive, EnsureOrigin, Get, LockableCurrency, OriginTrait,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{BadOrigin, Saturating, Zero},
+	traits::{
+		AccountIdConversion, BadOrigin, BlakeTwo256, BlockNumberProvider, Hash, Saturating, Zero,
+	},
 	RuntimeDebug,
 };
 use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
@@ -44,7 +46,6 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
-use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
 use xcm_executor::{
 	traits::{
 		ClaimAssets, DropAssets, MatchesFungible, OnResponse, VersionChangeNotifier, WeightBounds,
@@ -271,7 +272,7 @@ pub mod pallet {
 	}
 
 	#[pallet::origin]
-	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 	pub enum Origin {
 		/// It comes from somewhere in the XCM space wanting to transact.
 		Xcm(MultiLocation),
@@ -1285,7 +1286,7 @@ impl<T: Config> Pallet<T> {
 
 	pub fn check_account() -> T::AccountId {
 		const ID: PalletId = PalletId(*b"py/xcmch");
-		AccountIdConversion::<T::AccountId>::into_account(&ID)
+		AccountIdConversion::<T::AccountId>::into_account_truncating(&ID)
 	}
 
 	/// Create a new expectation of a query response with the querier being here.

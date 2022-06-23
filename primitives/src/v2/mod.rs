@@ -1290,7 +1290,7 @@ impl DisputeStatement {
 }
 
 /// Different kinds of statements of validity on  a candidate.
-#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Encode, Decode, Copy, Clone, PartialEq, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum ValidDisputeStatementKind {
 	/// An explicit statement issued as part of a dispute.
@@ -1308,7 +1308,7 @@ pub enum ValidDisputeStatementKind {
 }
 
 /// Different kinds of statements of invalidity on a candidate.
-#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Encode, Decode, Copy, Clone, PartialEq, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum InvalidDisputeStatementKind {
 	/// An explicit statement issued as part of a dispute.
@@ -1401,6 +1401,22 @@ pub struct DisputeState<N = BlockNumber> {
 	pub start: N,
 	/// The block number at which the dispute concluded on-chain.
 	pub concluded_at: Option<N>,
+}
+
+#[cfg(feature = "std")]
+impl MallocSizeOf for DisputeState {
+	fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
+		// destructuring to make sure no new fields are added to the struct without modifying this function
+		let Self { validators_for, validators_against, start, concluded_at } = self;
+
+		// According to the documentation `.capacity()` might not return a byte aligned value, so just in case:
+		let align_eight = |d: usize| (d + 7) / 8;
+
+		align_eight(validators_for.capacity()) +
+			align_eight(validators_against.capacity()) +
+			start.size_of(ops) +
+			concluded_at.size_of(ops)
+	}
 }
 
 /// Parachains inherent-data passed into the runtime by a block author

@@ -495,7 +495,7 @@ mod tests {
 				origin_kind: OriginKind::Xcm,
 				require_weight_at_most: 1_000_000_000,
 				call: parachain::Call::from(pallet_uniques::Call::<parachain::Runtime>::create {
-					class: (Parent, 2u64).into(),
+					collection: (Parent, 2u64).into(),
 					admin: parent_account_id(),
 				})
 				.encode()
@@ -523,7 +523,7 @@ mod tests {
 		ParaA::execute_with(|| {
 			assert_eq!(parachain::Balances::reserved_balance(&parent_account_id()), 1000);
 			assert_eq!(
-				parachain::ForeignUniques::class_owner((Parent, 2u64).into()),
+				parachain::ForeignUniques::collection_owner((Parent, 2u64).into()),
 				Some(parent_account_id())
 			);
 		});

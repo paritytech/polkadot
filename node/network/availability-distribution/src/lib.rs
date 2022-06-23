@@ -19,9 +19,9 @@ use futures::{future::Either, FutureExt, StreamExt, TryFutureExt};
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::request_response::{v1, IncomingRequestReceiver};
-use polkadot_subsystem::{
-	messages::AvailabilityDistributionMessage, overseer, FromOverseer, OverseerSignal,
-	SpawnedSubsystem, SubsystemContext, SubsystemError,
+use polkadot_node_subsystem::{
+	messages::AvailabilityDistributionMessage, overseer, FromOrchestra, OverseerSignal,
+	SpawnedSubsystem, SubsystemError,
 };
 
 /// Error and [`Result`] type for this subsystem.
@@ -68,11 +68,8 @@ pub struct IncomingRequestReceivers {
 	pub chunk_req_receiver: IncomingRequestReceiver<v1::ChunkFetchingRequest>,
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for AvailabilityDistributionSubsystem
-where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-	Context: overseer::SubsystemContext<Message = AvailabilityDistributionMessage>,
-{
+#[overseer::subsystem(AvailabilityDistribution, error=SubsystemError, prefix=self::overseer)]
+impl<Context> AvailabilityDistributionSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self
 			.run(ctx)
@@ -83,6 +80,7 @@ where
 	}
 }
 
+#[overseer::contextbounds(AvailabilityDistribution, prefix = self::overseer)]
 impl AvailabilityDistributionSubsystem {
 	/// Create a new instance of the availability distribution.
 	pub fn new(
@@ -95,11 +93,7 @@ impl AvailabilityDistributionSubsystem {
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	async fn run<Context>(self, mut ctx: Context) -> std::result::Result<(), FatalError>
-	where
-		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-		Context: overseer::SubsystemContext<Message = AvailabilityDistributionMessage>,
-	{
+	async fn run<Context>(self, mut ctx: Context) -> std::result::Result<(), FatalError> {
 		let Self { mut runtime, recvs, metrics } = self;
 
 		let IncomingRequestReceivers { pov_req_receiver, chunk_req_receiver } = recvs;
@@ -140,7 +134,7 @@ impl AvailabilityDistributionSubsystem {
 				},
 			};
 			match message {
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 					log_error(
 						requester
 							.get_mut()
@@ -149,9 +143,9 @@ impl AvailabilityDistributionSubsystem {
 						"Error in Requester::update_fetching_heads",
 					)?;
 				},
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
-				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-				FromOverseer::Communication {
+				FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
+				FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+				FromOrchestra::Communication {
 					msg:
 						AvailabilityDistributionMessage::FetchPoV {
 							relay_parent,

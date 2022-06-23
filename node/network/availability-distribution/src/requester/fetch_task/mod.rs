@@ -28,14 +28,14 @@ use polkadot_node_network_protocol::request_response::{
 	v1::{ChunkFetchingRequest, ChunkFetchingResponse},
 };
 use polkadot_node_primitives::ErasureChunk;
+use polkadot_node_subsystem::{
+	jaeger,
+	messages::{AvailabilityStoreMessage, IfDisconnected, NetworkBridgeMessage},
+	overseer,
+};
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, BlakeTwo256, CandidateHash, GroupIndex, Hash, HashT, OccupiedCore,
 	SessionIndex,
-};
-use polkadot_subsystem::{
-	jaeger,
-	messages::{AllMessages, AvailabilityStoreMessage, IfDisconnected, NetworkBridgeMessage},
-	SubsystemContext,
 };
 
 use crate::{
@@ -84,7 +84,7 @@ enum FetchedState {
 /// Messages sent from `FetchTask`s to be handled/forwarded.
 pub enum FromFetchTask {
 	/// Message to other subsystem.
-	Message(AllMessages),
+	Message(overseer::AvailabilityDistributionOutgoingMessages),
 
 	/// Concluded with result.
 	///
@@ -171,14 +171,12 @@ impl FetchTaskConfig {
 	}
 }
 
+#[overseer::contextbounds(AvailabilityDistribution, prefix = self::overseer)]
 impl FetchTask {
 	/// Start fetching a chunk.
 	///
 	/// A task handling the fetching of the configured chunk will be spawned.
-	pub async fn start<Context>(config: FetchTaskConfig, ctx: &mut Context) -> Result<Self>
-	where
-		Context: SubsystemContext,
-	{
+	pub async fn start<Context>(config: FetchTaskConfig, ctx: &mut Context) -> Result<Self> {
 		let FetchTaskConfig { prepared_running, live_in } = config;
 
 		if let Some(running) = prepared_running {
@@ -330,12 +328,13 @@ impl RunningTask {
 	) -> std::result::Result<ChunkFetchingResponse, TaskError> {
 		let (full_request, response_recv) =
 			OutgoingRequest::new(Recipient::Authority(validator.clone()), self.request);
-		let requests = Requests::ChunkFetching(full_request);
+		let requests = Requests::ChunkFetchingV1(full_request);
 
 		self.sender
-			.send(FromFetchTask::Message(AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::ImmediateError),
-			)))
+			.send(FromFetchTask::Message(
+				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::ImmediateError)
+					.into(),
+			))
 			.await
 			.map_err(|_| TaskError::ShuttingDown)?;
 
@@ -413,13 +412,14 @@ impl RunningTask {
 		let (tx, rx) = oneshot::channel();
 		let r = self
 			.sender
-			.send(FromFetchTask::Message(AllMessages::AvailabilityStore(
+			.send(FromFetchTask::Message(
 				AvailabilityStoreMessage::StoreChunk {
 					candidate_hash: self.request.candidate_hash,
 					chunk,
 					tx,
-				},
-			)))
+				}
+				.into(),
+			))
 			.await;
 		if let Err(err) = r {
 			gum::error!(target: LOG_TARGET, err= ?err, "Storing erasure chunk failed, system shutting down?");
