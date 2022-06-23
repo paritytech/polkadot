@@ -13,17 +13,17 @@ validator-7: is up
 validator-8: is up
 validator-9: is up
 
-# Check configuration enables ParityDB.
-validator-0: log line contains "Database: ParityDb" within 20 seconds
-validator-1: log line contains "Database: ParityDb" within 20 seconds
-validator-2: log line contains "Database: ParityDb" within 20 seconds
-validator-3: log line contains "Database: ParityDb" within 20 seconds
-validator-4: log line contains "Database: ParityDb" within 20 seconds
-validator-5: log line contains "Database: ParityDb" within 20 seconds
-validator-6: log line contains "Database: ParityDb" within 20 seconds
-validator-7: log line contains "Database: ParityDb" within 20 seconds
-validator-8: log line contains "Database: ParityDb" within 20 seconds
-validator-9: log line contains "Database: ParityDb" within 20 seconds
+# Check if we are using ParityDB.
+validator-0: js-script ./0001-check_paritydb.js return is 0 within 120 secs
+validator-1: js-script ./0001-check_paritydb.js return is 0 within 120 secs
+validator-2: js-script ./0001-check_paritydb.js return is 0 within 120 secs
+validator-3: js-script ./0001-check_paritydb.js return is 0 within 120 secs
+validator-4: js-script ./0001-check_paritydb.js return is 0 within 120 secs
+validator-5: js-script ./0001-check_paritydb.js return is 0 within 120 secs
+validator-6: js-script ./0001-check_paritydb.js return is 0 within 120 secs
+validator-7: js-script ./0001-check_paritydb.js return is 0 within 120 secs
+validator-8: js-script ./0001-check_paritydb.js return is 0 within 120 secs
+validator-9: js-script ./0001-check_paritydb.js return is 0 within 120 secs
 
 # Check authority status and peers.
 validator-0: reports node_roles is 4
