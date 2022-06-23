@@ -312,6 +312,7 @@ build-staking-miner:
         --dependent-repo "$DEPENDENT_REPO"
         --github-api-token "$GITHUB_PR_TOKEN"
         --extra-dependencies "$EXTRA_DEPENDENCIES"
+        --companion-overrides "$COMPANION_OVERRIDES"
 
 check-dependent-cumulus:
   <<: *check-dependent-project
