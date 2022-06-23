@@ -791,7 +791,7 @@ zombienet-tests-deregister-register-validator:
   <<:                              *zombienet-refs
   needs:
     - job:                         publish-polkadot-debug-image
-      artifacts:                 true
+      artifacts:                   true
   variables:
     GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke"
   before_script:
