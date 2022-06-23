@@ -355,9 +355,9 @@ versioned_type! {
 #[codec(decode_bound())]
 #[scale_info(bounds(), skip_type_params(Call))]
 pub enum VersionedXcm<Call> {
-	#[codec(index = 1)]
-	V2(v2::Xcm<Call>),
 	#[codec(index = 2)]
+	V2(v2::Xcm<Call>),
+	#[codec(index = 3)]
 	V3(v3::Xcm<Call>),
 }
 
