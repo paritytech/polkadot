@@ -52,7 +52,8 @@ pub use polkadot_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
 pub use polkadot_dispute_distribution::DisputeDistributionSubsystem;
 pub use polkadot_gossip_support::GossipSupport as GossipSupportSubsystem;
 pub use polkadot_network_bridge::{
-	NetworkBridgeRx as NetworkBridgeRxSubsystem, NetworkBridgeTx as NetworkBridgeTxSubsystem,
+	Metrics as NetworkBridgeMetrics, NetworkBridgeRx as NetworkBridgeRxSubsystem,
+	NetworkBridgeTx as NetworkBridgeTxSubsystem,
 };
 pub use polkadot_node_collation_generation::CollationGenerationSubsystem;
 pub use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
@@ -191,7 +192,7 @@ where
 
 	let spawner = SpawnGlue(spawner);
 
-	let network_bridge_metrics = Metrics::register(registry)?;
+	let network_bridge_metrics: NetworkBridgeMetrics = Metrics::register(registry)?;
 	let builder = Overseer::builder()
 		.network_bridge_tx(NetworkBridgeTxSubsystem::new(
 			network_service.clone(),

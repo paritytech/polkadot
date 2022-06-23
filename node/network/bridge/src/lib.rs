@@ -47,7 +47,7 @@ mod network;
 use self::network::Network;
 
 mod metrics;
-use self::metrics::Metrics;
+pub use self::metrics::Metrics;
 
 mod errors;
 pub(crate) use self::errors::Error;
