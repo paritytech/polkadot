@@ -763,6 +763,7 @@ zombienet-tests-misc-paritydb:
   needs:
     - job:                         publish-polkadot-debug-image
     - job:                         publish-test-collators-image
+      artifacts:                   true
   variables:
     GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/misc"
   before_script:
