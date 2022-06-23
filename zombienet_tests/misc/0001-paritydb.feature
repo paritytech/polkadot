@@ -2,6 +2,17 @@ Description: Check that paritydb works without affecting finality lag and block 
 Network: ./0001-paritydb.toml
 Creds: config
 
+validator-0: is up
+validator-1: is up
+validator-2: is up
+validator-3: is up
+validator-4: is up
+validator-5: is up
+validator-6: is up
+validator-7: is up
+validator-8: is up
+validator-9: is up
+
 # Check configuration enables ParityDB.
 validator-0: log line contains "Database: ParityDb" within 20 seconds
 validator-1: log line contains "Database: ParityDb" within 20 seconds
@@ -13,17 +24,6 @@ validator-6: log line contains "Database: ParityDb" within 20 seconds
 validator-7: log line contains "Database: ParityDb" within 20 seconds
 validator-8: log line contains "Database: ParityDb" within 20 seconds
 validator-9: log line contains "Database: ParityDb" within 20 seconds
-
-validator-0: is up
-validator-1: is up
-validator-2: is up
-validator-3: is up
-validator-4: is up
-validator-5: is up
-validator-6: is up
-validator-7: is up
-validator-8: is up
-validator-9: is up
 
 # Check authority status and peers.
 validator-0: reports node_roles is 4
