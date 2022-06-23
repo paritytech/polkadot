@@ -7,11 +7,11 @@ async function run(nodeName, networkInfo, jsArgs) {
     console.log(networkInfo);
     let node_path = networkInfo.tmpDir;
     // TODO: We need Zombienet to provide the chain spec name in networkInfo to un-hardcode this path.
-    let dir = `${node_path}/${nodeName}/data/chains/rococo_local_testnet/paritydb/full`;
+    let dir = `/data/chains/rococo_local_testnet/paritydb/full`;
 
     const { exec } = require("child_process");
 
-    exec(`ls -lahR ${node_path}/${nodeName}`, (error, stdout, stderr) => {
+    exec(`ls -lahR /data`, (error, stdout, stderr) => {
         if (error) {
             console.log(`error: ${error.message}`);
             return;
