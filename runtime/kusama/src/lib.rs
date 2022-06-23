@@ -53,7 +53,7 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
 		ConstU32, Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		OnRuntimeUpgrade, PrivilegeCmp,
+		PrivilegeCmp,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -116,13 +116,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9230,
+	spec_version: 9250,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 11,
+	transaction_version: 12,
 	state_version: 0,
 };
 
@@ -327,6 +327,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Config for Runtime {
+	type Event = Event;
 	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Self>>;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
@@ -1456,32 +1457,6 @@ impl pallet_nomination_pools::Config for Runtime {
 	type MinPointsToBalance = MinPointsToBalance;
 }
 
-pub struct InitiatePoolConfigs;
-impl OnRuntimeUpgrade for InitiatePoolConfigs {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		// we use one as an indicator if this has already been set.
-		if pallet_nomination_pools::MaxPools::<Runtime>::get().is_none() {
-			// 1/600 KSM to join a pool.
-			pallet_nomination_pools::MinJoinBond::<Runtime>::put(50 * CENTS);
-			// 1 KSM to create a pool.
-			pallet_nomination_pools::MinCreateBond::<Runtime>::put(UNITS);
-
-			// 128 initial pools: only for initial safety: can be set to infinity when needed.
-			pallet_nomination_pools::MaxPools::<Runtime>::put(128);
-			// 64k total pool members: only for initial safety: can be set to infinity when needed.
-			pallet_nomination_pools::MaxPoolMembers::<Runtime>::put(64 * 1024);
-			// 1024 members per pool: only for initial safety: can be set to infinity when needed.
-			pallet_nomination_pools::MaxPoolMembersPerPool::<Runtime>::put(1024);
-
-			log::info!(target: "runtime::kusama", "pools config initiated 🎉");
-			<Runtime as frame_system::Config>::DbWeight::get().reads_writes(1, 5)
-		} else {
-			log::info!(target: "runtime::kusama", "pools config already initiated 😏");
-			<Runtime as frame_system::Config>::DbWeight::get().reads(1)
-		}
-	}
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1497,7 +1472,7 @@ construct_runtime! {
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 2,
 		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>} = 3,
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 4,
-		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 33,
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage, Event<T>} = 33,
 
 		// Consensus support.
 		// Authorship must be before session in order to note author in the correct session and era
@@ -1625,30 +1600,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(
-		RenameBagsListToVoterList,
-		pallet_bags_list::migrations::AddScore<Runtime>,
-		InitiatePoolConfigs,
-		pallet_nomination_pools::migration::v1::MigrateToV1<Runtime>,
-	),
+	(),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-/// A migration which renames the pallet `BagsList` to `VoterList`
-pub struct RenameBagsListToVoterList;
-impl frame_support::traits::OnRuntimeUpgrade for RenameBagsListToVoterList {
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		// For other pre-upgrade checks, we need the storage to already be migrated.
-		frame_support::storage::migration::move_pallet(b"BagsList", b"VoterList");
-		Ok(())
-	}
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		frame_support::storage::migration::move_pallet(b"BagsList", b"VoterList");
-		frame_support::weights::Weight::MAX
-	}
-}
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
