@@ -728,7 +728,7 @@ zombienet-tests-parachains-disputes:
 
 zombienet-test-parachains-upgrade-smoke-test:
   stage:                           stage3
-  image:                           "${ZOMBIENET_IMAGE}"
+  image:                           "docker.io/paritytech/zombienet:v1.2.42"
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
   needs:
