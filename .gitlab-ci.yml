@@ -740,12 +740,12 @@ zombienet-test-parachains-upgrade-smoke-test:
   before_script:
     - echo "ZombieNet Tests Config"
     - echo "docker.io/parity/polkadot:latest"
-    - echo "docker.io/parity/polkadot-collator:latest"
+    - echo "docker.io/paritypr/polkadot-parachain-debug:master-4bb9b610"
     - echo "${ZOMBIENET_IMAGE}"
     - echo "${GH_DIR}"
     - export DEBUG=zombie,zombie::network-node
     - export ZOMBIENET_INTEGRATION_TEST_IMAGE="docker.io/parity/polkadot:latest" # Use polkadot latest image
-    - export COL_IMAGE="docker.io/parity/polkadot-collator:latest" # Use cumulus lastest image
+    - export COL_IMAGE="docker.io/paritypr/polkadot-parachain-debug:master-4bb9b610" # TODO: change to use polkadot-parachain from parity
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
