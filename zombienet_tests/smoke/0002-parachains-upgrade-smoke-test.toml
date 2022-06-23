@@ -25,6 +25,7 @@ command = "polkadot"
 
 [[parachains]]
 id = 100
+cumulusBased = true
 addToGenesis = true
 
   [parachains.collator]
