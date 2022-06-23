@@ -564,7 +564,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllPalletsWithSystem,
+	AllPalletsWithSystemFlat,
 >;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -689,10 +689,10 @@ impl_runtime_apis! {
 		{
 			Mmr::generate_batch_proof(vec![leaf_index])
 				.and_then(|(leaves, proof)| Ok((
-					EncodableOpaqueLeaf::from_leaf(&leaves[0]), 
+					EncodableOpaqueLeaf::from_leaf(&leaves[0]),
 					MmrBatchProof::into_single_leaf_proof(proof)?
 				)))
-			
+
 		}
 
 		fn verify_proof(leaf: EncodableOpaqueLeaf, proof: MmrProof<MmrHash>)

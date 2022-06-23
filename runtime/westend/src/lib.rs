@@ -1169,7 +1169,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllPalletsWithSystem,
+	AllPalletsWithSystemFlat,
 	(
 		RenameBagsListToVoterList,
 		pallet_bags_list::migrations::AddScore<Runtime>,
