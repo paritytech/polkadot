@@ -15,12 +15,12 @@ bp-runtime = { path = "../runtime", default-features = false }
 
 # Substrate Based Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.25" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.25" }
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.25" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.25" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.25" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.25" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
 
 [features]
 default = ["std"]

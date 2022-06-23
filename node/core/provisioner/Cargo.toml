@@ -18,8 +18,8 @@ rand = "0.8.5"
 fatality = "0.0.6"
 
 [dev-dependencies]
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
 

@@ -10,13 +10,13 @@ codec = { package = "parity-scale-codec", version = "3.0.0" }
 honggfuzz = "0.5.54"
 scale-info = { version = "2.1.2", features = ["derive"] }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }

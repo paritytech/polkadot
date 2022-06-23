@@ -26,6 +26,6 @@ pallet-bridge-messages = { path = "../../modules/messages" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }

@@ -6,5 +6,5 @@ edition = "2021"
 
 [dependencies]
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
 primitives = { package = "polkadot-primitives", path = "../primitives" }

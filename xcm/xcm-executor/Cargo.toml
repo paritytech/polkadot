@@ -9,14 +9,14 @@ version = "0.9.25"
 impl-trait-for-tuples = "0.2.2"
 parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.25" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.25" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.25" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.25" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.25" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.25" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
 log = { version = "0.4.17", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.25" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
 
 [features]
 default = ["std"]

@@ -10,21 +10,21 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
-frame-support = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.25" }
-frame-system = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.25" }
-sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.25" }
-sp-std = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.25" }
+frame-support = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+frame-system = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-std = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
 xcm-executor = { path = "../xcm-executor", default-features = false, features = ["runtime-benchmarks"] }
-frame-benchmarking = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.25" }
+frame-benchmarking = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
 xcm = { path = "..", default-features = false, features = ["runtime-benchmarks"] }
 log = "0.4.17"
 
 [dev-dependencies]
-pallet-balances = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.25" }
-pallet-assets = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.25" }
-sp-core = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.25" }
-sp-io = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.25" }
-sp-tracing = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.25" }
+pallet-balances = { git = "https://github.com/paritytech/substrate" , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+pallet-assets = { git = "https://github.com/paritytech/substrate" , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-core = { git = "https://github.com/paritytech/substrate" , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-io = { git = "https://github.com/paritytech/substrate" , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-tracing = { git = "https://github.com/paritytech/substrate" , branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
 xcm-builder = { path = "../xcm-builder" }
 xcm = { path = ".." }
 # temp

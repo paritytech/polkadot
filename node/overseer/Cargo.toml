@@ -5,8 +5,8 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
 futures = "0.3.21"
 futures-timer = "3.0.2"
 parking_lot = "0.12.0"
@@ -19,11 +19,11 @@ orchestra = { path = "../orchestra" }
 gum = { package = "tracing-gum", path = "../gum" }
 lru = "0.7"
 parity-util-mem = { version = "0.11.0", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
 
 [dev-dependencies]
 metered = { package = "prioritized-metered-channel", path = "../metered-channel" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.25" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "na-polkadot-v0.9.25-revert-jsonrpsee-bump" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
 femme = "2.2.1"
 assert_matches = "1.4.0"
