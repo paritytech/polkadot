@@ -112,7 +112,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9250,
+	spec_version: 9220,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -1918,7 +1918,7 @@ sp_api::impl_runtime_apis! {
 		fn on_runtime_upgrade() -> (Weight, Weight) {
 			log::info!("try-runtime::on_runtime_upgrade polkadot.");
 			let weight = Executive::try_runtime_upgrade().unwrap();
-			(weight, RuntimeBlockWeights::get().max_block)
+			(weight, BlockWeights::get().max_block)
 		}
 
 		fn execute_block(block: Block, state_root_check: bool, sanity_checks: frame_try_runtime::SanityCheckTargets) -> Weight {

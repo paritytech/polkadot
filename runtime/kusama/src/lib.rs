@@ -2010,7 +2010,7 @@ sp_api::impl_runtime_apis! {
 		fn on_runtime_upgrade() -> (Weight, Weight) {
 			log::info!("try-runtime::on_runtime_upgrade kusama.");
 			let weight = Executive::try_runtime_upgrade().unwrap();
-			(weight, RuntimeBlockWeights::get().max_block)
+			(weight, BlockWeights::get().max_block)
 		}
 
 		fn execute_block(block: Block, state_root_check: bool, sanity_checks: frame_try_runtime::SanityCheckTargets) -> Weight {
