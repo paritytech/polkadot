@@ -10,7 +10,7 @@ async function run(nodeName, networkInfo, jsArgs) {
 
     // Check if directory exists
     if (!fs.existsSync(dir)) {
-        console.log('Parachains db not found!');
+        console.log('ParityDB path not found!');
         return -1;
     }
 
