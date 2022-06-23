@@ -191,17 +191,18 @@ where
 
 	let spawner = SpawnGlue(spawner);
 
+	let network_bridge_metrics = Metrics::register(registry)?;
 	let builder = Overseer::builder()
 		.network_bridge_tx(NetworkBridgeTxSubsystem::new(
 			network_service.clone(),
 			authority_discovery_service.clone(),
-			Metrics::register(registry)?,
+			network_bridge_metrics.clone(),
 		))
 		.network_bridge_rx(NetworkBridgeRxSubsystem::new(
 			network_service.clone(),
 			authority_discovery_service.clone(),
 			Box::new(network_service.clone()),
-			Metrics::register(registry)?,
+			network_bridge_metrics,
 		))
 		.availability_distribution(AvailabilityDistributionSubsystem::new(
 			keystore.clone(),
