@@ -100,17 +100,16 @@ mod tests {
 		fee::WeightToFee,
 	};
 	use crate::weights::ExtrinsicBaseWeight;
-	use frame_support::weights::WeightToFeePolynomial;
+	use frame_support::weights::WeightToFee as WeightToFeeT;
 	use runtime_common::MAXIMUM_BLOCK_WEIGHT;
 
 	#[test]
-	// This function tests that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight is correct
+	// Test that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight has sane bounds.
 	fn full_block_fee_is_correct() {
-		// A full block should cost 16 DOLLARS
-		println!("Base: {}", ExtrinsicBaseWeight::get());
-		let x = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
-		let y = 16 * DOLLARS;
-		assert!(x.max(y) - x.min(y) < MILLICENTS);
+		// A full block should cost between 10 and 100 DOLLARS.
+		let full_block = WeightToFee::weight_to_fee(&MAXIMUM_BLOCK_WEIGHT);
+		assert!(full_block >= 10 * DOLLARS);
+		assert!(full_block <= 100 * DOLLARS);
 	}
 
 	#[test]
@@ -118,7 +117,7 @@ mod tests {
 	fn extrinsic_base_fee_is_correct() {
 		// `ExtrinsicBaseWeight` should cost 1/10 of a CENT
 		println!("Base: {}", ExtrinsicBaseWeight::get());
-		let x = WeightToFee::calc(&ExtrinsicBaseWeight::get());
+		let x = WeightToFee::weight_to_fee(&ExtrinsicBaseWeight::get());
 		let y = CENTS / 10;
 		assert!(x.max(y) - x.min(y) < MILLICENTS);
 	}

@@ -14,7 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{AuthorityDiscoveryApi, Block, Error, Hash, IsCollator, Registry, SpawnNamed};
+use super::{AuthorityDiscoveryApi, Block, Error, Hash, IsCollator, Registry};
+use sp_core::traits::SpawnNamed;
+
 use lru::LruCache;
 use polkadot_availability_distribution::IncomingRequestReceivers;
 use polkadot_node_core_approval_voting::Config as ApprovalVotingConfig;
@@ -22,7 +24,6 @@ use polkadot_node_core_av_store::Config as AvailabilityConfig;
 use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig;
 use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
-use polkadot_node_core_provisioner::ProvisionerConfig;
 use polkadot_node_network_protocol::request_response::{v1 as request_v1, IncomingRequestReceiver};
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::{
@@ -31,10 +32,10 @@ pub use polkadot_overseer::{
 };
 use polkadot_overseer::{
 	metrics::Metrics as OverseerMetrics, BlockInfo, InitializedOverseerBuilder, MetricsTrait,
-	Overseer, OverseerConnector, OverseerHandle,
+	Overseer, OverseerConnector, OverseerHandle, SpawnGlue,
 };
 
-use polkadot_primitives::v2::ParachainHost;
+use polkadot_primitives::runtime_api::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::AuxStore;
 use sc_keystore::LocalKeystore;
@@ -63,6 +64,7 @@ pub use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
 pub use polkadot_node_core_provisioner::ProvisionerSubsystem;
 pub use polkadot_node_core_pvf_checker::PvfCheckerSubsystem;
 pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
+use polkadot_node_subsystem_util::rand::{self, SeedableRng};
 pub use polkadot_statement_distribution::StatementDistributionSubsystem;
 
 /// Arguments passed for overseer construction.
@@ -108,10 +110,10 @@ where
 	pub chain_selection_config: ChainSelectionConfig,
 	/// Configuration for the dispute coordinator subsystem.
 	pub dispute_coordinator_config: DisputeCoordinatorConfig,
-	/// Enable to disputes.
-	pub disputes_enabled: bool,
 	/// Enable PVF pre-checking
 	pub pvf_checker_enabled: bool,
+	/// Overseer channel capacity override.
+	pub overseer_message_channel_capacity_override: Option<usize>,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -138,22 +140,22 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		candidate_validation_config,
 		chain_selection_config,
 		dispute_coordinator_config,
-		disputes_enabled,
 		pvf_checker_enabled,
+		overseer_message_channel_capacity_override,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
-		Spawner,
+		SpawnGlue<Spawner>,
 		Arc<RuntimeClient>,
 		CandidateValidationSubsystem,
 		PvfCheckerSubsystem,
-		CandidateBackingSubsystem<Spawner>,
-		StatementDistributionSubsystem,
+		CandidateBackingSubsystem,
+		StatementDistributionSubsystem<rand::rngs::StdRng>,
 		AvailabilityDistributionSubsystem,
 		AvailabilityRecoverySubsystem,
-		BitfieldSigningSubsystem<Spawner>,
+		BitfieldSigningSubsystem,
 		BitfieldDistributionSubsystem,
-		ProvisionerSubsystem<Spawner>,
+		ProvisionerSubsystem,
 		RuntimeApiSubsystem<RuntimeClient>,
 		AvailabilityStoreSubsystem,
 		NetworkBridgeSubsystem<
@@ -181,6 +183,8 @@ where
 
 	let metrics = <OverseerMetrics as MetricsTrait>::register(registry)?;
 
+	let spawner = SpawnGlue(spawner);
+
 	let builder = Overseer::builder()
 		.availability_distribution(AvailabilityDistributionSubsystem::new(
 			keystore.clone(),
@@ -198,12 +202,10 @@ where
 		))
 		.bitfield_distribution(BitfieldDistributionSubsystem::new(Metrics::register(registry)?))
 		.bitfield_signing(BitfieldSigningSubsystem::new(
-			spawner.clone(),
 			keystore.clone(),
 			Metrics::register(registry)?,
 		))
 		.candidate_backing(CandidateBackingSubsystem::new(
-			spawner.clone(),
 			keystore.clone(),
 			Metrics::register(registry)?,
 		))
@@ -241,11 +243,7 @@ where
 			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
 		))
-		.provisioner(ProvisionerSubsystem::new(
-			spawner.clone(),
-			ProvisionerConfig { disputes_enabled },
-			Metrics::register(registry)?,
-		))
+		.provisioner(ProvisionerSubsystem::new(Metrics::register(registry)?))
 		.runtime_api(RuntimeApiSubsystem::new(
 			runtime_client.clone(),
 			Metrics::register(registry)?,
@@ -255,6 +253,7 @@ where
 			keystore.clone(),
 			statement_req_receiver,
 			Metrics::register(registry)?,
+			rand::rngs::StdRng::from_entropy(),
 		))
 		.approval_distribution(ApprovalDistributionSubsystem::new(Metrics::register(registry)?))
 		.approval_voting(ApprovalVotingSubsystem::with_config(
@@ -269,16 +268,12 @@ where
 			authority_discovery_service.clone(),
 			Metrics::register(registry)?,
 		))
-		.dispute_coordinator(if disputes_enabled {
-			DisputeCoordinatorSubsystem::new(
-				parachains_db.clone(),
-				dispute_coordinator_config,
-				keystore.clone(),
-				Metrics::register(registry)?,
-			)
-		} else {
-			DisputeCoordinatorSubsystem::dummy()
-		})
+		.dispute_coordinator(DisputeCoordinatorSubsystem::new(
+			parachains_db.clone(),
+			dispute_coordinator_config,
+			keystore.clone(),
+			Metrics::register(registry)?,
+		))
 		.dispute_distribution(DisputeDistributionSubsystem::new(
 			keystore.clone(),
 			dispute_req_receiver,
@@ -298,7 +293,12 @@ where
 		.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
 		.metrics(metrics)
 		.spawner(spawner);
-	Ok(builder)
+
+	if let Some(capacity) = overseer_message_channel_capacity_override {
+		Ok(builder.message_channel_capacity(capacity))
+	} else {
+		Ok(builder)
+	}
 }
 
 /// Trait for the `fn` generating the overseer.
@@ -311,7 +311,7 @@ pub trait OverseerGen {
 		&self,
 		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
-	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
+	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
@@ -335,7 +335,7 @@ impl OverseerGen for RealOverseerGen {
 		&self,
 		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
-	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
+	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,

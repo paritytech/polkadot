@@ -1,0 +1,21 @@
+error[E0119]: conflicting implementations of trait `orchestra::SubsystemSender<MsgStrukt>` for type `OrchestraSubsystemSender`
+  --> tests/ui/err-01-duplicate-consumer.rs:19:1
+   |
+19 | #[orchestra(signal=SigSigSig, event=Event, gen=AllMessages, error=OrchestraError)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   | |
+   | first implementation here
+   | conflicting implementation for `OrchestraSubsystemSender`
+   |
+   = note: this error originates in the attribute macro `orchestra` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `std::convert::From<MsgStrukt>` for type `AllMessages`
+  --> tests/ui/err-01-duplicate-consumer.rs:19:1
+   |
+19 | #[orchestra(signal=SigSigSig, event=Event, gen=AllMessages, error=OrchestraError)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   | |
+   | first implementation here
+   | conflicting implementation for `AllMessages`
+   |
+   = note: this error originates in the attribute macro `orchestra` (in Nightly builds, run with -Z macro-backtrace for more info)

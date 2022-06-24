@@ -33,6 +33,8 @@ use sp_blockchain::HeaderBackend;
 use sp_runtime::generic::BlockId;
 use std::time;
 
+pub(crate) const LOG_TARGET: &str = "parachain::parachains-inherent";
+
 /// How long to wait for the provisioner, before giving up.
 const PROVISIONER_TIMEOUT: time::Duration = core::time::Duration::from_millis(2500);
 
@@ -42,6 +44,11 @@ pub struct ParachainsInherentDataProvider {
 }
 
 impl ParachainsInherentDataProvider {
+	/// Create a [`Self`] directly from some [`ParachainsInherentData`].
+	pub fn from_data(inherent_data: ParachainsInherentData) -> Self {
+		Self { inherent_data }
+	}
+
 	/// Create a new instance of the [`ParachainsInherentDataProvider`].
 	pub async fn create<C: HeaderBackend<Block>>(
 		client: &C,
@@ -89,6 +96,7 @@ impl ParachainsInherentDataProvider {
 			},
 			Err(err) => {
 				gum::debug!(
+					target: LOG_TARGET,
 					?err,
 					"Could not get provisioner inherent data; injecting default data",
 				);

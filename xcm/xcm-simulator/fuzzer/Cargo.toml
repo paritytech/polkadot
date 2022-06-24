@@ -1,6 +1,6 @@
 [package]
 name = "xcm-simulator-fuzzer"
-version = "0.9.18"
+version = "0.9.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Examples of xcm-simulator usage."
 edition = "2021"
@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0" }
 honggfuzz = "0.5.54"
-scale-info = { version = "2.0.0", features = ["derive"] }
+scale-info = { version = "2.1.2", features = ["derive"] }
 
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }

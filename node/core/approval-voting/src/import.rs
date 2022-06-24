@@ -29,15 +29,16 @@
 //! We maintain a rolling window of session indices. This starts as empty
 
 use polkadot_node_jaeger as jaeger;
-use polkadot_node_primitives::approval::{
-	self as approval_types, BlockApprovalMeta, RelayVRFStory,
+use polkadot_node_primitives::{
+	approval::{self as approval_types, BlockApprovalMeta, RelayVRFStory},
+	MAX_FINALITY_LAG,
 };
 use polkadot_node_subsystem::{
 	messages::{
 		ApprovalDistributionMessage, ChainApiMessage, ChainSelectionMessage, RuntimeApiMessage,
 		RuntimeApiRequest,
 	},
-	overseer, SubsystemContext, SubsystemError, SubsystemResult,
+	overseer, RuntimeApiError, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{
 	determine_new_blocks,
@@ -53,7 +54,7 @@ use sp_consensus_slots::Slot;
 use bitvec::order::Lsb0 as BitOrderLsb0;
 use futures::{channel::oneshot, prelude::*};
 
-use std::{collections::HashMap, convert::TryFrom};
+use std::collections::HashMap;
 
 use super::approval_db::v1;
 use crate::{
@@ -65,6 +66,7 @@ use crate::{
 
 use super::{State, LOG_TARGET};
 
+#[derive(Debug)]
 struct ImportedBlockInfo {
 	included_candidates: Vec<(CandidateHash, CandidateReceipt, CoreIndex, GroupIndex)>,
 	session_index: SessionIndex,
@@ -81,14 +83,37 @@ struct ImportedBlockInfoEnv<'a> {
 	keystore: &'a LocalKeystore,
 }
 
-// Computes information about the imported block. Returns `None` if the info couldn't be extracted -
-// failure to communicate with overseer,
-async fn imported_block_info(
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+#[derive(Debug, thiserror::Error)]
+enum ImportedBlockInfoError {
+	// NOTE: The `RuntimeApiError` already prints out which request it was,
+	//       so it's not necessary to include that here.
+	#[error(transparent)]
+	RuntimeError(RuntimeApiError),
+
+	#[error("future cancalled while requesting {0}")]
+	FutureCancelled(&'static str, futures::channel::oneshot::Canceled),
+
+	#[error(transparent)]
+	ApprovalError(approval_types::ApprovalError),
+
+	#[error("block is from an ancient session")]
+	BlockFromAncientSession,
+
+	#[error("session info unavailable")]
+	SessionInfoUnavailable,
+
+	#[error("VRF info unavailable")]
+	VrfInfoUnavailable,
+}
+
+/// Computes information about the imported block. Returns an error if the info couldn't be extracted.
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+async fn imported_block_info<Context>(
+	ctx: &mut Context,
 	env: ImportedBlockInfoEnv<'_>,
 	block_hash: Hash,
 	block_header: &Header,
-) -> SubsystemResult<Option<ImportedBlockInfo>> {
+) -> Result<ImportedBlockInfo, ImportedBlockInfoError> {
 	// Ignore any runtime API errors - that means these blocks are old and finalized.
 	// Only unfinalized blocks factor into the approval voting process.
 
@@ -103,8 +128,9 @@ async fn imported_block_info(
 
 		let events: Vec<CandidateEvent> = match c_rx.await {
 			Ok(Ok(events)) => events,
-			Ok(Err(_)) => return Ok(None),
-			Err(_) => return Ok(None),
+			Ok(Err(error)) => return Err(ImportedBlockInfoError::RuntimeError(error)),
+			Err(error) =>
+				return Err(ImportedBlockInfoError::FutureCancelled("CandidateEvents", error)),
 		};
 
 		events
@@ -129,8 +155,9 @@ async fn imported_block_info(
 
 		let session_index = match s_rx.await {
 			Ok(Ok(s)) => s,
-			Ok(Err(_)) => return Ok(None),
-			Err(_) => return Ok(None),
+			Ok(Err(error)) => return Err(ImportedBlockInfoError::RuntimeError(error)),
+			Err(error) =>
+				return Err(ImportedBlockInfoError::FutureCancelled("SessionIndexForChild", error)),
 		};
 
 		if env
@@ -145,7 +172,7 @@ async fn imported_block_info(
 				session_index
 			);
 
-			return Ok(None)
+			return Err(ImportedBlockInfoError::BlockFromAncientSession)
 		}
 
 		session_index
@@ -179,8 +206,9 @@ async fn imported_block_info(
 
 		match s_rx.await {
 			Ok(Ok(s)) => s,
-			Ok(Err(_)) => return Ok(None),
-			Err(_) => return Ok(None),
+			Ok(Err(error)) => return Err(ImportedBlockInfoError::RuntimeError(error)),
+			Err(error) =>
+				return Err(ImportedBlockInfoError::FutureCancelled("CurrentBabeEpoch", error)),
 		}
 	};
 
@@ -190,7 +218,7 @@ async fn imported_block_info(
 		None => {
 			gum::debug!(target: LOG_TARGET, "Session info unavailable for block {}", block_hash,);
 
-			return Ok(None)
+			return Err(ImportedBlockInfoError::SessionInfoUnavailable)
 		},
 	};
 
@@ -219,7 +247,7 @@ async fn imported_block_info(
 
 						(assignments, slot, relay_vrf)
 					},
-					Err(_) => return Ok(None),
+					Err(error) => return Err(ImportedBlockInfoError::ApprovalError(error)),
 				}
 			},
 			None => {
@@ -229,7 +257,7 @@ async fn imported_block_info(
 					block_hash,
 				);
 
-				return Ok(None)
+				return Err(ImportedBlockInfoError::VrfInfoUnavailable)
 			},
 		}
 	};
@@ -263,7 +291,7 @@ async fn imported_block_info(
 			},
 		});
 
-	Ok(Some(ImportedBlockInfo {
+	Ok(ImportedBlockInfo {
 		included_candidates,
 		session_index,
 		assignments,
@@ -271,7 +299,7 @@ async fn imported_block_info(
 		relay_vrf_story,
 		slot,
 		force_approve,
-	}))
+	})
 }
 
 /// Information about a block and imported candidates.
@@ -292,14 +320,15 @@ pub struct BlockImportedCandidates {
 ///   * and return information about all candidates imported under each block.
 ///
 /// It is the responsibility of the caller to schedule wakeups for each block.
-pub(crate) async fn handle_new_head(
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+pub(crate) async fn handle_new_head<Context, B: Backend>(
+	ctx: &mut Context,
 	state: &mut State,
-	db: &mut OverlayedBackend<'_, impl Backend>,
+	db: &mut OverlayedBackend<'_, B>,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
-	const MAX_HEADS_LOOK_BACK: BlockNumber = 500;
+	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
 
 	let mut span = jaeger::Span::new(head, "approval-checking-import");
 
@@ -381,9 +410,9 @@ pub(crate) async fn handle_new_head(
 				keystore: &state.keystore,
 			};
 
-			match imported_block_info(ctx, env, block_hash, &block_header).await? {
-				Some(i) => imported_blocks_and_info.push((block_hash, block_header, i)),
-				None => {
+			match imported_block_info(ctx, env, block_hash, &block_header).await {
+				Ok(i) => imported_blocks_and_info.push((block_hash, block_header, i)),
+				Err(error) => {
 					// It's possible that we've lost a race with finality.
 					let (tx, rx) = oneshot::channel();
 					ctx.send_message(ChainApiMessage::FinalizedBlockHash(
@@ -402,8 +431,9 @@ pub(crate) async fn handle_new_head(
 						// in the approval-db.
 						gum::warn!(
 							target: LOG_TARGET,
-							"Unable to gather info about imported block {:?}. Skipping chain.",
+							"Skipping chain: unable to gather info about imported block {:?}: {}",
 							(block_hash, block_header.number),
+							error,
 						);
 					}
 
@@ -505,18 +535,6 @@ pub(crate) async fn handle_new_head(
 			children: Vec::new(),
 		};
 
-		if let Some(up_to) = force_approve {
-			gum::debug!(target: LOG_TARGET, ?block_hash, up_to, "Enacting force-approve");
-
-			let approved_hashes = crate::ops::force_approve(db, block_hash, up_to)
-				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
-
-			// Notify chain-selection of all approved hashes.
-			for hash in approved_hashes {
-				ctx.send_message(ChainSelectionMessage::Approved(hash)).await;
-			}
-		}
-
 		gum::trace!(
 			target: LOG_TARGET,
 			?block_hash,
@@ -537,12 +555,34 @@ pub(crate) async fn handle_new_head(
 				)
 			})
 			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+
+		// force-approve needs to load the current block entry as well as all
+		// ancestors. this can only be done after writing the block entry above.
+		if let Some(up_to) = force_approve {
+			gum::debug!(target: LOG_TARGET, ?block_hash, up_to, "Enacting force-approve");
+			let approved_hashes = crate::ops::force_approve(db, block_hash, up_to)
+				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+			gum::debug!(
+				target: LOG_TARGET,
+				?block_hash,
+				up_to,
+				"Force-approving {} blocks",
+				approved_hashes.len()
+			);
+
+			// Notify chain-selection of all approved hashes.
+			for hash in approved_hashes {
+				ctx.send_message(ChainSelectionMessage::Approved(hash)).await;
+			}
+		}
+
 		approval_meta.push(BlockApprovalMeta {
 			hash: block_hash,
 			number: block_header.number,
 			parent_hash: block_header.parent_hash,
 			candidates: included_candidates.iter().map(|(hash, _, _, _)| *hash).collect(),
 			slot,
+			session: session_index,
 		});
 
 		imported_candidates.push(BlockImportedCandidates {
@@ -577,10 +617,10 @@ pub(crate) mod tests {
 	use assert_matches::assert_matches;
 	use merlin::Transcript;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
-	use polkadot_node_subsystem::messages::AllMessages;
+	use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
-	use polkadot_primitives::v2::{SessionInfo, ValidatorIndex};
+	use polkadot_primitives::v2::{Id as ParaId, SessionInfo, ValidatorIndex};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -692,7 +732,8 @@ pub(crate) mod tests {
 	#[test]
 	fn imported_block_info_is_good() {
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) =
+			make_subsystem_context::<ApprovalVotingMessage, _>(pool.clone());
 
 		let session = 5;
 		let session_info = dummy_session_info(session);
@@ -753,8 +794,7 @@ pub(crate) mod tests {
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info =
-					imported_block_info(&mut ctx, env, hash, &header).await.unwrap().unwrap();
+				let info = imported_block_info(&mut ctx, env, hash, &header).await.unwrap();
 
 				assert_eq!(info.included_candidates, included_candidates);
 				assert_eq!(info.session_index, session);
@@ -816,7 +856,8 @@ pub(crate) mod tests {
 	#[test]
 	fn imported_block_info_fails_if_no_babe_vrf() {
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) =
+			make_subsystem_context::<ApprovalVotingMessage, _>(pool.clone());
 
 		let session = 5;
 		let session_info = dummy_session_info(session);
@@ -862,9 +903,9 @@ pub(crate) mod tests {
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info = imported_block_info(&mut ctx, env, hash, &header).await.unwrap();
+				let info = imported_block_info(&mut ctx, env, hash, &header).await;
 
-				assert!(info.is_none());
+				assert_matches!(info, Err(ImportedBlockInfoError::VrfInfoUnavailable));
 			})
 		};
 
@@ -917,9 +958,10 @@ pub(crate) mod tests {
 	}
 
 	#[test]
-	fn imported_block_info_fails_if_unknown_session() {
+	fn imported_block_info_fails_if_ancient_session() {
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) =
+			make_subsystem_context::<ApprovalVotingMessage, _>(pool.clone());
 
 		let session = 5;
 
@@ -960,9 +1002,9 @@ pub(crate) mod tests {
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info = imported_block_info(&mut ctx, env, hash, &header).await.unwrap();
+				let info = imported_block_info(&mut ctx, env, hash, &header).await;
 
-				assert!(info.is_none());
+				assert_matches!(info, Err(ImportedBlockInfoError::BlockFromAncientSession));
 			})
 		};
 
@@ -996,7 +1038,7 @@ pub(crate) mod tests {
 	#[test]
 	fn imported_block_info_extracts_force_approve() {
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) = make_subsystem_context(pool.clone());
 
 		let session = 5;
 		let session_info = dummy_session_info(session);
@@ -1059,8 +1101,7 @@ pub(crate) mod tests {
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info =
-					imported_block_info(&mut ctx, env, hash, &header).await.unwrap().unwrap();
+				let info = imported_block_info(&mut ctx, env, hash, &header).await.unwrap();
 
 				assert_eq!(info.included_candidates, included_candidates);
 				assert_eq!(info.session_index, session);
@@ -1128,7 +1169,8 @@ pub(crate) mod tests {
 		let mut overlay_db = OverlayedBackend::new(&db);
 
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+		let (mut ctx, mut handle) =
+			make_subsystem_context::<ApprovalVotingMessage, _>(pool.clone());
 
 		let session = 5;
 		let irrelevant = 666;
@@ -1176,8 +1218,8 @@ pub(crate) mod tests {
 			r
 		};
 		let candidates = vec![
-			(make_candidate(1.into()), CoreIndex(0), GroupIndex(0)),
-			(make_candidate(2.into()), CoreIndex(1), GroupIndex(1)),
+			(make_candidate(ParaId::from(1)), CoreIndex(0), GroupIndex(0)),
+			(make_candidate(ParaId::from(2)), CoreIndex(1), GroupIndex(1)),
 		];
 		let inclusion_events = candidates
 			.iter()

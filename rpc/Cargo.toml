@@ -1,11 +1,11 @@
 [package]
 name = "polkadot-rpc"
-version = "0.9.18"
+version = "0.9.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
-jsonrpc-core = "18.0.0"
+jsonrpsee = { version = "0.14.0", features = ["server"] }
 polkadot-primitives = { path = "../primitives" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -29,3 +29,4 @@ pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrat
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
 beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-state-trie-migration-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }

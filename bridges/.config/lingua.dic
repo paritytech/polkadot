@@ -16,6 +16,7 @@ Best/MS
 BlockId
 BlockNumber
 BridgeStorage
+clonable
 CLI/MS
 Chain1
 Chain2
@@ -177,6 +178,7 @@ plancks
 polkadot/MS
 pov-block/MS
 precommit
+proc-macro/MS
 prometheus
 proxying
 provisioner/MS

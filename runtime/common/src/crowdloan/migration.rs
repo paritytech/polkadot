@@ -15,21 +15,32 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use frame_support::generate_storage_alias;
+use frame_support::{storage_alias, Twox64Concat};
 
 /// Migrations for using fund index to create fund accounts instead of para ID.
 pub mod crowdloan_index_migration {
 	use super::*;
 
+	#[storage_alias]
+	type NextTrieIndex<T: Config> = StorageValue<Pallet<T>, FundIndex>;
+
+	#[storage_alias]
+	type Leases<T: Config> = StorageMap<
+		Slots,
+		Twox64Concat,
+		ParaId,
+		Vec<Option<(<T as frame_system::Config>::AccountId, BalanceOf<T>)>>,
+	>;
+
 	// The old way we generated fund accounts.
 	fn old_fund_account_id<T: Config>(index: ParaId) -> T::AccountId {
-		T::PalletId::get().into_sub_account(index)
+		T::PalletId::get().into_sub_account_truncating(index)
 	}
 
 	pub fn pre_migrate<T: Config>() -> Result<(), &'static str> {
 		// `NextTrieIndex` should have a value.
-		generate_storage_alias!(Crowdloan, NextTrieIndex => Value<FundIndex>);
-		let next_index = NextTrieIndex::get().unwrap_or_default();
+
+		let next_index = NextTrieIndex::<T>::get().unwrap_or_default();
 		ensure!(next_index > 0, "Next index is zero, which implies no migration is needed.");
 
 		log::info!(
@@ -38,7 +49,6 @@ pub mod crowdloan_index_migration {
 			next_index,
 		);
 
-		// Each fund should have some non-zero balance.
 		for (para_id, fund) in Funds::<T>::iter() {
 			let old_fund_account = old_fund_account_id::<T>(para_id);
 			let total_balance = CurrencyOf::<T>::total_balance(&old_fund_account);
@@ -49,10 +59,29 @@ pub mod crowdloan_index_migration {
 				para_id, old_fund_account, total_balance, fund.raised
 			);
 
+			// Each fund should have some non-zero balance.
 			ensure!(
 				total_balance >= fund.raised,
 				"Total balance is not equal to the funds raised."
 			);
+
+			let leases = Leases::<T>::get(para_id).unwrap_or_default();
+			let mut found_lease_deposit = false;
+			for maybe_deposit in leases.iter() {
+				if let Some((who, _amount)) = maybe_deposit {
+					if *who == old_fund_account {
+						found_lease_deposit = true;
+						break
+					}
+				}
+			}
+			if found_lease_deposit {
+				log::info!(
+					target: "runtime",
+					"para_id={:?}, old_fund_account={:?}, leases={:?}",
+					para_id, old_fund_account, leases,
+				);
+			}
 		}
 
 		Ok(())
@@ -64,9 +93,8 @@ pub mod crowdloan_index_migration {
 		let mut weight = 0;
 
 		// First migrate `NextTrieIndex` counter to `NextFundIndex`.
-		generate_storage_alias!(Crowdloan, NextTrieIndex => Value<FundIndex>);
 
-		let next_index = NextTrieIndex::take().unwrap_or_default();
+		let next_index = NextTrieIndex::<T>::take().unwrap_or_default();
 		NextFundIndex::<T>::set(next_index);
 
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 2));
@@ -78,10 +106,21 @@ pub mod crowdloan_index_migration {
 
 			// Funds should only have a free balance and a reserve balance. Both of these are in the
 			// `Account` storage item, so we just swap them.
-			let account_info = frame_system::Account::<T>::take(old_fund_account);
-			frame_system::Account::<T>::insert(new_fund_account, account_info);
+			let account_info = frame_system::Account::<T>::take(&old_fund_account);
+			frame_system::Account::<T>::insert(&new_fund_account, account_info);
 
 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 2));
+
+			let mut leases = Leases::<T>::get(para_id).unwrap_or_default();
+			for maybe_deposit in leases.iter_mut() {
+				if let Some((who, _amount)) = maybe_deposit {
+					if *who == old_fund_account {
+						*who = new_fund_account.clone();
+					}
+				}
+			}
+
+			Leases::<T>::insert(para_id, leases);
 		}
 
 		weight
@@ -89,8 +128,7 @@ pub mod crowdloan_index_migration {
 
 	pub fn post_migrate<T: Config>() -> Result<(), &'static str> {
 		// `NextTrieIndex` should not have a value, and `NextFundIndex` should.
-		generate_storage_alias!(Crowdloan, NextTrieIndex => Value<FundIndex>);
-		ensure!(NextTrieIndex::get().is_none(), "NextTrieIndex still has a value.");
+		ensure!(NextTrieIndex::<T>::get().is_none(), "NextTrieIndex still has a value.");
 
 		let next_index = NextFundIndex::<T>::get();
 		log::info!(
@@ -121,6 +159,25 @@ pub mod crowdloan_index_migration {
 				total_balance >= fund.raised,
 				"Total balance in new account is different than the funds raised."
 			);
+
+			let leases = Leases::<T>::get(para_id).unwrap_or_default();
+			let mut new_account_found = false;
+			for maybe_deposit in leases.iter() {
+				if let Some((who, _amount)) = maybe_deposit {
+					if *who == old_fund_account {
+						panic!("Old fund account found after migration!");
+					} else if *who == new_fund_account {
+						new_account_found = true;
+					}
+				}
+			}
+			if new_account_found {
+				log::info!(
+					target: "runtime::crowdloan",
+					"para_id={:?}, new_fund_account={:?}, leases={:?}",
+					para_id, new_fund_account, leases,
+				);
+			}
 		}
 
 		Ok(())

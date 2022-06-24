@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-overseer"
-version = "0.9.18"
+version = "0.9.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -15,19 +15,20 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-node-metrics = { path = "../metrics" }
 polkadot-primitives = { path = "../../primitives" }
-polkadot-overseer-gen = { path = "./overseer-gen" }
+orchestra = { path = "../orchestra" }
 gum = { package = "tracing-gum", path = "../gum" }
 lru = "0.7"
 parity-util-mem = { version = "0.11.0", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
-metered-channel = { path = "../metered-channel" }
+metered = { package = "prioritized-metered-channel", path = "../metered-channel" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
-femme = "2.1.1"
+femme = "2.2.1"
 assert_matches = "1.4.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers" }
 
 [features]
 default = []
-expand = ["polkadot-overseer-gen/expand"]
+expand = ["orchestra/expand"]

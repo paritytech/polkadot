@@ -23,21 +23,14 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-use codec::{Decode, Encode, EncodeLike};
+use codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{BadOrigin, Saturating},
 	RuntimeDebug,
 };
-use sp_std::{
-	boxed::Box,
-	convert::{TryFrom, TryInto},
-	marker::PhantomData,
-	prelude::*,
-	result::Result,
-	vec,
-};
+use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
 use xcm::prelude::*;
 use xcm_executor::traits::ConvertOrigin;
 
@@ -219,7 +212,7 @@ pub mod pallet {
 	}
 
 	#[pallet::origin]
-	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 	pub enum Origin {
 		/// It comes from somewhere in the XCM space wanting to transact.
 		Xcm(MultiLocation),
@@ -474,9 +467,9 @@ pub mod pallet {
 
 		/// Teleport some assets from the local chain to some destination chain.
 		///
-		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector and
-		/// fee-weight is calculated locally and thus remote weights are assumed to be equal to
-		/// local weights.
+		/// Fee payment on the destination side is made from the asset in the `assets` vector of
+		/// index `fee_asset_item`. The weight limit for fees is not provided and thus is unlimited,
+		/// with all fees taken as needed from the asset.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
@@ -512,12 +505,12 @@ pub mod pallet {
 			Self::do_teleport_assets(origin, dest, beneficiary, assets, fee_asset_item, None)
 		}
 
-		/// Transfer some assets from the local chain to the sovereign account of a destination chain and forward
-		/// a notification XCM.
+		/// Transfer some assets from the local chain to the sovereign account of a destination
+		/// chain and forward a notification XCM.
 		///
-		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector and
-		/// fee-weight is calculated locally and thus remote weights are assumed to be equal to
-		/// local weights.
+		/// Fee payment on the destination side is made from the asset in the `assets` vector of
+		/// index `fee_asset_item`. The weight limit for fees is not provided and thus is unlimited,
+		/// with all fees taken as needed from the asset.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
@@ -672,10 +665,13 @@ pub mod pallet {
 			})
 		}
 
-		/// Transfer some assets from the local chain to the sovereign account of a destination chain and forward
-		/// a notification XCM.
+		/// Transfer some assets from the local chain to the sovereign account of a destination
+		/// chain and forward a notification XCM.
 		///
-		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector.
+		/// Fee payment on the destination side is made from the asset in the `assets` vector of
+		/// index `fee_asset_item`, up to enough to pay for `weight_limit` of weight. If more weight
+		/// is needed than `weight_limit`, then the operation will fail and the assets send may be
+		/// at risk.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
@@ -719,7 +715,10 @@ pub mod pallet {
 
 		/// Teleport some assets from the local chain to some destination chain.
 		///
-		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector.
+		/// Fee payment on the destination side is made from the asset in the `assets` vector of
+		/// index `fee_asset_item`, up to enough to pay for `weight_limit` of weight. If more weight
+		/// is needed than `weight_limit`, then the operation will fail and the assets send may be
+		/// at risk.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
@@ -1075,7 +1074,7 @@ pub mod pallet {
 
 		pub fn check_account() -> T::AccountId {
 			const ID: PalletId = PalletId(*b"py/xcmch");
-			AccountIdConversion::<T::AccountId>::into_account(&ID)
+			AccountIdConversion::<T::AccountId>::into_account_truncating(&ID)
 		}
 
 		fn do_new_query(

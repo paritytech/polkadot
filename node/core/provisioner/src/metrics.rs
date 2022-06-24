@@ -15,13 +15,13 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use std::convert::TryInto;
 
 #[derive(Clone)]
 struct MetricsInner {
 	inherent_data_requests: prometheus::CounterVec<prometheus::U64>,
 	request_inherent_data: prometheus::Histogram,
 	provisionable_data: prometheus::Histogram,
+	inherent_data_response_bitfields: prometheus::Histogram,
 
 	/// The following metrics track how many disputes/votes the runtime will have to process. These will count
 	/// all recent statements meaning every dispute from last sessions: 10 min on Rococo, 60 min on Kusama and
@@ -35,6 +35,12 @@ struct MetricsInner {
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
+	/// Creates new dummy `Metrics` instance. Used for testing only.
+	#[cfg(test)]
+	pub fn new_dummy() -> Metrics {
+		Metrics(None)
+	}
+
 	pub(crate) fn on_inherent_data_request(&self, response: Result<(), ()>) {
 		if let Some(metrics) = &self.0 {
 			match response {
@@ -56,6 +62,12 @@ impl Metrics {
 		&self,
 	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.provisionable_data.start_timer())
+	}
+
+	pub(crate) fn observe_inherent_data_bitfields_count(&self, bitfields_count: usize) {
+		self.0.as_ref().map(|metrics| {
+			metrics.inherent_data_response_bitfields.observe(bitfields_count as f64)
+		});
 	}
 
 	pub(crate) fn inc_valid_statements_by(&self, votes: usize) {
@@ -126,6 +138,15 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"polkadot_parachain_inherent_data_dispute_statement_sets",
 					"Number of dispute statements sets passed to `create_inherent()`.",
+				)?,
+				registry,
+			)?,
+			inherent_data_response_bitfields: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_provisioner_inherent_data_response_bitfields_sent",
+						"Number of inherent bitfields sent in response to `ProvisionerMessage::RequestInherentData`.",
+					).buckets(vec![0.0, 10.0, 25.0, 50.0, 75.0, 100.0, 150.0, 200.0, 250.0, 300.0]),
 				)?,
 				registry,
 			)?,

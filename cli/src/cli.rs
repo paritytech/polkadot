@@ -50,12 +50,10 @@ pub enum Subcommand {
 	#[clap(name = "execute-worker", hide = true)]
 	PvfExecuteWorker(ValidationWorkerCommand),
 
-	/// The custom benchmark subcommand benchmarking runtime pallets.
-	#[clap(name = "benchmark", about = "Benchmark runtime pallets.")]
+	/// Sub-commands concerned with benchmarking.
+	/// The pallet benchmarking moved to the `pallet` sub-command.
+	#[clap(subcommand)]
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
-
-	#[clap(name = "benchmark-storage", about = "Benchmark storage speed.")]
-	BenchmarkStorage(frame_benchmarking_cli::StorageCmd),
 
 	/// Runs performance checks such as PVF compilation in order to measure machine
 	/// capabilities of running a validator.
@@ -72,6 +70,9 @@ pub enum Subcommand {
 	/// Key management CLI utilities
 	#[clap(subcommand)]
 	Key(sc_cli::KeySubcommand),
+
+	/// Db meta columns information.
+	ChainInfo(sc_cli::ChainInfoCmd),
 }
 
 #[allow(missing_docs)]
@@ -83,6 +84,7 @@ pub struct ValidationWorkerCommand {
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
+#[cfg_attr(feature = "malus", derive(Clone))]
 pub struct RunCmd {
 	#[allow(missing_docs)]
 	#[clap(flatten)]
@@ -126,6 +128,22 @@ pub struct RunCmd {
 	/// commonly `127.0.0.1:4040`.
 	#[clap(long)]
 	pub pyroscope_server: Option<String>,
+
+	/// Disable automatic hardware benchmarks.
+	///
+	/// By default these benchmarks are automatically ran at startup and measure
+	/// the CPU speed, the memory bandwidth and the disk speed.
+	///
+	/// The results are then printed out in the logs, and also sent as part of
+	/// telemetry, if telemetry is enabled.
+	#[clap(long)]
+	pub no_hardware_benchmarks: bool,
+
+	/// Overseer message capacity override.
+	///
+	/// **Dangerous!** Do not touch unless explicitly adviced to.
+	#[clap(long)]
+	pub overseer_channel_capacity_override: Option<usize>,
 }
 
 #[allow(missing_docs)]

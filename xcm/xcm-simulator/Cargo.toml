@@ -1,13 +1,13 @@
 [package]
 name = "xcm-simulator"
-version = "0.9.18"
+version = "0.9.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Test kit to simulate cross-chain message passing and XCM execution"
 edition = "2021"
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0" }
-paste = "1.0.6"
+paste = "1.0.7"
 
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -22,7 +22,7 @@ use polkadot_node_subsystem::{
 		AllMessages, CandidateValidationMessage, PreCheckOutcome, PvfCheckerMessage,
 		RuntimeApiMessage, RuntimeApiRequest,
 	},
-	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, RuntimeApiError,
+	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal, RuntimeApiError,
 };
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 use polkadot_primitives::v2::{
@@ -134,7 +134,7 @@ impl TestState {
 			},
 		}
 
-		handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	}
 
 	/// Convenience function to invoke [`active_leaves_update`] with the new leaf that starts a new
@@ -206,7 +206,7 @@ impl TestState {
 		};
 
 		handle
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				activated,
 				deactivated: deactivated.into_iter().cloned().collect(),
 			})))

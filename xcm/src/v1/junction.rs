@@ -18,15 +18,14 @@
 
 use super::{BodyId, BodyPart, Junctions, MultiLocation, NetworkId};
 use crate::v0::Junction as Junction0;
-use alloc::vec::Vec;
-use core::convert::TryFrom;
-use parity_scale_codec::{self, Decode, Encode};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
+use sp_runtime::{traits::ConstU32, WeakBoundedVec};
 
 /// A single item in a path to describe the relative location of a consensus system.
 ///
 /// Each item assumes a pre-existing location as its context and is defined in terms of it.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
 pub enum Junction {
 	/// An indexed parachain belonging to and operated by the context.
 	///
@@ -66,7 +65,7 @@ pub enum Junction {
 	/// Usage will vary widely owing to its generality.
 	///
 	/// NOTE: Try to avoid using this and instead use a more specific item.
-	GeneralKey(Vec<u8>),
+	GeneralKey(WeakBoundedVec<u8, ConstU32<32>>),
 	/// The unambiguous child.
 	///
 	/// Not currently used except as a fallback when deriving ancestry.

@@ -15,17 +15,18 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::cli::{Cli, Subcommand};
+use frame_benchmarking_cli::{BenchmarkCmd, SUBSTRATE_REFERENCE_HARDWARE};
 use futures::future::TryFutureExt;
 use log::info;
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
-use service::{self, IdentifyVariant};
+use service::{self, HeaderBackend, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
 use std::net::ToSocketAddrs;
 
-pub use crate::error::Error;
+pub use crate::{error::Error, service::BlockId};
 pub use polkadot_performance_test::PerfCheckError;
 
-impl std::convert::From<String> for Error {
+impl From<String> for Error {
 	fn from(s: String) -> Self {
 		Self::Other(s)
 	}
@@ -126,11 +127,12 @@ impl SubstrateCli for Cli {
 			#[cfg(not(feature = "rococo-native"))]
 			name if name.starts_with("wococo-") =>
 				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
-			"versi" => Box::new(service::chain_spec::versi_config()?),
 			#[cfg(feature = "rococo-native")]
 			"versi-dev" => Box::new(service::chain_spec::versi_development_config()?),
 			#[cfg(feature = "rococo-native")]
 			"versi-local" => Box::new(service::chain_spec::versi_local_testnet_config()?),
+			#[cfg(feature = "rococo-native")]
+			"versi-staging" => Box::new(service::chain_spec::versi_staging_testnet_config()?),
 			#[cfg(not(feature = "rococo-native"))]
 			name if name.starts_with("versi-") =>
 				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
@@ -216,6 +218,27 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 	}
 }
 
+/// Unwraps a [`polkadot_client::Client`] into the concrete runtime client.
+macro_rules! unwrap_client {
+	(
+		$client:ident,
+		$code:expr
+	) => {
+		match $client.as_ref() {
+			#[cfg(feature = "polkadot-native")]
+			polkadot_client::Client::Polkadot($client) => $code,
+			#[cfg(feature = "westend-native")]
+			polkadot_client::Client::Westend($client) => $code,
+			#[cfg(feature = "kusama-native")]
+			polkadot_client::Client::Kusama($client) => $code,
+			#[cfg(feature = "rococo-native")]
+			polkadot_client::Client::Rococo($client) => $code,
+			#[allow(unreachable_patterns)]
+			_ => Err(Error::CommandNotImplemented),
+		}
+	};
+}
+
 /// Runs performance checks.
 /// Should only be used in release build since the check would take too much time otherwise.
 fn host_perf_check() -> Result<()> {
@@ -251,6 +274,13 @@ where
 		.map_err(Error::from)?;
 	let chain_spec = &runner.config().chain_spec;
 
+	// Disallow BEEFY on production networks.
+	if cli.run.beefy &&
+		(chain_spec.is_polkadot() || chain_spec.is_kusama() || chain_spec.is_westend())
+	{
+		return Err(Error::Other("BEEFY disallowed on production networks".to_string()))
+	}
+
 	set_default_ss58_version(chain_spec);
 
 	let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
@@ -280,6 +310,15 @@ where
 	};
 
 	runner.run_node_until_exit(move |config| async move {
+		let hwbench = if !cli.run.no_hardware_benchmarks {
+			config.database.path().map(|database_path| {
+				let _ = std::fs::create_dir_all(&database_path);
+				sc_sysinfo::gather_hwbench(Some(database_path))
+			})
+		} else {
+			None
+		};
+
 		let role = config.role.clone();
 
 		match role {
@@ -293,6 +332,8 @@ where
 				None,
 				false,
 				overseer_gen,
+				cli.run.overseer_channel_capacity_override,
+				hwbench,
 			)
 			.map(|full| full.task_manager)
 			.map_err(Into::into),
@@ -394,7 +435,19 @@ pub fn run() -> Result<()> {
 
 			Ok(runner.async_run(|mut config| {
 				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-				Ok((cmd.run(client, backend).map_err(Error::SubstrateCli), task_manager))
+				let aux_revert = Box::new(|client, backend, blocks| {
+					service::revert_backend(client, backend, blocks, config).map_err(|err| {
+						match err {
+							service::Error::Blockchain(err) => err.into(),
+							// Generic application-specific error.
+							err => sc_cli::Error::Application(err.into()),
+						}
+					})
+				});
+				Ok((
+					cmd.run(client, backend, Some(aux_revert)).map_err(Error::SubstrateCli),
+					task_manager,
+				))
 			})?)
 		},
 		Some(Subcommand::PvfPrepareWorker(cmd)) => {
@@ -438,58 +491,83 @@ pub fn run() -> Result<()> {
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
-			set_default_ss58_version(chain_spec);
 
-			ensure_dev(chain_spec).map_err(Error::Other)?;
+			match cmd {
+				BenchmarkCmd::Storage(cmd) => runner.sync_run(|mut config| {
+					let (client, backend, _, _) = service::new_chain_ops(&mut config, None)?;
+					let db = backend.expose_db();
+					let storage = backend.expose_storage();
 
-			#[cfg(feature = "kusama-native")]
-			if chain_spec.is_kusama() {
-				return Ok(runner.sync_run(|config| {
-					cmd.run::<service::kusama_runtime::Block, service::KusamaExecutorDispatch>(
-						config,
+					unwrap_client!(
+						client,
+						cmd.run(config, client.clone(), db, storage).map_err(Error::SubstrateCli)
 					)
-					.map_err(|e| Error::SubstrateCli(e))
-				})?)
+				}),
+				BenchmarkCmd::Block(cmd) => runner.sync_run(|mut config| {
+					let (client, _, _, _) = service::new_chain_ops(&mut config, None)?;
+
+					unwrap_client!(client, cmd.run(client.clone()).map_err(Error::SubstrateCli))
+				}),
+				BenchmarkCmd::Overhead(cmd) => {
+					ensure_dev(chain_spec).map_err(Error::Other)?;
+					runner.sync_run(|mut config| {
+						use polkadot_client::benchmark_inherent_data;
+						let (client, _, _, _) = service::new_chain_ops(&mut config, None)?;
+						let wrapped = client.clone();
+
+						let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
+						let inherent_data = benchmark_inherent_data(header)
+							.map_err(|e| format!("generating inherent data: {:?}", e))?;
+
+						unwrap_client!(
+							client,
+							cmd.run(config, client.clone(), inherent_data, wrapped)
+								.map_err(Error::SubstrateCli)
+						)
+					})
+				},
+				BenchmarkCmd::Pallet(cmd) => {
+					set_default_ss58_version(chain_spec);
+					ensure_dev(chain_spec).map_err(Error::Other)?;
+
+					#[cfg(feature = "kusama-native")]
+					if chain_spec.is_kusama() {
+						return Ok(runner.sync_run(|config| {
+							cmd.run::<service::kusama_runtime::Block, service::KusamaExecutorDispatch>(config)
+								.map_err(|e| Error::SubstrateCli(e))
+						})?)
+					}
+
+					#[cfg(feature = "westend-native")]
+					if chain_spec.is_westend() {
+						return Ok(runner.sync_run(|config| {
+							cmd.run::<service::westend_runtime::Block, service::WestendExecutorDispatch>(config)
+								.map_err(|e| Error::SubstrateCli(e))
+						})?)
+					}
+
+					// else we assume it is polkadot.
+					#[cfg(feature = "polkadot-native")]
+					{
+						return Ok(runner.sync_run(|config| {
+							cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(config)
+								.map_err(|e| Error::SubstrateCli(e))
+						})?)
+					}
+
+					#[cfg(not(feature = "polkadot-native"))]
+					#[allow(unreachable_code)]
+					Err(service::Error::NoRuntime.into())
+				},
+				BenchmarkCmd::Machine(cmd) => runner.sync_run(|config| {
+					cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone())
+						.map_err(Error::SubstrateCli)
+				}),
+				// NOTE: this allows the Polkadot client to leniently implement
+				// new benchmark commands.
+				#[allow(unreachable_patterns)]
+				_ => Err(Error::CommandNotImplemented),
 			}
-
-			#[cfg(feature = "westend-native")]
-			if chain_spec.is_westend() {
-				return Ok(runner.sync_run(|config| {
-					cmd.run::<service::westend_runtime::Block, service::WestendExecutorDispatch>(
-						config,
-					)
-					.map_err(|e| Error::SubstrateCli(e))
-				})?)
-			}
-
-			// else we assume it is polkadot.
-			#[cfg(feature = "polkadot-native")]
-			{
-				return Ok(runner.sync_run(|config| {
-					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(
-						config,
-					)
-					.map_err(|e| Error::SubstrateCli(e))
-				})?)
-			}
-			#[cfg(not(feature = "polkadot-native"))]
-			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
-		},
-		Some(Subcommand::BenchmarkStorage(cmd)) => {
-			let runner = cli.create_runner(cmd)?;
-			let chain_spec = &runner.config().chain_spec;
-			set_default_ss58_version(chain_spec);
-
-			Ok(runner.async_run(|mut config| {
-				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-				let db = backend.expose_db();
-				let storage = backend.expose_storage();
-
-				Ok((
-					cmd.run(config, client, db, storage).map_err(Error::SubstrateCli),
-					task_manager,
-				))
-			})?)
 		},
 		Some(Subcommand::HostPerfCheck) => {
 			let mut builder = sc_cli::LoggerBuilder::new("");
@@ -560,6 +638,10 @@ pub fn run() -> Result<()> {
 				.into(),
 		)
 		.into()),
+		Some(Subcommand::ChainInfo(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			Ok(runner.sync_run(|config| cmd.run::<service::Block>(&config))?)
+		},
 	}?;
 
 	#[cfg(feature = "pyroscope")]

@@ -16,11 +16,11 @@
 
 use frame_support::{
 	traits::{tokens::currency::Currency as CurrencyT, Get, OnUnbalanced as OnUnbalancedT},
-	weights::{constants::WEIGHT_PER_SECOND, GetDispatchInfo, Weight, WeightToFeePolynomial},
+	weights::{constants::WEIGHT_PER_SECOND, GetDispatchInfo, Weight, WeightToFee as WeightToFeeT},
 };
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
-use sp_std::{convert::TryInto, marker::PhantomData, result::Result};
+use sp_std::{marker::PhantomData, result::Result};
 use xcm::latest::prelude::*;
 use xcm_executor::{
 	traits::{WeightBounds, WeightTrader},
@@ -241,7 +241,7 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> Drop for FixedRateOfFungible<T, R>
 /// Weight trader which uses the `TransactionPayment` pallet to set the right price for weight and then
 /// places any weight bought into the right account.
 pub struct UsingComponents<
-	WeightToFee: WeightToFeePolynomial<Balance = Currency::Balance>,
+	WeightToFee: WeightToFeeT<Balance = Currency::Balance>,
 	AssetId: Get<MultiLocation>,
 	AccountId,
 	Currency: CurrencyT<AccountId>,
@@ -252,7 +252,7 @@ pub struct UsingComponents<
 	PhantomData<(WeightToFee, AssetId, AccountId, Currency, OnUnbalanced)>,
 );
 impl<
-		WeightToFee: WeightToFeePolynomial<Balance = Currency::Balance>,
+		WeightToFee: WeightToFeeT<Balance = Currency::Balance>,
 		AssetId: Get<MultiLocation>,
 		AccountId,
 		Currency: CurrencyT<AccountId>,
@@ -265,7 +265,7 @@ impl<
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
 		log::trace!(target: "xcm::weight", "UsingComponents::buy_weight weight: {:?}, payment: {:?}", weight, payment);
-		let amount = WeightToFee::calc(&weight);
+		let amount = WeightToFee::weight_to_fee(&weight);
 		let u128_amount: u128 = amount.try_into().map_err(|_| XcmError::Overflow)?;
 		let required = (Concrete(AssetId::get()), u128_amount).into();
 		let unused = payment.checked_sub(required).map_err(|_| XcmError::TooExpensive)?;
@@ -277,7 +277,7 @@ impl<
 	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
 		log::trace!(target: "xcm::weight", "UsingComponents::refund_weight weight: {:?}", weight);
 		let weight = weight.min(self.0);
-		let amount = WeightToFee::calc(&weight);
+		let amount = WeightToFee::weight_to_fee(&weight);
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		let amount: u128 = amount.saturated_into();
@@ -289,7 +289,7 @@ impl<
 	}
 }
 impl<
-		WeightToFee: WeightToFeePolynomial<Balance = Currency::Balance>,
+		WeightToFee: WeightToFeeT<Balance = Currency::Balance>,
 		AssetId: Get<MultiLocation>,
 		AccountId,
 		Currency: CurrencyT<AccountId>,

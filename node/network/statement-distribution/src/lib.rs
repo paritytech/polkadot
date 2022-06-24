@@ -26,27 +26,29 @@ use error::{log_error, FatalResult, JfyiErrorResult};
 use parity_scale_codec::Encode;
 
 use polkadot_node_network_protocol::{
+	self as net_protocol,
+	grid_topology::{RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology},
 	peer_set::{IsAuthority, PeerSet},
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	v1::{self as protocol_v1, StatementMetadata},
-	IfDisconnected, PeerId, UnifiedReputationChange as Rep, View,
+	IfDisconnected, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_primitives::{SignedFullStatement, Statement, UncheckedSignedFullStatement};
-use polkadot_node_subsystem_util::{self as util, MIN_GOSSIP_PEERS};
+use polkadot_node_subsystem_util::{self as util, rand, MIN_GOSSIP_PEERS};
 
+use polkadot_node_subsystem::{
+	jaeger,
+	messages::{
+		CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeMessage,
+		StatementDistributionMessage,
+	},
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
+	SubsystemError,
+};
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
 	SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
 	ValidatorSignature,
-};
-use polkadot_subsystem::{
-	jaeger,
-	messages::{
-		AllMessages, CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeMessage,
-		StatementDistributionMessage,
-	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
-	SubsystemContext, SubsystemError,
 };
 
 use futures::{
@@ -115,20 +117,19 @@ const LOG_TARGET: &str = "parachain::statement-distribution";
 const MAX_LARGE_STATEMENTS_PER_SENDER: usize = 20;
 
 /// The statement distribution subsystem.
-pub struct StatementDistributionSubsystem {
+pub struct StatementDistributionSubsystem<R> {
 	/// Pointer to a keystore, which is required for determining this node's validator index.
 	keystore: SyncCryptoStorePtr,
 	/// Receiver for incoming large statement requests.
 	req_receiver: Option<IncomingRequestReceiver<request_v1::StatementFetchingRequest>>,
 	/// Prometheus metrics
 	metrics: Metrics,
+	/// Pseudo-random generator for peers selection logic
+	rng: R,
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for StatementDistributionSubsystem
-where
-	Context: SubsystemContext<Message = StatementDistributionMessage>,
-	Context: overseer::SubsystemContext<Message = StatementDistributionMessage>,
-{
+#[overseer::subsystem(StatementDistribution, error=SubsystemError, prefix=self::overseer)]
+impl<Context, R: rand::Rng + Send + Sync + 'static> StatementDistributionSubsystem<R> {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run`.
@@ -139,17 +140,6 @@ where
 				.map_err(|e| SubsystemError::with_origin("statement-distribution", e))
 				.boxed(),
 		}
-	}
-}
-
-impl StatementDistributionSubsystem {
-	/// Create a new Statement Distribution Subsystem
-	pub fn new(
-		keystore: SyncCryptoStorePtr,
-		req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
-		metrics: Metrics,
-	) -> Self {
-		Self { keystore, req_receiver: Some(req_receiver), metrics }
 	}
 }
 
@@ -630,17 +620,17 @@ struct FetchingInfo {
 /// Messages to be handled in this subsystem.
 enum MuxedMessage {
 	/// Messages from other subsystems.
-	Subsystem(FatalResult<FromOverseer<StatementDistributionMessage>>),
+	Subsystem(FatalResult<FromOrchestra<StatementDistributionMessage>>),
 	/// Messages from spawned requester background tasks.
 	Requester(Option<RequesterMessage>),
 	/// Messages from spawned responder background task.
 	Responder(Option<ResponderMessage>),
 }
 
+#[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
 impl MuxedMessage {
-	async fn receive(
-		ctx: &mut (impl SubsystemContext<Message = StatementDistributionMessage>
-		          + overseer::SubsystemContext<Message = StatementDistributionMessage>),
+	async fn receive<Context>(
+		ctx: &mut Context,
 		from_requester: &mut mpsc::Receiver<RequesterMessage>,
 		from_responder: &mut mpsc::Receiver<ResponderMessage>,
 	) -> MuxedMessage {
@@ -897,15 +887,17 @@ fn check_statement_signature(
 /// circulates the statement to all peers who have not seen it yet, and
 /// sends all statements dependent on that statement to peers who could previously not receive
 /// them but now can.
-async fn circulate_statement_and_dependents(
-	gossip_peers: &HashSet<PeerId>,
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn circulate_statement_and_dependents<Context>(
+	topology_store: &SessionBoundGridTopologyStorage,
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	ctx: &mut Context,
 	relay_parent: Hash,
 	statement: SignedFullStatement,
 	priority_peers: Vec<PeerId>,
 	metrics: &Metrics,
+	rng: &mut impl rand::Rng,
 ) {
 	let active_head = match active_heads.get_mut(&relay_parent) {
 		Some(res) => res,
@@ -918,6 +910,7 @@ async fn circulate_statement_and_dependents(
 		.with_candidate(statement.payload().candidate_hash())
 		.with_stage(jaeger::Stage::StatementDistribution);
 
+	let topology = topology_store.get_topology_or_fallback(active_head.session_index);
 	// First circulate the statement directly to all peers needing it.
 	// The borrow of `active_head` needs to encompass only this (Rust) statement.
 	let outputs: Option<(CandidateHash, Vec<PeerId>)> = {
@@ -925,13 +918,15 @@ async fn circulate_statement_and_dependents(
 			NotedStatement::Fresh(stored) => Some((
 				*stored.compact().candidate_hash(),
 				circulate_statement(
-					gossip_peers,
+					RequiredRouting::GridXY,
+					topology,
 					peers,
 					ctx,
 					relay_parent,
 					stored,
 					priority_peers,
 					metrics,
+					rng,
 				)
 				.await,
 			)),
@@ -967,7 +962,7 @@ fn statement_message(
 	relay_parent: Hash,
 	statement: SignedFullStatement,
 	metrics: &Metrics,
-) -> protocol_v1::ValidationProtocol {
+) -> net_protocol::VersionedValidationProtocol {
 	let (is_large, size) = is_statement_large(&statement);
 	if let Some(size) = size {
 		metrics.on_created_message(size);
@@ -984,7 +979,7 @@ fn statement_message(
 		protocol_v1::StatementDistributionMessage::Statement(relay_parent, statement.into())
 	};
 
-	protocol_v1::ValidationProtocol::StatementDistribution(msg)
+	protocol_v1::ValidationProtocol::StatementDistribution(msg).into()
 }
 
 /// Check whether a statement should be treated as large statement.
@@ -1011,14 +1006,17 @@ fn is_statement_large(statement: &SignedFullStatement) -> (bool, Option<usize>) 
 
 /// Circulates a statement to all peers who have not seen it yet, and returns
 /// an iterator over peers who need to have dependent statements sent.
-async fn circulate_statement<'a>(
-	gossip_peers: &HashSet<PeerId>,
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn circulate_statement<'a, Context>(
+	required_routing: RequiredRouting,
+	topology: &SessionGridTopology,
 	peers: &mut HashMap<PeerId, PeerData>,
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	ctx: &mut Context,
 	relay_parent: Hash,
 	stored: StoredStatement<'a>,
 	mut priority_peers: Vec<PeerId>,
 	metrics: &Metrics,
+	rng: &mut impl rand::Rng,
 ) -> Vec<PeerId> {
 	let fingerprint = stored.fingerprint();
 
@@ -1041,8 +1039,12 @@ async fn circulate_statement<'a>(
 	let priority_set: HashSet<&PeerId> = priority_peers.iter().collect();
 	peers_to_send.retain(|p| !priority_set.contains(p));
 
-	let mut peers_to_send =
-		util::choose_random_subset(|e| gossip_peers.contains(e), peers_to_send, MIN_GOSSIP_PEERS);
+	util::choose_random_subset_with_rng(
+		|e| topology.route_to_peer(required_routing, e),
+		&mut peers_to_send,
+		rng,
+		MIN_GOSSIP_PEERS,
+	);
 	// We don't want to use less peers, than we would without any priority peers:
 	let min_size = std::cmp::max(peers_to_send.len(), MIN_GOSSIP_PEERS);
 	// Make set full:
@@ -1081,10 +1083,10 @@ async fn circulate_statement<'a>(
 			statement = ?stored.statement,
 			"Sending statement",
 		);
-		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
 			peers_to_send.iter().map(|(p, _)| p.clone()).collect(),
 			payload,
-		)))
+		))
 		.await;
 	}
 
@@ -1095,10 +1097,11 @@ async fn circulate_statement<'a>(
 }
 
 /// Send all statements about a given candidate hash to a peer.
-async fn send_statements_about(
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn send_statements_about<Context>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	ctx: &mut Context,
 	relay_parent: Hash,
 	candidate_hash: CandidateHash,
 	active_head: &ActiveHeadData,
@@ -1120,21 +1123,19 @@ async fn send_statements_about(
 			statement = ?statement.statement,
 			"Sending statement",
 		);
-		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
-			vec![peer.clone()],
-			payload,
-		)))
-		.await;
+		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload))
+			.await;
 
 		metrics.on_statement_distributed();
 	}
 }
 
 /// Send all statements at a given relay-parent to a peer.
-async fn send_statements(
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn send_statements<Context>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	ctx: &mut Context,
 	relay_parent: Hash,
 	active_head: &ActiveHeadData,
 	metrics: &Metrics,
@@ -1154,23 +1155,19 @@ async fn send_statements(
 			statement = ?statement.statement,
 			"Sending statement"
 		);
-		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
-			vec![peer.clone()],
-			payload,
-		)))
-		.await;
+		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload))
+			.await;
 
 		metrics.on_statement_distributed();
 	}
 }
 
 async fn report_peer(
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	sender: &mut impl overseer::StatementDistributionSenderTrait,
 	peer: PeerId,
 	rep: Rep,
 ) {
-	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep)))
-		.await
+	sender.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
 }
 
 /// If message contains a statement, then retrieve it, otherwise fork task to fetch it.
@@ -1180,11 +1177,12 @@ async fn report_peer(
 /// your statement.
 ///
 /// If the message was large, but the result has been fetched already that one is returned.
-async fn retrieve_statement_from_message<'a>(
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn retrieve_statement_from_message<'a, Context>(
 	peer: PeerId,
 	message: protocol_v1::StatementDistributionMessage,
 	active_head: &'a mut ActiveHeadData,
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	ctx: &mut Context,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 ) -> Option<UncheckedSignedFullStatement> {
@@ -1272,11 +1270,12 @@ async fn retrieve_statement_from_message<'a>(
 /// Launch request for a large statement and get tracking status.
 ///
 /// Returns `None` if spawning task failed.
-async fn launch_request(
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn launch_request<Context>(
 	meta: StatementMetadata,
 	peer: PeerId,
 	req_sender: mpsc::Sender<RequesterMessage>,
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	ctx: &mut Context,
 	metrics: &Metrics,
 ) -> Option<LargeStatementStatus> {
 	let (task, handle) =
@@ -1302,18 +1301,22 @@ async fn launch_request(
 }
 
 /// Handle incoming message and circulate it to peers, if we did not know it already.
-///
-async fn handle_incoming_message_and_circulate<'a>(
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn handle_incoming_message_and_circulate<'a, Context, R>(
 	peer: PeerId,
-	gossip_peers: &HashSet<PeerId>,
+	topology_storage: &SessionBoundGridTopologyStorage,
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	recent_outdated_heads: &RecentOutdatedHeads,
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	ctx: &mut Context,
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
-) {
+	runtime: &mut RuntimeInfo,
+	rng: &mut R,
+) where
+	R: rand::Rng,
+{
 	let handled_incoming = match peers.get_mut(&peer) {
 		Some(data) =>
 			handle_incoming_message(
@@ -1340,14 +1343,34 @@ async fn handle_incoming_message_and_circulate<'a>(
 		// that require dependents. Thus, if this is a `Seconded` statement for a candidate we
 		// were not aware of before, we cannot have any dependent statements from the candidate.
 		let _ = metrics.time_network_bridge_update_v1("circulate_statement");
+
+		let session_index = runtime.get_session_index_for_child(ctx.sender(), relay_parent).await;
+		let topology = match session_index {
+			Ok(session_index) => topology_storage.get_topology_or_fallback(session_index),
+			Err(e) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					%relay_parent,
+					"cannot get session index for the specific relay parent: {:?}",
+					e
+				);
+
+				topology_storage.get_current_topology()
+			},
+		};
+		let required_routing =
+			topology.required_routing_by_index(statement.statement.validator_index(), false);
+
 		let _ = circulate_statement(
-			gossip_peers,
+			required_routing,
+			topology,
 			peers,
 			ctx,
 			relay_parent,
 			statement,
 			Vec::new(),
 			metrics,
+			rng,
 		)
 		.await;
 	}
@@ -1358,12 +1381,13 @@ async fn handle_incoming_message_and_circulate<'a>(
 //
 // This function checks the signature and ensures the statement is compatible with our
 // view. It also notifies candidate backing if the statement was previously unknown.
-async fn handle_incoming_message<'a>(
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn handle_incoming_message<'a, Context>(
 	peer: PeerId,
 	peer_data: &mut PeerData,
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	recent_outdated_heads: &RecentOutdatedHeads,
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	ctx: &mut Context,
 	message: protocol_v1::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
@@ -1381,7 +1405,7 @@ async fn handle_incoming_message<'a>(
 			);
 
 			if !recent_outdated_heads.is_recent_outdated(&relay_parent) {
-				report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await;
+				report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
 			}
 
 			return None
@@ -1391,7 +1415,7 @@ async fn handle_incoming_message<'a>(
 	if let protocol_v1::StatementDistributionMessage::LargeStatement(_) = message {
 		if let Err(rep) = peer_data.receive_large_statement(&relay_parent) {
 			gum::debug!(target: LOG_TARGET, ?peer, ?message, ?rep, "Unexpected large statement.",);
-			report_peer(ctx, peer, rep).await;
+			report_peer(ctx.sender(), peer, rep).await;
 			return None
 		}
 	}
@@ -1432,16 +1456,16 @@ async fn handle_incoming_message<'a>(
 				// Report peer merely if this is not a duplicate out-of-view statement that
 				// was caused by a missing Seconded statement from this peer
 				if unexpected_count == 0_usize {
-					report_peer(ctx, peer, rep).await;
+					report_peer(ctx.sender(), peer, rep).await;
 				}
 			},
 			// This happens when we have an unexpected remote peer that announced Seconded
 			COST_UNEXPECTED_STATEMENT_REMOTE => {
 				metrics.on_unexpected_statement_seconded();
-				report_peer(ctx, peer, rep).await;
+				report_peer(ctx.sender(), peer, rep).await;
 			},
 			_ => {
-				report_peer(ctx, peer, rep).await;
+				report_peer(ctx.sender(), peer, rep).await;
 			},
 		}
 
@@ -1458,7 +1482,12 @@ async fn handle_incoming_message<'a>(
 			Ok(()) => {},
 			Err(DeniedStatement::NotUseful) => return None,
 			Err(DeniedStatement::UsefulButKnown) => {
-				report_peer(ctx, peer, BENEFIT_VALID_STATEMENT).await;
+				// Note a received statement in the peer data
+				peer_data
+					.receive(&relay_parent, &fingerprint, max_message_count)
+					.expect("checked in `check_can_receive` above; qed");
+				report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT).await;
+
 				return None
 			},
 		}
@@ -1467,7 +1496,7 @@ async fn handle_incoming_message<'a>(
 		match check_statement_signature(&active_head, relay_parent, unchecked_compact) {
 			Err(statement) => {
 				gum::debug!(target: LOG_TARGET, ?peer, ?statement, "Invalid statement signature");
-				report_peer(ctx, peer, COST_INVALID_SIGNATURE).await;
+				report_peer(ctx.sender(), peer, COST_INVALID_SIGNATURE).await;
 				return None
 			},
 			Ok(statement) => statement,
@@ -1493,7 +1522,7 @@ async fn handle_incoming_message<'a>(
 				is_large_statement,
 				"Full statement had bad payload."
 			);
-			report_peer(ctx, peer, COST_WRONG_HASH).await;
+			report_peer(ctx.sender(), peer, COST_WRONG_HASH).await;
 			return None
 		},
 		Ok(statement) => statement,
@@ -1532,7 +1561,7 @@ async fn handle_incoming_message<'a>(
 			unreachable!("checked in `is_useful_or_unknown` above; qed");
 		},
 		NotedStatement::Fresh(statement) => {
-			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT_FIRST).await;
+			report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT_FIRST).await;
 
 			let mut _span = handle_incoming_span.child("notify-backing");
 
@@ -1550,15 +1579,19 @@ async fn handle_incoming_message<'a>(
 }
 
 /// Update a peer's view. Sends all newly unlocked statements based on the previous
-async fn update_peer_view_and_maybe_send_unlocked(
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn update_peer_view_and_maybe_send_unlocked<Context, R>(
 	peer: PeerId,
-	gossip_peers: &HashSet<PeerId>,
+	topology: &SessionGridTopology,
 	peer_data: &mut PeerData,
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	ctx: &mut Context,
 	active_heads: &HashMap<Hash, ActiveHeadData>,
 	new_view: View,
 	metrics: &Metrics,
-) {
+	rng: &mut R,
+) where
+	R: rand::Rng,
+{
 	let old_view = std::mem::replace(&mut peer_data.view, new_view);
 
 	// Remove entries for all relay-parents in the old view but not the new.
@@ -1566,11 +1599,13 @@ async fn update_peer_view_and_maybe_send_unlocked(
 		let _ = peer_data.view_knowledge.remove(removed);
 	}
 
-	let is_gossip_peer = gossip_peers.contains(&peer);
+	// Use both grid directions
+	let is_gossip_peer = topology.route_to_peer(RequiredRouting::GridXY, &peer);
 	let lucky = is_gossip_peer ||
-		util::gen_ratio(
-			util::MIN_GOSSIP_PEERS.saturating_sub(gossip_peers.len()),
+		util::gen_ratio_rng(
+			util::MIN_GOSSIP_PEERS.saturating_sub(topology.len()),
 			util::MIN_GOSSIP_PEERS,
+			rng,
 		);
 
 	// Add entries for all relay-parents in the new view but not the old.
@@ -1587,19 +1622,24 @@ async fn update_peer_view_and_maybe_send_unlocked(
 	}
 }
 
-async fn handle_network_update(
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn handle_network_update<Context, R>(
 	peers: &mut HashMap<PeerId, PeerData>,
-	gossip_peers: &mut HashSet<PeerId>,
+	topology_storage: &mut SessionBoundGridTopologyStorage,
 	authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
 	recent_outdated_heads: &RecentOutdatedHeads,
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	ctx: &mut Context,
 	req_sender: &mpsc::Sender<RequesterMessage>,
-	update: NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>,
+	update: NetworkBridgeEvent<net_protocol::StatementDistributionMessage>,
 	metrics: &Metrics,
-) {
+	runtime: &mut RuntimeInfo,
+	rng: &mut R,
+) where
+	R: rand::Rng,
+{
 	match update {
-		NetworkBridgeEvent::PeerConnected(peer, role, maybe_authority) => {
+		NetworkBridgeEvent::PeerConnected(peer, role, _, maybe_authority) => {
 			gum::trace!(target: LOG_TARGET, ?peer, ?role, "Peer connected");
 			peers.insert(
 				peer,
@@ -1623,30 +1663,35 @@ async fn handle_network_update(
 				});
 			}
 		},
-		NetworkBridgeEvent::NewGossipTopology(new_peers) => {
+		NetworkBridgeEvent::NewGossipTopology(topology) => {
 			let _ = metrics.time_network_bridge_update_v1("new_gossip_topology");
-			let newly_added: Vec<PeerId> = new_peers.difference(gossip_peers).cloned().collect();
-			*gossip_peers = new_peers;
+
+			let new_session_index = topology.session;
+			let new_topology: SessionGridTopology = topology.into();
+			let old_topology = topology_storage.get_current_topology();
+			let newly_added = new_topology.peers_diff(old_topology);
+			topology_storage.update_topology(new_session_index, new_topology);
 			for peer in newly_added {
 				if let Some(data) = peers.get_mut(&peer) {
 					let view = std::mem::take(&mut data.view);
 					update_peer_view_and_maybe_send_unlocked(
 						peer,
-						gossip_peers,
+						topology_storage.get_current_topology(),
 						data,
 						ctx,
 						&*active_heads,
 						view,
 						metrics,
+						rng,
 					)
 					.await
 				}
 			}
 		},
-		NetworkBridgeEvent::PeerMessage(peer, message) => {
+		NetworkBridgeEvent::PeerMessage(peer, Versioned::V1(message)) => {
 			handle_incoming_message_and_circulate(
 				peer,
-				gossip_peers,
+				topology_storage,
 				peers,
 				active_heads,
 				&*recent_outdated_heads,
@@ -1654,6 +1699,8 @@ async fn handle_network_update(
 				message,
 				req_sender,
 				metrics,
+				runtime,
+				rng,
 			)
 			.await;
 		},
@@ -1664,12 +1711,13 @@ async fn handle_network_update(
 				Some(data) =>
 					update_peer_view_and_maybe_send_unlocked(
 						peer,
-						gossip_peers,
+						topology_storage.get_current_topology(),
 						data,
 						ctx,
 						&*active_heads,
 						view,
 						metrics,
+						rng,
 					)
 					.await,
 				None => (),
@@ -1681,14 +1729,21 @@ async fn handle_network_update(
 	}
 }
 
-impl StatementDistributionSubsystem {
-	async fn run(
-		mut self,
-		mut ctx: (impl SubsystemContext<Message = StatementDistributionMessage>
-		     + overseer::SubsystemContext<Message = StatementDistributionMessage>),
-	) -> std::result::Result<(), FatalError> {
+#[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
+impl<R: rand::Rng> StatementDistributionSubsystem<R> {
+	/// Create a new Statement Distribution Subsystem
+	pub fn new(
+		keystore: SyncCryptoStorePtr,
+		req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
+		metrics: Metrics,
+		rng: R,
+	) -> Self {
+		Self { keystore, req_receiver: Some(req_receiver), metrics, rng }
+	}
+
+	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError> {
 		let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
-		let mut gossip_peers: HashSet<PeerId> = HashSet::new();
+		let mut topology_storage: SessionBoundGridTopologyStorage = Default::default();
 		let mut authorities: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
 		let mut active_heads: HashMap<Hash, ActiveHeadData> = HashMap::new();
 		let mut recent_outdated_heads = RecentOutdatedHeads::default();
@@ -1720,7 +1775,7 @@ impl StatementDistributionSubsystem {
 							&mut ctx,
 							&mut runtime,
 							&mut peers,
-							&mut gossip_peers,
+							&mut topology_storage,
 							&mut authorities,
 							&mut active_heads,
 							&mut recent_outdated_heads,
@@ -1738,11 +1793,12 @@ impl StatementDistributionSubsystem {
 					let result = self
 						.handle_requester_message(
 							&mut ctx,
-							&gossip_peers,
+							&topology_storage,
 							&mut peers,
 							&mut active_heads,
 							&recent_outdated_heads,
 							&req_sender,
+							&mut runtime,
 							result.ok_or(FatalError::RequesterReceiverFinished)?,
 						)
 						.await;
@@ -1802,14 +1858,15 @@ impl StatementDistributionSubsystem {
 		Ok(())
 	}
 
-	async fn handle_requester_message(
-		&self,
-		ctx: &mut impl SubsystemContext,
-		gossip_peers: &HashSet<PeerId>,
+	async fn handle_requester_message<Context>(
+		&mut self,
+		ctx: &mut Context,
+		topology_storage: &SessionBoundGridTopologyStorage,
 		peers: &mut HashMap<PeerId, PeerData>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		recent_outdated_heads: &RecentOutdatedHeads,
 		req_sender: &mpsc::Sender<RequesterMessage>,
+		runtime: &mut RuntimeInfo,
 		message: RequesterMessage,
 	) -> JfyiErrorResult<()> {
 		match message {
@@ -1821,9 +1878,9 @@ impl StatementDistributionSubsystem {
 				bad_peers,
 			} => {
 				for bad in bad_peers {
-					report_peer(ctx, bad, COST_FETCH_FAIL).await;
+					report_peer(ctx.sender(), bad, COST_FETCH_FAIL).await;
 				}
-				report_peer(ctx, from_peer, BENEFIT_VALID_RESPONSE).await;
+				report_peer(ctx.sender(), from_peer, BENEFIT_VALID_RESPONSE).await;
 
 				let active_head = active_heads
 					.get_mut(&relay_parent)
@@ -1853,7 +1910,7 @@ impl StatementDistributionSubsystem {
 					for message in messages {
 						handle_incoming_message_and_circulate(
 							peer,
-							gossip_peers,
+							topology_storage,
 							peers,
 							active_heads,
 							recent_outdated_heads,
@@ -1861,16 +1918,18 @@ impl StatementDistributionSubsystem {
 							message,
 							req_sender,
 							&self.metrics,
+							runtime,
+							&mut self.rng,
 						)
 						.await;
 					}
 				}
 			},
 			RequesterMessage::SendRequest(req) => {
-				ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(
+				ctx.send_message(NetworkBridgeMessage::SendRequests(
 					vec![req],
 					IfDisconnected::ImmediateError,
-				)))
+				))
 				.await;
 			},
 			RequesterMessage::GetMorePeers { relay_parent, candidate_hash, tx } => {
@@ -1904,27 +1963,27 @@ impl StatementDistributionSubsystem {
 					}
 				}
 			},
-			RequesterMessage::ReportPeer(peer, rep) => report_peer(ctx, peer, rep).await,
+			RequesterMessage::ReportPeer(peer, rep) => report_peer(ctx.sender(), peer, rep).await,
 		}
 		Ok(())
 	}
 
-	async fn handle_subsystem_message(
-		&self,
-		ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+	async fn handle_subsystem_message<Context>(
+		&mut self,
+		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		peers: &mut HashMap<PeerId, PeerData>,
-		gossip_peers: &mut HashSet<PeerId>,
+		topology_storage: &mut SessionBoundGridTopologyStorage,
 		authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		recent_outdated_heads: &mut RecentOutdatedHeads,
 		req_sender: &mpsc::Sender<RequesterMessage>,
-		message: FromOverseer<StatementDistributionMessage>,
+		message: FromOrchestra<StatementDistributionMessage>,
 	) -> Result<bool> {
 		let metrics = &self.metrics;
 
 		match message {
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				activated,
 				deactivated,
 			})) => {
@@ -1966,11 +2025,11 @@ impl StatementDistributionSubsystem {
 					));
 				}
 			},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {
+			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {
 				// do nothing
 			},
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(true),
-			FromOverseer::Communication { msg } => match msg {
+			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(true),
+			FromOrchestra::Communication { msg } => match msg {
 				StatementDistributionMessage::Share(relay_parent, statement) => {
 					let _timer = metrics.time_share();
 
@@ -2014,7 +2073,7 @@ impl StatementDistributionSubsystem {
 						}
 					};
 					circulate_statement_and_dependents(
-						gossip_peers,
+						topology_storage,
 						peers,
 						active_heads,
 						ctx,
@@ -2022,13 +2081,14 @@ impl StatementDistributionSubsystem {
 						statement,
 						group_peers,
 						metrics,
+						&mut self.rng,
 					)
 					.await;
 				},
-				StatementDistributionMessage::NetworkBridgeUpdateV1(event) => {
+				StatementDistributionMessage::NetworkBridgeUpdate(event) => {
 					handle_network_update(
 						peers,
-						gossip_peers,
+						topology_storage,
 						authorities,
 						active_heads,
 						&*recent_outdated_heads,
@@ -2036,6 +2096,8 @@ impl StatementDistributionSubsystem {
 						req_sender,
 						event,
 						metrics,
+						runtime,
+						&mut self.rng,
 					)
 					.await;
 				},

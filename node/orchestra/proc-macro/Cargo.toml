@@ -1,0 +1,38 @@
+[package]
+name = "orchestra-proc-macro"
+version = "0.0.1"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2021"
+description = "Generate an orchestra of subsystems from a single annotated struct definition."
+repository = "https://github.com/paritytech/polkadot"
+license = "MIT OR Apache-2.0"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "1.0.95", features = ["full", "extra-traits"] }
+quote = "1.0.19"
+proc-macro2 = "1.0.40"
+proc-macro-crate = "1.1.3"
+expander = { version = "0.0.6", default-features = false }
+petgraph = "0.6.0"
+itertools = { version = "0.10.3" }
+
+[dev-dependencies]
+assert_matches = "1.5"
+orchestra = { path = "../" }
+thiserror = "1"
+tracing = "0.1"
+
+[features]
+default = [] # enable "graph" by default, blocked by <https://github.com/paritytech/ci_cd/issues/433>
+# write the expanded version to a `orchestra-expansion.[a-f0-9]{10}.rs`
+# in the `OUT_DIR` as defined by `cargo` for the `expander` crate.
+expand = []
+# Create directional message consuming / outgoing graph.
+# Generates: `${OUT_DIR}/${orchestra|lowercase}-subsystem-messaging.dot`
+graph = []

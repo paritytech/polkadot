@@ -1,12 +1,12 @@
 [package]
 name = "polkadot-performance-test"
-version = "0.9.18"
+version = "0.9.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
-thiserror = "1.0.30"
-quote = "1.0.16"
+thiserror = "1.0.31"
+quote = "1.0.19"
 env_logger = "0.9"
 log = "0.4"
 

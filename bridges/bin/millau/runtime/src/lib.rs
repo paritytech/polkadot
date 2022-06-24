@@ -32,15 +32,16 @@ pub mod rialto_messages;
 
 use crate::rialto_messages::{ToRialtoMessagePayload, WithRialtoMessageBridge};
 
-use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::MmrLeafVersion, ValidatorSet};
+use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::{MmrLeafVersion}, ValidatorSet};
 use bridge_runtime_common::messages::{
 	source::estimate_message_dispatch_and_delivery_fee, MessageBridge,
 };
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
-use pallet_mmr_primitives::{
-	DataOrHash, EncodableOpaqueLeaf, Error as MmrError, LeafDataProvider, Proof as MmrProof,
+use sp_mmr_primitives::{
+	DataOrHash, EncodableOpaqueLeaf, Error as MmrError, LeafDataProvider,
+	BatchProof as MmrBatchProof, Proof as MmrProof, LeafIndex as MmrLeafIndex
 };
 use pallet_transaction_payment::{FeeDetails, Multiplier, RuntimeDispatchInfo};
 use sp_api::impl_runtime_apis;
@@ -220,6 +221,7 @@ impl pallet_aura::Config for Runtime {
 
 impl pallet_beefy::Config for Runtime {
 	type BeefyId = BeefyId;
+	type MaxAuthorities = MaxAuthorities;
 }
 
 impl pallet_bridge_dispatch::Config for Runtime {
@@ -281,7 +283,7 @@ parameter_types! {
 impl pallet_beefy_mmr::Config for Runtime {
 	type LeafVersion = LeafVersion;
 	type BeefyAuthorityToMerkleLeaf = pallet_beefy_mmr::BeefyEcdsaToEthereum;
-	type ParachainHeads = ();
+	type BeefyDataProvider = ();
 }
 
 parameter_types! {
@@ -332,6 +334,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Config for Runtime {
+	type Event = Event;
 	type OnChargeTransaction = pallet_transaction_payment::CurrencyAdapter<Balances, ()>;
 	type TransactionByteFee = TransactionByteFee;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
@@ -505,7 +508,7 @@ construct_runtime!(
 
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage, Event<T>},
 
 		// Consensus support.
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
@@ -575,6 +578,7 @@ mod benches {
 		[pallet_bridge_token_swap, BridgeRialtoTokenSwap]
 	);
 }
+type MmrHashing = <Runtime as pallet_mmr::Config>::Hashing;
 
 impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
@@ -680,26 +684,28 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_mmr_primitives::MmrApi<Block, MmrHash> for Runtime {
-		fn generate_proof(leaf_index: u64)
+	impl sp_mmr_primitives::MmrApi<Block, MmrHash> for Runtime {
+		fn generate_proof(leaf_index: MmrLeafIndex)
 			-> Result<(EncodableOpaqueLeaf, MmrProof<MmrHash>), MmrError>
 		{
-			Mmr::generate_proof(leaf_index)
-				.map(|(leaf, proof)| (EncodableOpaqueLeaf::from_leaf(&leaf), proof))
+			Mmr::generate_batch_proof(vec![leaf_index])
+				.and_then(|(leaves, proof)| Ok((
+					EncodableOpaqueLeaf::from_leaf(&leaves[0]), 
+					MmrBatchProof::into_single_leaf_proof(proof)?
+				)))
+			
 		}
 
 		fn verify_proof(leaf: EncodableOpaqueLeaf, proof: MmrProof<MmrHash>)
 			-> Result<(), MmrError>
 		{
-			pub type Leaf = <
-				<Runtime as pallet_mmr::Config>::LeafData as LeafDataProvider
-			>::LeafData;
 
-			let leaf: Leaf = leaf
+			type MmrLeaf = <<Runtime as pallet_mmr::Config>::LeafData as LeafDataProvider>::LeafData;
+			let leaf: MmrLeaf = leaf
 				.into_opaque_leaf()
 				.try_decode()
 				.ok_or(MmrError::Verify)?;
-			Mmr::verify_leaf(leaf, proof)
+			Mmr::verify_leaves(vec![leaf], MmrProof::into_batch_proof(proof))
 		}
 
 		fn verify_proof_stateless(
@@ -707,9 +713,35 @@ impl_runtime_apis! {
 			leaf: EncodableOpaqueLeaf,
 			proof: MmrProof<MmrHash>
 		) -> Result<(), MmrError> {
-			type MmrHashing = <Runtime as pallet_mmr::Config>::Hashing;
 			let node = DataOrHash::Data(leaf.into_opaque_leaf());
-			pallet_mmr::verify_leaf_proof::<MmrHashing, _>(root, node, proof)
+			pallet_mmr::verify_leaves_proof::<MmrHashing, _>(root, vec![node], MmrProof::into_batch_proof(proof))
+		}
+
+		fn generate_batch_proof(leaf_indices: Vec<MmrLeafIndex>)
+			-> Result<(Vec<EncodableOpaqueLeaf>, MmrBatchProof<MmrHash>), MmrError>
+		{
+			Mmr::generate_batch_proof(leaf_indices)
+				.map(|(leaves, proof)| (leaves.into_iter().map(|leaf| EncodableOpaqueLeaf::from_leaf(&leaf)).collect(), proof))
+		}
+
+		fn verify_batch_proof(leaves: Vec<EncodableOpaqueLeaf>, proof: MmrBatchProof<MmrHash>)
+			-> Result<(), MmrError>
+		{
+			type MmrLeaf = <<Runtime as pallet_mmr::Config>::LeafData as LeafDataProvider>::LeafData;
+			let leaves = leaves.into_iter().map(|leaf|
+				leaf.into_opaque_leaf()
+				.try_decode()
+				.ok_or(MmrError::Verify)).collect::<Result<Vec<MmrLeaf>, MmrError>>()?;
+			Mmr::verify_leaves(leaves, proof)
+		}
+
+		fn verify_batch_proof_stateless(
+			root: MmrHash,
+			leaves: Vec<EncodableOpaqueLeaf>,
+			proof: MmrBatchProof<MmrHash>
+		) -> Result<(), MmrError> {
+			let nodes = leaves.into_iter().map(|leaf|DataOrHash::Data(leaf.into_opaque_leaf())).collect();
+			pallet_mmr::verify_leaves_proof::<MmrHashing, _>(root, nodes, proof)
 		}
 	}
 

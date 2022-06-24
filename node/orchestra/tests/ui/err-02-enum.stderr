@@ -1,0 +1,11 @@
+error: expected `struct`
+  --> $DIR/err-02-enum.rs:16:1
+   |
+16 | enum Orchestra {
+   | ^^^^
+
+error[E0433]: failed to resolve: use of undeclared type `Orchestra`
+  --> $DIR/err-02-enum.rs:27:17
+   |
+27 |     let orchestra = Orchestra::<_,_>::builder()
+   |                    ^^^^^^^^ use of undeclared type `Orchestra`

@@ -27,16 +27,19 @@ use polkadot_node_network_protocol::{
 	view, ObservedRole,
 };
 use polkadot_node_primitives::{Statement, UncheckedSignedFullStatement};
+use polkadot_node_subsystem::{
+	jaeger,
+	messages::{network_bridge_event, AllMessages, RuntimeApiMessage, RuntimeApiRequest},
+	ActivatedLeaf, LeafStatus,
+};
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
 use polkadot_primitives::v2::{Hash, SessionInfo, ValidationCode};
-use polkadot_primitives_test_helpers::{dummy_committed_candidate_receipt, dummy_hash};
-use polkadot_subsystem::{
-	jaeger,
-	messages::{RuntimeApiMessage, RuntimeApiRequest},
-	ActivatedLeaf, LeafStatus,
+use polkadot_primitives_test_helpers::{
+	dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::{sr25519::Pair, AppKey, Pair as TraitPair};
+use sp_authority_discovery::AuthorityPair;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{CryptoStore, SyncCryptoStore, SyncCryptoStorePtr};
 use std::{iter::FromIterator as _, sync::Arc, time::Duration};
@@ -502,15 +505,17 @@ fn peer_view_update_sends_messages() {
 	let peer = PeerId::random();
 
 	executor::block_on(async move {
-		let gossip_peers = HashSet::from_iter(vec![peer.clone()].into_iter());
+		let mut topology: SessionGridTopology = Default::default();
+		topology.peers_x = HashSet::from_iter(vec![peer.clone()].into_iter());
 		update_peer_view_and_maybe_send_unlocked(
 			peer.clone(),
-			&gossip_peers,
+			&topology,
 			&mut peer_data,
 			&mut ctx,
 			&active_heads,
 			new_view.clone(),
 			&Default::default(),
+			&mut AlwaysZeroRng,
 		)
 		.await;
 
@@ -630,16 +635,19 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 		};
 		let statement = StoredStatement { comparator: &comparator, statement: &statement };
 
-		let gossip_peers =
+		let mut topology: SessionGridTopology = Default::default();
+		topology.peers_x =
 			HashSet::from_iter(vec![peer_a.clone(), peer_b.clone(), peer_c.clone()].into_iter());
 		let needs_dependents = circulate_statement(
-			&gossip_peers,
+			RequiredRouting::GridXY,
+			&topology,
 			&mut peer_data,
 			&mut ctx,
 			hash_b,
 			statement,
 			Vec::new(),
 			&Metrics::default(),
+			&mut AlwaysZeroRng,
 		)
 		.await;
 
@@ -723,6 +731,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 			Arc::new(LocalKeystore::in_memory()),
 			statement_req_receiver,
 			Default::default(),
+			AlwaysZeroRng,
 		);
 		s.run(ctx).await.unwrap();
 	};
@@ -730,7 +739,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 	let test_fut = async move {
 		// register our active heads.
 		handle
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
@@ -764,32 +773,32 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 
 		// notify of peers and view
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full, None),
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full, 1, None),
 				),
 			})
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, None),
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, 1, None),
 				),
 			})
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
 				),
 			})
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a]),
 				),
 			})
@@ -823,14 +832,14 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		};
 
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
-						protocol_v1::StatementDistributionMessage::Statement(
+						Versioned::V1(protocol_v1::StatementDistributionMessage::Statement(
 							hash_a,
 							statement.clone().into(),
-						),
+						)),
 					),
 				),
 			})
@@ -855,9 +864,9 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendValidationMessage(
 					recipients,
-					protocol_v1::ValidationProtocol::StatementDistribution(
+					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::Statement(r, s)
-					),
+					)),
 				)
 			) => {
 				assert_eq!(recipients, vec![peer_b.clone()]);
@@ -865,7 +874,7 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 				assert_eq!(s, statement.into());
 			}
 		);
-		handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::pin_mut!(test_fut);
@@ -915,6 +924,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
+			AlwaysZeroRng,
 		);
 		s.run(ctx).await.unwrap();
 	};
@@ -922,7 +932,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let test_fut = async move {
 		// register our active heads.
 		handle
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
@@ -956,11 +966,12 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 
 		// notify of peers and view
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
 						ObservedRole::Full,
+						1,
 						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
 					),
 				),
@@ -968,60 +979,67 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
+						1,
 						Some(HashSet::from([Sr25519Keyring::Bob.public().into()])),
 					),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_c.clone(),
 						ObservedRole::Full,
+						1,
 						Some(HashSet::from([Sr25519Keyring::Charlie.public().into()])),
 					),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(peer_bad.clone(), ObservedRole::Full, None),
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerConnected(
+						peer_bad.clone(),
+						ObservedRole::Full,
+						1,
+						None,
+					),
 				),
 			})
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
 				),
 			})
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a]),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_c.clone(), view![hash_a]),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_bad.clone(), view![hash_a]),
 				),
 			})
@@ -1058,11 +1076,13 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		let metadata = derive_metadata_assuming_seconded(hash_a, statement.clone().into());
 
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
-						protocol_v1::StatementDistributionMessage::LargeStatement(metadata.clone()),
+						Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(
+							metadata.clone(),
+						)),
 					),
 				),
 			})
@@ -1077,7 +1097,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			) => {
 				let reqs = reqs.pop().unwrap();
 				let outgoing = match reqs {
-					Requests::StatementFetching(outgoing) => outgoing,
+					Requests::StatementFetchingV1(outgoing) => outgoing,
 					_ => panic!("Unexpected request"),
 				};
 				let req = outgoing.payload;
@@ -1094,11 +1114,13 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		Delay::new(Duration::from_millis(20)).await;
 
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_c.clone(),
-						protocol_v1::StatementDistributionMessage::LargeStatement(metadata.clone()),
+						Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(
+							metadata.clone(),
+						)),
 					),
 				),
 			})
@@ -1106,11 +1128,13 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 
 		// Malicious peer:
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerMessage(
 						peer_bad.clone(),
-						protocol_v1::StatementDistributionMessage::LargeStatement(metadata.clone()),
+						Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(
+							metadata.clone(),
+						)),
 					),
 				),
 			})
@@ -1126,7 +1150,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			) => {
 				let reqs = reqs.pop().unwrap();
 				let outgoing = match reqs {
-					Requests::StatementFetching(outgoing) => outgoing,
+					Requests::StatementFetchingV1(outgoing) => outgoing,
 					_ => panic!("Unexpected request"),
 				};
 				let req = outgoing.payload;
@@ -1146,7 +1170,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			) => {
 				let reqs = reqs.pop().unwrap();
 				let outgoing = match reqs {
-					Requests::StatementFetching(outgoing) => outgoing,
+					Requests::StatementFetchingV1(outgoing) => outgoing,
 					_ => panic!("Unexpected request"),
 				};
 				let req = outgoing.payload;
@@ -1167,7 +1191,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			) => {
 				let reqs = reqs.pop().unwrap();
 				let outgoing = match reqs {
-					Requests::StatementFetching(outgoing) => outgoing,
+					Requests::StatementFetchingV1(outgoing) => outgoing,
 					_ => panic!("Unexpected request"),
 				};
 				let req = outgoing.payload;
@@ -1202,7 +1226,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			) => {
 				let reqs = reqs.pop().unwrap();
 				let outgoing = match reqs {
-					Requests::StatementFetching(outgoing) => outgoing,
+					Requests::StatementFetchingV1(outgoing) => outgoing,
 					_ => panic!("Unexpected request"),
 				};
 				let req = outgoing.payload;
@@ -1223,7 +1247,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			) => {
 				let reqs = reqs.pop().unwrap();
 				let outgoing = match reqs {
-					Requests::StatementFetching(outgoing) => outgoing,
+					Requests::StatementFetchingV1(outgoing) => outgoing,
 					_ => panic!("Unexpected request"),
 				};
 				let req = outgoing.payload;
@@ -1270,9 +1294,9 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendValidationMessage(
 					mut recipients,
-					protocol_v1::ValidationProtocol::StatementDistribution(
+					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::LargeStatement(meta)
-					),
+					)),
 				)
 			) => {
 				gum::debug!(
@@ -1345,7 +1369,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			Decode::decode(&mut response_rx.await.unwrap().result.unwrap().as_ref()).unwrap();
 		assert_eq!(committed, candidate);
 
-		handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::pin_mut!(test_fut);
@@ -1412,6 +1436,7 @@ fn share_prioritizes_backing_group() {
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
+			AlwaysZeroRng,
 		);
 		s.run(ctx).await.unwrap();
 	};
@@ -1419,7 +1444,7 @@ fn share_prioritizes_backing_group() {
 	let test_fut = async move {
 		// register our active heads.
 		handle
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
@@ -1454,11 +1479,12 @@ fn share_prioritizes_backing_group() {
 		// notify of dummy peers and view
 		for (peer, pair) in dummy_peers.clone().into_iter().zip(dummy_pairs) {
 			handle
-				.send(FromOverseer::Communication {
-					msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+				.send(FromOrchestra::Communication {
+					msg: StatementDistributionMessage::NetworkBridgeUpdate(
 						NetworkBridgeEvent::PeerConnected(
 							peer,
 							ObservedRole::Full,
+							1,
 							Some(HashSet::from([pair.public().into()])),
 						),
 					),
@@ -1466,8 +1492,8 @@ fn share_prioritizes_backing_group() {
 				.await;
 
 			handle
-				.send(FromOverseer::Communication {
-					msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+				.send(FromOrchestra::Communication {
+					msg: StatementDistributionMessage::NetworkBridgeUpdate(
 						NetworkBridgeEvent::PeerViewChange(peer, view![hash_a]),
 					),
 				})
@@ -1476,51 +1502,60 @@ fn share_prioritizes_backing_group() {
 
 		// notify of peers and view
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
 						ObservedRole::Full,
+						1,
 						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
 					),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
+						1,
 						Some(HashSet::from([Sr25519Keyring::Bob.public().into()])),
 					),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_c.clone(),
 						ObservedRole::Full,
+						1,
 						Some(HashSet::from([Sr25519Keyring::Charlie.public().into()])),
 					),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(peer_bad.clone(), ObservedRole::Full, None),
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerConnected(
+						peer_bad.clone(),
+						ObservedRole::Full,
+						1,
+						None,
+					),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_other_group.clone(),
 						ObservedRole::Full,
+						1,
 						Some(HashSet::from([Sr25519Keyring::Dave.public().into()])),
 					),
 				),
@@ -1528,37 +1563,37 @@ fn share_prioritizes_backing_group() {
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
 				),
 			})
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a]),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_c.clone(), view![hash_a]),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_bad.clone(), view![hash_a]),
 				),
 			})
 			.await;
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_other_group.clone(), view![hash_a]),
 				),
 			})
@@ -1595,7 +1630,7 @@ fn share_prioritizes_backing_group() {
 		let metadata = derive_metadata_assuming_seconded(hash_a, statement.clone().into());
 
 		handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::Share(hash_a, statement.clone()),
 			})
 			.await;
@@ -1606,9 +1641,9 @@ fn share_prioritizes_backing_group() {
 			AllMessages::NetworkBridge(
 				NetworkBridgeMessage::SendValidationMessage(
 					mut recipients,
-					protocol_v1::ValidationProtocol::StatementDistribution(
+					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::LargeStatement(meta)
-					),
+					)),
 				)
 			) => {
 				gum::debug!(
@@ -1647,7 +1682,7 @@ fn share_prioritizes_backing_group() {
 			Decode::decode(&mut response_rx.await.unwrap().result.unwrap().as_ref()).unwrap();
 		assert_eq!(committed, candidate);
 
-		handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::pin_mut!(test_fut);
@@ -1695,6 +1730,7 @@ fn peer_cant_flood_with_large_statements() {
 			make_ferdie_keystore(),
 			statement_req_receiver,
 			Default::default(),
+			AlwaysZeroRng,
 		);
 		s.run(ctx).await.unwrap();
 	};
@@ -1702,7 +1738,7 @@ fn peer_cant_flood_with_large_statements() {
 	let test_fut = async move {
 		// register our active heads.
 		handle
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
 					hash: hash_a,
 					number: 1,
@@ -1736,11 +1772,12 @@ fn peer_cant_flood_with_large_statements() {
 
 		// notify of peers and view
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
 						ObservedRole::Full,
+						1,
 						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
 					),
 				),
@@ -1748,8 +1785,8 @@ fn peer_cant_flood_with_large_statements() {
 			.await;
 
 		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
 				),
 			})
@@ -1785,12 +1822,14 @@ fn peer_cant_flood_with_large_statements() {
 
 		for _ in 0..MAX_LARGE_STATEMENTS_PER_SENDER + 1 {
 			handle
-				.send(FromOverseer::Communication {
-					msg: StatementDistributionMessage::NetworkBridgeUpdateV1(
+				.send(FromOrchestra::Communication {
+					msg: StatementDistributionMessage::NetworkBridgeUpdate(
 						NetworkBridgeEvent::PeerMessage(
 							peer_a.clone(),
-							protocol_v1::StatementDistributionMessage::LargeStatement(
-								metadata.clone(),
+							Versioned::V1(
+								protocol_v1::StatementDistributionMessage::LargeStatement(
+									metadata.clone(),
+								),
 							),
 						),
 					),
@@ -1810,7 +1849,7 @@ fn peer_cant_flood_with_large_statements() {
 				)) => {
 					let reqs = reqs.pop().unwrap();
 					let outgoing = match reqs {
-						Requests::StatementFetching(outgoing) => outgoing,
+						Requests::StatementFetchingV1(outgoing) => outgoing,
 						_ => panic!("Unexpected request"),
 					};
 					let req = outgoing.payload;
@@ -1833,13 +1872,393 @@ fn peer_cant_flood_with_large_statements() {
 		assert!(requested, "large data has not been requested.");
 		assert!(punished, "Peer should have been punished for flooding.");
 
-		handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(bg);
 
 	executor::block_on(future::join(test_fut, bg));
+}
+
+// This test addresses an issue when received knowledge is not updated on a
+// subsequent `Seconded` statements
+// See https://github.com/paritytech/polkadot/pull/5177
+#[test]
+fn handle_multiple_seconded_statements() {
+	let relay_parent_hash = Hash::repeat_byte(1);
+
+	let candidate = dummy_committed_candidate_receipt(relay_parent_hash);
+	let candidate_hash = candidate.hash();
+
+	// We want to ensure that our peers are not lucky
+	let mut all_peers: Vec<PeerId> = Vec::with_capacity(MIN_GOSSIP_PEERS + 4);
+	let peer_a = PeerId::random();
+	let peer_b = PeerId::random();
+	assert_ne!(peer_a, peer_b);
+
+	for _ in 0..MIN_GOSSIP_PEERS + 2 {
+		all_peers.push(PeerId::random());
+	}
+	all_peers.push(peer_a.clone());
+	all_peers.push(peer_b.clone());
+
+	let mut lucky_peers = all_peers.clone();
+	util::choose_random_subset_with_rng(
+		|_| false,
+		&mut lucky_peers,
+		&mut AlwaysZeroRng,
+		MIN_GOSSIP_PEERS,
+	);
+	lucky_peers.sort();
+	assert_eq!(lucky_peers.len(), MIN_GOSSIP_PEERS);
+	assert!(!lucky_peers.contains(&peer_a));
+	assert!(!lucky_peers.contains(&peer_b));
+
+	let validators = vec![
+		Sr25519Keyring::Alice.pair(),
+		Sr25519Keyring::Bob.pair(),
+		Sr25519Keyring::Charlie.pair(),
+	];
+
+	let session_info = make_session_info(validators, vec![]);
+
+	let session_index = 1;
+
+	let pool = sp_core::testing::TaskExecutor::new();
+	let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
+
+	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
+
+	let virtual_overseer_fut = async move {
+		let s = StatementDistributionSubsystem::new(
+			Arc::new(LocalKeystore::in_memory()),
+			statement_req_receiver,
+			Default::default(),
+			AlwaysZeroRng,
+		);
+		s.run(ctx).await.unwrap();
+	};
+
+	let test_fut = async move {
+		// register our active heads.
+		handle
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
+				ActiveLeavesUpdate::start_work(ActivatedLeaf {
+					hash: relay_parent_hash,
+					number: 1,
+					status: LeafStatus::Fresh,
+					span: Arc::new(jaeger::Span::Disabled),
+				}),
+			)))
+			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionIndexForChild(tx))
+			)
+				if r == relay_parent_hash
+			=> {
+				let _ = tx.send(Ok(session_index));
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionInfo(sess_index, tx))
+			)
+				if r == relay_parent_hash && sess_index == session_index
+			=> {
+				let _ = tx.send(Ok(Some(session_info)));
+			}
+		);
+
+		// notify of peers and view
+		for peer in all_peers.iter() {
+			handle
+				.send(FromOrchestra::Communication {
+					msg: StatementDistributionMessage::NetworkBridgeUpdate(
+						NetworkBridgeEvent::PeerConnected(
+							peer.clone(),
+							ObservedRole::Full,
+							1,
+							None,
+						),
+					),
+				})
+				.await;
+			handle
+				.send(FromOrchestra::Communication {
+					msg: StatementDistributionMessage::NetworkBridgeUpdate(
+						NetworkBridgeEvent::PeerViewChange(peer.clone(), view![relay_parent_hash]),
+					),
+				})
+				.await;
+		}
+
+		// Explicitly add all `lucky` peers to the gossip peers to ensure that neither `peerA` not `peerB`
+		// receive statements
+		let gossip_topology = {
+			let mut t = network_bridge_event::NewGossipTopology {
+				session: 1,
+				our_neighbors_x: HashMap::new(),
+				our_neighbors_y: HashMap::new(),
+			};
+
+			// Create a topology to ensure that we send messages not to `peer_a`/`peer_b`
+			for (i, peer) in lucky_peers.iter().enumerate() {
+				let authority_id = AuthorityPair::generate().0.public();
+				t.our_neighbors_y.insert(
+					authority_id,
+					network_bridge_event::TopologyPeerInfo {
+						peer_ids: vec![peer.clone()],
+						validator_index: (i as u32 + 2_u32).into(),
+					},
+				);
+			}
+			t.our_neighbors_x.insert(
+				AuthorityPair::generate().0.public(),
+				network_bridge_event::TopologyPeerInfo {
+					peer_ids: vec![peer_a.clone()],
+					validator_index: 0_u32.into(),
+				},
+			);
+			t.our_neighbors_x.insert(
+				AuthorityPair::generate().0.public(),
+				network_bridge_event::TopologyPeerInfo {
+					peer_ids: vec![peer_b.clone()],
+					validator_index: 1_u32.into(),
+				},
+			);
+
+			t
+		};
+
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::NewGossipTopology(gossip_topology),
+				),
+			})
+			.await;
+
+		// receive a seconded statement from peer A. it should be propagated onwards to peer B and to
+		// candidate backing.
+		let statement = {
+			let signing_context = SigningContext { parent_hash: relay_parent_hash, session_index };
+
+			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = CryptoStore::sr25519_generate_new(
+				&*keystore,
+				ValidatorId::ID,
+				Some(&Sr25519Keyring::Alice.to_seed()),
+			)
+			.await
+			.unwrap();
+
+			SignedFullStatement::sign(
+				&keystore,
+				Statement::Seconded(candidate.clone()),
+				&signing_context,
+				ValidatorIndex(0),
+				&alice_public.into(),
+			)
+			.await
+			.ok()
+			.flatten()
+			.expect("should be signed")
+		};
+
+		// `PeerA` sends a `Seconded` message
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(
+						peer_a.clone(),
+						Versioned::V1(protocol_v1::StatementDistributionMessage::Statement(
+							relay_parent_hash,
+							statement.clone().into(),
+						)),
+					),
+				),
+			})
+			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::ReportPeer(p, r)
+			) => {
+				assert_eq!(p, peer_a);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST);
+			}
+		);
+
+		// After the first valid statement, we expect messages to be circulated
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::CandidateBacking(
+				CandidateBackingMessage::Statement(r, s)
+			) => {
+				assert_eq!(r, relay_parent_hash);
+				assert_eq!(s, statement);
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::SendValidationMessage(
+					recipients,
+					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
+						protocol_v1::StatementDistributionMessage::Statement(r, s)
+					)),
+				)
+			) => {
+				assert!(!recipients.contains(&peer_b));
+				assert_eq!(r, relay_parent_hash);
+				assert_eq!(s, statement.clone().into());
+			}
+		);
+
+		// `PeerB` sends a `Seconded` message: valid but known
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						Versioned::V1(protocol_v1::StatementDistributionMessage::Statement(
+							relay_parent_hash,
+							statement.clone().into(),
+						)),
+					),
+				),
+			})
+			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::ReportPeer(p, r)
+			) => {
+				assert_eq!(p, peer_b);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT);
+			}
+		);
+
+		// Create a `Valid` statement
+		let statement = {
+			let signing_context = SigningContext { parent_hash: relay_parent_hash, session_index };
+
+			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = CryptoStore::sr25519_generate_new(
+				&*keystore,
+				ValidatorId::ID,
+				Some(&Sr25519Keyring::Alice.to_seed()),
+			)
+			.await
+			.unwrap();
+
+			SignedFullStatement::sign(
+				&keystore,
+				Statement::Valid(candidate_hash),
+				&signing_context,
+				ValidatorIndex(0),
+				&alice_public.into(),
+			)
+			.await
+			.ok()
+			.flatten()
+			.expect("should be signed")
+		};
+
+		// `PeerA` sends a `Valid` message
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(
+						peer_a.clone(),
+						Versioned::V1(protocol_v1::StatementDistributionMessage::Statement(
+							relay_parent_hash,
+							statement.clone().into(),
+						)),
+					),
+				),
+			})
+			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::ReportPeer(p, r)
+			) => {
+				assert_eq!(p, peer_a);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST);
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::CandidateBacking(
+				CandidateBackingMessage::Statement(r, s)
+			) => {
+				assert_eq!(r, relay_parent_hash);
+				assert_eq!(s, statement);
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::SendValidationMessage(
+					recipients,
+					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
+						protocol_v1::StatementDistributionMessage::Statement(r, s)
+					)),
+				)
+			) => {
+				assert!(!recipients.contains(&peer_b));
+				assert_eq!(r, relay_parent_hash);
+				assert_eq!(s, statement.clone().into());
+			}
+		);
+
+		// `PeerB` sends a `Valid` message
+		handle
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						Versioned::V1(protocol_v1::StatementDistributionMessage::Statement(
+							relay_parent_hash,
+							statement.clone().into(),
+						)),
+					),
+				),
+			})
+			.await;
+
+		// We expect that this is still valid despite the fact that `PeerB` was not
+		// the first when sending `Seconded`
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::ReportPeer(p, r)
+			) => {
+				assert_eq!(p, peer_b);
+				assert_eq!(r, BENEFIT_VALID_STATEMENT);
+			}
+		);
+
+		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+	};
+
+	futures::pin_mut!(test_fut);
+	futures::pin_mut!(virtual_overseer_fut);
+
+	executor::block_on(future::join(test_fut, virtual_overseer_fut));
 }
 
 fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInfo {

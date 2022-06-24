@@ -1,0 +1,42 @@
+{# This macro shows ONE change #}
+{%- macro change(c, cml="[C]", dot="[P]", sub="[S]") -%}
+
+{%- if c.meta.C and c.meta.C.value >= 7 -%}
+{%- set prio = " ‼️ HIGH" -%}
+{%- elif c.meta.C and c.meta.C.value >= 3 -%}
+{%- set prio = " ❗️ Medium" -%}
+{%- elif c.meta.C and c.meta.C.value < 3 -%}
+{%- set prio = " Low" -%}
+{%- else -%}
+{%- set prio = "" -%}
+{%- endif -%}
+
+{%- set audit = "" -%}
+
+{%- if c.meta.D and c.meta.D.value == 1 -%}
+{%- set audit = "✅ audited " -%}
+{%- elif c.meta.D and c.meta.D.value == 2 -%}
+{%- set audit = "✅ trivial " -%}
+{%- elif c.meta.D and c.meta.D.value == 3 -%}
+{%- set audit = "✅ trivial " -%}
+{%- elif c.meta.D and c.meta.D.value == 5 -%}
+{%- set audit = "⏳ pending non-critical audit " -%}
+{%- else -%}
+{%- set audit = "" -%}
+{%- endif -%}
+
+{%- if c.html_url is containing("polkadot") -%}
+{%- set repo = dot -%}
+{%- elif c.html_url is containing("substrate") -%}
+{%- set repo = sub -%}
+{%- else -%}
+{%- set repo = "   " -%}
+{%- endif -%}
+
+{%- if c.meta.T and c.meta.T.value == 6 -%}
+{%- set xcm = " [✉️ XCM]" -%}
+{%- else -%}
+{%- set xcm = "" -%}
+{%- endif -%}
+{{- repo }} {{ audit }}[`#{{c.number}}`]({{c.html_url}}) {{- prio }} - {{ c.title | capitalize | truncate(length=120, end="…") }}{{xcm }}
+{%- endmacro change -%}

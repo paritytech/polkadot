@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-cli"
-version = "0.9.18"
+version = "0.9.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
 edition = "2021"
@@ -15,12 +15,13 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 clap = { version = "3.1", features = ["derive"], optional = true }
-log = "0.4.13"
-thiserror = "1.0.30"
+log = "0.4.17"
+thiserror = "1.0.31"
 futures = "0.3.21"
 pyro = { package = "pyroscope", version = "0.3.1", optional = true }
 
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
+polkadot-client = { path = "../node/client", optional = true }
 polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
@@ -31,6 +32,7 @@ sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", o
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 polkadot-node-metrics = { path = "../node/metrics" }
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
@@ -50,6 +52,7 @@ cli = [
 	"sc-tracing",
 	"frame-benchmarking-cli",
 	"try-runtime-cli",
+	"polkadot-client",
 	"polkadot-node-core-pvf",
 	"polkadot-performance-test",
 ]
@@ -70,3 +73,4 @@ rococo-native = ["service/rococo-native"]
 
 malus = ["full-node", "service/malus"]
 runtime-metrics = ["service/runtime-metrics", "polkadot-node-metrics/runtime-metrics"]
+staging-client = ["service/staging-client"]
