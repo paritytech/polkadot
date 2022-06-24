@@ -16,7 +16,7 @@
 
 use crate::{
 	artifacts::ArtifactPathId,
-	executor_intf::TaskExecutor,
+	executor_intf::Executor,
 	worker_common::{
 		bytes_to_path, framed_recv, framed_send, path_to_bytes, spawn_with_program_path,
 		worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
@@ -184,8 +184,8 @@ impl Response {
 /// the path to the socket used to communicate with the host.
 pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("execute", socket_path, |mut stream| async move {
-		let executor = TaskExecutor::new().map_err(|e| {
-			io::Error::new(io::ErrorKind::Other, format!("cannot create task executor: {}", e))
+		let executor = Executor::new().map_err(|e| {
+			io::Error::new(io::ErrorKind::Other, format!("cannot create executor: {}", e))
 		})?;
 		loop {
 			let (artifact_path, params) = recv_request(&mut stream).await?;
@@ -204,14 +204,14 @@ pub fn worker_entrypoint(socket_path: &str) {
 async fn validate_using_artifact(
 	artifact_path: &Path,
 	params: &[u8],
-	spawner: &TaskExecutor,
+	executor: &Executor,
 ) -> Response {
 	let validation_started_at = Instant::now();
 	let descriptor_bytes = match unsafe {
 		// SAFETY: this should be safe since the compiled artifact passed here comes from the
 		//         file created by the prepare workers. These files are obtained by calling
 		//         [`executor_intf::prepare`].
-		crate::executor_intf::execute(artifact_path.as_ref(), params, spawner.clone())
+		executor.execute(artifact_path.as_ref(), params)
 	} {
 		Err(err) => return Response::format_invalid("execute", &err.to_string()),
 		Ok(d) => d,
