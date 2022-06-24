@@ -3,7 +3,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 name = "xcm-builder"
 description = "Tools & types for building with XCM and its executor."
-version = "0.9.23"
+version = "0.9.25"
 
 [dependencies]
 impl-trait-for-tuples = "0.2.1"
