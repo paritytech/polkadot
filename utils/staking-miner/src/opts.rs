@@ -181,7 +181,7 @@ impl FromStr for SubmissionStrategy {
 			let percent: u32 = s[15..].parse().map_err(|e| format!("{:?}", e))?;
 			Self::ClaimBetterThan(Perbill::from_percent(percent))
 		} else {
-			return Err(s.into())
+			return Err(s.into());
 		};
 		Ok(res)
 	}
@@ -280,7 +280,7 @@ mod test_super {
 
 		assert_eq!(
 			opt,
-			Opt { uri: "hi".to_string(), command: Command::Info(InfoOpts { json: true }) }
+			Opt { uri: "hi".to_string(), command: Command::Info(InfoOpts { json: false }) }
 		);
 	}
 
