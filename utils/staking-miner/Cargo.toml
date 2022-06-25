@@ -43,4 +43,4 @@ westend-runtime = { path = "../../runtime/westend" }
 sub-tokens = { git = "https://github.com/paritytech/substrate-debug-kit", branch = "master" }
 
 [dev-dependencies]
-assert_cmd = "2.0.2"
+assert_cmd = "2.0.4"

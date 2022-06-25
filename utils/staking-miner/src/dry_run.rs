@@ -16,7 +16,7 @@
 
 //! The dry-run command.
 
-use crate::{prelude::*, rpc::*, signer::Signer, DryRunConfig, Error, SharedRpcClient};
+use crate::{opts::DryRunConfig, prelude::*, rpc::*, signer::Signer, Error, SharedRpcClient};
 use codec::Encode;
 use frame_support::traits::Currency;
 use sp_core::Bytes;
