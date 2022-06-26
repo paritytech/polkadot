@@ -757,9 +757,9 @@ zombienet-test-parachains-upgrade-smoke-test:
 
 zombienet-tests-misc-paritydb:
   stage:                           stage3
-  image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
+  image:                           "docker.io/paritytech/zombienet:v1.2.45"
   needs:
     - job:                         publish-polkadot-debug-image
     - job:                         publish-test-collators-image
@@ -782,7 +782,7 @@ zombienet-tests-misc-paritydb:
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
-  
+
 zombienet-tests-malus-dispute-valid:
   stage:                           stage3
   image:                           "${ZOMBIENET_IMAGE}"
