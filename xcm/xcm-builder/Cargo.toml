@@ -6,7 +6,7 @@ description = "Tools & types for building with XCM and its executor."
 version = "0.9.25"
 
 [dependencies]
-parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
