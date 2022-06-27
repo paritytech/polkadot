@@ -198,7 +198,6 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				return;
 			}
 
-
 			let rpc1 = rpc.clone();
 			let rpc2 = rpc.clone();
 			let account = signer.account.clone();
