@@ -103,9 +103,12 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 		.map_err::<Error<T>, _>(Into::into)?
 		.unwrap_or_default();
 
+	log::debug!(target: LOG_TARGET, "submitted solutions on chain: {:?}", indices);
+
 	// BTreeMap is ordered, take last to get the max score.
 	if let Some(curr_max_score) = indices.into_iter().last().map(|(s, _)| s) {
 		if !score.strict_threshold_better(curr_max_score, epsilon) {
+			log::warn!(target: LOG_TARGET, "mined score: {:?} not better", score);
 			return Err(Error::StrategyNotSatisfied)
 		}
 	}
@@ -198,7 +201,6 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				return;
 			}
 
-
 			let rpc1 = rpc.clone();
 			let rpc2 = rpc.clone();
 			let account = signer.account.clone();
@@ -266,6 +268,12 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			let rpc1 = rpc.clone();
 			let rpc2 = rpc.clone();
+			let rpc3 = rpc.clone();
+
+			let account = signer.account.clone();
+			let ensure_no_prev_fut = tokio::spawn(async move {
+				ensure_no_previous_solution::<Runtime, Block>(&rpc3, hash, &account).await
+			});
 
 			let ensure_no_better_fut = tokio::spawn(async move {
 				ensure_no_better_solution::<Runtime, Block>(&rpc1, hash, score, config.submission_strategy).await
@@ -277,6 +285,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			// Run the calls in parallel and return once all has completed or any failed.
 			if tokio::try_join!(
+				flatten(ensure_no_prev_fut),
 				flatten(ensure_no_better_fut),
 				flatten(ensure_signed_phase_fut),
 			).is_err() {

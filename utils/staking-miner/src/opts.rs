@@ -213,6 +213,8 @@ mod test_super {
 			"//Alice",
 			"--listen",
 			"head",
+			"--delay",
+			"12",
 			"seq-phragmen",
 		])
 		.unwrap();
@@ -226,6 +228,7 @@ mod test_super {
 					listen: "head".to_string(),
 					solver: Solver::SeqPhragmen { iterations: 10 },
 					submission_strategy: SubmissionStrategy::IfLeading,
+					delay: 12,
 				}),
 			}
 		);
