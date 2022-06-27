@@ -83,6 +83,17 @@ pub(crate) struct MonitorConfig {
 	/// `--submission-strategy "percent-better <percent>"`: submit if the submission is `n` percent better.
 	#[clap(long, parse(try_from_str), default_value = "if-leading")]
 	pub submission_strategy: SubmissionStrategy,
+
+	/// Delay in number seconds to wait until starting mining a solution.
+	///
+	/// At every block when a solution is attempted
+	/// a delay can be enforced to avoid submitting at
+	/// "same" time and risk the potentially races to other miners.
+	///
+	/// This may mean if there are competing solutions you might not submit
+	/// if the scores are equal once this is enabled.
+	#[clap(long, parse(try_from_str), default_value_t = 0)]
+	pub delay: usize,
 }
 
 #[derive(Debug, Clone, Parser)]

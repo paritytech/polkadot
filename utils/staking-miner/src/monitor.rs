@@ -198,6 +198,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				return;
 			}
 
+
 			let rpc1 = rpc.clone();
 			let rpc2 = rpc.clone();
 			let account = signer.account.clone();
@@ -205,6 +206,8 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			let signed_phase_fut = tokio::spawn(async move {
 				ensure_signed_phase::<Runtime, Block>(&rpc1, hash).await
 			});
+
+			tokio::time::sleep(std::time::Duration::from_secs(config.delay as u64)).await;
 
 			let no_prev_sol_fut = tokio::spawn(async move {
 				ensure_no_previous_solution::<Runtime, Block>(&rpc2, hash, &account).await
