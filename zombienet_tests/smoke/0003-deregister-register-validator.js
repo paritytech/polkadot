@@ -1,5 +1,9 @@
 const assert = require("assert");
 
+function nameCase(string) {
+	return string.charAt(0).toUpperCase() + string.slice(1);
+}
+
 async function run(nodeName, networkInfo, jsArgs) {
     const {wsUri, userDefinedTypes} = networkInfo.nodesByName[nodeName];
     const api = await zombie.connect(wsUri, userDefinedTypes);
@@ -11,7 +15,7 @@ async function run(nodeName, networkInfo, jsArgs) {
     // account to submit tx
     const keyring = new zombie.Keyring({ type: "sr25519" });
     const alice = keyring.addFromUri("//Alice");
-    const validatorStash = keyring.createFromUri(`${validatorName}//stash`);
+    const validatorStash = keyring.createFromUri(`//${nameCase(validatorName)}//stash`);
 
     await new Promise(async (resolve, reject) => {
         const unsub = await api.tx.sudo
