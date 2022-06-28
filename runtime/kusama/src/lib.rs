@@ -2176,8 +2176,8 @@ mod multiplier_tests {
 	use super::*;
 	use frame_support::{dispatch::GetDispatchInfo, traits::OnFinalize};
 	use runtime_common::{MinimumMultiplier, TargetBlockFullness};
-	use sp_runtime::traits::{Convert, One};
 	use separator::Separatable;
+	use sp_runtime::traits::Convert;
 
 	fn run_with_system_weight<F>(w: Weight, mut assertions: F)
 	where
@@ -2236,7 +2236,7 @@ mod multiplier_tests {
 			pallet_transaction_payment::NextFeeMultiplier::<Runtime>::set(MinimumMultiplier::get());
 		});
 
-		while multiplier <= Multiplier::from_u32(2) {
+		while multiplier <= Multiplier::from_u32(1) {
 			t.execute_with(|| {
 				// imagine this tx was called.
 				let fee = TransactionPayment::compute_fee(len, &info, 0);
@@ -2252,7 +2252,10 @@ mod multiplier_tests {
 
 				println!(
 					"block = {} / multiplier {:?} / fee = {:?} / fess so far {:?}",
-					blocks, multiplier, fee.separated_string(), fees_paid.separated_string()
+					blocks,
+					multiplier,
+					fee.separated_string(),
+					fees_paid.separated_string()
 				);
 			});
 			blocks += 1;
@@ -2264,7 +2267,6 @@ mod multiplier_tests {
 		// assume the multiplier is initially set to its minimum. We update it with values twice the
 		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
 		let mut multiplier = Multiplier::from_u32(2);
-		let block_weight = 0;
 		let mut blocks = 0;
 
 		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
@@ -2285,10 +2287,7 @@ mod multiplier_tests {
 				assert!(next < multiplier, "{:?} !>= {:?}", next, multiplier);
 				multiplier = next;
 
-				println!(
-					"block = {} / multiplier {:?}",
-					blocks, multiplier
-				);
+				println!("block = {} / multiplier {:?}", blocks, multiplier);
 			});
 			blocks += 1;
 		}
