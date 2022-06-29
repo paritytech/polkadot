@@ -14,7 +14,7 @@ url = "2.0.0"
 tokio-tungstenite = "0.17"
 futures-util = "0.3.21"
 lazy_static = "1.4.0"
-parity-scale-codec = { version = "3.1.2", features = ["derive"] }
+parity-scale-codec = { version = "3.1.5", features = ["derive"] }
 reqwest = "0.11"
 thiserror = "1.0.31"
 gum = { package = "tracing-gum", path = "../gum/" }
