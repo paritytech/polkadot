@@ -129,6 +129,7 @@ impl xcm_executor::Config for XcmConfig {
 	// No bridges yet...
 	type MessageExporter = ();
 	type UniversalAliases = TestUniversalAliases;
+	type CallDispatcher = Call;
 }
 
 impl crate::Config for Test {

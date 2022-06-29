@@ -608,6 +608,7 @@ impl Config for TestConfig {
 	type FeeManager = TestFeeManager;
 	type UniversalAliases = TestUniversalAliases;
 	type MessageExporter = TestMessageExporter;
+	type CallDispatcher = TestCall;
 }
 
 pub fn fungible_multi_asset(location: MultiLocation, amount: u128) -> MultiAsset {

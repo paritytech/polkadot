@@ -15,8 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::traits::{
-	AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FeeManager,
-	OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
+	AssetExchange, AssetLock, CallDispatcher, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm,
+	FeeManager, OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds,
+	WeightTrader,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
@@ -94,4 +95,10 @@ pub trait Config {
 	/// The origin locations and specific universal junctions to which they are allowed to elevate
 	/// themselves.
 	type UniversalAliases: Contains<(MultiLocation, Junction)>;
+
+	/// The call dispatcher used by XCM.
+	///
+	/// XCM will use this to dispatch any calls. When no special call dispatcher is required,
+	/// this can be set to the same type as `Self::Call`.
+	type CallDispatcher: CallDispatcher<Self::Call>;
 }

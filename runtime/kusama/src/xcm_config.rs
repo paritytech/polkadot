@@ -161,6 +161,7 @@ impl xcm_executor::Config for XcmConfig {
 	// No bridges yet...
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
+	type CallDispatcher = Call;
 }
 
 parameter_types! {

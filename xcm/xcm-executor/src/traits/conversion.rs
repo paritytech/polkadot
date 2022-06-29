@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use parity_scale_codec::{Decode, Encode};
+use sp_runtime::{traits::Dispatchable, DispatchErrorWithPostInfo};
 use sp_std::{borrow::Borrow, prelude::*, result::Result};
 use xcm::latest::prelude::*;
 
@@ -201,5 +202,26 @@ impl<O> ConvertOrigin<O> for Tuple {
 			kind,
 		);
 		Err(origin)
+	}
+}
+
+/// Defines how a call is dispatched with given origin.
+/// Allows to customize call dispatch, such as adapting the origin based on the call
+/// or modifying the call.
+pub trait CallDispatcher<Call: Dispatchable> {
+	fn dispatch(
+		call: Call,
+		origin: Call::Origin,
+	) -> Result<Call::PostInfo, DispatchErrorWithPostInfo<Call::PostInfo>>;
+}
+
+// We implement it for every calls so they can dispatch themselves
+// (without any change).
+impl<Call: Dispatchable> CallDispatcher<Call> for Call {
+	fn dispatch(
+		call: Call,
+		origin: Call::Origin,
+	) -> Result<Call::PostInfo, DispatchErrorWithPostInfo<Call::PostInfo>> {
+		call.dispatch(origin)
 	}
 }
