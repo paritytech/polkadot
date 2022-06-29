@@ -91,7 +91,7 @@ xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default
 
 [dev-dependencies]
 hex-literal = "0.3.4"
-tiny-keccak = "2.0.2"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 trie-db = "0.23.1"
