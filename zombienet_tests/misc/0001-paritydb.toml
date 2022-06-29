@@ -19,7 +19,7 @@ requests = { memory = "2G", cpu = "1" }
   [[relaychain.node_groups]]
   name = "validator"
   count = 10
-  args = ["-lparachain=debug", "--db=paritydb"]
+  args = ["-lparachain=debug"]
  
 {% for id in range(2000,2010) %}
 [[parachains]]
