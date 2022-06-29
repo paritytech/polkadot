@@ -2208,6 +2208,7 @@ mod multiplier_tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn multiplier_growth_simulator() {
 		// assume the multiplier is initially set to its minimum. We update it with values twice the
 		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
@@ -2264,6 +2265,7 @@ mod multiplier_tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn multiplier_cool_down_simulator() {
 		// assume the multiplier is initially set to its minimum. We update it with values twice the
 		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
