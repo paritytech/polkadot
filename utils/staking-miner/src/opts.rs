@@ -83,6 +83,17 @@ pub(crate) struct MonitorConfig {
 	/// `--submission-strategy "percent-better <percent>"`: submit if the submission is `n` percent better.
 	#[clap(long, parse(try_from_str), default_value = "if-leading")]
 	pub submission_strategy: SubmissionStrategy,
+
+	/// Delay in number seconds to wait until starting mining a solution.
+	///
+	/// At every block when a solution is attempted
+	/// a delay can be enforced to avoid submitting at
+	/// "same time" and risk potential races with other miners.
+	///
+	/// When this is enabled and there are competing solutions, your solution might not be submitted
+	/// if the scores are equal.
+	#[clap(long, parse(try_from_str), default_value_t = 0)]
+	pub delay: usize,
 }
 
 #[derive(Debug, Clone, Parser)]
@@ -202,6 +213,8 @@ mod test_super {
 			"//Alice",
 			"--listen",
 			"head",
+			"--delay",
+			"12",
 			"seq-phragmen",
 		])
 		.unwrap();
@@ -215,6 +228,7 @@ mod test_super {
 					listen: "head".to_string(),
 					solver: Solver::SeqPhragmen { iterations: 10 },
 					submission_strategy: SubmissionStrategy::IfLeading,
+					delay: 12,
 				}),
 			}
 		);
