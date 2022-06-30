@@ -290,12 +290,6 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			let rpc1 = rpc.clone();
 			let rpc2 = rpc.clone();
-			let rpc3 = rpc.clone();
-
-			let account = signer.account.clone();
-			let ensure_no_prev_fut = tokio::spawn(async move {
-				ensure_no_previous_solution::<Runtime, Block>(&rpc3, hash, &account).await
-			});
 
 			let ensure_no_better_fut = tokio::spawn(async move {
 				ensure_no_better_solution::<Runtime, Block>(&rpc1, hash, score, config.submission_strategy,
@@ -308,7 +302,6 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			// Run the calls in parallel and return once all has completed or any failed.
 			if let Err(err) = tokio::try_join!(
-				flatten(ensure_no_prev_fut),
 				flatten(ensure_no_better_fut),
 				flatten(ensure_signed_phase_fut),
 			) {
