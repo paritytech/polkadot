@@ -88,7 +88,7 @@ pub(crate) struct MonitorConfig {
 	///
 	/// At every block when a solution is attempted
 	/// a delay can be enforced to avoid submitting at
-	/// "same time" and risk potentially races to other miners.
+	/// "same time" and risk potential races with other miners.
 	///
 	/// This may mean if there are competing solutions you might not submit
 	/// if the scores are equal once this is enabled.
