@@ -87,6 +87,7 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 	at: Hash,
 	score: sp_npos_elections::ElectionScore,
 	strategy: SubmissionStrategy,
+	max_submissions: u32,
 ) -> Result<(), Error<T>> {
 	let epsilon = match strategy {
 		// don't care about current scores.
@@ -103,14 +104,38 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 		.map_err::<Error<T>, _>(Into::into)?
 		.unwrap_or_default();
 
+	let mut is_best_score = true;
+	let mut scores = 0;
+
+	log::debug!(target: LOG_TARGET, "submitted solutions on chain: {:?}", indices);
+
 	// BTreeMap is ordered, take last to get the max score.
-	if let Some(curr_max_score) = indices.into_iter().last().map(|(s, _)| s) {
+	for (curr_max_score, _) in indices.into_iter() {
 		if !score.strict_threshold_better(curr_max_score, epsilon) {
-			return Err(Error::StrategyNotSatisfied)
+			log::warn!(target: LOG_TARGET, "mined score is not better; skipping to submit");
+			is_best_score = false;
 		}
+
+		if score == curr_max_score {
+			log::warn!(
+				target: LOG_TARGET,
+				"mined score has the same score as already submitted score"
+			);
+		}
+
+		// Indices can't be bigger than u32::MAX so can't overflow.
+		scores += 1;
 	}
 
-	Ok(())
+	if scores == max_submissions {
+		log::warn!(target: LOG_TARGET, "The submissions queue is full");
+	}
+
+	if is_best_score {
+		Ok(())
+	} else {
+		Err(Error::StrategyNotSatisfied)
+	}
 }
 
 async fn get_latest_head<T: EPM::Config>(
@@ -221,6 +246,8 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				ensure_signed_phase::<Runtime, Block>(&rpc1, hash).await
 			});
 
+			tokio::time::sleep(std::time::Duration::from_secs(config.delay as u64)).await;
+
 			let no_prev_sol_fut = tokio::spawn(async move {
 				ensure_no_previous_solution::<Runtime, Block>(&rpc2, hash, &account).await
 			});
@@ -297,10 +324,11 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			});
 
 			// Run the calls in parallel and return once all has completed or any failed.
-			if tokio::try_join!(
+			if let Err(err) = tokio::try_join!(
 				flatten(ensure_no_better_fut),
 				flatten(ensure_signed_phase_fut),
-			).is_err() {
+			) {
+				log::debug!(target: LOG_TARGET, "Skipping to submit at block {}; {}", at.number, err);
 				return;
 			}
 
