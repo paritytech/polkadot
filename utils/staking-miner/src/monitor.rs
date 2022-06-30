@@ -113,6 +113,21 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 	Ok(())
 }
 
+async fn get_latest_head<T: EPM::Config>(
+	rpc: &SharedRpcClient,
+	mode: &str,
+) -> Result<Hash, Error<T>> {
+	if mode == "head" {
+		match rpc.block_hash(None).await {
+			Ok(Some(hash)) => Ok(hash),
+			Ok(None) => Err(Error::Other("Best head not found".into())),
+			Err(e) => Err(e.into()),
+		}
+	} else {
+		rpc.finalized_head().await.map_err(Into::into)
+	}
+}
+
 macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 	/// The monitor command.
@@ -264,12 +279,21 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			let rpc1 = rpc.clone();
 			let rpc2 = rpc.clone();
 
+			let latest_head = match get_latest_head::<Runtime>(&rpc, &config.listen).await {
+				Ok(hash) => hash,
+				Err(e) => {
+					log::debug!(target: LOG_TARGET, "Skipping to submit at block {}; {}", at.number, e);
+					return;
+				}
+			};
+
 			let ensure_no_better_fut = tokio::spawn(async move {
-				ensure_no_better_solution::<Runtime, Block>(&rpc1, hash, score, config.submission_strategy).await
+				ensure_no_better_solution::<Runtime, Block>(&rpc1, latest_head, score, config.submission_strategy,
+					SignedMaxSubmissions::get()).await
 			});
 
 			let ensure_signed_phase_fut = tokio::spawn(async move {
-				ensure_signed_phase::<Runtime, Block>(&rpc2, hash).await
+				ensure_signed_phase::<Runtime, Block>(&rpc2, latest_head).await
 			});
 
 			// Run the calls in parallel and return once all has completed or any failed.
