@@ -531,7 +531,10 @@ mod tests {
 		let mut backend = DbBackend::new(db, config);
 
 		// Prove that it's cheap
-		assert!(backend.load_stagnant_at_up_to(Timestamp::max_value(), usize::MAX).unwrap().is_empty());
+		assert!(backend
+			.load_stagnant_at_up_to(Timestamp::max_value(), usize::MAX)
+			.unwrap()
+			.is_empty());
 
 		backend
 			.write(vec![

@@ -553,15 +553,20 @@ pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
 					entry.viability.approval = Approval::Stagnant;
 				}
 				let is_viable = entry.viability.is_viable();
-				gum::trace!(target: LOG_TARGET, ?block_hash, ?was_viable, is_viable, "Found existing stagnant entry");
+				gum::trace!(
+					target: LOG_TARGET,
+					?block_hash,
+					?was_viable,
+					is_viable,
+					"Found existing stagnant entry"
+				);
 
 				if was_viable && !is_viable {
 					propagate_viability_update(&mut backend, entry)?;
 				} else {
 					backend.write_block_entry(entry);
 				}
-			}
-			else {
+			} else {
 				gum::trace!(target: LOG_TARGET, ?block_hash, "Found non-existing stagnant entry");
 			}
 		}

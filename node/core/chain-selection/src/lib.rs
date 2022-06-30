@@ -639,7 +639,11 @@ fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Re
 	backend.write(ops)
 }
 
-fn detect_stagnant(backend: &mut impl Backend, now: Timestamp, max_elements: usize) -> Result<(), Error> {
+fn detect_stagnant(
+	backend: &mut impl Backend,
+	now: Timestamp,
+	max_elements: usize,
+) -> Result<(), Error> {
 	let ops = {
 		let overlay = tree::detect_stagnant(&*backend, now, max_elements)?;
 
