@@ -90,8 +90,8 @@ pub(crate) struct MonitorConfig {
 	/// a delay can be enforced to avoid submitting at
 	/// "same time" and risk potential races with other miners.
 	///
-	/// This may mean if there are competing solutions you might not submit
-	/// if the scores are equal once this is enabled.
+	/// When this is enabled and there are competing solutions, your solution might not be submitted
+	/// if the scores are equal.
 	#[clap(long, parse(try_from_str), default_value_t = 0)]
 	pub delay: usize,
 }
