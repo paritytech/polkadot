@@ -229,6 +229,7 @@ impl Backend for DbBackend {
 	fn load_stagnant_at_up_to(
 		&self,
 		up_to: crate::Timestamp,
+		max_elements: usize,
 	) -> Result<Vec<(crate::Timestamp, Vec<Hash>)>, Error> {
 		let stagnant_at_iter =
 			self.inner.iter_with_prefix(self.config.col_data, &STAGNANT_AT_PREFIX[..]);
@@ -240,7 +241,9 @@ impl Backend for DbBackend {
 					_ => None,
 				}
 			})
-			.take_while(|(at, _)| *at <= up_to.into())
+			.enumerate()
+			.take_while(|(idx, (at, _))| *at <= up_to.into() && *idx < max_elements)
+			.map(|(_, v)| v)
 			.collect::<Vec<_>>();
 
 		Ok(val)
@@ -528,7 +531,7 @@ mod tests {
 		let mut backend = DbBackend::new(db, config);
 
 		// Prove that it's cheap
-		assert!(backend.load_stagnant_at_up_to(Timestamp::max_value()).unwrap().is_empty());
+		assert!(backend.load_stagnant_at_up_to(Timestamp::max_value(), usize::MAX).unwrap().is_empty());
 
 		backend
 			.write(vec![
@@ -539,7 +542,7 @@ mod tests {
 			.unwrap();
 
 		assert_eq!(
-			backend.load_stagnant_at_up_to(Timestamp::max_value()).unwrap(),
+			backend.load_stagnant_at_up_to(Timestamp::max_value(), usize::MAX).unwrap(),
 			vec![
 				(2, vec![Hash::repeat_byte(1)]),
 				(5, vec![Hash::repeat_byte(2)]),
@@ -548,7 +551,7 @@ mod tests {
 		);
 
 		assert_eq!(
-			backend.load_stagnant_at_up_to(10).unwrap(),
+			backend.load_stagnant_at_up_to(10, usize::MAX).unwrap(),
 			vec![
 				(2, vec![Hash::repeat_byte(1)]),
 				(5, vec![Hash::repeat_byte(2)]),
@@ -557,21 +560,26 @@ mod tests {
 		);
 
 		assert_eq!(
-			backend.load_stagnant_at_up_to(9).unwrap(),
+			backend.load_stagnant_at_up_to(9, usize::MAX).unwrap(),
 			vec![(2, vec![Hash::repeat_byte(1)]), (5, vec![Hash::repeat_byte(2)]),]
+		);
+
+		assert_eq!(
+			backend.load_stagnant_at_up_to(9, 1).unwrap(),
+			vec![(2, vec![Hash::repeat_byte(1)]),]
 		);
 
 		backend.write(vec![BackendWriteOp::DeleteStagnantAt(2)]).unwrap();
 
 		assert_eq!(
-			backend.load_stagnant_at_up_to(5).unwrap(),
+			backend.load_stagnant_at_up_to(5, usize::MAX).unwrap(),
 			vec![(5, vec![Hash::repeat_byte(2)]),]
 		);
 
 		backend.write(vec![BackendWriteOp::WriteStagnantAt(5, vec![])]).unwrap();
 
 		assert_eq!(
-			backend.load_stagnant_at_up_to(10).unwrap(),
+			backend.load_stagnant_at_up_to(10, usize::MAX).unwrap(),
 			vec![(10, vec![Hash::repeat_byte(3)]),]
 		);
 	}

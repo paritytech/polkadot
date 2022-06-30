@@ -534,12 +534,15 @@ pub(super) fn approve_block(
 pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
 	backend: &'a B,
 	up_to: Timestamp,
+	max_elements: usize,
 ) -> Result<OverlayedBackend<'a, B>, Error> {
-	let stagnant_up_to = backend.load_stagnant_at_up_to(up_to)?;
+	let stagnant_up_to = backend.load_stagnant_at_up_to(up_to, max_elements)?;
 	let mut backend = OverlayedBackend::new(backend);
 
 	// As this is in ascending order, only the earliest stagnant
 	// blocks will involve heavy viability propagations.
+	gum::debug!(target: LOG_TARGET, ?up_to, "Loaded {} stagnant entries", stagnant_up_to.len());
+
 	for (timestamp, maybe_stagnant) in stagnant_up_to {
 		backend.delete_stagnant_at(timestamp);
 
@@ -550,12 +553,16 @@ pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
 					entry.viability.approval = Approval::Stagnant;
 				}
 				let is_viable = entry.viability.is_viable();
+				gum::trace!(target: LOG_TARGET, ?block_hash, ?was_viable, is_viable, "Found existing stagnant entry");
 
 				if was_viable && !is_viable {
 					propagate_viability_update(&mut backend, entry)?;
 				} else {
 					backend.write_block_entry(entry);
 				}
+			}
+			else {
+				gum::trace!(target: LOG_TARGET, ?block_hash, "Found non-existing stagnant entry");
 			}
 		}
 	}

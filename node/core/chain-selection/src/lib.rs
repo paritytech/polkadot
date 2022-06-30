@@ -50,6 +50,8 @@ type Timestamp = u64;
 // If a block isn't approved in 120 seconds, nodes will abandon it
 // and begin building on another chain.
 const STAGNANT_TIMEOUT: Timestamp = 120;
+// Maximum number of stagnant entries cleaned during one `STAGNANT_TIMEOUT` iteration
+const MAX_STAGNANT_ENTRIES: usize = 1000;
 
 #[derive(Debug, Clone)]
 enum Approval {
@@ -435,7 +437,7 @@ where
 				}
 			}
 			_ = stagnant_check_stream.next().fuse() => {
-				detect_stagnant(backend, clock.timestamp_now())?;
+				detect_stagnant(backend, clock.timestamp_now(), MAX_STAGNANT_ENTRIES)?;
 			}
 		}
 	}
@@ -637,9 +639,9 @@ fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Re
 	backend.write(ops)
 }
 
-fn detect_stagnant(backend: &mut impl Backend, now: Timestamp) -> Result<(), Error> {
+fn detect_stagnant(backend: &mut impl Backend, now: Timestamp, max_elements: usize) -> Result<(), Error> {
 	let ops = {
-		let overlay = tree::detect_stagnant(&*backend, now)?;
+		let overlay = tree::detect_stagnant(&*backend, now, max_elements)?;
 
 		overlay.into_write_ops()
 	};
