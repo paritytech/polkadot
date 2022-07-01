@@ -246,6 +246,7 @@ enum Error<T: EPM::Config> {
 	AlreadySubmitted,
 	VersionMismatch,
 	StrategyNotSatisfied,
+	Other(String),
 }
 
 impl<T: EPM::Config> From<sp_core::crypto::SecretStringError> for Error<T> {
