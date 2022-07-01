@@ -539,9 +539,22 @@ pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
 	let stagnant_up_to = backend.load_stagnant_at_up_to(up_to, max_elements)?;
 	let mut backend = OverlayedBackend::new(backend);
 
+	let (min_ts, max_ts) = match stagnant_up_to.len() {
+		0 => (0 as Timestamp, 0 as Timestamp),
+		1 => (stagnant_up_to[0].0, stagnant_up_to[0].0),
+		n => (stagnant_up_to[0].0, stagnant_up_to[n - 1].0),
+	};
+
 	// As this is in ascending order, only the earliest stagnant
 	// blocks will involve heavy viability propagations.
-	gum::debug!(target: LOG_TARGET, ?up_to, "Loaded {} stagnant entries", stagnant_up_to.len());
+	gum::debug!(
+		target: LOG_TARGET,
+		?up_to,
+		?min_ts,
+		?max_ts,
+		"Prepared {} stagnant entries for pruning",
+		stagnant_up_to.len()
+	);
 
 	for (timestamp, maybe_stagnant) in stagnant_up_to {
 		backend.delete_stagnant_at(timestamp);
