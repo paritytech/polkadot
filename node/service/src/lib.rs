@@ -930,7 +930,9 @@ where
 
 	let chain_selection_config = ChainSelectionConfig {
 		col_data: parachains_db::REAL_COLUMNS.col_chain_selection_data,
-		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
+		// Test enabling of the stagnant checks
+		//stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
+		stagnant_check_interval: Default::default(),
 	};
 
 	let dispute_coordinator_config = DisputeCoordinatorConfig {
