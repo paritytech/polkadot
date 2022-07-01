@@ -569,8 +569,9 @@ pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
 				gum::trace!(
 					target: LOG_TARGET,
 					?block_hash,
+					?timestamp,
 					?was_viable,
-					is_viable,
+					?is_viable,
 					"Found existing stagnant entry"
 				);
 
@@ -580,7 +581,7 @@ pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
 					backend.write_block_entry(entry);
 				}
 			} else {
-				gum::trace!(target: LOG_TARGET, ?block_hash, "Found non-existing stagnant entry");
+				gum::trace!(target: LOG_TARGET, ?block_hash, ?timestamp, "Found non-existing stagnant entry");
 			}
 		}
 	}
