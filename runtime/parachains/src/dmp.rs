@@ -21,7 +21,7 @@ use crate::{
 use frame_support::pallet_prelude::*;
 use primitives::v2::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
-use sp_std::{cmp, fmt, num::Wrapping, prelude::*};
+use sp_std::{fmt, num::Wrapping, prelude::*};
 use xcm::latest::SendError;
 
 pub use pallet::*;
@@ -29,9 +29,13 @@ pub use pallet::*;
 #[cfg(test)]
 mod tests;
 
-/// The message key for a group of downward messages.
+/// The key for a group of downward messages.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub struct QueueFragmentId(ParaId, u8);
+
+/// The key identifying a downward message.
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+pub struct QueueMessageId(ParaId, u32);
 
 /// An error sending a downward message.
 #[cfg_attr(test, derive(Debug))]
@@ -111,6 +115,11 @@ pub mod pallet {
 	pub(super) type DownwardMessageQueueTail<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, u8, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn dmp_last_message_id)]
+	pub(super) type DownwardMessageId<T: Config> =
+		StorageMap<_, Twox64Concat, ParaId, u32, ValueQuery>;
+
 	/// The downward messages addressed for a certain para.
 	#[pallet::storage]
 	pub(crate) type DownwardMessageQueueFragments<T: Config> = StorageMap<
@@ -131,6 +140,11 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(crate) type DownwardMessageQueueHeads<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, Hash, ValueQuery>;
+
+	/// A mapping between a message and MQC head.
+	#[pallet::storage]
+	pub(crate) type DownwardMessageQueueHeadsById<T: Config> =
+		StorageMap<_, Twox64Concat, QueueMessageId, Hash, ValueQuery>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {}
@@ -178,14 +192,23 @@ impl<T: Config> Pallet<T> {
 		T::DbWeight::get().reads_writes(1, 1)
 	}
 
+	fn update_last_message_id(para: &ParaId, new_message_id: Wrapping<u32>) -> Weight {
+		<Self as Store>::DownwardMessageId::mutate(para, |last_message_id| {
+			*last_message_id = new_message_id.0;
+		});
+
+		T::DbWeight::get().reads_writes(1, 1)
+	}
+
 	/// Remove all relevant storage items for an outgoing parachain.
 	fn clean_dmp_after_outgoing(outgoing_para: &ParaId) {
-		for index in 0..u8::MAX {
+		for index in Self::dmp_queue_head(outgoing_para)..=Self::dmp_queue_tail(outgoing_para) {
 			<Self as Store>::DownwardMessageQueueFragments::remove(QueueFragmentId(
 				*outgoing_para,
 				index,
 			));
 		}
+
 		<Self as Store>::DownwardMessageQueueHeads::remove(outgoing_para);
 	}
 
@@ -210,6 +233,7 @@ impl<T: Config> Pallet<T> {
 
 		let head = Wrapping(Self::dmp_queue_head(para));
 		let mut tail = Wrapping(Self::dmp_queue_tail(para));
+		let current_message_id = Wrapping(Self::dmp_last_message_id(para)) + Wrapping(1);
 
 		// Ring buffer is empty.
 		if head == tail {
@@ -233,17 +257,22 @@ impl<T: Config> Pallet<T> {
 
 			// Advance tail.
 			tail += 1;
-			Self::update_tail(&para, tail);
 		}
 
 		let inbound =
 			InboundDownwardMessage { msg, sent_at: <frame_system::Pallet<T>>::block_number() };
 
-		// obtain the new link in the MQC and update the head.
+		// Obtain the new link in the MQC and update the head.
 		<Self as Store>::DownwardMessageQueueHeads::mutate(para, |head| {
 			let new_head =
 				BlakeTwo256::hash_of(&(*head, inbound.sent_at, T::Hashing::hash_of(&inbound.msg)));
 			*head = new_head;
+
+			// Update the head for the current message.
+			<Self as Store>::DownwardMessageQueueHeadsById::mutate(
+				QueueMessageId(para, current_message_id.0),
+				|head| *head = new_head,
+			);
 		});
 
 		// Insert message in the tail queue fragment.
@@ -253,6 +282,9 @@ impl<T: Config> Pallet<T> {
 				v.push(inbound);
 			},
 		);
+
+		Self::update_tail(&para, tail);
+		Self::update_last_message_id(&para, current_message_id);
 
 		Ok(())
 	}
@@ -284,24 +316,28 @@ impl<T: Config> Pallet<T> {
 		let mut messages_to_prune = processed_downward_messages as usize;
 		let mut total_weight = T::DbWeight::get().reads_writes(2, 0);
 
-		// Prune all processed messages in multiple fragments.
+		let mut keys_to_remove = Vec::new();
+
+		// Prune the specified amount of messages.
 		while messages_to_prune > 0 && head != tail {
-			<Self as Store>::DownwardMessageQueueFragments::mutate(
-				QueueFragmentId(para, head.0),
-				|q| {
-					if messages_to_prune >= q.len() {
-						messages_to_prune = messages_to_prune.saturating_sub(q.len());
-						q.clear();
-						// Advance head.
-						head += 1;
-					} else {
-						*q = q.split_off(messages_to_prune);
-						messages_to_prune = 0;
-					}
-				},
-			);
+			let key = QueueFragmentId(para, head.0);
+			<Self as Store>::DownwardMessageQueueFragments::mutate(key.clone(), |q| {
+				if messages_to_prune >= q.len() {
+					messages_to_prune = messages_to_prune.saturating_sub(q.len());
+					keys_to_remove.push(key);
+					// Advance head.
+					head += 1;
+				} else {
+					*q = q.split_off(messages_to_prune);
+					messages_to_prune = 0;
+				}
+			});
 			total_weight += T::DbWeight::get().reads_writes(1, 1);
 		}
+
+		let _ = keys_to_remove
+			.into_iter()
+			.map(|k| <Self as Store>::DownwardMessageQueueFragments::remove(k));
 
 		// Update head.
 		Self::update_head(&para, head) + total_weight
@@ -312,6 +348,11 @@ impl<T: Config> Pallet<T> {
 	#[cfg(test)]
 	fn dmq_mqc_head(para: ParaId) -> Hash {
 		<Self as Store>::DownwardMessageQueueHeads::get(&para)
+	}
+
+	#[cfg(test)]
+	fn dmq_mqc_head_for_message(para: ParaId, message_index: u32) -> Hash {
+		<Self as Store>::DownwardMessageQueueHeadsById::get(&QueueMessageId(para, message_index))
 	}
 
 	/// Returns the number of pending downward messages addressed to the given para.
@@ -336,7 +377,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Deprecated API. Please use `dmq_contents_bounded`.
 	pub(crate) fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-		Self::dmq_contents_bounded(recipient, MAX_MESSAGES_PER_QUERY)
+		Self::dmq_contents_bounded(recipient, 0, MAX_MESSAGES_PER_QUERY)
 	}
 
 	/// Returns up to `MAX_FRAGMENTS_PER_QUERY * QUEUE_FRAGMENT_CAPACITY` oldest messages from the queue contents for the given para.
@@ -346,19 +387,45 @@ impl<T: Config> Pallet<T> {
 	/// This is to be used in conjuction with `prune_dmq` to achieve pagination of arbitrary large queues.
 	pub(crate) fn dmq_contents_bounded(
 		recipient: ParaId,
+		start: u32,
 		count: u32,
-	) -> Vec<InboundDownwardMessage<T::BlockNumber>>{
-		let count = cmp::min(count, MAX_MESSAGES_PER_QUERY);
+	) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
 		let count = count as usize;
 		let mut head = Wrapping(Self::dmp_queue_head(recipient));
 		let tail = Wrapping(Self::dmp_queue_tail(recipient));
 		let mut result = Vec::new();
+		let mut to_skip = start;
+
+		// Skip `start` messages.
+		while head != tail && to_skip > 0 {
+			let fragment_len = <Self as Store>::DownwardMessageQueueFragments::decode_len(
+				QueueFragmentId(recipient, head.0),
+			)
+			.unwrap_or(0)
+			.saturated_into::<u32>();
+
+			if to_skip < fragment_len {
+				// We're gonna stop at this head after we add the remaining elements from this fragment to
+				// the result set.
+				result.extend(
+					<Self as Store>::DownwardMessageQueueFragments::get(QueueFragmentId(
+						recipient, head.0,
+					))
+					.split_off(to_skip as usize),
+				);
+			}
+
+			to_skip -= fragment_len;
+
+			head += 1;
+		}
 
 		// Loop until we reach the tail, or we've gathered at least `count` messages.
-		while head != tail && result.len() <= count {
+		while head != tail && result.len() < count {
 			result.extend(<Self as Store>::DownwardMessageQueueFragments::get(QueueFragmentId(
 				recipient, head.0,
 			)));
+
 			// Advance to next fragment.
 			head += 1;
 		}

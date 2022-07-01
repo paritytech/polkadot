@@ -24,7 +24,8 @@ use sp_std::prelude::*;
 /// Implementation for the `dmq_contents_bounded` function of the runtime API.
 pub fn dmq_contents_bounded<T: dmp::Config>(
 	parachain_id: Id,
+	start: u32,
 	count: u32,
 ) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-	<dmp::Pallet<T>>::dmq_contents_bounded(parachain_id, count)
+	<dmp::Pallet<T>>::dmq_contents_bounded(parachain_id, start, count)
 }

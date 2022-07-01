@@ -57,8 +57,12 @@ fn queue_downward_message(
 	Dmp::queue_downward_message(&Configuration::config(), para_id, msg)
 }
 
-fn dmq_contents_bounded(para_id: ParaId, count: u32) -> Vec<InboundDownwardMessage<BlockNumber>> {
-	Dmp::dmq_contents_bounded(para_id, count)
+fn dmq_contents_bounded(
+	para_id: ParaId,
+	start: u32,
+	count: u32,
+) -> Vec<InboundDownwardMessage<BlockNumber>> {
+	Dmp::dmq_contents_bounded(para_id, start, count)
 }
 
 #[test]
@@ -116,11 +120,24 @@ fn dmp_mqc_head_fixture() {
 		assert!(Dmp::dmq_mqc_head(a).is_zero());
 		queue_downward_message(a, vec![1, 2, 3]).unwrap();
 
+		assert_eq!(
+			Dmp::dmq_mqc_head(a),
+			hex!["086aef3a70db505d41acf75196b0b373b9607015a422d65da1732e8521b3def7"].into(),
+		);
+
 		run_to_block(3, None);
 		queue_downward_message(a, vec![4, 5, 6]).unwrap();
 
 		assert_eq!(
 			Dmp::dmq_mqc_head(a),
+			hex!["88dc00db8cc9d22aa62b87807705831f164387dfa49f80a8600ed1cbe1704b6b"].into(),
+		);
+		assert_eq!(
+			Dmp::dmq_mqc_head_for_message(a, 1),
+			hex!["086aef3a70db505d41acf75196b0b373b9607015a422d65da1732e8521b3def7"].into(),
+		);
+		assert_eq!(
+			Dmp::dmq_mqc_head_for_message(a, 2),
 			hex!["88dc00db8cc9d22aa62b87807705831f164387dfa49f80a8600ed1cbe1704b6b"].into(),
 		);
 	});
@@ -206,12 +223,11 @@ fn dmq_contents_is_bounded() {
 			assert!(queue_downward_message(a, Message(i).encode()).is_ok());
 		}
 
-		let messages = Dmp::dmq_contents_bounded(a, u32::MAX);
-		let max_response_len: usize =
-			(MAX_MESSAGES_PER_QUERY).try_into().unwrap();
-		assert_eq!(messages.len(), max_response_len);
+		let messages = Dmp::dmq_contents_bounded(a, 0, 15);
+		assert_eq!(messages.len(), 15);
 
 		let messages = Dmp::dmq_contents(a);
+		let max_response_len: usize = (MAX_MESSAGES_PER_QUERY).try_into().unwrap();
 		assert_eq!(messages.len(), max_response_len);
 	});
 }
@@ -234,7 +250,7 @@ fn queue_downward_message_fragment_ordering() {
 		let mut all_messages = Vec::new();
 
 		loop {
-			let messages = dmq_contents_bounded(a, 1000);
+			let messages = dmq_contents_bounded(a, 0, 2);
 			if messages.len() == 0 {
 				break
 			}
@@ -278,7 +294,7 @@ fn queue_downward_message_queue_full() {
 		let mut count = 0;
 		loop {
 			let page_size = chunk_size % (QUEUE_FRAGMENT_CAPACITY * 4);
-			let mut messages = dmq_contents_bounded(a, page_size);
+			let mut messages = dmq_contents_bounded(a, 0, page_size);
 
 			if page_size > 0 && messages.len() == 0 {
 				break

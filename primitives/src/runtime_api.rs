@@ -113,6 +113,7 @@ sp_api::decl_runtime_apis! {
 		/// Get inbound messages in the downward message queue for a para.
 		fn dmq_contents_bounded(
 			recipient: ppp::Id,
+			start: u32,
 			count: u32,
 		) -> Vec<pcp::v2::InboundDownwardMessage<N>>;
 
