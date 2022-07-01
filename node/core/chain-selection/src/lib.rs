@@ -50,6 +50,8 @@ type Timestamp = u64;
 // If a block isn't approved in 120 seconds, nodes will abandon it
 // and begin building on another chain.
 const STAGNANT_TIMEOUT: Timestamp = 120;
+// Delay prunning of the stagnant keys by 25 hours to avoid interception with the finality
+const STAGNANT_PRUNE_DELAY: Timestamp = 25 * 60 * 60;
 // Maximum number of stagnant entries cleaned during one `STAGNANT_TIMEOUT` iteration
 const MAX_STAGNANT_ENTRIES: usize = 1000;
 
@@ -437,7 +439,10 @@ where
 				}
 			}
 			_ = stagnant_check_stream.next().fuse() => {
-				detect_stagnant(backend, clock.timestamp_now(), MAX_STAGNANT_ENTRIES)?;
+				let now = clock.timestamp_now();
+				if now > STAGNANT_PRUNE_DELAY {
+					detect_stagnant(backend, now - STAGNANT_PRUNE_DELAY, MAX_STAGNANT_ENTRIES)?;
+				}
 			}
 		}
 	}
