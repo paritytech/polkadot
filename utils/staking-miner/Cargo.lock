@@ -3762,7 +3762,7 @@ dependencies = [
 [[package]]
 name = "sub-tokens"
 version = "0.1.0"
-source = "git+https://github.com/jakehemmerle/substrate-debug-kit?branch=master#e12503ab781e913735dc389865a3b8b4a6c6399d"
+source = "git+https://github.com/paritytech/substrate-debug-kit?branch=master#e12503ab781e913735dc389865a3b8b4a6c6399d"
 dependencies = [
  "separator",
 ]
