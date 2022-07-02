@@ -16,10 +16,10 @@ rand = "0.8"
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sp-application-crypto = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sp-keystore = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sp-keyring = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
 maplit = "1.0.2"
 log = "0.4.17"
 env_logger = "0.9.0"

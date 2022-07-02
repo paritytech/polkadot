@@ -31,40 +31,40 @@ pallet-shift-session-manager = { path = "../../../modules/shift-session-manager"
 
 # Substrate Dependencies
 
-beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-beefy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-beefy-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-offchain = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+beefy-primitives = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+frame-benchmarking = { git = "https://github.com/jakehemmerle/substrate", default-features = false, optional = true , branch = "8805-ed25519-zebra" }
+frame-executive = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+frame-support = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+frame-system = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+frame-system-rpc-runtime-api = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+pallet-authority-discovery = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+pallet-babe = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+pallet-balances = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+pallet-beefy = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+pallet-beefy-mmr = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+pallet-grandpa = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+pallet-mmr = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+pallet-session = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+pallet-sudo = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+pallet-timestamp = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+pallet-transaction-payment = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-api = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-authority-discovery = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-block-builder = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-consensus-babe = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-core = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-finality-grandpa = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-inherents = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-io = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-mmr-primitives = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-offchain = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-runtime = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-session = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-std = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-transaction-pool = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-trie = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-version = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
 
 # Polkadot (parachain) Dependencies
 
@@ -78,7 +78,7 @@ libsecp256k1 = { version = "0.7", features = ["hmac"] }
 static_assertions = "1.1"
 
 [build-dependencies]
-substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-wasm-builder = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
 
 [features]
 default = ["std"]

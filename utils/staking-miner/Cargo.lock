@@ -728,7 +728,7 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 [[package]]
 name = "frame-benchmarking"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -739,18 +739,18 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-api",
- "sp-application-crypto 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-io 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-storage 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-application-crypto 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-io 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime-interface 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-storage 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
 ]
 
 [[package]]
 name = "frame-election-provider-solution-type"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -761,17 +761,17 @@ dependencies = [
 [[package]]
 name = "frame-election-provider-support"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "frame-election-provider-solution-type",
  "frame-support",
  "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-arithmetic 5.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-arithmetic 5.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "sp-npos-elections",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
 ]
 
 [[package]]
@@ -789,7 +789,7 @@ dependencies = [
 [[package]]
 name = "frame-support"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "bitflags",
  "frame-metadata",
@@ -803,23 +803,23 @@ dependencies = [
  "scale-info",
  "serde",
  "smallvec",
- "sp-arithmetic 5.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-arithmetic 5.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "sp-core-hashing-proc-macro",
  "sp-inherents",
- "sp-io 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-io 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "sp-staking",
- "sp-state-machine 0.12.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-tracing 5.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-state-machine 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-tracing 5.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "tt-call",
 ]
 
 [[package]]
 name = "frame-support-procedural"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "Inflector",
  "frame-support-procedural-tools",
@@ -831,7 +831,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "frame-support-procedural-tools-derive",
  "proc-macro-crate",
@@ -843,7 +843,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools-derive"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -853,17 +853,17 @@ dependencies = [
 [[package]]
 name = "frame-system"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "frame-support",
  "log",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-io 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-io 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "sp-version",
 ]
 
@@ -1758,7 +1758,7 @@ checksum = "8e22443d1643a904602595ba1cd8f7d896afe56d26712531c5ff73a15b2fbf64"
 [[package]]
 name = "pallet-election-provider-multi-phase"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -1768,12 +1768,12 @@ dependencies = [
  "parity-scale-codec",
  "rand 0.7.3",
  "scale-info",
- "sp-arithmetic 5.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-io 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-arithmetic 5.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-io 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "sp-npos-elections",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "static_assertions",
  "strum",
 ]
@@ -1781,7 +1781,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1789,10 +1789,10 @@ dependencies = [
  "scale-info",
  "serde",
  "smallvec",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-io 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-io 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
 ]
 
 [[package]]
@@ -1939,9 +1939,9 @@ dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
 ]
 
 [[package]]
@@ -2203,7 +2203,7 @@ checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
 [[package]]
 name = "remote-externalities"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "env_logger",
  "jsonrpsee",
@@ -2211,9 +2211,9 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "serde_json",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-io 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-io 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "sp-version",
 ]
 
@@ -2309,13 +2309,13 @@ checksum = "73b4b750c782965c211b42f022f59af1fbceabdd026623714f104152f1ec149f"
 [[package]]
 name = "sc-transaction-pool-api"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "futures",
  "log",
  "serde",
  "sp-blockchain",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "thiserror",
 ]
 
@@ -2618,16 +2618,16 @@ dependencies = [
 [[package]]
 name = "sp-api"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "hash-db",
  "log",
  "parity-scale-codec",
  "sp-api-proc-macro",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-state-machine 0.12.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-state-machine 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "sp-version",
  "thiserror",
 ]
@@ -2635,7 +2635,7 @@ dependencies = [
 [[package]]
 name = "sp-api-proc-macro"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "blake2",
  "proc-macro-crate",
@@ -2661,27 +2661,27 @@ dependencies = [
 [[package]]
 name = "sp-application-crypto"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-io 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-io 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
 ]
 
 [[package]]
 name = "sp-application-crypto"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-io 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-io 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
 ]
 
 [[package]]
@@ -2703,37 +2703,37 @@ dependencies = [
 [[package]]
 name = "sp-arithmetic"
 version = "5.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "integer-sqrt",
  "num-traits",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-debug-derive 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-debug-derive 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "static_assertions",
 ]
 
 [[package]]
 name = "sp-arithmetic"
 version = "5.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "integer-sqrt",
  "num-traits",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-debug-derive 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-debug-derive 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
  "static_assertions",
 ]
 
 [[package]]
 name = "sp-blockchain"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "futures",
  "log",
@@ -2743,26 +2743,26 @@ dependencies = [
  "sp-api",
  "sp-consensus",
  "sp-database",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-state-machine 0.12.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-state-machine 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "thiserror",
 ]
 
 [[package]]
 name = "sp-consensus"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "async-trait",
  "futures",
  "futures-timer",
  "log",
  "parity-scale-codec",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "sp-inherents",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-state-machine 0.12.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-state-machine 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "sp-version",
  "thiserror",
 ]
@@ -2817,7 +2817,7 @@ dependencies = [
 [[package]]
 name = "sp-core"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "base58",
  "bitflags",
@@ -2846,12 +2846,12 @@ dependencies = [
  "secp256k1",
  "secrecy",
  "serde",
- "sp-core-hashing 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-debug-derive 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-externalities 0.12.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-storage 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core-hashing 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-debug-derive 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-externalities 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime-interface 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-storage 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "ss58-registry",
  "substrate-bip39",
  "thiserror",
@@ -2863,7 +2863,7 @@ dependencies = [
 [[package]]
 name = "sp-core"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "base58",
  "bitflags",
@@ -2892,12 +2892,12 @@ dependencies = [
  "secp256k1",
  "secrecy",
  "serde",
- "sp-core-hashing 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-debug-derive 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-externalities 0.12.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-storage 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core-hashing 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-debug-derive 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-externalities 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-runtime-interface 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-storage 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
  "ss58-registry",
  "substrate-bip39",
  "thiserror",
@@ -2923,46 +2923,46 @@ dependencies = [
 [[package]]
 name = "sp-core-hashing"
 version = "4.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "blake2",
  "byteorder",
  "digest 0.10.3",
  "sha2 0.10.2",
  "sha3",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "twox-hash",
 ]
 
 [[package]]
 name = "sp-core-hashing"
 version = "4.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "blake2",
  "byteorder",
  "digest 0.10.3",
  "sha2 0.10.2",
  "sha3",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
  "twox-hash",
 ]
 
 [[package]]
 name = "sp-core-hashing-proc-macro"
 version = "5.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "proc-macro2",
  "quote",
- "sp-core-hashing 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core-hashing 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "syn",
 ]
 
 [[package]]
 name = "sp-database"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "kvdb",
  "parking_lot",
@@ -2982,7 +2982,7 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "4.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2992,7 +2992,7 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "4.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3014,36 +3014,36 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.12.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "environmental",
  "parity-scale-codec",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-storage 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-storage 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
 ]
 
 [[package]]
 name = "sp-externalities"
 version = "0.12.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "environmental",
  "parity-scale-codec",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-storage 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-storage 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
 ]
 
 [[package]]
 name = "sp-inherents"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "async-trait",
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "thiserror",
 ]
 
@@ -3076,7 +3076,7 @@ dependencies = [
 [[package]]
 name = "sp-io"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "futures",
  "hash-db",
@@ -3085,15 +3085,15 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot",
  "secp256k1",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-externalities 0.12.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-keystore 0.12.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-state-machine 0.12.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-tracing 5.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-trie 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-wasm-interface 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-externalities 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-keystore 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime-interface 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-state-machine 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-tracing 5.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-trie 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-wasm-interface 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "tracing",
  "tracing-core",
 ]
@@ -3101,7 +3101,7 @@ dependencies = [
 [[package]]
 name = "sp-io"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "futures",
  "hash-db",
@@ -3110,15 +3110,15 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot",
  "secp256k1",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-externalities 0.12.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-keystore 0.12.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime-interface 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-state-machine 0.12.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-tracing 5.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-trie 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-wasm-interface 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-externalities 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-keystore 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-runtime-interface 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-state-machine 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-tracing 5.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-trie 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-wasm-interface 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
  "tracing",
  "tracing-core",
 ]
@@ -3143,7 +3143,7 @@ dependencies = [
 [[package]]
 name = "sp-keystore"
 version = "0.12.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "async-trait",
  "futures",
@@ -3151,15 +3151,15 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot",
  "schnorrkel",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-externalities 0.12.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-externalities 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "thiserror",
 ]
 
 [[package]]
 name = "sp-keystore"
 version = "0.12.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "async-trait",
  "futures",
@@ -3167,23 +3167,23 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot",
  "schnorrkel",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-externalities 0.12.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-externalities 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
  "thiserror",
 ]
 
 [[package]]
 name = "sp-npos-elections"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-arithmetic 5.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-arithmetic 5.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
 ]
 
 [[package]]
@@ -3200,7 +3200,7 @@ dependencies = [
 [[package]]
 name = "sp-panic-handler"
 version = "4.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "backtrace",
  "lazy_static",
@@ -3210,7 +3210,7 @@ dependencies = [
 [[package]]
 name = "sp-panic-handler"
 version = "4.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "backtrace",
  "lazy_static",
@@ -3243,7 +3243,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "either",
  "hash256-std-hasher",
@@ -3255,17 +3255,17 @@ dependencies = [
  "rand 0.7.3",
  "scale-info",
  "serde",
- "sp-application-crypto 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-arithmetic 5.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-io 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-application-crypto 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-arithmetic 5.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-io 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
 ]
 
 [[package]]
 name = "sp-runtime"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "either",
  "hash256-std-hasher",
@@ -3277,11 +3277,11 @@ dependencies = [
  "rand 0.7.3",
  "scale-info",
  "serde",
- "sp-application-crypto 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-arithmetic 5.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-io 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-application-crypto 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-arithmetic 5.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-io 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
 ]
 
 [[package]]
@@ -3305,34 +3305,34 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "primitive-types",
- "sp-externalities 0.12.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-runtime-interface-proc-macro 5.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-storage 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-tracing 5.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-wasm-interface 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-externalities 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime-interface-proc-macro 5.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-storage 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-tracing 5.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-wasm-interface 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "static_assertions",
 ]
 
 [[package]]
 name = "sp-runtime-interface"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "primitive-types",
- "sp-externalities 0.12.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime-interface-proc-macro 5.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-storage 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-tracing 5.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-wasm-interface 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-externalities 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-runtime-interface-proc-macro 5.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-storage 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-tracing 5.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-wasm-interface 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
  "static_assertions",
 ]
 
@@ -3352,7 +3352,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "5.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "Inflector",
  "proc-macro-crate",
@@ -3364,7 +3364,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "5.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "Inflector",
  "proc-macro-crate",
@@ -3376,12 +3376,12 @@ dependencies = [
 [[package]]
 name = "sp-staking"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
 ]
 
 [[package]]
@@ -3411,7 +3411,7 @@ dependencies = [
 [[package]]
 name = "sp-state-machine"
 version = "0.12.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "hash-db",
  "log",
@@ -3420,11 +3420,11 @@ dependencies = [
  "parking_lot",
  "rand 0.7.3",
  "smallvec",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-externalities 0.12.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-panic-handler 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-trie 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-externalities 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-panic-handler 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-trie 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "thiserror",
  "tracing",
  "trie-root",
@@ -3433,7 +3433,7 @@ dependencies = [
 [[package]]
 name = "sp-state-machine"
 version = "0.12.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "hash-db",
  "log",
@@ -3442,11 +3442,11 @@ dependencies = [
  "parking_lot",
  "rand 0.7.3",
  "smallvec",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-externalities 0.12.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-panic-handler 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-trie 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-externalities 0.12.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-panic-handler 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-trie 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
  "thiserror",
  "tracing",
  "trie-root",
@@ -3461,12 +3461,12 @@ checksum = "14804d6069ee7a388240b665f17908d98386ffb0b5d39f89a4099fc7a2a4c03f"
 [[package]]
 name = "sp-std"
 version = "4.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 
 [[package]]
 name = "sp-std"
 version = "4.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 
 [[package]]
 name = "sp-storage"
@@ -3485,27 +3485,27 @@ dependencies = [
 [[package]]
 name = "sp-storage"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
  "ref-cast",
  "serde",
- "sp-debug-derive 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-debug-derive 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
 ]
 
 [[package]]
 name = "sp-storage"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
  "ref-cast",
  "serde",
- "sp-debug-derive 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-debug-derive 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
 ]
 
 [[package]]
@@ -3524,10 +3524,10 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "5.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "parity-scale-codec",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "tracing",
  "tracing-core",
  "tracing-subscriber 0.2.25",
@@ -3536,10 +3536,10 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "5.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "parity-scale-codec",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
  "tracing",
  "tracing-core",
  "tracing-subscriber 0.2.25",
@@ -3564,14 +3564,14 @@ dependencies = [
 [[package]]
 name = "sp-trie"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "hash-db",
  "memory-db",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "thiserror",
  "trie-db",
  "trie-root",
@@ -3580,14 +3580,14 @@ dependencies = [
 [[package]]
 name = "sp-trie"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "hash-db",
  "memory-db",
  "parity-scale-codec",
  "scale-info",
- "sp-core 6.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
  "thiserror",
  "trie-db",
  "trie-root",
@@ -3596,7 +3596,7 @@ dependencies = [
 [[package]]
 name = "sp-version"
 version = "5.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
@@ -3604,8 +3604,8 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-core-hashing-proc-macro",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "sp-version-proc-macro",
  "thiserror",
 ]
@@ -3613,7 +3613,7 @@ dependencies = [
 [[package]]
 name = "sp-version-proc-macro"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "parity-scale-codec",
  "proc-macro2",
@@ -3637,24 +3637,24 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
+source = "git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait#7227aa3df1b765dc850eb1dd4feb05e01805d9e0"
 dependencies = [
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "wasmi",
 ]
 
 [[package]]
 name = "sp-wasm-interface"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
+source = "git+https://github.com/jakehemmerle/substrate?branch=master#c2fc4b3ca0d7a15cc3f9cb1e5f441d99ec8d6e0b"
 dependencies = [
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-std 4.0.0 (git+https://github.com/jakehemmerle/substrate?branch=master)",
  "wasmi",
 ]
 
@@ -3701,9 +3701,9 @@ dependencies = [
  "scale-info",
  "serde",
  "serde_json",
- "sp-io 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-io 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "sp-npos-elections",
- "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate?branch=kiz-staking-miner-new-trait)",
+ "sp-runtime 6.0.0 (git+https://github.com/jakehemmerle/substrate?branch=kiz-staking-miner-new-trait)",
  "sp-version",
  "sub-tokens",
  "subxt",
@@ -3762,7 +3762,7 @@ dependencies = [
 [[package]]
 name = "sub-tokens"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/substrate-debug-kit?branch=master#e12503ab781e913735dc389865a3b8b4a6c6399d"
+source = "git+https://github.com/jakehemmerle/substrate-debug-kit?branch=master#e12503ab781e913735dc389865a3b8b4a6c6399d"
 dependencies = [
  "separator",
 ]

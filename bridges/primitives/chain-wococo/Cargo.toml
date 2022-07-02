@@ -16,9 +16,9 @@ bp-rococo = { path = "../chain-rococo", default-features = false }
 bp-runtime = { path = "../runtime", default-features = false }
 
 # Substrate Based Dependencies
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-api = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-runtime = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-std = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
 
 [features]
 default = ["std"]

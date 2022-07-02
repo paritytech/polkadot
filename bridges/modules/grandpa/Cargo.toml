@@ -22,20 +22,20 @@ bp-header-chain = { path = "../../primitives/header-chain", default-features = f
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-support = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+frame-system = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-finality-grandpa = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-runtime = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-std = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+sp-trie = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
 
 # Optional Benchmarking Dependencies
 bp-test-utils = { path = "../../primitives/test-utils", default-features = false, optional = true }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+frame-benchmarking = { git = "https://github.com/jakehemmerle/substrate", default-features = false, optional = true , branch = "8805-ed25519-zebra" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sp-io = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
 
 [features]
 default = ["std"]

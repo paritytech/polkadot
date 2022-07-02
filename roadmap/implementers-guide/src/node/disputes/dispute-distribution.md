@@ -173,7 +173,7 @@ a dispute is no longer live, we will clean up the state accordingly.
 Because we are not forwarding foreign statements, spam is less of an issue in
 comparison to gossip based systems. Rate limiting should be implemented at the
 substrate level, see
-[#7750](https://github.com/paritytech/substrate/issues/7750). Still we should
+[#7750](https://github.com/jakehemmerle/substrate/issues/7750). Still we should
 make sure that it is not possible via spamming to prevent a dispute concluding
 or worse from getting noticed.
 

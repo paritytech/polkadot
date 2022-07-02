@@ -7,26 +7,26 @@ edition = "2021"
 [dependencies]
 jsonrpsee = { version = "0.14.0", features = ["server"] }
 polkadot-primitives = { path = "../primitives" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-state-trie-migration-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sp-blockchain = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sp-keystore = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sp-runtime = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sp-api = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sp-consensus = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sp-consensus-babe = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sc-chain-spec = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sc-rpc = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sc-consensus-babe = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sc-consensus-babe-rpc = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sc-consensus-epochs = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sc-finality-grandpa = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sc-finality-grandpa-rpc = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sc-sync-state-rpc = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+pallet-mmr-rpc = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+pallet-transaction-payment-rpc = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sp-block-builder = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+beefy-gadget = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+beefy-gadget-rpc = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+substrate-state-trie-migration-rpc = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }

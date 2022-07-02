@@ -6,5 +6,5 @@ edition = "2021"
 
 [dependencies]
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
 primitives = { package = "polkadot-primitives", path = "../primitives" }

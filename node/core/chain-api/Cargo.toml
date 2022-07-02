@@ -7,12 +7,12 @@ edition = "2021"
 [dependencies]
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+sc-consensus-babe = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
 
 [dev-dependencies]
 futures = { version = "0.3.21", features = ["thread-pool"] }
@@ -20,4 +20,4 @@ maplit = "1.0.2"
 parity-scale-codec = "3.1.5"
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }

@@ -16,6 +16,6 @@ rialto-parachain-runtime = { path = "../../bin/rialto-parachain/runtime" }
 
 # Substrate Dependencies
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+frame-support = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
+pallet-transaction-payment = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }
