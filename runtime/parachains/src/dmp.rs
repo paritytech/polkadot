@@ -18,8 +18,9 @@ use crate::{
 	configuration::{self, HostConfiguration},
 	initializer,
 };
+
 use frame_support::pallet_prelude::*;
-use primitives::v2::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
+use primitives::v2::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage, QueueMessageId};
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
 use sp_std::{fmt, num::Wrapping, prelude::*};
 use xcm::latest::SendError;
@@ -31,11 +32,7 @@ mod tests;
 
 /// The key for a group of downward messages.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
-pub struct QueueFragmentId(ParaId, u8);
-
-/// The key identifying a downward message.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
-pub struct QueueMessageId(ParaId, u32);
+pub struct QueueFragmentId(ParaId, u64);
 
 /// An error sending a downward message.
 #[cfg_attr(test, derive(Debug))]
@@ -89,7 +86,7 @@ impl fmt::Debug for ProcessedDownwardMessagesAcceptanceErr {
 /// TODO(maybe) - make these configuration parameters?
 ///
 /// Defines the queue fragment capacity.
-pub const QUEUE_FRAGMENT_CAPACITY: u32 = 256;
+pub const QUEUE_FRAGMENT_CAPACITY: u32 = 1;
 /// Defines the maximum amount of messages returned by `dmq_contents`/`dmq_contents_bounded`.
 pub const MAX_MESSAGES_PER_QUERY: u32 = 2048;
 
@@ -108,12 +105,12 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn dmp_queue_head)]
 	pub(super) type DownwardMessageQueueHead<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, u8, ValueQuery>;
+		StorageMap<_, Twox64Concat, ParaId, u64, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn dmp_queue_tail)]
 	pub(super) type DownwardMessageQueueTail<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, u8, ValueQuery>;
+		StorageMap<_, Twox64Concat, ParaId, u64, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn dmp_last_message_id)]
@@ -176,7 +173,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn update_head(para: &ParaId, new_head: Wrapping<u8>) -> Weight {
+	fn update_head(para: &ParaId, new_head: Wrapping<u64>) -> Weight {
 		<Self as Store>::DownwardMessageQueueHead::mutate(para, |head_pointer| {
 			*head_pointer = new_head.0;
 		});
@@ -184,7 +181,7 @@ impl<T: Config> Pallet<T> {
 		T::DbWeight::get().reads_writes(1, 1)
 	}
 
-	fn update_tail(para: &ParaId, new_tail: Wrapping<u8>) -> Weight {
+	fn update_tail(para: &ParaId, new_tail: Wrapping<u64>) -> Weight {
 		<Self as Store>::DownwardMessageQueueTail::mutate(para, |tail_pointer| {
 			*tail_pointer = new_tail.0;
 		});
@@ -250,9 +247,9 @@ impl<T: Config> Pallet<T> {
 
 		// Check if we need a new fragment.
 		if tail_fragment_len >= QUEUE_FRAGMENT_CAPACITY {
-			// Check if ring buffer is full.
+			// In practice this is always bounded economically.
 			if tail + Wrapping(1) == head {
-				return Err(QueueDownwardMessageError::ExceedsMaxPendingMessageCount)
+				unimplemented!("The end of the world is upon us");
 			}
 
 			// Advance tail.
@@ -352,6 +349,8 @@ impl<T: Config> Pallet<T> {
 
 	#[cfg(test)]
 	fn dmq_mqc_head_for_message(para: ParaId, message_index: u32) -> Hash {
+		// use frame_support::{storage::generator::StorageMap, traits::PalletInfo};
+		// panic!("{:x?}",&<Self as Store>::DownwardMessageQueueHeadsById::prefix_hash());
 		<Self as Store>::DownwardMessageQueueHeadsById::get(&QueueMessageId(para, message_index))
 	}
 
@@ -415,7 +414,7 @@ impl<T: Config> Pallet<T> {
 				);
 			}
 
-			to_skip -= fragment_len;
+			to_skip = to_skip.saturating_sub(fragment_len);
 
 			head += 1;
 		}

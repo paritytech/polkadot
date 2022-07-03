@@ -156,7 +156,7 @@ fn check_processed_downward_messages() {
 		queue_downward_message(a, vec![7, 8, 9]).unwrap();
 
 		// 0 doesn't pass if the DMQ has msgs.
-		assert!(!Dmp::check_processed_downward_messages(a, 0).is_ok());
+		assert!(Dmp::check_processed_downward_messages(a, 0).is_err());
 		// a candidate can consume up to 3 messages
 		assert!(Dmp::check_processed_downward_messages(a, 1).is_ok());
 		assert!(Dmp::check_processed_downward_messages(a, 2).is_ok());
@@ -216,7 +216,7 @@ fn dmq_contents_is_bounded() {
 	let a = ParaId::from(1337);
 
 	new_test_ext(default_genesis_config()).execute_with(|| {
-		let max_queue_size = QUEUE_FRAGMENT_CAPACITY * (u8::MAX as u32);
+		let max_queue_size = 12345;
 
 		// Fill queue.
 		for i in 0..max_queue_size {
@@ -269,14 +269,14 @@ fn queue_downward_message_fragment_ordering() {
 }
 
 #[test]
-fn queue_downward_message_queue_full() {
+fn queue_downward_message_consumption() {
 	let a = ParaId::from(1337);
 
 	let mut genesis = default_genesis_config();
-	genesis.configuration.config.max_downward_message_size = 17;
+	genesis.configuration.config.max_downward_message_size = 16;
 
 	new_test_ext(genesis).execute_with(|| {
-		let max_queue_size = QUEUE_FRAGMENT_CAPACITY * (u8::MAX as u32);
+		let max_queue_size = 16 * (u8::MAX as u32);
 
 		for i in 0..max_queue_size {
 			assert!(queue_downward_message(a, Message(i).encode()).is_ok());
@@ -284,22 +284,21 @@ fn queue_downward_message_queue_full() {
 
 		assert_eq!(max_queue_size, Dmp::dmq_length(a));
 
-		let msg = Message(0);
-		// This one should fail, the queue is now full.
-		assert!(queue_downward_message(a, msg.encode()).is_err());
-
 		// Now lets fetch all messages using different chunk sizes (0 to 4 * QUEUE_FRAGMENT_SIZE - 1).
 		let mut chunk_size = 1;
 		let mut sum = 0;
 		let mut count = 0;
+		let mut start_index = 0;
 		loop {
 			let page_size = chunk_size % (QUEUE_FRAGMENT_CAPACITY * 4);
-			let mut messages = dmq_contents_bounded(a, 0, page_size);
+			let mut messages = dmq_contents_bounded(a, start_index, page_size);
 
 			if page_size > 0 && messages.len() == 0 {
 				break
 			}
 			count += messages.len() as u32;
+			// Update dmq contents window start.
+			start_index += messages.len() as u32;
 
 			sum += messages
 				.iter_mut()
@@ -307,8 +306,10 @@ fn queue_downward_message_queue_full() {
 				.sum::<u64>();
 
 			chunk_size += 1;
-			Dmp::prune_dmq(a, messages.len() as u32);
 		}
+
+		Dmp::prune_dmq(a, count);
+
 		// Check if we collected and pruned all messages.
 		let expected_count = max_queue_size;
 		assert_eq!(count, expected_count);
@@ -337,6 +338,20 @@ fn verify_dmq_mqc_head_is_externally_accessible() {
 		assert_eq!(
 			head,
 			Some(hex!["434f8579a2297dfea851bf6be33093c83a78b655a53ae141a7894494c0010589"].to_vec())
+		);
+
+		queue_downward_message(a, vec![4, 5, 6]).unwrap();
+
+		let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head_for_message(a, 2));
+		assert_eq!(
+			head,
+			Some(hex!["3ac90e9a99935b82ee02438a852e6baa8ede95e3b5b7b9a486adf2a2c12405b3"].to_vec())
+		);
+
+		let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head(a));
+		assert_eq!(
+			head,
+			Some(hex!["3ac90e9a99935b82ee02438a852e6baa8ede95e3b5b7b9a486adf2a2c12405b3"].to_vec())
 		);
 	});
 }
