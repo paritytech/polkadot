@@ -787,7 +787,7 @@ zombienet-tests-malus-dispute-valid:
 
 zombienet-tests-deregister-register-validator:
   stage:                           stage3
-  image:                           "docker.io/paritytech/zombienet:v1.2.42"
+  image:                           "docker.io/paritytech/zombienet:v1.2.47"
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
   needs:
