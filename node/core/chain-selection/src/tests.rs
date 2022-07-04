@@ -139,13 +139,16 @@ impl Backend for TestBackend {
 	fn load_stagnant_at_up_to(
 		&self,
 		up_to: Timestamp,
+		max_elements: usize,
 	) -> Result<Vec<(Timestamp, Vec<Hash>)>, Error> {
 		Ok(self
 			.inner
 			.lock()
 			.stagnant_at
 			.range(..=up_to)
-			.map(|(t, v)| (*t, v.clone()))
+			.enumerate()
+			.take_while(|(idx, _)| *idx < max_elements)
+			.map(|(_, (t, v))| (*t, v.clone()))
 			.collect())
 	}
 	fn load_first_block_number(&self) -> Result<Option<BlockNumber>, Error> {
