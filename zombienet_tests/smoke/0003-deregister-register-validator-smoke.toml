@@ -21,3 +21,4 @@ command = "polkadot"
   [[relaychain.nodes]]
   name = "dave"
   args = [ "-lruntime=debug,parachain=trace" ]
+  
