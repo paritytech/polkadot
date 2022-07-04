@@ -1070,35 +1070,36 @@ impl pallet_multisig::Config for Runtime {
 	type WeightInfo = weights::pallet_multisig::WeightInfo<Runtime>;
 }
 
-use pallet_state_trie_migration::MigrationLimits;
 parameter_types! {
-    // The deposit configuration for the singed migration. Specially if you want to allow any signed account to do the migration (see `SignedFilter`, these deposits should be high)
-    pub const MigrationSignedDepositPerItem: Balance = 1 * CENTS;
-    pub const MigrationSignedDepositBase: Balance = 20 * DOLLARS;
+	// The deposit configuration for the singed migration. Specially if you want to allow any signed account to do the migration (see `SignedFilter`, these deposits should be high)
+	pub const MigrationSignedDepositPerItem: Balance = 1 * CENTS;
+	pub const MigrationSignedDepositBase: Balance = 20 * DOLLARS;
 		pub const MigrationMaxKeyLen: u32 = 512;
 }
 
 impl pallet_state_trie_migration::Config for Runtime {
-    type Event = Event;
-    type Currency = Balances;
-    type SignedDepositPerItem = MigrationSignedDepositPerItem;
-    type SignedDepositBase = MigrationSignedDepositBase;
-    // An origin that can control the whole pallet: should be Root, or a part of your council. 
-    type ControlOrigin = EnsureRoot<AccountId>;
-    // specific account for the migration, can trigger the signed migrations.
-    type SignedFilter = frame_system::EnsureSignedBy<MigController, AccountId>;
-		//type SignedFilter = frame_system::EnsureSigned<Self::AccountId>;
+	type Event = Event;
+	type Currency = Balances;
+	type SignedDepositPerItem = MigrationSignedDepositPerItem;
+	type SignedDepositBase = MigrationSignedDepositBase;
+	// An origin that can control the whole pallet: should be Root, or a part of your council.
+	type ControlOrigin = EnsureRoot<AccountId>;
+	// specific account for the migration, can trigger the signed migrations.
+	type SignedFilter = frame_system::EnsureSignedBy<MigController, AccountId>;
+	//type SignedFilter = frame_system::EnsureSigned<Self::AccountId>;
 
-    // Replace this with weight based on your runtime. 
-		type WeightInfo = weights::pallet_state_trie_migration::WeightInfo<Runtime>;
+	// Replace this with weight based on your runtime.
+	type WeightInfo = weights::pallet_state_trie_migration::WeightInfo<Runtime>;
 
-		type MaxKeyLen = MigrationMaxKeyLen;
+	type MaxKeyLen = MigrationMaxKeyLen;
 }
 
 pub struct MigController;
 
-const KEY_MIG_CONTROLLER: [u8; 32] = [78, 108, 243, 247, 41, 70, 156, 34, 206, 222, 31, 148, 224, 84, 205, 43, 243, 75, 111, 97, 51, 182, 220, 160, 160, 143, 140, 250, 146, 252, 199, 114];
-
+const KEY_MIG_CONTROLLER: [u8; 32] = [
+	82, 188, 113, 193, 236, 165, 53, 55, 73, 84, 45, 253, 240, 175, 151, 191, 118, 79, 156, 47, 68,
+	232, 96, 205, 72, 95, 28, 216, 100, 0, 246, 73,
+];
 impl SortedMembers<AccountId> for MigController {
 	fn sorted_members() -> Vec<AccountId> {
 		// hardcoded key of controller for manual migration
@@ -1109,10 +1110,11 @@ impl SortedMembers<AccountId> for MigController {
 #[test]
 fn ensure_key_ss58() {
 	use sp_core::crypto::Ss58Codec;
-	let acc = AccountId::from_ss58check("5DqXxWrJPv9QX8GDY227fb1f8gbEfrabi9bvBK4htA7idHR5").unwrap();
+	let acc =
+		AccountId::from_ss58check("5DwBmEFPXRESyEam5SsQF1zbWSCn2kCjyLW51hJHXe9vW4xs").unwrap();
 	let acc: &[u8] = acc.as_ref();
 	assert_eq!(acc, &KEY_MIG_CONTROLLER[..]);
-//	panic!("{:?}", acc);
+	//	panic!("{:?}", acc);
 }
 
 #[cfg(feature = "runtime-benchmarks")]
