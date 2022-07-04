@@ -184,7 +184,7 @@ fn request_block_number() {
 				let (tx, rx) = oneshot::channel();
 
 				sender
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: ChainApiMessage::BlockNumber(*hash, tx),
 					})
 					.await;
@@ -192,7 +192,7 @@ fn request_block_number() {
 				assert_eq!(rx.await.unwrap().unwrap(), *expected);
 			}
 
-			sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			sender.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 		}
 		.boxed()
 	})
@@ -211,7 +211,7 @@ fn request_block_header() {
 				let (tx, rx) = oneshot::channel();
 
 				sender
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: ChainApiMessage::BlockHeader(*hash, tx),
 					})
 					.await;
@@ -219,7 +219,7 @@ fn request_block_header() {
 				assert_eq!(rx.await.unwrap().unwrap(), *expected);
 			}
 
-			sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			sender.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 		}
 		.boxed()
 	})
@@ -239,7 +239,7 @@ fn request_block_weight() {
 				let (tx, rx) = oneshot::channel();
 
 				sender
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: ChainApiMessage::BlockWeight(*hash, tx),
 					})
 					.await;
@@ -247,7 +247,7 @@ fn request_block_weight() {
 				assert_eq!(rx.await.unwrap().unwrap(), *expected);
 			}
 
-			sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			sender.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 		}
 		.boxed()
 	})
@@ -265,7 +265,7 @@ fn request_finalized_hash() {
 				let (tx, rx) = oneshot::channel();
 
 				sender
-					.send(FromOverseer::Communication {
+					.send(FromOrchestra::Communication {
 						msg: ChainApiMessage::FinalizedBlockHash(*number, tx),
 					})
 					.await;
@@ -273,7 +273,7 @@ fn request_finalized_hash() {
 				assert_eq!(rx.await.unwrap().unwrap(), *expected);
 			}
 
-			sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			sender.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 		}
 		.boxed()
 	})
@@ -287,14 +287,14 @@ fn request_last_finalized_number() {
 
 			let expected = client.info().finalized_number;
 			sender
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: ChainApiMessage::FinalizedBlockNumber(tx),
 				})
 				.await;
 
 			assert_eq!(rx.await.unwrap().unwrap(), expected);
 
-			sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			sender.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 		}
 		.boxed()
 	})
@@ -306,7 +306,7 @@ fn request_ancestors() {
 		async move {
 			let (tx, rx) = oneshot::channel();
 			sender
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: ChainApiMessage::Ancestors { hash: THREE, k: 4, response_channel: tx },
 				})
 				.await;
@@ -315,7 +315,7 @@ fn request_ancestors() {
 			// Limit the number of ancestors.
 			let (tx, rx) = oneshot::channel();
 			sender
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: ChainApiMessage::Ancestors { hash: TWO, k: 1, response_channel: tx },
 				})
 				.await;
@@ -324,7 +324,7 @@ fn request_ancestors() {
 			// Ancestor of block #1 is returned.
 			let (tx, rx) = oneshot::channel();
 			sender
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: ChainApiMessage::Ancestors { hash: ONE, k: 10, response_channel: tx },
 				})
 				.await;
@@ -333,7 +333,7 @@ fn request_ancestors() {
 			// No ancestors of genesis block.
 			let (tx, rx) = oneshot::channel();
 			sender
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: ChainApiMessage::Ancestors { hash: GENESIS, k: 10, response_channel: tx },
 				})
 				.await;
@@ -341,7 +341,7 @@ fn request_ancestors() {
 
 			let (tx, rx) = oneshot::channel();
 			sender
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: ChainApiMessage::Ancestors {
 						hash: ERROR_PATH,
 						k: 2,
@@ -351,7 +351,7 @@ fn request_ancestors() {
 				.await;
 			assert!(rx.await.unwrap().is_err());
 
-			sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			sender.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 		}
 		.boxed()
 	})

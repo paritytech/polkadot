@@ -21,7 +21,7 @@ use polkadot_node_subsystem::{
 	errors::ChainApiError,
 	messages::{ChainApiMessage, ChainSelectionMessage},
 	overseer::{self, SubsystemSender},
-	FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
+	FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::database::Database;
 use polkadot_primitives::v2::{BlockNumber, ConsensusLog, Hash, Header};
@@ -50,6 +50,8 @@ type Timestamp = u64;
 // If a block isn't approved in 120 seconds, nodes will abandon it
 // and begin building on another chain.
 const STAGNANT_TIMEOUT: Timestamp = 120;
+// Maximum number of stagnant entries cleaned during one `STAGNANT_TIMEOUT` iteration
+const MAX_STAGNANT_ENTRIES: usize = 1000;
 
 #[derive(Debug, Clone)]
 enum Approval {
@@ -392,10 +394,10 @@ where
 			msg = ctx.recv().fuse() => {
 				let msg = msg?;
 				match msg {
-					FromOverseer::Signal(OverseerSignal::Conclude) => {
+					FromOrchestra::Signal(OverseerSignal::Conclude) => {
 						return Ok(())
 					}
-					FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+					FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 						for leaf in update.activated {
 							let write_ops = handle_active_leaf(
 								ctx.sender(),
@@ -407,10 +409,10 @@ where
 							backend.write(write_ops)?;
 						}
 					}
-					FromOverseer::Signal(OverseerSignal::BlockFinalized(h, n)) => {
+					FromOrchestra::Signal(OverseerSignal::BlockFinalized(h, n)) => {
 						handle_finalized_block(backend, h, n)?
 					}
-					FromOverseer::Communication { msg } => match msg {
+					FromOrchestra::Communication { msg } => match msg {
 						ChainSelectionMessage::Approved(hash) => {
 							handle_approved_block(backend, hash)?
 						}
@@ -435,7 +437,7 @@ where
 				}
 			}
 			_ = stagnant_check_stream.next().fuse() => {
-				detect_stagnant(backend, clock.timestamp_now())?;
+				detect_stagnant(backend, clock.timestamp_now(), MAX_STAGNANT_ENTRIES)?;
 			}
 		}
 	}
@@ -637,9 +639,13 @@ fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Re
 	backend.write(ops)
 }
 
-fn detect_stagnant(backend: &mut impl Backend, now: Timestamp) -> Result<(), Error> {
+fn detect_stagnant(
+	backend: &mut impl Backend,
+	now: Timestamp,
+	max_elements: usize,
+) -> Result<(), Error> {
 	let ops = {
-		let overlay = tree::detect_stagnant(&*backend, now)?;
+		let overlay = tree::detect_stagnant(&*backend, now, max_elements)?;
 
 		overlay.into_write_ops()
 	};

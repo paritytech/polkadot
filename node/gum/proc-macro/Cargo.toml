@@ -1,6 +1,6 @@
 [package]
 name = "tracing-gum-proc-macro"
-version = "0.9.22"
+version = "0.9.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Generate an overseer including builder pattern and message wrapper from a single annotated struct definition."
@@ -13,8 +13,8 @@ proc-macro = true
 
 [dependencies]
 syn = { version = "1.0.95", features = ["full", "extra-traits"] }
-quote = "1.0.18"
-proc-macro2 = "1.0.37"
+quote = "1.0.20"
+proc-macro2 = "1.0.40"
 proc-macro-crate = "1.1.3"
 expander = "0.0.6"
 

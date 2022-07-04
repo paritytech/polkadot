@@ -1306,7 +1306,7 @@ impl DisputeStatement {
 }
 
 /// Different kinds of statements of validity on  a candidate.
-#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Encode, Decode, Copy, Clone, PartialEq, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum ValidDisputeStatementKind {
 	/// An explicit statement issued as part of a dispute.
@@ -1324,7 +1324,7 @@ pub enum ValidDisputeStatementKind {
 }
 
 /// Different kinds of statements of invalidity on a candidate.
-#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Encode, Decode, Copy, Clone, PartialEq, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum InvalidDisputeStatementKind {
 	/// An explicit statement issued as part of a dispute.

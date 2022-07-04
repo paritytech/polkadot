@@ -22,7 +22,11 @@ use sc_executor_common::{
 };
 use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
-use std::any::{Any, TypeId};
+use sp_externalities::MultiRemovalResults;
+use std::{
+	any::{Any, TypeId},
+	path::Path,
+};
 
 // Memory configuration
 //
@@ -39,16 +43,21 @@ use std::any::{Any, TypeId};
 const DEFAULT_HEAP_PAGES_ESTIMATE: u64 = 32;
 const EXTRA_HEAP_PAGES: u64 = 2048;
 
-const CONFIG: Config = Config {
-	// NOTE: This is specified in bytes, so we multiply by WASM page size.
-	max_memory_size: Some(((DEFAULT_HEAP_PAGES_ESTIMATE + EXTRA_HEAP_PAGES) * 65536) as usize),
+/// The number of bytes devoted for the stack during wasm execution of a PVF.
+const NATIVE_STACK_MAX: u32 = 256 * 1024 * 1024;
 
+const CONFIG: Config = Config {
 	allow_missing_func_imports: true,
 	cache_path: None,
 	semantics: Semantics {
 		extra_heap_pages: EXTRA_HEAP_PAGES,
 
-		fast_instance_reuse: false,
+		// NOTE: This is specified in bytes, so we multiply by WASM page size.
+		max_memory_size: Some(((DEFAULT_HEAP_PAGES_ESTIMATE + EXTRA_HEAP_PAGES) * 65536) as usize),
+
+		instantiation_strategy:
+			sc_executor_wasmtime::InstantiationStrategy::RecreateInstanceCopyOnWrite,
+
 		// Enable deterministic stack limit to pin down the exact number of items the wasmtime stack
 		// can contain before it traps with stack overflow.
 		//
@@ -63,7 +72,7 @@ const CONFIG: Config = Config {
 		// the stack limit set by the wasmtime.
 		deterministic_stack_limit: Some(DeterministicStackLimit {
 			logical_max: 65536,
-			native_stack_max: 256 * 1024 * 1024,
+			native_stack_max: NATIVE_STACK_MAX,
 		}),
 		canonicalize_nans: true,
 		// Rationale for turning the multi-threaded compilation off is to make the preparation time
@@ -87,20 +96,105 @@ pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error
 }
 
 /// Runs preparation on the given runtime blob. If successful, it returns a serialized compiled
-/// artifact which can then be used to pass into [`execute`].
+/// artifact which can then be used to pass into [`execute`] after writing it to the disk.
 pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::WasmError> {
 	sc_executor_wasmtime::prepare_runtime_artifact(blob, &CONFIG.semantics)
 }
 
-/// Executes the given PVF in the form of a compiled artifact and returns the result of execution
-/// upon success.
-///
-/// # Safety
-///
-/// The compiled artifact must be produced with [`prepare`]. Not following this guidance can lead
-/// to arbitrary code execution.
-pub unsafe fn execute(
-	compiled_artifact: &[u8],
+pub struct Executor {
+	thread_pool: rayon::ThreadPool,
+	spawner: TaskSpawner,
+}
+
+impl Executor {
+	pub fn new() -> Result<Self, String> {
+		// Wasmtime powers the Substrate Executor. It compiles the wasm bytecode into native code.
+		// That native code does not create any stacks and just reuses the stack of the thread that
+		// wasmtime was invoked from.
+		//
+		// Also, we configure the executor to provide the deterministic stack and that requires
+		// supplying the amount of the native stack space that wasm is allowed to use. This is
+		// realized by supplying the limit into `wasmtime::Config::max_wasm_stack`.
+		//
+		// There are quirks to that configuration knob:
+		//
+		// 1. It only limits the amount of stack space consumed by wasm but does not ensure nor check
+		//    that the stack space is actually available.
+		//
+		//    That means, if the calling thread has 1 MiB of stack space left and the wasm code consumes
+		//    more, then the wasmtime limit will **not** trigger. Instead, the wasm code will hit the
+		//    guard page and the Rust stack overflow handler will be triggered. That leads to an
+		//    **abort**.
+		//
+		// 2. It cannot and does not limit the stack space consumed by Rust code.
+		//
+		//    Meaning that if the wasm code leaves no stack space for Rust code, then the Rust code
+		//    and that will abort the process as well.
+		//
+		// Typically on Linux the main thread gets the stack size specified by the `ulimit` and
+		// typically it's configured to 8 MiB. Rust's spawned threads are 2 MiB. OTOH, the
+		// NATIVE_STACK_MAX is set to 256 MiB. Not nearly enough.
+		//
+		// Hence we need to increase it.
+		//
+		// The simplest way to fix that is to spawn a thread with the desired stack limit. In order
+		// to avoid costs of creating a thread, we use a thread pool. The execution is
+		// single-threaded hence the thread pool has only one thread.
+		//
+		// The reasoning why we pick this particular size is:
+		//
+		// The default Rust thread stack limit 2 MiB + 256 MiB wasm stack.
+		let thread_stack_size = 2 * 1024 * 1024 + NATIVE_STACK_MAX as usize;
+		let thread_pool = rayon::ThreadPoolBuilder::new()
+			.num_threads(1)
+			.stack_size(thread_stack_size)
+			.build()
+			.map_err(|e| format!("Failed to create thread pool: {:?}", e))?;
+
+		let spawner =
+			TaskSpawner::new().map_err(|e| format!("cannot create task spawner: {}", e))?;
+
+		Ok(Self { thread_pool, spawner })
+	}
+
+	/// Executes the given PVF in the form of a compiled artifact and returns the result of execution
+	/// upon success.
+	///
+	/// # Safety
+	///
+	/// The caller must ensure that the compiled artifact passed here was:
+	///   1) produced by [`prepare`],
+	///   2) written to the disk as a file,
+	///   3) was not modified,
+	///   4) will not be modified while any runtime using this artifact is alive, or is being
+	///      instantiated.
+	///
+	/// Failure to adhere to these requirements might lead to crashes and arbitrary code execution.
+	pub unsafe fn execute(
+		&self,
+		compiled_artifact_path: &Path,
+		params: &[u8],
+	) -> Result<Vec<u8>, String> {
+		let spawner = self.spawner.clone();
+		let mut result = None;
+		self.thread_pool.scope({
+			let result = &mut result;
+			move |s| {
+				s.spawn(move |_| {
+					// spawn does not return a value, so we need to use a variable to pass the result.
+					*result = Some(
+						do_execute(compiled_artifact_path, params, spawner)
+							.map_err(|err| format!("execute error: {:?}", err)),
+					);
+				});
+			}
+		});
+		result.unwrap_or_else(|| Err("rayon thread pool spawn failed".to_string()))
+	}
+}
+
+unsafe fn do_execute(
+	compiled_artifact_path: &Path,
 	params: &[u8],
 	spawner: impl sp_core::traits::SpawnNamed + 'static,
 ) -> Result<Vec<u8>, sc_executor_common::error::Error> {
@@ -113,7 +207,7 @@ pub unsafe fn execute(
 
 	sc_executor::with_externalities_safe(&mut ext, || {
 		let runtime = sc_executor_wasmtime::create_runtime_from_artifact::<HostFunctions>(
-			compiled_artifact,
+			compiled_artifact_path,
 			CONFIG,
 		)?;
 		runtime.new_instance()?.call(InvokeMethod::Export("validate_block"), params)
@@ -149,15 +243,31 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("child_storage: unsupported feature for parachain validation")
 	}
 
-	fn kill_child_storage(&mut self, _: &ChildInfo, _: Option<u32>) -> (bool, u32) {
+	fn kill_child_storage(
+		&mut self,
+		_child_info: &ChildInfo,
+		_maybe_limit: Option<u32>,
+		_maybe_cursor: Option<&[u8]>,
+	) -> MultiRemovalResults {
 		panic!("kill_child_storage: unsupported feature for parachain validation")
 	}
 
-	fn clear_prefix(&mut self, _: &[u8], _: Option<u32>) -> (bool, u32) {
+	fn clear_prefix(
+		&mut self,
+		_prefix: &[u8],
+		_maybe_limit: Option<u32>,
+		_maybe_cursor: Option<&[u8]>,
+	) -> MultiRemovalResults {
 		panic!("clear_prefix: unsupported feature for parachain validation")
 	}
 
-	fn clear_child_prefix(&mut self, _: &ChildInfo, _: &[u8], _: Option<u32>) -> (bool, u32) {
+	fn clear_child_prefix(
+		&mut self,
+		_child_info: &ChildInfo,
+		_prefix: &[u8],
+		_maybe_limit: Option<u32>,
+		_maybe_cursor: Option<&[u8]>,
+	) -> MultiRemovalResults {
 		panic!("clear_child_prefix: unsupported feature for parachain validation")
 	}
 
@@ -263,9 +373,9 @@ impl sp_externalities::ExtensionStore for ValidationExternalities {
 ///
 /// This is a light handle meaning it will only clone the handle not create a new thread pool.
 #[derive(Clone)]
-pub(crate) struct TaskExecutor(futures::executor::ThreadPool);
+pub(crate) struct TaskSpawner(futures::executor::ThreadPool);
 
-impl TaskExecutor {
+impl TaskSpawner {
 	pub(crate) fn new() -> Result<Self, String> {
 		futures::executor::ThreadPoolBuilder::new()
 			.pool_size(4)
@@ -276,7 +386,7 @@ impl TaskExecutor {
 	}
 }
 
-impl sp_core::traits::SpawnNamed for TaskExecutor {
+impl sp_core::traits::SpawnNamed for TaskSpawner {
 	fn spawn_blocking(
 		&self,
 		_task_name: &'static str,
