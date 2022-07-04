@@ -3,7 +3,7 @@
 
 // Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// th&e Free Software Foundation, either version 3 of the License, or
+// the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
 // Polkadot is distributed in the hope that it will be useful,
@@ -2262,10 +2262,10 @@ mod tests_fee {
 		});
 
 		// works fine
-		let encoded_str = "0x5102840068e8ca19a25c1aee85d10ef31f6426d23b2fc84b9953aa2056029fade59450d600d30b200c87ccdb2c6d5d2683e5dbd38899fe0447b2393bee867de9eca7c0c43228098a732f545e1701e4465f7837c9286925c9f7aafe3ee17e3aa58e4c886101c501d263010000040000663830e33f4c8af6e7f1e4d26f7fec70b9671a37330ad7cd66b93c6e382b637e0b10bee42be905";
+		let extrinsics1 = "0x5102840068e8ca19a25c1aee85d10ef31f6426d23b2fc84b9953aa2056029fade59450d600d30b200c87ccdb2c6d5d2683e5dbd38899fe0447b2393bee867de9eca7c0c43228098a732f545e1701e4465f7837c9286925c9f7aafe3ee17e3aa58e4c886101c501d263010000040000663830e33f4c8af6e7f1e4d26f7fec70b9671a37330ad7cd66b93c6e382b637e0b10bee42be905";
 		// fails with Error { cause: None, desc: "Invalid transaction version" }
-		// let encoded_str = "0x1802083c01000800003c0000080000e803000000900100";
-		let encoded_xt = sp_core::Bytes::from_str(encoded_str).unwrap();
+		// let extrinsics2 = "0x1802083c01000800003c0000080000e803000000900100";
+		let encoded_xt = sp_core::Bytes::from_str(extrinsics1).unwrap();
 		let encoded_len = encoded_xt.len() as u32;
 		let uxt: UncheckedExtrinsic = Decode::decode(&mut &*encoded_xt).unwrap();
 		let uxt2 = uxt.clone();
