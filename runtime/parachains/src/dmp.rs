@@ -349,8 +349,6 @@ impl<T: Config> Pallet<T> {
 
 	#[cfg(test)]
 	fn dmq_mqc_head_for_message(para: ParaId, message_index: u32) -> Hash {
-		// use frame_support::{storage::generator::StorageMap, traits::PalletInfo};
-		// panic!("{:x?}",&<Self as Store>::DownwardMessageQueueHeadsById::prefix_hash());
 		<Self as Store>::DownwardMessageQueueHeadsById::get(&QueueMessageId(para, message_index))
 	}
 

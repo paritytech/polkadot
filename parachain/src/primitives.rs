@@ -313,12 +313,14 @@ pub trait DmpMessageHandler {
 	fn handle_dmp_messages(
 		iter: impl Iterator<Item = (RelayChainBlockNumber, Vec<u8>)>,
 		max_weight: Weight,
+		message_index: &mut u32,
 	) -> Weight;
 }
 impl DmpMessageHandler for () {
 	fn handle_dmp_messages(
 		iter: impl Iterator<Item = (RelayChainBlockNumber, Vec<u8>)>,
 		_max_weight: Weight,
+		_message_index: &mut u32,
 	) -> Weight {
 		iter.for_each(drop);
 		0
