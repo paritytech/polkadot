@@ -1123,11 +1123,6 @@ where
 						parent,
 					).await.map_err(|e| Box::new(e))?;
 
-					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
-						&*client_clone,
-						parent,
-					)?;
-
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 					let slot =
@@ -1136,7 +1131,7 @@ where
 							slot_duration,
 						);
 
-					Ok((timestamp, slot, uncles, parachain))
+					Ok((timestamp, slot, parachain))
 				}
 			},
 			force_authoring,
