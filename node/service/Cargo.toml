@@ -15,7 +15,6 @@ sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }

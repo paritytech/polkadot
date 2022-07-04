@@ -7452,7 +7452,6 @@ dependencies = [
  "sc-consensus",
  "sc-consensus-babe",
  "sc-consensus-slots",
- "sc-consensus-uncles",
  "sc-executor",
  "sc-finality-grandpa",
  "sc-keystore",
@@ -9059,17 +9058,6 @@ dependencies = [
  "sp-runtime",
  "sp-state-machine",
  "sp-timestamp",
- "thiserror",
-]
-
-[[package]]
-name = "sc-consensus-uncles"
-version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ee3eb8f2448cc1bb978c5d1564febd351c128bb0"
-dependencies = [
- "sc-client-api",
- "sp-authorship",
- "sp-runtime",
  "thiserror",
 ]
 
