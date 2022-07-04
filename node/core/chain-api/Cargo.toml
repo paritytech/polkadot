@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-chain-api"
-version = "0.9.22"
+version = "0.9.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -17,7 +17,7 @@ sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = 
 [dev-dependencies]
 futures = { version = "0.3.21", features = ["thread-pool"] }
 maplit = "1.0.2"
-parity-scale-codec = "3.1.2"
+parity-scale-codec = "3.1.5"
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

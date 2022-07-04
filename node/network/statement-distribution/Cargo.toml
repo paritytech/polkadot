@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-statement-distribution"
-version = "0.9.22"
+version = "0.9.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Statement Distribution Subsystem"
 edition = "2021"
@@ -16,8 +16,8 @@ polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 arrayvec = "0.5.2"
-indexmap = "1.8.1"
-parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
+indexmap = "1.9.0"
+parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
 thiserror = "1.0.31"
 fatality = "0.0.6"
 

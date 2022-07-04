@@ -36,7 +36,7 @@ use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{AvailabilityStoreMessage, ChainApiMessage},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util as util;
 use polkadot_primitives::v2::{
@@ -558,8 +558,8 @@ async fn run_iteration<Context>(
 	select! {
 		incoming = ctx.recv().fuse() => {
 			match incoming.map_err(|_| Error::ContextChannelClosed)? {
-				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(true),
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+				FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(true),
+				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 					ActiveLeavesUpdate { activated, .. })
 				) => {
 					for activated in activated.into_iter() {
@@ -567,7 +567,7 @@ async fn run_iteration<Context>(
 						process_block_activated(ctx, subsystem, activated.hash).await?;
 					}
 				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
+				FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
 					let _timer = subsystem.metrics.time_process_block_finalized();
 
 					subsystem.finalized_number = Some(number);
@@ -579,7 +579,7 @@ async fn run_iteration<Context>(
 						number,
 					).await?;
 				}
-				FromOverseer::Communication { msg } => {
+				FromOrchestra::Communication { msg } => {
 					let _timer = subsystem.metrics.time_process_message();
 					process_message(subsystem, msg)?;
 				}

@@ -41,7 +41,8 @@ use frame_election_provider_support::{generate_solution_type, onchain, Sequentia
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, PrivilegeCmp,
+		Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		PrivilegeCmp,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -111,13 +112,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9220,
+	spec_version: 9250,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 12,
+	transaction_version: 13,
 	state_version: 0,
 };
 
@@ -181,7 +182,7 @@ impl Contains<Call> for BaseFilter {
 			Call::Registrar(_) |
 			Call::Auctions(_) |
 			Call::Crowdloan(_) |
-			Call::BagsList(_) |
+			Call::VoterList(_) |
 			Call::XcmPallet(_) => true,
 			// All pallets are allowed, but exhaustive match is defensive
 			// in the case of adding new pallets.
@@ -189,7 +190,7 @@ impl Contains<Call> for BaseFilter {
 	}
 }
 
-type MoreThanHalfCouncil = EnsureOneOf<
+type MoreThanHalfCouncil = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
 >;
@@ -233,7 +234,7 @@ parameter_types! {
 	pub const NoPreimagePostponement: Option<u32> = Some(10);
 }
 
-type ScheduleOrigin = EnsureOneOf<
+type ScheduleOrigin = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
 >;
@@ -369,6 +370,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Config for Runtime {
+	type Event = Event;
 	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Runtime>>;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
@@ -531,7 +533,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 		(),
 	>;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
-	type ForceOrigin = EnsureOneOf<
+	type ForceOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
 	>;
@@ -581,7 +583,7 @@ parameter_types! {
 	pub const MaxNominations: u32 = <NposCompactSolution16 as frame_election_provider_support::NposSolution>::LIMIT as u32;
 }
 
-type SlashCancelOrigin = EnsureOneOf<
+type SlashCancelOrigin = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 4>,
 >;
@@ -608,7 +610,7 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
-	type VoterList = BagsList;
+	type VoterList = VoterList;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type OnStakerSlash = ();
@@ -662,41 +664,41 @@ impl pallet_democracy::Config for Runtime {
 	type VotingPeriod = VotingPeriod;
 	type MinimumDeposit = MinimumDeposit;
 	/// A straight majority of the council can decide what their next motion is.
-	type ExternalOrigin = EnsureOneOf<
+	type ExternalOrigin = EitherOfDiverse<
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
 	/// A 60% super-majority can have the next scheduled referendum be a straight majority-carries vote.
-	type ExternalMajorityOrigin = EnsureOneOf<
+	type ExternalMajorityOrigin = EitherOfDiverse<
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 5>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
 	/// A unanimous council can have the next scheduled referendum be a straight default-carries
 	/// (NTB) vote.
-	type ExternalDefaultOrigin = EnsureOneOf<
+	type ExternalDefaultOrigin = EitherOfDiverse<
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 1>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
 	/// Two thirds of the technical committee can have an `ExternalMajority/ExternalDefault` vote
 	/// be tabled immediately and with a shorter voting/enactment period.
-	type FastTrackOrigin = EnsureOneOf<
+	type FastTrackOrigin = EitherOfDiverse<
 		pallet_collective::EnsureProportionAtLeast<AccountId, TechnicalCollective, 2, 3>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
-	type InstantOrigin = EnsureOneOf<
+	type InstantOrigin = EitherOfDiverse<
 		pallet_collective::EnsureProportionAtLeast<AccountId, TechnicalCollective, 1, 1>,
 		frame_system::EnsureRoot<AccountId>,
 	>;
 	type InstantAllowed = InstantAllowed;
 	type FastTrackVotingPeriod = FastTrackVotingPeriod;
 	// To cancel a proposal which has been passed, 2/3 of the council must agree to it.
-	type CancellationOrigin = EnsureOneOf<
+	type CancellationOrigin = EitherOfDiverse<
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
 		EnsureRoot<AccountId>,
 	>;
 	// To cancel a proposal before it has been passed, the technical committee must be unanimous or
 	// Root must agree.
-	type CancelProposalOrigin = EnsureOneOf<
+	type CancelProposalOrigin = EitherOfDiverse<
 		pallet_collective::EnsureProportionAtLeast<AccountId, TechnicalCollective, 1, 1>,
 		EnsureRoot<AccountId>,
 	>;
@@ -817,7 +819,7 @@ parameter_types! {
 	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 }
 
-type ApproveOrigin = EnsureOneOf<
+type ApproveOrigin = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 5>,
 >;
@@ -838,6 +840,7 @@ impl pallet_treasury::Config for Runtime {
 	type SpendFunds = Bounties;
 	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
+	type SpendOrigin = frame_support::traits::NeverEnsureOrigin<Balance>;
 }
 
 parameter_types! {
@@ -1177,7 +1180,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
 				Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
-				Call::BagsList(..)
+				Call::VoterList(..)
 			),
 			ProxyType::Governance => matches!(
 				c,
@@ -1370,7 +1373,7 @@ parameter_types! {
 	pub const SampleLength: BlockNumber = 2 * MINUTES;
 }
 
-type AuctionInitiate = EnsureOneOf<
+type AuctionInitiate = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
 >;
@@ -1403,7 +1406,7 @@ construct_runtime! {
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 3,
 		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>} = 4,
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 5,
-		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 32,
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage, Event<T>} = 32,
 
 		// Consensus support.
 		// Authorship must be before session in order to note author in the correct session and era
@@ -1453,7 +1456,7 @@ construct_runtime! {
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 36,
 
 		// Provides a semi-sorted list of nominators for staking.
-		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
+		VoterList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
 
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
@@ -1539,7 +1542,7 @@ mod benches {
 		[runtime_parachains::paras_inherent, ParaInherent]
 		[runtime_parachains::ump, Ump]
 		// Substrate
-		[pallet_bags_list, BagsList]
+		[pallet_bags_list, VoterList]
 		[pallet_balances, Balances]
 		[frame_benchmarking::baseline, Baseline::<Runtime>]
 		[pallet_bounties, Bounties]
@@ -1994,12 +1997,12 @@ sp_api::impl_runtime_apis! {
 #[cfg(test)]
 mod test_fees {
 	use super::*;
-	use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
-	use keyring::Sr25519Keyring::Charlie;
+	use frame_support::weights::{GetDispatchInfo, WeightToFee as WeightToFeeT};
+	use keyring::Sr25519Keyring::{Alice, Charlie};
 	use pallet_transaction_payment::Multiplier;
 	use runtime_common::MinimumMultiplier;
 	use separator::Separatable;
-	use sp_runtime::{assert_eq_error_rate, FixedPointNumber};
+	use sp_runtime::{assert_eq_error_rate, FixedPointNumber, MultiAddress, MultiSignature};
 
 	#[test]
 	fn payout_weight_portion() {
@@ -2020,20 +2023,25 @@ mod test_fees {
 	}
 
 	#[test]
-	#[ignore]
 	fn block_cost() {
 		let max_block_weight = BlockWeights::get().max_block;
-		let raw_fee = WeightToFee::calc(&max_block_weight);
+		let raw_fee = WeightToFee::weight_to_fee(&max_block_weight);
 
-		println!(
-			"Full Block weight == {} // WeightToFee(full_block) == {} plank",
-			max_block_weight,
-			raw_fee.separated_string(),
-		);
+		let fee_with_multiplier = |m: Multiplier| {
+			println!(
+				"Full Block weight == {} // multiplier: {:?} // WeightToFee(full_block) == {} plank",
+				max_block_weight,
+				m,
+				m.saturating_mul_int(raw_fee).separated_string(),
+			);
+		};
+		fee_with_multiplier(MinimumMultiplier::get());
+		fee_with_multiplier(Multiplier::from_rational(1, 2));
+		fee_with_multiplier(Multiplier::from_u32(1));
+		fee_with_multiplier(Multiplier::from_u32(2));
 	}
 
 	#[test]
-	#[ignore]
 	fn transfer_cost_min_multiplier() {
 		let min_multiplier = MinimumMultiplier::get();
 		let call = pallet_balances::Call::<Runtime>::transfer_keep_alive {
@@ -2041,29 +2049,51 @@ mod test_fees {
 			value: Default::default(),
 		};
 		let info = call.get_dispatch_info();
+		println!("call = {:?} / info = {:?}", call, info);
 		// convert to outer call.
 		let call = Call::Balances(call);
-		let len = call.using_encoded(|e| e.len()) as u32;
+		let extra: SignedExtra = (
+			frame_system::CheckNonZeroSender::<Runtime>::new(),
+			frame_system::CheckSpecVersion::<Runtime>::new(),
+			frame_system::CheckTxVersion::<Runtime>::new(),
+			frame_system::CheckGenesis::<Runtime>::new(),
+			frame_system::CheckMortality::<Runtime>::from(generic::Era::immortal()),
+			frame_system::CheckNonce::<Runtime>::from(1),
+			frame_system::CheckWeight::<Runtime>::new(),
+			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
+			claims::PrevalidateAttests::<Runtime>::new(),
+		);
+		let uxt = UncheckedExtrinsic {
+			function: call,
+			signature: Some((
+				MultiAddress::Id(Alice.to_account_id()),
+				MultiSignature::Sr25519(Alice.sign(b"foo")),
+				extra,
+			)),
+		};
+		let len = uxt.encoded_size();
 
 		let mut ext = sp_io::TestExternalities::new_empty();
-		let mut test_with_multiplier = |m| {
+		let mut test_with_multiplier = |m: Multiplier| {
 			ext.execute_with(|| {
 				pallet_transaction_payment::NextFeeMultiplier::<Runtime>::put(m);
-				let fee = TransactionPayment::compute_fee(len, &info, 0);
+				let fee = TransactionPayment::query_fee_details(uxt.clone(), len as u32);
 				println!(
-					"weight = {:?} // multiplier = {:?} // full transfer fee = {:?}",
-					info.weight.separated_string(),
+					"multiplier = {:?} // fee details = {:?} // final fee = {:?}",
 					pallet_transaction_payment::NextFeeMultiplier::<Runtime>::get(),
-					fee.separated_string(),
+					fee,
+					fee.final_fee().separated_string(),
 				);
 			});
 		};
 
 		test_with_multiplier(min_multiplier);
-		test_with_multiplier(Multiplier::saturating_from_rational(1, 1u128));
-		test_with_multiplier(Multiplier::saturating_from_rational(1, 1_000u128));
-		test_with_multiplier(Multiplier::saturating_from_rational(1, 1_000_000u128));
-		test_with_multiplier(Multiplier::saturating_from_rational(1, 1_000_000_000u128));
+		test_with_multiplier(Multiplier::saturating_from_rational(1u128, 1u128));
+		test_with_multiplier(Multiplier::saturating_from_rational(1u128, 1_0u128));
+		test_with_multiplier(Multiplier::saturating_from_rational(1u128, 1_00u128));
+		test_with_multiplier(Multiplier::saturating_from_rational(1u128, 1_000u128));
+		test_with_multiplier(Multiplier::saturating_from_rational(1u128, 1_000_000u128));
+		test_with_multiplier(Multiplier::saturating_from_rational(1u128, 1_000_000_000u128));
 	}
 
 	#[test]
@@ -2146,5 +2176,130 @@ mod test {
 			reduce the size of Call.
 			If the limit is too strong, maybe consider increase the limit",
 		);
+	}
+}
+
+#[cfg(test)]
+mod multiplier_tests {
+	use super::*;
+	use frame_support::{dispatch::GetDispatchInfo, traits::OnFinalize};
+	use runtime_common::{MinimumMultiplier, TargetBlockFullness};
+	use separator::Separatable;
+	use sp_runtime::traits::Convert;
+
+	fn run_with_system_weight<F>(w: Weight, mut assertions: F)
+	where
+		F: FnMut() -> (),
+	{
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
+			.build_storage::<Runtime>()
+			.unwrap()
+			.into();
+		t.execute_with(|| {
+			System::set_block_consumed_resources(w, 0);
+			assertions()
+		});
+	}
+
+	#[test]
+	fn multiplier_can_grow_from_zero() {
+		let minimum_multiplier = MinimumMultiplier::get();
+		let target = TargetBlockFullness::get() *
+			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
+		// if the min is too small, then this will not change, and we are doomed forever.
+		// the weight is 1/100th bigger than target.
+		run_with_system_weight(target * 101 / 100, || {
+			let next = SlowAdjustingFeeUpdate::<Runtime>::convert(minimum_multiplier);
+			assert!(next > minimum_multiplier, "{:?} !>= {:?}", next, minimum_multiplier);
+		})
+	}
+
+	#[test]
+	#[ignore]
+	fn multiplier_growth_simulator() {
+		// assume the multiplier is initially set to its minimum. We update it with values twice the
+		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
+		let mut multiplier = MinimumMultiplier::get();
+		let block_weight = BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
+		let mut blocks = 0;
+		let mut fees_paid = 0;
+
+		let call = frame_system::Call::<Runtime>::fill_block {
+			ratio: Perbill::from_rational(
+				block_weight,
+				BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap(),
+			),
+		};
+		println!("calling {:?}", call);
+		let info = call.get_dispatch_info();
+		// convert to outer call.
+		let call = Call::System(call);
+		let len = call.using_encoded(|e| e.len()) as u32;
+
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
+			.build_storage::<Runtime>()
+			.unwrap()
+			.into();
+		// set the minimum
+		t.execute_with(|| {
+			pallet_transaction_payment::NextFeeMultiplier::<Runtime>::set(MinimumMultiplier::get());
+		});
+
+		while multiplier <= Multiplier::from_u32(1) {
+			t.execute_with(|| {
+				// imagine this tx was called.
+				let fee = TransactionPayment::compute_fee(len, &info, 0);
+				fees_paid += fee;
+
+				// this will update the multiplier.
+				System::set_block_consumed_resources(block_weight, 0);
+				TransactionPayment::on_finalize(1);
+				let next = TransactionPayment::next_fee_multiplier();
+
+				assert!(next > multiplier, "{:?} !>= {:?}", next, multiplier);
+				multiplier = next;
+
+				println!(
+					"block = {} / multiplier {:?} / fee = {:?} / fess so far {:?}",
+					blocks,
+					multiplier,
+					fee.separated_string(),
+					fees_paid.separated_string()
+				);
+			});
+			blocks += 1;
+		}
+	}
+
+	#[test]
+	#[ignore]
+	fn multiplier_cool_down_simulator() {
+		// assume the multiplier is initially set to its minimum. We update it with values twice the
+		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
+		let mut multiplier = Multiplier::from_u32(2);
+		let mut blocks = 0;
+
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
+			.build_storage::<Runtime>()
+			.unwrap()
+			.into();
+		// set the minimum
+		t.execute_with(|| {
+			pallet_transaction_payment::NextFeeMultiplier::<Runtime>::set(multiplier);
+		});
+
+		while multiplier > Multiplier::from_u32(0) {
+			t.execute_with(|| {
+				// this will update the multiplier.
+				TransactionPayment::on_finalize(1);
+				let next = TransactionPayment::next_fee_multiplier();
+
+				assert!(next < multiplier, "{:?} !>= {:?}", next, multiplier);
+				multiplier = next;
+
+				println!("block = {} / multiplier {:?}", blocks, multiplier);
+			});
+			blocks += 1;
+		}
 	}
 }

@@ -106,12 +106,22 @@ default:
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
 
-.publish-refs:                     &publish-refs
+.deploy-testnet-refs:              &deploy-testnet-refs
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
+
+.publish-refs:                     &publish-refs
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web" &&
+          $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
 
 .build-push-image:                 &build-push-image
   <<:                              *kubernetes-env
@@ -266,6 +276,22 @@ build-malus:
     - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
     - cp -r ./scripts/* ./artifacts
 
+build-staking-miner:
+  stage:                           stage1
+  <<:                              *collect-artifacts
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  <<:                              *common-refs
+  script:
+    - time cargo build --locked --release --package staking-miner
+    # pack artifacts
+    - mkdir -p ./artifacts
+    - mv ./target/release/staking-miner ./artifacts/.
+    - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
+    - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
+    - echo "staking-miner = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
+    - cp -r ./scripts/* ./artifacts
+
 #### stage:                        stage2
 
 .check-dependent-project:          &check-dependent-project
@@ -286,6 +312,7 @@ build-malus:
         --dependent-repo "$DEPENDENT_REPO"
         --github-api-token "$GITHUB_PR_TOKEN"
         --extra-dependencies "$EXTRA_DEPENDENCIES"
+        --companion-overrides "$COMPANION_OVERRIDES"
 
 check-dependent-cumulus:
   <<: *check-dependent-project
@@ -423,6 +450,23 @@ publish-malus-image:
     reports:
       # this artifact is used in zombienet-tests job
       dotenv: ./artifacts/malus.env
+
+publish-staking-miner-image:
+  stage:                           stage2
+  <<:                              *build-push-image
+  <<:                              *publish-refs
+  variables:
+    <<:                            *image-variables
+    # scripts/ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
+    DOCKERFILE:                    ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
+    IMAGE_NAME:                    docker.io/paritytech/staking-miner
+    GIT_STRATEGY:                  none
+    DOCKER_USER:                   ${Docker_Hub_User_Parity}
+    DOCKER_PASS:                   ${Docker_Hub_Pass_Parity}
+  needs:
+    - job:                         build-staking-miner
+      artifacts:                   true
+
 
 publish-s3-release:                &publish-s3
   stage:                           stage3
@@ -586,7 +630,7 @@ deploy-parity-testnet:
   needs:
     - job:                         test-deterministic-wasm
       artifacts:                   false
-  <<:                              *publish-refs
+  <<:                              *deploy-testnet-refs
   variables:
     POLKADOT_CI_COMMIT_NAME:       "${CI_COMMIT_REF_NAME}"
     POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_SHORT_SHA}"
@@ -678,6 +722,35 @@ zombienet-tests-parachains-disputes:
         --github-remote-dir="${GH_DIR}"
         --test="0002-parachains-disputes.feature"
   allow_failure:                   false
+  retry: 2
+  tags:
+    - zombienet-polkadot-integration-test
+
+zombienet-test-parachains-upgrade-smoke-test:
+  stage:                           stage3
+  <<:                              *kubernetes-env
+  <<:                              *zombienet-refs
+  image:                           "docker.io/paritytech/zombienet:v1.2.45"
+  needs:
+    - job:                         publish-polkadot-debug-image
+    - job:                         publish-malus-image
+    - job:                         publish-test-collators-image
+  variables:
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke'
+  before_script:
+    - echo "ZombieNet Tests Config"
+    - echo "${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
+    - echo "docker.io/parity/polkadot-collator:latest"
+    - echo "${ZOMBIENET_IMAGE}"
+    - echo "${GH_DIR}"
+    - export DEBUG=zombie,zombie::network-node
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
+    - export COL_IMAGE="docker.io/parity/polkadot-collator:latest" # Use cumulus lastest image
+  script:
+    - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
+        --github-remote-dir="${GH_DIR}"
+        --test="0002-parachains-upgrade-smoke-test.feature"
+  allow_failure:                   true
   retry: 2
   tags:
     - zombienet-polkadot-integration-test

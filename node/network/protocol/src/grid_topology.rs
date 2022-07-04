@@ -37,6 +37,8 @@ use std::{
 	fmt::Debug,
 };
 
+const LOG_TARGET: &str = "parachain::grid-topology";
+
 /// The sample rate for randomly propagating messages. This
 /// reduces the left tail of the binomial distribution but also
 /// introduces a bias towards peers who we sample before others
@@ -60,9 +62,13 @@ pub struct SessionGridTopology {
 }
 
 impl SessionGridTopology {
-	/// Given the originator of a message, indicates the part of the topology
+	/// Given the originator of a message as a validator index, indicates the part of the topology
 	/// we're meant to send the message to.
-	pub fn required_routing_for(&self, originator: ValidatorIndex, local: bool) -> RequiredRouting {
+	pub fn required_routing_by_index(
+		&self,
+		originator: ValidatorIndex,
+		local: bool,
+	) -> RequiredRouting {
 		if local {
 			return RequiredRouting::GridXY
 		}
@@ -75,6 +81,31 @@ impl SessionGridTopology {
 			(true, false) => RequiredRouting::GridY, // messages from X go to Y
 			(false, true) => RequiredRouting::GridX, // messages from Y go to X
 			(true, true) => RequiredRouting::GridXY, // if the grid works as expected, this shouldn't happen.
+		}
+	}
+
+	/// Given the originator of a message as a peer index, indicates the part of the topology
+	/// we're meant to send the message to.
+	pub fn required_routing_by_peer_id(&self, originator: PeerId, local: bool) -> RequiredRouting {
+		if local {
+			return RequiredRouting::GridXY
+		}
+
+		let grid_x = self.peers_x.contains(&originator);
+		let grid_y = self.peers_y.contains(&originator);
+
+		match (grid_x, grid_y) {
+			(false, false) => RequiredRouting::None,
+			(true, false) => RequiredRouting::GridY, // messages from X go to Y
+			(false, true) => RequiredRouting::GridX, // messages from Y go to X
+			(true, true) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					?originator,
+					"Grid topology is unexpected, play it safe and send to X AND Y"
+				);
+				RequiredRouting::GridXY
+			}, // if the grid works as expected, this shouldn't happen.
 		}
 	}
 
@@ -142,6 +173,59 @@ impl SessionGridTopologies {
 		}
 	}
 }
+
+/// A simple storage for a topology and the corresponding session index
+#[derive(Default, Debug)]
+pub struct GridTopologySessionBound {
+	topology: SessionGridTopology,
+	session_index: SessionIndex,
+}
+
+/// A storage for the current and maybe previous topology
+#[derive(Default, Debug)]
+pub struct SessionBoundGridTopologyStorage {
+	current_topology: GridTopologySessionBound,
+	prev_topology: Option<GridTopologySessionBound>,
+}
+
+impl SessionBoundGridTopologyStorage {
+	/// Return a grid topology based on the session index:
+	/// If we need a previous session and it is registered in the storage, then return that session.
+	/// Otherwise, return a current session to have some grid topology in any case
+	pub fn get_topology_or_fallback(&self, idx: SessionIndex) -> &SessionGridTopology {
+		self.get_topology(idx).unwrap_or(&self.current_topology.topology)
+	}
+
+	/// Return the grid topology for the specific session index, if no such a session is stored
+	/// returns `None`.
+	pub fn get_topology(&self, idx: SessionIndex) -> Option<&SessionGridTopology> {
+		if let Some(prev_topology) = &self.prev_topology {
+			if idx == prev_topology.session_index {
+				return Some(&prev_topology.topology)
+			}
+		}
+		if self.current_topology.session_index == idx {
+			return Some(&self.current_topology.topology)
+		}
+
+		None
+	}
+
+	/// Update the current topology preserving the previous one
+	pub fn update_topology(&mut self, session_index: SessionIndex, topology: SessionGridTopology) {
+		let old_current = std::mem::replace(
+			&mut self.current_topology,
+			GridTopologySessionBound { topology, session_index },
+		);
+		self.prev_topology.replace(old_current);
+	}
+
+	/// Returns a current grid topology
+	pub fn get_current_topology(&self) -> &SessionGridTopology {
+		&self.current_topology.topology
+	}
+}
+
 /// A representation of routing based on sample
 #[derive(Debug, Clone, Copy)]
 pub struct RandomRouting {
