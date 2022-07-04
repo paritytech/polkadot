@@ -2216,3 +2216,36 @@ mod tests_fess {
 		assert_eq_error_rate!(deposit, UNITS * 16 / 100, UNITS / 100);
 	}
 }
+
+#[cfg(test)]
+mod tests_fee {
+	use super::*;
+	use xcm::DoubleEncoded;
+
+	#[test]
+	fn calculate_fee() {
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
+			.build_storage::<Runtime>()
+			.unwrap()
+			.into();
+		// set the minimum
+		t.execute_with(|| {
+			pallet_transaction_payment::NextFeeMultiplier::<Runtime>::set(Multiplier::from_u32(1));
+		});
+		let len: u32 = 48;
+		let tip = 0;
+		let post_info = frame_support::weights::PostDispatchInfo {
+			actual_weight: None,
+			pays_fee: frame_support::weights::Pays::Yes,
+		};
+		let info =
+			frame_support::weights::DispatchInfo { weight: 1_357_524_000, ..Default::default() };
+
+		t.execute_with(|| {
+			let fee = pallet_transaction_payment::Pallet::<Runtime>::compute_actual_fee(
+				len, &info, &post_info, tip,
+			);
+			println!("{}", fee) // prints > 71762003
+		})
+	}
+}
