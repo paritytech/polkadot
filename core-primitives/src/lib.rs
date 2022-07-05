@@ -172,6 +172,12 @@ pub struct OutboundHrmpMessage<Id> {
 #[derive(Default, Clone, Copy, Encode, Decode, scale_info::TypeInfo)]
 pub struct MessageQueueChain(Hash, Hash);
 
+impl From<Hash> for MessageQueueChain {
+	fn from(head: Hash) -> Self {
+		MessageQueueChain(head, head)
+	}
+}
+
 impl MessageQueueChain {
 	/// Extend the hash chain with an HRMP message. This method should be used only when
 	/// this chain is tracking HRMP.
