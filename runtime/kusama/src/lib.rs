@@ -2219,9 +2219,8 @@ mod tests_fess {
 
 #[cfg(test)]
 mod tests_fee {
-	use core::str::FromStr;
-
 	use super::*;
+	use core::str::FromStr;
 
 	#[test]
 	fn calculate_fee() {
@@ -2229,7 +2228,6 @@ mod tests_fee {
 			.build_storage::<Runtime>()
 			.unwrap()
 			.into();
-		// set the minimum
 		t.execute_with(|| {
 			pallet_transaction_payment::NextFeeMultiplier::<Runtime>::set(Multiplier::from_u32(1));
 		});
@@ -2256,30 +2254,30 @@ mod tests_fee {
 			.build_storage::<Runtime>()
 			.unwrap()
 			.into();
-		// set the minimum
 		t.execute_with(|| {
 			pallet_transaction_payment::NextFeeMultiplier::<Runtime>::set(Multiplier::from_u32(1));
 		});
-
-		// works fine
-		let extrinsics1 = "0x5102840068e8ca19a25c1aee85d10ef31f6426d23b2fc84b9953aa2056029fade59450d600d30b200c87ccdb2c6d5d2683e5dbd38899fe0447b2393bee867de9eca7c0c43228098a732f545e1701e4465f7837c9286925c9f7aafe3ee17e3aa58e4c886101c501d263010000040000663830e33f4c8af6e7f1e4d26f7fec70b9671a37330ad7cd66b93c6e382b637e0b10bee42be905";
-		// fails with Error { cause: None, desc: "Invalid transaction version" }
-		// let extrinsics2 = "0x1802083c01000800003c0000080000e803000000900100";
-		let encoded_xt = sp_core::Bytes::from_str(extrinsics1).unwrap();
+		let extrinsic = "0x1802083c01000800003c0000080000e803000000900100";
+		let encoded_xt = sp_core::Bytes::from_str(extrinsic).unwrap();
 		let encoded_len = encoded_xt.len() as u32;
-		let uxt: UncheckedExtrinsic = Decode::decode(&mut &*encoded_xt).unwrap();
-		let uxt2 = uxt.clone();
-
+		let uxt: Call = Call::decode(&mut &*encoded_xt).unwrap();
+		let dispatch_info =
+			<Call as frame_support::weights::GetDispatchInfo>::get_dispatch_info(&uxt);
+		println!("weight {}", dispatch_info.weight);
+		let len: u32 = 48;
+		let tip = 0;
+		let post_info = frame_support::weights::PostDispatchInfo {
+			actual_weight: None,
+			pays_fee: frame_support::weights::Pays::Yes,
+		};
 		t.execute_with(|| {
-			let info = pallet_transaction_payment::Pallet::<Runtime>::query_info(uxt, encoded_len);
-			println!("partial_fee: {}\nweight {}", info.partial_fee, info.weight);
-			let details =
-				pallet_transaction_payment::Pallet::<Runtime>::query_fee_details(uxt2, encoded_len);
-			let inclusion_fee = details.inclusion_fee.unwrap();
-			println!(
-				"base fee: {}\nadjusted_weight_fee: {}\nlen_fee: {}",
-				inclusion_fee.base_fee, inclusion_fee.adjusted_weight_fee, inclusion_fee.len_fee
+			let fee = pallet_transaction_payment::Pallet::<Runtime>::compute_actual_fee_details(
+				len,
+				&dispatch_info,
+				&post_info,
+				tip,
 			);
-		})
+			println!("fee {}", fee.final_fee())
+		});
 	}
 }
