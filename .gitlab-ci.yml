@@ -785,6 +785,33 @@ zombienet-tests-malus-dispute-valid:
   tags:
     - zombienet-polkadot-integration-test
 
+zombienet-tests-deregister-register-validator:
+  stage:                           stage3
+  image:                           "docker.io/paritytech/zombienet:v1.2.47"
+  <<:                              *kubernetes-env
+  <<:                              *zombienet-refs
+  needs:
+    - job:                         publish-polkadot-debug-image
+      artifacts:                   true
+  variables:
+    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke"
+  before_script:
+    - echo "Zombie-net Tests Config"
+    - echo "${ZOMBIENET_IMAGE_NAME}"
+    - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
+    - echo "${GH_DIR}"
+    - export DEBUG=zombie*
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
+    - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
+  script:
+    - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
+        --github-remote-dir="${GH_DIR}"
+        --test="0003-deregister-register-validator-smoke.feature"
+  allow_failure:                   false
+  retry: 2
+  tags:
+    - zombienet-polkadot-integration-test
+
 #### stage:                        stage4
 
 publish-rustdoc:
