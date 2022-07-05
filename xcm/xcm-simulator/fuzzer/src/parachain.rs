@@ -263,7 +263,7 @@ pub mod mock_msg_queue {
 	impl<T: Config> DmpMessageHandler for Pallet<T> {
 		fn handle_dmp_messages(
 			iter: impl Iterator<Item = (RelayBlockNumber, Vec<u8>)>,
-			limit: Weight,
+			context: &mut DmpMessageHandlerContext,
 		) -> Weight {
 			for (_i, (_sent_at, data)) in iter.enumerate() {
 				let id = sp_io::hashing::blake2_256(&data[..]);
@@ -277,13 +277,14 @@ pub mod mock_msg_queue {
 						Self::deposit_event(Event::UnsupportedVersion(id));
 					},
 					Ok(Ok(x)) => {
-						let outcome = T::XcmExecutor::execute_xcm(Parent, x.clone(), limit);
+						let outcome =
+							T::XcmExecutor::execute_xcm(Parent, x.clone(), context.max_weight);
 						<ReceivedDmp<T>>::append(x);
 						Self::deposit_event(Event::ExecutedDownward(id, outcome));
 					},
 				}
 			}
-			limit
+			context.max_weight
 		}
 	}
 }

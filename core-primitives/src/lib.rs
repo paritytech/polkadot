@@ -157,6 +157,60 @@ pub struct OutboundHrmpMessage<Id> {
 	pub data: sp_std::vec::Vec<u8>,
 }
 
+/// This struct provides ability to extend a message queue chain (MQC) and compute a new head.
+///
+/// MQC is an instance of a [hash chain] applied to a message queue. Using a hash chain it's
+/// possible to represent a sequence of messages using only a single hash.
+///
+/// A head for an empty chain is agreed to be a zero hash.
+///
+/// An instance is used to track either DMP from the relay chain or HRMP across a channel.
+/// But a given instance is never used to track both. Therefore, you should call either
+/// `extend_downward` or `extend_hrmp`, but not both methods on a single instance.
+///
+/// [hash chain]: https://en.wikipedia.org/wiki/Hash_chain
+#[derive(Default, Clone, Copy, Encode, Decode, scale_info::TypeInfo)]
+pub struct MessageQueueChain(Hash, Hash);
+
+impl MessageQueueChain {
+	/// Extend the hash chain with an HRMP message. This method should be used only when
+	/// this chain is tracking HRMP.
+	pub fn extend_hrmp(&mut self, horizontal_message: &InboundHrmpMessage) -> &mut Self {
+		// Keep prev value.
+		self.1 = self.0;
+		self.0 = BlakeTwo256::hash_of(&(
+			self.1,
+			horizontal_message.sent_at,
+			BlakeTwo256::hash_of(&horizontal_message.data),
+		));
+		self
+	}
+
+	/// Extend the hash chain with a downward message. This method should be used only when
+	/// this chain is tracking DMP.
+	pub fn extend_downward(&mut self, downward_message: &InboundDownwardMessage) -> &mut Self {
+		self.1 = self.0;
+		self.0 = BlakeTwo256::hash_of(&(
+			self.1,
+			downward_message.sent_at,
+			BlakeTwo256::hash_of(&downward_message.msg),
+		));
+		self
+	}
+
+	/// Return the current mead of the message queue hash chain.
+	/// This is agreed to be the zero hash for an empty chain.
+	pub fn head(&self) -> Hash {
+		self.0
+	}
+
+	/// Undo the last operation. Can be called only once after calling `extend`.
+	pub fn undo(&mut self) -> &mut Self {
+		self.0 = self.1;
+		self
+	}
+}
+
 /// `V2` primitives.
 pub mod v2 {
 	pub use super::*;

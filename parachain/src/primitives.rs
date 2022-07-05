@@ -17,7 +17,7 @@
 //! Primitive types which are strictly necessary from a parachain-execution point
 //! of view.
 
-use sp_std::vec::Vec;
+use sp_std::{num::Wrapping, vec::Vec};
 
 use frame_support::weights::Weight;
 use parity_scale_codec::{CompactAs, Decode, Encode, MaxEncodedLen};
@@ -34,7 +34,7 @@ use sp_core::bytes;
 #[cfg(feature = "std")]
 use parity_util_mem::MallocSizeOf;
 
-use polkadot_core_primitives::{Hash, OutboundHrmpMessage};
+use polkadot_core_primitives::{Hash, MessageQueueChain, OutboundHrmpMessage};
 
 /// Block number type used by the relay chain.
 pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
@@ -305,22 +305,40 @@ impl HrmpChannelId {
 /// A message from a parachain to its Relay Chain.
 pub type UpwardMessage = Vec<u8>;
 
+/// A structure providing the context for the dmp message handler.
+pub struct DmpMessageHandlerContext {
+	/// The weight limit for processing the messages.
+	pub max_weight: Weight,
+	/// The current message index. Incremented on each message processed.
+	pub message_index: Wrapping<u32>,
+	/// The current head of the mqc. Updated on each processed message.
+	pub mqc_head: MessageQueueChain,
+}
+
+impl DmpMessageHandlerContext {
+	pub fn new(
+		max_weight: Weight,
+		message_index: Wrapping<u32>,
+		mqc_head: MessageQueueChain,
+	) -> DmpMessageHandlerContext {
+		DmpMessageHandlerContext { max_weight, message_index, mqc_head }
+	}
+}
+
 /// Something that should be called when a downward message is received.
 pub trait DmpMessageHandler {
 	/// Handle some incoming DMP messages (note these are individual XCM messages).
-	///
-	/// Also, process messages up to some `max_weight`.
+	/// Increments `message_index` by the count of messages processed until `max_weight`.
 	fn handle_dmp_messages(
 		iter: impl Iterator<Item = (RelayChainBlockNumber, Vec<u8>)>,
-		max_weight: Weight,
-		message_index: &mut u32,
+		context: &mut DmpMessageHandlerContext,
 	) -> Weight;
 }
+
 impl DmpMessageHandler for () {
 	fn handle_dmp_messages(
 		iter: impl Iterator<Item = (RelayChainBlockNumber, Vec<u8>)>,
-		_max_weight: Weight,
-		_message_index: &mut u32,
+		_context: &mut DmpMessageHandlerContext,
 	) -> Weight {
 		iter.for_each(drop);
 		0
