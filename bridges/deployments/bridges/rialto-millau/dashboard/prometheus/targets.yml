@@ -1,4 +1,0 @@
-- targets:
-  - relay-millau-rialto:9616
-  - relay-messages-millau-to-rialto-lane-00000001:9616
-  - relay-messages-rialto-to-millau-lane-00000001:9616
