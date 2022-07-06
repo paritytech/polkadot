@@ -82,13 +82,13 @@ fn clean_dmp_works() {
 		Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 
 		assert!(
-			<Dmp as Store>::DownwardMessageQueueFragments::get(QueueFragmentId(a, 0)).is_empty()
+			<Dmp as Store>::DownwardMessageQueueFragments::get(QueueFragmentIdx(a, 0)).is_empty()
 		);
 		assert!(
-			<Dmp as Store>::DownwardMessageQueueFragments::get(QueueFragmentId(b, 0)).is_empty()
+			<Dmp as Store>::DownwardMessageQueueFragments::get(QueueFragmentIdx(b, 0)).is_empty()
 		);
 		assert!(
-			!<Dmp as Store>::DownwardMessageQueueFragments::get(QueueFragmentId(c, 0)).is_empty()
+			!<Dmp as Store>::DownwardMessageQueueFragments::get(QueueFragmentIdx(c, 0)).is_empty()
 		);
 	});
 }
@@ -184,6 +184,8 @@ fn dmq_pruning() {
 
 		Dmp::prune_dmq(a, 2);
 		assert_eq!(Dmp::dmq_length(a), 1);
+
+		// TODO: check if storage is cleaned up
 	});
 }
 
@@ -319,6 +321,38 @@ fn queue_downward_message_consumption() {
 		let expected_sum = (max_queue_size as u64 * (max_queue_size as u64 - 1)) / 2;
 		assert_eq!(sum, expected_sum);
 	});
+}
+
+fn verify_dmq_message_idx_is_externally_accessible() {
+	use hex_literal::hex;
+	use primitives::v2::well_known_keys;
+
+	// new_test_ext(default_genesis_config()).execute_with(|| {
+	// 	let message_idx = sp_io::storage::get(&well_known_keys::dmq_message_idx(a));
+	// 	assert_eq!(message_idx, None);
+
+	// 	queue_downward_message(a, vec![1, 2, 3]).unwrap();
+
+	// 	let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head(a));
+	// 	assert_eq!(
+	// 		head,
+	// 		Some(hex!["434f8579a2297dfea851bf6be33093c83a78b655a53ae141a7894494c0010589"].to_vec())
+	// 	);
+
+	// 	queue_downward_message(a, vec![4, 5, 6]).unwrap();
+
+	// 	let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head_for_message(a, 2));
+	// 	assert_eq!(
+	// 		head,
+	// 		Some(hex!["3ac90e9a99935b82ee02438a852e6baa8ede95e3b5b7b9a486adf2a2c12405b3"].to_vec())
+	// 	);
+
+	// 	let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head(a));
+	// 	assert_eq!(
+	// 		head,
+	// 		Some(hex!["3ac90e9a99935b82ee02438a852e6baa8ede95e3b5b7b9a486adf2a2c12405b3"].to_vec())
+	// 	);
+	// });
 }
 
 #[test]

@@ -143,7 +143,7 @@ pub struct Id(u32);
 /// Unique identifier of a message in the DMP queue.
 #[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, MallocSizeOf))]
-pub struct QueueMessageId(pub Id, pub u32);
+pub struct QueueMessageId(pub Id, pub u64);
 
 impl TypeId for Id {
 	const TYPE_ID: [u8; 4] = *b"para";
@@ -310,7 +310,7 @@ pub struct DmpMessageHandlerContext {
 	/// The weight limit for processing the messages.
 	pub max_weight: Weight,
 	/// The current message index. Incremented on each message processed.
-	pub message_index: Wrapping<u32>,
+	pub message_index: Wrapping<u64>,
 	/// The current head of the mqc. Updated on each processed message.
 	pub mqc_head: MessageQueueChain,
 }
@@ -318,7 +318,7 @@ pub struct DmpMessageHandlerContext {
 impl DmpMessageHandlerContext {
 	pub fn new(
 		max_weight: Weight,
-		message_index: Wrapping<u32>,
+		message_index: Wrapping<u64>,
 		mqc_head: MessageQueueChain,
 	) -> DmpMessageHandlerContext {
 		DmpMessageHandlerContext { max_weight, message_index, mqc_head }
