@@ -439,10 +439,7 @@ where
 				}
 			}
 			_ = stagnant_check_stream.next().fuse() => {
-				let now = clock.timestamp_now();
-				if now > STAGNANT_PRUNE_DELAY {
-					detect_stagnant(backend, now - STAGNANT_PRUNE_DELAY, MAX_STAGNANT_ENTRIES)?;
-				}
+				detect_stagnant(backend, clock.timestamp_now(), MAX_STAGNANT_ENTRIES)?;
 			}
 		}
 	}
