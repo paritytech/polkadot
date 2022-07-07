@@ -333,7 +333,7 @@ impl<T: Config> Pallet<T> {
 			let key = QueueFragmentIdx(para, head.0);
 			<Self as Store>::DownwardMessageQueueFragments::mutate(key.clone(), |q| {
 				let messages_in_fragment = q.len() as u64;
-				
+
 				if messages_to_prune >= messages_in_fragment {
 					messages_to_prune = messages_to_prune.saturating_sub(messages_in_fragment);
 
@@ -347,12 +347,12 @@ impl<T: Config> Pallet<T> {
 					// Advance head.
 					head += 1;
 				} else {
-					first_message_idx += messages_to_prune ;
+					first_message_idx += messages_to_prune;
 					*q = q.split_off(messages_to_prune as usize);
 
 					// Only account for the update. This key will not be deleted.
 					total_weight += T::DbWeight::get().reads_writes(1, 1);
-					
+
 					// Break loop.
 					messages_to_prune = 0;
 				}
@@ -422,7 +422,7 @@ impl<T: Config> Pallet<T> {
 		let mut to_skip = start;
 
 		// Skip `start` messages.
-		// TODO: switch interface to pages, so we can get rid of this skipping.
+		// TODO: switch interface to pages, so we no longer have to walk and call decode_len on each fragment.
 		while head != tail && to_skip > 0 {
 			let fragment_len = <Self as Store>::DownwardMessageQueueFragments::decode_len(
 				QueueFragmentIdx(recipient, head.0),

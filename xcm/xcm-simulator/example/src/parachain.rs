@@ -33,7 +33,8 @@ use sp_std::prelude::*;
 use pallet_xcm::XcmPassthrough;
 use polkadot_core_primitives::BlockNumber as RelayBlockNumber;
 use polkadot_parachain::primitives::{
-	DmpMessageHandler, Id as ParaId, Sibling, XcmpMessageFormat, XcmpMessageHandler,
+	DmpMessageHandler, DmpMessageHandlerContext, Id as ParaId, Sibling, XcmpMessageFormat,
+	XcmpMessageHandler,
 };
 use xcm::{latest::prelude::*, VersionedXcm};
 use xcm_builder::{
@@ -262,7 +263,7 @@ pub mod mock_msg_queue {
 
 	impl<T: Config> DmpMessageHandler for Pallet<T> {
 		fn handle_dmp_messages(
-			iter: impl Iterator<Item = (RelayChainBlockNumber, Vec<u8>)>,
+			iter: impl Iterator<Item = (RelayBlockNumber, Vec<u8>)>,
 			context: &mut DmpMessageHandlerContext,
 		) -> Weight {
 			for (_i, (_sent_at, data)) in iter.enumerate() {

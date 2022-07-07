@@ -23,9 +23,11 @@ pub use frame_support::{traits::Get, weights::Weight};
 pub use sp_io::TestExternalities;
 pub use sp_std::{cell::RefCell, collections::vec_deque::VecDeque, marker::PhantomData};
 
-pub use polkadot_core_primitives::BlockNumber as RelayBlockNumber;
+pub use polkadot_core_primitives::{
+	BlockNumber as RelayBlockNumber, Hash as RelayHash, MessageQueueChain,
+};
 pub use polkadot_parachain::primitives::{
-	DmpMessageHandler as DmpMessageHandlerT, DmpMessageHandlerContext, Hash, Id as ParaId,
+	DmpMessageHandler as DmpMessageHandlerT, DmpMessageHandlerContext, Id as ParaId,
 	XcmpMessageFormat, XcmpMessageHandler as XcmpMessageHandlerT,
 };
 pub use polkadot_runtime_parachains::{
@@ -141,13 +143,11 @@ macro_rules! decl_test_parachain {
 		impl $crate::DmpMessageHandlerT for $name {
 			fn handle_dmp_messages(
 				iter: impl Iterator<Item = ($crate::RelayBlockNumber, Vec<u8>)>,
-				context: &mut DmpMessageHandlerContext,
+				context: &mut $crate::DmpMessageHandlerContext,
 			) -> $crate::Weight {
 				use $crate::{DmpMessageHandlerT, TestExt};
 
-				$name::execute_with(|| {
-					<$dmp_message_handler>::handle_dmp_messages(iter, context.max_weight)
-				})
+				$name::execute_with(|| <$dmp_message_handler>::handle_dmp_messages(iter, context))
 			}
 		}
 	};
@@ -280,9 +280,9 @@ macro_rules! decl_test_network {
 							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Dmp);
 							// NOTE: RelayChainBlockNumber is hard-coded to 1
 							let messages = vec![(1, encoded)];
-							let mut context = DmpMessageHandlerContext::new($crate::Weight::max_value(), Default::default(), Hash::zero()),
+							let mut context = $crate::DmpMessageHandlerContext::new($crate::Weight::max_value(), Default::default(), $crate::MessageQueueChain::default());
 							let _weight = <$parachain>::handle_dmp_messages(
-		context						messages.into_iter(), &mut context,
+									messages.into_iter(), &mut context,
 							);
 						},
 					)*

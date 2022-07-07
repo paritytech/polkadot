@@ -301,7 +301,7 @@ pub mod well_known_keys {
 		})
 	}
 
-	/// The index of the first and last messages in the dmp queue. 
+	/// The index of the first and last messages in the dmp queue.
 	pub fn dmq_message_idx(para_id: Id) -> Vec<u8> {
 		let prefix = hex!["63f78c98723ddc9073523ef3beefda0c dbddeea6da327cfb3fa8e5a04b66cdf5"];
 		para_id.using_encoded(|para_id: &[u8]| {
@@ -314,7 +314,7 @@ pub mod well_known_keys {
 				.collect()
 		})
 	}
-	
+
 	/// The MQC head for the downward message queue of the given para for a specific message.
 	pub fn dmq_mqc_head_for_message(para_id: Id, message_index: u64) -> Vec<u8> {
 		let prefix = hex!["63f78c98723ddc9073523ef3beefda0cd85820c922d6bcadc203149b7d4631a2"];

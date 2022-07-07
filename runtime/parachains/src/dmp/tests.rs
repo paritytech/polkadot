@@ -323,6 +323,7 @@ fn queue_downward_message_consumption() {
 	});
 }
 
+#[test]
 fn verify_dmq_message_idx_is_externally_accessible() {
 	use hex_literal::hex;
 	use primitives::v2::well_known_keys;

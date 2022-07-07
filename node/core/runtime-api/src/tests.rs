@@ -153,6 +153,15 @@ sp_api::mock_impl_runtime_apis! {
 			self.dmq_contents.get(&recipient).map(|q| q.clone()).unwrap_or_default()
 		}
 
+		fn dmq_contents_bounded(
+			&self,
+			recipient: ParaId,
+			_: u32,
+			_: u32,
+		) -> Vec<InboundDownwardMessage> {
+			self.dmq_contents.get(&recipient).map(|q| q.clone()).unwrap_or_default()
+		}
+
 		fn inbound_hrmp_channels_contents(
 			&self,
 			recipient: ParaId
