@@ -693,11 +693,11 @@ fn detect_stagnant(
 
 fn prune_only_stagnant(
 	backend: &mut impl Backend,
-	now: Timestamp,
+	up_to: Timestamp,
 	max_elements: usize,
 ) -> Result<(), Error> {
 	let ops = {
-		let overlay = tree::prune_only_stagnant(&*backend, now, max_elements)?;
+		let overlay = tree::prune_only_stagnant(&*backend, up_to, max_elements)?;
 
 		overlay.into_write_ops()
 	};
