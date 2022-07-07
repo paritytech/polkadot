@@ -611,8 +611,6 @@ pub(super) fn prune_only_stagnant<'a, B: 'a + Backend>(
 		n => (stagnant_up_to[0].0, stagnant_up_to[n - 1].0),
 	};
 
-	// As this is in ascending order, only the earliest stagnant
-	// blocks will involve heavy viability propagations.
 	gum::debug!(
 		target: LOG_TARGET,
 		?up_to,
