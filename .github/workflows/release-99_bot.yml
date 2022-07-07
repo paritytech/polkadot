@@ -24,7 +24,7 @@ jobs:
           - name: 'Internal release-notes channel'
             room: '!NTogofoetwjbTwOoPi:matrix.parity.io'
             pre-release: true
-          - name: Ledger <> Polkadot Coordination
+          - name: 'Ledger <> Polkadot Coordination'
             room: '!EoIhaKfGPmFOBrNSHT:web3.foundation'
             pre-release: true
     
