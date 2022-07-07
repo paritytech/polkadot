@@ -157,7 +157,6 @@ impl Fungibility {
 
 impl From<u128> for Fungibility {
 	fn from(amount: u128) -> Fungibility {
-		debug_assert_ne!(amount, 0);
 		Fungibility::Fungible(amount)
 	}
 }
