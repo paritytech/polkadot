@@ -86,7 +86,7 @@ impl fmt::Debug for ProcessedDownwardMessagesAcceptanceErr {
 /// TODO(maybe) - make these configuration parameters?
 ///
 /// Defines the queue fragment capacity.
-pub const QUEUE_FRAGMENT_CAPACITY: u32 = 1;
+pub const QUEUE_FRAGMENT_CAPACITY: u32 = 10;
 /// Defines the maximum amount of messages returned by `dmq_contents`/`dmq_contents_bounded`.
 pub const MAX_MESSAGES_PER_QUERY: u32 = 2048;
 
@@ -317,6 +317,17 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
+	fn mqc_head_key_range(para: ParaId, start: Wrapping<u64>, count: u64) -> Vec<QueueMessageId> {
+		let mut keys = Vec::new();
+		let mut idx = start;
+		while idx != start + Wrapping(count) {
+			keys.push(QueueMessageId(para, idx.0));
+			idx += 1;
+		}
+
+		keys
+	}
+
 	/// Prunes the specified number of messages from the downward message queue of the given para.
 	pub(crate) fn prune_dmq(para: ParaId, processed_downward_messages: u32) -> Weight {
 		let mut head = Wrapping(Self::dmp_queue_head(para));
@@ -326,7 +337,8 @@ impl<T: Config> Pallet<T> {
 		let mut total_weight = T::DbWeight::get().reads_writes(3, 0);
 
 		// TODO: also remove `DownwardMessageQueueHeadsById` entries.
-		let mut keys_to_remove = Vec::new();
+		let mut queue_keys_to_remove = Vec::new();
+		let mut mqc_keys_to_remove = Vec::new();
 
 		// Determine the keys to be removed.
 		while messages_to_prune > 0 && head != tail {
@@ -337,9 +349,15 @@ impl<T: Config> Pallet<T> {
 				if messages_to_prune >= messages_in_fragment {
 					messages_to_prune = messages_to_prune.saturating_sub(messages_in_fragment);
 
-					// Add mutata/removal weight. Removal happens later.
-					total_weight += T::DbWeight::get().reads_writes(1, 2);
-					keys_to_remove.push(key);
+					// Add mutate weight. Removal happens later.
+					total_weight += T::DbWeight::get().reads_writes(1, 1);
+					queue_keys_to_remove.push(key);
+
+					mqc_keys_to_remove.extend(Self::mqc_head_key_range(
+						para,
+						first_message_idx,
+						messages_in_fragment,
+					));
 
 					// Advance first message index.
 					first_message_idx += messages_in_fragment;
@@ -347,6 +365,12 @@ impl<T: Config> Pallet<T> {
 					// Advance head.
 					head += 1;
 				} else {
+					mqc_keys_to_remove.extend(Self::mqc_head_key_range(
+						para,
+						first_message_idx,
+						messages_to_prune,
+					));
+
 					first_message_idx += messages_to_prune;
 					*q = q.split_off(messages_to_prune as usize);
 
@@ -359,9 +383,14 @@ impl<T: Config> Pallet<T> {
 			});
 		}
 
-		let _ = keys_to_remove
-			.into_iter()
-			.map(|k| <Self as Store>::DownwardMessageQueueFragments::remove(k));
+		// Actually do cleanup.
+		for key in queue_keys_to_remove {
+			<Self as Store>::DownwardMessageQueueFragments::remove(key);
+		}
+
+		for key in mqc_keys_to_remove {
+			<Self as Store>::DownwardMessageQueueHeadsById::remove(key);
+		}
 
 		// Update indexes and mqc head.
 		Self::update_first_message_idx(&para, first_message_idx) +
