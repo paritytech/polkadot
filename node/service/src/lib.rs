@@ -1224,10 +1224,12 @@ where
 		// given delay.
 		let mut builder = grandpa::VotingRulesBuilder::default();
 
-		#[cfg(feature = "malus")]
+		#[cfg(not(feature = "malus"))]
+		let malus_finality_delay = None;
+
 		if let Some(delay) = malus_finality_delay {
 			info!(?delay, "Enabling malus finality delay",);
-			builder = builder.add(grandpa::BeforeBestBlockBy(delay.into()));
+			builder = builder.add(grandpa::BeforeBestBlockBy(delay));
 		};
 
 		let voting_rule = match grandpa_pause {
