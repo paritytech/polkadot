@@ -725,6 +725,7 @@ pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	overseer_enable_anyways: bool,
 	overseer_gen: OverseerGenerator,
 	overseer_message_channel_capacity_override: Option<usize>,
+	#[cfg(feature = "malus")] malus_finality_delay: Option<u32>,
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, ExecutorDispatch>>>, Error>
 where
@@ -1221,7 +1222,13 @@ where
 		// add a custom voting rule to temporarily stop voting for new blocks
 		// after the given pause block is finalized and restarting after the
 		// given delay.
-		let builder = grandpa::VotingRulesBuilder::default();
+		let mut builder = grandpa::VotingRulesBuilder::default();
+
+		#[cfg(feature = "malus")]
+		if let Some(delay) = malus_finality_delay {
+			info!(?delay, "Enabling malus finality delay",);
+			builder = builder.add(grandpa::BeforeBestBlockBy(delay.into()));
+		};
 
 		let voting_rule = match grandpa_pause {
 			Some((block, delay)) => {
@@ -1349,6 +1356,7 @@ pub fn build_full(
 	overseer_enable_anyways: bool,
 	overseer_gen: impl OverseerGen,
 	overseer_message_channel_override: Option<usize>,
+	#[cfg(feature = "malus")] malus_finality_delay: Option<u32>,
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]
@@ -1367,6 +1375,8 @@ pub fn build_full(
 			overseer_enable_anyways,
 			overseer_gen,
 			overseer_message_channel_override,
+			#[cfg(feature = "malus")]
+			malus_finality_delay,
 			hwbench,
 		)
 		.map(|full| full.with_client(Client::Rococo))
@@ -1385,6 +1395,8 @@ pub fn build_full(
 			overseer_enable_anyways,
 			overseer_gen,
 			overseer_message_channel_override,
+			#[cfg(feature = "malus")]
+			malus_finality_delay,
 			hwbench,
 		)
 		.map(|full| full.with_client(Client::Kusama))
@@ -1403,6 +1415,8 @@ pub fn build_full(
 			overseer_enable_anyways,
 			overseer_gen,
 			overseer_message_channel_override,
+			#[cfg(feature = "malus")]
+			malus_finality_delay,
 			hwbench,
 		)
 		.map(|full| full.with_client(Client::Westend))
@@ -1424,6 +1438,8 @@ pub fn build_full(
 				gum::warn!("Channel capacity should _never_ be tampered with on polkadot!");
 				capacity
 			}),
+			#[cfg(feature = "malus")]
+			malus_finality_delay,
 			hwbench,
 		)
 		.map(|full| full.with_client(Client::Polkadot))

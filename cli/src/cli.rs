@@ -144,6 +144,10 @@ pub struct RunCmd {
 	/// **Dangerous!** Do not touch unless explicitly adviced to.
 	#[clap(long)]
 	pub overseer_channel_capacity_override: Option<usize>,
+
+	#[allow(missing_docs)]
+	#[clap(long, hide = true)]
+	pub malus_finality_delay: Option<u32>,
 }
 
 #[allow(missing_docs)]
