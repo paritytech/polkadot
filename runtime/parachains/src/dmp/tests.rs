@@ -178,9 +178,9 @@ fn dmq_pruning() {
 		queue_downward_message(a, vec![7, 8, 9]).unwrap();
 		assert_eq!(Dmp::dmq_length(a), 3);
 
-		// This should fail after pruning.
+		// This should return zero after pruning.
 		assert_eq!(
-			Dmp::dmq_mqc_head_for_message(a, 2),
+			Dmp::dmq_mqc_head_for_message(a, 1),
 			hex!["3ac90e9a99935b82ee02438a852e6baa8ede95e3b5b7b9a486adf2a2c12405b3"].into(),
 		);
 
@@ -194,8 +194,8 @@ fn dmq_pruning() {
 		Dmp::prune_dmq(a, 1);
 		assert_eq!(Dmp::dmq_length(a), 0);
 
-		// As said, this should now fail.
-		assert_eq!(Dmp::dmq_mqc_head_for_message(a, 1), Hash::zero(),);
+		// As said, this should be zero now.
+		assert_eq!(Dmp::dmq_mqc_head_for_message(a, 1), Hash::zero());
 
 		// TODO: check message indexes.
 	});
