@@ -30,6 +30,7 @@ use polkadot_node_network_protocol::{
 		RandomRouting, RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology,
 	},
 	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, Versioned, View,
+	MIN_GOSSIP_PEERS,
 };
 use polkadot_node_subsystem::{
 	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan,
@@ -57,6 +58,9 @@ const COST_PEER_DUPLICATE_MESSAGE: Rep =
 const BENEFIT_VALID_MESSAGE_FIRST: Rep =
 	Rep::BenefitMinorFirst("Valid message with new information");
 const BENEFIT_VALID_MESSAGE: Rep = Rep::BenefitMinor("Valid message");
+
+/// Maximum number of messages being sent via unbounded channel (per relay parent)
+const MAX_UNBOUND_MESSAGES_PER_RELAY_PARENT: usize = MIN_GOSSIP_PEERS;
 
 /// Checked signed availability bitfield that is distributed
 /// to other peers.
@@ -123,6 +127,9 @@ struct PerRelayParentData {
 
 	/// The span for this leaf/relay parent.
 	span: PerLeafSpan,
+
+	/// Number of messages sent via unbounded channels (to prevent spam)
+	unbounded_messages_count: usize,
 }
 
 impl PerRelayParentData {
@@ -139,6 +146,7 @@ impl PerRelayParentData {
 			one_per_validator: Default::default(),
 			message_sent_to_peer: Default::default(),
 			message_received_from_peer: Default::default(),
+			unbounded_messages_count: 0,
 		}
 	}
 
@@ -364,11 +372,11 @@ async fn relay_message<Context>(
 
 	let _span = span.child("provisionable");
 	// notify the overseer about a new and valid signed bitfield
-	ctx.send_message(ProvisionerMessage::ProvisionableData(
+	ctx.send_unbounded_message(ProvisionerMessage::ProvisionableData(
 		relay_parent,
 		ProvisionableData::Bitfield(relay_parent, message.signed_availability.clone()),
-	))
-	.await;
+	));
+	job_data.unbounded_messages_count = job_data.unbounded_messages_count.saturating_add(1);
 
 	drop(_span);
 	let total_peers = peer_views.len();
@@ -427,11 +435,20 @@ async fn relay_message<Context>(
 		);
 	} else {
 		let _span = span.child("gossip");
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
-			interested_peers,
-			message.into_validation_protocol(),
-		))
-		.await;
+
+		if job_data.unbounded_messages_count < MAX_UNBOUND_MESSAGES_PER_RELAY_PARENT {
+			ctx.send_unbounded_message(NetworkBridgeMessage::SendValidationMessage(
+				interested_peers,
+				message.into_validation_protocol(),
+			));
+			job_data.unbounded_messages_count = job_data.unbounded_messages_count.saturating_add(1);
+		} else {
+			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+				interested_peers,
+				message.into_validation_protocol(),
+			))
+			.await;
+		}
 	}
 }
 
