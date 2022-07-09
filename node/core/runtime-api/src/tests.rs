@@ -16,7 +16,9 @@
 
 use super::*;
 
-use ::test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code};
+use ::test_helpers::{
+	dummy_committed_candidate_receipt, dummy_session_info, dummy_validation_code,
+};
 use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
 use polkadot_node_subsystem::SpawnGlue;
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
@@ -518,29 +520,14 @@ fn requests_session_index_for_child() {
 	futures::executor::block_on(future::join(subsystem_task, test_task));
 }
 
-fn dummy_session_info() -> SessionInfo {
-	SessionInfo {
-		validators: vec![],
-		discovery_keys: vec![],
-		assignment_keys: vec![],
-		validator_groups: vec![],
-		n_cores: 4u32,
-		zeroth_delay_tranche_width: 0u32,
-		relay_vrf_modulo_samples: 0u32,
-		n_delay_tranches: 2u32,
-		no_show_slots: 0u32,
-		needed_approvals: 1u32,
-		active_validator_indices: vec![],
-		dispute_period: 6,
-		random_seed: [0u8; 32],
-	}
-}
 #[test]
 fn requests_session_info() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let mut runtime_api = MockRuntimeApi::default();
 	let session_index = 1;
-	runtime_api.session_info.insert(session_index, dummy_session_info());
+	runtime_api
+		.session_info
+		.insert(session_index, dummy_session_info(session_index));
 	let runtime_api = Arc::new(runtime_api);
 	let spawner = sp_core::testing::TaskExecutor::new();
 
@@ -561,7 +548,7 @@ fn requests_session_info() {
 			})
 			.await;
 
-		assert_eq!(rx.await.unwrap().unwrap(), Some(dummy_session_info()));
+		assert_eq!(rx.await.unwrap().unwrap(), Some(dummy_session_info(session_index)));
 
 		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};

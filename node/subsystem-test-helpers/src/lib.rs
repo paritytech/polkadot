@@ -24,14 +24,22 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 
-use futures::{channel::mpsc, poll, prelude::*};
+use futures::{
+	channel::{mpsc, oneshot},
+	poll,
+	prelude::*,
+};
 use parking_lot::Mutex;
+use sp_consensus::SyncOracle;
 use sp_core::testing::TaskExecutor;
 
 use std::{
 	convert::Infallible,
 	pin::Pin,
-	sync::Arc,
+	sync::{
+		atomic::{AtomicBool, Ordering},
+		Arc,
+	},
 	task::{Context, Poll, Waker},
 	time::Duration,
 };
@@ -306,6 +314,65 @@ pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 			.await
 			.expect("test timed out instead of completing")
 	});
+}
+
+/// Construct a test `SyncOracle` primitive used to indicate different network state
+#[derive(Clone)]
+pub struct TestSyncOracle {
+	flag: Arc<AtomicBool>,
+	done_syncing_sender: Arc<Mutex<Option<oneshot::Sender<()>>>>,
+}
+
+/// A handle for sync oracle
+pub struct TestSyncOracleHandle {
+	done_syncing_receiver: oneshot::Receiver<()>,
+	flag: Arc<AtomicBool>,
+}
+
+impl TestSyncOracleHandle {
+	/// Mark test handle as done
+	pub fn set_done(&self) {
+		self.flag.store(false, Ordering::SeqCst);
+	}
+	/// Wait for mode switch
+	pub async fn await_mode_switch(self) {
+		let _ = self.done_syncing_receiver.await;
+	}
+}
+
+impl SyncOracle for TestSyncOracle {
+	fn is_major_syncing(&mut self) -> bool {
+		let is_major_syncing = self.flag.load(Ordering::SeqCst);
+
+		if !is_major_syncing {
+			if let Some(sender) = self.done_syncing_sender.lock().take() {
+				let _ = sender.send(());
+			}
+		}
+
+		is_major_syncing
+	}
+
+	fn is_offline(&mut self) -> bool {
+		unimplemented!("not used currently")
+	}
+}
+
+/// Creates a sync oracle for testing
+/// val - result of `is_major_syncing`.
+pub fn make_sync_oracle(val: bool) -> (Box<dyn SyncOracle + Send>, TestSyncOracleHandle) {
+	let (tx, rx) = oneshot::channel();
+	let flag = Arc::new(AtomicBool::new(val));
+	let oracle =
+		TestSyncOracle { flag: flag.clone(), done_syncing_sender: Arc::new(Mutex::new(Some(tx))) };
+	let handle = TestSyncOracleHandle { flag, done_syncing_receiver: rx };
+	(Box::new(oracle), handle)
+}
+
+/// Create a `SyncOracle` that is already done
+pub fn done_syncing_oracle() -> Box<dyn SyncOracle + Send> {
+	let (oracle, _) = make_sync_oracle(false);
+	oracle
 }
 
 /// A forward subsystem that implements [`Subsystem`].

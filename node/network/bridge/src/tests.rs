@@ -15,16 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use futures::{channel::oneshot, executor, stream::BoxStream};
+use futures::{executor, stream::BoxStream};
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 use parking_lot::Mutex;
-use std::{
-	borrow::Cow,
-	collections::HashSet,
-	sync::atomic::{AtomicBool, Ordering},
-};
+use std::{borrow::Cow, collections::HashSet};
 
 use sc_network::{Event as NetworkEvent, IfDisconnected};
 
@@ -40,7 +36,8 @@ use polkadot_node_subsystem::{
 	ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
 };
 use polkadot_node_subsystem_test_helpers::{
-	SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
+	done_syncing_oracle, make_sync_oracle, SingleItemSink, SingleItemStream,
+	TestSubsystemContextHandle,
 };
 use polkadot_node_subsystem_util::metered;
 use polkadot_primitives::v2::AuthorityDiscoveryId;
@@ -212,61 +209,6 @@ fn assert_network_actions_contains(actions: &[NetworkAction], action: &NetworkAc
 	}
 }
 
-#[derive(Clone)]
-struct TestSyncOracle {
-	flag: Arc<AtomicBool>,
-	done_syncing_sender: Arc<Mutex<Option<oneshot::Sender<()>>>>,
-}
-
-struct TestSyncOracleHandle {
-	done_syncing_receiver: oneshot::Receiver<()>,
-	flag: Arc<AtomicBool>,
-}
-
-impl TestSyncOracleHandle {
-	fn set_done(&self) {
-		self.flag.store(false, Ordering::SeqCst);
-	}
-
-	async fn await_mode_switch(self) {
-		let _ = self.done_syncing_receiver.await;
-	}
-}
-
-impl SyncOracle for TestSyncOracle {
-	fn is_major_syncing(&mut self) -> bool {
-		let is_major_syncing = self.flag.load(Ordering::SeqCst);
-
-		if !is_major_syncing {
-			if let Some(sender) = self.done_syncing_sender.lock().take() {
-				let _ = sender.send(());
-			}
-		}
-
-		is_major_syncing
-	}
-
-	fn is_offline(&mut self) -> bool {
-		unimplemented!("not used in network bridge")
-	}
-}
-
-// val - result of `is_major_syncing`.
-fn make_sync_oracle(val: bool) -> (TestSyncOracle, TestSyncOracleHandle) {
-	let (tx, rx) = oneshot::channel();
-	let flag = Arc::new(AtomicBool::new(val));
-
-	(
-		TestSyncOracle { flag: flag.clone(), done_syncing_sender: Arc::new(Mutex::new(Some(tx))) },
-		TestSyncOracleHandle { flag, done_syncing_receiver: rx },
-	)
-}
-
-fn done_syncing_oracle() -> Box<dyn SyncOracle + Send> {
-	let (oracle, _) = make_sync_oracle(false);
-	Box::new(oracle)
-}
-
 type VirtualOverseer = TestSubsystemContextHandle<NetworkBridgeMessage>;
 
 struct TestHarness {
@@ -360,7 +302,7 @@ async fn assert_sends_collation_event_to_all(
 #[test]
 fn send_our_view_upon_connection() {
 	let (oracle, handle) = make_sync_oracle(false);
-	test_harness(Box::new(oracle), |test_harness| async move {
+	test_harness(oracle, |test_harness| async move {
 		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
 
 		let peer = PeerId::random();
@@ -411,7 +353,7 @@ fn send_our_view_upon_connection() {
 #[test]
 fn sends_view_updates_to_peers() {
 	let (oracle, handle) = make_sync_oracle(false);
-	test_harness(Box::new(oracle), |test_harness| async move {
+	test_harness(oracle, |test_harness| async move {
 		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
 
 		let peer_a = PeerId::random();
@@ -480,7 +422,7 @@ fn sends_view_updates_to_peers() {
 #[test]
 fn do_not_send_view_update_until_synced() {
 	let (oracle, handle) = make_sync_oracle(true);
-	test_harness(Box::new(oracle), |test_harness| async move {
+	test_harness(oracle, |test_harness| async move {
 		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
 
 		let peer_a = PeerId::random();

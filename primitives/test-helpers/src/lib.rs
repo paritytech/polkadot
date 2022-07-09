@@ -23,8 +23,8 @@
 //! contain randomness based data.
 use polkadot_primitives::v2::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, CollatorId, CollatorSignature,
-	CommittedCandidateReceipt, Hash, HeadData, Id as ParaId, ValidationCode, ValidationCodeHash,
-	ValidatorId,
+	CommittedCandidateReceipt, Hash, HeadData, Id as ParaId, SessionIndex, SessionInfo,
+	ValidationCode, ValidationCodeHash, ValidatorId,
 };
 pub use rand;
 use sp_application_crypto::sr25519;
@@ -144,6 +144,25 @@ pub fn dummy_validator() -> ValidatorId {
 /// Create a meaningless collator signature.
 pub fn dummy_collator_signature() -> CollatorSignature {
 	CollatorSignature::from(sr25519::Signature([0u8; 64]))
+}
+
+/// Create an empty session info
+pub fn dummy_session_info(index: SessionIndex) -> SessionInfo {
+	SessionInfo {
+		validators: Vec::new(),
+		discovery_keys: Vec::new(),
+		assignment_keys: Vec::new(),
+		validator_groups: Vec::new(),
+		n_cores: index as _,
+		zeroth_delay_tranche_width: index as _,
+		relay_vrf_modulo_samples: index as _,
+		n_delay_tranches: index as _,
+		no_show_slots: index as _,
+		needed_approvals: index as _,
+		active_validator_indices: Vec::new(),
+		dispute_period: 6,
+		random_seed: [0u8; 32],
+	}
 }
 
 /// Create a new candidate descriptor, and apply a valid signature

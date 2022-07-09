@@ -613,7 +613,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 pub(crate) mod tests {
 	use super::*;
 	use crate::approval_db::v1::DbBackend;
-	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
+	use ::test_helpers::{dummy_candidate_receipt, dummy_hash, dummy_session_info};
 	use assert_matches::assert_matches;
 	use merlin::Transcript;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
@@ -709,24 +709,6 @@ pub(crate) mod tests {
 
 		let (o, p, _) = key.vrf_sign(Transcript::new(b"test-garbage"));
 		(VRFOutput(o.to_output()), VRFProof(p))
-	}
-
-	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
-		SessionInfo {
-			validators: Vec::new(),
-			discovery_keys: Vec::new(),
-			assignment_keys: Vec::new(),
-			validator_groups: Vec::new(),
-			n_cores: index as _,
-			zeroth_delay_tranche_width: index as _,
-			relay_vrf_modulo_samples: index as _,
-			n_delay_tranches: index as _,
-			no_show_slots: index as _,
-			needed_approvals: index as _,
-			active_validator_indices: Vec::new(),
-			dispute_period: 6,
-			random_seed: [0u8; 32],
-		}
 	}
 
 	#[test]
