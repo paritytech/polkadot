@@ -19,10 +19,10 @@ use parity_scale_codec::{Decode, Encode};
 use sp_application_crypto::AppKey;
 use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
 
-use super::{Statement, UncheckedSignedFullStatement};
 use polkadot_primitives::v2::{
-	CandidateHash, CandidateReceipt, DisputeStatement, InvalidDisputeStatementKind, SessionIndex,
-	SigningContext, ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
+	CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement, EncodeAs,
+	InvalidDisputeStatementKind, SessionIndex, SigningContext, UncheckedSigned,
+	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 
 /// `DisputeMessage` and related types.
@@ -174,19 +174,23 @@ impl SignedDisputeStatement {
 	/// along with the signing context.
 	///
 	/// This does signature checks again with the data provided.
-	pub fn from_backing_statement(
-		backing_statement: &UncheckedSignedFullStatement,
+	pub fn from_backing_statement<T>(
+		backing_statement: &UncheckedSigned<T, CompactStatement>,
 		signing_context: SigningContext,
 		validator_public: ValidatorId,
-	) -> Result<Self, ()> {
-		let (statement_kind, candidate_hash) = match backing_statement.unchecked_payload() {
-			Statement::Seconded(candidate) => (
+	) -> Result<Self, ()>
+	where
+		for<'a> &'a T: Into<CompactStatement>,
+		T: EncodeAs<CompactStatement>,
+	{
+		let (statement_kind, candidate_hash) = match backing_statement.unchecked_payload().into() {
+			CompactStatement::Seconded(candidate_hash) => (
 				ValidDisputeStatementKind::BackingSeconded(signing_context.parent_hash),
-				candidate.hash(),
+				candidate_hash,
 			),
-			Statement::Valid(candidate_hash) => (
+			CompactStatement::Valid(candidate_hash) => (
 				ValidDisputeStatementKind::BackingValid(signing_context.parent_hash),
-				*candidate_hash,
+				candidate_hash,
 			),
 		};
 

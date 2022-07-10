@@ -194,6 +194,76 @@ impl EncodeAs<CompactStatement> for Statement {
 	}
 }
 
+/// A statement, exactly the same as [`Statement`] but where seconded messages carry
+/// the [`PersistedValidationData`].
+#[derive(Clone, PartialEq, Eq)]
+pub enum StatementWithPVD {
+	/// A statement that a validator seconds a candidate.
+	Seconded(CommittedCandidateReceipt, PersistedValidationData),
+	/// A statement that a validator has deemed a candidate valid.
+	Valid(CandidateHash),
+}
+
+impl std::fmt::Debug for StatementWithPVD {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			StatementWithPVD::Seconded(seconded, _) =>
+				write!(f, "Seconded: {:?}", seconded.descriptor),
+			StatementWithPVD::Valid(hash) => write!(f, "Valid: {:?}", hash),
+		}
+	}
+}
+
+impl StatementWithPVD {
+	/// Get the candidate hash referenced by this statement.
+	///
+	/// If this is a `Statement::Seconded`, this does hash the candidate receipt, which may be expensive
+	/// for large candidates.
+	pub fn candidate_hash(&self) -> CandidateHash {
+		match *self {
+			StatementWithPVD::Valid(ref h) => *h,
+			StatementWithPVD::Seconded(ref c, _) => c.hash(),
+		}
+	}
+
+	/// Transform this statement into its compact version, which references only the hash
+	/// of the candidate.
+	pub fn to_compact(&self) -> CompactStatement {
+		match *self {
+			StatementWithPVD::Seconded(ref c, _) => CompactStatement::Seconded(c.hash()),
+			StatementWithPVD::Valid(hash) => CompactStatement::Valid(hash),
+		}
+	}
+
+	/// Drop the [`PersistedValidationData`] from the statement.
+	pub fn drop_pvd(self) -> Statement {
+		match self {
+			StatementWithPVD::Seconded(c, _) => Statement::Seconded(c),
+			StatementWithPVD::Valid(c_h) => Statement::Valid(c_h),
+		}
+	}
+
+	/// Drop the [`PersistedValidationData`] from the statement in a signed
+	/// variant.
+	pub fn drop_pvd_from_signed(signed: SignedFullStatementWithPVD) -> SignedFullStatement {
+		signed
+			.convert_to_superpayload_with(|s| s.drop_pvd())
+			.expect("persisted_validation_data doesn't affect encoded_as; qed")
+	}
+}
+
+impl From<&'_ StatementWithPVD> for CompactStatement {
+	fn from(stmt: &StatementWithPVD) -> Self {
+		stmt.to_compact()
+	}
+}
+
+impl EncodeAs<CompactStatement> for StatementWithPVD {
+	fn encode_as(&self) -> Vec<u8> {
+		self.to_compact().encode()
+	}
+}
+
 /// A statement, the corresponding signature, and the index of the sender.
 ///
 /// Signing context and validator set should be apparent from context.
@@ -204,6 +274,13 @@ pub type SignedFullStatement = Signed<Statement, CompactStatement>;
 
 /// Variant of `SignedFullStatement` where the signature has not yet been verified.
 pub type UncheckedSignedFullStatement = UncheckedSigned<Statement, CompactStatement>;
+
+/// A statement, the corresponding signature, and the index of the sender.
+///
+/// Seconded statements are accompanied by the [`PersistedValidationData`]
+///
+/// Signing context and validator set should be apparent from context.
+pub type SignedFullStatementWithPVD = Signed<StatementWithPVD, CompactStatement>;
 
 /// Candidate invalidity details
 #[derive(Debug)]

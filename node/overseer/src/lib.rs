@@ -467,12 +467,14 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(CandidateBackingMessage, sends: [
 		CandidateValidationMessage,
 		CollatorProtocolMessage,
+		ChainApiMessage,
 		AvailabilityDistributionMessage,
 		AvailabilityStoreMessage,
 		StatementDistributionMessage,
 		ProvisionerMessage,
 		RuntimeApiMessage,
 		DisputeCoordinatorMessage,
+		ProspectiveParachainsMessage,
 	])]
 	candidate_backing: CandidateBacking,
 

@@ -32,8 +32,8 @@ use polkadot_node_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeA
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v2::{
-	CollatorPair, CoreState, GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore,
-	ValidatorId, ValidatorIndex,
+	CollatorPair, CoreState, GroupIndex, GroupRotationInfo, HeadData, OccupiedCore,
+	PersistedValidationData, ScheduledCore, ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::{
 	dummy_candidate_descriptor, dummy_candidate_receipt_bad_sig, dummy_hash,
@@ -245,15 +245,45 @@ async fn assert_candidate_backing_second(
 	expected_para_id: ParaId,
 	expected_pov: &PoV,
 ) -> CandidateReceipt {
+	// TODO [https://github.com/paritytech/polkadot/issues/5054]
+	//
+	// While collator protocol isn't updated, it's expected to receive
+	// a Runtime API request for persisted validation data.
+	let pvd = PersistedValidationData {
+		parent_head: HeadData(vec![7, 8, 9]),
+		relay_parent_number: 5,
+		max_pov_size: 1024,
+		relay_parent_storage_root: Default::default(),
+	};
+
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
-		AllMessages::CandidateBacking(CandidateBackingMessage::Second(relay_parent, candidate_receipt, incoming_pov)
-	) => {
-		assert_eq!(expected_relay_parent, relay_parent);
-		assert_eq!(expected_para_id, candidate_receipt.descriptor.para_id);
-		assert_eq!(*expected_pov, incoming_pov);
-		candidate_receipt
-	})
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			hash,
+			RuntimeApiRequest::PersistedValidationData(para_id, assumption, tx),
+		)) => {
+			assert_eq!(expected_relay_parent, hash);
+			assert_eq!(expected_para_id, para_id);
+			assert_eq!(OccupiedCoreAssumption::Free, assumption);
+			tx.send(Ok(Some(pvd.clone()))).unwrap();
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::CandidateBacking(CandidateBackingMessage::Second(
+			relay_parent,
+			candidate_receipt,
+			received_pvd,
+			incoming_pov,
+		)) => {
+			assert_eq!(expected_relay_parent, relay_parent);
+			assert_eq!(expected_para_id, candidate_receipt.descriptor.para_id);
+			assert_eq!(*expected_pov, incoming_pov);
+			assert_eq!(pvd, received_pvd);
+			candidate_receipt
+		}
+	)
 }
 
 /// Assert that a collator got disconnected.

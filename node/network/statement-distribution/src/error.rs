@@ -18,9 +18,11 @@
 //! Error handling related code and Error/Result definitions.
 
 use polkadot_node_network_protocol::PeerId;
-use polkadot_node_subsystem::SubsystemError;
+use polkadot_node_subsystem::{RuntimeApiError, SubsystemError};
 use polkadot_node_subsystem_util::runtime;
-use polkadot_primitives::v2::{CandidateHash, Hash};
+use polkadot_primitives::v2::{CandidateHash, Hash, Id as ParaId};
+
+use futures::channel::oneshot;
 
 use crate::LOG_TARGET;
 
@@ -55,6 +57,12 @@ pub enum Error {
 	#[fatal(forward)]
 	#[error("Error while accessing runtime information")]
 	Runtime(#[from] runtime::Error),
+
+	#[error("RuntimeAPISubsystem channel closed before receipt")]
+	RuntimeApiUnavailable(#[source] oneshot::Canceled),
+
+	#[error("Fetching persisted validation data for para {0:?}, {1:?}")]
+	FetchPersistedValidationData(ParaId, RuntimeApiError),
 
 	#[error("Relay parent could not be found in active heads")]
 	NoSuchHead(Hash),
