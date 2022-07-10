@@ -552,7 +552,7 @@ pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
 		?up_to,
 		?min_ts,
 		?max_ts,
-		"Prepared {} stagnant entries for pruning",
+		"Prepared {} stagnant entries for checking/pruning",
 		stagnant_up_to.len()
 	);
 
@@ -589,6 +589,39 @@ pub(super) fn detect_stagnant<'a, B: 'a + Backend>(
 				);
 			}
 		}
+	}
+
+	Ok(backend)
+}
+
+/// Prune stagnant entries at some timestamp without other checks
+/// This function is intended just to clean leftover entries when the real
+/// stagnant checks are disabled
+pub(super) fn prune_only_stagnant<'a, B: 'a + Backend>(
+	backend: &'a B,
+	up_to: Timestamp,
+	max_elements: usize,
+) -> Result<OverlayedBackend<'a, B>, Error> {
+	let stagnant_up_to = backend.load_stagnant_at_up_to(up_to, max_elements)?;
+	let mut backend = OverlayedBackend::new(backend);
+
+	let (min_ts, max_ts) = match stagnant_up_to.len() {
+		0 => (0 as Timestamp, 0 as Timestamp),
+		1 => (stagnant_up_to[0].0, stagnant_up_to[0].0),
+		n => (stagnant_up_to[0].0, stagnant_up_to[n - 1].0),
+	};
+
+	gum::debug!(
+		target: LOG_TARGET,
+		?up_to,
+		?min_ts,
+		?max_ts,
+		"Prepared {} stagnant entries for pruning",
+		stagnant_up_to.len()
+	);
+
+	for (timestamp, _) in stagnant_up_to {
+		backend.delete_stagnant_at(timestamp);
 	}
 
 	Ok(backend)
