@@ -25,12 +25,13 @@ use primitives::v2::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
 	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
 	InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	assigned_slots, auctions, claims, crowdloan, impl_runtime_weights, impls::ToAuthor, paras_registrar,
-	prod_or_fast, paras_sudo_wrapper, slots, BlockHashCount, BlockLength, SlowAdjustingFeeUpdate,
+	assigned_slots, auctions, claims, crowdloan, impl_runtime_weights, impls::ToAuthor,
+	paras_registrar, paras_sudo_wrapper, prod_or_fast, slots, BlockHashCount, BlockLength,
+	SlowAdjustingFeeUpdate,
 };
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
@@ -38,9 +39,9 @@ use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
-	paras_inherent as parachains_paras_inherent, runtime_api_impl::v2 as parachains_runtime_api_impl,
-	scheduler as parachains_scheduler, session_info as parachains_session_info,
-	shared as parachains_shared, ump as parachains_ump,
+	paras_inherent as parachains_paras_inherent,
+	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
+	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -54,9 +55,12 @@ use beefy_primitives::{
 // };
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, PrivilegeCmp, LockIdentifier},
+	traits::{
+		Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		PrivilegeCmp,
+	},
 	weights::ConstantMultiplier,
-	PalletId, RuntimeDebug
+	PalletId, RuntimeDebug,
 };
 use frame_system::EnsureRoot;
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
@@ -68,8 +72,8 @@ use sp_mmr_primitives as mmr;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
-		AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic as ExtrinsicT, Keccak256,
-		OpaqueKeys, SaturatedConversion, Verify,
+		AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic as ExtrinsicT,
+		Keccak256, OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, KeyTypeId, Perbill, Percent, Permill,
@@ -346,7 +350,7 @@ impl pallet_authorship::Config for Runtime {
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
-	type EventHandler = ImOnline;  // TODO: Staking -> type EventHandler = (Staking, ImOnline);
+	type EventHandler = ImOnline; // TODO: Staking -> type EventHandler = (Staking, ImOnline);
 }
 
 impl_opaque_keys! {
@@ -1204,8 +1208,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
 				Call::Auctions(..) // Specifically omitting the entire XCM Pallet
-				// TODO: Proxy & TODO: Bags List
-				// Call::VoterList(..)
+				                   // TODO: Proxy & TODO: Bags List
+				                   // Call::VoterList(..)
 			),
 			ProxyType::Governance => matches!(
 				c,

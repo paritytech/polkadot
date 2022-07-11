@@ -32,7 +32,7 @@ pub mod currency {
 
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
 		items as Balance * 2_000 * CENTS + (bytes as Balance) * 100 * MILLICENTS
-}
+	}
 }
 
 /// Time and blocks.
@@ -96,7 +96,7 @@ pub mod fee {
 #[cfg(test)]
 mod tests {
 	use super::{
-		currency::{CENTS, UNITS, MILLICENTS},
+		currency::{CENTS, MILLICENTS, UNITS},
 		fee::WeightToFee,
 	};
 	use crate::weights::ExtrinsicBaseWeight;
