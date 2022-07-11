@@ -44,6 +44,9 @@ use sp_std::marker::PhantomData;
 /// Weight functions for `pallet_treasury`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_treasury::WeightInfo for WeightInfo<T> {
+	fn spend() -> Weight {
+		(151_000 as Weight)
+	}
 	// Storage: Treasury ProposalCount (r:1 w:1)
 	// Storage: Treasury Proposals (r:0 w:1)
 	fn propose_spend() -> Weight {

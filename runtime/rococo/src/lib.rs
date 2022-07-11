@@ -54,7 +54,7 @@ use beefy_primitives::{
 // };
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, PrivilegeCmp, LockIdentifier},
+	traits::{Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, PrivilegeCmp, LockIdentifier},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug
 };
@@ -120,7 +120,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 11,
+	transaction_version: 12,
 	state_version: 0,
 };
 
@@ -147,7 +147,7 @@ impl Contains<Call> for BaseFilter {
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
-	pub const SS58Prefix: u8 = 42; // TODO: Params -> pub const SS58Prefix: u8 = 2;
+	pub const SS58Prefix: u8 = 42;
 }
 
 impl frame_system::Config for Runtime {
@@ -184,7 +184,7 @@ parameter_types! {
 	pub const NoPreimagePostponement: Option<u32> = Some(10);
 }
 
-type ScheduleOrigin = EnsureOneOf<
+type ScheduleOrigin = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
 >;
@@ -482,7 +482,7 @@ impl pallet_session::historical::Config for Runtime {
 // 		(),
 // 	>;
 // 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
-// 	type ForceOrigin = EnsureOneOf<
+// 	type ForceOrigin = EitherOfDiverse<
 // 		EnsureRoot<AccountId>,
 // 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
 // 	>;
@@ -589,7 +589,7 @@ parameter_types! {
 // }
 
 // TODO: Stacking
-// type SlashCancelOrigin = EnsureOneOf<
+// type SlashCancelOrigin = EitherOfDiverse<
 // 	EnsureRoot<AccountId>,
 // 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
 // >;
@@ -620,7 +620,7 @@ parameter_types! {
 // 	type VoterList = VoterList;
 // 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 // 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
-// 	type OnStakerSlash = ();
+// 	type OnStakerSlash = NominationPools;
 // 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 // }
 
@@ -664,14 +664,14 @@ impl pallet_democracy::Config for Runtime {
 	type InstantAllowed = InstantAllowed;
 	type FastTrackVotingPeriod = FastTrackVotingPeriod;
 	// To cancel a proposal which has been passed, 2/3 of the council must agree to it.
-	type CancellationOrigin = EnsureOneOf<
+	type CancellationOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
 	>;
 	type BlacklistOrigin = EnsureRoot<AccountId>;
 	// To cancel a proposal before it has been passed, the technical committee must be unanimous or
 	// Root must agree.
-	type CancelProposalOrigin = EnsureOneOf<
+	type CancelProposalOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, TechnicalCollective, 1, 1>,
 	>;
@@ -759,7 +759,7 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
 	type WeightInfo = weights::pallet_collective_technical_committee::WeightInfo<Runtime>;
 }
 
-type MoreThanHalfCouncil = EnsureOneOf<
+type MoreThanHalfCouncil = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
 >;
@@ -796,7 +796,7 @@ parameter_types! {
 	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 }
 
-type ApproveOrigin = EnsureOneOf<
+type ApproveOrigin = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 5>,
 >;
@@ -817,6 +817,7 @@ impl pallet_treasury::Config for Runtime {
 	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 	type SpendFunds = Bounties;
+	type SpendOrigin = frame_support::traits::NeverEnsureOrigin<Balance>;
 }
 
 parameter_types! {
@@ -1395,7 +1396,7 @@ parameter_types! {
 	pub const SampleLength: BlockNumber = 2 * MINUTES;
 }
 
-type AuctionInitiate = EnsureOneOf<
+type AuctionInitiate = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
 >;
@@ -1477,33 +1478,6 @@ impl pallet_gilt::Config for Runtime {
 // 	type MinPointsToBalance = MinPointsToBalance;
 // }
 
-// TODO: Nominations
-// pub struct InitiatePoolConfigs;
-// impl OnRuntimeUpgrade for InitiatePoolConfigs {
-// 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-// 		// we use one as an indicator if this has already been set.
-// 		if pallet_nomination_pools::MaxPools::<Runtime>::get().is_none() {
-// 			// 1/600 KSM to join a pool.
-// 			pallet_nomination_pools::MinJoinBond::<Runtime>::put(50 * CENTS);
-// 			// 1 KSM to create a pool.
-// 			pallet_nomination_pools::MinCreateBond::<Runtime>::put(UNITS);
-
-// 			// 128 initial pools: only for initial safety: can be set to infinity when needed.
-// 			pallet_nomination_pools::MaxPools::<Runtime>::put(128);
-// 			// 64k total pool members: only for initial safety: can be set to infinity when needed.
-// 			pallet_nomination_pools::MaxPoolMembers::<Runtime>::put(64 * 1024);
-// 			// 1024 members per pool: only for initial safety: can be set to infinity when needed.
-// 			pallet_nomination_pools::MaxPoolMembersPerPool::<Runtime>::put(1024);
-
-// 			log::info!(target: "runtime::kusama", "pools config initiated 🎉");
-// 			<Runtime as frame_system::Config>::DbWeight::get().reads_writes(1, 5)
-// 		} else {
-// 			log::info!(target: "runtime::kusama", "pools config already initiated 😏");
-// 			<Runtime as frame_system::Config>::DbWeight::get().reads(1)
-// 		}
-// 	}
-// }
-
 impl pallet_beefy::Config for Runtime {
 	type BeefyId = BeefyId;
 	type MaxAuthorities = MaxAuthorities;
@@ -1573,6 +1547,8 @@ parameter_types! {
 	/// week.
 	pub const HeadersToKeep: u32 = 7 * DAYS as u32;
 }
+
+impl paras_sudo_wrapper::Config for Runtime {}
 
 parameter_types! {
 	pub const PermanentSlotLeasePeriodLength: u32 = 365;
