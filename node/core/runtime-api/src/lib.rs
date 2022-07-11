@@ -28,7 +28,7 @@ use polkadot_node_subsystem::{
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 };
 use polkadot_overseer::OverseerRuntimeClient;
-use polkadot_primitives::v2::{BlockId, Hash};
+use polkadot_primitives::v2::Hash;
 
 use cache::{RequestResult, RequestResultCache};
 use futures::{channel::oneshot, prelude::*, select, stream::FuturesUnordered};
@@ -355,7 +355,7 @@ where
 			let sender = $sender;
 			let api = client;
 
-			let runtime_version = api.api_version_parachain_host(&BlockId::Hash(relay_parent)).await
+			let runtime_version = api.api_version_parachain_host(relay_parent).await
 				.unwrap_or_else(|e| {
 					gum::warn!(
 						target: LOG_TARGET,
@@ -373,7 +373,7 @@ where
 				});
 
 			let res = if runtime_version >= $version {
-				api.$api_name(&BlockId::Hash(relay_parent) $(, $param.clone() )*).await
+				api.$api_name(relay_parent $(, $param.clone() )*).await
 					.map_err(|e| RuntimeApiError::Execution {
 						runtime_api_name: stringify!($api_name),
 						source: std::sync::Arc::new(e),
@@ -394,16 +394,14 @@ where
 		Request::Version(sender) => {
 			let api = client;
 
-			let runtime_version =
-				match api.api_version_parachain_host(&BlockId::Hash(relay_parent)).await {
-					Ok(Some(v)) => Ok(v),
-					Ok(None) =>
-						Err(RuntimeApiError::NotSupported { runtime_api_name: "api_version" }),
-					Err(e) => Err(RuntimeApiError::Execution {
-						runtime_api_name: "api_version",
-						source: std::sync::Arc::new(e),
-					}),
-				};
+			let runtime_version = match api.api_version_parachain_host(relay_parent).await {
+				Ok(Some(v)) => Ok(v),
+				Ok(None) => Err(RuntimeApiError::NotSupported { runtime_api_name: "api_version" }),
+				Err(e) => Err(RuntimeApiError::Execution {
+					runtime_api_name: "api_version",
+					source: std::sync::Arc::new(e),
+				}),
+			};
 
 			let _ = sender.send(runtime_version.clone());
 			runtime_version.ok().map(|v| RequestResult::Version(relay_parent, v))
@@ -454,17 +452,16 @@ where
 			query!(CandidateEvents, candidate_events(), ver = 1, sender),
 		Request::SessionInfo(index, sender) => {
 			let api = client;
-			let block_id = BlockId::Hash(relay_parent);
 
 			let api_version = api
-				.api_version_parachain_host(&BlockId::Hash(relay_parent))
+				.api_version_parachain_host(relay_parent)
 				.await
 				.unwrap_or_default()
 				.unwrap_or_default();
 
 			let res = if api_version >= 2 {
 				let res = api
-					.session_info(&block_id, index)
+					.session_info(relay_parent, index)
 					.map_err(|e| RuntimeApiError::Execution {
 						runtime_api_name: "SessionInfo",
 						source: std::sync::Arc::new(e),
@@ -474,7 +471,7 @@ where
 				res
 			} else {
 				#[allow(deprecated)]
-				let res = api.session_info_before_version_2(&block_id, index).await.map_err(|e| {
+				let res = api.session_info_before_version_2(relay_parent, index).await.map_err(|e| {
 					RuntimeApiError::Execution {
 						runtime_api_name: "SessionInfo",
 						source: std::sync::Arc::new(e),
