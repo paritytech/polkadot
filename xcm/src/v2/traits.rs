@@ -92,9 +92,6 @@ pub enum Error {
 	/// Used by the `Trap` instruction to force an error intentionally. Its code is included.
 	#[codec(index = 21)]
 	Trap(u64),
-	/// The attempt to send a message failed becasue the transport protocol queue is full.
-	#[codec(index = 22)]
-	ExceedsMaxPendingMessageCount,
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	/// XCM version not able to be handled.
@@ -120,7 +117,6 @@ impl From<SendError> for Error {
 			SendError::Transport(s) => Error::Transport(s),
 			SendError::DestinationUnsupported => Error::DestinationUnsupported,
 			SendError::ExceedsMaxMessageSize => Error::ExceedsMaxMessageSize,
-			SendError::ExceedsMaxPendingMessageCount => Error::ExceedsMaxPendingMessageCount,
 		}
 	}
 }
@@ -227,8 +223,6 @@ pub enum SendError {
 	/// Message could not be sent due to its size exceeding the maximum allowed by the transport
 	/// layer.
 	ExceedsMaxMessageSize,
-	/// Message could not be sent due to the transport layer queue being full.
-	ExceedsMaxPendingMessageCount,
 }
 
 /// Result value when attempting to send an XCM message.

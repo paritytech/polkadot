@@ -41,16 +41,12 @@ pub struct QueuePageIdx(ParaId, u64);
 pub enum QueueDownwardMessageError {
 	/// The message being sent exceeds the configured max message size.
 	ExceedsMaxMessageSize,
-	/// The message cannot be sent because the destination parachain message queue is full.
-	ExceedsMaxPendingMessageCount,
 }
 
 impl From<QueueDownwardMessageError> for SendError {
 	fn from(err: QueueDownwardMessageError) -> Self {
 		match err {
 			QueueDownwardMessageError::ExceedsMaxMessageSize => SendError::ExceedsMaxMessageSize,
-			QueueDownwardMessageError::ExceedsMaxPendingMessageCount =>
-				SendError::ExceedsMaxPendingMessageCount,
 		}
 	}
 }

@@ -62,8 +62,6 @@ pub mod pallet {
 		CannotUpgrade,
 		/// Cannot downgrade parachain.
 		CannotDowngrade,
-		/// A DMP message couldn't be sent because the destination parachain queue is full.
-		ExceedsMaxPendingMessageCount,
 	}
 
 	#[pallet::hooks]
@@ -144,8 +142,6 @@ pub mod pallet {
 			{
 				dmp::QueueDownwardMessageError::ExceedsMaxMessageSize =>
 					Error::<T>::ExceedsMaxMessageSize.into(),
-				dmp::QueueDownwardMessageError::ExceedsMaxPendingMessageCount =>
-					Error::<T>::ExceedsMaxPendingMessageCount.into(),
 			})
 		}
 
