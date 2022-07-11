@@ -725,7 +725,7 @@ pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	overseer_enable_anyways: bool,
 	overseer_gen: OverseerGenerator,
 	overseer_message_channel_capacity_override: Option<usize>,
-	#[cfg(feature = "malus")] malus_finality_delay: Option<u32>,
+	_malus_finality_delay: Option<u32>,
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, ExecutorDispatch>>>, Error>
 where
@@ -1225,9 +1225,9 @@ where
 		let mut builder = grandpa::VotingRulesBuilder::default();
 
 		#[cfg(not(feature = "malus"))]
-		let malus_finality_delay = None;
+		let _malus_finality_delay = None;
 
-		if let Some(delay) = malus_finality_delay {
+		if let Some(delay) = _malus_finality_delay {
 			info!(?delay, "Enabling malus finality delay",);
 			builder = builder.add(grandpa::BeforeBestBlockBy(delay));
 		};
@@ -1358,7 +1358,7 @@ pub fn build_full(
 	overseer_enable_anyways: bool,
 	overseer_gen: impl OverseerGen,
 	overseer_message_channel_override: Option<usize>,
-	#[cfg(feature = "malus")] malus_finality_delay: Option<u32>,
+	malus_finality_delay: Option<u32>,
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]
@@ -1377,7 +1377,6 @@ pub fn build_full(
 			overseer_enable_anyways,
 			overseer_gen,
 			overseer_message_channel_override,
-			#[cfg(feature = "malus")]
 			malus_finality_delay,
 			hwbench,
 		)
@@ -1397,7 +1396,6 @@ pub fn build_full(
 			overseer_enable_anyways,
 			overseer_gen,
 			overseer_message_channel_override,
-			#[cfg(feature = "malus")]
 			malus_finality_delay,
 			hwbench,
 		)
@@ -1417,7 +1415,6 @@ pub fn build_full(
 			overseer_enable_anyways,
 			overseer_gen,
 			overseer_message_channel_override,
-			#[cfg(feature = "malus")]
 			malus_finality_delay,
 			hwbench,
 		)
@@ -1440,7 +1437,6 @@ pub fn build_full(
 				gum::warn!("Channel capacity should _never_ be tampered with on polkadot!");
 				capacity
 			}),
-			#[cfg(feature = "malus")]
 			malus_finality_delay,
 			hwbench,
 		)

@@ -333,7 +333,6 @@ where
 				false,
 				overseer_gen,
 				cli.run.overseer_channel_capacity_override,
-				#[cfg(feature = "malus")]
 				cli.run.malus_finality_delay,
 				hwbench,
 			)
