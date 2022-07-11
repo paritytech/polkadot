@@ -25,7 +25,7 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_election_provider_support::{onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{ConstU32, Contains, InstanceFilter, KeyOwnerProofSystem},
+	traits::{ConstU32, Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
 	weights::ConstantMultiplier,
 	PalletId,
 };
@@ -1171,7 +1171,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(),
+	DmpStorageMigration,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1737,5 +1737,22 @@ sp_api::impl_runtime_apis! {
 
 			Ok(batches)
 		}
+	}
+}
+
+pub struct DmpStorageMigration;
+impl OnRuntimeUpgrade for DmpStorageMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		runtime_parachains::dmp::migration::queue_migration::migrate::<Runtime>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		runtime_parachains::dmp::migration::queue_migration::pre_migrate::<Runtime>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		runtime_parachains::dmp::migration::queue_migration::post_migrate::<Runtime>()
 	}
 }

@@ -30,12 +30,14 @@ pub use pallet::*;
 #[cfg(test)]
 mod tests;
 
+pub mod migration;
+
 /// The key for a group of downward messages.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub struct QueuePageIdx(ParaId, u64);
 
 /// An error sending a downward message.
-#[cfg_attr(test, derive(Debug))]
+#[derive(Debug)]
 pub enum QueueDownwardMessageError {
 	/// The message being sent exceeds the configured max message size.
 	ExceedsMaxMessageSize,

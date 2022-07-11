@@ -42,7 +42,7 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
 		Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		PrivilegeCmp,
+		OnRuntimeUpgrade, PrivilegeCmp,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -1515,10 +1515,27 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(),
+	DmpStorageMigration,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+pub struct DmpStorageMigration;
+impl OnRuntimeUpgrade for DmpStorageMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		runtime_parachains::dmp::migration::queue_migration::migrate::<Runtime>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		runtime_parachains::dmp::migration::queue_migration::pre_migrate::<Runtime>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		runtime_parachains::dmp::migration::queue_migration::post_migrate::<Runtime>()
+	}
+}
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
