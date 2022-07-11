@@ -119,24 +119,24 @@ pub type VersiChainSpec = RococoChainSpec;
 pub type RococoChainSpec = DummyChainSpec;
 
 pub fn polkadot_config() -> Result<PolkadotChainSpec, String> {
-	PolkadotChainSpec::from_json_bytes(&include_bytes!("../res/polkadot.json")[..])
+	PolkadotChainSpec::from_json_bytes(&include_bytes!("../chain-specs/polkadot.json")[..])
 }
 
 pub fn kusama_config() -> Result<KusamaChainSpec, String> {
-	KusamaChainSpec::from_json_bytes(&include_bytes!("../res/kusama.json")[..])
+	KusamaChainSpec::from_json_bytes(&include_bytes!("../chain-specs/kusama.json")[..])
 }
 
 pub fn westend_config() -> Result<WestendChainSpec, String> {
-	WestendChainSpec::from_json_bytes(&include_bytes!("../res/westend.json")[..])
+	WestendChainSpec::from_json_bytes(&include_bytes!("../chain-specs/westend.json")[..])
 }
 
 pub fn rococo_config() -> Result<RococoChainSpec, String> {
-	RococoChainSpec::from_json_bytes(&include_bytes!("../res/rococo.json")[..])
+	RococoChainSpec::from_json_bytes(&include_bytes!("../chain-specs/rococo.json")[..])
 }
 
 /// This is a temporary testnet that uses the same runtime as rococo.
 pub fn wococo_config() -> Result<RococoChainSpec, String> {
-	RococoChainSpec::from_json_bytes(&include_bytes!("../res/wococo.json")[..])
+	RococoChainSpec::from_json_bytes(&include_bytes!("../chain-specs/wococo.json")[..])
 }
 
 /// The default parachains host configuration.
@@ -1051,22 +1051,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
-		bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
-			owner: Some(endowed_accounts[0].clone()),
-			..Default::default()
-		},
-		bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
-			owner: Some(endowed_accounts[0].clone()),
-			..Default::default()
-		},
-		bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
-			owner: Some(endowed_accounts[0].clone()),
-			..Default::default()
-		},
-		bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
-			owner: Some(endowed_accounts[0].clone()),
-			..Default::default()
-		},
+		transaction_payment: Default::default(),
 	}
 }
 
@@ -1617,22 +1602,7 @@ pub fn rococo_testnet_genesis(
 			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
-		bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
-			owner: Some(root_key.clone()),
-			..Default::default()
-		},
-		bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
-			owner: Some(root_key.clone()),
-			..Default::default()
-		},
-		bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
-			owner: Some(root_key.clone()),
-			..Default::default()
-		},
-		bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
-			owner: Some(root_key.clone()),
-			..Default::default()
-		},
+		transaction_payment: Default::default(),
 	}
 }
 

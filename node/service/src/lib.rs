@@ -930,7 +930,8 @@ where
 
 	let chain_selection_config = ChainSelectionConfig {
 		col_data: parachains_db::REAL_COLUMNS.col_chain_selection_data,
-		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
+		stagnant_check_interval: Default::default(),
+		stagnant_check_mode: chain_selection_subsystem::StagnantCheckMode::PruneOnly,
 	};
 
 	let dispute_coordinator_config = DisputeCoordinatorConfig {
@@ -992,6 +993,8 @@ where
 		let (worker, service) = sc_authority_discovery::new_worker_and_service_with_config(
 			sc_authority_discovery::WorkerConfig {
 				publish_non_global_ips: auth_disc_publish_non_global_ips,
+				// Require that authority discovery records are signed.
+				strict_record_validation: true,
 				..Default::default()
 			},
 			client.clone(),
@@ -1475,6 +1478,7 @@ fn revert_chain_selection(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::R
 	let config = chain_selection_subsystem::Config {
 		col_data: parachains_db::REAL_COLUMNS.col_chain_selection_data,
 		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
+		stagnant_check_mode: chain_selection_subsystem::StagnantCheckMode::PruneOnly,
 	};
 
 	let chain_selection = chain_selection_subsystem::ChainSelectionSubsystem::new(config, db);

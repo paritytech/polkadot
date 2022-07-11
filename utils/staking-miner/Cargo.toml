@@ -1,6 +1,6 @@
 [package]
 name = "staking-miner"
-version = "0.9.22"
+version = "0.9.26"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -8,7 +8,7 @@ edition = "2021"
 codec = { package = "parity-scale-codec", version = "3.0.0" }
 clap = { version = "3.1", features = ["derive", "env"] }
 tracing-subscriber = { version = "0.3.11", features = ["env-filter"]   }
-jsonrpsee = { version = "0.13.1", features = ["ws-client", "macros"] }
+jsonrpsee = { version = "0.14.0", features = ["ws-client", "macros"] }
 log = "0.4.17"
 paste = "1.0.7"
 serde = "1.0.137"
@@ -43,4 +43,4 @@ westend-runtime = { path = "../../runtime/westend" }
 sub-tokens = { git = "https://github.com/paritytech/substrate-debug-kit", branch = "master" }
 
 [dev-dependencies]
-assert_cmd = "2.0.2"
+assert_cmd = "2.0.4"

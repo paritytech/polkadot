@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+
+# This script helps running sanity checks on a release branch
+# It is intended to be ran from the repo and from the release branch
+
+# NOTE: The diener runs do take time and are not really required because
+# if we missed the diener runs, the Cargo.lock that we check won't pass
+# the tests. See https://github.com/bkchr/diener/issues/17
+
+grv=$(git remote --verbose | grep push)
+export RUST_LOG=none
+REPO=$(echo "$grv" | cut -d ' ' -f1 | cut -d$'\t' -f2 | sed 's/.*github.com\/\(.*\)/\1/g' | cut -d '/' -f2 | cut -d '.' -f1 | sort | uniq)
+echo "[+] Detected repo: $REPO"
+
+BRANCH=$(git branch --show-current)
+if ! [[ "$BRANCH" =~ ^release.*$ || "$BRANCH" =~ ^polkadot.*$ ]]; then
+    echo "This script is meant to run only on a RELEASE branch."
+    echo "Try one of the following branch:"
+    git branch -r --format "%(refname:short)" --sort=-committerdate | grep -Ei '/?release' | head
+    exit 1
+fi
+echo "[+] Working on $BRANCH"
+
+# Tried to get the version of the release from the branch
+# input: release-foo-v0.9.22 or release-bar-v9220 or release-foo-v0.9.220
+# output: 0.9.22
+get_version() {
+    branch=$1
+    [[ $branch =~ -v(.*) ]]
+    version=${BASH_REMATCH[1]}
+    if [[ $version =~ \. ]]; then
+        MAJOR=$(($(echo $version | cut -d '.' -f1)))
+        MINOR=$(($(echo $version | cut -d '.' -f2)))
+        PATCH=$(($(echo $version | cut -d '.' -f3)))
+        echo $MAJOR.$MINOR.${PATCH:0:2}
+    else
+        MAJOR=$(echo $(($version / 100000)))
+        remainer=$(($version - $MAJOR * 100000))
+        MINOR=$(echo $(($remainer / 1000)))
+        remainer=$(($remainer - $MINOR * 1000))
+        PATCH=$(echo $(($remainer / 10)))
+        echo $MAJOR.$MINOR.$PATCH
+    fi
+}
+
+# return the name of the release branch for a given repo and version
+get_release_branch() {
+    repo=$1
+    version=$2
+    case $repo in
+        polkadot)
+            echo "release-v$version"
+            ;;
+
+        substrate)
+            echo "polkadot-v$version"
+            ;;
+
+        *)
+            echo "Repo $repo is not supported, exiting"
+            exit 1
+            ;;
+    esac
+}
+
+# repo = substrate / polkadot
+check_release_branch_repo() {
+    repo=$1
+    branch=$2
+
+    echo "[+] Checking deps for $repo=$branch"
+
+    POSTIVE=$(cat Cargo.lock | grep "$repo?branch=$branch" | sort | uniq | wc -l)
+    NEGATIVE=$(cat Cargo.lock | grep "$repo?branch=" | grep -v $branch | sort | uniq | wc -l)
+
+    if [[ $POSTIVE -eq 1 && $NEGATIVE -eq 0 ]]; then
+        echo -e "[+] ✅ Looking good"
+        cat Cargo.lock | grep "$repo?branch=" | sort | uniq | sed 's/^/\t - /'
+        return 0
+    else
+        echo -e "[+] ❌ Something seems to be wrong, we want 1 unique match and 0 non match (1, 0) and we got ($(($POSTIVE)), $(($NEGATIVE)))"
+        cat Cargo.lock | grep "$repo?branch=" | sort | uniq | sed 's/^/\t - /'
+        return 1
+    fi
+}
+
+# Check a release branch
+check_release_branches() {
+    SUBSTRATE_BRANCH=$1
+    POLKADOT_BRANCH=$2
+
+    check_release_branch_repo substrate $SUBSTRATE_BRANCH
+    ret_a1=$?
+
+    ret_b1=0
+    if [ $POLKADOT_BRANCH ]; then
+        check_release_branch_repo polkadot $POLKADOT_BRANCH
+        ret_b1=$?
+    fi
+
+    STATUS=$(($ret_a1 + $ret_b1))
+
+    return $STATUS
+}
+
+VERSION=$(get_version $BRANCH)
+echo "[+] Target version: v$VERSION"
+
+case $REPO in
+    polkadot)
+        substrate=$(get_release_branch substrate $VERSION)
+
+        check_release_branches $substrate
+        ;;
+
+    cumulus)
+        polkadot=$(get_release_branch polkadot $VERSION)
+        substrate=$(get_release_branch substrate $VERSION)
+
+        check_release_branches $substrate $polkadot
+        ;;
+
+    *)
+        echo "REPO $REPO is not supported, exiting"
+        exit 1
+        ;;
+esac

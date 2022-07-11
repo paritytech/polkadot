@@ -51,8 +51,8 @@ use frame_election_provider_support::{
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		ConstU32, Contains, EnsureOneOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		OnRuntimeUpgrade, PrivilegeCmp,
+		ConstU32, Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		PrivilegeCmp,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -115,13 +115,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9220,
+	spec_version: 9260,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 11,
+	transaction_version: 12,
 	state_version: 0,
 };
 
@@ -185,7 +185,7 @@ parameter_types! {
 	pub const NoPreimagePostponement: Option<u32> = Some(10);
 }
 
-type ScheduleOrigin = EnsureOneOf<
+type ScheduleOrigin = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
 >;
@@ -321,6 +321,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Config for Runtime {
+	type Event = Event;
 	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Self>>;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
@@ -487,7 +488,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 		(),
 	>;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
-	type ForceOrigin = EnsureOneOf<
+	type ForceOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
 	>;
@@ -583,7 +584,7 @@ parameter_types! {
 	pub const MaxNominations: u32 = <NposCompactSolution24 as NposSolution>::LIMIT as u32;
 }
 
-type SlashCancelOrigin = EnsureOneOf<
+type SlashCancelOrigin = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
 >;
@@ -613,7 +614,7 @@ impl pallet_staking::Config for Runtime {
 	type VoterList = VoterList;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
-	type OnStakerSlash = ();
+	type OnStakerSlash = NominationPools;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -657,14 +658,14 @@ impl pallet_democracy::Config for Runtime {
 	type InstantAllowed = InstantAllowed;
 	type FastTrackVotingPeriod = FastTrackVotingPeriod;
 	// To cancel a proposal which has been passed, 2/3 of the council must agree to it.
-	type CancellationOrigin = EnsureOneOf<
+	type CancellationOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
 	>;
 	type BlacklistOrigin = EnsureRoot<AccountId>;
 	// To cancel a proposal before it has been passed, the technical committee must be unanimous or
 	// Root must agree.
-	type CancelProposalOrigin = EnsureOneOf<
+	type CancelProposalOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, TechnicalCollective, 1, 1>,
 	>;
@@ -752,7 +753,7 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
 	type WeightInfo = weights::pallet_collective_technical_committee::WeightInfo<Runtime>;
 }
 
-type MoreThanHalfCouncil = EnsureOneOf<
+type MoreThanHalfCouncil = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
 >;
@@ -789,7 +790,7 @@ parameter_types! {
 	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 }
 
-type ApproveOrigin = EnsureOneOf<
+type ApproveOrigin = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 5>,
 >;
@@ -810,6 +811,7 @@ impl pallet_treasury::Config for Runtime {
 	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 	type SpendFunds = Bounties;
+	type SpendOrigin = frame_support::traits::NeverEnsureOrigin<Balance>;
 }
 
 parameter_types! {
@@ -1375,7 +1377,7 @@ parameter_types! {
 	pub const SampleLength: BlockNumber = 2 * MINUTES;
 }
 
-type AuctionInitiate = EnsureOneOf<
+type AuctionInitiate = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
 >;
@@ -1454,32 +1456,6 @@ impl pallet_nomination_pools::Config for Runtime {
 	type MinPointsToBalance = MinPointsToBalance;
 }
 
-pub struct InitiatePoolConfigs;
-impl OnRuntimeUpgrade for InitiatePoolConfigs {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		// we use one as an indicator if this has already been set.
-		if pallet_nomination_pools::MaxPools::<Runtime>::get().is_none() {
-			// 1/600 KSM to join a pool.
-			pallet_nomination_pools::MinJoinBond::<Runtime>::put(50 * CENTS);
-			// 1 KSM to create a pool.
-			pallet_nomination_pools::MinCreateBond::<Runtime>::put(UNITS);
-
-			// 128 initial pools: only for initial safety: can be set to infinity when needed.
-			pallet_nomination_pools::MaxPools::<Runtime>::put(128);
-			// 64k total pool members: only for initial safety: can be set to infinity when needed.
-			pallet_nomination_pools::MaxPoolMembers::<Runtime>::put(64 * 1024);
-			// 1024 members per pool: only for initial safety: can be set to infinity when needed.
-			pallet_nomination_pools::MaxPoolMembersPerPool::<Runtime>::put(1024);
-
-			log::info!(target: "runtime::kusama", "pools config initiated 🎉");
-			<Runtime as frame_system::Config>::DbWeight::get().reads_writes(1, 5)
-		} else {
-			log::info!(target: "runtime::kusama", "pools config already initiated 😏");
-			<Runtime as frame_system::Config>::DbWeight::get().reads(1)
-		}
-	}
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1546,7 +1522,7 @@ construct_runtime! {
 		Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>} = 32,
 
 		// Trasaction Payment module
-		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 33,
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage, Event<T>} = 33,
 
 		// Historical module
 		Historical: session_historical::{Pallet} = 34,
@@ -1626,30 +1602,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(
-		RenameBagsListToVoterList,
-		pallet_bags_list::migrations::AddScore<Runtime>,
-		InitiatePoolConfigs,
-		pallet_nomination_pools::migration::v1::MigrateToV1<Runtime>,
-	),
+	(),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-/// A migration which renames the pallet `BagsList` to `VoterList`
-pub struct RenameBagsListToVoterList;
-impl frame_support::traits::OnRuntimeUpgrade for RenameBagsListToVoterList {
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		// For other pre-upgrade checks, we need the storage to already be migrated.
-		frame_support::storage::migration::move_pallet(b"BagsList", b"VoterList");
-		Ok(())
-	}
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		frame_support::storage::migration::move_pallet(b"BagsList", b"VoterList");
-		frame_support::weights::Weight::MAX
-	}
-}
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
@@ -2215,5 +2171,130 @@ mod tests_fess {
 		// a 1 MB solution should need around 0.16 KSM deposit
 		let deposit = SignedDepositBase::get() + (SignedDepositByte::get() * 1024 * 1024);
 		assert_eq_error_rate!(deposit, UNITS * 16 / 100, UNITS / 100);
+	}
+}
+
+#[cfg(test)]
+mod multiplier_tests {
+	use super::*;
+	use frame_support::{dispatch::GetDispatchInfo, traits::OnFinalize};
+	use runtime_common::{MinimumMultiplier, TargetBlockFullness};
+	use separator::Separatable;
+	use sp_runtime::traits::Convert;
+
+	fn run_with_system_weight<F>(w: Weight, mut assertions: F)
+	where
+		F: FnMut() -> (),
+	{
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
+			.build_storage::<Runtime>()
+			.unwrap()
+			.into();
+		t.execute_with(|| {
+			System::set_block_consumed_resources(w, 0);
+			assertions()
+		});
+	}
+
+	#[test]
+	fn multiplier_can_grow_from_zero() {
+		let minimum_multiplier = MinimumMultiplier::get();
+		let target = TargetBlockFullness::get() *
+			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
+		// if the min is too small, then this will not change, and we are doomed forever.
+		// the weight is 1/100th bigger than target.
+		run_with_system_weight(target * 101 / 100, || {
+			let next = SlowAdjustingFeeUpdate::<Runtime>::convert(minimum_multiplier);
+			assert!(next > minimum_multiplier, "{:?} !>= {:?}", next, minimum_multiplier);
+		})
+	}
+
+	#[test]
+	#[ignore]
+	fn multiplier_growth_simulator() {
+		// assume the multiplier is initially set to its minimum. We update it with values twice the
+		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
+		let mut multiplier = MinimumMultiplier::get();
+		let block_weight = BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
+		let mut blocks = 0;
+		let mut fees_paid = 0;
+
+		let call = frame_system::Call::<Runtime>::fill_block {
+			ratio: Perbill::from_rational(
+				block_weight,
+				BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap(),
+			),
+		};
+		println!("calling {:?}", call);
+		let info = call.get_dispatch_info();
+		// convert to outer call.
+		let call = Call::System(call);
+		let len = call.using_encoded(|e| e.len()) as u32;
+
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
+			.build_storage::<Runtime>()
+			.unwrap()
+			.into();
+		// set the minimum
+		t.execute_with(|| {
+			pallet_transaction_payment::NextFeeMultiplier::<Runtime>::set(MinimumMultiplier::get());
+		});
+
+		while multiplier <= Multiplier::from_u32(1) {
+			t.execute_with(|| {
+				// imagine this tx was called.
+				let fee = TransactionPayment::compute_fee(len, &info, 0);
+				fees_paid += fee;
+
+				// this will update the multiplier.
+				System::set_block_consumed_resources(block_weight, 0);
+				TransactionPayment::on_finalize(1);
+				let next = TransactionPayment::next_fee_multiplier();
+
+				assert!(next > multiplier, "{:?} !>= {:?}", next, multiplier);
+				multiplier = next;
+
+				println!(
+					"block = {} / multiplier {:?} / fee = {:?} / fess so far {:?}",
+					blocks,
+					multiplier,
+					fee.separated_string(),
+					fees_paid.separated_string()
+				);
+			});
+			blocks += 1;
+		}
+	}
+
+	#[test]
+	#[ignore]
+	fn multiplier_cool_down_simulator() {
+		// assume the multiplier is initially set to its minimum. We update it with values twice the
+		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
+		let mut multiplier = Multiplier::from_u32(2);
+		let mut blocks = 0;
+
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
+			.build_storage::<Runtime>()
+			.unwrap()
+			.into();
+		// set the minimum
+		t.execute_with(|| {
+			pallet_transaction_payment::NextFeeMultiplier::<Runtime>::set(multiplier);
+		});
+
+		while multiplier > Multiplier::from_u32(0) {
+			t.execute_with(|| {
+				// this will update the multiplier.
+				TransactionPayment::on_finalize(1);
+				let next = TransactionPayment::next_fee_multiplier();
+
+				assert!(next < multiplier, "{:?} !>= {:?}", next, multiplier);
+				multiplier = next;
+
+				println!("block = {} / multiplier {:?}", blocks, multiplier);
+			});
+			blocks += 1;
+		}
 	}
 }

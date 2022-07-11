@@ -438,7 +438,8 @@ impl TestState {
 			self.subsystem_keystore.clone(),
 			Metrics::default(),
 		);
-		let backend = DbBackend::new(self.db.clone(), self.config.column_config());
+		let backend =
+			DbBackend::new(self.db.clone(), self.config.column_config(), Metrics::default());
 		let subsystem_task = subsystem.run(ctx, backend, Box::new(self.clock.clone()));
 		let test_task = test(self, ctx_handle);
 
@@ -2150,7 +2151,11 @@ fn negative_issue_local_statement_only_triggers_import() {
 				})
 				.await;
 
-			let backend = DbBackend::new(test_state.db.clone(), test_state.config.column_config());
+			let backend = DbBackend::new(
+				test_state.db.clone(),
+				test_state.config.column_config(),
+				Metrics::default(),
+			);
 
 			let votes = backend.load_candidate_votes(session, &candidate_hash).unwrap().unwrap();
 			assert_eq!(votes.invalid.len(), 1);
@@ -2198,7 +2203,11 @@ fn empty_import_still_writes_candidate_receipt() {
 
 			rx.await.unwrap();
 
-			let backend = DbBackend::new(test_state.db.clone(), test_state.config.column_config());
+			let backend = DbBackend::new(
+				test_state.db.clone(),
+				test_state.config.column_config(),
+				Metrics::default(),
+			);
 
 			let votes = backend.load_candidate_votes(session, &candidate_hash).unwrap().unwrap();
 			assert_eq!(votes.invalid.len(), 0);
@@ -2264,7 +2273,11 @@ fn redundant_votes_ignored() {
 
 			rx.await.unwrap();
 
-			let backend = DbBackend::new(test_state.db.clone(), test_state.config.column_config());
+			let backend = DbBackend::new(
+				test_state.db.clone(),
+				test_state.config.column_config(),
+				Metrics::default(),
+			);
 
 			let votes = backend.load_candidate_votes(session, &candidate_hash).unwrap().unwrap();
 			assert_eq!(votes.invalid.len(), 0);

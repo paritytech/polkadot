@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-runtime"
-version = "0.9.22"
+version = "0.9.26"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 build = "build.rs"
 
 [dependencies]
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive", "max-encoded-len"] }
+parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
@@ -54,7 +54,6 @@ pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -92,7 +91,7 @@ xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default
 
 [dev-dependencies]
 hex-literal = "0.3.4"
-tiny-keccak = "2.0.2"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 trie-db = "0.23.1"
@@ -141,7 +140,6 @@ std = [
 	"pallet-indices/std",
 	"pallet-membership/std",
 	"pallet-multisig/std",
-	"pallet-nicks/std",
 	"pallet-offences/std",
 	"pallet-preimage/std",
 	"pallet-proxy/std",
@@ -236,7 +234,6 @@ try-runtime = [
 	"pallet-indices/try-runtime",
 	"pallet-membership/try-runtime",
 	"pallet-multisig/try-runtime",
-	"pallet-nicks/try-runtime",
 	"pallet-offences/try-runtime",
 	"pallet-preimage/try-runtime",
 	"pallet-proxy/try-runtime",
