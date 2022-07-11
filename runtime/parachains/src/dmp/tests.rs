@@ -81,14 +81,40 @@ fn clean_dmp_works() {
 		let outgoing_paras = vec![a, b];
 		Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx(a, 0)).is_empty());
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx(b, 0)).is_empty());
+		assert!(!<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx(c, 0)).is_empty());
+	});
+}
+
+#[test]
+fn clean_dmp_works_when_wrapping_around() {
+	let a = ParaId::from(1312);
+	let b = ParaId::from(228);
+	let c = ParaId::from(123);
+
+	new_test_ext(default_genesis_config()).execute_with(|| {
+		let init_head_tail = Wrapping(u64::MAX);
+		Dmp::update_head(&a, init_head_tail);
+		Dmp::update_head(&b, init_head_tail);
+		Dmp::update_head(&c, init_head_tail);
+		Dmp::update_tail(&a, init_head_tail);
+		Dmp::update_tail(&b, init_head_tail);
+		Dmp::update_tail(&c, init_head_tail);
+
+		// enqueue downward messages to A, B and C.
+		queue_downward_message(a, vec![1, 2, 3]).unwrap();
+		queue_downward_message(b, vec![4, 5, 6]).unwrap();
+		queue_downward_message(c, vec![7, 8, 9]).unwrap();
+
+		let notification = crate::initializer::SessionChangeNotification::default();
+		let outgoing_paras = vec![a, b];
+		Dmp::initializer_on_new_session(&notification, &outgoing_paras);
+
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx(a, 0)).is_empty());
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx(b, 0)).is_empty());
 		assert!(
-			<Dmp as Store>::DownwardMessageQueueFragments::get(QueueFragmentIdx(a, 0)).is_empty()
-		);
-		assert!(
-			<Dmp as Store>::DownwardMessageQueueFragments::get(QueueFragmentIdx(b, 0)).is_empty()
-		);
-		assert!(
-			!<Dmp as Store>::DownwardMessageQueueFragments::get(QueueFragmentIdx(c, 0)).is_empty()
+			!<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx(c, u64::MAX)).is_empty()
 		);
 	});
 }
@@ -181,7 +207,7 @@ fn dmq_pruning() {
 		// This should return zero after pruning.
 		assert_eq!(
 			Dmp::dmq_mqc_head_for_message(a, 1),
-			hex!["3ac90e9a99935b82ee02438a852e6baa8ede95e3b5b7b9a486adf2a2c12405b3"].into(),
+			hex!["434f8579a2297dfea851bf6be33093c83a78b655a53ae141a7894494c0010589"].into(),
 		);
 
 		// pruning 0 elements shouldn't change anything.
@@ -196,8 +222,6 @@ fn dmq_pruning() {
 
 		// As said, this should be zero now.
 		assert_eq!(Dmp::dmq_mqc_head_for_message(a, 1), Hash::zero());
-
-		// TODO: check message indexes.
 	});
 }
 
@@ -223,7 +247,7 @@ fn queue_downward_message_critical() {
 }
 
 #[derive(Encode, Decode)]
-struct Message(u32);
+struct Message(u64);
 
 #[test]
 fn dmq_contents_is_bounded() {
@@ -237,24 +261,32 @@ fn dmq_contents_is_bounded() {
 			assert!(queue_downward_message(a, Message(i).encode()).is_ok());
 		}
 
+		// Get 15 pages with messages.
 		let messages = Dmp::dmq_contents_bounded(a, 0, 15);
-		assert_eq!(messages.len(), 15);
+		assert_eq!(messages.len(), 15 * QUEUE_PAGE_CAPACITY as usize);
 
+		// Get `MAX_PAGES_PER_QUERY` pages.
 		let messages = Dmp::dmq_contents(a);
-		let max_response_len: usize = (MAX_MESSAGES_PER_QUERY).try_into().unwrap();
+		let max_response_len: usize =
+			(MAX_PAGES_PER_QUERY * QUEUE_PAGE_CAPACITY).try_into().unwrap();
 		assert_eq!(messages.len(), max_response_len);
 	});
 }
 
 #[test]
-fn queue_downward_message_fragment_ordering() {
+fn queue_downward_message_page_ordering() {
 	let a = ParaId::from(1312);
 
 	let mut genesis = default_genesis_config();
 	genesis.configuration.config.max_downward_message_size = 100;
 
 	new_test_ext(genesis).execute_with(|| {
-		let max_queue_size = QUEUE_FRAGMENT_CAPACITY * (u8::MAX as u32);
+		let max_queue_size = ((QUEUE_PAGE_CAPACITY as u64) * (u8::MAX as u64)) as u64;
+
+		// Make page indexes wrap around.
+		let init_head_tail = Wrapping(u64::MAX - max_queue_size / 2);
+		Dmp::update_head(&a, init_head_tail);
+		Dmp::update_tail(&a, init_head_tail);
 
 		// Fill queue.
 		for i in 0..max_queue_size {
@@ -262,14 +294,14 @@ fn queue_downward_message_fragment_ordering() {
 		}
 
 		let mut all_messages = Vec::new();
+		let mut start = 0;
 
 		loop {
-			let messages = dmq_contents_bounded(a, 0, 2);
+			let messages = dmq_contents_bounded(a, start, 1);
 			if messages.len() == 0 {
 				break
 			}
-
-			Dmp::prune_dmq(a, messages.len() as u32);
+			start += 1;
 			all_messages.extend(messages);
 		}
 
@@ -290,39 +322,41 @@ fn queue_downward_message_consumption() {
 	genesis.configuration.config.max_downward_message_size = 16;
 
 	new_test_ext(genesis).execute_with(|| {
-		let max_queue_size = 16 * (u8::MAX as u32);
+		let max_queue_size = 16 * (u8::MAX as u64);
 
 		for i in 0..max_queue_size {
 			assert!(queue_downward_message(a, Message(i).encode()).is_ok());
 		}
 
-		assert_eq!(max_queue_size, Dmp::dmq_length(a));
+		assert_eq!(max_queue_size, Dmp::dmq_length(a) as u64);
 
-		// Now lets fetch all messages using different chunk sizes (0 to 4 * QUEUE_FRAGMENT_SIZE - 1).
-		let mut chunk_size = 1;
+		// Now lets fetch all messages using different chunk sizes (0 to 4 * QUEUE_PAGE_SIZE - 1).
 		let mut sum = 0;
 		let mut count = 0;
 		let mut start_index = 0;
-		loop {
-			let page_size = chunk_size % (QUEUE_FRAGMENT_CAPACITY * 4);
-			let mut messages = dmq_contents_bounded(a, start_index, page_size);
+		let mut loops = 0;
 
-			if page_size > 0 && messages.len() == 0 {
+		loop {
+			let pages_to_fetch = loops & 0x3;
+			let mut messages = dmq_contents_bounded(a, start_index, pages_to_fetch);
+
+			if pages_to_fetch > 0 && messages.len() == 0 {
 				break
 			}
-			count += messages.len() as u32;
+
+			count += messages.len() as u64;
+			loops += 1;
+
 			// Update dmq contents window start.
-			start_index += messages.len() as u32;
+			start_index += pages_to_fetch;
 
 			sum += messages
 				.iter_mut()
 				.map(|e| Message::decode(&mut e.msg.as_ref()).unwrap().0 as u64)
 				.sum::<u64>();
-
-			chunk_size += 1;
 		}
 
-		Dmp::prune_dmq(a, count);
+		Dmp::prune_dmq(a, count as u32);
 
 		// Check if we collected and pruned all messages.
 		let expected_count = max_queue_size;
@@ -337,35 +371,31 @@ fn queue_downward_message_consumption() {
 
 #[test]
 fn verify_dmq_message_idx_is_externally_accessible() {
-	use hex_literal::hex;
 	use primitives::v2::well_known_keys;
+	let a = ParaId::from(2022);
 
-	// new_test_ext(default_genesis_config()).execute_with(|| {
-	// 	let message_idx = sp_io::storage::get(&well_known_keys::dmq_message_idx(a));
-	// 	assert_eq!(message_idx, None);
+	new_test_ext(default_genesis_config()).execute_with(|| {
+		let message_idx = sp_io::storage::get(&well_known_keys::dmq_message_idx(a));
+		assert_eq!(message_idx, None);
 
-	// 	queue_downward_message(a, vec![1, 2, 3]).unwrap();
+		queue_downward_message(a, vec![1, 2, 3]).unwrap();
 
-	// 	let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head(a));
-	// 	assert_eq!(
-	// 		head,
-	// 		Some(hex!["434f8579a2297dfea851bf6be33093c83a78b655a53ae141a7894494c0010589"].to_vec())
-	// 	);
+		let head = sp_io::storage::get(&well_known_keys::dmq_message_idx(a));
+		assert_eq!(head, Some((0u64, 1u64).encode()));
 
-	// 	queue_downward_message(a, vec![4, 5, 6]).unwrap();
+		queue_downward_message(a, vec![4, 5, 6]).unwrap();
 
-	// 	let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head_for_message(a, 2));
-	// 	assert_eq!(
-	// 		head,
-	// 		Some(hex!["3ac90e9a99935b82ee02438a852e6baa8ede95e3b5b7b9a486adf2a2c12405b3"].to_vec())
-	// 	);
+		// There should be 2 elements in queue.
+		let head = sp_io::storage::get(&well_known_keys::dmq_message_idx(a));
+		assert_eq!(head, Some((0u64, 2u64).encode()));
 
-	// 	let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head(a));
-	// 	assert_eq!(
-	// 		head,
-	// 		Some(hex!["3ac90e9a99935b82ee02438a852e6baa8ede95e3b5b7b9a486adf2a2c12405b3"].to_vec())
-	// 	);
-	// });
+		Dmp::prune_dmq(a, 100);
+		assert_eq!(Dmp::dmq_length(a), 0);
+
+		// Queue should look empty by the message indexes.
+		let head = sp_io::storage::get(&well_known_keys::dmq_message_idx(a));
+		assert_eq!(head, Some((2u64, 2u64).encode()));
+	});
 }
 
 #[test]

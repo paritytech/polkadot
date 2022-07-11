@@ -32,7 +32,7 @@ mod tests;
 
 /// The key for a group of downward messages.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
-pub struct QueueFragmentIdx(ParaId, u64);
+pub struct QueuePageIdx(ParaId, u64);
 
 /// An error sending a downward message.
 #[cfg_attr(test, derive(Debug))]
@@ -77,18 +77,17 @@ impl fmt::Debug for ProcessedDownwardMessagesAcceptanceErr {
 	}
 }
 
-/// To reduce the runtime memory footprint when sending or receiving messages we will split
-/// the queue in fragments of `QUEUE_FRAGMENT_CAPACITY` capacity. Tuning this constant allows
+/// To readjust the memory footprint when sending or receiving messages we will split
+/// the queue in pages of `QUEUE_PAGE_CAPACITY` capacity. Tuning this constant allows
 /// to control how we trade off the overhead per stored message vs memory footprint of individual
-/// message read/writes from/to storage. The fragments are part of circular buffer per para and
-/// we keep track of the head and tail fragments.
+/// messages read. The pages are part of ring buffer per para and we keep track of the head and tail page index.
 ///
 /// TODO(maybe) - make these configuration parameters?
 ///
-/// Defines the queue fragment capacity.
-pub const QUEUE_FRAGMENT_CAPACITY: u32 = 10;
-/// Defines the maximum amount of messages returned by `dmq_contents`/`dmq_contents_bounded`.
-pub const MAX_MESSAGES_PER_QUERY: u32 = 2048;
+/// Defines the queue page capacity.
+pub const QUEUE_PAGE_CAPACITY: u32 = 32;
+/// Defines the maximum amount of pages returned by `dmq_contents`.
+pub const MAX_PAGES_PER_QUERY: u32 = 2;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -120,10 +119,10 @@ pub mod pallet {
 
 	/// The downward messages addressed for a certain para.
 	#[pallet::storage]
-	pub(crate) type DownwardMessageQueueFragments<T: Config> = StorageMap<
+	pub(crate) type DownwardMessageQueuePages<T: Config> = StorageMap<
 		_,
 		Twox64Concat,
-		QueueFragmentIdx,
+		QueuePageIdx,
 		Vec<InboundDownwardMessage<T::BlockNumber>>,
 		ValueQuery,
 	>;
@@ -174,7 +173,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn update_head(para: &ParaId, new_head: Wrapping<u64>) -> Weight {
+	pub(crate) fn update_head(para: &ParaId, new_head: Wrapping<u64>) -> Weight {
 		<Self as Store>::DownwardMessageQueueHead::mutate(para, |head_pointer| {
 			*head_pointer = new_head.0;
 		});
@@ -182,7 +181,7 @@ impl<T: Config> Pallet<T> {
 		T::DbWeight::get().reads_writes(1, 1)
 	}
 
-	fn update_tail(para: &ParaId, new_tail: Wrapping<u64>) -> Weight {
+	pub(crate) fn update_tail(para: &ParaId, new_tail: Wrapping<u64>) -> Weight {
 		<Self as Store>::DownwardMessageQueueTail::mutate(para, |tail_pointer| {
 			*tail_pointer = new_tail.0;
 		});
@@ -209,10 +208,7 @@ impl<T: Config> Pallet<T> {
 	/// Remove all relevant storage items for an outgoing parachain.
 	fn clean_dmp_after_outgoing(outgoing_para: &ParaId) {
 		for index in Self::dmp_queue_head(outgoing_para)..=Self::dmp_queue_tail(outgoing_para) {
-			<Self as Store>::DownwardMessageQueueFragments::remove(QueueFragmentIdx(
-				*outgoing_para,
-				index,
-			));
+			<Self as Store>::DownwardMessageQueuePages::remove(QueuePageIdx(*outgoing_para, index));
 		}
 
 		<Self as Store>::DownwardMessageQueueHeads::remove(outgoing_para);
@@ -245,19 +241,20 @@ impl<T: Config> Pallet<T> {
 
 		// Ring buffer is empty.
 		if head == tail {
-			// Tail always points to the next unused fragment.
+			// Tail always points to the next unused page.
 			tail += 1;
 			Self::update_tail(&para, tail);
 		}
 
-		let tail_fragment_len = <Self as Store>::DownwardMessageQueueFragments::decode_len(
-			QueueFragmentIdx(para, (tail - Wrapping(1)).0),
-		)
+		let tail_page_len = <Self as Store>::DownwardMessageQueuePages::decode_len(QueuePageIdx(
+			para,
+			(tail - Wrapping(1)).0,
+		))
 		.unwrap_or(0)
 		.saturated_into::<u32>();
 
-		// Check if we need a new fragment.
-		if tail_fragment_len >= QUEUE_FRAGMENT_CAPACITY {
+		// Check if we need a new page.
+		if tail_page_len >= QUEUE_PAGE_CAPACITY {
 			// In practice this is always bounded economically.
 			if tail + Wrapping(1) == head {
 				unimplemented!("The end of the world is upon us");
@@ -283,9 +280,9 @@ impl<T: Config> Pallet<T> {
 			);
 		});
 
-		// Insert message in the tail queue fragment.
-		<Self as Store>::DownwardMessageQueueFragments::mutate(
-			QueueFragmentIdx(para, (tail - Wrapping(1)).0),
+		// Insert message in the tail queue page.
+		<Self as Store>::DownwardMessageQueuePages::mutate(
+			QueuePageIdx(para, (tail - Wrapping(1)).0),
 			|v| {
 				v.push(inbound);
 			},
@@ -342,12 +339,12 @@ impl<T: Config> Pallet<T> {
 
 		// Determine the keys to be removed.
 		while messages_to_prune > 0 && head != tail {
-			let key = QueueFragmentIdx(para, head.0);
-			<Self as Store>::DownwardMessageQueueFragments::mutate(key.clone(), |q| {
-				let messages_in_fragment = q.len() as u64;
+			let key = QueuePageIdx(para, head.0);
+			<Self as Store>::DownwardMessageQueuePages::mutate(key.clone(), |q| {
+				let messages_in_page = q.len() as u64;
 
-				if messages_to_prune >= messages_in_fragment {
-					messages_to_prune = messages_to_prune.saturating_sub(messages_in_fragment);
+				if messages_to_prune >= messages_in_page {
+					messages_to_prune = messages_to_prune.saturating_sub(messages_in_page);
 
 					// Add mutate weight. Removal happens later.
 					total_weight += T::DbWeight::get().reads_writes(1, 1);
@@ -356,11 +353,11 @@ impl<T: Config> Pallet<T> {
 					mqc_keys_to_remove.extend(Self::mqc_head_key_range(
 						para,
 						first_message_idx,
-						messages_in_fragment,
+						messages_in_page,
 					));
 
 					// Advance first message index.
-					first_message_idx += messages_in_fragment;
+					first_message_idx += messages_in_page;
 
 					// Advance head.
 					head += 1;
@@ -385,7 +382,7 @@ impl<T: Config> Pallet<T> {
 
 		// Actually do cleanup.
 		for key in queue_keys_to_remove {
-			<Self as Store>::DownwardMessageQueueFragments::remove(key);
+			<Self as Store>::DownwardMessageQueuePages::remove(key);
 		}
 
 		for key in mqc_keys_to_remove {
@@ -419,11 +416,10 @@ impl<T: Config> Pallet<T> {
 		let mut length = 0;
 
 		while head != tail {
-			length += <Self as Store>::DownwardMessageQueueFragments::decode_len(QueueFragmentIdx(
-				para, head.0,
-			))
-			.unwrap_or(0)
-			.saturated_into::<u32>();
+			length +=
+				<Self as Store>::DownwardMessageQueuePages::decode_len(QueuePageIdx(para, head.0))
+					.unwrap_or(0)
+					.saturated_into::<u32>();
 			head += 1;
 		}
 
@@ -432,61 +428,37 @@ impl<T: Config> Pallet<T> {
 
 	/// Deprecated API. Please use `dmq_contents_bounded`.
 	pub(crate) fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-		Self::dmq_contents_bounded(recipient, 0, MAX_MESSAGES_PER_QUERY)
+		Self::dmq_contents_bounded(recipient, 0, MAX_PAGES_PER_QUERY)
 	}
 
-	/// Returns `count` messages starting from the index specified by `start`.
+	/// Returns `count` pages starting from the page index specified by `start`.
 	/// The result will be an empty vector if the para doesn't exist or it's queue is empty.
+	///
 	/// The result preserves the original message ordering - first element of vec is oldest message, while last is most
 	/// recent.
 	pub(crate) fn dmq_contents_bounded(
 		recipient: ParaId,
 		start: u32,
-		count: u32,
+		mut count: u32,
 	) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-		let count = count as usize;
 		let mut head = Wrapping(Self::dmp_queue_head(recipient));
 		let tail = Wrapping(Self::dmp_queue_tail(recipient));
 		let mut result = Vec::new();
-		let mut to_skip = start;
+		let mut pages_to_skip = start;
 
-		// Skip `start` messages.
-		// TODO: switch interface to pages, so we no longer have to walk and call decode_len on each fragment.
-		while head != tail && to_skip > 0 {
-			let fragment_len = <Self as Store>::DownwardMessageQueueFragments::decode_len(
-				QueueFragmentIdx(recipient, head.0),
-			)
-			.unwrap_or(0)
-			.saturated_into::<u32>();
-
-			if to_skip < fragment_len {
-				// We're gonna stop at this head after we add the remaining elements from this fragment to
-				// the result set.
-				result.extend(
-					<Self as Store>::DownwardMessageQueueFragments::get(QueueFragmentIdx(
-						recipient, head.0,
-					))
-					.split_off(to_skip as usize),
-				);
+		// Loop until we reach the tail, or we've gathered at least `count` pages.
+		while head != tail && count > 0 {
+			if pages_to_skip == 0 {
+				result.extend(<Self as Store>::DownwardMessageQueuePages::get(QueuePageIdx(
+					recipient, head.0,
+				)));
+				count -= 1;
+			} else {
+				pages_to_skip -= 1;
 			}
 
-			to_skip = to_skip.saturating_sub(fragment_len);
+			// Advance to next page.
 			head += 1;
-		}
-
-		// Loop until we reach the tail, or we've gathered at least `count` messages.
-		while head != tail && result.len() < count {
-			result.extend(<Self as Store>::DownwardMessageQueueFragments::get(QueueFragmentIdx(
-				recipient, head.0,
-			)));
-
-			// Advance to next fragment.
-			head += 1;
-		}
-
-		// Clamp result as the simple loop above just accumulates all messages from fragments in `result`.
-		if result.len() > count {
-			let _ = result.split_off(count as usize);
 		}
 
 		result
