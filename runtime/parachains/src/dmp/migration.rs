@@ -19,7 +19,7 @@
 use frame_support::{storage_alias, traits::StorageVersion, Twox64Concat};
 
 /// The current storage version.
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
 pub mod queue_migration {
 	use super::*;
@@ -47,16 +47,24 @@ pub mod queue_migration {
 	>;
 
 	pub fn pre_migrate<T: Config>() -> Result<(), &'static str> {
-		let migration_required =
-			DownwardMessageQueues::<T>::iter().any(|(_, messages)| messages.len() > 0);
+		let migration_required = DownwardMessageQueues::<T>::iter().any(|(para_id, messages)| {
+			if messages.len() > 0 {
+				log::debug!(
+					target: "runtime",
+					"dmp queue for para {} needs migration",
+					u32::from(para_id),
+				);
+				true
+			} else {
+				false
+			}
+		});
 
 		log::info!(
 			target: "runtime",
 			"Pre upgrade check if migration required - {}",
 			migration_required,
 		);
-
-		// ensure!(migration_required, "No migration required");
 
 		Ok(())
 	}
@@ -68,24 +76,29 @@ pub mod queue_migration {
 
 		log::info!(
 			target: "runtime",
-			"Migration started",
+			"Migration started: version {:?} -> version {:?}",
+			version, STORAGE_VERSION
 		);
+
 		if version < STORAGE_VERSION {
 			let weight = DownwardMessageQueues::<T>::iter()
 				.map(|(para_id, messages)| {
-					let count = messages.len() as u64;
+					let mut weight = 0u64;
 					for message in messages {
-						<dmp::Pallet<T>>::queue_downward_message(&config, para_id, message.msg)
-							.expect("Migration failed");
+						let queue_weight =
+							<dmp::Pallet<T>>::queue_downward_message(&config, para_id, message.msg)
+								.expect("Migration failed");
+						weight = weight.saturating_add(
+							queue_weight.saturating_add(T::DbWeight::get().reads(1)),
+						);
 					}
-					count
+					weight
 				})
-				.sum::<u64>()
-				.into();
+				.sum::<u64>();
 
 			STORAGE_VERSION.put::<dmp::Pallet<T>>();
 
-			let _ = clear_storage_prefix(
+			let results = clear_storage_prefix(
 				<dmp::Pallet<T>>::name().as_bytes(),
 				b"DownwardMessageQueues",
 				&[],
@@ -93,7 +106,7 @@ pub mod queue_migration {
 				None,
 			);
 
-			T::DbWeight::get().reads_writes(weight, weight)
+			weight.saturating_add(T::DbWeight::get().writes(results.unique as u64))
 		} else {
 			0
 		}

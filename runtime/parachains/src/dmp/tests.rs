@@ -53,7 +53,7 @@ fn default_genesis_config() -> MockGenesisConfig {
 fn queue_downward_message(
 	para_id: ParaId,
 	msg: DownwardMessage,
-) -> Result<(), QueueDownwardMessageError> {
+) -> Result<Weight, QueueDownwardMessageError> {
 	Dmp::queue_downward_message(&Configuration::config(), para_id, msg)
 }
 
@@ -94,7 +94,7 @@ fn clean_dmp_works_when_wrapping_around() {
 	let c = ParaId::from(123);
 
 	new_test_ext(default_genesis_config()).execute_with(|| {
-		let init_head_tail = Wrapping(u64::MAX);
+		let init_head_tail = u64::MAX;
 		Dmp::update_head(&a, init_head_tail);
 		Dmp::update_head(&b, init_head_tail);
 		Dmp::update_head(&c, init_head_tail);
@@ -284,7 +284,7 @@ fn queue_downward_message_page_ordering() {
 		let max_queue_size = ((QUEUE_PAGE_CAPACITY as u64) * (u8::MAX as u64)) as u64;
 
 		// Make page indexes wrap around.
-		let init_head_tail = Wrapping(u64::MAX - max_queue_size / 2);
+		let init_head_tail = u64::MAX - max_queue_size / 2;
 		Dmp::update_head(&a, init_head_tail);
 		Dmp::update_tail(&a, init_head_tail);
 

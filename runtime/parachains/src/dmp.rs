@@ -22,7 +22,7 @@ use crate::{
 use frame_support::pallet_prelude::*;
 use primitives::v2::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage, QueueMessageId};
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
-use sp_std::{fmt, num::Wrapping, prelude::*};
+use sp_std::{fmt, prelude::*};
 use xcm::latest::SendError;
 
 pub use pallet::*;
@@ -93,6 +93,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::storage_version(migration::STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -171,33 +172,33 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	pub(crate) fn update_head(para: &ParaId, new_head: Wrapping<u64>) -> Weight {
+	pub(crate) fn update_head(para: &ParaId, new_head: u64) -> Weight {
 		<Self as Store>::DownwardMessageQueueHead::mutate(para, |head_pointer| {
-			*head_pointer = new_head.0;
+			*head_pointer = new_head;
 		});
 
 		T::DbWeight::get().reads_writes(1, 1)
 	}
 
-	pub(crate) fn update_tail(para: &ParaId, new_tail: Wrapping<u64>) -> Weight {
+	pub(crate) fn update_tail(para: &ParaId, new_tail: u64) -> Weight {
 		<Self as Store>::DownwardMessageQueueTail::mutate(para, |tail_pointer| {
-			*tail_pointer = new_tail.0;
+			*tail_pointer = new_tail;
 		});
 
 		T::DbWeight::get().reads_writes(1, 1)
 	}
 
-	fn update_first_message_idx(para: &ParaId, new_message_id: Wrapping<u64>) -> Weight {
+	fn update_first_message_idx(para: &ParaId, new_message_id: u64) -> Weight {
 		<Self as Store>::DownwardMessageIdx::mutate(para, |message_idx| {
-			message_idx.0 = new_message_id.0;
+			message_idx.0 = new_message_id;
 		});
 
 		T::DbWeight::get().reads_writes(1, 1)
 	}
 
-	fn update_last_message_idx(para: &ParaId, new_message_id: Wrapping<u64>) -> Weight {
+	fn update_last_message_idx(para: &ParaId, new_message_id: u64) -> Weight {
 		<Self as Store>::DownwardMessageIdx::mutate(para, |message_idx| {
-			message_idx.1 = new_message_id.0;
+			message_idx.1 = new_message_id;
 		});
 
 		T::DbWeight::get().reads_writes(1, 1)
@@ -224,42 +225,45 @@ impl<T: Config> Pallet<T> {
 		config: &HostConfiguration<T::BlockNumber>,
 		para: ParaId,
 		msg: DownwardMessage,
-	) -> Result<(), QueueDownwardMessageError> {
+	) -> Result<Weight, QueueDownwardMessageError> {
 		// Check if message is oversized.
 		let serialized_len = msg.len() as u32;
 		if serialized_len > config.max_downward_message_size {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 
-		let head = Wrapping(Self::dmp_queue_head(para));
-		let mut tail = Wrapping(Self::dmp_queue_tail(para));
+		let mut weight = 0u64;
+		let head = Self::dmp_queue_head(para);
+		let mut tail = Self::dmp_queue_tail(para);
 		// Get first/last message indexes.
 		let message_idx = Self::dmp_message_idx(para);
-		let current_message_idx = Wrapping(message_idx.1) + Wrapping(1);
+		let current_message_idx = message_idx.1.wrapping_add(1);
 
 		// Ring buffer is empty.
 		if head == tail {
 			// Tail always points to the next unused page.
-			tail += 1;
-			Self::update_tail(&para, tail);
+			tail = tail.wrapping_add(1);
+			weight = weight.saturating_add(Self::update_tail(&para, tail).into());
 		}
 
 		let tail_page_len = <Self as Store>::DownwardMessageQueuePages::decode_len(QueuePageIdx(
 			para,
-			(tail - Wrapping(1)).0,
+			tail.wrapping_sub(1),
 		))
 		.unwrap_or(0)
 		.saturated_into::<u32>();
 
+		weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 0));
+
 		// Check if we need a new page.
 		if tail_page_len >= QUEUE_PAGE_CAPACITY {
 			// In practice this is always bounded economically.
-			if tail + Wrapping(1) == head {
+			if tail.wrapping_add(1) == head {
 				unimplemented!("The end of the world is upon us");
 			}
 
 			// Advance tail.
-			tail += 1;
+			tail = tail.wrapping_add(1);
 		}
 
 		let inbound =
@@ -273,23 +277,26 @@ impl<T: Config> Pallet<T> {
 
 			// Update the head for the current message.
 			<Self as Store>::DownwardMessageQueueHeadsById::mutate(
-				QueueMessageId(para, current_message_idx.0),
+				QueueMessageId(para, current_message_idx),
 				|head| *head = new_head,
 			);
 		});
 
+		weight = weight.saturating_add(T::DbWeight::get().reads_writes(2, 2));
+
 		// Insert message in the tail queue page.
 		<Self as Store>::DownwardMessageQueuePages::mutate(
-			QueuePageIdx(para, (tail - Wrapping(1)).0),
+			QueuePageIdx(para, tail.wrapping_sub(1)),
 			|v| {
 				v.push(inbound);
 			},
 		);
 
-		Self::update_tail(&para, tail);
-		Self::update_last_message_idx(&para, current_message_idx);
+		weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+		weight = weight.saturating_add(Self::update_tail(&para, tail));
+		weight = weight.saturating_add(Self::update_last_message_idx(&para, current_message_idx));
 
-		Ok(())
+		Ok(weight)
 	}
 
 	/// Checks if the number of processed downward messages is valid.
@@ -312,12 +319,12 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	fn mqc_head_key_range(para: ParaId, start: Wrapping<u64>, count: u64) -> Vec<QueueMessageId> {
+	fn mqc_head_key_range(para: ParaId, start: u64, count: u64) -> Vec<QueueMessageId> {
 		let mut keys = Vec::new();
 		let mut idx = start;
-		while idx != start + Wrapping(count) {
-			keys.push(QueueMessageId(para, idx.0));
-			idx += 1;
+		while idx != start.wrapping_add(count) {
+			keys.push(QueueMessageId(para, idx));
+			idx = idx.wrapping_add(1);
 		}
 
 		keys
@@ -325,10 +332,10 @@ impl<T: Config> Pallet<T> {
 
 	/// Prunes the specified number of messages from the downward message queue of the given para.
 	pub(crate) fn prune_dmq(para: ParaId, processed_downward_messages: u32) -> Weight {
-		let mut head = Wrapping(Self::dmp_queue_head(para));
-		let tail = Wrapping(Self::dmp_queue_tail(para));
+		let mut head = Self::dmp_queue_head(para);
+		let tail = Self::dmp_queue_tail(para);
 		let mut messages_to_prune = processed_downward_messages as u64;
-		let mut first_message_idx = Wrapping(Self::dmp_message_idx(para).0);
+		let mut first_message_idx = Self::dmp_message_idx(para).0;
 		let mut total_weight = T::DbWeight::get().reads_writes(3, 0);
 
 		// TODO: also remove `DownwardMessageQueueHeadsById` entries.
@@ -337,7 +344,7 @@ impl<T: Config> Pallet<T> {
 
 		// Determine the keys to be removed.
 		while messages_to_prune > 0 && head != tail {
-			let key = QueuePageIdx(para, head.0);
+			let key = QueuePageIdx(para, head);
 			<Self as Store>::DownwardMessageQueuePages::mutate(key.clone(), |q| {
 				let messages_in_page = q.len() as u64;
 
@@ -355,10 +362,10 @@ impl<T: Config> Pallet<T> {
 					));
 
 					// Advance first message index.
-					first_message_idx += messages_in_page;
+					first_message_idx = first_message_idx.wrapping_add(messages_in_page);
 
 					// Advance head.
-					head += 1;
+					head = head.wrapping_add(1);
 				} else {
 					mqc_keys_to_remove.extend(Self::mqc_head_key_range(
 						para,
@@ -366,7 +373,7 @@ impl<T: Config> Pallet<T> {
 						messages_to_prune,
 					));
 
-					first_message_idx += messages_to_prune;
+					first_message_idx = first_message_idx.wrapping_add(messages_to_prune);
 					*q = q.split_off(messages_to_prune as usize);
 
 					// Only account for the update. This key will not be deleted.
@@ -409,16 +416,16 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Returns 0 if the para doesn't have an associated downward message queue.
 	pub(crate) fn dmq_length(para: ParaId) -> u32 {
-		let mut head = Wrapping(Self::dmp_queue_head(para));
-		let tail = Wrapping(Self::dmp_queue_tail(para));
+		let mut head = Self::dmp_queue_head(para);
+		let tail = Self::dmp_queue_tail(para);
 		let mut length = 0;
 
 		while head != tail {
 			length +=
-				<Self as Store>::DownwardMessageQueuePages::decode_len(QueuePageIdx(para, head.0))
+				<Self as Store>::DownwardMessageQueuePages::decode_len(QueuePageIdx(para, head))
 					.unwrap_or(0)
 					.saturated_into::<u32>();
-			head += 1;
+			head = head.wrapping_add(1);
 		}
 
 		length
@@ -439,8 +446,8 @@ impl<T: Config> Pallet<T> {
 		start: u32,
 		mut count: u32,
 	) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-		let mut head = Wrapping(Self::dmp_queue_head(recipient));
-		let tail = Wrapping(Self::dmp_queue_tail(recipient));
+		let mut head = Self::dmp_queue_head(recipient);
+		let tail = Self::dmp_queue_tail(recipient);
 		let mut result = Vec::new();
 		let mut pages_to_skip = start;
 
@@ -448,7 +455,7 @@ impl<T: Config> Pallet<T> {
 		while head != tail && count > 0 {
 			if pages_to_skip == 0 {
 				result.extend(<Self as Store>::DownwardMessageQueuePages::get(QueuePageIdx(
-					recipient, head.0,
+					recipient, head,
 				)));
 				count -= 1;
 			} else {
@@ -456,7 +463,7 @@ impl<T: Config> Pallet<T> {
 			}
 
 			// Advance to next page.
-			head += 1;
+			head = head.wrapping_add(1);
 		}
 
 		result
