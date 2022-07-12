@@ -22,7 +22,7 @@ assert_cmd = "2.0.4"
 nix = "0.24.1"
 tempfile = "3.2.0"
 tokio = "1.18.2"
-remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
 polkadot-core-primitives = { path = "core-primitives" }
 
 [workspace]

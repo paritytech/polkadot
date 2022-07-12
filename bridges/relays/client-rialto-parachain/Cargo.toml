@@ -16,6 +16,6 @@ rialto-parachain-runtime = { path = "../../bin/rialto-parachain/runtime" }
 
 # Substrate Dependencies
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24-1" }
