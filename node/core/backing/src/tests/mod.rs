@@ -32,8 +32,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::v2::{
-	CandidateDescriptor, CollatorId, GroupRotationInfo, HeadData, PersistedValidationData,
-	ScheduledCore,
+	CandidateDescriptor, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore,
 };
 use sp_application_crypto::AppKey;
 use sp_keyring::Sr25519Keyring;
@@ -90,9 +89,8 @@ impl Default for TestState {
 	fn default() -> Self {
 		let chain_a = ParaId::from(1);
 		let chain_b = ParaId::from(2);
-		let thread_a = ParaId::from(3);
 
-		let chain_ids = vec![chain_a, chain_b, thread_a];
+		let chain_ids = vec![chain_a, chain_b];
 
 		let validators = vec![
 			Sr25519Keyring::Alice,
@@ -114,25 +112,21 @@ impl Default for TestState {
 
 		let validator_public = validator_pubkeys(&validators);
 
-		let validator_groups = vec![vec![2, 0, 3, 5], vec![1], vec![4]]
+		let validator_groups = vec![vec![2, 0, 3, 5], vec![1]]
 			.into_iter()
 			.map(|g| g.into_iter().map(ValidatorIndex).collect())
 			.collect();
 		let group_rotation_info =
 			GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 100, now: 1 };
 
-		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 		let availability_cores = vec![
 			CoreState::Scheduled(ScheduledCore { para_id: chain_a, collator: None }),
 			CoreState::Scheduled(ScheduledCore { para_id: chain_b, collator: None }),
-			CoreState::Scheduled(ScheduledCore {
-				para_id: thread_a,
-				collator: Some(thread_collator.clone()),
-			}),
 		];
 
 		let mut head_data = HashMap::new();
 		head_data.insert(chain_a, HeadData(vec![4, 5, 6]));
+		head_data.insert(chain_b, HeadData(vec![5, 6, 7]));
 
 		let relay_parent = Hash::repeat_byte(5);
 
