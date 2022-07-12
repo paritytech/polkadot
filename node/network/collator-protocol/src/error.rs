@@ -17,10 +17,12 @@
 
 //! Error handling related code and Error/Result definitions.
 
+use futures::channel::oneshot;
+
 use polkadot_node_network_protocol::request_response::incoming;
 use polkadot_node_primitives::UncheckedSignedFullStatement;
-use polkadot_node_subsystem::errors::SubsystemError;
-use polkadot_node_subsystem_util::runtime;
+use polkadot_node_subsystem::{errors::SubsystemError, RuntimeApiError};
+use polkadot_node_subsystem_util::{backing_implicit_view, runtime};
 
 use crate::LOG_TARGET;
 
@@ -43,6 +45,18 @@ pub enum Error {
 	#[fatal(forward)]
 	#[error("Error while accessing runtime information")]
 	Runtime(#[from] runtime::Error),
+
+	#[error("Error while accessing Runtime API")]
+	RuntimeApi(#[from] RuntimeApiError),
+
+	#[error(transparent)]
+	ImplicitViewFetchError(backing_implicit_view::FetchError),
+
+	#[error("Response receiver for hypothetical depth request cancelled")]
+	CancelledGetHypotheticalDepth(oneshot::Canceled),
+
+	#[error("Response receiver for Runtime API version request cancelled")]
+	CancelledRuntimeApiVersion(oneshot::Canceled),
 
 	#[error("CollationSeconded contained statement with invalid signature")]
 	InvalidStatementSignature(UncheckedSignedFullStatement),

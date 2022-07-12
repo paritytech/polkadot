@@ -556,6 +556,8 @@ pub struct Overseer<SupportsParachains> {
 		NetworkBridgeMessage,
 		RuntimeApiMessage,
 		CandidateBackingMessage,
+		ChainApiMessage,
+		ProspectiveParachainsMessage
 	])]
 	collator_protocol: CollatorProtocol,
 

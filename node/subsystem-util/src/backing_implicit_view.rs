@@ -100,6 +100,11 @@ struct BlockInfo {
 }
 
 impl View {
+	/// Get an iterator over active leaves in the view.
+	pub fn leaves<'a>(&'a self) -> impl Iterator<Item = &'a Hash> + 'a {
+		self.leaves.keys()
+	}
+
 	/// Activate a leaf in the view.
 	/// This will request the minimum relay parents from the
 	/// Prospective Parachains subsystem for each leaf and will load headers in the ancestry of each
@@ -152,9 +157,13 @@ impl View {
 	}
 
 	/// Deactivate a leaf in the view. This prunes any outdated implicit ancestors as well.
-	pub fn deactivate_leaf(&mut self, leaf_hash: Hash) {
+	///
+	/// Returns hashes of blocks pruned from storage.
+	pub fn deactivate_leaf(&mut self, leaf_hash: Hash) -> Vec<Hash> {
+		let mut removed = Vec::new();
+
 		if self.leaves.remove(&leaf_hash).is_none() {
-			return
+			return removed
 		}
 
 		// Prune everything before the minimum out of all leaves,
@@ -165,8 +174,15 @@ impl View {
 		{
 			let minimum = self.leaves.values().map(|l| l.retain_minimum).min();
 
-			self.block_info_storage
-				.retain(|_, i| minimum.map_or(false, |m| i.block_number >= m));
+			self.block_info_storage.retain(|hash, i| {
+				let keep = minimum.map_or(false, |m| i.block_number >= m);
+				if !keep {
+					removed.push(*hash);
+				}
+				keep
+			});
+
+			removed
 		}
 	}
 
@@ -212,17 +228,26 @@ impl View {
 }
 
 /// Errors when fetching a leaf and associated ancestry.
-#[derive(Debug)]
+#[fatality::fatality]
 pub enum FetchError {
-	/// Leaf was already known.
+	/// Activated leaf is already present in view.
+	#[error("Leaf was already known")]
 	AlreadyKnown,
-	/// The prospective parachains subsystem was unavailable.
+
+	/// Request to the prospective parachains subsystem failed.
+	#[error("The prospective parachains subsystem was unavailable")]
 	ProspectiveParachainsUnavailable,
-	/// A block header was unavailable.
+
+	/// Failed to fetch the block header.
+	#[error("A block header was unavailable")]
 	BlockHeaderUnavailable(Hash, BlockHeaderUnavailableReason),
+
 	/// A block header was unavailable due to a chain API error.
+	#[error("A block header was unavailable due to a chain API error")]
 	ChainApiError(Hash, ChainApiError),
-	/// The chain API subsystem was unavailable.
+
+	/// Request to the Chain API subsystem failed.
+	#[error("The chain API subsystem was unavailable")]
 	ChainApiUnavailable,
 }
 

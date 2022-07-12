@@ -286,6 +286,7 @@ async fn handle_new_activations<Context>(
 				"collation-builder",
 				Box::pin(async move {
 					let persisted_validation_data_hash = validation_data.hash();
+					let parent_head_data_hash = validation_data.parent_head.hash();
 
 					let (collation, result_sender) =
 						match (task_config.collator)(relay_parent, &validation_data).await {
@@ -385,8 +386,13 @@ async fn handle_new_activations<Context>(
 
 					if let Err(err) = task_sender
 						.send(
-							CollatorProtocolMessage::DistributeCollation(ccr, pov, result_sender)
-								.into(),
+							CollatorProtocolMessage::DistributeCollation(
+								ccr,
+								parent_head_data_hash,
+								pov,
+								result_sender,
+							)
+							.into(),
 						)
 						.await
 					{
