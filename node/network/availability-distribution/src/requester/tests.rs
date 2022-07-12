@@ -30,7 +30,7 @@ use sp_core::traits::SpawnNamed;
 use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
-		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
+		NetworkBridgeTxMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SpawnGlue,
 };
@@ -85,7 +85,7 @@ fn spawn_virtual_overseer(
 					break
 				}
 				match msg.unwrap() {
-					AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(..)) => {},
+					AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(..)) => {},
 					AllMessages::AvailabilityStore(AvailabilityStoreMessage::QueryChunk(
 						..,
 						tx,
