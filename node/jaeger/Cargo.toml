@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-jaeger"
-version = "0.9.24"
+version = "0.9.24-1"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Polkadot Jaeger primitives, but equally useful for Grafana/Tempo"

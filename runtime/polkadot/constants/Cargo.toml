@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-constants"
-version = "0.9.24"
+version = "0.9.24-1"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
