@@ -257,13 +257,18 @@ fn host_perf_check() -> Result<()> {
 /// accepts an alternative overseer generator, to adjust behavior
 /// for integration tests as needed.
 #[cfg(feature = "malus")]
-pub fn run_node(run: Cli, overseer_gen: impl service::OverseerGen) -> Result<()> {
-	run_node_inner(run, overseer_gen, |_logger_builder, _config| {})
+pub fn run_node(
+	run: Cli,
+	overseer_gen: impl service::OverseerGen,
+	malus_finality_delay: Option<u32>,
+) -> Result<()> {
+	run_node_inner(run, overseer_gen, malus_finality_delay, |_logger_builder, _config| {})
 }
 
 fn run_node_inner<F>(
 	cli: Cli,
 	overseer_gen: impl service::OverseerGen,
+	maybe_malus_finality_delay: Option<u32>,
 	logger_hook: F,
 ) -> Result<()>
 where
@@ -333,7 +338,7 @@ where
 				false,
 				overseer_gen,
 				cli.run.overseer_channel_capacity_override,
-				cli.run.malus_finality_delay,
+				maybe_malus_finality_delay,
 				hwbench,
 			)
 			.map(|full| full.task_manager)
@@ -372,7 +377,12 @@ pub fn run() -> Result<()> {
 	}
 
 	match &cli.subcommand {
-		None => run_node_inner(cli, service::RealOverseerGen, polkadot_node_metrics::logger_hook()),
+		None => run_node_inner(
+			cli,
+			service::RealOverseerGen,
+			None,
+			polkadot_node_metrics::logger_hook(),
+		),
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			Ok(runner.sync_run(|config| cmd.run(config.chain_spec, config.network))?)
