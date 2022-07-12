@@ -256,6 +256,8 @@ fn host_perf_check() -> Result<()> {
 /// Launch a node, accepting arguments just like a regular node,
 /// accepts an alternative overseer generator, to adjust behavior
 /// for integration tests as needed.
+/// `malus_finality_delay` restrict finality votes of this node
+/// to be at most `best_block - malus_finality_delay` height.
 #[cfg(feature = "malus")]
 pub fn run_node(
 	run: Cli,

@@ -53,7 +53,8 @@ enum NemesisVariant {
 struct MalusCli {
 	#[clap(subcommand)]
 	pub variant: NemesisVariant,
-	pub maybe_finality_delay: Option<u32>,
+	/// Sets the minimum delay between the best and finalized block.
+	pub finality_delay: Option<u32>,
 }
 
 fn run_cmd(run: RunCmd) -> Cli {
@@ -63,7 +64,7 @@ fn run_cmd(run: RunCmd) -> Cli {
 impl MalusCli {
 	/// Launch a malus node.
 	fn launch(self) -> eyre::Result<()> {
-		let finality_delay = self.maybe_finality_delay;
+		let finality_delay = self.finality_delay;
 		match self.variant {
 			NemesisVariant::BackGarbageCandidate(cmd) =>
 				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate, finality_delay)?,
