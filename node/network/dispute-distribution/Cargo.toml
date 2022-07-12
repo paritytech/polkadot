@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-dispute-distribution"
-version = "0.9.23"
+version = "0.9.26"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -8,7 +8,7 @@ edition = "2021"
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
 derive_more = "0.99.17"
-parity-scale-codec = { version = "3.1.2", features = ["std"] }
+parity-scale-codec = { version = "3.1.5", features = ["std"] }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-node-subsystem = {path = "../../subsystem" }

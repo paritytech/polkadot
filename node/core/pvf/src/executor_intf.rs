@@ -43,6 +43,9 @@ use std::{
 const DEFAULT_HEAP_PAGES_ESTIMATE: u64 = 32;
 const EXTRA_HEAP_PAGES: u64 = 2048;
 
+/// The number of bytes devoted for the stack during wasm execution of a PVF.
+const NATIVE_STACK_MAX: u32 = 256 * 1024 * 1024;
+
 const CONFIG: Config = Config {
 	allow_missing_func_imports: true,
 	cache_path: None,
@@ -69,7 +72,7 @@ const CONFIG: Config = Config {
 		// the stack limit set by the wasmtime.
 		deterministic_stack_limit: Some(DeterministicStackLimit {
 			logical_max: 65536,
-			native_stack_max: 256 * 1024 * 1024,
+			native_stack_max: NATIVE_STACK_MAX,
 		}),
 		canonicalize_nans: true,
 		// Rationale for turning the multi-threaded compilation off is to make the preparation time
@@ -98,20 +101,99 @@ pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::
 	sc_executor_wasmtime::prepare_runtime_artifact(blob, &CONFIG.semantics)
 }
 
-/// Executes the given PVF in the form of a compiled artifact and returns the result of execution
-/// upon success.
-///
-/// # Safety
-///
-/// The caller must ensure that the compiled artifact passed here was:
-///   1) produced by [`prepare`],
-///   2) written to the disk as a file,
-///   3) was not modified,
-///   4) will not be modified while any runtime using this artifact is alive, or is being
-///      instantiated.
-///
-/// Failure to adhere to these requirements might lead to crashes and arbitrary code execution.
-pub unsafe fn execute(
+pub struct Executor {
+	thread_pool: rayon::ThreadPool,
+	spawner: TaskSpawner,
+}
+
+impl Executor {
+	pub fn new() -> Result<Self, String> {
+		// Wasmtime powers the Substrate Executor. It compiles the wasm bytecode into native code.
+		// That native code does not create any stacks and just reuses the stack of the thread that
+		// wasmtime was invoked from.
+		//
+		// Also, we configure the executor to provide the deterministic stack and that requires
+		// supplying the amount of the native stack space that wasm is allowed to use. This is
+		// realized by supplying the limit into `wasmtime::Config::max_wasm_stack`.
+		//
+		// There are quirks to that configuration knob:
+		//
+		// 1. It only limits the amount of stack space consumed by wasm but does not ensure nor check
+		//    that the stack space is actually available.
+		//
+		//    That means, if the calling thread has 1 MiB of stack space left and the wasm code consumes
+		//    more, then the wasmtime limit will **not** trigger. Instead, the wasm code will hit the
+		//    guard page and the Rust stack overflow handler will be triggered. That leads to an
+		//    **abort**.
+		//
+		// 2. It cannot and does not limit the stack space consumed by Rust code.
+		//
+		//    Meaning that if the wasm code leaves no stack space for Rust code, then the Rust code
+		//    and that will abort the process as well.
+		//
+		// Typically on Linux the main thread gets the stack size specified by the `ulimit` and
+		// typically it's configured to 8 MiB. Rust's spawned threads are 2 MiB. OTOH, the
+		// NATIVE_STACK_MAX is set to 256 MiB. Not nearly enough.
+		//
+		// Hence we need to increase it.
+		//
+		// The simplest way to fix that is to spawn a thread with the desired stack limit. In order
+		// to avoid costs of creating a thread, we use a thread pool. The execution is
+		// single-threaded hence the thread pool has only one thread.
+		//
+		// The reasoning why we pick this particular size is:
+		//
+		// The default Rust thread stack limit 2 MiB + 256 MiB wasm stack.
+		let thread_stack_size = 2 * 1024 * 1024 + NATIVE_STACK_MAX as usize;
+		let thread_pool = rayon::ThreadPoolBuilder::new()
+			.num_threads(1)
+			.stack_size(thread_stack_size)
+			.build()
+			.map_err(|e| format!("Failed to create thread pool: {:?}", e))?;
+
+		let spawner =
+			TaskSpawner::new().map_err(|e| format!("cannot create task spawner: {}", e))?;
+
+		Ok(Self { thread_pool, spawner })
+	}
+
+	/// Executes the given PVF in the form of a compiled artifact and returns the result of execution
+	/// upon success.
+	///
+	/// # Safety
+	///
+	/// The caller must ensure that the compiled artifact passed here was:
+	///   1) produced by [`prepare`],
+	///   2) written to the disk as a file,
+	///   3) was not modified,
+	///   4) will not be modified while any runtime using this artifact is alive, or is being
+	///      instantiated.
+	///
+	/// Failure to adhere to these requirements might lead to crashes and arbitrary code execution.
+	pub unsafe fn execute(
+		&self,
+		compiled_artifact_path: &Path,
+		params: &[u8],
+	) -> Result<Vec<u8>, String> {
+		let spawner = self.spawner.clone();
+		let mut result = None;
+		self.thread_pool.scope({
+			let result = &mut result;
+			move |s| {
+				s.spawn(move |_| {
+					// spawn does not return a value, so we need to use a variable to pass the result.
+					*result = Some(
+						do_execute(compiled_artifact_path, params, spawner)
+							.map_err(|err| format!("execute error: {:?}", err)),
+					);
+				});
+			}
+		});
+		result.unwrap_or_else(|| Err("rayon thread pool spawn failed".to_string()))
+	}
+}
+
+unsafe fn do_execute(
 	compiled_artifact_path: &Path,
 	params: &[u8],
 	spawner: impl sp_core::traits::SpawnNamed + 'static,
@@ -291,9 +373,9 @@ impl sp_externalities::ExtensionStore for ValidationExternalities {
 ///
 /// This is a light handle meaning it will only clone the handle not create a new thread pool.
 #[derive(Clone)]
-pub(crate) struct TaskExecutor(futures::executor::ThreadPool);
+pub(crate) struct TaskSpawner(futures::executor::ThreadPool);
 
-impl TaskExecutor {
+impl TaskSpawner {
 	pub(crate) fn new() -> Result<Self, String> {
 		futures::executor::ThreadPoolBuilder::new()
 			.pool_size(4)
@@ -304,7 +386,7 @@ impl TaskExecutor {
 	}
 }
 
-impl sp_core::traits::SpawnNamed for TaskExecutor {
+impl sp_core::traits::SpawnNamed for TaskSpawner {
 	fn spawn_blocking(
 		&self,
 		_task_name: &'static str,
