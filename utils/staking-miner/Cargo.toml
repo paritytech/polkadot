@@ -16,22 +16,22 @@ serde_json = "1.0"
 thiserror = "1.0.31"
 tokio = { version = "1.18.2", features = ["macros", "rt-multi-thread", "sync"] }
 
-remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
 
 core-primitives = { package = "polkadot-core-primitives", path = "../../core-primitives" }
 

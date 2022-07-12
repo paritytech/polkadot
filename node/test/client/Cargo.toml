@@ -14,20 +14,20 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 
 # Substrate dependencies
-substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
 futures = "0.3.21"

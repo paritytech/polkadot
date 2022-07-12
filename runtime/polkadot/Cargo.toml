@@ -16,69 +16,69 @@ serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 smallvec = "1.8.0"
 
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+sp-version = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+sp-npos-elections = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
 
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-bounties = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-child-bounties = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-identity = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-bags-list = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-bounties = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-child-bounties = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-collective = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-democracy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+frame-executive = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-identity = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-im-online = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-indices = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-membership = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-multisig = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-offences = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-preimage = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-proxy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-scheduler = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+frame-system = {git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
 polkadot-runtime-constants = { package = "polkadot-runtime-constants", path = "./constants", default-features = false }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-tips = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-tips = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+pallet-utility = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+frame-election-provider-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-pallet-election-provider-support-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "a-sync-best-block-metric" }
+frame-try-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "a-sync-best-block-metric" }
+frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "a-sync-best-block-metric" }
+pallet-election-provider-support-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "a-sync-best-block-metric" }
+pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "a-sync-best-block-metric" }
+pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "a-sync-best-block-metric" }
 hex-literal = { version = "0.3.4", optional = true }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
@@ -92,14 +92,14 @@ xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default
 [dev-dependencies]
 hex-literal = "0.3.4"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
 trie-db = "0.23.1"
 serde_json = "1.0.81"
 separator = "0.4.1"
 
 [build-dependencies]
-substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "a-sync-best-block-metric" }
 
 [features]
 default = ["std"]

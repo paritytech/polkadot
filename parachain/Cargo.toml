@@ -12,10 +12,10 @@ edition = "2021"
 parity-scale-codec = { version = "3.1.5", default-features = false, features = [ "derive" ] }
 parity-util-mem = { version = "0.11.0", default-features = false, optional = true }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-sync-best-block-metric" }
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 derive_more = "0.99.11"
 
