@@ -538,6 +538,31 @@ update_rococo_weights:
   variables:
     RUNTIME:                       rococo
 
+# radu test will not merge
+test_update_polkadot_weights:           &test-update-weights
+  stage:                           stage2
+  when:                            manual
+  variables:
+    RUNTIME:                       polkadot
+  artifacts:
+    paths:
+      - ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
+  script:
+    - ./scripts/ci/run_benches_for_runtime.sh $RUNTIME
+    - git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
+  # uses the "shell" executors
+  tags:
+    - test-weights
+
+test_update_kusama_weights:
+  <<:                              *test-update-weights
+  variables:
+    RUNTIME:                       kusama
+
+test_update_westend_weights:
+  <<:                              *test-update-weights
+  variables:
+    RUNTIME:                       westend
 #### stage:                        stage3
 
 build-rustdoc:
