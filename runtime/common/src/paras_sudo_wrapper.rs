@@ -138,11 +138,12 @@ pub mod pallet {
 			ensure_root(origin)?;
 			ensure!(<paras::Pallet<T>>::is_valid_para(id), Error::<T>::ParaDoesntExist);
 			let config = <configuration::Pallet<T>>::config();
-			<dmp::Pallet<T>>::queue_downward_message(&config, id, xcm.encode()).map_err(|e| match e
-			{
-				dmp::QueueDownwardMessageError::ExceedsMaxMessageSize =>
-					Error::<T>::ExceedsMaxMessageSize.into(),
-			})
+			<dmp::Pallet<T>>::queue_downward_message(&config, id, xcm.encode())
+				.map_err(|e| match e {
+					dmp::QueueDownwardMessageError::ExceedsMaxMessageSize =>
+						Error::<T>::ExceedsMaxMessageSize.into(),
+				})
+				.map(|_| ())
 		}
 
 		/// Forcefully establish a channel from the sender to the recipient.

@@ -18,10 +18,10 @@
 
 use frame_support::{storage_alias, traits::StorageVersion, Twox64Concat};
 
-/// The current storage version.
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
+/// The current storage version. 
+pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
-pub mod queue_migration {
+pub mod v3 {
 	use super::*;
 	use crate::{
 		configuration, dmp,
@@ -47,36 +47,39 @@ pub mod queue_migration {
 	>;
 
 	pub fn pre_migrate<T: Config>() -> Result<(), &'static str> {
-		let migration_required = DownwardMessageQueues::<T>::iter().any(|(para_id, messages)| {
-			if messages.len() > 0 {
-				log::debug!(
-					target: "runtime",
-					"dmp queue for para {} needs migration",
-					u32::from(para_id),
-				);
-				true
-			} else {
-				false
-			}
-		});
+		let count = DownwardMessageQueues::<T>::iter()
+			.filter(|(para_id, messages)| {
+				if messages.len() > 0 {
+					log::debug!(
+						target: "runtime",
+						"dmp queue for para {} needs migration; message count = {}",
+						u32::from(*para_id),
+						messages.len()
+					);
+					true
+				} else {
+					false
+				}
+			})
+			.count();
 
 		log::info!(
 			target: "runtime",
-			"Pre upgrade check if migration required - {}",
-			migration_required,
+			"Migrating dmp storage for {} parachains",
+			count,
 		);
 
 		Ok(())
 	}
 
-	/// This migration converts the simple `Vec` based queue to one that supports pagination.
+	/// This migration converts the storage to a new represatation which enables pagination.
 	pub fn migrate<T: Config>() -> frame_support::weights::Weight {
 		let config = <configuration::Pallet<T>>::config();
-		let version = StorageVersion::get::<configuration::Pallet<T>>();
+		let version = StorageVersion::get::<dmp::Pallet<T>>();
 
 		log::info!(
 			target: "runtime",
-			"Migration started: version {:?} -> version {:?}",
+			"Version {:?} -> Version {:?}",
 			version, STORAGE_VERSION
 		);
 
@@ -87,7 +90,7 @@ pub mod queue_migration {
 					for message in messages {
 						let queue_weight =
 							<dmp::Pallet<T>>::queue_downward_message(&config, para_id, message.msg)
-								.expect("Migration failed");
+								.expect("Failed to queue a message");
 						weight = weight.saturating_add(
 							queue_weight.saturating_add(T::DbWeight::get().reads(1)),
 						);
@@ -98,6 +101,7 @@ pub mod queue_migration {
 
 			STORAGE_VERSION.put::<dmp::Pallet<T>>();
 
+			// Remove old queues, but we'll keep the MQC head around until collators receive their node/runtime upgrades.
 			let results = clear_storage_prefix(
 				<dmp::Pallet<T>>::name().as_bytes(),
 				b"DownwardMessageQueues",

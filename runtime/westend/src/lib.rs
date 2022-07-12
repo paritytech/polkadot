@@ -1743,16 +1743,16 @@ sp_api::impl_runtime_apis! {
 pub struct DmpStorageMigration;
 impl OnRuntimeUpgrade for DmpStorageMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		runtime_parachains::dmp::migration::queue_migration::migrate::<Runtime>()
+		runtime_parachains::dmp::migration::v3::migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		runtime_parachains::dmp::migration::queue_migration::pre_migrate::<Runtime>()
+		runtime_parachains::dmp::migration::v3::pre_migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		runtime_parachains::dmp::migration::queue_migration::post_migrate::<Runtime>()
+		runtime_parachains::dmp::migration::v3::post_migrate::<Runtime>()
 	}
 }
