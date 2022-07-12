@@ -21,7 +21,7 @@ use frame_support::{storage_alias, traits::StorageVersion, Twox64Concat};
 /// The current storage version.
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
-pub mod v3 {
+pub mod v1 {
 	use super::*;
 	use crate::{
 		configuration, dmp,
