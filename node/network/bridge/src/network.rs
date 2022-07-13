@@ -35,7 +35,8 @@ use polkadot_primitives::v2::{AuthorityDiscoveryId, Block, Hash};
 
 use crate::validator_discovery::AuthorityDiscovery;
 
-use super::LOG_TARGET;
+// network bridge network abstraction log target
+const LOG_TARGET: &'static str = "parachain::network-bridge-net";
 
 /// Send a message to the network.
 ///

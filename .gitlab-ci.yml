@@ -728,9 +728,9 @@ zombienet-tests-parachains-disputes:
 
 zombienet-test-parachains-upgrade-smoke-test:
   stage:                           stage3
-  image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
+  image:                           "docker.io/paritytech/zombienet:v1.2.45"
   needs:
     - job:                         publish-polkadot-debug-image
     - job:                         publish-malus-image
@@ -739,12 +739,12 @@ zombienet-test-parachains-upgrade-smoke-test:
     GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke'
   before_script:
     - echo "ZombieNet Tests Config"
-    - echo "docker.io/parity/polkadot:latest"
+    - echo "${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
     - echo "docker.io/parity/polkadot-collator:latest"
     - echo "${ZOMBIENET_IMAGE}"
     - echo "${GH_DIR}"
     - export DEBUG=zombie,zombie::network-node
-    - export ZOMBIENET_INTEGRATION_TEST_IMAGE="docker.io/parity/polkadot:latest" # Use polkadot latest image
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
     - export COL_IMAGE="docker.io/parity/polkadot-collator:latest" # Use cumulus lastest image
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
@@ -808,6 +808,33 @@ zombienet-tests-malus-dispute-valid:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --test="0001-dispute-valid-block.feature"
+  allow_failure:                   false
+  retry: 2
+  tags:
+    - zombienet-polkadot-integration-test
+
+zombienet-tests-deregister-register-validator:
+  stage:                           stage3
+  image:                           "docker.io/paritytech/zombienet:v1.2.47"
+  <<:                              *kubernetes-env
+  <<:                              *zombienet-refs
+  needs:
+    - job:                         publish-polkadot-debug-image
+      artifacts:                   true
+  variables:
+    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke"
+  before_script:
+    - echo "Zombie-net Tests Config"
+    - echo "${ZOMBIENET_IMAGE_NAME}"
+    - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
+    - echo "${GH_DIR}"
+    - export DEBUG=zombie*
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
+    - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
+  script:
+    - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
+        --github-remote-dir="${GH_DIR}"
+        --test="0003-deregister-register-validator-smoke.feature"
   allow_failure:                   false
   retry: 2
   tags:
