@@ -53,10 +53,10 @@ use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use rpc::{RpcApiClient, SharedRpcClient};
 use runtime_versions::RuntimeVersions;
-use sp_npos_elections::BalancingConfig;
-use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 use signal_hook::consts::signal::*;
 use signal_hook_tokio::Signals;
+use sp_npos_elections::BalancingConfig;
+use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 
 pub(crate) enum AnyRuntime {
 	Polkadot,
@@ -441,7 +441,7 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 
 /// Control how we exit the application
 fn controlled_exit(code: i32) {
-	log::warn!(target: LOG_TARGET, "Exiting application");
+	log::info!(target: LOG_TARGET, "Exiting application");
 	std::process::exit(code);
 }
 
@@ -451,9 +451,10 @@ async fn handle_signals(mut signals: Signals) {
 	let mut keyboard_sig_count: u8 = 0;
 	while let Some(signal) = signals.next().await {
 		match signal {
-			SIGTERM | SIGINT => {
+			// Interrupts come from the keyboard
+			SIGQUIT | SIGINT => {
 				if keyboard_sig_count >= 1 {
-					log::warn!(
+					log::info!(
 						target: LOG_TARGET,
 						"Received keyboard termination signal, quitting..."
 					);
@@ -466,8 +467,9 @@ async fn handle_signals(mut signals: Signals) {
 					keyboard_sig_count
 				);
 			},
-			SIGQUIT => {
-				log::warn!(target: LOG_TARGET, "Received SIGQUIT, quitting...");
+
+			SIGKILL | SIGTERM => {
+				log::info!(target: LOG_TARGET, "Received SIGKILL | SIGTERM, quitting...");
 				controlled_exit(exitcode::OK);
 			},
 			_ => unreachable!(),
