@@ -458,7 +458,9 @@ async fn handle_signals(mut signals: Signals) {
 				if keyboard_sig_count >= 1 {
 					log::info!(
 						target: LOG_TARGET,
-						"Received keyboard termination signal, quitting..."
+						"Received keyboard termination signal #{}/{}, quitting...",
+						keyboard_sig_count + 1,
+						2
 					);
 					controlled_exit(exitcode::OK);
 				}
