@@ -78,46 +78,49 @@ async fn activate_leaf(
 	let ancestry_hashes = std::iter::successors(Some(leaf_hash), |h| Some(get_parent_hash(*h)))
 		.take(ancestry_len as usize);
 	let ancestry_numbers = (min_min..=leaf_number).rev();
-	let mut ancestry_iter = ancestry_hashes.clone().zip(ancestry_numbers).peekable();
+	let ancestry_iter = ancestry_hashes.zip(ancestry_numbers).peekable();
 
 	let mut next_overseer_message = None;
 	// How many blocks were actually requested.
 	let mut requested_len = 0;
-	loop {
-		let (hash, number) = match ancestry_iter.next() {
-			Some((hash, number)) => (hash, number),
-			None => break,
-		};
+	{
+		let mut ancestry_iter = ancestry_iter.clone();
+		loop {
+			let (hash, number) = match ancestry_iter.next() {
+				Some((hash, number)) => (hash, number),
+				None => break,
+			};
 
-		// May be `None` for the last element.
-		let parent_hash =
-			ancestry_iter.peek().map(|(h, _)| *h).unwrap_or_else(|| get_parent_hash(hash));
+			// May be `None` for the last element.
+			let parent_hash =
+				ancestry_iter.peek().map(|(h, _)| *h).unwrap_or_else(|| get_parent_hash(hash));
 
-		let msg = virtual_overseer.recv().await;
-		// It may happen that some blocks were cached by implicit view,
-		// reuse the message.
-		if !matches!(&msg, AllMessages::ChainApi(ChainApiMessage::BlockHeader(..))) {
-			next_overseer_message.replace(msg);
-			break
-		}
-
-		assert_matches!(
-			msg,
-			AllMessages::ChainApi(
-				ChainApiMessage::BlockHeader(_hash, tx)
-			) if _hash == hash => {
-				let header = Header {
-					parent_hash,
-					number,
-					state_root: Hash::zero(),
-					extrinsics_root: Hash::zero(),
-					digest: Default::default(),
-				};
-
-				tx.send(Ok(Some(header))).unwrap();
+			let msg = virtual_overseer.recv().await;
+			// It may happen that some blocks were cached by implicit view,
+			// reuse the message.
+			if !matches!(&msg, AllMessages::ChainApi(ChainApiMessage::BlockHeader(..))) {
+				next_overseer_message.replace(msg);
+				break
 			}
-		);
-		requested_len += 1;
+
+			assert_matches!(
+				msg,
+				AllMessages::ChainApi(
+					ChainApiMessage::BlockHeader(_hash, tx)
+				) if _hash == hash => {
+					let header = Header {
+						parent_hash,
+						number,
+						state_root: Hash::zero(),
+						extrinsics_root: Hash::zero(),
+						digest: Default::default(),
+					};
+
+					tx.send(Ok(Some(header))).unwrap();
+				}
+			);
+			requested_len += 1;
+		}
 	}
 
 	for _ in 0..seconded_in_view {
@@ -135,7 +138,7 @@ async fn activate_leaf(
 		);
 	}
 
-	for hash in ancestry_hashes.take(requested_len) {
+	for (hash, number) in ancestry_iter.take(requested_len) {
 		// Check that subsystem job issues a request for a validator set.
 		let msg = match next_overseer_message.take() {
 			Some(msg) => msg,
@@ -156,7 +159,9 @@ async fn activate_leaf(
 			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(parent, RuntimeApiRequest::ValidatorGroups(tx))
 			) if parent == hash => {
-				tx.send(Ok(test_state.validator_groups.clone())).unwrap();
+				let (validator_groups, mut group_rotation_info) = test_state.validator_groups.clone();
+				group_rotation_info.now = number;
+				tx.send(Ok((validator_groups, group_rotation_info))).unwrap();
 			}
 		);
 
@@ -1346,6 +1351,148 @@ fn concurrent_dependent_candidates() {
 			valid_statements.contains(&candidate_a_hash) &&
 				valid_statements.contains(&candidate_b_hash)
 		);
+
+		virtual_overseer
+	});
+}
+
+// Test that multiple candidates from different paras can occupy the same depth
+// in a given relay parent.
+#[test]
+fn seconding_sanity_check_occupy_same_depth() {
+	let test_state = TestState::default();
+	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
+		// Candidate `a` is seconded in a parent of the activated `leaf`.
+		const LEAF_BLOCK_NUMBER: BlockNumber = 100;
+		const LEAF_DEPTH: BlockNumber = 3;
+
+		let para_id_a = test_state.chain_ids[0];
+		let para_id_b = test_state.chain_ids[1];
+
+		let leaf_hash = Hash::from_low_u64_be(130);
+		let leaf_parent = get_parent_hash(leaf_hash);
+
+		let activated = ActivatedLeaf {
+			hash: leaf_hash,
+			number: LEAF_BLOCK_NUMBER,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		};
+
+		let min_block_number = LEAF_BLOCK_NUMBER - LEAF_DEPTH;
+		let min_relay_parents = vec![(para_id_a, min_block_number), (para_id_b, min_block_number)];
+		let test_leaf_a = TestLeaf { activated, min_relay_parents };
+
+		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
+
+		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
+		let pvd = dummy_pvd();
+		let validation_code = ValidationCode(vec![1, 2, 3]);
+
+		let expected_head_data_a = test_state.head_data.get(&para_id_a).unwrap();
+		let expected_head_data_b = test_state.head_data.get(&para_id_b).unwrap();
+
+		let pov_hash = pov.hash();
+		let candidate_a = TestCandidateBuilder {
+			para_id: para_id_a,
+			relay_parent: leaf_parent,
+			pov_hash,
+			head_data: expected_head_data_a.clone(),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
+			persisted_validation_data_hash: pvd.hash(),
+			validation_code: validation_code.0.clone(),
+			..Default::default()
+		};
+
+		let mut candidate_b = candidate_a.clone();
+		candidate_b.para_id = para_id_b;
+		candidate_b.head_data = expected_head_data_b.clone();
+		// A rotation happens, test validator is assigned to second para here.
+		candidate_b.relay_parent = leaf_hash;
+
+		let candidate_a = (candidate_a.build(), expected_head_data_a, para_id_a);
+		let candidate_b = (candidate_b.build(), expected_head_data_b, para_id_b);
+
+		for candidate in &[candidate_a, candidate_b] {
+			let (candidate, expected_head_data, para_id) = candidate;
+			let second = CandidateBackingMessage::Second(
+				leaf_hash,
+				candidate.to_plain(),
+				pvd.clone(),
+				pov.clone(),
+			);
+
+			virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
+
+			assert_validate_seconded_candidate(
+				&mut virtual_overseer,
+				candidate.descriptor().relay_parent,
+				&candidate,
+				&pov,
+				&pvd,
+				&validation_code,
+				*expected_head_data,
+				false,
+			)
+			.await;
+
+			// `seconding_sanity_check`
+			let expected_request_a = vec![(
+				HypotheticalDepthRequest {
+					candidate_hash: candidate.hash(),
+					candidate_para: *para_id,
+					parent_head_data_hash: pvd.parent_head.hash(),
+					candidate_relay_parent: candidate.descriptor().relay_parent,
+					fragment_tree_relay_parent: leaf_hash,
+				},
+				vec![0, 1], // Send the same membership for both candidates.
+			)];
+
+			assert_hypothetical_depth_requests(&mut virtual_overseer, expected_request_a.clone())
+				.await;
+
+			// Prospective parachains are notified.
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::ProspectiveParachains(
+					ProspectiveParachainsMessage::CandidateSeconded(
+						candidate_para,
+						candidate_receipt,
+						_pvd,
+						tx,
+					),
+				) if &candidate_receipt == candidate && candidate_para == *para_id && pvd == _pvd => {
+					// Any non-empty response will do.
+					tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
+				}
+			);
+
+			test_dispute_coordinator_notifications(
+				&mut virtual_overseer,
+				candidate.hash(),
+				test_state.session(),
+				vec![ValidatorIndex(0)],
+			)
+			.await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::Share(
+						parent_hash,
+						_signed_statement,
+					)
+				) if parent_hash == candidate.descriptor().relay_parent => {}
+			);
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::CollatorProtocol(CollatorProtocolMessage::Seconded(hash, statement)) => {
+					assert_eq!(candidate.descriptor().relay_parent, hash);
+					assert_matches!(statement.payload(), Statement::Seconded(_));
+				}
+			);
+		}
 
 		virtual_overseer
 	});
