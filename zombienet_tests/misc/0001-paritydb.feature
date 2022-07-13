@@ -15,6 +15,7 @@ validator-9: is up
 
 # Check if we are using ParityDB.
 validator: log line contains "Database: ParityDb"
+validator: run ./0001-check_paritydb.sh within 60 seconds
 
 # Check authority status and peers.
 validator-0: reports node_roles is 4
