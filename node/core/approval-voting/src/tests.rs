@@ -23,6 +23,7 @@ use polkadot_node_primitives::{
 	AvailableData, BlockData, PoV,
 };
 use polkadot_node_subsystem::{
+	gen::async_trait,
 	messages::{
 		AllMessages, ApprovalVotingMessage, AssignmentCheckResult, AvailabilityRecoveryMessage,
 	},
@@ -117,8 +118,9 @@ pub mod test_constants {
 
 struct MockSupportsParachains;
 
+#[async_trait]
 impl HeadSupportsParachains for MockSupportsParachains {
-	fn head_supports_parachains(&self, _head: &Hash) -> bool {
+	async fn head_supports_parachains(&self, _head: &Hash) -> bool {
 		true
 	}
 }

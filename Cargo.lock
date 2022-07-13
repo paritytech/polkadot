@@ -6454,6 +6454,7 @@ name = "polkadot-node-core-approval-voting"
 version = "0.9.25"
 dependencies = [
  "assert_matches",
+ "async-trait",
  "bitvec",
  "derive_more",
  "futures",
@@ -6752,6 +6753,8 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
+ "sp-api",
+ "sp-authority-discovery",
  "sp-consensus-babe",
  "sp-core",
  "sp-keyring",

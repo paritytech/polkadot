@@ -139,7 +139,7 @@ pub trait OverseerRuntimeClient {
 		&self,
 		at: Hash,
 		index: SessionIndex,
-	) -> Result<Option<polkadot_primitives::v2::SessionInfo>, ApiError>;
+	) -> Result<Option<polkadot_primitives::v2::OldV1SessionInfo>, ApiError>;
 
 	/// Submits a PVF pre-checking statement into the transaction pool.
 	///
@@ -221,7 +221,7 @@ pub trait OverseerRuntimeClient {
 		at: Hash,
 	) -> std::result::Result<Vec<sp_authority_discovery::AuthorityId>, ApiError>;
 
-	// Parachain host api version
+	/// Parachain host api version
 	async fn api_version_parachain_host(&self, at: Hash) -> Result<Option<u32>, ApiError>;
 
 	/// Returns all onchain disputes.
@@ -427,13 +427,14 @@ where
 		self.runtime_api().api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(at))
 	}
 
+	#[warn(deprecated)]
 	async fn session_info_before_version_2(
 		&self,
 		at: Hash,
 		index: SessionIndex,
-	) -> Result<Option<polkadot_primitives::v2::SessionInfo>, ApiError> {
-		// self.runtime_api().session_info_before_version_2(&BlockId::Hash(at), index)
-		todo!()
+	) -> Result<Option<polkadot_primitives::v2::OldV1SessionInfo>, ApiError> {
+		#[allow(deprecated)]
+		self.runtime_api().session_info_before_version_2(&BlockId::Hash(at), index)
 	}
 
 	async fn staging_get_disputes(

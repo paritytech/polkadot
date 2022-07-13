@@ -384,8 +384,10 @@ mod tests {
 	use sp_core::traits::SpawnNamed;
 
 	struct AlwaysSupportsParachains;
+
+	#[async_trait::async_trait]
 	impl HeadSupportsParachains for AlwaysSupportsParachains {
-		fn head_supports_parachains(&self, _head: &Hash) -> bool {
+		async fn head_supports_parachains(&self, _head: &Hash) -> bool {
 			true
 		}
 	}
