@@ -20,6 +20,7 @@ use std::{
 	time::Duration,
 };
 
+use bitvec::prelude::*;
 use futures::{
 	channel::oneshot, pin_mut, select, stream::FuturesUnordered, Future, FutureExt, StreamExt,
 };
@@ -39,8 +40,8 @@ use polkadot_node_primitives::{CollationSecondedSignal, PoV, Statement};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
-		CollatorProtocolMessage, HypotheticalDepthRequest, NetworkBridgeEvent,
-		NetworkBridgeMessage, ProspectiveParachainsMessage, RuntimeApiMessage, RuntimeApiRequest,
+		CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage, RuntimeApiMessage,
+		RuntimeApiRequest,
 	},
 	overseer, CollatorProtocolSenderTrait, FromOrchestra, OverseerSignal, PerLeafSpan,
 };
@@ -74,6 +75,15 @@ const COST_APPARENT_FLOOD: Rep =
 ///
 /// For considerations on this value, see: https://github.com/paritytech/polkadot/issues/4386
 const MAX_UNSHARED_UPLOAD_TIME: Duration = Duration::from_millis(150);
+
+/// The maximum depth a candidate can occupy for any relay parent.
+/// 'depth' is defined as the amount of blocks between the para
+/// head in a relay-chain block's state and a candidate with a
+/// particular relay-parent.
+///
+/// This value is only used for limiting the number of candidates
+/// we accept and distribute per relay parent.
+const MAX_CANDIDATE_DEPTH: usize = 4;
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
@@ -184,42 +194,67 @@ impl metrics::Metrics for Metrics {
 /// Info about validators we are currently connected to.
 ///
 /// It keeps track to which validators we advertised our collation.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct ValidatorGroup {
-	/// All [`ValidatorId`]'s of the current group to that we advertised our collation.
-	advertised_to: HashSet<AuthorityDiscoveryId>,
+	validators: Vec<AuthorityDiscoveryId>,
+
+	advertised_to: HashMap<CandidateHash, BitVec<u8, Lsb0>>,
 }
 
 impl ValidatorGroup {
-	/// Create a new `ValidatorGroup`
-	///
-	/// without any advertisements.
-	fn new() -> Self {
-		Self { advertised_to: HashSet::new() }
-	}
-
 	/// Returns `true` if we should advertise our collation to the given peer.
 	fn should_advertise_to(
 		&self,
+		candidate_hash: &CandidateHash,
 		peer_ids: &HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 		peer: &PeerId,
 	) -> bool {
-		match peer_ids.get(peer) {
-			Some(discovery_ids) => !discovery_ids.iter().any(|d| self.advertised_to.contains(d)),
-			None => false,
+		let authority_ids = match peer_ids.get(peer) {
+			Some(authority_ids) => authority_ids,
+			None => return false,
+		};
+
+		for id in authority_ids {
+			// One peer id may correspond to different discovery ids across sessions,
+			// having a non-empty intersection is sufficient to assume that this peer
+			// belongs to this particular validator group.
+			let validator_index = match self.validators.iter().position(|v| v == id) {
+				Some(idx) => idx,
+				None => continue,
+			};
+
+			// Either the candidate is unseen by this validator group
+			// or the corresponding bit is not set.
+			if self
+				.advertised_to
+				.get(candidate_hash)
+				.map_or(true, |advertised| !advertised[validator_index])
+			{
+				return true
+			}
 		}
+
+		false
 	}
 
 	/// Should be called after we advertised our collation to the given `peer` to keep track of it.
 	fn advertised_to_peer(
 		&mut self,
+		candidate_hash: &CandidateHash,
 		peer_ids: &HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 		peer: &PeerId,
 	) {
 		if let Some(authority_ids) = peer_ids.get(peer) {
-			authority_ids.iter().for_each(|a| {
-				self.advertised_to.insert(a.clone());
-			});
+			for id in authority_ids {
+				let validator_index = match self.validators.iter().position(|v| v == id) {
+					Some(idx) => idx,
+					None => continue,
+				};
+				self.advertised_to
+					.entry(*candidate_hash)
+					.or_insert_with(|| bitvec![u8, Lsb0; 0; self.validators.len()])
+					.set(validator_index, true);
+			}
 		}
 	}
 }
@@ -325,6 +360,14 @@ where
 	}
 }
 
+struct PerRelayParent {
+	prospective_parachains_mode: ProspectiveParachainsMode,
+
+	validator_group: ValidatorGroup,
+
+	collations: arrayvec::ArrayVec<[Collation; MAX_CANDIDATE_DEPTH + 1]>,
+}
+
 struct State {
 	/// Our network peer id.
 	local_peer_id: PeerId,
@@ -356,19 +399,13 @@ struct State {
 	/// to asynchronous backing is done.
 	active_leaves: HashMap<Hash, ProspectiveParachainsMode>,
 
+	per_relay_parent: HashMap<Hash, PerRelayParent>,
+
 	/// Span per relay parent.
 	span_per_relay_parent: HashMap<Hash, PerLeafSpan>,
 
-	/// Possessed collations.
-	///
-	/// We will keep up to one local collation per relay-parent.
-	collations: HashMap<Hash, Collation>,
-
 	/// The result senders per collation.
 	collation_result_senders: HashMap<CandidateHash, oneshot::Sender<CollationSecondedSignal>>,
-
-	/// Our validator groups per active leaf.
-	our_validators_groups: HashMap<Hash, ValidatorGroup>,
 
 	/// The mapping from [`PeerId`] to [`HashSet<AuthorityDiscoveryId>`]. This is filled over time as we learn the [`PeerId`]'s
 	/// by `PeerConnected` events.
@@ -401,10 +438,9 @@ impl State {
 			peer_views: Default::default(),
 			implicit_view: Default::default(),
 			active_leaves: Default::default(),
+			per_relay_parent: Default::default(),
 			span_per_relay_parent: Default::default(),
-			collations: Default::default(),
 			collation_result_senders: Default::default(),
-			our_validators_groups: Default::default(),
 			peer_ids: Default::default(),
 			waiting_collation_fetches: Default::default(),
 			active_collation_fetches: Default::default(),
@@ -456,34 +492,38 @@ async fn distribute_collation<Context>(
 	let candidate_relay_parent = receipt.descriptor.relay_parent;
 	let candidate_hash = receipt.hash();
 
-	let relay_parent_mode = match state.active_leaves.get(&candidate_relay_parent) {
-		Some(mode) => *mode,
+	let per_relay_parent = match state.per_relay_parent.get_mut(&candidate_relay_parent) {
+		Some(per_relay_parent) => per_relay_parent,
 		None => {
-			// If candidate relay parent is not an active leaf, assume
-			// it's part of implicit ancestry.
-			if state.active_leaves.keys().any(|block_hash| {
-				state
-					.implicit_view
-					.known_allowed_relay_parents_under(block_hash, Some(id))
-					.unwrap_or_default()
-					.contains(&candidate_relay_parent)
-			}) {
-				ProspectiveParachainsMode::Enabled
-			} else {
-				gum::debug!(
-					target: LOG_TARGET,
-					para_id = %id,
-					candidate_relay_parent = %candidate_relay_parent,
-					candidate_hash = ?candidate_hash,
-					"Candidate relay parent is out of our view",
-				);
-				return Ok(())
-			}
+			gum::debug!(
+				target: LOG_TARGET,
+				para_id = %id,
+				candidate_relay_parent = %candidate_relay_parent,
+				candidate_hash = ?candidate_hash,
+				"Candidate relay parent is out of our view",
+			);
+			return Ok(())
 		},
 	};
+	let relay_parent_mode = per_relay_parent.prospective_parachains_mode;
+
+	if per_relay_parent.collations.is_full() {
+		gum::debug!(
+			target: LOG_TARGET,
+			?candidate_relay_parent,
+			"The limit of {} collations per relay parent is already reached",
+			MAX_CANDIDATE_DEPTH + 1,
+		);
+		return Ok(())
+	}
 
 	// We have already seen collation for this relay parent.
-	if state.collations.contains_key(&candidate_relay_parent) {
+	if per_relay_parent
+		.collations
+		.iter()
+		.find(|&collation| collation.receipt.hash() == candidate_hash)
+		.is_some()
+	{
 		gum::debug!(
 			target: LOG_TARGET,
 			?candidate_relay_parent,
@@ -537,21 +577,28 @@ async fn distribute_collation<Context>(
 		"Accepted collation, connecting to validators."
 	);
 
-	// Issue a discovery request for the validators of the current group:
-	connect_to_validators(ctx, current_validators.validators.into_iter().collect()).await;
+	let validators_at_relay_parent = &mut per_relay_parent.validator_group.validators;
+	if validators_at_relay_parent.is_empty() {
+		*validators_at_relay_parent = current_validators.validators.clone();
+	}
 
-	state
-		.our_validators_groups
-		.insert(candidate_relay_parent, ValidatorGroup::new());
+	// Issue a discovery request for the validators of the current group:
+	//
+	// TODO [now]: some kind of connection management is necessary to avoid
+	// dropping peers from e.g. implicit view assignments.
+	connect_to_validators(ctx, current_validators.validators.into_iter().collect()).await;
 
 	if let Some(result_sender) = result_sender {
 		state.collation_result_senders.insert(candidate_hash, result_sender);
 	}
 
-	state.collations.insert(
-		candidate_relay_parent,
-		Collation { receipt, parent_head_data_hash, pov, status: CollationStatus::Created },
-	);
+	// safety: doesn't panic since we check for collations limit above.
+	per_relay_parent.collations.push(Collation {
+		receipt,
+		parent_head_data_hash,
+		pov,
+		status: CollationStatus::Created,
+	});
 
 	// It's collation-producer responsibility to verify that there exists
 	// a hypothetical membership in a fragment tree for candidate.
@@ -1102,6 +1149,14 @@ where
 		let mode = prospective_parachains_mode(sender, *leaf).await?;
 
 		state.active_leaves.insert(*leaf, mode);
+		state.per_relay_parent.insert(
+			*leaf,
+			PerRelayParent {
+				prospective_parachains_mode: mode,
+				validator_group: ValidatorGroup::default(),
+				collations: arrayvec::ArrayVec::new(),
+			},
+		);
 
 		if mode.is_enabled() {
 			state
@@ -1109,6 +1164,18 @@ where
 				.activate_leaf(sender, *leaf)
 				.await
 				.map_err(Error::ImplicitViewFetchError)?;
+
+			let allowed_ancestry = state
+				.implicit_view
+				.known_allowed_relay_parents_under(leaf, state.collating_on)
+				.unwrap_or_default();
+			for block_hash in allowed_ancestry {
+				state.per_relay_parent.entry(*block_hash).or_insert_with(|| PerRelayParent {
+					prospective_parachains_mode: ProspectiveParachainsMode::Enabled,
+					validator_group: ValidatorGroup::default(),
+					collations: arrayvec::ArrayVec::new(),
+				});
+			}
 		}
 	}
 
@@ -1124,7 +1191,13 @@ where
 
 		for removed in &pruned {
 			gum::debug!(target: LOG_TARGET, relay_parent = ?removed, "Removing relay parent because our view changed.");
-			if let Some(collation) = state.collations.remove(removed) {
+
+			let collations = state
+				.per_relay_parent
+				.get_mut(removed)
+				.map(|per_relay_parent| std::mem::take(&mut per_relay_parent.collations))
+				.unwrap_or_default();
+			for collation in collations {
 				state.collation_result_senders.remove(&collation.receipt.hash());
 
 				match collation.status {
@@ -1148,7 +1221,7 @@ where
 					),
 				}
 			}
-			state.our_validators_groups.remove(removed);
+			state.per_relay_parent.remove(removed);
 			state.span_per_relay_parent.remove(removed);
 			state.waiting_collation_fetches.remove(removed);
 		}

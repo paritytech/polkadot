@@ -6360,7 +6360,9 @@ name = "polkadot-collator-protocol"
 version = "0.9.25"
 dependencies = [
  "always-assert",
+ "arrayvec 0.5.2",
  "assert_matches",
+ "bitvec 1.0.0",
  "env_logger",
  "fatality",
  "futures",
