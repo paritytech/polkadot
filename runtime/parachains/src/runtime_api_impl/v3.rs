@@ -11,10 +11,10 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-//! A module exporting runtime API implementation functions for all runtime APIs using v3
+//! A module exporting runtime API implementation functions for all runtime APIs using `v3`
 //! primitives.
 //!
-//! Runtimes implementing the v3 runtime API are recommended to forward directly to these
+//! Runtimes implementing the `v3` runtime API are recommended to forward directly to these
 //! functions.
 
 use crate::dmp;

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A module that is responsible for migration of dmp storage.
+//! A module that is responsible for migration of DMP storage.
 
 use frame_support::{storage_alias, traits::StorageVersion, Twox64Concat};
 
@@ -72,7 +72,7 @@ pub mod v1 {
 		Ok(())
 	}
 
-	/// This migration converts the storage to a new represatation which enables pagination.
+	/// This migration converts the storage to a new representation which enables pagination.
 	pub fn migrate<T: Config>() -> frame_support::weights::Weight {
 		let config = <configuration::Pallet<T>>::config();
 		let version = StorageVersion::get::<dmp::Pallet<T>>();

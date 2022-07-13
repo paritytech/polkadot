@@ -305,13 +305,13 @@ impl HrmpChannelId {
 /// A message from a parachain to its Relay Chain.
 pub type UpwardMessage = Vec<u8>;
 
-/// A structure providing the context for the dmp message handler.
+/// A structure providing the context for the DMP message handler.
 pub struct DmpMessageHandlerContext {
 	/// The weight limit for processing the messages.
 	pub max_weight: Weight,
 	/// The current message index. Incremented on each message processed.
 	pub message_index: Wrapping<u64>,
-	/// The current head of the mqc. Updated on each processed message.
+	/// The current head of the MQC. Updated on each processed message.
 	pub mqc_head: MessageQueueChain,
 }
 

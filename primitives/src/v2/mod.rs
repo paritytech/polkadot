@@ -302,7 +302,7 @@ pub mod well_known_keys {
 		})
 	}
 
-	/// The index of the first and last messages in the dmp queue.
+	/// The index of the first and last messages in the DMP queue.
 	/// Storage item: `Dmp::DownwardMessageIdx`
 	pub fn dmq_message_idx(para_id: Id) -> Vec<u8> {
 		let prefix = hex!["63f78c98723ddc9073523ef3beefda0c dbddeea6da327cfb3fa8e5a04b66cdf5"];
