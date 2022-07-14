@@ -68,6 +68,16 @@ pub trait RpcApi {
 	#[method(name = "system_dryRun")]
 	async fn dry_run(&self, extrinsic: &Bytes, at: Option<Hash>) -> RpcResult<Bytes>;
 
+	/// Get hash of the n-th block in the canon chain.
+	///
+	/// By default returns latest block hash.
+	#[method(name = "chain_getBlockHash", aliases = ["chain_getHead"], blocking)]
+	fn block_hash(&self, hash: Option<Hash>) -> RpcResult<Option<Hash>>;
+
+	/// Get hash of the last finalized block in the canon chain.
+	#[method(name = "chain_getFinalizedHead", aliases = ["chain_getFinalisedHead"], blocking)]
+	fn finalized_head(&self) -> RpcResult<Hash>;
+
 	/// Submit an extrinsic to watch.
 	///
 	/// See [`TransactionStatus`](sc_transaction_pool_api::TransactionStatus) for details on

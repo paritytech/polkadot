@@ -48,7 +48,7 @@ use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
 		CandidateBackingMessage, CollatorProtocolMessage, IfDisconnected, NetworkBridgeEvent,
-		NetworkBridgeMessage, RuntimeApiMessage,
+		NetworkBridgeTxMessage, RuntimeApiMessage,
 	},
 	overseer, FromOrchestra, OverseerSignal, PerLeafSpan, SubsystemSender,
 };
@@ -632,7 +632,7 @@ fn collator_peer_id(
 
 async fn disconnect_peer(sender: &mut impl overseer::CollatorProtocolSenderTrait, peer_id: PeerId) {
 	sender
-		.send_message(NetworkBridgeMessage::DisconnectPeer(peer_id, PeerSet::Collation))
+		.send_message(NetworkBridgeTxMessage::DisconnectPeer(peer_id, PeerSet::Collation))
 		.await
 }
 
@@ -712,7 +712,7 @@ async fn notify_collation_seconded(
 	let wire_message =
 		protocol_v1::CollatorProtocolMessage::CollationSeconded(relay_parent, statement.into());
 	sender
-		.send_message(NetworkBridgeMessage::SendCollationMessage(
+		.send_message(NetworkBridgeTxMessage::SendCollationMessage(
 			vec![peer_id],
 			Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 		))
@@ -800,7 +800,7 @@ async fn request_collation(
 	);
 
 	sender
-		.send_message(NetworkBridgeMessage::SendRequests(
+		.send_message(NetworkBridgeTxMessage::SendRequests(
 			vec![requests],
 			IfDisconnected::ImmediateError,
 		))
