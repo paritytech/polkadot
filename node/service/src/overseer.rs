@@ -68,7 +68,6 @@ pub use polkadot_node_core_provisioner::ProvisionerSubsystem;
 pub use polkadot_node_core_pvf_checker::PvfCheckerSubsystem;
 pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
 use polkadot_node_subsystem_util::rand::{self, SeedableRng};
-pub use polkadot_primitives::v2::CollatorPair;
 pub use polkadot_statement_distribution::StatementDistributionSubsystem;
 
 /// Arguments passed for overseer construction.

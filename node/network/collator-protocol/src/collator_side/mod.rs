@@ -450,15 +450,6 @@ async fn distribute_collation<Context>(
 		.insert(relay_parent, Collation { receipt, pov, status: CollationStatus::Created });
 
 	let interested = state.peers_interested_in_leaf(&relay_parent);
-
-	gum::debug!(
-		target: LOG_TARGET,
-		para_id = %id,
-		relay_parent = %relay_parent,
-		interested = ?interested,
-		core = ?our_core,
-		"Advertising to collators."
-	);
 	// Make sure already connected peers get collations:
 	for peer_id in interested {
 		advertise_collation(ctx, state, relay_parent, peer_id).await;

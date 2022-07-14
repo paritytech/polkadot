@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use async_trait::async_trait;
 use futures::{executor, pending, pin_mut, poll, select, stream, FutureExt};
-use gen::async_trait;
 use std::{collections::HashMap, sync::atomic, task::Poll};
 
 use ::test_helpers::{dummy_candidate_descriptor, dummy_candidate_receipt, dummy_hash};
