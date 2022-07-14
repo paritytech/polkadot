@@ -1694,19 +1694,12 @@ fn check_and_import_approval<T>(
 		)),
 	};
 
-	// Transform the approval vote into the wrapper used to import statements into disputes.
-	// This also does signature checking.
-	let _signed_dispute_statement = match SignedDisputeStatement::new_checked(
-		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
-		approved_candidate_hash,
-		block_entry.session(),
-		pubkey.clone(),
-		approval.signature.clone(),
-	) {
+	// Signature check:
+	match ValidDisputeStatementKind::ApprovalChecking.check_signature(&pubkey, approved_candidate_hash, block_entry.session(), &approval.signature) {
 		Err(_) => respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::InvalidSignature(
 			approval.validator
 		),)),
-		Ok(s) => s,
+		Ok(()) => {}
 	};
 
 	let candidate_entry = match db.load_candidate_entry(&approved_candidate_hash)? {
