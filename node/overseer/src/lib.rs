@@ -253,12 +253,6 @@ pub struct BlockInfo {
 	pub number: BlockNumber,
 }
 
-impl From<Header> for BlockInfo {
-	fn from(h: Header) -> Self {
-		BlockInfo { hash: h.hash(), parent_hash: h.parent_hash, number: h.number }
-	}
-}
-
 impl From<BlockImportNotification<Block>> for BlockInfo {
 	fn from(n: BlockImportNotification<Block>) -> Self {
 		BlockInfo { hash: n.hash, parent_hash: n.header.parent_hash, number: n.header.number }
