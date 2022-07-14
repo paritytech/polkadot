@@ -95,7 +95,7 @@ pub mod dummy;
 pub use self::dummy::DummySubsystem;
 
 mod runtime_client;
-pub use runtime_client::OverseerRuntimeClient;
+pub use runtime_client::RuntimeApiSubsystemClient;
 
 pub use polkadot_node_metrics::{
 	metrics::{prometheus, Metrics as MetricsTrait},
@@ -165,7 +165,7 @@ pub trait HeadSupportsParachains {
 #[async_trait::async_trait]
 impl<Client> HeadSupportsParachains for Arc<Client>
 where
-	Client: OverseerRuntimeClient + Sync + Send,
+	Client: RuntimeApiSubsystemClient + Sync + Send,
 {
 	async fn head_supports_parachains(&self, head: &Hash) -> bool {
 		// Check that the `ParachainHost` runtime api is at least with version 1 present on chain.

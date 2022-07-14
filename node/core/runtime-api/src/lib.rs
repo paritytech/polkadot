@@ -27,7 +27,7 @@ use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 };
-use polkadot_overseer::OverseerRuntimeClient;
+use polkadot_overseer::RuntimeApiSubsystemClient;
 use polkadot_primitives::v2::Hash;
 
 use cache::{RequestResult, RequestResultCache};
@@ -82,7 +82,7 @@ impl<Client> RuntimeApiSubsystem<Client> {
 #[overseer::subsystem(RuntimeApi, error = SubsystemError, prefix = self::overseer)]
 impl<Client, Context> RuntimeApiSubsystem<Client>
 where
-	Client: OverseerRuntimeClient + Send + Sync + 'static,
+	Client: RuntimeApiSubsystemClient + Send + Sync + 'static,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem { future: run(ctx, self).boxed(), name: "runtime-api-subsystem" }
@@ -91,7 +91,7 @@ where
 
 impl<Client> RuntimeApiSubsystem<Client>
 where
-	Client: OverseerRuntimeClient + Send + 'static + Sync,
+	Client: RuntimeApiSubsystemClient + Send + 'static + Sync,
 {
 	fn store_cache(&mut self, result: RequestResult) {
 		use RequestResult::*;
@@ -309,7 +309,7 @@ async fn run<Client, Context>(
 	mut subsystem: RuntimeApiSubsystem<Client>,
 ) -> SubsystemResult<()>
 where
-	Client: OverseerRuntimeClient + Send + Sync + 'static,
+	Client: RuntimeApiSubsystemClient + Send + Sync + 'static,
 {
 	loop {
 		// Let's add some back pressure when the subsystem is running at `MAX_PARALLEL_REQUESTS`.
@@ -346,7 +346,7 @@ async fn make_runtime_api_request<Client>(
 	request: Request,
 ) -> Option<RequestResult>
 where
-	Client: OverseerRuntimeClient + 'static,
+	Client: RuntimeApiSubsystemClient + 'static,
 {
 	let _timer = metrics.time_make_runtime_api_request();
 

@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 
 /// Exposes all runtime calls that are used by the runtime api subsystem.
 #[async_trait]
-pub trait OverseerRuntimeClient {
+pub trait RuntimeApiSubsystemClient {
 	/// Get the current validators.
 	async fn validators(&self, at: Hash) -> Result<Vec<ValidatorId>, ApiError>;
 
@@ -233,7 +233,7 @@ pub trait OverseerRuntimeClient {
 }
 
 #[async_trait]
-impl<T> OverseerRuntimeClient for T
+impl<T> RuntimeApiSubsystemClient for T
 where
 	T: ProvideRuntimeApi<Block> + Send + Sync,
 	T::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
