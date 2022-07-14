@@ -353,9 +353,7 @@ where
 	macro_rules! query {
 		($req_variant:ident, $api_name:ident ($($param:expr),*), ver = $version:literal, $sender:expr) => {{
 			let sender = $sender;
-			let api = client;
-
-			let runtime_version = api.api_version_parachain_host(relay_parent).await
+			let runtime_version = client.api_version_parachain_host(relay_parent).await
 				.unwrap_or_else(|e| {
 					gum::warn!(
 						target: LOG_TARGET,
@@ -373,7 +371,7 @@ where
 				});
 
 			let res = if runtime_version >= $version {
-				api.$api_name(relay_parent $(, $param.clone() )*).await
+				client.$api_name(relay_parent $(, $param.clone() )*).await
 					.map_err(|e| RuntimeApiError::Execution {
 						runtime_api_name: stringify!($api_name),
 						source: std::sync::Arc::new(e),
@@ -392,9 +390,7 @@ where
 
 	match request {
 		Request::Version(sender) => {
-			let api = client;
-
-			let runtime_version = match api.api_version_parachain_host(relay_parent).await {
+			let runtime_version = match client.api_version_parachain_host(relay_parent).await {
 				Ok(Some(v)) => Ok(v),
 				Ok(None) => Err(RuntimeApiError::NotSupported { runtime_api_name: "api_version" }),
 				Err(e) => Err(RuntimeApiError::Execution {
@@ -451,27 +447,24 @@ where
 		Request::CandidateEvents(sender) =>
 			query!(CandidateEvents, candidate_events(), ver = 1, sender),
 		Request::SessionInfo(index, sender) => {
-			let api = client;
-
-			let api_version = api
+			let api_version = client
 				.api_version_parachain_host(relay_parent)
 				.await
 				.unwrap_or_default()
 				.unwrap_or_default();
 
 			let res = if api_version >= 2 {
-				let res = api
-					.session_info(relay_parent, index)
-					.map_err(|e| RuntimeApiError::Execution {
+				let res = client.session_info(relay_parent, index).await.map_err(|e| {
+					RuntimeApiError::Execution {
 						runtime_api_name: "SessionInfo",
 						source: std::sync::Arc::new(e),
-					})
-					.await;
+					}
+				});
 				metrics.on_request(res.is_ok());
 				res
 			} else {
 				#[allow(deprecated)]
-				let res = api.session_info_before_version_2(relay_parent, index).await.map_err(|e| {
+				let res = client.session_info_before_version_2(relay_parent, index).await.map_err(|e| {
 					RuntimeApiError::Execution {
 						runtime_api_name: "SessionInfo",
 						source: std::sync::Arc::new(e),

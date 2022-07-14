@@ -23,7 +23,6 @@ use polkadot_node_primitives::{
 	AvailableData, BlockData, PoV,
 };
 use polkadot_node_subsystem::{
-	gen::async_trait,
 	messages::{
 		AllMessages, ApprovalVotingMessage, AssignmentCheckResult, AvailabilityRecoveryMessage,
 	},
@@ -39,6 +38,7 @@ use polkadot_primitives::v2::{
 use std::time::Duration;
 
 use assert_matches::assert_matches;
+use async_trait::async_trait;
 use parking_lot::Mutex;
 use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 use sp_keystore::CryptoStore;
