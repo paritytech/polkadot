@@ -22,7 +22,7 @@ use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
 use super::{Statement, UncheckedSignedFullStatement};
 use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, DisputeStatement, InvalidDisputeStatementKind, SessionIndex,
-	SigningContext, ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
+	SigningContext, ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature, LookedUpSessionInfo,
 };
 
 /// `DisputeMessage` and related types.

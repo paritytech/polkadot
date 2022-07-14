@@ -39,13 +39,13 @@ use polkadot_node_primitives::{
 	SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
-	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
-	DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
-	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex, ValidatorSignature, SigningContext, ApprovalVote,
+	ApprovalVote, AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent,
+	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
+	CoreState, DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
+	SignedAvailabilityBitfield, SignedAvailabilityBitfields, SigningContext, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use polkadot_statement_table::v2::Misbehavior;
 use std::{
@@ -230,7 +230,11 @@ impl BoundToRelayParent for CollatorProtocolMessage {
 /// properly initialized for some reason.
 #[derive(Debug)]
 pub enum DisputeCoordinatorMessage {
-	/// Import backing statements into the dispute coordinator
+	/// Import backing statements into the dispute coordinator.
+	///
+	/// Note: It is assumed that sanity checks for those statements have already been made.
+	/// Especially if the original source is from the network, we assume that some spam protection
+	/// is in place.
 	ImportBackingStatement {
 		/// The backing statement to import into the dispute coordinator.
 		statement: SignedFullStatement,
@@ -238,34 +242,29 @@ pub enum DisputeCoordinatorMessage {
 		session: SessionIndex,
 	},
 	/// Import approval votes.
+	///
+	/// Note: It is assumed that the to be imported vote is valid and no spam. Any sanity checks
+	/// are assummed to be already performed by the sender.
 	ImportApprovalVote {
+		/// The approval vote to import.
 		vote: ApprovalVote,
+		/// The session the approved candidate appeared in.
 		session: SessionIndex,
 	},
-	/// Import statements by validators about a candidate.
+	/// Import messages from an ongoing dispute.
 	///
-	/// The subsystem will silently discard ancient statements or sets of only dispute-specific statements for
-	/// candidates that are previously unknown to the subsystem. The former is simply because ancient
-	/// data is not relevant and the latter is as a DoS prevention mechanism. Both backing and approval
-	/// statements already undergo anti-DoS procedures in their respective subsystems, but statements
-	/// cast specifically for disputes are not necessarily relevant to any candidate the system is
-	/// already aware of and thus present a DoS vector. Our expectation is that nodes will notify each
-	/// other of disputes over the network by providing (at least) 2 conflicting statements, of which one is either
-	/// a backing or validation statement.
-	///
-	/// This does not do any checking of the message signature.
-	ImportStatements {
-		/// The hash of the candidate.
-		candidate_hash: CandidateHash,
-		/// The candidate receipt itself.
-		candidate_receipt: CandidateReceipt,
-		/// The session the candidate appears in.
-		session: SessionIndex,
-		/// Statements, with signatures checked, by validators participating in disputes.
+	/// For these messages the dispute coordinator protects itself from excessive spam via a spam
+	/// slot mechanism and will answer via the contained oneshot with `InvalidImport` in case that
+	/// protection kicks in. There are also some other sanity checks in place which might cause the
+	/// import to be rejected. The sender of an `ImportDisputeMessage` can use those
+	/// `InvalidImport` responses for reducing reputation of sending peers.
+	ImportDisputeMessage {
+		/// The actual received dispute message.
 		///
-		/// The validator index passed alongside each statement should correspond to the index
-		/// of the validator in the set.
-		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
+		/// This message contains two opposing votes and thus will trigger a dispute, in case there
+		/// was non already.
+		msg: DisputeMessage,
+
 		/// Inform the requester once we finished importing (if a sender was provided).
 		///
 		/// This is:

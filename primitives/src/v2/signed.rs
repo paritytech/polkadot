@@ -53,6 +53,9 @@ pub struct UncheckedSigned<Payload, RealPayload = Payload> {
 	/// which is known both at signing and at validation.
 	payload: Payload,
 	/// The index of the validator signing this statement.
+	///
+	/// NOTE: This validator index is not part of the signed payload. Only above `payload` plus the
+	/// passed in `SigningContext` is.
 	validator_index: ValidatorIndex,
 	/// The signature by the validator of the signed payload.
 	signature: ValidatorSignature,

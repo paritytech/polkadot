@@ -16,6 +16,8 @@
 
 //! `V1` Primitives.
 
+use std::future::Future;
+
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -1640,6 +1642,45 @@ pub struct SessionInfo {
 	pub no_show_slots: u32,
 	/// The number of validators needed to approve a block.
 	pub needed_approvals: u32,
+}
+
+/// `SessionInfo` packed together with its index.
+///
+/// This type exists merely for functions that check signatures and is supposed to help ensuring the
+/// correct indices are used for checking signatures.
+struct LookedUpSessionInfo {
+	/// The index of the contained `SessionInfo`.
+	index: SessionIndex,
+	/// The actual `SessionInfo` as can be found via the `index`.
+	info: SessionInfo,
+}
+
+impl LookedUpSessionInfo {
+	/// Get a `LookedUpSessionInfo` via some lookup function.
+	pub async fn lookup_via<F, S, E>(lookup: F, index: SessionIndex) -> Result<Self, E>
+	where
+		F: FnOnce(SessionIndex) -> S,
+		S: Future<Output = Result<SessionInfo, E>>,
+	{
+		let info = lookup(index).await?;
+		Ok(Self { index, info })
+	}
+
+	/// Read the `SessionIndex` of the contained session.
+	pub fn index(&self) -> SessionIndex {
+		self.index
+	}
+
+	/// Read the `SessionInfo`.
+	pub fn info(&self) -> &SessionInfo {
+		&self.info
+	}
+}
+
+impl From<LookedUpSessionInfo> for SessionInfo {
+	fn from(s: LookedUpSessionInfo) -> Self {
+		s.info
+	}
 }
 
 /// A statement from the specified validator whether the given validation code passes PVF

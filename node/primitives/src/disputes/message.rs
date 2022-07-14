@@ -93,6 +93,13 @@ pub enum Error {
 }
 
 impl DisputeMessage {
+	pub fn from_unchecked_message(unchecked: UncheckedDisputeMessage, session: &SessionInfo) -> Result<Self, ()> {
+		unchecked.try_into_signed_votes(
+
+			)
+		dispute_statement
+			.check_signature(&validator_public, candidate_hash, session_index, &validator_signature)
+	}
 	/// Build a `SignedDisputeMessage` and check what can be checked.
 	///
 	/// This function checks that:
@@ -104,6 +111,8 @@ impl DisputeMessage {
 	/// - The passed `CandidateReceipt` has the correct hash (as signed in the statements).
 	/// - the given validator indices match with the given `ValidatorId`s in the statements,
 	///   given a `SessionInfo`.
+	///
+	/// We don't check signatures as the signed statements are supposed to be checked already.
 	///
 	/// We don't check whether the given `SessionInfo` matches the `SessionIndex` in the
 	/// statements, because we can't without doing a runtime query. Nevertheless this smart
