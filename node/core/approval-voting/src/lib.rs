@@ -93,6 +93,9 @@ use crate::{
 	backend::{Backend, OverlayedBackend},
 };
 
+#[cfg(test)]
+mod tests;
+
 pub const APPROVAL_SESSIONS: SessionWindowSize = new_session_window_size!(6);
 
 const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
