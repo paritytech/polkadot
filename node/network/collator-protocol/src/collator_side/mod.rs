@@ -196,8 +196,12 @@ impl metrics::Metrics for Metrics {
 /// It keeps track to which validators we advertised our collation.
 #[derive(Debug, Default)]
 struct ValidatorGroup {
+	/// Validators discovery ids. Lazily initialized when first
+	/// distributing a collation.
 	validators: Vec<AuthorityDiscoveryId>,
 
+	/// Bits indicating which validators have already seen the announcement
+	/// per candidate.
 	advertised_to: HashMap<CandidateHash, BitVec<u8, Lsb0>>,
 }
 
@@ -362,10 +366,21 @@ where
 
 struct PerRelayParent {
 	prospective_parachains_mode: ProspectiveParachainsMode,
-
+	/// Validators group responsible for backing candidates built
+	/// on top of this relay parent.
 	validator_group: ValidatorGroup,
+	/// Distributed collations.
+	collations: HashMap<CandidateHash, Collation>,
+}
 
-	collations: arrayvec::ArrayVec<[Collation; MAX_CANDIDATE_DEPTH + 1]>,
+impl PerRelayParent {
+	fn new(mode: ProspectiveParachainsMode) -> Self {
+		Self {
+			prospective_parachains_mode: mode,
+			validator_group: ValidatorGroup::default(),
+			collations: HashMap::new(),
+		}
+	}
 }
 
 struct State {
@@ -399,6 +414,8 @@ struct State {
 	/// to asynchronous backing is done.
 	active_leaves: HashMap<Hash, ProspectiveParachainsMode>,
 
+	/// Validators and distributed collations tracked for each relay parent from
+	/// our view, including both leaves and implicit ancestry.
 	per_relay_parent: HashMap<Hash, PerRelayParent>,
 
 	/// Span per relay parent.
@@ -446,28 +463,6 @@ impl State {
 			active_collation_fetches: Default::default(),
 		}
 	}
-
-	/// Get all peers which have the given relay parent in their view.
-	fn peers_interested_in_relay_parent(
-		&self,
-		para_id: ParaId,
-		relay_parent: &Hash,
-		relay_parent_mode: ProspectiveParachainsMode,
-	) -> Vec<PeerId> {
-		self.peer_views
-			.iter()
-			.filter(|(_, v)| match relay_parent_mode {
-				ProspectiveParachainsMode::Disabled => v.contains(relay_parent),
-				ProspectiveParachainsMode::Enabled => v.iter().any(|block_hash| {
-					self.implicit_view
-						.known_allowed_relay_parents_under(block_hash, Some(para_id))
-						.unwrap_or_default()
-						.contains(relay_parent)
-				}),
-			})
-			.map(|(peer, _)| *peer)
-			.collect()
-	}
 }
 
 /// Distribute a collation.
@@ -507,23 +502,23 @@ async fn distribute_collation<Context>(
 	};
 	let relay_parent_mode = per_relay_parent.prospective_parachains_mode;
 
-	if per_relay_parent.collations.is_full() {
+	let collations_limit = match relay_parent_mode {
+		ProspectiveParachainsMode::Disabled => 1,
+		ProspectiveParachainsMode::Enabled => MAX_CANDIDATE_DEPTH + 1,
+	};
+
+	if per_relay_parent.collations.len() >= collations_limit {
 		gum::debug!(
 			target: LOG_TARGET,
 			?candidate_relay_parent,
 			"The limit of {} collations per relay parent is already reached",
-			MAX_CANDIDATE_DEPTH + 1,
+			collations_limit,
 		);
 		return Ok(())
 	}
 
 	// We have already seen collation for this relay parent.
-	if per_relay_parent
-		.collations
-		.iter()
-		.find(|&collation| collation.receipt.hash() == candidate_hash)
-		.is_some()
-	{
+	if per_relay_parent.collations.contains_key(&candidate_hash) {
 		gum::debug!(
 			target: LOG_TARGET,
 			?candidate_relay_parent,
@@ -592,22 +587,40 @@ async fn distribute_collation<Context>(
 		state.collation_result_senders.insert(candidate_hash, result_sender);
 	}
 
-	// safety: doesn't panic since we check for collations limit above.
-	per_relay_parent.collations.push(Collation {
-		receipt,
-		parent_head_data_hash,
-		pov,
-		status: CollationStatus::Created,
-	});
+	per_relay_parent.collations.insert(
+		candidate_hash,
+		Collation { receipt, parent_head_data_hash, pov, status: CollationStatus::Created },
+	);
 
 	// It's collation-producer responsibility to verify that there exists
 	// a hypothetical membership in a fragment tree for candidate.
-	let interested =
-		state.peers_interested_in_relay_parent(id, &candidate_relay_parent, relay_parent_mode);
+	let interested: Vec<PeerId> = state
+		.peer_views
+		.iter()
+		.filter(|(_, v)| match relay_parent_mode {
+			ProspectiveParachainsMode::Disabled => v.contains(&candidate_relay_parent),
+			ProspectiveParachainsMode::Enabled => v.iter().any(|block_hash| {
+				state
+					.implicit_view
+					.known_allowed_relay_parents_under(block_hash, Some(id))
+					.unwrap_or_default()
+					.contains(&candidate_relay_parent)
+			}),
+		})
+		.map(|(peer, _)| *peer)
+		.collect();
 
 	// Make sure already connected peers get collations:
 	for peer_id in interested {
-		advertise_collation(ctx, state, candidate_relay_parent, peer_id).await;
+		advertise_collation(
+			ctx,
+			candidate_relay_parent,
+			per_relay_parent,
+			&peer_id,
+			&state.peer_ids,
+			&state.metrics,
+		)
+		.await;
 	}
 
 	Ok(())
@@ -733,59 +746,51 @@ async fn connect_to_validators<Context>(
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn advertise_collation<Context>(
 	ctx: &mut Context,
-	state: &mut State,
 	relay_parent: Hash,
-	peer: PeerId,
+	per_relay_parent: &mut PerRelayParent,
+	peer: &PeerId,
+	peer_ids: &HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
+	metrics: &Metrics,
 ) {
-	let should_advertise = state
-		.our_validators_groups
-		.get(&relay_parent)
-		.map(|g| g.should_advertise_to(&state.peer_ids, &peer))
-		.unwrap_or(false);
+	for (candidate_hash, collation) in per_relay_parent.collations.iter_mut() {
+		let should_advertise =
+			per_relay_parent
+				.validator_group
+				.should_advertise_to(candidate_hash, peer_ids, &peer);
 
-	match (state.collations.get_mut(&relay_parent), should_advertise) {
-		(None, _) => {
-			gum::trace!(
-				target: LOG_TARGET,
-				?relay_parent,
-				peer_id = %peer,
-				"No collation to advertise.",
-			);
-			return
-		},
-		(_, false) => {
+		if !should_advertise {
 			gum::debug!(
 				target: LOG_TARGET,
 				?relay_parent,
 				peer_id = %peer,
-				"Not advertising collation as we already advertised it to this validator.",
+				"Not advertising collation since validator is not interested",
 			);
-			return
-		},
-		(Some(collation), true) => {
-			gum::debug!(
-				target: LOG_TARGET,
-				?relay_parent,
-				peer_id = %peer,
-				"Advertising collation.",
-			);
-			collation.status.advance_to_advertised()
-		},
+			continue
+		}
+
+		gum::debug!(
+			target: LOG_TARGET,
+			?relay_parent,
+			peer_id = %peer,
+			"Advertising collation.",
+		);
+		collation.status.advance_to_advertised();
+
+		// TODO [now]: versioned wire message.
+		let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent);
+
+		ctx.send_message(NetworkBridgeMessage::SendCollationMessage(
+			vec![peer.clone()],
+			Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
+		))
+		.await;
+
+		per_relay_parent
+			.validator_group
+			.advertised_to_peer(candidate_hash, &peer_ids, peer);
+
+		metrics.on_advertisment_made();
 	}
-
-	let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent);
-
-	ctx.send_message(NetworkBridgeMessage::SendCollationMessage(
-		vec![peer.clone()],
-		Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
-	))
-	.await;
-
-	if let Some(validators) = state.our_validators_groups.get_mut(&relay_parent) {
-		validators.advertised_to_peer(&state.peer_ids, &peer);
-	}
-
-	state.metrics.on_advertisment_made();
 }
 
 /// The main incoming message dispatching switch.
@@ -1076,7 +1081,37 @@ async fn handle_peer_view_change<Context>(
 	*current = view;
 
 	for added in added.into_iter() {
-		advertise_collation(ctx, state, added, peer_id.clone()).await;
+		let block_hashes = match state
+			.per_relay_parent
+			.get(&added)
+			.map(|per_relay_parent| per_relay_parent.prospective_parachains_mode)
+		{
+			Some(ProspectiveParachainsMode::Disabled) => std::slice::from_ref(&added),
+			Some(ProspectiveParachainsMode::Enabled) => state
+				.implicit_view
+				.known_allowed_relay_parents_under(&added, state.collating_on)
+				.unwrap_or_default(),
+			None => {
+				// Added leaf is unknown.
+				continue
+			},
+		};
+
+		for block_hash in block_hashes {
+			let per_relay_parent = match state.per_relay_parent.get_mut(block_hash) {
+				Some(per_relay_parent) => per_relay_parent,
+				None => continue,
+			};
+			advertise_collation(
+				ctx,
+				*block_hash,
+				per_relay_parent,
+				&peer_id,
+				&state.peer_ids,
+				&state.metrics,
+			)
+			.await;
+		}
 	}
 }
 
@@ -1149,14 +1184,7 @@ where
 		let mode = prospective_parachains_mode(sender, *leaf).await?;
 
 		state.active_leaves.insert(*leaf, mode);
-		state.per_relay_parent.insert(
-			*leaf,
-			PerRelayParent {
-				prospective_parachains_mode: mode,
-				validator_group: ValidatorGroup::default(),
-				collations: arrayvec::ArrayVec::new(),
-			},
-		);
+		state.per_relay_parent.insert(*leaf, PerRelayParent::new(mode));
 
 		if mode.is_enabled() {
 			state
@@ -1170,11 +1198,10 @@ where
 				.known_allowed_relay_parents_under(leaf, state.collating_on)
 				.unwrap_or_default();
 			for block_hash in allowed_ancestry {
-				state.per_relay_parent.entry(*block_hash).or_insert_with(|| PerRelayParent {
-					prospective_parachains_mode: ProspectiveParachainsMode::Enabled,
-					validator_group: ValidatorGroup::default(),
-					collations: arrayvec::ArrayVec::new(),
-				});
+				state
+					.per_relay_parent
+					.entry(*block_hash)
+					.or_insert_with(|| PerRelayParent::new(ProspectiveParachainsMode::Enabled));
 			}
 		}
 	}
@@ -1197,7 +1224,7 @@ where
 				.get_mut(removed)
 				.map(|per_relay_parent| std::mem::take(&mut per_relay_parent.collations))
 				.unwrap_or_default();
-			for collation in collations {
+			for collation in collations.into_values() {
 				state.collation_result_senders.remove(&collation.receipt.hash());
 
 				match collation.status {
