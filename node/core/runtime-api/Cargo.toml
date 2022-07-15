@@ -13,8 +13,8 @@ parity-util-mem = { version = "0.11.0", default-features = false }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-primitives = { path = "../../../primitives" }
-polkadot-overseer = { path = "../../overseer" }
 polkadot-node-subsystem = {path = "../../subsystem" }
+polkadot-node-subsystem-types = {path = "../../subsystem-types" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [dev-dependencies]

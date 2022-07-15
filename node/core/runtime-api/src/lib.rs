@@ -27,7 +27,7 @@ use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 };
-use polkadot_overseer::RuntimeApiSubsystemClient;
+use polkadot_node_subsystem_types::RuntimeApiSubsystemClient;
 use polkadot_primitives::v2::Hash;
 
 use cache::{RequestResult, RequestResultCache};

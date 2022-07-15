@@ -85,6 +85,7 @@ use polkadot_node_subsystem_types::messages::{
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
 	jaeger, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, OverseerSignal,
+	RuntimeApiSubsystemClient,
 };
 
 pub mod metrics;
@@ -93,9 +94,6 @@ pub use self::metrics::Metrics as OverseerMetrics;
 /// A dummy subsystem, mostly useful for placeholders and tests.
 pub mod dummy;
 pub use self::dummy::DummySubsystem;
-
-mod runtime_client;
-pub use runtime_client::RuntimeApiSubsystemClient;
 
 pub use polkadot_node_metrics::{
 	metrics::{prometheus, Metrics as MetricsTrait},

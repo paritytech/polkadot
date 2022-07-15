@@ -20,8 +20,6 @@ gum = { package = "tracing-gum", path = "../gum" }
 lru = "0.7"
 parity-util-mem = { version = "0.11.0", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 async-trait = "0.1.56"
 
 [dev-dependencies]
