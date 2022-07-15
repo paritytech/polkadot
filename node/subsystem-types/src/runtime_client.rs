@@ -20,6 +20,9 @@ use std::collections::BTreeMap;
 /// Exposes all runtime calls that are used by the runtime api subsystem.
 #[async_trait]
 pub trait RuntimeApiSubsystemClient {
+	/// Parachain host api version
+	async fn api_version_parachain_host(&self, at: Hash) -> Result<Option<u32>, ApiError>;
+
 	// === ParachainHost API ===
 
 	/// Get the current validators.
@@ -168,6 +171,13 @@ pub trait RuntimeApiSubsystemClient {
 		assumption: OccupiedCoreAssumption,
 	) -> Result<Option<ValidationCodeHash>, ApiError>;
 
+	/// Returns all onchain disputes.
+	/// This is a staging method! Do not use on production runtimes!
+	async fn staging_get_disputes(
+		&self,
+		at: Hash,
+	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError>;
+
 	// === BABE API ===
 
 	/// Return the genesis configuration for BABE. The configuration is only read on genesis.
@@ -223,16 +233,6 @@ pub trait RuntimeApiSubsystemClient {
 		&self,
 		at: Hash,
 	) -> std::result::Result<Vec<sp_authority_discovery::AuthorityId>, ApiError>;
-
-	/// Parachain host api version
-	async fn api_version_parachain_host(&self, at: Hash) -> Result<Option<u32>, ApiError>;
-
-	/// Returns all onchain disputes.
-	/// This is a staging method! Do not use on production runtimes!
-	async fn staging_get_disputes(
-		&self,
-		at: Hash,
-	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError>;
 }
 
 #[async_trait]
