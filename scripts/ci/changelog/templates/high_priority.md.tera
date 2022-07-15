@@ -21,17 +21,15 @@
 
 {% if p >= 3 %}
 The changes motivating this priority level are:
-
 {% for pr in changes | sort(attribute="merged_at") -%}
     {%- if pr.meta.C -%}
         {%- if pr.meta.C.value == p %}
 - {{ m_c::change(c=pr) }}
-{%- if pr.meta.B and pr.meta.B.value == 7 %}
-(RUNTIME)
+{%- if pr.meta.B and pr.meta.B.value == 7 %} (RUNTIME)
 {% endif %}
         {%- endif -%}
     {%- endif -%}
-{%- endfor %}
+{%- endfor -%}
 {%- else -%}
 <!-- No relevant Priority label as been detected for p={{ p }} -->
 {%- endif -%}
