@@ -16,7 +16,7 @@
 
 //! All peersets and protocols used for parachains.
 
-use super::ProtocolVersion;
+use super::{v1 as protocol_v1, vstaging as protocol_vstaging, ProtocolVersion};
 use sc_network::config::{NonDefaultSetConfig, SetConfig};
 use std::{
 	borrow::Cow,
@@ -28,11 +28,24 @@ use strum::{EnumIter, IntoEnumIterator};
 const VALIDATION_PROTOCOL_V1: &str = "/polkadot/validation/1";
 const COLLATION_PROTOCOL_V1: &str = "/polkadot/collation/1";
 
+const VALIDATION_PROTOCOL_VSTAGING: &str = "/polkadot/validation/2";
+const COLLATION_PROTOCOL_VSTAGING: &str = "/polkadot/collation/2";
+
 /// The default validation protocol version.
-pub const DEFAULT_VALIDATION_PROTOCOL_VERSION: ProtocolVersion = 1;
+pub const DEFAULT_VALIDATION_PROTOCOL_VERSION: ProtocolVersion =
+	if cfg!(feature = "network-protocol-staging") {
+		protocol_vstaging::VERSION
+	} else {
+		protocol_v1::VERSION
+	};
 
 /// The default collation protocol version.
-pub const DEFAULT_COLLATION_PROTOCOL_VERSION: ProtocolVersion = 1;
+pub const DEFAULT_COLLATION_PROTOCOL_VERSION: ProtocolVersion =
+	if cfg!(feature = "network-protocol-staging") {
+		protocol_vstaging::VERSION
+	} else {
+		protocol_v1::VERSION
+	};
 
 /// The peer-sets and thus the protocols which are used for the network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
@@ -70,7 +83,11 @@ impl PeerSet {
 		match self {
 			PeerSet::Validation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
-				fallback_names: Vec::new(),
+				fallback_names: if cfg!(feature = "network-protocol-staging") {
+					vec![VALIDATION_PROTOCOL_V1.into()]
+				} else {
+					Vec::new()
+				},
 				max_notification_size,
 				set_config: sc_network::config::SetConfig {
 					// we allow full nodes to connect to validators for gossip
@@ -85,7 +102,11 @@ impl PeerSet {
 			},
 			PeerSet::Collation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
-				fallback_names: Vec::new(),
+				fallback_names: if cfg!(feature = "network-protocol-staging") {
+					vec![COLLATION_PROTOCOL_V1.into()]
+				} else {
+					Vec::new()
+				},
 				max_notification_size,
 				set_config: SetConfig {
 					// Non-authority nodes don't need to accept incoming connections on this peer set:
@@ -112,9 +133,16 @@ impl PeerSet {
 
 	/// Get the default protocol name as a static str.
 	pub const fn get_default_protocol_name(self) -> &'static str {
+		#[cfg(not(feature = "network-protocol-staging"))]
 		match self {
 			PeerSet::Validation => VALIDATION_PROTOCOL_V1,
 			PeerSet::Collation => COLLATION_PROTOCOL_V1,
+		}
+
+		#[cfg(feature = "network-protocol-staging")]
+		match self {
+			PeerSet::Validation => VALIDATION_PROTOCOL_VSTAGING,
+			PeerSet::Collation => COLLATION_PROTOCOL_VSTAGING,
 		}
 	}
 
@@ -122,8 +150,14 @@ impl PeerSet {
 	/// and the given version, if any, as static str.
 	pub const fn get_protocol_name_static(self, version: ProtocolVersion) -> Option<&'static str> {
 		match (self, version) {
+			// v1
 			(PeerSet::Validation, 1) => Some(VALIDATION_PROTOCOL_V1),
 			(PeerSet::Collation, 1) => Some(COLLATION_PROTOCOL_V1),
+
+			// vstaging
+			(PeerSet::Validation, 2) => Some(VALIDATION_PROTOCOL_VSTAGING),
+			(PeerSet::Collation, 2) => Some(COLLATION_PROTOCOL_VSTAGING),
+
 			_ => None,
 		}
 	}
@@ -144,8 +178,16 @@ impl PeerSet {
 	/// This only succeeds on supported versions.
 	pub fn try_from_protocol_name(name: &Cow<'static, str>) -> Option<(PeerSet, ProtocolVersion)> {
 		match name {
-			n if n == VALIDATION_PROTOCOL_V1 => Some((PeerSet::Validation, 1)),
-			n if n == COLLATION_PROTOCOL_V1 => Some((PeerSet::Collation, 1)),
+			// v1
+			n if n == VALIDATION_PROTOCOL_V1 => Some((PeerSet::Validation, protocol_v1::VERSION)),
+			n if n == COLLATION_PROTOCOL_V1 => Some((PeerSet::Collation, protocol_v1::VERSION)),
+
+			// vstaging
+			n if n == VALIDATION_PROTOCOL_VSTAGING =>
+				Some((PeerSet::Validation, protocol_vstaging::VERSION)),
+			n if n == COLLATION_PROTOCOL_VSTAGING =>
+				Some((PeerSet::Collation, protocol_vstaging::VERSION)),
+
 			_ => None,
 		}
 	}

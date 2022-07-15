@@ -34,7 +34,8 @@ use polkadot_node_network_protocol::{
 		v1::{self as request_v1, CollationFetchingRequest, CollationFetchingResponse},
 		IncomingRequest, IncomingRequestReceiver,
 	},
-	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, Versioned, View,
+	v1 as protocol_v1, vstaging as protocol_vstaging, OurView, PeerId,
+	UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_primitives::{CollationSecondedSignal, PoV, Statement};
 use polkadot_node_subsystem::{
@@ -776,12 +777,27 @@ async fn advertise_collation<Context>(
 		);
 		collation.status.advance_to_advertised();
 
-		// TODO [now]: versioned wire message.
-		let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent);
+		let collation_message = match per_relay_parent.prospective_parachains_mode {
+			ProspectiveParachainsMode::Enabled => {
+				let wire_message = protocol_vstaging::CollatorProtocolMessage::AdvertiseCollation {
+					relay_parent,
+					candidate_hash: *candidate_hash,
+					parent_head_data_hash: collation.parent_head_data_hash,
+				};
+				Versioned::VStaging(protocol_vstaging::CollationProtocol::CollatorProtocol(
+					wire_message,
+				))
+			},
+			ProspectiveParachainsMode::Disabled => {
+				let wire_message =
+					protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent);
+				Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message))
+			},
+		};
 
 		ctx.send_message(NetworkBridgeMessage::SendCollationMessage(
 			vec![peer.clone()],
-			Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
+			collation_message,
 		))
 		.await;
 
