@@ -20,6 +20,8 @@ use std::collections::BTreeMap;
 /// Exposes all runtime calls that are used by the runtime api subsystem.
 #[async_trait]
 pub trait RuntimeApiSubsystemClient {
+	// === ParachainHost API ===
+
 	/// Get the current validators.
 	async fn validators(&self, at: Hash) -> Result<Vec<ValidatorId>, ApiError>;
 
@@ -166,9 +168,8 @@ pub trait RuntimeApiSubsystemClient {
 		assumption: OccupiedCoreAssumption,
 	) -> Result<Option<ValidationCodeHash>, ApiError>;
 
-	/// ===BABE===
-	///
-	///
+	// === BABE API ===
+
 	/// Return the genesis configuration for BABE. The configuration is only read on genesis.
 	async fn configuration(&self, at: Hash) -> Result<BabeGenesisConfiguration, ApiError>;
 
@@ -214,6 +215,8 @@ pub trait RuntimeApiSubsystemClient {
 		equivocation_proof: EquivocationProof<Header>,
 		key_owner_proof: OpaqueKeyOwnershipProof,
 	) -> Result<Option<()>, ApiError>;
+
+	// === AuthorityDiscovery API ===
 
 	/// Retrieve authority identifiers of the current and next authority set.
 	async fn authorities(
