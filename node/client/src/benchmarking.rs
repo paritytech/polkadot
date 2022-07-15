@@ -73,7 +73,7 @@ pub struct TransferKeepAliveBuilder {
 }
 
 impl TransferKeepAliveBuilder {
-	/// Creates a new [`Self`] from the given client and the arguments for the extinsics.
+	/// Creates a new [`Self`] from the given client and the arguments for the extrinsics.
 
 	pub fn new(client: Arc<Client>, dest: AccountId, value: Balance) -> Self {
 		Self { client, dest, value }
