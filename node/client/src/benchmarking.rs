@@ -30,15 +30,6 @@ pub struct RemarkBuilder {
 	client: Arc<Client>,
 }
 
-/// Generates `Balances::TransferKeepAlive` extrinsics for the benchmarks.
-///
-/// Note: Should only be used for benchmarking.
-pub struct TransferKeepAliveBuilder {
-	client: Arc<Client>,
-	dest: AccountId,
-	value: Balance,
-}
-
 impl RemarkBuilder {
 	/// Creates a new [`Self`] from the given client.
 	pub fn new(client: Arc<Client>) -> Self {
@@ -72,8 +63,18 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for RemarkBuilder {
 	}
 }
 
+/// Generates `Balances::TransferKeepAlive` extrinsics for the benchmarks.
+///
+/// Note: Should only be used for benchmarking.
+pub struct TransferKeepAliveBuilder {
+	client: Arc<Client>,
+	dest: AccountId,
+	value: Balance,
+}
+
 impl TransferKeepAliveBuilder {
 	/// Creates a new [`Self`] from the given client and the arguments for the extinsics.
+
 	pub fn new(client: Arc<Client>, dest: AccountId, value: Balance) -> Self {
 		Self { client, dest, value }
 	}
