@@ -26,6 +26,7 @@ fn peer_set_label(peer_set: PeerSet, version: ProtocolVersion) -> &'static str {
 	peer_set.get_protocol_name_static(version).unwrap_or("<internal error>")
 }
 
+#[allow(missing_docs)]
 impl Metrics {
 	pub fn on_peer_connected(&self, peer_set: PeerSet, version: ProtocolVersion) {
 		self.0.as_ref().map(|metrics| {

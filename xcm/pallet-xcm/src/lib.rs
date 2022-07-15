@@ -23,7 +23,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-use codec::{Decode, Encode, EncodeLike};
+use codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -212,7 +212,7 @@ pub mod pallet {
 	}
 
 	#[pallet::origin]
-	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 	pub enum Origin {
 		/// It comes from somewhere in the XCM space wanting to transact.
 		Xcm(MultiLocation),
