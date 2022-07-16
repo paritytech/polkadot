@@ -1321,6 +1321,16 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	impl pallet_nomination_pools_rpc_runtime_api::NominationPoolsApi<
+		Block,
+		AccountId,
+		Balance,
+	> for Runtime {
+		fn pending_rewards(member: AccountId) -> Balance {
+			NominationPoolsApi::pending_rewards(member)
+		}
+	}
+
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
 		fn benchmark_metadata(extra: bool) -> (
