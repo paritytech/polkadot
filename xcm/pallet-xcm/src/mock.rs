@@ -299,11 +299,11 @@ impl pallet_test_notifier::Config for Test {
 	type Call = Call;
 }
 
-pub(crate) fn last_event() -> PalletEvent {
-	System::events().pop().expect("PalletEvent expected").event
+pub(crate) fn last_event() -> RuntimeEvent {
+	System::events().pop().expect("RuntimeEvent expected").event
 }
 
-pub(crate) fn last_events(n: usize) -> Vec<PalletEvent> {
+pub(crate) fn last_events(n: usize) -> Vec<RuntimeEvent> {
 	System::events().into_iter().map(|e| e.event).rev().take(n).rev().collect()
 }
 
