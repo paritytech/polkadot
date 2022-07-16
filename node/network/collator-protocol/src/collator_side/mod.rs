@@ -15,15 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::{
-	collections::{HashMap, HashSet, VecDeque},
-	pin::Pin,
+	collections::{HashMap, HashSet},
 	time::Duration,
 };
 
 use bitvec::prelude::*;
-use futures::{
-	channel::oneshot, pin_mut, select, stream::FuturesUnordered, Future, FutureExt, StreamExt,
-};
+use futures::{channel::oneshot, pin_mut, select, FutureExt, StreamExt};
 use sp_core::Pair;
 
 use polkadot_node_network_protocol::{
@@ -31,8 +28,7 @@ use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
 	request_response::{
 		incoming::{self, OutgoingResponse},
-		v1::{self as request_v1, CollationFetchingRequest, CollationFetchingResponse},
-		IncomingRequest, IncomingRequestReceiver,
+		v1 as request_v1, vstaging as request_vstaging, IncomingRequestReceiver,
 	},
 	v1 as protocol_v1, vstaging as protocol_vstaging, OurView, PeerId,
 	UnifiedReputationChange as Rep, Versioned, View,
@@ -48,7 +44,6 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	backing_implicit_view::View as ImplicitView,
-	metrics::{self, prometheus},
 	runtime::{get_availability_cores, get_group_rotation_info, RuntimeInfo},
 	TimeoutExt,
 };
@@ -59,10 +54,18 @@ use polkadot_primitives::v2::{
 
 use super::LOG_TARGET;
 use crate::error::{log_error, Error, FatalError, Result};
-use fatality::Split;
 
+mod collation;
+mod metrics;
 #[cfg(test)]
 mod tests;
+
+use collation::{
+	ActiveCollationFetches, Collation, VersionedCollationRequest, CollationStatus,
+	WaitingCollationFetches,
+};
+
+pub use metrics::Metrics;
 
 const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request");
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
@@ -85,112 +88,6 @@ const MAX_UNSHARED_UPLOAD_TIME: Duration = Duration::from_millis(150);
 /// This value is only used for limiting the number of candidates
 /// we accept and distribute per relay parent.
 const MAX_CANDIDATE_DEPTH: usize = 4;
-
-#[derive(Clone, Default)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_advertisment_made(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.advertisements_made.inc();
-		}
-	}
-
-	fn on_collation_sent_requested(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.collations_send_requested.inc();
-		}
-	}
-
-	fn on_collation_sent(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.collations_sent.inc();
-		}
-	}
-
-	/// Provide a timer for `process_msg` which observes on drop.
-	fn time_process_msg(&self) -> Option<prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.process_msg.start_timer())
-	}
-
-	/// Provide a timer for `distribute_collation` which observes on drop.
-	fn time_collation_distribution(
-		&self,
-		label: &'static str,
-	) -> Option<prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| {
-			metrics.collation_distribution_time.with_label_values(&[label]).start_timer()
-		})
-	}
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	advertisements_made: prometheus::Counter<prometheus::U64>,
-	collations_sent: prometheus::Counter<prometheus::U64>,
-	collations_send_requested: prometheus::Counter<prometheus::U64>,
-	process_msg: prometheus::Histogram,
-	collation_distribution_time: prometheus::HistogramVec,
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(
-		registry: &prometheus::Registry,
-	) -> std::result::Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			advertisements_made: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_collation_advertisements_made_total",
-					"A number of collation advertisements sent to validators.",
-				)?,
-				registry,
-			)?,
-			collations_send_requested: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_collations_sent_requested_total",
-					"A number of collations requested to be sent to validators.",
-				)?,
-				registry,
-			)?,
-			collations_sent: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_collations_sent_total",
-					"A number of collations sent to validators.",
-				)?,
-				registry,
-			)?,
-			process_msg: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"polkadot_parachain_collator_protocol_collator_process_msg",
-						"Time spent within `collator_protocol_collator::process_msg`",
-					)
-					.buckets(vec![
-						0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.35, 0.5, 0.75,
-						1.0,
-					]),
-				)?,
-				registry,
-			)?,
-			collation_distribution_time: prometheus::register(
-				prometheus::HistogramVec::new(
-					prometheus::HistogramOpts::new(
-						"polkadot_parachain_collator_protocol_collator_distribution_time",
-						"Time spent within `collator_protocol_collator::distribute_collation`",
-					)
-					.buckets(vec![
-						0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.35, 0.5, 0.75,
-						1.0,
-					]),
-					&["state"],
-				)?,
-				registry,
-			)?,
-		};
-
-		Ok(Metrics(Some(metrics)))
-	}
-}
 
 /// Info about validators we are currently connected to.
 ///
@@ -263,57 +160,6 @@ impl ValidatorGroup {
 		}
 	}
 }
-
-/// The status of a collation as seen from the collator.
-enum CollationStatus {
-	/// The collation was created, but we did not advertise it to any validator.
-	Created,
-	/// The collation was advertised to at least one validator.
-	Advertised,
-	/// The collation was requested by at least one validator.
-	Requested,
-}
-
-impl CollationStatus {
-	/// Advance to the [`Self::Advertised`] status.
-	///
-	/// This ensures that `self` isn't already [`Self::Requested`].
-	fn advance_to_advertised(&mut self) {
-		if !matches!(self, Self::Requested) {
-			*self = Self::Advertised;
-		}
-	}
-
-	/// Advance to the [`Self::Requested`] status.
-	fn advance_to_requested(&mut self) {
-		*self = Self::Requested;
-	}
-}
-
-/// A collation built by the collator.
-struct Collation {
-	receipt: CandidateReceipt,
-	parent_head_data_hash: Hash,
-	pov: PoV,
-	status: CollationStatus,
-}
-
-/// Stores the state for waiting collation fetches.
-#[derive(Default)]
-struct WaitingCollationFetches {
-	/// Is there currently a collation getting fetched?
-	collation_fetch_active: bool,
-	/// The collation fetches waiting to be fulfilled.
-	waiting: VecDeque<IncomingRequest<CollationFetchingRequest>>,
-	/// All peers that are waiting or actively uploading.
-	///
-	/// We will not accept multiple requests from the same peer, otherwise our DoS protection of
-	/// moving on to the next peer after `MAX_UNSHARED_UPLOAD_TIME` would be pointless.
-	waiting_peers: HashSet<PeerId>,
-}
-
-type ActiveCollationFetches =
-	FuturesUnordered<Pin<Box<dyn Future<Output = (Hash, PeerId)> + Send + 'static>>>;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum ProspectiveParachainsMode {
@@ -891,17 +737,18 @@ async fn process_msg<Context>(
 /// Issue a response to a previously requested collation.
 async fn send_collation(
 	state: &mut State,
-	request: IncomingRequest<CollationFetchingRequest>,
+	request: VersionedCollationRequest,
 	receipt: CandidateReceipt,
 	pov: PoV,
 ) {
 	let (tx, rx) = oneshot::channel();
 
-	let relay_parent = request.payload.relay_parent;
-	let peer_id = request.peer;
+	let relay_parent = request.relay_parent();
+	let peer_id = request.peer_id();
+	let candidate_hash = receipt.hash();
 
 	let response = OutgoingResponse {
-		result: Ok(CollationFetchingResponse::Collation(receipt, pov)),
+		result: Ok(request_v1::CollationFetchingResponse::Collation(receipt, pov)),
 		reputation_changes: Vec::new(),
 		sent_feedback: Some(tx),
 	};
@@ -921,7 +768,7 @@ async fn send_collation(
 					"Sending collation to validator timed out, carrying on with next validator."
 				);
 			}
-			(relay_parent, peer_id)
+			(relay_parent, candidate_hash, peer_id)
 		}
 		.boxed(),
 	);
@@ -1014,42 +861,75 @@ async fn handle_incoming_peer_message<Context>(
 async fn handle_incoming_request<Context>(
 	ctx: &mut Context,
 	state: &mut State,
-	req: IncomingRequest<request_v1::CollationFetchingRequest>,
+	req: std::result::Result<VersionedCollationRequest, incoming::Error>,
 ) -> Result<()> {
+	let req = req?;
+	let relay_parent = req.relay_parent();
+	let peer_id = req.peer_id();
+	let para_id = req.para_id();
+
 	let _span = state
 		.span_per_relay_parent
-		.get(&req.payload.relay_parent)
+		.get(&relay_parent)
 		.map(|s| s.child("request-collation"));
 
 	match state.collating_on {
-		Some(our_para_id) if our_para_id == req.payload.para_id => {
-			let (receipt, pov) =
-				if let Some(collation) = state.collations.get_mut(&req.payload.relay_parent) {
-					collation.status.advance_to_requested();
-					(collation.receipt.clone(), collation.pov.clone())
-				} else {
-					gum::warn!(
+		Some(our_para_id) if our_para_id == para_id => {
+			let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
+				Some(per_relay_parent) => per_relay_parent,
+				None => {
+					gum::debug!(
 						target: LOG_TARGET,
-						relay_parent = %req.payload.relay_parent,
-						"received a `RequestCollation` for a relay parent we don't have collation stored.",
+						relay_parent = %relay_parent,
+						"received a `RequestCollation` for a relay parent out of our view",
 					);
 
 					return Ok(())
-				};
+				},
+			};
+
+			let collation = match (per_relay_parent.prospective_parachains_mode, &req) {
+				(ProspectiveParachainsMode::Disabled, VersionedCollationRequest::V1(_)) =>
+					per_relay_parent.collations.values_mut().next(),
+				(ProspectiveParachainsMode::Enabled, VersionedCollationRequest::VStaging(req)) =>
+					per_relay_parent.collations.get_mut(&req.payload.candidate_hash),
+				_ => {
+					gum::warn!(
+						target: LOG_TARGET,
+						relay_parent = %relay_parent,
+						mode = ?per_relay_parent.prospective_parachains_mode,
+						"Collation request version is invalid",
+					);
+
+					return Ok(())
+				},
+			};
+			let (receipt, pov) = if let Some(collation) = collation {
+				collation.status.advance_to_requested();
+				(collation.receipt.clone(), collation.pov.clone())
+			} else {
+				gum::warn!(
+					target: LOG_TARGET,
+					relay_parent = %relay_parent,
+					"received a `RequestCollation` for a relay parent we don't have collation stored.",
+				);
+
+				return Ok(())
+			};
 
 			state.metrics.on_collation_sent_requested();
 
 			let _span = _span.as_ref().map(|s| s.child("sending"));
 
-			let waiting =
-				state.waiting_collation_fetches.entry(req.payload.relay_parent).or_default();
+			let waiting = state.waiting_collation_fetches.entry(relay_parent).or_default();
+			let candidate_hash = receipt.hash();
 
-			if !waiting.waiting_peers.insert(req.peer) {
+			if !waiting.waiting_peers.insert((peer_id, candidate_hash)) {
 				gum::debug!(
 					target: LOG_TARGET,
 					"Dropping incoming request as peer has a request in flight already."
 				);
-				ctx.send_message(NetworkBridgeMessage::ReportPeer(req.peer, COST_APPARENT_FLOOD))
+				ctx.send_message(NetworkBridgeMessage::ReportPeer(peer_id, COST_APPARENT_FLOOD))
 					.await;
 				return Ok(())
 			}
@@ -1066,7 +946,7 @@ async fn handle_incoming_request<Context>(
 		Some(our_para_id) => {
 			gum::warn!(
 				target: LOG_TARGET,
-				for_para_id = %req.payload.para_id,
+				for_para_id = %para_id,
 				our_para_id = %our_para_id,
 				"received a `CollationFetchingRequest` for unexpected para_id",
 			);
@@ -1074,7 +954,7 @@ async fn handle_incoming_request<Context>(
 		None => {
 			gum::warn!(
 				target: LOG_TARGET,
-				for_para_id = %req.payload.para_id,
+				for_para_id = %para_id,
 				"received a `RequestCollation` while not collating on any para",
 			);
 		},
@@ -1278,7 +1158,8 @@ pub(crate) async fn run<Context>(
 	mut ctx: Context,
 	local_peer_id: PeerId,
 	collator_pair: CollatorPair,
-	mut req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+	mut req_v1_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+	mut req_v2_receiver: IncomingRequestReceiver<request_vstaging::CollationFetchingRequest>,
 	metrics: Metrics,
 ) -> std::result::Result<(), FatalError> {
 	use OverseerSignal::*;
@@ -1287,8 +1168,12 @@ pub(crate) async fn run<Context>(
 	let mut runtime = RuntimeInfo::new(None);
 
 	loop {
-		let recv_req = req_receiver.recv(|| vec![COST_INVALID_REQUEST]).fuse();
-		pin_mut!(recv_req);
+		let reputation_changes = || vec![COST_INVALID_REQUEST];
+		let recv_req_v1 = req_v1_receiver.recv(reputation_changes).fuse();
+		let recv_req_v2 = req_v2_receiver.recv(reputation_changes).fuse();
+		pin_mut!(recv_req_v1);
+		pin_mut!(recv_req_v2);
+
 		select! {
 			msg = ctx.recv().fuse() => match msg.map_err(FatalError::SubsystemReceive)? {
 				FromOrchestra::Communication { msg } => {
@@ -1301,9 +1186,9 @@ pub(crate) async fn run<Context>(
 				FromOrchestra::Signal(BlockFinalized(..)) => {}
 				FromOrchestra::Signal(Conclude) => return Ok(()),
 			},
-			(relay_parent, peer_id) = state.active_collation_fetches.select_next_some() => {
+			(relay_parent, candidate_hash, peer_id) = state.active_collation_fetches.select_next_some() => {
 				let next = if let Some(waiting) = state.waiting_collation_fetches.get_mut(&relay_parent) {
-					waiting.waiting_peers.remove(&peer_id);
+					waiting.waiting_peers.remove(&(peer_id, candidate_hash));
 					if let Some(next) = waiting.waiting.pop_front() {
 						next
 					} else {
@@ -1315,31 +1200,45 @@ pub(crate) async fn run<Context>(
 					continue
 				};
 
-				if let Some(collation) = state.collations.get(&relay_parent) {
+				let next_collation = {
+					let per_relay_parent = match state.per_relay_parent.get(&relay_parent) {
+						Some(per_relay_parent) => per_relay_parent,
+						None => continue,
+					};
+
+					match (per_relay_parent.prospective_parachains_mode, &next) {
+						(ProspectiveParachainsMode::Disabled, VersionedCollationRequest::V1(_)) => {
+							per_relay_parent.collations.values().next()
+						},
+						(ProspectiveParachainsMode::Enabled, VersionedCollationRequest::VStaging(req)) => {
+							per_relay_parent.collations.get(&req.payload.candidate_hash)
+						},
+						_ => continue,
+					}
+				};
+
+				if let Some(collation) = next_collation {
 					let receipt = collation.receipt.clone();
 					let pov = collation.pov.clone();
 
 					send_collation(&mut state, next, receipt, pov).await;
 				}
 			}
-			in_req = recv_req => {
-				match in_req {
-					Ok(req) => {
-						log_error(
-							handle_incoming_request(&mut ctx, &mut state, req).await,
-							"Handling incoming request"
-						)?;
-					}
-					Err(error) => {
-						let jfyi = error.split().map_err(incoming::Error::from)?;
-						gum::debug!(
-							target: LOG_TARGET,
-							error = ?jfyi,
-							"Decoding incoming request failed"
-						);
-						continue
-					}
-				}
+			in_req = recv_req_v1 => {
+				let request = in_req.map(VersionedCollationRequest::from);
+
+				log_error(
+					handle_incoming_request(&mut ctx, &mut state, request).await,
+					"Handling incoming request"
+				)?;
+			}
+			in_req = recv_req_v2 => {
+				let request = in_req.map(VersionedCollationRequest::from);
+
+				log_error(
+					handle_incoming_request(&mut ctx, &mut state, request).await,
+					"Handling incoming request"
+				)?;
 			}
 		}
 	}

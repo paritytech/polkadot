@@ -540,7 +540,7 @@ fn advertise_and_send_collation() {
 			.unwrap()
 			.send(RawIncomingRequest {
 				peer,
-				payload: CollationFetchingRequest {
+				payload: VersionedCollationRequest {
 					relay_parent: test_state.relay_parent,
 					para_id: test_state.para_id,
 				}
@@ -559,7 +559,7 @@ fn advertise_and_send_collation() {
 				.unwrap()
 				.send(RawIncomingRequest {
 					peer,
-					payload: CollationFetchingRequest {
+					payload: VersionedCollationRequest {
 						relay_parent: test_state.relay_parent,
 						para_id: test_state.para_id,
 					}
@@ -609,7 +609,7 @@ fn advertise_and_send_collation() {
 			.unwrap()
 			.send(RawIncomingRequest {
 				peer,
-				payload: CollationFetchingRequest {
+				payload: VersionedCollationRequest {
 					relay_parent: old_relay_parent,
 					para_id: test_state.para_id,
 				}
@@ -911,7 +911,7 @@ where
 			.unwrap()
 			.send(RawIncomingRequest {
 				peer: validator_0,
-				payload: CollationFetchingRequest {
+				payload: VersionedCollationRequest {
 					relay_parent: test_state.relay_parent,
 					para_id: test_state.para_id,
 				}
@@ -946,7 +946,7 @@ where
 			.unwrap()
 			.send(RawIncomingRequest {
 				peer: validator_1,
-				payload: CollationFetchingRequest {
+				payload: VersionedCollationRequest {
 					relay_parent: test_state.relay_parent,
 					para_id: test_state.para_id,
 				}
