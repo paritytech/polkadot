@@ -1065,28 +1065,6 @@ impl pallet_multisig::Config for Runtime {
 }
 
 parameter_types! {
-	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
-	pub const MaxPointsToBalance: u8 = 10;
-}
-
-impl pallet_nomination_pools::Config for Runtime {
-	type Event = Event;
-	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
-	type Currency = Balances;
-	type CurrencyBalance = Balance;
-	type RewardCounter = FixedU128;
-	type BalanceToU256 = BalanceToU256;
-	type U256ToBalance = U256ToBalance;
-	type StakingInterface = Staking;
-	type PostUnbondingPoolsWindow = ConstU32<4>;
-	type MaxMetadataLen = ConstU32<256>;
-	// we use the same number of allowed unlocking chunks as with staking.
-	type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
-	type PalletId = PoolsPalletId;
-	type MaxPointsToBalance = MaxPointsToBalance;
-}
-
-parameter_types! {
 	// One storage item; key size 32, value size 8; .
 	pub const ProxyDepositBase: Balance = deposit(1, 8);
 	// Additional storage item size of 33 bytes.
@@ -1479,9 +1457,6 @@ construct_runtime! {
 
 		// Provides a semi-sorted list of nominators for staking.
 		VoterList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
-
-		// nomination pools: extension to staking.
-		NominationPools: pallet_nomination_pools::{Pallet, Call, Storage, Event<T>, Config<T>} = 41,
 
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
@@ -1935,16 +1910,6 @@ sp_api::impl_runtime_apis! {
 		}
 		fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
 			TransactionPayment::query_fee_details(uxt, len)
-		}
-	}
-
-	impl pallet_nomination_pools_rpc_runtime_api::NominationPoolsApi<
-		Block,
-		AccountId,
-		Balance,
-	> for Runtime {
-		fn pending_rewards(member: AccountId) -> Balance {
-			NominationPools::pending_rewards(member)
 		}
 	}
 

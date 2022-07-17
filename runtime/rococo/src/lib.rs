@@ -802,28 +802,6 @@ impl pallet_utility::Config for Runtime {
 }
 
 parameter_types! {
-	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
-	pub const MaxPointsToBalance: u8 = 10;
-}
-
-impl pallet_nomination_pools::Config for Runtime {
-	type Event = Event;
-	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
-	type Currency = Balances;
-	type CurrencyBalance = Balance;
-	type RewardCounter = FixedU128;
-	type BalanceToU256 = BalanceToU256;
-	type U256ToBalance = U256ToBalance;
-	type StakingInterface = Staking;
-	type PostUnbondingPoolsWindow = ConstU32<4>;
-	type MaxMetadataLen = ConstU32<256>;
-	// we use the same number of allowed unlocking chunks as with staking.
-	type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
-	type PalletId = PoolsPalletId;
-	type MaxPointsToBalance = MaxPointsToBalance;
-}
-
-parameter_types! {
 	// One storage item; key size 32, value size 8; .
 	pub const ProxyDepositBase: Balance = 10;
 	// Additional storage item size of 33 bytes.
