@@ -226,6 +226,9 @@ construct_runtime! {
 		// Validator Manager pallet.
 		ValidatorManager: validator_manager,
 
+		// nomination pools: extension to staking.
+		NominationPools: pallet_nomination_pools::{Pallet, Call, Storage, Event<T>, Config<T>} = 41,
+
 		// A "council"
 		Collective: pallet_collective = 80,
 		Membership: pallet_membership = 81,

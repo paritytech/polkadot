@@ -1065,16 +1065,6 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_nomination_pools_rpc_runtime_api::NominationPoolsApi<
-		Block,
-		AccountId,
-		Balance,
-	> for Runtime {
-		fn pending_rewards(member: AccountId) -> Balance {
-			NominationPools::pending_rewards(member)
-		}
-	}
-
 	impl crate::GetLastTimestamp<Block> for Runtime {
 		fn get_last_timestamp() -> u64 {
 			Timestamp::now()

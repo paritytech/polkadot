@@ -1458,6 +1458,9 @@ construct_runtime! {
 		// Provides a semi-sorted list of nominators for staking.
 		VoterList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
 
+		// nomination pools: extension to staking.
+		NominationPools: pallet_nomination_pools::{Pallet, Call, Storage, Event<T>, Config<T>} = 41,
+
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 51,
