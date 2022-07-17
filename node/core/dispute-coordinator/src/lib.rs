@@ -24,7 +24,7 @@
 //! validation results as well as a sink for votes received by other subsystems. When importing a dispute vote from
 //! another node, this will trigger dispute participation to recover and validate the block.
 
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
 use futures::FutureExt;
 
@@ -302,7 +302,7 @@ impl DisputeCoordinatorSubsystem {
 			};
 
 			let n_validators = validators.len();
-			let voted_indices: HashSet<_> = votes.voted_indices().into_iter().collect();
+			let voted_indices = votes.voted_indices();
 
 			// Determine if there are any missing local statements for this dispute. Validators are
 			// filtered if:

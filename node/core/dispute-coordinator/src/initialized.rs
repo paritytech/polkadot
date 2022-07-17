@@ -31,8 +31,8 @@ use polkadot_node_primitives::{
 };
 use polkadot_node_subsystem::{
 	messages::{
-		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
-		ImportStatementsResult,
+		ApprovalVoteImport, BlockDescription, DisputeCoordinatorMessage,
+		DisputeDistributionMessage, ImportStatementsResult,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
 };
@@ -598,6 +598,9 @@ impl Initialized {
 				)
 				.await?;
 			},
+			DisputeCoordinatorMessage::ImportOwnApprovalVote(import) => {
+				self.import_approval_vote(ctx, overlay_db, import, now).await?;
+			},
 			DisputeCoordinatorMessage::DetermineUndisputedChain {
 				base: (base_number, base_hash),
 				block_descriptions,
@@ -656,7 +659,7 @@ impl Initialized {
 			},
 			Some(info) => info,
 		};
-		let validators = session_info.validators.clone();
+		let validators = &session_info.validators;
 
 		let n_validators = validators.len();
 
@@ -681,8 +684,8 @@ impl Initialized {
 					(
 						CandidateVotes {
 							candidate_receipt,
-							valid: Vec::new(),
-							invalid: Vec::new(),
+							valid: BTreeMap::new(),
+							invalid: BTreeMap::new(),
 						},
 						true,
 					)
@@ -703,10 +706,21 @@ impl Initialized {
 		let controlled_indices = find_controlled_validator_indices(&self.keystore, &validators);
 
 		// Whether we already cast a vote in that dispute:
-		let voted_already = {
-			let mut our_votes = votes.voted_indices();
-			our_votes.retain(|index| controlled_indices.contains(index));
-			!our_votes.is_empty()
+		let (voted_already, our_approval_votes) = {
+			let mut our_valid_votes = controlled_indices
+				.iter()
+				.filter_map(|i| votes.valid.get_key_value(i))
+				.peekable();
+			let mut our_invalid_votes =
+				controlled_indices.iter().filter_map(|i| votes.invalid.get_key_value(i));
+			let has_valid_votes = our_valid_votes.peek().is_some();
+			let has_invalid_votes = our_invalid_votes.next().is_some();
+			let our_approval_votes: Vec<_> = our_valid_votes
+				.filter(|(_, (k, _))| k == &ValidDisputeStatementKind::ApprovalChecking)
+				.map(|(k, v)| (*k, v.clone()))
+				.collect();
+
+			(has_valid_votes || has_invalid_votes, our_approval_votes)
 		};
 
 		let was_confirmed = recent_disputes
@@ -742,7 +756,7 @@ impl Initialized {
 
 			match statement.statement() {
 				DisputeStatement::Valid(valid_kind) => {
-					let fresh = insert_into_statement_vec(
+					let fresh = insert_into_statements(
 						&mut votes.valid,
 						*valid_kind,
 						*val_index,
@@ -757,7 +771,7 @@ impl Initialized {
 					self.metrics.on_valid_vote();
 				},
 				DisputeStatement::Invalid(invalid_kind) => {
-					let fresh = insert_into_statement_vec(
+					let fresh = insert_into_statements(
 						&mut votes.invalid,
 						*invalid_kind,
 						*val_index,
@@ -882,7 +896,47 @@ impl Initialized {
 		};
 
 		if status != prev_status {
+			// New dispute?
 			if prev_status.is_none() {
+				// Check for approval votes to send on opened dispute:
+				for (validator_index, (k, sig)) in our_approval_votes {
+					debug_assert!(k == ValidDisputeStatementKind::ApprovalChecking);
+					let pub_key = match validators.get(validator_index.0 as usize) {
+						None => {
+							gum::error!(
+								target: LOG_TARGET,
+								?validator_index,
+								?session,
+								"Could not find pub key in `SessionInfo` for our own approval vote!"
+							);
+							continue
+						},
+						Some(k) => k,
+					};
+					let statement = SignedDisputeStatement::new_unchecked_from_trusted_source(
+						DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
+						candidate_hash,
+						session,
+						pub_key.clone(),
+						sig.clone(),
+					);
+					match make_dispute_message(session_info, &votes, statement, validator_index) {
+						Err(err) => {
+							gum::error!(
+								target: LOG_TARGET,
+								?err,
+								"No ongoing dispute, but we checked there is one!"
+							);
+						},
+						Ok(dispute_message) => {
+							ctx.send_message(DisputeDistributionMessage::SendDispute(
+								dispute_message,
+							))
+							.await;
+						},
+					};
+				}
+
 				self.metrics.on_open();
 			}
 
@@ -942,15 +996,15 @@ impl Initialized {
 			Some(info) => info,
 		};
 
-		let validators = info.validators.clone();
+		let validators = &info.validators;
 
 		let votes = overlay_db
 			.load_candidate_votes(session, &candidate_hash)?
 			.map(CandidateVotes::from)
 			.unwrap_or_else(|| CandidateVotes {
 				candidate_receipt: candidate_receipt.clone(),
-				valid: Vec::new(),
-				invalid: Vec::new(),
+				valid: BTreeMap::new(),
+				invalid: BTreeMap::new(),
 			});
 
 		// Sign a statement for each validator index we control which has
@@ -995,6 +1049,8 @@ impl Initialized {
 			let dispute_message =
 				match make_dispute_message(info, &votes, statement.clone(), *index) {
 					Err(err) => {
+						// TODO: Change this to a less concerned message in case vote was an
+						// approval vote.
 						gum::debug!(target: LOG_TARGET, ?err, "Creating dispute message failed.");
 						continue
 					},
@@ -1039,6 +1095,114 @@ impl Initialized {
 
 		Ok(())
 	}
+
+	/// Import own approval vote
+	///
+	/// and make sure dispute-distribution is informed in case of an ongoing dispute.
+	async fn import_approval_vote<Context>(
+		&mut self,
+		ctx: &mut Context,
+		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
+		import: ApprovalVoteImport,
+		now: Timestamp,
+	) -> Result<()> {
+		let ApprovalVoteImport {
+			candidate_hash,
+			candidate,
+			session,
+			validator_public,
+			validator_index,
+			signature,
+		} = import;
+
+		// Load session info.
+		let info = match self.rolling_session_window.session_info(session) {
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					session,
+					"Missing session info for importing approval vote!"
+				);
+
+				return Ok(())
+			},
+			Some(info) => info,
+		};
+
+		let votes = overlay_db
+			.load_candidate_votes(session, &candidate_hash)?
+			.map(CandidateVotes::from);
+
+		let votes = match votes {
+			None => {
+				gum::error!(
+					target: LOG_TARGET,
+					"Importing own approval vote - there must be backing votes present already!"
+				);
+				CandidateVotes {
+					candidate_receipt: candidate.clone(),
+					valid: BTreeMap::new(),
+					invalid: BTreeMap::new(),
+				}
+			},
+			Some(votes) => votes,
+		};
+
+		let statement = SignedDisputeStatement::new_unchecked_from_trusted_source(
+			DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
+			candidate_hash,
+			session,
+			validator_public,
+			signature,
+		);
+
+		// Get our message out if dispute is ongoing:
+		match make_dispute_message(info, &votes, statement.clone(), validator_index) {
+			Err(err) => {
+				gum::trace!(
+					target: LOG_TARGET,
+					?err,
+					"No ongoing dispute, just import approval vote into db."
+				);
+			},
+			Ok(dispute_message) => {
+				ctx.send_message(DisputeDistributionMessage::SendDispute(dispute_message)).await;
+			},
+		};
+
+		// Do import
+		match self
+			.handle_import_statements(
+				ctx,
+				overlay_db,
+				candidate_hash,
+				MaybeCandidateReceipt::Provides(candidate),
+				session,
+				vec![(statement, validator_index)],
+				now,
+			)
+			.await?
+		{
+			ImportStatementsResult::InvalidImport => {
+				gum::error!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					"`handle_import_statements` considers our own approval vote invalid!"
+				);
+			},
+			ImportStatementsResult::ValidImport => {
+				gum::trace!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					"`handle_import_statements` successfully imported our approval vote!"
+				);
+			},
+		}
+
+		Ok(())
+	}
 }
 
 /// Messages to be handled in this subsystem.
@@ -1068,19 +1232,13 @@ impl MuxedMessage {
 
 // Returns 'true' if no other vote by that validator was already
 // present and 'false' otherwise. Same semantics as `HashSet`.
-fn insert_into_statement_vec<T>(
-	vec: &mut Vec<(T, ValidatorIndex, ValidatorSignature)>,
+fn insert_into_statements<T>(
+	m: &mut BTreeMap<ValidatorIndex, (T, ValidatorSignature)>,
 	tag: T,
 	val_index: ValidatorIndex,
 	val_signature: ValidatorSignature,
 ) -> bool {
-	let pos = match vec.binary_search_by_key(&val_index, |x| x.1) {
-		Ok(_) => return false, // no duplicates needed.
-		Err(p) => p,
-	};
-
-	vec.insert(pos, (tag, val_index, val_signature));
-	true
+	m.insert(val_index, (tag, val_signature)).is_none()
 }
 
 #[derive(Debug, Clone)]
@@ -1113,35 +1271,35 @@ fn make_dispute_message(
 
 	let (valid_statement, valid_index, invalid_statement, invalid_index) =
 		if let DisputeStatement::Valid(_) = our_vote.statement() {
-			let (statement_kind, validator_index, validator_signature) =
-				votes.invalid.get(0).ok_or(DisputeMessageCreationError::NoOppositeVote)?.clone();
+			let (validator_index, (statement_kind, validator_signature)) =
+				votes.invalid.iter().next().ok_or(DisputeMessageCreationError::NoOppositeVote)?;
 			let other_vote = SignedDisputeStatement::new_checked(
-				DisputeStatement::Invalid(statement_kind),
+				DisputeStatement::Invalid(*statement_kind),
 				our_vote.candidate_hash().clone(),
 				our_vote.session_index(),
 				validators
 					.get(validator_index.0 as usize)
 					.ok_or(DisputeMessageCreationError::InvalidValidatorIndex)?
 					.clone(),
-				validator_signature,
+				validator_signature.clone(),
 			)
 			.map_err(|()| DisputeMessageCreationError::InvalidStoredStatement)?;
-			(our_vote, our_index, other_vote, validator_index)
+			(our_vote, our_index, other_vote, *validator_index)
 		} else {
-			let (statement_kind, validator_index, validator_signature) =
-				votes.valid.get(0).ok_or(DisputeMessageCreationError::NoOppositeVote)?.clone();
+			let (validator_index, (statement_kind, validator_signature)) =
+				votes.valid.iter().next().ok_or(DisputeMessageCreationError::NoOppositeVote)?;
 			let other_vote = SignedDisputeStatement::new_checked(
-				DisputeStatement::Valid(statement_kind),
+				DisputeStatement::Valid(*statement_kind),
 				our_vote.candidate_hash().clone(),
 				our_vote.session_index(),
 				validators
 					.get(validator_index.0 as usize)
 					.ok_or(DisputeMessageCreationError::InvalidValidatorIndex)?
 					.clone(),
-				validator_signature,
+				validator_signature.clone(),
 			)
 			.map_err(|()| DisputeMessageCreationError::InvalidStoredStatement)?;
-			(other_vote, validator_index, our_vote, our_index)
+			(other_vote, *validator_index, our_vote, our_index)
 		};
 
 	DisputeMessage::from_signed_statements(

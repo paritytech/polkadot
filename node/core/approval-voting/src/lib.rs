@@ -26,12 +26,12 @@ use polkadot_node_primitives::{
 	approval::{
 		BlockApprovalMeta, DelayTranche, IndirectAssignmentCert, IndirectSignedApprovalVote,
 	},
-	SignedDisputeStatement, ValidationResult, APPROVAL_EXECUTION_TIMEOUT,
+	ValidationResult, APPROVAL_EXECUTION_TIMEOUT,
 };
 use polkadot_node_subsystem::{
 	errors::RecoveryError,
 	messages::{
-		ApprovalCheckError, ApprovalCheckResult, ApprovalDistributionMessage,
+		ApprovalCheckError, ApprovalCheckResult, ApprovalDistributionMessage, ApprovalVoteImport,
 		ApprovalVotingMessage, AssignmentCheckError, AssignmentCheckResult,
 		AvailabilityRecoveryMessage, BlockDescription, CandidateValidationMessage, ChainApiMessage,
 		ChainSelectionMessage, DisputeCoordinatorMessage, HighestApprovedAncestorBlock,
@@ -693,6 +693,8 @@ enum Action {
 	},
 	NoteApprovedInChainSelection(Hash),
 	IssueApproval(CandidateHash, ApprovalVoteRequest),
+	/// Inform dispute coordinator about a local approval vote.
+	InformDisputeCoordinator(ApprovalVoteImport),
 	BecomeActive,
 	Conclude,
 }
@@ -949,6 +951,9 @@ async fn handle_actions<Context>(
 					},
 					Some(_) => {},
 				}
+			},
+			Action::InformDisputeCoordinator(import) => {
+				ctx.send_message(DisputeCoordinatorMessage::ImportOwnApprovalVote(import)).await;
 			},
 			Action::NoteApprovedInChainSelection(block_hash) => {
 				ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
@@ -1695,11 +1700,16 @@ fn check_and_import_approval<T>(
 	};
 
 	// Signature check:
-	match ValidDisputeStatementKind::ApprovalChecking.check_signature(&pubkey, approved_candidate_hash, block_entry.session(), &approval.signature) {
+	match DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking).check_signature(
+		&pubkey,
+		approved_candidate_hash,
+		block_entry.session(),
+		&approval.signature,
+	) {
 		Err(_) => respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::InvalidSignature(
 			approval.validator
 		),)),
-		Ok(()) => {}
+		Ok(()) => {},
 	};
 
 	let candidate_entry = match db.load_candidate_entry(&approved_candidate_hash)? {
@@ -2428,7 +2438,26 @@ async fn issue_approval<Context>(
 		"Issuing approval vote",
 	);
 
-	let actions = advance_approval_state(
+	let candidate = candidate_entry.candidate_receipt().clone();
+
+	let inform_disputes_action = if candidate_entry.has_approved(validator_index) {
+		// The approval voting system requires a separate approval for each assignment
+		// to the candidate. It's possible that there are semi-duplicate approvals,
+		// but we only need to inform the dispute coordinator about the first expressed
+		// opinion by the validator about the candidate.
+		Some(Action::InformDisputeCoordinator(ApprovalVoteImport {
+			candidate_hash,
+			candidate,
+			session,
+			validator_public: validator_pubkey.clone(),
+			validator_index,
+			signature: sig.clone(),
+		}))
+	} else {
+		None
+	};
+
+	let mut actions = advance_approval_state(
 		state,
 		db,
 		metrics,
@@ -2437,6 +2466,9 @@ async fn issue_approval<Context>(
 		candidate_entry,
 		ApprovalStateTransition::LocalApproval(validator_index as _, sig.clone()),
 	);
+
+	// dispatch to dispute coordinator.
+	actions.extend(inform_disputes_action);
 
 	metrics.on_approval_produced();
 

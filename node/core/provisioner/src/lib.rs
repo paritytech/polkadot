@@ -812,13 +812,15 @@ async fn select_disputes(
 	Ok(dispute_candidate_votes
 		.into_iter()
 		.map(|(session_index, candidate_hash, votes)| {
-			let valid_statements =
-				votes.valid.into_iter().map(|(s, i, sig)| (DisputeStatement::Valid(s), i, sig));
+			let valid_statements = votes
+				.valid
+				.into_iter()
+				.map(|(i, (s, sig))| (DisputeStatement::Valid(s), i, sig));
 
 			let invalid_statements = votes
 				.invalid
 				.into_iter()
-				.map(|(s, i, sig)| (DisputeStatement::Invalid(s), i, sig));
+				.map(|(i, (s, sig))| (DisputeStatement::Invalid(s), i, sig));
 
 			metrics.inc_valid_statements_by(valid_statements.len());
 			metrics.inc_invalid_statements_by(invalid_statements.len());

@@ -274,16 +274,19 @@ fn disputes_are_recovered_at_startup() {
 				let unchecked: UncheckedDisputeMessage = message.into();
 				tx.send(vec![(session_index, candidate_hash, CandidateVotes {
 					candidate_receipt: candidate,
-					valid: vec![(
-						unchecked.valid_vote.kind,
+					valid: [(
 						unchecked.valid_vote.validator_index,
+						(unchecked.valid_vote.kind,
 						unchecked.valid_vote.signature
-					)],
-					invalid: vec![(
-						unchecked.invalid_vote.kind,
+						),
+					)].into_iter().collect(),
+					invalid: [(
 						unchecked.invalid_vote.validator_index,
+						(
+						unchecked.invalid_vote.kind,
 						unchecked.invalid_vote.signature
-					)],
+						),
+					)].into_iter().collect(),
 				})])
 				.expect("Receiver should stay alive.");
 			}

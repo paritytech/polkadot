@@ -224,6 +224,23 @@ impl BoundToRelayParent for CollatorProtocolMessage {
 	}
 }
 
+/// Own approval vote import for the `DisputeCoordinator`.
+#[derive(Debug, Clone)]
+pub struct ApprovalVoteImport {
+	/// Concerned candidate by hash.
+	pub candidate_hash: CandidateHash,
+	/// Full receipt of candidate.
+	pub candidate: CandidateReceipt,
+	/// Session the candidate appeared in.
+	pub session: SessionIndex,
+	/// ValidatorId corresponding to signature.
+	pub validator_public: ValidatorId,
+	/// Index of the validator in the `SessionInfo`.
+	pub validator_index: ValidatorIndex,
+	/// Our signature.
+	pub signature: ValidatorSignature,
+}
+
 /// Messages received by the dispute coordinator subsystem.
 ///
 /// NOTE: Any response oneshots might get cancelled if the `DisputeCoordinator` was not yet
@@ -270,12 +287,42 @@ pub enum DisputeCoordinatorMessage {
 		///		- or the imported statements are backing/approval votes, which are always accepted.
 		pending_confirmation: Option<oneshot::Sender<ImportStatementsResult>>,
 	},
+	/// Import an approval vote of our own.
+	///
+	/// We used to import all approval votes into the dispute-coordinator, but this proved to be
+	/// very wasteful. Instead we now only import our own approval vote into the dispute
+	/// coordinator, in case of an actual dispute, the dispute-coordinator will take care of
+	/// re-distributing our approval vote to other nodes, so all nodes will have all votes in the
+	/// dispute database in case of an actual dispute.
+	///
+	/// We make sure the dispute coordinator knows our vote in case a dispute is
+	/// ongoing for this candidate and for it to have our vote in case a dispute gets raised.
+	///
+	/// approval-voting makes the dispute coordinator aware of our vote so it can:
+	///
+	/// 1. Participate in any ongoing dispute (send out dispute messages, so other nodes will import
+	///       our vote into the database).
+	/// 2. Record our vote into the database, so the dispute coordinator has it for participation in
+	///       case a dispute is raised at later point.
+	///
+	/// It might seem wasteful to send out approval votes twice, once via approval-distribution and
+	/// once via dispute-distribution, but it makes sense for the following reasons:
+	///
+	/// 1. Most of the time there is no dispute - so no duplicate sending will take place.
+	/// 2. If there is a dispute the number of participating nodes is usually a lot more nodes than
+	///       the approval voters, so re-sending approval votes will hardly be a performance hit.
+	/// 3. It helps getting out the dispute to nodes as not only the approval vote but also some
+	///       dispute raising invalid vote gets sent out.
+	/// 4. We don't need to keep approval votes longer than necessary for the purposes of
+	///       approval-voting nor do we need to unconditionally import all votes into the dispute
+	///       coordinator all the time, which has proven to be very wasteful as mentioned above.
+	ImportOwnApprovalVote(ApprovalVoteImport),
 	/// Fetch a list of all recent disputes the co-ordinator is aware of.
 	/// These are disputes which have occurred any time in recent sessions,
 	/// and which may have already concluded.
 	RecentDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
 	/// Fetch a list of all active disputes that the coordinator is aware of.
-	/// These disputes are either unconcluded or recently concluded.
+	/// These disputes are either not yet concluded or recently concluded.
 	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
 	/// Get candidate votes for a candidate.
 	QueryCandidateVotes(
