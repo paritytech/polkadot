@@ -119,8 +119,8 @@ where
 	use beefy_gadget_rpc::{Beefy, BeefyApiServer};
 	use frame_rpc_system::{System, SystemApiServer};
 	use pallet_mmr_rpc::{Mmr, MmrApiServer};
+	use pallet_nomination_pools_rpc::{NominationPoolsRpcServer, NominationPoolsRpcType};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
-	use pallet_nomination_pools_rpc::{NominationPoolsRpcType, NominationPoolsRpcServer};
 	use sc_consensus_babe_rpc::{Babe, BabeApiServer};
 	use sc_finality_grandpa_rpc::{Grandpa, GrandpaApiServer};
 	use sc_sync_state_rpc::{SyncState, SyncStateApiServer};
