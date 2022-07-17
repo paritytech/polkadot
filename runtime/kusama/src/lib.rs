@@ -2013,7 +2013,7 @@ sp_api::impl_runtime_apis! {
 		Balance,
 	> for Runtime {
 		fn pending_rewards(member: AccountId) -> Balance {
-			NominationPoolsApi::pending_rewards(member)
+			NominationPoolsRpcType::pending_rewards(member)
 		}
 	}
 
