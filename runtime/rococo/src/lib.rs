@@ -226,9 +226,6 @@ construct_runtime! {
 		// Validator Manager pallet.
 		ValidatorManager: validator_manager,
 
-		// nomination pools: extension to staking.
-		NominationPools: pallet_nomination_pools::{Pallet, Call, Storage, Event<T>, Config<T>} = 41,
-
 		// A "council"
 		Collective: pallet_collective = 80,
 		Membership: pallet_membership = 81,
@@ -1322,17 +1319,7 @@ sp_api::impl_runtime_apis! {
 		fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
 			TransactionPayment::query_fee_details(uxt, len)
 		}
-	}
-
-	impl pallet_nomination_pools_rpc_runtime_api::NominationPoolsApi<
-		Block,
-		AccountId,
-		Balance,
-	> for Runtime {
-		fn pending_rewards(member: AccountId) -> Balance {
-			NominationPools::pending_rewards(member)
-		}
-	}
+	}	
 
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
