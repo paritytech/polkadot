@@ -39,6 +39,7 @@ pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "maste
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-nomination-pools-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
