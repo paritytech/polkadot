@@ -64,10 +64,14 @@ pub struct Collation {
 	pub status: CollationStatus,
 }
 
-/// Stores the state for waiting collation fetches.
+/// Stores the state for waiting collation fetches per relay parent.
 #[derive(Default)]
 pub struct WaitingCollationFetches {
-	/// Is there currently a collation getting fetched?
+	/// A flag indicating that we have an ongoing request.
+	/// This limits the number of collations being sent at any moment
+	/// of time to 1 for each relay parent.
+	///
+	/// If set to `true`, any new request will be queued.
 	pub collation_fetch_active: bool,
 	/// The collation fetches waiting to be fulfilled.
 	pub waiting: VecDeque<VersionedCollationRequest>,
@@ -78,6 +82,7 @@ pub struct WaitingCollationFetches {
 	pub waiting_peers: HashSet<(PeerId, CandidateHash)>,
 }
 
+/// Backwards-compatible wrapper for incoming collations requests.
 pub enum VersionedCollationRequest {
 	V1(IncomingRequest<protocol_v1::CollationFetchingRequest>),
 	VStaging(IncomingRequest<protocol_vstaging::CollationFetchingRequest>),
