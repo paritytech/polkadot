@@ -28,7 +28,7 @@ use futures::{FutureExt, TryFutureExt};
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::{
-	request_response::{v1 as request_v1, IncomingRequestReceiver},
+	request_response::{v1 as request_v1, vstaging as protocol_vstaging, IncomingRequestReceiver},
 	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::v2::CollatorPair;
@@ -74,12 +74,14 @@ pub enum ProtocolSide {
 		metrics: validator_side::Metrics,
 	},
 	/// Collators operate on a parachain.
-	Collator(
-		PeerId,
-		CollatorPair,
-		IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
-		collator_side::Metrics,
-	),
+	Collator {
+		peer_id: PeerId,
+		collator_pair: CollatorPair,
+		request_receiver_v1: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+		request_receiver_vstaging:
+			IncomingRequestReceiver<protocol_vstaging::CollationFetchingRequest>,
+		metrics: collator_side::Metrics,
+	},
 }
 
 /// The collator protocol subsystem.
@@ -101,8 +103,22 @@ impl CollatorProtocolSubsystem {
 		match self.protocol_side {
 			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
 				validator_side::run(ctx, keystore, eviction_policy, metrics).await,
-			ProtocolSide::Collator(local_peer_id, collator_pair, req_receiver, metrics) =>
-				collator_side::run(ctx, local_peer_id, collator_pair, req_receiver, metrics).await,
+			ProtocolSide::Collator {
+				peer_id,
+				collator_pair,
+				request_receiver_v1,
+				request_receiver_vstaging,
+				metrics,
+			} =>
+				collator_side::run(
+					ctx,
+					peer_id,
+					collator_pair,
+					request_receiver_v1,
+					request_receiver_vstaging,
+					metrics,
+				)
+				.await,
 		}
 	}
 }

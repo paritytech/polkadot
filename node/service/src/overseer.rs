@@ -24,7 +24,9 @@ use polkadot_node_core_av_store::Config as AvailabilityConfig;
 use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig;
 use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
-use polkadot_node_network_protocol::request_response::{v1 as request_v1, IncomingRequestReceiver};
+use polkadot_node_network_protocol::request_response::{
+	v1 as request_v1, vstaging as request_vstaging, IncomingRequestReceiver,
+};
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::{
 	dummy::{dummy_overseer_builder, DummySubsystem},
@@ -89,7 +91,9 @@ where
 	/// POV request receiver
 	pub pov_req_receiver: IncomingRequestReceiver<request_v1::PoVFetchingRequest>,
 	pub chunk_req_receiver: IncomingRequestReceiver<request_v1::ChunkFetchingRequest>,
-	pub collation_req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+	pub collation_req_v1_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+	pub collation_req_vstaging_receiver:
+		IncomingRequestReceiver<request_vstaging::CollationFetchingRequest>,
 	pub available_data_req_receiver:
 		IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
 	pub statement_req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
@@ -128,7 +132,8 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		authority_discovery_service,
 		pov_req_receiver,
 		chunk_req_receiver,
-		collation_req_receiver,
+		collation_req_v1_receiver,
+		collation_req_vstaging_receiver,
 		available_data_req_receiver,
 		statement_req_receiver,
 		dispute_req_receiver,
@@ -224,12 +229,13 @@ where
 		.collation_generation(CollationGenerationSubsystem::new(Metrics::register(registry)?))
 		.collator_protocol({
 			let side = match is_collator {
-				IsCollator::Yes(collator_pair) => ProtocolSide::Collator(
-					network_service.local_peer_id().clone(),
+				IsCollator::Yes(collator_pair) => ProtocolSide::Collator {
+					peer_id: network_service.local_peer_id().clone(),
 					collator_pair,
-					collation_req_receiver,
-					Metrics::register(registry)?,
-				),
+					request_receiver_v1: collation_req_v1_receiver,
+					request_receiver_vstaging: collation_req_vstaging_receiver,
+					metrics: Metrics::register(registry)?,
+				},
 				IsCollator::No => ProtocolSide::Validator {
 					keystore: keystore.clone(),
 					eviction_policy: Default::default(),
