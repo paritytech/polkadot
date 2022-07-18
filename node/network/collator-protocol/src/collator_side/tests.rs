@@ -29,7 +29,11 @@ use sp_core::crypto::Pair;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::traits::AppVerify;
 
-use polkadot_node_network_protocol::{our_view, request_response::IncomingRequest, view};
+use polkadot_node_network_protocol::{
+	our_view,
+	request_response::{v1 as request_v1, IncomingRequest},
+	view,
+};
 use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem::{
 	jaeger,
@@ -43,6 +47,8 @@ use polkadot_primitives::v2::{
 	SessionInfo, ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::TestCandidateBuilder;
+
+const API_VERSION_PROSPECTIVE_DISABLED: u32 = 2;
 
 #[derive(Clone)]
 struct TestState {
@@ -176,6 +182,17 @@ impl TestState {
 			)),
 		)
 		.await;
+
+		assert_matches!(
+			overseer_recv(virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::Version(tx)
+			)) => {
+				assert_eq!(relay_parent, self.relay_parent);
+				tx.send(Ok(API_VERSION_PROSPECTIVE_DISABLED)).unwrap();
+			}
+		);
 	}
 }
 
@@ -183,7 +200,8 @@ type VirtualOverseer = test_helpers::TestSubsystemContextHandle<CollatorProtocol
 
 struct TestHarness {
 	virtual_overseer: VirtualOverseer,
-	req_cfg: sc_network::config::RequestResponseConfig,
+	req_v1_cfg: sc_network::config::RequestResponseConfig,
+	req_vstaging_cfg: sc_network::config::RequestResponseConfig,
 }
 
 fn test_harness<T: Future<Output = TestHarness>>(
@@ -201,14 +219,23 @@ fn test_harness<T: Future<Output = TestHarness>>(
 
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-	let (collation_req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
+	let (collation_req_receiver, req_v1_cfg) = IncomingRequest::get_config_receiver();
+	let (collation_req_vstaging_receiver, req_vstaging_cfg) =
+		IncomingRequest::get_config_receiver();
 	let subsystem = async {
-		run(context, local_peer_id, collator_pair, collation_req_receiver, Default::default())
-			.await
-			.unwrap();
+		run(
+			context,
+			local_peer_id,
+			collator_pair,
+			collation_req_receiver,
+			collation_req_vstaging_receiver,
+			Default::default(),
+		)
+		.await
+		.unwrap();
 	};
 
-	let test_fut = test(TestHarness { virtual_overseer, req_cfg });
+	let test_fut = test(TestHarness { virtual_overseer, req_v1_cfg, req_vstaging_cfg });
 
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(subsystem);
@@ -282,6 +309,17 @@ async fn setup_system(virtual_overseer: &mut VirtualOverseer, test_state: &TestS
 		])),
 	)
 	.await;
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			relay_parent,
+			RuntimeApiRequest::Version(tx)
+		)) => {
+			assert_eq!(relay_parent, test_state.relay_parent);
+			tx.send(Ok(API_VERSION_PROSPECTIVE_DISABLED)).unwrap();
+		}
+	);
 }
 
 /// Result of [`distribute_collation`]
@@ -301,6 +339,7 @@ async fn distribute_collation(
 	let pov_block = PoV { block_data: BlockData(vec![42, 43, 44]) };
 
 	let pov_hash = pov_block.hash();
+	let parent_head_data_hash = Hash::zero();
 
 	let candidate = TestCandidateBuilder {
 		para_id: test_state.para_id,
@@ -312,7 +351,12 @@ async fn distribute_collation(
 
 	overseer_send(
 		virtual_overseer,
-		CollatorProtocolMessage::DistributeCollation(candidate.clone(), pov_block.clone(), None),
+		CollatorProtocolMessage::DistributeCollation(
+			candidate.clone(),
+			parent_head_data_hash,
+			pov_block.clone(),
+			None,
+		),
 	)
 	.await;
 
@@ -501,7 +545,8 @@ fn advertise_and_send_collation() {
 
 	test_harness(local_peer_id, collator_pair, |test_harness| async move {
 		let mut virtual_overseer = test_harness.virtual_overseer;
-		let mut req_cfg = test_harness.req_cfg;
+		let mut req_v1_cfg = test_harness.req_v1_cfg;
+		let req_vstaging_cfg = test_harness.req_vstaging_cfg;
 
 		setup_system(&mut virtual_overseer, &test_state).await;
 
@@ -534,13 +579,13 @@ fn advertise_and_send_collation() {
 
 		// Request a collation.
 		let (pending_response, rx) = oneshot::channel();
-		req_cfg
+		req_v1_cfg
 			.inbound_queue
 			.as_mut()
 			.unwrap()
 			.send(RawIncomingRequest {
 				peer,
-				payload: VersionedCollationRequest {
+				payload: request_v1::CollationFetchingRequest {
 					relay_parent: test_state.relay_parent,
 					para_id: test_state.para_id,
 				}
@@ -553,13 +598,13 @@ fn advertise_and_send_collation() {
 		{
 			let (pending_response, rx) = oneshot::channel();
 
-			req_cfg
+			req_v1_cfg
 				.inbound_queue
 				.as_mut()
 				.unwrap()
 				.send(RawIncomingRequest {
 					peer,
-					payload: VersionedCollationRequest {
+					payload: request_v1::CollationFetchingRequest {
 						relay_parent: test_state.relay_parent,
 						para_id: test_state.para_id,
 					}
@@ -584,8 +629,8 @@ fn advertise_and_send_collation() {
 		assert_matches!(
 			rx.await,
 			Ok(full_response) => {
-				let CollationFetchingResponse::Collation(receipt, pov): CollationFetchingResponse
-					= CollationFetchingResponse::decode(
+				let request_v1::CollationFetchingResponse::Collation(receipt, pov): request_v1::CollationFetchingResponse
+					= request_v1::CollationFetchingResponse::decode(
 						&mut full_response.result
 						.expect("We should have a proper answer").as_ref()
 				)
@@ -603,13 +648,13 @@ fn advertise_and_send_collation() {
 		// Re-request a collation.
 		let (pending_response, rx) = oneshot::channel();
 
-		req_cfg
+		req_v1_cfg
 			.inbound_queue
 			.as_mut()
 			.unwrap()
 			.send(RawIncomingRequest {
 				peer,
-				payload: VersionedCollationRequest {
+				payload: request_v1::CollationFetchingRequest {
 					relay_parent: old_relay_parent,
 					para_id: test_state.para_id,
 				}
@@ -636,7 +681,7 @@ fn advertise_and_send_collation() {
 		.await;
 
 		expect_advertise_collation_msg(&mut virtual_overseer, &peer, test_state.relay_parent).await;
-		TestHarness { virtual_overseer, req_cfg }
+		TestHarness { virtual_overseer, req_v1_cfg, req_vstaging_cfg }
 	});
 }
 
@@ -867,7 +912,7 @@ where
 
 	test_harness(local_peer_id, collator_pair, |mut test_harness| async move {
 		let virtual_overseer = &mut test_harness.virtual_overseer;
-		let req_cfg = &mut test_harness.req_cfg;
+		let req_cfg = &mut test_harness.req_v1_cfg;
 
 		setup_system(virtual_overseer, &test_state).await;
 
@@ -911,7 +956,7 @@ where
 			.unwrap()
 			.send(RawIncomingRequest {
 				peer: validator_0,
-				payload: VersionedCollationRequest {
+				payload: request_v1::CollationFetchingRequest {
 					relay_parent: test_state.relay_parent,
 					para_id: test_state.para_id,
 				}
@@ -925,8 +970,8 @@ where
 		let feedback_tx = assert_matches!(
 			rx.await,
 			Ok(full_response) => {
-				let CollationFetchingResponse::Collation(receipt, pov): CollationFetchingResponse
-					= CollationFetchingResponse::decode(
+				let request_v1::CollationFetchingResponse::Collation(receipt, pov): request_v1::CollationFetchingResponse
+					= request_v1::CollationFetchingResponse::decode(
 						&mut full_response.result
 						.expect("We should have a proper answer").as_ref()
 				)
@@ -946,7 +991,7 @@ where
 			.unwrap()
 			.send(RawIncomingRequest {
 				peer: validator_1,
-				payload: VersionedCollationRequest {
+				payload: request_v1::CollationFetchingRequest {
 					relay_parent: test_state.relay_parent,
 					para_id: test_state.para_id,
 				}
@@ -962,8 +1007,8 @@ where
 		assert_matches!(
 			rx.await,
 			Ok(full_response) => {
-				let CollationFetchingResponse::Collation(receipt, pov): CollationFetchingResponse
-					= CollationFetchingResponse::decode(
+				let request_v1::CollationFetchingResponse::Collation(receipt, pov): request_v1::CollationFetchingResponse
+					= request_v1::CollationFetchingResponse::decode(
 						&mut full_response.result
 						.expect("We should have a proper answer").as_ref()
 				)

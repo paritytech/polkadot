@@ -75,11 +75,16 @@ pub enum ProtocolSide {
 	},
 	/// Collators operate on a parachain.
 	Collator {
+		/// Local peer id.
 		peer_id: PeerId,
+		/// Parachain collator pair.
 		collator_pair: CollatorPair,
+		/// Receiver for v1 collation fetching requests.
 		request_receiver_v1: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+		/// Receiver for vstaging collation fetching requests.
 		request_receiver_vstaging:
 			IncomingRequestReceiver<protocol_vstaging::CollationFetchingRequest>,
+		/// Metrics.
 		metrics: collator_side::Metrics,
 	},
 }
