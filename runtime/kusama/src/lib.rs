@@ -2007,7 +2007,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_nomination_pools_rpc_runtime_api::runtime_decl_for_NominationPoolsApi::NominationPoolsApi<
+	impl pallet_nomination_pools_rpc_runtime_api::NominationPoolsApi<
 		Block,
 		AccountId,
 		Balance,
