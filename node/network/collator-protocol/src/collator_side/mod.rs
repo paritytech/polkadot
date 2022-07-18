@@ -61,7 +61,7 @@ mod metrics;
 mod tests;
 
 use collation::{
-	ActiveCollationFetches, Collation, VersionedCollationRequest, CollationStatus,
+	ActiveCollationFetches, Collation, CollationStatus, VersionedCollationRequest,
 	WaitingCollationFetches,
 };
 
@@ -783,12 +783,16 @@ async fn handle_incoming_peer_message<Context>(
 	runtime: &mut RuntimeInfo,
 	state: &mut State,
 	origin: PeerId,
-	msg: protocol_v1::CollatorProtocolMessage,
+	msg: Versioned<
+		protocol_v1::CollatorProtocolMessage,
+		protocol_vstaging::CollatorProtocolMessage,
+	>,
 ) -> Result<()> {
-	use protocol_v1::CollatorProtocolMessage::*;
+	use protocol_v1::CollatorProtocolMessage as V1;
+	use protocol_vstaging::CollatorProtocolMessage as VStaging;
 
 	match msg {
-		Declare(_, _, _) => {
+		Versioned::V1(V1::Declare(..)) | Versioned::VStaging(VStaging::Declare(..)) => {
 			gum::trace!(
 				target: LOG_TARGET,
 				?origin,
@@ -799,7 +803,8 @@ async fn handle_incoming_peer_message<Context>(
 			ctx.send_message(NetworkBridgeMessage::DisconnectPeer(origin, PeerSet::Collation))
 				.await;
 		},
-		AdvertiseCollation(_) => {
+		Versioned::V1(V1::AdvertiseCollation(_)) |
+		Versioned::VStaging(VStaging::AdvertiseCollation { .. }) => {
 			gum::trace!(
 				target: LOG_TARGET,
 				?origin,
@@ -816,7 +821,8 @@ async fn handle_incoming_peer_message<Context>(
 			ctx.send_message(NetworkBridgeMessage::DisconnectPeer(origin, PeerSet::Collation))
 				.await;
 		},
-		CollationSeconded(relay_parent, statement) => {
+		Versioned::V1(V1::CollationSeconded(relay_parent, statement)) |
+		Versioned::VStaging(VStaging::CollationSeconded(relay_parent, statement)) => {
 			if !matches!(statement.unchecked_payload(), Statement::Seconded(_)) {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -1051,7 +1057,7 @@ async fn handle_network_msg<Context>(
 			gum::trace!(target: LOG_TARGET, ?view, "Own view change");
 			handle_our_view_change(ctx.sender(), state, view).await?;
 		},
-		PeerMessage(remote, Versioned::V1(msg)) => {
+		PeerMessage(remote, msg) => {
 			handle_incoming_peer_message(ctx, runtime, state, remote, msg).await?;
 		},
 		NewGossipTopology { .. } => {
