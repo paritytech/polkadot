@@ -9,6 +9,7 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-nomination-pools-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
