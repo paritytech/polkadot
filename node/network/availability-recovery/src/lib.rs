@@ -50,7 +50,7 @@ use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem::{
 	errors::RecoveryError,
 	jaeger,
-	messages::{AvailabilityRecoveryMessage, AvailabilityStoreMessage, NetworkBridgeMessage},
+	messages::{AvailabilityRecoveryMessage, AvailabilityStoreMessage, NetworkBridgeTxMessage},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 	SubsystemResult,
 };
@@ -198,7 +198,7 @@ impl RequestFromBackers {
 			);
 
 			sender
-				.send_message(NetworkBridgeMessage::SendRequests(
+				.send_message(NetworkBridgeTxMessage::SendRequests(
 					vec![Requests::AvailableDataFetchingV1(req)],
 					IfDisconnected::ImmediateError,
 				))
@@ -356,7 +356,7 @@ impl RequestChunksFromValidators {
 		}
 
 		sender
-			.send_message(NetworkBridgeMessage::SendRequests(
+			.send_message(NetworkBridgeTxMessage::SendRequests(
 				requests,
 				IfDisconnected::ImmediateError,
 			))
