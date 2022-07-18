@@ -130,7 +130,6 @@ pub trait RuntimeApiCollection:
 	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ sp_mmr_primitives::MmrApi<Block, <Block as BlockT>::Hash>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
-	+ pallet_nomination_pools_rpc_runtime_api::NominationPoolsApi<Block, AccountId, Balance>
 	+ sp_api::Metadata<Block>
 	+ sp_offchain::OffchainWorkerApi<Block>
 	+ sp_session::SessionKeys<Block>
@@ -152,7 +151,6 @@ where
 		+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 		+ sp_mmr_primitives::MmrApi<Block, <Block as BlockT>::Hash>
 		+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
-		+ pallet_nomination_pools_rpc_runtime_api::NominationPoolsApi<Block, AccountId, Balance>
 		+ sp_api::Metadata<Block>
 		+ sp_offchain::OffchainWorkerApi<Block>
 		+ sp_session::SessionKeys<Block>
