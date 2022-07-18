@@ -170,50 +170,25 @@ pub struct OutboundHrmpMessage<Id> {
 ///
 /// [hash chain]: https://en.wikipedia.org/wiki/Hash_chain
 #[derive(Default, Clone, Copy, Encode, Decode, scale_info::TypeInfo)]
-pub struct MessageQueueChain(Hash, Hash);
+pub struct MessageQueueChain(Hash);
 
 impl From<Hash> for MessageQueueChain {
 	fn from(head: Hash) -> Self {
-		MessageQueueChain(head, head)
+		MessageQueueChain(head)
 	}
 }
 
 impl MessageQueueChain {
-	/// Extend the hash chain with an HRMP message. This method should be used only when
-	/// this chain is tracking HRMP.
-	pub fn extend_hrmp(&mut self, horizontal_message: &InboundHrmpMessage) -> &mut Self {
-		// Keep prev value.
-		self.1 = self.0;
-		self.0 = BlakeTwo256::hash_of(&(
-			self.1,
-			horizontal_message.sent_at,
-			BlakeTwo256::hash_of(&horizontal_message.data),
-		));
-		self
-	}
-
-	/// Extend the hash chain with a downward message. This method should be used only when
-	/// this chain is tracking DMP.
-	pub fn extend_downward(&mut self, downward_message: &InboundDownwardMessage) -> &mut Self {
-		self.1 = self.0;
-		self.0 = BlakeTwo256::hash_of(&(
-			self.1,
-			downward_message.sent_at,
-			BlakeTwo256::hash_of(&downward_message.msg),
-		));
-		self
+	/// Extend the hash chain with a message.
+	pub fn extend(&self, sent_at: BlockNumber, message_hash: Hash) -> Self {
+		let hash = BlakeTwo256::hash_of(&(self.0, sent_at, message_hash));
+		MessageQueueChain(hash)
 	}
 
 	/// Return the current mead of the message queue hash chain.
 	/// This is agreed to be the zero hash for an empty chain.
 	pub fn head(&self) -> Hash {
 		self.0
-	}
-
-	/// Undo the last operation. Can be called only once after calling `extend`.
-	pub fn undo(&mut self) -> &mut Self {
-		self.0 = self.1;
-		self
 	}
 }
 

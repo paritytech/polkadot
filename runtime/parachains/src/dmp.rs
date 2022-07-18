@@ -338,7 +338,6 @@ impl<T: Config> Pallet<T> {
 		let mut first_message_idx = Self::dmp_message_idx(para).0;
 		let mut total_weight = T::DbWeight::get().reads_writes(3, 0);
 
-		// TODO: also remove `DownwardMessageQueueHeadsById` entries.
 		let mut queue_keys_to_remove = Vec::new();
 		let mut mqc_keys_to_remove = Vec::new();
 
