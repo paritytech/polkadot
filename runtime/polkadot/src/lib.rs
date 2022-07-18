@@ -2125,7 +2125,9 @@ mod test_fees {
 			"can support {} voters in a single block for council elections; total bond {}",
 			voters, cost_dollars,
 		);
-		assert!(cost_dollars > 150_000); // DOLLAR ~ new DOT ~ 10e10
+		// The minimal number of voters we expect per block.
+		assert!(voters >= 1_000);
+		assert!(cost_dollars >= 10_000);
 	}
 
 	#[test]
