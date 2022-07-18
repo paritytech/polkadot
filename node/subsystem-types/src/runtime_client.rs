@@ -17,10 +17,10 @@ use sp_consensus_babe::{
 };
 use std::collections::BTreeMap;
 
-/// Exposes all runtime calls that are used by the runtime api subsystem.
+/// Exposes all runtime calls that are used by the runtime API subsystem.
 #[async_trait]
 pub trait RuntimeApiSubsystemClient {
-	/// Parachain host api version
+	/// Parachain host API version
 	async fn api_version_parachain_host(&self, at: Hash) -> Result<Option<u32>, ApiError>;
 
 	// === ParachainHost API ===
