@@ -1,20 +1,33 @@
+// Copyright 2022 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 use async_trait::async_trait;
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
 	v2::{
 		Block, BlockId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
-		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Header, Id,
+		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id,
 		InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
 		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-		Slot, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
 };
 use sp_api::{ApiError, ApiExt, ProvideRuntimeApi};
 use sp_authority_discovery::AuthorityDiscoveryApi;
-use sp_consensus_babe::{
-	AuthorityId, BabeApi, BabeGenesisConfiguration, Epoch, EquivocationProof,
-	OpaqueKeyOwnershipProof,
-};
+use sp_consensus_babe::{BabeApi, Epoch};
 use std::collections::BTreeMap;
 
 /// Exposes all runtime calls that are used by the runtime API subsystem.
@@ -180,51 +193,8 @@ pub trait RuntimeApiSubsystemClient {
 
 	// === BABE API ===
 
-	/// Return the genesis configuration for BABE. The configuration is only read on genesis.
-	async fn configuration(&self, at: Hash) -> Result<BabeGenesisConfiguration, ApiError>;
-
-	/// Returns the slot that started the current epoch.
-	async fn current_epoch_start(&self, at: Hash) -> Result<Slot, ApiError>;
-
 	/// Returns information regarding the current epoch.
 	async fn current_epoch(&self, at: Hash) -> Result<Epoch, ApiError>;
-
-	/// Returns information regarding the next epoch (which was already
-	/// previously announced).
-	async fn next_epoch(&self, at: Hash) -> Result<Epoch, ApiError>;
-
-	/// Generates a proof of key ownership for the given authority in the
-	/// current epoch. An example usage of this module is coupled with the
-	/// session historical module to prove that a given authority key is
-	/// tied to a given staking identity during a specific session. Proofs
-	/// of key ownership are necessary for submitting equivocation reports.
-	/// NOTE: even though the API takes a `slot` as parameter the current
-	/// implementations ignores this parameter and instead relies on this
-	/// method being called at the correct block height, i.e. any point at
-	/// which the epoch for the given slot is live on-chain. Future
-	/// implementations will instead use indexed data through an offchain
-	/// worker, not requiring older states to be available.
-	async fn generate_key_ownership_proof(
-		&self,
-		at: Hash,
-		slot: Slot,
-		authority_id: AuthorityId,
-	) -> Result<Option<OpaqueKeyOwnershipProof>, ApiError>;
-
-	/// Submits an unsigned extrinsic to report an equivocation. The caller
-	/// must provide the equivocation proof and a key ownership proof
-	/// (should be obtained using `generate_key_ownership_proof`). The
-	/// extrinsic will be unsigned and should only be accepted for local
-	/// authorship (not to be broadcast to the network). This method returns
-	/// `None` when creation of the extrinsic fails, e.g. if equivocation
-	/// reporting is disabled for the given runtime (i.e. this method is
-	/// hardcoded to return `None`). Only useful in an offchain context.
-	async fn submit_report_equivocation_unsigned_extrinsic(
-		&self,
-		at: Hash,
-		equivocation_proof: EquivocationProof<Header>,
-		key_owner_proof: OpaqueKeyOwnershipProof,
-	) -> Result<Option<()>, ApiError>;
 
 	// === AuthorityDiscovery API ===
 
@@ -380,43 +350,8 @@ where
 		self.runtime_api().validation_code_hash(&BlockId::Hash(at), para_id, assumption)
 	}
 
-	async fn configuration(&self, at: Hash) -> Result<BabeGenesisConfiguration, ApiError> {
-		self.runtime_api().configuration(&BlockId::Hash(at))
-	}
-
-	async fn current_epoch_start(&self, at: Hash) -> Result<Slot, ApiError> {
-		self.runtime_api().current_epoch_start(&BlockId::Hash(at))
-	}
-
 	async fn current_epoch(&self, at: Hash) -> Result<Epoch, ApiError> {
 		self.runtime_api().current_epoch(&BlockId::Hash(at))
-	}
-
-	async fn next_epoch(&self, at: Hash) -> Result<Epoch, ApiError> {
-		self.runtime_api().next_epoch(&BlockId::Hash(at))
-	}
-
-	async fn generate_key_ownership_proof(
-		&self,
-		at: Hash,
-		slot: Slot,
-		authority_id: AuthorityId,
-	) -> Result<Option<OpaqueKeyOwnershipProof>, ApiError> {
-		self.runtime_api()
-			.generate_key_ownership_proof(&BlockId::Hash(at), slot, authority_id)
-	}
-
-	async fn submit_report_equivocation_unsigned_extrinsic(
-		&self,
-		at: Hash,
-		equivocation_proof: EquivocationProof<Header>,
-		key_owner_proof: OpaqueKeyOwnershipProof,
-	) -> Result<Option<()>, ApiError> {
-		self.runtime_api().submit_report_equivocation_unsigned_extrinsic(
-			&BlockId::Hash(at),
-			equivocation_proof,
-			key_owner_proof,
-		)
 	}
 
 	async fn authorities(
