@@ -1085,6 +1085,11 @@ where
 	for leaf in added {
 		let mode = prospective_parachains_mode(sender, *leaf).await?;
 
+		if let Some(span) = view.span_per_head().get(leaf).cloned() {
+			let per_leaf_span = PerLeafSpan::new(span, "collator-side");
+			state.span_per_relay_parent.insert(*leaf, per_leaf_span);
+		}
+
 		state.active_leaves.insert(*leaf, mode);
 		state.per_relay_parent.insert(*leaf, PerRelayParent::new(mode));
 
