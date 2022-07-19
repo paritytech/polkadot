@@ -14,29 +14,29 @@ serde = { version = "1.0.137", features = [ "derive" ], optional = true }
 derive_more = "0.99.17"
 bitflags = "1.3.2"
 
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "oty-bump-heap-pages" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "oty-bump-heap-pages" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "oty-bump-heap-pages" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "oty-bump-heap-pages" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
+pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
@@ -50,11 +50,11 @@ polkadot-runtime-metrics = { path = "../metrics", default-features = false}
 [dev-dependencies]
 futures = "0.3.21"
 hex-literal = "0.3.4"
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
-frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers"}
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thousands = "0.2.0"
 assert_matches = "1"
 

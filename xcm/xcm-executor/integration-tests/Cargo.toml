@@ -6,20 +6,20 @@ description = "Integration tests for the XCM Executor"
 version = "0.9.26"
 
 [dependencies]
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.21"
 pallet-xcm = { path = "../../pallet-xcm" }
 polkadot-test-client = { path = "../../../node/test/client" }
 polkadot-test-runtime = { path = "../../../runtime/test-runtime" }
 polkadot-test-service = { path = "../../../node/test/service" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-bump-heap-pages" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 xcm = { path = "../..", default-features = false }
 xcm-executor = { path = ".." }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["std"]
