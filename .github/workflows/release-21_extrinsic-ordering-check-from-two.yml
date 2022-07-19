@@ -49,7 +49,7 @@ jobs:
 
       - name: Start local test node
         run: |
-          echo Running test on $CHAIN
+          echo Running test on ${{ matrix.chain }}
           ./polkadot --chain=${{ matrix.chain }}-local &
 
       - name: Prepare output
@@ -84,7 +84,7 @@ jobs:
       - name: Save output as artifact
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ env.CHAIN }}
+          name: ${{ matrix.chain }}
           path: |
             output.txt
 
