@@ -57,8 +57,7 @@ async fn build_chain(runtime: &str, base_path: &Path) -> Result<(), String> {
 		.args(["--chain", &runtime, "--force-authoring", "--alice"])
 		.arg("-d")
 		.arg(base_path)
-		.arg("--port")
-		.arg("33034")
+		.arg("--no-hardware-benchmarks")
 		.spawn()
 		.unwrap();
 
