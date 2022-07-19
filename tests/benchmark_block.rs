@@ -32,7 +32,7 @@ use tempfile::tempdir;
 
 pub mod common;
 
-static RUNTIMES: [&'static str; 3] = ["polkadot", "kusama", "westend"];
+static RUNTIMES: [&'static str; 4] = ["polkadot", "kusama", "westend", "rococo"];
 
 /// `benchmark block` works for all dev runtimes using the wasm executor.
 #[tokio::test]
@@ -57,8 +57,7 @@ async fn build_chain(runtime: &str, base_path: &Path) -> Result<(), String> {
 		.args(["--chain", &runtime, "--force-authoring", "--alice"])
 		.arg("-d")
 		.arg(base_path)
-		.arg("--port")
-		.arg("33034")
+		.arg("--no-hardware-benchmarks")
 		.spawn()
 		.unwrap();
 
