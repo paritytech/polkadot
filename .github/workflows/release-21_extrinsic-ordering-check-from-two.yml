@@ -83,8 +83,10 @@ jobs:
         run: |
           cat output.txt
 
-      - name: Stop our local node
-        run: pkill polkadot
+      - name: Stop our local nodes
+        run: |
+          pkill polkadot-ref
+          pkill polkadot
 
       - name: Save output as artifact
         uses: actions/upload-artifact@v3
