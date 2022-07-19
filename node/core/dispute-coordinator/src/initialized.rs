@@ -669,10 +669,10 @@ impl Initialized {
 		// In case we are not provided with a candidate receipt
 		// we operate under the assumption, that a previous vote
 		// which included a `CandidateReceipt` was seen.
-		// This holds since every block is preceeded by the `Backing`-phase.
+		// This holds since every block is preceded by the `Backing`-phase.
 		//
 		// There is one exception: A sufficiently sophisticated attacker could prevent
-		// us from seeing the backing votes by witholding arbitrary blocks, and hence we do
+		// us from seeing the backing votes by withholding arbitrary blocks, and hence we do
 		// not have a `CandidateReceipt` available.
 		let (mut votes, mut votes_changed) = match overlay_db
 			.load_candidate_votes(session, &candidate_hash)?
@@ -1115,39 +1115,6 @@ impl Initialized {
 			signature,
 		} = import;
 
-		// Load session info.
-		let info = match self.rolling_session_window.session_info(session) {
-			None => {
-				gum::warn!(
-					target: LOG_TARGET,
-					session,
-					"Missing session info for importing approval vote!"
-				);
-
-				return Ok(())
-			},
-			Some(info) => info,
-		};
-
-		let votes = overlay_db
-			.load_candidate_votes(session, &candidate_hash)?
-			.map(CandidateVotes::from);
-
-		let votes = match votes {
-			None => {
-				gum::error!(
-					target: LOG_TARGET,
-					"Importing own approval vote - there must be backing votes present already!"
-				);
-				CandidateVotes {
-					candidate_receipt: candidate.clone(),
-					valid: BTreeMap::new(),
-					invalid: BTreeMap::new(),
-				}
-			},
-			Some(votes) => votes,
-		};
-
 		let statement = SignedDisputeStatement::new_unchecked_from_trusted_source(
 			DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
 			candidate_hash,
@@ -1156,21 +1123,13 @@ impl Initialized {
 			signature,
 		);
 
-		// Get our message out if dispute is ongoing:
-		match make_dispute_message(info, &votes, statement.clone(), validator_index) {
-			Err(err) => {
-				gum::trace!(
-					target: LOG_TARGET,
-					?err,
-					"No ongoing dispute, just import approval vote into db."
-				);
-			},
-			Ok(dispute_message) => {
-				ctx.send_message(DisputeDistributionMessage::SendDispute(dispute_message)).await;
-			},
-		};
+		// NOTE: We don't have to worry about sending out a `DisputeMessage`, because if a dispute
+		// is already ongoing at the time of import then the dispute coordinator will already have
+		// initiated participation and will send out an explicit vote which should (in the absence
+		// of bugs) be an explicit `Valid` vote which is equivalent in the context of disputes to
+		// an `ApprovalVote`.
 
-		// Do import
+		// Do import:
 		match self
 			.handle_import_statements(
 				ctx,
@@ -1243,7 +1202,7 @@ fn insert_into_statements<T>(
 
 #[derive(Debug, Clone)]
 enum MaybeCandidateReceipt {
-	/// Directly provides the candiate receipt.
+	/// Directly provides the candidate receipt.
 	Provides(CandidateReceipt),
 	/// Assumes it was seen before by means of seconded message.
 	AssumeBackingVotePresent,
@@ -1313,7 +1272,7 @@ fn make_dispute_message(
 	.map_err(DisputeMessageCreationError::InvalidStatementCombination)
 }
 
-/// Determine the the best block and its block number.
+/// Determine the best block and its block number.
 /// Assumes `block_descriptions` are sorted from the one
 /// with the lowest `BlockNumber` to the highest.
 fn determine_undisputed_chain(

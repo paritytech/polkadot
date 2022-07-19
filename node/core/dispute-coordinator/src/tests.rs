@@ -34,14 +34,16 @@ use polkadot_node_subsystem_util::database::Database;
 use polkadot_node_primitives::{SignedDisputeStatement, SignedFullStatement, Statement};
 use polkadot_node_subsystem::{
 	messages::{
-		ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
+		ApprovalVoteImport, ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		ImportStatementsResult,
 	},
 	overseer::FromOrchestra,
 	OverseerSignal,
 };
+
 use polkadot_node_subsystem_util::TimeoutExt;
 use sc_keystore::LocalKeystore;
+use sp_application_crypto::AppKey;
 use sp_core::{sr25519::Pair, testing::TaskExecutor, Pair as PairT};
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
@@ -54,9 +56,9 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 use polkadot_primitives::v2::{
-	BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt, Hash, Header,
-	MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SessionInfo, SigningContext,
-	ValidatorId, ValidatorIndex,
+	ApprovalVote, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt,
+	DisputeStatement, Hash, Header, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex,
+	SessionInfo, SigningContext, ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
 };
 
 use crate::{
@@ -385,12 +387,12 @@ impl TestState {
 
 	async fn issue_explicit_statement_with_index(
 		&self,
-		index: usize,
+		index: ValidatorIndex,
 		candidate_hash: CandidateHash,
 		session: SessionIndex,
 		valid: bool,
 	) -> SignedDisputeStatement {
-		let public = self.validator_public[index].clone();
+		let public = self.validator_public[index.0 as usize].clone();
 
 		let keystore = self.master_keystore.clone() as SyncCryptoStorePtr;
 
@@ -402,12 +404,12 @@ impl TestState {
 
 	async fn issue_backing_statement_with_index(
 		&self,
-		index: usize,
+		index: ValidatorIndex,
 		candidate_hash: CandidateHash,
 		session: SessionIndex,
 	) -> SignedDisputeStatement {
 		let keystore = self.master_keystore.clone() as SyncCryptoStorePtr;
-		let validator_id = self.validators[index].public().into();
+		let validator_id = self.validators[index.0 as usize].public().into();
 		let context =
 			SigningContext { session_index: session, parent_hash: Hash::repeat_byte(0xac) };
 
@@ -415,7 +417,7 @@ impl TestState {
 			&keystore,
 			Statement::Valid(candidate_hash),
 			&context,
-			ValidatorIndex(index as _),
+			index,
 			&validator_id,
 		)
 		.await
@@ -424,6 +426,35 @@ impl TestState {
 		.into_unchecked();
 
 		SignedDisputeStatement::from_backing_statement(&statement, context, validator_id).unwrap()
+	}
+
+	fn issue_approval_vote_with_index(
+		&self,
+		index: ValidatorIndex,
+		candidate_hash: CandidateHash,
+		session: SessionIndex,
+	) -> SignedDisputeStatement {
+		let keystore = self.master_keystore.clone() as SyncCryptoStorePtr;
+		let validator_id = self.validators[index.0 as usize].public();
+
+		let payload = ApprovalVote(candidate_hash).signing_payload(session);
+		let signature = SyncCryptoStore::sign_with(
+			&*keystore,
+			ValidatorId::ID,
+			&validator_id.into(),
+			&payload[..],
+		)
+		.ok()
+		.flatten()
+		.unwrap();
+
+		SignedDisputeStatement::new_unchecked_from_trusted_source(
+			DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
+			candidate_hash,
+			session,
+			validator_id.into(),
+			signature.try_into().unwrap(),
+		)
 	}
 
 	fn resume<F>(mut self, test: F) -> Self
@@ -497,18 +528,30 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
-			let valid_vote1 =
-				test_state.issue_backing_statement_with_index(3, candidate_hash1, session).await;
-
-			let invalid_vote1 = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash1, session, false)
+			let valid_vote1 = test_state
+				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash1, session)
 				.await;
 
-			let valid_vote2 =
-				test_state.issue_backing_statement_with_index(3, candidate_hash1, session).await;
+			let invalid_vote1 = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash1,
+					session,
+					false,
+				)
+				.await;
+
+			let valid_vote2 = test_state
+				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash1, session)
+				.await;
 
 			let invalid_vote2 = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash1, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash1,
+					session,
+					false,
+				)
 				.await;
 
 			virtual_overseer
@@ -613,19 +656,39 @@ fn dispute_gets_confirmed_via_participation() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote1 = test_state
-				.issue_explicit_statement_with_index(3, candidate_hash1, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(3),
+					candidate_hash1,
+					session,
+					true,
+				)
 				.await;
 
 			let invalid_vote1 = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash1, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash1,
+					session,
+					false,
+				)
 				.await;
 
 			let valid_vote2 = test_state
-				.issue_explicit_statement_with_index(3, candidate_hash1, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(3),
+					candidate_hash1,
+					session,
+					true,
+				)
 				.await;
 
 			let invalid_vote2 = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash1, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash1,
+					session,
+					false,
+				)
 				.await;
 
 			virtual_overseer
@@ -738,27 +801,57 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote1 = test_state
-				.issue_explicit_statement_with_index(3, candidate_hash1, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(3),
+					candidate_hash1,
+					session,
+					true,
+				)
 				.await;
 
 			let invalid_vote1 = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash1, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash1,
+					session,
+					false,
+				)
 				.await;
 
 			let valid_vote1a = test_state
-				.issue_explicit_statement_with_index(4, candidate_hash1, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(4),
+					candidate_hash1,
+					session,
+					true,
+				)
 				.await;
 
 			let invalid_vote1a = test_state
-				.issue_explicit_statement_with_index(5, candidate_hash1, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(5),
+					candidate_hash1,
+					session,
+					false,
+				)
 				.await;
 
 			let valid_vote2 = test_state
-				.issue_explicit_statement_with_index(3, candidate_hash1, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(3),
+					candidate_hash1,
+					session,
+					true,
+				)
 				.await;
 
 			let invalid_vote2 = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash1, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash1,
+					session,
+					false,
+				)
 				.await;
 
 			virtual_overseer
@@ -866,11 +959,13 @@ fn backing_statements_import_works_and_no_spam() {
 
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
-			let valid_vote1 =
-				test_state.issue_backing_statement_with_index(3, candidate_hash, session).await;
+			let valid_vote1 = test_state
+				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash, session)
+				.await;
 
-			let valid_vote2 =
-				test_state.issue_backing_statement_with_index(4, candidate_hash, session).await;
+			let valid_vote2 = test_state
+				.issue_backing_statement_with_index(ValidatorIndex(4), candidate_hash, session)
+				.await;
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			virtual_overseer
@@ -918,11 +1013,13 @@ fn backing_statements_import_works_and_no_spam() {
 			let candidate_receipt = make_invalid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			let valid_vote1 =
-				test_state.issue_backing_statement_with_index(3, candidate_hash, session).await;
+			let valid_vote1 = test_state
+				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash, session)
+				.await;
 
-			let valid_vote2 =
-				test_state.issue_backing_statement_with_index(4, candidate_hash, session).await;
+			let valid_vote2 = test_state
+				.issue_backing_statement_with_index(ValidatorIndex(4), candidate_hash, session)
+				.await;
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			// Backing vote import should not have accounted to spam slots, so this should succeed
@@ -969,15 +1066,30 @@ fn conflicting_votes_lead_to_dispute_participation() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote = test_state
-				.issue_explicit_statement_with_index(3, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(3),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 
 			let invalid_vote = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					false,
+				)
 				.await;
 
 			let invalid_vote_2 = test_state
-				.issue_explicit_statement_with_index(2, candidate_hash, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					false,
+				)
 				.await;
 
 			virtual_overseer
@@ -1079,11 +1191,21 @@ fn positive_votes_dont_trigger_participation() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote = test_state
-				.issue_explicit_statement_with_index(2, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 
 			let valid_vote_2 = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 
 			virtual_overseer
@@ -1184,11 +1306,21 @@ fn wrong_validator_index_is_ignored() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote = test_state
-				.issue_explicit_statement_with_index(2, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 
 			let invalid_vote = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					false,
+				)
 				.await;
 
 			virtual_overseer
@@ -1255,11 +1387,21 @@ fn finality_votes_ignore_disputed_candidates() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote = test_state
-				.issue_explicit_statement_with_index(2, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 
 			let invalid_vote = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					false,
+				)
 				.await;
 
 			virtual_overseer
@@ -1357,11 +1499,21 @@ fn supermajority_valid_dispute_may_be_finalized() {
 				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
 
 			let valid_vote = test_state
-				.issue_explicit_statement_with_index(2, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 
 			let invalid_vote = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					false,
+				)
 				.await;
 
 			virtual_overseer
@@ -1387,9 +1539,14 @@ fn supermajority_valid_dispute_may_be_finalized() {
 			.await;
 
 			let mut statements = Vec::new();
-			for i in (0..supermajority_threshold - 1).map(|i| i + 3) {
+			for i in (0_u32..supermajority_threshold as u32 - 1).map(|i| i + 3) {
 				let vote = test_state
-					.issue_explicit_statement_with_index(i, candidate_hash, session, true)
+					.issue_explicit_statement_with_index(
+						ValidatorIndex(i),
+						candidate_hash,
+						session,
+						true,
+					)
 					.await;
 
 				statements.push((vote, ValidatorIndex(i as _)));
@@ -1480,11 +1637,21 @@ fn concluded_supermajority_for_non_active_after_time() {
 				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
 
 			let valid_vote = test_state
-				.issue_explicit_statement_with_index(2, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 
 			let invalid_vote = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					false,
+				)
 				.await;
 
 			virtual_overseer
@@ -1511,9 +1678,14 @@ fn concluded_supermajority_for_non_active_after_time() {
 
 			let mut statements = Vec::new();
 			// -2: 1 for already imported vote and one for local vote (which is valid).
-			for i in (0..supermajority_threshold - 2).map(|i| i + 3) {
+			for i in (0_u32..supermajority_threshold as u32 - 2).map(|i| i + 3) {
 				let vote = test_state
-					.issue_explicit_statement_with_index(i, candidate_hash, session, true)
+					.issue_explicit_statement_with_index(
+						ValidatorIndex(i),
+						candidate_hash,
+						session,
+						true,
+					)
 					.await;
 
 				statements.push((vote, ValidatorIndex(i as _)));
@@ -1581,11 +1753,21 @@ fn concluded_supermajority_against_non_active_after_time() {
 				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
 
 			let valid_vote = test_state
-				.issue_explicit_statement_with_index(2, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 
 			let invalid_vote = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					false,
+				)
 				.await;
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
@@ -1617,9 +1799,14 @@ fn concluded_supermajority_against_non_active_after_time() {
 
 			let mut statements = Vec::new();
 			// minus 2, because of local vote and one previously imported invalid vote.
-			for i in (0..supermajority_threshold - 2).map(|i| i + 3) {
+			for i in (0_u32..supermajority_threshold as u32 - 2).map(|i| i + 3) {
 				let vote = test_state
-					.issue_explicit_statement_with_index(i, candidate_hash, session, false)
+					.issue_explicit_statement_with_index(
+						ValidatorIndex(i),
+						candidate_hash,
+						session,
+						false,
+					)
 					.await;
 
 				statements.push((vote, ValidatorIndex(i as _)));
@@ -1685,11 +1872,21 @@ fn resume_dispute_without_local_statement() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 
 			let invalid_vote = test_state
-				.issue_explicit_statement_with_index(2, candidate_hash, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					false,
+				)
 				.await;
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
@@ -1748,22 +1945,52 @@ fn resume_dispute_without_local_statement() {
 			.await;
 
 			let valid_vote0 = test_state
-				.issue_explicit_statement_with_index(0, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(0),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 			let valid_vote3 = test_state
-				.issue_explicit_statement_with_index(3, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(3),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 			let valid_vote4 = test_state
-				.issue_explicit_statement_with_index(4, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(4),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 			let valid_vote5 = test_state
-				.issue_explicit_statement_with_index(5, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(5),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 			let valid_vote6 = test_state
-				.issue_explicit_statement_with_index(6, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(6),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 			let valid_vote7 = test_state
-				.issue_explicit_statement_with_index(7, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(7),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 
 			virtual_overseer
@@ -1823,15 +2050,30 @@ fn resume_dispute_with_local_statement() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let local_valid_vote = test_state
-				.issue_explicit_statement_with_index(0, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(0),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 
 			let valid_vote = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 
 			let invalid_vote = test_state
-				.issue_explicit_statement_with_index(2, candidate_hash, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					false,
+				)
 				.await;
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
@@ -1905,11 +2147,21 @@ fn resume_dispute_without_local_statement_or_local_key() {
 				test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 				let valid_vote = test_state
-					.issue_explicit_statement_with_index(1, candidate_hash, session, true)
+					.issue_explicit_statement_with_index(
+						ValidatorIndex(1),
+						candidate_hash,
+						session,
+						true,
+					)
 					.await;
 
 				let invalid_vote = test_state
-					.issue_explicit_statement_with_index(2, candidate_hash, session, false)
+					.issue_explicit_statement_with_index(
+						ValidatorIndex(2),
+						candidate_hash,
+						session,
+						false,
+					)
 					.await;
 
 				let (pending_confirmation, confirmation_rx) = oneshot::channel();
@@ -1983,15 +2235,30 @@ fn resume_dispute_with_local_statement_without_local_key() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let local_valid_vote = test_state
-				.issue_explicit_statement_with_index(0, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(0),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 
 			let valid_vote = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash, session, true)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					true,
+				)
 				.await;
 
 			let invalid_vote = test_state
-				.issue_explicit_statement_with_index(2, candidate_hash, session, false)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					false,
+				)
 				.await;
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
@@ -2075,7 +2342,12 @@ fn issue_local_statement_does_cause_distribution_but_not_duplicate_participation
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let other_vote = test_state
-				.issue_explicit_statement_with_index(1, candidate_hash, session, !validity)
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					!validity,
+				)
 				.await;
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
@@ -2118,6 +2390,101 @@ fn issue_local_statement_does_cause_distribution_but_not_duplicate_participation
 
 			// Make sure we won't participate:
 			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
+
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+			assert!(virtual_overseer.try_recv().await.is_none());
+
+			test_state
+		})
+	});
+}
+
+#[test]
+fn own_approval_vote_gets_distributed_on_dispute() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = make_valid_candidate_receipt();
+			let candidate_hash = candidate_receipt.hash();
+
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+
+			let approval_import = {
+				let statement = test_state.issue_approval_vote_with_index(
+					ValidatorIndex(0),
+					candidate_hash,
+					session,
+				);
+
+				ApprovalVoteImport {
+					candidate_hash,
+					candidate: candidate_receipt.clone(),
+					session,
+					validator_public: test_state.validators[0].public().into(),
+					validator_index: ValidatorIndex(0),
+					signature: statement.validator_signature().clone(),
+				}
+			};
+			// Import our approval vote:
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportOwnApprovalVote(approval_import),
+				})
+				.await;
+
+			// Trigger dispute:
+			let invalid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					false,
+				)
+				.await;
+			let valid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					true,
+				)
+				.await;
+
+			let (pending_confirmation, confirmation_rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_hash,
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(invalid_vote, ValidatorIndex(1)),
+							(valid_vote, ValidatorIndex(2)),
+						],
+						pending_confirmation: Some(pending_confirmation),
+					},
+				})
+				.await;
+
+			assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
+
+			// Dispute distribution should get notified now (without participation, as we already
+			// have an approval vote):
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::DisputeDistribution(
+					DisputeDistributionMessage::SendDispute(msg)
+				) => {
+					assert_eq!(msg.session_index(), session);
+					assert_eq!(msg.candidate_receipt(), &candidate_receipt);
+				}
+			);
+
+			// No participation should occur:
+			assert_matches!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await, None);
 
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert!(virtual_overseer.try_recv().await.is_none());
@@ -2235,11 +2602,13 @@ fn redundant_votes_ignored() {
 
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
-			let valid_vote =
-				test_state.issue_backing_statement_with_index(1, candidate_hash, session).await;
+			let valid_vote = test_state
+				.issue_backing_statement_with_index(ValidatorIndex(1), candidate_hash, session)
+				.await;
 
-			let valid_vote_2 =
-				test_state.issue_backing_statement_with_index(1, candidate_hash, session).await;
+			let valid_vote_2 = test_state
+				.issue_backing_statement_with_index(ValidatorIndex(1), candidate_hash, session)
+				.await;
 
 			assert!(valid_vote.validator_signature() != valid_vote_2.validator_signature());
 
