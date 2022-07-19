@@ -899,6 +899,14 @@ impl Initialized {
 			// New dispute?
 			if prev_status.is_none() {
 				// Check for approval votes to send on opened dispute:
+				//
+				// NOTE: This is actually an unneeded complication. Instead of importing own
+				// approval votes, it would equally be fine to not bother and let the
+				// dispute-coordinator just trigger participation. The import of approval-votes and
+				// participation is racing anyway, we could put an end to that and further decouple
+				// approval-voting from disputes, by just not bothering about approval votes in
+				// dispute resolution. That is, only care about backing votes and explicit votes and
+				// keep approval votes to approval-voting.
 				for (validator_index, (k, sig)) in our_approval_votes {
 					debug_assert!(k == ValidDisputeStatementKind::ApprovalChecking);
 					let pub_key = match validators.get(validator_index.0 as usize) {
@@ -1049,8 +1057,6 @@ impl Initialized {
 			let dispute_message =
 				match make_dispute_message(info, &votes, statement.clone(), *index) {
 					Err(err) => {
-						// TODO: Change this to a less concerned message in case vote was an
-						// approval vote.
 						gum::debug!(target: LOG_TARGET, ?err, "Creating dispute message failed.");
 						continue
 					},

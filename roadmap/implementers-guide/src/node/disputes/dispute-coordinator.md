@@ -252,7 +252,8 @@ Performs cleanup of the finalized candidate.
 
 Import statements by validators are processed in `fn handle_import_statements()`. The function has
 got three main responsibilities:
-* Initiate participation in disputes.
+* Initiate participation in disputes and sending out of any existing own
+  approval vote in case of a raised dispute.
 * Persist all fresh votes in the database. Fresh votes in this context means votes that are not
   already processed by the node.
 * Spam protection on all invalid (`DisputeStatement::Invalid`) votes. Please check the SpamSlots
@@ -287,6 +288,25 @@ Executes `fn issue_local_statement()` which performs the following operations:
 * Write statement to DB.
 * Send a `DisputeDistributionMessage::SendDispute` message to get the vote distributed to other
   validators.
+
+## On `DisputeCoordinatorMessage::ImportOwnApprovalVote`
+
+We call `handle_import_statements()` in order to have our approval vote
+available in case a dispute is raised. When a dispute is raised we send out any
+available approval vote via dispute-distribution.
+
+NOTE: There is no point in sending out that approval vote in case
+`ImportOwnApprovalVote` was received after a dispute has been raised already as
+in that case the dispute-coordinator will already have triggered participation
+on the dispute which should (in the absence of bugs) result in a valid explict
+vote, which is in the context of disputes equivalent to an approval vote.
+
+So this race should not in fact be causing any issues and indeed we could take
+advantage of this fact and don't bother importing approval-votes at all, which
+would trigger some code simplification:
+
+- Get rid of the `ImportOwnApprovalVote` message and its handling.
+- No need to lookup and distribute approval votes on a raised dispute.
 
 ### On `DisputeCoordinatorMessage::DetermineUndisputedChain`
 
