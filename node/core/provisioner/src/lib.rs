@@ -21,8 +21,7 @@
 
 use bitvec::vec::BitVec;
 use futures::{
-	channel::oneshot, future::BoxFuture, lock::Mutex, prelude::*, stream::FuturesUnordered,
-	FutureExt,
+	channel::oneshot, future::BoxFuture, prelude::*, stream::FuturesUnordered, FutureExt,
 };
 use futures_timer::Delay;
 
@@ -577,8 +576,6 @@ async fn request_backable_candidates(
 ) -> Result<Vec<CandidateHash>, Error> {
 	let block_number = get_block_number_under_construction(relay_parent, sender).await?;
 
-	// Wrapped sender is shared among concurrent prospective parachains requests.
-	let wrapped_sender = Mutex::new(sender);
 	let mut selected_candidates = Vec::with_capacity(availability_cores.len());
 
 	for (core_idx, core) in availability_cores.iter().enumerate() {
@@ -617,17 +614,11 @@ async fn request_backable_candidates(
 			CoreState::Free => continue,
 		};
 
-		let fut = get_backable_candidate(relay_parent, para_id, required_path, &wrapped_sender);
+		let candidate_hash =
+			get_backable_candidate(relay_parent, para_id, required_path, sender).await?;
 
-		selected_candidates.push(fut);
-	}
-
-	let selected_candidates = futures::future::try_join_all(selected_candidates).await?;
-	let mut selected = Vec::with_capacity(selected_candidates.len());
-
-	for (core_idx, candidate_hash) in selected_candidates.into_iter().enumerate() {
 		match candidate_hash {
-			Some(hash) => selected.push(hash),
+			Some(hash) => selected_candidates.push(hash),
 			None => {
 				gum::debug!(
 					target: LOG_TARGET,
@@ -639,7 +630,7 @@ async fn request_backable_candidates(
 		}
 	}
 
-	Ok(selected)
+	Ok(selected_candidates)
 }
 
 /// Determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
@@ -738,12 +729,10 @@ async fn get_backable_candidate(
 	relay_parent: Hash,
 	para_id: ParaId,
 	required_path: Vec<CandidateHash>,
-	sender: &Mutex<&mut impl overseer::ProvisionerSenderTrait>,
+	sender: &mut impl overseer::ProvisionerSenderTrait,
 ) -> Result<Option<CandidateHash>, Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
-		.lock()
-		.await
 		.send_message(ProspectiveParachainsMessage::GetBackableCandidate(
 			relay_parent,
 			para_id,
@@ -752,7 +741,7 @@ async fn get_backable_candidate(
 		))
 		.await;
 
-	rx.await.map_err(Error::CanceledProspectiveCandidateChild)
+	rx.await.map_err(Error::CanceledBackableCandidate)
 }
 
 /// The availability bitfield for a given core is the transpose
