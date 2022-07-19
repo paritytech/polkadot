@@ -26,6 +26,7 @@ polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
