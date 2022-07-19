@@ -48,14 +48,18 @@ use crate::opts::*;
 use clap::Parser;
 use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
+use futures_util::StreamExt;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use rpc::{RpcApiClient, SharedRpcClient};
 use runtime_versions::RuntimeVersions;
+use signal_hook::consts::signal::*;
+use signal_hook_tokio::Signals;
 use sp_npos_elections::BalancingConfig;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 use std::{ops::Deref, sync::Arc};
 use tracing_subscriber::{fmt, EnvFilter};
+
 pub(crate) enum AnyRuntime {
 	Polkadot,
 	Kusama,
@@ -437,12 +441,56 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 	}
 }
 
+/// Control how we exit the application
+fn controlled_exit(code: i32) {
+	log::info!(target: LOG_TARGET, "Exiting application");
+	std::process::exit(code);
+}
+
+/// Handles the various signal and exit the application
+/// when appropriate.
+async fn handle_signals(mut signals: Signals) {
+	let mut keyboard_sig_count: u8 = 0;
+	while let Some(signal) = signals.next().await {
+		match signal {
+			// Interrupts come from the keyboard
+			SIGQUIT | SIGINT => {
+				if keyboard_sig_count >= 1 {
+					log::info!(
+						target: LOG_TARGET,
+						"Received keyboard termination signal #{}/{}, quitting...",
+						keyboard_sig_count + 1,
+						2
+					);
+					controlled_exit(exitcode::OK);
+				}
+				keyboard_sig_count += 1;
+				log::warn!(
+					target: LOG_TARGET,
+					"Received keyboard termination signal #{}, if you keep doing that I will really quit",
+					keyboard_sig_count
+				);
+			},
+
+			SIGKILL | SIGTERM => {
+				log::info!(target: LOG_TARGET, "Received SIGKILL | SIGTERM, quitting...");
+				controlled_exit(exitcode::OK);
+			},
+			_ => unreachable!(),
+		}
+	}
+}
+
 #[tokio::main]
 async fn main() {
 	fmt().with_env_filter(EnvFilter::from_default_env()).init();
 
 	let Opt { uri, command } = Opt::parse();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
+
+	let signals = Signals::new(&[SIGTERM, SIGINT, SIGQUIT]).expect("Failed initializing Signals");
+	let handle = signals.handle();
+	let signals_task = tokio::spawn(handle_signals(signals));
 
 	let rpc = loop {
 		match SharedRpcClient::new(&uri).await {
@@ -555,6 +603,9 @@ async fn main() {
 		}
 	};
 	log::info!(target: LOG_TARGET, "round of execution finished. outcome = {:?}", outcome);
+
+	handle.close();
+	let _ = signals_task.await;
 }
 
 #[cfg(test)]
