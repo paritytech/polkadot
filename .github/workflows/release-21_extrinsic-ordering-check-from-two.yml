@@ -48,7 +48,7 @@ jobs:
       - name: Start local reference node
         run: |
           echo Running reference on $CHAIN
-          ./polkadot-ref --chain=$CHAIN --rpc-port=9934 --ws-port=9945 &
+          ./polkadot-ref --chain=$CHAIN --rpc-port=9934 --ws-port=9945 --base-path=polkadot-ref-base/ &
 
       - name: Start local test node
         run: |
