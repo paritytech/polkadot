@@ -10,13 +10,13 @@ codec = { package = "parity-scale-codec", version = "3.0.0" }
 honggfuzz = "0.5.54"
 scale-info = { version = "2.1.2", features = ["derive"] }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "oty-bump-heap-pages" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }
