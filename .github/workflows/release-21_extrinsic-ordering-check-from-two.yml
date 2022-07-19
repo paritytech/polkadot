@@ -1,6 +1,6 @@
-# This workflow performs the Extrinsic Ordering Check on demand using a binary
+# This workflow performs the Extrinsic Ordering Check on demand using two reference binaries
 
-name: Release - Extrinsic Ordering Check against alternative binary
+name: Release - Extrinsic API Check with reference bins
 on:
   workflow_dispatch:
     inputs:
@@ -12,19 +12,17 @@ on:
         description: A url to a Linux binary for the node containing the runtime to test
         default: https://releases.parity.io/polkadot/x86_64-debian:stretch/v0.9.27-rc1/polkadot
         required: true
-      chain:
-        description: The name of the chain under test. Usually, you would pass a local chain
-        default: kusama-local
-        required: true
 
 jobs:
   check:
     name: Run check
     runs-on: ubuntu-latest
     env:
-      CHAIN: ${{github.event.inputs.chain}}
       BIN_URL: ${{github.event.inputs.binary_url}}
       REF_URL: ${{github.event.inputs.reference_binary_url}}
+    strategy:
+      matrix:
+        chain: [polkadot, kusama, westend, rococo]
 
     steps:
       - name: Checkout sources
@@ -33,27 +31,26 @@ jobs:
       - name: Fetch reference binary
         run: |
           echo Fetching $REF_URL
-          wget $REF_URL
-          mv polkadot polkadot-ref
+          curl $REF_URL -o polkadot-ref
           chmod a+x polkadot-ref
           ./polkadot-ref --version
 
-      - name: Fetch binary
+      - name: Fetch test binary
         run: |
           echo Fetching $BIN_URL
-          wget $BIN_URL
+          curl $BIN_URL -o polkadot
           chmod a+x polkadot
           ./polkadot --version
 
       - name: Start local reference node
         run: |
-          echo Running reference on $CHAIN
-          ./polkadot-ref --chain=$CHAIN --rpc-port=9934 --ws-port=9945 --base-path=polkadot-ref-base/ &
+          echo Running reference on ${{ matrix.chain }}
+          ./polkadot-ref --chain=${{ matrix.chain }}-local --rpc-port=9934 --ws-port=9945 --base-path=polkadot-ref-base/ &
 
       - name: Start local test node
         run: |
           echo Running test on $CHAIN
-          ./polkadot --chain=$CHAIN &
+          ./polkadot --chain=${{ matrix.chain }}-local &
 
       - name: Prepare output
         run: |
@@ -61,8 +58,9 @@ jobs:
           echo "Metadata comparison:" >> output.txt
           echo "Date: $(date)" >> output.txt
           echo "Reference: $REF_URL" >> output.txt
+          echo "Test binary: $BIN_URL" >> output.txt
           echo "Target version: $VERSION" >> output.txt
-          echo "Chain: $CHAIN" >> output.txt
+          echo "Local chain: ${{ matrix.chain }}" >> output.txt
           echo "----------------------------------------------------------------------" >> output.txt
 
       - name: Pull polkadot-js-tools image
@@ -83,14 +81,15 @@ jobs:
         run: |
           cat output.txt
 
-      - name: Stop our local nodes
-        run: |
-          pkill polkadot-ref
-          pkill polkadot
-
       - name: Save output as artifact
         uses: actions/upload-artifact@v3
         with:
           name: ${{ env.CHAIN }}
           path: |
             output.txt
+
+      - name: Stop our local nodes
+        run: |
+          pkill polkadot-ref
+          pkill polkadot
+
