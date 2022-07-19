@@ -22,6 +22,7 @@ jobs:
       REF_URL: ${{github.event.inputs.reference_binary_url}}
     strategy:
       matrix:
+        fail-fast: false
         chain: [polkadot, kusama, westend, rococo]
 
     steps:
