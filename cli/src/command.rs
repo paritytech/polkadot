@@ -247,10 +247,13 @@ macro_rules! unwrap_client {
 /// Should only be used in release build since the check would take too much time otherwise.
 fn host_perf_check() -> Result<()> {
 	#[cfg(not(build_type = "release"))]
-	{
-		Err(PerfCheckError::WrongBuildType.into())
-	}
-	#[cfg(build_type = "release")]
+	return Err(PerfCheckError::WrongBuildType.into())
+
+	#[allow(unreachable_code)]
+	#[cfg(not(feature = "hostperfcheck"))]
+	return Err(PerfCheckError::FeatureNotEnabled { feature: "hostperfcheck" }.into())
+
+	#[cfg(all(build_type = "release", feature = "hostperfcheck"))]
 	{
 		crate::host_perf_check::host_perf_check()?;
 		Ok(())
