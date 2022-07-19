@@ -672,6 +672,13 @@ pub enum RuntimeApiRequest {
 	SessionInfo(SessionIndex, RuntimeApiSender<Option<SessionInfo>>),
 	/// Get all the pending inbound messages in the downward message queue for a para.
 	DmqContents(ParaId, RuntimeApiSender<Vec<InboundDownwardMessage<BlockNumber>>>),
+	/// Get a subset of the pending inbound messages in the downward message queue for a para.
+	DmqContentsBounded(
+		ParaId,
+		u32,
+		u32,
+		RuntimeApiSender<Vec<InboundDownwardMessage<BlockNumber>>>,
+	),
 	/// Get the contents of all channels addressed to the given recipient. Channels that have no
 	/// messages in them are also included.
 	InboundHrmpChannelsContents(

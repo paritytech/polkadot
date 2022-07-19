@@ -104,6 +104,10 @@ pub(crate) struct RequestResultCache {
 	session_info: MemoryLruCache<SessionIndex, ResidentSizeOf<SessionInfo>>,
 	dmq_contents:
 		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Vec<InboundDownwardMessage<BlockNumber>>>>,
+	dmq_contents_bounded: MemoryLruCache<
+		(Hash, ParaId, u32, u32),
+		ResidentSizeOf<Vec<InboundDownwardMessage<BlockNumber>>>,
+	>,
 	inbound_hrmp_channels_contents: MemoryLruCache<
 		(Hash, ParaId),
 		ResidentSizeOf<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>,
@@ -141,6 +145,7 @@ impl Default for RequestResultCache {
 			candidate_events: MemoryLruCache::new(CANDIDATE_EVENTS_CACHE_SIZE),
 			session_info: MemoryLruCache::new(SESSION_INFO_CACHE_SIZE),
 			dmq_contents: MemoryLruCache::new(DMQ_CONTENTS_CACHE_SIZE),
+			dmq_contents_bounded: MemoryLruCache::new(DMQ_CONTENTS_CACHE_SIZE),
 			inbound_hrmp_channels_contents: MemoryLruCache::new(INBOUND_HRMP_CHANNELS_CACHE_SIZE),
 			current_babe_epoch: MemoryLruCache::new(CURRENT_BABE_EPOCH_CACHE_SIZE),
 			on_chain_votes: MemoryLruCache::new(ON_CHAIN_VOTES_CACHE_SIZE),
@@ -330,6 +335,13 @@ impl RequestResultCache {
 		self.dmq_contents.get(&key).map(|v| &v.0)
 	}
 
+	pub(crate) fn dmq_contents_bounded(
+		&mut self,
+		key: (Hash, ParaId, u32, u32),
+	) -> Option<&Vec<InboundDownwardMessage<BlockNumber>>> {
+		self.dmq_contents_bounded.get(&key).map(|v| &v.0)
+	}
+
 	pub(crate) fn cache_dmq_contents(
 		&mut self,
 		key: (Hash, ParaId),
@@ -338,6 +350,13 @@ impl RequestResultCache {
 		self.dmq_contents.insert(key, ResidentSizeOf(value));
 	}
 
+	pub(crate) fn cache_dmq_contents_bounded(
+		&mut self,
+		key: (Hash, ParaId, u32, u32),
+		value: Vec<InboundDownwardMessage<BlockNumber>>,
+	) {
+		self.dmq_contents_bounded.insert(key, ResidentSizeOf(value));
+	}
 	pub(crate) fn inbound_hrmp_channels_contents(
 		&mut self,
 		key: (Hash, ParaId),
@@ -451,6 +470,7 @@ pub(crate) enum RequestResult {
 	CandidateEvents(Hash, Vec<CandidateEvent>),
 	SessionInfo(Hash, SessionIndex, Option<SessionInfo>),
 	DmqContents(Hash, ParaId, Vec<InboundDownwardMessage<BlockNumber>>),
+	DmqContentsBounded(Hash, ParaId, u32, u32, Vec<InboundDownwardMessage<BlockNumber>>),
 	InboundHrmpChannelsContents(
 		Hash,
 		ParaId,
