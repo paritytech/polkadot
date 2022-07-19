@@ -44,23 +44,25 @@ jobs:
 
       - name: Start local reference node
         run: |
-          echo Running reference on ${{ matrix.chain }}
+          echo Running reference on ${{ matrix.chain }}-local
           ./polkadot-ref --chain=${{ matrix.chain }}-local --rpc-port=9934 --ws-port=9945 --base-path=polkadot-ref-base/ &
 
       - name: Start local test node
         run: |
-          echo Running test on ${{ matrix.chain }}
+          echo Running test on ${{ matrix.chain }}-local
           ./polkadot --chain=${{ matrix.chain }}-local &
 
       - name: Prepare output
         run: |
-          VERSION=$(./polkadot --version)
+          REF_VERSION=$(./polkadot-ref --version)
+          BIN_VERSION=$(./polkadot --version)
           echo "Metadata comparison:" >> output.txt
           echo "Date: $(date)" >> output.txt
-          echo "Reference: $REF_URL" >> output.txt
+          echo "Ref. binary: $REF_URL" >> output.txt
           echo "Test binary: $BIN_URL" >> output.txt
-          echo "Target version: $VERSION" >> output.txt
-          echo "Local chain: ${{ matrix.chain }}" >> output.txt
+          echo "Ref. version: $REF_VERSION" >> output.txt
+          echo "Test version: $BIN_VERSION" >> output.txt
+          echo "Chain: ${{ matrix.chain }}-local" >> output.txt
           echo "----------------------------------------------------------------------" >> output.txt
 
       - name: Pull polkadot-js-tools image
