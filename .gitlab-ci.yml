@@ -221,7 +221,7 @@ test-linux-stable:
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
   script:
-    - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics
+    - time cargo test --workspace --profile release --verbose --locked --features=runtime-benchmarks,runtime-metrics
 
 
 
