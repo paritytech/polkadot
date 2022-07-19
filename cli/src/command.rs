@@ -21,7 +21,7 @@ use log::info;
 use polkadot_client::benchmarking::{
 	benchmark_inherent_data, ExistentialDepositProvider, RemarkBuilder, TransferKeepAliveBuilder,
 };
-use sc_cli::{Role, RuntimeVersion, SubstrateCli};
+use sc_cli::{RuntimeVersion, SubstrateCli};
 use service::{self, HeaderBackend, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
 use sp_keyring::Sr25519Keyring;
@@ -323,25 +323,20 @@ where
 			None
 		};
 
-		let role = config.role.clone();
-
-		match role {
-			Role::Light => Err(Error::Other("Light client not enabled".into())),
-			_ => service::build_full(
-				config,
-				service::IsCollator::No,
-				grandpa_pause,
-				cli.run.beefy,
-				jaeger_agent,
-				None,
-				false,
-				overseer_gen,
-				cli.run.overseer_channel_capacity_override,
-				hwbench,
-			)
-			.map(|full| full.task_manager)
-			.map_err(Into::into),
-		}
+		service::build_full(
+			config,
+			service::IsCollator::No,
+			grandpa_pause,
+			cli.run.beefy,
+			jaeger_agent,
+			None,
+			false,
+			overseer_gen,
+			cli.run.overseer_channel_capacity_override,
+			hwbench,
+		)
+		.map(|full| full.task_manager)
+		.map_err(Into::into)
 	})
 }
 
