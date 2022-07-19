@@ -61,6 +61,10 @@ async fn build_chain(runtime: &str, base_path: &Path) -> Result<(), String> {
 		.spawn()
 		.unwrap();
 
+	// Sleep for 10 seconds until the node is online.
+	// This is an ugly hot-fix until `find_ws_url_from_output` is patched to work correctly.
+	tokio::time::sleep(Duration::from_secs(10)).await;
+
 	let (ws_url, _) = common::find_ws_url_from_output(cmd.stderr.take().unwrap());
 
 	// Wait for the chain to produce one block.
