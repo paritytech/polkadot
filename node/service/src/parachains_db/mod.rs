@@ -15,7 +15,10 @@
 
 #[cfg(feature = "full-node")]
 use {
-	polkadot_node_subsystem_util::database::Database, std::io, std::path::PathBuf, std::sync::Arc,
+	polkadot_node_subsystem_util::database::Database,
+	std::io,
+	std::path::{Path, PathBuf},
+	std::sync::Arc,
 };
 
 #[cfg(feature = "full-node")]
@@ -122,7 +125,7 @@ pub fn open_creating_rocksdb(
 	Ok(Arc::new(db))
 }
 
-fn migrate_columns(path: &Path, new_options: Options) {
+fn migrate_columns(path: &Path, options: parity_db::Options) {
 	// Figure out if we need to ask ParityDB to migrate. This will be determined by inspecting
 	// the metadata file.
 	if let Ok(Some(metadata)) = parity_db::Options::load_metadata(&path) {
@@ -193,6 +196,8 @@ pub fn open_creating_paritydb(
 	for i in columns::ORDERED_COL {
 		options.columns[*i as usize].btree_index = true;
 	}
+
+	migrate_columns(&path, options.clone());
 
 	let db = parity_db::Db::open_or_create(&options)
 		.map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{:?}", err)))?;
