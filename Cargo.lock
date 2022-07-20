@@ -327,9 +327,9 @@ checksum = "e91831deabf0d6d7ec49552e489aed63b7456a7a3c46cff62adad428110b0af0"
 
 [[package]]
 name = "async-trait"
-version = "0.1.53"
+version = "0.1.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed6aa3524a2dfcf9fe180c51eae2b58738348d819517ceadf95789c51fff7600"
+checksum = "96cf8829f67d2eab0b2dfa42c5d0ef737e0724e4a82b01b3e292456202b19716"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6295,6 +6295,7 @@ name = "polkadot-node-core-approval-voting"
 version = "0.9.26"
 dependencies = [
  "assert_matches",
+ "async-trait",
  "bitvec",
  "derive_more",
  "futures",
@@ -6590,6 +6591,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-types",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
@@ -6720,6 +6722,7 @@ dependencies = [
 name = "polkadot-node-subsystem-types"
 version = "0.9.26"
 dependencies = [
+ "async-trait",
  "derive_more",
  "futures",
  "orchestra",
@@ -6730,6 +6733,9 @@ dependencies = [
  "polkadot-statement-table",
  "sc-network",
  "smallvec",
+ "sp-api",
+ "sp-authority-discovery",
+ "sp-consensus-babe",
  "substrate-prometheus-endpoint",
  "thiserror",
 ]
@@ -6779,6 +6785,7 @@ name = "polkadot-overseer"
 version = "0.9.26"
 dependencies = [
  "assert_matches",
+ "async-trait",
  "femme",
  "futures",
  "futures-timer",
