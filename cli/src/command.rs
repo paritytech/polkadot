@@ -248,12 +248,19 @@ macro_rules! unwrap_client {
 fn host_perf_check() -> Result<()> {
 	#[cfg(not(build_type = "release"))]
 	{
-		Err(PerfCheckError::WrongBuildType.into())
+		return Err(PerfCheckError::WrongBuildType.into())
 	}
 	#[cfg(build_type = "release")]
 	{
-		crate::host_perf_check::host_perf_check()?;
-		Ok(())
+		#[cfg(not(feature = "hostperfcheck"))]
+		{
+			return Err(PerfCheckError::FeatureNotEnabled { feature: "hostperfcheck" }.into())
+		}
+		#[cfg(feature = "hostperfcheck")]
+		{
+			crate::host_perf_check::host_perf_check()?;
+			return Ok(())
+		}
 	}
 }
 
