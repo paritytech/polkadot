@@ -44,7 +44,7 @@ async fn benchmark_block_works() {
 
 		// Build a chain with a single block.
 		build_chain(&runtime, base_path).await.unwrap();
-		// Benchmark the that one.
+		// Benchmark the one block.
 		benchmark_block(&runtime, base_path, 1).unwrap();
 	}
 }
