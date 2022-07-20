@@ -123,7 +123,7 @@ pub fn open_creating_rocksdb(
 }
 
 fn migrate_columns(path: &Path, new_options: Options) {
-// Figure out if we need to ask ParityDB to migrate. This will be determined by inspecting
+	// Figure out if we need to ask ParityDB to migrate. This will be determined by inspecting
 	// the metadata file.
 	if let Ok(Some(metadata)) = parity_db::Options::load_metadata(&path) {
 		gum::debug!(target: LOG_TARGET, "ParityDB is ver {}.", metadata.version);
@@ -193,8 +193,6 @@ pub fn open_creating_paritydb(
 	for i in columns::ORDERED_COL {
 		options.columns[*i as usize].btree_index = true;
 	}
-
-	
 
 	let db = parity_db::Db::open_or_create(&options)
 		.map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{:?}", err)))?;
