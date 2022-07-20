@@ -461,6 +461,10 @@ parameter_types! {
 	/// ... and all of the validators as electable targets. Whilst this is the case, we cannot and
 	/// shall not increase the size of the validator intentions.
 	pub const MaxElectableTargets: u16 = u16::MAX;
+
+	/// The submission during the emergency phase will require double the
+	/// deposit.
+	pub const EmergencyDepositMultiplier: u16 = 2;
 }
 
 generate_solution_type!(
@@ -540,6 +544,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
 	type MaxElectingVoters = MaxElectingVoters;
 	type MaxElectableTargets = MaxElectableTargets;
+	type EmergencyDepositMultiplier = EmergencyDepositMultiplier;
 }
 
 parameter_types! {
