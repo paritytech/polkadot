@@ -17,13 +17,13 @@
 //!
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
 //! DATE: 2022-05-11, STEPS: `50`, REPEAT: 20, LOW RANGE: `[]`, HIGH RANGE: `[]`
-//! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("kusama-dev"), DB CACHE: 1024
+//! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("rococo-dev"), DB CACHE: 1024
 
 // Executed Command:
 // ./target/production/polkadot
 // benchmark
 // pallet
-// --chain=kusama-dev
+// --chain=rococo-dev
 // --steps=50
 // --repeat=20
 // --pallet=pallet_elections_phragmen
@@ -32,7 +32,7 @@
 // --wasm-execution=compiled
 // --heap-pages=4096
 // --header=./file_header.txt
-// --output=./runtime/kusama/src/weights/pallet_elections_phragmen.rs
+// --output=./runtime/rococo/src/weights/pallet_elections_phragmen.rs
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]
