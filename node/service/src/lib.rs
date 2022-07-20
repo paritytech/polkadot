@@ -34,7 +34,6 @@ mod tests;
 
 #[cfg(feature = "full-node")]
 use {
-	beefy_gadget::notification::{BeefyBestBlockSender, BeefySignedCommitmentSender},
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
 	gum::info,
 	polkadot_node_core_approval_voting::{
@@ -348,6 +347,14 @@ type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullS
 		FullClient<RuntimeApi, ExecutorDispatch>,
 		ChainSelection,
 	>;
+#[cfg(feature = "full-node")]
+type FullBeefyBlockImport<RuntimeApi, ExecutorDispatch, InnerBlockImport> =
+	beefy_gadget::import::BeefyBlockImport<
+		Block,
+		FullBackend,
+		FullClient<RuntimeApi, ExecutorDispatch>,
+		InnerBlockImport,
+	>;
 
 #[cfg(feature = "full-node")]
 struct Basics<RuntimeApi, ExecutorDispatch>
@@ -454,11 +461,15 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 				babe::BabeBlockImport<
 					Block,
 					FullClient<RuntimeApi, ExecutorDispatch>,
-					FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
+					FullBeefyBlockImport<
+						RuntimeApi,
+						ExecutorDispatch,
+						FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
+					>,
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
 				babe::BabeLink<Block>,
-				(BeefySignedCommitmentSender<Block>, BeefyBestBlockSender<Block>),
+				beefy_gadget::BeefyVoterLinks<Block>,
 			),
 			grandpa::SharedVoterState,
 			sp_consensus_babe::SlotDuration,
@@ -498,12 +509,18 @@ where
 		grandpa_hard_forks,
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
-
 	let justification_import = grandpa_block_import.clone();
+
+	let (beefy_block_import, beefy_voter_links, beefy_rpc_links) =
+		beefy_gadget::beefy_block_import_and_links(
+			grandpa_block_import,
+			backend.clone(),
+			client.clone(),
+		);
 
 	let babe_config = babe::Config::get(&*client)?;
 	let (block_import, babe_link) =
-		babe::block_import(babe_config.clone(), grandpa_block_import, client.clone())?;
+		babe::block_import(babe_config.clone(), beefy_block_import, client.clone())?;
 
 	let slot_duration = babe_link.config().slot_duration();
 	let import_queue = babe::import_queue(
@@ -529,12 +546,6 @@ where
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let (beefy_commitment_link, beefy_commitment_stream) =
-		beefy_gadget::notification::BeefySignedCommitmentStream::<Block>::channel();
-	let (beefy_best_block_link, beefy_best_block_stream) =
-		beefy_gadget::notification::BeefyBestBlockStream::<Block>::channel();
-	let beefy_links = (beefy_commitment_link, beefy_best_block_link);
-
 	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
 	let shared_voter_state = grandpa::SharedVoterState::empty();
@@ -546,7 +557,7 @@ where
 	let shared_epoch_changes = babe_link.epoch_changes().clone();
 	let slot_duration = babe_config.slot_duration();
 
-	let import_setup = (block_import, grandpa_link, babe_link, beefy_links);
+	let import_setup = (block_import, grandpa_link, babe_link, beefy_voter_links);
 	let rpc_setup = shared_voter_state.clone();
 
 	let rpc_extensions_builder = {
@@ -579,8 +590,8 @@ where
 					finality_provider: finality_proof_provider.clone(),
 				},
 				beefy: polkadot_rpc::BeefyDeps {
-					beefy_commitment_stream: beefy_commitment_stream.clone(),
-					beefy_best_block_stream: beefy_best_block_stream.clone(),
+					beefy_commitment_stream: beefy_rpc_links.from_voter_justif_stream.clone(),
+					beefy_best_block_stream: beefy_rpc_links.from_voter_best_beefy_stream.clone(),
 					subscription_executor,
 				},
 			};
@@ -1165,11 +1176,10 @@ where
 			runtime: client.clone(),
 			key_store: keystore_opt.clone(),
 			network: network.clone(),
-			signed_commitment_sender: beefy_links.0,
-			beefy_best_block_sender: beefy_links.1,
 			min_block_delta: if chain_spec.is_wococo() { 4 } else { 8 },
 			prometheus_registry: prometheus_registry.clone(),
 			protocol_name: beefy_protocol_name,
+			links: beefy_links,
 		};
 
 		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _, _>(beefy_params);
