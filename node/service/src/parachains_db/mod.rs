@@ -21,6 +21,8 @@ use {
 #[cfg(feature = "full-node")]
 mod upgrade;
 
+const LOG_TARGET: &str = "parachain::db";
+
 #[cfg(any(test, feature = "full-node"))]
 pub(crate) mod columns {
 	pub mod v0 {
@@ -120,6 +122,60 @@ pub fn open_creating_rocksdb(
 	Ok(Arc::new(db))
 }
 
+fn migrate_columns(path: &Path, new_options: Options) {
+// Figure out if we need to ask ParityDB to migrate. This will be determined by inspecting
+	// the metadata file.
+	if let Ok(Some(metadata)) = parity_db::Options::load_metadata(&path) {
+		gum::debug!(target: LOG_TARGET, "ParityDB is ver {}.", metadata.version);
+
+		let migrations_needed = metadata
+			.columns
+			.into_iter()
+			.enumerate()
+			.filter(|(idx, opts)| {
+				let changed = *opts != options.columns[*idx];
+				if changed {
+					gum::debug!(
+						target: LOG_TARGET,
+						"Column {} will be be migrated. Old options: {:?}, New options: {:?}",
+						idx,
+						opts,
+						options.columns[*idx]
+					);
+				}
+
+				changed
+			})
+			.count();
+
+		// Migrate only if columns changed.
+		if migrations_needed > 0 {
+			gum::warn!(
+				target: LOG_TARGET,
+				"ParityDB migration for {} columns started, please wait ...",
+				migrations_needed
+			);
+
+			// These are the options for the temporary database created during migration.
+			let mut options = options.clone();
+			options.sync_wal = false;
+			options.sync_data = false;
+			options.path = path.join("_migrate");
+
+			parity_db::migrate(&path, options.clone(), true, &vec![])
+				.expect("DB migration failed, please check the <TBD> release notes");
+			gum::info!(target: LOG_TARGET, "ParityDB migration completed!");
+		} else {
+			gum::debug!(target: LOG_TARGET, "No ParityDB migration needs to be performed");
+		}
+	} else {
+		gum::debug!(
+			target: LOG_TARGET,
+			"No existing ParityDB instance found, creating a fresh one"
+		);
+	}
+}
+
 /// Open a parity db database.
 #[cfg(feature = "full-node")]
 pub fn open_creating_paritydb(
@@ -137,6 +193,8 @@ pub fn open_creating_paritydb(
 	for i in columns::ORDERED_COL {
 		options.columns[*i as usize].btree_index = true;
 	}
+
+	
 
 	let db = parity_db::Db::open_or_create(&options)
 		.map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{:?}", err)))?;
