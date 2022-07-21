@@ -125,58 +125,89 @@ pub fn open_creating_rocksdb(
 	Ok(Arc::new(db))
 }
 
-fn migrate_columns(path: &Path, options: parity_db::Options) {
-	// Figure out if we need to ask ParityDB to migrate. This will be determined by inspecting
+fn fix_columns(
+	path: &Path,
+	options: parity_db::Options,
+	allowed_columns: Vec<u32>,
+) -> io::Result<()> {
+	// Figure out which columns to delete. This will be determined by inspecting
 	// the metadata file.
 	if let Ok(Some(metadata)) = parity_db::Options::load_metadata(&path) {
 		gum::debug!(target: LOG_TARGET, "ParityDB is ver {}.", metadata.version);
 
-		let migrations_needed = metadata
+		// Update metadata.
+		options
+			.write_metadata(path, &metadata.salt)
+			.map_err(|e| other_io_error(format!("Error writing metadata {:?}", e)))?;
+
+		let columns_to_fix = metadata
 			.columns
 			.into_iter()
 			.enumerate()
-			.filter(|(idx, opts)| {
-				let changed = *opts != options.columns[*idx];
+			.filter(|(idx, _)| allowed_columns.contains(&(*idx as u32)))
+			.filter_map(|(idx, opts)| {
+				let changed = opts != options.columns[idx];
 				if changed {
 					gum::debug!(
 						target: LOG_TARGET,
-						"Column {} will be be migrated. Old options: {:?}, New options: {:?}",
+						"Column {} will be deleted. Old options: {:?}, New options: {:?}",
 						idx,
 						opts,
-						options.columns[*idx]
+						options.columns[idx]
 					);
+					Some(idx)
+				} else {
+					None
 				}
-
-				changed
 			})
-			.count();
+			.collect::<Vec<_>>();
 
-		// Migrate only if columns changed.
-		if migrations_needed > 0 {
-			gum::warn!(
-				target: LOG_TARGET,
-				"ParityDB migration for {} columns started, please wait ...",
-				migrations_needed
-			);
+		for column in columns_to_fix {
+			let tables_path = path.join(format!("table_{:02}_*", column));
+			let tables_path_str = tables_path
+				.to_str()
+				.ok_or_else(|| other_io_error(format!("Bad table path: {:?}", path)))?;
 
-			// These are the options for the temporary database created during migration.
-			let mut options = options.clone();
-			options.sync_wal = false;
-			options.sync_data = false;
-			options.path = path.join("_migrate");
+			let index_path = path.join(format!("index_{:02}_*", column));
+			let index_path_str = index_path
+				.to_str()
+				.ok_or_else(|| other_io_error(format!("Bad index path: {:?}", path)))?;
 
-			parity_db::migrate(&path, options.clone(), true, &vec![])
-				.expect("DB migration failed, please check the <TBD> release notes");
-			gum::info!(target: LOG_TARGET, "ParityDB migration completed!");
-		} else {
-			gum::debug!(target: LOG_TARGET, "No ParityDB migration needs to be performed");
+			for entry in glob::glob(&tables_path_str).expect("Failed to read glob pattern") {
+				match entry {
+					Ok(path) => {
+						gum::debug!(target: LOG_TARGET, "Removing file {:?}", path);
+						std::fs::remove_file(path).expect("Failed to cleanup old column");
+					},
+					Err(e) => {
+						gum::error!(
+							target: LOG_TARGET,
+							"Error while searching column files: {:?}",
+							e
+						);
+					},
+				}
+			}
+
+			for entry in glob::glob(&index_path_str).expect("Failed to read glob pattern") {
+				match entry {
+					Ok(path) => {
+						gum::debug!(target: LOG_TARGET, "Removing file {:?}", path);
+						std::fs::remove_file(path).expect("Failed to cleanup old index");
+					},
+					Err(e) => {
+						gum::error!(
+							target: LOG_TARGET,
+							"Error while searching index files: {:?}",
+							e
+						);
+					},
+				}
+			}
 		}
-	} else {
-		gum::debug!(
-			target: LOG_TARGET,
-			"No existing ParityDB instance found, creating a fresh one"
-		);
 	}
+
+	Ok(())
 }
 
 /// Open a parity db database.
@@ -197,7 +228,7 @@ pub fn open_creating_paritydb(
 		options.columns[*i as usize].btree_index = true;
 	}
 
-	migrate_columns(&path, options.clone());
+	fix_columns(&path, options.clone(), vec![columns::COL_DISPUTE_COORDINATOR_DATA])?;
 
 	let db = parity_db::Db::open_or_create(&options)
 		.map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{:?}", err)))?;
