@@ -162,6 +162,14 @@ fn fix_columns(
 			})
 			.collect::<Vec<_>>();
 
+		if columns_to_fix.len() > 0 {
+			gum::debug!(
+				target: LOG_TARGET,
+				"Database column changes detected, need to cleanup {} columns.",
+				columns_to_fix.len()
+			);
+		}
+
 		for column in columns_to_fix {
 			let tables_path = path.join(format!("table_{:02}_*", column));
 			let tables_path_str = tables_path
@@ -176,7 +184,7 @@ fn fix_columns(
 			for entry in glob::glob(&tables_path_str).expect("Failed to read glob pattern") {
 				match entry {
 					Ok(path) => {
-						gum::debug!(target: LOG_TARGET, "Removing file {:?}", path);
+						gum::warn!(target: LOG_TARGET, "Removing file {:?}", path);
 						std::fs::remove_file(path).expect("Failed to cleanup old column");
 					},
 					Err(e) => {
@@ -192,7 +200,7 @@ fn fix_columns(
 			for entry in glob::glob(&index_path_str).expect("Failed to read glob pattern") {
 				match entry {
 					Ok(path) => {
-						gum::debug!(target: LOG_TARGET, "Removing file {:?}", path);
+						gum::warn!(target: LOG_TARGET, "Removing file {:?}", path);
 						std::fs::remove_file(path).expect("Failed to cleanup old index");
 					},
 					Err(e) => {
