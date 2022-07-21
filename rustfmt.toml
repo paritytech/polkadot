@@ -21,3 +21,4 @@ use_field_init_shorthand = true
 ignore = [
     "bridges",
 ]
+edition = "2021"
