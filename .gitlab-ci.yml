@@ -851,6 +851,7 @@ build-implementers-guide:
   script:
     - cargo install mdbook mdbook-graphviz mdbook-mermaid mdbook-linkcheck
     - mdbook build ./roadmap/implementers-guide
+    - mkdir -p roadmap/implementers-guide/book
     - mkdir -p artifacts
     - mv roadmap/implementers-guide/book artifacts/
     # FIXME: remove me after CI image gets nonroot
