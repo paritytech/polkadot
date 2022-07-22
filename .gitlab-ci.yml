@@ -849,7 +849,7 @@ build-implementers-guide:
   <<:                              *docker-env
   <<:                              *collect-artifacts-short
   script:
-    - cargo install mdbook
+    - cargo install mdbook mdbook-graphviz mdbook-mermaid mdbook-linkcheck
     - mdbook build ./roadmap/implementers-guide
     - mkdir -p artifacts
     - mv roadmap/implementers-guide/book artifacts/
