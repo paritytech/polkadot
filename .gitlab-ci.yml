@@ -837,7 +837,6 @@ build-rustdoc:
     # FIXME: remove me after CI image gets nonroot
     - chown -R nonroot:nonroot ./crate-docs
     - echo "<meta http-equiv=refresh content=0;url=polkadot_service/index.html>" > ./crate-docs/index.html
-    - sccache -s
 
 build-implementers-guide:
   stage:                           stage1
@@ -878,8 +877,10 @@ publish-rustdoc:
   script:
     # Save README and docs
     - cp -r ./crate-docs/ /tmp/doc/
-    - cp -r ./artifacts/ /tmp/
+    - cp -r ./artifacts/book/ /tmp/
     - ls -la /tmp
+    - ls -la /tmp/doc/
+    - ls -la /tmp/book/
     - cp ./README.md /tmp/doc/
     # setup ssh
     - eval $(ssh-agent)
