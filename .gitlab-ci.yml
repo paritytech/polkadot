@@ -591,8 +591,7 @@ build-implementers-guide:
     - mdbook build ./roadmap/implementers-guide
     - mkdir -p artifacts
     - mv roadmap/implementers-guide/book artifacts/
-    # FIXME: remove me after CI image gets nonroot
-    - chown -R nonroot:nonroot artifacts/
+
 
 check-try-runtime:
   stage:                           stage3
