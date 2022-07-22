@@ -858,7 +858,6 @@ publish-rustdoc:
   image:                           paritytech/tools:latest
   variables:
     GIT_DEPTH:                     100
-  <<:                              *test-refs
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
       when: never
