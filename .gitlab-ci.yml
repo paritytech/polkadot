@@ -575,12 +575,12 @@ build-rustdoc:
     - echo "<meta http-equiv=refresh content=0;url=polkadot_service/index.html>" > ./crate-docs/index.html
     - sccache -s
 
-generate-impl-guide:
-  stage:                           stage3
+build-implementers-guide:
+  stage:                           stage1
   # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
-  needs:
-    - job:                         check-transaction-versions
-      artifacts:                   false
+  # needs:
+  #   - job:                         check-transaction-versions
+  #     artifacts:                   false
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *collect-artifacts-short
