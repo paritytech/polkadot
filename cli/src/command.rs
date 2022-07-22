@@ -15,12 +15,16 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::cli::{Cli, Subcommand};
-use frame_benchmarking_cli::{BenchmarkCmd, SUBSTRATE_REFERENCE_HARDWARE};
+use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use futures::future::TryFutureExt;
 use log::info;
-use sc_cli::{Role, RuntimeVersion, SubstrateCli};
+use polkadot_client::benchmarking::{
+	benchmark_inherent_data, ExistentialDepositProvider, RemarkBuilder, TransferKeepAliveBuilder,
+};
+use sc_cli::{RuntimeVersion, SubstrateCli};
 use service::{self, HeaderBackend, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
+use sp_keyring::Sr25519Keyring;
 use std::net::ToSocketAddrs;
 
 pub use crate::{error::Error, service::BlockId};
@@ -244,12 +248,19 @@ macro_rules! unwrap_client {
 fn host_perf_check() -> Result<()> {
 	#[cfg(not(build_type = "release"))]
 	{
-		Err(PerfCheckError::WrongBuildType.into())
+		return Err(PerfCheckError::WrongBuildType.into())
 	}
 	#[cfg(build_type = "release")]
 	{
-		crate::host_perf_check::host_perf_check()?;
-		Ok(())
+		#[cfg(not(feature = "hostperfcheck"))]
+		{
+			return Err(PerfCheckError::FeatureNotEnabled { feature: "hostperfcheck" }.into())
+		}
+		#[cfg(feature = "hostperfcheck")]
+		{
+			crate::host_perf_check::host_perf_check()?;
+			return Ok(())
+		}
 	}
 }
 
@@ -326,26 +337,21 @@ where
 			None
 		};
 
-		let role = config.role.clone();
-
-		match role {
-			Role::Light => Err(Error::Other("Light client not enabled".into())),
-			_ => service::build_full(
-				config,
-				service::IsCollator::No,
-				grandpa_pause,
-				cli.run.beefy,
-				jaeger_agent,
-				None,
-				false,
-				overseer_gen,
-				cli.run.overseer_channel_capacity_override,
-				maybe_malus_finality_delay,
-				hwbench,
-			)
-			.map(|full| full.task_manager)
-			.map_err(Into::into),
-		}
+		service::build_full(
+			config,
+			service::IsCollator::No,
+			grandpa_pause,
+			cli.run.beefy,
+			jaeger_agent,
+			None,
+			false,
+			overseer_gen,
+			cli.run.overseer_channel_capacity_override,
+			maybe_malus_finality_delay,
+			hwbench,
+		)
+		.map(|full| full.task_manager)
+		.map_err(Into::into)
 	})
 }
 
@@ -521,22 +527,42 @@ pub fn run() -> Result<()> {
 
 					unwrap_client!(client, cmd.run(client.clone()).map_err(Error::SubstrateCli))
 				}),
-				BenchmarkCmd::Overhead(cmd) => {
+				// These commands are very similar and can be handled in nearly the same way.
+				BenchmarkCmd::Extrinsic(_) | BenchmarkCmd::Overhead(_) => {
 					ensure_dev(chain_spec).map_err(Error::Other)?;
 					runner.sync_run(|mut config| {
-						use polkadot_client::benchmark_inherent_data;
 						let (client, _, _, _) = service::new_chain_ops(&mut config, None)?;
-						let wrapped = client.clone();
-
 						let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
 						let inherent_data = benchmark_inherent_data(header)
 							.map_err(|e| format!("generating inherent data: {:?}", e))?;
+						let remark_builder = RemarkBuilder::new(client.clone());
 
-						unwrap_client!(
-							client,
-							cmd.run(config, client.clone(), inherent_data, wrapped)
-								.map_err(Error::SubstrateCli)
-						)
+						match cmd {
+							BenchmarkCmd::Extrinsic(cmd) => {
+								let tka_builder = TransferKeepAliveBuilder::new(
+									client.clone(),
+									Sr25519Keyring::Alice.to_account_id(),
+									client.existential_deposit(),
+								);
+
+								let ext_factory = ExtrinsicFactory(vec![
+									Box::new(remark_builder),
+									Box::new(tka_builder),
+								]);
+
+								unwrap_client!(
+									client,
+									cmd.run(client.clone(), inherent_data, &ext_factory)
+										.map_err(Error::SubstrateCli)
+								)
+							},
+							BenchmarkCmd::Overhead(cmd) => unwrap_client!(
+								client,
+								cmd.run(config, client.clone(), inherent_data, &remark_builder)
+									.map_err(Error::SubstrateCli)
+							),
+							_ => unreachable!("Ensured by the outside match; qed"),
+						}
 					})
 				},
 				BenchmarkCmd::Pallet(cmd) => {

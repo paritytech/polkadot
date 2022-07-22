@@ -26,6 +26,7 @@ polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
@@ -42,7 +43,7 @@ sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", 
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = ["wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-native"]
+default = ["wasmtime", "db", "cli", "hostperfcheck", "full-node", "trie-memory-tracker", "polkadot-native"]
 wasmtime = ["sc-cli/wasmtime"]
 db = ["service/db"]
 cli = [
@@ -54,7 +55,6 @@ cli = [
 	"try-runtime-cli",
 	"polkadot-client",
 	"polkadot-node-core-pvf",
-	"polkadot-performance-test",
 ]
 runtime-benchmarks = ["service/runtime-benchmarks", "polkadot-node-metrics/runtime-benchmarks"]
 trie-memory-tracker = ["sp-trie/memory-tracker"]
@@ -62,6 +62,7 @@ full-node = ["service/full-node"]
 try-runtime = ["service/try-runtime"]
 fast-runtime = ["service/fast-runtime"]
 pyroscope = ["pyro"]
+hostperfcheck = ["polkadot-performance-test"]
 
 # Configure the native runtimes to use. Polkadot is enabled by default.
 #

@@ -75,6 +75,7 @@ use runtime_parachains::{
 };
 
 pub use frame_system::Call as SystemCall;
+pub use pallet_balances::Call as BalancesCall;
 
 /// Constant values used within the runtime.
 use rococo_runtime_constants::{currency::*, fee::*, time::*};
