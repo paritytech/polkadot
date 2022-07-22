@@ -873,7 +873,7 @@ publish-rustdoc:
   needs:
     - job:                         build-rustdoc
       artifacts:                   true
-    - job:                         build-rustdoc
+    - job:                         build-implementers-guide
       artifacts:                   true
   script:
     # setup ssh
