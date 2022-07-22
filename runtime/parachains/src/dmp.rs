@@ -14,6 +14,34 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! This is a low level runtime component that manages the downward message queue for each
+//! parachain. These messages originate in the relay chain and are stored there until they 
+//! are processed by destination parachains. 
+//! 
+//! The methods exposed here allow adding, reading and pruning of downward messages that are
+//! stored on the relay chain. 
+//! 
+//! Downward message storage:
+//! - The messages are queued in a ring buffer. There is a 1:1 mapping between a queue and 
+//! each parachain.
+//! - The ring buffer is split in slots which we'll call pages. The pages can store up to 
+//! `QUEUE_PAGE_CAPACITY` messages.
+//! 
+//! When sending messages, higher level code calls the `queue_downward_message` method which only fails
+//! if the message size is higher than what the configuration defines in `max_downward_message_size`.
+//! For every message sent we assign a sequential index and we store it for the first and last messages
+//! in the queue. 
+//! 
+//! When a parachain consumes messages, they'll need a way to ensure the messages, or their ordering 
+//! were not altered in any way. A message queue chain(MQC) solves this as long as the last processed
+//! head hash is available to the parachain. After sequentially hashing a subset of messages from 
+//! the message queue (tipically up to a certain weight), the parachain should arrive at the same MQC
+//! head as the one provided by the relay chain. 
+//! This is implemented as a mapping between the message index and the MQC head for any given para. 
+//! That being said, parachains runtimes should also track the message indexes to access the MQC storage 
+//! proof.
+//! 
+
 use crate::{
 	configuration::{self, HostConfiguration},
 	initializer,
