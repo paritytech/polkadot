@@ -878,10 +878,8 @@ publish-rustdoc:
     # Save README and docs
     - cp -r ./crate-docs/ /tmp/doc/
     - cp -r ./artifacts/book/ /tmp/
-    - ls -la /tmp
-    - ls -la /tmp/doc/
-    - ls -la /tmp/book/
-    - cp ./README.md /tmp/doc/
+    - cp README.md /tmp
+    - cp index.html /tmp
     # setup ssh
     - eval $(ssh-agent)
     - ssh-add - <<< ${GITHUB_SSH_PRIV_KEY}
@@ -896,8 +894,14 @@ publish-rustdoc:
     - git checkout gh-pages
     # Remove everything and restore generated docs and README
     - rm -rf ./*
-    - mv /tmp/doc .
-    - mv /tmp/book .
+    # dir for rustdoc
+    - mkdir -p doc
+    # dir for implementors guide
+    - mkdir -p book
+    - mv /tmp/doc/* doc/
+    - mv /tmp/book/html/* book/
+    - mv /tmp/index.html .
+    - mv /tmp/README.md .
     # Upload files
     - git add --all --force
     # `git commit` has an exit code of > 0 if there is nothing to commit.
