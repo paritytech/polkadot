@@ -74,14 +74,15 @@ impl metrics::Metrics for Metrics {
 	fn try_register(registry: &Registry) -> Result<Self, PrometheusError> {
 		let metrics = MetricsInner {
 			is_authority: prometheus::register(
-				Gauge::new("polkadot_node_is_authority", "Tracks the node authority status across sessions. \
-				An authority is any node that is a potential block producer in a session.")?,
+				Gauge::new("polkadot_node_is_active_validator", "Tracks if the validator is in the active set. \
+				Updates at session boundary.")?,
 				registry,
 			)?,
 			is_parachain_validator: prometheus::register(
 				Gauge::new("polkadot_node_is_parachain_validator", 
-				"Tracks the node parachain validator status across sessions. Parachain validators are a \
-				subset of authorities that perform approval checking of all parachain candidates in a session.")?,
+				"Tracks if the validator participates in parachain consensus. Parachain validators are a \
+				subset of the active set validators that perform approval checking of all parachain candidates in a session.\
+				Updates at session boundary.")?,
 				registry,
 			)?,
 		};

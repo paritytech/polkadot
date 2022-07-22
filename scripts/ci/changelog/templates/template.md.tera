@@ -17,7 +17,6 @@ This release contains the changes from `{{ env.REF1 | replace(from="refs/tags/",
 
 {# -- Manual free notes section -- #}
 {% include "_free_notes.md.tera" -%}
-{# --------------------------------- #}
 
 {# -- Important automatic section -- #}
 {% include "global_priority.md.tera" -%}

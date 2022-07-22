@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  tag_rc:
+  check_branch:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
