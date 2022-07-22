@@ -133,14 +133,7 @@ fn fix_columns(
 	// Figure out which columns to delete. This will be determined by inspecting
 	// the metadata file.
 	if let Ok(Some(metadata)) = parity_db::Options::load_metadata(&path) {
-		gum::debug!(target: LOG_TARGET, "ParityDB is ver {}.", metadata.version);
-
-		// Update metadata.
-		options
-			.write_metadata(path, &metadata.salt)
-			.map_err(|e| other_io_error(format!("Error writing metadata {:?}", e)))?;
-
-		let columns_to_fix = metadata
+		let columns_to_clear = metadata
 			.columns
 			.into_iter()
 			.enumerate()
@@ -150,7 +143,7 @@ fn fix_columns(
 				if changed {
 					gum::debug!(
 						target: LOG_TARGET,
-						"Column {} will be deleted. Old options: {:?}, New options: {:?}",
+						"Column {} will be cleared. Old options: {:?}, New options: {:?}",
 						idx,
 						opts,
 						options.columns[idx]
@@ -162,7 +155,7 @@ fn fix_columns(
 			})
 			.collect::<Vec<_>>();
 
-		if columns_to_fix.len() > 0 {
+		if columns_to_clear.len() > 0 {
 			gum::debug!(
 				target: LOG_TARGET,
 				"Database column changes detected, need to cleanup {} columns.",
@@ -170,49 +163,15 @@ fn fix_columns(
 			);
 		}
 
-		for column in columns_to_fix {
-			let tables_path = path.join(format!("table_{:02}_*", column));
-			let tables_path_str = tables_path
-				.to_str()
-				.ok_or_else(|| other_io_error(format!("Bad table path: {:?}", path)))?;
-
-			let index_path = path.join(format!("index_{:02}_*", column));
-			let index_path_str = index_path
-				.to_str()
-				.ok_or_else(|| other_io_error(format!("Bad index path: {:?}", path)))?;
-
-			for entry in glob::glob(&tables_path_str).expect("Failed to read glob pattern") {
-				match entry {
-					Ok(path) => {
-						gum::warn!(target: LOG_TARGET, "Removing file {:?}", path);
-						std::fs::remove_file(path).expect("Failed to cleanup old column");
-					},
-					Err(e) => {
-						gum::error!(
-							target: LOG_TARGET,
-							"Error while searching column files: {:?}",
-							e
-						);
-					},
-				}
-			}
-
-			for entry in glob::glob(&index_path_str).expect("Failed to read glob pattern") {
-				match entry {
-					Ok(path) => {
-						gum::warn!(target: LOG_TARGET, "Removing file {:?}", path);
-						std::fs::remove_file(path).expect("Failed to cleanup old index");
-					},
-					Err(e) => {
-						gum::error!(
-							target: LOG_TARGET,
-							"Error while searching index files: {:?}",
-							e
-						);
-					},
-				}
-			}
+		for column in columns_to_clear {
+			parity_db::clear_column(path, column.try_into().expect("Invalid column ID"))
+				.map_err(|e| other_io_error(format!("Error removing column {:?}", e)))?;
 		}
+
+		// Write the updated column options.
+		options
+			.write_metadata(path, &metadata.salt)
+			.map_err(|e| other_io_error(format!("Error writing metadata {:?}", e)))?;
 	}
 
 	Ok(())
