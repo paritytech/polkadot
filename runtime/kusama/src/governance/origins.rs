@@ -29,7 +29,7 @@ pub mod pallet_custom_origins {
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
-	#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
+	#[derive(PartialEq, Eq, Clone, MaxEncodedLen, Encode, Decode, TypeInfo)]
 	#[cfg_attr(feature = "std", derive(Debug))]
 	#[pallet::origin]
 	pub enum Origin {
