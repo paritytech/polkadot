@@ -164,13 +164,9 @@ fn fix_columns(
 		}
 
 		for column in columns_to_clear {
-			gum::debug!(
-				target: LOG_TARGET,
-				"Clearing {}",
-				column,
-			);
+			gum::debug!(target: LOG_TARGET, "Clearing column {}", column,);
 			parity_db::clear_column(path, column.try_into().expect("Invalid column ID"))
-				.map_err(|e| other_io_error(format!("Error removing column {:?}", e)))?;
+				.map_err(|e| other_io_error(format!("Error clearing column {:?}", e)))?;
 		}
 
 		// Write the updated column options.
