@@ -848,13 +848,13 @@ build-implementers-guide:
   <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *collect-artifacts-short
-  image:
-    name: michaelfbryan/mdbook-docker-image:v0.4.4
-    entrypoint: [""]
   script:
+    - cargo install mdbook
     - mdbook build ./roadmap/implementers-guide
     - mkdir -p artifacts
     - mv roadmap/implementers-guide/book artifacts/
+    # FIXME: remove me after CI image gets nonroot
+    - chown -R nonroot:nonroot artifacts/
 
 publish-rustdoc:
   stage:                           stage4
