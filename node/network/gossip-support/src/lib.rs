@@ -22,7 +22,7 @@
 //! which limits the amount of messages sent and received
 //! to be an order of sqrt of the validators. Our neighbors
 //! in this graph will be forwarded to the network bridge with
-//! the `NetworkBridgeMessage::NewGossipTopology` message.
+//! the `NetworkBridgeRxMessage::NewGossipTopology` message.
 
 use std::{
 	collections::{HashMap, HashSet},
@@ -45,8 +45,8 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_subsystem::{
 	messages::{
-		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage, RuntimeApiMessage,
-		RuntimeApiRequest,
+		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeRxMessage, NetworkBridgeTxMessage,
+		RuntimeApiMessage, RuntimeApiRequest,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -256,12 +256,9 @@ where
 					}
 				}
 
-				// Gossip topology is only relevant for authorities in the current session.
-				let our_index =
-					ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys).await?;
-
 				if is_new_session {
-					self.update_authority_status_metrics(&session_info).await;
+					// Gossip topology is only relevant for authorities in the current session.
+					let our_index = self.get_key_index_and_update_metrics(&session_info).await?;
 
 					update_gossip_topology(
 						sender,
@@ -277,35 +274,45 @@ where
 		Ok(())
 	}
 
-	async fn update_authority_status_metrics(&mut self, session_info: &SessionInfo) {
-		let maybe_index =
-			match ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys).await {
-				Ok(index) => {
-					self.metrics.on_is_authority();
-					Some(index)
-				},
-				Err(util::Error::NotAValidator) => {
-					self.metrics.on_is_not_authority();
+	// Checks if the node is an authority and also updates `polkadot_node_is_authority` and
+	// `polkadot_node_is_parachain_validator` metrics accordingly.
+	// On success, returns the index of our keys in `session_info.discovery_keys`.
+	async fn get_key_index_and_update_metrics(
+		&mut self,
+		session_info: &SessionInfo,
+	) -> Result<usize, util::Error> {
+		let authority_check_result =
+			ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys).await;
+
+		match authority_check_result.as_ref() {
+			Ok(index) => {
+				gum::trace!(target: LOG_TARGET, "We are now an authority",);
+				self.metrics.on_is_authority();
+
+				// The subset of authorities participating in parachain consensus.
+				let parachain_validators_this_session = session_info.validators.len();
+
+				// First `maxValidators` entries are the parachain validators. We'll check
+				// if our index is in this set to avoid searching for the keys.
+				// https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148
+				if *index < parachain_validators_this_session {
+					gum::trace!(target: LOG_TARGET, "We are now a parachain validator",);
+					self.metrics.on_is_parachain_validator();
+				} else {
+					gum::trace!(target: LOG_TARGET, "We are no longer a parachain validator",);
 					self.metrics.on_is_not_parachain_validator();
-					None
-				},
-				// Don't update on runtime errors.
-				Err(_) => None,
-			};
-
-		if let Some(validator_index) = maybe_index {
-			// The subset of authorities participating in parachain consensus.
-			let parachain_validators_this_session = session_info.validators.len();
-
-			// First `maxValidators` entries are the parachain validators. We'll check
-			// if our index is in this set to avoid searching for the keys.
-			// https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148
-			if validator_index < parachain_validators_this_session {
-				self.metrics.on_is_parachain_validator();
-			} else {
+				}
+			},
+			Err(util::Error::NotAValidator) => {
+				gum::trace!(target: LOG_TARGET, "We are no longer an authority",);
+				self.metrics.on_is_not_authority();
 				self.metrics.on_is_not_parachain_validator();
-			}
-		}
+			},
+			// Don't update on runtime errors.
+			Err(_) => {},
+		};
+
+		authority_check_result
 	}
 
 	async fn issue_connection_request<Sender>(
@@ -338,7 +345,7 @@ where
 		gum::debug!(target: LOG_TARGET, %num, "Issuing a connection request");
 
 		sender
-			.send_message(NetworkBridgeMessage::ConnectToResolvedValidators {
+			.send_message(NetworkBridgeTxMessage::ConnectToResolvedValidators {
 				validator_addrs,
 				peer_set: PeerSet::Validation,
 			})
@@ -538,7 +545,7 @@ async fn update_gossip_topology(
 		.collect();
 
 	sender
-		.send_message(NetworkBridgeMessage::NewGossipTopology {
+		.send_message(NetworkBridgeRxMessage::NewGossipTopology {
 			session: session_index,
 			our_neighbors_x: row_neighbors,
 			our_neighbors_y: column_neighbors,
