@@ -851,7 +851,6 @@ build-implementers-guide:
   script:
     - cargo install mdbook mdbook-mermaid mdbook-linkcheck
     - mdbook build ./roadmap/implementers-guide
-    - mkdir -p roadmap/implementers-guide/book
     - mkdir -p artifacts
     - mv roadmap/implementers-guide/book artifacts/
     # FIXME: remove me after CI image gets nonroot
@@ -877,6 +876,11 @@ publish-rustdoc:
     - job:                         build-implementers-guide
       artifacts:                   true
   script:
+    # Save README and docs
+    - cp -r ./crate-docs/ /tmp/doc/
+    - cp -r ./artifacts/ /tmp/
+    - ls -la /tmp
+    - cp ./README.md /tmp/doc/
     # setup ssh
     - eval $(ssh-agent)
     - ssh-add - <<< ${GITHUB_SSH_PRIV_KEY}
@@ -888,15 +892,11 @@ publish-rustdoc:
     - git config remote.origin.url "git@github.com:/paritytech/${CI_PROJECT_NAME}.git"
     - git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
     - git fetch origin gh-pages
-    # Save README and docs
-    - cp -r ./crate-docs/ /tmp/doc/
-    - cp -r ./artifacts/ /tmp/
-    - ls -la /tmp
-    - cp ./README.md /tmp/doc/
     - git checkout gh-pages
     # Remove everything and restore generated docs and README
     - rm -rf ./*
-    - mv /tmp/doc/* .
+    - mv /tmp/doc .
+    - mv /tmp/book .
     # Upload files
     - git add --all --force
     # `git commit` has an exit code of > 0 if there is nothing to commit.
