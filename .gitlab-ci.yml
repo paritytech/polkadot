@@ -878,8 +878,6 @@ publish-rustdoc:
     # Save README and docs
     - cp -r ./crate-docs/ /tmp/doc/
     - cp -r ./artifacts/book/ /tmp/
-    - cp README.md /tmp
-    - cp index.html /tmp
     # setup ssh
     - eval $(ssh-agent)
     - ssh-add - <<< ${GITHUB_SSH_PRIV_KEY}
@@ -893,6 +891,8 @@ publish-rustdoc:
     - git fetch origin gh-pages
     - git checkout gh-pages
     # Remove everything and restore generated docs and README
+    - cp index.html /tmp
+    - cp README.md /tmp
     - rm -rf ./*
     # dir for rustdoc
     - mkdir -p doc
