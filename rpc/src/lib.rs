@@ -108,6 +108,7 @@ where
 	C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
 	C::Api: pallet_mmr_rpc::MmrRuntimeApi<Block, <Block as sp_runtime::traits::Block>::Hash>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
+	C::Api: pallet_nomination_pools_rpc::NominationPoolsRuntimeApi<Block, AccountId, Balance>,
 	C::Api: BabeApi<Block>,
 	C::Api: BlockBuilder<Block>,
 	P: TransactionPool + Sync + Send + 'static,
@@ -119,6 +120,7 @@ where
 	use frame_rpc_system::{System, SystemApiServer};
 	use pallet_mmr_rpc::{Mmr, MmrApiServer};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
+	use pallet_nomination_pools_rpc::{NominationPoolsRpcServer, NominationPoolsRpcType};
 	use sc_consensus_babe_rpc::{Babe, BabeApiServer};
 	use sc_finality_grandpa_rpc::{Grandpa, GrandpaApiServer};
 	use sc_sync_state_rpc::{SyncState, SyncStateApiServer};
@@ -139,6 +141,7 @@ where
 	io.merge(StateMigration::new(client.clone(), backend, deny_unsafe).into_rpc())?;
 	io.merge(System::new(client.clone(), pool.clone(), deny_unsafe).into_rpc())?;
 	io.merge(TransactionPayment::new(client.clone()).into_rpc())?;
+	io.merge(NominationPoolsRpcType::new(client.clone()).into_rpc())?;
 	io.merge(Mmr::new(client.clone()).into_rpc())?;
 	io.merge(
 		Babe::new(
