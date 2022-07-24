@@ -26,7 +26,6 @@ txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/pa
 frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-nomination-pools-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
 beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
