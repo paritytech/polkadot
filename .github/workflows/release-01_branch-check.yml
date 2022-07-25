@@ -2,7 +2,7 @@ name: Release - Branch check
 on:
   push:
     branches:
-      - release-v[0-9]+.[0-9]+.[0-9]+
+      - release-v[0-9]+.[0-9]+.[0-9]+*
 
   workflow_dispatch:
 
