@@ -1656,25 +1656,12 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44533bbbb3bb3c1fa17d9f2e4e38bbbaf8396ba82193c4cb1b6445d711445d36"
-dependencies = [
- "atty",
- "humantime 1.3.0",
- "log",
- "regex",
- "termcolor",
-]
-
-[[package]]
-name = "env_logger"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b2cf0344971ee6c64c31be0d530793fba457d322dfec2810c453d0ef228f9c3"
 dependencies = [
  "atty",
- "humantime 2.1.0",
+ "humantime",
  "log",
  "regex",
  "termcolor",
@@ -1855,11 +1842,11 @@ dependencies = [
 
 [[package]]
 name = "file-per-thread-logger"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fdbe0d94371f9ce939b555dd342d0686cc4c0cadbcd4b61d70af5ff97eb4126"
+checksum = "21e16290574b39ee41c71aeb90ae960c504ebaf1e2a1c87bd52aa56ed6e1a02f"
 dependencies = [
- "env_logger 0.7.1",
+ "env_logger",
  "log",
 ]
 
@@ -2569,9 +2556,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.3.11"
+version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9f1f717ddc7b2ba36df7e871fd88db79326551d3d6f1fc406fbfd28b582ff8e"
+checksum = "37a82c6d637fc9515a4694bbf1cb2457b79d81ce52b3108bdeea58b07dd34a57"
 dependencies = [
  "bytes",
  "fnv",
@@ -2582,7 +2569,7 @@ dependencies = [
  "indexmap",
  "slab",
  "tokio",
- "tokio-util 0.6.9",
+ "tokio-util",
  "tracing",
 ]
 
@@ -2761,15 +2748,6 @@ name = "httpdate"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4a1e36c821dbe04574f602848a19f742f4fb3c98d40449f11bcad18d6b17421"
-
-[[package]]
-name = "humantime"
-version = "1.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df004cfca50ef23c36850aaaa59ad52cc70d0e90243c3c7737a4dd32dc7a3c4f"
-dependencies = [
- "quick-error 1.2.3",
-]
 
 [[package]]
 name = "humantime"
@@ -3044,7 +3022,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-rustls",
- "tokio-util 0.7.1",
+ "tokio-util",
  "tracing",
  "webpki-roots",
 ]
@@ -3147,7 +3125,7 @@ dependencies = [
  "soketto",
  "tokio",
  "tokio-stream",
- "tokio-util 0.7.1",
+ "tokio-util",
  "tracing",
 ]
 
@@ -4262,25 +4240,14 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "0.8.2"
+version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52da4364ffb0e4fe33a9841a98a3f3014fb964045ce4f7a45a398243c8d6b0c9"
+checksum = "57ee1c23c7c63b0c9250c339ffdc69255f110b298b901b9f6c82547b7b87caaf"
 dependencies = [
  "libc",
  "log",
- "miow",
- "ntapi",
  "wasi 0.11.0+wasi-snapshot-preview1",
- "winapi",
-]
-
-[[package]]
-name = "miow"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9f1c5b025cda876f66ef43a113f91ebc9f4ccef34843000e0adf6ebbab84e21"
-dependencies = [
- "winapi",
+ "windows-sys 0.36.1",
 ]
 
 [[package]]
@@ -4555,15 +4522,6 @@ dependencies = [
  "memchr",
  "minimal-lexical",
  "version_check",
-]
-
-[[package]]
-name = "ntapi"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f6bb902e437b6d86e03cce10a7e2af662292c5dfef23b65899ea3ac9354ad44"
-dependencies = [
- "winapi",
 ]
 
 [[package]]
@@ -5964,7 +5922,7 @@ name = "polkadot-approval-distribution"
 version = "0.9.26"
 dependencies = [
  "assert_matches",
- "env_logger 0.9.0",
+ "env_logger",
  "futures",
  "log",
  "polkadot-node-network-protocol",
@@ -5988,7 +5946,7 @@ version = "0.9.26"
 dependencies = [
  "assert_matches",
  "bitvec",
- "env_logger 0.9.0",
+ "env_logger",
  "futures",
  "log",
  "maplit",
@@ -6040,7 +5998,7 @@ name = "polkadot-availability-recovery"
 version = "0.9.26"
 dependencies = [
  "assert_matches",
- "env_logger 0.9.0",
+ "env_logger",
  "fatality",
  "futures",
  "futures-timer",
@@ -6138,7 +6096,7 @@ version = "0.9.26"
 dependencies = [
  "always-assert",
  "assert_matches",
- "env_logger 0.9.0",
+ "env_logger",
  "fatality",
  "futures",
  "futures-timer",
@@ -6335,7 +6293,7 @@ version = "0.9.26"
 dependencies = [
  "assert_matches",
  "bitvec",
- "env_logger 0.9.0",
+ "env_logger",
  "futures",
  "futures-timer",
  "kvdb",
@@ -6664,7 +6622,7 @@ dependencies = [
  "rand_chacha 0.3.1",
  "sc-authority-discovery",
  "sc-network",
- "strum 0.24.0",
+ "strum 0.24.1",
  "thiserror",
  "tracing-gum",
 ]
@@ -6747,7 +6705,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "derive_more",
- "env_logger 0.9.0",
+ "env_logger",
  "fatality",
  "futures",
  "itertools",
@@ -6826,7 +6784,7 @@ dependencies = [
 name = "polkadot-performance-test"
 version = "0.9.26"
 dependencies = [
- "env_logger 0.9.0",
+ "env_logger",
  "kusama-runtime",
  "log",
  "polkadot-erasure-coding",
@@ -7130,7 +7088,7 @@ dependencies = [
  "async-trait",
  "beefy-gadget",
  "beefy-primitives",
- "env_logger 0.9.0",
+ "env_logger",
  "frame-system-rpc-runtime-api",
  "futures",
  "hex-literal",
@@ -7579,7 +7537,7 @@ dependencies = [
  "coarsetime",
  "crossbeam-queue",
  "derive_more",
- "env_logger 0.9.0",
+ "env_logger",
  "futures",
  "futures-timer",
  "log",
@@ -8064,7 +8022,7 @@ name = "remote-externalities"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#58a80806f01bab8bcf9da9be8afdfd70ad50e7fe"
 dependencies = [
- "env_logger 0.9.0",
+ "env_logger",
  "jsonrpsee",
  "log",
  "parity-scale-codec",
@@ -10692,9 +10650,9 @@ dependencies = [
 
 [[package]]
 name = "strum"
-version = "0.24.0"
+version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e96acfc1b70604b8b2f1ffa4c57e59176c7dbb05d556c71ecd2f5498a1dee7f8"
+checksum = "063e6045c0e62079840579a7e47a355ae92f60eb74daaf156fb1e84ba164e63f"
 dependencies = [
  "strum_macros 0.24.0",
 ]
@@ -11330,20 +11288,6 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.6.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e99e1983e5d376cd8eb4b66604d2e99e79f5bd988c3055891dcd8c9e2604cc0"
-dependencies = [
- "bytes",
- "futures-core",
- "futures-sink",
- "log",
- "pin-project-lite 0.2.7",
- "tokio",
-]
-
-[[package]]
-name = "tokio-util"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0edfdeb067411dba2044da6d1cb2df793dd35add7888d73c16e3381ded401764"
@@ -11354,6 +11298,7 @@ dependencies = [
  "futures-sink",
  "pin-project-lite 0.2.7",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
