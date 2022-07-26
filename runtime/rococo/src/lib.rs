@@ -407,12 +407,12 @@ impl pallet_session::historical::Config for Runtime {
 // 	pub SignedPhase: u32 = prod_or_fast!(
 // 		EPOCH_DURATION_IN_SLOTS / 4,
 // 		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2),
-// 		"KSM_SIGNED_PHASE"
+// 		"ROC_SIGNED_PHASE"
 // 	);
 // 	pub UnsignedPhase: u32 = prod_or_fast!(
 // 		EPOCH_DURATION_IN_SLOTS / 4,
 // 		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2),
-// 		"KSM_UNSIGNED_PHASE"
+// 		"ROC_UNSIGNED_PHASE"
 // 	);
 
 // TODO: Election
@@ -421,7 +421,7 @@ impl pallet_session::historical::Config for Runtime {
 // 	pub const SignedMaxRefunds: u32 = 16 / 4;
 // 	pub const SignedDepositBase: Balance = deposit(2, 0);
 // 	pub const SignedDepositByte: Balance = deposit(0, 10) / 1024;
-// 	// Each good submission will get 1/10 KSM as reward
+// 	// Each good submission will get 1/10 ROC as reward
 // 	pub SignedRewardBase: Balance =  UNITS / 10;
 // 	pub BetterUnsignedThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
@@ -575,12 +575,12 @@ impl pallet_session::historical::Config for Runtime {
 // 	}
 // }
 
-// TODO: Stacking -> remove when stacking added
+// TODO: Staking -> remove when staking added
 parameter_types! {
 	pub const SessionsPerEra: SessionIndex = 6;
 	pub const BondingDuration: sp_staking::EraIndex = 28;
 }
-// TODO: Stacking
+// TODO: Staking
 // parameter_types! {
 // 	// Six sessions in an era (6 hours).
 // 	pub const SessionsPerEra: SessionIndex = 6;
@@ -594,13 +594,13 @@ parameter_types! {
 // 	pub const MaxNominations: u32 = <NposCompactSolution24 as NposSolution>::LIMIT as u32;
 // }
 
-// TODO: Stacking
+// TODO: Staking
 // type SlashCancelOrigin = EitherOfDiverse<
 // 	EnsureRoot<AccountId>,
 // 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
 // >;
 
-// TODO: Stacking
+// TODO: Staking
 // impl pallet_staking::Config for Runtime {
 // 	type MaxNominations = MaxNominations;
 // 	type Currency = Balances;
@@ -631,12 +631,12 @@ parameter_types! {
 // }
 
 parameter_types! {
-	pub LaunchPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1, "KSM_LAUNCH_PERIOD");
-	pub VotingPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1 * MINUTES, "KSM_VOTING_PERIOD");
-	pub FastTrackVotingPeriod: BlockNumber = prod_or_fast!(3 * HOURS, 1 * MINUTES, "KSM_FAST_TRACK_VOTING_PERIOD");
+	pub LaunchPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1, "ROC_LAUNCH_PERIOD");
+	pub VotingPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1 * MINUTES, "ROC_VOTING_PERIOD");
+	pub FastTrackVotingPeriod: BlockNumber = prod_or_fast!(3 * HOURS, 1 * MINUTES, "ROC_FAST_TRACK_VOTING_PERIOD");
 	pub const MinimumDeposit: Balance = 100 * CENTS;
-	pub EnactmentPeriod: BlockNumber = prod_or_fast!(8 * DAYS, 1, "KSM_ENACTMENT_PERIOD");
-	pub CooloffPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1 * MINUTES, "KSM_COOLOFF_PERIOD");
+	pub EnactmentPeriod: BlockNumber = prod_or_fast!(8 * DAYS, 1, "ROC_ENACTMENT_PERIOD");
+	pub CooloffPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1 * MINUTES, "ROC_COOLOFF_PERIOD");
 	pub const InstantAllowed: bool = true;
 	pub const MaxVotes: u32 = 100;
 	pub const MaxProposals: u32 = 100;
@@ -748,7 +748,7 @@ impl pallet_elections_phragmen::Config for Runtime {
 }
 
 parameter_types! {
-	pub TechnicalMotionDuration: BlockNumber = prod_or_fast!(3 * DAYS, 2 * MINUTES, "KSM_MOTION_DURATION");
+	pub TechnicalMotionDuration: BlockNumber = prod_or_fast!(3 * DAYS, 2 * MINUTES, "ROC_MOTION_DURATION");
 	pub const TechnicalMaxProposals: u32 = 100;
 	pub const TechnicalMaxMembers: u32 = 100;
 }
@@ -1005,7 +1005,7 @@ impl claims::Config for Runtime {
 }
 
 parameter_types! {
-	// Minimum 100 bytes/KSM deposited (1 CENT/byte)
+	// Minimum 100 bytes/ROC deposited (1 CENT/byte)
 	pub const BasicDeposit: Balance = 1000 * CENTS;       // 258 bytes on-chain
 	pub const FieldDeposit: Balance = 250 * CENTS;        // 66 bytes on-chain
 	pub const SubAccountDeposit: Balance = 200 * CENTS;   // 53 bytes on-chain
@@ -2364,7 +2364,7 @@ sp_api::impl_runtime_apis! {
 // 	#[test]
 // 	fn signed_deposit_is_sensible() {
 // 		// ensure this number does not change, or that it is checked after each change.
-// 		// a 1 MB solution should need around 0.16 KSM deposit
+// 		// a 1 MB solution should need around 0.16 ROC deposit
 // 		let deposit = SignedDepositBase::get() + (SignedDepositByte::get() * 1024 * 1024);
 // 		assert_eq_error_rate!(deposit, UNITS * 16 / 100, UNITS / 100);
 // 	}
