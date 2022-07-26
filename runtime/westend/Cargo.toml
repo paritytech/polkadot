@@ -141,6 +141,7 @@ std = [
 	"beefy-primitives/std",
 	"pallet-multisig/std",
 	"pallet-nomination-pools/std",
+	"pallet-nomination-pools-runtime-api/std",
 	"pallet-offences/std",
 	"pallet-preimage/std",
 	"pallet-proxy/std",
