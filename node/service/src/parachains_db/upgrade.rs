@@ -66,8 +66,7 @@ pub(crate) fn try_upgrade_db(db_path: &Path, db_kind: DatabaseKind) -> Result<()
 			// We handle this as a `0 -> 1` migration.
 			None if db_kind == DatabaseKind::ParityDB =>
 				migrate_from_version_0_to_1(db_path, db_kind)?,
-			// Fresh db.
-			None => (),
+			None => unreachable!(),
 		}
 	}
 
@@ -101,12 +100,16 @@ fn version_file_path(path: &Path) -> PathBuf {
 }
 
 fn migrate_from_version_0_to_1(path: &Path, db_kind: DatabaseKind) -> Result<(), Error> {
-	gum::info!(target: LOG_TARGET, "Migrating parachains db from version 0 to version 1",);
+	gum::info!(target: LOG_TARGET, "Migrating parachains db from version 0 to version 1 ...");
 
 	match db_kind {
 		DatabaseKind::ParityDB => paritydb_migrate_from_version_0_to_1(path),
 		DatabaseKind::RocksDB => rocksdb_migrate_from_version_0_to_1(path),
 	}
+	.and_then(|result| {
+		gum::info!(target: LOG_TARGET, "Migration complete! ");
+		Ok(result)
+	})
 }
 
 /// Migration from version 0 to version 1:
@@ -135,7 +138,9 @@ fn paritydb_fix_columns(
 ) -> io::Result<()> {
 	// Figure out which columns to delete. This will be determined by inspecting
 	// the metadata file.
-	if let Ok(Some(metadata)) = parity_db::Options::load_metadata(&path) {
+	if let Some(metadata) = parity_db::Options::load_metadata(&path)
+		.map_err(|e| other_io_error(format!("Error reading metadata {:?}", e)))?
+	{
 		let columns_to_clear = metadata
 			.columns
 			.into_iter()
@@ -181,22 +186,28 @@ fn paritydb_fix_columns(
 	Ok(())
 }
 
+/// Database configuration for version 1.
+pub(crate) fn paritydb_version_1_config(path: &Path) -> parity_db::Options {
+	let mut options =
+		parity_db::Options::with_columns(&path, super::columns::v1::NUM_COLUMNS as u8);
+	for i in columns::v1::ORDERED_COL {
+		options.columns[*i as usize].btree_index = true;
+	}
+
+	options
+}
+
 /// Migration from version 0 to version 1.
 /// Cases covered:
 /// - upgrading from v0.9.23 or earlier -> the `dispute coordinator column` was changed
 /// - upgrading from v0.9.24+ -> this is a no op assuming the DB has been manually fixed as per
 /// release notes
 fn paritydb_migrate_from_version_0_to_1(path: &Path) -> Result<(), Error> {
-	let mut options = parity_db::Options::with_columns(&path, super::columns::NUM_COLUMNS as u8);
-	for i in columns::ORDERED_COL {
-		options.columns[*i as usize].btree_index = true;
-	}
-
 	// Delete the `dispute coordinator` column if needed (if column configuration is changed).
 	paritydb_fix_columns(
-		&path,
-		options.clone(),
-		vec![super::columns::COL_DISPUTE_COORDINATOR_DATA],
+		path,
+		paritydb_version_1_config(path),
+		vec![super::columns::v1::COL_DISPUTE_COORDINATOR_DATA],
 	)?;
 
 	Ok(())
