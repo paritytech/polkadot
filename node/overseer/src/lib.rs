@@ -71,11 +71,7 @@ use futures::{channel::oneshot, future::BoxFuture, select, Future, FutureExt, St
 use lru::LruCache;
 
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
-use polkadot_primitives::{
-	runtime_api::ParachainHost,
-	v2::{Block, BlockId, BlockNumber, Hash},
-};
-use sp_api::{ApiExt, ProvideRuntimeApi};
+use polkadot_primitives::v2::{Block, BlockNumber, Hash};
 
 use polkadot_node_subsystem_types::messages::{
 	ApprovalDistributionMessage, ApprovalVotingMessage, AvailabilityDistributionMessage,
@@ -89,6 +85,7 @@ use polkadot_node_subsystem_types::messages::{
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
 	jaeger, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, OverseerSignal,
+	RuntimeApiSubsystemClient,
 };
 
 pub mod metrics;
@@ -157,25 +154,20 @@ impl<S: SpawnNamed + Clone + Send + Sync> crate::gen::Spawner for SpawnGlue<S> {
 }
 
 /// Whether a header supports parachain consensus or not.
+#[async_trait::async_trait]
 pub trait HeadSupportsParachains {
 	/// Return true if the given header supports parachain consensus. Otherwise, false.
-	fn head_supports_parachains(&self, head: &Hash) -> bool;
+	async fn head_supports_parachains(&self, head: &Hash) -> bool;
 }
 
+#[async_trait::async_trait]
 impl<Client> HeadSupportsParachains for Arc<Client>
 where
-	Client: ProvideRuntimeApi<Block>,
-	Client::Api: ParachainHost<Block>,
+	Client: RuntimeApiSubsystemClient + Sync + Send,
 {
-	fn head_supports_parachains(&self, head: &Hash) -> bool {
-		let id = BlockId::Hash(*head);
+	async fn head_supports_parachains(&self, head: &Hash) -> bool {
 		// Check that the `ParachainHost` runtime api is at least with version 1 present on chain.
-		self.runtime_api()
-			.api_version::<dyn ParachainHost<Block>>(&id)
-			.ok()
-			.flatten()
-			.unwrap_or(0) >=
-			1
+		self.api_version_parachain_host(*head).await.ok().flatten().unwrap_or(0) >= 1
 	}
 }
 
@@ -421,9 +413,12 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 /// # fn main() { executor::block_on(async move {
 ///
 /// struct AlwaysSupportsParachains;
+///
+/// #[async_trait::async_trait]
 /// impl HeadSupportsParachains for AlwaysSupportsParachains {
-///      fn head_supports_parachains(&self, _head: &Hash) -> bool { true }
+///      async fn head_supports_parachains(&self, _head: &Hash) -> bool { true }
 /// }
+///
 /// let spawner = sp_core::testing::TaskExecutor::new();
 /// let (overseer, _handle) = dummy_overseer_builder(spawner, AlwaysSupportsParachains, None)
 ///		.unwrap()
@@ -718,7 +713,7 @@ where
 		// Notify about active leaves on startup before starting the loop
 		for (hash, number) in std::mem::take(&mut self.leaves) {
 			let _ = self.active_leaves.insert(hash, number);
-			if let Some((span, status)) = self.on_head_activated(&hash, None) {
+			if let Some((span, status)) = self.on_head_activated(&hash, None).await {
 				let update =
 					ActiveLeavesUpdate::start_work(ActivatedLeaf { hash, number, status, span });
 				self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
@@ -780,7 +775,7 @@ where
 			},
 		};
 
-		let mut update = match self.on_head_activated(&block.hash, Some(block.parent_hash)) {
+		let mut update = match self.on_head_activated(&block.hash, Some(block.parent_hash)).await {
 			Some((span, status)) => ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: block.hash,
 				number: block.number,
@@ -837,12 +832,12 @@ where
 
 	/// Handles a header activation. If the header's state doesn't support the parachains API,
 	/// this returns `None`.
-	fn on_head_activated(
+	async fn on_head_activated(
 		&mut self,
 		hash: &Hash,
 		parent_hash: Option<Hash>,
 	) -> Option<(Arc<jaeger::Span>, LeafStatus)> {
-		if !self.supports_parachains.head_supports_parachains(hash) {
+		if !self.supports_parachains.head_supports_parachains(hash).await {
 			return None
 		}
 

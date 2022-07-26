@@ -278,9 +278,9 @@ dependencies = [
 
 [[package]]
 name = "async-std"
-version = "1.11.0"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52580991739c5cdb36cde8b2a516371c0a3b70dda36d916cc08b82372916808c"
+checksum = "62565bb4402e926b29953c785397c6dc0391b7b446e45008b0049eb43cec6f5d"
 dependencies = [
  "async-attributes",
  "async-channel",
@@ -297,7 +297,6 @@ dependencies = [
  "kv-log-macro",
  "log",
  "memchr",
- "num_cpus",
  "once_cell",
  "pin-project-lite 0.2.7",
  "pin-utils",
@@ -328,9 +327,9 @@ checksum = "e91831deabf0d6d7ec49552e489aed63b7456a7a3c46cff62adad428110b0af0"
 
 [[package]]
 name = "async-trait"
-version = "0.1.53"
+version = "0.1.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed6aa3524a2dfcf9fe180c51eae2b58738348d819517ceadf95789c51fff7600"
+checksum = "96cf8829f67d2eab0b2dfa42c5d0ef737e0724e4a82b01b3e292456202b19716"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -487,6 +486,7 @@ dependencies = [
 [[package]]
 name = "beefy-primitives"
 version = "4.0.0-dev"
+
 source = "git+https://github.com/paritytech/substrate?branch=master#5709dfa7095659d398323fb2c9515f66b2617b17"
 dependencies = [
  "parity-scale-codec",
@@ -1155,9 +1155,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-channel"
-version = "0.5.1"
+version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06ed27e177f16d65f0f0c22a213e17c696ace5dd64b14258b52f9417ccb52db4"
+checksum = "4c02a4d71819009c192cf4872265391563fd6a84c81ff2c0f2a7026ca4c1d85c"
 dependencies = [
  "cfg-if 1.0.0",
  "crossbeam-utils",
@@ -1733,6 +1733,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "exitcode"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de853764b47027c2e862a995c34978ffa63c1501f2e15f987ba11bd4f9bba193"
+
+[[package]]
 name = "expander"
 version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2129,6 +2135,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural"
 version = "4.0.0-dev"
+
 source = "git+https://github.com/paritytech/substrate?branch=master#5709dfa7095659d398323fb2c9515f66b2617b17"
 dependencies = [
  "Inflector",
@@ -6080,6 +6087,7 @@ dependencies = [
  "sc-sysinfo",
  "sc-tracing",
  "sp-core",
+ "sp-keyring",
  "sp-trie",
  "substrate-build-script-utils",
  "thiserror",
@@ -6291,6 +6299,7 @@ name = "polkadot-node-core-approval-voting"
 version = "0.9.26"
 dependencies = [
  "assert_matches",
+ "async-trait",
  "bitvec",
  "derive_more",
  "futures",
@@ -6586,6 +6595,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-types",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
@@ -6716,6 +6726,7 @@ dependencies = [
 name = "polkadot-node-subsystem-types"
 version = "0.9.26"
 dependencies = [
+ "async-trait",
  "derive_more",
  "futures",
  "orchestra",
@@ -6726,6 +6737,9 @@ dependencies = [
  "polkadot-statement-table",
  "sc-network",
  "smallvec",
+ "sp-api",
+ "sp-authority-discovery",
+ "sp-consensus-babe",
  "substrate-prometheus-endpoint",
  "thiserror",
 ]
@@ -6775,6 +6789,7 @@ name = "polkadot-overseer"
 version = "0.9.26"
 dependencies = [
  "assert_matches",
+ "async-trait",
  "femme",
  "futures",
  "futures-timer",
@@ -9717,9 +9732,9 @@ checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
 
 [[package]]
 name = "signal-hook"
-version = "0.3.10"
+version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c98891d737e271a2954825ef19e46bd16bdb98e2746f2eec4f7a4ef7946efd1"
+checksum = "a253b5e89e2698464fc26b545c9edceb338e18a89effeeecfea192c3025be29d"
 dependencies = [
  "libc",
  "signal-hook-registry",
@@ -9732,6 +9747,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e51e73328dc4ac0c7ccbda3a494dfa03df1de2f46018127f60c693f2648455b0"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "signal-hook-tokio"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "213241f76fb1e37e27de3b6aa1b068a2c333233b59cca6634f634b80a27ecf1e"
+dependencies = [
+ "futures-core",
+ "libc",
+ "signal-hook",
+ "tokio",
 ]
 
 [[package]]
@@ -10573,9 +10600,11 @@ version = "0.9.26"
 dependencies = [
  "assert_cmd",
  "clap",
+ "exitcode",
  "frame-election-provider-support",
  "frame-support",
  "frame-system",
+ "futures-util",
  "jsonrpsee",
  "kusama-runtime",
  "log",
@@ -10592,6 +10621,8 @@ dependencies = [
  "sc-transaction-pool-api",
  "serde",
  "serde_json",
+ "signal-hook",
+ "signal-hook-tokio",
  "sp-core",
  "sp-io",
  "sp-npos-elections",
