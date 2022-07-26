@@ -15,6 +15,7 @@
 # moment of time.
 
 stages:
+  - prepare
   - stage1
   - stage2
   - stage3
@@ -55,6 +56,9 @@ default:
     paths:
       - ./artifacts/
 
+.check-passed-job:                 &check-passed-job
+  - if [ -e artifacts/cbs/passed-jobs/"$CI_JOB_NAME" ]; then exit 0; fi
+
 .kubernetes-env:                   &kubernetes-env
   retry:
     max: 2
@@ -65,6 +69,8 @@ default:
   interruptible:                   true
   tags:
     - kubernetes-parity-build
+  before_script:
+    - *check-passed-job
 
 .docker-env:                       &docker-env
   image:                           "${CI_IMAGE}"
@@ -77,19 +83,27 @@ default:
   interruptible:                   true
   tags:
     - linux-docker
+  before_script:
+    - *check-passed-job
 
 .compiler-info:                    &compiler-info
   before_script:
+    - *check-passed-job
     - rustup show
     - cargo --version
     - sccache -s
+
+.pr-refs:                          &pr-refs
+  rules:
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME =~ /^cbs-.*/                          # Patched companion branches
 
 .test-refs:                        &test-refs
   rules:
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - !reference [.pr-refs, rules]
 
 .common-refs:                      &common-refs
   # these jobs run always*
@@ -97,14 +111,14 @@ default:
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - !reference [.pr-refs, rules]
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
 
 .test-pr-refs:                     &test-pr-refs
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
       when: never
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - !reference [.pr-refs, rules]
 
 .zombienet-refs:                   &zombienet-refs
   rules:
@@ -140,6 +154,7 @@ default:
     DOCKER_USER:                   ${PARITYPR_USER}
     DOCKER_PASS:                   ${PARITYPR_PASS}
   before_script:                   &check-versions
+    - !reference [.kubernetes-env, before_script]
     - test -s ./artifacts/VERSION || exit 1
     - test -s ./artifacts/EXTRATAG || exit 1
     - VERSION="$(cat ./artifacts/VERSION)"
@@ -165,6 +180,24 @@ default:
     - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
   after_script:
     - buildah logout --all
+
+#### stage:                        prepare
+
+prepare:
+  stage:                           prepare
+  image:                           "${CI_IMAGE}"
+  <<:                              *kubernetes-env
+  <<:                              *common-refs
+  <<:                              *collect-artifacts
+  script:
+    - git clone
+        --depth=1
+        --branch="$PIPELINE_SCRIPTS_TAG"
+        https://github.com/paritytech/pipeline-scripts
+       || true
+    - ./pipeline-scripts/check_dependent_project_pipeline.sh
+        --artifacts-path artifacts
+        || true
 
 #### stage:                        stage1
 
@@ -305,29 +338,36 @@ build-staking-miner:
 
 .check-dependent-project:          &check-dependent-project
   stage:                           stage2
-  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
-  needs:
-    - job:                         check-runtime
-      artifacts:                   false
-  <<:                              *docker-env
+  image:                           "${CI_IMAGE}"
+  <<:                              *kubernetes-env
   <<:                              *test-pr-refs
+  timeout:                         2 hours
   script:
+    - rm -rf .git/pipeline-scripts
     - git clone
         --depth=1
-        "--branch=$PIPELINE_SCRIPTS_TAG"
+        --branch="$PIPELINE_SCRIPTS_TAG"
         https://github.com/paritytech/pipeline-scripts
-    - ./pipeline-scripts/check_dependent_project.sh
+        .git/pipeline-scripts
+    - ./.git/pipeline-scripts/check_dependent_project.sh
         --org paritytech
         --dependent-repo "$DEPENDENT_REPO"
         --github-api-token "$GITHUB_PR_TOKEN"
         --extra-dependencies "$EXTRA_DEPENDENCIES"
         --companion-overrides "$COMPANION_OVERRIDES"
+        --gitlab-url "$CI_SERVER_URL"
+        --gitlab-dependent-path "$GITLAB_DEPENDENT_PATH"
+        --gitlab-dependent-token "$GITLAB_DEPENDENT_TOKEN"
+  after_script:
+    - rm -rf .git/pipeline-scripts
 
 check-dependent-cumulus:
   <<: *check-dependent-project
   variables:
     DEPENDENT_REPO: cumulus
     EXTRA_DEPENDENCIES: substrate
+    GITLAB_DEPENDENT_PATH: parity/mirrors/cumulus
+    GITLAB_DEPENDENT_TOKEN: $CBS_CUMULUS_TOKEN
     COMPANION_OVERRIDES: |
       polkadot: release-v*
       cumulus: polkadot-v*
@@ -370,6 +410,7 @@ check-transaction-versions:
     - job:                         build-linux-stable
       artifacts:                   true
   before_script:
+    - !reference [.kubernetes-env, before_script]
     - apt-get -y update; apt-get -y install jq lsof
     - npm install --ignore-scripts -g @polkadot/metadata-cmp
     # Set git config
@@ -660,6 +701,7 @@ zombienet-tests-parachains-smoke-test:
   variables:
     GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke"
   before_script:
+    - !reference [.kubernetes-env, before_script]
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE}"
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
@@ -689,6 +731,7 @@ zombienet-tests-parachains-pvf:
   variables:
     GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
   before_script:
+    - !reference [.kubernetes-env, before_script]
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE}"
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
@@ -719,6 +762,7 @@ zombienet-tests-parachains-disputes:
   variables:
     GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
   before_script:
+    - !reference [.kubernetes-env, before_script]
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE_NAME}"
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
@@ -749,6 +793,7 @@ zombienet-test-parachains-upgrade-smoke-test:
   variables:
     GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke'
   before_script:
+    - !reference [.kubernetes-env, before_script]
     - echo "ZombieNet Tests Config"
     - echo "${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
     - echo "docker.io/parity/polkadot-collator:latest"
@@ -778,6 +823,7 @@ zombienet-tests-misc-paritydb:
   variables:
     GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/misc"
   before_script:
+    - !reference [.kubernetes-env, before_script]
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE_NAME}"
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
@@ -806,6 +852,7 @@ zombienet-tests-malus-dispute-valid:
   variables:
     GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/node/malus/integrationtests"
   before_script:
+    - !reference [.kubernetes-env, before_script]
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE_NAME}"
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
@@ -835,6 +882,7 @@ zombienet-tests-deregister-register-validator:
   variables:
     GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke"
   before_script:
+    - !reference [.kubernetes-env, before_script]
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE_NAME}"
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
