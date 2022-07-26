@@ -1398,7 +1398,10 @@ impl crowdloan::Config for Runtime {
 }
 
 parameter_types! {
+	// The average auction is 7 days long, so this will be 70% for ending period.
+	// 5 Days = 72000 Blocks @ 6 sec per block
 	pub const EndingPeriod: BlockNumber = 5 * DAYS;
+	// ~ 1000 samples per day -> ~ 20 blocks per sample -> 2 minute samples
 	pub const SampleLength: BlockNumber = 2 * MINUTES;
 }
 
@@ -1755,16 +1758,6 @@ pub type Executive = frame_executive::Executive<
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-parameter_types! {
-	pub const ValidationUpgradeFrequency: BlockNumber = 2 * DAYS;
-	pub const ValidationUpgradeDelay: BlockNumber = 8 * HOURS;
-	pub const SlashPeriod: BlockNumber = 7 * DAYS;
-}
-
-// parameter_types! {
-// 	pub SessionDuration: BlockNumber = EpochDurationInBlocks::get() as _;
-// }
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
