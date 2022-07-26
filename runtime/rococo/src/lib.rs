@@ -85,11 +85,13 @@ use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
 
 pub use frame_system::Call as SystemCall;
+pub use pallet_balances::Call as BalancesCall;
 // TODO: Election
 // pub use pallet_election_provider_multi_phase::Call as EPMCall;
 // TODO: Staking
 // #[cfg(feature = "std")]
 // pub use pallet_staking::StakerStatus;
+
 
 /// Constant values used within the runtime.
 use rococo_runtime_constants::{currency::*, fee::*, time::*};
@@ -117,8 +119,8 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v2.0"),
-	authoring_version: 0, // TODO: Params -> authoring_version: 2
-	spec_version: 9260,
+	authoring_version: 0,
+	spec_version: 9270,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,

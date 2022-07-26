@@ -31,6 +31,7 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]
+async-trait = "0.1.56"
 parking_lot = "0.12.0"
 rand_core = "0.5.1" #                                                                       should match schnorrkel
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
