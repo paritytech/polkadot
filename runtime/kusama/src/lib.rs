@@ -80,13 +80,13 @@ use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
 
 pub use frame_system::Call as SystemCall;
-// pub use pallet_balances::Call as BalancesCall;
+pub use pallet_balances::Call as BalancesCall;
 pub use pallet_election_provider_multi_phase::Call as EPMCall;
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
 // pub use pallet_timestamp::Call as TimestampCall;
-// #[cfg(any(feature = "std", test))]
-// pub use sp_runtime::BuildStorage;
+#[cfg(any(feature = "std", test))]
+pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
 use kusama_runtime_constants::{currency::*, fee::*, time::*};
