@@ -7349,7 +7349,6 @@ dependencies = [
  "env_logger 0.9.0",
  "frame-system-rpc-runtime-api",
  "futures",
- "glob",
  "hex-literal",
  "kusama-runtime",
  "kusama-runtime-constants",
