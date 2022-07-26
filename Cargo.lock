@@ -7442,6 +7442,7 @@ dependencies = [
  "sp-transaction-pool",
  "sp-trie",
  "substrate-prometheus-endpoint",
+ "tempfile",
  "thiserror",
  "tracing-gum",
  "westend-runtime",

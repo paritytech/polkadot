@@ -197,6 +197,17 @@ pub(crate) fn paritydb_version_1_config(path: &Path) -> parity_db::Options {
 	options
 }
 
+/// Database configuration for version 0. This is useful just for testing.
+#[cfg(test)]
+pub(crate) fn paritydb_version_0_config(path: &Path) -> parity_db::Options {
+	let mut options =
+		parity_db::Options::with_columns(&path, super::columns::v1::NUM_COLUMNS as u8);
+	options.columns[super::columns::v1::COL_AVAILABILITY_META as usize].btree_index = true;
+	options.columns[super::columns::v1::COL_CHAIN_SELECTION_DATA as usize].btree_index = true;
+
+	options
+}
+
 /// Migration from version 0 to version 1.
 /// Cases covered:
 /// - upgrading from v0.9.23 or earlier -> the `dispute coordinator column` was changed
@@ -211,4 +222,37 @@ fn paritydb_migrate_from_version_0_to_1(path: &Path) -> Result<(), Error> {
 	)?;
 
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	#[test]
+	fn test_paritydb_migrate_0_1() {
+		use super::{columns::v1::*, *};
+		use parity_db::Db;
+
+		let db_dir = tempfile::tempdir().unwrap();
+		let path = db_dir.path();
+		{
+			let db = Db::open_or_create(&paritydb_version_0_config(&path)).unwrap();
+
+			db.commit(vec![
+				(COL_DISPUTE_COORDINATOR_DATA as u8, b"1234".to_vec(), Some(b"somevalue".to_vec())),
+				(COL_AVAILABILITY_META as u8, b"5678".to_vec(), Some(b"somevalue".to_vec())),
+			])
+			.unwrap();
+		}
+
+		try_upgrade_db(&path, DatabaseKind::ParityDB).unwrap();
+
+		let db = Db::open(&paritydb_version_1_config(&path)).unwrap();
+		assert_eq!(
+			db.get(super::columns::v1::COL_DISPUTE_COORDINATOR_DATA as u8, b"1234").unwrap(),
+			None
+		);
+		assert_eq!(
+			db.get(super::columns::v1::COL_AVAILABILITY_META as u8, b"5678").unwrap(),
+			Some("somevalue".as_bytes().to_vec())
+		);
+	}
 }

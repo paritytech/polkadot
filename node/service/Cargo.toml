@@ -128,6 +128,7 @@ polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 env_logger = "0.9.0"
 log = "0.4.17"
 assert_matches = "1.5.0"
+tempfile = "3.2"
 
 [features]
 default = ["db", "full-node", "polkadot-native"]
