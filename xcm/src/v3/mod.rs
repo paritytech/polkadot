@@ -901,7 +901,7 @@ pub enum Instruction<Call> {
 	/// This restriction may be removed by the `UnlockAsset` instruction being called with an
 	/// Origin of `unlocker` and a `target` equal to the current `Origin`.
 	///
-	/// If the locking is successful, then a `NoteAssetLocked` instruction is sent to `unlocker`.
+	/// If the locking is successful, then a `NoteUnlockable` instruction is sent to `unlocker`.
 	///
 	/// - `asset`: The asset(s) which should be locked.
 	/// - `unlocker`: The value which the Origin must be for a corresponding `UnlockAsset`
