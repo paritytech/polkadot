@@ -15,10 +15,7 @@
 
 #[cfg(feature = "full-node")]
 use {
-	polkadot_node_subsystem_util::database::Database,
-	std::io,
-	std::path::{Path, PathBuf},
-	std::sync::Arc,
+	polkadot_node_subsystem_util::database::Database, std::io, std::path::PathBuf, std::sync::Arc,
 };
 
 #[cfg(feature = "full-node")]
@@ -67,6 +64,12 @@ pub const REAL_COLUMNS: ColumnsConfig = ColumnsConfig {
 	col_chain_selection_data: columns::COL_CHAIN_SELECTION_DATA,
 	col_dispute_coordinator_data: columns::COL_DISPUTE_COORDINATOR_DATA,
 };
+
+#[derive(PartialEq)]
+pub(crate) enum DatabaseKind {
+	ParityDB,
+	RocksDB,
+}
 
 /// The cache size for each column, in megabytes.
 #[derive(Debug, Clone)]
@@ -117,65 +120,12 @@ pub fn open_creating_rocksdb(
 		.ok_or_else(|| other_io_error(format!("Bad database path: {:?}", path)))?;
 
 	std::fs::create_dir_all(&path_str)?;
-	upgrade::try_upgrade_db(&path)?;
+	upgrade::try_upgrade_db(&path, DatabaseKind::RocksDB)?;
 	let db = Database::open(&db_config, &path_str)?;
 	let db =
 		polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, columns::ORDERED_COL);
 
 	Ok(Arc::new(db))
-}
-
-fn fix_columns(
-	path: &Path,
-	options: parity_db::Options,
-	allowed_columns: Vec<u32>,
-) -> io::Result<()> {
-	// Figure out which columns to delete. This will be determined by inspecting
-	// the metadata file.
-	if let Ok(Some(metadata)) = parity_db::Options::load_metadata(&path) {
-		let columns_to_clear = metadata
-			.columns
-			.into_iter()
-			.enumerate()
-			.filter(|(idx, _)| allowed_columns.contains(&(*idx as u32)))
-			.filter_map(|(idx, opts)| {
-				let changed = opts != options.columns[idx];
-				if changed {
-					gum::debug!(
-						target: LOG_TARGET,
-						"Column {} will be cleared. Old options: {:?}, New options: {:?}",
-						idx,
-						opts,
-						options.columns[idx]
-					);
-					Some(idx)
-				} else {
-					None
-				}
-			})
-			.collect::<Vec<_>>();
-
-		if columns_to_clear.len() > 0 {
-			gum::debug!(
-				target: LOG_TARGET,
-				"Database column changes detected, need to cleanup {} columns.",
-				columns_to_clear.len()
-			);
-		}
-
-		for column in columns_to_clear {
-			gum::debug!(target: LOG_TARGET, "Clearing column {}", column,);
-			parity_db::clear_column(path, column.try_into().expect("Invalid column ID"))
-				.map_err(|e| other_io_error(format!("Error clearing column {:?}", e)))?;
-		}
-
-		// Write the updated column options.
-		options
-			.write_metadata(path, &metadata.salt)
-			.map_err(|e| other_io_error(format!("Error writing metadata {:?}", e)))?;
-	}
-
-	Ok(())
 }
 
 /// Open a parity db database.
@@ -190,13 +140,12 @@ pub fn open_creating_paritydb(
 		.ok_or_else(|| other_io_error(format!("Bad database path: {:?}", path)))?;
 
 	std::fs::create_dir_all(&path_str)?;
+	upgrade::try_upgrade_db(&path, DatabaseKind::ParityDB)?;
 
 	let mut options = parity_db::Options::with_columns(&path, columns::NUM_COLUMNS as u8);
 	for i in columns::ORDERED_COL {
 		options.columns[*i as usize].btree_index = true;
 	}
-
-	fix_columns(&path, options.clone(), vec![columns::COL_DISPUTE_COORDINATOR_DATA])?;
 
 	let db = parity_db::Db::open_or_create(&options)
 		.map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{:?}", err)))?;
