@@ -92,7 +92,6 @@ pub use pallet_balances::Call as BalancesCall;
 // #[cfg(feature = "std")]
 // pub use pallet_staking::StakerStatus;
 
-
 /// Constant values used within the runtime.
 use rococo_runtime_constants::{currency::*, fee::*, time::*};
 

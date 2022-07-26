@@ -189,7 +189,7 @@ pub type LocalOriginToLocation = (
 );
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;  // TODO: XCM
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>; // TODO: XCM
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally.
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
