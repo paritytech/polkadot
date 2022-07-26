@@ -64,7 +64,6 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https:
 futures = "0.3.21"
 hex-literal = "0.3.4"
 gum = { package = "tracing-gum", path = "../gum/" }
-glob = "0.3.0"
 serde = { version = "1.0.137", features = ["derive"] }
 serde_json = "1.0.81"
 thiserror = "1.0.31"
