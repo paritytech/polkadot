@@ -57,7 +57,6 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::LOG_TARGET;
-use bitvec::prelude::*;
 use polkadot_node_subsystem_util::inclusion_emulator::staging::{
 	ConstraintModifications, Constraints, Fragment, ProspectiveCandidate, RelayChainBlockInfo,
 };
@@ -314,9 +313,10 @@ pub(crate) struct FragmentTree {
 	// the top-level children.
 	nodes: Vec<FragmentNode>,
 
-	// The candidates stored in this tree, mapped to a bitvec indicating the depths
-	// where the candidate is stored.
-	candidates: HashMap<CandidateHash, BitVec<u16, Msb0>>,
+	// The candidates stored in this tree, mapped to its membership in a tree:
+	// depth -> parent candidate hash. Candidate parent for 0-depth should always
+	// be backed, for convention we store zero-hash as a placeholder.
+	candidates: HashMap<CandidateHash, BTreeMap<usize, CandidateHash>>,
 }
 
 impl FragmentTree {
@@ -349,18 +349,14 @@ impl FragmentTree {
 		let pointer = NodePointer::Storage(self.nodes.len());
 		let parent_pointer = node.parent;
 		let candidate_hash = node.candidate_hash;
+		let node_depth = node.depth;
 
-		let max_depth = self.scope.max_depth;
-
-		self.candidates
-			.entry(candidate_hash)
-			.or_insert_with(|| bitvec![u16, Msb0; 0; max_depth + 1])
-			.set(node.depth, true);
-
-		match parent_pointer {
+		let parent_hash = match parent_pointer {
 			NodePointer::Storage(ptr) => {
 				self.nodes.push(node);
-				self.nodes[ptr].children.push((pointer, candidate_hash))
+				let parent_node = &mut self.nodes[ptr];
+				parent_node.children.push((pointer, candidate_hash));
+				parent_node.candidate_hash
 			},
 			NodePointer::Root => {
 				// Maintain the invariant of node storage beginning with depth-0.
@@ -371,8 +367,14 @@ impl FragmentTree {
 						self.nodes.iter().take_while(|n| n.parent == NodePointer::Root).count();
 					self.nodes.insert(pos, node);
 				}
+				CandidateHash::default()
 			},
-		}
+		};
+
+		self.candidates
+			.entry(candidate_hash)
+			.or_default()
+			.insert(node_depth, parent_hash);
 	}
 
 	fn node_has_candidate_child(
@@ -409,7 +411,7 @@ impl FragmentTree {
 
 	/// Whether the candidate exists and at what depths.
 	pub(crate) fn candidate(&self, candidate: &CandidateHash) -> Option<Vec<usize>> {
-		self.candidates.get(candidate).map(|d| d.iter_ones().collect())
+		self.candidates.get(candidate).map(|d| d.keys().copied().collect())
 	}
 
 	/// Add a candidate and recursively populate from storage.
@@ -454,10 +456,10 @@ impl FragmentTree {
 		hash: CandidateHash,
 		parent_head_data_hash: Hash,
 		candidate_relay_parent: Hash,
-	) -> Vec<usize> {
+	) -> Vec<(usize, CandidateHash)> {
 		// if known.
 		if let Some(depths) = self.candidates.get(&hash) {
-			return depths.iter_ones().collect()
+			return depths.iter().map(|(&depth, &parent)| (depth, parent)).collect()
 		}
 
 		// if out of scope.
@@ -471,7 +473,7 @@ impl FragmentTree {
 			};
 
 		let max_depth = self.scope.max_depth;
-		let mut depths = bitvec![u16, Msb0; 0; max_depth + 1];
+		let mut depths = BTreeMap::new();
 
 		// iterate over all nodes < max_depth where parent head-data matches,
 		// relay-parent number is <= candidate, and depth < max_depth.
@@ -483,16 +485,17 @@ impl FragmentTree {
 				continue
 			}
 			if node.head_data_hash == parent_head_data_hash {
-				depths.set(node.depth + 1, true);
+				depths.insert(node.depth + 1, node.candidate_hash);
 			}
 		}
 
 		// compare against root as well.
 		if self.scope.base_constraints.required_parent.hash() == parent_head_data_hash {
-			depths.set(0, true);
+			// use a placeholder value.
+			depths.insert(0, CandidateHash::default());
 		}
 
-		depths.iter_ones().collect()
+		depths.into_iter().collect()
 	}
 
 	/// Select a candidate after the given `required_path` which pass
@@ -1296,7 +1299,7 @@ mod tests {
 				HeadData::from(vec![0x0a]).hash(),
 				relay_parent_a,
 			),
-			vec![0, 2, 4],
+			vec![(0, CandidateHash::default()), (2, candidate_b_hash), (4, candidate_b_hash)],
 		);
 
 		assert_eq!(
@@ -1305,7 +1308,7 @@ mod tests {
 				HeadData::from(vec![0x0b]).hash(),
 				relay_parent_a,
 			),
-			vec![1, 3],
+			vec![(1, candidate_a_hash), (3, candidate_a_hash)],
 		);
 
 		assert_eq!(
@@ -1314,7 +1317,7 @@ mod tests {
 				HeadData::from(vec![0x0a]).hash(),
 				relay_parent_a,
 			),
-			vec![0, 2, 4],
+			vec![(0, CandidateHash::default()), (2, candidate_b_hash), (4, candidate_b_hash)],
 		);
 
 		assert_eq!(
@@ -1323,7 +1326,7 @@ mod tests {
 				HeadData::from(vec![0x0b]).hash(),
 				relay_parent_a,
 			),
-			vec![1, 3]
+			vec![(1, candidate_a_hash), (3, candidate_a_hash)],
 		);
 	}
 }

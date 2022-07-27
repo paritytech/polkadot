@@ -606,6 +606,7 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(ProspectiveParachainsMessage, sends: [
 		RuntimeApiMessage,
 		ChainApiMessage,
+		CollatorProtocolMessage,
 	])]
 	prospective_parachains: ProspectiveParachains,
 

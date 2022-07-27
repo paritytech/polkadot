@@ -213,6 +213,9 @@ pub enum CollatorProtocolMessage {
 	///
 	/// The hash is the relay parent.
 	Seconded(Hash, SignedFullStatement),
+	/// Inform the Subsystem that a previously seconded candidate has been backed.
+	/// This message is forwarded from Prospective Parachains.
+	Backed(ParaId, CandidateHash),
 }
 
 impl Default for CollatorProtocolMessage {
@@ -956,6 +959,19 @@ pub struct HypotheticalDepthRequest {
 	pub fragment_tree_relay_parent: Hash,
 }
 
+/// State of candidate's parent node in a fragment tree of some para.
+///
+/// Validators should only second candidates for which there exists a backed
+/// parent in a fragment tree, including root.
+#[derive(Debug, Copy, Clone)]
+pub enum ProspectiveCandidateParentState {
+	/// Parent node candidate is seconded but not backed yet.
+	Seconded(CandidateHash),
+	/// Candidate's parent is backed, its hash is of
+	/// no interest.
+	Backed,
+}
+
 /// A request for the persisted validation data stored in the prospective
 /// parachains subsystem.
 #[derive(Debug)]
@@ -1004,7 +1020,10 @@ pub enum ProspectiveParachainsMessage {
 	///
 	/// Returns an empty vector either if there is no such depth or the fragment tree relay-parent
 	/// is unknown.
-	GetHypotheticalDepth(HypotheticalDepthRequest, oneshot::Sender<Vec<usize>>),
+	GetHypotheticalDepth(
+		HypotheticalDepthRequest,
+		oneshot::Sender<Vec<(usize, ProspectiveCandidateParentState)>>,
+	),
 	/// Get the membership of the candidate in all fragment trees.
 	GetTreeMembership(ParaId, CandidateHash, oneshot::Sender<FragmentTreeMembership>),
 	/// Get the minimum accepted relay-parent number for each para in the fragment tree

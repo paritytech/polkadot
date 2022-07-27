@@ -33,9 +33,9 @@ use futures::{channel::oneshot, prelude::*};
 
 use polkadot_node_subsystem::{
 	messages::{
-		ChainApiMessage, FragmentTreeMembership, HypotheticalDepthRequest,
-		ProspectiveParachainsMessage, ProspectiveValidationDataRequest, RuntimeApiMessage,
-		RuntimeApiRequest,
+		ChainApiMessage, CollatorProtocolMessage, FragmentTreeMembership, HypotheticalDepthRequest,
+		ProspectiveCandidateParentState, ProspectiveParachainsMessage,
+		ProspectiveValidationDataRequest, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -326,7 +326,7 @@ async fn handle_candidate_seconded<Context>(
 
 #[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
 async fn handle_candidate_backed<Context>(
-	_ctx: &mut Context,
+	ctx: &mut Context,
 	view: &mut View,
 	para: ParaId,
 	candidate_hash: CandidateHash,
@@ -368,6 +368,9 @@ async fn handle_candidate_backed<Context>(
 	}
 
 	storage.mark_backed(&candidate_hash);
+
+	ctx.send_message(CollatorProtocolMessage::Backed(para, candidate_hash)).await;
+
 	Ok(())
 }
 
@@ -429,22 +432,35 @@ fn answer_get_backable_candidate(
 fn answer_hypothetical_depths_request(
 	view: &View,
 	request: HypotheticalDepthRequest,
-	tx: oneshot::Sender<Vec<usize>>,
+	tx: oneshot::Sender<Vec<(usize, ProspectiveCandidateParentState)>>,
 ) {
-	match view
+	let fragment_tree = view
 		.active_leaves
 		.get(&request.fragment_tree_relay_parent)
-		.and_then(|l| l.fragment_trees.get(&request.candidate_para))
-	{
-		Some(fragment_tree) => {
-			let depths = fragment_tree.hypothetical_depths(
-				request.candidate_hash,
-				request.parent_head_data_hash,
-				request.candidate_relay_parent,
-			);
+		.and_then(|l| l.fragment_trees.get(&request.candidate_para));
+	let candidate_storage = view.candidate_storage.get(&request.candidate_para);
+	match (fragment_tree, candidate_storage) {
+		(Some(fragment_tree), Some(candidate_storage)) => {
+			let depths = fragment_tree
+				.hypothetical_depths(
+					request.candidate_hash,
+					request.parent_head_data_hash,
+					request.candidate_relay_parent,
+				)
+				.into_iter()
+				.map(|(depth, parent)| {
+					let parent_status = if depth == 0 || candidate_storage.is_backed(&parent) {
+						ProspectiveCandidateParentState::Backed
+					} else {
+						ProspectiveCandidateParentState::Seconded(parent)
+					};
+					(depth, parent_status)
+				})
+				.collect();
+
 			let _ = tx.send(depths);
 		},
-		None => {
+		_ => {
 			let _ = tx.send(Vec::new());
 		},
 	}

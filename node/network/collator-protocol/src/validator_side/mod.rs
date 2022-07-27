@@ -1145,6 +1145,7 @@ async fn process_msg<Context>(
 				);
 			}
 		},
+		Backed(..) => {},
 		Invalid(parent, candidate_receipt) => {
 			let id = match state.pending_candidates.entry(parent) {
 				Entry::Occupied(entry)

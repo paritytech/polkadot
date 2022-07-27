@@ -282,7 +282,10 @@ async fn assert_hypothetical_depth_requests(
 						request
 					),
 				};
-				let resp = std::mem::take(&mut expected_requests[idx].1);
+				let resp = std::mem::take(&mut expected_requests[idx].1)
+					.into_iter()
+					.map(|d| (d, ProspectiveCandidateParentState::Backed))
+					.collect();
 				tx.send(resp).unwrap();
 
 				expected_requests.remove(idx);

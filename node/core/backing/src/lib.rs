@@ -87,8 +87,9 @@ use polkadot_node_subsystem::{
 	messages::{
 		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
 		CandidateValidationMessage, CollatorProtocolMessage, DisputeCoordinatorMessage,
-		HypotheticalDepthRequest, ProspectiveParachainsMessage, ProvisionableData,
-		ProvisionerMessage, RuntimeApiMessage, RuntimeApiRequest, StatementDistributionMessage,
+		HypotheticalDepthRequest, ProspectiveCandidateParentState, ProspectiveParachainsMessage,
+		ProvisionableData, ProvisionerMessage, RuntimeApiMessage, RuntimeApiRequest,
+		StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -1175,7 +1176,8 @@ async fn seconding_sanity_check<Context>(
 					// The leaf is already occupied.
 					return SecondingAllowed::No
 				}
-				responses.push(futures::future::ok((vec![0], head, leaf_state)).boxed());
+				let depths = vec![(0, ProspectiveCandidateParentState::Backed)];
+				responses.push(futures::future::ok((depths, head, leaf_state)).boxed());
 			}
 		}
 	}
@@ -1195,7 +1197,7 @@ async fn seconding_sanity_check<Context>(
 				return SecondingAllowed::No
 			},
 			Ok((depths, head, leaf_state)) => {
-				for depth in &depths {
+				for (depth, _) in &depths {
 					if leaf_state
 						.seconded_at_depth
 						.get(&candidate_para)
@@ -1212,6 +1214,7 @@ async fn seconding_sanity_check<Context>(
 						return SecondingAllowed::No
 					}
 				}
+				let depths = depths.into_iter().map(|(depth, _)| depth).collect();
 
 				membership.push((*head, depths));
 			},
