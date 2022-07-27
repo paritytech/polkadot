@@ -190,10 +190,12 @@ prepare:
   <<:                              *common-refs
   <<:                              *collect-artifacts
   script:
+    # FIXME: change source to https://github.com/paritytech/pipeline-scripts
+    # FIXME: change branch to --branch="$PIPELINE_SCRIPTS_TAG"
     - git clone
         --depth=1
-        --branch="$PIPELINE_SCRIPTS_TAG"
-        https://github.com/paritytech/pipeline-scripts
+        --branch=cbs
+        https://github.com/joao-paulo-parity/pipeline-scripts
        || true
     - ./pipeline-scripts/check_dependent_project_pipeline.sh
         --artifacts-path artifacts
@@ -344,10 +346,12 @@ build-staking-miner:
   timeout:                         2 hours
   script:
     - rm -rf .git/pipeline-scripts
+    # FIXME: change source to https://github.com/paritytech/pipeline-scripts
+    # FIXME: change branch to --branch="$PIPELINE_SCRIPTS_TAG"
     - git clone
         --depth=1
-        --branch="$PIPELINE_SCRIPTS_TAG"
-        https://github.com/paritytech/pipeline-scripts
+        --branch=cbs
+        https://github.com/joao-paulo-parity/pipeline-scripts
         .git/pipeline-scripts
     - ./.git/pipeline-scripts/check_dependent_project.sh
         --org paritytech
