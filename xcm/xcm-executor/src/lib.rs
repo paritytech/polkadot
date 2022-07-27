@@ -478,6 +478,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					.map_err(|()| XcmError::MultiLocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
+				if let Some(topic) = self.topic {
+					message.push(SetTopic(topic));
+				}
 				self.send(dest, Xcm(message), FeeReason::TransferReserveAsset)?;
 				Ok(())
 			},
@@ -587,6 +590,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(deposited, &dest, None);
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
+				if let Some(topic) = self.topic {
+					message.push(SetTopic(topic));
+				}
 				self.send(dest, Xcm(message), FeeReason::DepositReserveAsset)?;
 				Ok(())
 			},
@@ -600,6 +606,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				);
 				let mut message = vec![WithdrawAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
+				if let Some(topic) = self.topic {
+					message.push(SetTopic(topic));
+				}
 				self.send(reserve, Xcm(message), FeeReason::InitiateReserveWithdraw)?;
 				Ok(())
 			},
@@ -614,6 +623,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(assets, &dest, None);
 				let mut message = vec![ReceiveTeleportedAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
+				if let Some(topic) = self.topic {
+					message.push(SetTopic(topic));
+				}
 				self.send(dest, Xcm(message), FeeReason::InitiateTeleport)?;
 				Ok(())
 			},
@@ -725,8 +737,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let response = Response::PalletsInfo(pallets.try_into()?);
 				let querier = Self::to_querier(self.cloned_origin(), &destination)?;
 				let instruction = QueryResponse { query_id, response, max_weight, querier };
-				let message = Xcm(vec![instruction]);
-				self.send(destination, message, FeeReason::QueryPallet)?;
+				let mut message = vec![instruction];
+				if let Some(topic) = self.topic {
+					message.push(SetTopic(topic));
+				}
+				self.send(destination, Xcm(message), FeeReason::QueryPallet)?;
 				Ok(())
 			},
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } => {
