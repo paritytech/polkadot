@@ -27,14 +27,8 @@ use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 };
-use polkadot_primitives::{
-	runtime_api::ParachainHost,
-	v2::{Block, BlockId, Hash},
-};
-
-use sp_api::ProvideRuntimeApi;
-use sp_authority_discovery::AuthorityDiscoveryApi;
-use sp_consensus_babe::BabeApi;
+use polkadot_node_subsystem_types::RuntimeApiSubsystemClient;
+use polkadot_primitives::v2::Hash;
 
 use cache::{RequestResult, RequestResultCache};
 use futures::{channel::oneshot, prelude::*, select, stream::FuturesUnordered};
@@ -88,8 +82,7 @@ impl<Client> RuntimeApiSubsystem<Client> {
 #[overseer::subsystem(RuntimeApi, error = SubsystemError, prefix = self::overseer)]
 impl<Client, Context> RuntimeApiSubsystem<Client>
 where
-	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
-	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+	Client: RuntimeApiSubsystemClient + Send + Sync + 'static,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem { future: run(ctx, self).boxed(), name: "runtime-api-subsystem" }
@@ -98,8 +91,7 @@ where
 
 impl<Client> RuntimeApiSubsystem<Client>
 where
-	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
-	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+	Client: RuntimeApiSubsystemClient + Send + 'static + Sync,
 {
 	fn store_cache(&mut self, result: RequestResult) {
 		use RequestResult::*;
@@ -282,7 +274,7 @@ where
 		};
 
 		let request = async move {
-			let result = make_runtime_api_request(client, metrics, relay_parent, request);
+			let result = make_runtime_api_request(client, metrics, relay_parent, request).await;
 			let _ = sender.send(result);
 		}
 		.boxed();
@@ -317,8 +309,7 @@ async fn run<Client, Context>(
 	mut subsystem: RuntimeApiSubsystem<Client>,
 ) -> SubsystemResult<()>
 where
-	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
-	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+	Client: RuntimeApiSubsystemClient + Send + Sync + 'static,
 {
 	loop {
 		// Let's add some back pressure when the subsystem is running at `MAX_PARALLEL_REQUESTS`.
@@ -348,26 +339,21 @@ where
 	}
 }
 
-fn make_runtime_api_request<Client>(
+async fn make_runtime_api_request<Client>(
 	client: Arc<Client>,
 	metrics: Metrics,
 	relay_parent: Hash,
 	request: Request,
 ) -> Option<RequestResult>
 where
-	Client: ProvideRuntimeApi<Block>,
-	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
+	Client: RuntimeApiSubsystemClient + 'static,
 {
-	use sp_api::ApiExt;
-
 	let _timer = metrics.time_make_runtime_api_request();
 
 	macro_rules! query {
 		($req_variant:ident, $api_name:ident ($($param:expr),*), ver = $version:literal, $sender:expr) => {{
 			let sender = $sender;
-			let api = client.runtime_api();
-
-			let runtime_version = api.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
+			let runtime_version = client.api_version_parachain_host(relay_parent).await
 				.unwrap_or_else(|e| {
 					gum::warn!(
 						target: LOG_TARGET,
@@ -385,7 +371,7 @@ where
 				});
 
 			let res = if runtime_version >= $version {
-				api.$api_name(&BlockId::Hash(relay_parent) $(, $param.clone() )*)
+				client.$api_name(relay_parent $(, $param.clone() )*).await
 					.map_err(|e| RuntimeApiError::Execution {
 						runtime_api_name: stringify!($api_name),
 						source: std::sync::Arc::new(e),
@@ -404,11 +390,7 @@ where
 
 	match request {
 		Request::Version(sender) => {
-			let api = client.runtime_api();
-
-			let runtime_version = match api
-				.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
-			{
+			let runtime_version = match client.api_version_parachain_host(relay_parent).await {
 				Ok(Some(v)) => Ok(v),
 				Ok(None) => Err(RuntimeApiError::NotSupported { runtime_api_name: "api_version" }),
 				Err(e) => Err(RuntimeApiError::Execution {
@@ -465,25 +447,24 @@ where
 		Request::CandidateEvents(sender) =>
 			query!(CandidateEvents, candidate_events(), ver = 1, sender),
 		Request::SessionInfo(index, sender) => {
-			let api = client.runtime_api();
-			let block_id = BlockId::Hash(relay_parent);
-
-			let api_version = api
-				.api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(relay_parent))
+			let api_version = client
+				.api_version_parachain_host(relay_parent)
+				.await
 				.unwrap_or_default()
 				.unwrap_or_default();
 
 			let res = if api_version >= 2 {
-				let res =
-					api.session_info(&block_id, index).map_err(|e| RuntimeApiError::Execution {
+				let res = client.session_info(relay_parent, index).await.map_err(|e| {
+					RuntimeApiError::Execution {
 						runtime_api_name: "SessionInfo",
 						source: std::sync::Arc::new(e),
-					});
+					}
+				});
 				metrics.on_request(res.is_ok());
 				res
 			} else {
 				#[allow(deprecated)]
-				let res = api.session_info_before_version_2(&block_id, index).map_err(|e| {
+				let res = client.session_info_before_version_2(relay_parent, index).await.map_err(|e| {
 					RuntimeApiError::Execution {
 						runtime_api_name: "SessionInfo",
 						source: std::sync::Arc::new(e),

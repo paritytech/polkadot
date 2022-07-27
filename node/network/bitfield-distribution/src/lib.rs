@@ -281,7 +281,7 @@ async fn modify_reputation(
 ) {
 	gum::trace!(target: LOG_TARGET, ?relay_parent, ?rep, %peer, "reputation change");
 
-	sender.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
+	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await
 }
 /// Distribute a given valid and signature checked bitfield message.
 ///
@@ -427,7 +427,7 @@ async fn relay_message<Context>(
 		);
 	} else {
 		let _span = span.child("gossip");
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			interested_peers,
 			message.into_validation_protocol(),
 		))
@@ -722,7 +722,7 @@ async fn send_tracked_gossip_message<Context>(
 		.or_default()
 		.insert(validator.clone());
 
-	ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 		vec![dest],
 		message.into_validation_protocol(),
 	))

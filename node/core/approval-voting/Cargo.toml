@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-node-core-approval-voting"
-version = "0.9.25"
+version = "0.9.26"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
 futures = "0.3.21"
 futures-timer = "3.0.2"
-parity-scale-codec = { version = "3.1.2", default-features = false, features = ["bit-vec", "derive"] }
+parity-scale-codec = { version = "3.1.5", default-features = false, features = ["bit-vec", "derive"] }
 gum = { package = "tracing-gum", path = "../../gum" }
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 lru = "0.7"
@@ -31,6 +31,7 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]
+async-trait = "0.1.56"
 parking_lot = "0.12.0"
 rand_core = "0.5.1" #                                                                       should match schnorrkel
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
