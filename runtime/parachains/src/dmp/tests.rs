@@ -308,7 +308,7 @@ fn queue_downward_message_page_ordering() {
 		let max_queue_size = (QUEUE_PAGE_CAPACITY as u64) * (u8::MAX as u64);
 		let init_head_tail = (u64::MAX - max_queue_size / 2).into();
 
-		let state = QueueState{
+		let state = QueueState {
 			ring_buffer_state: RingBufferState::new(init_head_tail, init_head_tail),
 			..Default::default()
 		};

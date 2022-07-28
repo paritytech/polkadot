@@ -17,7 +17,7 @@
 //! Implements API for managing a ring buffer and an associated message window.
 
 use frame_support::pallet_prelude::*;
-use primitives::v2::{Id as ParaId};
+use primitives::v2::Id as ParaId;
 use sp_std::prelude::*;
 
 /// A type of index that wraps around. It is used for messages and pages.
@@ -80,7 +80,6 @@ pub struct QueuePageIdx {
 	pub page_idx: WrappingIndex,
 }
 
-
 /// The state of the message window. The message window is used to provide a 1:1 mapping to the
 /// messages stored in the ring buffer.
 ///
@@ -109,7 +108,7 @@ pub struct RingBufferState {
 #[cfg(test)]
 impl RingBufferState {
 	pub fn new(head_page_idx: WrappingIndex, tail_page_idx: WrappingIndex) -> RingBufferState {
-		RingBufferState { tail_page_idx, head_page_idx}
+		RingBufferState { tail_page_idx, head_page_idx }
 	}
 }
 
