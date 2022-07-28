@@ -253,7 +253,7 @@ impl<T: Config> Pallet<T> {
 			// Get a fresh page.
 			ring_buf.extend()
 		} else {
-			// We've checked the queue is not empty, so `last_used` is `Some`.
+			// We've checked the queue is not empty, so `last_used` is guaranteed `Some`.
 			// This page might be full but we check that later.
 			ring_buf.last_used().unwrap()
 		};
@@ -279,11 +279,13 @@ impl<T: Config> Pallet<T> {
 				BlakeTwo256::hash_of(&(*head, inbound.sent_at, T::Hashing::hash_of(&inbound.msg)));
 			*head = new_head;
 
+			// Extend the message window by `1` message get it's index.
+			new_message_idx = message_window.extend(1);
+
 			// Update the head for the current message.
-			<Self as Store>::DownwardMessageQueueHeadsById::mutate(
-				message_window.extend(1),
-				|head| *head = new_head,
-			);
+			<Self as Store>::DownwardMessageQueueHeadsById::mutate(new_message_idx, |head| {
+				*head = new_head
+			});
 		});
 
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(2, 2));
