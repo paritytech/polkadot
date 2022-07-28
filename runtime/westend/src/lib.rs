@@ -68,7 +68,7 @@ use sp_runtime::{
 		OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, KeyTypeId, Perbill,
+	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill,
 };
 use sp_staking::SessionIndex;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -77,6 +77,7 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
 pub use frame_system::Call as SystemCall;
+pub use pallet_balances::Call as BalancesCall;
 pub use pallet_election_provider_multi_phase::Call as EPMCall;
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -106,12 +107,12 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9250,
+	spec_version: 9270,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
-	apis: version::create_apis_vec![[]],
+	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 11,
 	state_version: 0,
 };
@@ -1051,13 +1052,15 @@ impl sp_runtime::traits::Convert<sp_core::U256, Balance> for U256ToBalance {
 
 parameter_types! {
 	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
-	pub const MinPointsToBalance: u32 = 10;
+	pub const MaxPointsToBalance: u8 = 10;
 }
 
 impl pallet_nomination_pools::Config for Runtime {
 	type Event = Event;
 	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
 	type Currency = Balances;
+	type CurrencyBalance = Balance;
+	type RewardCounter = FixedU128;
 	type BalanceToU256 = BalanceToU256;
 	type U256ToBalance = U256ToBalance;
 	type StakingInterface = Staking;
@@ -1066,7 +1069,7 @@ impl pallet_nomination_pools::Config for Runtime {
 	// we use the same number of allowed unlocking chunks as with staking.
 	type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
 	type PalletId = PoolsPalletId;
-	type MinPointsToBalance = MinPointsToBalance;
+	type MaxPointsToBalance = MaxPointsToBalance;
 }
 
 construct_runtime! {
@@ -1193,7 +1196,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(),
+	(
+		pallet_nomination_pools::migration::v2::MigrateToV2<Runtime>,
+		pallet_staking::migrations::v10::MigrateToV10<Runtime>,
+	),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1592,6 +1598,16 @@ sp_api::impl_runtime_apis! {
 		}
 		fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
 			TransactionPayment::query_fee_details(uxt, len)
+		}
+	}
+
+	impl pallet_nomination_pools_runtime_api::NominationPoolsApi<
+		Block,
+		AccountId,
+		Balance,
+	> for Runtime {
+		fn pending_rewards(member: AccountId) -> Balance {
+			NominationPools::pending_rewards(member)
 		}
 	}
 

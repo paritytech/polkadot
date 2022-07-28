@@ -39,7 +39,7 @@ use polkadot_node_primitives::{CollationSecondedSignal, PoV, Statement};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
-		CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage, RuntimeApiMessage,
+		CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeTxMessage, RuntimeApiMessage,
 	},
 	overseer, FromOrchestra, OverseerSignal, PerLeafSpan,
 };
@@ -533,7 +533,7 @@ async fn declare<Context>(ctx: &mut Context, state: &mut State, peer: PeerId) {
 			state.collator_pair.sign(&declare_signature_payload),
 		);
 
-		ctx.send_message(NetworkBridgeMessage::SendCollationMessage(
+		ctx.send_message(NetworkBridgeTxMessage::SendCollationMessage(
 			vec![peer],
 			Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 		))
@@ -551,7 +551,7 @@ async fn connect_to_validators<Context>(
 	// ignore address resolution failure
 	// will reissue a new request on new collation
 	let (failed, _) = oneshot::channel();
-	ctx.send_message(NetworkBridgeMessage::ConnectToValidators {
+	ctx.send_message(NetworkBridgeTxMessage::ConnectToValidators {
 		validator_ids,
 		peer_set: PeerSet::Collation,
 		failed,
@@ -608,7 +608,7 @@ async fn advertise_collation<Context>(
 
 	let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent);
 
-	ctx.send_message(NetworkBridgeMessage::SendCollationMessage(
+	ctx.send_message(NetworkBridgeTxMessage::SendCollationMessage(
 		vec![peer.clone()],
 		Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 	))
@@ -751,7 +751,7 @@ async fn handle_incoming_peer_message<Context>(
 			);
 
 			// If we are declared to, this is another collator, and we should disconnect.
-			ctx.send_message(NetworkBridgeMessage::DisconnectPeer(origin, PeerSet::Collation))
+			ctx.send_message(NetworkBridgeTxMessage::DisconnectPeer(origin, PeerSet::Collation))
 				.await;
 		},
 		AdvertiseCollation(_) => {
@@ -761,14 +761,14 @@ async fn handle_incoming_peer_message<Context>(
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
 			);
 
-			ctx.send_message(NetworkBridgeMessage::ReportPeer(
+			ctx.send_message(NetworkBridgeTxMessage::ReportPeer(
 				origin.clone(),
 				COST_UNEXPECTED_MESSAGE,
 			))
 			.await;
 
 			// If we are advertised to, this is another collator, and we should disconnect.
-			ctx.send_message(NetworkBridgeMessage::DisconnectPeer(origin, PeerSet::Collation))
+			ctx.send_message(NetworkBridgeTxMessage::DisconnectPeer(origin, PeerSet::Collation))
 				.await;
 		},
 		CollationSeconded(relay_parent, statement) => {
@@ -851,7 +851,7 @@ async fn handle_incoming_request<Context>(
 					target: LOG_TARGET,
 					"Dropping incoming request as peer has a request in flight already."
 				);
-				ctx.send_message(NetworkBridgeMessage::ReportPeer(req.peer, COST_APPARENT_FLOOD))
+				ctx.send_message(NetworkBridgeTxMessage::ReportPeer(req.peer, COST_APPARENT_FLOOD))
 					.await;
 				return Ok(())
 			}

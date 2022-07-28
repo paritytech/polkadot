@@ -112,12 +112,12 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9250,
+	spec_version: 9270,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
-	apis: version::create_apis_vec![[]],
+	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 13,
 	state_version: 0,
 };
@@ -1514,7 +1514,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(),
+	pallet_staking::migrations::v10::MigrateToV10<Runtime>,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
