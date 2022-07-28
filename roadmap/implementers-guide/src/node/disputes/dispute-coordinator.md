@@ -4,6 +4,158 @@ The coordinator is the central subsystem of the node-side components which parti
 wraps a database, which used to track all statements observed by _all_ validators over some window
 of sessions. Votes older than this session window are pruned.
 
+In particular the dispute-coordinator is responsible for:
+
+- Ensuring that the node is able to raise a dispute in case an invalid candidate
+  is found during approval checking.
+- Ensuring malicious approval votes will be recorded so nodes can get slashed
+  properly.
+- Coordinating actual participation in a dispute, ensuring that the node
+  participates in any justified dispute in a way that ensures resolution of
+  disputes on the network even in the case of many disputes raised (attack
+  scenario).
+- Provide an API for chain selection, so we can prevent any finalization of any
+  chain which has included candidates for which a dispute is either ongoing or
+  concluded invalid.
+- Provide an API for retrieving (resolved) disputes including all votes, both
+  implicit (approval, backing) and explict dispute votes. So validators can get
+  rewarded/slashed accordingly for example.
+
+
+## Ensuring that disputes can be raised
+
+In order to raise a dispute, a node has to be able to provide to opposing votes.
+So if during approval checking a node finds a candidate to be invalid, it needs
+an opposing vote. Given that the reason of the backing phase is to have
+validators with skin in the game, the opposing valid vote will very likely be a
+backing vote. It could also be some already casted approval vote, but the
+important point here is as long as we have backing votes available any node will
+be able to raise a dispute.
+
+Therefore an important task of the dispute coordinator is to make sure backing
+votes are available for all candidate that might still get disputed. To
+accomplish this task in an efficient way the dispute-coordinator relies on chain
+scraping for this. Whenever a candidate gets backed on chain, we record in
+chain storage the backing votes (gets overridden on every block). We provide a
+runtime API for querying those votes. The dispute coordinator makes sure to
+query those votes for any non finalized blocks (in case of missed blocks, it
+will do chain traversal as necessary).
+
+Relying on chain scraping is very efficient for two reasons:
+
+1. Votes are already batched. We import all available backing votes for a
+   candidate all at once, if we imported votes from candidate-backing as they
+   come along, we would import each vote individually which is very inefficient
+   in the current dispute coordinator implementation.
+2. We also import less votes in total, as we avoid importing statements for
+   candidates that never got successfully backed on any chain.
+
+It also is secure, because disputes are only ever raised in the approval voting
+phase. A node only starts the approval process after it has seen a candidate
+included on some chain, for that to happen it must have been backed previously
+so backing votes must be available at point in time. Signals are processed
+first, so even if a block is skipped and we only start importing backing votes on
+the including block, we will have seen the backing votes by the time we process
+messages from approval voting.
+
+So for making it possible for a dispute to be raised, recording of backing votes
+from chain is sufficient and efficient. In particular there is no need to
+preemptively import approval votes, which has shown to be a very inefficient
+process. (By importing them one by one, importing approval votes has quadratic
+complexity, which is already quite bad with 30 approval votes.)
+
+Approval votes are important non the less as we are going to see in the next
+section.
+
+## Ensuring malicious approval votes will be recorded
+
+While there is no need to record approval votes in the dispute coordinator
+preemptively, we do need to make sure they are recorded when a dispute is
+actually raised. The reason is, that only votes recorded by the dispute
+coordinator will be considered for slashing. While the backing group always gets
+slashed, a serious attack attempt might likely also consist of malicious
+approval checkers which will cast approval votes, although the candidate is
+valid. If we did not import those votes, those nodes would likely cast in
+invalid explicit vote once a dispute is raised and thus avoid a slash on those
+nodes. With the 2/3rd honest assumption it seems unrealistic that malicious
+actors will keep sending approval votes once they became aware of a raised
+dispute. Hence the most important approval votes to import are the early ones
+(tranch 0), to take into account network latencies and such we still want to
+import approval votes at a later point in time as well (in particular we need to
+make sure the dispute can conclude, but more on that later).
+
+As mentioned already previously, importing votes is most efficient when batched
+at the same time approval voting and disputes are running concurrently so
+approval votes are expected to trickle in still, when a dispute is already
+ongoing.
+
+This means, we have the following requirements for importing approval votes:
+
+1. Only import them when there is an actual dispute, because otherwise we are
+   wasting lots of resources _always_ for an exceptional case: A dispute.
+2. Import votes batched when possible, to avoid quadratic import complexity.
+3. Take into account that approval voting is still ongoing while a dispute is
+   already running.
+
+With a design where approval voting sends votes to the dispute-coordinator by
+itself, we would need to make make approval voting aware of ongoing disputes and
+once it is aware it could start sending all already existing votes batched and
+trickling in votes as they come. The problem with this is, that it adds some
+unnecessary complexity to approval voting and also we might still import most of
+the votes unbatched, but one-by-one, depending on what point in time the dispute
+was raised.
+
+Instead of the dispute coordinator telling approval-voting that a dispute is
+ongoing, for approval-voting to start sending votes to the dispute coordinator,
+it would actually make more sense if the dispute-coordinator would just ask
+approval-voting for votes of candidates that are currently disputed. This way
+the dispute-coordinator can also pick the time when to ask and we can therefore
+maximize the amount of batching.
+
+Now the question remains, when should the dispute coordinator ask
+approval-voting for votes? As argued above already, querying approval votes at
+the beginning of the dispute, will likely already take care of most malicious
+votes. Still we would like to have a record of all, if possible. So what are
+other points in time we might query approval votes? In fact for slashing it is
+only relevant to have them once the dispute concluded, so we can query approval
+voting the moment the dispute concludes. There are two potential caveats with this though:
+
+1. Timing: We would like to rely as little as possible on implementation details
+   of approval voting. In particular, if the dispute is ongoing for a long time,
+   do we have any guarantees that approval votes are kept around long enough by
+   approval voting? So will approval votes still be present by the time the
+   dispute concludes in any case. The answer should luckily be yes: As long as
+   the chain is not finalized, which has to be the case once we have an ongoing
+   dispute, approval votes have to be kept around (and distributed) otherwise we
+   might not be able to finalize in case the validator set changes for example.
+   So we can rely on approval votes to be still available when the dispute
+   concludes.
+2. We might need the approval votes for actually concluding the dispute. So the
+   condition triggering the approval vote import "dispute concluded" might never
+   trigger, precisely because we haven't imported approval votes yet. Turns out
+   that this is not quite true or at least can be made not true easily: As
+   already mentioned, approval voting and disputes are running concurrently, but
+   not only that they race with each other: A node might simultaneously start
+   participating in a dispute via the dispute coordinator, due to learning about
+   a dispute via dispute-distribution for example, while also participating in
+   approval voting. So if we don't import approval votes before the dispute
+   concluded, we actually are making sure that no local vote is present and any
+   honest node will cast an explicit vote in addition to its approval vote, so
+   the dispute can conclude. By importing approval votes once the dispute
+   concluded, we are ensuring the one missing property, that malicious approval
+   voters will get slashed.
+
+Conclusion: If we only ever import approval votes once a dispute concludes, then
+nodes will send explicit votes and we will be able to conclude the dispute. This
+indeed means some wasted effort, as in case of a dispute that concludes valid,
+honest nodes will validate twice, once in approval voting and once via
+dispute-participation. Avoiding that does not really seem worthwhile though, as
+disputes are first exceptional so a little worse performance won't affect
+everyday performance - second, even if we imported approval votes those doubled
+work is still present as disputes and approvals are racing, so every time
+participation is faster than approval, a node will do double work anyway.
+
+
 This subsystem will be the point which produce dispute votes, either positive or negative, based on
 locally-observed validation results as well as a sink for votes received by other subsystems. When
 a statement import makes it clear that a dispute has been raised (there are opposing votes for a
