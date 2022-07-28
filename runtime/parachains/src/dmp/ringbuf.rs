@@ -167,7 +167,7 @@ impl RingBuffer {
 	/// Allocates a new page and returns the page index.
 	pub fn prune(&mut self, count: u32) {
 		// Ensure we don't overflow and the head overtakes the tail.
-		let to_prune = std::cmp::min(self.size(), count as u64);
+		let to_prune = sp_std::cmp::min(self.size(), count as u64);
 
 		// Advance tail by `count` elements.
 		self.state.head_page_idx = self.state.head_page_idx.wrapping_add(to_prune.into());
@@ -240,7 +240,7 @@ impl MessageWindow {
 	/// Advanced the window start by `count` elements.  Returns the index of the first element in queue
 	/// or `None` if the queue is empty after the operation.
 	pub fn prune(&mut self, count: u64) -> Option<MessageIdx> {
-		let to_prune = std::cmp::min(self.size(), count);
+		let to_prune = sp_std::cmp::min(self.size(), count);
 		self.state.first_message_idx = self.state.first_message_idx.wrapping_add(to_prune.into());
 		if self.state.first_message_idx == self.state.free_message_idx {
 			None
