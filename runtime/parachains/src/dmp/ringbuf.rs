@@ -87,10 +87,10 @@ pub struct QueuePageIdx {
 /// - the window size is always equal to the amount of messages stored in the ring buffer.
 #[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub struct MessageWindowState {
-	/// The index of the first message in the queue.
+	/// The first used index corresponding to first message in the queue.
 	first_message_idx: WrappingIndex,
-	/// The index of the last message in the queue.
-	last_message_idx: WrappingIndex,
+	/// The first free index.
+	free_message_idx: WrappingIndex,
 }
 
 /// The state of the ring buffer that represents the message queue. We only need to keep track
@@ -119,6 +119,7 @@ pub struct MessageWindow {
 	state: MessageWindowState,
 }
 
+#[derive(Clone, Copy)]
 /// Provides basic methods to interact with the ring buffer.
 pub struct RingBuffer {
 	para_id: ParaId,
@@ -168,7 +169,7 @@ impl RingBuffer {
 		// Ensure we don't overflow and the head overtakes the tail.
 		let to_prune = std::cmp::min(self.size(), count as u64);
 
-		// Advance tail by count elements.
+		// Advance tail by `count` elements.
 		self.state.head_page_idx = self.state.head_page_idx.wrapping_add(to_prune.into());
 	}
 
@@ -205,6 +206,11 @@ impl RingBuffer {
 		}
 	}
 
+	#[cfg(test)]
+	pub fn first_unused(&self) -> QueuePageIdx {
+		QueuePageIdx { para_id: self.para_id, page_idx: self.state.tail_page_idx }
+	}
+
 	/// Returns the size in pages.
 	pub fn size(&self) -> u64 {
 		self.state.tail_page_idx.wrapping_sub(self.state.head_page_idx).into()
@@ -217,14 +223,18 @@ impl RingBuffer {
 }
 
 impl MessageWindow {
+	/// Construct from state of a given para.
 	pub fn with_state(state: MessageWindowState, para_id: ParaId) -> MessageWindow {
 		MessageWindow { para_id, state }
 	}
 
-	/// Extend the message index window by `count`. Returns the index of the last message.
+	/// Extend the message index window by `count`. Returns the latest used message index.
 	pub fn extend(&mut self, count: u64) -> MessageIdx {
-		self.state.last_message_idx = self.state.last_message_idx.wrapping_add(count.into());
-		MessageIdx { para_id: self.para_id, message_idx: self.state.last_message_idx }
+		self.state.free_message_idx = self.state.free_message_idx.wrapping_add(count.into());
+		MessageIdx {
+			para_id: self.para_id,
+			message_idx: self.state.free_message_idx.wrapping_dec(),
+		}
 	}
 
 	/// Advanced the window start by `count` elements.  Returns the index of the first element in queue
@@ -232,7 +242,7 @@ impl MessageWindow {
 	pub fn prune(&mut self, count: u64) -> Option<MessageIdx> {
 		let to_prune = std::cmp::min(self.size(), count);
 		self.state.first_message_idx = self.state.first_message_idx.wrapping_add(to_prune.into());
-		if self.state.first_message_idx == self.state.last_message_idx {
+		if self.state.first_message_idx == self.state.free_message_idx {
 			None
 		} else {
 			Some(MessageIdx { para_id: self.para_id, message_idx: self.state.first_message_idx })
@@ -241,7 +251,7 @@ impl MessageWindow {
 
 	/// Returns the size of the message window.
 	pub fn size(&self) -> u64 {
-		self.state.last_message_idx.wrapping_sub(self.state.first_message_idx).into()
+		self.state.free_message_idx.wrapping_sub(self.state.first_message_idx).into()
 	}
 
 	/// Returns the first message index, `None` if window is empty.
@@ -253,8 +263,16 @@ impl MessageWindow {
 		}
 	}
 
+	/// Returns the first message index, `None` if window is empty.
+	pub fn first_free(&self) -> MessageIdx {
+		MessageIdx { para_id: self.para_id, message_idx: self.state.free_message_idx }
+	}
+
 	/// Returns the wrapped state.
 	pub fn into_inner(self) -> MessageWindowState {
 		self.state
 	}
 }
+
+#[cfg(test)]
+mod test {}

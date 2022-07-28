@@ -183,11 +183,11 @@ fn dmp_mqc_head_fixture() {
 			hex!["88dc00db8cc9d22aa62b87807705831f164387dfa49f80a8600ed1cbe1704b6b"].into(),
 		);
 		assert_eq!(
-			Dmp::dmq_mqc_head_for_message(a, 1.into()),
+			Dmp::dmq_mqc_head_for_message(a, 0.into()),
 			hex!["086aef3a70db505d41acf75196b0b373b9607015a422d65da1732e8521b3def7"].into(),
 		);
 		assert_eq!(
-			Dmp::dmq_mqc_head_for_message(a, 2.into()),
+			Dmp::dmq_mqc_head_for_message(a, 1.into()),
 			hex!["88dc00db8cc9d22aa62b87807705831f164387dfa49f80a8600ed1cbe1704b6b"].into(),
 		);
 	});
@@ -221,27 +221,36 @@ fn dmq_pruning() {
 	let a = ParaId::from(1312);
 
 	new_test_ext(default_genesis_config()).execute_with(|| {
+		Dmp::assert_storage_consistency_exhaustive(None);
 		assert_eq!(Dmp::dmq_length(a), 0);
 
 		queue_downward_message(a, vec![1, 2, 3]).unwrap();
+		Dmp::assert_storage_consistency_exhaustive(None);
 		queue_downward_message(a, vec![4, 5, 6]).unwrap();
+		Dmp::assert_storage_consistency_exhaustive(None);
 		queue_downward_message(a, vec![7, 8, 9]).unwrap();
+		Dmp::assert_storage_consistency_exhaustive(None);
 		assert_eq!(Dmp::dmq_length(a), 3);
 
 		// This should return zero after pruning.
 		assert_eq!(
-			Dmp::dmq_mqc_head_for_message(a, 1.into()),
+			Dmp::dmq_mqc_head_for_message(a, 0.into()),
 			hex!["434f8579a2297dfea851bf6be33093c83a78b655a53ae141a7894494c0010589"].into(),
 		);
 
 		// pruning 0 elements shouldn't change anything.
 		Dmp::prune_dmq(a, 0);
+		Dmp::assert_storage_consistency_exhaustive(None);
 		assert_eq!(Dmp::dmq_length(a), 3);
 
+		let message_1_mqc = Dmp::dmq_mqc_head_for_message(a, 1.into());
 		Dmp::prune_dmq(a, 2);
+		Dmp::assert_storage_consistency_exhaustive(Some(message_1_mqc));
 		assert_eq!(Dmp::dmq_length(a), 1);
 
+		let message_2_mqc = Dmp::dmq_mqc_head_for_message(a, 2.into());
 		Dmp::prune_dmq(a, 1);
+		Dmp::assert_storage_consistency_exhaustive(Some(message_2_mqc));
 		assert_eq!(Dmp::dmq_length(a), 0);
 
 		// As said, this should be zero now.
@@ -267,6 +276,7 @@ fn queue_downward_message_critical() {
 		// that's too big
 		assert_eq!(big.encode().len(), 9);
 		assert!(queue_downward_message(a, big).is_err());
+		Dmp::assert_storage_consistency_exhaustive(None);
 	});
 }
 
@@ -319,6 +329,7 @@ fn queue_downward_message_page_ordering() {
 		for i in 0..max_queue_size {
 			assert!(queue_downward_message(a, Message(i).encode()).is_ok());
 		}
+		Dmp::assert_storage_consistency_exhaustive(None);
 
 		let mut all_messages = Vec::new();
 		let mut start = 0;
@@ -354,6 +365,7 @@ fn queue_downward_message_consumption() {
 		for i in 0..max_queue_size {
 			assert!(queue_downward_message(a, Message(i).encode()).is_ok());
 		}
+		Dmp::assert_storage_consistency_exhaustive(None);
 
 		assert_eq!(max_queue_size, Dmp::dmq_length(a) as u64);
 
@@ -387,6 +399,7 @@ fn queue_downward_message_consumption() {
 		println!("pruning dmq len {}", Dmp::dmq_length(a));
 
 		Dmp::prune_dmq(a, count as u32);
+		Dmp::assert_storage_consistency_exhaustive(None);
 
 		// Check if we collected and pruned all messages.
 		let expected_count = max_queue_size;
@@ -407,6 +420,7 @@ fn verify_dmq_message_idx_is_externally_accessible() {
 	new_test_ext(default_genesis_config()).execute_with(|| {
 		let state = sp_io::storage::get(&well_known_keys::dmp_queue_state(a));
 		assert_eq!(state, None);
+		Dmp::assert_storage_consistency_exhaustive(None);
 
 		queue_downward_message(a, vec![1, 2, 3]).unwrap();
 
@@ -438,6 +452,8 @@ fn verify_dmq_message_idx_is_externally_accessible() {
 		.unwrap();
 		let window = MessageWindow::with_state(state.message_window_state, a);
 		assert_eq!(window.size(), 0);
+
+		Dmp::assert_storage_consistency_exhaustive(None);
 	});
 }
 
@@ -462,7 +478,7 @@ fn verify_dmq_mqc_head_is_externally_accessible() {
 
 		queue_downward_message(a, vec![4, 5, 6]).unwrap();
 
-		let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head_for_message(a, 2));
+		let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head_for_message(a, 1));
 		assert_eq!(
 			head,
 			Some(hex!["3ac90e9a99935b82ee02438a852e6baa8ede95e3b5b7b9a486adf2a2c12405b3"].to_vec())

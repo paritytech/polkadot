@@ -280,7 +280,7 @@ impl<T: Config> Pallet<T> {
 			*head = new_head;
 
 			// Extend the message window by `1` message get it's index.
-			new_message_idx = message_window.extend(1);
+			let new_message_idx = message_window.extend(1);
 
 			// Update the head for the current message.
 			<Self as Store>::DownwardMessageQueueHeadsById::mutate(new_message_idx, |head| {
@@ -473,5 +473,123 @@ impl<T: Config> Pallet<T> {
 		}
 
 		result
+	}
+
+	#[cfg(test)]
+	/// Test utility for generating a sequence of page indexes.
+	fn page_key_range(para_id: ParaId, start: WrappingIndex, count: u64) -> Vec<QueuePageIdx> {
+		let mut keys = Vec::new();
+		let mut page_idx = start;
+		while page_idx != start.wrapping_add(count.into()) {
+			keys.push(QueuePageIdx { para_id, page_idx });
+			page_idx = page_idx.wrapping_inc();
+		}
+
+		keys
+	}
+
+	/// A critical utility for testing: it checks the storage invariants. Should be called after each storage update.
+	#[cfg(test)]
+	fn assert_storage_consistency_exhaustive(last_pruned_mqc_head: Option<Hash>) {
+		let all_queue_states = <Self as Store>::DownwardMessageQueueState::iter()
+			.collect::<sp_std::collections::btree_map::BTreeMap<ParaId, QueueState>>(
+		);
+
+		for (para_id, state) in all_queue_states.into_iter() {
+			let ring_buf = RingBuffer::with_state(state.ring_buffer_state, para_id);
+			let window = MessageWindow::with_state(state.message_window_state, para_id);
+
+			// Fetch all messages for this para.
+			let messages_in_pages = ring_buf
+				.into_iter()
+				.map(|page_idx| <Self as Store>::DownwardMessageQueuePages::get(page_idx))
+				.flatten()
+				.collect::<Vec<_>>();
+
+			// Ensure 1:1 mapping of messages to message indexes as defined by the message window.
+			assert_eq!(messages_in_pages.len() as u64, window.size());
+
+			// If ring not empty, ensure we have MQC heads properly set.
+			if ring_buf.size() > 0 {
+				let mut mqc = last_pruned_mqc_head.unwrap_or(Hash::zero());
+				let mqc_head = &mut mqc;
+				let computed_mqc_heads = messages_in_pages
+					.into_iter()
+					.map(|message| {
+						let new_head = BlakeTwo256::hash_of(&(
+							*mqc_head,
+							message.sent_at,
+							T::Hashing::hash_of(&message.msg),
+						));
+						*mqc_head = new_head;
+						new_head
+					})
+					.collect::<Vec<_>>();
+
+				let all_mqc_heads = Self::mqc_head_key_range(
+					para_id,
+					// Guaranteed to not panic, see invariants.
+					window.first().unwrap().message_idx,
+					window.size(),
+				)
+				.into_iter()
+				.filter_map(|message_idx| {
+					match <Self as Store>::DownwardMessageQueueHeadsById::try_get(message_idx) {
+						Ok(value) => Some(value),
+						Err(()) => None,
+					}
+				})
+				.collect::<Vec<_>>();
+
+				assert_eq!(all_mqc_heads, computed_mqc_heads);
+			}
+
+			// Ensure pruning keeps things tidy - mqc heads per message and pages are freed.
+			// Checking entire ringbuf would take ages, instead we check 4096 keys outside the window
+			let mut mqc_keys_to_check = Vec::new();
+
+			mqc_keys_to_check.extend(Self::mqc_head_key_range(
+				para_id,
+				window
+					.first()
+					.unwrap_or(window.first_free())
+					.message_idx
+					.wrapping_sub(4097.into()),
+				4096,
+			));
+
+			mqc_keys_to_check.extend(Self::mqc_head_key_range(
+				para_id,
+				window.first_free().message_idx,
+				4096,
+			));
+
+			for message_idx in mqc_keys_to_check {
+				<Self as Store>::DownwardMessageQueueHeadsById::try_get(message_idx).unwrap_err();
+			}
+
+			// Now check if we have dangling pages.
+			let mut page_keys_to_check = Vec::new();
+
+			page_keys_to_check.extend(Self::page_key_range(
+				para_id,
+				ring_buf
+					.front()
+					.unwrap_or(ring_buf.first_unused())
+					.page_idx
+					.wrapping_sub(4097.into()),
+				4096,
+			));
+
+			page_keys_to_check.extend(Self::page_key_range(
+				para_id,
+				ring_buf.first_unused().page_idx,
+				4096,
+			));
+
+			for page_idx in page_keys_to_check {
+				<Self as Store>::DownwardMessageQueuePages::try_get(page_idx).unwrap_err();
+			}
+		}
 	}
 }
