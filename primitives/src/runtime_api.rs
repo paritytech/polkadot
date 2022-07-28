@@ -105,18 +105,10 @@ sp_api::decl_runtime_apis! {
 		/// Get a vector of events concerning candidates that occurred within a block.
 		fn candidate_events() -> Vec<v2::CandidateEvent<H>>;
 
-		/// Get inbound messages in the downward message queue for a para.
+		/// Get all inbound messages from the downward message queue of a parachain.
 		fn dmq_contents(
 			recipient: ppp::Id,
 		) -> Vec<pcp::v2::InboundDownwardMessage<N>>;
-
-		/// Get inbound messages in the downward message queue for a para.
-		fn dmq_contents_bounded(
-			recipient: ppp::Id,
-			start: u32,
-			count: u32,
-		) -> Vec<pcp::v2::InboundDownwardMessage<N>>;
-
 
 		/// Get the contents of all channels addressed to the given recipient. Channels that have no
 		/// messages in them are also included.
@@ -151,6 +143,23 @@ sp_api::decl_runtime_apis! {
 		fn validation_code_hash(para_id: ppp::Id, assumption: v2::OccupiedCoreAssumption)
 			-> Option<ppp::ValidationCodeHash>;
 
+		/// Get a subset of inbound messages from the downward message queue of a parachain.
+		///
+		/// Returns a `vec` containing the messages from the first `count` pages, starting from a `0` based
+		/// page index specified by `start_page` with `0` being the first used page of the queue. A page
+		/// can hold up to `QUEUE_PAGE_CAPACITY` messages. (please see the runtime `dmp` implementation).
+		///
+		/// Only the outer pages of the queue can have less than maximum messages because insertion and
+		/// pruning work with individual messages.
+		///
+		/// The result will be an empty vector if `count` is 0, the para doesn't exist, it's queue is empty
+		/// or `start` is greater than the last used page in the queue. If the queue is not empty, the method
+		/// is guaranteed to return at least 1 message and up to `count`*`QUEUE_PAGE_CAPACITY` messages.
+		fn dmq_contents_bounded(
+			recipient: ppp::Id,
+			start_page: u32,
+			count: u32,
+		) -> Vec<pcp::v2::InboundDownwardMessage<N>>;
 
 		/***** Replaced in v2 *****/
 

@@ -140,11 +140,6 @@ pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec
 )]
 pub struct Id(u32);
 
-/// Unique identifier of a message in the DMP queue.
-#[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, MallocSizeOf))]
-pub struct QueueMessageId(pub Id, pub u64);
-
 impl TypeId for Id {
 	const TYPE_ID: [u8; 4] = *b"para";
 }

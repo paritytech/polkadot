@@ -15,13 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! This is a low level runtime component that manages the downward message queue for each
-//! parachain. These messages originate in the relay chain and are stored there until they
-//! are processed by destination parachains.
+//! parachain. Messages are stored on the relay chain until they are processed by destination
+//! parachains.
 //!
-//! The methods exposed here allow adding, reading and pruning of downward messages that are
-//! stored on the relay chain.
+//! The methods exposed here allow extending, reading and pruning of the message queue.
 //!
-//! Downward message storage:
+//! Message queue storage format:
 //! - The messages are queued in a ring buffer. There is a 1:1 mapping between a queue and
 //! each parachain.
 //! - The ring buffer is split in slots which we'll call pages. The pages can store up to
@@ -48,7 +47,7 @@ use crate::{
 };
 
 use frame_support::pallet_prelude::*;
-use primitives::v2::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage, QueueMessageId};
+use primitives::v2::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
 use sp_std::{fmt, prelude::*};
 use xcm::latest::SendError;
@@ -60,9 +59,217 @@ mod tests;
 
 pub mod migration;
 
-/// The key for a group of downward messages.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
-pub struct QueuePageIdx(ParaId, u64);
+/// The queue page index that wraps around.
+pub type PageIdx = u64;
+
+/// A downward message unique index that wraps around. Each message is sequentially
+/// assigned an index that uniquely identifies it in the queue.
+pub type MessageIdx = u64;
+
+/// Unique identifier of an inbound downward message.
+#[derive(Encode, Decode, Clone, Copy, sp_runtime::RuntimeDebug, PartialEq, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct ParaMessageIdx {
+	/// The recepient parachain.
+	pub para_id: ParaId,
+	/// A message index in the recipient parachain queue.
+	pub message_idx: MessageIdx,
+}
+
+/// The key for a queue page of a parachain.
+#[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+pub struct QueuePageIdx {
+	/// The recipient parachain.
+	pub para_id: ParaId,
+	/// A page index of the parachain queue.
+	pub page_idx: PageIdx,
+}
+
+/// The state of the queue split in two sub states, the ring bufer and the message window.
+///
+/// Invariants - see `RingBufferState` and `MessageWindowState`.
+#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+pub struct QueueState {
+	ring_buffer_state: RingBufferState,
+	message_window_state: MessageWindowState,
+}
+
+/// The state of the message window. The message window is used to provide a 1:1 mapping to the
+/// messages stored in the ring buffer.
+///
+/// Invariants:
+/// - the window size is always equal to the amount of messages stored in the ring buffer.
+#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+pub struct MessageWindowState {
+	/// The index of the first message in the queue.
+	first_message_idx: MessageIdx,
+	/// The index of the last message in the queue.
+	last_message_idx: MessageIdx,
+}
+
+/// The state of the ring buffer that represents the message queue. We only need to keep track
+/// of the first used(head) and unused(tail) pages.
+/// Invariants:
+///  - the window size is always equal to the queue size.
+#[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+pub struct RingBufferState {
+	/// The index of the first unused page. `tail_page_idx - 1` is the last used page.
+	tail_page_idx: PageIdx,
+	/// The index of the first used page.
+	head_page_idx: PageIdx,
+}
+
+/// Manages the downward message indexing window. All downward messages are assigned
+/// an index when they are queued.
+struct MessageWindow {
+	para_id: ParaId,
+	state: MessageWindowState,
+}
+
+/// Provides basic methods to interact with the ring buffer.
+struct RingBuffer {
+	para_id: ParaId,
+	state: RingBufferState,
+}
+
+struct RingBufferIterator(RingBuffer);
+
+impl IntoIterator for RingBuffer {
+	type Item = QueuePageIdx;
+	type IntoIter = RingBufferIterator;
+
+	fn into_iter(self) -> Self::IntoIter {
+		RingBufferIterator(self)
+	}
+}
+
+impl Iterator for RingBufferIterator {
+	type Item = QueuePageIdx;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		self.0.pop_front()
+	}
+}
+
+impl RingBuffer {
+	pub fn with_state(state: RingBufferState, para_id: ParaId) -> RingBuffer {
+		RingBuffer { state, para_id }
+	}
+
+	/// Allocates a new page and returns the page index.
+	pub fn extend(&mut self) -> QueuePageIdx {
+		// In practice this is always bounded economically - sending one requires a fee.
+		if self.state.tail_page_idx.wrapping_add(1) == self.state.head_page_idx {
+			unimplemented!("The end of the world is upon us");
+		}
+
+		// Advance tail to the next unused page.
+		self.state.tail_page_idx = self.state.tail_page_idx.wrapping_add(1);
+		// Return last used page.
+		QueuePageIdx { para_id: self.para_id, page_idx: self.state.tail_page_idx.wrapping_sub(1) }
+	}
+
+	/// Allocates a new page and returns the page index.
+	pub fn prune(&mut self, count: u32) {
+		// Ensure we don't overflow and the head overtakes the tail.
+		let to_prune = std::cmp::min(self.size(), count as u64);
+
+		// Advance tail by count elements.
+		self.state.head_page_idx = self.state.head_page_idx.wrapping_add(to_prune);
+	}
+
+	/// Frees the first used page and returns it's index while advacing the head of the ring buffer.
+	/// If the queue is empty it does nothing and returns `None`.
+	pub fn pop_front(&mut self) -> Option<QueuePageIdx> {
+		let page = self.front();
+
+		if page.is_some() {
+			self.state.head_page_idx = self.state.head_page_idx.wrapping_add(1);
+		}
+
+		page
+	}
+
+	/// Returns the first page or `None` if ring buffer empty.
+	pub fn front(&self) -> Option<QueuePageIdx> {
+		if self.state.tail_page_idx == self.state.head_page_idx {
+			None
+		} else {
+			Some(QueuePageIdx { para_id: self.para_id, page_idx: self.state.head_page_idx })
+		}
+	}
+
+	/// Returns the last used page or `None` if ring buffer empty.
+	pub fn last_used(&self) -> Option<QueuePageIdx> {
+		if self.state.tail_page_idx == self.state.head_page_idx {
+			None
+		} else {
+			Some(QueuePageIdx {
+				para_id: self.para_id,
+				page_idx: self.state.tail_page_idx.wrapping_sub(1),
+			})
+		}
+	}
+
+	/// Returns the size in pages.
+	pub fn size(&self) -> u64 {
+		self.state.tail_page_idx.wrapping_sub(self.state.head_page_idx)
+	}
+
+	/// Returns the wrapped state.
+	pub fn into_inner(self) -> RingBufferState {
+		self.state
+	}
+}
+
+impl MessageWindow {
+	pub fn with_state(state: MessageWindowState, para_id: ParaId) -> MessageWindow {
+		MessageWindow { para_id, state }
+	}
+
+	/// Extend the message index window by `count`. Returns the index of the last message.
+	pub fn extend(&mut self, count: u64) -> ParaMessageIdx {
+		self.state.last_message_idx = self.state.last_message_idx.wrapping_add(count);
+		ParaMessageIdx { para_id: self.para_id, message_idx: self.state.last_message_idx }
+	}
+
+	/// Advanced the window start by `count` elements.  Returns the index of the first element in queue
+	/// or `None` if the queue is empty after the operation.
+	pub fn prune(&mut self, count: u64) -> Option<ParaMessageIdx> {
+		let to_prune = std::cmp::min(self.size(), count);
+		self.state.first_message_idx = self.state.first_message_idx.wrapping_add(to_prune);
+		if self.state.first_message_idx == self.state.last_message_idx {
+			None
+		} else {
+			Some(ParaMessageIdx {
+				para_id: self.para_id,
+				message_idx: self.state.first_message_idx,
+			})
+		}
+	}
+
+	/// Returns the size of the message window.
+	pub fn size(&self) -> u64 {
+		self.state.last_message_idx.wrapping_sub(self.state.first_message_idx) as u64
+	}
+
+	/// Returns the first message index, `None` if window is empty.
+	pub fn first(&self) -> Option<ParaMessageIdx> {
+		if self.size() > 0 {
+			Some(ParaMessageIdx {
+				para_id: self.para_id,
+				message_idx: self.state.first_message_idx,
+			})
+		} else {
+			None
+		}
+	}
+
+	/// Returns the wrapped state.
+	pub fn into_inner(self) -> MessageWindowState {
+		self.state
+	}
+}
 
 /// An error sending a downward message.
 #[derive(Debug)]
@@ -128,23 +335,16 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + configuration::Config {}
 
+	/// A mapping between parachains and their message queue state.
 	#[pallet::storage]
-	#[pallet::getter(fn dmp_queue_head)]
-	pub(super) type DownwardMessageQueueHead<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, u64, ValueQuery>;
+	#[pallet::getter(fn dmp_queue_state)]
+	pub(super) type DownwardMessageQueueState<T: Config> =
+		StorageMap<_, Twox64Concat, ParaId, QueueState, ValueQuery>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn dmp_queue_tail)]
-	pub(super) type DownwardMessageQueueTail<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, u64, ValueQuery>;
-
-	/// The current downward message index bounds.
-	#[pallet::storage]
-	#[pallet::getter(fn dmp_message_idx)]
-	pub(super) type DownwardMessageIdx<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, (u64, u64), ValueQuery>;
-
-	/// The downward messages addressed for a certain para.
+	/// A mapping between the queue pages of a parachain and the messages stored in it.
+	///
+	/// Invariants:
+	/// - the vec is non-empty for any `QueuePageIdx`  in [head_page_idx, tail_page_idx).
 	#[pallet::storage]
 	pub(crate) type DownwardMessageQueuePages<T: Config> = StorageMap<
 		_,
@@ -165,10 +365,14 @@ pub mod pallet {
 	pub(crate) type DownwardMessageQueueHeads<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, Hash, ValueQuery>;
 
-	/// A mapping between a message and MQC head.
+	/// A mapping between a message and the corresponding MQC head hash.
+	///
+	/// Invariants:
+	/// - the storage value is valid for any valid `ParaMessageIdx`. Valid index means
+	/// that the specified it is in `[first_message_idx, last_message_idx]`
 	#[pallet::storage]
 	pub(crate) type DownwardMessageQueueHeadsById<T: Config> =
-		StorageMap<_, Twox64Concat, QueueMessageId, Hash, ValueQuery>;
+		StorageMap<_, Twox64Concat, ParaMessageIdx, Hash, ValueQuery>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {}
@@ -200,33 +404,9 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	pub(crate) fn update_head(para: &ParaId, new_head: u64) -> Weight {
-		<Self as Store>::DownwardMessageQueueHead::mutate(para, |head_pointer| {
-			*head_pointer = new_head;
-		});
-
-		T::DbWeight::get().reads_writes(1, 1)
-	}
-
-	pub(crate) fn update_tail(para: &ParaId, new_tail: u64) -> Weight {
-		<Self as Store>::DownwardMessageQueueTail::mutate(para, |tail_pointer| {
-			*tail_pointer = new_tail;
-		});
-
-		T::DbWeight::get().reads_writes(1, 1)
-	}
-
-	fn update_first_message_idx(para: &ParaId, new_message_id: u64) -> Weight {
-		<Self as Store>::DownwardMessageIdx::mutate(para, |message_idx| {
-			message_idx.0 = new_message_id;
-		});
-
-		T::DbWeight::get().reads_writes(1, 1)
-	}
-
-	fn update_last_message_idx(para: &ParaId, new_message_id: u64) -> Weight {
-		<Self as Store>::DownwardMessageIdx::mutate(para, |message_idx| {
-			message_idx.1 = new_message_id;
+	pub(crate) fn update_state(para: &ParaId, new_state: QueueState) -> Weight {
+		<Self as Store>::DownwardMessageQueueState::mutate(para, |state| {
+			*state = new_state;
 		});
 
 		T::DbWeight::get().reads_writes(1, 1)
@@ -234,8 +414,10 @@ impl<T: Config> Pallet<T> {
 
 	/// Remove all relevant storage items for an outgoing parachain.
 	fn clean_dmp_after_outgoing(outgoing_para: &ParaId) {
-		for index in Self::dmp_queue_head(outgoing_para)..=Self::dmp_queue_tail(outgoing_para) {
-			<Self as Store>::DownwardMessageQueuePages::remove(QueuePageIdx(*outgoing_para, index));
+		let state = Self::dmp_queue_state(outgoing_para);
+
+		for page_idx in RingBuffer::with_state(state.ring_buffer_state, *outgoing_para) {
+			<Self as Store>::DownwardMessageQueuePages::remove(page_idx);
 		}
 
 		<Self as Store>::DownwardMessageQueueHeads::remove(outgoing_para);
@@ -261,37 +443,32 @@ impl<T: Config> Pallet<T> {
 		}
 
 		let mut weight = 0u64;
-		let head = Self::dmp_queue_head(para);
-		let mut tail = Self::dmp_queue_tail(para);
-		// Get first/last message indexes.
-		let message_idx = Self::dmp_message_idx(para);
-		let current_message_idx = message_idx.1.wrapping_add(1);
+		let QueueState { ring_buffer_state, message_window_state } = Self::dmp_queue_state(para);
+		weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 0));
 
-		// Ring buffer is empty.
-		if head == tail {
-			// Tail always points to the next unused page.
-			tail = tail.wrapping_add(1);
-			weight = weight.saturating_add(Self::update_tail(&para, tail).into());
-		}
+		let mut ring_buf = RingBuffer::with_state(ring_buffer_state, para);
+		let mut message_window = MessageWindow::with_state(message_window_state, para);
 
-		let tail_page_len = <Self as Store>::DownwardMessageQueuePages::decode_len(QueuePageIdx(
-			para,
-			tail.wrapping_sub(1),
-		))
-		.unwrap_or(0)
-		.saturated_into::<u32>();
+		// Check if we need a new page.
+		let mut page_idx = if ring_buf.size() == 0 {
+			// Get a fresh page.
+			ring_buf.extend()
+		} else {
+			// We've checked the queue is not empty, so `last_used` is `Some`.
+			// This page might be full but we check that later.
+			ring_buf.last_used().unwrap()
+		};
+
+		let last_used_len = <Self as Store>::DownwardMessageQueuePages::decode_len(page_idx)
+			.unwrap_or(0)
+			.saturated_into::<u32>();
 
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 0));
 
-		// Check if we need a new page.
-		if tail_page_len >= QUEUE_PAGE_CAPACITY {
-			// In practice this is always bounded economically.
-			if tail.wrapping_add(1) == head {
-				unimplemented!("The end of the world is upon us");
-			}
-
-			// Advance tail.
-			tail = tail.wrapping_add(1);
+		// Check if the page is full.
+		if last_used_len >= QUEUE_PAGE_CAPACITY {
+			// Get a fresh page.
+			page_idx = ring_buf.extend()
 		}
 
 		let inbound =
@@ -305,7 +482,7 @@ impl<T: Config> Pallet<T> {
 
 			// Update the head for the current message.
 			<Self as Store>::DownwardMessageQueueHeadsById::mutate(
-				QueueMessageId(para, current_message_idx),
+				message_window.extend(1),
 				|head| *head = new_head,
 			);
 		});
@@ -313,16 +490,13 @@ impl<T: Config> Pallet<T> {
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(2, 2));
 
 		// Insert message in the tail queue page.
-		<Self as Store>::DownwardMessageQueuePages::mutate(
-			QueuePageIdx(para, tail.wrapping_sub(1)),
-			|v| {
-				v.push(inbound);
-			},
-		);
+		<Self as Store>::DownwardMessageQueuePages::mutate(page_idx, |v| {
+			v.push(inbound);
+		});
 
-		weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-		weight = weight.saturating_add(Self::update_tail(&para, tail));
-		weight = weight.saturating_add(Self::update_last_message_idx(&para, current_message_idx));
+		let ring_buffer_state = ring_buf.into_inner();
+		let message_window_state = message_window.into_inner();
+		Self::update_state(&para, QueueState { ring_buffer_state, message_window_state });
 
 		Ok(weight)
 	}
@@ -347,11 +521,15 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	fn mqc_head_key_range(para: ParaId, start: u64, count: u64) -> Vec<QueueMessageId> {
+	/// MQC head key generator. Useful for pruning entries. Returns `count` MQC head mapping keys
+	/// of the messages starting at index `start` for a given parachain.
+	///
+	/// Caller must ensure the indexes return are valid in the context of the `MessageWindow`.
+	fn mqc_head_key_range(para: ParaId, start: MessageIdx, count: u64) -> Vec<ParaMessageIdx> {
 		let mut keys = Vec::new();
 		let mut idx = start;
 		while idx != start.wrapping_add(count) {
-			keys.push(QueueMessageId(para, idx));
+			keys.push(ParaMessageIdx { para_id: para, message_idx: idx });
 			idx = idx.wrapping_add(1);
 		}
 
@@ -360,57 +538,62 @@ impl<T: Config> Pallet<T> {
 
 	/// Prunes the specified number of messages from the downward message queue of the given para.
 	pub(crate) fn prune_dmq(para: ParaId, processed_downward_messages: u32) -> Weight {
-		let mut head = Self::dmp_queue_head(para);
-		let tail = Self::dmp_queue_tail(para);
+		let QueueState { ring_buffer_state, message_window_state } = Self::dmp_queue_state(para);
+		let mut ring_buf = RingBuffer::with_state(ring_buffer_state, para);
+		let mut message_window = MessageWindow::with_state(message_window_state, para);
+
 		let mut messages_to_prune = processed_downward_messages as u64;
-		let mut first_message_idx = Self::dmp_message_idx(para).0;
-		let mut total_weight = T::DbWeight::get().reads_writes(3, 0);
+		let mut total_weight = T::DbWeight::get().reads_writes(1, 0);
 
 		let mut queue_keys_to_remove = Vec::new();
 		let mut mqc_keys_to_remove = Vec::new();
 
-		// Determine the keys to be removed.
-		while messages_to_prune > 0 && head != tail {
-			let key = QueuePageIdx(para, head);
-			<Self as Store>::DownwardMessageQueuePages::mutate(key.clone(), |q| {
-				let messages_in_page = q.len() as u64;
-
-				if messages_to_prune >= messages_in_page {
-					messages_to_prune = messages_to_prune.saturating_sub(messages_in_page);
+		while messages_to_prune > 0 {
+			if let Some(first_used_page) = ring_buf.front() {
+				<Self as Store>::DownwardMessageQueuePages::mutate(first_used_page, |q| {
+					let messages_in_page = q.len() as u64;
 
 					// Add mutate weight. Removal happens later.
 					total_weight += T::DbWeight::get().reads_writes(1, 1);
-					queue_keys_to_remove.push(key);
 
-					mqc_keys_to_remove.extend(Self::mqc_head_key_range(
-						para,
-						first_message_idx,
-						messages_in_page,
-					));
+					if messages_to_prune >= messages_in_page {
+						messages_to_prune = messages_to_prune.saturating_sub(messages_in_page);
 
-					// Advance first message index.
-					first_message_idx = first_message_idx.wrapping_add(messages_in_page);
+						// Generate MQC head key for the messages in this page
+						mqc_keys_to_remove.extend(Self::mqc_head_key_range(
+							para,
+							// Guaranteed to not panic, see invariants.
+							message_window.first().unwrap().message_idx,
+							messages_in_page,
+						));
 
-					// Advance head.
-					head = head.wrapping_add(1);
-				} else {
-					mqc_keys_to_remove.extend(Self::mqc_head_key_range(
-						para,
-						first_message_idx,
-						messages_to_prune,
-					));
+						message_window.prune(messages_in_page);
+						// Queue this page for deletion from storage.
+						queue_keys_to_remove.push(first_used_page);
+						// Free the ring buffer page.
+						ring_buf.pop_front();
+					} else {
+						mqc_keys_to_remove.extend(Self::mqc_head_key_range(
+							para,
+							message_window.first().unwrap().message_idx,
+							messages_to_prune,
+						));
 
-					first_message_idx = first_message_idx.wrapping_add(messages_to_prune);
-					*q = q.split_off(messages_to_prune as usize);
+						message_window.prune(messages_to_prune);
+						*q = q.split_off(messages_to_prune as usize);
 
-					// Only account for the update. This key will not be deleted.
-					total_weight += T::DbWeight::get().reads_writes(1, 1);
-
-					// Break loop.
-					messages_to_prune = 0;
-				}
-			});
+						// Break loop.
+						messages_to_prune = 0;
+					}
+				});
+			} else {
+				// Queue is empty.
+				break
+			}
 		}
+
+		total_weight += T::DbWeight::get()
+			.reads_writes(0, (queue_keys_to_remove.len() + mqc_keys_to_remove.len()) as u64);
 
 		// Actually do cleanup.
 		for key in queue_keys_to_remove {
@@ -421,10 +604,12 @@ impl<T: Config> Pallet<T> {
 			<Self as Store>::DownwardMessageQueueHeadsById::remove(key);
 		}
 
-		// Update indexes and mqc head.
-		Self::update_first_message_idx(&para, first_message_idx) +
-			Self::update_head(&para, head) +
-			total_weight
+		let ring_buffer_state = ring_buf.into_inner();
+		let message_window_state = message_window.into_inner();
+		Self::update_state(&para, QueueState { ring_buffer_state, message_window_state });
+		total_weight += T::DbWeight::get().reads_writes(0, 1);
+
+		total_weight
 	}
 
 	/// Returns the Head of Message Queue Chain for the given para or `None` if there is none
@@ -435,27 +620,19 @@ impl<T: Config> Pallet<T> {
 	}
 
 	#[cfg(test)]
-	fn dmq_mqc_head_for_message(para: ParaId, message_index: u64) -> Hash {
-		<Self as Store>::DownwardMessageQueueHeadsById::get(&QueueMessageId(para, message_index))
+	fn dmq_mqc_head_for_message(para_id: ParaId, message_idx: u64) -> Hash {
+		<Self as Store>::DownwardMessageQueueHeadsById::get(&ParaMessageIdx {
+			para_id,
+			message_idx,
+		})
 	}
 
 	/// Returns the number of pending downward messages addressed to the given para.
 	///
 	/// Returns 0 if the para doesn't have an associated downward message queue.
 	pub(crate) fn dmq_length(para: ParaId) -> u32 {
-		let mut head = Self::dmp_queue_head(para);
-		let tail = Self::dmp_queue_tail(para);
-		let mut length = 0;
-
-		while head != tail {
-			length +=
-				<Self as Store>::DownwardMessageQueuePages::decode_len(QueuePageIdx(para, head))
-					.unwrap_or(0)
-					.saturated_into::<u32>();
-			head = head.wrapping_add(1);
-		}
-
-		length
+		let state = Self::dmp_queue_state(para);
+		MessageWindow::with_state(state.message_window_state, para).size() as u32
 	}
 
 	/// Deprecated API. Please use `dmq_contents_bounded`.
@@ -463,34 +640,38 @@ impl<T: Config> Pallet<T> {
 		Self::dmq_contents_bounded(recipient, 0, MAX_PAGES_PER_QUERY)
 	}
 
-	/// Returns `count` pages starting from the page index specified by `start`.
-	/// The result will be an empty vector if the para doesn't exist or it's queue is empty.
+	/// Get a subset of inbound messages from the downward message queue of a parachain.
 	///
-	/// The result preserves the original message ordering - first element of vec is oldest message, while last is most
-	/// recent.
+	/// Returns a `vec` containing the messages from the first `count` pages, starting from a `0` based
+	/// page index specified by `start_page` with `0` being the first used page of the queue. A page
+	/// can hold up to `QUEUE_PAGE_CAPACITY` messages.
+	///
+	/// Only the first and last pages of the queue can have less than maximum messages because insertion and
+	/// pruning work with individual messages.
+	///
+	/// The result will be an empty vector if `count` is 0, the para doesn't exist, it's queue is empty
+	/// or `start` is greater than the last used page in the queue. If the queue is not empty, the method
+	/// is guaranteed to return at least 1 message and up to `count`*`QUEUE_PAGE_CAPACITY` messages.
 	pub(crate) fn dmq_contents_bounded(
 		recipient: ParaId,
 		start: u32,
-		mut count: u32,
+		count: u32,
 	) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-		let mut head = Self::dmp_queue_head(recipient);
-		let tail = Self::dmp_queue_tail(recipient);
+		let state = Self::dmp_queue_state(recipient);
+		let mut ring_buf = RingBuffer::with_state(state.ring_buffer_state, recipient);
+
+		// Skip first `start` pages.
+		ring_buf.prune(start);
+
 		let mut result = Vec::new();
-		let mut pages_to_skip = start;
+		let mut pages_fetched = 0;
 
-		// Loop until we reach the tail, or we've gathered at least `count` pages.
-		while head != tail && count > 0 {
-			if pages_to_skip == 0 {
-				result.extend(<Self as Store>::DownwardMessageQueuePages::get(QueuePageIdx(
-					recipient, head,
-				)));
-				count -= 1;
-			} else {
-				pages_to_skip -= 1;
+		for page_idx in ring_buf {
+			if count == pages_fetched {
+				break
 			}
-
-			// Advance to next page.
-			head = head.wrapping_add(1);
+			result.extend(<Self as Store>::DownwardMessageQueuePages::get(page_idx));
+			pages_fetched += 1;
 		}
 
 		result

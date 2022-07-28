@@ -81,9 +81,21 @@ fn clean_dmp_works() {
 		let outgoing_paras = vec![a, b];
 		Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 
-		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx(a, 0)).is_empty());
-		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx(b, 0)).is_empty());
-		assert!(!<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx(c, 0)).is_empty());
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
+			para_id: a,
+			page_idx: 0
+		})
+		.is_empty());
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
+			para_id: b,
+			page_idx: 0
+		})
+		.is_empty());
+		assert!(!<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
+			para_id: c,
+			page_idx: 0
+		})
+		.is_empty());
 	});
 }
 
@@ -95,12 +107,12 @@ fn clean_dmp_works_when_wrapping_around() {
 
 	new_test_ext(default_genesis_config()).execute_with(|| {
 		let init_head_tail = u64::MAX;
-		Dmp::update_head(&a, init_head_tail);
-		Dmp::update_head(&b, init_head_tail);
-		Dmp::update_head(&c, init_head_tail);
-		Dmp::update_tail(&a, init_head_tail);
-		Dmp::update_tail(&b, init_head_tail);
-		Dmp::update_tail(&c, init_head_tail);
+		let mut state = QueueState::default();
+		state.ring_buffer_state.head_page_idx = init_head_tail;
+		state.ring_buffer_state.tail_page_idx = init_head_tail;
+		Dmp::update_state(&a, state);
+		Dmp::update_state(&b, state);
+		Dmp::update_state(&c, state);
 
 		// enqueue downward messages to A, B and C.
 		queue_downward_message(a, vec![1, 2, 3]).unwrap();
@@ -109,13 +121,24 @@ fn clean_dmp_works_when_wrapping_around() {
 
 		let notification = crate::initializer::SessionChangeNotification::default();
 		let outgoing_paras = vec![a, b];
+
 		Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 
-		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx(a, 0)).is_empty());
-		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx(b, 0)).is_empty());
-		assert!(
-			!<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx(c, u64::MAX)).is_empty()
-		);
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
+			para_id: a,
+			page_idx: 0
+		})
+		.is_empty());
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
+			para_id: b,
+			page_idx: 0
+		})
+		.is_empty());
+		assert!(!<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
+			para_id: c,
+			page_idx: u64::MAX
+		})
+		.is_empty());
 	});
 }
 
@@ -282,11 +305,14 @@ fn queue_downward_message_page_ordering() {
 
 	new_test_ext(genesis).execute_with(|| {
 		let max_queue_size = ((QUEUE_PAGE_CAPACITY as u64) * (u8::MAX as u64)) as u64;
+		let mut state = QueueState::default();
+		let init_head_tail = u64::MAX - max_queue_size / 2;
+
+		state.ring_buffer_state.head_page_idx = init_head_tail;
+		state.ring_buffer_state.tail_page_idx = init_head_tail;
 
 		// Make page indexes wrap around.
-		let init_head_tail = u64::MAX - max_queue_size / 2;
-		Dmp::update_head(&a, init_head_tail);
-		Dmp::update_tail(&a, init_head_tail);
+		Dmp::update_state(&a, state);
 
 		// Fill queue.
 		for i in 0..max_queue_size {
@@ -338,6 +364,7 @@ fn queue_downward_message_consumption() {
 
 		loop {
 			let pages_to_fetch = loops & 0x3;
+
 			let mut messages = dmq_contents_bounded(a, start_index, pages_to_fetch);
 
 			if pages_to_fetch > 0 && messages.len() == 0 {
@@ -355,6 +382,8 @@ fn queue_downward_message_consumption() {
 				.map(|e| Message::decode(&mut e.msg.as_ref()).unwrap().0 as u64)
 				.sum::<u64>();
 		}
+
+		println!("pruning dmq len {}", Dmp::dmq_length(a));
 
 		Dmp::prune_dmq(a, count as u32);
 
@@ -375,26 +404,38 @@ fn verify_dmq_message_idx_is_externally_accessible() {
 	let a = ParaId::from(2022);
 
 	new_test_ext(default_genesis_config()).execute_with(|| {
-		let message_idx = sp_io::storage::get(&well_known_keys::dmq_message_idx(a));
-		assert_eq!(message_idx, None);
+		let state = sp_io::storage::get(&well_known_keys::dmp_queue_state(a));
+		assert_eq!(state, None);
 
 		queue_downward_message(a, vec![1, 2, 3]).unwrap();
 
-		let head = sp_io::storage::get(&well_known_keys::dmq_message_idx(a));
-		assert_eq!(head, Some((0u64, 1u64).encode()));
+		let state = QueueState::decode(
+			&mut sp_io::storage::get(&well_known_keys::dmp_queue_state(a)).unwrap().as_slice(),
+		)
+		.unwrap();
+		assert_eq!(state.message_window_state.first_message_idx, 0);
+		assert_eq!(state.message_window_state.last_message_idx, 1);
 
 		queue_downward_message(a, vec![4, 5, 6]).unwrap();
 
 		// There should be 2 elements in queue.
-		let head = sp_io::storage::get(&well_known_keys::dmq_message_idx(a));
-		assert_eq!(head, Some((0u64, 2u64).encode()));
+		let state = QueueState::decode(
+			&mut sp_io::storage::get(&well_known_keys::dmp_queue_state(a)).unwrap().as_slice(),
+		)
+		.unwrap();
+		assert_eq!(state.message_window_state.first_message_idx, 0);
+		assert_eq!(state.message_window_state.last_message_idx, 2);
 
 		Dmp::prune_dmq(a, 100);
 		assert_eq!(Dmp::dmq_length(a), 0);
 
 		// Queue should look empty by the message indexes.
-		let head = sp_io::storage::get(&well_known_keys::dmq_message_idx(a));
-		assert_eq!(head, Some((2u64, 2u64).encode()));
+		let state = QueueState::decode(
+			&mut sp_io::storage::get(&well_known_keys::dmp_queue_state(a)).unwrap().as_slice(),
+		)
+		.unwrap();
+		assert_eq!(state.message_window_state.first_message_idx, 2);
+		assert_eq!(state.message_window_state.last_message_idx, 2);
 	});
 }
 
