@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-overseer"
-version = "0.9.26"
+version = "0.9.27"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -20,6 +20,7 @@ gum = { package = "tracing-gum", path = "../gum" }
 lru = "0.7"
 parity-util-mem = { version = "0.11.0", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+async-trait = "0.1.56"
 
 [dev-dependencies]
 metered = { package = "prioritized-metered-channel", path = "../metered-channel" }

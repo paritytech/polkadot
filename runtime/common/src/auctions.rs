@@ -209,7 +209,7 @@ pub mod pallet {
 		}
 
 		#[pallet::constant_name(LeasePeriodsPerSlot)]
-		fn pease_periods_per_slot() -> u32 {
+		fn lease_periods_per_slot() -> u32 {
 			SlotRange::LEASE_PERIODS_PER_SLOT as u32
 		}
 	}

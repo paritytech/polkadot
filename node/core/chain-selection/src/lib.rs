@@ -50,6 +50,8 @@ type Timestamp = u64;
 // If a block isn't approved in 120 seconds, nodes will abandon it
 // and begin building on another chain.
 const STAGNANT_TIMEOUT: Timestamp = 120;
+// Delay prunning of the stagnant keys in prune only mode by 25 hours to avoid interception with the finality
+const STAGNANT_PRUNE_DELAY: Timestamp = 25 * 60 * 60;
 // Maximum number of stagnant entries cleaned during one `STAGNANT_TIMEOUT` iteration
 const MAX_STAGNANT_ENTRIES: usize = 1000;
 
@@ -297,6 +299,19 @@ impl StagnantCheckInterval {
 	}
 }
 
+/// Mode of the stagnant check operations: check and prune or prune only
+#[derive(Debug, Clone)]
+pub enum StagnantCheckMode {
+	CheckAndPrune,
+	PruneOnly,
+}
+
+impl Default for StagnantCheckMode {
+	fn default() -> Self {
+		StagnantCheckMode::PruneOnly
+	}
+}
+
 /// Configuration for the chain selection subsystem.
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -304,6 +319,8 @@ pub struct Config {
 	pub col_data: u32,
 	/// How often to check for stagnant blocks.
 	pub stagnant_check_interval: StagnantCheckInterval,
+	/// Mode of stagnant checks
+	pub stagnant_check_mode: StagnantCheckMode,
 }
 
 /// The chain selection subsystem.
@@ -340,9 +357,15 @@ impl<Context> ChainSelectionSubsystem {
 		);
 
 		SpawnedSubsystem {
-			future: run(ctx, backend, self.config.stagnant_check_interval, Box::new(SystemClock))
-				.map(Ok)
-				.boxed(),
+			future: run(
+				ctx,
+				backend,
+				self.config.stagnant_check_interval,
+				self.config.stagnant_check_mode,
+				Box::new(SystemClock),
+			)
+			.map(Ok)
+			.boxed(),
 			name: "chain-selection-subsystem",
 		}
 	}
@@ -353,12 +376,20 @@ async fn run<Context, B>(
 	mut ctx: Context,
 	mut backend: B,
 	stagnant_check_interval: StagnantCheckInterval,
+	stagnant_check_mode: StagnantCheckMode,
 	clock: Box<dyn Clock + Send + Sync>,
 ) where
 	B: Backend,
 {
 	loop {
-		let res = run_until_error(&mut ctx, &mut backend, &stagnant_check_interval, &*clock).await;
+		let res = run_until_error(
+			&mut ctx,
+			&mut backend,
+			&stagnant_check_interval,
+			&stagnant_check_mode,
+			&*clock,
+		)
+		.await;
 		match res {
 			Err(e) => {
 				e.trace();
@@ -383,6 +414,7 @@ async fn run_until_error<Context, B>(
 	ctx: &mut Context,
 	backend: &mut B,
 	stagnant_check_interval: &StagnantCheckInterval,
+	stagnant_check_mode: &StagnantCheckMode,
 	clock: &(dyn Clock + Sync),
 ) -> Result<(), Error>
 where
@@ -437,7 +469,13 @@ where
 				}
 			}
 			_ = stagnant_check_stream.next().fuse() => {
-				detect_stagnant(backend, clock.timestamp_now(), MAX_STAGNANT_ENTRIES)?;
+				match stagnant_check_mode {
+					StagnantCheckMode::CheckAndPrune => detect_stagnant(backend, clock.timestamp_now(), MAX_STAGNANT_ENTRIES),
+					StagnantCheckMode::PruneOnly => {
+						let now_timestamp = clock.timestamp_now();
+						prune_only_stagnant(backend, now_timestamp - STAGNANT_PRUNE_DELAY, MAX_STAGNANT_ENTRIES)
+					},
+				}?;
 			}
 		}
 	}
@@ -646,6 +684,20 @@ fn detect_stagnant(
 ) -> Result<(), Error> {
 	let ops = {
 		let overlay = tree::detect_stagnant(&*backend, now, max_elements)?;
+
+		overlay.into_write_ops()
+	};
+
+	backend.write(ops)
+}
+
+fn prune_only_stagnant(
+	backend: &mut impl Backend,
+	up_to: Timestamp,
+	max_elements: usize,
+) -> Result<(), Error> {
+	let ops = {
+		let overlay = tree::prune_only_stagnant(&*backend, up_to, max_elements)?;
 
 		overlay.into_write_ops()
 	};

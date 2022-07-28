@@ -244,6 +244,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		context,
 		backend.clone(),
 		StagnantCheckInterval::new(TEST_STAGNANT_INTERVAL),
+		StagnantCheckMode::CheckAndPrune,
 		Box::new(clock.clone()),
 	);
 

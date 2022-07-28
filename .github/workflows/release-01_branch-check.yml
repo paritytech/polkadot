@@ -2,7 +2,8 @@ name: Release - Branch check
 on:
   push:
     branches:
-      - release-v[0-9]+.[0-9]+.[0-9]+
+      # Catches v1.2.3 and v1.2.3-rc1
+      - release-v[0-9]+.[0-9]+.[0-9]+*
 
   workflow_dispatch:
 

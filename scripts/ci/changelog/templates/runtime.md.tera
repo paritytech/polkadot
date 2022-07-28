@@ -17,7 +17,7 @@
 
 ```
 🏋️ Runtime Size:           {{ runtime.data.runtimes.compressed.subwasm.size | filesizeformat }} ({{ runtime.data.runtimes.compressed.subwasm.size }} bytes)
-🔥 Core Version:           {{ runtime.data.runtimes.compressed.subwasm.core_version }}
+🔥 Core Version:           {{ runtime.data.runtimes.compressed.subwasm.core_version.specName }}-{{ runtime.data.runtimes.compressed.subwasm.core_version.specVersion }} ({{ runtime.data.runtimes.compressed.subwasm.core_version.implName }}-{{ runtime.data.runtimes.compressed.subwasm.core_version.implVersion }}.tx{{ runtime.data.runtimes.compressed.subwasm.core_version.transactionVersion }}.au{{ runtime.data.runtimes.compressed.subwasm.core_version.authoringVersion }})
 🗜 Compressed:             {{ compressed }}: {{ comp_ratio | round(method="ceil", precision=2) }}%
 🎁 Metadata version:       V{{ runtime.data.runtimes.compressed.subwasm.metadata_version }}
 🗳️ system.setCode hash:    {{ runtime.data.runtimes.compressed.subwasm.proposal_hash }}
