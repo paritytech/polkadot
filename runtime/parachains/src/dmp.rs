@@ -59,21 +59,55 @@ mod tests;
 
 pub mod migration;
 
-/// The queue page index that wraps around.
-pub type PageIdx = u64;
+/// A type of index that wraps around. In this module it is used for messages and pages.
+#[derive(
+	Encode, Decode, Default, Clone, Copy, sp_runtime::RuntimeDebug, Eq, PartialEq, TypeInfo,
+)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct WrappingIndex(u64);
 
-/// A downward message unique index that wraps around. Each message is sequentially
-/// assigned an index that uniquely identifies it in the queue.
-pub type MessageIdx = u64;
+impl WrappingIndex {
+	/// Wrapping addition between two indexes.
+	pub fn wrapping_add(&self, other: WrappingIndex) -> Self {
+		WrappingIndex(self.0.wrapping_add(other.0))
+	}
+
+	/// Wrapping substraction between two indexes.
+	pub fn wrapping_sub(&self, other: WrappingIndex) -> Self {
+		WrappingIndex(self.0.wrapping_sub(other.0))
+	}
+
+	/// Wrapping increment.
+	pub fn wrapping_inc(&self) -> Self {
+		WrappingIndex(self.0.wrapping_add(1))
+	}
+
+	/// Wrapping decrement.
+	pub fn wrapping_dec(&self) -> Self {
+		WrappingIndex(self.0.wrapping_sub(1))
+	}
+}
+
+impl From<u64> for WrappingIndex {
+	fn from(idx: u64) -> Self {
+		WrappingIndex(idx)
+	}
+}
+
+impl Into<u64> for WrappingIndex {
+	fn into(self) -> u64 {
+		self.0
+	}
+}
 
 /// Unique identifier of an inbound downward message.
 #[derive(Encode, Decode, Clone, Copy, sp_runtime::RuntimeDebug, PartialEq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct ParaMessageIdx {
+pub struct MessageIdx {
 	/// The recepient parachain.
 	pub para_id: ParaId,
 	/// A message index in the recipient parachain queue.
-	pub message_idx: MessageIdx,
+	pub message_idx: WrappingIndex,
 }
 
 /// The key for a queue page of a parachain.
@@ -81,11 +115,11 @@ pub struct ParaMessageIdx {
 pub struct QueuePageIdx {
 	/// The recipient parachain.
 	pub para_id: ParaId,
-	/// A page index of the parachain queue.
-	pub page_idx: PageIdx,
+	/// The page index.
+	pub page_idx: WrappingIndex,
 }
 
-/// The state of the queue split in two sub states, the ring bufer and the message window.
+/// The state of the queue split in two sub-states, the ring bufer and the message window.
 ///
 /// Invariants - see `RingBufferState` and `MessageWindowState`.
 #[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
@@ -102,9 +136,9 @@ pub struct QueueState {
 #[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub struct MessageWindowState {
 	/// The index of the first message in the queue.
-	first_message_idx: MessageIdx,
+	first_message_idx: WrappingIndex,
 	/// The index of the last message in the queue.
-	last_message_idx: MessageIdx,
+	last_message_idx: WrappingIndex,
 }
 
 /// The state of the ring buffer that represents the message queue. We only need to keep track
@@ -114,9 +148,9 @@ pub struct MessageWindowState {
 #[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub struct RingBufferState {
 	/// The index of the first unused page. `tail_page_idx - 1` is the last used page.
-	tail_page_idx: PageIdx,
+	tail_page_idx: WrappingIndex,
 	/// The index of the first used page.
-	head_page_idx: PageIdx,
+	head_page_idx: WrappingIndex,
 }
 
 /// Manages the downward message indexing window. All downward messages are assigned
@@ -159,14 +193,14 @@ impl RingBuffer {
 	/// Allocates a new page and returns the page index.
 	pub fn extend(&mut self) -> QueuePageIdx {
 		// In practice this is always bounded economically - sending one requires a fee.
-		if self.state.tail_page_idx.wrapping_add(1) == self.state.head_page_idx {
+		if self.state.tail_page_idx.wrapping_inc() == self.state.head_page_idx {
 			unimplemented!("The end of the world is upon us");
 		}
 
 		// Advance tail to the next unused page.
-		self.state.tail_page_idx = self.state.tail_page_idx.wrapping_add(1);
+		self.state.tail_page_idx = self.state.tail_page_idx.wrapping_inc();
 		// Return last used page.
-		QueuePageIdx { para_id: self.para_id, page_idx: self.state.tail_page_idx.wrapping_sub(1) }
+		QueuePageIdx { para_id: self.para_id, page_idx: self.state.tail_page_idx.wrapping_dec() }
 	}
 
 	/// Allocates a new page and returns the page index.
@@ -175,7 +209,7 @@ impl RingBuffer {
 		let to_prune = std::cmp::min(self.size(), count as u64);
 
 		// Advance tail by count elements.
-		self.state.head_page_idx = self.state.head_page_idx.wrapping_add(to_prune);
+		self.state.head_page_idx = self.state.head_page_idx.wrapping_add(to_prune.into());
 	}
 
 	/// Frees the first used page and returns it's index while advacing the head of the ring buffer.
@@ -184,7 +218,7 @@ impl RingBuffer {
 		let page = self.front();
 
 		if page.is_some() {
-			self.state.head_page_idx = self.state.head_page_idx.wrapping_add(1);
+			self.state.head_page_idx = self.state.head_page_idx.wrapping_inc();
 		}
 
 		page
@@ -206,14 +240,14 @@ impl RingBuffer {
 		} else {
 			Some(QueuePageIdx {
 				para_id: self.para_id,
-				page_idx: self.state.tail_page_idx.wrapping_sub(1),
+				page_idx: self.state.tail_page_idx.wrapping_dec(),
 			})
 		}
 	}
 
 	/// Returns the size in pages.
 	pub fn size(&self) -> u64 {
-		self.state.tail_page_idx.wrapping_sub(self.state.head_page_idx)
+		self.state.tail_page_idx.wrapping_sub(self.state.head_page_idx).into()
 	}
 
 	/// Returns the wrapped state.
@@ -228,38 +262,32 @@ impl MessageWindow {
 	}
 
 	/// Extend the message index window by `count`. Returns the index of the last message.
-	pub fn extend(&mut self, count: u64) -> ParaMessageIdx {
-		self.state.last_message_idx = self.state.last_message_idx.wrapping_add(count);
-		ParaMessageIdx { para_id: self.para_id, message_idx: self.state.last_message_idx }
+	pub fn extend(&mut self, count: u64) -> MessageIdx {
+		self.state.last_message_idx = self.state.last_message_idx.wrapping_add(count.into());
+		MessageIdx { para_id: self.para_id, message_idx: self.state.last_message_idx }
 	}
 
 	/// Advanced the window start by `count` elements.  Returns the index of the first element in queue
 	/// or `None` if the queue is empty after the operation.
-	pub fn prune(&mut self, count: u64) -> Option<ParaMessageIdx> {
+	pub fn prune(&mut self, count: u64) -> Option<MessageIdx> {
 		let to_prune = std::cmp::min(self.size(), count);
-		self.state.first_message_idx = self.state.first_message_idx.wrapping_add(to_prune);
+		self.state.first_message_idx = self.state.first_message_idx.wrapping_add(to_prune.into());
 		if self.state.first_message_idx == self.state.last_message_idx {
 			None
 		} else {
-			Some(ParaMessageIdx {
-				para_id: self.para_id,
-				message_idx: self.state.first_message_idx,
-			})
+			Some(MessageIdx { para_id: self.para_id, message_idx: self.state.first_message_idx })
 		}
 	}
 
 	/// Returns the size of the message window.
 	pub fn size(&self) -> u64 {
-		self.state.last_message_idx.wrapping_sub(self.state.first_message_idx) as u64
+		self.state.last_message_idx.wrapping_sub(self.state.first_message_idx).into()
 	}
 
 	/// Returns the first message index, `None` if window is empty.
-	pub fn first(&self) -> Option<ParaMessageIdx> {
+	pub fn first(&self) -> Option<MessageIdx> {
 		if self.size() > 0 {
-			Some(ParaMessageIdx {
-				para_id: self.para_id,
-				message_idx: self.state.first_message_idx,
-			})
+			Some(MessageIdx { para_id: self.para_id, message_idx: self.state.first_message_idx })
 		} else {
 			None
 		}
@@ -368,11 +396,11 @@ pub mod pallet {
 	/// A mapping between a message and the corresponding MQC head hash.
 	///
 	/// Invariants:
-	/// - the storage value is valid for any valid `ParaMessageIdx`. Valid index means
+	/// - the storage value is valid for any valid `MessageIdx`. Valid index means
 	/// that the specified it is in `[first_message_idx, last_message_idx]`
 	#[pallet::storage]
 	pub(crate) type DownwardMessageQueueHeadsById<T: Config> =
-		StorageMap<_, Twox64Concat, ParaMessageIdx, Hash, ValueQuery>;
+		StorageMap<_, Twox64Concat, MessageIdx, Hash, ValueQuery>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {}
@@ -525,12 +553,12 @@ impl<T: Config> Pallet<T> {
 	/// of the messages starting at index `start` for a given parachain.
 	///
 	/// Caller must ensure the indexes return are valid in the context of the `MessageWindow`.
-	fn mqc_head_key_range(para: ParaId, start: MessageIdx, count: u64) -> Vec<ParaMessageIdx> {
+	fn mqc_head_key_range(para: ParaId, start: WrappingIndex, count: u64) -> Vec<MessageIdx> {
 		let mut keys = Vec::new();
 		let mut idx = start;
-		while idx != start.wrapping_add(count) {
-			keys.push(ParaMessageIdx { para_id: para, message_idx: idx });
-			idx = idx.wrapping_add(1);
+		while idx != start.wrapping_add(count.into()) {
+			keys.push(MessageIdx { para_id: para, message_idx: idx });
+			idx = idx.wrapping_inc();
 		}
 
 		keys
@@ -620,11 +648,8 @@ impl<T: Config> Pallet<T> {
 	}
 
 	#[cfg(test)]
-	fn dmq_mqc_head_for_message(para_id: ParaId, message_idx: u64) -> Hash {
-		<Self as Store>::DownwardMessageQueueHeadsById::get(&ParaMessageIdx {
-			para_id,
-			message_idx,
-		})
+	fn dmq_mqc_head_for_message(para_id: ParaId, message_idx: WrappingIndex) -> Hash {
+		<Self as Store>::DownwardMessageQueueHeadsById::get(&MessageIdx { para_id, message_idx })
 	}
 
 	/// Returns the number of pending downward messages addressed to the given para.

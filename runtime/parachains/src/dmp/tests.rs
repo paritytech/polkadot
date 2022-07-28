@@ -83,17 +83,17 @@ fn clean_dmp_works() {
 
 		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
 			para_id: a,
-			page_idx: 0
+			page_idx: 0.into()
 		})
 		.is_empty());
 		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
 			para_id: b,
-			page_idx: 0
+			page_idx: 0.into()
 		})
 		.is_empty());
 		assert!(!<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
 			para_id: c,
-			page_idx: 0
+			page_idx: 0.into()
 		})
 		.is_empty());
 	});
@@ -106,7 +106,7 @@ fn clean_dmp_works_when_wrapping_around() {
 	let c = ParaId::from(123);
 
 	new_test_ext(default_genesis_config()).execute_with(|| {
-		let init_head_tail = u64::MAX;
+		let init_head_tail = u64::MAX.into();
 		let mut state = QueueState::default();
 		state.ring_buffer_state.head_page_idx = init_head_tail;
 		state.ring_buffer_state.tail_page_idx = init_head_tail;
@@ -126,17 +126,17 @@ fn clean_dmp_works_when_wrapping_around() {
 
 		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
 			para_id: a,
-			page_idx: 0
+			page_idx: 0.into()
 		})
 		.is_empty());
 		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
 			para_id: b,
-			page_idx: 0
+			page_idx: 0.into()
 		})
 		.is_empty());
 		assert!(!<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
 			para_id: c,
-			page_idx: u64::MAX
+			page_idx: u64::MAX.into()
 		})
 		.is_empty());
 	});
@@ -182,11 +182,11 @@ fn dmp_mqc_head_fixture() {
 			hex!["88dc00db8cc9d22aa62b87807705831f164387dfa49f80a8600ed1cbe1704b6b"].into(),
 		);
 		assert_eq!(
-			Dmp::dmq_mqc_head_for_message(a, 1),
+			Dmp::dmq_mqc_head_for_message(a, 1.into()),
 			hex!["086aef3a70db505d41acf75196b0b373b9607015a422d65da1732e8521b3def7"].into(),
 		);
 		assert_eq!(
-			Dmp::dmq_mqc_head_for_message(a, 2),
+			Dmp::dmq_mqc_head_for_message(a, 2.into()),
 			hex!["88dc00db8cc9d22aa62b87807705831f164387dfa49f80a8600ed1cbe1704b6b"].into(),
 		);
 	});
@@ -229,7 +229,7 @@ fn dmq_pruning() {
 
 		// This should return zero after pruning.
 		assert_eq!(
-			Dmp::dmq_mqc_head_for_message(a, 1),
+			Dmp::dmq_mqc_head_for_message(a, 1.into()),
 			hex!["434f8579a2297dfea851bf6be33093c83a78b655a53ae141a7894494c0010589"].into(),
 		);
 
@@ -244,7 +244,7 @@ fn dmq_pruning() {
 		assert_eq!(Dmp::dmq_length(a), 0);
 
 		// As said, this should be zero now.
-		assert_eq!(Dmp::dmq_mqc_head_for_message(a, 1), Hash::zero());
+		assert_eq!(Dmp::dmq_mqc_head_for_message(a, 1.into()), Hash::zero());
 	});
 }
 
@@ -304,9 +304,9 @@ fn queue_downward_message_page_ordering() {
 	genesis.configuration.config.max_downward_message_size = 100;
 
 	new_test_ext(genesis).execute_with(|| {
-		let max_queue_size = ((QUEUE_PAGE_CAPACITY as u64) * (u8::MAX as u64)) as u64;
+		let max_queue_size = (QUEUE_PAGE_CAPACITY as u64) * (u8::MAX as u64);
 		let mut state = QueueState::default();
-		let init_head_tail = u64::MAX - max_queue_size / 2;
+		let init_head_tail = (u64::MAX - max_queue_size / 2).into();
 
 		state.ring_buffer_state.head_page_idx = init_head_tail;
 		state.ring_buffer_state.tail_page_idx = init_head_tail;
@@ -413,8 +413,8 @@ fn verify_dmq_message_idx_is_externally_accessible() {
 			&mut sp_io::storage::get(&well_known_keys::dmp_queue_state(a)).unwrap().as_slice(),
 		)
 		.unwrap();
-		assert_eq!(state.message_window_state.first_message_idx, 0);
-		assert_eq!(state.message_window_state.last_message_idx, 1);
+		assert_eq!(state.message_window_state.first_message_idx, 0.into());
+		assert_eq!(state.message_window_state.last_message_idx, 1.into());
 
 		queue_downward_message(a, vec![4, 5, 6]).unwrap();
 
@@ -423,8 +423,8 @@ fn verify_dmq_message_idx_is_externally_accessible() {
 			&mut sp_io::storage::get(&well_known_keys::dmp_queue_state(a)).unwrap().as_slice(),
 		)
 		.unwrap();
-		assert_eq!(state.message_window_state.first_message_idx, 0);
-		assert_eq!(state.message_window_state.last_message_idx, 2);
+		assert_eq!(state.message_window_state.first_message_idx, 0.into());
+		assert_eq!(state.message_window_state.last_message_idx, 2.into());
 
 		Dmp::prune_dmq(a, 100);
 		assert_eq!(Dmp::dmq_length(a), 0);
@@ -434,8 +434,8 @@ fn verify_dmq_message_idx_is_externally_accessible() {
 			&mut sp_io::storage::get(&well_known_keys::dmp_queue_state(a)).unwrap().as_slice(),
 		)
 		.unwrap();
-		assert_eq!(state.message_window_state.first_message_idx, 2);
-		assert_eq!(state.message_window_state.last_message_idx, 2);
+		assert_eq!(state.message_window_state.first_message_idx, 2.into());
+		assert_eq!(state.message_window_state.last_message_idx, 2.into());
 	});
 }
 
