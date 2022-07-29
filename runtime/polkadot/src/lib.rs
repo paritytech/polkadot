@@ -112,7 +112,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9260,
+	spec_version: 9270,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -1515,7 +1515,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(),
+	pallet_staking::migrations::v10::MigrateToV10<Runtime>,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -2125,7 +2125,9 @@ mod test_fees {
 			"can support {} voters in a single block for council elections; total bond {}",
 			voters, cost_dollars,
 		);
-		assert!(cost_dollars > 150_000); // DOLLAR ~ new DOT ~ 10e10
+		// The minimal number of voters we expect per block.
+		assert!(voters >= 1_000);
+		assert!(cost_dollars >= 10_000);
 	}
 
 	#[test]
