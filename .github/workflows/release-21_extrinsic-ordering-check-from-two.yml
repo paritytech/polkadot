@@ -21,8 +21,8 @@ jobs:
       BIN_URL: ${{github.event.inputs.binary_url}}
       REF_URL: ${{github.event.inputs.reference_binary_url}}
     strategy:
+      fail-fast: false
       matrix:
-        fail-fast: false
         chain: [polkadot, kusama, westend, rococo]
 
     steps:
@@ -95,4 +95,3 @@ jobs:
         run: |
           pkill polkadot-ref
           pkill polkadot
-
