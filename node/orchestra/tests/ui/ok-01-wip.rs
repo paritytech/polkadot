@@ -5,7 +5,6 @@ use orchestra::*;
 #[derive(Default)]
 struct AwesomeSubSysA;
 
-
 impl ::orchestra::Subsystem<OrchestraSubsystemContext<MsgA>, OrchestraError> for AwesomeSubSysA {
 	fn start(self, _ctx: OrchestraSubsystemContext<MsgA>) -> SpawnedSubsystem<OrchestraError> {
 		SpawnedSubsystem { name: "sub A", future: Box::pin(async move { Ok(()) }) }
@@ -41,7 +40,7 @@ impl Spawner for DummySpawner {
 }
 
 #[derive(Default)]
-struct AwesomeSubSysB;
+pub struct AwesomeSubSysB;
 
 #[derive(Clone, Debug)]
 pub struct SigSigSig;

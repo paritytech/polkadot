@@ -20,13 +20,19 @@ use ::test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code};
 use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
 use polkadot_node_subsystem::SpawnGlue;
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, BlockNumber, CandidateEvent, CandidateHash, CommittedCandidateReceipt,
-	CoreState, DisputeState, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
-	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+use polkadot_primitives::{
+	runtime_api::ParachainHost,
+	v2::{
+		AuthorityDiscoveryId, Block, BlockNumber, CandidateEvent, CandidateHash,
+		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Id as ParaId,
+		InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
+		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
 };
+use sp_api::ProvideRuntimeApi;
+use sp_authority_discovery::AuthorityDiscoveryApi;
+use sp_consensus_babe::BabeApi;
 use sp_core::testing::TaskExecutor;
 use std::{
 	collections::{BTreeMap, HashMap},

@@ -21,10 +21,13 @@ jobs:
           - name: '#polkadot-announcements:matrix.parity.io'
             room: '!UqHPWiCBGZWxrmYBkF:matrix.parity.io'
             pre-release: false
-          - name: Internal release-notes channel
+          - name: 'Internal release-notes channel'
             room: '!NTogofoetwjbTwOoPi:matrix.parity.io'
             pre-release: true
-
+          - name: 'Ledger <> Polkadot Coordination'
+            room: '!EoIhaKfGPmFOBrNSHT:web3.foundation'
+            pre-release: true
+    
     runs-on: ubuntu-latest
     steps:
       - name: Send Matrix message to ${{ matrix.channel.name }}

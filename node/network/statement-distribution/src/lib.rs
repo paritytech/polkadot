@@ -39,7 +39,7 @@ use polkadot_node_subsystem_util::{self as util, rand, MIN_GOSSIP_PEERS};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
-		CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeMessage,
+		CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeTxMessage,
 		StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
@@ -1083,7 +1083,7 @@ async fn circulate_statement<'a, Context>(
 			statement = ?stored.statement,
 			"Sending statement",
 		);
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			peers_to_send.iter().map(|(p, _)| p.clone()).collect(),
 			payload,
 		))
@@ -1123,8 +1123,11 @@ async fn send_statements_about<Context>(
 			statement = ?statement.statement,
 			"Sending statement",
 		);
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload))
-			.await;
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+			vec![peer.clone()],
+			payload,
+		))
+		.await;
 
 		metrics.on_statement_distributed();
 	}
@@ -1155,8 +1158,11 @@ async fn send_statements<Context>(
 			statement = ?statement.statement,
 			"Sending statement"
 		);
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload))
-			.await;
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+			vec![peer.clone()],
+			payload,
+		))
+		.await;
 
 		metrics.on_statement_distributed();
 	}
@@ -1167,7 +1173,7 @@ async fn report_peer(
 	peer: PeerId,
 	rep: Rep,
 ) {
-	sender.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
+	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await
 }
 
 /// If message contains a statement, then retrieve it, otherwise fork task to fetch it.
@@ -1926,7 +1932,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				}
 			},
 			RequesterMessage::SendRequest(req) => {
-				ctx.send_message(NetworkBridgeMessage::SendRequests(
+				ctx.send_message(NetworkBridgeTxMessage::SendRequests(
 					vec![req],
 					IfDisconnected::ImmediateError,
 				))
