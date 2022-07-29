@@ -518,6 +518,7 @@ publish-s3-release:                &publish-s3
 
 update_polkadot_weights:           &update-weights
   stage:                           stage2
+  timeout:                         1d
   when:                            manual
   variables:
     RUNTIME:                       polkadot
