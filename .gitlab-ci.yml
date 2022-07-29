@@ -32,7 +32,7 @@ variables:
   CI_IMAGE:                        "paritytech/ci-linux:production"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
-  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.2.25"
+  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.2.50"
   PIPELINE_SCRIPTS_TAG:            "v0.4"
 
 default:
@@ -826,7 +826,7 @@ zombienet-tests-malus-dispute-valid:
 
 zombienet-tests-deregister-register-validator:
   stage:                           stage3
-  image:                           "docker.io/paritytech/zombienet:v1.2.47"
+  image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
   needs:
@@ -847,6 +847,31 @@ zombienet-tests-deregister-register-validator:
         --github-remote-dir="${GH_DIR}"
         --test="0003-deregister-register-validator-smoke.feature"
   allow_failure:                   false
+  retry: 2
+  tags:
+    - zombienet-polkadot-integration-test
+
+zombienet-tests-beefy-and-mmr:
+  stage:                           stage3
+  <<:                              *kubernetes-env
+  <<:                              *zombienet-refs
+  image:                           "${ZOMBIENET_IMAGE}"
+  needs:
+    - job:                         publish-polkadot-debug-image
+  variables:
+    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
+  before_script:
+    - echo "Zombie-net Tests Config"
+    - echo "${ZOMBIENET_IMAGE_NAME}"
+    - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
+    - echo "${GH_DIR}"
+    - export DEBUG=zombie*
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
+  script:
+    - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
+      --github-remote-dir="${GH_DIR}"
+      --test="0003-beefy-and-mmr.feature"
+  allow_failure:                   true
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
