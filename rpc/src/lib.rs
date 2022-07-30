@@ -23,7 +23,7 @@ use std::sync::Arc;
 use jsonrpsee::RpcModule;
 use polkadot_primitives::v2::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
 use sc_client_api::AuxStore;
-use sc_consensus_babe::Epoch;
+use sc_consensus_babe::{BabeConfiguration, Epoch};
 use sc_finality_grandpa::FinalityProofProvider;
 pub use sc_rpc::{DenyUnsafe, SubscriptionTaskExecutor};
 use sp_api::ProvideRuntimeApi;
@@ -40,7 +40,7 @@ pub type RpcExtension = RpcModule<()>;
 /// Extra dependencies for BABE.
 pub struct BabeDeps {
 	/// BABE protocol config.
-	pub babe_config: sc_consensus_babe::Config,
+	pub babe_config: BabeConfiguration,
 	/// BABE pending epoch changes.
 	pub shared_epoch_changes: sc_consensus_epochs::SharedEpochChanges<Block, Epoch>,
 	/// The keystore that manages the keys of the node.

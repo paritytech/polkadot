@@ -203,7 +203,7 @@ sp_api::mock_impl_runtime_apis! {
 	}
 
 	impl BabeApi<Block> for MockRuntimeApi {
-		fn configuration(&self) -> sp_consensus_babe::BabeGenesisConfiguration {
+		fn configuration(&self) -> sp_consensus_babe::BabeConfiguration {
 			unimplemented!()
 		}
 

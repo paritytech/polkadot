@@ -50,6 +50,9 @@ pub mod time {
 	pub const WEEKS: BlockNumber = DAYS * 7;
 
 	// 1 in 4 blocks (on average, not counting collisions) will be primary babe blocks.
+	// The choice of is done in accordance to the slot duration and expected target
+	// block time, for safely resisting network delays of maximum two seconds.
+	// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
 	pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
 }
 
