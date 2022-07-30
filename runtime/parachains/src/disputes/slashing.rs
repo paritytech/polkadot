@@ -56,7 +56,7 @@ use sp_std::{
 	prelude::*,
 };
 
-const LOG_TARGET: &str = "runtime::slashing";
+const LOG_TARGET: &str = "runtime::parachains::slashing";
 
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
