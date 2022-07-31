@@ -31,10 +31,12 @@ use polkadot_node_network_protocol::{
 	request_response::{v1 as request_v1, vstaging as protocol_vstaging, IncomingRequestReceiver},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v2::CollatorPair;
+use polkadot_primitives::v2::{CollatorPair, Hash};
 
 use polkadot_node_subsystem::{
-	errors::SubsystemError, messages::NetworkBridgeMessage, overseer, SpawnedSubsystem,
+	errors::SubsystemError,
+	messages::{NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest},
+	overseer, SpawnedSubsystem,
 };
 
 mod error;
@@ -154,4 +156,54 @@ async fn modify_reputation(
 	);
 
 	sender.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ProspectiveParachainsMode {
+	// v2 runtime API: no prospective parachains.
+	Disabled,
+	// vstaging runtime API: prospective parachains.
+	Enabled,
+}
+
+impl ProspectiveParachainsMode {
+	fn is_enabled(&self) -> bool {
+		matches!(self, Self::Enabled)
+	}
+}
+
+async fn prospective_parachains_mode<Sender>(
+	sender: &mut Sender,
+	leaf_hash: Hash,
+) -> Result<ProspectiveParachainsMode, error::Error>
+where
+	Sender: polkadot_node_subsystem::CollatorProtocolSenderTrait,
+{
+	// TODO: call a Runtime API once staging version is available
+	// https://github.com/paritytech/substrate/discussions/11338
+	//
+	// Implementation should be shared with backing & provisioner.
+
+	let (tx, rx) = futures::channel::oneshot::channel();
+	sender
+		.send_message(RuntimeApiMessage::Request(leaf_hash, RuntimeApiRequest::Version(tx)))
+		.await;
+
+	let version = rx
+		.await
+		.map_err(error::Error::CancelledRuntimeApiVersion)?
+		.map_err(error::Error::RuntimeApi)?;
+
+	if version == 3 {
+		Ok(ProspectiveParachainsMode::Enabled)
+	} else {
+		if version != 2 {
+			gum::warn!(
+				target: LOG_TARGET,
+				"Runtime API version is {}, expected 2 or 3. Prospective parachains are disabled",
+				version
+			);
+		}
+		Ok(ProspectiveParachainsMode::Disabled)
+	}
 }

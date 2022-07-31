@@ -38,7 +38,6 @@ use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
 		CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage, RuntimeApiMessage,
-		RuntimeApiRequest,
 	},
 	overseer, CollatorProtocolSenderTrait, FromOrchestra, OverseerSignal, PerLeafSpan,
 };
@@ -52,7 +51,7 @@ use polkadot_primitives::v2::{
 	Hash, Id as ParaId,
 };
 
-use super::LOG_TARGET;
+use super::{prospective_parachains_mode, ProspectiveParachainsMode, LOG_TARGET};
 use crate::error::{log_error, Error, FatalError, Result};
 
 mod collation;
@@ -158,56 +157,6 @@ impl ValidatorGroup {
 					.set(validator_index, true);
 			}
 		}
-	}
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum ProspectiveParachainsMode {
-	// v2 runtime API: no prospective parachains.
-	Disabled,
-	// vstaging runtime API: prospective parachains.
-	Enabled,
-}
-
-impl ProspectiveParachainsMode {
-	fn is_enabled(&self) -> bool {
-		matches!(self, Self::Enabled)
-	}
-}
-
-async fn prospective_parachains_mode<Sender>(
-	sender: &mut Sender,
-	leaf_hash: Hash,
-) -> Result<ProspectiveParachainsMode>
-where
-	Sender: CollatorProtocolSenderTrait,
-{
-	// TODO: call a Runtime API once staging version is available
-	// https://github.com/paritytech/substrate/discussions/11338
-	//
-	// Implementation should be shared with backing & provisioner.
-
-	let (tx, rx) = oneshot::channel();
-	sender
-		.send_message(RuntimeApiMessage::Request(leaf_hash, RuntimeApiRequest::Version(tx)))
-		.await;
-
-	let version = rx
-		.await
-		.map_err(Error::CancelledRuntimeApiVersion)?
-		.map_err(Error::RuntimeApi)?;
-
-	if version == 3 {
-		Ok(ProspectiveParachainsMode::Enabled)
-	} else {
-		if version != 2 {
-			gum::warn!(
-				target: LOG_TARGET,
-				"Runtime API version is {}, expected 2 or 3. Prospective parachains are disabled",
-				version
-			);
-		}
-		Ok(ProspectiveParachainsMode::Disabled)
 	}
 }
 
