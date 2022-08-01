@@ -58,11 +58,16 @@ use sp_std::{
 
 const LOG_TARGET: &str = "runtime::parachains::slashing";
 
+// These are constants, but we want to make them configurable
+// via `HostConfiguration` in the future.
+const SLASH_FOR_INVALID: Perbill = Perbill::from_percent(100);
+const SLASH_AGAINST_VALID: Perbill = Perbill::from_percent(1);
+
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
-/// Timeslots should uniquely identify offences
-/// and are used for the offence deduplication.
+/// Timeslots should uniquely identify offences and are used for the offence
+/// deduplication.
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 pub struct DisputesTimeSlot {
 	// The order of these matters for `derive(Ord)`.
@@ -76,8 +81,8 @@ impl DisputesTimeSlot {
 	}
 }
 
-/// An offence that is filed when a series of validators lost a dispute
-/// about an invalid candidate.
+/// An offence that is filed when a series of validators lost a dispute about an
+/// invalid candidate.
 #[derive(RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Clone, PartialEq, Eq))]
 pub struct ForInvalidOffence<KeyOwnerIdentification> {
@@ -121,12 +126,12 @@ where
 	}
 
 	fn slash_fraction(_offenders: u32, _: ValidatorSetCount) -> Perbill {
-		Perbill::from_percent(100)
+		SLASH_FOR_INVALID
 	}
 }
 
-/// An offence that is filed when a series of validators lost a dispute
-/// about an valid candidate.
+/// An offence that is filed when a series of validators lost a dispute about an
+/// valid candidate.
 #[derive(RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Clone, PartialEq, Eq))]
 pub struct AgainstValidOffence<KeyOwnerIdentification> {
@@ -168,7 +173,7 @@ where
 	}
 
 	fn slash_fraction(_offenders: u32, _: ValidatorSetCount) -> Perbill {
-		Perbill::from_percent(1)
+		SLASH_AGAINST_VALID
 	}
 }
 
@@ -211,17 +216,18 @@ impl<T> SlashValidatorsForDisputes<Pallet<T>>
 where
 	T: Config,
 {
-	/// If in the current session, returns the identified validators.
-	/// `None` otherwise.
+	/// If in the current session, returns the identified validators. `None`
+	/// otherwise.
 	fn maybe_identify_validators(
 		session_index: SessionIndex,
 		account_ids: &[AccountId<T>],
 		validators: impl IntoIterator<Item = ValidatorIndex>,
 	) -> Option<Vec<IdentificationTuple<T>>> {
-		// We use `ValidatorSet::session_index` and not `shared::Pallet<T>::session_index()`
-		// because at the first block of a new era, the `IdentificationOf` of a validator
-		// in the previous session might be missing, while `shared` pallet would return
-		// the same session index as being updated at the end of the block.
+		// We use `ValidatorSet::session_index` and not
+		// `shared::Pallet<T>::session_index()` because at the first block of a new era,
+		// the `IdentificationOf` of a validator in the previous session might be
+		// missing, while `shared` pallet would return the same session index as being
+		// updated at the end of the block.
 		let current_session = T::ValidatorSet::session_index();
 		if session_index == current_session {
 			let fully_identified = validators
@@ -354,8 +360,8 @@ pub enum SlashingOffenceKind {
 	AgainstValid,
 }
 
-/// We store most of the information about a lost dispute on chain.
-/// This struct is required to identify and verify it.
+/// We store most of the information about a lost dispute on chain. This struct
+/// is required to identify and verify it.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 pub struct DisputeProof {
 	/// Time slot when the dispute occured.
@@ -368,17 +374,19 @@ pub struct DisputeProof {
 	pub validator_id: ValidatorId,
 }
 
-/// Indices and keys of the validators who lost a dispute and are pending slashes.
+/// Indices and keys of the validators who lost a dispute and are pending
+/// slashes.
 pub type Losers = BTreeMap<ValidatorIndex, ValidatorId>;
 /// `AccountId`s of the validators who were on the winning side of a dispute.
 pub type Winners<T> = Vec<AccountId<T>>;
 
-/// A trait that defines methods to report an offence
-/// (after the slashing report has been validated) and for submitting a
-/// transaction to report a slash (from an offchain context).
+/// A trait that defines methods to report an offence (after the slashing report
+/// has been validated) and for submitting a transaction to report a slash (from
+/// an offchain context).
 pub trait HandleReports<T: Config> {
-	/// The longevity, in blocks, that the offence report is valid for. When using the staking
-	/// pallet this should be equal to the bonding duration (in blocks, not eras).
+	/// The longevity, in blocks, that the offence report is valid for. When
+	/// using the staking pallet this should be equal to the bonding duration
+	/// (in blocks, not eras).
 	type ReportLongevity: Get<u64>;
 
 	/// Report a `for valid` offence.
@@ -393,13 +401,15 @@ pub trait HandleReports<T: Config> {
 		offence: AgainstValidOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError>;
 
-	/// Returns true if the offenders at the given time slot has already been reported.
+	/// Returns true if the offenders at the given time slot has already been
+	/// reported.
 	fn is_known_for_invalid_offence(
 		offenders: &[T::KeyOwnerIdentification],
 		time_slot: &DisputesTimeSlot,
 	) -> bool;
 
-	/// Returns true if the offenders at the given time slot has already been reported.
+	/// Returns true if the offenders at the given time slot has already been
+	/// reported.
 	fn is_known_against_valid_offence(
 		offenders: &[T::KeyOwnerIdentification],
 		time_slot: &DisputesTimeSlot,
@@ -480,8 +490,8 @@ pub mod pallet {
 		/// The identification of a key owner, used when reporting slashes.
 		type KeyOwnerIdentification: Parameter;
 
-		/// A system for proving ownership of keys, i.e. that a given key was part
-		/// of a validator set, needed for validating slashing reports.
+		/// A system for proving ownership of keys, i.e. that a given key was
+		/// part of a validator set, needed for validating slashing reports.
 		type KeyOwnerProofSystem: KeyOwnerProofSystem<
 			(KeyTypeId, ValidatorId),
 			Proof = Self::KeyOwnerProof,
@@ -489,11 +499,11 @@ pub mod pallet {
 		>;
 
 		/// The slashing report handling subsystem, defines methods to report an
-		/// offence (after the slashing report has been validated) and for submitting a
-		/// transaction to report a slash (from an offchain context).
-		/// NOTE: when enabling slashing report handling (i.e. this type isn't set to
-		/// `()`) you must use this pallet's `ValidateUnsigned` in the runtime
-		/// definition.
+		/// offence (after the slashing report has been validated) and for
+		/// submitting a transaction to report a slash (from an offchain
+		/// context). NOTE: when enabling slashing report handling (i.e. this
+		/// type isn't set to `()`) you must use this pallet's
+		/// `ValidateUnsigned` in the runtime definition.
 		type HandleReports: HandleReports<Self>;
 
 		/// Weight information for extrinsics in this pallet.
@@ -549,7 +559,8 @@ pub mod pallet {
 		InvalidSessionIndex,
 		/// The candidate hash is invalid.
 		InvalidCandidateHash,
-		/// There is no pending slash for the given validator index and time slot.
+		/// There is no pending slash for the given validator index and time
+		/// slot.
 		InvalidValidatorIndex,
 		/// The validator index does not match the validator id.
 		ValidatorIndexIdMismatch,
@@ -691,7 +702,8 @@ impl<T: Config> Pallet<T> {
 	/// Called by the initializer to finalize the disputes slashing pallet.
 	fn initializer_finalize() {}
 
-	/// Called by the initializer to note a new session in the disputes slashing pallet.
+	/// Called by the initializer to note a new session in the disputes slashing
+	/// pallet.
 	fn initializer_on_new_session(
 		session_index: SessionIndex,
 		validator_set_count: ValidatorSetCount,
@@ -717,9 +729,10 @@ impl<T: Config> Pallet<T> {
 }
 
 /// Methods for the `ValidateUnsigned` implementation:
-/// It restricts calls to `report_dispute_lost_unsigned` to local calls (i.e. extrinsics generated
-/// on this node) or that already in a block. This guarantees that only block authors can include
-/// unsigned slashing reports.
+///
+/// It restricts calls to `report_dispute_lost_unsigned` to local calls (i.e.
+/// extrinsics generated on this node) or that already in a block. This
+/// guarantees that only block authors can include unsigned slashing reports.
 impl<T: Config> Pallet<T> {
 	pub fn validate_unsigned(source: TransactionSource, call: &Call<T>) -> TransactionValidity {
 		if let Call::report_dispute_lost_unsigned { dispute_proof, key_owner_proof } = call {
@@ -804,8 +817,7 @@ fn is_known_offence<T: Config>(
 /// Actual `HandleReports` implemention.
 ///
 /// When configured properly, should be instantiated with
-/// `T::KeyOwnerIdentification, Offences, ReportLongevity`
-/// parameters.
+/// `T::KeyOwnerIdentification, Offences, ReportLongevity` parameters.
 pub struct SlashingReportHandler<I, R, L> {
 	_phantom: sp_std::marker::PhantomData<(I, R, L)>,
 }
