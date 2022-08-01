@@ -417,13 +417,17 @@ pub mod pallet {
 			// by the destinations being most sent to.
 			let mut q = VersionDiscoveryQueue::<T>::take().into_inner();
 			// TODO: correct weights.
-			weight_used += T::DbWeight::get().read + T::DbWeight::get().write;
+			weight_used.saturating_accrue(
+				T::DbWeight::get().read.saturating_add(T::DbWeight::get().write),
+			);
 			q.sort_by_key(|i| i.1);
 			while let Some((versioned_dest, _)) = q.pop() {
 				if let Ok(dest) = MultiLocation::try_from(versioned_dest) {
 					if Self::request_version_notify(dest).is_ok() {
 						// TODO: correct weights.
-						weight_used += T::DbWeight::get().read + T::DbWeight::get().write;
+						weight_used.saturating_accrue(
+							T::DbWeight::get().read.saturating_add(T::DbWeight::get().write),
+						);
 						break
 					}
 				}
@@ -490,7 +494,7 @@ pub mod pallet {
 						WithdrawAsset(assets),
 						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000.saturating_add(w))
 				},
 				_ => Weight::max_value(),
 			}
@@ -528,7 +532,7 @@ pub mod pallet {
 					let mut message = Xcm(vec![
 						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000.saturating_add(w))
 				},
 				_ => Weight::max_value(),
 			}
@@ -690,7 +694,7 @@ pub mod pallet {
 					let mut message = Xcm(vec![
 						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000.saturating_add(w))
 				},
 				_ => Weight::max_value(),
 			}
@@ -740,7 +744,7 @@ pub mod pallet {
 						WithdrawAsset(assets),
 						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000.saturating_add(w))
 				},
 				_ => Weight::max_value(),
 			}
