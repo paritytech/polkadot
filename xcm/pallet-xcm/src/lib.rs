@@ -417,17 +417,13 @@ pub mod pallet {
 			// by the destinations being most sent to.
 			let mut q = VersionDiscoveryQueue::<T>::take().into_inner();
 			// TODO: correct weights.
-			weight_used.saturating_accrue(
-				T::DbWeight::get().read.saturating_add(T::DbWeight::get().write),
-			);
+			weight_used.saturating_accrue(T::DbWeight::get().reads_writes(1, 1));
 			q.sort_by_key(|i| i.1);
 			while let Some((versioned_dest, _)) = q.pop() {
 				if let Ok(dest) = MultiLocation::try_from(versioned_dest) {
 					if Self::request_version_notify(dest).is_ok() {
 						// TODO: correct weights.
-						weight_used.saturating_accrue(
-							T::DbWeight::get().read.saturating_add(T::DbWeight::get().write),
-						);
+						weight_used.saturating_accrue(T::DbWeight::get().reads_writes(1, 1));
 						break
 					}
 				}
@@ -893,17 +889,13 @@ pub mod pallet {
 			let mut weight_used = 0;
 
 			// TODO: Correct weights for the components of this:
-			let todo_sv_migrate_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write;
-			let todo_vn_migrate_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write;
+			let todo_sv_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
+			let todo_vn_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
 			let todo_vnt_already_notified_weight: Weight = T::DbWeight::get().read;
-			let todo_vnt_notify_weight: Weight =
-				T::DbWeight::get().read + T::DbWeight::get().write * 3;
-			let todo_vnt_migrate_weight: Weight =
-				T::DbWeight::get().read + T::DbWeight::get().write;
-			let todo_vnt_migrate_fail_weight: Weight =
-				T::DbWeight::get().read + T::DbWeight::get().write;
-			let todo_vnt_notify_migrate_weight: Weight =
-				T::DbWeight::get().read + T::DbWeight::get().write * 3;
+			let todo_vnt_notify_weight: Weight = T::DbWeight::get().reads_writes(1, 3);
+			let todo_vnt_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
+			let todo_vnt_migrate_fail_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
+			let todo_vnt_notify_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 3);
 
 			use VersionMigrationStage::*;
 
