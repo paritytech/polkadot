@@ -62,7 +62,7 @@ impl Into<u64> for WrappingIndex {
 }
 
 /// Unique identifier of an inbound downward message.
-#[derive(Encode, Decode, Clone, Copy, sp_runtime::RuntimeDebug, PartialEq, TypeInfo)]
+#[derive(Encode, Decode, Clone, Default, Copy, sp_runtime::RuntimeDebug, PartialEq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageIdx {
 	/// The recepient parachain.
@@ -152,6 +152,7 @@ impl RingBuffer {
 	}
 
 	/// Allocates a new page and returns the page index.
+	/// Panics if there are no free pages.
 	pub fn extend(&mut self) -> QueuePageIdx {
 		// In practice this is always bounded economically - sending one requires a fee.
 		if self.state.tail_page_idx.wrapping_inc() == self.state.head_page_idx {
@@ -229,6 +230,7 @@ impl MessageWindow {
 	}
 
 	/// Extend the message index window by `count`. Returns the latest used message index.
+	/// Panics if extending over capacity, similarly to `RingBuffer`.
 	pub fn extend(&mut self, count: u64) -> MessageIdx {
 		self.state.free_message_idx = self.state.free_message_idx.wrapping_add(count.into());
 		MessageIdx {
@@ -263,7 +265,7 @@ impl MessageWindow {
 		}
 	}
 
-	/// Returns the first message index, `None` if window is empty.
+	/// Returns the first free message index.
 	pub fn first_free(&self) -> MessageIdx {
 		MessageIdx { para_id: self.para_id, message_idx: self.state.free_message_idx }
 	}

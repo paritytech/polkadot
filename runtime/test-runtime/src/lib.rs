@@ -28,8 +28,7 @@ use polkadot_runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
-	paras_inherent as parachains_paras_inherent,
-	runtime_api_impl::{v2 as runtime_impl, v3 as runtime_impl_v3},
+	paras_inherent as parachains_paras_inherent, runtime_api_impl::v2 as runtime_impl,
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared, ump as parachains_ump,
 };
@@ -876,8 +875,8 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::dmq_contents::<Runtime>(recipient)
 		}
 
-		fn dmq_contents_bounded(recipient: ParaId, start: u32, count: u32) -> Vec<InboundDownwardMessage<BlockNumber>> {
-			runtime_impl_v3::dmq_contents_bounded::<Runtime>(recipient, start, count)
+		fn dmq_contents_bounded(recipient: ParaId, start_page: u32, count: u32) -> Vec<InboundDownwardMessage<BlockNumber>> {
+			runtime_impl::dmq_contents_bounded::<Runtime>(recipient, start_page, count)
 		}
 
 		fn inbound_hrmp_channels_contents(

@@ -399,3 +399,12 @@ where
 		<paras::Pallet<T>>::current_code_hash(&para_id)
 	})
 }
+
+/// Implementation for the `dmq_contents_bounded` function of the runtime API.
+pub fn dmq_contents_bounded<T: dmp::Config>(
+	parachain_id: ParaId,
+	start_page: u32,
+	count: u32,
+) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
+	<dmp::Pallet<T>>::dmq_contents_bounded(parachain_id, start_page, count)
+}

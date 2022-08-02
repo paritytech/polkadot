@@ -280,7 +280,11 @@ macro_rules! decl_test_network {
 							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Dmp);
 							// NOTE: RelayChainBlockNumber is hard-coded to 1
 							let messages = vec![(1, encoded)];
-							let mut context = $crate::DmpMessageHandlerContext::new($crate::Weight::max_value(), Default::default(), $crate::MessageQueueChain::default());
+							let mut context = $crate::DmpMessageHandlerContext {
+								max_weight: $crate::Weight::max_value(),
+								next_message_index: Default::default(),
+								mqc_head: $crate::MessageQueueChain::default()
+							};
 							let _weight = <$parachain>::handle_dmp_messages(
 									messages.into_iter(), &mut context,
 							);

@@ -304,20 +304,10 @@ pub type UpwardMessage = Vec<u8>;
 pub struct DmpMessageHandlerContext {
 	/// The weight limit for processing the messages.
 	pub max_weight: Weight,
-	/// The current message index. Incremented on each message processed.
-	pub message_index: Wrapping<u64>,
-	/// The current head of the MQC. Updated on each processed message.
+	/// The index of the next message to be processed.
+	pub next_message_index: Wrapping<u64>,
+	/// The current head of the MQC.
 	pub mqc_head: MessageQueueChain,
-}
-
-impl DmpMessageHandlerContext {
-	pub fn new(
-		max_weight: Weight,
-		message_index: Wrapping<u64>,
-		mqc_head: MessageQueueChain,
-	) -> DmpMessageHandlerContext {
-		DmpMessageHandlerContext { max_weight, message_index, mqc_head }
-	}
 }
 
 /// Something that should be called when a downward message is received.

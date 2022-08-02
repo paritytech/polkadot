@@ -59,10 +59,10 @@ fn queue_downward_message(
 
 fn dmq_contents_bounded(
 	para_id: ParaId,
-	start: u32,
+	start_page: u32,
 	count: u32,
 ) -> Vec<InboundDownwardMessage<BlockNumber>> {
-	Dmp::dmq_contents_bounded(para_id, start, count)
+	Dmp::dmq_contents_bounded(para_id, start_page, count)
 }
 
 #[test]
@@ -424,10 +424,8 @@ fn verify_dmq_message_idx_is_externally_accessible() {
 
 		queue_downward_message(a, vec![1, 2, 3]).unwrap();
 
-		let state = QueueState::decode(
-			&mut sp_io::storage::get(&well_known_keys::dmp_queue_state(a)).unwrap().as_slice(),
-		)
-		.unwrap();
+		let mut input = &sp_io::storage::get(&well_known_keys::dmp_queue_state(a)).unwrap()[..];
+		let state = QueueState::decode(&mut input).unwrap();
 
 		let window = MessageWindow::with_state(state.message_window_state, a);
 		assert_eq!(window.size(), 1);
@@ -436,7 +434,7 @@ fn verify_dmq_message_idx_is_externally_accessible() {
 
 		// There should be 2 elements in queue.
 		let state = QueueState::decode(
-			&mut sp_io::storage::get(&well_known_keys::dmp_queue_state(a)).unwrap().as_slice(),
+			&mut &sp_io::storage::get(&well_known_keys::dmp_queue_state(a)).unwrap()[..],
 		)
 		.unwrap();
 		let window = MessageWindow::with_state(state.message_window_state, a);
@@ -447,7 +445,7 @@ fn verify_dmq_message_idx_is_externally_accessible() {
 
 		// Queue should look empty by the message indexes.
 		let state = QueueState::decode(
-			&mut sp_io::storage::get(&well_known_keys::dmp_queue_state(a)).unwrap().as_slice(),
+			&mut &sp_io::storage::get(&well_known_keys::dmp_queue_state(a)).unwrap()[..],
 		)
 		.unwrap();
 		let window = MessageWindow::with_state(state.message_window_state, a);
@@ -485,13 +483,21 @@ fn verify_dmq_mqc_head_is_externally_accessible() {
 		let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head_for_message(a, 1));
 		assert_eq!(
 			head,
-			Some(hex!["3ac90e9a99935b82ee02438a852e6baa8ede95e3b5b7b9a486adf2a2c12405b3"].to_vec())
+			Some(
+				hex!["3ac90e9a99935b82ee02438a852e6baa8ede95e3b5b7b9a486adf2a2c12405b3"]
+					.to_vec()
+					.into()
+			)
 		);
 
 		let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head(a));
 		assert_eq!(
 			head,
-			Some(hex!["3ac90e9a99935b82ee02438a852e6baa8ede95e3b5b7b9a486adf2a2c12405b3"].to_vec())
+			Some(
+				hex!["3ac90e9a99935b82ee02438a852e6baa8ede95e3b5b7b9a486adf2a2c12405b3"]
+					.to_vec()
+					.into()
+			)
 		);
 	});
 }

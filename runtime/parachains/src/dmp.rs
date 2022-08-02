@@ -66,8 +66,8 @@ pub use ringbuf::*;
 /// Invariants - see `RingBufferState` and `MessageWindowState`.
 #[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub struct QueueState {
-	ring_buffer_state: RingBufferState,
-	message_window_state: MessageWindowState,
+	pub ring_buffer_state: RingBufferState,
+	pub message_window_state: MessageWindowState,
 }
 
 /// An error sending a downward message.
@@ -434,6 +434,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Deprecated API. Please use `dmq_contents_bounded`.
+	/// Returns up to `MAX_PAGES_PER_QUERY`*`QUEUE_PAGE_CAPACITY` messages from the queue.
 	pub(crate) fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
 		Self::dmq_contents_bounded(recipient, 0, MAX_PAGES_PER_QUERY)
 	}
@@ -452,14 +453,14 @@ impl<T: Config> Pallet<T> {
 	/// is guaranteed to return at least 1 message and up to `count`*`QUEUE_PAGE_CAPACITY` messages.
 	pub(crate) fn dmq_contents_bounded(
 		recipient: ParaId,
-		start: u32,
+		start_page: u32,
 		count: u32,
 	) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
 		let state = Self::dmp_queue_state(recipient);
 		let mut ring_buf = RingBuffer::with_state(state.ring_buffer_state, recipient);
 
 		// Skip first `start` pages.
-		ring_buf.prune(start);
+		ring_buf.prune(start_page);
 
 		let mut result = Vec::new();
 		let mut pages_fetched = 0;

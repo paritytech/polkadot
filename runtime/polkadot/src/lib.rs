@@ -1515,10 +1515,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(
-		pallet_staking::migrations::v10::MigrateToV10<Runtime>,
-		DmpStorageMigration,
-	)
+	(pallet_staking::migrations::v10::MigrateToV10<Runtime>, DmpStorageMigration),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1719,8 +1716,8 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::dmq_contents::<Runtime>(recipient)
 		}
 
-		fn dmq_contents_bounded(recipient: ParaId, start: u32, count: u32) -> Vec<InboundDownwardMessage<BlockNumber>> {
-			runtime_parachains::runtime_api_impl::v3::dmq_contents_bounded::<Runtime>(recipient, start, count)
+		fn dmq_contents_bounded(recipient: ParaId, start_page: u32, count: u32) -> Vec<InboundDownwardMessage<BlockNumber>> {
+			parachains_runtime_api_impl::dmq_contents_bounded::<Runtime>(recipient, start_page, count)
 		}
 
 		fn inbound_hrmp_channels_contents(

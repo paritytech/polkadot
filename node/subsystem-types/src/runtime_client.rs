@@ -203,6 +203,28 @@ pub trait RuntimeApiSubsystemClient {
 		&self,
 		at: Hash,
 	) -> std::result::Result<Vec<sp_authority_discovery::AuthorityId>, ApiError>;
+
+	/***** Added in staging/v3 *****/
+
+	/// Get a subset of inbound messages from the downward message queue of a parachain.
+	///
+	/// Returns a `vec` containing the messages from the first `count` pages, starting from a `0` based
+	/// page index specified by `start_page` with `0` being the first used page of the queue. A page
+	/// can hold up to `QUEUE_PAGE_CAPACITY` messages. (please see the runtime `dmp` implementation).
+	///
+	/// Only the outer pages of the queue can have less than maximum messages because insertion and
+	/// pruning work with individual messages.
+	///
+	/// The result will be an empty vector if `count` is 0, the para doesn't exist, it's queue is empty
+	/// or `start` is greater than the last used page in the queue. If the queue is not empty, the method
+	/// is guaranteed to return at least 1 message and up to `count`*`QUEUE_PAGE_CAPACITY` messages.
+	async fn dmq_contents_bounded(
+		&self,
+		at: Hash,
+		recipient: Id,
+		start_page: u32,
+		count: u32,
+	) -> Result<Vec<InboundDownwardMessage<BlockNumber>>, ApiError>;
 }
 
 #[async_trait]
@@ -294,6 +316,17 @@ where
 		recipient: Id,
 	) -> Result<Vec<InboundDownwardMessage<BlockNumber>>, ApiError> {
 		self.runtime_api().dmq_contents(&BlockId::Hash(at), recipient)
+	}
+
+	async fn dmq_contents_bounded(
+		&self,
+		at: Hash,
+		recipient: Id,
+		start_page: u32,
+		count: u32,
+	) -> Result<Vec<InboundDownwardMessage<BlockNumber>>, ApiError> {
+		self.runtime_api()
+			.dmq_contents_bounded(&BlockId::Hash(at), recipient, start_page, count)
 	}
 
 	async fn inbound_hrmp_channels_contents(
