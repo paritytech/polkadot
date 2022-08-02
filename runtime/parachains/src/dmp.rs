@@ -136,14 +136,15 @@ pub mod pallet {
 
 	/// A mapping between parachains and their message queue state.
 	///
-	/// Invariants:
-	/// - Downward message count equals message window size.
 	#[pallet::storage]
 	#[pallet::getter(fn dmp_queue_state)]
 	pub(super) type DownwardMessageQueueState<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, QueueState, ValueQuery>;
 
 	/// A mapping between the queue pages of a parachain and the messages stored in it.
+	///
+	/// Invariants:
+	/// - Downward message count equals message window size.
 	#[pallet::storage]
 	pub(crate) type DownwardMessageQueuePages<T: Config> = StorageMap<
 		_,
@@ -167,7 +168,7 @@ pub mod pallet {
 	/// A mapping between a message and the corresponding MQC head hash.
 	///
 	/// Invariants:
-	/// - the storage value is valid for any valid `MessageIdx` in the current message window
+	/// - the storage value is valid for any `MessageIdx` in the current message window
 	#[pallet::storage]
 	pub(crate) type DownwardMessageQueueHeadsById<T: Config> =
 		StorageMap<_, Twox64Concat, MessageIdx, Hash, ValueQuery>;
