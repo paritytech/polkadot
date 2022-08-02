@@ -34,7 +34,7 @@
 //! When a parachain consumes messages, they'll need a way to ensure the messages, or their ordering
 //! were not altered in any way. A message queue chain(MQC) solves this as long as the last processed
 //! head hash is available to the parachain. After sequentially hashing a subset of messages from
-//! the message queue (tipically up to a certain weight), the parachain should arrive at the same MQC
+//! the message queue (typically up to a certain weight), the parachain should arrive at the same MQC
 //! head as the one provided by the relay chain.
 //! This is implemented as a mapping between the message index and the MQC head for any given para.
 //! That being said, parachains runtimes should also track the message indexes to access the MQC storage
@@ -143,7 +143,7 @@ pub mod pallet {
 	/// A mapping between the queue pages of a parachain and the messages stored in it.
 	///
 	/// Invariants:
-	/// - the vec is non-empty for any `QueuePageIdx`  in [head_page_idx, tail_page_idx).
+	/// - the vec is non-empty for any `QueuePageIdx`  in [`head_page_idx`, tail_page_idx).
 	#[pallet::storage]
 	pub(crate) type DownwardMessageQueuePages<T: Config> = StorageMap<
 		_,

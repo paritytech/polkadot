@@ -65,7 +65,7 @@ impl Into<u64> for WrappingIndex {
 #[derive(Encode, Decode, Clone, Default, Copy, sp_runtime::RuntimeDebug, PartialEq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MessageIdx {
-	/// The recepient parachain.
+	/// The recipient parachain.
 	pub para_id: ParaId,
 	/// A message index in the recipient parachain queue.
 	pub message_idx: WrappingIndex,
