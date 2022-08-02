@@ -1398,7 +1398,6 @@ parameter_types! {
 
 impl pallet_nomination_pools::Config for Runtime {
 	type Event = Event;
-	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;
 	type RewardCounter = FixedU128;
@@ -1411,6 +1410,7 @@ impl pallet_nomination_pools::Config for Runtime {
 	type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
 	type PalletId = PoolsPalletId;
 	type MaxPointsToBalance = MaxPointsToBalance;
+	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
 }
 
 pub struct InitiatePoolConfigs;

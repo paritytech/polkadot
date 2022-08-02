@@ -21,10 +21,10 @@
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("kusama-dev"), DB CACHE: 1024
 
 // Executed Command:
-// ./target/production/polkadot
+// target/production/polkadot
 // benchmark
 // pallet
-// --chain=kusama-dev
+// --chain=polkadot-dev
 // --steps=50
 // --repeat=20
 // --pallet=pallet_nomination_pools
@@ -32,7 +32,7 @@
 // --execution=wasm
 // --wasm-execution=compiled
 // --header=./file_header.txt
-// --output=./runtime/kusama/src/weights/pallet_nomination_pools.rs
+// --output=./runtime/polkadot/src/weights/
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]
