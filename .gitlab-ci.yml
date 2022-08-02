@@ -98,6 +98,7 @@ default:
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
+    - if: $CI_COMMIT_REF_NAME =~ /^release-v[0-9]+\.[0-9]+.*$/      # i.e. release-v0.9.27
 
 .test-pr-refs:                     &test-pr-refs
   rules:
