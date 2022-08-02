@@ -302,10 +302,9 @@ pub mod well_known_keys {
 		})
 	}
 
-	/// Get the state of the downward message passing queue of a parachain.
-	/// Storage item: `Dmp::DownwardMessageQueueState`.
-	///
-	/// Returns a scale encoded `QueueState`.
+	/// Tthe state of the downward message passing queue of a parachain.
+	/// Storage entry: `Dmp::DownwardMessageQueueState`.
+	/// Value: `QueueState`
 	pub fn dmp_queue_state(para_id: Id) -> Vec<u8> {
 		let prefix = hex!["63f78c98723ddc9073523ef3beefda0c61f093ef11ca2e53cbacd774c008a141"];
 		para_id.using_encoded(|para_id: &[u8]| {
@@ -320,8 +319,8 @@ pub mod well_known_keys {
 	}
 
 	/// The MQC head for the downward message queue of the given para for a specific message.
-	///
-	/// Returns the MQC head `Hash` stored in `Dmp::DownwardMessageQueueHeadsById`
+	/// Storage entry: `Dmp::DownwardMessageQueueHeadsById`
+	/// Value: `Hash`
 	pub fn dmq_mqc_head_for_message(para_id: Id, message_index: u64) -> Vec<u8> {
 		let prefix = hex!["63f78c98723ddc9073523ef3beefda0cd85820c922d6bcadc203149b7d4631a2"];
 		(para_id, message_index).using_encoded(|id: &[u8]| {
