@@ -1,5 +1,3 @@
-bridges/ @tomusdrw @svyatonik @acatangiu
-
 # CI
 /.github/ @paritytech/ci @chevdor
 /scripts/ci/ @paritytech/ci @chevdor
