@@ -326,6 +326,7 @@ impl<T: Config> Pallet<T> {
 	/// of the messages starting at index `start` for a given parachain.
 	///
 	/// Caller must ensure the indexes return are valid in the context of the `MessageWindow`.
+	#[cfg(test)]
 	fn mqc_head_key_range(para: ParaId, start: WrappingIndex, count: u64) -> Vec<MessageIdx> {
 		let mut keys = Vec::new();
 		let mut idx = start;
@@ -339,6 +340,12 @@ impl<T: Config> Pallet<T> {
 
 	/// Prunes the specified number of messages from the downward message queue of the given para.
 	pub(crate) fn prune_dmq(para: ParaId, processed_downward_messages: u32) -> Weight {
+		if processed_downward_messages == 0 {
+			// This should never happen in practice, because of the advancement rule - parachains must
+			// process one message at least per para block.
+			return 0
+		}
+
 		let QueueState { ring_buffer_state, message_window_state } = Self::dmp_queue_state(para);
 		let mut ring_buf = RingBuffer::with_state(ring_buffer_state, para);
 		let mut message_window = MessageWindow::with_state(message_window_state, para);
@@ -347,7 +354,8 @@ impl<T: Config> Pallet<T> {
 		let mut total_weight = T::DbWeight::get().reads_writes(1, 0);
 
 		let mut queue_pages_to_remove = Vec::new();
-		let mut mqc_keys_to_remove = Vec::new();
+		let first_mqc_key_to_remove = message_window.first().unwrap().message_idx;
+		let mut pruned_message_count = 0;
 
 		while messages_to_prune > 0 {
 			if let Some(first_used_page) = ring_buf.front() {
@@ -357,28 +365,18 @@ impl<T: Config> Pallet<T> {
 					if messages_to_prune >= messages_in_page {
 						messages_to_prune = messages_to_prune.saturating_sub(messages_in_page);
 
-						// Generate MQC head key for the messages in this page
-						mqc_keys_to_remove.extend(Self::mqc_head_key_range(
-							para,
-							// Guaranteed to not panic, see invariants.
-							message_window.first().unwrap().message_idx,
-							messages_in_page,
-						));
-
 						message_window.prune(messages_in_page);
 						// Queue this page for deletion from storage.
 						queue_pages_to_remove.push(first_used_page);
 						// Free the ring buffer page.
 						ring_buf.pop_front();
-					} else {
-						mqc_keys_to_remove.extend(Self::mqc_head_key_range(
-							para,
-							message_window.first().unwrap().message_idx,
-							messages_to_prune,
-						));
 
+						pruned_message_count += messages_in_page;
+					} else {
 						message_window.prune(messages_to_prune);
 						*q = q.split_off(messages_to_prune as usize);
+
+						pruned_message_count += messages_to_prune;
 
 						// Break loop.
 						messages_to_prune = 0;
@@ -394,15 +392,20 @@ impl<T: Config> Pallet<T> {
 		}
 
 		total_weight += T::DbWeight::get()
-			.reads_writes(0, (queue_pages_to_remove.len() + mqc_keys_to_remove.len()) as u64);
+			.reads_writes(0, queue_pages_to_remove.len() as u64 + pruned_message_count);
 
 		// Actually do cleanup.
 		for key in queue_pages_to_remove {
 			<Self as Store>::DownwardMessageQueuePages::remove(key);
 		}
 
-		for key in mqc_keys_to_remove {
-			<Self as Store>::DownwardMessageQueueHeadsById::remove(key);
+		let mut message_idx = first_mqc_key_to_remove;
+		while message_idx != first_mqc_key_to_remove.wrapping_add(pruned_message_count.into()) {
+			<Self as Store>::DownwardMessageQueueHeadsById::remove(MessageIdx {
+				para_id: para,
+				message_idx,
+			});
+			message_idx = message_idx.wrapping_inc();
 		}
 
 		let ring_buffer_state = ring_buf.into_inner();
@@ -462,7 +465,7 @@ impl<T: Config> Pallet<T> {
 		// Skip first `start` pages.
 		ring_buf.prune(start_page);
 
-		let mut result = Vec::with_capacity(count * QUEUE_PAGE_CAPACITY as usize);
+		let mut result = Vec::with_capacity((count * QUEUE_PAGE_CAPACITY) as usize);
 		let mut pages_fetched = 0;
 
 		for page_idx in ring_buf {
