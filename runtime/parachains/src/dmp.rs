@@ -135,15 +135,15 @@ pub mod pallet {
 	pub trait Config: frame_system::Config + configuration::Config {}
 
 	/// A mapping between parachains and their message queue state.
+	///
+	/// Invariants:
+	/// - Downward message count equals message window size.
 	#[pallet::storage]
 	#[pallet::getter(fn dmp_queue_state)]
 	pub(super) type DownwardMessageQueueState<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, QueueState, ValueQuery>;
 
 	/// A mapping between the queue pages of a parachain and the messages stored in it.
-	///
-	/// Invariants:
-	/// - the vec is non-empty for any `QueuePageIdx`  in [`head_page_idx`, tail_page_idx).
 	#[pallet::storage]
 	pub(crate) type DownwardMessageQueuePages<T: Config> = StorageMap<
 		_,
@@ -167,8 +167,7 @@ pub mod pallet {
 	/// A mapping between a message and the corresponding MQC head hash.
 	///
 	/// Invariants:
-	/// - the storage value is valid for any valid `MessageIdx`. Valid index means
-	/// that the specified it is in `[first_message_idx, last_message_idx]`
+	/// - the storage value is valid for any valid `MessageIdx` in the current message window
 	#[pallet::storage]
 	pub(crate) type DownwardMessageQueueHeadsById<T: Config> =
 		StorageMap<_, Twox64Concat, MessageIdx, Hash, ValueQuery>;
@@ -288,12 +287,13 @@ impl<T: Config> Pallet<T> {
 			});
 		});
 
-		weight = weight.saturating_add(T::DbWeight::get().reads_writes(2, 2));
-
 		// Insert message in the tail queue page.
 		<Self as Store>::DownwardMessageQueuePages::mutate(page_idx, |v| {
 			v.push(inbound);
 		});
+
+		// For the above mutate.
+		weight = weight.saturating_add(T::DbWeight::get().reads_writes(3, 3));
 
 		let ring_buffer_state = ring_buf.into_inner();
 		let message_window_state = message_window.into_inner();
@@ -346,16 +346,13 @@ impl<T: Config> Pallet<T> {
 		let mut messages_to_prune = processed_downward_messages as u64;
 		let mut total_weight = T::DbWeight::get().reads_writes(1, 0);
 
-		let mut queue_keys_to_remove = Vec::new();
+		let mut queue_pages_to_remove = Vec::new();
 		let mut mqc_keys_to_remove = Vec::new();
 
 		while messages_to_prune > 0 {
 			if let Some(first_used_page) = ring_buf.front() {
 				<Self as Store>::DownwardMessageQueuePages::mutate(first_used_page, |q| {
 					let messages_in_page = q.len() as u64;
-
-					// Add mutate weight. Removal happens later.
-					total_weight += T::DbWeight::get().reads_writes(1, 1);
 
 					if messages_to_prune >= messages_in_page {
 						messages_to_prune = messages_to_prune.saturating_sub(messages_in_page);
@@ -370,7 +367,7 @@ impl<T: Config> Pallet<T> {
 
 						message_window.prune(messages_in_page);
 						// Queue this page for deletion from storage.
-						queue_keys_to_remove.push(first_used_page);
+						queue_pages_to_remove.push(first_used_page);
 						// Free the ring buffer page.
 						ring_buf.pop_front();
 					} else {
@@ -387,6 +384,9 @@ impl<T: Config> Pallet<T> {
 						messages_to_prune = 0;
 					}
 				});
+
+				// Add mutate weight. Removal happens later.
+				total_weight += T::DbWeight::get().reads_writes(1, 1);
 			} else {
 				// Queue is empty.
 				break
@@ -394,10 +394,10 @@ impl<T: Config> Pallet<T> {
 		}
 
 		total_weight += T::DbWeight::get()
-			.reads_writes(0, (queue_keys_to_remove.len() + mqc_keys_to_remove.len()) as u64);
+			.reads_writes(0, (queue_pages_to_remove.len() + mqc_keys_to_remove.len()) as u64);
 
 		// Actually do cleanup.
-		for key in queue_keys_to_remove {
+		for key in queue_pages_to_remove {
 			<Self as Store>::DownwardMessageQueuePages::remove(key);
 		}
 
@@ -433,8 +433,8 @@ impl<T: Config> Pallet<T> {
 		MessageWindow::with_state(state.message_window_state, para).size() as u32
 	}
 
-	/// Deprecated API. Please use `dmq_contents_bounded`.
 	/// Returns up to `MAX_PAGES_PER_QUERY`*`QUEUE_PAGE_CAPACITY` messages from the queue.
+	/// Deprecated API. Please use `dmq_contents_bounded`.
 	pub(crate) fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
 		Self::dmq_contents_bounded(recipient, 0, MAX_PAGES_PER_QUERY)
 	}
@@ -462,7 +462,7 @@ impl<T: Config> Pallet<T> {
 		// Skip first `start` pages.
 		ring_buf.prune(start_page);
 
-		let mut result = Vec::new();
+		let mut result = Vec::with_capacity(count * QUEUE_PAGE_CAPACITY as usize);
 		let mut pages_fetched = 0;
 
 		for page_idx in ring_buf {

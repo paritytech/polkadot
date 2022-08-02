@@ -154,7 +154,7 @@ impl RingBuffer {
 	/// Allocates a new page and returns the page index.
 	/// Panics if there are no free pages.
 	pub fn extend(&mut self) -> QueuePageIdx {
-		// In practice this is always bounded economically - sending one requires a fee.
+		// In practice this is always bounded economically - sending a message requires paying fee/deposit.
 		if self.state.tail_page_idx.wrapping_inc() == self.state.head_page_idx {
 			unimplemented!("The end of the world is upon us");
 		}

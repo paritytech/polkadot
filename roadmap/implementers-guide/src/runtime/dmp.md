@@ -7,16 +7,16 @@ A module responsible for Downward Message Processing (DMP). See [Messaging Overv
 Storage layout required for implementation of DMP.
 
 ```rust
-/// The downward messages addressed for a certain para.
-DownwardMessageQueues: map ParaId => Vec<InboundDownwardMessage>;
-/// A mapping that stores the downward message queue MQC head for each para.
+/// Messages are stored in a ring buffer of pages addressed for a certain para.
+DownwardMessageQueuePages: map (ParaId, PageIdx)  => Vec<InboundDownwardMessage>;
+/// A mapping that stores the downward message queue MQC head for each message for a para.
 ///
 /// Each link in this chain has a form:
 /// `(prev_head, B, H(M))`, where
 /// - `prev_head`: is the previous head hash or zero if none.
 /// - `B`: is the relay-chain block number in which a message was appended.
 /// - `H(M)`: is the hash of the message being appended.
-DownwardMessageQueueHeads: map ParaId => Hash;
+DownwardMessageQueueHeadsById: map (ParaId, MessageIdx) => Hash;
 ```
 
 ## Initialization

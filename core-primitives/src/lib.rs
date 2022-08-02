@@ -185,7 +185,7 @@ impl MessageQueueChain {
 		MessageQueueChain(hash)
 	}
 
-	/// Return the current mead of the message queue hash chain.
+	/// Return the current head of the message queue hash chain.
 	/// This is agreed to be the zero hash for an empty chain.
 	pub fn head(&self) -> Hash {
 		self.0

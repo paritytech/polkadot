@@ -105,7 +105,8 @@ sp_api::decl_runtime_apis! {
 		/// Get a vector of events concerning candidates that occurred within a block.
 		fn candidate_events() -> Vec<v2::CandidateEvent<H>>;
 
-		/// Get all inbound messages from the downward message queue of a parachain.
+		/// Returns up to `MAX_PAGES_PER_QUERY`*`QUEUE_PAGE_CAPACITY` messages from the queue. See `dmp` pallet.
+		/// Deprecated API. Please use `dmq_contents_bounded`.
 		fn dmq_contents(
 			recipient: ppp::Id,
 		) -> Vec<pcp::v2::InboundDownwardMessage<N>>;

@@ -113,7 +113,8 @@ pub trait RuntimeApiSubsystemClient {
 	/// Get a vector of events concerning candidates that occurred within a block.
 	async fn candidate_events(&self, at: Hash) -> Result<Vec<CandidateEvent<Hash>>, ApiError>;
 
-	/// Get all the pending inbound messages in the downward message queue for a para.
+	/// Returns up to `MAX_PAGES_PER_QUERY`*`QUEUE_PAGE_CAPACITY` messages from the queue. See `dmp` pallet.
+	/// Deprecated API. Please use `dmq_contents_bounded`.
 	async fn dmq_contents(
 		&self,
 		at: Hash,
