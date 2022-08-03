@@ -926,16 +926,19 @@ short-benchmark-polkadot:          &short-bench
     RUNTIME:                       polkadot
   script:
     - ./artifacts/polkadot benchmark pallet --execution wasm --wasm-execution compiled --chain $RUNTIME-dev --pallet "*" --extrinsic "*" --steps 1 --repeat 1
+  allow_failure:                   true
 
 short-benchmark-kusama:
   <<:                              *short-bench
   variables:
     RUNTIME:                       kusama
+  allow_failure:                   true
 
 short-benchmark-westend:
   <<:                              *short-bench
   variables:
     RUNTIME:                       westend
+  allow_failure:                   true
 
 #### stage:                        .post
 
