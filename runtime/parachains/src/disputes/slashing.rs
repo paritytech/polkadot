@@ -320,7 +320,7 @@ pub trait HandleReports<T: Config> {
 
 	/// Report a `for valid` offence.
 	fn report_offence(
-		reporter: Option<AccountId<T>>,
+		reporter: Option<T::AccountId>,
 		offence: SlashingOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError>;
 
@@ -332,7 +332,7 @@ pub trait HandleReports<T: Config> {
 	) -> bool;
 
 	/// Fetch the current block author id, if defined.
-	fn block_author() -> Option<AccountId<T>>;
+	fn block_author() -> Option<T::AccountId>;
 
 	/// Create and dispatch a slashing report extrinsic.
 	/// This should be called offchain.
@@ -346,7 +346,7 @@ impl<T: Config> HandleReports<T> for () {
 	type ReportLongevity = ();
 
 	fn report_offence(
-		_reporter: Option<AccountId<T>>,
+		_reporter: Option<T::AccountId>,
 		_offence: SlashingOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError> {
 		Ok(())
@@ -366,7 +366,7 @@ impl<T: Config> HandleReports<T> for () {
 		Ok(())
 	}
 
-	fn block_author() -> Option<AccountId<T>> {
+	fn block_author() -> Option<T::AccountId> {
 		None
 	}
 }
@@ -659,7 +659,7 @@ impl<T, R, L> HandleReports<T> for SlashingReportHandler<T::KeyOwnerIdentificati
 where
 	T: Config + frame_system::offchain::SendTransactionTypes<Call<T>> + pallet_authorship::Config,
 	R: ReportOffence<
-		AccountId<T>,
+		T::AccountId,
 		T::KeyOwnerIdentification,
 		SlashingOffence<T::KeyOwnerIdentification>,
 	>,
@@ -668,7 +668,7 @@ where
 	type ReportLongevity = L;
 
 	fn report_offence(
-		reporter: Option<AccountId<T>>,
+		reporter: Option<T::AccountId>,
 		offence: SlashingOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError> {
 		let reporters = reporter.into_iter().collect();
@@ -680,7 +680,7 @@ where
 		time_slot: &DisputesTimeSlot,
 	) -> bool {
 		<R as ReportOffence<
-			AccountId<T>,
+			T::AccountId,
 			T::KeyOwnerIdentification,
 			SlashingOffence<T::KeyOwnerIdentification>,
 		>>::is_known_offence(offenders, time_slot)
@@ -721,9 +721,7 @@ where
 		Ok(())
 	}
 
-	fn block_author() -> Option<AccountId<T>> {
-		// TODO
-		// <pallet_authorship::Pallet<T>>::author()
-		None
+	fn block_author() -> Option<T::AccountId> {
+		<pallet_authorship::Pallet<T>>::author()
 	}
 }

@@ -102,10 +102,7 @@ where
 	(session_index, key_owner_proof, validator_id)
 }
 
-fn setup_dispute<T>(
-	session_index: SessionIndex,
-	validator_id: ValidatorId,
-) -> DisputeProof
+fn setup_dispute<T>(session_index: SessionIndex, validator_id: ValidatorId) -> DisputeProof
 where
 	T: Config,
 {
