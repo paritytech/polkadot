@@ -105,7 +105,6 @@ where
 fn setup_dispute<T>(
 	session_index: SessionIndex,
 	validator_id: ValidatorId,
-	n_validators: u32,
 ) -> DisputeProof
 where
 	T: Config,
@@ -147,7 +146,7 @@ benchmarks! {
 
 		let origin = RawOrigin::None.into();
 		let (session_index, key_owner_proof, validator_id) = setup_validator_set::<T>(n);
-		let dispute_proof = setup_dispute::<T>(session_index, validator_id, n);
+		let dispute_proof = setup_dispute::<T>(session_index, validator_id);
 	}: {
 		let result = Pallet::<T>::report_dispute_lost_unsigned(
 			origin,
