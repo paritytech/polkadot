@@ -16,11 +16,7 @@
 
 //! Runtime component for handling disputes of parachain candidates.
 
-use crate::{
-	configuration,
-	initializer::SessionChangeNotification,
-	session_info,
-};
+use crate::{configuration, initializer::SessionChangeNotification, session_info};
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use frame_support::{ensure, traits::Get, weights::Weight};
 use frame_system::pallet_prelude::*;
@@ -1244,11 +1240,7 @@ impl<T: Config> Pallet<T> {
 			);
 
 			// an invalid candidate, according to 2/3. Punish those on the 'for' side.
-			T::SlashingHandler::punish_for_invalid(
-				session,
-				candidate_hash,
-				summary.slash_for,
-			);
+			T::SlashingHandler::punish_for_invalid(session, candidate_hash, summary.slash_for);
 		}
 
 		<Disputes<T>>::insert(&session, &candidate_hash, &summary.state);

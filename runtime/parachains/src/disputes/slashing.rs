@@ -98,7 +98,6 @@ pub struct SlashingOffence<KeyOwnerIdentification> {
 	pub slash_fraction: Perbill,
 	/// Whether the candidate was valid or invalid.
 	pub kind: SlashingOffenceKind,
-
 }
 
 impl<Offender> Offence<Offender> for SlashingOffence<Offender>
@@ -238,10 +237,7 @@ where
 			.into_iter()
 			.filter_map(|i| session_info.validators.get(i.0 as usize).cloned().map(|id| (i, id)))
 			.collect();
-		let unapplied = PendingSlashes {
-			keys,
-			kind,
-		};
+		let unapplied = PendingSlashes { keys, kind };
 		<UnappliedSlashes<T>>::insert(session_index, candidate_hash, unapplied);
 	}
 }
@@ -429,8 +425,14 @@ pub mod pallet {
 
 	/// Validators pending dispute slashes.
 	#[pallet::storage]
-	pub(super) type UnappliedSlashes<T> =
-		StorageDoubleMap<_, Twox64Concat, SessionIndex, Blake2_128Concat, CandidateHash, PendingSlashes>;
+	pub(super) type UnappliedSlashes<T> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		SessionIndex,
+		Blake2_128Concat,
+		CandidateHash,
+		PendingSlashes,
+	>;
 
 	/// `ValidatorSetCount` per session.
 	#[pallet::storage]
@@ -475,7 +477,8 @@ pub mod pallet {
 			let session_index = dispute_proof.time_slot.session_index;
 			let validator_set_count = crate::session_info::Pallet::<T>::session_info(session_index)
 				.ok_or(Error::<T>::InvalidSessionIndex)?
-				.discovery_keys.len() as ValidatorSetCount;
+				.discovery_keys
+				.len() as ValidatorSetCount;
 
 			// check that there is a pending slash for the given
 			// validator index and candidate hash
@@ -504,11 +507,7 @@ pub mod pallet {
 				Ok(())
 			};
 
-			<UnappliedSlashes<T>>::try_mutate_exists(
-				&session_index,
-				&candidate_hash,
-				try_remove,
-			)?;
+			<UnappliedSlashes<T>>::try_mutate_exists(&session_index, &candidate_hash, try_remove)?;
 
 			let offence = SlashingOffence::new(
 				session_index,
@@ -519,10 +518,8 @@ pub mod pallet {
 			);
 
 			let block_author = <T::HandleReports as HandleReports<T>>::block_author();
-			<T::HandleReports as HandleReports<T>>::report_offence(
-				block_author, offence,
-			)
-			.map_err(|_| Error::<T>::DuplicateSlashingReport)?;
+			<T::HandleReports as HandleReports<T>>::report_offence(block_author, offence)
+				.map_err(|_| Error::<T>::DuplicateSlashingReport)?;
 
 			Ok(Pays::No.into())
 		}
@@ -660,9 +657,7 @@ impl<I, R, L> Default for SlashingReportHandler<I, R, L> {
 
 impl<T, R, L> HandleReports<T> for SlashingReportHandler<T::KeyOwnerIdentification, R, L>
 where
-	T: Config +
-		frame_system::offchain::SendTransactionTypes<Call<T>> +
-		pallet_authorship::Config,
+	T: Config + frame_system::offchain::SendTransactionTypes<Call<T>> + pallet_authorship::Config,
 	R: ReportOffence<
 		AccountId<T>,
 		T::KeyOwnerIdentification,
