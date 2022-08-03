@@ -18,7 +18,7 @@
 
 use crate::{
 	configuration,
-	initializer::{SessionChangeNotification, ValidatorSetCount},
+	initializer::SessionChangeNotification,
 	session_info,
 };
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
@@ -80,7 +80,6 @@ pub trait SlashingHandler<BlockNumber> {
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
-		winners: impl IntoIterator<Item = ValidatorIndex>,
 	);
 
 	/// Punish a series of validators who were against a valid parablock. This
@@ -90,7 +89,6 @@ pub trait SlashingHandler<BlockNumber> {
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
-		winners: impl IntoIterator<Item = ValidatorIndex>,
 	);
 
 	/// Called by the initializer to initialize the slashing pallet.
@@ -100,7 +98,7 @@ pub trait SlashingHandler<BlockNumber> {
 	fn initializer_finalize();
 
 	/// Called by the initializer to note that a new session has started.
-	fn initializer_on_new_session(session_index: SessionIndex, count: ValidatorSetCount);
+	fn initializer_on_new_session(session_index: SessionIndex);
 }
 
 impl<BlockNumber> SlashingHandler<BlockNumber> for () {
@@ -108,14 +106,12 @@ impl<BlockNumber> SlashingHandler<BlockNumber> for () {
 		_: SessionIndex,
 		_: CandidateHash,
 		_: impl IntoIterator<Item = ValidatorIndex>,
-		_: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 	}
 
 	fn punish_against_valid(
 		_: SessionIndex,
 		_: CandidateHash,
-		_: impl IntoIterator<Item = ValidatorIndex>,
 		_: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 	}
@@ -126,7 +122,7 @@ impl<BlockNumber> SlashingHandler<BlockNumber> for () {
 
 	fn initializer_finalize() {}
 
-	fn initializer_on_new_session(_: SessionIndex, _: ValidatorSetCount) {}
+	fn initializer_on_new_session(_: SessionIndex) {}
 }
 
 /// Binary discriminator to determine if the expensive signature
@@ -1245,7 +1241,6 @@ impl<T: Config> Pallet<T> {
 				session,
 				candidate_hash,
 				summary.slash_against,
-				summary.state.validators_for.iter_ones().map(|i| ValidatorIndex(i as _)),
 			);
 
 			// an invalid candidate, according to 2/3. Punish those on the 'for' side.
@@ -1253,7 +1248,6 @@ impl<T: Config> Pallet<T> {
 				session,
 				candidate_hash,
 				summary.slash_for,
-				summary.state.validators_against.iter_ones().map(|i| ValidatorIndex(i as _)),
 			);
 		}
 

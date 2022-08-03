@@ -256,7 +256,6 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 		session: SessionIndex,
 		_: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
-		_winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_FOR.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
 	}
@@ -265,7 +264,6 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 		session: SessionIndex,
 		_: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
-		_winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_AGAINST
 			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
@@ -277,7 +275,7 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 
 	fn initializer_finalize() {}
 
-	fn initializer_on_new_session(_: SessionIndex, _: u32) {}
+	fn initializer_on_new_session(_: SessionIndex) {}
 }
 
 impl crate::scheduler::Config for Test {}

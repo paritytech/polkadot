@@ -245,7 +245,6 @@ impl<T: Config> Pallet<T> {
 			configuration::Pallet::<T>::initializer_on_new_session(&session_index);
 		let new_config = new_config.unwrap_or_else(|| prev_config.clone());
 
-		let validator_set_count = all_validators.len() as ValidatorSetCount;
 		let validators = shared::Pallet::<T>::initializer_on_new_session(
 			session_index,
 			random_seed.clone(),
@@ -267,7 +266,7 @@ impl<T: Config> Pallet<T> {
 		inclusion::Pallet::<T>::initializer_on_new_session(&notification);
 		session_info::Pallet::<T>::initializer_on_new_session(&notification);
 		T::DisputesHandler::initializer_on_new_session(&notification);
-		T::SlashingHandler::initializer_on_new_session(session_index, validator_set_count);
+		T::SlashingHandler::initializer_on_new_session(session_index);
 		dmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		ump::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		hrmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);

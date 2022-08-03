@@ -82,11 +82,10 @@ impl DisputesTimeSlot {
 	}
 }
 
-/// An offence that is filed when a series of validators lost a dispute about an
-/// invalid candidate.
+/// An offence that is filed when a series of validators lost a dispute.
 #[derive(RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Clone, PartialEq, Eq))]
-pub struct ForInvalidOffence<KeyOwnerIdentification> {
+pub struct SlashingOffence<KeyOwnerIdentification> {
 	/// The size of the validator set in that session.
 	pub validator_set_count: ValidatorSetCount,
 	/// Should be unique per dispute.
@@ -94,13 +93,19 @@ pub struct ForInvalidOffence<KeyOwnerIdentification> {
 	/// Staking information about the validators that lost the dispute
 	/// needed for slashing.
 	pub offenders: Vec<KeyOwnerIdentification>,
+	/// What fraction of the total exposure that should be slashed for
+	/// this offence.
+	pub slash_fraction: Perbill,
+	/// Whether the candidate was valid or invalid.
+	pub kind: SlashingOffenceKind,
+
 }
 
-impl<Offender> Offence<Offender> for ForInvalidOffence<Offender>
+impl<Offender> Offence<Offender> for SlashingOffence<Offender>
 where
 	Offender: Clone,
 {
-	const ID: Kind = *b"disputes:invalid";
+	const ID: Kind = *b"disputes:slashin";
 
 	type TimeSlot = DisputesTimeSlot;
 
@@ -121,84 +126,32 @@ where
 	}
 
 	fn disable_strategy(&self) -> DisableStrategy {
-		// The default is `DisableStrategy::DisableWhenSlashed`
-		// which is true for this offence type, but we're being explicit
-		DisableStrategy::Always
+		match self.kind {
+			SlashingOffenceKind::ForInvalid => DisableStrategy::Always,
+			// in the future we might change it based on number of disputes initiated
+			SlashingOffenceKind::AgainstValid => DisableStrategy::Never,
+		}
 	}
 
-	fn slash_fraction(_offenders: u32, _: ValidatorSetCount) -> Perbill {
-		SLASH_FOR_INVALID
-	}
-}
-
-/// An offence that is filed when a series of validators lost a dispute about an
-/// valid candidate.
-#[derive(RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Clone, PartialEq, Eq))]
-pub struct AgainstValidOffence<KeyOwnerIdentification> {
-	/// The size of the validator set in that session.
-	pub validator_set_count: ValidatorSetCount,
-	/// Should be unique per dispute.
-	pub time_slot: DisputesTimeSlot,
-	/// Staking information about the validators that lost the dispute
-	/// needed for slashing.
-	pub offenders: Vec<KeyOwnerIdentification>,
-}
-
-impl<Offender> Offence<Offender> for AgainstValidOffence<Offender>
-where
-	Offender: Clone,
-{
-	const ID: Kind = *b"disputes:valid::";
-
-	type TimeSlot = DisputesTimeSlot;
-
-	fn offenders(&self) -> Vec<Offender> {
-		self.offenders.clone()
-	}
-
-	fn session_index(&self) -> SessionIndex {
-		self.time_slot.session_index
-	}
-
-	fn validator_set_count(&self) -> ValidatorSetCount {
-		self.validator_set_count
-	}
-
-	fn time_slot(&self) -> Self::TimeSlot {
-		self.time_slot.clone()
-	}
-
-	fn disable_strategy(&self) -> DisableStrategy {
-		DisableStrategy::Never
-	}
-
-	fn slash_fraction(_offenders: u32, _: ValidatorSetCount) -> Perbill {
-		SLASH_AGAINST_VALID
+	fn slash_fraction(&self, _offenders: u32) -> Perbill {
+		self.slash_fraction
 	}
 }
 
-impl<KeyOwnerIdentification> ForInvalidOffence<KeyOwnerIdentification> {
+impl<KeyOwnerIdentification> SlashingOffence<KeyOwnerIdentification> {
 	fn new(
 		session_index: SessionIndex,
 		candidate_hash: CandidateHash,
 		validator_set_count: ValidatorSetCount,
-		offender: KeyOwnerIdentification,
+		offenders: Vec<KeyOwnerIdentification>,
+		kind: SlashingOffenceKind,
 	) -> Self {
 		let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
-		Self { time_slot, validator_set_count, offenders: vec![offender] }
-	}
-}
-
-impl<KeyOwnerIdentification> AgainstValidOffence<KeyOwnerIdentification> {
-	fn new(
-		session_index: SessionIndex,
-		candidate_hash: CandidateHash,
-		validator_set_count: ValidatorSetCount,
-		offender: KeyOwnerIdentification,
-	) -> Self {
-		let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
-		Self { time_slot, validator_set_count, offenders: vec![offender] }
+		let slash_fraction = match kind {
+			SlashingOffenceKind::ForInvalid => SLASH_FOR_INVALID,
+			SlashingOffenceKind::AgainstValid => SLASH_AGAINST_VALID,
+		};
+		Self { time_slot, validator_set_count, offenders, slash_fraction, kind }
 	}
 }
 
@@ -215,7 +168,7 @@ impl<C> Default for SlashValidatorsForDisputes<C> {
 
 impl<T> SlashValidatorsForDisputes<Pallet<T>>
 where
-	T: Config,
+	T: Config<KeyOwnerIdentification = IdentificationTuple<T>>,
 {
 	/// If in the current session, returns the identified validators. `None`
 	/// otherwise.
@@ -244,6 +197,53 @@ where
 		}
 		None
 	}
+
+	fn do_punish(
+		session_index: SessionIndex,
+		candidate_hash: CandidateHash,
+		kind: SlashingOffenceKind,
+		losers: impl IntoIterator<Item = ValidatorIndex>,
+	) {
+		let losers: Vec<ValidatorIndex> = losers.into_iter().collect();
+		if losers.is_empty() {
+			// Nothing to do
+			return
+		}
+		let account_keys = crate::session_info::Pallet::<T>::account_keys(session_index);
+		let account_ids = account_keys.defensive_unwrap_or_default();
+		let session_info = crate::session_info::Pallet::<T>::session_info(session_index);
+		let session_info = match session_info.defensive_proof(DEFENSIVE_PROOF) {
+			Some(info) => info,
+			None => return,
+		};
+		let validator_set_count = session_info.discovery_keys.len() as ValidatorSetCount;
+		let maybe =
+			Self::maybe_identify_validators(session_index, &account_ids, losers.iter().cloned());
+		if let Some(offenders) = maybe {
+			let offence = SlashingOffence::new(
+				session_index,
+				candidate_hash,
+				validator_set_count,
+				offenders,
+				kind,
+			);
+			let reporter = None;
+			// This is the first time we report an offence for this dispute,
+			// so it is not a duplicate.
+			let _ = T::HandleReports::report_offence(reporter, offence);
+			return
+		}
+
+		let keys = losers
+			.into_iter()
+			.filter_map(|i| session_info.validators.get(i.0 as usize).cloned().map(|id| (i, id)))
+			.collect();
+		let unapplied = PendingSlashes {
+			keys,
+			kind,
+		};
+		<UnappliedSlashes<T>>::insert(session_index, candidate_hash, unapplied);
+	}
 }
 
 impl<T> disputes::SlashingHandler<T::BlockNumber> for SlashValidatorsForDisputes<Pallet<T>>
@@ -254,84 +254,18 @@ where
 		session_index: SessionIndex,
 		candidate_hash: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
-		winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		let losers: Vec<ValidatorIndex> = losers.into_iter().collect();
-		if losers.is_empty() {
-			// Nothing to do
-			return
-		}
-		let account_keys = crate::session_info::Pallet::<T>::account_keys(session_index);
-		let account_ids = account_keys.defensive_unwrap_or_default();
-		let session_info = crate::session_info::Pallet::<T>::session_info(session_index);
-		let session_info = match session_info.defensive_proof(DEFENSIVE_PROOF) {
-			Some(info) => info,
-			None => return,
-		};
-		let validator_set_count = session_info.discovery_keys.len() as ValidatorSetCount;
-		let winners: Winners<T> = winners
-			.into_iter()
-			.filter_map(|i| account_ids.get(i.0 as usize).cloned())
-			.collect();
-		let maybe =
-			Self::maybe_identify_validators(session_index, &account_ids, losers.iter().cloned());
-		if let Some(offenders) = maybe {
-			let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
-			let offence = ForInvalidOffence { validator_set_count, time_slot, offenders };
-			// This is the first time we report an offence for this dispute,
-			// so it is not a duplicate.
-			let _ = T::HandleReports::report_for_invalid_offence(winners, offence);
-			return
-		}
-
-		let losers: Losers = losers
-			.into_iter()
-			.filter_map(|i| session_info.validators.get(i.0 as usize).cloned().map(|id| (i, id)))
-			.collect();
-		<PendingForInvalidLosers<T>>::insert(session_index, candidate_hash, losers);
-		<ForInvalidWinners<T>>::insert(session_index, candidate_hash, winners);
+		let kind = SlashingOffenceKind::ForInvalid;
+		Self::do_punish(session_index, candidate_hash, kind, losers);
 	}
 
 	fn punish_against_valid(
 		session_index: SessionIndex,
 		candidate_hash: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
-		winners: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		let losers: Vec<ValidatorIndex> = losers.into_iter().collect();
-		if losers.is_empty() {
-			// Nothing to do
-			return
-		}
-		let account_keys = crate::session_info::Pallet::<T>::account_keys(session_index);
-		let account_ids = account_keys.defensive_unwrap_or_default();
-		let session_info = crate::session_info::Pallet::<T>::session_info(session_index);
-		let session_info = match session_info.defensive_proof(DEFENSIVE_PROOF) {
-			Some(info) => info,
-			None => return,
-		};
-		let validator_set_count = session_info.discovery_keys.len() as ValidatorSetCount;
-		let winners: Winners<T> = winners
-			.into_iter()
-			.filter_map(|i| account_ids.get(i.0 as usize).cloned())
-			.collect();
-		let maybe =
-			Self::maybe_identify_validators(session_index, &account_ids, losers.iter().cloned());
-		if let Some(offenders) = maybe {
-			let time_slot = DisputesTimeSlot::new(session_index, candidate_hash);
-			let offence = AgainstValidOffence { validator_set_count, time_slot, offenders };
-			// This is the first time we report an offence for this dispute,
-			// so it is not a duplicate.
-			let _ = T::HandleReports::report_against_valid_offence(winners, offence);
-			return
-		}
-
-		let losers: Losers = losers
-			.into_iter()
-			.filter_map(|i| session_info.validators.get(i.0 as usize).cloned().map(|id| (i, id)))
-			.collect();
-		<PendingAgainstValidLosers<T>>::insert(session_index, candidate_hash, losers);
-		<AgainstValidWinners<T>>::insert(session_index, candidate_hash, winners);
+		let kind = SlashingOffenceKind::AgainstValid;
+		Self::do_punish(session_index, candidate_hash, kind, losers);
 	}
 
 	fn initializer_initialize(now: T::BlockNumber) -> Weight {
@@ -342,8 +276,8 @@ where
 		Pallet::<T>::initializer_finalize()
 	}
 
-	fn initializer_on_new_session(session_index: SessionIndex, count: ValidatorSetCount) {
-		Pallet::<T>::initializer_on_new_session(session_index, count)
+	fn initializer_on_new_session(session_index: SessionIndex) {
+		Pallet::<T>::initializer_on_new_session(session_index)
 	}
 }
 
@@ -369,11 +303,15 @@ pub struct DisputeProof {
 	pub validator_id: ValidatorId,
 }
 
-/// Indices and keys of the validators who lost a dispute and are pending
-/// slashes.
-pub type Losers = BTreeMap<ValidatorIndex, ValidatorId>;
-/// `AccountId`s of the validators who were on the winning side of a dispute.
-pub type Winners<T> = Vec<AccountId<T>>;
+/// Slashes that are waiting to be applied once we have validator key identification.
+#[derive(Encode, Decode, RuntimeDebug, TypeInfo)]
+pub struct PendingSlashes {
+	/// Indices and keys of the validators who lost a dispute and are pending
+	/// slashes.
+	pub keys: BTreeMap<ValidatorIndex, ValidatorId>,
+	/// The dispute outcome.
+	pub kind: SlashingOffenceKind,
+}
 
 /// A trait that defines methods to report an offence (after the slashing report
 /// has been validated) and for submitting a transaction to report a slash (from
@@ -385,30 +323,20 @@ pub trait HandleReports<T: Config> {
 	type ReportLongevity: Get<u64>;
 
 	/// Report a `for valid` offence.
-	fn report_for_invalid_offence(
-		reporters: Vec<AccountId<T>>,
-		offence: ForInvalidOffence<T::KeyOwnerIdentification>,
-	) -> Result<(), OffenceError>;
-
-	/// Report an against invalid offence.
-	fn report_against_valid_offence(
-		reporters: Vec<AccountId<T>>,
-		offence: AgainstValidOffence<T::KeyOwnerIdentification>,
+	fn report_offence(
+		reporter: Option<AccountId<T>>,
+		offence: SlashingOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError>;
 
 	/// Returns true if the offenders at the given time slot has already been
 	/// reported.
-	fn is_known_for_invalid_offence(
+	fn is_known_offence(
 		offenders: &[T::KeyOwnerIdentification],
 		time_slot: &DisputesTimeSlot,
 	) -> bool;
 
-	/// Returns true if the offenders at the given time slot has already been
-	/// reported.
-	fn is_known_against_valid_offence(
-		offenders: &[T::KeyOwnerIdentification],
-		time_slot: &DisputesTimeSlot,
-	) -> bool;
+	/// Fetch the current block author id, if defined.
+	fn block_author() -> Option<AccountId<T>>;
 
 	/// Create and dispatch a slashing report extrinsic.
 	/// This should be called offchain.
@@ -421,28 +349,14 @@ pub trait HandleReports<T: Config> {
 impl<T: Config> HandleReports<T> for () {
 	type ReportLongevity = ();
 
-	fn report_for_invalid_offence(
-		_reporters: Vec<AccountId<T>>,
-		_offence: ForInvalidOffence<T::KeyOwnerIdentification>,
+	fn report_offence(
+		_reporter: Option<AccountId<T>>,
+		_offence: SlashingOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError> {
 		Ok(())
 	}
 
-	fn report_against_valid_offence(
-		_reporters: Vec<AccountId<T>>,
-		_offence: AgainstValidOffence<T::KeyOwnerIdentification>,
-	) -> Result<(), OffenceError> {
-		Ok(())
-	}
-
-	fn is_known_for_invalid_offence(
-		_offenders: &[T::KeyOwnerIdentification],
-		_time_slot: &DisputesTimeSlot,
-	) -> bool {
-		true
-	}
-
-	fn is_known_against_valid_offence(
+	fn is_known_offence(
 		_offenders: &[T::KeyOwnerIdentification],
 		_time_slot: &DisputesTimeSlot,
 	) -> bool {
@@ -454,6 +368,10 @@ impl<T: Config> HandleReports<T> for () {
 		_key_owner_proof: T::KeyOwnerProof,
 	) -> DispatchResult {
 		Ok(())
+	}
+
+	fn block_author() -> Option<AccountId<T>> {
+		None
 	}
 }
 
@@ -509,42 +427,15 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
-	/// Indices of the validators pending "for invalid" dispute slashes.
+	/// Validators pending dispute slashes.
 	#[pallet::storage]
-	pub(super) type PendingForInvalidLosers<T> =
-		StorageDoubleMap<_, Twox64Concat, SessionIndex, Blake2_128Concat, CandidateHash, Losers>;
-
-	/// Indices of the validators who won in "for invalid" disputes.
-	#[pallet::storage]
-	pub(super) type ForInvalidWinners<T> = StorageDoubleMap<
-		_,
-		Twox64Concat,
-		SessionIndex,
-		Blake2_128Concat,
-		CandidateHash,
-		Winners<T>,
-	>;
+	pub(super) type UnappliedSlashes<T> =
+		StorageDoubleMap<_, Twox64Concat, SessionIndex, Blake2_128Concat, CandidateHash, PendingSlashes>;
 
 	/// `ValidatorSetCount` per session.
 	#[pallet::storage]
 	pub(super) type ValidatorSetCounts<T> =
 		StorageMap<_, Twox64Concat, SessionIndex, ValidatorSetCount>;
-
-	/// Indices of the validators pending "against valid" dispute slashes.
-	#[pallet::storage]
-	pub(super) type PendingAgainstValidLosers<T> =
-		StorageDoubleMap<_, Twox64Concat, SessionIndex, Blake2_128Concat, CandidateHash, Losers>;
-
-	/// Indices of the validators who won in "against valid" disputes.
-	#[pallet::storage]
-	pub(super) type AgainstValidWinners<T> = StorageDoubleMap<
-		_,
-		Twox64Concat,
-		SessionIndex,
-		Blake2_128Concat,
-		CandidateHash,
-		Winners<T>,
-	>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -582,94 +473,56 @@ pub mod pallet {
 				.ok_or(Error::<T>::InvalidKeyOwnershipProof)?;
 
 			let session_index = dispute_proof.time_slot.session_index;
-			let validator_set_count = <ValidatorSetCounts<T>>::get(session_index)
-				.ok_or(Error::<T>::InvalidSessionIndex)?;
+			let validator_set_count = crate::session_info::Pallet::<T>::session_info(session_index)
+				.ok_or(Error::<T>::InvalidSessionIndex)?
+				.discovery_keys.len() as ValidatorSetCount;
 
 			// check that there is a pending slash for the given
 			// validator index and candidate hash
 			let candidate_hash = dispute_proof.time_slot.candidate_hash;
-			let try_remove = |v: &mut Option<Losers>| -> Result<bool, DispatchError> {
-				let indices = v.as_mut().ok_or(Error::<T>::InvalidCandidateHash)?;
+			let try_remove = |v: &mut Option<PendingSlashes>| -> Result<(), DispatchError> {
+				let pending = v.as_mut().ok_or(Error::<T>::InvalidCandidateHash)?;
+				if pending.kind != dispute_proof.kind {
+					return Err(Error::<T>::InvalidCandidateHash.into())
+				}
 
-				match indices.entry(dispute_proof.validator_index) {
+				match pending.keys.entry(dispute_proof.validator_index) {
 					Entry::Vacant(_) => return Err(Error::<T>::InvalidValidatorIndex.into()),
 					// check that `validator_index` matches `validator_id`
 					Entry::Occupied(e) if e.get() != &dispute_proof.validator_id =>
 						return Err(Error::<T>::ValidatorIndexIdMismatch.into()),
 					Entry::Occupied(e) => {
-						e.remove(); // all good
+						e.remove(); // the report is correct
 					},
 				}
 
-				let is_empty = if indices.is_empty() {
+				// if the last validator is slashed for this dispute, clean up the storage
+				if pending.keys.is_empty() {
 					*v = None;
-					true
-				} else {
-					false
-				};
+				}
 
-				Ok(is_empty)
+				Ok(())
 			};
-			match dispute_proof.kind {
-				SlashingOffenceKind::ForInvalid => {
-					let is_empty = <PendingForInvalidLosers<T>>::try_mutate_exists(
-						&session_index,
-						&candidate_hash,
-						try_remove,
-					)?;
 
-					let winners = if is_empty {
-						<ForInvalidWinners<T>>::take(&session_index, &candidate_hash)
-							.unwrap_or_default()
-					} else {
-						<ForInvalidWinners<T>>::get(&session_index, &candidate_hash)
-							.unwrap_or_default()
-					};
+			<UnappliedSlashes<T>>::try_mutate_exists(
+				&session_index,
+				&candidate_hash,
+				try_remove,
+			)?;
 
-					let offence = ForInvalidOffence::new(
-						session_index,
-						candidate_hash,
-						validator_set_count,
-						offender,
-					);
+			let offence = SlashingOffence::new(
+				session_index,
+				candidate_hash,
+				validator_set_count,
+				vec![offender],
+				dispute_proof.kind,
+			);
 
-					// We can't really submit a duplicate report
-					// unless there's a bug.
-					<T::HandleReports as HandleReports<T>>::report_for_invalid_offence(
-						winners, offence,
-					)
-					.map_err(|_| Error::<T>::DuplicateSlashingReport)?;
-				},
-				SlashingOffenceKind::AgainstValid => {
-					let is_empty = <PendingAgainstValidLosers<T>>::try_mutate_exists(
-						&session_index,
-						&candidate_hash,
-						try_remove,
-					)?;
-
-					let winners = if is_empty {
-						<AgainstValidWinners<T>>::take(&session_index, &candidate_hash)
-							.unwrap_or_default()
-					} else {
-						<AgainstValidWinners<T>>::get(&session_index, &candidate_hash)
-							.unwrap_or_default()
-					};
-
-					// submit an offence report
-					let offence = AgainstValidOffence::new(
-						session_index,
-						candidate_hash,
-						validator_set_count,
-						offender,
-					);
-					// We can't really submit a duplicate report
-					// unless there's a bug.
-					<T::HandleReports as HandleReports<T>>::report_against_valid_offence(
-						winners, offence,
-					)
-					.map_err(|_| Error::<T>::DuplicateSlashingReport)?;
-				},
-			}
+			let block_author = <T::HandleReports as HandleReports<T>>::block_author();
+			<T::HandleReports as HandleReports<T>>::report_offence(
+				block_author, offence,
+			)
+			.map_err(|_| Error::<T>::DuplicateSlashingReport)?;
 
 			Ok(Pays::No.into())
 		}
@@ -699,11 +552,9 @@ impl<T: Config> Pallet<T> {
 
 	/// Called by the initializer to note a new session in the disputes slashing
 	/// pallet.
-	fn initializer_on_new_session(
-		session_index: SessionIndex,
-		validator_set_count: ValidatorSetCount,
-	) {
-		<ValidatorSetCounts<T>>::insert(session_index, validator_set_count);
+	fn initializer_on_new_session(session_index: SessionIndex) {
+		// This should be small, as disputes are limited by spam slots, so no limit is fine.
+		const REMOVE_LIMIT: u32 = u32::MAX;
 
 		let config = <crate::configuration::Pallet<T>>::config();
 		if session_index <= config.dispute_period + 1 {
@@ -711,15 +562,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		let old_session = session_index - config.dispute_period - 1;
-
-		// This should be small, as disputes are rare, so no limit is fine.
-		const REMOVE_LIMIT: u32 = u32::MAX;
-		let _ = <PendingForInvalidLosers<T>>::clear_prefix(old_session, REMOVE_LIMIT, None);
-		let _ = <PendingAgainstValidLosers<T>>::clear_prefix(old_session, REMOVE_LIMIT, None);
-		let _ = <ForInvalidWinners<T>>::clear_prefix(old_session, REMOVE_LIMIT, None);
-		let _ = <AgainstValidWinners<T>>::clear_prefix(old_session, REMOVE_LIMIT, None);
-
-		<ValidatorSetCounts<T>>::remove(old_session);
+		let _ = <UnappliedSlashes<T>>::clear_prefix(old_session, REMOVE_LIMIT, None);
 	}
 }
 
@@ -789,18 +632,10 @@ fn is_known_offence<T: Config>(
 
 	// check if the offence has already been reported,
 	// and if so then we can discard the report.
-	let is_known_offence = match dispute_proof.kind {
-		SlashingOffenceKind::ForInvalid =>
-			<T::HandleReports as HandleReports<T>>::is_known_for_invalid_offence(
-				&[offender],
-				&dispute_proof.time_slot,
-			),
-		SlashingOffenceKind::AgainstValid =>
-			<T::HandleReports as HandleReports<T>>::is_known_against_valid_offence(
-				&[offender],
-				&dispute_proof.time_slot,
-			),
-	};
+	let is_known_offence = <T::HandleReports as HandleReports<T>>::is_known_offence(
+		&[offender],
+		&dispute_proof.time_slot,
+	);
 
 	if is_known_offence {
 		Err(InvalidTransaction::Stale.into())
@@ -825,53 +660,34 @@ impl<I, R, L> Default for SlashingReportHandler<I, R, L> {
 
 impl<T, R, L> HandleReports<T> for SlashingReportHandler<T::KeyOwnerIdentification, R, L>
 where
-	T: Config + frame_system::offchain::SendTransactionTypes<Call<T>>,
+	T: Config +
+		frame_system::offchain::SendTransactionTypes<Call<T>> +
+		pallet_authorship::Config,
 	R: ReportOffence<
-			AccountId<T>,
-			T::KeyOwnerIdentification,
-			ForInvalidOffence<T::KeyOwnerIdentification>,
-		> + ReportOffence<
-			AccountId<T>,
-			T::KeyOwnerIdentification,
-			AgainstValidOffence<T::KeyOwnerIdentification>,
-		>,
+		AccountId<T>,
+		T::KeyOwnerIdentification,
+		SlashingOffence<T::KeyOwnerIdentification>,
+	>,
 	L: Get<u64>,
 {
 	type ReportLongevity = L;
 
-	fn report_for_invalid_offence(
-		reporters: Vec<AccountId<T>>,
-		offence: ForInvalidOffence<T::KeyOwnerIdentification>,
+	fn report_offence(
+		reporter: Option<AccountId<T>>,
+		offence: SlashingOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError> {
+		let reporters = reporter.into_iter().collect();
 		R::report_offence(reporters, offence)
 	}
 
-	fn report_against_valid_offence(
-		reporters: Vec<AccountId<T>>,
-		offence: AgainstValidOffence<T::KeyOwnerIdentification>,
-	) -> Result<(), OffenceError> {
-		R::report_offence(reporters, offence)
-	}
-
-	fn is_known_for_invalid_offence(
+	fn is_known_offence(
 		offenders: &[T::KeyOwnerIdentification],
 		time_slot: &DisputesTimeSlot,
 	) -> bool {
 		<R as ReportOffence<
 			AccountId<T>,
 			T::KeyOwnerIdentification,
-			ForInvalidOffence<T::KeyOwnerIdentification>,
-		>>::is_known_offence(offenders, time_slot)
-	}
-
-	fn is_known_against_valid_offence(
-		offenders: &[T::KeyOwnerIdentification],
-		time_slot: &DisputesTimeSlot,
-	) -> bool {
-		<R as ReportOffence<
-			AccountId<T>,
-			T::KeyOwnerIdentification,
-			AgainstValidOffence<T::KeyOwnerIdentification>,
+			SlashingOffence<T::KeyOwnerIdentification>,
 		>>::is_known_offence(offenders, time_slot)
 	}
 
@@ -908,5 +724,11 @@ where
 		}
 
 		Ok(())
+	}
+
+	fn block_author() -> Option<AccountId<T>> {
+		// TODO
+		// <pallet_authorship::Pallet<T>>::author()
+		None
 	}
 }
