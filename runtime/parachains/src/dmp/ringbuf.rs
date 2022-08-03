@@ -165,7 +165,9 @@ impl RingBuffer {
 		QueuePageIdx { para_id: self.para_id, page_idx: self.state.tail_page_idx.wrapping_dec() }
 	}
 
-	/// Allocates a new page and returns the page index.
+	/// Frees up to count `pages` by advacing the head page index. If count is larger than
+	/// the size of the ring buffer, the head page index will be equal to first free page index
+	/// meaning the buffer is empty.
 	pub fn prune(&mut self, count: u32) {
 		// Ensure we don't overflow and the head overtakes the tail.
 		let to_prune = sp_std::cmp::min(self.size(), count as u64);
@@ -232,6 +234,15 @@ impl MessageWindow {
 	/// Extend the message index window by `count`. Returns the latest used message index.
 	/// Panics if extending over capacity, similarly to `RingBuffer`.
 	pub fn extend(&mut self, count: u64) -> MessageIdx {
+		if self.size() > 0 {
+			let free_count =
+				self.state.first_message_idx.wrapping_sub(self.state.free_message_idx).0;
+
+			if free_count < count {
+				unimplemented!("The end of the world is upon us");
+			}
+		}
+
 		self.state.free_message_idx = self.state.free_message_idx.wrapping_add(count.into());
 		MessageIdx {
 			para_id: self.para_id,
@@ -277,4 +288,186 @@ impl MessageWindow {
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+	use super::*;
+
+	#[test]
+	fn ringbuf_extend() {
+		let mut rb = RingBuffer::with_state(RingBufferState::default(), 0.into());
+		assert!(rb.front().is_none());
+		assert!(rb.last_used().is_none());
+
+		let mut page = rb.extend();
+		assert_eq!(page.page_idx, 0.into());
+		page = rb.extend();
+		assert_eq!(page.page_idx, 1.into());
+		assert_eq!(rb.size(), 2);
+
+		assert_eq!(rb.front().unwrap().page_idx, 0.into());
+		assert_eq!(rb.last_used().unwrap().page_idx, 1.into());
+	}
+
+	#[test]
+	#[should_panic]
+	fn ringbuf_extend_over_capacity() {
+		// This ringbuf will have 2 free pages.
+		let head = WrappingIndex(100);
+		let tail = WrappingIndex(98);
+		let mut rb = RingBuffer::with_state(
+			RingBufferState { head_page_idx: head, tail_page_idx: tail },
+			0.into(),
+		);
+
+		rb.extend();
+		rb.extend();
+		// This should panic!
+		rb.extend();
+	}
+
+	#[test]
+	fn ringbuf_extend_loop_then_prune() {
+		let mut rb = RingBuffer::with_state(RingBufferState::default(), 0.into());
+		assert!(rb.front().is_none());
+		assert!(rb.last_used().is_none());
+
+		for _ in 0..1024 {
+			rb.extend();
+		}
+
+		assert_eq!(rb.size(), 1024);
+		assert_eq!(rb.front().unwrap().page_idx, 0.into());
+		assert_eq!(rb.last_used().unwrap().page_idx, 1023.into());
+
+		// Test we can prune 0 pages.
+		rb.prune(0);
+		assert_eq!(rb.size(), 1024);
+		assert_eq!(rb.front().unwrap().page_idx, 0.into());
+		assert_eq!(rb.last_used().unwrap().page_idx, 1023.into());
+
+		// Test we can prune 1 page.
+		rb.prune(1);
+		assert_eq!(rb.size(), 1023);
+		assert_eq!(rb.front().unwrap().page_idx, 1.into());
+		assert_eq!(rb.last_used().unwrap().page_idx, 1023.into());
+
+		// Test we can prune all pages.
+		rb.prune(99999);
+		assert_eq!(rb.size(), 0);
+		assert_eq!(rb.front(), None);
+		assert_eq!(rb.last_used(), None);
+	}
+
+	#[test]
+	fn ringbuf_extend_loop_then_pop_until_empty() {
+		let mut rb = RingBuffer::with_state(RingBufferState::default(), 0.into());
+		assert!(rb.front().is_none());
+		assert!(rb.last_used().is_none());
+
+		for _ in 0..1024 {
+			rb.extend();
+		}
+
+		assert_eq!(rb.size(), 1024);
+		assert_eq!(rb.front().unwrap().page_idx, 0.into());
+		assert_eq!(rb.last_used().unwrap().page_idx, 1023.into());
+
+		let mut idx = WrappingIndex(0u64);
+
+		while rb.size() > 0 {
+			let page = rb.pop_front().unwrap();
+			assert_eq!(idx, page.page_idx);
+			idx = idx.wrapping_inc();
+		}
+
+		assert_eq!(rb.size(), 0);
+		assert_eq!(rb.front(), None);
+		assert_eq!(rb.last_used(), None);
+	}
+
+	#[test]
+	fn ringbuf_extend_loop_then_iterate_wrap_around() {
+		let head = WrappingIndex(0u64).wrapping_sub(512.into());
+		let mut rb = RingBuffer::with_state(
+			RingBufferState { head_page_idx: head, tail_page_idx: head },
+			0.into(),
+		);
+		assert!(rb.front().is_none());
+		assert!(rb.last_used().is_none());
+
+		for _ in 0..1024 {
+			rb.extend();
+		}
+
+		assert_eq!(rb.size(), 1024);
+		assert_eq!(rb.front().unwrap().page_idx, head);
+		assert_eq!(rb.last_used().unwrap().page_idx, 511.into());
+
+		let mut idx = head;
+
+		for page in rb {
+			assert_eq!(idx, page.page_idx);
+			idx = idx.wrapping_inc();
+		}
+	}
+
+	#[test]
+	fn message_window_extend() {
+		let mut window = MessageWindow::with_state(MessageWindowState::default(), 0.into());
+		assert_eq!(window.size(), 0);
+		assert_eq!(window.first(), None);
+		assert_eq!(window.first_free().message_idx, 0.into());
+
+		let msg_idx = window.extend(1).message_idx;
+		assert_eq!(msg_idx, 0.into());
+	}
+
+	#[test]
+	#[should_panic]
+	fn message_window_extend_over_capacity() {
+		let mut window = MessageWindow::with_state(
+			MessageWindowState { first_message_idx: 10.into(), free_message_idx: 2.into() },
+			0.into(),
+		);
+
+		// This should panic!
+		window.extend(10);
+	}
+
+	#[test]
+	fn message_window_extend_then_prune() {
+		let mut window = MessageWindow::with_state(MessageWindowState::default(), 0.into());
+		assert_eq!(window.size(), 0);
+		assert_eq!(window.first(), None);
+		assert_eq!(window.first_free().message_idx, 0.into());
+
+		window.extend(1024);
+
+		for _ in 0..1024 {
+			window.extend(2);
+		}
+
+		window.extend(1024);
+
+		assert_eq!(window.size(), 4096);
+		assert_eq!(window.first().unwrap().message_idx, 0.into());
+		assert_eq!(window.first_free().message_idx, 4096.into());
+
+		// Test we can prune 0 messages.
+		window.prune(0);
+		assert_eq!(window.size(), 4096);
+		assert_eq!(window.first().unwrap().message_idx, 0.into());
+		assert_eq!(window.first_free().message_idx, 4096.into());
+
+		// Test we can prune 1 message.
+		window.prune(1);
+		assert_eq!(window.size(), 4095);
+		assert_eq!(window.first().unwrap().message_idx, 1.into());
+		assert_eq!(window.first_free().message_idx, 4096.into());
+
+		// Test we can prune all messages.
+		window.prune(99999);
+		assert_eq!(window.size(), 0);
+		assert_eq!(window.first(), None);
+		assert_eq!(window.first_free().message_idx, 4096.into());
+	}
+}
