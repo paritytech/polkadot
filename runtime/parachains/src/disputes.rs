@@ -60,6 +60,19 @@ pub enum DisputeResult {
 	Invalid,
 }
 
+/// Reward hooks for disputes.
+pub trait RewardValidators {
+	// Give each validator a reward, likely small, for participating in the dispute.
+	fn reward_dispute_statement(
+		session: SessionIndex,
+		validators: impl IntoIterator<Item = ValidatorIndex>,
+	);
+}
+
+impl RewardValidators for () {
+	fn reward_dispute_statement(_: SessionIndex, _: impl IntoIterator<Item = ValidatorIndex>) {}
+}
+
 /// Punishment hooks for disputes.
 ///
 /// Currently, it's not possible to use
@@ -429,6 +442,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config + configuration::Config + session_info::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
+		type RewardValidators: RewardValidators;
 		type SlashingHandler: SlashingHandler<Self::BlockNumber>;
 
 		/// Weight information for extrinsics in this pallet.
@@ -1229,6 +1243,12 @@ impl<T: Config> Pallet<T> {
 				));
 			}
 		}
+
+		// Reward statements.
+		T::RewardValidators::reward_dispute_statement(
+			session,
+			summary.new_participants.iter_ones().map(|i| ValidatorIndex(i as _)),
+		);
 
 		// Slash participants on a losing side.
 		{

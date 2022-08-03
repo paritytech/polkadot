@@ -242,6 +242,7 @@ impl crate::hrmp::Config for Test {
 
 impl crate::disputes::Config for Test {
 	type Event = Event;
+	type RewardValidators = ();
 	type SlashingHandler = Self;
 	type WeightInfo = crate::disputes::TestWeightInfo;
 }
