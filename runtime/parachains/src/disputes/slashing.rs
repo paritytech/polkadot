@@ -35,7 +35,7 @@ use crate::{
 	session_info::{AccountId, IdentificationTuple},
 };
 use frame_support::{
-	traits::{Get, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
+	traits::{Defensive, Get, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
 	weights::{Pays, Weight},
 };
 use parity_scale_codec::{Decode, Encode};
@@ -62,6 +62,7 @@ const LOG_TARGET: &str = "runtime::parachains::slashing";
 // via `HostConfiguration` in the future.
 const SLASH_FOR_INVALID: Perbill = Perbill::from_percent(100);
 const SLASH_AGAINST_VALID: Perbill = Perbill::from_percent(1);
+const DEFENSIVE_PROOF: &'static str = "disputes module should bail on old session";
 
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
@@ -201,7 +202,7 @@ impl<KeyOwnerIdentification> AgainstValidOffence<KeyOwnerIdentification> {
 	}
 }
 
-/// This type implements `PunishValidators`.
+/// This type implements `SlashingHandler`.
 pub struct SlashValidatorsForDisputes<C> {
 	_phantom: sp_std::marker::PhantomData<C>,
 }
@@ -261,14 +262,11 @@ where
 			return
 		}
 		let account_keys = crate::session_info::Pallet::<T>::account_keys(session_index);
-		let account_ids = match account_keys {
-			Some(account_keys) => account_keys,
-			None => return, // can not really happen
-		};
+		let account_ids = account_keys.defensive_unwrap_or_default();
 		let session_info = crate::session_info::Pallet::<T>::session_info(session_index);
-		let session_info = match session_info {
+		let session_info = match session_info.defensive_proof(DEFENSIVE_PROOF) {
 			Some(info) => info,
-			None => return, // can not really happen
+			None => return,
 		};
 		let validator_set_count = session_info.discovery_keys.len() as ValidatorSetCount;
 		let winners: Winners<T> = winners
@@ -306,14 +304,11 @@ where
 			return
 		}
 		let account_keys = crate::session_info::Pallet::<T>::account_keys(session_index);
-		let account_ids = match account_keys {
-			Some(account_keys) => account_keys,
-			None => return, // can not really happen
-		};
+		let account_ids = account_keys.defensive_unwrap_or_default();
 		let session_info = crate::session_info::Pallet::<T>::session_info(session_index);
-		let session_info = match session_info {
+		let session_info = match session_info.defensive_proof(DEFENSIVE_PROOF) {
 			Some(info) => info,
-			None => return, // can not really happen
+			None => return,
 		};
 		let validator_set_count = session_info.discovery_keys.len() as ValidatorSetCount;
 		let winners: Winners<T> = winners
