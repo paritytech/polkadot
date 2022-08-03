@@ -114,15 +114,12 @@ where
 	assert_ne!(session_index, current_session);
 
 	let validator_index = ValidatorIndex(0);
-
 	let losers = [validator_index].into_iter();
-	// everyone else wins
-	let winners = (1..n_validators).map(|i| ValidatorIndex(i)).into_iter();
 
-	T::SlashingHandler::punish_against_valid(session_index, CANDIDATE_HASH, losers, winners);
+	T::SlashingHandler::punish_against_valid(session_index, CANDIDATE_HASH, losers);
 
-	let losers = <PendingAgainstValidLosers<T>>::get(session_index, CANDIDATE_HASH);
-	assert_eq!(losers.unwrap().len(), 1);
+	let unapplied = <UnappliedSlashes<T>>::get(session_index, CANDIDATE_HASH);
+	assert_eq!(unapplied.unwrap().keys.len(), 1);
 
 	dispute_proof(session_index, validator_id, validator_index)
 }
@@ -159,7 +156,7 @@ benchmarks! {
 		);
 		assert!(result.is_ok());
 	} verify {
-		let losers = <PendingAgainstValidLosers<T>>::get(session_index, CANDIDATE_HASH);
-		assert!(losers.is_none());
+		let unapplied = <UnappliedSlashes<T>>::get(session_index, CANDIDATE_HASH);
+		assert!(unapplied.is_none());
 	}
 }
