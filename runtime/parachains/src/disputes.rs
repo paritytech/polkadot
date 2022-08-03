@@ -74,13 +74,6 @@ impl RewardValidators for () {
 }
 
 /// Punishment hooks for disputes.
-///
-/// Currently, it's not possible to use
-/// `<pallet_staking::Pallet<T>>::reward_by_ids` to reward validators in a
-/// previous session (era) if they are no longer in the active set.
-/// For this reason, we're currently combining slashing and rewarding in one
-/// interface. The rewards are distributed from (a fraction of) the slashing
-/// pot.
 pub trait SlashingHandler<BlockNumber> {
 	/// Punish a series of validators who were for an invalid parablock. This is
 	/// expected to be a major punishment.
