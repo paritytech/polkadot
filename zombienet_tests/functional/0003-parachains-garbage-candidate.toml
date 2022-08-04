@@ -19,7 +19,7 @@ requests = { memory = "2G", cpu = "1" }
 
   [[relaychain.node_groups]]
   name = "honest-validator"
-  count = 10
+  count = 7
   args = ["-lparachain=debug,runtime=debug"]
 
   [[relaychain.node_groups]]
