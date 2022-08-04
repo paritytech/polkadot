@@ -51,7 +51,9 @@ use polkadot_primitives::v2::{
 	Hash, Id as ParaId,
 };
 
-use super::{prospective_parachains_mode, ProspectiveParachainsMode, LOG_TARGET};
+use super::{
+	prospective_parachains_mode, ProspectiveParachainsMode, LOG_TARGET, MAX_CANDIDATE_DEPTH,
+};
 use crate::error::{log_error, Error, FatalError, Result};
 
 mod collation;
@@ -78,15 +80,6 @@ const COST_APPARENT_FLOOD: Rep =
 ///
 /// For considerations on this value, see: https://github.com/paritytech/polkadot/issues/4386
 const MAX_UNSHARED_UPLOAD_TIME: Duration = Duration::from_millis(150);
-
-/// The maximum depth a candidate can occupy for any relay parent.
-/// 'depth' is defined as the amount of blocks between the para
-/// head in a relay-chain block's state and a candidate with a
-/// particular relay-parent.
-///
-/// This value is only used for limiting the number of candidates
-/// we accept and distribute per relay parent.
-const MAX_CANDIDATE_DEPTH: usize = 4;
 
 /// Info about validators we are currently connected to.
 ///
@@ -1063,6 +1056,7 @@ where
 	}
 
 	for (leaf, mode) in removed {
+		state.active_leaves.remove(leaf);
 		// If the leaf is deactivated it still may stay in the view as a part
 		// of implicit ancestry. Only update the state after the hash is actually
 		// pruned from the block info storage.
@@ -1189,7 +1183,7 @@ pub(crate) async fn run<Context>(
 
 				log_error(
 					handle_incoming_request(&mut ctx, &mut state, request).await,
-					"Handling incoming request"
+					"Handling incoming collation fetch request V1"
 				)?;
 			}
 			in_req = recv_req_v2 => {
@@ -1197,7 +1191,7 @@ pub(crate) async fn run<Context>(
 
 				log_error(
 					handle_incoming_request(&mut ctx, &mut state, request).await,
-					"Handling incoming request"
+					"Handling incoming collation fetch request VStaging"
 				)?;
 			}
 		}
