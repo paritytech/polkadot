@@ -42,14 +42,14 @@ honest-validator-4: log line contains "reverted due to a bad parachain block" wi
 honest-validator-5: log line contains "reverted due to a bad parachain block" within 180 seconds
 honest-validator-6: log line contains "reverted due to a bad parachain block" within 180 seconds
 
-# Check if disputes are concluded in less than 4 blocks.
-honest-validator-0: reports polkadot_parachain_disputes_finality_lag is lower than 4
-honest-validator-1: reports polkadot_parachain_disputes_finality_lag is lower than 4
-honest-validator-2: reports polkadot_parachain_disputes_finality_lag is lower than 4
-honest-validator-3: reports polkadot_parachain_disputes_finality_lag is lower than 4
-honest-validator-4: reports polkadot_parachain_disputes_finality_lag is lower than 4
-honest-validator-5: reports polkadot_parachain_disputes_finality_lag is lower than 4
-honest-validator-6: reports polkadot_parachain_disputes_finality_lag is lower than 4
+# Check if disputes are concluded in less than 2 blocks.
+honest-validator-0: reports polkadot_parachain_disputes_finality_lag is lower than 2
+honest-validator-1: reports polkadot_parachain_disputes_finality_lag is lower than 2
+honest-validator-2: reports polkadot_parachain_disputes_finality_lag is lower than 2
+honest-validator-3: reports polkadot_parachain_disputes_finality_lag is lower than 2
+honest-validator-4: reports polkadot_parachain_disputes_finality_lag is lower than 2
+honest-validator-5: reports polkadot_parachain_disputes_finality_lag is lower than 2
+honest-validator-6: reports polkadot_parachain_disputes_finality_lag is lower than 2
 
 # Allow more time for malicious validator activity.
 sleep 30 seconds
