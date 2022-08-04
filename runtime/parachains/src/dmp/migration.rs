@@ -132,7 +132,7 @@ pub mod v1 {
 mod tests {
 	use super::*;
 	use crate::mock::{new_test_ext, MockGenesisConfig, Test};
-	use parity_scale_codec::{Decode, Encode};
+	use parity_scale_codec::Encode;
 	use primitives::v2::{Id as ParaId, MessageQueueChain};
 	use sp_runtime::traits::{BlakeTwo256, Hash};
 
