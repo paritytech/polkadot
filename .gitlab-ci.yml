@@ -740,6 +740,7 @@ zombienet-tests-parachains-disputes:
 
 zombienet-test-parachains-upgrade-smoke-test:
   stage:                           stage3
+  image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
   needs:
@@ -768,6 +769,7 @@ zombienet-test-parachains-upgrade-smoke-test:
 
 zombienet-tests-misc-paritydb:
   stage:                           stage3
+  image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
   needs:
