@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_primitives::v2::{
-	BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
+	BlockNumber, CandidateIndex, CoreIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
 };
 use rand::{CryptoRng, Rng, SeedableRng};
 use std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
@@ -1210,6 +1210,49 @@ impl State {
 		}
 	}
 
+	/// Retrieve approval signatures from state for the given relay block/indices:
+	fn get_approval_signatures(
+		&mut self,
+		indices: HashSet<(Hash, CoreIndex)>,
+	) -> HashMap<ValidatorIndex, ValidatorSignature> {
+		let mut all_sigs = HashMap::new();
+		for (hash, CoreIndex(index)) in indices {
+			let block_entry = match self.blocks.get(&hash) {
+				None => {
+					gum::debug!(
+						target: LOG_TARGET,
+						?hash,
+						"`get_approval_signatures`: could not find block entry for given hash!"
+					);
+					continue
+				},
+				Some(e) => e,
+			};
+
+			let candidate_entry = match block_entry.candidates.get(index as usize) {
+				None => {
+					gum::debug!(
+						target: LOG_TARGET,
+						?hash,
+						?index,
+						"`get_approval_signatures`: could not find candidate entry for given hash and index!"
+						);
+					continue
+				},
+				Some(e) => e,
+			};
+			let sigs =
+				candidate_entry.messages.iter().filter_map(|(validator_index, message_state)| {
+					match &message_state.approval_state {
+						ApprovalState::Approved(_, sig) => Some((*validator_index, sig.clone())),
+						ApprovalState::Assigned(_) => None,
+					}
+				});
+			all_sigs.extend(sigs);
+		}
+		all_sigs
+	}
+
 	async fn unify_with_peer(
 		sender: &mut impl overseer::ApprovalDistributionSenderTrait,
 		metrics: &Metrics,
@@ -1680,6 +1723,15 @@ impl ApprovalDistribution {
 				state
 					.import_and_circulate_approval(ctx, metrics, MessageSource::Local, vote)
 					.await;
+			},
+			ApprovalDistributionMessage::GetApprovalSignatures(indices, tx) => {
+				let sigs = state.get_approval_signatures(indices);
+				if let Err(_) = tx.send(sigs) {
+					gum::debug!(
+						target: LOG_TARGET,
+						"Sending back approval signatures failed, oneshot got closed"
+					);
+				}
 			},
 		}
 	}

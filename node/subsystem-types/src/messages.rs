@@ -40,7 +40,7 @@ use polkadot_node_primitives::{
 };
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
-	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
+	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState,
 	DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
 	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
 	PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
@@ -900,6 +900,15 @@ pub enum ApprovalVotingMessage {
 	/// It can also return the same block hash, if that is acceptable to vote upon.
 	/// Return `None` if the input hash is unrecognized.
 	ApprovedAncestor(Hash, BlockNumber, oneshot::Sender<Option<HighestApprovedAncestorBlock>>),
+
+	/// Retrieve all available approval signatures for a candidate from approval-voting.
+	///
+	/// This message involves a linear search for candidates on each relay chain fork and also
+	/// requires calling into `approval-distribution`: Calls should be infrequent and bounded.
+	GetApprovalSignaturesForCandidate(
+		CandidateHash,
+		oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
+	),
 }
 
 /// Message to the Approval Distribution subsystem.
@@ -918,6 +927,12 @@ pub enum ApprovalDistributionMessage {
 	/// An update from the network bridge.
 	#[from]
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::ApprovalDistributionMessage>),
+
+	/// Get all approval signatures for all chains a candidate appeared in.
+	GetApprovalSignatures(
+		HashSet<(Hash, CoreIndex)>,
+		oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
+	),
 }
 
 /// Message to the Gossip Support subsystem.

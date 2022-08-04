@@ -31,7 +31,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	errors::RecoveryError,
 	messages::{
-		ApprovalCheckError, ApprovalCheckResult, ApprovalDistributionMessage, ApprovalVoteImport,
+		ApprovalCheckError, ApprovalCheckResult, ApprovalDistributionMessage,
 		ApprovalVotingMessage, AssignmentCheckError, AssignmentCheckResult,
 		AvailabilityRecoveryMessage, BlockDescription, CandidateValidationMessage, ChainApiMessage,
 		ChainSelectionMessage, DisputeCoordinatorMessage, HighestApprovedAncestorBlock,
@@ -693,8 +693,6 @@ enum Action {
 	},
 	NoteApprovedInChainSelection(Hash),
 	IssueApproval(CandidateHash, ApprovalVoteRequest),
-	/// Inform dispute coordinator about a local approval vote.
-	InformDisputeCoordinator(ApprovalVoteImport),
 	BecomeActive,
 	Conclude,
 }
@@ -952,9 +950,6 @@ async fn handle_actions<Context>(
 					Some(_) => {},
 				}
 			},
-			Action::InformDisputeCoordinator(import) => {
-				ctx.send_message(DisputeCoordinatorMessage::ImportOwnApprovalVote(import)).await;
-			},
 			Action::NoteApprovedInChainSelection(block_hash) => {
 				ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
 			},
@@ -1174,10 +1169,64 @@ async fn handle_from_overseer<Context>(
 
 				Vec::new()
 			},
+			ApprovalVotingMessage::GetApprovalSignaturesForCandidate(candidate_hash, tx) => {
+				let votes = get_approval_signatures_for_candidate(ctx, db, candidate_hash).await?;
+				if let Err(_) = tx.send(votes) {
+					gum::debug!(
+						target: LOG_TARGET,
+						"Sending approval signatures back failed, as receiver got closed"
+					);
+				}
+				Vec::new()
+			},
 		},
 	};
 
 	Ok(actions)
+}
+
+/// Retrieve approval signatures.
+///
+/// This involves an unbounded message send to approval-distribution, the caller has to ensure that
+/// calls to this function are infrequent and bounded.
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+async fn get_approval_signatures_for_candidate<Context>(
+	ctx: &mut Context,
+	db: &OverlayedBackend<'_, impl Backend>,
+	candidate_hash: CandidateHash,
+) -> SubsystemResult<HashMap<ValidatorIndex, ValidatorSignature>> {
+	let entry = match db.load_candidate_entry(&candidate_hash)? {
+		None => return Ok(HashMap::new()),
+		Some(e) => e,
+	};
+
+	let relay_hashes = entry.block_assignments.iter().map(|(relay_hash, _)| relay_hash);
+
+	let mut candidate_indices = HashSet::new();
+	// Retrieve `CoreIndices`/`CandidateIndices` as required by approval-distribution:
+	for hash in relay_hashes {
+		let entry = match db.load_block_entry(hash)? {
+			None => continue,
+			Some(e) => e,
+		};
+		for (core_index, c_hash) in entry.candidates() {
+			if c_hash == &candidate_hash {
+				candidate_indices.insert((*hash, *core_index));
+				break
+			}
+		}
+	}
+
+	let (tx, rx) = oneshot::channel();
+	// We should not be sending this message frequently - caller must make sure this is bounded.
+	ctx.send_unbounded_message(ApprovalDistributionMessage::GetApprovalSignatures(
+		candidate_indices,
+		tx,
+	));
+
+	// Because of the unbounded sending and the nature of the call (just fetching data from state),
+	// this should not block long:
+	Ok(rx.await?)
 }
 
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
@@ -2438,26 +2487,7 @@ async fn issue_approval<Context>(
 		"Issuing approval vote",
 	);
 
-	let candidate = candidate_entry.candidate_receipt().clone();
-
-	let inform_disputes_action = if candidate_entry.has_approved(validator_index) {
-		// The approval voting system requires a separate approval for each assignment
-		// to the candidate. It's possible that there are semi-duplicate approvals,
-		// but we only need to inform the dispute coordinator about the first expressed
-		// opinion by the validator about the candidate.
-		Some(Action::InformDisputeCoordinator(ApprovalVoteImport {
-			candidate_hash,
-			candidate,
-			session,
-			validator_public: validator_pubkey.clone(),
-			validator_index,
-			signature: sig.clone(),
-		}))
-	} else {
-		None
-	};
-
-	let mut actions = advance_approval_state(
+	let actions = advance_approval_state(
 		state,
 		db,
 		metrics,
@@ -2466,9 +2496,6 @@ async fn issue_approval<Context>(
 		candidate_entry,
 		ApprovalStateTransition::LocalApproval(validator_index as _, sig.clone()),
 	);
-
-	// dispatch to dispute coordinator.
-	actions.extend(inform_disputes_action);
 
 	metrics.on_approval_produced();
 
