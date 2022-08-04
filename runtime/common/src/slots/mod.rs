@@ -122,19 +122,18 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A new `[lease_period]` is beginning.
-		NewLeasePeriod(LeasePeriodOf<T>),
+		NewLeasePeriod { lease_period: LeasePeriodOf<T> },
 		/// A para has won the right to a continuous set of lease periods as a parachain.
 		/// First balance is any extra amount reserved on top of the para's existing deposit.
 		/// Second balance is the total amount reserved.
-		/// `[parachain_id, leaser, period_begin, period_count, extra_reserved, total_amount]`
-		Leased(
-			ParaId,
-			T::AccountId,
-			LeasePeriodOf<T>,
-			LeasePeriodOf<T>,
-			BalanceOf<T>,
-			BalanceOf<T>,
-		),
+		Leased {
+			para_id: ParaId,
+			leaser: T::AccountId,
+			period_begin: LeasePeriodOf<T>,
+			period_count: LeasePeriodOf<T>,
+			extra_reserved: BalanceOf<T>,
+			total_amount: BalanceOf<T>,
+		},
 	}
 
 	#[pallet::error]
@@ -228,7 +227,7 @@ impl<T: Config> Pallet<T> {
 	/// We need to on-board and off-board parachains as needed. We should also handle reducing/
 	/// returning deposits.
 	fn manage_lease_period_start(lease_period_index: LeasePeriodOf<T>) -> Weight {
-		Self::deposit_event(Event::<T>::NewLeasePeriod(lease_period_index));
+		Self::deposit_event(Event::<T>::NewLeasePeriod { lease_period: lease_period_index });
 
 		let old_parachains = T::Registrar::parachains();
 
@@ -408,14 +407,14 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 				let _ = T::Registrar::make_parachain(para);
 			}
 
-			Self::deposit_event(Event::<T>::Leased(
-				para,
-				leaser.clone(),
+			Self::deposit_event(Event::<T>::Leased {
+				para_id: para,
+				leaser: leaser.clone(),
 				period_begin,
 				period_count,
-				reserved,
-				amount,
-			));
+				extra_reserved: reserved,
+				total_amount: amount,
+			});
 
 			Ok(())
 		})
@@ -631,7 +630,7 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -662,7 +661,7 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -705,7 +704,7 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -755,7 +754,7 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -790,7 +789,7 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -833,7 +832,7 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -858,7 +857,7 @@ mod tests {
 			}
 
 			// Leases is empty.
-			assert!(Leases::<Test>::get(ParaId::from(1)).is_empty());
+			assert!(Leases::<Test>::get(ParaId::from(1_u32)).is_empty());
 		});
 	}
 
@@ -869,13 +868,13 @@ mod tests {
 
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(2),
+				ParaId::from(2_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -900,19 +899,19 @@ mod tests {
 			run_to_block(1);
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(1),
+				ParaId::from(1_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(2),
+				ParaId::from(2_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
 			assert_ok!(TestRegistrar::<Test>::register(
 				1,
-				ParaId::from(3),
+				ParaId::from(3_u32),
 				dummy_head_data(),
 				dummy_validation_code()
 			));
@@ -920,9 +919,9 @@ mod tests {
 			// We will directly manipulate leases to emulate some kind of failure in the system.
 			// Para 1 will have no leases
 			// Para 2 will have a lease period in the current index
-			Leases::<Test>::insert(ParaId::from(2), vec![Some((0, 0))]);
+			Leases::<Test>::insert(ParaId::from(2_u32), vec![Some((0, 0))]);
 			// Para 3 will have a lease period in a future index
-			Leases::<Test>::insert(ParaId::from(3), vec![None, None, Some((0, 0))]);
+			Leases::<Test>::insert(ParaId::from(3_u32), vec![None, None, Some((0, 0))]);
 
 			// Para 1 should fail cause they don't have any leases
 			assert_noop!(
@@ -1027,7 +1026,13 @@ mod benchmarking {
 			let period_count = 3u32.into();
 		}: _(RawOrigin::Root, para, leaser.clone(), amount, period_begin, period_count)
 		verify {
-			assert_last_event::<T>(Event::<T>::Leased(para, leaser, period_begin, period_count, amount, amount).into());
+			assert_last_event::<T>(Event::<T>::Leased {
+				para_id: para,
+				leaser, period_begin,
+				period_count,
+				extra_reserved: amount,
+				total_amount: amount,
+			}.into());
 		}
 
 		// Worst case scenario, T parathreads onboard, and C parachains offboard.

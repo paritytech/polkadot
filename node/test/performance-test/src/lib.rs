@@ -36,6 +36,9 @@ pub enum PerfCheckError {
 	#[error("This subcommand is only available in release mode")]
 	WrongBuildType,
 
+	#[error("This subcommand is only available when compiled with `{feature}`")]
+	FeatureNotEnabled { feature: &'static str },
+
 	#[error("No wasm code found for running the performance test")]
 	WasmBinaryMissing,
 

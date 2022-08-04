@@ -29,15 +29,15 @@ use sc_network::config::RequestResponseConfig;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_primitives::{BlockData, PoV, Proof};
-use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
-use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
-use polkadot_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_primitives::v2::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
+use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 
 type VirtualOverseer = TestSubsystemContextHandle<AvailabilityRecoveryMessage>;
 
@@ -124,7 +124,7 @@ async fn overseer_signal(
 ) {
 	delay!(50);
 	overseer
-		.send(FromOverseer::Signal(signal))
+		.send(FromOrchestra::Signal(signal))
 		.timeout(TIMEOUT)
 		.await
 		.expect("10ms is more than enough for sending signals.");
@@ -136,7 +136,7 @@ async fn overseer_send(
 ) {
 	gum::trace!(msg = ?msg, "sending message");
 	overseer
-		.send(FromOverseer::Communication { msg })
+		.send(FromOrchestra::Communication { msg })
 		.timeout(TIMEOUT)
 		.await
 		.expect("10ms is more than enough for sending messages.");
@@ -282,8 +282,8 @@ impl TestState {
 			// Receive a request for a chunk.
 			assert_matches!(
 				overseer_recv(virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendRequests(
+				AllMessages::NetworkBridgeTx(
+					NetworkBridgeTxMessage::SendRequests(
 						requests,
 						IfDisconnected::ImmediateError,
 					)
@@ -331,8 +331,8 @@ impl TestState {
 			// Receive a request for a chunk.
 			assert_matches!(
 				overseer_recv(virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendRequests(
+				AllMessages::NetworkBridgeTx(
+					NetworkBridgeTxMessage::SendRequests(
 						mut requests,
 						IfDisconnected::ImmediateError,
 					)

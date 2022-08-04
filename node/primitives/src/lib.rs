@@ -29,16 +29,14 @@ use futures::Future;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-pub use sp_consensus_babe::{
-	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
-};
-pub use sp_core::traits::SpawnNamed;
-
 use polkadot_primitives::v2::{
 	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
 	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
 	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
 	ValidatorIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
+};
+pub use sp_consensus_babe::{
+	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
 };
 
 pub use polkadot_parachain::primitives::BlockData;
@@ -86,7 +84,7 @@ pub const MAX_FINALITY_LAG: u32 = 500;
 /// We are not using `NonZeroU32` here because `expect` and `unwrap` are not yet const, so global
 /// constants of `SessionWindowSize` would require `lazy_static` in that case.
 ///
-/// See: https://github.com/rust-lang/rust/issues/67441
+/// See: <https://github.com/rust-lang/rust/issues/67441>
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct SessionWindowSize(SessionIndex);
 

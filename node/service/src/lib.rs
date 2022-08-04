@@ -34,10 +34,11 @@ mod tests;
 
 #[cfg(feature = "full-node")]
 use {
-	beefy_gadget::notification::{BeefyBestBlockSender, BeefySignedCommitmentSender},
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
 	gum::info,
-	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
+	polkadot_node_core_approval_voting::{
+		self as approval_voting_subsystem, Config as ApprovalVotingConfig,
+	},
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
 	polkadot_node_core_av_store::Error as AvailabilityError,
 	polkadot_node_core_candidate_validation::Config as CandidateValidationConfig,
@@ -47,12 +48,12 @@ use {
 	polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig,
 	polkadot_overseer::BlockInfo,
 	sc_client_api::{BlockBackend, ExecutorProvider},
+	sp_core::traits::SpawnNamed,
 	sp_trie::PrefixedMemoryDB,
 };
 
 use polkadot_node_subsystem_util::database::Database;
 
-pub use sp_core::traits::SpawnNamed;
 #[cfg(feature = "full-node")]
 pub use {
 	polkadot_overseer::{Handle, Overseer, OverseerConnector, OverseerHandle},
@@ -65,7 +66,7 @@ pub use {
 };
 
 #[cfg(feature = "full-node")]
-use polkadot_subsystem::jaeger;
+use polkadot_node_subsystem::jaeger;
 
 use std::{sync::Arc, time::Duration};
 
@@ -221,7 +222,7 @@ pub enum Error {
 	Telemetry(#[from] telemetry::Error),
 
 	#[error(transparent)]
-	Jaeger(#[from] polkadot_subsystem::jaeger::JaegerError),
+	Jaeger(#[from] polkadot_node_subsystem::jaeger::JaegerError),
 
 	#[cfg(feature = "full-node")]
 	#[error(transparent)]
@@ -346,6 +347,14 @@ type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullS
 		FullClient<RuntimeApi, ExecutorDispatch>,
 		ChainSelection,
 	>;
+#[cfg(feature = "full-node")]
+type FullBeefyBlockImport<RuntimeApi, ExecutorDispatch, InnerBlockImport> =
+	beefy_gadget::import::BeefyBlockImport<
+		Block,
+		FullBackend,
+		FullClient<RuntimeApi, ExecutorDispatch>,
+		InnerBlockImport,
+	>;
 
 #[cfg(feature = "full-node")]
 struct Basics<RuntimeApi, ExecutorDispatch>
@@ -444,16 +453,23 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 		sc_consensus::DefaultImportQueue<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
 		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
 		(
-			impl service::RpcExtensionBuilder,
+			impl Fn(
+				polkadot_rpc::DenyUnsafe,
+				polkadot_rpc::SubscriptionTaskExecutor,
+			) -> Result<polkadot_rpc::RpcExtension, SubstrateServiceError>,
 			(
 				babe::BabeBlockImport<
 					Block,
 					FullClient<RuntimeApi, ExecutorDispatch>,
-					FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
+					FullBeefyBlockImport<
+						RuntimeApi,
+						ExecutorDispatch,
+						FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
+					>,
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
 				babe::BabeLink<Block>,
-				(BeefySignedCommitmentSender<Block>, BeefyBestBlockSender<Block>),
+				beefy_gadget::BeefyVoterLinks<Block>,
 			),
 			grandpa::SharedVoterState,
 			sp_consensus_babe::SlotDuration,
@@ -493,12 +509,18 @@ where
 		grandpa_hard_forks,
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
-
 	let justification_import = grandpa_block_import.clone();
+
+	let (beefy_block_import, beefy_voter_links, beefy_rpc_links) =
+		beefy_gadget::beefy_block_import_and_links(
+			grandpa_block_import,
+			backend.clone(),
+			client.clone(),
+		);
 
 	let babe_config = babe::Config::get(&*client)?;
 	let (block_import, babe_link) =
-		babe::block_import(babe_config.clone(), grandpa_block_import, client.clone())?;
+		babe::block_import(babe_config.clone(), beefy_block_import, client.clone())?;
 
 	let slot_duration = babe_link.config().slot_duration();
 	let import_queue = babe::import_queue(
@@ -524,12 +546,6 @@ where
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let (beefy_commitment_link, beefy_commitment_stream) =
-		beefy_gadget::notification::BeefySignedCommitmentStream::<Block>::channel();
-	let (beefy_best_block_link, beefy_best_block_stream) =
-		beefy_gadget::notification::BeefyBestBlockStream::<Block>::channel();
-	let beefy_links = (beefy_commitment_link, beefy_best_block_link);
-
 	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
 	let shared_voter_state = grandpa::SharedVoterState::empty();
@@ -541,7 +557,7 @@ where
 	let shared_epoch_changes = babe_link.epoch_changes().clone();
 	let slot_duration = babe_config.slot_duration();
 
-	let import_setup = (block_import, grandpa_link, babe_link, beefy_links);
+	let import_setup = (block_import, grandpa_link, babe_link, beefy_voter_links);
 	let rpc_setup = shared_voter_state.clone();
 
 	let rpc_extensions_builder = {
@@ -574,8 +590,8 @@ where
 					finality_provider: finality_proof_provider.clone(),
 				},
 				beefy: polkadot_rpc::BeefyDeps {
-					beefy_commitment_stream: beefy_commitment_stream.clone(),
-					beefy_best_block_stream: beefy_best_block_stream.clone(),
+					beefy_commitment_stream: beefy_rpc_links.from_voter_justif_stream.clone(),
+					beefy_best_block_stream: beefy_rpc_links.from_voter_best_beefy_stream.clone(),
 					subscription_executor,
 				},
 			};
@@ -719,6 +735,8 @@ pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	program_path: Option<std::path::PathBuf>,
 	overseer_enable_anyways: bool,
 	overseer_gen: OverseerGenerator,
+	overseer_message_channel_capacity_override: Option<usize>,
+	_malus_finality_delay: Option<u32>,
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, ExecutorDispatch>>>, Error>
 where
@@ -924,7 +942,8 @@ where
 
 	let chain_selection_config = ChainSelectionConfig {
 		col_data: parachains_db::REAL_COLUMNS.col_chain_selection_data,
-		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
+		stagnant_check_interval: Default::default(),
+		stagnant_check_mode: chain_selection_subsystem::StagnantCheckMode::PruneOnly,
 	};
 
 	let dispute_coordinator_config = DisputeCoordinatorConfig {
@@ -937,7 +956,7 @@ where
 		client: client.clone(),
 		keystore: keystore_container.sync_keystore(),
 		network: network.clone(),
-		rpc_extensions_builder: Box::new(rpc_extensions_builder),
+		rpc_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
 		task_manager: &mut task_manager,
 		system_rpc_tx,
@@ -986,6 +1005,8 @@ where
 		let (worker, service) = sc_authority_discovery::new_worker_and_service_with_config(
 			sc_authority_discovery::WorkerConfig {
 				publish_non_global_ips: auth_disc_publish_non_global_ips,
+				// Require that authority discovery records are signed.
+				strict_record_validation: true,
 				..Default::default()
 			},
 			client.clone(),
@@ -1038,6 +1059,7 @@ where
 					chain_selection_config,
 					dispute_coordinator_config,
 					pvf_checker_enabled,
+					overseer_message_channel_capacity_override,
 				},
 			)
 			.map_err(|e| {
@@ -1114,11 +1136,6 @@ where
 						parent,
 					).await.map_err(|e| Box::new(e))?;
 
-					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
-						&*client_clone,
-						parent,
-					)?;
-
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 					let slot =
@@ -1127,7 +1144,7 @@ where
 							slot_duration,
 						);
 
-					Ok((timestamp, slot, uncles, parachain))
+					Ok((timestamp, slot, parachain))
 				}
 			},
 			force_authoring,
@@ -1155,11 +1172,10 @@ where
 			runtime: client.clone(),
 			key_store: keystore_opt.clone(),
 			network: network.clone(),
-			signed_commitment_sender: beefy_links.0,
-			beefy_best_block_sender: beefy_links.1,
 			min_block_delta: if chain_spec.is_wococo() { 4 } else { 8 },
 			prometheus_registry: prometheus_registry.clone(),
 			protocol_name: beefy_protocol_name,
+			links: beefy_links,
 		};
 
 		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _, _>(beefy_params);
@@ -1175,9 +1191,22 @@ where
 		}
 	}
 
+	// Reduce grandpa load on Kusama and test networks. This will slow down finality by
+	// approximately one slot duration, but will reduce load. We would like to see the impact on
+	// Kusama, see: https://github.com/paritytech/polkadot/issues/5464
+	let gossip_duration = if chain_spec.is_versi() ||
+		chain_spec.is_wococo() ||
+		chain_spec.is_rococo() ||
+		chain_spec.is_kusama()
+	{
+		Duration::from_millis(2000)
+	} else {
+		Duration::from_millis(1000)
+	};
+
 	let config = grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
-		gossip_duration: Duration::from_millis(1000),
+		gossip_duration,
 		justification_period: 512,
 		name: Some(name),
 		observer_enabled: false,
@@ -1199,7 +1228,15 @@ where
 		// add a custom voting rule to temporarily stop voting for new blocks
 		// after the given pause block is finalized and restarting after the
 		// given delay.
-		let builder = grandpa::VotingRulesBuilder::default();
+		let mut builder = grandpa::VotingRulesBuilder::default();
+
+		#[cfg(not(feature = "malus"))]
+		let _malus_finality_delay = None;
+
+		if let Some(delay) = _malus_finality_delay {
+			info!(?delay, "Enabling malus finality delay",);
+			builder = builder.add(grandpa::BeforeBestBlockBy(delay));
+		};
 
 		let voting_rule = match grandpa_pause {
 			Some((block, delay)) => {
@@ -1326,6 +1363,8 @@ pub fn build_full(
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	overseer_enable_anyways: bool,
 	overseer_gen: impl OverseerGen,
+	overseer_message_channel_override: Option<usize>,
+	malus_finality_delay: Option<u32>,
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]
@@ -1343,6 +1382,8 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			overseer_message_channel_override,
+			malus_finality_delay,
 			hwbench,
 		)
 		.map(|full| full.with_client(Client::Rococo))
@@ -1360,6 +1401,8 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			overseer_message_channel_override,
+			malus_finality_delay,
 			hwbench,
 		)
 		.map(|full| full.with_client(Client::Kusama))
@@ -1377,6 +1420,8 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			overseer_message_channel_override,
+			malus_finality_delay,
 			hwbench,
 		)
 		.map(|full| full.with_client(Client::Westend))
@@ -1394,6 +1439,11 @@ pub fn build_full(
 			None,
 			overseer_enable_anyways,
 			overseer_gen,
+			overseer_message_channel_override.map(|capacity| {
+				gum::warn!("Channel capacity should _never_ be tampered with on polkadot!");
+				capacity
+			}),
+			malus_finality_delay,
 			hwbench,
 		)
 		.map(|full| full.with_client(Client::Polkadot))
@@ -1401,6 +1451,79 @@ pub fn build_full(
 
 	#[cfg(not(feature = "polkadot-native"))]
 	Err(Error::NoRuntime)
+}
+
+/// Reverts the node state down to at most the last finalized block.
+///
+/// In particular this reverts:
+/// - `ApprovalVotingSubsystem` data in the parachains-db;
+/// - `ChainSelectionSubsystem` data in the parachains-db;
+/// - Low level Babe and Grandpa consensus data.
+#[cfg(feature = "full-node")]
+pub fn revert_backend(
+	client: Arc<Client>,
+	backend: Arc<FullBackend>,
+	blocks: BlockNumber,
+	config: Configuration,
+) -> Result<(), Error> {
+	let best_number = client.info().best_number;
+	let finalized = client.info().finalized_number;
+	let revertible = blocks.min(best_number - finalized);
+
+	if revertible == 0 {
+		return Ok(())
+	}
+
+	let number = best_number - revertible;
+	let hash = client.block_hash_from_id(&BlockId::Number(number))?.ok_or(
+		sp_blockchain::Error::Backend(format!(
+			"Unexpected hash lookup failure for block number: {}",
+			number
+		)),
+	)?;
+
+	let parachains_db = open_database(&config.database)
+		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))?;
+
+	revert_approval_voting(parachains_db.clone(), hash)?;
+	revert_chain_selection(parachains_db, hash)?;
+	// Revert Substrate consensus related components
+	client.execute_with(RevertConsensus { blocks, backend })?;
+
+	Ok(())
+}
+
+fn revert_chain_selection(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::Result<()> {
+	let config = chain_selection_subsystem::Config {
+		col_data: parachains_db::REAL_COLUMNS.col_chain_selection_data,
+		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
+		stagnant_check_mode: chain_selection_subsystem::StagnantCheckMode::PruneOnly,
+	};
+
+	let chain_selection = chain_selection_subsystem::ChainSelectionSubsystem::new(config, db);
+
+	chain_selection
+		.revert_to(hash)
+		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))
+}
+
+fn revert_approval_voting(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::Result<()> {
+	let config = approval_voting_subsystem::Config {
+		col_data: parachains_db::REAL_COLUMNS.col_approval_data,
+		slot_duration_millis: Default::default(),
+	};
+
+	let approval_voting = approval_voting_subsystem::ApprovalVotingSubsystem::with_config(
+		config,
+		db,
+		Arc::new(sc_keystore::LocalKeystore::in_memory()),
+		Box::new(consensus_common::NoNetwork),
+		approval_voting_subsystem::Metrics::default(),
+	);
+
+	approval_voting
+		.revert_to(hash)
+		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))
 }
 
 struct RevertConsensus {
@@ -1419,52 +1542,10 @@ impl ExecuteWithClient for RevertConsensus {
 		Api: polkadot_client::RuntimeApiCollection<StateBackend = Backend::State>,
 		Client: AbstractClient<Block, Backend, Api = Api> + 'static,
 	{
+		// Revert consensus-related components.
+		// The operations are not correlated, thus call order is not relevant.
 		babe::revert(client.clone(), self.backend, self.blocks)?;
 		grandpa::revert(client, self.blocks)?;
 		Ok(())
 	}
-}
-
-/// Reverts the node state down to at most the last finalized block.
-///
-/// In particular this reverts:
-/// - `ChainSelectionSubsystem` data in the parachains-db.
-/// - Low level Babe and Grandpa consensus data.
-#[cfg(feature = "full-node")]
-pub fn revert_backend(
-	client: Arc<Client>,
-	backend: Arc<FullBackend>,
-	blocks: BlockNumber,
-	config: Configuration,
-) -> Result<(), Error> {
-	let best_number = client.info().best_number;
-	let finalized = client.info().finalized_number;
-	let revertible = blocks.min(best_number - finalized);
-
-	let number = best_number - revertible;
-	let hash = client.block_hash_from_id(&BlockId::Number(number))?.ok_or(
-		sp_blockchain::Error::Backend(format!(
-			"Unexpected hash lookup failure for block number: {}",
-			number
-		)),
-	)?;
-
-	let parachains_db = open_database(&config.database)
-		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))?;
-
-	let config = chain_selection_subsystem::Config {
-		col_data: parachains_db::REAL_COLUMNS.col_chain_selection_data,
-		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
-	};
-
-	let chain_selection =
-		chain_selection_subsystem::ChainSelectionSubsystem::new(config, parachains_db);
-
-	chain_selection
-		.revert(hash)
-		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))?;
-
-	client.execute_with(RevertConsensus { blocks, backend })?;
-
-	Ok(())
 }

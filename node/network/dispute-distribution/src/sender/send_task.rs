@@ -26,13 +26,10 @@ use polkadot_node_network_protocol::{
 	},
 	IfDisconnected,
 };
+use polkadot_node_subsystem::{messages::NetworkBridgeTxMessage, overseer};
 use polkadot_node_subsystem_util::{metrics, runtime::RuntimeInfo};
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, ValidatorIndex,
-};
-use polkadot_subsystem::{
-	messages::{AllMessages, NetworkBridgeMessage},
-	SubsystemContext,
 };
 
 use super::error::{FatalError, Result};
@@ -100,9 +97,10 @@ impl TaskResult {
 	}
 }
 
+#[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
 impl SendTask {
 	/// Initiates sending a dispute message to peers.
-	pub async fn new<Context: SubsystemContext>(
+	pub async fn new<Context>(
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		active_sessions: &HashMap<SessionIndex, Hash>,
@@ -120,7 +118,7 @@ impl SendTask {
 	///
 	/// This function is called at construction and should also be called whenever a session change
 	/// happens and on a regular basis to ensure we are retrying failed attempts.
-	pub async fn refresh_sends<Context: SubsystemContext>(
+	pub async fn refresh_sends<Context>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
@@ -197,7 +195,8 @@ impl SendTask {
 	///
 	/// This is all parachain validators of the session the candidate occurred and all authorities
 	/// of all currently active sessions, determined by currently active heads.
-	async fn get_relevant_validators<Context: SubsystemContext>(
+
+	async fn get_relevant_validators<Context>(
 		&self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
@@ -241,7 +240,8 @@ impl SendTask {
 /// Start sending of the given message to all given authorities.
 ///
 /// And spawn tasks for handling the response.
-async fn send_requests<Context: SubsystemContext>(
+#[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
+async fn send_requests<Context>(
 	ctx: &mut Context,
 	tx: mpsc::Sender<TaskFinish>,
 	receivers: Vec<AuthorityDiscoveryId>,
@@ -270,8 +270,8 @@ async fn send_requests<Context: SubsystemContext>(
 		statuses.insert(receiver, DeliveryStatus::Pending(remote_handle));
 	}
 
-	let msg = NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError);
-	ctx.send_message(AllMessages::NetworkBridge(msg)).await;
+	let msg = NetworkBridgeTxMessage::SendRequests(reqs, IfDisconnected::ImmediateError);
+	ctx.send_message(msg).await;
 	Ok(statuses)
 }
 

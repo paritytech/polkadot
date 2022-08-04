@@ -254,27 +254,27 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Create a new crowdloaning campaign. `[fund_index]`
-		Created(ParaId),
-		/// Contributed to a crowd sale. `[who, fund_index, amount]`
-		Contributed(T::AccountId, ParaId, BalanceOf<T>),
-		/// Withdrew full balance of a contributor. `[who, fund_index, amount]`
-		Withdrew(T::AccountId, ParaId, BalanceOf<T>),
+		/// Create a new crowdloaning campaign.
+		Created { para_id: ParaId },
+		/// Contributed to a crowd sale.
+		Contributed { who: T::AccountId, fund_index: ParaId, amount: BalanceOf<T> },
+		/// Withdrew full balance of a contributor.
+		Withdrew { who: T::AccountId, fund_index: ParaId, amount: BalanceOf<T> },
 		/// The loans in a fund have been partially dissolved, i.e. there are some left
-		/// over child keys that still need to be killed. `[fund_index]`
-		PartiallyRefunded(ParaId),
-		/// All loans in a fund have been refunded. `[fund_index]`
-		AllRefunded(ParaId),
-		/// Fund is dissolved. `[fund_index]`
-		Dissolved(ParaId),
+		/// over child keys that still need to be killed.
+		PartiallyRefunded { para_id: ParaId },
+		/// All loans in a fund have been refunded.
+		AllRefunded { para_id: ParaId },
+		/// Fund is dissolved.
+		Dissolved { para_id: ParaId },
 		/// The result of trying to submit a new bid to the Slots pallet.
-		HandleBidResult(ParaId, DispatchResult),
-		/// The configuration to a crowdloan has been edited. `[fund_index]`
-		Edited(ParaId),
-		/// A memo has been updated. `[who, fund_index, memo]`
-		MemoUpdated(T::AccountId, ParaId, Vec<u8>),
+		HandleBidResult { para_id: ParaId, result: DispatchResult },
+		/// The configuration to a crowdloan has been edited.
+		Edited { para_id: ParaId },
+		/// A memo has been updated.
+		MemoUpdated { who: T::AccountId, para_id: ParaId, memo: Vec<u8> },
 		/// A parachain has been moved to `NewRaise`
-		AddedToNewRaise(ParaId),
+		AddedToNewRaise { para_id: ParaId },
 	}
 
 	#[pallet::error]
@@ -351,7 +351,7 @@ pub mod pallet {
 						fund.raised,
 					);
 
-					Self::deposit_event(Event::<T>::HandleBidResult(para_id, result));
+					Self::deposit_event(Event::<T>::HandleBidResult { para_id, result });
 				}
 				T::WeightInfo::on_initialize(new_raise_len)
 			} else {
@@ -435,7 +435,7 @@ pub mod pallet {
 
 			NextFundIndex::<T>::put(new_fund_index);
 
-			Self::deposit_event(Event::<T>::Created(index));
+			Self::deposit_event(Event::<T>::Created { para_id: index });
 			Ok(())
 		}
 
@@ -492,7 +492,7 @@ pub mod pallet {
 
 			Funds::<T>::insert(index, &fund);
 
-			Self::deposit_event(Event::<T>::Withdrew(who, index, balance));
+			Self::deposit_event(Event::<T>::Withdrew { who, fund_index: index, amount: balance });
 			Ok(())
 		}
 
@@ -534,11 +534,11 @@ pub mod pallet {
 			Funds::<T>::insert(index, &fund);
 
 			if all_refunded {
-				Self::deposit_event(Event::<T>::AllRefunded(index));
+				Self::deposit_event(Event::<T>::AllRefunded { para_id: index });
 				// Refund for unused refund count.
 				Ok(Some(T::WeightInfo::refund(refund_count)).into())
 			} else {
-				Self::deposit_event(Event::<T>::PartiallyRefunded(index));
+				Self::deposit_event(Event::<T>::PartiallyRefunded { para_id: index });
 				// No weight to refund since we did not finish the loop.
 				Ok(().into())
 			}
@@ -565,7 +565,7 @@ pub mod pallet {
 
 			CurrencyOf::<T>::unreserve(&fund.depositor, fund.deposit);
 			Funds::<T>::remove(index);
-			Self::deposit_event(Event::<T>::Dissolved(index));
+			Self::deposit_event(Event::<T>::Dissolved { para_id: index });
 			Ok(())
 		}
 
@@ -602,7 +602,7 @@ pub mod pallet {
 				},
 			);
 
-			Self::deposit_event(Event::<T>::Edited(index));
+			Self::deposit_event(Event::<T>::Edited { para_id: index });
 			Ok(())
 		}
 
@@ -620,7 +620,7 @@ pub mod pallet {
 			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);
 
 			Self::contribution_put(fund.fund_index, &who, &balance, &memo);
-			Self::deposit_event(Event::<T>::MemoUpdated(who, index, memo));
+			Self::deposit_event(Event::<T>::MemoUpdated { who, para_id: index, memo });
 			Ok(())
 		}
 
@@ -634,7 +634,7 @@ pub mod pallet {
 			ensure!(!fund.raised.is_zero(), Error::<T>::NoContributions);
 			ensure!(!NewRaise::<T>::get().contains(&index), Error::<T>::AlreadyInNewRaise);
 			NewRaise::<T>::append(index);
-			Self::deposit_event(Event::<T>::AddedToNewRaise(index));
+			Self::deposit_event(Event::<T>::AddedToNewRaise { para_id: index });
 			Ok(())
 		}
 
@@ -659,7 +659,7 @@ impl<T: Config> Pallet<T> {
 	/// This actually does computation. If you need to keep using it, then make sure you cache the
 	/// value and only call this once.
 	pub fn fund_account_id(index: FundIndex) -> T::AccountId {
-		T::PalletId::get().into_sub_account(index)
+		T::PalletId::get().into_sub_account_truncating(index)
 	}
 
 	pub fn id_from_index(index: FundIndex) -> child::ChildInfo {
@@ -689,6 +689,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub fn crowdloan_kill(index: FundIndex) -> child::KillStorageResult {
+		#[allow(deprecated)]
 		child::kill_storage(&Self::id_from_index(index), Some(T::RemoveKeysLimit::get()))
 	}
 
@@ -808,7 +809,7 @@ impl<T: Config> Pallet<T> {
 
 		Funds::<T>::insert(index, &fund);
 
-		Self::deposit_event(Event::<T>::Contributed(who, index, value));
+		Self::deposit_event(Event::<T>::Contributed { who, fund_index: index, amount: value });
 		Ok(())
 	}
 }
@@ -1646,14 +1647,17 @@ mod tests {
 			// Move to the end of the crowdloan
 			run_to_block(10);
 			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
-			assert_eq!(last_event(), super::Event::<Test>::PartiallyRefunded(para).into());
+			assert_eq!(
+				last_event(),
+				super::Event::<Test>::PartiallyRefunded { para_id: para }.into()
+			);
 
 			// Funds still left over
 			assert!(!Balances::free_balance(account_id).is_zero());
 
 			// Call again
 			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
-			assert_eq!(last_event(), super::Event::<Test>::AllRefunded(para).into());
+			assert_eq!(last_event(), super::Event::<Test>::AllRefunded { para_id: para }.into());
 
 			// Funds are returned
 			assert_eq!(Balances::free_balance(account_id), 0);
@@ -1962,7 +1966,7 @@ mod benchmarking {
 
 	benchmarks! {
 		create {
-			let para_id = ParaId::from(1);
+			let para_id = ParaId::from(1_u32);
 			let cap = BalanceOf::<T>::max_value();
 			let first_period = 0u32.into();
 			let last_period = 3u32.into();
@@ -1981,7 +1985,7 @@ mod benchmarking {
 
 		}: _(RawOrigin::Signed(caller), para_id, cap, first_period, last_period, end, Some(verifier))
 		verify {
-			assert_last_event::<T>(Event::<T>::Created(para_id).into())
+			assert_last_event::<T>(Event::<T>::Created { para_id }.into())
 		}
 
 		// Contribute has two arms: PreEnding and Ending, but both are equal complexity.
@@ -2002,7 +2006,7 @@ mod benchmarking {
 		verify {
 			// NewRaise is appended to, so we don't need to fill it up for worst case scenario.
 			assert!(!NewRaise::<T>::get().is_empty());
-			assert_last_event::<T>(Event::<T>::Contributed(caller, fund_index, contribution).into());
+			assert_last_event::<T>(Event::<T>::Contributed { who: caller, fund_index, amount: contribution }.into());
 		}
 
 		withdraw {
@@ -2015,7 +2019,7 @@ mod benchmarking {
 			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
 		}: _(RawOrigin::Signed(caller), contributor.clone(), fund_index)
 		verify {
-			assert_last_event::<T>(Event::<T>::Withdrew(contributor, fund_index, T::MinContribution::get()).into());
+			assert_last_event::<T>(Event::<T>::Withdrew { who: contributor, fund_index, amount: T::MinContribution::get() }.into());
 		}
 
 		// Worst case: Refund removes `RemoveKeysLimit` keys, and is fully refunded.
@@ -2035,7 +2039,7 @@ mod benchmarking {
 			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
 		}: _(RawOrigin::Signed(caller), fund_index)
 		verify {
-			assert_last_event::<T>(Event::<T>::AllRefunded(fund_index).into());
+			assert_last_event::<T>(Event::<T>::AllRefunded { para_id: fund_index }.into());
 		}
 
 		dissolve {
@@ -2046,11 +2050,11 @@ mod benchmarking {
 			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
 		}: _(RawOrigin::Signed(caller.clone()), fund_index)
 		verify {
-			assert_last_event::<T>(Event::<T>::Dissolved(fund_index).into());
+			assert_last_event::<T>(Event::<T>::Dissolved { para_id: fund_index }.into());
 		}
 
 		edit {
-			let para_id = ParaId::from(1);
+			let para_id = ParaId::from(1_u32);
 			let cap = BalanceOf::<T>::max_value();
 			let first_period = 0u32.into();
 			let last_period = 3u32.into();
@@ -2075,7 +2079,7 @@ mod benchmarking {
 			// Doesn't matter what we edit to, so use the same values.
 		}: _(RawOrigin::Root, para_id, cap, first_period, last_period, end, Some(verifier))
 		verify {
-			assert_last_event::<T>(Event::<T>::Edited(para_id).into())
+			assert_last_event::<T>(Event::<T>::Edited { para_id }.into())
 		}
 
 		add_memo {
@@ -2105,7 +2109,7 @@ mod benchmarking {
 		}: _(RawOrigin::Signed(caller), fund_index)
 		verify {
 			assert!(!NewRaise::<T>::get().is_empty());
-			assert_last_event::<T>(Event::<T>::AddedToNewRaise(fund_index).into())
+			assert_last_event::<T>(Event::<T>::AddedToNewRaise { para_id: fund_index }.into())
 		}
 
 		// Worst case scenario: N funds are all in the `NewRaise` list, we are
@@ -2144,7 +2148,7 @@ mod benchmarking {
 			Crowdloan::<T>::on_initialize(end_block);
 		} verify {
 			assert_eq!(EndingsCount::<T>::get(), old_endings_count + 1);
-			assert_last_event::<T>(Event::<T>::HandleBidResult((n - 1).into(), Ok(())).into());
+			assert_last_event::<T>(Event::<T>::HandleBidResult { para_id: (n - 1).into(), result: Ok(()) }.into());
 		}
 
 		impl_benchmark_test_suite!(

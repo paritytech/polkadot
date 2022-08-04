@@ -31,11 +31,11 @@ use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::request_response::{incoming::IncomingRequestReceiver, v1};
 use polkadot_node_primitives::DISPUTE_WINDOW;
-use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
-use polkadot_subsystem::{
-	messages::DisputeDistributionMessage, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemError,
+use polkadot_node_subsystem::{
+	messages::DisputeDistributionMessage, overseer, FromOrchestra, OverseerSignal,
+	SpawnedSubsystem, SubsystemError,
 };
+use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 
 /// ## The sender [`DisputeSender`]
 ///
@@ -114,12 +114,11 @@ pub struct DisputeDistributionSubsystem<AD> {
 	metrics: Metrics,
 }
 
-impl<Context, AD> overseer::Subsystem<Context, SubsystemError> for DisputeDistributionSubsystem<AD>
+#[overseer::subsystem(DisputeDistribution, error = SubsystemError, prefix = self::overseer)]
+impl<Context, AD> DisputeDistributionSubsystem<AD>
 where
-	Context: SubsystemContext<Message = DisputeDistributionMessage>
-		+ overseer::SubsystemContext<Message = DisputeDistributionMessage>
-		+ Sync
-		+ Send,
+	<Context as overseer::DisputeDistributionContextTrait>::Sender:
+		overseer::DisputeDistributionSenderTrait + Sync + Send,
 	AD: AuthorityDiscovery + Clone,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
@@ -132,6 +131,7 @@ where
 	}
 }
 
+#[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
 impl<AD> DisputeDistributionSubsystem<AD>
 where
 	AD: AuthorityDiscovery + Clone,
@@ -160,13 +160,7 @@ where
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError>
-	where
-		Context: SubsystemContext<Message = DisputeDistributionMessage>
-			+ overseer::SubsystemContext<Message = DisputeDistributionMessage>
-			+ Sync
-			+ Send,
-	{
+	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError> {
 		let receiver = DisputesReceiver::new(
 			ctx.sender().clone(),
 			self.req_receiver
@@ -183,17 +177,17 @@ where
 			match message {
 				MuxedMessage::Subsystem(result) => {
 					let result = match result? {
-						FromOverseer::Signal(signal) => {
+						FromOrchestra::Signal(signal) => {
 							match self.handle_signals(&mut ctx, signal).await {
 								Ok(SignalResult::Conclude) => return Ok(()),
 								Ok(SignalResult::Continue) => Ok(()),
 								Err(f) => Err(f),
 							}
 						},
-						FromOverseer::Communication { msg } =>
+						FromOrchestra::Communication { msg } =>
 							self.handle_subsystem_message(&mut ctx, msg).await,
 					};
-					log_error(result, "on FromOverseer")?;
+					log_error(result, "on FromOrchestra")?;
 				},
 				MuxedMessage::Sender(result) => {
 					self.disputes_sender
@@ -205,7 +199,7 @@ where
 	}
 
 	/// Handle overseer signals.
-	async fn handle_signals<Context: SubsystemContext>(
+	async fn handle_signals<Context>(
 		&mut self,
 		ctx: &mut Context,
 		signal: OverseerSignal,
@@ -221,7 +215,7 @@ where
 	}
 
 	/// Handle `DisputeDistributionMessage`s.
-	async fn handle_subsystem_message<Context: SubsystemContext>(
+	async fn handle_subsystem_message<Context>(
 		&mut self,
 		ctx: &mut Context,
 		msg: DisputeDistributionMessage,
@@ -238,15 +232,15 @@ where
 #[derive(Debug)]
 enum MuxedMessage {
 	/// Messages from other subsystems.
-	Subsystem(FatalResult<FromOverseer<DisputeDistributionMessage>>),
+	Subsystem(FatalResult<FromOrchestra<DisputeDistributionMessage>>),
 	/// Messages from spawned sender background tasks.
 	Sender(Option<TaskFinish>),
 }
 
+#[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
 impl MuxedMessage {
-	async fn receive(
-		ctx: &mut (impl SubsystemContext<Message = DisputeDistributionMessage>
-		          + overseer::SubsystemContext<Message = DisputeDistributionMessage>),
+	async fn receive<Context>(
+		ctx: &mut Context,
 		from_sender: &mut mpsc::Receiver<TaskFinish>,
 	) -> Self {
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream

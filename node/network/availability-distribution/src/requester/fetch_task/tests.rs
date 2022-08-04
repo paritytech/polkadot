@@ -30,6 +30,7 @@ use sp_keyring::Sr25519Keyring;
 
 use polkadot_node_network_protocol::request_response::{v1, Recipient};
 use polkadot_node_primitives::{BlockData, PoV, Proof};
+use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_primitives::v2::{CandidateHash, ValidatorIndex};
 
 use super::*;
@@ -226,9 +227,13 @@ impl TestRun {
 
 	/// Returns true, if after processing of the given message it would be OK for the stream to
 	/// end.
-	async fn handle_message(&self, msg: AllMessages) -> bool {
+	async fn handle_message(
+		&self,
+		msg: overseer::AvailabilityDistributionOutgoingMessages,
+	) -> bool {
+		let msg = AllMessages::from(msg);
 		match msg {
-			AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(
 				reqs,
 				IfDisconnected::ImmediateError,
 			)) => {

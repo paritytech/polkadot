@@ -32,8 +32,7 @@ use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW};
 use polkadot_node_subsystem::{
-	messages::DisputeCoordinatorMessage, overseer, ActivatedLeaf, FromOverseer, OverseerSignal,
-	SpawnedSubsystem, SubsystemContext, SubsystemError,
+	overseer, ActivatedLeaf, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
 	database::Database, rolling_session_window::RollingSessionWindow,
@@ -124,14 +123,15 @@ impl Config {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for DisputeCoordinatorSubsystem
-where
-	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
-	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-{
+#[overseer::subsystem(DisputeCoordinator, error=SubsystemError, prefix=self::overseer)]
+impl<Context: Send> DisputeCoordinatorSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async {
-			let backend = DbBackend::new(self.store.clone(), self.config.column_config());
+			let backend = DbBackend::new(
+				self.store.clone(),
+				self.config.column_config(),
+				self.metrics.clone(),
+			);
 			self.run(ctx, backend, Box::new(SystemClock))
 				.await
 				.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
@@ -142,6 +142,7 @@ where
 	}
 }
 
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
 impl DisputeCoordinatorSubsystem {
 	/// Create a new instance of the subsystem.
 	pub fn new(
@@ -161,8 +162,6 @@ impl DisputeCoordinatorSubsystem {
 		clock: Box<dyn Clock>,
 	) -> FatalResult<()>
 	where
-		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 		B: Backend + 'static,
 	{
 		let res = self.initialize(&mut ctx, backend, &*clock).await?;
@@ -194,8 +193,6 @@ impl DisputeCoordinatorSubsystem {
 		)>,
 	>
 	where
-		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 		B: Backend + 'static,
 	{
 		loop {
@@ -260,11 +257,7 @@ impl DisputeCoordinatorSubsystem {
 		Vec<ScrapedOnChainVotes>,
 		SpamSlots,
 		ChainScraper,
-	)>
-	where
-		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
-	{
+	)> {
 		// Prune obsolete disputes:
 		db::v1::note_current_session(overlay_db, rolling_session_window.latest_session())?;
 
@@ -358,17 +351,15 @@ impl DisputeCoordinatorSubsystem {
 }
 
 /// Wait for `ActiveLeavesUpdate` on startup, returns `None` if `Conclude` signal came first.
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
 async fn get_rolling_session_window<Context>(
 	ctx: &mut Context,
-) -> Result<Option<(ActivatedLeaf, RollingSessionWindow)>>
-where
-	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
-{
-	if let Some(leaf) = wait_for_first_leaf(ctx).await? {
+) -> Result<Option<(ActivatedLeaf, RollingSessionWindow)>> {
+	if let Some(leaf) = { wait_for_first_leaf(ctx) }.await? {
+		let sender = ctx.sender().clone();
 		Ok(Some((
 			leaf.clone(),
-			RollingSessionWindow::new(ctx, DISPUTE_WINDOW, leaf.hash)
+			RollingSessionWindow::new(sender, DISPUTE_WINDOW, leaf.hash)
 				.await
 				.map_err(JfyiError::RollingSessionWindow)?,
 		)))
@@ -378,21 +369,18 @@ where
 }
 
 /// Wait for `ActiveLeavesUpdate`, returns `None` if `Conclude` signal came first.
-async fn wait_for_first_leaf<Context>(ctx: &mut Context) -> Result<Option<ActivatedLeaf>>
-where
-	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
-{
+#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
+async fn wait_for_first_leaf<Context>(ctx: &mut Context) -> Result<Option<ActivatedLeaf>> {
 	loop {
 		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(None),
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(None),
+			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 				if let Some(activated) = update.activated {
 					return Ok(Some(activated))
 				}
 			},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
-			FromOverseer::Communication { msg } =>
+			FromOrchestra::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
+			FromOrchestra::Communication { msg } =>
 			// NOTE: We could technically actually handle a couple of message types, even if
 			// not initialized (e.g. all requests that only query the database). The problem
 			// is, we would deliver potentially outdated information, especially in the event

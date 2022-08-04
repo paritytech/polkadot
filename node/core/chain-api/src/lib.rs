@@ -37,11 +37,11 @@ use futures::prelude::*;
 use sc_client_api::AuxStore;
 use sp_blockchain::HeaderBackend;
 
-use polkadot_primitives::v2::{Block, BlockId};
-use polkadot_subsystem::{
-	messages::ChainApiMessage, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemError, SubsystemResult,
+use polkadot_node_subsystem::{
+	messages::ChainApiMessage, overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem,
+	SubsystemError, SubsystemResult,
 };
+use polkadot_primitives::v2::{Block, BlockId};
 
 mod metrics;
 use self::metrics::Metrics;
@@ -64,11 +64,10 @@ impl<Client> ChainApiSubsystem<Client> {
 	}
 }
 
-impl<Client, Context> overseer::Subsystem<Context, SubsystemError> for ChainApiSubsystem<Client>
+#[overseer::subsystem(ChainApi, error = SubsystemError, prefix = self::overseer)]
+impl<Client, Context> ChainApiSubsystem<Client>
 where
 	Client: HeaderBackend<Block> + AuxStore + 'static,
-	Context: SubsystemContext<Message = ChainApiMessage>,
-	Context: overseer::SubsystemContext<Message = ChainApiMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run::<Client, Context>(ctx, self)
@@ -78,21 +77,20 @@ where
 	}
 }
 
+#[overseer::contextbounds(ChainApi, prefix = self::overseer)]
 async fn run<Client, Context>(
 	mut ctx: Context,
 	subsystem: ChainApiSubsystem<Client>,
 ) -> SubsystemResult<()>
 where
 	Client: HeaderBackend<Block> + AuxStore,
-	Context: SubsystemContext<Message = ChainApiMessage>,
-	Context: overseer::SubsystemContext<Message = ChainApiMessage>,
 {
 	loop {
 		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
-			FromOverseer::Communication { msg } => match msg {
+			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(_)) => {},
+			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
+			FromOrchestra::Communication { msg } => match msg {
 				ChainApiMessage::BlockNumber(hash, response_channel) => {
 					let _timer = subsystem.metrics.time_block_number();
 					let result = subsystem.client.number(hash).map_err(|e| e.to_string().into());

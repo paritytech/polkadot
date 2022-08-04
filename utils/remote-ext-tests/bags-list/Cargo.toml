@@ -1,6 +1,6 @@
 [package]
 name = "remote-ext-tests-bags-list"
-version = "0.9.19"
+version = "0.9.27"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -18,5 +18,5 @@ frame-system = { git = "https://github.com/paritytech/substrate", branch = "mast
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 clap = { version = "3.1", features = ["derive"] }
-log = "0.4.16"
-tokio = { version = "1.17.0", features = ["macros"] }
+log = "0.4.17"
+tokio = { version = "1.18.2", features = ["macros"] }

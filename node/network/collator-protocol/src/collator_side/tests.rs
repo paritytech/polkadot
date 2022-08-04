@@ -31,18 +31,18 @@ use sp_runtime::traits::AppVerify;
 
 use polkadot_node_network_protocol::{our_view, request_response::IncomingRequest, view};
 use polkadot_node_primitives::BlockData;
+use polkadot_node_subsystem::{
+	jaeger,
+	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
+	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
+};
+use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CollatorPair, GroupRotationInfo, ScheduledCore, SessionIndex,
 	SessionInfo, ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::TestCandidateBuilder;
-use polkadot_subsystem::{
-	jaeger,
-	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
-	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
-};
-use polkadot_subsystem_testhelpers as test_helpers;
 
 #[derive(Clone)]
 struct TestState {
@@ -228,7 +228,7 @@ const TIMEOUT: Duration = Duration::from_millis(100);
 async fn overseer_send(overseer: &mut VirtualOverseer, msg: CollatorProtocolMessage) {
 	gum::trace!(?msg, "sending message");
 	overseer
-		.send(FromOverseer::Communication { msg })
+		.send(FromOrchestra::Communication { msg })
 		.timeout(TIMEOUT)
 		.await
 		.expect(&format!("{:?} is more than enough for sending messages.", TIMEOUT));
@@ -254,7 +254,7 @@ async fn overseer_recv_with_timeout(
 
 async fn overseer_signal(overseer: &mut VirtualOverseer, signal: OverseerSignal) {
 	overseer
-		.send(FromOverseer::Signal(signal))
+		.send(FromOrchestra::Signal(signal))
 		.timeout(TIMEOUT)
 		.await
 		.expect(&format!("{:?} is more than enough for sending signals.", TIMEOUT));
@@ -369,8 +369,8 @@ async fn distribute_collation(
 	if should_connect {
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ConnectToValidators {
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ConnectToValidators {
 					..
 				}
 			) => {}
@@ -424,8 +424,8 @@ async fn expect_declare_msg(
 ) {
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
-		AllMessages::NetworkBridge(
-			NetworkBridgeMessage::SendCollationMessage(
+		AllMessages::NetworkBridgeTx(
+			NetworkBridgeTxMessage::SendCollationMessage(
 				to,
 				Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 			)
@@ -458,8 +458,8 @@ async fn expect_advertise_collation_msg(
 ) {
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
-		AllMessages::NetworkBridge(
-			NetworkBridgeMessage::SendCollationMessage(
+		AllMessages::NetworkBridgeTx(
+			NetworkBridgeTxMessage::SendCollationMessage(
 				to,
 				Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 			)
@@ -570,7 +570,7 @@ fn advertise_and_send_collation() {
 				.unwrap();
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(bad_peer, _)) => {
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(bad_peer, _)) => {
 					assert_eq!(bad_peer, peer);
 				}
 			);
@@ -838,7 +838,7 @@ fn collators_reject_declare_messages() {
 
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::DisconnectPeer(
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::DisconnectPeer(
 				p,
 				PeerSet::Collation,
 			)) if p == peer

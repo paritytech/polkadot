@@ -179,7 +179,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>, AD: AuthorityDiscovery>(
 		async move {
 			let mut overseer = test_fut.await;
 			overseer
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
+				.send(FromOrchestra::Signal(OverseerSignal::Conclude))
 				.timeout(TIMEOUT)
 				.await
 				.expect("Conclude send timeout");
@@ -199,7 +199,7 @@ async fn overseer_signal_active_leaves(overseer: &mut VirtualOverseer, leaf: Has
 		span: Arc::new(jaeger::Span::Disabled),
 	};
 	overseer
-		.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+		.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
 			leaf,
 		))))
 		.timeout(TIMEOUT)
@@ -255,7 +255,7 @@ async fn test_neighbors(overseer: &mut VirtualOverseer, expected_session: Sessio
 
 	assert_matches!(
 		overseer_recv(overseer).await,
-		AllMessages::NetworkBridge(NetworkBridgeMessage::NewGossipTopology {
+		AllMessages::NetworkBridgeRx(NetworkBridgeRxMessage::NewGossipTopology {
 			session: got_session,
 			our_neighbors_x,
 			our_neighbors_y,
@@ -313,7 +313,7 @@ fn issues_a_connection_request_on_new_session() {
 
 		assert_matches!(
 			overseer_recv(overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToResolvedValidators {
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ConnectToResolvedValidators {
 				validator_addrs,
 				peer_set,
 			}) => {
@@ -392,7 +392,7 @@ fn issues_a_connection_request_on_new_session() {
 
 		assert_matches!(
 			overseer_recv(overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToResolvedValidators {
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ConnectToResolvedValidators {
 				validator_addrs,
 				peer_set,
 			}) => {
@@ -451,7 +451,7 @@ fn issues_connection_request_to_past_present_future() {
 
 		assert_matches!(
 			overseer_recv(overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToResolvedValidators {
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ConnectToResolvedValidators {
 				validator_addrs,
 				peer_set,
 			}) => {
@@ -553,7 +553,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 
 			assert_matches!(
 				overseer_recv(overseer).await,
-				AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToResolvedValidators {
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ConnectToResolvedValidators {
 					validator_addrs,
 					peer_set,
 				}) => {
@@ -618,7 +618,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 
 		assert_matches!(
 			overseer_recv(overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToResolvedValidators {
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ConnectToResolvedValidators {
 				validator_addrs,
 				peer_set,
 			}) => {
