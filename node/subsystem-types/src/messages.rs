@@ -678,7 +678,9 @@ pub enum RuntimeApiRequest {
 	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
 	/// Get the session info for the given session, if stored.
 	SessionInfo(SessionIndex, RuntimeApiSender<Option<SessionInfo>>),
-	/// Get all the pending inbound messages in the downward message queue for a para.
+	/// Get pending inbound messages in the downward message queue for a para.
+	/// This is now deprecated and the behaviour of this API was changed to return a subset of
+	/// all the messages, while previously it returned all of them.
 	DmqContents(ParaId, RuntimeApiSender<Vec<InboundDownwardMessage<BlockNumber>>>),
 	/// Get a subset of the pending inbound messages in the downward message queue for a para.
 	DmqContentsBounded(
