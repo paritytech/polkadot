@@ -598,9 +598,6 @@ impl Initialized {
 				)
 				.await?;
 			},
-			DisputeCoordinatorMessage::ImportOwnApprovalVote(import) => {
-				self.import_approval_vote(ctx, overlay_db, import, now).await?;
-			},
 			DisputeCoordinatorMessage::DetermineUndisputedChain {
 				base: (base_number, base_hash),
 				block_descriptions,
@@ -1097,73 +1094,6 @@ impl Initialized {
 					);
 				},
 			}
-		}
-
-		Ok(())
-	}
-
-	/// Import own approval vote
-	///
-	/// and make sure dispute-distribution is informed in case of an ongoing dispute.
-	async fn import_approval_vote<Context>(
-		&mut self,
-		ctx: &mut Context,
-		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
-		import: ApprovalVoteImport,
-		now: Timestamp,
-	) -> Result<()> {
-		let ApprovalVoteImport {
-			candidate_hash,
-			candidate,
-			session,
-			validator_public,
-			validator_index,
-			signature,
-		} = import;
-
-		let statement = SignedDisputeStatement::new_unchecked_from_trusted_source(
-			DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
-			candidate_hash,
-			session,
-			validator_public,
-			signature,
-		);
-
-		// NOTE: We don't have to worry about sending out a `DisputeMessage`, because if a dispute
-		// is already ongoing at the time of import then the dispute coordinator will already have
-		// initiated participation and will send out an explicit vote which should (in the absence
-		// of bugs) be an explicit `Valid` vote which is equivalent in the context of disputes to
-		// an `ApprovalVote`.
-
-		// Do import:
-		match self
-			.handle_import_statements(
-				ctx,
-				overlay_db,
-				candidate_hash,
-				MaybeCandidateReceipt::Provides(candidate),
-				session,
-				vec![(statement, validator_index)],
-				now,
-			)
-			.await?
-		{
-			ImportStatementsResult::InvalidImport => {
-				gum::error!(
-					target: LOG_TARGET,
-					?candidate_hash,
-					?session,
-					"`handle_import_statements` considers our own approval vote invalid!"
-				);
-			},
-			ImportStatementsResult::ValidImport => {
-				gum::trace!(
-					target: LOG_TARGET,
-					?candidate_hash,
-					?session,
-					"`handle_import_statements` successfully imported our approval vote!"
-				);
-			},
 		}
 
 		Ok(())

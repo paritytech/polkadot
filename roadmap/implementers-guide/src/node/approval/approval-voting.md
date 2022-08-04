@@ -292,8 +292,6 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * [Import the checked approval vote](#import-checked-approval). It is "checked" as we've just issued the signature.
   * Construct a `IndirectSignedApprovalVote` using the information about the vote.
   * Dispatch `ApprovalDistributionMessage::DistributeApproval`.
-  * Import own vote into dispute coordinator via
-    `DisputeCoordinatorMessage::ImportOwnApprovalVote`.
 
 ### Determining Approval of Candidate
 
