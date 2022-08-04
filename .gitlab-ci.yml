@@ -32,7 +32,7 @@ variables:
   CI_IMAGE:                        "paritytech/ci-linux:production"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
-  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.2.50"
+  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.2.25"
   PIPELINE_SCRIPTS_TAG:            "v0.4"
 
 default:
@@ -827,7 +827,7 @@ zombienet-tests-malus-dispute-valid:
 
 zombienet-tests-deregister-register-validator:
   stage:                           stage3
-  image:                           "${ZOMBIENET_IMAGE}"
+  image:                           "docker.io/paritytech/zombienet:v1.2.47"
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
   needs:
@@ -856,7 +856,7 @@ zombienet-tests-beefy-and-mmr:
   stage:                           stage3
   <<:                              *kubernetes-env
   <<:                              *zombienet-refs
-  image:                           "${ZOMBIENET_IMAGE}"
+  image:                           "docker.io/paritytech/zombienet:v1.2.50"
   needs:
     - job:                         publish-polkadot-debug-image
   variables:
