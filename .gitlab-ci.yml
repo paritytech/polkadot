@@ -172,7 +172,9 @@ check-runtime:
   stage:                           stage1
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
-  <<:                              *test-pr-refs
+  rules:
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME =~ /^release-v[0-9]+\.[0-9]+.*$/      # i.e. release-v0.9.27
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
