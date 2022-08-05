@@ -308,7 +308,7 @@ build-staking-miner:
   stage:                           stage2
   # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
   needs:
-    - job:                         check-runtime
+    - job:                         check-fmt
       artifacts:                   false
   <<:                              *docker-env
   <<:                              *test-pr-refs
@@ -337,7 +337,7 @@ test-node-metrics:
   stage:                           stage2
   # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
   needs:
-    - job:                         check-runtime
+    - job:                         check-fmt
       artifacts:                   false
   <<:                              *docker-env
   <<:                              *compiler-info
