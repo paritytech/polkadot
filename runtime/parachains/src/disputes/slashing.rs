@@ -16,18 +16,32 @@
 
 //! Dispute slashing pallet.
 //!
-//! The implementation relies on the `offences` pallet and
-//! looks like a hybrid of `im-online` and `grandpa` equivocation handlers.
-//! Meaning, we submit an `offence` for the concluded disputes about
-//! the current session candidate directly from the runtime.
-//! If, however, the dispute is about a past session, we record pending
+//! Once a dispute is concluded, we want to slash validators
+//! who were on the wrong side of the dispute. The slashing amount
+//! depends on whether the candidate was valid (small) or invalid (big).
+//! In addition to that, we might want to kick out the validators from the
+//! active set.
+//!
+//! The `offences` pallet from Substrate provides us with a way to do both.
+//! Current, the interface expects us to provide staking information
+//! including nominator exposure in order to submit an offence.
+//!
+//! Normally, we'd able to fetch this information from the runtime as soon as
+//! the dispute is concluded. This is also what `im-online` pallet does.
+//! However, since a dispute can conclude several sessions after the candidate
+//! was backed (see `dispute_period` in `HostConfiguration`), we can't rely on
+//! this information be available in the context of the current block. The
+//! `babe` and `grandpa` equivocation handlers also have to deal
+//! with this problem.
+//!
+//! Our implementation looks like a hybrid of `im-online` and `grandpa`
+//! equivocation handlers. Meaning, we submit an `offence` for the concluded
+//! disputes about the current session candidate directly from the runtime.
+//! If, however, the dispute is about a past session, we record unapplied
 //! slashes on chain, without `FullIdentification` of the offenders.
 //! Later on, a block producer can submit an unsigned transaction with
 //! `KeyOwnershipProof` of an offender and submit it to the runtime
 //! to produce an offence.
-//! The reason for this separation is that we do not want to rely on
-//! `FullIdentification` to be available on chain for the past sessions
-//!  because it is quite heavy.
 
 use crate::{
 	disputes,
@@ -299,7 +313,8 @@ pub struct DisputeProof {
 	pub validator_id: ValidatorId,
 }
 
-/// Slashes that are waiting to be applied once we have validator key identification.
+/// Slashes that are waiting to be applied once we have validator key
+/// identification.
 #[derive(Encode, Decode, RuntimeDebug, TypeInfo)]
 pub struct PendingSlashes {
 	/// Indices and keys of the validators who lost a dispute and are pending
@@ -550,7 +565,8 @@ impl<T: Config> Pallet<T> {
 	/// Called by the initializer to note a new session in the disputes slashing
 	/// pallet.
 	fn initializer_on_new_session(session_index: SessionIndex) {
-		// This should be small, as disputes are limited by spam slots, so no limit is fine.
+		// This should be small, as disputes are limited by spam slots, so no limit is
+		// fine.
 		const REMOVE_LIMIT: u32 = u32::MAX;
 
 		let config = <crate::configuration::Pallet<T>>::config();
