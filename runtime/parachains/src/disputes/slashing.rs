@@ -23,7 +23,7 @@
 //! active set.
 //!
 //! The `offences` pallet from Substrate provides us with a way to do both.
-//! Current, the interface expects us to provide staking information
+//! Currently, the interface expects us to provide staking information
 //! including nominator exposure in order to submit an offence.
 //!
 //! Normally, we'd able to fetch this information from the runtime as soon as
