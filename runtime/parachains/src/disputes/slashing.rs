@@ -81,6 +81,17 @@ const DEFENSIVE_PROOF: &'static str = "disputes module should bail on old sessio
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
+/// The benchmarking configuration.
+pub trait BenchmarkingConfiguration {
+	const MAX_VALIDATORS: u32;
+}
+
+pub struct BenchConfig<const M: u32>;
+
+impl<const M: u32> BenchmarkingConfiguration for BenchConfig<M> {
+	const MAX_VALIDATORS: u32 = M;
+}
+
 /// Timeslots should uniquely identify offences and are used for the offence
 /// deduplication.
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
@@ -432,6 +443,9 @@ pub mod pallet {
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
+
+		/// Benchmarking configuration.
+		type BenchmarkingConfig: BenchmarkingConfiguration;
 	}
 
 	#[pallet::pallet]

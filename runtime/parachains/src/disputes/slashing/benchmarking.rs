@@ -27,8 +27,6 @@ use sp_session::MembershipProof;
 
 // Candidate hash of the disputed candidate.
 const CANDIDATE_HASH: CandidateHash = CandidateHash(Hash::zero());
-// Should be bumped once we support more.
-const MAX_VALIDATORS: u32 = 1 * 1024;
 
 pub trait Config:
 	pallet_session::Config
@@ -139,7 +137,7 @@ benchmarks! {
 	// in this setup we have a single `AgainstValid` dispute
 	// submitted for a past session
 	report_dispute_lost {
-		let n in 4..MAX_VALIDATORS;
+		let n in 4..<<T as super::Config>::BenchmarkingConfig as BenchmarkingConfiguration>::MAX_VALIDATORS;
 
 		let origin = RawOrigin::None.into();
 		let (session_index, key_owner_proof, validator_id) = setup_validator_set::<T>(n);
