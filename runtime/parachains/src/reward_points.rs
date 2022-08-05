@@ -78,7 +78,6 @@ where
 	fn reward_bitfields(_validators: impl IntoIterator<Item = ValidatorIndex>) {}
 }
 
-
 impl<C> crate::disputes::RewardValidators for RewardValidatorsWithEraPoints<C>
 where
 	C: pallet_staking::Config + session_info::Config,
