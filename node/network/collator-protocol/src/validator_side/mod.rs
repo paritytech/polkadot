@@ -55,8 +55,8 @@ use polkadot_node_subsystem_util::{
 	backing_implicit_view::View as ImplicitView, metrics::prometheus::prometheus::HistogramTimer,
 };
 use polkadot_primitives::v2::{
-	CandidateHash, CandidateReceipt, CollatorId, Hash, Id as ParaId, OccupiedCoreAssumption,
-	PersistedValidationData,
+	CandidateHash, CandidateReceipt, CollatorId, CoreState, Hash, Id as ParaId,
+	OccupiedCoreAssumption, PersistedValidationData,
 };
 
 use crate::error::{Error, Result};
@@ -275,7 +275,7 @@ impl PeerData {
 				}
 
 				state.last_active = Instant::now();
-				Ok((state.collator_id, state.para_id))
+				Ok((state.collator_id.clone(), state.para_id))
 			},
 		}
 	}
@@ -513,8 +513,20 @@ impl Collations {
 }
 
 #[derive(Debug, Copy, Clone)]
+enum AssignedCoreState {
+	Scheduled,
+	Occupied,
+}
+
+impl AssignedCoreState {
+	fn is_occupied(&self) -> bool {
+		matches!(self, AssignedCoreState::Occupied)
+	}
+}
+
+#[derive(Debug, Copy, Clone)]
 struct GroupAssignments {
-	current: Option<ParaId>,
+	current: Option<(ParaId, AssignedCoreState)>,
 }
 
 struct PerRelayParent {
@@ -658,7 +670,11 @@ async fn assign_incoming<Sender>(
 		Some(group) => {
 			let core_now = rotation_info.core_for_group(group, cores.len());
 
-			cores.get(core_now.0 as usize).and_then(|c| c.para_id())
+			cores.get(core_now.0 as usize).and_then(|c| match c {
+				CoreState::Occupied(core) => Some((core.para_id(), AssignedCoreState::Occupied)),
+				CoreState::Scheduled(core) => Some((core.para_id, AssignedCoreState::Scheduled)),
+				CoreState::Free => None,
+			})
 		},
 		None => {
 			gum::trace!(target: LOG_TARGET, ?relay_parent, "Not a validator");
@@ -675,14 +691,14 @@ async fn assign_incoming<Sender>(
 	//
 	// However, this'll work fine for parachains, as each parachain gets a dedicated
 	// core.
-	if let Some(para_now) = para_now {
-		let entry = current_assignments.entry(para_now).or_default();
+	if let Some((para_id, _)) = para_now.as_ref() {
+		let entry = current_assignments.entry(*para_id).or_default();
 		*entry += 1;
 		if *entry == 1 {
 			gum::debug!(
 				target: LOG_TARGET,
 				?relay_parent,
-				para_id = ?para_now,
+				para_id = ?para_id,
 				"Assigned to a parachain",
 			);
 		}
@@ -697,7 +713,7 @@ fn remove_outgoing(
 ) {
 	let GroupAssignments { current } = per_relay_parent.assignment;
 
-	if let Some(cur) = current {
+	if let Some((cur, _)) = current {
 		if let Entry::Occupied(mut occupied) = current_assignments.entry(cur) {
 			*occupied.get_mut() -= 1;
 			if *occupied.get() == 0 {
@@ -1096,6 +1112,14 @@ async fn handle_advertisement<Sender>(
 		.span_per_relay_parent
 		.get(&relay_parent)
 		.map(|s| s.child("advertise-collation"));
+
+	// First, perform validity checks:
+	// - Relay parent is known
+	// - Peer is declared
+	// - Para id is indeed the one we're assigned to at the given relay parent
+	// - Collator is not trying to build on top of occupied core (unless async
+	// backing is enabled)
+
 	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
 		Some(state) => state,
 		None => {
@@ -1111,6 +1135,7 @@ async fn handle_advertisement<Sender>(
 		},
 	};
 	let relay_parent_mode = per_relay_parent.prospective_parachains_mode;
+	let assignment = per_relay_parent.assignment;
 
 	let peer_data = match state.peer_data.get_mut(&peer_id) {
 		None => {
@@ -1125,6 +1150,7 @@ async fn handle_advertisement<Sender>(
 		},
 		Some(p) => p,
 	};
+
 	let para_id = if let Some(id) = peer_data.collating_para() {
 		id
 	} else {
@@ -1137,6 +1163,31 @@ async fn handle_advertisement<Sender>(
 		modify_reputation(sender, *peer_id, COST_UNEXPECTED_MESSAGE).await;
 		return
 	};
+
+	let core_state = match assignment.current {
+		Some((id, core_state)) if id == para_id => core_state,
+		_ => {
+			gum::debug!(
+				target: LOG_TARGET,
+				peer_id = ?peer_id,
+				?relay_parent,
+				"Advertise collation message for relay parent we're not assigned to",
+			);
+			modify_reputation(sender, *peer_id, COST_UNEXPECTED_MESSAGE).await;
+			return
+		},
+	};
+
+	if !relay_parent_mode.is_enabled() && core_state.is_occupied() {
+		gum::debug!(
+			target: LOG_TARGET,
+			peer_id = ?peer_id,
+			?relay_parent,
+			"Advertise collation message for an occupied core (async backing disabled)",
+		);
+		modify_reputation(sender, *peer_id, COST_UNEXPECTED_MESSAGE).await;
+		return
+	}
 
 	let insert_result = match (relay_parent_mode, vstaging_args) {
 		(ProspectiveParachainsMode::Disabled, None) => peer_data.insert_advertisement(
@@ -1393,7 +1444,6 @@ async fn handle_network_msg<Context>(
 		PeerMessage(remote, msg) => {
 			process_incoming_peer_message(ctx, state, remote, msg).await;
 		},
-		PeerMessage(_, Versioned::VStaging(_)) => todo!(),
 	}
 
 	Ok(())
@@ -1642,18 +1692,7 @@ async fn request_persisted_validation_data<Context>(
 	relay_parent: Hash,
 	para_id: ParaId,
 ) -> Option<PersistedValidationData> {
-	// TODO [https://github.com/paritytech/polkadot/issues/5054]
-	//
-	// As of https://github.com/paritytech/polkadot/pull/5557 the
-	// `Second` message requires the `PersistedValidationData` to be
-	// supplied.
-	//
-	// Without asynchronous backing, this can be easily fetched from the
-	// chain state.
-	//
-	// This assumes the core is _scheduled_, in keeping with the effective
-	// current behavior. If the core is occupied, we simply don't return
-	// anything. Likewise with runtime API errors, which are rare.
+	// The core is guaranteed to be scheduled since we accepted the advertisement.
 	let res = polkadot_node_subsystem_util::request_persisted_validation_data(
 		relay_parent,
 		para_id,
