@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-approval-voting"
-version = "0.9.26"
+version = "0.9.27"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -31,6 +31,7 @@ sp-application-crypto = { git = "https://github.com/jakehemmerle/substrate", def
 sp-runtime = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
 
 [dev-dependencies]
+async-trait = "0.1.56"
 parking_lot = "0.12.0"
 rand_core = "0.5.1" #                                                                       should match schnorrkel
 sp-keyring = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra" }

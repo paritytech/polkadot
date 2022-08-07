@@ -3,7 +3,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 name = "xcm-executor-integration-tests"
 description = "Integration tests for the XCM Executor"
-version = "0.9.26"
+version = "0.9.27"
 
 [dependencies]
 frame-support = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }

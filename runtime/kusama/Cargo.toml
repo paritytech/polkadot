@@ -1,6 +1,6 @@
 [package]
 name = "kusama-runtime"
-version = "0.9.26"
+version = "0.9.27"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 build = "build.rs"
@@ -36,45 +36,46 @@ tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/jakeh
 block-builder-api = { package = "sp-block-builder", git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
 sp-npos-elections = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
 
-pallet-authority-discovery = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-authorship = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-babe = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-bags-list = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-balances = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-bounties = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-child-bounties = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-transaction-payment = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-collective = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-democracy = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-elections-phragmen = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-election-provider-multi-phase = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-frame-executive = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-grandpa = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-gilt = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-identity = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-im-online = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-indices = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-membership = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-multisig = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-nomination-pools = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-offences = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-preimage = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-proxy = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-recovery = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-scheduler = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-session = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-society = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-frame-support = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-staking = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-staking-reward-fn = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-frame-system = {git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-frame-system-rpc-runtime-api = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-timestamp = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-tips = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-treasury = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-utility = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
-pallet-vesting = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
+pallet-authority-discovery = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-authorship = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-babe = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-bags-list = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-balances = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-bounties = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-child-bounties = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-transaction-payment = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-nomination-pools-runtime-api = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-collective = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-democracy = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-elections-phragmen = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-election-provider-multi-phase = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+frame-executive = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-grandpa = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-gilt = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-identity = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-im-online = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-indices = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-membership = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-multisig = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-nomination-pools = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-offences = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-preimage = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-proxy = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-recovery = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-scheduler = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-session = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-society = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+frame-support = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-staking = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-staking-reward-fn = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+frame-system = {git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+frame-system-rpc-runtime-api = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-timestamp = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-tips = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-treasury = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-utility = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
+pallet-vesting = { git = "https://github.com/jakehemmerle/substrate", branch = "8805-ed25519-zebra", default-features = false }
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 pallet-xcm-benchmarks = { path = "../../xcm/pallet-xcm-benchmarks", default-features = false, optional = true }
 frame-election-provider-support = { git = "https://github.com/jakehemmerle/substrate", default-features = false , branch = "8805-ed25519-zebra" }
@@ -148,6 +149,7 @@ std = [
 	"pallet-membership/std",
 	"pallet-multisig/std",
 	"pallet-nomination-pools/std",
+	"pallet-nomination-pools-runtime-api/std",
 	"pallet-offences/std",
 	"pallet-preimage/std",
 	"pallet-proxy/std",
