@@ -831,22 +831,19 @@ where
 	let shared_voter_state = rpc_setup;
 	let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
 
+	let genesis_hash = client.block_hash(0).ok().flatten().expect("Genesis block exists; qed");
+
 	// Note: GrandPa is pushed before the Polkadot-specific protocols. This doesn't change
 	// anything in terms of behaviour, but makes the logs more consistent with the other
 	// Substrate nodes.
-	let grandpa_protocol_name = grandpa::protocol_standard_name(
-		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
-		&config.chain_spec,
-	);
+	let grandpa_protocol_name = grandpa::protocol_standard_name(&genesis_hash, &config.chain_spec);
 	config
 		.network
 		.extra_sets
 		.push(grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
 
-	let beefy_protocol_name = beefy_gadget::protocol_standard_name(
-		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
-		&config.chain_spec,
-	);
+	let beefy_protocol_name =
+		beefy_gadget::protocol_standard_name(&genesis_hash, &config.chain_spec);
 	if enable_beefy {
 		config
 			.network
@@ -860,17 +857,22 @@ where
 		config.network.extra_sets.extend(peer_sets_info(is_authority));
 	}
 
-	let (pov_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	let fork_id = config.chain_spec.fork_id().map(ToOwned::to_owned);
+
+	let (pov_req_receiver, cfg) = IncomingRequest::get_config_receiver(&genesis_hash, &fork_id);
 	config.network.request_response_protocols.push(cfg);
-	let (chunk_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	let (chunk_req_receiver, cfg) = IncomingRequest::get_config_receiver(&genesis_hash, &fork_id);
 	config.network.request_response_protocols.push(cfg);
-	let (collation_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	let (collation_req_receiver, cfg) =
+		IncomingRequest::get_config_receiver(&genesis_hash, &fork_id);
 	config.network.request_response_protocols.push(cfg);
-	let (available_data_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	let (available_data_req_receiver, cfg) =
+		IncomingRequest::get_config_receiver(&genesis_hash, &fork_id);
 	config.network.request_response_protocols.push(cfg);
-	let (statement_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	let (statement_req_receiver, cfg) =
+		IncomingRequest::get_config_receiver(&genesis_hash, &fork_id);
 	config.network.request_response_protocols.push(cfg);
-	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver(&genesis_hash, &fork_id);
 	config.network.request_response_protocols.push(cfg);
 
 	let grandpa_hard_forks = if config.chain_spec.is_kusama() {
@@ -1060,6 +1062,7 @@ where
 					dispute_coordinator_config,
 					pvf_checker_enabled,
 					overseer_message_channel_capacity_override,
+					fork_id,
 				},
 			)
 			.map_err(|e| {

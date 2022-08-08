@@ -32,11 +32,11 @@
 //!
 //!  Versioned (v1 module): The actual requests and responses as sent over the network.
 
-use std::{borrow::Cow, time::Duration, u64};
+use std::{borrow::Cow, collections::HashMap, time::Duration, u64};
 
 use futures::channel::mpsc;
 use polkadot_primitives::v2::{MAX_CODE_SIZE, MAX_POV_SIZE};
-use strum::EnumIter;
+use strum::{EnumIter, IntoEnumIterator};
 
 pub use sc_network::{config as network, config::RequestResponseConfig};
 
@@ -126,13 +126,18 @@ impl Protocol {
 	///
 	/// Returns a receiver for messages received on this protocol and the requested
 	/// `ProtocolConfig`.
-	pub fn get_config(self) -> (mpsc::Receiver<network::IncomingRequest>, RequestResponseConfig) {
-		let p_name = self.into_protocol_name();
+	pub fn get_config<Hash: AsRef<[u8]>>(
+		self,
+		genesis_hash: &Hash,
+		fork_id: &Option<String>,
+	) -> (mpsc::Receiver<network::IncomingRequest>, RequestResponseConfig) {
+		let name = self.protocol_name(genesis_hash, fork_id);
+		let fallback_names = self.fallback_names();
 		let (tx, rx) = mpsc::channel(self.get_channel_size());
 		let cfg = match self {
 			Protocol::ChunkFetchingV1 => RequestResponseConfig {
-				name: p_name,
-				fallback_names: Vec::new(),
+				name,
+				fallback_names,
 				max_request_size: 1_000,
 				max_response_size: POV_RESPONSE_SIZE as u64 * 3,
 				// We are connected to all validators:
@@ -140,8 +145,8 @@ impl Protocol {
 				inbound_queue: Some(tx),
 			},
 			Protocol::CollationFetchingV1 => RequestResponseConfig {
-				name: p_name,
-				fallback_names: Vec::new(),
+				name,
+				fallback_names,
 				max_request_size: 1_000,
 				max_response_size: POV_RESPONSE_SIZE,
 				// Taken from initial implementation in collator protocol:
@@ -149,16 +154,16 @@ impl Protocol {
 				inbound_queue: Some(tx),
 			},
 			Protocol::PoVFetchingV1 => RequestResponseConfig {
-				name: p_name,
-				fallback_names: Vec::new(),
+				name,
+				fallback_names,
 				max_request_size: 1_000,
 				max_response_size: POV_RESPONSE_SIZE,
 				request_timeout: POV_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},
 			Protocol::AvailableDataFetchingV1 => RequestResponseConfig {
-				name: p_name,
-				fallback_names: Vec::new(),
+				name,
+				fallback_names,
 				max_request_size: 1_000,
 				// Available data size is dominated by the PoV size.
 				max_response_size: POV_RESPONSE_SIZE,
@@ -166,8 +171,8 @@ impl Protocol {
 				inbound_queue: Some(tx),
 			},
 			Protocol::StatementFetchingV1 => RequestResponseConfig {
-				name: p_name,
-				fallback_names: Vec::new(),
+				name,
+				fallback_names,
 				max_request_size: 1_000,
 				// Available data size is dominated code size.
 				max_response_size: STATEMENT_RESPONSE_SIZE,
@@ -184,8 +189,8 @@ impl Protocol {
 				inbound_queue: Some(tx),
 			},
 			Protocol::DisputeSendingV1 => RequestResponseConfig {
-				name: p_name,
-				fallback_names: Vec::new(),
+				name,
+				fallback_names,
 				max_request_size: 1_000,
 				/// Responses are just confirmation, in essence not even a bit. So 100 seems
 				/// plenty.
@@ -243,13 +248,13 @@ impl Protocol {
 		}
 	}
 
-	/// Get the protocol name of this protocol, as understood by substrate networking.
-	pub fn into_protocol_name(self) -> Cow<'static, str> {
-		self.get_protocol_name_static().into()
+	/// Fallback protocol names of this protocol, as understood by substrate networking.
+	pub fn fallback_names(self) -> Vec<Cow<'static, str>> {
+		std::iter::once(self.legacy_name().into()).collect()
 	}
 
-	/// Get the protocol name associated with each peer set as static str.
-	pub const fn get_protocol_name_static(self) -> &'static str {
+	/// Legacy protocol name associated with each peer set.
+	pub const fn legacy_name(self) -> &'static str {
 		match self {
 			Protocol::ChunkFetchingV1 => "/polkadot/req_chunk/1",
 			Protocol::CollationFetchingV1 => "/polkadot/req_collation/1",
@@ -258,6 +263,43 @@ impl Protocol {
 			Protocol::StatementFetchingV1 => "/polkadot/req_statement/1",
 			Protocol::DisputeSendingV1 => "/polkadot/send_dispute/1",
 		}
+	}
+
+	/// Protocol name of this protocol, as understood by substrate networking.
+	pub fn protocol_name<Hash: AsRef<[u8]>>(
+		self,
+		genesis_hash: &Hash,
+		fork_id: &Option<String>,
+	) -> Cow<'static, str> {
+		let prefix = if let Some(fork_id) = fork_id {
+			format!("/{}/{}", hex::encode(genesis_hash), fork_id)
+		} else {
+			format!("/{}", hex::encode(genesis_hash))
+		};
+
+		let short_name = match self {
+			Protocol::ChunkFetchingV1 => "/req_chunk/1",
+			Protocol::CollationFetchingV1 => "/req_collation/1",
+			Protocol::PoVFetchingV1 => "/req_pov/1",
+			Protocol::AvailableDataFetchingV1 => "/req_available_data/1",
+			Protocol::StatementFetchingV1 => "/req_statement/1",
+			Protocol::DisputeSendingV1 => "/send_dispute/1",
+		};
+
+		format!("{}{}", prefix, short_name).into()
+	}
+
+	/// All protocol names as understood by substrate networking for specific `genesis_hash`
+	/// and `fork_id`, represented by a HashMap.
+	pub fn protocol_names<Hash: AsRef<[u8]>>(
+		genesis_hash: &Hash,
+		fork_id: &Option<String>,
+	) -> HashMap<Protocol, Cow<'static, str>> {
+		let mut p_names = HashMap::new();
+		for protocol in Protocol::iter() {
+			p_names.insert(protocol, protocol.protocol_name(genesis_hash, fork_id));
+		}
+		p_names
 	}
 }
 

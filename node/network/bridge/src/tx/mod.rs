@@ -15,9 +15,13 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The Network Bridge Subsystem - handles _outgoing_ messages, from subsystem to the network.
+use std::borrow::Cow;
+
 use super::*;
 
-use polkadot_node_network_protocol::{peer_set::PeerSet, v1 as protocol_v1, PeerId, Versioned};
+use polkadot_node_network_protocol::{
+	peer_set::PeerSet, request_response::Protocol, v1 as protocol_v1, PeerId, Versioned,
+};
 
 use polkadot_node_subsystem::{
 	errors::SubsystemError, messages::NetworkBridgeTxMessage, overseer, FromOrchestra,
@@ -50,6 +54,7 @@ pub struct NetworkBridgeTx<N, AD> {
 	network_service: N,
 	authority_discovery_service: AD,
 	metrics: Metrics,
+	requests_protocols: HashMap<Protocol, Cow<'static, str>>,
 }
 
 impl<N, AD> NetworkBridgeTx<N, AD> {
@@ -57,8 +62,13 @@ impl<N, AD> NetworkBridgeTx<N, AD> {
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`peers_sets_info`](peers_sets_info).
-	pub fn new(network_service: N, authority_discovery_service: AD, metrics: Metrics) -> Self {
-		Self { network_service, authority_discovery_service, metrics }
+	pub fn new(
+		network_service: N,
+		authority_discovery_service: AD,
+		metrics: Metrics,
+		requests_protocols: HashMap<Protocol, Cow<'static, str>>,
+	) -> Self {
+		Self { network_service, authority_discovery_service, metrics, requests_protocols }
 	}
 }
 
@@ -82,6 +92,7 @@ async fn handle_subsystem_messages<Context, N, AD>(
 	mut network_service: N,
 	mut authority_discovery_service: AD,
 	metrics: Metrics,
+	requests_protocols: &HashMap<Protocol, Cow<'static, str>>,
 ) -> Result<(), Error>
 where
 	N: Network,
@@ -102,6 +113,7 @@ where
 						authority_discovery_service.clone(),
 						msg,
 						&metrics,
+						requests_protocols,
 					)
 					.await;
 			},
@@ -117,6 +129,7 @@ async fn handle_incoming_subsystem_communication<Context, N, AD>(
 	mut authority_discovery_service: AD,
 	msg: NetworkBridgeTxMessage,
 	metrics: &Metrics,
+	requests_protocols: &HashMap<Protocol, Cow<'static, str>>,
 ) -> (N, AD)
 where
 	N: Network,
@@ -218,7 +231,12 @@ where
 
 			for req in reqs {
 				network_service
-					.start_request(&mut authority_discovery_service, req, if_disconnected)
+					.start_request(
+						&mut authority_discovery_service,
+						req,
+						requests_protocols,
+						if_disconnected,
+					)
 					.await;
 			}
 		},
@@ -275,9 +293,21 @@ where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
 {
-	let NetworkBridgeTx { network_service, authority_discovery_service, metrics } = bridge;
+	let NetworkBridgeTx {
+		network_service,
+		authority_discovery_service,
+		metrics,
+		requests_protocols,
+	} = bridge;
 
-	handle_subsystem_messages(ctx, network_service, authority_discovery_service, metrics).await?;
+	handle_subsystem_messages(
+		ctx,
+		network_service,
+		authority_discovery_service,
+		metrics,
+		&requests_protocols,
+	)
+	.await?;
 
 	Ok(())
 }

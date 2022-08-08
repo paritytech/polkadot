@@ -55,8 +55,11 @@ where
 	///
 	/// This Register that config with substrate networking and receive incoming requests via the
 	/// returned `IncomingRequestReceiver`.
-	pub fn get_config_receiver() -> (IncomingRequestReceiver<Req>, RequestResponseConfig) {
-		let (raw, cfg) = Req::PROTOCOL.get_config();
+	pub fn get_config_receiver<Hash: AsRef<[u8]>>(
+		genesis_hash: &Hash,
+		fork_id: &Option<String>,
+	) -> (IncomingRequestReceiver<Req>, RequestResponseConfig) {
+		let (raw, cfg) = Req::PROTOCOL.get_config(genesis_hash, fork_id);
 		(IncomingRequestReceiver { raw, phantom: PhantomData {} }, cfg)
 	}
 
