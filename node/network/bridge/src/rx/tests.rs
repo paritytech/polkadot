@@ -16,7 +16,7 @@
 
 use super::*;
 use futures::{channel::oneshot, executor, stream::BoxStream};
-use polkadot_node_network_protocol::{self as net_protocol, OurView};
+use polkadot_node_network_protocol::{self as net_protocol, request_response::Protocol, OurView};
 use polkadot_node_subsystem::{messages::NetworkBridgeEvent, ActivatedLeaf};
 
 use assert_matches::assert_matches;
@@ -117,6 +117,7 @@ impl Network for TestNetwork {
 		&self,
 		_: &mut AD,
 		_: Requests,
+		_: &HashMap<Protocol, Cow<'static, str>>,
 		_: IfDisconnected,
 	) {
 	}

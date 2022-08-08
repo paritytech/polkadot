@@ -30,7 +30,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_subsystem::{FromOrchestra, OverseerSignal};
 use polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle;
 use polkadot_node_subsystem_util::metered;
-use polkadot_primitives::v2::AuthorityDiscoveryId;
+use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash};
 use polkadot_primitives_test_helpers::dummy_collator_signature;
 use sc_network::Multiaddr;
 use sp_keyring::Sr25519Keyring;
@@ -104,6 +104,7 @@ impl Network for TestNetwork {
 		&self,
 		_: &mut AD,
 		_: Requests,
+		_: &HashMap<Protocol, Cow<'static, str>>,
 		_: IfDisconnected,
 	) {
 	}
@@ -182,7 +183,10 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarne
 	let (context, virtual_overseer) =
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
-	let bridge_out = NetworkBridgeTx::new(network, discovery, Metrics(None));
+	let genesis_hash = Hash::repeat_byte(0xff);
+	let protocol_names = Protocol::protocol_names(&genesis_hash, &None);
+
+	let bridge_out = NetworkBridgeTx::new(network, discovery, Metrics(None), protocol_names);
 
 	let network_bridge_out_fut = run_network_out(bridge_out, context)
 		.map_err(|e| panic!("bridge-out subsystem execution failed {:?}", e))

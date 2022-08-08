@@ -723,7 +723,8 @@ where
 	sp_tracing::try_init_simple();
 	let keystore = make_ferdie_keystore();
 
-	let (req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
+	let genesis_hash = Hash::repeat_byte(0xff);
+	let (req_receiver, req_cfg) = IncomingRequest::get_config_receiver(&genesis_hash, &None);
 	let subsystem = DisputeDistributionSubsystem::new(
 		keystore,
 		req_receiver,
