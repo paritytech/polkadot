@@ -29,8 +29,8 @@ subsystem will try to issue a dispute. For this, it will send a message
 `DisputeCoordinatorMessage::IssueLocalStatement` to the dispute coordinator,
 indicating to cast an explicit invalid vote. It is the responsibility of the
 dispute coordinator on reception of such a message to create and sign that
-explicit invalid vote and  trigger a dispute if none is already
-ongoing.
+explicit invalid vote and  trigger a dispute if none for that candidate is
+already ongoing.
 
 In order to raise a dispute, a node has to be able to provide two opposing votes.
 Given that the reason of the backing phase is to have validators with skin in
@@ -112,12 +112,11 @@ unnecessary complexity to approval voting and also we might still import most of
 the votes unbatched, but one-by-one, depending on what point in time the dispute
 was raised.
 
-Instead of the dispute coordinator telling approval-voting that a dispute is
-ongoing for approval-voting to start sending votes to the dispute coordinator,
-it would make more sense if the dispute-coordinator would just ask
-approval-voting for votes of candidates that are currently disputed. This way
-the dispute-coordinator can also pick the time when to ask and we can therefore
-maximize the amount of batching.
+Instead of the dispute coordinator informing approval-voting of an ongoing
+dispute for it to begin forwarding votes to the dispute coordinator, it makes
+more sense for the dispute-coordinator to just ask approval-voting for votes of
+candidates in dispute. This way, the dispute coordinator can also pick the best
+time for maximizing the number of votes in the batch.
 
 Now the question remains, when should the dispute coordinator ask
 approval-voting for votes? As argued above already, querying approval votes at
@@ -322,6 +321,41 @@ n being the number of validators.
 -
 More reasoning behind spam considerations can be found on
 [this](https://github.com/paritytech/srlabs_findings/issues/179) sr-lab ticket.
+
+## Disputes for Non Included Candidates
+
+We only ever care about disputes for candidates that have been included on at
+least some chain (became available). This is because the availability system was
+designed for precisely that: Only with inclusiong (availability) we have
+guarantees about the candidate to actually be available. Because only then we
+have guarantees that malicious backers can be reliably checked and slashed. The
+system was also designed for non included candidates to not pose any threat to
+the system.
+
+One could think of an (additional) dispute system to make it possible to dispute
+any candidate that has been proposed by a validator, no matter whether it got
+successfully included or even backed. Unfortunately, it would be very brittle
+(no availability) and also spam protection would be way harder than for the
+disputes handled by the dispute-coordinator. In fact all described spam handling
+strategies above would simply be not available.
+
+It is worth thinking about who could actually raise such disputes anyway:
+Approval checkers certainly not, as they will only ever check once availability
+succeeded. The only other nodes that meaningfully could/would are honest backing
+nodes or collators. For collators spam considerations would be even worse as
+there can be an unlimited number of them and we can not charge them for spam, so
+trying to handle disputes raised by collators would be even more complex. For
+honest backers: It actually makes more sense for them to wait until availability
+is reached as well, as only then they have guarantees that other nodes will be
+able to check. If they disputed before, all nodes would need to recover the data
+from them, so they would be an easy DoS target.
+
+In summary: The availability system was designed for raising disputes in a
+meaningful and secure way after availability was reached. Trying to raise
+disputes before does not meaningfully contribute to the systems security/might
+even weaken it as attackers are warned before availability is reached, while at
+the same time adding signficant amount of complexity. We therefore punt on such
+disputes and concentrate on disputes the system was designed to handle.
 
 ## Database Schema
 
