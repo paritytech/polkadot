@@ -30,7 +30,7 @@ subsystem will try to issue a dispute. For this, it will send a message
 `DisputeCoordinatorMessage::IssueLocalStatement` to the dispute coordinator,
 indicating to cast an explicit invalid vote. It is the responsibility of the
 dispute coordinator on reception of such a message to create and sign that
-explicit invalid vote and  trigger a dispute if none for that candidate is
+explicit invalid vote and trigger a dispute if none for that candidate is
 already ongoing.
 
 In order to raise a dispute, a node has to be able to provide two opposing votes.
