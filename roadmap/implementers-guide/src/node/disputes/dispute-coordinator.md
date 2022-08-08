@@ -1,8 +1,9 @@
 # Dispute Coordinator
 
-The coordinator is the central subsystem of the node-side components which participate in disputes. It
-wraps a database, which used to track all statements observed by _all_ validators over some window
-of sessions. Votes older than this session window are pruned.
+The coordinator is the central subsystem of the node-side components which
+participate in disputes. It wraps a database, which used to track statements
+observed by _all_ validators over some window of sessions. Votes older than this
+session window are pruned.
 
 In particular the dispute-coordinator is responsible for:
 
@@ -76,6 +77,8 @@ section.
 
 ## Ensuring Malicious Approval Votes Will Be Recorded
 
+### Ensuring Recording
+
 While there is no need to record approval votes in the dispute coordinator
 preemptively, we do need to make sure they are recorded when a dispute
 actually happens. This is because only votes recorded by the dispute
@@ -108,7 +111,7 @@ With a design where approval voting sends votes to the dispute-coordinator by
 itself, we would need to make approval voting aware of ongoing disputes and
 once it is aware it could start sending all already existing votes batched and
 trickling in votes as they come. The problem with this is, that it adds some
-unnecessary complexity to approval voting and also we might still import most of
+unnecessary complexity to approval-voting and also we might still import most of
 the votes unbatched, but one-by-one, depending on what point in time the dispute
 was raised.
 
@@ -131,13 +134,33 @@ There are two potential caveats with this though:
 1. Timing: We would like to rely as little as possible on implementation details
    of approval voting. In particular, if the dispute is ongoing for a long time,
    do we have any guarantees that approval votes are kept around long enough by
-   approval voting? So will approval votes still be present by the time the
-   dispute concludes in all cases? The answer should luckily be yes: As long as
-   the chain is not finalized, which has to be the case once we have an ongoing
-   dispute, approval votes have to be kept around (and distributed) otherwise we
-   might not be able to finalize in case the validator set changes for example.
-   Conclusively we can rely on approval votes to be still available when the
-   dispute concludes.
+   approval voting? Will approval votes still be present by the time the
+   dispute concludes in all cases? The answer is nuanced, but in general we
+   cannot rely on it. The problem is first, that finalization and
+   approval-voting is an off-chain process so there is no global consensus: As
+   soon as at least f+1 honest (f= n/3, where n is the number of
+   validators/nodes) nodes have seen the dispute conclude, finalization will
+   take place and approval votes will be cleared. This would still be fine, if
+   we had some guarantees that those honest nodes will be able to include those
+   votes in a block. This guarantee does not exist unfortunately, we will
+   discuss the problem and solutions in more detail [below](#Ensuring Chain Import).
+
+   The second problem is that approval-voting will abandon votes as soon as a
+   chain can no longer be finalized (some other/better fork already has been).
+   This second problem can somehow be mitigated by also importing votes as soon
+   as a dispute is detected, but not fully resolved. It is still inherently
+   racy. The problem can be solved in at least two ways: Either go back to full
+   eager import of approval votes into the dispute-coordinator in some more
+   efficient manner or by changing requirements on approval-voting, making it
+   hold on votes longer than necessary for approval-voting itself. Conceptually
+   both solutions are equivalent, as we make sure votes are available even
+   without an ongoing dispute. For now, in the interest of time we punt on this
+   issue: If nodes import votes as soon as a dispute is raised in addition to
+   when it concludes, we have a good chance of getting relevant votes and even
+   if not, the fundamental security properties will still hold: Backers are
+   getting slashed, therefore gambler's ruin is maintained. We would still like
+   to fix this at [some
+   point](https://github.com/paritytech/polkadot/issues/5864).
 2. There could be a chicken and egg problem: If we wait for approval vote import
    for the dispute to conclude, we would run into a problem if we needed those
    approval votes to get enough votes to conclude the dispute. Luckily it turns
@@ -145,41 +168,81 @@ There are two potential caveats with this though:
    already mentioned, approval voting and disputes are running concurrently, but
    not only that, they race with each other! A node might simultaneously start
    participating in a dispute via the dispute coordinator, due to learning about
-   a dispute via dispute-distribution, while also participating in
-   approval voting. So if we don't import approval votes before the dispute
-   concluded, we actually are making sure that no local vote is present and any
-   honest node will cast an explicit vote in addition to its approval vote: The
-   dispute can conclude! Then, by importing approval votes, we are ensuring the
-   one missing property, that malicious approval voters will get slashed, even
+   a dispute via dispute-distribution, while also participating in approval
+   voting. By distributing our own approval vote we make sure the dispute can
+   conclude regardless how the race ended (we either participate explicitly
+   anyway or we sent our already present approval vote). By importing all
+   approval votes we make it possible to slash malicious approval voters, even
    if they also cast an invalid explicit vote.
 
-Conclusion: If we only ever import approval votes once a dispute concludes, then
-nodes will send explicit votes and we will be able to conclude the dispute. This
-indeed means some wasted effort, as in case of a dispute that concludes valid,
-honest nodes will validate twice, once in approval voting and once via
+Conclusion: As long as we make sure, if our own approval vote gets imported
+(which would prevent dispute participation) to also distribute it via
+dispute-distribution, disputes can conclude. To mitigate raciness with
+approval-voting deleting votes we will import approval votes twice during a
+dispute: Once when it is raised, to make as sure as possible to see approval
+votes also for abandoned forks and second when the dispute concludes, to
+maximize the amount of potentially malicious approval votes to be recorded. The
+raciness obviously is not fully resolved by this, [a
+ticket](https://github.com/paritytech/polkadot/issues/5864) exists.
+
+Ensuring vote import on chain is covered in the next section.
+
+As already touched: Honest nodes
+will likely validate twice, once in approval voting and once via
 dispute-participation. Avoiding that does not really seem worthwhile though, as
 disputes are for one exceptional, so a little wasted effort won't affect
-everyday performance - second, even if we imported approval votes, those doubled
-work is still present as disputes and approvals are racing. Every time
-participation is faster than approval, a node would do double work anyway.
+everyday performance - second, even with eager importing of approval votes,
+those doubled work is still present as disputes and approvals are racing. Every
+time participation is faster than approval, a node would do double work.
 
-One gotcha remains: We could be receiving our own approval vote via
-dispute-distribution (or dispute chain scraping), because some (likely
-malicious) node picked it as the opposing valid vote e.g. as an attempt to
-prevent the dispute from concluding (it is only sending it to us).
-The solution is simple though: When checking for an existing own vote to
-determine whether or not to participate, we will instruct `dispute-distribution`
-to distribute an already existing own approval vote. This way a dispute will
-always be able to conclude, even with these kinds of attacks. Alternatively or
-in addition to be double safe, we could also choose to simply drop (own)
-approval votes from any import that is not requested from the
-dispute-coordinator itself.
+### Ensuring Chain Import
 
-Side note: In fact with both of these we would already be triple safe, because
-the dispute coordinator also scrapes any votes from ongoing disputes off chain.
-Therefore, as soon as the current node becomes a block producer it will put its
-own approval vote on chain, and all other honest nodes will retrieve it from
-there.
+While in the previous section we discussed means for nodes to ensure relevant
+votes are recorded so attackers get slashed properly, it is crucial to also
+discuss the actual chain import. Only if we guarantee that recorded votes will
+also get imported on chain (on all potential chains really) we will succeed in
+executing slashes. Again approval votes prove to be our weak spot here, but also
+backing votes might get missed.
+
+Dispute distribution will make sure all explicit dispute votes get distributed
+among nodes which includes current block producers (current authority set) which
+is an important property: If the dispute carries on across an era change, we
+need to ensure that the new validator set will learn about any disputes and
+their votes, so they can put that information on chain. Dispute-distribution
+luckily has this property and sends votes to the current authority set always.
+The issue is, for dispute-distribution, nodes send only their own explicit (or
+in some cases their approval vote) in addition to some opposing vote. This
+guarantees that at least some backing or approval vote will be present at the
+block producer, but we don't have a 100% guarantee to have votes for all
+backers, even less for approval checkers.
+
+Reason for backing votes: While backing votes will be present on at least some
+chain, that does not mean that any such chain is still considered for block
+production in the current set - they might only exist on an already abandoned
+fork. This means a block producer that just joined the set, might not have seen
+any of them.
+
+For approvals it is even more tricky: Approval voting together with finalization
+is a completely off-chain process therefore those protocols don't care about
+block production at all. Approval votes only have a guarantee of being
+propagated between the nodes that are responsible for finalizing the concerned
+blocks. This implies that on an era change the current authority set, will not
+necessarily get informed about any approval votes for the previous era. Hence
+even if all validators of the previous era successfully recorded all approval
+votes in the dispute coordinator, they won't get a chance to put them on chain,
+hence they won't be considered for slashing.
+
+It is important to note, that the essential properties of the system still hold:
+Dispute-distribution will distribute at _least one_ "valid" vote to the current
+authority set, hence at least one node will get slashed in case of outcome
+"invalid". Also in reality the validator set is rarely exchanged 100%, therefore
+in practice some validators in the current authority set will overlap with the
+ones in the previous set and will be able to record votes on chain.
+
+Still, for maximum accountability we need to make sure a previous authority set
+can communicate votes to the next one, regardless of any chain: This is yet to
+be implemented see section "Resiliency" in dispute-distribution and
+[this](https://github.com/paritytech/polkadot/issues/3398) ticket.
 
 ## Coordinating Actual Dispute Participation
 

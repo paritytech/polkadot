@@ -297,6 +297,10 @@ cases we also want to have covered:
 - Nodes might have missed votes, especially backing or approval votes.
   Recovering them from chain is difficult and expensive, due to runtime upgrades
   and untyped extrinsics.
+- More importantly, on era changes the new authority set, from the perspective
+  of approval-voting have no need to see "old" approval votes, hence they might
+  not see them, can therefore not import them into the dispute coordinator and
+  therefore no authority will put them on chain.
 
 To cover those cases, we introduce a second request/response protocol, which can
 be handled on a lower priority basis as the one above. It consists of the
