@@ -72,7 +72,7 @@ backing votes from chain is sufficient and efficient. In particular there is no
 need to preemptively import approval votes, which has shown to be a very
 inefficient process. (Quadratic complexity adds up, with 35 votes in total per candidate)
 
-Approval votes are very relevant non the less as we are going to see in the next
+Approval votes are very relevant nonetheless as we are going to see in the next
 section.
 
 ## Ensuring Malicious Approval Votes Will Be Recorded
