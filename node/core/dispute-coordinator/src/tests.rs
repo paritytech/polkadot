@@ -34,7 +34,7 @@ use polkadot_node_subsystem_util::database::Database;
 use polkadot_node_primitives::{SignedDisputeStatement, SignedFullStatement, Statement};
 use polkadot_node_subsystem::{
 	messages::{
-		ApprovalVoteImport, ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
+		ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		ImportStatementsResult,
 	},
 	overseer::FromOrchestra,
@@ -2412,26 +2412,22 @@ fn own_approval_vote_gets_distributed_on_dispute() {
 
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
-			let approval_import = {
-				let statement = test_state.issue_approval_vote_with_index(
-					ValidatorIndex(0),
-					candidate_hash,
-					session,
-				);
+			let statement = test_state.issue_approval_vote_with_index(
+				ValidatorIndex(0),
+				candidate_hash,
+				session,
+			);
 
-				ApprovalVoteImport {
-					candidate_hash,
-					candidate: candidate_receipt.clone(),
-					session,
-					validator_public: test_state.validators[0].public().into(),
-					validator_index: ValidatorIndex(0),
-					signature: statement.validator_signature().clone(),
-				}
-			};
 			// Import our approval vote:
 			virtual_overseer
 				.send(FromOrchestra::Communication {
-					msg: DisputeCoordinatorMessage::ImportOwnApprovalVote(approval_import),
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_hash,
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![(statement, ValidatorIndex(0))],
+						pending_confirmation: None,
+					},
 				})
 				.await;
 

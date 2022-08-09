@@ -52,6 +52,12 @@ pub struct CandidateVotes {
 	pub invalid: BTreeMap<ValidatorIndex, (InvalidDisputeStatementKind, ValidatorSignature)>,
 }
 
+/// Type alias for retrieving valid votes from `CandidateVotes`
+pub type ValidVoteData = (ValidatorIndex, (ValidDisputeStatementKind, ValidatorSignature));
+
+/// Type alias for retrieving invalid votes from `CandidateVotes`
+pub type InvalidVoteData = (ValidatorIndex, (InvalidDisputeStatementKind, ValidatorSignature));
+
 impl CandidateVotes {
 	/// Get the set of all validators who have votes in the set, ascending.
 	pub fn voted_indices(&self) -> BTreeSet<ValidatorIndex> {
@@ -158,6 +164,11 @@ impl SignedDisputeStatement {
 	/// Access the underlying validator signature.
 	pub fn validator_signature(&self) -> &ValidatorSignature {
 		&self.validator_signature
+	}
+
+	/// Consume self to return the signature.
+	pub fn into_validator_signature(self) -> ValidatorSignature {
+		self.validator_signature
 	}
 
 	/// Access the underlying session index.

@@ -89,6 +89,9 @@ mod spam_slots;
 /// if there are lots of them.
 pub(crate) mod participation;
 
+/// Pure processing of vote imports.
+pub(crate) mod import;
+
 /// Metrics types.
 mod metrics;
 
