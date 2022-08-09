@@ -590,7 +590,7 @@ where
 					finality_provider: finality_proof_provider.clone(),
 				},
 				beefy: polkadot_rpc::BeefyDeps {
-					beefy_commitment_stream: beefy_rpc_links.from_voter_justif_stream.clone(),
+					beefy_finality_proof_stream: beefy_rpc_links.from_voter_justif_stream.clone(),
 					beefy_best_block_stream: beefy_rpc_links.from_voter_best_beefy_stream.clone(),
 					subscription_executor,
 				},
