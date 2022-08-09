@@ -2312,6 +2312,7 @@ mod multiplier_tests {
 #[cfg(all(test, feature = "try-runtime"))]
 mod remote_tests {
 	use super::*;
+	use std::env::var;
 	use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
 	use remote_externalities::{
 		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
@@ -2320,12 +2321,10 @@ mod remote_tests {
 	#[tokio::test]
 	async fn run_migrations() {
 		sp_tracing::try_init_simple();
-		let transport: Transport = std::option_env!("WSS")
-			.unwrap_or("wss://kusama-rpc.polkadot.io:443")
-			.to_string()
+		let transport: Transport = var("WS")
+			.unwrap_or("wss://kusama-rpc.polkadot.io:443".to_string())
 			.into();
-		let maybe_state_snapshot: Option<SnapshotConfig> =
-			std::option_env!("SNAP").map(|s| s.to_string().into());
+		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
 		let mut ext = Builder::<Block>::default()
 			.mode(if let Some(state_snapshot) = maybe_state_snapshot {
 				Mode::OfflineOrElseOnline(
