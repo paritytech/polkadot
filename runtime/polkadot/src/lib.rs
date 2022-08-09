@@ -2309,11 +2309,11 @@ mod multiplier_tests {
 #[cfg(all(test, feature = "try-runtime"))]
 mod remote_tests {
 	use super::*;
-	use std::env::var;
 	use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
 	use remote_externalities::{
 		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
 	};
+	use std::env::var;
 
 	#[tokio::test]
 	async fn run_migrations() {
