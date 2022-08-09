@@ -71,7 +71,7 @@ use sp_runtime::{
 		OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, KeyTypeId, Perbill, Percent, Permill, FixedU128,
+	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill, Percent, Permill,
 };
 use sp_staking::SessionIndex;
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
@@ -1393,6 +1393,7 @@ impl auctions::Config for Runtime {
 
 parameter_types! {
 	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
+	// Allow pools that got slashed up to 90% to remain operational.
 	pub const MaxPointsToBalance: u8 = 10;
 }
 
