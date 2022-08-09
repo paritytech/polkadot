@@ -47,9 +47,6 @@ validator-2: reports substrate_beefy_best_block is at least 21 within 130 second
 # TODO (issue #11972): Custom JS to test BEEFY RPCs
 # TODO (issue #11972): Custom JS to test MMR RPCs
 
-# Check that validator-3 is still paused somewhere in 1st session.
-validator-3: reports substrate_beefy_validator_set_id is 0
-validator-3: reports substrate_beefy_validator_set_id is lower than 11
 # Resume validator-3 and verify it imports all BEEFY justification and catches up.
 validator-3: resume
 validator-3: reports substrate_beefy_validator_set_id is at least 2 within 30 seconds
