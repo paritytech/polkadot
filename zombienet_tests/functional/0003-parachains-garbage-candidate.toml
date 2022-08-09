@@ -3,8 +3,8 @@ timeout = 1000
 bootnode = true
 
 [relaychain.genesis.runtime.runtime_genesis_config.configuration.config]
-  max_validators_per_core = 3
-  needed_approvals = 7
+  max_validators_per_core = 2
+  needed_approvals = 4
 
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
@@ -18,7 +18,7 @@ requests = { memory = "2G", cpu = "1" }
 
   [[relaychain.node_groups]]
   name = "honest-validator"
-  count = 7
+  count = 3
   args = ["-lparachain=debug,runtime=debug"]
 
   [[relaychain.node_groups]]
