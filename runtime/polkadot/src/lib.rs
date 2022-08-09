@@ -1413,13 +1413,13 @@ impl pallet_nomination_pools::Config for Runtime {
 	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
 }
 
-pub struct InitiatePoolConfigs;
-impl frame_support::traits::OnRuntimeUpgrade for InitiatePoolConfigs {
+pub struct InitiateNominationPools;
+impl frame_support::traits::OnRuntimeUpgrade for InitiateNominationPools {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		// we use one as an indicator if this has already been set.
 		if pallet_nomination_pools::MaxPools::<Runtime>::get().is_none() {
 			// 1 DOT to join a pool.
-			pallet_nomination_pools::MinJoinBond::<Runtime>::put(1 * UNITS);
+			pallet_nomination_pools::MinJoinBond::<Runtime>::put(5 * UNITS);
 			// 100 DOT to create a pool.
 			pallet_nomination_pools::MinCreateBond::<Runtime>::put(100 * UNITS);
 
@@ -1566,7 +1566,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	pallet_staking::migrations::v10::MigrateToV10<Runtime>,
+	(
+		pallet_staking::migrations::v10::MigrateToV10<Runtime>,
+		InitiateNominationPools
+	)
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
