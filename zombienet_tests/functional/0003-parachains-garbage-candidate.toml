@@ -28,7 +28,7 @@ requests = { memory = "2G", cpu = "1" }
   args = ["-lparachain=debug,MALUS=trace"]
   count = 3
  
-{% for id in range(2000,2006) %}
+{% for id in range(2000,2003) %}
 [[parachains]]
 id = {{id}}
 addToGenesis = true
