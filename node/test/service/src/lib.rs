@@ -41,6 +41,7 @@ use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
 	multiaddr,
 };
+use sc_network_common::service::NetworkStateInfo;
 use sc_service::{
 	config::{
 		DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod,
