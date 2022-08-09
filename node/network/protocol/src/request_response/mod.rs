@@ -290,7 +290,7 @@ impl Protocol {
 	}
 
 	/// All protocol names as understood by substrate networking for specific `genesis_hash`
-	/// and `fork_id`, represented by a HashMap.
+	/// and `fork_id`, represented by a hash map.
 	pub fn protocol_names<Hash: AsRef<[u8]>>(
 		genesis_hash: &Hash,
 		fork_id: &Option<String>,
