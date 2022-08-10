@@ -525,16 +525,15 @@ async fn nested_network_dispute_request<'a, F, O>(
 		handle.recv().await,
 		AllMessages::DisputeCoordinator(
 			DisputeCoordinatorMessage::ImportStatements {
-				candidate_hash,
 				candidate_receipt,
 				session,
 				statements,
 				pending_confirmation: Some(pending_confirmation),
 			}
 		) => {
+			let candidate_hash = candidate_receipt.hash();
 			assert_eq!(session, MOCK_SESSION_INDEX);
 			assert_eq!(candidate_hash, message.0.candidate_receipt.hash());
-			assert_eq!(candidate_hash, candidate_receipt.hash());
 			assert_eq!(statements.len(), 2);
 			pending_confirmation
 		}

@@ -557,7 +557,6 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash: candidate_hash1,
 						candidate_receipt: candidate_receipt1.clone(),
 						session,
 						statements: vec![
@@ -601,7 +600,6 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash: candidate_hash2,
 						candidate_receipt: candidate_receipt2.clone(),
 						session,
 						statements: vec![
@@ -695,7 +693,6 @@ fn dispute_gets_confirmed_via_participation() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash: candidate_hash1,
 						candidate_receipt: candidate_receipt1.clone(),
 						session,
 						statements: vec![
@@ -746,7 +743,6 @@ fn dispute_gets_confirmed_via_participation() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash: candidate_hash2,
 						candidate_receipt: candidate_receipt2.clone(),
 						session,
 						statements: vec![
@@ -862,7 +858,6 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash: candidate_hash1,
 						candidate_receipt: candidate_receipt1.clone(),
 						session,
 						statements: vec![
@@ -907,7 +902,6 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash: candidate_hash2,
 						candidate_receipt: candidate_receipt2.clone(),
 						session,
 						statements: vec![
@@ -976,7 +970,6 @@ fn backing_statements_import_works_and_no_spam() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
@@ -1032,7 +1025,6 @@ fn backing_statements_import_works_and_no_spam() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
@@ -1100,7 +1092,6 @@ fn conflicting_votes_lead_to_dispute_participation() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
@@ -1147,7 +1138,6 @@ fn conflicting_votes_lead_to_dispute_participation() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![(invalid_vote_2, ValidatorIndex(2))],
@@ -1216,7 +1206,6 @@ fn positive_votes_dont_trigger_participation() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![(valid_vote, ValidatorIndex(2))],
@@ -1253,7 +1242,6 @@ fn positive_votes_dont_trigger_participation() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![(valid_vote_2, ValidatorIndex(1))],
@@ -1331,7 +1319,6 @@ fn wrong_validator_index_is_ignored() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
@@ -1410,7 +1397,6 @@ fn finality_votes_ignore_disputed_candidates() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
@@ -1522,7 +1508,6 @@ fn supermajority_valid_dispute_may_be_finalized() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
@@ -1558,7 +1543,6 @@ fn supermajority_valid_dispute_may_be_finalized() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements,
@@ -1660,7 +1644,6 @@ fn concluded_supermajority_for_non_active_after_time() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
@@ -1697,7 +1680,6 @@ fn concluded_supermajority_for_non_active_after_time() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements,
@@ -1777,7 +1759,6 @@ fn concluded_supermajority_against_non_active_after_time() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
@@ -1818,7 +1799,6 @@ fn concluded_supermajority_against_non_active_after_time() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements,
@@ -1896,7 +1876,6 @@ fn resume_dispute_without_local_statement() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
@@ -1999,7 +1978,6 @@ fn resume_dispute_without_local_statement() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
@@ -2083,7 +2061,6 @@ fn resume_dispute_with_local_statement() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
@@ -2171,7 +2148,6 @@ fn resume_dispute_without_local_statement_or_local_key() {
 				virtual_overseer
 					.send(FromOrchestra::Communication {
 						msg: DisputeCoordinatorMessage::ImportStatements {
-							candidate_hash,
 							candidate_receipt: candidate_receipt.clone(),
 							session,
 							statements: vec![
@@ -2268,7 +2244,6 @@ fn resume_dispute_with_local_statement_without_local_key() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
@@ -2357,7 +2332,6 @@ fn issue_local_statement_does_cause_distribution_but_not_duplicate_participation
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![(other_vote, ValidatorIndex(1))],
@@ -2425,7 +2399,6 @@ fn own_approval_vote_gets_distributed_on_dispute() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![(statement, ValidatorIndex(0))],
@@ -2456,7 +2429,6 @@ fn own_approval_vote_gets_distributed_on_dispute() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
@@ -2568,7 +2540,6 @@ fn redundant_votes_ignored() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![(valid_vote.clone(), ValidatorIndex(1))],
@@ -2583,7 +2554,6 @@ fn redundant_votes_ignored() {
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![(valid_vote_2, ValidatorIndex(1))],

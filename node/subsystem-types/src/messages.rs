@@ -243,8 +243,6 @@ pub enum DisputeCoordinatorMessage {
 	///
 	/// This does not do any checking of the message signature.
 	ImportStatements {
-		/// The hash of the candidate.
-		candidate_hash: CandidateHash,
 		/// The candidate receipt itself.
 		candidate_receipt: CandidateReceipt,
 		/// The session the candidate appears in.

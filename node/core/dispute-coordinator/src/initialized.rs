@@ -387,7 +387,6 @@ impl Initialized {
 				.handle_import_statements(
 					ctx,
 					overlay_db,
-					candidate_hash,
 					MaybeCandidateReceipt::Provides(candidate_receipt),
 					session,
 					statements,
@@ -463,9 +462,8 @@ impl Initialized {
 				.handle_import_statements(
 					ctx,
 					overlay_db,
-					candidate_hash,
 					// TODO <https://github.com/paritytech/polkadot/issues/4011>
-					MaybeCandidateReceipt::AssumeBackingVotePresent,
+					MaybeCandidateReceipt::AssumeBackingVotePresent(candidate_hash),
 					session,
 					statements,
 					now,
@@ -499,7 +497,6 @@ impl Initialized {
 	) -> Result<Box<dyn FnOnce() -> JfyiResult<()>>> {
 		match message {
 			DisputeCoordinatorMessage::ImportStatements {
-				candidate_hash,
 				candidate_receipt,
 				session,
 				statements,
@@ -509,7 +506,6 @@ impl Initialized {
 					.handle_import_statements(
 						ctx,
 						overlay_db,
-						candidate_hash,
 						MaybeCandidateReceipt::Provides(candidate_receipt),
 						session,
 						statements,
@@ -631,7 +627,6 @@ impl Initialized {
 		&mut self,
 		ctx: &mut Context,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
-		candidate_hash: CandidateHash,
 		candidate_receipt: MaybeCandidateReceipt,
 		session: SessionIndex,
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
@@ -657,6 +652,8 @@ impl Initialized {
 				},
 				Some(env) => env,
 			};
+
+		let candidate_hash = candidate_receipt.hash();
 
 		// In case we are not provided with a candidate receipt
 		// we operate under the assumption, that a previous vote
@@ -966,7 +963,6 @@ impl Initialized {
 				.handle_import_statements(
 					ctx,
 					overlay_db,
-					candidate_hash,
 					MaybeCandidateReceipt::Provides(candidate_receipt),
 					session,
 					statements,
@@ -1027,7 +1023,17 @@ enum MaybeCandidateReceipt {
 	/// Directly provides the candidate receipt.
 	Provides(CandidateReceipt),
 	/// Assumes it was seen before by means of seconded message.
-	AssumeBackingVotePresent,
+	AssumeBackingVotePresent(CandidateHash),
+}
+
+impl MaybeCandidateReceipt {
+	/// Retrieve `CandidateHash` for the corresponding candidate.
+	pub fn hash(&self) -> CandidateHash {
+		match self {
+			Self::Provides(receipt) => receipt.hash(),
+			Self::AssumeBackingVotePresent(hash) => *hash,
+		}
+	}
 }
 
 #[derive(Debug, thiserror::Error)]
