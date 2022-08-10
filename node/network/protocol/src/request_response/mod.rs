@@ -32,11 +32,11 @@
 //!
 //!  Versioned (v1 module): The actual requests and responses as sent over the network.
 
-use std::{borrow::Cow, time::Duration, u64};
+use std::{borrow::Cow, collections::HashMap, time::Duration, u64};
 
 use futures::channel::mpsc;
 use polkadot_primitives::v2::{Hash, MAX_CODE_SIZE, MAX_POV_SIZE};
-use strum::EnumIter;
+use strum::{EnumIter, IntoEnumIterator};
 
 pub use sc_network::{config as network, config::RequestResponseConfig};
 
@@ -296,16 +296,25 @@ pub trait IsRequest {
 }
 
 /// Type for getting protocol names using genesis hash & fork id
-pub struct ReqProtocolNames(Hash, Option<String>);
+pub struct ReqProtocolNames {
+	names: HashMap<Protocol, Cow<'static, str>>,
+}
 
 impl ReqProtocolNames {
 	/// Construct [`ReqProtocolNames`] from `genesis_hash` and `fork_id`
-	pub fn new(genesis_hash: Hash, fork_id: Option<String>) -> Self {
-		Self(genesis_hash, fork_id)
+	pub fn new(genesis_hash: Hash, fork_id: Option<&str>) -> Self {
+		let mut names = HashMap::new();
+		for protocol in Protocol::iter() {
+			names.insert(protocol, protocol.get_name(&genesis_hash, fork_id));
+		}
+		Self { names }
 	}
 
 	/// Get on-the-wire [`Protocol`] name
 	pub fn get_name(&self, protocol: Protocol) -> Cow<'static, str> {
-		protocol.get_name(&self.0, self.1.as_deref())
+		self.names
+			.get(&protocol)
+			.expect("All `Protocol` enum variants are added above via `strum`; qed")
+			.clone()
 	}
 }

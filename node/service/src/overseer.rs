@@ -202,7 +202,7 @@ where
 
 	let req_protocol_names = ReqProtocolNames::new(
 		runtime_client.hash(0).ok().flatten().expect("Genesis block exists; qed"),
-		fork_id,
+		fork_id.as_deref(),
 	);
 
 	let builder = Overseer::builder()
