@@ -26,7 +26,7 @@ requests = { memory = "2G", cpu = "1" }
   name = "malus-validator"
   command = "malus suggest-garbage-candidate"
   args = ["-lparachain=debug,MALUS=trace"]
-  count = 3
+  count = 1
  
 {% for id in range(2000,2003) %}
 [[parachains]]
