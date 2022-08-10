@@ -35,7 +35,7 @@
 use std::{borrow::Cow, collections::HashMap, time::Duration, u64};
 
 use futures::channel::mpsc;
-use polkadot_primitives::v2::{Hash, MAX_CODE_SIZE, MAX_POV_SIZE};
+use polkadot_primitives::v2::{MAX_CODE_SIZE, MAX_POV_SIZE};
 use strum::{EnumIter, IntoEnumIterator};
 
 pub use sc_network::{config as network, config::RequestResponseConfig};
@@ -126,7 +126,7 @@ impl Protocol {
 	///
 	/// Returns a receiver for messages received on this protocol and the requested
 	/// `ProtocolConfig`.
-	pub fn get_config(
+	pub fn get_config<Hash: AsRef<[u8]>>(
 		self,
 		genesis_hash: &Hash,
 		fork_id: Option<&str>,
@@ -266,7 +266,11 @@ impl Protocol {
 	}
 
 	/// Protocol name of this protocol, as understood by substrate networking.
-	pub fn get_name(self, genesis_hash: &Hash, fork_id: Option<&str>) -> Cow<'static, str> {
+	pub fn get_name<Hash: AsRef<[u8]>>(
+		self,
+		genesis_hash: &Hash,
+		fork_id: Option<&str>,
+	) -> Cow<'static, str> {
 		let prefix = if let Some(fork_id) = fork_id {
 			format!("/{}/{}", hex::encode(genesis_hash), fork_id)
 		} else {
@@ -302,7 +306,7 @@ pub struct ReqProtocolNames {
 
 impl ReqProtocolNames {
 	/// Construct [`ReqProtocolNames`] from `genesis_hash` and `fork_id`
-	pub fn new(genesis_hash: Hash, fork_id: Option<&str>) -> Self {
+	pub fn new<Hash: AsRef<[u8]>>(genesis_hash: Hash, fork_id: Option<&str>) -> Self {
 		let mut names = HashMap::new();
 		for protocol in Protocol::iter() {
 			names.insert(protocol, protocol.get_name(&genesis_hash, fork_id));
