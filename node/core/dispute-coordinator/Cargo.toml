@@ -31,6 +31,7 @@ assert_matches = "1.4.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
 futures-timer = "3.0.2"
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 # If not enabled, the dispute coordinator will do nothing.

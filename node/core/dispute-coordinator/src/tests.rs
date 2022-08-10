@@ -542,13 +542,13 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 				.await;
 
 			let valid_vote2 = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash1, session)
+				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash2, session)
 				.await;
 
 			let invalid_vote2 = test_state
 				.issue_explicit_statement_with_index(
 					ValidatorIndex(1),
-					candidate_hash1,
+					candidate_hash2,
 					session,
 					false,
 				)
@@ -642,6 +642,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 
 #[test]
 fn dispute_gets_confirmed_via_participation() {
+	sp_tracing::try_init_simple();
 	test_harness(|mut test_state, mut virtual_overseer| {
 		Box::pin(async move {
 			let session = 1;
@@ -676,7 +677,7 @@ fn dispute_gets_confirmed_via_participation() {
 			let valid_vote2 = test_state
 				.issue_explicit_statement_with_index(
 					ValidatorIndex(3),
-					candidate_hash1,
+					candidate_hash2,
 					session,
 					true,
 				)
@@ -685,7 +686,7 @@ fn dispute_gets_confirmed_via_participation() {
 			let invalid_vote2 = test_state
 				.issue_explicit_statement_with_index(
 					ValidatorIndex(1),
-					candidate_hash1,
+					candidate_hash2,
 					session,
 					false,
 				)
@@ -705,6 +706,7 @@ fn dispute_gets_confirmed_via_participation() {
 					},
 				})
 				.await;
+			gum::debug!("After First import!");
 
 			participation_with_distribution(
 				&mut virtual_overseer,
@@ -712,6 +714,7 @@ fn dispute_gets_confirmed_via_participation() {
 				candidate_receipt1.commitments_hash,
 			)
 			.await;
+			gum::debug!("After Participation!");
 
 			{
 				let (tx, rx) = oneshot::channel();
@@ -737,6 +740,7 @@ fn dispute_gets_confirmed_via_participation() {
 				assert_eq!(votes.valid.len(), 2);
 				assert_eq!(votes.invalid.len(), 1);
 			}
+			gum::debug!("After Querying disputes!");
 
 			let (pending_confirmation, confirmation_rx) = oneshot::channel();
 			virtual_overseer
@@ -753,6 +757,7 @@ fn dispute_gets_confirmed_via_participation() {
 					},
 				})
 				.await;
+			gum::debug!("After Second import!");
 
 			participation_missing_availability(&mut virtual_overseer).await;
 
@@ -839,7 +844,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 			let valid_vote2 = test_state
 				.issue_explicit_statement_with_index(
 					ValidatorIndex(3),
-					candidate_hash1,
+					candidate_hash2,
 					session,
 					true,
 				)
@@ -848,7 +853,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 			let invalid_vote2 = test_state
 				.issue_explicit_statement_with_index(
 					ValidatorIndex(1),
-					candidate_hash1,
+					candidate_hash2,
 					session,
 					false,
 				)
@@ -1358,9 +1363,7 @@ fn wrong_validator_index_is_ignored() {
 					})
 					.await;
 
-				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert!(votes.valid.is_empty());
-				assert!(votes.invalid.is_empty());
+				assert_matches!(rx.await.unwrap().get(0), None);
 			}
 
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;

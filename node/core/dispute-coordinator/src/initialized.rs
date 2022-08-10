@@ -637,6 +637,7 @@ impl Initialized {
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 		now: Timestamp,
 	) -> Result<ImportStatementsResult> {
+		gum::trace!(target: LOG_TARGET, ?statements, "In handle import statements");
 		if session + DISPUTE_WINDOW.get() < self.highest_session {
 			// It is not valid to participate in an ancient dispute (spam?).
 			return Ok(ImportStatementsResult::InvalidImport)
@@ -690,8 +691,21 @@ impl Initialized {
 
 		let potential_spam = !is_included && !new_state.is_confirmed() && !new_state.has_own_vote();
 
+		gum::trace!(
+			target: LOG_TARGET,
+			has_own_vote = ?new_state.has_own_vote(),
+			?potential_spam,
+			?is_included,
+			confirmed = ?new_state.is_confirmed(),
+			"Is spam?"
+		);
+
+		if !potential_spam {
+			// Former spammers have not been spammers after all:
+			self.spam_slots.clear(&(session, candidate_hash));
+
 		// Potential spam:
-		if potential_spam && !import_result.new_invalid_voters().is_empty() {
+		} else if !import_result.new_invalid_voters().is_empty() {
 			let mut free_spam_slots_available = false;
 			// Only allow import if at least one validator voting invalid, has not exceeded
 			// its spam slots:
@@ -713,10 +727,6 @@ impl Initialized {
 				);
 				return Ok(ImportStatementsResult::InvalidImport)
 			}
-		}
-		if import_result.is_freshly_confirmed() {
-			// Former spammers have not been spammers after all:
-			self.spam_slots.clear(&(session, candidate_hash));
 		}
 
 		// Participate in dispute if we did not cast a vote before and actually have keys to cast a

@@ -204,6 +204,8 @@ impl VoteState<CandidateVotes> {
 		let mut imported_invalid_votes = 0;
 		let mut imported_valid_votes = 0;
 
+		let expected_candidate_hash = votes.candidate_receipt.hash();
+
 		for (statement, val_index) in statements {
 			if env
 				.validators()
@@ -218,6 +220,18 @@ impl VoteState<CandidateVotes> {
 				"Validator index doesn't match claimed key",
 				);
 
+				continue
+			}
+
+			if statement.candidate_hash() != &expected_candidate_hash {
+				gum::error!(
+				target: LOG_TARGET,
+				?val_index,
+				session= ?env.session_index,
+				given_candidate_hash = ?statement.candidate_hash(),
+				?expected_candidate_hash,
+				"Vote is for unexpected candidate!",
+				);
 				continue
 			}
 
@@ -389,22 +403,22 @@ impl ImportResult {
 
 	/// Whether we now have a dispute and did not prior to the import.
 	pub fn is_freshly_disputed(&self) -> bool {
-		!self.old_state.is_disputed() && self.new_state.is_disputed()
+		!self.old_state().is_disputed() && self.new_state().is_disputed()
 	}
 
 	/// Whether we just surpassed the byzantine threshold.
 	pub fn is_freshly_confirmed(&self) -> bool {
-		!self.old_state.is_confirmed() && self.new_state.is_confirmed()
+		!self.old_state().is_confirmed() && self.new_state().is_confirmed()
 	}
 
 	/// Whether or not any dispute just concluded valid due to the import.
 	pub fn is_freshly_concluded_valid(&self) -> bool {
-		!self.old_state.is_concluded_valid() && self.new_state.is_concluded_valid()
+		!self.old_state().is_concluded_valid() && self.new_state().is_concluded_valid()
 	}
 
 	/// Whether or not any dispute just concluded invalid due to the import.
 	pub fn is_freshly_concluded_invalid(&self) -> bool {
-		!self.old_state.is_concluded_invalid() && self.new_state.is_concluded_invalid()
+		!self.old_state().is_concluded_invalid() && self.new_state().is_concluded_invalid()
 	}
 
 	/// All done, give me those votes.
