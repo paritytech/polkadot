@@ -590,7 +590,7 @@ where
 					finality_provider: finality_proof_provider.clone(),
 				},
 				beefy: polkadot_rpc::BeefyDeps {
-					beefy_commitment_stream: beefy_rpc_links.from_voter_justif_stream.clone(),
+					beefy_finality_proof_stream: beefy_rpc_links.from_voter_justif_stream.clone(),
 					beefy_best_block_stream: beefy_rpc_links.from_voter_best_beefy_stream.clone(),
 					subscription_executor,
 				},
@@ -988,6 +988,7 @@ where
 	let authority_discovery_service = if auth_or_collator || overseer_enable_anyways {
 		use futures::StreamExt;
 		use sc_network::Event;
+		use sc_network_common::service::NetworkEventStream;
 
 		let authority_discovery_role = if role.is_authority() {
 			sc_authority_discovery::Role::PublishAndDiscover(keystore_container.keystore())
