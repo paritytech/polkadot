@@ -32,10 +32,10 @@ honest-validator-2: reports polkadot_parachain_disputes_finality_lag is lower th
 sleep 30 seconds
 
 # Check that garbage parachain blocks included by malicious validators are being disputed.
-honest-validator-0: reports polkadot_parachain_candidate_disputes_total is at least 2 within 15 seconds
-honest-validator-1: reports polkadot_parachain_candidate_disputes_total is at least 2 within 15 seconds
-honest-validator-2: reports polkadot_parachain_candidate_disputes_total is at least 2 within 15 seconds
+honest-validator-0: reports parachain_candidate_disputes_total is at least 2 within 15 seconds
+honest-validator-1: reports parachain_candidate_disputes_total is at least 2 within 15 seconds
+honest-validator-2: reports parachain_candidate_disputes_total is at least 2 within 15 seconds
 
 # Disputes should always end as "invalid"
-honest-validator-0: reports polkadot_parachain_candidate_dispute_concluded{validity="invalid"} is at least 2 within 15 seconds
-honest-validator-1: reports polkadot_parachain_candidate_dispute_concluded{validity="valid"} is 0 within 15 seconds
+honest-validator-0: reports parachain_candidate_dispute_concluded{validity="invalid"} is at least 2 within 15 seconds
+honest-validator-1: reports parachain_candidate_dispute_concluded{validity="valid"} is 0 within 15 seconds
