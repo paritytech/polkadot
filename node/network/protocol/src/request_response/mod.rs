@@ -32,11 +32,11 @@
 //!
 //!  Versioned (v1 module): The actual requests and responses as sent over the network.
 
-use std::{borrow::Cow, collections::HashMap, time::Duration, u64};
+use std::{borrow::Cow, time::Duration, u64};
 
 use futures::channel::mpsc;
-use polkadot_primitives::v2::{MAX_CODE_SIZE, MAX_POV_SIZE};
-use strum::{EnumIter, IntoEnumIterator};
+use polkadot_primitives::v2::{Hash, MAX_CODE_SIZE, MAX_POV_SIZE};
+use strum::EnumIter;
 
 pub use sc_network::{config as network, config::RequestResponseConfig};
 
@@ -126,13 +126,13 @@ impl Protocol {
 	///
 	/// Returns a receiver for messages received on this protocol and the requested
 	/// `ProtocolConfig`.
-	pub fn get_config<Hash: AsRef<[u8]>>(
+	pub fn get_config(
 		self,
 		genesis_hash: &Hash,
-		fork_id: &Option<String>,
+		fork_id: Option<&str>,
 	) -> (mpsc::Receiver<network::IncomingRequest>, RequestResponseConfig) {
-		let name = self.protocol_name(genesis_hash, fork_id);
-		let fallback_names = self.fallback_names();
+		let name = self.get_name(genesis_hash, fork_id);
+		let fallback_names = self.get_fallback_names();
 		let (tx, rx) = mpsc::channel(self.get_channel_size());
 		let cfg = match self {
 			Protocol::ChunkFetchingV1 => RequestResponseConfig {
@@ -249,12 +249,12 @@ impl Protocol {
 	}
 
 	/// Fallback protocol names of this protocol, as understood by substrate networking.
-	pub fn fallback_names(self) -> Vec<Cow<'static, str>> {
-		std::iter::once(self.legacy_name().into()).collect()
+	pub fn get_fallback_names(self) -> Vec<Cow<'static, str>> {
+		std::iter::once(self.get_legacy_name().into()).collect()
 	}
 
 	/// Legacy protocol name associated with each peer set.
-	pub const fn legacy_name(self) -> &'static str {
+	pub const fn get_legacy_name(self) -> &'static str {
 		match self {
 			Protocol::ChunkFetchingV1 => "/polkadot/req_chunk/1",
 			Protocol::CollationFetchingV1 => "/polkadot/req_collation/1",
@@ -266,11 +266,7 @@ impl Protocol {
 	}
 
 	/// Protocol name of this protocol, as understood by substrate networking.
-	pub fn protocol_name<Hash: AsRef<[u8]>>(
-		self,
-		genesis_hash: &Hash,
-		fork_id: &Option<String>,
-	) -> Cow<'static, str> {
+	pub fn get_name(self, genesis_hash: &Hash, fork_id: Option<&str>) -> Cow<'static, str> {
 		let prefix = if let Some(fork_id) = fork_id {
 			format!("/{}/{}", hex::encode(genesis_hash), fork_id)
 		} else {
@@ -288,19 +284,6 @@ impl Protocol {
 
 		format!("{}{}", prefix, short_name).into()
 	}
-
-	/// All protocol names as understood by substrate networking for specific `genesis_hash`
-	/// and `fork_id`, represented by a hash map.
-	pub fn protocol_names<Hash: AsRef<[u8]>>(
-		genesis_hash: &Hash,
-		fork_id: &Option<String>,
-	) -> HashMap<Protocol, Cow<'static, str>> {
-		let mut p_names = HashMap::new();
-		for protocol in Protocol::iter() {
-			p_names.insert(protocol, protocol.protocol_name(genesis_hash, fork_id));
-		}
-		p_names
-	}
 }
 
 /// Common properties of any `Request`.
@@ -310,4 +293,19 @@ pub trait IsRequest {
 
 	/// What protocol this `Request` implements.
 	const PROTOCOL: Protocol;
+}
+
+/// Type for getting protocol names using genesis hash & fork id
+pub struct ReqProtocolNames(Hash, Option<String>);
+
+impl ReqProtocolNames {
+	/// Construct [`ReqProtocolNames`] from `genesis_hash` and `fork_id`
+	pub fn new(genesis_hash: Hash, fork_id: Option<String>) -> Self {
+		Self(genesis_hash, fork_id)
+	}
+
+	/// Get on-the-wire [`Protocol`] name
+	pub fn get_name(&self, protocol: Protocol) -> Cow<'static, str> {
+		protocol.get_name(&self.0, self.1.as_deref())
+	}
 }

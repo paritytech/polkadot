@@ -859,20 +859,23 @@ where
 
 	let fork_id = config.chain_spec.fork_id().map(ToOwned::to_owned);
 
-	let (pov_req_receiver, cfg) = IncomingRequest::get_config_receiver(&genesis_hash, &fork_id);
+	let (pov_req_receiver, cfg) =
+		IncomingRequest::get_config_receiver(&genesis_hash, fork_id.as_deref());
 	config.network.request_response_protocols.push(cfg);
-	let (chunk_req_receiver, cfg) = IncomingRequest::get_config_receiver(&genesis_hash, &fork_id);
+	let (chunk_req_receiver, cfg) =
+		IncomingRequest::get_config_receiver(&genesis_hash, fork_id.as_deref());
 	config.network.request_response_protocols.push(cfg);
 	let (collation_req_receiver, cfg) =
-		IncomingRequest::get_config_receiver(&genesis_hash, &fork_id);
+		IncomingRequest::get_config_receiver(&genesis_hash, fork_id.as_deref());
 	config.network.request_response_protocols.push(cfg);
 	let (available_data_req_receiver, cfg) =
-		IncomingRequest::get_config_receiver(&genesis_hash, &fork_id);
+		IncomingRequest::get_config_receiver(&genesis_hash, fork_id.as_deref());
 	config.network.request_response_protocols.push(cfg);
 	let (statement_req_receiver, cfg) =
-		IncomingRequest::get_config_receiver(&genesis_hash, &fork_id);
+		IncomingRequest::get_config_receiver(&genesis_hash, fork_id.as_deref());
 	config.network.request_response_protocols.push(cfg);
-	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver(&genesis_hash, &fork_id);
+	let (dispute_req_receiver, cfg) =
+		IncomingRequest::get_config_receiver(&genesis_hash, fork_id.as_deref());
 	config.network.request_response_protocols.push(cfg);
 
 	let grandpa_hard_forks = if config.chain_spec.is_kusama() {

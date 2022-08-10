@@ -25,7 +25,7 @@ use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig
 use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
 use polkadot_node_network_protocol::request_response::{
-	v1 as request_v1, IncomingRequestReceiver, Protocol as RequestsProtocol,
+	v1 as request_v1, IncomingRequestReceiver, ReqProtocolNames,
 };
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::{
@@ -200,9 +200,9 @@ where
 
 	let network_bridge_metrics: NetworkBridgeMetrics = Metrics::register(registry)?;
 
-	let requests_protocols = RequestsProtocol::protocol_names(
-		&runtime_client.hash(0).ok().flatten().expect("Genesis block exists; qed"),
-		&fork_id,
+	let req_protocol_names = ReqProtocolNames::new(
+		runtime_client.hash(0).ok().flatten().expect("Genesis block exists; qed"),
+		fork_id,
 	);
 
 	let builder = Overseer::builder()
@@ -210,7 +210,7 @@ where
 			network_service.clone(),
 			authority_discovery_service.clone(),
 			network_bridge_metrics.clone(),
-			requests_protocols,
+			req_protocol_names,
 		))
 		.network_bridge_rx(NetworkBridgeRxSubsystem::new(
 			network_service.clone(),

@@ -14,11 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{
-	borrow::Cow,
-	collections::{HashMap, HashSet},
-	sync::Arc,
-};
+use std::{borrow::Cow, collections::HashSet, sync::Arc};
 
 use async_trait::async_trait;
 use futures::{prelude::*, stream::BoxStream};
@@ -32,7 +28,7 @@ use sc_network::{
 
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
-	request_response::{OutgoingRequest, Protocol, Recipient, Requests},
+	request_response::{OutgoingRequest, Recipient, ReqProtocolNames, Requests},
 	PeerId, ProtocolVersion, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::v2::{AuthorityDiscoveryId, Block, Hash};
@@ -101,7 +97,7 @@ pub trait Network: Clone + Send + 'static {
 		&self,
 		authority_discovery: &mut AD,
 		req: Requests,
-		req_protocols: &HashMap<Protocol, Cow<'static, str>>,
+		req_protocol_names: &ReqProtocolNames,
 		if_disconnected: IfDisconnected,
 	);
 
@@ -158,7 +154,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		&self,
 		authority_discovery: &mut AD,
 		req: Requests,
-		req_protocols: &HashMap<Protocol, Cow<'static, str>>,
+		req_protocol_names: &ReqProtocolNames,
 		if_disconnected: IfDisconnected,
 	) {
 		let (protocol, OutgoingRequest { peer, payload, pending_response }) = req.encode_request();
@@ -204,10 +200,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		NetworkService::start_request(
 			&*self,
 			peer_id,
-			req_protocols
-				.get(&protocol)
-				.expect("all `protocol` names are generated via `strum`; qed")
-				.clone(),
+			req_protocol_names.get_name(protocol),
 			payload,
 			pending_response,
 			if_disconnected,

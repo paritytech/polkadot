@@ -25,7 +25,8 @@ use std::{borrow::Cow, collections::HashSet};
 use sc_network::{Event as NetworkEvent, IfDisconnected};
 
 use polkadot_node_network_protocol::{
-	request_response::outgoing::Requests, ObservedRole, Versioned,
+	request_response::{outgoing::Requests, ReqProtocolNames},
+	ObservedRole, Versioned,
 };
 use polkadot_node_subsystem::{FromOrchestra, OverseerSignal};
 use polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle;
@@ -104,7 +105,7 @@ impl Network for TestNetwork {
 		&self,
 		_: &mut AD,
 		_: Requests,
-		_: &HashMap<Protocol, Cow<'static, str>>,
+		_: &ReqProtocolNames,
 		_: IfDisconnected,
 	) {
 	}
@@ -184,7 +185,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarne
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 	let genesis_hash = Hash::repeat_byte(0xff);
-	let protocol_names = Protocol::protocol_names(&genesis_hash, &None);
+	let protocol_names = ReqProtocolNames::new(genesis_hash, None);
 
 	let bridge_out = NetworkBridgeTx::new(network, discovery, Metrics(None), protocol_names);
 

@@ -163,7 +163,7 @@ mod tests {
 	use async_trait::async_trait;
 	use futures::stream::BoxStream;
 	use polkadot_node_network_protocol::{
-		request_response::{outgoing::Requests, Protocol},
+		request_response::{outgoing::Requests, ReqProtocolNames},
 		PeerId,
 	};
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
@@ -239,7 +239,7 @@ mod tests {
 			&self,
 			_: &mut AD,
 			_: Requests,
-			_: &HashMap<Protocol, Cow<'static, str>>,
+			_: &ReqProtocolNames,
 			_: IfDisconnected,
 		) {
 		}

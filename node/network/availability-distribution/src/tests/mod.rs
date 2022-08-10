@@ -43,10 +43,9 @@ fn test_harness<T: Future<Output = ()>>(
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 	let genesis_hash = Hash::repeat_byte(0xff);
 
-	let (pov_req_receiver, pov_req_cfg) =
-		IncomingRequest::get_config_receiver(&genesis_hash, &None);
+	let (pov_req_receiver, pov_req_cfg) = IncomingRequest::get_config_receiver(&genesis_hash, None);
 	let (chunk_req_receiver, chunk_req_cfg) =
-		IncomingRequest::get_config_receiver(&genesis_hash, &None);
+		IncomingRequest::get_config_receiver(&genesis_hash, None);
 	let subsystem = AvailabilityDistributionSubsystem::new(
 		keystore,
 		IncomingRequestReceivers { pov_req_receiver, chunk_req_receiver },

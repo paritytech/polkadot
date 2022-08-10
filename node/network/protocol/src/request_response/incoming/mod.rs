@@ -22,6 +22,7 @@ use futures::{
 };
 
 use parity_scale_codec::{Decode, Encode};
+use polkadot_primitives::v2::Hash;
 
 use sc_network::{config as netconfig, config::RequestResponseConfig, PeerId};
 
@@ -55,9 +56,9 @@ where
 	///
 	/// This Register that config with substrate networking and receive incoming requests via the
 	/// returned `IncomingRequestReceiver`.
-	pub fn get_config_receiver<Hash: AsRef<[u8]>>(
+	pub fn get_config_receiver(
 		genesis_hash: &Hash,
-		fork_id: &Option<String>,
+		fork_id: Option<&str>,
 	) -> (IncomingRequestReceiver<Req>, RequestResponseConfig) {
 		let (raw, cfg) = Req::PROTOCOL.get_config(genesis_hash, fork_id);
 		(IncomingRequestReceiver { raw, phantom: PhantomData {} }, cfg)

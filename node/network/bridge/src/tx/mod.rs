@@ -15,12 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The Network Bridge Subsystem - handles _outgoing_ messages, from subsystem to the network.
-use std::borrow::Cow;
-
 use super::*;
 
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet, request_response::Protocol, v1 as protocol_v1, PeerId, Versioned,
+	peer_set::PeerSet, request_response::ReqProtocolNames, v1 as protocol_v1, PeerId, Versioned,
 };
 
 use polkadot_node_subsystem::{
@@ -54,7 +52,7 @@ pub struct NetworkBridgeTx<N, AD> {
 	network_service: N,
 	authority_discovery_service: AD,
 	metrics: Metrics,
-	requests_protocols: HashMap<Protocol, Cow<'static, str>>,
+	req_protocol_names: ReqProtocolNames,
 }
 
 impl<N, AD> NetworkBridgeTx<N, AD> {
@@ -66,9 +64,9 @@ impl<N, AD> NetworkBridgeTx<N, AD> {
 		network_service: N,
 		authority_discovery_service: AD,
 		metrics: Metrics,
-		requests_protocols: HashMap<Protocol, Cow<'static, str>>,
+		req_protocol_names: ReqProtocolNames,
 	) -> Self {
-		Self { network_service, authority_discovery_service, metrics, requests_protocols }
+		Self { network_service, authority_discovery_service, metrics, req_protocol_names }
 	}
 }
 
@@ -92,7 +90,7 @@ async fn handle_subsystem_messages<Context, N, AD>(
 	mut network_service: N,
 	mut authority_discovery_service: AD,
 	metrics: Metrics,
-	requests_protocols: &HashMap<Protocol, Cow<'static, str>>,
+	req_protocol_names: ReqProtocolNames,
 ) -> Result<(), Error>
 where
 	N: Network,
@@ -113,7 +111,7 @@ where
 						authority_discovery_service.clone(),
 						msg,
 						&metrics,
-						requests_protocols,
+						&req_protocol_names,
 					)
 					.await;
 			},
@@ -129,7 +127,7 @@ async fn handle_incoming_subsystem_communication<Context, N, AD>(
 	mut authority_discovery_service: AD,
 	msg: NetworkBridgeTxMessage,
 	metrics: &Metrics,
-	requests_protocols: &HashMap<Protocol, Cow<'static, str>>,
+	req_protocol_names: &ReqProtocolNames,
 ) -> (N, AD)
 where
 	N: Network,
@@ -234,7 +232,7 @@ where
 					.start_request(
 						&mut authority_discovery_service,
 						req,
-						requests_protocols,
+						req_protocol_names,
 						if_disconnected,
 					)
 					.await;
@@ -297,7 +295,7 @@ where
 		network_service,
 		authority_discovery_service,
 		metrics,
-		requests_protocols,
+		req_protocol_names,
 	} = bridge;
 
 	handle_subsystem_messages(
@@ -305,7 +303,7 @@ where
 		network_service,
 		authority_discovery_service,
 		metrics,
-		&requests_protocols,
+		req_protocol_names,
 	)
 	.await?;
 

@@ -724,7 +724,7 @@ where
 	let keystore = make_ferdie_keystore();
 
 	let genesis_hash = Hash::repeat_byte(0xff);
-	let (req_receiver, req_cfg) = IncomingRequest::get_config_receiver(&genesis_hash, &None);
+	let (req_receiver, req_cfg) = IncomingRequest::get_config_receiver(&genesis_hash, None);
 	let subsystem = DisputeDistributionSubsystem::new(
 		keystore,
 		req_receiver,

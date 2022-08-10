@@ -16,7 +16,7 @@
 
 use super::*;
 use futures::{channel::oneshot, executor, stream::BoxStream};
-use polkadot_node_network_protocol::{self as net_protocol, request_response::Protocol, OurView};
+use polkadot_node_network_protocol::{self as net_protocol, OurView};
 use polkadot_node_subsystem::{messages::NetworkBridgeEvent, ActivatedLeaf};
 
 use assert_matches::assert_matches;
@@ -31,7 +31,8 @@ use std::{
 use sc_network::{Event as NetworkEvent, IfDisconnected};
 
 use polkadot_node_network_protocol::{
-	request_response::outgoing::Requests, view, ObservedRole, Versioned,
+	request_response::{outgoing::Requests, ReqProtocolNames},
+	view, ObservedRole, Versioned,
 };
 use polkadot_node_subsystem::{
 	jaeger,
@@ -117,7 +118,7 @@ impl Network for TestNetwork {
 		&self,
 		_: &mut AD,
 		_: Requests,
-		_: &HashMap<Protocol, Cow<'static, str>>,
+		_: &ReqProtocolNames,
 		_: IfDisconnected,
 	) {
 	}

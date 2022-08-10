@@ -204,7 +204,7 @@ fn test_harness<T: Future<Output = TestHarness>>(
 	let genesis_hash = Hash::repeat_byte(0xff);
 
 	let (collation_req_receiver, req_cfg) =
-		IncomingRequest::get_config_receiver(&genesis_hash, &None);
+		IncomingRequest::get_config_receiver(&genesis_hash, None);
 	let subsystem = async {
 		run(context, local_peer_id, collator_pair, collation_req_receiver, Default::default())
 			.await
