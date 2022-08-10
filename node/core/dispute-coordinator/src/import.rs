@@ -16,7 +16,7 @@
 
 //! Vote import logic.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use polkadot_node_primitives::{disputes::ValidVoteData, CandidateVotes, SignedDisputeStatement};
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
@@ -60,6 +60,11 @@ impl<'a> CandidateEnvironment<'a> {
 	/// `SessionInfo` for the candidate's session.
 	pub fn session_info(&self) -> &SessionInfo {
 		&self.session
+	}
+
+	/// Retrieve `SessionIndex` for this environment.
+	pub fn session_index(&self) -> SessionIndex {
+		self.session_index
 	}
 
 	/// Indices controlled by this node.
@@ -198,7 +203,7 @@ impl VoteState<CandidateVotes> {
 		env: &CandidateEnvironment,
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 	) -> ImportResult {
-		let (mut votes, old_state) = self.to_old_state();
+		let (mut votes, old_state) = self.into_old_state();
 
 		let mut new_invalid_voters = Vec::new();
 		let mut imported_invalid_votes = 0;
@@ -281,7 +286,7 @@ impl VoteState<CandidateVotes> {
 	}
 
 	/// Extract `CandidateVotes` for handling import of new statements.
-	fn to_old_state(self) -> (CandidateVotes, VoteState<()>) {
+	fn into_old_state(self) -> (CandidateVotes, VoteState<()>) {
 		let VoteState {
 			votes,
 			own_vote,
@@ -370,10 +375,7 @@ impl ImportResult {
 	/// - freshly confirmed
 	/// - freshly concluded (valid or invalid)
 	pub fn dispute_state_changed(&self) -> bool {
-		self.is_freshly_disputed() ||
-			self.is_freshly_confirmed() ||
-			self.is_freshly_concluded_valid() ||
-			self.is_freshly_concluded_invalid()
+		self.is_freshly_disputed() || self.is_freshly_confirmed() || self.is_freshly_concluded()
 	}
 
 	/// State as it was before import.
@@ -419,6 +421,63 @@ impl ImportResult {
 	/// Whether or not any dispute just concluded invalid due to the import.
 	pub fn is_freshly_concluded_invalid(&self) -> bool {
 		!self.old_state().is_concluded_invalid() && self.new_state().is_concluded_invalid()
+	}
+
+	/// Whether or not any dispute just concluded either invalid or valid due to the import.
+	pub fn is_freshly_concluded(&self) -> bool {
+		self.is_freshly_concluded_invalid() || self.is_freshly_concluded_valid()
+	}
+
+	/// Modify this `ImportResult`s, by importing additional approval votes.
+	///
+	/// Both results and `new_state` will be changed as if those approval votes had been in the
+	/// original import.
+	pub fn import_approval_votes(
+		self,
+		env: &CandidateEnvironment,
+		approval_votes: HashMap<ValidatorIndex, ValidatorSignature>,
+	) -> Self {
+		let Self {
+			old_state,
+			new_state,
+			new_invalid_voters,
+			mut imported_valid_votes,
+			imported_invalid_votes,
+		} = self;
+
+		let (mut votes, _) = new_state.into_old_state();
+
+		for (index, sig) in approval_votes.into_iter() {
+			debug_assert!(
+				{
+					let pub_key = &env.session_info().validators[index.0 as usize];
+					let candidate_hash = votes.candidate_receipt.hash();
+					let session_index = env.session_index();
+					DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking)
+						.check_signature(pub_key, candidate_hash, session_index, &sig)
+						.is_ok()
+				},
+				"Signature check for imported approval votes failed! This is a serious bug!"
+			);
+			if insert_into_statements(
+				&mut votes.valid,
+				ValidDisputeStatementKind::ApprovalChecking,
+				index,
+				sig,
+			) {
+				imported_valid_votes += 1;
+			}
+		}
+
+		let new_state = VoteState::new(votes, env);
+
+		Self {
+			old_state,
+			new_state,
+			new_invalid_voters,
+			imported_valid_votes,
+			imported_invalid_votes,
+		}
 	}
 
 	/// All done, give me those votes.

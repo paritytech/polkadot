@@ -34,8 +34,8 @@ use polkadot_node_subsystem_util::database::Database;
 use polkadot_node_primitives::{SignedDisputeStatement, SignedFullStatement, Statement};
 use polkadot_node_subsystem::{
 	messages::{
-		ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
-		ImportStatementsResult,
+		ApprovalVotingMessage, ChainApiMessage, DisputeCoordinatorMessage,
+		DisputeDistributionMessage, ImportStatementsResult,
 	},
 	overseer::FromOrchestra,
 	OverseerSignal,
@@ -59,6 +59,7 @@ use polkadot_primitives::v2::{
 	ApprovalVote, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt,
 	DisputeStatement, Hash, Header, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex,
 	SessionInfo, SigningContext, ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 
 use crate::{
@@ -313,7 +314,7 @@ impl TestState {
 						tx.send(Ok(Vec::new())).unwrap();
 					}
 					);
-					gum::info!("After answering runtime api request");
+					gum::trace!("After answering runtime api request");
 					assert_matches!(
 					overseer_recv(virtual_overseer).await,
 					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -328,7 +329,7 @@ impl TestState {
 						}))).unwrap();
 					}
 					);
-					gum::info!("After answering runtime api request (votes)");
+					gum::trace!("After answering runtime API request (votes)");
 				},
 				msg => {
 					panic!("Received unexpected message in `handle_sync_queries`: {:?}", msg);
@@ -513,6 +514,24 @@ fn make_invalid_candidate_receipt() -> CandidateReceipt {
 	dummy_candidate_receipt_bad_sig(Default::default(), Some(Default::default()))
 }
 
+/// Handle request for approval votes:
+pub async fn handle_approval_vote_request(
+	ctx_handle: &mut VirtualOverseer,
+	expected_hash: &CandidateHash,
+	votes_to_send: HashMap<ValidatorIndex, ValidatorSignature>,
+) {
+	assert_matches!(
+		ctx_handle.recv().await,
+		AllMessages::ApprovalVoting(
+			ApprovalVotingMessage::GetApprovalSignaturesForCandidate(hash, tx)
+		) => {
+			assert_eq!(&hash, expected_hash);
+			tx.send(votes_to_send).unwrap();
+		},
+		"overseer did not receive `GetApprovalSignaturesForCandidate` message.",
+	);
+}
+
 #[test]
 fn too_many_unconfirmed_statements_are_considered_spam() {
 	test_harness(|mut test_state, mut virtual_overseer| {
@@ -554,6 +573,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 				)
 				.await;
 
+			gum::trace!("Before sending `ImportStatements`");
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
@@ -566,6 +586,10 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 						pending_confirmation: None,
 					},
 				})
+				.await;
+			gum::trace!("After sending `ImportStatements`");
+
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash1, HashMap::new())
 				.await;
 
 			// Participation has to fail, otherwise the dispute will be confirmed.
@@ -611,6 +635,9 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 				})
 				.await;
 
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash2, HashMap::new())
+				.await;
+
 			{
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
@@ -640,7 +667,6 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 
 #[test]
 fn dispute_gets_confirmed_via_participation() {
-	sp_tracing::try_init_simple();
 	test_harness(|mut test_state, mut virtual_overseer| {
 		Box::pin(async move {
 			let session = 1;
@@ -704,6 +730,8 @@ fn dispute_gets_confirmed_via_participation() {
 				})
 				.await;
 			gum::debug!("After First import!");
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash1, HashMap::new())
+				.await;
 
 			participation_with_distribution(
 				&mut virtual_overseer,
@@ -754,6 +782,8 @@ fn dispute_gets_confirmed_via_participation() {
 				})
 				.await;
 			gum::debug!("After Second import!");
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash2, HashMap::new())
+				.await;
 
 			participation_missing_availability(&mut virtual_overseer).await;
 
@@ -870,6 +900,8 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 					},
 				})
 				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash1, HashMap::new())
+				.await;
 
 			participation_missing_availability(&mut virtual_overseer).await;
 
@@ -911,6 +943,8 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 						pending_confirmation: Some(pending_confirmation),
 					},
 				})
+				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash2, HashMap::new())
 				.await;
 
 			participation_missing_availability(&mut virtual_overseer).await;
@@ -1101,6 +1135,8 @@ fn conflicting_votes_lead_to_dispute_participation() {
 						pending_confirmation: None,
 					},
 				})
+				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
 				.await;
 
 			participation_with_distribution(
@@ -1407,6 +1443,8 @@ fn finality_votes_ignore_disputed_candidates() {
 					},
 				})
 				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
+				.await;
 
 			participation_with_distribution(
 				&mut virtual_overseer,
@@ -1518,6 +1556,8 @@ fn supermajority_valid_dispute_may_be_finalized() {
 					},
 				})
 				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
+				.await;
 
 			participation_with_distribution(
 				&mut virtual_overseer,
@@ -1549,6 +1589,8 @@ fn supermajority_valid_dispute_may_be_finalized() {
 						pending_confirmation: None,
 					},
 				})
+				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
 				.await;
 
 			{
@@ -1654,6 +1696,8 @@ fn concluded_supermajority_for_non_active_after_time() {
 					},
 				})
 				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
+				.await;
 
 			participation_with_distribution(
 				&mut virtual_overseer,
@@ -1686,6 +1730,8 @@ fn concluded_supermajority_for_non_active_after_time() {
 						pending_confirmation: None,
 					},
 				})
+				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
 				.await;
 
 			test_state.clock.set(ACTIVE_DURATION_SECS + 1);
@@ -1769,6 +1815,8 @@ fn concluded_supermajority_against_non_active_after_time() {
 					},
 				})
 				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
+				.await;
 			assert_matches!(confirmation_rx.await.unwrap(),
 				ImportStatementsResult::ValidImport => {}
 			);
@@ -1805,6 +1853,8 @@ fn concluded_supermajority_against_non_active_after_time() {
 						pending_confirmation: None,
 					},
 				})
+				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
 				.await;
 
 			test_state.clock.set(ACTIVE_DURATION_SECS + 1);
@@ -1885,6 +1935,8 @@ fn resume_dispute_without_local_statement() {
 						pending_confirmation: Some(pending_confirmation),
 					},
 				})
+				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
 				.await;
 
 			// Missing availability -> No local vote.
@@ -1992,6 +2044,8 @@ fn resume_dispute_without_local_statement() {
 					},
 				})
 				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
+				.await;
 
 			// Advance the clock far enough so that the concluded dispute will be omitted from an
 			// ActiveDisputes query.
@@ -2071,6 +2125,8 @@ fn resume_dispute_with_local_statement() {
 						pending_confirmation: Some(pending_confirmation),
 					},
 				})
+				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
 				.await;
 
 			assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
@@ -2158,6 +2214,12 @@ fn resume_dispute_without_local_statement_or_local_key() {
 						},
 					})
 					.await;
+				handle_approval_vote_request(
+					&mut virtual_overseer,
+					&candidate_hash,
+					HashMap::new(),
+				)
+				.await;
 
 				assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
 
@@ -2254,6 +2316,8 @@ fn resume_dispute_with_local_statement_without_local_key() {
 						pending_confirmation: Some(pending_confirmation),
 					},
 				})
+				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
 				.await;
 
 			assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
@@ -2365,6 +2429,9 @@ fn issue_local_statement_does_cause_distribution_but_not_duplicate_participation
 				}
 			);
 
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
+				.await;
+
 			// Make sure we won't participate:
 			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
 
@@ -2438,6 +2505,8 @@ fn own_approval_vote_gets_distributed_on_dispute() {
 						pending_confirmation: Some(pending_confirmation),
 					},
 				})
+				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
 				.await;
 
 			assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));

@@ -586,6 +586,7 @@ pub struct Overseer<SupportsParachains> {
 		ChainApiMessage,
 		DisputeDistributionMessage,
 		CandidateValidationMessage,
+		ApprovalVotingMessage,
 		AvailabilityStoreMessage,
 		AvailabilityRecoveryMessage,
 	])]

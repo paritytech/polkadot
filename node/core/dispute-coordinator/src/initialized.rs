@@ -18,7 +18,10 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use futures::{channel::mpsc, FutureExt, StreamExt};
+use futures::{
+	channel::{mpsc, oneshot},
+	FutureExt, StreamExt,
+};
 
 use sc_keystore::LocalKeystore;
 
@@ -28,8 +31,8 @@ use polkadot_node_primitives::{
 };
 use polkadot_node_subsystem::{
 	messages::{
-		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
-		ImportStatementsResult,
+		ApprovalVotingMessage, BlockDescription, DisputeCoordinatorMessage,
+		DisputeDistributionMessage, ImportStatementsResult,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
 };
@@ -681,7 +684,34 @@ impl Initialized {
 				},
 		};
 
-		let import_result = old_state.import_statements(&env, statements);
+		let import_result = {
+			let intermediate_result = old_state.import_statements(&env, statements);
+
+			// Handle approval vote import:
+			//
+			// See guide: We import on fresh disputes to maximize likelihood of fetching votes for
+			// dead forks and once concluded to maximize time for approval votes to trickle in.
+			if intermediate_result.is_freshly_disputed() ||
+				intermediate_result.is_freshly_concluded()
+			{
+				let (tx, rx) = oneshot::channel();
+				ctx.send_unbounded_message(
+					ApprovalVotingMessage::GetApprovalSignaturesForCandidate(candidate_hash, tx),
+				);
+				match rx.await {
+					Err(_) => {
+						gum::warn!(
+							target: LOG_TARGET,
+							"Fetch for approval votes got cancelled, only expected during shutdown!"
+						);
+						intermediate_result
+					},
+					Ok(votes) => intermediate_result.import_approval_votes(&env, votes),
+				}
+			} else {
+				intermediate_result
+			}
+		};
 		let new_state = import_result.new_state();
 
 		let is_included = self.scraper.is_candidate_included(&candidate_hash);
@@ -744,8 +774,6 @@ impl Initialized {
 			} else {
 				self.metrics.on_queued_best_effort_participation();
 			}
-			// Participate whenever the imported vote was local & we did not had no cast
-			// previously:
 			let r = self
 				.participation
 				.queue_participation(
@@ -761,7 +789,7 @@ impl Initialized {
 			log_error(r)?;
 		}
 
-		// Also send any already existing vote on new disputes:
+		// Also send any already existing approval vote on new disputes:
 		if import_result.is_freshly_disputed() {
 			let no_votes = Vec::new();
 			let our_approval_votes = new_state.own_approval_votes().unwrap_or(&no_votes);
