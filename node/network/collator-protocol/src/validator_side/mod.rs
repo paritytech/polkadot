@@ -24,7 +24,7 @@ use futures::{
 };
 use futures_timer::Delay;
 use std::{
-	collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
+	collections::{hash_map::Entry, HashMap, HashSet},
 	task::Poll,
 	time::{Duration, Instant},
 };
@@ -47,7 +47,7 @@ use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
 		CandidateBackingMessage, CollatorProtocolMessage, IfDisconnected, NetworkBridgeEvent,
-		NetworkBridgeMessage,
+		NetworkBridgeMessage, ProspectiveParachainsMessage, ProspectiveValidationDataRequest,
 	},
 	overseer, CollatorProtocolSenderTrait, FromOrchestra, OverseerSignal, PerLeafSpan,
 };
@@ -66,7 +66,13 @@ use super::{
 	MAX_CANDIDATE_DEPTH,
 };
 
+mod collation;
 mod metrics;
+
+use collation::{
+	CollationEvent, CollationStatus, Collations, FetchedCollation, PendingCollation,
+	PendingCollationFetch, ProspectiveCandidate,
+};
 
 #[cfg(test)]
 mod tests;
@@ -352,166 +358,6 @@ impl Default for PeerData {
 	}
 }
 
-/// Identifier of a fetched collation.
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-struct FetchedCollation {
-	relay_parent: Hash,
-	para_id: ParaId,
-	candidate_hash: CandidateHash,
-	collator_id: CollatorId,
-}
-
-impl From<&CandidateReceipt<Hash>> for FetchedCollation {
-	fn from(receipt: &CandidateReceipt<Hash>) -> Self {
-		let descriptor = receipt.descriptor();
-		Self {
-			relay_parent: descriptor.relay_parent,
-			para_id: descriptor.para_id,
-			candidate_hash: receipt.hash(),
-			collator_id: descriptor.collator.clone(),
-		}
-	}
-}
-
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-struct PendingCollation {
-	relay_parent: Hash,
-	para_id: ParaId,
-	peer_id: PeerId,
-	candidate_hash: Option<CandidateHash>,
-	commitments_hash: Option<Hash>,
-}
-
-impl PendingCollation {
-	fn new(
-		relay_parent: Hash,
-		para_id: &ParaId,
-		peer_id: &PeerId,
-		candidate_hash: Option<CandidateHash>,
-	) -> Self {
-		Self {
-			relay_parent,
-			para_id: para_id.clone(),
-			peer_id: peer_id.clone(),
-			candidate_hash,
-			commitments_hash: None,
-		}
-	}
-}
-
-type CollationEvent = (CollatorId, PendingCollation);
-
-type PendingCollationFetch =
-	(CollationEvent, std::result::Result<(CandidateReceipt, PoV), oneshot::Canceled>);
-
-/// The status of the collations in [`CollationsPerRelayParent`].
-#[derive(Debug, Clone, Copy)]
-enum CollationStatus {
-	/// We are waiting for a collation to be advertised to us.
-	Waiting,
-	/// We are currently fetching a collation.
-	Fetching,
-	/// We are waiting that a collation is being validated.
-	WaitingOnValidation,
-	/// We have seconded a collation.
-	Seconded,
-}
-
-impl Default for CollationStatus {
-	fn default() -> Self {
-		Self::Waiting
-	}
-}
-
-impl CollationStatus {
-	/// Downgrades to `Waiting`, but only if `self != Seconded`.
-	fn back_to_waiting(&mut self, relay_parent_mode: ProspectiveParachainsMode) {
-		match self {
-			Self::Seconded =>
-				if relay_parent_mode.is_enabled() {
-					// With async backing enabled it's allowed to
-					// second more candidates.
-					*self = Self::Waiting
-				},
-			_ => *self = Self::Waiting,
-		}
-	}
-}
-
-/// Information about collations per relay parent.
-#[derive(Default)]
-struct Collations {
-	/// What is the current status in regards to a collation for this relay parent?
-	status: CollationStatus,
-	/// Collator we're fetching from.
-	///
-	/// This is the currently last started fetch, which did not exceed `MAX_UNSHARED_DOWNLOAD_TIME`
-	/// yet.
-	fetching_from: Option<CollatorId>,
-	/// Collation that were advertised to us, but we did not yet fetch.
-	waiting_queue: VecDeque<(PendingCollation, CollatorId)>,
-	/// How many collations have been seconded per parachain.
-	/// Only used when async backing is enabled.
-	seconded_count: HashMap<ParaId, usize>,
-}
-
-impl Collations {
-	/// Returns the next collation to fetch from the `unfetched_collations`.
-	///
-	/// This will reset the status back to `Waiting` using [`CollationStatus::back_to_waiting`].
-	///
-	/// Returns `Some(_)` if there is any collation to fetch, the `status` is not `Seconded` and
-	/// the passed in `finished_one` is the currently `waiting_collation`.
-	fn get_next_collation_to_fetch(
-		&mut self,
-		finished_one: Option<&CollatorId>,
-		relay_parent_mode: ProspectiveParachainsMode,
-	) -> Option<(PendingCollation, CollatorId)> {
-		// If finished one does not match waiting_collation, then we already dequeued another fetch
-		// to replace it.
-		if self.fetching_from.as_ref() != finished_one {
-			gum::trace!(
-				target: LOG_TARGET,
-				waiting_collation = ?self.fetching_from,
-				?finished_one,
-				"Not proceeding to the next collation - has already been done."
-			);
-			return None
-		}
-		self.status.back_to_waiting(relay_parent_mode);
-
-		match self.status {
-			// We don't need to fetch any other collation when we already have seconded one.
-			CollationStatus::Seconded => None,
-			CollationStatus::Waiting => {
-				while let Some(next) = self.waiting_queue.pop_front() {
-					let para_id = next.0.para_id;
-					if !self.is_fetch_allowed(relay_parent_mode, para_id) {
-						continue
-					}
-
-					return Some(next)
-				}
-
-				None
-			},
-			CollationStatus::WaitingOnValidation | CollationStatus::Fetching =>
-				unreachable!("We have reset the status above!"),
-		}
-	}
-
-	/// Checks the limit of seconded candidates for a given para.
-	fn is_fetch_allowed(
-		&self,
-		relay_parent_mode: ProspectiveParachainsMode,
-		para_id: ParaId,
-	) -> bool {
-		let seconded_limit =
-			if relay_parent_mode.is_enabled() { MAX_CANDIDATE_DEPTH + 1 } else { 1 };
-		self.seconded_count.get(&para_id).map_or(true, |&num| num < seconded_limit)
-	}
-}
-
 #[derive(Debug, Copy, Clone)]
 enum AssignedCoreState {
 	Scheduled,
@@ -564,7 +410,7 @@ struct State {
 	/// to asynchronous backing is done.
 	active_leaves: HashMap<Hash, ProspectiveParachainsMode>,
 
-	/// State tracked
+	/// State tracked per relay parent.
 	per_relay_parent: HashMap<Hash, PerRelayParent>,
 
 	/// Track all active collators and their data.
@@ -754,7 +600,8 @@ async fn fetch_collation(
 ) {
 	let (tx, rx) = oneshot::channel();
 
-	let PendingCollation { relay_parent, para_id, peer_id, candidate_hash, .. } = pc;
+	let PendingCollation { relay_parent, para_id, peer_id, prospective_candidate, .. } = pc;
+	let candidate_hash = prospective_candidate.candidate_hash();
 
 	if let Some(peer_data) = state.peer_data.get(&peer_id) {
 		// If candidate hash is `Some` then relay parent supports prospective
@@ -772,7 +619,7 @@ async fn fetch_collation(
 				state,
 				relay_parent,
 				para_id,
-				candidate_hash,
+				prospective_candidate,
 				peer_id,
 				id.clone(),
 				tx,
@@ -871,7 +718,7 @@ async fn request_collation(
 	state: &mut State,
 	relay_parent: Hash,
 	para_id: ParaId,
-	candidate_hash: Option<CandidateHash>,
+	prospective_candidate: ProspectiveCandidate,
 	peer_id: PeerId,
 	collator_id: CollatorId,
 	result: oneshot::Sender<(CandidateReceipt, PoV)>,
@@ -890,7 +737,8 @@ async fn request_collation(
 		},
 	};
 	let relay_parent_mode = per_relay_parent.prospective_parachains_mode;
-	let pending_collation = PendingCollation::new(relay_parent, &para_id, &peer_id, candidate_hash);
+	let pending_collation =
+		PendingCollation::new(relay_parent, para_id, &peer_id, prospective_candidate);
 	if state.requested_collations.contains_key(&pending_collation) {
 		gum::warn!(
 			target: LOG_TARGET,
@@ -902,7 +750,7 @@ async fn request_collation(
 		return
 	}
 
-	let (requests, response_recv) = match (relay_parent_mode, candidate_hash) {
+	let (requests, response_recv) = match (relay_parent_mode, prospective_candidate.0) {
 		(ProspectiveParachainsMode::Disabled, None) => {
 			let (req, response_recv) = OutgoingRequest::new(
 				Recipient::Peer(peer_id),
@@ -911,7 +759,7 @@ async fn request_collation(
 			let requests = Requests::CollationFetchingV1(req);
 			(requests, response_recv.boxed())
 		},
-		(ProspectiveParachainsMode::Enabled, Some(candidate_hash)) => {
+		(ProspectiveParachainsMode::Enabled, Some((candidate_hash, _))) => {
 			let (req, response_recv) = OutgoingRequest::new(
 				Recipient::Peer(peer_id),
 				request_vstaging::CollationFetchingRequest {
@@ -946,7 +794,7 @@ async fn request_collation(
 	};
 
 	state.requested_collations.insert(
-		PendingCollation::new(relay_parent, &para_id, &peer_id, candidate_hash),
+		PendingCollation::new(relay_parent, para_id, &peer_id, prospective_candidate),
 		per_request,
 	);
 
@@ -1104,7 +952,7 @@ async fn handle_advertisement<Sender>(
 	state: &mut State,
 	relay_parent: Hash,
 	peer_id: &PeerId,
-	vstaging_args: Option<(CandidateHash, Hash)>,
+	prospective_candidate: Option<(CandidateHash, Hash)>,
 ) where
 	Sender: CollatorProtocolSenderTrait,
 {
@@ -1170,8 +1018,9 @@ async fn handle_advertisement<Sender>(
 			gum::debug!(
 				target: LOG_TARGET,
 				peer_id = ?peer_id,
+				para_id = ?para_id,
 				?relay_parent,
-				"Advertise collation message for relay parent we're not assigned to",
+				"Advertise collation message for para we're no assigned to",
 			);
 			modify_reputation(sender, *peer_id, COST_UNEXPECTED_MESSAGE).await;
 			return
@@ -1189,7 +1038,7 @@ async fn handle_advertisement<Sender>(
 		return
 	}
 
-	let insert_result = match (relay_parent_mode, vstaging_args) {
+	let insert_result = match (relay_parent_mode, prospective_candidate) {
 		(ProspectiveParachainsMode::Disabled, None) => peer_data.insert_advertisement(
 			relay_parent,
 			relay_parent_mode,
@@ -1209,10 +1058,11 @@ async fn handle_advertisement<Sender>(
 			)
 		},
 		_ => {
-			gum::warn!(
+			gum::error!(
 				target: LOG_TARGET,
 				peer_id = ?peer_id,
 				?relay_parent,
+				relay_parent_mode = ?relay_parent_mode,
 				"Invalid arguments for advertisement",
 			);
 			return
@@ -1229,9 +1079,12 @@ async fn handle_advertisement<Sender>(
 				"Received advertise collation",
 			);
 
-			let maybe_candidate_hash = vstaging_args.map(|(candidate_hash, _)| candidate_hash);
-			let pending_collation =
-				PendingCollation::new(relay_parent, &para_id, peer_id, maybe_candidate_hash);
+			let pending_collation = PendingCollation::new(
+				relay_parent,
+				para_id,
+				peer_id,
+				ProspectiveCandidate(prospective_candidate),
+			);
 
 			let collations = &mut per_relay_parent.collations;
 			if !collations.is_fetch_allowed(relay_parent_mode, para_id) {
@@ -1270,7 +1123,7 @@ async fn handle_advertisement<Sender>(
 						peer_id = ?peer_id,
 						%para_id,
 						?relay_parent,
-						"A collation has been already seconded",
+						"A collation has already been seconded",
 					);
 				},
 			}
@@ -1504,11 +1357,7 @@ async fn process_msg<Context>(
 
 				if let Some(state) = state.per_relay_parent.get_mut(&parent) {
 					state.collations.status = CollationStatus::Seconded;
-					*state
-						.collations
-						.seconded_count
-						.entry(pending_collation.para_id)
-						.or_insert(0) += 1;
+					state.collations.note_seconded(pending_collation.para_id);
 				}
 				// If async backing is enabled, make an attempt to fetch next collation.
 				dequeue_next_collation_and_fetch(ctx, state, parent, collator_id).await;
@@ -1686,26 +1535,53 @@ async fn dequeue_next_collation_and_fetch<Context>(
 	}
 }
 
-#[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
-async fn request_persisted_validation_data<Context>(
-	ctx: &mut Context,
+async fn request_persisted_validation_data<Sender>(
+	sender: &mut Sender,
 	relay_parent: Hash,
 	para_id: ParaId,
-) -> Option<PersistedValidationData> {
+) -> Result<Option<PersistedValidationData>>
+where
+	Sender: CollatorProtocolSenderTrait,
+{
 	// The core is guaranteed to be scheduled since we accepted the advertisement.
-	let res = polkadot_node_subsystem_util::request_persisted_validation_data(
+	polkadot_node_subsystem_util::request_persisted_validation_data(
 		relay_parent,
 		para_id,
 		OccupiedCoreAssumption::Free,
-		ctx.sender(),
+		sender,
 	)
 	.await
-	.await;
+	.await
+	.map_err(Error::CancelledRuntimePersistedValidationData)?
+	.map_err(Error::RuntimeApi)
+}
 
-	match res {
-		Ok(Ok(Some(pvd))) => Some(pvd),
-		_ => None,
-	}
+async fn request_prospective_validation_data<Sender>(
+	sender: &mut Sender,
+	candidate_relay_parent: Hash,
+	parent_head_data_hash: Hash,
+	para_id: ParaId,
+) -> Result<Option<PersistedValidationData>>
+where
+	Sender: CollatorProtocolSenderTrait,
+{
+	let (tx, rx) = oneshot::channel();
+
+	let request = ProspectiveValidationDataRequest {
+		para_id,
+		candidate_relay_parent,
+		parent_head_data_hash,
+		// TODO [now]: max pov size should be from runtime
+		// configuration at candidate relay parent.
+		// Where do we fetch it from?
+		max_pov_size: todo!(),
+	};
+
+	sender
+		.send_message(ProspectiveParachainsMessage::GetProspectiveValidationData(request, tx))
+		.await;
+
+	rx.await.map_err(Error::CancelledProspectiveValidationData)
 }
 
 /// Handle a fetched collation result.
@@ -1719,6 +1595,7 @@ async fn handle_collation_fetched_result<Context>(
 	// memorize the `collation_event` for that `relay_parent`, such that we may
 	// notify the collator of their successful second backing
 	let relay_parent = collation_event.1.relay_parent;
+	let para_id = collation_event.1.para_id;
 
 	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
 		Some(state) => state,
@@ -1731,6 +1608,7 @@ async fn handle_collation_fetched_result<Context>(
 			return
 		},
 	};
+	let relay_parent_mode = per_relay_parent.prospective_parachains_mode;
 
 	let (candidate_receipt, pov) = match res {
 		Ok(res) => res,
@@ -1738,7 +1616,7 @@ async fn handle_collation_fetched_result<Context>(
 			gum::debug!(
 				target: LOG_TARGET,
 				relay_parent = ?collation_event.1.relay_parent,
-				para_id = ?collation_event.1.para_id,
+				para_id = ?para_id,
 				peer_id = ?collation_event.1.peer_id,
 				collator_id = ?collation_event.0,
 				error = ?e,
@@ -1759,30 +1637,58 @@ async fn handle_collation_fetched_result<Context>(
 	if let Entry::Vacant(entry) = state.fetched_candidates.entry(fetched_collation) {
 		collation_event.1.commitments_hash = Some(candidate_receipt.commitments_hash);
 
-		if let Some(pvd) = request_persisted_validation_data(
-			ctx,
-			candidate_receipt.descriptor().relay_parent,
-			candidate_receipt.descriptor().para_id,
-		)
-		.await
-		{
-			// TODO [https://github.com/paritytech/polkadot/issues/5054]
-			//
-			// If PVD isn't available (core occupied) then we'll silently
-			// just not second this. But prior to asynchronous backing
-			// we wouldn't second anyway because the core is occupied.
-			//
-			// The proper refactoring would be to accept declares from collators
-			// but not even fetch from them if the core is occupied. Given 5054,
-			// there's no reason to do this right now.
-			ctx.send_message(CandidateBackingMessage::Second(
-				relay_parent.clone(),
-				candidate_receipt,
-				pvd,
-				pov,
-			))
-			.await;
-		}
+		let result = match collation_event.1.prospective_candidate.0 {
+			Some((_, parent_head_data_hash)) =>
+				request_prospective_validation_data(
+					ctx.sender(),
+					relay_parent,
+					parent_head_data_hash,
+					para_id,
+				)
+				.await,
+			None =>
+				request_persisted_validation_data(
+					ctx.sender(),
+					candidate_receipt.descriptor().relay_parent,
+					candidate_receipt.descriptor().para_id,
+				)
+				.await,
+		};
+
+		let pvd = match result {
+			Ok(Some(pvd)) => pvd,
+			Ok(None) => {
+				gum::warn!(
+					target: LOG_TARGET,
+					?relay_parent,
+					?para_id,
+					?relay_parent_mode,
+					candidate = ?candidate_receipt.hash(),
+					"Persisted validation data isn't available",
+				);
+				return
+			},
+			Err(err) => {
+				gum::warn!(
+					target: LOG_TARGET,
+					?relay_parent,
+					?para_id,
+					?relay_parent_mode,
+					candidate = ?candidate_receipt.hash(),
+					"Failed to fetch persisted validation data due to an error: {}",
+					err
+				);
+				return
+			},
+		};
+
+		ctx.send_message(CandidateBackingMessage::Second(
+			relay_parent,
+			candidate_receipt,
+			pvd,
+			pov,
+		))
+		.await;
 
 		entry.insert(collation_event);
 	} else {

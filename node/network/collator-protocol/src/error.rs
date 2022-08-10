@@ -58,6 +58,12 @@ pub enum Error {
 	#[error("Response receiver for Runtime API version request cancelled")]
 	CancelledRuntimeApiVersion(oneshot::Canceled),
 
+	#[error("Response receiver for persisted validation data request cancelled")]
+	CancelledRuntimePersistedValidationData(oneshot::Canceled),
+
+	#[error("Response receiver for prospective validation data request cancelled")]
+	CancelledProspectiveValidationData(oneshot::Canceled),
+
 	#[error("CollationSeconded contained statement with invalid signature")]
 	InvalidStatementSignature(UncheckedSignedFullStatement),
 }
