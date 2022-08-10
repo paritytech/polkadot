@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-test-service"
-version = "0.9.25"
+version = "0.9.27"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -45,6 +45,7 @@ sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "mas
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = [ "wasmtime" ] }

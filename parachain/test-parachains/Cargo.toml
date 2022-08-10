@@ -1,12 +1,12 @@
 [package]
 name = "test-parachains"
-version = "0.9.25"
+version = "0.9.27"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Integration tests using the test-parachains"
 edition = "2021"
 
 [dependencies]
-tiny-keccak = "2.0.2"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
 
 adder = { package = "test-parachain-adder", path = "adder" }

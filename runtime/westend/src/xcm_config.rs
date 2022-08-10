@@ -76,14 +76,19 @@ pub type XcmRouter = (
 parameter_types! {
 	pub const Westmint: MultiLocation = Parachain(1000).into_location();
 	pub const Encointer: MultiLocation = Parachain(1001).into_location();
+	pub const Collectives: MultiLocation = Parachain(1002).into_location();
 	pub const Wnd: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
 	pub const WndForWestmint: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Westmint::get());
 	pub const WndForEncointer: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Encointer::get());
+	pub const WndForCollectives: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Collectives::get());
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
-pub type TrustedTeleporters =
-	(xcm_builder::Case<WndForWestmint>, xcm_builder::Case<WndForEncointer>);
+pub type TrustedTeleporters = (
+	xcm_builder::Case<WndForWestmint>,
+	xcm_builder::Case<WndForEncointer>,
+	xcm_builder::Case<WndForCollectives>,
+);
 
 /// The barriers one of which must be passed for an XCM message to be executed.
 pub type Barrier = (

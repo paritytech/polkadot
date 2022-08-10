@@ -2,7 +2,8 @@ name: Release - RC automation
 on:
   push:
     branches:
-      - release-v[0-9]+.[0-9]+.[0-9]+
+      # Catches v1.2.3 and v1.2.3-rc1
+      - release-v[0-9]+.[0-9]+.[0-9]+*
 jobs:
   tag_rc:
     runs-on: ubuntu-latest

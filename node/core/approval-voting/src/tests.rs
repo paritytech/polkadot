@@ -38,6 +38,7 @@ use polkadot_primitives::v2::{
 use std::time::Duration;
 
 use assert_matches::assert_matches;
+use async_trait::async_trait;
 use parking_lot::Mutex;
 use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 use sp_keystore::CryptoStore;
@@ -79,7 +80,7 @@ impl TestSyncOracleHandle {
 }
 
 impl SyncOracle for TestSyncOracle {
-	fn is_major_syncing(&mut self) -> bool {
+	fn is_major_syncing(&self) -> bool {
 		let is_major_syncing = self.flag.load(Ordering::SeqCst);
 
 		if !is_major_syncing {
@@ -91,7 +92,7 @@ impl SyncOracle for TestSyncOracle {
 		is_major_syncing
 	}
 
-	fn is_offline(&mut self) -> bool {
+	fn is_offline(&self) -> bool {
 		unimplemented!("not used in network bridge")
 	}
 }
@@ -117,8 +118,9 @@ pub mod test_constants {
 
 struct MockSupportsParachains;
 
+#[async_trait]
 impl HeadSupportsParachains for MockSupportsParachains {
-	fn head_supports_parachains(&self, _head: &Hash) -> bool {
+	async fn head_supports_parachains(&self, _head: &Hash) -> bool {
 		true
 	}
 }
