@@ -143,7 +143,7 @@ There are two potential caveats with this though:
    take place and approval votes will be cleared. This would still be fine, if
    we had some guarantees that those honest nodes will be able to include those
    votes in a block. This guarantee does not exist unfortunately, we will
-   discuss the problem and solutions in more detail [below](#Ensuring Chain Import).
+   discuss the problem and solutions in more detail [below][#Ensuring Chain Import].
 
    The second problem is that approval-voting will abandon votes as soon as a
    chain can no longer be finalized (some other/better fork already has been).
@@ -383,7 +383,7 @@ malicious, so spam disk usage is limited to ```2*vote_size*n/3*NUM_SPAM_SLOTS```
 n being the number of validators.
 -
 More reasoning behind spam considerations can be found on
-[this](https://github.com/paritytech/srlabs_findings/issues/179) sr-lab ticket.
+this sr-lab ticket: https://github.com/paritytech/srlabs_findings/issues/179
 
 ## Disputes for Non Included Candidates
 
