@@ -4,7 +4,7 @@ bootnode = true
 
 [relaychain.genesis.runtime.runtime_genesis_config.configuration.config]
   max_validators_per_core = 1
-  needed_approvals = 4
+  needed_approvals = 2
 
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
