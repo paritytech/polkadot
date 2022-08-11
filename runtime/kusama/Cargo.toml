@@ -104,6 +104,9 @@ keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substra
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 separator = "0.4.1"
 serde_json = "1.0.81"
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+tokio = { version = "1.18.2", features = ["macros"] }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
