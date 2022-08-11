@@ -22,7 +22,7 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
-	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
+	auctions, claims, crowdloan, impl_runtime_weights, impls::{DealWithFees}, paras_registrar,
 	prod_or_fast, slots, BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
 };
 
@@ -588,6 +588,30 @@ type SlashCancelOrigin = EitherOfDiverse<
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 4>,
 >;
 
+pub struct EraPayout;
+impl pallet_staking::EraPayout<Balance> for EraPayout {
+	fn era_payout(
+		total_staked: Balance,
+		_total_issuance: Balance,
+		era_duration_millis: u64,
+	) -> (Balance, Balance) {
+		// TODO: #3011 Update with proper auctioned slots tracking.
+		// This should be fine for the first year of parachains.
+		let auctioned_slots: u64 = auctions::Pallet::<Runtime>::auction_counter().into();
+		const MAX_ANNUAL_INFLATION: Perquintill = Perquintill::from_percent(10);
+		const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
+
+		runtime_common::impls::era_payout(
+			total_staked,
+			// Polkadot has no notion of gilts, the entire issuance is non-guilt.
+			Balances::total_issuance(),
+			MAX_ANNUAL_INFLATION,
+			Perquintill::from_rational(era_duration_millis, MILLISECONDS_PER_YEAR),
+			auctioned_slots,
+		)
+	}
+}
+
 impl pallet_staking::Config for Runtime {
 	type MaxNominations = MaxNominations;
 	type Currency = Balances;
@@ -604,7 +628,7 @@ impl pallet_staking::Config for Runtime {
 	// A super-majority of the council can cancel the slash.
 	type SlashCancelOrigin = SlashCancelOrigin;
 	type SessionInterface = Self;
-	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
+	type EraPayout = EraPayout;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
