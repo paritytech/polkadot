@@ -1213,10 +1213,10 @@ impl State {
 	/// Retrieve approval signatures from state for the given relay block/indices:
 	fn get_approval_signatures(
 		&mut self,
-		indices: HashSet<(Hash, CoreIndex)>,
+		indices: HashSet<(Hash, CandidateIndex)>,
 	) -> HashMap<ValidatorIndex, ValidatorSignature> {
 		let mut all_sigs = HashMap::new();
-		for (hash, CoreIndex(index)) in indices {
+		for (hash, index) in indices {
 			let block_entry = match self.blocks.get(&hash) {
 				None => {
 					gum::debug!(

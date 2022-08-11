@@ -40,7 +40,7 @@ use polkadot_node_primitives::{
 };
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
-	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState,
+	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
 	DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
 	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
 	PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
@@ -928,7 +928,7 @@ pub enum ApprovalDistributionMessage {
 
 	/// Get all approval signatures for all chains a candidate appeared in.
 	GetApprovalSignatures(
-		HashSet<(Hash, CoreIndex)>,
+		HashSet<(Hash, CandidateIndex)>,
 		oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
 	),
 }

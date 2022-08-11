@@ -1209,9 +1209,9 @@ async fn get_approval_signatures_for_candidate<Context>(
 			None => continue,
 			Some(e) => e,
 		};
-		for (core_index, c_hash) in entry.candidates() {
+		for (candidate_index, (_core_index, c_hash)) in entry.candidates().iter().enumerate() {
 			if c_hash == &candidate_hash {
-				candidate_indices.insert((*hash, *core_index));
+				candidate_indices.insert((*hash, candidate_index as u32));
 				break
 			}
 		}
