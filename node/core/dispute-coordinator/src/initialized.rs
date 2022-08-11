@@ -695,6 +695,13 @@ impl Initialized {
 				intermediate_result.is_freshly_concluded()
 			{
 				let (tx, rx) = oneshot::channel();
+				// Bounded because:
+				// 1. Only triggered twice per dispute.
+				// 2. Raising a dispute is costly (requires validation + recovery) by honest nodes,
+				// dishonest nodes are limited by spam slots.
+				// 3. Concluding a dispute is even more costly.
+				// Therefore it is reasonable to expect a simple vote request to succeed way faster
+				// than disputes are raised.
 				ctx.send_unbounded_message(
 					ApprovalVotingMessage::GetApprovalSignaturesForCandidate(candidate_hash, tx),
 				);
