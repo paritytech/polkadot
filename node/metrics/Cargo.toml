@@ -28,7 +28,7 @@ assert_cmd = "2.0.4"
 nix = "0.24.1"
 tempfile = "3.2.0"
 hyper = { version = "0.14.19", default-features = false, features = ["http1", "tcp"] }
-tokio = "1.18.2"
+tokio = "1.19.2"
 polkadot-test-service = { path = "../test/service", features=["runtime-metrics"]}
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
