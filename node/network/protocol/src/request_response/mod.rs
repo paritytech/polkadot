@@ -132,6 +132,7 @@ impl Protocol {
 		let cfg = match self {
 			Protocol::ChunkFetchingV1 => RequestResponseConfig {
 				name: p_name,
+				fallback_names: Vec::new(),
 				max_request_size: 1_000,
 				max_response_size: POV_RESPONSE_SIZE as u64 * 3,
 				// We are connected to all validators:
@@ -140,6 +141,7 @@ impl Protocol {
 			},
 			Protocol::CollationFetchingV1 => RequestResponseConfig {
 				name: p_name,
+				fallback_names: Vec::new(),
 				max_request_size: 1_000,
 				max_response_size: POV_RESPONSE_SIZE,
 				// Taken from initial implementation in collator protocol:
@@ -148,6 +150,7 @@ impl Protocol {
 			},
 			Protocol::PoVFetchingV1 => RequestResponseConfig {
 				name: p_name,
+				fallback_names: Vec::new(),
 				max_request_size: 1_000,
 				max_response_size: POV_RESPONSE_SIZE,
 				request_timeout: POV_REQUEST_TIMEOUT_CONNECTED,
@@ -155,6 +158,7 @@ impl Protocol {
 			},
 			Protocol::AvailableDataFetchingV1 => RequestResponseConfig {
 				name: p_name,
+				fallback_names: Vec::new(),
 				max_request_size: 1_000,
 				// Available data size is dominated by the PoV size.
 				max_response_size: POV_RESPONSE_SIZE,
@@ -163,6 +167,7 @@ impl Protocol {
 			},
 			Protocol::StatementFetchingV1 => RequestResponseConfig {
 				name: p_name,
+				fallback_names: Vec::new(),
 				max_request_size: 1_000,
 				// Available data size is dominated code size.
 				max_response_size: STATEMENT_RESPONSE_SIZE,
@@ -180,6 +185,7 @@ impl Protocol {
 			},
 			Protocol::DisputeSendingV1 => RequestResponseConfig {
 				name: p_name,
+				fallback_names: Vec::new(),
 				max_request_size: 1_000,
 				/// Responses are just confirmation, in essence not even a bit. So 100 seems
 				/// plenty.

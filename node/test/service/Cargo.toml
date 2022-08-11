@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-test-service"
-version = "0.9.26"
+version = "0.9.27"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -10,7 +10,7 @@ hex = "0.4.3"
 gum = { package = "tracing-gum", path = "../../gum" }
 rand = "0.8.5"
 tempfile = "3.2.0"
-tokio = "1.18.2"
+tokio = "1.19.2"
 
 # Polkadot dependencies
 polkadot-overseer = { path = "../../overseer" }
@@ -45,6 +45,7 @@ sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "mas
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = [ "wasmtime" ] }
@@ -60,7 +61,7 @@ substrate-test-client = { git = "https://github.com/paritytech/substrate", branc
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 serde_json = "1.0.81"
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
-tokio = { version = "1.18.2", features = ["macros"] }
+tokio = { version = "1.19.2", features = ["macros"] }
 
 [features]
 runtime-metrics=["polkadot-test-runtime/runtime-metrics"]
