@@ -172,7 +172,8 @@ check-runtime:
   stage:                           stage1
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
-  <<:                              *test-refs
+  rules:
+    - if: $CI_COMMIT_REF_NAME =~ /^release-v[0-9]+\.[0-9]+.*$/      # i.e. release-v0.9.27
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
@@ -307,7 +308,7 @@ build-staking-miner:
   stage:                           stage2
   # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
   needs:
-    - job:                         check-runtime
+    - job:                         cargo-fmt
       artifacts:                   false
   <<:                              *docker-env
   <<:                              *test-pr-refs
@@ -336,7 +337,7 @@ test-node-metrics:
   stage:                           stage2
   # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
   needs:
-    - job:                         check-runtime
+    - job:                         cargo-fmt
       artifacts:                   false
   <<:                              *docker-env
   <<:                              *compiler-info
