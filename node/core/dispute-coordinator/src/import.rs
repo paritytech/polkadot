@@ -227,7 +227,6 @@ impl VoteState<CandidateVotes> {
 
 				continue
 			}
-
 			if statement.candidate_hash() != &expected_candidate_hash {
 				gum::error!(
 				target: LOG_TARGET,
@@ -236,6 +235,17 @@ impl VoteState<CandidateVotes> {
 				given_candidate_hash = ?statement.candidate_hash(),
 				?expected_candidate_hash,
 				"Vote is for unexpected candidate!",
+				);
+				continue
+			}
+			if statement.session_index() != env.session_index() {
+				gum::error!(
+				target: LOG_TARGET,
+				?val_index,
+				session= ?env.session_index,
+				given_candidate_hash = ?statement.candidate_hash(),
+				?expected_candidate_hash,
+				"Vote is for unexpected session!",
 				);
 				continue
 			}
@@ -457,7 +467,7 @@ impl ImportResult {
 						.check_signature(pub_key, candidate_hash, session_index, &sig)
 						.is_ok()
 				},
-				"Signature check for imported approval votes failed! This is a serious bug!"
+				"Signature check for imported approval votes failed! This is a serious bug. Session: {:?}, candidate hash: {:?}, validator index: {:?}", env.session_index(), votes.candidate_receipt.hash(), index
 			);
 			if insert_into_statements(
 				&mut votes.valid,
