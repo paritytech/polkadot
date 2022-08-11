@@ -903,10 +903,6 @@ impl pallet_im_online::Config for Runtime {
 	type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
 }
 
-// parameter_types! {
-// 	pub const AttestationPeriod: BlockNumber = 50;
-// }
-
 impl pallet_grandpa::Config for Runtime {
 	type Event = Event;
 	type Call = Call;

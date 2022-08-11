@@ -22,7 +22,7 @@
 // Executed Command:
 // ./target/production/polkadot
 // benchmark
-// --chain=polkadot-dev
+// --chain=rococo-dev
 // --steps=50
 // --repeat=20
 // --pallet=pallet_session
