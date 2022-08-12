@@ -730,7 +730,7 @@ async fn handle_peer_view_change(state: &mut State, peer_id: PeerId, view: View)
 	peer_data.update_view(view);
 	state
 		.requested_collations
-		.retain(|pc, _| pc.peer_id != peer_id || !peer_data.has_advertised(&pc.relay_parent));
+		.retain(|pc, _| pc.peer_id != peer_id || peer_data.has_advertised(&pc.relay_parent));
 
 	Ok(())
 }
