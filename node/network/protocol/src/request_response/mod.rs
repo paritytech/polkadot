@@ -274,7 +274,7 @@ pub trait IsRequest {
 	const PROTOCOL: Protocol;
 }
 
-/// Type for getting protocol names using genesis hash & fork id.
+/// Type for getting on the wire [`Protocol`] names using genesis hash & fork id.
 pub struct ReqProtocolNames {
 	names: HashMap<Protocol, Cow<'static, str>>,
 }
@@ -289,7 +289,7 @@ impl ReqProtocolNames {
 		Self { names }
 	}
 
-	/// Get on-the-wire [`Protocol`] name.
+	/// Get on the wire [`Protocol`] name.
 	pub fn get_name(&self, protocol: Protocol) -> Cow<'static, str> {
 		self.names
 			.get(&protocol)
