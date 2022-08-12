@@ -1076,8 +1076,8 @@ where
 
 			let collations = state
 				.per_relay_parent
-				.get_mut(removed)
-				.map(|per_relay_parent| std::mem::take(&mut per_relay_parent.collations))
+				.remove(removed)
+				.map(|per_relay_parent| per_relay_parent.collations)
 				.unwrap_or_default();
 			for collation in collations.into_values() {
 				state.collation_result_senders.remove(&collation.receipt.hash());
@@ -1103,7 +1103,6 @@ where
 					),
 				}
 			}
-			state.per_relay_parent.remove(removed);
 			state.span_per_relay_parent.remove(removed);
 			state.waiting_collation_fetches.remove(removed);
 		}

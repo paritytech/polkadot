@@ -1072,7 +1072,7 @@ async fn handle_advertisement<Sender>(
 				PendingCollation::new(relay_parent, para_id, peer_id, prospective_candidate);
 
 			let collations = &mut per_relay_parent.collations;
-			if !collations.is_fetch_allowed(relay_parent_mode, para_id) {
+			if !collations.is_seconded_limit_reached(relay_parent_mode) {
 				gum::debug!(
 					target: LOG_TARGET,
 					peer_id = ?peer_id,
@@ -1342,7 +1342,7 @@ async fn process_msg<Context>(
 
 				if let Some(state) = state.per_relay_parent.get_mut(&parent) {
 					state.collations.status = CollationStatus::Seconded;
-					state.collations.note_seconded(pending_collation.para_id);
+					state.collations.note_seconded();
 				}
 				// If async backing is enabled, make an attempt to fetch next collation.
 				dequeue_next_collation_and_fetch(ctx, state, parent, collator_id).await;
