@@ -247,7 +247,7 @@ test-linux-stable:
     # but still want to have debug assertions.
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
   script:
-    - time cargo nextest run --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics
+    - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics
 
 
 
@@ -625,8 +625,8 @@ check-try-runtime:
     - *pipeline-stopper-vars
   script:
     # Check that everything compiles with `try-runtime` feature flag.
+    - exit 1
     - cargo check --features try-runtime --all
-    - sccache -s
 
 check-no-default-features:
   stage:                           stage3
