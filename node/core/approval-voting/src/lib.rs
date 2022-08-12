@@ -152,6 +152,7 @@ struct MetricsInner {
 	block_approval_time_ticks: prometheus::Histogram,
 	time_db_transaction: prometheus::Histogram,
 	time_recover_and_approve: prometheus::Histogram,
+	candidate_signatures_requests_total: prometheus::Counter<prometheus::U64>,
 }
 
 /// Approval Voting metrics.
@@ -222,6 +223,12 @@ impl Metrics {
 	fn on_block_approved(&self, ticks: Tick) {
 		if let Some(metrics) = &self.0 {
 			metrics.block_approval_time_ticks.observe(ticks as f64);
+		}
+	}
+
+	fn on_candidate_signatures_request(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.candidate_signatures_requests_total.inc();
 		}
 	}
 
@@ -312,6 +319,13 @@ impl metrics::Metrics for Metrics {
 						"polkadot_parachain_time_recover_and_approve",
 						"Time spent recovering and approving data in approval voting",
 					)
+				)?,
+				registry,
+			)?,
+			candidate_signatures_requests_total: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_approval_candidate_signatures_requests_total",
+					"Number of times signatures got requested by other subsystems",
 				)?,
 				registry,
 			)?,
@@ -1170,6 +1184,7 @@ async fn handle_from_overseer<Context>(
 				Vec::new()
 			},
 			ApprovalVotingMessage::GetApprovalSignaturesForCandidate(candidate_hash, tx) => {
+				metrics.on_candidate_signatures_request();
 				let votes = get_approval_signatures_for_candidate(ctx, db, candidate_hash).await?;
 				if let Err(_) = tx.send(votes) {
 					gum::debug!(
