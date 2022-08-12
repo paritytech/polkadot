@@ -42,6 +42,8 @@ use polkadot_primitives_test_helpers::{
 const ACTIVITY_TIMEOUT: Duration = Duration::from_millis(500);
 const DECLARE_TIMEOUT: Duration = Duration::from_millis(25);
 
+const API_VERSION_PROSPECTIVE_DISABLED: u32 = 2;
+
 #[derive(Clone)]
 struct TestState {
 	chain_ids: Vec<ParaId>,
@@ -372,6 +374,19 @@ async fn advertise_collation(
 	.await;
 }
 
+async fn assert_runtime_version_request(virtual_overseer: &mut VirtualOverseer, hash: Hash) {
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			relay_parent,
+			RuntimeApiRequest::Version(tx)
+		)) => {
+			assert_eq!(relay_parent, hash);
+			tx.send(Ok(API_VERSION_PROSPECTIVE_DISABLED)).unwrap();
+		}
+	);
+}
+
 // As we receive a relevant advertisement act on it and issue a collation request.
 #[test]
 fn act_on_advertisement() {
@@ -391,6 +406,7 @@ fn act_on_advertisement() {
 		)
 		.await;
 
+		assert_runtime_version_request(&mut virtual_overseer, test_state.relay_parent).await;
 		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
 
 		let peer_b = PeerId::random();
@@ -431,6 +447,8 @@ fn collator_reporting_works() {
 			)),
 		)
 		.await;
+
+		assert_runtime_version_request(&mut virtual_overseer, test_state.relay_parent).await;
 
 		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
 
@@ -540,16 +558,21 @@ fn fetch_collations_works() {
 
 		let second = Hash::random();
 
+		let our_view = our_view![test_state.relay_parent, second];
+
 		overseer_send(
 			&mut virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
-				our_view![test_state.relay_parent, second],
+				our_view.clone(),
 			)),
 		)
 		.await;
 
-		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
-		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+		// Iter over view since the order may change due to sorted invariant.
+		for hash in our_view.iter() {
+			assert_runtime_version_request(&mut virtual_overseer, *hash).await;
+			respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+		}
 
 		let peer_b = PeerId::random();
 		let peer_c = PeerId::random();
@@ -591,9 +614,11 @@ fn fetch_collations_works() {
 		candidate_a.descriptor.para_id = test_state.chain_ids[0];
 		candidate_a.descriptor.relay_parent = test_state.relay_parent;
 		response_channel
-			.send(Ok(
-				CollationFetchingResponse::Collation(candidate_a.clone(), pov.clone()).encode()
-			))
+			.send(Ok(request_v1::CollationFetchingResponse::Collation(
+				candidate_a.clone(),
+				pov.clone(),
+			)
+			.encode()))
 			.expect("Sending response should succeed");
 
 		assert_candidate_backing_second(
@@ -675,15 +700,19 @@ fn fetch_collations_works() {
 
 		// First request finishes now:
 		response_channel_non_exclusive
-			.send(Ok(
-				CollationFetchingResponse::Collation(candidate_a.clone(), pov.clone()).encode()
-			))
+			.send(Ok(request_v1::CollationFetchingResponse::Collation(
+				candidate_a.clone(),
+				pov.clone(),
+			)
+			.encode()))
 			.expect("Sending response should succeed");
 
 		response_channel
-			.send(Ok(
-				CollationFetchingResponse::Collation(candidate_a.clone(), pov.clone()).encode()
-			))
+			.send(Ok(request_v1::CollationFetchingResponse::Collation(
+				candidate_a.clone(),
+				pov.clone(),
+			)
+			.encode()))
 			.expect("Sending response should succeed");
 
 		assert_candidate_backing_second(
@@ -713,6 +742,7 @@ fn reject_connection_to_next_group() {
 		)
 		.await;
 
+		assert_runtime_version_request(&mut virtual_overseer, test_state.relay_parent).await;
 		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
 
 		let peer_b = PeerId::random();
@@ -752,16 +782,20 @@ fn fetch_next_collation_on_invalid_collation() {
 
 		let second = Hash::random();
 
+		let our_view = our_view![test_state.relay_parent, second];
+
 		overseer_send(
 			&mut virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
-				our_view![test_state.relay_parent, second],
+				our_view.clone(),
 			)),
 		)
 		.await;
 
-		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
-		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+		for hash in our_view.iter() {
+			assert_runtime_version_request(&mut virtual_overseer, *hash).await;
+			respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+		}
 
 		let peer_b = PeerId::random();
 		let peer_c = PeerId::random();
@@ -798,9 +832,11 @@ fn fetch_next_collation_on_invalid_collation() {
 		candidate_a.descriptor.para_id = test_state.chain_ids[0];
 		candidate_a.descriptor.relay_parent = test_state.relay_parent;
 		response_channel
-			.send(Ok(
-				CollationFetchingResponse::Collation(candidate_a.clone(), pov.clone()).encode()
-			))
+			.send(Ok(request_v1::CollationFetchingResponse::Collation(
+				candidate_a.clone(),
+				pov.clone(),
+			)
+			.encode()))
 			.expect("Sending response should succeed");
 
 		let receipt = assert_candidate_backing_second(
@@ -860,6 +896,7 @@ fn inactive_disconnected() {
 		)
 		.await;
 
+		assert_runtime_version_request(&mut virtual_overseer, hash_a).await;
 		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
 
 		let peer_b = PeerId::random();
@@ -900,18 +937,20 @@ fn activity_extends_life() {
 		let hash_b = Hash::repeat_byte(1);
 		let hash_c = Hash::repeat_byte(2);
 
+		let our_view = our_view![hash_a, hash_b, hash_c];
+
 		overseer_send(
 			&mut virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
-				our_view![hash_a, hash_b, hash_c],
+				our_view.clone(),
 			)),
 		)
 		.await;
 
-		// 3 heads, 3 times.
-		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
-		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
-		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+		for hash in our_view.iter() {
+			assert_runtime_version_request(&mut virtual_overseer, *hash).await;
+			respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+		}
 
 		let peer_b = PeerId::random();
 
@@ -967,6 +1006,7 @@ fn disconnect_if_no_declare() {
 		)
 		.await;
 
+		assert_runtime_version_request(&mut virtual_overseer, test_state.relay_parent).await;
 		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
 
 		let peer_b = PeerId::random();
@@ -1005,6 +1045,7 @@ fn disconnect_if_wrong_declare() {
 		)
 		.await;
 
+		assert_runtime_version_request(&mut virtual_overseer, test_state.relay_parent).await;
 		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
 
 		let peer_b = PeerId::random();
@@ -1067,6 +1108,7 @@ fn view_change_clears_old_collators() {
 		)
 		.await;
 
+		assert_runtime_version_request(&mut virtual_overseer, test_state.relay_parent).await;
 		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
 
 		let peer_b = PeerId::random();
@@ -1090,6 +1132,7 @@ fn view_change_clears_old_collators() {
 		.await;
 
 		test_state.group_rotation_info = test_state.group_rotation_info.bump_rotation();
+		assert_runtime_version_request(&mut virtual_overseer, hash_b).await;
 		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
 
 		assert_collator_disconnect(&mut virtual_overseer, peer_b.clone()).await;
