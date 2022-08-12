@@ -731,6 +731,7 @@ impl Initialized {
 			has_own_vote = ?new_state.has_own_vote(),
 			?potential_spam,
 			?is_included,
+			?candidate_hash,
 			confirmed = ?new_state.is_confirmed(),
 			"Is spam?"
 		);
