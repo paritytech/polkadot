@@ -880,6 +880,7 @@ impl Initialized {
 		}
 		self.metrics.on_valid_votes(import_result.imported_valid_votes());
 		self.metrics.on_invalid_votes(import_result.imported_invalid_votes());
+		self.metrics.on_approval_votes(import_result.imported_approval_votes());
 		if import_result.is_freshly_concluded_valid() {
 			gum::info!(
 				target: LOG_TARGET,

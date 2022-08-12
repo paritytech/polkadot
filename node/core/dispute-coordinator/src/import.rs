@@ -301,6 +301,7 @@ impl CandidateVoteState<CandidateVotes> {
 			new_state,
 			imported_invalid_votes,
 			imported_valid_votes,
+			imported_approval_votes: 0,
 			new_invalid_voters,
 		}
 	}
@@ -386,6 +387,12 @@ pub struct ImportResult {
 	imported_invalid_votes: u32,
 	/// Number of successfully imported invalid votes.
 	imported_valid_votes: u32,
+	/// Number of approval votes imported via `import_approval_votes()`.
+	///
+	/// And only those: If normal import included approval votes, those are not counted here.
+	///
+	/// In other words, without a call `import_approval_votes()` this will always be 0.
+	imported_approval_votes: u32,
 }
 
 impl ImportResult {
@@ -428,6 +435,11 @@ impl ImportResult {
 		self.imported_invalid_votes
 	}
 
+	/// Number of imported approval votes.
+	pub fn imported_approval_votes(&self) -> u32 {
+		self.imported_approval_votes
+	}
+
 	/// Whether we now have a dispute and did not prior to the import.
 	pub fn is_freshly_disputed(&self) -> bool {
 		!self.old_state().is_disputed() && self.new_state().is_disputed()
@@ -468,6 +480,7 @@ impl ImportResult {
 			new_invalid_voters,
 			mut imported_valid_votes,
 			imported_invalid_votes,
+			mut imported_approval_votes,
 		} = self;
 
 		let (mut votes, _) = new_state.into_old_state();
@@ -491,6 +504,7 @@ impl ImportResult {
 				sig,
 			) {
 				imported_valid_votes += 1;
+				imported_approval_votes += 1;
 			}
 		}
 
@@ -502,6 +516,7 @@ impl ImportResult {
 			new_invalid_voters,
 			imported_valid_votes,
 			imported_invalid_votes,
+			imported_approval_votes,
 		}
 	}
 
