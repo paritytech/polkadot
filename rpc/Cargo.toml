@@ -7,26 +7,26 @@ edition = "2021"
 [dependencies]
 jsonrpsee = { version = "0.14.0", features = ["server"] }
 polkadot-primitives = { path = "../primitives" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-substrate-state-trie-migration-rpc = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-state-trie-migration-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }

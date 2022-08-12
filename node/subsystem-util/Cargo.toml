@@ -28,9 +28,9 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-overseer = { path = "../overseer" }
 metered = { package = "prioritized-metered-channel", path = "../metered-channel" , "version" = "0.2.0" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 kvdb = "0.11.0"
 parity-util-mem = { version = "0.11", default-features = false }

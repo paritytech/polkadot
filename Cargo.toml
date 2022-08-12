@@ -22,7 +22,7 @@ assert_cmd = "2.0.4"
 nix = "0.24.1"
 tempfile = "3.2.0"
 tokio = "1.18.2"
-remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-core-primitives = { path = "core-primitives" }
 
 [workspace]
@@ -237,10 +237,3 @@ polkadot = { path = "/usr/bin/polkadot" }
 
 [package.metadata.spellcheck]
 config = "./scripts/ci/gitlab/spellcheck.toml"
-
-[patch.crates-io]
-trie-db = { git = "https://github.com/paritytech/trie", branch = "bkchr-funny-branch" }
-hash-db = { git = "https://github.com/paritytech/trie", branch = "bkchr-funny-branch" }
-memory-db = { git = "https://github.com/paritytech/trie", branch = "bkchr-funny-branch" }
-trie-root = { git = "https://github.com/paritytech/trie", branch = "bkchr-funny-branch" }
-trie-bench = { git = "https://github.com/paritytech/trie", branch = "bkchr-funny-branch" }

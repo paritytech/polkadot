@@ -25,21 +25,21 @@ polkadot-client = { path = "../node/client", optional = true }
 polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-state-access-benchmark" }
-try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-state-access-benchmark" }
-sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-state-access-benchmark" }
-sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-state-access-benchmark" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 polkadot-node-metrics = { path = "../node/metrics" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "bkchr-state-access-benchmark" }
-sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-state-access-benchmark" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "bkchr-state-access-benchmark" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-native"]
