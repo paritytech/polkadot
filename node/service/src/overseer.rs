@@ -119,9 +119,8 @@ where
 	pub pvf_checker_enabled: bool,
 	/// Overseer channel capacity override.
 	pub overseer_message_channel_capacity_override: Option<usize>,
-	/// Fork ID from the client spec to only talk to "our" nodes if multiple chains
-	/// have the same genesis hash.
-	pub fork_id: Option<String>,
+	/// Request-response protocol names source.
+	pub req_protocol_names: ReqProtocolNames,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -150,7 +149,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		dispute_coordinator_config,
 		pvf_checker_enabled,
 		overseer_message_channel_capacity_override,
-		fork_id,
+		req_protocol_names,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
@@ -199,11 +198,6 @@ where
 	let spawner = SpawnGlue(spawner);
 
 	let network_bridge_metrics: NetworkBridgeMetrics = Metrics::register(registry)?;
-
-	let req_protocol_names = ReqProtocolNames::new(
-		runtime_client.hash(0).ok().flatten().expect("Genesis block exists; qed"),
-		fork_id.as_deref(),
-	);
 
 	let builder = Overseer::builder()
 		.network_bridge_tx(NetworkBridgeTxSubsystem::new(

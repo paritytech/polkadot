@@ -21,7 +21,7 @@ use futures::{executor, future};
 use futures_timer::Delay;
 
 use parity_scale_codec::Encode;
-use polkadot_node_network_protocol::request_response::IncomingRequest;
+use polkadot_node_network_protocol::request_response::{IncomingRequest, ReqProtocolNames};
 
 use super::*;
 
@@ -92,7 +92,7 @@ fn test_harness_chunks_only<T: Future<Output = (VirtualOverseer, RequestResponse
 	let (context, virtual_overseer) = make_subsystem_context(pool.clone());
 
 	let (collation_req_receiver, req_cfg) =
-		IncomingRequest::get_config_receiver(&GENESIS_HASH, None);
+		IncomingRequest::get_config_receiver(&ReqProtocolNames::new(&GENESIS_HASH, None));
 	let subsystem = AvailabilityRecoverySubsystem::with_chunks_only(
 		collation_req_receiver,
 		Metrics::new_dummy(),

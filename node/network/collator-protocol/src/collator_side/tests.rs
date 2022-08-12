@@ -29,7 +29,11 @@ use sp_core::crypto::Pair;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::traits::AppVerify;
 
-use polkadot_node_network_protocol::{our_view, request_response::IncomingRequest, view};
+use polkadot_node_network_protocol::{
+	our_view,
+	request_response::{IncomingRequest, ReqProtocolNames},
+	view,
+};
 use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem::{
 	jaeger,
@@ -202,9 +206,10 @@ fn test_harness<T: Future<Output = TestHarness>>(
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 	let genesis_hash = Hash::repeat_byte(0xff);
+	let req_protocol_names = ReqProtocolNames::new(&genesis_hash, None);
 
 	let (collation_req_receiver, req_cfg) =
-		IncomingRequest::get_config_receiver(&genesis_hash, None);
+		IncomingRequest::get_config_receiver(&req_protocol_names);
 	let subsystem = async {
 		run(context, local_peer_id, collator_pair, collation_req_receiver, Default::default())
 			.await

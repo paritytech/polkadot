@@ -31,7 +31,7 @@ use parity_scale_codec::{Decode, Encode};
 use sc_network::config::RequestResponseConfig;
 
 use polkadot_node_network_protocol::{
-	request_response::{v1::DisputeRequest, IncomingRequest},
+	request_response::{v1::DisputeRequest, IncomingRequest, ReqProtocolNames},
 	PeerId,
 };
 use sp_keyring::Sr25519Keyring;
@@ -724,7 +724,8 @@ where
 	let keystore = make_ferdie_keystore();
 
 	let genesis_hash = Hash::repeat_byte(0xff);
-	let (req_receiver, req_cfg) = IncomingRequest::get_config_receiver(&genesis_hash, None);
+	let req_protocol_names = ReqProtocolNames::new(&genesis_hash, None);
+	let (req_receiver, req_cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	let subsystem = DisputeDistributionSubsystem::new(
 		keystore,
 		req_receiver,

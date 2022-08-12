@@ -46,6 +46,7 @@ use {
 		self as chain_selection_subsystem, Config as ChainSelectionConfig,
 	},
 	polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig,
+	polkadot_node_network_protocol::request_response::ReqProtocolNames,
 	polkadot_overseer::BlockInfo,
 	sc_client_api::{BlockBackend, ExecutorProvider},
 	sp_core::traits::SpawnNamed,
@@ -857,25 +858,20 @@ where
 		config.network.extra_sets.extend(peer_sets_info(is_authority));
 	}
 
-	let fork_id = config.chain_spec.fork_id().map(ToOwned::to_owned);
+	let req_protocol_names = ReqProtocolNames::new(&genesis_hash, config.chain_spec.fork_id());
 
-	let (pov_req_receiver, cfg) =
-		IncomingRequest::get_config_receiver(&genesis_hash, fork_id.as_deref());
+	let (pov_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
-	let (chunk_req_receiver, cfg) =
-		IncomingRequest::get_config_receiver(&genesis_hash, fork_id.as_deref());
+	let (chunk_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
-	let (collation_req_receiver, cfg) =
-		IncomingRequest::get_config_receiver(&genesis_hash, fork_id.as_deref());
+	let (collation_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
 	let (available_data_req_receiver, cfg) =
-		IncomingRequest::get_config_receiver(&genesis_hash, fork_id.as_deref());
+		IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
-	let (statement_req_receiver, cfg) =
-		IncomingRequest::get_config_receiver(&genesis_hash, fork_id.as_deref());
+	let (statement_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
-	let (dispute_req_receiver, cfg) =
-		IncomingRequest::get_config_receiver(&genesis_hash, fork_id.as_deref());
+	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
 
 	let grandpa_hard_forks = if config.chain_spec.is_kusama() {
@@ -1065,7 +1061,7 @@ where
 					dispute_coordinator_config,
 					pvf_checker_enabled,
 					overseer_message_channel_capacity_override,
-					fork_id,
+					req_protocol_names,
 				},
 			)
 			.map_err(|e| {

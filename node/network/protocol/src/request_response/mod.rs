@@ -126,12 +126,11 @@ impl Protocol {
 	///
 	/// Returns a receiver for messages received on this protocol and the requested
 	/// `ProtocolConfig`.
-	pub fn get_config<Hash: AsRef<[u8]>>(
+	pub fn get_config(
 		self,
-		genesis_hash: &Hash,
-		fork_id: Option<&str>,
+		req_protocol_names: &ReqProtocolNames,
 	) -> (mpsc::Receiver<network::IncomingRequest>, RequestResponseConfig) {
-		let name = self.get_name(genesis_hash, fork_id);
+		let name = req_protocol_names.get_name(self);
 		let fallback_names = self.get_fallback_names();
 		let (tx, rx) = mpsc::channel(self.get_channel_size());
 		let cfg = match self {
@@ -249,12 +248,12 @@ impl Protocol {
 	}
 
 	/// Fallback protocol names of this protocol, as understood by substrate networking.
-	pub fn get_fallback_names(self) -> Vec<Cow<'static, str>> {
+	fn get_fallback_names(self) -> Vec<Cow<'static, str>> {
 		std::iter::once(self.get_legacy_name().into()).collect()
 	}
 
 	/// Legacy protocol name associated with each peer set.
-	pub const fn get_legacy_name(self) -> &'static str {
+	const fn get_legacy_name(self) -> &'static str {
 		match self {
 			Protocol::ChunkFetchingV1 => "/polkadot/req_chunk/1",
 			Protocol::CollationFetchingV1 => "/polkadot/req_collation/1",
@@ -263,30 +262,6 @@ impl Protocol {
 			Protocol::StatementFetchingV1 => "/polkadot/req_statement/1",
 			Protocol::DisputeSendingV1 => "/polkadot/send_dispute/1",
 		}
-	}
-
-	/// Protocol name of this protocol, as understood by substrate networking.
-	pub fn get_name<Hash: AsRef<[u8]>>(
-		self,
-		genesis_hash: &Hash,
-		fork_id: Option<&str>,
-	) -> Cow<'static, str> {
-		let prefix = if let Some(fork_id) = fork_id {
-			format!("/{}/{}", hex::encode(genesis_hash), fork_id)
-		} else {
-			format!("/{}", hex::encode(genesis_hash))
-		};
-
-		let short_name = match self {
-			Protocol::ChunkFetchingV1 => "/req_chunk/1",
-			Protocol::CollationFetchingV1 => "/req_collation/1",
-			Protocol::PoVFetchingV1 => "/req_pov/1",
-			Protocol::AvailableDataFetchingV1 => "/req_available_data/1",
-			Protocol::StatementFetchingV1 => "/req_statement/1",
-			Protocol::DisputeSendingV1 => "/send_dispute/1",
-		};
-
-		format!("{}{}", prefix, short_name).into()
 	}
 }
 
@@ -309,7 +284,7 @@ impl ReqProtocolNames {
 	pub fn new<Hash: AsRef<[u8]>>(genesis_hash: Hash, fork_id: Option<&str>) -> Self {
 		let mut names = HashMap::new();
 		for protocol in Protocol::iter() {
-			names.insert(protocol, protocol.get_name(&genesis_hash, fork_id));
+			names.insert(protocol, Self::generate_name(protocol, &genesis_hash, fork_id));
 		}
 		Self { names }
 	}
@@ -320,5 +295,29 @@ impl ReqProtocolNames {
 			.get(&protocol)
 			.expect("All `Protocol` enum variants are added above via `strum`; qed")
 			.clone()
+	}
+
+	/// Protocol name of this protocol based on `genesis_hash` and `fork_id`.
+	fn generate_name<Hash: AsRef<[u8]>>(
+		protocol: Protocol,
+		genesis_hash: &Hash,
+		fork_id: Option<&str>,
+	) -> Cow<'static, str> {
+		let prefix = if let Some(fork_id) = fork_id {
+			format!("/{}/{}", hex::encode(genesis_hash), fork_id)
+		} else {
+			format!("/{}", hex::encode(genesis_hash))
+		};
+
+		let short_name = match protocol {
+			Protocol::ChunkFetchingV1 => "/req_chunk/1",
+			Protocol::CollationFetchingV1 => "/req_collation/1",
+			Protocol::PoVFetchingV1 => "/req_pov/1",
+			Protocol::AvailableDataFetchingV1 => "/req_available_data/1",
+			Protocol::StatementFetchingV1 => "/req_statement/1",
+			Protocol::DisputeSendingV1 => "/send_dispute/1",
+		};
+
+		format!("{}{}", prefix, short_name).into()
 	}
 }
