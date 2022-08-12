@@ -31,7 +31,8 @@ use std::{
 use sc_network::{Event as NetworkEvent, IfDisconnected};
 
 use polkadot_node_network_protocol::{
-	request_response::outgoing::Requests, view, ObservedRole, Versioned,
+	request_response::{outgoing::Requests, ReqProtocolNames},
+	view, ObservedRole, Versioned,
 };
 use polkadot_node_subsystem::{
 	jaeger,
@@ -117,6 +118,7 @@ impl Network for TestNetwork {
 		&self,
 		_: &mut AD,
 		_: Requests,
+		_: &ReqProtocolNames,
 		_: IfDisconnected,
 	) {
 	}

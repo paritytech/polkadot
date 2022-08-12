@@ -6671,6 +6671,7 @@ dependencies = [
  "derive_more",
  "fatality",
  "futures",
+ "hex",
  "parity-scale-codec",
  "polkadot-node-jaeger",
  "polkadot-node-primitives",
