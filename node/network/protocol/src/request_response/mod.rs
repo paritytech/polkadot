@@ -274,13 +274,13 @@ pub trait IsRequest {
 	const PROTOCOL: Protocol;
 }
 
-/// Type for getting protocol names using genesis hash & fork id
+/// Type for getting protocol names using genesis hash & fork id.
 pub struct ReqProtocolNames {
 	names: HashMap<Protocol, Cow<'static, str>>,
 }
 
 impl ReqProtocolNames {
-	/// Construct [`ReqProtocolNames`] from `genesis_hash` and `fork_id`
+	/// Construct [`ReqProtocolNames`] from `genesis_hash` and `fork_id`.
 	pub fn new<Hash: AsRef<[u8]>>(genesis_hash: Hash, fork_id: Option<&str>) -> Self {
 		let mut names = HashMap::new();
 		for protocol in Protocol::iter() {
@@ -289,7 +289,7 @@ impl ReqProtocolNames {
 		Self { names }
 	}
 
-	/// Get on-the-wire [`Protocol`] name
+	/// Get on-the-wire [`Protocol`] name.
 	pub fn get_name(&self, protocol: Protocol) -> Cow<'static, str> {
 		self.names
 			.get(&protocol)
