@@ -678,6 +678,7 @@ impl Initialized {
 					gum::warn!(
 						target: LOG_TARGET,
 						session,
+						?candidate_hash,
 						"Cannot import votes, without `CandidateReceipt` available!"
 					);
 					return Ok(ImportStatementsResult::InvalidImport)

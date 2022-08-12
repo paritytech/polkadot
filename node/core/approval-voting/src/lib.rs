@@ -1221,7 +1221,15 @@ async fn get_approval_signatures_for_candidate<Context>(
 	// Retrieve `CoreIndices`/`CandidateIndices` as required by approval-distribution:
 	for hash in relay_hashes {
 		let entry = match db.load_block_entry(hash)? {
-			None => continue,
+			None => {
+				gum::debug!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?hash,
+					"Block entry for assignment missing."
+				);
+				continue
+			},
 			Some(e) => e,
 		};
 		for (candidate_index, (_core_index, c_hash)) in entry.candidates().iter().enumerate() {

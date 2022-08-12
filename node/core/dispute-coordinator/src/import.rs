@@ -518,7 +518,9 @@ impl ImportResult {
 	}
 }
 
-/// Find indices controlled by this validator:
+/// Find indices controlled by this validator.
+///
+/// That is all `ValidatorIndex`es we have private keys for. Usually this will only be one.
 fn find_controlled_validator_indices(
 	keystore: &LocalKeystore,
 	validators: &[ValidatorId],
