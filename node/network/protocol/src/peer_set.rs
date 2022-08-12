@@ -17,9 +17,11 @@
 //! All peersets and protocols used for parachains.
 
 use super::ProtocolVersion;
+use polkadot_primitives::v2::Hash;
 use sc_network::config::{NonDefaultSetConfig, SetConfig};
 use std::{
 	borrow::Cow,
+	collections::{hash_map::Entry, HashMap},
 	ops::{Index, IndexMut},
 };
 use strum::{EnumIter, IntoEnumIterator};
@@ -28,11 +30,14 @@ use strum::{EnumIter, IntoEnumIterator};
 const VALIDATION_PROTOCOL_V1: &str = "/polkadot/validation/1";
 const COLLATION_PROTOCOL_V1: &str = "/polkadot/collation/1";
 
-/// The default validation protocol version.
-pub const DEFAULT_VALIDATION_PROTOCOL_VERSION: ProtocolVersion = 1;
+/// The main protocol version, currently the same for validation & collation.
+const MAIN_PROTOCOL_VERSION: ProtocolVersion = 1;
 
-/// The default collation protocol version.
-pub const DEFAULT_COLLATION_PROTOCOL_VERSION: ProtocolVersion = 1;
+/// The protocol version for legacy on the wire protocol name, must always be 1.
+const LEGACY_PROTOCOL_VERSION: ProtocolVersion = 1;
+
+/// Max notification size is currently constant.
+const MAX_NOTIFICATION_SIZE: u64 = 100 * 1024;
 
 /// The peer-sets and thus the protocols which are used for the network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
@@ -60,17 +65,21 @@ impl PeerSet {
 	///
 	/// Those should be used in the network configuration to register the protocols with the
 	/// network service.
-	pub fn get_info(self, is_authority: IsAuthority) -> NonDefaultSetConfig {
-		let version = self.get_default_version();
-		let protocol = self
-			.into_protocol_name(version)
-			.expect("default version always has protocol name; qed");
-		let max_notification_size = 100 * 1024;
+	pub fn get_info(
+		self,
+		is_authority: IsAuthority,
+		peerset_protocol_names: &PeerSetProtocolNames,
+	) -> NonDefaultSetConfig {
+		// Networking layer relies on `get_main_name()` being the main name of the protocol
+		// for peersets and connection management.
+		let protocol = peerset_protocol_names.get_main_name(self);
+		let fallback_names = PeerSetProtocolNames::get_fallback_names(self);
+		let max_notification_size = self.get_max_notification_size(is_authority);
 
 		match self {
 			PeerSet::Validation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
-				fallback_names: Vec::new(),
+				fallback_names,
 				max_notification_size,
 				set_config: sc_network::config::SetConfig {
 					// we allow full nodes to connect to validators for gossip
@@ -85,7 +94,7 @@ impl PeerSet {
 			},
 			PeerSet::Collation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
-				fallback_names: Vec::new(),
+				fallback_names,
 				max_notification_size,
 				set_config: SetConfig {
 					// Non-authority nodes don't need to accept incoming connections on this peer set:
@@ -102,50 +111,35 @@ impl PeerSet {
 		}
 	}
 
-	/// Get the default protocol version for this peer set.
-	pub const fn get_default_version(self) -> ProtocolVersion {
-		match self {
-			PeerSet::Validation => DEFAULT_VALIDATION_PROTOCOL_VERSION,
-			PeerSet::Collation => DEFAULT_COLLATION_PROTOCOL_VERSION,
-		}
-	}
-
-	/// Get the default protocol name as a static str.
-	pub const fn get_default_protocol_name(self) -> &'static str {
-		match self {
-			PeerSet::Validation => VALIDATION_PROTOCOL_V1,
-			PeerSet::Collation => COLLATION_PROTOCOL_V1,
-		}
-	}
-
-	/// Get the protocol name associated with each peer set
-	/// and the given version, if any, as static str.
-	pub const fn get_protocol_name_static(self, version: ProtocolVersion) -> Option<&'static str> {
-		match (self, version) {
-			(PeerSet::Validation, 1) => Some(VALIDATION_PROTOCOL_V1),
-			(PeerSet::Collation, 1) => Some(COLLATION_PROTOCOL_V1),
-			_ => None,
-		}
-	}
-
-	/// Get the protocol name associated with each peer set as understood by Substrate.
-	pub fn into_default_protocol_name(self) -> Cow<'static, str> {
-		self.get_default_protocol_name().into()
-	}
-
-	/// Convert a peer set and the given version into a protocol name, if any,
-	/// as understood by Substrate.
-	pub fn into_protocol_name(self, version: ProtocolVersion) -> Option<Cow<'static, str>> {
-		self.get_protocol_name_static(version).map(|n| n.into())
-	}
-
-	/// Try parsing a protocol name into a peer set and protocol version.
+	/// Get the main protocol version for this peer set.
 	///
-	/// This only succeeds on supported versions.
-	pub fn try_from_protocol_name(name: &Cow<'static, str>) -> Option<(PeerSet, ProtocolVersion)> {
-		match name {
-			n if n == VALIDATION_PROTOCOL_V1 => Some((PeerSet::Validation, 1)),
-			n if n == COLLATION_PROTOCOL_V1 => Some((PeerSet::Collation, 1)),
+	/// Networking layer relies on `get_main_version()` being the version
+	/// of the main protocol name reported by [`PeerSetProtocolNames::get_main_name()`].
+	pub const fn get_main_version(self) -> ProtocolVersion {
+		MAIN_PROTOCOL_VERSION
+	}
+
+	/// Get the max notification size for this peer set.
+	pub fn get_max_notification_size(self, _: IsAuthority) -> u64 {
+		MAX_NOTIFICATION_SIZE
+	}
+
+	/// Get the peer set label for metrics reporting.
+	pub fn get_label(self) -> &'static str {
+		match self {
+			PeerSet::Validation => "validation",
+			PeerSet::Collation => "collation",
+		}
+	}
+
+	/// Get the protocol label for metrics reporting.
+	///
+	/// Unfortunately, labels must be static strings, so we must manually cover them
+	/// for all protocol versions here.
+	pub fn get_protocol_label(self, version: ProtocolVersion) -> Option<&'static str> {
+		match (self, version) {
+			(PeerSet::Validation, 1) => Some("validation/1"),
+			(PeerSet::Collation, 1) => Some("collation/1"),
 			_ => None,
 		}
 	}
@@ -181,6 +175,117 @@ impl<T> IndexMut<PeerSet> for PerPeerSet<T> {
 ///
 /// Should be used during network configuration (added to [`NetworkConfiguration::extra_sets`])
 /// or shortly after startup to register the protocols with the network service.
-pub fn peer_sets_info(is_authority: IsAuthority) -> Vec<sc_network::config::NonDefaultSetConfig> {
-	PeerSet::iter().map(|s| s.get_info(is_authority)).collect()
+pub fn peer_sets_info(
+	is_authority: IsAuthority,
+	peerset_protocol_names: &PeerSetProtocolNames,
+) -> Vec<sc_network::config::NonDefaultSetConfig> {
+	PeerSet::iter()
+		.map(|s| s.get_info(is_authority, &peerset_protocol_names))
+		.collect()
+}
+
+/// On the wire protocol name to [`PeerSet`] mapping.
+#[derive(Clone)]
+pub struct PeerSetProtocolNames {
+	genesis_hash: Hash,
+	fork_id: Option<String>,
+	protocols: HashMap<Cow<'static, str>, (PeerSet, ProtocolVersion)>,
+}
+
+impl PeerSetProtocolNames {
+	/// Construct [`PeerSetProtocols`] using `genesis_hash` and `fork_id`.
+	pub fn new(genesis_hash: Hash, fork_id: Option<&str>) -> Self {
+		let mut protocols = HashMap::new();
+		for protocol in PeerSet::iter() {
+			Self::insert_protocol_or_panic(
+				&mut protocols,
+				Self::generate_name(&genesis_hash, fork_id, protocol, MAIN_PROTOCOL_VERSION),
+				protocol,
+				MAIN_PROTOCOL_VERSION,
+			);
+			Self::insert_protocol_or_panic(
+				&mut protocols,
+				Self::get_legacy_name(protocol),
+				protocol,
+				LEGACY_PROTOCOL_VERSION,
+			)
+		}
+		Self { genesis_hash, fork_id: fork_id.map(ToOwned::to_owned), protocols }
+	}
+
+	/// Helper function to make sure no protocols have the same name.
+	fn insert_protocol_or_panic(
+		protocols: &mut HashMap<Cow<'static, str>, (PeerSet, ProtocolVersion)>,
+		name: Cow<'static, str>,
+		protocol: PeerSet,
+		version: ProtocolVersion,
+	) {
+		match protocols.entry(name) {
+			Entry::Vacant(entry) => {
+				entry.insert((protocol, version));
+			},
+			Entry::Occupied(entry) => {
+				panic!(
+					"Protocol {:?} (version {}) has the same on-the-wire name as protocol {:?} (version {}): `{}`.",
+					protocol,
+					version,
+					entry.get().0,
+					entry.get().1,
+					entry.key(),
+				);
+			},
+		}
+	}
+
+	/// Lookup the protocol using its on the wire name.
+	pub fn try_get_protocol(&self, name: &Cow<'static, str>) -> Option<(PeerSet, ProtocolVersion)> {
+		self.protocols.get(name).map(ToOwned::to_owned)
+	}
+
+	/// Get the main protocol name. It's used by the networking for keeping track
+	/// of peersets and connections.
+	pub fn get_main_name(&self, protocol: PeerSet) -> Cow<'static, str> {
+		self.get_name(protocol, MAIN_PROTOCOL_VERSION)
+	}
+
+	/// Get the protocol name for specific version.
+	pub fn get_name(&self, protocol: PeerSet, version: ProtocolVersion) -> Cow<'static, str> {
+		Self::generate_name(&self.genesis_hash, self.fork_id.as_deref(), protocol, version).into()
+	}
+
+	/// The protocol name of this protocol based on `genesis_hash` and `fork_id`.
+	fn generate_name(
+		genesis_hash: &Hash,
+		fork_id: Option<&str>,
+		protocol: PeerSet,
+		version: ProtocolVersion,
+	) -> Cow<'static, str> {
+		let prefix = if let Some(fork_id) = fork_id {
+			format!("/{}/{}", hex::encode(genesis_hash), fork_id)
+		} else {
+			format!("/{}", hex::encode(genesis_hash))
+		};
+
+		let short_name = match protocol {
+			PeerSet::Validation => "validation",
+			PeerSet::Collation => "collation",
+		};
+
+		format!("{}/{}/{}", prefix, short_name, version).into()
+	}
+
+	/// Get the legacy protocol name, only `LEGACY_PROTOCOL_VERSION` = 1 is supported.
+	fn get_legacy_name(protocol: PeerSet) -> Cow<'static, str> {
+		match protocol {
+			PeerSet::Validation => VALIDATION_PROTOCOL_V1,
+			PeerSet::Collation => COLLATION_PROTOCOL_V1,
+		}
+		.into()
+	}
+
+	/// Get the protocol fallback names. Currently only holds the legacy name
+	/// for `LEGACY_PROTOCOL_VERSION` = 1.
+	fn get_fallback_names(protocol: PeerSet) -> Vec<Cow<'static, str>> {
+		std::iter::once(Self::get_legacy_name(protocol)).collect()
+	}
 }

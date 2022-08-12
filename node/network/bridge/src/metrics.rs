@@ -23,7 +23,7 @@ pub struct Metrics(pub(crate) Option<MetricsInner>);
 
 fn peer_set_label(peer_set: PeerSet, version: ProtocolVersion) -> &'static str {
 	// Higher level code is meant to protect against this ever happening.
-	peer_set.get_protocol_name_static(version).unwrap_or("<internal error>")
+	peer_set.get_protocol_label(version).unwrap_or("<internal error>")
 }
 
 #[allow(missing_docs)]
@@ -98,7 +98,7 @@ impl Metrics {
 		self.0.as_ref().map(|metrics| {
 			metrics
 				.desired_peer_count
-				.with_label_values(&[peer_set.get_default_protocol_name()])
+				.with_label_values(&[peer_set.get_label()])
 				.set(size as u64)
 		});
 	}

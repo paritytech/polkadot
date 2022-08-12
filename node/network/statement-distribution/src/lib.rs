@@ -996,7 +996,7 @@ fn is_statement_large(statement: &SignedFullStatement) -> (bool, Option<usize>) 
 
 			// Half max size seems to be a good threshold to start not using notifications:
 			let threshold =
-				PeerSet::Validation.get_info(IsAuthority::Yes).max_notification_size as usize / 2;
+				PeerSet::Validation.get_max_notification_size(IsAuthority::Yes) as usize / 2;
 
 			(size >= threshold, Some(size))
 		},

@@ -31,6 +31,7 @@ use std::{
 use sc_network::{Event as NetworkEvent, IfDisconnected};
 
 use polkadot_node_network_protocol::{
+	peer_set::PeerSetProtocolNames,
 	request_response::{outgoing::Requests, ReqProtocolNames},
 	view, ObservedRole, Versioned,
 };
@@ -46,7 +47,7 @@ use polkadot_node_subsystem_test_helpers::{
 	SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
 };
 use polkadot_node_subsystem_util::metered;
-use polkadot_primitives::v2::AuthorityDiscoveryId;
+use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash};
 
 use sc_network::Multiaddr;
 use sp_keyring::Sr25519Keyring;
@@ -68,6 +69,7 @@ pub enum NetworkAction {
 struct TestNetwork {
 	net_events: Arc<Mutex<Option<SingleItemStream<NetworkEvent>>>>,
 	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
+	protocol_names: Arc<PeerSetProtocolNames>,
 }
 
 #[derive(Clone, Debug)]
@@ -78,9 +80,12 @@ struct TestAuthorityDiscovery;
 struct TestNetworkHandle {
 	action_rx: metered::UnboundedMeteredReceiver<NetworkAction>,
 	net_tx: SingleItemSink<NetworkEvent>,
+	protocol_names: PeerSetProtocolNames,
 }
 
-fn new_test_network() -> (TestNetwork, TestNetworkHandle, TestAuthorityDiscovery) {
+fn new_test_network(
+	protocol_names: PeerSetProtocolNames,
+) -> (TestNetwork, TestNetworkHandle, TestAuthorityDiscovery) {
 	let (net_tx, net_rx) = polkadot_node_subsystem_test_helpers::single_item_sink();
 	let (action_tx, action_rx) = metered::unbounded();
 
@@ -88,8 +93,9 @@ fn new_test_network() -> (TestNetwork, TestNetworkHandle, TestAuthorityDiscovery
 		TestNetwork {
 			net_events: Arc::new(Mutex::new(Some(net_rx))),
 			action_tx: Arc::new(Mutex::new(action_tx)),
+			protocol_names: Arc::new(protocol_names.clone()),
 		},
-		TestNetworkHandle { action_rx, net_tx },
+		TestNetworkHandle { action_rx, net_tx, protocol_names },
 		TestAuthorityDiscovery,
 	)
 }
@@ -130,14 +136,20 @@ impl Network for TestNetwork {
 			.unwrap();
 	}
 
-	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet) {
+	fn disconnect_peer(&self, who: PeerId, protocol: Cow<'static, str>) {
+		let (peer_set, version) = self.protocol_names.try_get_protocol(&protocol).unwrap();
+		assert_eq!(version, peer_set.get_main_version());
+
 		self.action_tx
 			.lock()
 			.unbounded_send(NetworkAction::DisconnectPeer(who, peer_set))
 			.unwrap();
 	}
 
-	fn write_notification(&self, who: PeerId, peer_set: PeerSet, message: Vec<u8>) {
+	fn write_notification(&self, who: PeerId, protocol: Cow<'static, str>, message: Vec<u8>) {
+		let (peer_set, version) = self.protocol_names.try_get_protocol(&protocol).unwrap();
+		assert_eq!(version, peer_set.get_main_version());
+
 		self.action_tx
 			.lock()
 			.unbounded_send(NetworkAction::WriteNotification(who, peer_set, message))
@@ -181,7 +193,7 @@ impl TestNetworkHandle {
 	async fn connect_peer(&mut self, peer: PeerId, peer_set: PeerSet, role: ObservedRole) {
 		self.send_network_event(NetworkEvent::NotificationStreamOpened {
 			remote: peer,
-			protocol: peer_set.into_default_protocol_name(),
+			protocol: self.protocol_names.get_main_name(peer_set),
 			negotiated_fallback: None,
 			role: role.into(),
 		})
@@ -191,7 +203,7 @@ impl TestNetworkHandle {
 	async fn disconnect_peer(&mut self, peer: PeerId, peer_set: PeerSet) {
 		self.send_network_event(NetworkEvent::NotificationStreamClosed {
 			remote: peer,
-			protocol: peer_set.into_default_protocol_name(),
+			protocol: self.protocol_names.get_main_name(peer_set),
 		})
 		.await;
 	}
@@ -199,7 +211,7 @@ impl TestNetworkHandle {
 	async fn peer_message(&mut self, peer: PeerId, peer_set: PeerSet, message: Vec<u8>) {
 		self.send_network_event(NetworkEvent::NotificationsReceived {
 			remote: peer,
-			messages: vec![(peer_set.into_default_protocol_name(), message.into())],
+			messages: vec![(self.protocol_names.get_main_name(peer_set), message.into())],
 		})
 		.await;
 	}
@@ -285,8 +297,12 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	sync_oracle: Box<dyn SyncOracle + Send>,
 	test: impl FnOnce(TestHarness) -> T,
 ) {
+	let genesis_hash = Hash::repeat_byte(0xff);
+	let fork_id = None;
+	let peerset_protocol_names = PeerSetProtocolNames::new(genesis_hash, fork_id);
+
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (mut network, network_handle, discovery) = new_test_network();
+	let (mut network, network_handle, discovery) = new_test_network(peerset_protocol_names.clone());
 	let (context, virtual_overseer) =
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 	let network_stream = network.event_stream();
@@ -297,6 +313,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		metrics: Metrics(None),
 		sync_oracle,
 		shared: Shared::default(),
+		peerset_protocol_names,
 	};
 
 	let network_bridge = run_network_in(bridge, context, network_stream)

@@ -27,7 +27,7 @@ use sc_network::multiaddr::{self, Multiaddr};
 
 pub use polkadot_node_network_protocol::authority_discovery::AuthorityDiscovery;
 use polkadot_node_network_protocol::{
-	peer_set::{PeerSet, PerPeerSet},
+	peer_set::{PeerSet, PeerSetProtocolNames, PerPeerSet},
 	PeerId,
 };
 use polkadot_primitives::v2::AuthorityDiscoveryId;
@@ -36,6 +36,7 @@ const LOG_TARGET: &str = "parachain::validator-discovery";
 
 pub(super) struct Service<N, AD> {
 	state: PerPeerSet<StatePerPeerSet>,
+	peerset_protocol_names: PeerSetProtocolNames,
 	// PhantomData used to make the struct generic instead of having generic methods
 	_phantom: PhantomData<(N, AD)>,
 }
@@ -46,8 +47,8 @@ struct StatePerPeerSet {
 }
 
 impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
-	pub fn new() -> Self {
-		Self { state: Default::default(), _phantom: PhantomData }
+	pub fn new(peerset_protocol_names: PeerSetProtocolNames) -> Self {
+		Self { state: Default::default(), peerset_protocol_names, _phantom: PhantomData }
 	}
 
 	/// Connect to already resolved addresses.
@@ -76,20 +77,26 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
 		//
-		// for peer-set management, the default should be used regardless of
+		// for peer-set management, the main protocol name should be used regardless of
 		// the negotiated version.
 		if let Err(e) = network_service
-			.set_reserved_peers(peer_set.into_default_protocol_name(), newly_requested)
+			.set_reserved_peers(
+				self.peerset_protocol_names.get_main_name(peer_set),
+				newly_requested,
+			)
 			.await
 		{
 			gum::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
 		// the addresses are known to be valid
 		//
-		// for peer-set management, the default should be used regardless of
+		// for peer-set management, the main protocol name should be used regardless of
 		// the negotiated version.
 		let _ = network_service
-			.remove_from_peers_set(peer_set.into_default_protocol_name(), peers_to_remove)
+			.remove_from_peers_set(
+				self.peerset_protocol_names.get_main_name(peer_set),
+				peers_to_remove,
+			)
 			.await;
 
 		network_service
@@ -166,6 +173,7 @@ mod tests {
 		request_response::{outgoing::Requests, ReqProtocolNames},
 		PeerId,
 	};
+	use polkadot_primitives::v2::Hash;
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
 	use sp_keyring::Sr25519Keyring;
 	use std::{
@@ -174,7 +182,11 @@ mod tests {
 	};
 
 	fn new_service() -> Service<TestNetwork, TestAuthorityDiscovery> {
-		Service::new()
+		let genesis_hash = Hash::repeat_byte(0xff);
+		let fork_id = None;
+		let protocol_names = PeerSetProtocolNames::new(genesis_hash, fork_id);
+
+		Service::new(protocol_names)
 	}
 
 	fn new_network() -> (TestNetwork, TestAuthorityDiscovery) {
@@ -248,11 +260,11 @@ mod tests {
 			panic!()
 		}
 
-		fn disconnect_peer(&self, _: PeerId, _: PeerSet) {
+		fn disconnect_peer(&self, _: PeerId, _: Cow<'static, str>) {
 			panic!()
 		}
 
-		fn write_notification(&self, _: PeerId, _: PeerSet, _: Vec<u8>) {
+		fn write_notification(&self, _: PeerId, _: Cow<'static, str>, _: Vec<u8>) {
 			panic!()
 		}
 	}
