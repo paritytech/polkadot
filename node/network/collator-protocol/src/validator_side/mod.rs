@@ -190,7 +190,7 @@ impl PeerData {
 					.get(removed)
 					.map_or(false, |s| s.prospective_parachains_mode.is_enabled());
 				let keep = relay_parent_mode_enabled &&
-					is_relay_parent_in_view(
+					is_relay_parent_in_implicit_view(
 						removed,
 						ProspectiveParachainsMode::Enabled,
 						implicit_view,
@@ -219,7 +219,7 @@ impl PeerData {
 				// - It belongs to allowed ancestry under some leaf
 				// Discard otherwise.
 				per_relay_parent.get(hash).map_or(false, |s| {
-					is_relay_parent_in_view(
+					is_relay_parent_in_implicit_view(
 						hash,
 						s.prospective_parachains_mode,
 						implicit_view,
@@ -245,7 +245,7 @@ impl PeerData {
 		match self.state {
 			PeerState::Connected(_) => Err(AdvertisementError::UndeclaredCollator),
 			PeerState::Collating(ref mut state) => {
-				if !is_relay_parent_in_view(
+				if !is_relay_parent_in_implicit_view(
 					&on_relay_parent,
 					relay_parent_mode,
 					implicit_view,
@@ -447,7 +447,7 @@ struct State {
 	fetched_candidates: HashMap<FetchedCollation, CollationEvent>,
 }
 
-fn is_relay_parent_in_view(
+fn is_relay_parent_in_implicit_view(
 	relay_parent: &Hash,
 	relay_parent_mode: ProspectiveParachainsMode,
 	implicit_view: &ImplicitView,
@@ -472,42 +472,25 @@ async fn assign_incoming<Sender>(
 	current_assignments: &mut HashMap<ParaId, usize>,
 	keystore: &SyncCryptoStorePtr,
 	relay_parent: Hash,
-) where
+) -> Result<()>
+where
 	Sender: CollatorProtocolSenderTrait,
 {
-	let mv = polkadot_node_subsystem_util::request_validators(relay_parent, sender)
+	let validators = polkadot_node_subsystem_util::request_validators(relay_parent, sender)
 		.await
 		.await
-		.ok()
-		.map(|x| x.ok())
-		.flatten();
+		.map_err(Error::CancelledActiveValidators)??;
 
-	let mg = polkadot_node_subsystem_util::request_validator_groups(relay_parent, sender)
-		.await
-		.await
-		.ok()
-		.map(|x| x.ok())
-		.flatten();
+	let (groups, rotation_info) =
+		polkadot_node_subsystem_util::request_validator_groups(relay_parent, sender)
+			.await
+			.await
+			.map_err(Error::CancelledValidatorGroups)??;
 
-	let mc = polkadot_node_subsystem_util::request_availability_cores(relay_parent, sender)
+	let cores = polkadot_node_subsystem_util::request_availability_cores(relay_parent, sender)
 		.await
 		.await
-		.ok()
-		.map(|x| x.ok())
-		.flatten();
-
-	let (validators, groups, rotation_info, cores) = match (mv, mg, mc) {
-		(Some(v), Some((g, r)), Some(c)) => (v, g, r, c),
-		_ => {
-			gum::debug!(
-				target: LOG_TARGET,
-				?relay_parent,
-				"Failed to query runtime API for relay-parent",
-			);
-
-			return
-		},
-	};
+		.map_err(Error::CancelledAvailabilityCores)??;
 
 	let para_now = match polkadot_node_subsystem_util::signing_key_and_index(&validators, keystore)
 		.await
@@ -525,7 +508,7 @@ async fn assign_incoming<Sender>(
 		None => {
 			gum::trace!(target: LOG_TARGET, ?relay_parent, "Not a validator");
 
-			return
+			return Ok(())
 		},
 	};
 
@@ -551,6 +534,8 @@ async fn assign_incoming<Sender>(
 	}
 
 	*group_assignment = GroupAssignments { current: para_now };
+
+	Ok(())
 }
 
 fn remove_outgoing(
@@ -601,7 +586,7 @@ async fn fetch_collation(
 	let (tx, rx) = oneshot::channel();
 
 	let PendingCollation { relay_parent, para_id, peer_id, prospective_candidate, .. } = pc;
-	let candidate_hash = prospective_candidate.candidate_hash();
+	let candidate_hash = prospective_candidate.as_ref().map(ProspectiveCandidate::candidate_hash);
 
 	if let Some(peer_data) = state.peer_data.get(&peer_id) {
 		// If candidate hash is `Some` then relay parent supports prospective
@@ -718,7 +703,7 @@ async fn request_collation(
 	state: &mut State,
 	relay_parent: Hash,
 	para_id: ParaId,
-	prospective_candidate: ProspectiveCandidate,
+	prospective_candidate: Option<ProspectiveCandidate>,
 	peer_id: PeerId,
 	collator_id: CollatorId,
 	result: oneshot::Sender<(CandidateReceipt, PoV)>,
@@ -750,7 +735,7 @@ async fn request_collation(
 		return
 	}
 
-	let (requests, response_recv) = match (relay_parent_mode, prospective_candidate.0) {
+	let (requests, response_recv) = match (relay_parent_mode, prospective_candidate) {
 		(ProspectiveParachainsMode::Disabled, None) => {
 			let (req, response_recv) = OutgoingRequest::new(
 				Recipient::Peer(peer_id),
@@ -759,7 +744,7 @@ async fn request_collation(
 			let requests = Requests::CollationFetchingV1(req);
 			(requests, response_recv.boxed())
 		},
-		(ProspectiveParachainsMode::Enabled, Some((candidate_hash, _))) => {
+		(ProspectiveParachainsMode::Enabled, Some(ProspectiveCandidate { candidate_hash, .. })) => {
 			let (req, response_recv) = OutgoingRequest::new(
 				Recipient::Peer(peer_id),
 				request_vstaging::CollationFetchingRequest {
@@ -1078,13 +1063,13 @@ async fn handle_advertisement<Sender>(
 				?relay_parent,
 				"Received advertise collation",
 			);
+			let prospective_candidate =
+				prospective_candidate.map(|(candidate_hash, parent_head_data_hash)| {
+					ProspectiveCandidate { candidate_hash, parent_head_data_hash }
+				});
 
-			let pending_collation = PendingCollation::new(
-				relay_parent,
-				para_id,
-				peer_id,
-				ProspectiveCandidate(prospective_candidate),
-			);
+			let pending_collation =
+				PendingCollation::new(relay_parent, para_id, peer_id, prospective_candidate);
 
 			let collations = &mut per_relay_parent.collations;
 			if !collations.is_fetch_allowed(relay_parent_mode, para_id) {
@@ -1182,7 +1167,7 @@ where
 			keystore,
 			*leaf,
 		)
-		.await;
+		.await?;
 
 		state.active_leaves.insert(*leaf, mode);
 		state.per_relay_parent.insert(*leaf, per_relay_parent);
@@ -1209,7 +1194,7 @@ where
 						keystore,
 						*block_hash,
 					)
-					.await;
+					.await?;
 
 					entry.insert(per_relay_parent);
 				}
@@ -1637,8 +1622,8 @@ async fn handle_collation_fetched_result<Context>(
 	if let Entry::Vacant(entry) = state.fetched_candidates.entry(fetched_collation) {
 		collation_event.1.commitments_hash = Some(candidate_receipt.commitments_hash);
 
-		let result = match collation_event.1.prospective_candidate.0 {
-			Some((_, parent_head_data_hash)) =>
+		let result = match collation_event.1.prospective_candidate {
+			Some(ProspectiveCandidate { parent_head_data_hash, .. }) =>
 				request_prospective_validation_data(
 					ctx.sender(),
 					relay_parent,

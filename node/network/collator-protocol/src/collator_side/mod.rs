@@ -936,7 +936,12 @@ async fn handle_peer_view_change<Context>(
 				.known_allowed_relay_parents_under(&added, state.collating_on)
 				.unwrap_or_default(),
 			None => {
-				// Added leaf is unknown.
+				gum::trace!(
+					target: LOG_TARGET,
+					?peer_id,
+					new_leaf = ?added,
+					"New leaf in peer's view is unknown",
+				);
 				continue
 			},
 		};

@@ -23,13 +23,16 @@ use polkadot_primitives::v2::{CandidateHash, CandidateReceipt, CollatorId, Hash,
 
 use crate::{ProspectiveParachainsMode, LOG_TARGET, MAX_CANDIDATE_DEPTH};
 
-/// Candidate hash paired with the parent head hash.
+/// Candidate supplied with a para head it's built on top of.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub struct ProspectiveCandidate(pub Option<(CandidateHash, Hash)>);
+pub struct ProspectiveCandidate {
+	pub candidate_hash: CandidateHash,
+	pub parent_head_data_hash: Hash,
+}
 
 impl ProspectiveCandidate {
-	pub fn candidate_hash(&self) -> Option<CandidateHash> {
-		self.0.as_ref().map(|c| c.0)
+	pub fn candidate_hash(&self) -> CandidateHash {
+		self.candidate_hash
 	}
 }
 
@@ -59,7 +62,7 @@ pub struct PendingCollation {
 	pub relay_parent: Hash,
 	pub para_id: ParaId,
 	pub peer_id: PeerId,
-	pub prospective_candidate: ProspectiveCandidate,
+	pub prospective_candidate: Option<ProspectiveCandidate>,
 	pub commitments_hash: Option<Hash>,
 }
 
@@ -68,7 +71,7 @@ impl PendingCollation {
 		relay_parent: Hash,
 		para_id: ParaId,
 		peer_id: &PeerId,
-		prospective_candidate: ProspectiveCandidate,
+		prospective_candidate: Option<ProspectiveCandidate>,
 	) -> Self {
 		Self {
 			relay_parent,

@@ -64,6 +64,15 @@ pub enum Error {
 	#[error("Response receiver for prospective validation data request cancelled")]
 	CancelledProspectiveValidationData(oneshot::Canceled),
 
+	#[error("Response receiver for active validators request cancelled")]
+	CancelledActiveValidators(oneshot::Canceled),
+
+	#[error("Response receiver for validator groups request cancelled")]
+	CancelledValidatorGroups(oneshot::Canceled),
+
+	#[error("Response receiver for availability cores request cancelled")]
+	CancelledAvailabilityCores(oneshot::Canceled),
+
 	#[error("CollationSeconded contained statement with invalid signature")]
 	InvalidStatementSignature(UncheckedSignedFullStatement),
 }
