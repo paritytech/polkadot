@@ -67,6 +67,7 @@ fn main() -> Result<()> {
 					polkadot_service::RealOverseerGen,
 					None,
 					None,
+					None,
 				)
 				.map_err(|e| e.to_string())?;
 				let mut overseer_handle = full_node
