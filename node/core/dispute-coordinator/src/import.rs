@@ -15,10 +15,20 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Vote import logic.
+//!
+//! This module encapsulates the actual logic for importing new votes and provides easy access of
+//! the current state for votes for a particular candidate.
+//!
+//! In particular there is `CandidateVoteState` which tells what can be concluded for a particular set of
+//! votes. E.g. whether a dispute is ongoing, whether it is confirmed, concluded, ..
+//!
+//! Then there is `ImportResult` which reveals informatiom about what changed once additional votes
+//! got imported on top of an existing `CandidateVoteState` and reveals "dynamic" information, like whether
+//! due to the import a dispute was raised/got confirmed, ...
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use polkadot_node_primitives::{disputes::ValidVoteData, CandidateVotes, SignedDisputeStatement};
+use polkadot_node_primitives::{CandidateVotes, SignedDisputeStatement};
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
 use polkadot_primitives::v2::{
 	CandidateReceipt, DisputeStatement, SessionIndex, SessionInfo, ValidDisputeStatementKind,
@@ -81,7 +91,7 @@ pub enum OwnVoteState {
 	///
 	/// Needs special treatment as we have to make sure to propagate it to peers, to guarantee the
 	/// dispute can conclude.
-	VotedApproval(Vec<ValidVoteData>),
+	VotedApproval(Vec<(ValidatorIndex, ValidatorSignature)>),
 	/// We not yet voted for the dispute.
 	NoVote,
 }
@@ -98,8 +108,13 @@ impl OwnVoteState {
 		let has_valid_votes = our_valid_votes.peek().is_some();
 		let has_invalid_votes = our_invalid_votes.next().is_some();
 		let our_approval_votes: Vec<_> = our_valid_votes
-			.filter(|(_, (k, _))| k == &ValidDisputeStatementKind::ApprovalChecking)
-			.map(|(k, v)| (*k, v.clone()))
+			.filter_map(|(index, (k, sig))| {
+				if let ValidDisputeStatementKind::ApprovalChecking = k {
+					Some((*index, sig.clone()))
+				} else {
+					None
+				}
+			})
 			.collect();
 
 		if !our_approval_votes.is_empty() {
@@ -120,7 +135,7 @@ impl OwnVoteState {
 	}
 
 	/// Get own approval votes, if any.
-	fn approval_votes(&self) -> Option<&Vec<ValidVoteData>> {
+	fn approval_votes(&self) -> Option<&Vec<(ValidatorIndex, ValidatorSignature)>> {
 		match self {
 			Self::VotedApproval(votes) => Some(&votes),
 			_ => None,
@@ -132,7 +147,7 @@ impl OwnVoteState {
 ///
 /// All votes + information whether a dispute is ongoing, confirmed, concluded, whether we already
 /// voted, ...
-pub struct VoteState<Votes> {
+pub struct CandidateVoteState<Votes> {
 	/// Votes already existing for the candidate + receipt.
 	votes: Votes,
 
@@ -157,8 +172,8 @@ pub struct VoteState<Votes> {
 	is_disputed: bool,
 }
 
-impl VoteState<CandidateVotes> {
-	/// Create an empty `VoteState`
+impl CandidateVoteState<CandidateVotes> {
+	/// Create an empty `CandidateVoteState`
 	///
 	/// in case there have not been any previous votes.
 	pub fn new_from_receipt(candidate_receipt: CandidateReceipt) -> Self {
@@ -174,7 +189,7 @@ impl VoteState<CandidateVotes> {
 		}
 	}
 
-	/// Create a new `VoteState` from already existing votes.
+	/// Create a new `CandidateVoteState` from already existing votes.
 	pub fn new<'a>(votes: CandidateVotes, env: &CandidateEnvironment<'a>) -> Self {
 		let own_vote = OwnVoteState::new(&votes, env);
 
@@ -218,34 +233,34 @@ impl VoteState<CandidateVotes> {
 				.map_or(true, |v| v != statement.validator_public())
 			{
 				gum::error!(
-				target: LOG_TARGET,
-				?val_index,
-				session= ?env.session_index,
-				claimed_key = ?statement.validator_public(),
-				"Validator index doesn't match claimed key",
+					target: LOG_TARGET,
+					?val_index,
+					session= ?env.session_index,
+					claimed_key = ?statement.validator_public(),
+					"Validator index doesn't match claimed key",
 				);
 
 				continue
 			}
 			if statement.candidate_hash() != &expected_candidate_hash {
 				gum::error!(
-				target: LOG_TARGET,
-				?val_index,
-				session= ?env.session_index,
-				given_candidate_hash = ?statement.candidate_hash(),
-				?expected_candidate_hash,
-				"Vote is for unexpected candidate!",
+					target: LOG_TARGET,
+					?val_index,
+					session= ?env.session_index,
+					given_candidate_hash = ?statement.candidate_hash(),
+					?expected_candidate_hash,
+					"Vote is for unexpected candidate!",
 				);
 				continue
 			}
 			if statement.session_index() != env.session_index() {
 				gum::error!(
-				target: LOG_TARGET,
-				?val_index,
-				session= ?env.session_index,
-				given_candidate_hash = ?statement.candidate_hash(),
-				?expected_candidate_hash,
-				"Vote is for unexpected session!",
+					target: LOG_TARGET,
+					?val_index,
+					session= ?env.session_index,
+					given_candidate_hash = ?statement.candidate_hash(),
+					?expected_candidate_hash,
+					"Vote is for unexpected session!",
 				);
 				continue
 			}
@@ -296,8 +311,8 @@ impl VoteState<CandidateVotes> {
 	}
 
 	/// Extract `CandidateVotes` for handling import of new statements.
-	fn into_old_state(self) -> (CandidateVotes, VoteState<()>) {
-		let VoteState {
+	fn into_old_state(self) -> (CandidateVotes, CandidateVoteState<()>) {
+		let CandidateVoteState {
 			votes,
 			own_vote,
 			concluded_invalid,
@@ -307,7 +322,7 @@ impl VoteState<CandidateVotes> {
 		} = self;
 		(
 			votes,
-			VoteState {
+			CandidateVoteState {
 				votes: (),
 				own_vote,
 				concluded_invalid,
@@ -319,7 +334,7 @@ impl VoteState<CandidateVotes> {
 	}
 }
 
-impl<V> VoteState<V> {
+impl<V> CandidateVoteState<V> {
 	/// Whether or not we have an ongoing dispute.
 	pub fn is_disputed(&self) -> bool {
 		self.is_disputed
@@ -339,7 +354,7 @@ impl<V> VoteState<V> {
 	}
 
 	/// Own approval votes if any:
-	pub fn own_approval_votes(&self) -> Option<&Vec<ValidVoteData>> {
+	pub fn own_approval_votes(&self) -> Option<&Vec<(ValidatorIndex, ValidatorSignature)>> {
 		self.own_vote.approval_votes()
 	}
 
@@ -362,9 +377,9 @@ impl<V> VoteState<V> {
 /// An ongoing statement/vote import.
 pub struct ImportResult {
 	/// The state we had before importing new statements.
-	old_state: VoteState<()>,
+	old_state: CandidateVoteState<()>,
 	/// The new state after importing the new statements.
-	new_state: VoteState<CandidateVotes>,
+	new_state: CandidateVoteState<CandidateVotes>,
 	/// New invalid voters as of this import.
 	new_invalid_voters: Vec<ValidatorIndex>,
 	/// Number of successfully imported valid votes.
@@ -389,12 +404,12 @@ impl ImportResult {
 	}
 
 	/// State as it was before import.
-	pub fn old_state(&self) -> &VoteState<()> {
+	pub fn old_state(&self) -> &CandidateVoteState<()> {
 		&self.old_state
 	}
 
 	/// State after import
-	pub fn new_state(&self) -> &VoteState<CandidateVotes> {
+	pub fn new_state(&self) -> &CandidateVoteState<CandidateVotes> {
 		&self.new_state
 	}
 
@@ -479,7 +494,7 @@ impl ImportResult {
 			}
 		}
 
-		let new_state = VoteState::new(votes, env);
+		let new_state = CandidateVoteState::new(votes, env);
 
 		Self {
 			old_state,
@@ -495,7 +510,7 @@ impl ImportResult {
 	/// Returns: `None` in case nothing has changed (import was redundant).
 	pub fn into_updated_votes(self) -> Option<CandidateVotes> {
 		if self.votes_changed() {
-			let VoteState { votes, .. } = self.new_state;
+			let CandidateVoteState { votes, .. } = self.new_state;
 			Some(votes)
 		} else {
 			None
@@ -504,8 +519,7 @@ impl ImportResult {
 }
 
 /// Find indices controlled by this validator:
-/// TODO: Remove pub
-pub fn find_controlled_validator_indices(
+fn find_controlled_validator_indices(
 	keystore: &LocalKeystore,
 	validators: &[ValidatorId],
 ) -> HashSet<ValidatorIndex> {

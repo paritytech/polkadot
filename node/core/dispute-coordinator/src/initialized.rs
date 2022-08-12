@@ -47,7 +47,7 @@ use polkadot_primitives::v2::{
 
 use crate::{
 	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
-	import::{CandidateEnvironment, VoteState},
+	import::{CandidateEnvironment, CandidateVoteState},
 	metrics::Metrics,
 	status::{get_active_with_status, Clock, DisputeStatus, Timestamp},
 	DisputeCoordinatorSubsystem, LOG_TARGET,
@@ -670,10 +670,10 @@ impl Initialized {
 			.load_candidate_votes(session, &candidate_hash)?
 			.map(CandidateVotes::from)
 		{
-			Some(votes) => VoteState::new(votes, &env),
+			Some(votes) => CandidateVoteState::new(votes, &env),
 			None =>
 				if let MaybeCandidateReceipt::Provides(candidate_receipt) = candidate_receipt {
-					VoteState::new_from_receipt(candidate_receipt)
+					CandidateVoteState::new_from_receipt(candidate_receipt)
 				} else {
 					gum::warn!(
 						target: LOG_TARGET,
@@ -695,7 +695,7 @@ impl Initialized {
 				intermediate_result.is_freshly_concluded()
 			{
 				let (tx, rx) = oneshot::channel();
-				// Bounded because:
+				// Use of unbounded channes justified because:
 				// 1. Only triggered twice per dispute.
 				// 2. Raising a dispute is costly (requires validation + recovery) by honest nodes,
 				// dishonest nodes are limited by spam slots.
@@ -800,8 +800,7 @@ impl Initialized {
 		if import_result.is_freshly_disputed() {
 			let no_votes = Vec::new();
 			let our_approval_votes = new_state.own_approval_votes().unwrap_or(&no_votes);
-			for (validator_index, (k, sig)) in our_approval_votes {
-				debug_assert!(k == &ValidDisputeStatementKind::ApprovalChecking);
+			for (validator_index, sig) in our_approval_votes {
 				let pub_key = match env.validators().get(validator_index.0 as usize) {
 					None => {
 						gum::error!(
@@ -874,7 +873,7 @@ impl Initialized {
 			overlay_db.write_recent_disputes(recent_disputes);
 		}
 
-		//Update metrics:
+		// Update metrics:
 		if import_result.is_freshly_disputed() {
 			self.metrics.on_open();
 		}

@@ -40,14 +40,15 @@ also be some already cast approval vote, but the significant point here is: As
 long as we have backing votes available, any node will be able to raise a
 dispute.
 
-Therefore a vital responsibility of the dispute coordinator is to make sure backing
-votes are available for all candidates that might still get disputed. To
+Therefore a vital responsibility of the dispute coordinator is to make sure
+backing votes are available for all candidates that might still get disputed. To
 accomplish this task in an efficient way the dispute-coordinator relies on chain
-scraping. Whenever a candidate gets backed on chain, we record in
-chain storage the backing votes (gets overridden on every block). We provide a
-runtime API for querying those votes. The dispute coordinator makes sure to
-query those votes for any non finalized blocks: In case of missed blocks, it
-will do chain traversal as necessary.
+scraping. Whenever a candidate gets backed on chain, we record in chain storage
+the backing votes imported in that block. This way, given the chain state for a
+given relay chain block, we can retrieve via a provided runtime API the backing
+votes imported by that block. The dispute coordinator makes sure to query those
+votes for any non finalized blocks: In case of missed blocks, it will do chain
+traversal as necessary.
 
 Relying on chain scraping is very efficient for two reasons:
 
@@ -309,7 +310,7 @@ this could absolutely be used to cause harm!
 As explained, just blindly participating in any "dispute" that comes along is
 not a good idea. First we would like to make sure the dispute is actually
 genuine, to prevent cheap DoS attacks. Secondly, in case of genuine disputes, we
-would like to be able to be able to conclude one after the other, in contrast to
+would like to conclude one after the other, in contrast to
 processing all at the same time, slowing down progress on all of them, bringing
 individual processing to a complete halt in the worst case (nodes get overwhelmed
 at some stage in the pipeline).
@@ -344,7 +345,7 @@ number of the relay parent of that candidate and for candidates with the same
 relay parent height further by the `CandidateHash`. This ordering is globally
 unique and also prioritizes older candidates.
 
-The later property makes sense, because if an older candidate turns out invalid,
+The latter property makes sense, because if an older candidate turns out invalid,
 we can roll back the full chain at once. If we resolved earlier disputes first
 and they turned out invalid as well, we might need to roll back a couple of
 times instead of just once to the oldest offender. This is obviously a good
@@ -389,7 +390,7 @@ this sr-lab ticket: https://github.com/paritytech/srlabs_findings/issues/179
 
 We only ever care about disputes for candidates that have been included on at
 least some chain (became available). This is because the availability system was
-designed for precisely that: Only with inclusiong (availability) we have
+designed for precisely that: Only with inclusion (availability) we have
 guarantees about the candidate to actually be available. Because only then we
 have guarantees that malicious backers can be reliably checked and slashed. The
 system was also designed for non included candidates to not pose any threat to
