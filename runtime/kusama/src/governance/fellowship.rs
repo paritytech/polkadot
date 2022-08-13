@@ -317,19 +317,27 @@ morph_types! {
 impl pallet_ranked_collective::Config<FellowshipCollectiveInstance> for Runtime {
 	type WeightInfo = pallet_ranked_collective::weights::SubstrateWeight<Self>;
 	type Event = Event;
-	// Promotion is by either:
+	// Promotion is by any of:
+	// - Root can demote arbitrarily.
 	// - the FellowshipAdmin origin (i.e. token holder referendum);
 	// - a vote by the rank *above* the new rank.
 	type PromoteOrigin = EitherOf<
-		MapSuccess<FellowshipAdmin, Replace<ConstU16<9>>>,
-		TryMapSuccess<origins::EnsureFellowship, CheckedReduceBy<ConstU16<1>>>,
+		frame_system::EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>,
+		EitherOf<
+			MapSuccess<FellowshipAdmin, Replace<ConstU16<9>>>,
+			TryMapSuccess<origins::EnsureFellowship, CheckedReduceBy<ConstU16<1>>>,
+		>,
 	>;
-	// Demotion is by either:
+	// Demotion is by any of:
+	// - Root can demote arbitrarily.
 	// - the FellowshipAdmin origin (i.e. token holder referendum);
 	// - a vote by the rank two above the current rank.
 	type DemoteOrigin = EitherOf<
-		MapSuccess<FellowshipAdmin, Replace<ConstU16<9>>>,
-		TryMapSuccess<origins::EnsureFellowship, CheckedReduceBy<ConstU16<2>>>,
+		frame_system::EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>,
+		EitherOf<
+			MapSuccess<FellowshipAdmin, Replace<ConstU16<9>>>,
+			TryMapSuccess<origins::EnsureFellowship, CheckedReduceBy<ConstU16<1>>>,
+		>,
 	>;
 	type Polls = FellowshipReferenda;
 	type MinRankOfClass = sp_runtime::traits::Identity;
