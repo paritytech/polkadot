@@ -266,6 +266,15 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 	}
 	fn track_for(id: &Self::Origin) -> Result<Self::Id, ()> {
 		use super::origins::Origin;
+
+		// If the origin is root, we treat it the same as a 9th dan.
+		//
+		// This is also useful for allowing benchmarks to pass.
+		let root: Self::Origin = frame_system::RawOrigin::Root.into();
+		if &root == id {
+			return Ok(9)
+		}
+
 		match Origin::try_from(id.clone()) {
 			Ok(Origin::FellowshipInitiates) => Ok(0),
 			Ok(Origin::Fellowship1Dan) => Ok(1),
