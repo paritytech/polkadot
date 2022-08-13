@@ -17,7 +17,10 @@
 //! New governance configurations for the Kusama runtime.
 
 use super::*;
-use frame_support::{parameter_types, traits::EitherOf};
+use frame_support::{
+	parameter_types,
+	traits::{ConstU16, EitherOf},
+};
 use frame_system::EnsureRootWithSuccess;
 
 // Old governance configurations.
@@ -65,8 +68,9 @@ impl pallet_whitelist::Config for Runtime {
 	type WeightInfo = pallet_whitelist::weights::SubstrateWeight<Self>; //TODO
 	type Event = Event;
 	type Call = Call;
-	type WhitelistOrigin = Fellows;
-	type DispatchWhitelistedOrigin = WhitelistedCaller;
+	type WhitelistOrigin =
+		EitherOf<EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>, Fellows>;
+	type DispatchWhitelistedOrigin = EitherOf<EnsureRoot<Self::AccountId>, WhitelistedCaller>;
 	type PreimageProvider = Preimage;
 }
 
