@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-subsystem-util"
-version = "0.9.23"
+version = "0.9.27"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Subsystem traits and message definitions"
@@ -9,7 +9,7 @@ description = "Subsystem traits and message definitions"
 async-trait = "0.1.53"
 futures = "0.3.21"
 itertools = "0.10"
-parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
 parking_lot = "0.11.2"
 pin-project = "1.0.9"
 rand = "0.8.5"

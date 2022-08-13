@@ -31,7 +31,7 @@ use parity_scale_codec::{Decode, Encode};
 use sc_network::config::RequestResponseConfig;
 
 use polkadot_node_network_protocol::{
-	request_response::{v1::DisputeRequest, IncomingRequest},
+	request_response::{v1::DisputeRequest, IncomingRequest, ReqProtocolNames},
 	PeerId,
 };
 use sp_keyring::Sr25519Keyring;
@@ -44,7 +44,7 @@ use polkadot_node_primitives::{CandidateVotes, UncheckedDisputeMessage};
 use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, DisputeCoordinatorMessage, DisputeDistributionMessage, ImportStatementsResult,
-		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
+		NetworkBridgeTxMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal, Span,
 };
@@ -664,8 +664,8 @@ async fn check_sent_requests(
 	// Sends to concerned validators:
 	assert_matches!(
 		handle.recv().await,
-		AllMessages::NetworkBridge(
-			NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
+		AllMessages::NetworkBridgeTx(
+			NetworkBridgeTxMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
 		) => {
 			let reqs: Vec<_> = reqs.into_iter().map(|r|
 				assert_matches!(
@@ -725,7 +725,9 @@ where
 	sp_tracing::try_init_simple();
 	let keystore = make_ferdie_keystore();
 
-	let (req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
+	let genesis_hash = Hash::repeat_byte(0xff);
+	let req_protocol_names = ReqProtocolNames::new(&genesis_hash, None);
+	let (req_receiver, req_cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	let subsystem = DisputeDistributionSubsystem::new(
 		keystore,
 		req_receiver,

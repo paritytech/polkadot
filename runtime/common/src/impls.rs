@@ -26,7 +26,6 @@ where
 	R: pallet_balances::Config + pallet_authorship::Config,
 	<R as frame_system::Config>::AccountId: From<primitives::v2::AccountId>,
 	<R as frame_system::Config>::AccountId: Into<primitives::v2::AccountId>,
-	<R as frame_system::Config>::Event: From<pallet_balances::Event<R>>,
 {
 	fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
 		if let Some(author) = <pallet_authorship::Pallet<R>>::author() {
@@ -42,7 +41,6 @@ where
 	pallet_treasury::Pallet<R>: OnUnbalanced<NegativeImbalance<R>>,
 	<R as frame_system::Config>::AccountId: From<primitives::v2::AccountId>,
 	<R as frame_system::Config>::AccountId: Into<primitives::v2::AccountId>,
-	<R as frame_system::Config>::Event: From<pallet_balances::Event<R>>,
 {
 	fn on_unbalanceds<B>(mut fees_then_tips: impl Iterator<Item = NegativeImbalance<R>>) {
 		if let Some(fees) = fees_then_tips.next() {

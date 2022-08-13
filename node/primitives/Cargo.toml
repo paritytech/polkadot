@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-primitives"
-version = "0.9.23"
+version = "0.9.27"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Primitives types for the Node-side"
@@ -9,7 +9,7 @@ description = "Primitives types for the Node-side"
 bounded-vec = "0.6"
 futures = "0.3.21"
 polkadot-primitives = { path = "../../primitives" }
-parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus-vrf = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -22,7 +22,7 @@ thiserror = "1.0.31"
 serde = { version = "1.0.137", features = ["derive"] }
 
 [target.'cfg(not(target_os = "unknown"))'.dependencies]
-zstd = { version = "0.10.2", default-features = false }
+zstd = { version = "0.11.2", default-features = false }
 
 [dev-dependencies]
 polkadot-erasure-coding = { path = "../../erasure-coding" }

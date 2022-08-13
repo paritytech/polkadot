@@ -32,7 +32,7 @@ use polkadot_node_primitives::approval::{
 use polkadot_node_subsystem::{
 	messages::{
 		ApprovalCheckResult, ApprovalDistributionMessage, ApprovalVotingMessage,
-		AssignmentCheckResult, NetworkBridgeEvent, NetworkBridgeMessage,
+		AssignmentCheckResult, NetworkBridgeEvent, NetworkBridgeTxMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -938,7 +938,7 @@ impl State {
 				"Sending an assignment to peers",
 			);
 
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 				peers,
 				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments),
@@ -1200,7 +1200,7 @@ impl State {
 				"Sending an approval to peers",
 			);
 
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 				peers,
 				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(approvals),
@@ -1371,7 +1371,7 @@ impl State {
 			);
 
 			sender
-				.send_message(NetworkBridgeMessage::SendValidationMessage(
+				.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 					vec![peer_id.clone()],
 					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 						protocol_v1::ApprovalDistributionMessage::Assignments(assignments_to_send),
@@ -1389,7 +1389,7 @@ impl State {
 			);
 
 			sender
-				.send_message(NetworkBridgeMessage::SendValidationMessage(
+				.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 					vec![peer_id],
 					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 						protocol_v1::ApprovalDistributionMessage::Approvals(approvals_to_send),
@@ -1592,7 +1592,7 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 	// Send messages in accumulated packets, assignments preceding approvals.
 
 	for (peer, assignments_packet) in peer_assignments {
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			vec![peer],
 			Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 				protocol_v1::ApprovalDistributionMessage::Assignments(assignments_packet),
@@ -1602,7 +1602,7 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 	}
 
 	for (peer, approvals_packet) in peer_approvals {
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			vec![peer],
 			Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 				protocol_v1::ApprovalDistributionMessage::Approvals(approvals_packet),
@@ -1625,7 +1625,7 @@ async fn modify_reputation(
 		"Reputation change for peer",
 	);
 
-	sender.send_message(NetworkBridgeMessage::ReportPeer(peer_id, rep)).await;
+	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer_id, rep)).await;
 }
 
 #[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]

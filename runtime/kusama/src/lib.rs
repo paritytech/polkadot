@@ -72,7 +72,7 @@ use sp_runtime::{
 		OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, KeyTypeId, Perbill, Percent, Permill,
+	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill, Percent, Permill,
 };
 use sp_staking::SessionIndex;
 #[cfg(any(feature = "std", test))]
@@ -116,13 +116,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9230,
+	spec_version: 9270,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
-	apis: version::create_apis_vec![[]],
-	transaction_version: 11,
+	apis: sp_version::create_apis_vec![[]],
+	transaction_version: 12,
 	state_version: 0,
 };
 
@@ -1439,13 +1439,15 @@ impl sp_runtime::traits::Convert<sp_core::U256, Balance> for U256ToBalance {
 
 parameter_types! {
 	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
-	pub const MinPointsToBalance: u32 = 10;
+	pub const MaxPointsToBalance: u8 = 10;
 }
 
 impl pallet_nomination_pools::Config for Runtime {
 	type Event = Event;
 	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
 	type Currency = Balances;
+	type CurrencyBalance = Balance;
+	type RewardCounter = FixedU128;
 	type BalanceToU256 = BalanceToU256;
 	type U256ToBalance = U256ToBalance;
 	type StakingInterface = Staking;
@@ -1454,7 +1456,7 @@ impl pallet_nomination_pools::Config for Runtime {
 	// we use the same number of allowed unlocking chunks as with staking.
 	type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
 	type PalletId = PoolsPalletId;
-	type MinPointsToBalance = MinPointsToBalance;
+	type MaxPointsToBalance = MaxPointsToBalance;
 }
 
 construct_runtime! {
@@ -1600,7 +1602,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(),
+	(pallet_staking::migrations::v10::MigrateToV10<Runtime>,),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -2005,6 +2007,16 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	impl pallet_nomination_pools_runtime_api::NominationPoolsApi<
+		Block,
+		AccountId,
+		Balance,
+	> for Runtime {
+		fn pending_rewards(member: AccountId) -> Balance {
+			NominationPools::pending_rewards(member)
+		}
+	}
+
 	#[cfg(feature = "try-runtime")]
 	impl frame_try_runtime::TryRuntime<Block> for Runtime {
 		fn on_runtime_upgrade() -> (Weight, Weight) {
@@ -2169,5 +2181,165 @@ mod tests_fess {
 		// a 1 MB solution should need around 0.16 KSM deposit
 		let deposit = SignedDepositBase::get() + (SignedDepositByte::get() * 1024 * 1024);
 		assert_eq_error_rate!(deposit, UNITS * 16 / 100, UNITS / 100);
+	}
+}
+
+#[cfg(test)]
+mod multiplier_tests {
+	use super::*;
+	use frame_support::{dispatch::GetDispatchInfo, traits::OnFinalize};
+	use runtime_common::{MinimumMultiplier, TargetBlockFullness};
+	use separator::Separatable;
+	use sp_runtime::traits::Convert;
+
+	fn run_with_system_weight<F>(w: Weight, mut assertions: F)
+	where
+		F: FnMut() -> (),
+	{
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
+			.build_storage::<Runtime>()
+			.unwrap()
+			.into();
+		t.execute_with(|| {
+			System::set_block_consumed_resources(w, 0);
+			assertions()
+		});
+	}
+
+	#[test]
+	fn multiplier_can_grow_from_zero() {
+		let minimum_multiplier = MinimumMultiplier::get();
+		let target = TargetBlockFullness::get() *
+			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
+		// if the min is too small, then this will not change, and we are doomed forever.
+		// the weight is 1/100th bigger than target.
+		run_with_system_weight(target * 101 / 100, || {
+			let next = SlowAdjustingFeeUpdate::<Runtime>::convert(minimum_multiplier);
+			assert!(next > minimum_multiplier, "{:?} !>= {:?}", next, minimum_multiplier);
+		})
+	}
+
+	#[test]
+	#[ignore]
+	fn multiplier_growth_simulator() {
+		// assume the multiplier is initially set to its minimum. We update it with values twice the
+		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
+		let mut multiplier = MinimumMultiplier::get();
+		let block_weight = BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
+		let mut blocks = 0;
+		let mut fees_paid = 0;
+
+		let call = frame_system::Call::<Runtime>::fill_block {
+			ratio: Perbill::from_rational(
+				block_weight,
+				BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap(),
+			),
+		};
+		println!("calling {:?}", call);
+		let info = call.get_dispatch_info();
+		// convert to outer call.
+		let call = Call::System(call);
+		let len = call.using_encoded(|e| e.len()) as u32;
+
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
+			.build_storage::<Runtime>()
+			.unwrap()
+			.into();
+		// set the minimum
+		t.execute_with(|| {
+			pallet_transaction_payment::NextFeeMultiplier::<Runtime>::set(MinimumMultiplier::get());
+		});
+
+		while multiplier <= Multiplier::from_u32(1) {
+			t.execute_with(|| {
+				// imagine this tx was called.
+				let fee = TransactionPayment::compute_fee(len, &info, 0);
+				fees_paid += fee;
+
+				// this will update the multiplier.
+				System::set_block_consumed_resources(block_weight, 0);
+				TransactionPayment::on_finalize(1);
+				let next = TransactionPayment::next_fee_multiplier();
+
+				assert!(next > multiplier, "{:?} !>= {:?}", next, multiplier);
+				multiplier = next;
+
+				println!(
+					"block = {} / multiplier {:?} / fee = {:?} / fess so far {:?}",
+					blocks,
+					multiplier,
+					fee.separated_string(),
+					fees_paid.separated_string()
+				);
+			});
+			blocks += 1;
+		}
+	}
+
+	#[test]
+	#[ignore]
+	fn multiplier_cool_down_simulator() {
+		// assume the multiplier is initially set to its minimum. We update it with values twice the
+		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
+		let mut multiplier = Multiplier::from_u32(2);
+		let mut blocks = 0;
+
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
+			.build_storage::<Runtime>()
+			.unwrap()
+			.into();
+		// set the minimum
+		t.execute_with(|| {
+			pallet_transaction_payment::NextFeeMultiplier::<Runtime>::set(multiplier);
+		});
+
+		while multiplier > Multiplier::from_u32(0) {
+			t.execute_with(|| {
+				// this will update the multiplier.
+				TransactionPayment::on_finalize(1);
+				let next = TransactionPayment::next_fee_multiplier();
+
+				assert!(next < multiplier, "{:?} !>= {:?}", next, multiplier);
+				multiplier = next;
+
+				println!("block = {} / multiplier {:?}", blocks, multiplier);
+			});
+			blocks += 1;
+		}
+	}
+}
+
+#[cfg(all(test, feature = "try-runtime"))]
+mod remote_tests {
+	use super::*;
+	use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
+	use remote_externalities::{
+		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
+	};
+	use std::env::var;
+
+	#[tokio::test]
+	async fn run_migrations() {
+		sp_tracing::try_init_simple();
+		let transport: Transport =
+			var("WS").unwrap_or("wss://kusama-rpc.polkadot.io:443".to_string()).into();
+		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
+		let mut ext = Builder::<Block>::default()
+			.mode(if let Some(state_snapshot) = maybe_state_snapshot {
+				Mode::OfflineOrElseOnline(
+					OfflineConfig { state_snapshot: state_snapshot.clone() },
+					OnlineConfig {
+						transport,
+						state_snapshot: Some(state_snapshot),
+						..Default::default()
+					},
+				)
+			} else {
+				Mode::Online(OnlineConfig { transport, ..Default::default() })
+			})
+			.build()
+			.await
+			.unwrap();
+		ext.execute_with(|| Runtime::on_runtime_upgrade());
 	}
 }
