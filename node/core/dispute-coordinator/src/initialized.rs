@@ -207,6 +207,13 @@ impl Initialized {
 							outcome,
 						} = self.participation.get_participation_result(ctx, msg).await?;
 						if let Some(valid) = outcome.validity() {
+							gum::trace!(
+								target: LOG_TARGET,
+								?session,
+								?candidate_hash,
+								?valid,
+								"Issuing local statement based on participation outcome."
+							);
 							self.issue_local_statement(
 								ctx,
 								&mut overlay_db,
@@ -350,6 +357,12 @@ impl Initialized {
 		for (candidate_receipt, backers) in backing_validators_per_candidate {
 			let relay_parent = candidate_receipt.descriptor.relay_parent;
 			let candidate_hash = candidate_receipt.hash();
+			gum::trace!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				?relay_parent,
+				"Importing backing votes from chain for candidate"
+			);
 			let statements = backers
 				.into_iter()
 				.filter_map(|(validator_index, attestation)| {
@@ -374,6 +387,19 @@ impl Initialized {
 							CompactStatement::Valid(_) =>
 								ValidDisputeStatementKind::BackingValid(relay_parent),
 						};
+                    debug_assert!(
+                        SignedDisputeStatement::new_checked(
+							DisputeStatement::Valid(valid_statement_kind),
+							candidate_hash,
+							session,
+							validator_public.clone(),
+							validator_signature.clone(),
+                        ).is_ok(),
+                        "Scraped backing votes had invalid signature! candidate: {:?}, session: {:?}, validator_public: {:?}",
+                        candidate_hash,
+                        session,
+                        validator_public,
+                    );
 					let signed_dispute_statement =
 						SignedDisputeStatement::new_unchecked_from_trusted_source(
 							DisputeStatement::Valid(valid_statement_kind),
@@ -412,13 +438,19 @@ impl Initialized {
 			}
 		}
 
-		// Import concluded disputes from on-chain, this already went through a vote so it's assumed
+		// Import disputes from on-chain, this already went through a vote so it's assumed
 		// as verified. This will only be stored, gossiping it is not necessary.
 
 		// First try to obtain all the backings which ultimately contain the candidate
 		// receipt which we need.
 
 		for DisputeStatementSet { candidate_hash, session, statements } in disputes {
+			gum::trace!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				?session,
+				"Importing dispute votes from chain for candidate"
+			);
 			let statements = statements
 				.into_iter()
 				.filter_map(|(dispute_statement, validator_index, validator_signature)| {
@@ -449,6 +481,21 @@ impl Initialized {
 						})
 						.cloned()?;
 
+                    debug_assert!(
+                        SignedDisputeStatement::new_checked(
+							dispute_statement.clone(),
+							candidate_hash,
+							session,
+							validator_public.clone(),
+							validator_signature.clone(),
+                        ).is_ok(),
+                        "Scraped dispute votes had invalid signature! candidate: {:?}, session: {:?}, dispute_statement: {:?}, validator_public: {:?}",
+                        candidate_hash,
+                        session,
+						dispute_statement,
+                        validator_public,
+                    );
+
 					Some((
 						SignedDisputeStatement::new_unchecked_from_trusted_source(
 							dispute_statement,
@@ -477,13 +524,13 @@ impl Initialized {
 					target: LOG_TARGET,
 					?candidate_hash,
 					?session,
-					"Imported statement of concluded dispute from on-chain"
+					"Imported statement of dispute from on-chain"
 				),
 				ImportStatementsResult::InvalidImport => gum::warn!(
 					target: LOG_TARGET,
 					?candidate_hash,
 					?session,
-					"Attempted import of on-chain statement of concluded dispute failed"
+					"Attempted import of on-chain statement of dispute failed"
 				),
 			}
 		}
@@ -505,6 +552,12 @@ impl Initialized {
 				statements,
 				pending_confirmation,
 			} => {
+				gum::trace!(
+					target: LOG_TARGET,
+					candidate_hash = ?candidate_receipt.hash(),
+					?session,
+					"Handling `ImportStatements`"
+				);
 				let outcome = self
 					.handle_import_statements(
 						ctx,
@@ -658,6 +711,14 @@ impl Initialized {
 
 		let candidate_hash = candidate_receipt.hash();
 
+		gum::trace!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			?session,
+			num_validators = ?env.session_info().validators.len(),
+			"Number of validators"
+		);
+
 		// In case we are not provided with a candidate receipt
 		// we operate under the assumption, that a previous vote
 		// which included a `CandidateReceipt` was seen.
@@ -733,6 +794,7 @@ impl Initialized {
 			?is_included,
 			?candidate_hash,
 			confirmed = ?new_state.is_confirmed(),
+			has_invalid_voters = ?!import_result.new_invalid_voters().is_empty(),
 			"Is spam?"
 		);
 
@@ -822,6 +884,13 @@ impl Initialized {
 					pub_key.clone(),
 					sig.clone(),
 				);
+				gum::trace!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					?validator_index,
+					"Sending out own approval vote"
+				);
 				match make_dispute_message(
 					env.session_info(),
 					&new_state.votes(),
@@ -872,6 +941,14 @@ impl Initialized {
 				*status = status.concluded_against(now);
 			}
 
+			gum::trace!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				?status,
+				is_concluded_valid = ?new_state.is_concluded_valid(),
+				is_concluded_invalid = ?new_state.is_concluded_invalid(),
+				"Writing recent disputes with updates for candidate"
+			);
 			overlay_db.write_recent_disputes(recent_disputes);
 		}
 
@@ -881,6 +958,19 @@ impl Initialized {
 		}
 		self.metrics.on_valid_votes(import_result.imported_valid_votes());
 		self.metrics.on_invalid_votes(import_result.imported_invalid_votes());
+		gum::trace!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			?session,
+			imported_approval_votes = ?import_result.imported_approval_votes(),
+			imported_valid_votes = ?import_result.imported_valid_votes(),
+			imported_invalid_votes = ?import_result.imported_invalid_votes(),
+			total_valid_votes = ?import_result.new_state().votes().valid.len(),
+			total_invalid_votes = ?import_result.new_state().votes().invalid.len(),
+			confirmed = ?import_result.new_state().is_confirmed(),
+			"Import summary"
+		);
+
 		self.metrics.on_approval_votes(import_result.imported_approval_votes());
 		if import_result.is_freshly_concluded_valid() {
 			gum::info!(
@@ -919,6 +1009,14 @@ impl Initialized {
 		valid: bool,
 		now: Timestamp,
 	) -> Result<()> {
+		gum::trace!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			?session,
+			?valid,
+			?now,
+			"Issuing local statement for candidate!"
+		);
 		// Load environment:
 		let env =
 			match CandidateEnvironment::new(&*self.keystore, &self.rolling_session_window, session)
