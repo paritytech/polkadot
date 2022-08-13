@@ -289,3 +289,73 @@ impl PeerSetProtocolNames {
 		std::iter::once(Self::get_legacy_name(protocol)).collect()
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::{Hash, PeerSet, PeerSetProtocolNames};
+
+	#[test]
+	fn protocol_names_are_correctly_generated() {
+		let genesis_hash = Hash::from([
+			122, 200, 116, 29, 232, 183, 20, 109, 138, 86, 23, 253, 70, 41, 20, 85, 127, 230, 60,
+			38, 90, 127, 28, 16, 231, 218, 227, 40, 88, 238, 187, 128,
+		]);
+		let name = PeerSetProtocolNames::generate_name(&genesis_hash, None, PeerSet::Validation, 3);
+		let expected =
+			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/validation/3";
+		assert_eq!(name, expected);
+
+		let name = PeerSetProtocolNames::generate_name(&genesis_hash, None, PeerSet::Collation, 5);
+		let expected =
+			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/collation/5";
+		assert_eq!(name, expected);
+
+		let fork_id = Some("test-fork");
+		let name =
+			PeerSetProtocolNames::generate_name(&genesis_hash, fork_id, PeerSet::Validation, 7);
+		let expected =
+			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/test-fork/validation/7";
+		assert_eq!(name, expected);
+
+		let name =
+			PeerSetProtocolNames::generate_name(&genesis_hash, fork_id, PeerSet::Collation, 11);
+		let expected =
+			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/test-fork/collation/11";
+		assert_eq!(name, expected);
+	}
+
+	#[test]
+	fn all_protocol_names_are_known() {
+		let genesis_hash = Hash::from([
+			122, 200, 116, 29, 232, 183, 20, 109, 138, 86, 23, 253, 70, 41, 20, 85, 127, 230, 60,
+			38, 90, 127, 28, 16, 231, 218, 227, 40, 88, 238, 187, 128,
+		]);
+		let protocol_names = PeerSetProtocolNames::new(genesis_hash, None);
+
+		let validation_main =
+			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/validation/1";
+		assert_eq!(
+			protocol_names.try_get_protocol(&validation_main.into()),
+			Some((PeerSet::Validation, 1)),
+		);
+
+		let validation_legacy = "/polkadot/validation/1";
+		assert_eq!(
+			protocol_names.try_get_protocol(&validation_legacy.into()),
+			Some((PeerSet::Validation, 1)),
+		);
+
+		let collation_main =
+			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/collation/1";
+		assert_eq!(
+			protocol_names.try_get_protocol(&collation_main.into()),
+			Some((PeerSet::Collation, 1)),
+		);
+
+		let collation_legacy = "/polkadot/collation/1";
+		assert_eq!(
+			protocol_names.try_get_protocol(&collation_legacy.into()),
+			Some((PeerSet::Collation, 1)),
+		);
+	}
+}
