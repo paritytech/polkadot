@@ -1494,6 +1494,7 @@ mod benches {
 		[pallet_ranked_collective, FellowshipCollective]
 		[pallet_recovery, Recovery]
 		[pallet_referenda, Referenda]
+		[pallet_referenda, FellowshipReferenda]
 		[pallet_scheduler, Scheduler]
 		[pallet_session, SessionBench::<Runtime>]
 		[pallet_staking, Staking]
