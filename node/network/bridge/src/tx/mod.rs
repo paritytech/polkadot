@@ -17,7 +17,9 @@
 //! The Network Bridge Subsystem - handles _outgoing_ messages, from subsystem to the network.
 use super::*;
 
-use polkadot_node_network_protocol::{peer_set::PeerSet, v1 as protocol_v1, PeerId, Versioned};
+use polkadot_node_network_protocol::{
+	peer_set::PeerSet, request_response::ReqProtocolNames, v1 as protocol_v1, PeerId, Versioned,
+};
 
 use polkadot_node_subsystem::{
 	errors::SubsystemError, messages::NetworkBridgeTxMessage, overseer, FromOrchestra,
@@ -50,6 +52,7 @@ pub struct NetworkBridgeTx<N, AD> {
 	network_service: N,
 	authority_discovery_service: AD,
 	metrics: Metrics,
+	req_protocol_names: ReqProtocolNames,
 }
 
 impl<N, AD> NetworkBridgeTx<N, AD> {
@@ -57,8 +60,13 @@ impl<N, AD> NetworkBridgeTx<N, AD> {
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`peers_sets_info`](peers_sets_info).
-	pub fn new(network_service: N, authority_discovery_service: AD, metrics: Metrics) -> Self {
-		Self { network_service, authority_discovery_service, metrics }
+	pub fn new(
+		network_service: N,
+		authority_discovery_service: AD,
+		metrics: Metrics,
+		req_protocol_names: ReqProtocolNames,
+	) -> Self {
+		Self { network_service, authority_discovery_service, metrics, req_protocol_names }
 	}
 }
 
@@ -82,6 +90,7 @@ async fn handle_subsystem_messages<Context, N, AD>(
 	mut network_service: N,
 	mut authority_discovery_service: AD,
 	metrics: Metrics,
+	req_protocol_names: ReqProtocolNames,
 ) -> Result<(), Error>
 where
 	N: Network,
@@ -102,6 +111,7 @@ where
 						authority_discovery_service.clone(),
 						msg,
 						&metrics,
+						&req_protocol_names,
 					)
 					.await;
 			},
@@ -117,6 +127,7 @@ async fn handle_incoming_subsystem_communication<Context, N, AD>(
 	mut authority_discovery_service: AD,
 	msg: NetworkBridgeTxMessage,
 	metrics: &Metrics,
+	req_protocol_names: &ReqProtocolNames,
 ) -> (N, AD)
 where
 	N: Network,
@@ -218,7 +229,12 @@ where
 
 			for req in reqs {
 				network_service
-					.start_request(&mut authority_discovery_service, req, if_disconnected)
+					.start_request(
+						&mut authority_discovery_service,
+						req,
+						req_protocol_names,
+						if_disconnected,
+					)
 					.await;
 			}
 		},
@@ -275,9 +291,21 @@ where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone + Sync,
 {
-	let NetworkBridgeTx { network_service, authority_discovery_service, metrics } = bridge;
+	let NetworkBridgeTx {
+		network_service,
+		authority_discovery_service,
+		metrics,
+		req_protocol_names,
+	} = bridge;
 
-	handle_subsystem_messages(ctx, network_service, authority_discovery_service, metrics).await?;
+	handle_subsystem_messages(
+		ctx,
+		network_service,
+		authority_discovery_service,
+		metrics,
+		req_protocol_names,
+	)
+	.await?;
 
 	Ok(())
 }

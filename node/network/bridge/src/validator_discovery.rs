@@ -162,7 +162,10 @@ mod tests {
 
 	use async_trait::async_trait;
 	use futures::stream::BoxStream;
-	use polkadot_node_network_protocol::{request_response::outgoing::Requests, PeerId};
+	use polkadot_node_network_protocol::{
+		request_response::{outgoing::Requests, ReqProtocolNames},
+		PeerId,
+	};
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
 	use sp_keyring::Sr25519Keyring;
 	use std::{
@@ -236,6 +239,7 @@ mod tests {
 			&self,
 			_: &mut AD,
 			_: Requests,
+			_: &ReqProtocolNames,
 			_: IfDisconnected,
 		) {
 		}
