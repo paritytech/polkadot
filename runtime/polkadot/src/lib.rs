@@ -764,8 +764,8 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type VotingBondFactor = VotingBondFactor;
 	type LoserCandidate = Treasury;
 	type KickedMember = Treasury;
-	type MaxVoters = ConstU32<10_000>;
-	type MaxCandidates = ConstU32<1000>;
+	type MaxVoters = sp_runtime::traits::ConstU32<10_000>;
+	type MaxCandidates = sp_runtime::traits::ConstU32<1000>;
 	type DesiredMembers = DesiredMembers;
 	type DesiredRunnersUp = DesiredRunnersUp;
 	type TermDuration = TermDuration;
