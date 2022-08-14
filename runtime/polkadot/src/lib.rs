@@ -1419,7 +1419,7 @@ impl frame_support::traits::OnRuntimeUpgrade for InitiateNominationPools {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		// we use one as an indicator if this has already been set.
 		if pallet_nomination_pools::MaxPools::<Runtime>::get().is_none() {
-			// 1 DOT to join a pool.
+			// 5 DOT to join a pool.
 			pallet_nomination_pools::MinJoinBond::<Runtime>::put(5 * UNITS);
 			// 100 DOT to create a pool.
 			pallet_nomination_pools::MinCreateBond::<Runtime>::put(100 * UNITS);
