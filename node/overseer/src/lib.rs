@@ -467,7 +467,6 @@ pub struct Overseer<SupportsParachains> {
 		StatementDistributionMessage,
 		ProvisionerMessage,
 		RuntimeApiMessage,
-		DisputeCoordinatorMessage,
 	])]
 	candidate_backing: CandidateBacking,
 
@@ -562,13 +561,13 @@ pub struct Overseer<SupportsParachains> {
 	approval_distribution: ApprovalDistribution,
 
 	#[subsystem(blocking, ApprovalVotingMessage, sends: [
-		RuntimeApiMessage,
+		ApprovalDistributionMessage,
+		AvailabilityRecoveryMessage,
+		CandidateValidationMessage,
 		ChainApiMessage,
 		ChainSelectionMessage,
 		DisputeCoordinatorMessage,
-		AvailabilityRecoveryMessage,
-		ApprovalDistributionMessage,
-		CandidateValidationMessage,
+		RuntimeApiMessage,
 	])]
 	approval_voting: ApprovalVoting,
 
