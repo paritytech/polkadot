@@ -99,6 +99,11 @@ mod tests;
 pub const APPROVAL_SESSIONS: SessionWindowSize = new_session_window_size!(6);
 
 const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
+/// How long are we willing to wait for approval signatures?
+///
+/// Value rather arbitrarily: Should not be hit in practice, it exists to more easily diagnose dead
+/// lock issues for example.
+const WAIT_FOR_SIGS_TIMEOUT: Duration = Duration::from_millis(500);
 const APPROVAL_CACHE_SIZE: usize = 1024;
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 const APPROVAL_DELAY: Tick = 2;
@@ -1185,13 +1190,7 @@ async fn handle_from_overseer<Context>(
 			},
 			ApprovalVotingMessage::GetApprovalSignaturesForCandidate(candidate_hash, tx) => {
 				metrics.on_candidate_signatures_request();
-				let votes = get_approval_signatures_for_candidate(ctx, db, candidate_hash).await?;
-				if let Err(_) = tx.send(votes) {
-					gum::debug!(
-						target: LOG_TARGET,
-						"Sending approval signatures back failed, as receiver got closed"
-					);
-				}
+				get_approval_signatures_for_candidate(ctx, db, candidate_hash, tx).await?;
 				Vec::new()
 			},
 		},
@@ -1209,9 +1208,10 @@ async fn get_approval_signatures_for_candidate<Context>(
 	ctx: &mut Context,
 	db: &OverlayedBackend<'_, impl Backend>,
 	candidate_hash: CandidateHash,
-) -> SubsystemResult<HashMap<ValidatorIndex, ValidatorSignature>> {
+	tx: oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
+) -> SubsystemResult<()> {
 	let entry = match db.load_candidate_entry(&candidate_hash)? {
-		None => return Ok(HashMap::new()),
+		None => return Ok(()),
 		Some(e) => e,
 	};
 
@@ -1240,16 +1240,40 @@ async fn get_approval_signatures_for_candidate<Context>(
 		}
 	}
 
-	let (tx, rx) = oneshot::channel();
-	// We should not be sending this message frequently - caller must make sure this is bounded.
-	ctx.send_unbounded_message(ApprovalDistributionMessage::GetApprovalSignatures(
-		candidate_indices,
-		tx,
-	));
+	let mut sender = ctx.sender().clone();
+	let get_approvals = async move {
+		let (tx_distribution, rx_distribution) = oneshot::channel();
+		sender.send_unbounded_message(ApprovalDistributionMessage::GetApprovalSignatures(
+			candidate_indices,
+			tx_distribution,
+		));
 
-	// Because of the unbounded sending and the nature of the call (just fetching data from state),
-	// this should not block long:
-	Ok(rx.await?)
+		// Because of the unbounded sending and the nature of the call (just fetching data from state),
+		// this should not block long:
+		match rx_distribution.timeout(WAIT_FOR_SIGS_TIMEOUT).await {
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					"Waiting for approval signatures timed out - dead lock?"
+				);
+			},
+			Some(Err(_)) => gum::debug!(
+				target: LOG_TARGET,
+				"Request for approval signatures got cancelled by `approval-distribution`."
+			),
+			Some(Ok(votes)) =>
+				if let Err(_) = tx.send(votes) {
+					gum::debug!(
+						target: LOG_TARGET,
+						"Sending approval signatures back failed, as receiver got closed"
+					);
+				},
+		}
+	};
+
+	// No need to block subsystem on this (also required to break cycle).
+	// We should not be sending this message frequently - caller must make sure this is bounded.
+	ctx.spawn("get-approval-signatures", Box::pin(get_approvals))
 }
 
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
