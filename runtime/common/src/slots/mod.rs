@@ -1024,7 +1024,8 @@ mod benchmarking {
 			let amount = T::Currency::minimum_balance();
 			let period_begin = 69u32.into();
 			let period_count = 3u32.into();
-		}: _(RawOrigin::Root, para, leaser.clone(), amount, period_begin, period_count)
+			let origin = T::ForceOrigin::successful_origin();
+		}: _<T::Origin>(origin, para, leaser.clone(), amount, period_begin, period_count)
 		verify {
 			assert_last_event::<T>(Event::<T>::Leased {
 				para_id: para,
