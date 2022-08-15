@@ -195,11 +195,19 @@ impl Initialized {
 		}
 
 		loop {
+			gum::trace!(
+				target: LOG_TARGET,
+				"Waiting for message"
+			);
 			let mut overlay_db = OverlayedBackend::new(backend);
 			let default_confirm = Box::new(|| Ok(()));
 			let confirm_write =
 				match MuxedMessage::receive(ctx, &mut self.participation_receiver).await? {
 					MuxedMessage::Participation(msg) => {
+							gum::trace!(
+								target: LOG_TARGET,
+								"MuxedMessage::Participation"
+							);
 						let ParticipationStatement {
 							session,
 							candidate_hash,
@@ -230,6 +238,10 @@ impl Initialized {
 					MuxedMessage::Subsystem(msg) => match msg {
 						FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
 						FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
+							gum::trace!(
+								target: LOG_TARGET,
+								"OverseerSignal::ActiveLeaves"
+							);
 							self.process_active_leaves_update(
 								ctx,
 								&mut overlay_db,
@@ -240,6 +252,10 @@ impl Initialized {
 							default_confirm
 						},
 						FromOrchestra::Signal(OverseerSignal::BlockFinalized(_, n)) => {
+							gum::trace!(
+								target: LOG_TARGET,
+								"OverseerSignal::BlockFinalized"
+							);
 							self.scraper.process_finalized_block(&n);
 							default_confirm
 						},
@@ -556,7 +572,7 @@ impl Initialized {
 					target: LOG_TARGET,
 					candidate_hash = ?candidate_receipt.hash(),
 					?session,
-					"Handling `ImportStatements`"
+					"DisputeCoordinatorMessage::ImportStatements"
 				);
 				let outcome = self
 					.handle_import_statements(
@@ -587,17 +603,30 @@ impl Initialized {
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 
+				gum::trace!(
+					target: LOG_TARGET,
+					"Loading recent disputes from db"
+				);
 				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
 					disputes
 				} else {
 					BTreeMap::new()
 				};
+				gum::trace!(
+					target: LOG_TARGET,
+					"Loaded recent disputes from db"
+				);
 
 				let _ = tx.send(recent_disputes.keys().cloned().collect());
 			},
 			DisputeCoordinatorMessage::ActiveDisputes(tx) => {
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
+
+				gum::trace!(
+					target: LOG_TARGET,
+					"DisputeCoordinatorMessage::ActiveDisputes"
+				);
 
 				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
 					disputes
@@ -614,6 +643,11 @@ impl Initialized {
 			DisputeCoordinatorMessage::QueryCandidateVotes(query, tx) => {
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
+
+				gum::trace!(
+					target: LOG_TARGET,
+					"DisputeCoordinatorMessage::QueryCandidateVotes"
+				);
 
 				let mut query_output = Vec::new();
 				for (session_index, candidate_hash) in query {
@@ -637,6 +671,11 @@ impl Initialized {
 				candidate_receipt,
 				valid,
 			) => {
+
+				gum::trace!(
+					target: LOG_TARGET,
+					"DisputeCoordinatorMessage::IssueLocalStatement"
+				);
 				self.issue_local_statement(
 					ctx,
 					overlay_db,
@@ -655,6 +694,10 @@ impl Initialized {
 			} => {
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
+				gum::trace!(
+					target: LOG_TARGET,
+					"DisputeCoordinatorMessage::DetermineUndisputedChain"
+				);
 
 				let undisputed_chain = determine_undisputed_chain(
 					overlay_db,
@@ -746,6 +789,13 @@ impl Initialized {
 				},
 		};
 
+		gum::trace!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			?session,
+			"Loaded votes"
+		);
+
 		let import_result = {
 			let intermediate_result = old_state.import_statements(&env, statements);
 
@@ -756,6 +806,12 @@ impl Initialized {
 			if intermediate_result.is_freshly_disputed() ||
 				intermediate_result.is_freshly_concluded()
 			{
+				gum::trace!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					"Requesting approval signatures"
+				);
 				let (tx, rx) = oneshot::channel();
 				// Use of unbounded channes justified because:
 				// 1. Only triggered twice per dispute.
@@ -778,9 +834,23 @@ impl Initialized {
 					Ok(votes) => intermediate_result.import_approval_votes(&env, votes),
 				}
 			} else {
+				gum::trace!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					"Not requested approval signatures"
+				);
 				intermediate_result
 			}
 		};
+
+		gum::trace!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			?session,
+			num_validators = ?env.session_info().validators.len(),
+			"Import result ready"
+		);
 		let new_state = import_result.new_state();
 
 		let is_included = self.scraper.is_candidate_included(&candidate_hash);
