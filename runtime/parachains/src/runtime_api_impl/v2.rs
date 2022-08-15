@@ -404,7 +404,7 @@ where
 pub fn dmq_contents_bounded<T: dmp::Config>(
 	parachain_id: ParaId,
 	start_page: u32,
-	count: u32,
+	page_count: u32,
 ) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-	<dmp::Pallet<T>>::dmq_contents_bounded(parachain_id, start_page, count)
+	<dmp::Pallet<T>>::dmq_contents_bounded(parachain_id, start_page, page_count)
 }

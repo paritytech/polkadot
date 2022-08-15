@@ -224,7 +224,7 @@ pub trait RuntimeApiSubsystemClient {
 		at: Hash,
 		recipient: Id,
 		start_page: u32,
-		count: u32,
+		page_count: u32,
 	) -> Result<Vec<InboundDownwardMessage<BlockNumber>>, ApiError>;
 }
 
@@ -324,10 +324,14 @@ where
 		at: Hash,
 		recipient: Id,
 		start_page: u32,
-		count: u32,
+		page_count: u32,
 	) -> Result<Vec<InboundDownwardMessage<BlockNumber>>, ApiError> {
-		self.runtime_api()
-			.dmq_contents_bounded(&BlockId::Hash(at), recipient, start_page, count)
+		self.runtime_api().dmq_contents_bounded(
+			&BlockId::Hash(at),
+			recipient,
+			start_page,
+			page_count,
+		)
 	}
 
 	async fn inbound_hrmp_channels_contents(

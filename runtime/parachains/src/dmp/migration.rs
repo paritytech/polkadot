@@ -102,6 +102,7 @@ pub mod v1 {
 				})
 				.sum::<u64>();
 
+			// Update current storage version to latest.
 			STORAGE_VERSION.put::<dmp::Pallet<T>>();
 
 			// Remove old queues, but we'll keep the MQC head around until collators receive their node/runtime upgrades.

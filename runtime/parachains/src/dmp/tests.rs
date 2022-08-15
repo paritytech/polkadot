@@ -60,9 +60,9 @@ fn queue_downward_message(
 fn dmq_contents_bounded(
 	para_id: ParaId,
 	start_page: u32,
-	count: u32,
+	page_count: u32,
 ) -> Vec<InboundDownwardMessage<BlockNumber>> {
-	Dmp::dmq_contents_bounded(para_id, start_page, count)
+	Dmp::dmq_contents_bounded(para_id, start_page, page_count)
 }
 
 #[test]

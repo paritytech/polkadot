@@ -163,11 +163,6 @@ pub struct OutboundHrmpMessage<Id> {
 /// possible to represent a sequence of messages using only a single hash.
 ///
 /// A head for an empty chain is agreed to be a zero hash.
-///
-/// An instance is used to track either DMP from the relay chain or HRMP across a channel.
-/// But a given instance is never used to track both. Therefore, you should call either
-/// `extend_downward` or `extend_hrmp`, but not both methods on a single instance.
-///
 /// [hash chain]: https://en.wikipedia.org/wiki/Hash_chain
 #[derive(Default, Clone, Copy, Encode, Decode, scale_info::TypeInfo)]
 pub struct MessageQueueChain(Hash);

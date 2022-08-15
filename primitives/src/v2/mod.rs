@@ -302,7 +302,7 @@ pub mod well_known_keys {
 		})
 	}
 
-	/// Tthe state of the downward message passing queue of a parachain.
+	/// The state of the downward message passing queue of a parachain.
 	/// Storage entry: `Dmp::DownwardMessageQueueState`.
 	/// Value: `QueueState`
 	pub fn dmp_queue_state(para_id: Id) -> Vec<u8> {

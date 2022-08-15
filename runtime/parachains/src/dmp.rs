@@ -328,7 +328,11 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Caller must ensure the indexes return are valid in the context of the `MessageWindow`.
 	#[cfg(test)]
-	fn mqc_head_key_range(para: ParaId, start: WrappingIndex, count: u64) -> Vec<MessageIdx> {
+	fn mqc_head_key_range(
+		para: ParaId,
+		start: WrappingIndex<MessageIndex>,
+		count: u64,
+	) -> Vec<MessageIdx> {
 		let mut keys = Vec::new();
 		let mut idx = start;
 		while idx != start.wrapping_add(count.into()) {
@@ -425,7 +429,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	#[cfg(test)]
-	fn dmq_mqc_head_for_message(para_id: ParaId, message_idx: WrappingIndex) -> Hash {
+	fn dmq_mqc_head_for_message(para_id: ParaId, message_idx: WrappingIndex<MessageIndex>) -> Hash {
 		<Self as Store>::DownwardMessageQueueHeadsById::get(&MessageIdx { para_id, message_idx })
 	}
 
@@ -445,20 +449,20 @@ impl<T: Config> Pallet<T> {
 
 	/// Get a subset of inbound messages from the downward message queue of a parachain.
 	///
-	/// Returns a `vec` containing the messages from the first `count` pages, starting from a `0` based
+	/// Returns a `vec` containing the messages from the first `page_count` pages, starting from a `0` based
 	/// page index specified by `start_page` with `0` being the first used page of the queue. A page
 	/// can hold up to `QUEUE_PAGE_CAPACITY` messages.
 	///
 	/// Only the first and last pages of the queue can have less than maximum messages because insertion and
 	/// pruning work with individual messages.
 	///
-	/// The result will be an empty vector if `count` is 0, the para doesn't exist, it's queue is empty
+	/// The result will be an empty vector if `page_count` is 0, the para doesn't exist, it's queue is empty
 	/// or `start` is greater than the last used page in the queue. If the queue is not empty, the method
-	/// is guaranteed to return at least 1 message and up to `count`*`QUEUE_PAGE_CAPACITY` messages.
+	/// is guaranteed to return at least 1 message and up to `page_count`*`QUEUE_PAGE_CAPACITY` messages.
 	pub(crate) fn dmq_contents_bounded(
 		recipient: ParaId,
 		start_page: u32,
-		count: u32,
+		page_count: u32,
 	) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
 		let state = Self::dmp_queue_state(recipient);
 		let mut ring_buf = RingBuffer::with_state(state.ring_buffer_state, recipient);
@@ -466,11 +470,11 @@ impl<T: Config> Pallet<T> {
 		// Skip first `start` pages.
 		ring_buf.prune(start_page);
 
-		let mut result = Vec::with_capacity((count * QUEUE_PAGE_CAPACITY) as usize);
+		let mut result = Vec::with_capacity((page_count * QUEUE_PAGE_CAPACITY) as usize);
 		let mut pages_fetched = 0;
 
 		for page_idx in ring_buf {
-			if count == pages_fetched {
+			if page_count == pages_fetched {
 				break
 			}
 			result.extend(<Self as Store>::DownwardMessageQueuePages::get(page_idx));
@@ -482,7 +486,11 @@ impl<T: Config> Pallet<T> {
 
 	#[cfg(test)]
 	/// Test utility for generating a sequence of page indexes.
-	fn page_key_range(para_id: ParaId, start: WrappingIndex, count: u64) -> Vec<QueuePageIdx> {
+	fn page_key_range(
+		para_id: ParaId,
+		start: WrappingIndex<PageIndex>,
+		count: u64,
+	) -> Vec<QueuePageIdx> {
 		let mut keys = Vec::new();
 		let mut page_idx = start;
 		while page_idx != start.wrapping_add(count.into()) {

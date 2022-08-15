@@ -25,37 +25,46 @@ use sp_std::prelude::*;
 	Encode, Decode, Default, Clone, Copy, sp_runtime::RuntimeDebug, Eq, PartialEq, TypeInfo,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct WrappingIndex(u64);
+pub struct WrappingIndex<IndexType>(u64, PhantomData<IndexType>);
 
-impl WrappingIndex {
+#[derive(
+	Encode, Decode, Default, Clone, Copy, sp_runtime::RuntimeDebug, Eq, PartialEq, TypeInfo,
+)]
+pub struct PageIndex;
+#[derive(
+	Encode, Decode, Default, Clone, Copy, sp_runtime::RuntimeDebug, Eq, PartialEq, TypeInfo,
+)]
+pub struct MessageIndex;
+
+impl<IndexType> WrappingIndex<IndexType> {
 	/// Wrapping addition between two indexes.
-	pub fn wrapping_add(&self, other: WrappingIndex) -> Self {
-		WrappingIndex(self.0.wrapping_add(other.0))
+	pub fn wrapping_add(&self, other: WrappingIndex<IndexType>) -> Self {
+		WrappingIndex(self.0.wrapping_add(other.0), PhantomData)
 	}
 
 	/// Wrapping substraction between two indexes.
-	pub fn wrapping_sub(&self, other: WrappingIndex) -> Self {
-		WrappingIndex(self.0.wrapping_sub(other.0))
+	pub fn wrapping_sub(&self, other: WrappingIndex<IndexType>) -> Self {
+		WrappingIndex(self.0.wrapping_sub(other.0), PhantomData)
 	}
 
 	/// Wrapping increment.
 	pub fn wrapping_inc(&self) -> Self {
-		WrappingIndex(self.0.wrapping_add(1))
+		WrappingIndex(self.0.wrapping_add(1), PhantomData)
 	}
 
 	/// Wrapping decrement.
 	pub fn wrapping_dec(&self) -> Self {
-		WrappingIndex(self.0.wrapping_sub(1))
+		WrappingIndex(self.0.wrapping_sub(1), PhantomData)
 	}
 }
 
-impl From<u64> for WrappingIndex {
+impl<IndexType> From<u64> for WrappingIndex<IndexType> {
 	fn from(idx: u64) -> Self {
-		WrappingIndex(idx)
+		WrappingIndex(idx, PhantomData)
 	}
 }
 
-impl Into<u64> for WrappingIndex {
+impl<IndexType> Into<u64> for WrappingIndex<IndexType> {
 	fn into(self) -> u64 {
 		self.0
 	}
@@ -68,7 +77,7 @@ pub struct MessageIdx {
 	/// The recipient parachain.
 	pub para_id: ParaId,
 	/// A message index in the recipient parachain queue.
-	pub message_idx: WrappingIndex,
+	pub message_idx: WrappingIndex<MessageIndex>,
 }
 
 /// The key for a queue page of a parachain.
@@ -77,7 +86,7 @@ pub struct QueuePageIdx {
 	/// The recipient parachain.
 	pub para_id: ParaId,
 	/// The page index.
-	pub page_idx: WrappingIndex,
+	pub page_idx: WrappingIndex<PageIndex>,
 }
 
 /// The state of the message window. The message window is used to provide a 1:1 mapping to the
@@ -88,9 +97,9 @@ pub struct QueuePageIdx {
 #[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub struct MessageWindowState {
 	/// The first used index corresponding to first message in the queue.
-	first_message_idx: WrappingIndex,
+	first_message_idx: WrappingIndex<MessageIndex>,
 	/// The first free index.
-	free_message_idx: WrappingIndex,
+	free_message_idx: WrappingIndex<MessageIndex>,
 }
 
 /// The state of the ring buffer that represents the message queue. We only need to keep track
@@ -100,14 +109,17 @@ pub struct MessageWindowState {
 #[derive(Encode, Decode, Default, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub struct RingBufferState {
 	/// The index of the first used page.
-	head_page_idx: WrappingIndex,
+	head_page_idx: WrappingIndex<PageIndex>,
 	/// The index of the first unused page. `tail_page_idx - 1` is the last used page.
-	tail_page_idx: WrappingIndex,
+	tail_page_idx: WrappingIndex<PageIndex>,
 }
 
 #[cfg(test)]
 impl RingBufferState {
-	pub fn new(head_page_idx: WrappingIndex, tail_page_idx: WrappingIndex) -> RingBufferState {
+	pub fn new(
+		head_page_idx: WrappingIndex<PageIndex>,
+		tail_page_idx: WrappingIndex<PageIndex>,
+	) -> RingBufferState {
 		RingBufferState { tail_page_idx, head_page_idx }
 	}
 }
@@ -172,7 +184,7 @@ impl RingBuffer {
 		// Ensure we don't overflow and the head overtakes the tail.
 		let to_prune = sp_std::cmp::min(self.size(), count as u64);
 
-		// Advance tail by `count` elements.
+		// Advance head by `count` pages.
 		self.state.head_page_idx = self.state.head_page_idx.wrapping_add(to_prune.into());
 	}
 
@@ -311,8 +323,8 @@ mod tests {
 	#[should_panic]
 	fn ringbuf_extend_over_capacity() {
 		// This ringbuf will have 2 free pages.
-		let head = WrappingIndex(100);
-		let tail = WrappingIndex(98);
+		let head = WrappingIndex(100, PhantomData);
+		let tail = WrappingIndex(98, PhantomData);
 		let mut rb = RingBuffer::with_state(
 			RingBufferState { head_page_idx: head, tail_page_idx: tail },
 			0.into(),
@@ -371,7 +383,7 @@ mod tests {
 		assert_eq!(rb.front().unwrap().page_idx, 0.into());
 		assert_eq!(rb.last_used().unwrap().page_idx, 1023.into());
 
-		let mut idx = WrappingIndex(0u64);
+		let mut idx = WrappingIndex(0u64, PhantomData);
 
 		while rb.size() > 0 {
 			let page = rb.pop_front().unwrap();
@@ -386,7 +398,7 @@ mod tests {
 
 	#[test]
 	fn ringbuf_extend_loop_then_iterate_wrap_around() {
-		let head = WrappingIndex(0u64).wrapping_sub(512.into());
+		let head = WrappingIndex(0u64, PhantomData).wrapping_sub(512.into());
 		let mut rb = RingBuffer::with_state(
 			RingBufferState { head_page_idx: head, tail_page_idx: head },
 			0.into(),
