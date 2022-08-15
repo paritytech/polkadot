@@ -24,7 +24,9 @@ use polkadot_node_core_av_store::Config as AvailabilityConfig;
 use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig;
 use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
-use polkadot_node_network_protocol::request_response::{v1 as request_v1, IncomingRequestReceiver};
+use polkadot_node_network_protocol::request_response::{
+	v1 as request_v1, IncomingRequestReceiver, ReqProtocolNames,
+};
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::{
 	dummy::{dummy_overseer_builder, DummySubsystem},
@@ -39,6 +41,7 @@ use polkadot_primitives::runtime_api::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::AuxStore;
 use sc_keystore::LocalKeystore;
+use sc_network_common::service::NetworkStateInfo;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_consensus_babe::BabeApi;
@@ -117,6 +120,8 @@ where
 	pub pvf_checker_enabled: bool,
 	/// Overseer channel capacity override.
 	pub overseer_message_channel_capacity_override: Option<usize>,
+	/// Request-response protocol names source.
+	pub req_protocol_names: ReqProtocolNames,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -145,6 +150,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		dispute_coordinator_config,
 		pvf_checker_enabled,
 		overseer_message_channel_capacity_override,
+		req_protocol_names,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
@@ -193,11 +199,13 @@ where
 	let spawner = SpawnGlue(spawner);
 
 	let network_bridge_metrics: NetworkBridgeMetrics = Metrics::register(registry)?;
+
 	let builder = Overseer::builder()
 		.network_bridge_tx(NetworkBridgeTxSubsystem::new(
 			network_service.clone(),
 			authority_discovery_service.clone(),
 			network_bridge_metrics.clone(),
+			req_protocol_names,
 		))
 		.network_bridge_rx(NetworkBridgeRxSubsystem::new(
 			network_service.clone(),
