@@ -619,6 +619,7 @@ check-try-runtime:
       artifacts:                   false
   <<:                              *test-refs
   <<:                              *docker-env
+  <<:                              *compiler-info
   script:
     # Check that everything compiles with `try-runtime` feature flag.
     - cargo check --features try-runtime --all
