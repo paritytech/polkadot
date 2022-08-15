@@ -2276,23 +2276,11 @@ async fn launch_approval<Context>(
 							"Data recovery invalid for candidate {:?}",
 							(candidate_hash, candidate.descriptor.para_id),
 						);
-
-						// We need to send an unbounded message here to break a cycle:
-						// DisputeCoordinatorMessage::IssueLocalStatement ->
-						// ApprovalVotingMessage::GetApprovalSignaturesForCandidate.
-						//
-						// Use of unbounded _should_ be fine here as raising a dispute should be an
-						// exceptional event. Even in case of bugs: There can be no more than
-						// number of slots per block requests every block. Also for sending this
-						// message a full recovery and validation procedure took place, which takes
-						// longer than issuing a local statement + import.
-						sender.send_unbounded_message(
-							DisputeCoordinatorMessage::IssueLocalStatement(
-								session_index,
-								candidate_hash,
-								candidate.clone(),
-								false,
-							),
+						issue_local_invalid_statement(
+							&mut sender,
+							session_index,
+							candidate_hash,
+							candidate.clone(),
 						);
 						metrics_guard.take().on_approval_invalid();
 					},
@@ -2347,14 +2335,12 @@ async fn launch_approval<Context>(
 					return ApprovalState::approved(validator_index, candidate_hash)
 				} else {
 					// Commitments mismatch - issue a dispute.
-					sender
-						.send_message(DisputeCoordinatorMessage::IssueLocalStatement(
-							session_index,
-							candidate_hash,
-							candidate.clone(),
-							false,
-						))
-						.await;
+					issue_local_invalid_statement(
+						&mut sender,
+						session_index,
+						candidate_hash,
+						candidate.clone(),
+					);
 
 					metrics_guard.take().on_approval_invalid();
 					return ApprovalState::failed(validator_index, candidate_hash)
@@ -2369,14 +2355,12 @@ async fn launch_approval<Context>(
 					"Detected invalid candidate as an approval checker.",
 				);
 
-				sender
-					.send_message(DisputeCoordinatorMessage::IssueLocalStatement(
-						session_index,
-						candidate_hash,
-						candidate.clone(),
-						false,
-					))
-					.await;
+				issue_local_invalid_statement(
+					&mut sender,
+					session_index,
+					candidate_hash,
+					candidate.clone(),
+				);
 
 				metrics_guard.take().on_approval_invalid();
 				return ApprovalState::failed(validator_index, candidate_hash)
@@ -2556,4 +2540,30 @@ fn sign_approval(
 	let payload = ApprovalVote(candidate_hash).signing_payload(session_index);
 
 	Some(key.sign(&payload[..]))
+}
+
+/// Send `IssueLocalStatement` to dispute-coordinator.
+fn issue_local_invalid_statement<Sender>(
+	sender: &mut Sender,
+	session_index: SessionIndex,
+	candidate_hash: CandidateHash,
+	candidate: CandidateReceipt,
+) where
+	Sender: overseer::ApprovalVotingSenderTrait,
+{
+	// We need to send an unbounded message here to break a cycle:
+	// DisputeCoordinatorMessage::IssueLocalStatement ->
+	// ApprovalVotingMessage::GetApprovalSignaturesForCandidate.
+	//
+	// Use of unbounded _should_ be fine here as raising a dispute should be an
+	// exceptional event. Even in case of bugs: There can be no more than
+	// number of slots per block requests every block. Also for sending this
+	// message a full recovery and validation procedure took place, which takes
+	// longer than issuing a local statement + import.
+	sender.send_unbounded_message(DisputeCoordinatorMessage::IssueLocalStatement(
+		session_index,
+		candidate_hash,
+		candidate.clone(),
+		false,
+	));
 }
