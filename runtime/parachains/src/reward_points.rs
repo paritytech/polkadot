@@ -29,7 +29,7 @@ use sp_std::collections::btree_set::BTreeSet;
 /// The amount of era points given by backing a candidate that is included.
 pub const BACKING_POINTS: u32 = 20;
 /// The amount of era points given by dispute voting on a candidate.
-pub const DISPUTE_STATEMENT_POINTS: u32 = 15;
+pub const DISPUTE_STATEMENT_POINTS: u32 = 20;
 
 /// Rewards validators for participating in parachains with era points in pallet-staking.
 pub struct RewardValidatorsWithEraPoints<C>(sp_std::marker::PhantomData<C>);
