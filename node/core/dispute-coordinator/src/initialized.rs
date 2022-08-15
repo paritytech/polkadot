@@ -780,13 +780,16 @@ impl Initialized {
 					"Requesting approval signatures"
 				);
 				let (tx, rx) = oneshot::channel();
-				// Use of unbounded channes justified because:
+				// Use of unbounded channels justified because:
 				// 1. Only triggered twice per dispute.
 				// 2. Raising a dispute is costly (requires validation + recovery) by honest nodes,
 				// dishonest nodes are limited by spam slots.
 				// 3. Concluding a dispute is even more costly.
 				// Therefore it is reasonable to expect a simple vote request to succeed way faster
 				// than disputes are raised.
+				// 4. We are waiting (and blocking the whole subsystem) on a response right after -
+				// therefore even with all else failing we will never have more than
+				// one message in flight at any given time.
 				ctx.send_unbounded_message(
 					ApprovalVotingMessage::GetApprovalSignaturesForCandidate(candidate_hash, tx),
 				);
