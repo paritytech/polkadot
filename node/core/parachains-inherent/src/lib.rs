@@ -97,7 +97,7 @@ impl ParachainsInherentDataProvider {
 			Err(err) => {
 				gum::debug!(
 					target: LOG_TARGET,
-					?err,
+					%err,
 					"Could not get provisioner inherent data; injecting default data",
 				);
 				ParachainsInherentData {
