@@ -619,11 +619,6 @@ check-try-runtime:
       artifacts:                   false
   <<:                              *test-refs
   <<:                              *docker-env
-  <<:                              *pipeline-stopper-artifacts
-  before_script:
-    - rustup show
-    - cargo --version
-    - *pipeline-stopper-vars
   script:
     # Check that everything compiles with `try-runtime` feature flag.
     - cargo check --features try-runtime --all
@@ -1010,7 +1005,3 @@ cancel-pipeline-test-linux-stable:
   needs:
     - job:                         test-linux-stable
 
-cancel-pipeline-check-try-runtime:
-  extends:                         .cancel-pipeline-template
-  needs:
-    - job:                         check-try-runtime
