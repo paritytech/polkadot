@@ -44,8 +44,8 @@ use primitives::v2::{
 };
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, elections::OnChainAccuracy, impl_runtime_weights,
-	impls::ToAuthor, paras_registrar, paras_sudo_wrapper, prod_or_fast, slots, BlockHashCount,
-	BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
+	impls::ToAuthor, paras_registrar, paras_sudo_wrapper, prod_or_fast, slots, BalanceToU256,
+	BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate, U256ToBalance,
 };
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
@@ -1015,20 +1015,6 @@ impl auctions::Config for Runtime {
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
-pub struct BalanceToU256;
-impl sp_runtime::traits::Convert<Balance, sp_core::U256> for BalanceToU256 {
-	fn convert(n: Balance) -> sp_core::U256 {
-		n.into()
-	}
-}
-pub struct U256ToBalance;
-impl sp_runtime::traits::Convert<sp_core::U256, Balance> for U256ToBalance {
-	fn convert(n: sp_core::U256) -> Balance {
-		use frame_support::traits::Defensive;
-		n.try_into().defensive_unwrap_or(Balance::MAX)
-	}
-}
-
 parameter_types! {
 	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
 	pub const MaxPointsToBalance: u8 = 10;
@@ -1757,5 +1743,40 @@ sp_api::impl_runtime_apis! {
 
 			Ok(batches)
 		}
+	}
+}
+
+#[cfg(all(test, feature = "try-runtime"))]
+mod remote_tests {
+	use super::*;
+	use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
+	use remote_externalities::{
+		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
+	};
+	use std::env::var;
+
+	#[tokio::test]
+	async fn run_migrations() {
+		sp_tracing::try_init_simple();
+		let transport: Transport =
+			var("WS").unwrap_or("wss://westend-rpc.polkadot.io:443".to_string()).into();
+		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
+		let mut ext = Builder::<Block>::default()
+			.mode(if let Some(state_snapshot) = maybe_state_snapshot {
+				Mode::OfflineOrElseOnline(
+					OfflineConfig { state_snapshot: state_snapshot.clone() },
+					OnlineConfig {
+						transport,
+						state_snapshot: Some(state_snapshot),
+						..Default::default()
+					},
+				)
+			} else {
+				Mode::Online(OnlineConfig { transport, ..Default::default() })
+			})
+			.build()
+			.await
+			.unwrap();
+		ext.execute_with(|| Runtime::on_runtime_upgrade());
 	}
 }

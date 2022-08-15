@@ -71,7 +71,7 @@ use sp_runtime::{
 		OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, KeyTypeId, Perbill, Percent, Permill,
+	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill, Percent, Permill,
 };
 use sp_staking::SessionIndex;
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
@@ -183,7 +183,8 @@ impl Contains<Call> for BaseFilter {
 			Call::Auctions(_) |
 			Call::Crowdloan(_) |
 			Call::VoterList(_) |
-			Call::XcmPallet(_) => true,
+			Call::XcmPallet(_) |
+			Call::NominationPools(_) => true,
 			// All pallets are allowed, but exhaustive match is defensive
 			// in the case of adding new pallets.
 		}
@@ -613,7 +614,7 @@ impl pallet_staking::Config for Runtime {
 	type VoterList = VoterList;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
-	type OnStakerSlash = ();
+	type OnStakerSlash = NominationPools;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -746,6 +747,8 @@ parameter_types! {
 	/// 13 members initially, to be increased to 23 eventually.
 	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 20;
+	pub const MaxVoters: u32 = 10 * 1000;
+	pub const MaxCandidates: u32 = 1000;
 	pub const PhragmenElectionPalletId: LockIdentifier = *b"phrelect";
 }
 // Make sure that there are no more than `MaxMembers` members elected via phragmen.
@@ -766,6 +769,8 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type DesiredMembers = DesiredMembers;
 	type DesiredRunnersUp = DesiredRunnersUp;
 	type TermDuration = TermDuration;
+	type MaxVoters = MaxVoters;
+	type MaxCandidates = MaxCandidates;
 	type WeightInfo = weights::pallet_elections_phragmen::WeightInfo<Runtime>;
 }
 
@@ -1180,7 +1185,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
 				Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
-				Call::VoterList(..)
+				Call::VoterList(..) |
+				Call::NominationPools(..)
 			),
 			ProxyType::Governance => matches!(
 				c,
@@ -1389,6 +1395,53 @@ impl auctions::Config for Runtime {
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
+parameter_types! {
+	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
+	// Allow pools that got slashed up to 90% to remain operational.
+	pub const MaxPointsToBalance: u8 = 10;
+}
+
+impl pallet_nomination_pools::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type CurrencyBalance = Balance;
+	type RewardCounter = FixedU128;
+	type BalanceToU256 = runtime_common::BalanceToU256;
+	type U256ToBalance = runtime_common::U256ToBalance;
+	type StakingInterface = Staking;
+	type PostUnbondingPoolsWindow = frame_support::traits::ConstU32<4>;
+	type MaxMetadataLen = frame_support::traits::ConstU32<256>;
+	// we use the same number of allowed unlocking chunks as with staking.
+	type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
+	type PalletId = PoolsPalletId;
+	type MaxPointsToBalance = MaxPointsToBalance;
+	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
+}
+
+pub struct InitiateNominationPools;
+impl frame_support::traits::OnRuntimeUpgrade for InitiateNominationPools {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		// we use one as an indicator if this has already been set.
+		if pallet_nomination_pools::MaxPools::<Runtime>::get().is_none() {
+			// 5 DOT to join a pool.
+			pallet_nomination_pools::MinJoinBond::<Runtime>::put(5 * UNITS);
+			// 100 DOT to create a pool.
+			pallet_nomination_pools::MinCreateBond::<Runtime>::put(100 * UNITS);
+
+			// Initialize with limits for now.
+			pallet_nomination_pools::MaxPools::<Runtime>::put(0);
+			pallet_nomination_pools::MaxPoolMembersPerPool::<Runtime>::put(0);
+			pallet_nomination_pools::MaxPoolMembers::<Runtime>::put(0);
+
+			log::info!(target: "runtime::polkadot", "pools config initiated 🎉");
+			<Runtime as frame_system::Config>::DbWeight::get().reads_writes(1, 5)
+		} else {
+			log::info!(target: "runtime::polkadot", "pools config already initiated 😏");
+			<Runtime as frame_system::Config>::DbWeight::get().reads(1)
+		}
+	}
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1458,6 +1511,9 @@ construct_runtime! {
 		// Provides a semi-sorted list of nominators for staking.
 		VoterList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
 
+		// nomination pools: extension to staking.
+		NominationPools: pallet_nomination_pools::{Pallet, Call, Storage, Event<T>, Config<T>} = 39,
+
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 51,
@@ -1515,7 +1571,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	pallet_staking::migrations::v10::MigrateToV10<Runtime>,
+	(pallet_staking::migrations::v10::MigrateToV10<Runtime>, InitiateNominationPools),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1558,6 +1614,7 @@ mod benches {
 		[pallet_indices, Indices]
 		[pallet_membership, TechnicalMembership]
 		[pallet_multisig, Multisig]
+		[pallet_nomination_pools, NominationPoolsBench::<Runtime>]
 		[pallet_offences, OffencesBench::<Runtime>]
 		[pallet_preimage, Preimage]
 		[pallet_proxy, Proxy]
@@ -1949,6 +2006,7 @@ sp_api::impl_runtime_apis! {
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
+			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 
@@ -1971,6 +2029,7 @@ sp_api::impl_runtime_apis! {
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
+			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 
@@ -1979,6 +2038,7 @@ sp_api::impl_runtime_apis! {
 			impl pallet_election_provider_support_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl frame_benchmarking::baseline::Config for Runtime {}
+			impl pallet_nomination_pools_benchmarking::Config for Runtime {}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number
@@ -2314,5 +2374,40 @@ mod multiplier_tests {
 			});
 			blocks += 1;
 		}
+	}
+}
+
+#[cfg(all(test, feature = "try-runtime"))]
+mod remote_tests {
+	use super::*;
+	use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
+	use remote_externalities::{
+		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
+	};
+	use std::env::var;
+
+	#[tokio::test]
+	async fn run_migrations() {
+		sp_tracing::try_init_simple();
+		let transport: Transport =
+			var("WS").unwrap_or("wss://rpc.polkadot.io:443".to_string()).into();
+		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
+		let mut ext = Builder::<Block>::default()
+			.mode(if let Some(state_snapshot) = maybe_state_snapshot {
+				Mode::OfflineOrElseOnline(
+					OfflineConfig { state_snapshot: state_snapshot.clone() },
+					OnlineConfig {
+						transport,
+						state_snapshot: Some(state_snapshot),
+						..Default::default()
+					},
+				)
+			} else {
+				Mode::Online(OnlineConfig { transport, ..Default::default() })
+			})
+			.build()
+			.await
+			.unwrap();
+		ext.execute_with(|| Runtime::on_runtime_upgrade());
 	}
 }
