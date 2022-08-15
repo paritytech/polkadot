@@ -22,7 +22,7 @@
 //! In particular there is `CandidateVoteState` which tells what can be concluded for a particular set of
 //! votes. E.g. whether a dispute is ongoing, whether it is confirmed, concluded, ..
 //!
-//! Then there is `ImportResult` which reveals informatiom about what changed once additional votes
+//! Then there is `ImportResult` which reveals information about what changed once additional votes
 //! got imported on top of an existing `CandidateVoteState` and reveals "dynamic" information, like whether
 //! due to the import a dispute was raised/got confirmed, ...
 
