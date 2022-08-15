@@ -195,19 +195,13 @@ impl Initialized {
 		}
 
 		loop {
-			gum::trace!(
-				target: LOG_TARGET,
-				"Waiting for message"
-			);
+			gum::trace!(target: LOG_TARGET, "Waiting for message");
 			let mut overlay_db = OverlayedBackend::new(backend);
 			let default_confirm = Box::new(|| Ok(()));
 			let confirm_write =
 				match MuxedMessage::receive(ctx, &mut self.participation_receiver).await? {
 					MuxedMessage::Participation(msg) => {
-							gum::trace!(
-								target: LOG_TARGET,
-								"MuxedMessage::Participation"
-							);
+						gum::trace!(target: LOG_TARGET, "MuxedMessage::Participation");
 						let ParticipationStatement {
 							session,
 							candidate_hash,
@@ -238,10 +232,7 @@ impl Initialized {
 					MuxedMessage::Subsystem(msg) => match msg {
 						FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
 						FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
-							gum::trace!(
-								target: LOG_TARGET,
-								"OverseerSignal::ActiveLeaves"
-							);
+							gum::trace!(target: LOG_TARGET, "OverseerSignal::ActiveLeaves");
 							self.process_active_leaves_update(
 								ctx,
 								&mut overlay_db,
@@ -252,10 +243,7 @@ impl Initialized {
 							default_confirm
 						},
 						FromOrchestra::Signal(OverseerSignal::BlockFinalized(_, n)) => {
-							gum::trace!(
-								target: LOG_TARGET,
-								"OverseerSignal::BlockFinalized"
-							);
+							gum::trace!(target: LOG_TARGET, "OverseerSignal::BlockFinalized");
 							self.scraper.process_finalized_block(&n);
 							default_confirm
 						},
@@ -603,19 +591,13 @@ impl Initialized {
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 
-				gum::trace!(
-					target: LOG_TARGET,
-					"Loading recent disputes from db"
-				);
+				gum::trace!(target: LOG_TARGET, "Loading recent disputes from db");
 				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
 					disputes
 				} else {
 					BTreeMap::new()
 				};
-				gum::trace!(
-					target: LOG_TARGET,
-					"Loaded recent disputes from db"
-				);
+				gum::trace!(target: LOG_TARGET, "Loaded recent disputes from db");
 
 				let _ = tx.send(recent_disputes.keys().cloned().collect());
 			},
@@ -623,10 +605,7 @@ impl Initialized {
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 
-				gum::trace!(
-					target: LOG_TARGET,
-					"DisputeCoordinatorMessage::ActiveDisputes"
-				);
+				gum::trace!(target: LOG_TARGET, "DisputeCoordinatorMessage::ActiveDisputes");
 
 				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
 					disputes
@@ -644,10 +623,7 @@ impl Initialized {
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 
-				gum::trace!(
-					target: LOG_TARGET,
-					"DisputeCoordinatorMessage::QueryCandidateVotes"
-				);
+				gum::trace!(target: LOG_TARGET, "DisputeCoordinatorMessage::QueryCandidateVotes");
 
 				let mut query_output = Vec::new();
 				for (session_index, candidate_hash) in query {
@@ -671,11 +647,7 @@ impl Initialized {
 				candidate_receipt,
 				valid,
 			) => {
-
-				gum::trace!(
-					target: LOG_TARGET,
-					"DisputeCoordinatorMessage::IssueLocalStatement"
-				);
+				gum::trace!(target: LOG_TARGET, "DisputeCoordinatorMessage::IssueLocalStatement");
 				self.issue_local_statement(
 					ctx,
 					overlay_db,
@@ -789,12 +761,7 @@ impl Initialized {
 				},
 		};
 
-		gum::trace!(
-			target: LOG_TARGET,
-			?candidate_hash,
-			?session,
-			"Loaded votes"
-		);
+		gum::trace!(target: LOG_TARGET, ?candidate_hash, ?session, "Loaded votes");
 
 		let import_result = {
 			let intermediate_result = old_state.import_statements(&env, statements);

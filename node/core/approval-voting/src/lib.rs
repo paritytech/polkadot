@@ -2286,13 +2286,14 @@ async fn launch_approval<Context>(
 						// number of slots per block requests every block. Also for sending this
 						// message a full recovery and validation procedure took place, which takes
 						// longer than issuing a local statement + import.
-						sender
-							.send_unbounded_message(DisputeCoordinatorMessage::IssueLocalStatement(
+						sender.send_unbounded_message(
+							DisputeCoordinatorMessage::IssueLocalStatement(
 								session_index,
 								candidate_hash,
 								candidate.clone(),
 								false,
-							));
+							),
+						);
 						metrics_guard.take().on_approval_invalid();
 					},
 				}
