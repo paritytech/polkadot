@@ -2277,14 +2277,22 @@ async fn launch_approval<Context>(
 							(candidate_hash, candidate.descriptor.para_id),
 						);
 
+						// We need to send an unbounded message here to break a cycle:
+						// DisputeCoordinatorMessage::IssueLocalStatement ->
+						// ApprovalVotingMessage::GetApprovalSignaturesForCandidate.
+						//
+						// Use of unbounded _should_ be fine here as raising a dispute should be an
+						// exceptional event. Even in case of bugs: There can be no more than
+						// number of slots per block requests every block. Also for sending this
+						// message a full recovery and validation procedure took place, which takes
+						// longer than issuing a local statement + import.
 						sender
-							.send_message(DisputeCoordinatorMessage::IssueLocalStatement(
+							.send_unbounded_message(DisputeCoordinatorMessage::IssueLocalStatement(
 								session_index,
 								candidate_hash,
 								candidate.clone(),
 								false,
-							))
-							.await;
+							));
 						metrics_guard.take().on_approval_invalid();
 					},
 				}
