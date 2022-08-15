@@ -626,7 +626,6 @@ check-try-runtime:
     - *pipeline-stopper-vars
   script:
     # Check that everything compiles with `try-runtime` feature flag.
-    - exit 1
     - cargo check --features try-runtime --all
 
 check-no-default-features:
