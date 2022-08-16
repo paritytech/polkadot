@@ -58,7 +58,7 @@ const COST_INVALID_SIGNATURE: Rep = Rep::Malicious("Signatures were invalid.");
 const COST_INVALID_CANDIDATE: Rep = Rep::Malicious("Reported candidate was not available.");
 const COST_NOT_A_VALIDATOR: Rep = Rep::CostMajor("Reporting peer was not a validator.");
 
-/// How many statement imports we want to issue in parallel:
+/// How many statement imports we want to issue in parallel (for different candidates):
 pub const MAX_PARALLEL_IMPORTS: usize = 10;
 
 /// State for handling incoming `DisputeRequest` messages.

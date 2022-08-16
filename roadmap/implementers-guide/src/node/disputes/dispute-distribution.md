@@ -192,10 +192,7 @@ Considered attack vectors:
    won't be able to import any valid disputes and we could run out of resources,
    if we tried to process them all in parallel.
 
-For tackling 1, we make sure to not occupy resources before we don't know a
-candidate is available. So we will not record statements to disk until we
-recovered availability for the candidate or know by some other means that the
-dispute is legit.
+1 is handled by the dispute-coordinator.
 
 For 2, we will pick up on any dispute on restart, so assuming that any realistic
 memory filling attack will take some time, we should be able to participate in a
@@ -209,11 +206,10 @@ substrate handles incoming requests in a somewhat fair way. Still we want some
 defense mechanisms, at the very least we need to make sure to not exhaust
 resources.
 
-The dispute coordinator will notify us on import about unavailable candidates or
+The dispute coordinator will notify us on import about problematic candidates or
 otherwise invalid imports and we can disconnect from such peers/decrease their
 reputation drastically. This alone should get us quite far with regards to queue
-monopolization, as availability recovery is expected to fail relatively quickly
-for unavailable data.
+monopolization.
 
 Still if those spam messages come at a very high rate, we might still run out of
 resources if we immediately call `DisputeCoordinatorMessage::ImportStatements`
@@ -267,6 +263,20 @@ of lots of spam requests sitting there wasting our time, even after we already
 blocked a peer. For valid disputes, incoming requests can become bursty. On the
 other hand we will also be very quick in processing them. A channel size of 100
 requests seems plenty and should be able to handle bursts adequately.
+
+### Import Performance Considerations
+
+The dispute coordinator is not optimized for importing votes individually and
+will expose very bad import performance in that case. Therefore we will batch
+together votes over some time and import votes in batches.
+
+To trigger participation immediately, we will always import the very first
+message for a candidate immediately, but we will keep a record that we have
+started an import for that candidate and will batch up more votes for that
+candidate over some time and then import them all at once.
+
+If we ignore duplicate votes, even if imports keep trickling in - it is bounded,
+because at some point all validators have voted.
 
 ### Node Startup
 
