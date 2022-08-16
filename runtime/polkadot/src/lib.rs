@@ -37,7 +37,7 @@ use runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
-use frame_election_provider_support::{generate_solution_type, onchain, SequentialPhragmen};
+use frame_election_provider_support::{generate_solution_type, onchain, Get, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
@@ -653,6 +653,14 @@ parameter_types! {
 	pub const InstantAllowed: bool = true;
 	pub const MaxVotes: u32 = 100;
 	pub const MaxProposals: u32 = 100;
+	pub const DemocracyId: LockIdentifier = *b"democrac";
+}
+
+pub struct RootOrigin;
+impl Get<Origin> for RootOrigin {
+	fn get() -> Origin {
+		frame_system::RawOrigin::Root.into()
+	}
 }
 
 impl pallet_democracy::Config for Runtime {
@@ -716,6 +724,10 @@ impl pallet_democracy::Config for Runtime {
 	type MaxVotes = MaxVotes;
 	type WeightInfo = weights::pallet_democracy::WeightInfo<Runtime>;
 	type MaxProposals = MaxProposals;
+	type EnsureRoot = EnsureRoot<AccountId>;
+	type DemocracyId = DemocracyId;
+	type Origin = Origin;
+	type ProtocolRoot = RootOrigin;
 }
 
 parameter_types! {
