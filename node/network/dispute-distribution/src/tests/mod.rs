@@ -274,16 +274,19 @@ fn disputes_are_recovered_at_startup() {
 				let unchecked: UncheckedDisputeMessage = message.into();
 				tx.send(vec![(session_index, candidate_hash, CandidateVotes {
 					candidate_receipt: candidate,
-					valid: vec![(
-						unchecked.valid_vote.kind,
+					valid: [(
 						unchecked.valid_vote.validator_index,
+						(unchecked.valid_vote.kind,
 						unchecked.valid_vote.signature
-					)],
-					invalid: vec![(
-						unchecked.invalid_vote.kind,
+						),
+					)].into_iter().collect(),
+					invalid: [(
 						unchecked.invalid_vote.validator_index,
+						(
+						unchecked.invalid_vote.kind,
 						unchecked.invalid_vote.signature
-					)],
+						),
+					)].into_iter().collect(),
 				})])
 				.expect("Receiver should stay alive.");
 			}
@@ -522,16 +525,15 @@ async fn nested_network_dispute_request<'a, F, O>(
 		handle.recv().await,
 		AllMessages::DisputeCoordinator(
 			DisputeCoordinatorMessage::ImportStatements {
-				candidate_hash,
 				candidate_receipt,
 				session,
 				statements,
 				pending_confirmation: Some(pending_confirmation),
 			}
 		) => {
+			let candidate_hash = candidate_receipt.hash();
 			assert_eq!(session, MOCK_SESSION_INDEX);
 			assert_eq!(candidate_hash, message.0.candidate_receipt.hash());
-			assert_eq!(candidate_hash, candidate_receipt.hash());
 			assert_eq!(statements.len(), 2);
 			pending_confirmation
 		}

@@ -35,7 +35,9 @@ use polkadot_node_subsystem::{
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
 	PerLeafSpan, SpawnedSubsystem, SubsystemError,
 };
-use polkadot_node_subsystem_util::{request_availability_cores, request_persisted_validation_data};
+use polkadot_node_subsystem_util::{
+	request_availability_cores, request_persisted_validation_data, TimeoutExt,
+};
 use polkadot_primitives::v2::{
 	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeState,
 	DisputeStatement, DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption,
@@ -55,6 +57,8 @@ mod tests;
 
 /// How long to wait before proposing.
 const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(2000);
+/// Some timeout to ensure task won't hang around in the background forever on issues.
+const SEND_INHERENT_DATA_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(500);
 
 const LOG_TARGET: &str = "parachain::provisioner";
 
@@ -153,6 +157,12 @@ async fn run_iteration<Context>(
 				if let Some(state) = per_relay_parent.get_mut(&hash) {
 					state.is_inherent_ready = true;
 
+					gum::trace!(
+						target: LOG_TARGET,
+						relay_parent = ?hash,
+						"Inherent Data became ready"
+					);
+
 					let return_senders = std::mem::take(&mut state.awaiting_inherent);
 					if !return_senders.is_empty() {
 						send_inherent_data_bg(ctx, &state, return_senders, metrics.clone()).await?;
@@ -188,11 +198,19 @@ async fn handle_communication<Context>(
 ) -> Result<(), Error> {
 	match message {
 		ProvisionerMessage::RequestInherentData(relay_parent, return_sender) => {
+			gum::trace!(target: LOG_TARGET, ?relay_parent, "Inherent data got requested.");
+
 			if let Some(state) = per_relay_parent.get_mut(&relay_parent) {
 				if state.is_inherent_ready {
+					gum::trace!(target: LOG_TARGET, ?relay_parent, "Calling send_inherent_data.");
 					send_inherent_data_bg(ctx, &state, vec![return_sender], metrics.clone())
 						.await?;
 				} else {
+					gum::trace!(
+						target: LOG_TARGET,
+						?relay_parent,
+						"Queuing inherent data request (inherent data not yet ready)."
+					);
 					state.awaiting_inherent.push(return_sender);
 				}
 			}
@@ -201,6 +219,8 @@ async fn handle_communication<Context>(
 			if let Some(state) = per_relay_parent.get_mut(&relay_parent) {
 				let span = state.span.child("provisionable-data");
 				let _timer = metrics.time_provisionable_data();
+
+				gum::trace!(target: LOG_TARGET, ?relay_parent, "Received provisionable data.");
 
 				note_provisionable_data(state, &span, data);
 			}
@@ -228,28 +248,42 @@ async fn send_inherent_data_bg<Context>(
 		let _span = span;
 		let _timer = metrics.time_request_inherent_data();
 
-		if let Err(err) = send_inherent_data(
+		gum::trace!(
+			target: LOG_TARGET,
+			relay_parent = ?leaf.hash,
+			"Sending inherent data in background."
+		);
+
+		let send_result = send_inherent_data(
 			&leaf,
 			&signed_bitfields,
 			&backed_candidates,
 			return_senders,
 			&mut sender,
 			&metrics,
-		)
-		.await
-		{
-			gum::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
-			metrics.on_inherent_data_request(Err(()));
-		} else {
-			metrics.on_inherent_data_request(Ok(()));
-			gum::debug!(
-				target: LOG_TARGET,
-				signed_bitfield_count = signed_bitfields.len(),
-				backed_candidates_count = backed_candidates.len(),
-				leaf_hash = ?leaf.hash,
-				"inherent data sent successfully"
-			);
-			metrics.observe_inherent_data_bitfields_count(signed_bitfields.len());
+		) // Make sure call is not taking forever:
+		.timeout(SEND_INHERENT_DATA_TIMEOUT)
+		.map(|v| match v {
+			Some(r) => r,
+			None => Err(Error::SendInherentDataTimeout),
+		});
+
+		match send_result.await {
+			Err(err) => {
+				gum::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
+				metrics.on_inherent_data_request(Err(()));
+			},
+			Ok(()) => {
+				metrics.on_inherent_data_request(Ok(()));
+				gum::debug!(
+					target: LOG_TARGET,
+					signed_bitfield_count = signed_bitfields.len(),
+					backed_candidates_count = backed_candidates.len(),
+					leaf_hash = ?leaf.hash,
+					"inherent data sent successfully"
+				);
+				metrics.observe_inherent_data_bitfields_count(signed_bitfields.len());
+			},
 		}
 	};
 
@@ -312,12 +346,27 @@ async fn send_inherent_data(
 	from_job: &mut impl overseer::ProvisionerSenderTrait,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Requesting availability cores"
+	);
 	let availability_cores = request_availability_cores(leaf.hash, from_job)
 		.await
 		.await
 		.map_err(|err| Error::CanceledAvailabilityCores(err))??;
 
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Selecting disputes"
+	);
 	let disputes = select_disputes(from_job, metrics, leaf).await?;
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Selected disputes"
+	);
 
 	// Only include bitfields on fresh leaves. On chain reversions, we want to make sure that
 	// there will be at least one block, which cannot get disputed, so the chain can make progress.
@@ -326,8 +375,20 @@ async fn send_inherent_data(
 			select_availability_bitfields(&availability_cores, bitfields, &leaf.hash),
 		LeafStatus::Stale => Vec::new(),
 	};
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Selected bitfields"
+	);
 	let candidates =
 		select_candidates(&availability_cores, &bitfields, candidates, leaf.hash, from_job).await?;
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Selected candidates"
+	);
 
 	gum::debug!(
 		target: LOG_TARGET,
@@ -341,6 +402,12 @@ async fn send_inherent_data(
 
 	let inherent_data =
 		ProvisionerInherentData { bitfields, backed_candidates: candidates, disputes };
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Sending back inherent data to requesters."
+	);
 
 	for return_sender in return_senders {
 		return_sender
@@ -765,6 +832,12 @@ async fn select_disputes(
 			active
 		};
 
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?_leaf.hash,
+		"Request recent disputes"
+	);
+
 	// We use `RecentDisputes` instead of `ActiveDisputes` because redundancy is fine.
 	// It's heavier than `ActiveDisputes` but ensures that everything from the dispute
 	// window gets on-chain, unlike `ActiveDisputes`.
@@ -772,6 +845,18 @@ async fn select_disputes(
 	// upper bound of disputes to pass to wasm `fn create_inherent_data`.
 	// If the active ones are already exceeding the bounds, randomly select a subset.
 	let recent = request_disputes(sender, RequestType::Recent).await;
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_paent = ?_leaf.hash,
+		"Received recent disputes"
+	);
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_paent = ?_leaf.hash,
+		"Request on chain disputes"
+	);
 
 	// On chain disputes are fetched from the runtime. We want to prioritise the inclusion of unknown
 	// disputes in the inherent data. The call relies on staging Runtime API. If the staging API is not
@@ -787,6 +872,18 @@ async fn select_disputes(
 			HashMap::new()
 		},
 	};
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_paent = ?_leaf.hash,
+		"Received on chain disputes"
+	);
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_paent = ?_leaf.hash,
+		"Filtering disputes"
+	);
 
 	let disputes = if recent.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
 		gum::warn!(
@@ -805,20 +902,34 @@ async fn select_disputes(
 		recent
 	};
 
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_paent = ?_leaf.hash,
+		"Calling `request_votes`"
+	);
+
 	// Load all votes for all disputes from the coordinator.
 	let dispute_candidate_votes = request_votes(sender, disputes).await;
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_paent = ?_leaf.hash,
+		"Finished `request_votes`"
+	);
 
 	// Transform all `CandidateVotes` into `MultiDisputeStatementSet`.
 	Ok(dispute_candidate_votes
 		.into_iter()
 		.map(|(session_index, candidate_hash, votes)| {
-			let valid_statements =
-				votes.valid.into_iter().map(|(s, i, sig)| (DisputeStatement::Valid(s), i, sig));
+			let valid_statements = votes
+				.valid
+				.into_iter()
+				.map(|(i, (s, sig))| (DisputeStatement::Valid(s), i, sig));
 
 			let invalid_statements = votes
 				.invalid
 				.into_iter()
-				.map(|(s, i, sig)| (DisputeStatement::Invalid(s), i, sig));
+				.map(|(i, (s, sig))| (DisputeStatement::Invalid(s), i, sig));
 
 			metrics.inc_valid_statements_by(valid_statements.len());
 			metrics.inc_invalid_statements_by(invalid_statements.len());
