@@ -431,7 +431,7 @@ impl ActiveParas {
 				let entry = self.current_assignments.entry(para_now).or_default();
 				*entry += 1;
 				if *entry == 1 {
-					gum::debug!(
+					gum::warn!(
 						target: LOG_TARGET,
 						?relay_parent,
 						para_id = ?para_now,
@@ -455,7 +455,7 @@ impl ActiveParas {
 						*occupied.get_mut() -= 1;
 						if *occupied.get() == 0 {
 							occupied.remove_entry();
-							gum::debug!(
+							gum::warn!(
 								target: LOG_TARGET,
 								para_id = ?cur,
 								"Unassigned from a parachain",
@@ -647,16 +647,15 @@ async fn fetch_collation(
 
 	let PendingCollation { relay_parent, para_id, peer_id, .. } = pc;
 
-	let timeout = |collator_id, relay_parent| async move {
-		Delay::new(MAX_UNSHARED_DOWNLOAD_TIME).await;
-		(collator_id, relay_parent)
-	};
-	state
-		.collation_fetch_timeouts
-		.push(timeout(id.clone(), relay_parent.clone()).boxed());
-
 	if let Some(peer_data) = state.peer_data.get(&peer_id) {
 		if peer_data.has_advertised(&relay_parent) {
+			let timeout = |collator_id, relay_parent| async move {
+				Delay::new(MAX_UNSHARED_DOWNLOAD_TIME).await;
+				(collator_id, relay_parent)
+			};
+			state
+				.collation_fetch_timeouts
+				.push(timeout(id.clone(), relay_parent.clone()).boxed());
 			request_collation(sender, state, relay_parent, para_id, peer_id, tx).await;
 		} else {
 			gum::debug!(
@@ -1062,11 +1061,26 @@ async fn handle_network_msg<Context>(
 
 	match bridge_message {
 		PeerConnected(peer_id, _role, _version, _) => {
+			gum::warn!(target: LOG_TARGET, ?peer_id, "Peer connected");
 			state.peer_data.entry(peer_id).or_default();
 			state.metrics.note_collator_peer_count(state.peer_data.len());
 		},
 		PeerDisconnected(peer_id) => {
-			state.peer_data.remove(&peer_id);
+			if let Some(peer_data) = state.peer_data.remove(&peer_id) {
+				match peer_data.state {
+					PeerState::Collating(state) => gum::warn!(
+						target: LOG_TARGET,
+						?peer_id,
+						"Peer disconnected while being declared, para_id = {}",
+						state.para_id
+					),
+					PeerState::Connected(_) => gum::warn!(
+						target: LOG_TARGET,
+						?peer_id,
+						"Peer disconnected without declaring",
+					),
+				}
+			}
 			state.metrics.note_collator_peer_count(state.peer_data.len());
 		},
 		NewGossipTopology { .. } => {
