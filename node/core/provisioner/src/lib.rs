@@ -713,6 +713,12 @@ async fn request_votes(
 	sender: &mut impl overseer::ProvisionerSenderTrait,
 	disputes_to_query: Vec<(SessionIndex, CandidateHash)>,
 ) -> Vec<(SessionIndex, CandidateHash, CandidateVotes)> {
+	// No need to send dummy request, if nothing to request:
+	if disputes_to_query.is_empty() {
+		gum::trace!(target: LOG_TARGET, "No disputes, nothing to request - returning empty `Vec`.");
+
+		return Vec::new()
+	}
 	let (tx, rx) = oneshot::channel();
 	// Bounded by block production - `ProvisionerMessage::RequestInherentData`.
 	sender.send_unbounded_message(DisputeCoordinatorMessage::QueryCandidateVotes(
