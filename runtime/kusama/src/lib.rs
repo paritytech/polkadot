@@ -53,7 +53,8 @@ use frame_election_provider_support::{
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		ConstU32, Contains, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, PrivilegeCmp,
+		ConstU32, Contains, EitherOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		PrivilegeCmp,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -597,7 +598,7 @@ impl pallet_staking::Config for Runtime {
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
 	// A majority of the council or root can cancel the slash.
-	type SlashCancelOrigin = StakingAdmin;
+	type SlashCancelOrigin = EitherOf<EnsureRoot<Self::AccountId>, StakingAdmin>;
 	type SessionInterface = Self;
 	type EraPayout = EraPayout;
 	type NextNewSession = Session;
