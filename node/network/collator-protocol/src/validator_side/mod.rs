@@ -431,7 +431,7 @@ impl ActiveParas {
 				let entry = self.current_assignments.entry(para_now).or_default();
 				*entry += 1;
 				if *entry == 1 {
-					gum::warn!(
+					gum::debug!(
 						target: LOG_TARGET,
 						?relay_parent,
 						para_id = ?para_now,
@@ -455,7 +455,7 @@ impl ActiveParas {
 						*occupied.get_mut() -= 1;
 						if *occupied.get() == 0 {
 							occupied.remove_entry();
-							gum::warn!(
+							gum::debug!(
 								target: LOG_TARGET,
 								para_id = ?cur,
 								"Unassigned from a parachain",
@@ -931,7 +931,7 @@ async fn process_incoming_peer_message<Context>(
 
 					match collations.status {
 						CollationStatus::Fetching | CollationStatus::WaitingOnValidation => {
-							gum::trace!(
+							gum::debug!(
 								target: LOG_TARGET,
 								peer_id = ?origin,
 								%para_id,
@@ -1061,20 +1061,20 @@ async fn handle_network_msg<Context>(
 
 	match bridge_message {
 		PeerConnected(peer_id, _role, _version, _) => {
-			gum::warn!(target: LOG_TARGET, ?peer_id, "Peer connected");
+			gum::debug!(target: LOG_TARGET, ?peer_id, "Peer connected");
 			state.peer_data.entry(peer_id).or_default();
 			state.metrics.note_collator_peer_count(state.peer_data.len());
 		},
 		PeerDisconnected(peer_id) => {
 			if let Some(peer_data) = state.peer_data.remove(&peer_id) {
 				match peer_data.state {
-					PeerState::Collating(state) => gum::warn!(
+					PeerState::Collating(state) => gum::debug!(
 						target: LOG_TARGET,
 						?peer_id,
 						"Peer disconnected while being declared, para_id = {}",
 						state.para_id
 					),
-					PeerState::Connected(_) => gum::warn!(
+					PeerState::Connected(_) => gum::debug!(
 						target: LOG_TARGET,
 						?peer_id,
 						"Peer disconnected without declaring",
@@ -1394,7 +1394,7 @@ async fn disconnect_inactive_peers(
 ) {
 	for (peer, peer_data) in peers {
 		if peer_data.is_inactive(&eviction_policy) {
-			gum::trace!(target: LOG_TARGET, "Disconnecting inactive peer");
+			gum::warn!(target: LOG_TARGET, "Disconnecting inactive peer");
 			disconnect_peer(sender, peer.clone()).await;
 		}
 	}
