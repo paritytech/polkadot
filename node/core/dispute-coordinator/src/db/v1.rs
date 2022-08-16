@@ -213,8 +213,8 @@ impl From<CandidateVotes> for polkadot_node_primitives::CandidateVotes {
 	fn from(db_votes: CandidateVotes) -> polkadot_node_primitives::CandidateVotes {
 		polkadot_node_primitives::CandidateVotes {
 			candidate_receipt: db_votes.candidate_receipt,
-			valid: db_votes.valid,
-			invalid: db_votes.invalid,
+			valid: db_votes.valid.into_iter().map(|(kind, i, sig)| (i, (kind, sig))).collect(),
+			invalid: db_votes.invalid.into_iter().map(|(kind, i, sig)| (i, (kind, sig))).collect(),
 		}
 	}
 }
@@ -223,8 +223,12 @@ impl From<polkadot_node_primitives::CandidateVotes> for CandidateVotes {
 	fn from(primitive_votes: polkadot_node_primitives::CandidateVotes) -> CandidateVotes {
 		CandidateVotes {
 			candidate_receipt: primitive_votes.candidate_receipt,
-			valid: primitive_votes.valid,
-			invalid: primitive_votes.invalid,
+			valid: primitive_votes
+				.valid
+				.into_iter()
+				.map(|(i, (kind, sig))| (kind, i, sig))
+				.collect(),
+			invalid: primitive_votes.invalid.into_iter().map(|(i, (k, sig))| (k, i, sig)).collect(),
 		}
 	}
 }
