@@ -15,7 +15,6 @@
 // along with Polkadot. If not, see <http://www.gnu.org/licenses/>.
 
 //! Governance configurations for the Kusama runtime.
-use super::*;
 
 // Old governance configurations.
 pub mod old;
