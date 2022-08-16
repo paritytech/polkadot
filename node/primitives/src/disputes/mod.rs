@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use parity_scale_codec::{Decode, Encode};
 
 use sp_application_crypto::AppKey;
@@ -45,21 +47,23 @@ pub struct CandidateVotes {
 	/// The receipt of the candidate itself.
 	pub candidate_receipt: CandidateReceipt,
 	/// Votes of validity, sorted by validator index.
-	pub valid: Vec<(ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
+	pub valid: BTreeMap<ValidatorIndex, (ValidDisputeStatementKind, ValidatorSignature)>,
 	/// Votes of invalidity, sorted by validator index.
-	pub invalid: Vec<(InvalidDisputeStatementKind, ValidatorIndex, ValidatorSignature)>,
+	pub invalid: BTreeMap<ValidatorIndex, (InvalidDisputeStatementKind, ValidatorSignature)>,
 }
+
+/// Type alias for retrieving valid votes from `CandidateVotes`
+pub type ValidVoteData = (ValidatorIndex, (ValidDisputeStatementKind, ValidatorSignature));
+
+/// Type alias for retrieving invalid votes from `CandidateVotes`
+pub type InvalidVoteData = (ValidatorIndex, (InvalidDisputeStatementKind, ValidatorSignature));
 
 impl CandidateVotes {
 	/// Get the set of all validators who have votes in the set, ascending.
-	pub fn voted_indices(&self) -> Vec<ValidatorIndex> {
-		let mut v: Vec<_> =
-			self.valid.iter().map(|x| x.1).chain(self.invalid.iter().map(|x| x.1)).collect();
-
-		v.sort();
-		v.dedup();
-
-		v
+	pub fn voted_indices(&self) -> BTreeSet<ValidatorIndex> {
+		let mut keys: BTreeSet<_> = self.valid.keys().cloned().collect();
+		keys.extend(self.invalid.keys().cloned());
+		keys
 	}
 }
 
@@ -160,6 +164,11 @@ impl SignedDisputeStatement {
 	/// Access the underlying validator signature.
 	pub fn validator_signature(&self) -> &ValidatorSignature {
 		&self.validator_signature
+	}
+
+	/// Consume self to return the signature.
+	pub fn into_validator_signature(self) -> ValidatorSignature {
+		self.validator_signature
 	}
 
 	/// Access the underlying session index.

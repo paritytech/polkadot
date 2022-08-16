@@ -34,7 +34,6 @@ mod tests;
 
 #[cfg(feature = "full-node")]
 use {
-	beefy_gadget::notification::{BeefyBestBlockSender, BeefySignedCommitmentSender},
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
 	gum::info,
 	polkadot_node_core_approval_voting::{
@@ -47,6 +46,7 @@ use {
 		self as chain_selection_subsystem, Config as ChainSelectionConfig,
 	},
 	polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig,
+	polkadot_node_network_protocol::request_response::ReqProtocolNames,
 	polkadot_overseer::BlockInfo,
 	sc_client_api::{BlockBackend, ExecutorProvider},
 	sp_core::traits::SpawnNamed,
@@ -348,6 +348,14 @@ type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullS
 		FullClient<RuntimeApi, ExecutorDispatch>,
 		ChainSelection,
 	>;
+#[cfg(feature = "full-node")]
+type FullBeefyBlockImport<RuntimeApi, ExecutorDispatch, InnerBlockImport> =
+	beefy_gadget::import::BeefyBlockImport<
+		Block,
+		FullBackend,
+		FullClient<RuntimeApi, ExecutorDispatch>,
+		InnerBlockImport,
+	>;
 
 #[cfg(feature = "full-node")]
 struct Basics<RuntimeApi, ExecutorDispatch>
@@ -454,11 +462,15 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 				babe::BabeBlockImport<
 					Block,
 					FullClient<RuntimeApi, ExecutorDispatch>,
-					FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
+					FullBeefyBlockImport<
+						RuntimeApi,
+						ExecutorDispatch,
+						FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
+					>,
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
 				babe::BabeLink<Block>,
-				(BeefySignedCommitmentSender<Block>, BeefyBestBlockSender<Block>),
+				beefy_gadget::BeefyVoterLinks<Block>,
 			),
 			grandpa::SharedVoterState,
 			sp_consensus_babe::SlotDuration,
@@ -498,12 +510,18 @@ where
 		grandpa_hard_forks,
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
-
 	let justification_import = grandpa_block_import.clone();
+
+	let (beefy_block_import, beefy_voter_links, beefy_rpc_links) =
+		beefy_gadget::beefy_block_import_and_links(
+			grandpa_block_import,
+			backend.clone(),
+			client.clone(),
+		);
 
 	let babe_config = babe::Config::get(&*client)?;
 	let (block_import, babe_link) =
-		babe::block_import(babe_config.clone(), grandpa_block_import, client.clone())?;
+		babe::block_import(babe_config.clone(), beefy_block_import, client.clone())?;
 
 	let slot_duration = babe_link.config().slot_duration();
 	let import_queue = babe::import_queue(
@@ -529,12 +547,6 @@ where
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let (beefy_commitment_link, beefy_commitment_stream) =
-		beefy_gadget::notification::BeefySignedCommitmentStream::<Block>::channel();
-	let (beefy_best_block_link, beefy_best_block_stream) =
-		beefy_gadget::notification::BeefyBestBlockStream::<Block>::channel();
-	let beefy_links = (beefy_commitment_link, beefy_best_block_link);
-
 	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
 	let shared_voter_state = grandpa::SharedVoterState::empty();
@@ -546,7 +558,7 @@ where
 	let shared_epoch_changes = babe_link.epoch_changes().clone();
 	let slot_duration = babe_config.slot_duration();
 
-	let import_setup = (block_import, grandpa_link, babe_link, beefy_links);
+	let import_setup = (block_import, grandpa_link, babe_link, beefy_voter_links);
 	let rpc_setup = shared_voter_state.clone();
 
 	let rpc_extensions_builder = {
@@ -579,8 +591,8 @@ where
 					finality_provider: finality_proof_provider.clone(),
 				},
 				beefy: polkadot_rpc::BeefyDeps {
-					beefy_commitment_stream: beefy_commitment_stream.clone(),
-					beefy_best_block_stream: beefy_best_block_stream.clone(),
+					beefy_finality_proof_stream: beefy_rpc_links.from_voter_justif_stream.clone(),
+					beefy_best_block_stream: beefy_rpc_links.from_voter_best_beefy_stream.clone(),
 					subscription_executor,
 				},
 			};
@@ -820,22 +832,19 @@ where
 	let shared_voter_state = rpc_setup;
 	let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
 
+	let genesis_hash = client.block_hash(0).ok().flatten().expect("Genesis block exists; qed");
+
 	// Note: GrandPa is pushed before the Polkadot-specific protocols. This doesn't change
 	// anything in terms of behaviour, but makes the logs more consistent with the other
 	// Substrate nodes.
-	let grandpa_protocol_name = grandpa::protocol_standard_name(
-		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
-		&config.chain_spec,
-	);
+	let grandpa_protocol_name = grandpa::protocol_standard_name(&genesis_hash, &config.chain_spec);
 	config
 		.network
 		.extra_sets
 		.push(grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
 
-	let beefy_protocol_name = beefy_gadget::protocol_standard_name(
-		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
-		&config.chain_spec,
-	);
+	let beefy_protocol_name =
+		beefy_gadget::protocol_standard_name(&genesis_hash, &config.chain_spec);
 	if enable_beefy {
 		config
 			.network
@@ -849,17 +858,20 @@ where
 		config.network.extra_sets.extend(peer_sets_info(is_authority));
 	}
 
-	let (pov_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	let req_protocol_names = ReqProtocolNames::new(&genesis_hash, config.chain_spec.fork_id());
+
+	let (pov_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
-	let (chunk_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	let (chunk_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
-	let (collation_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	let (collation_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
-	let (available_data_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	let (available_data_req_receiver, cfg) =
+		IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
-	let (statement_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	let (statement_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
-	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
 
 	let grandpa_hard_forks = if config.chain_spec.is_kusama() {
@@ -977,6 +989,7 @@ where
 	let authority_discovery_service = if auth_or_collator || overseer_enable_anyways {
 		use futures::StreamExt;
 		use sc_network::Event;
+		use sc_network_common::service::NetworkEventStream;
 
 		let authority_discovery_role = if role.is_authority() {
 			sc_authority_discovery::Role::PublishAndDiscover(keystore_container.keystore())
@@ -1049,6 +1062,7 @@ where
 					dispute_coordinator_config,
 					pvf_checker_enabled,
 					overseer_message_channel_capacity_override,
+					req_protocol_names,
 				},
 			)
 			.map_err(|e| {
@@ -1125,11 +1139,6 @@ where
 						parent,
 					).await.map_err(|e| Box::new(e))?;
 
-					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
-						&*client_clone,
-						parent,
-					)?;
-
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 					let slot =
@@ -1138,7 +1147,7 @@ where
 							slot_duration,
 						);
 
-					Ok((timestamp, slot, uncles, parachain))
+					Ok((timestamp, slot, parachain))
 				}
 			},
 			force_authoring,
@@ -1166,11 +1175,10 @@ where
 			runtime: client.clone(),
 			key_store: keystore_opt.clone(),
 			network: network.clone(),
-			signed_commitment_sender: beefy_links.0,
-			beefy_best_block_sender: beefy_links.1,
 			min_block_delta: if chain_spec.is_wococo() { 4 } else { 8 },
 			prometheus_registry: prometheus_registry.clone(),
 			protocol_name: beefy_protocol_name,
+			links: beefy_links,
 		};
 
 		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _, _>(beefy_params);
