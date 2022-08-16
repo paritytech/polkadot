@@ -17,58 +17,9 @@
 //! Implements API for managing a ring buffer and an associated message window.
 
 use frame_support::pallet_prelude::*;
+use polkadot_parachain::primitives::{MessageIndex, PageIndex, WrappingIndex};
 use primitives::v2::Id as ParaId;
 use sp_std::prelude::*;
-
-/// A type of index that wraps around. It is used for messages and pages.
-#[derive(
-	Encode, Decode, Default, Clone, Copy, sp_runtime::RuntimeDebug, Eq, PartialEq, TypeInfo,
-)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct WrappingIndex<IndexType>(u64, PhantomData<IndexType>);
-
-#[derive(
-	Encode, Decode, Default, Clone, Copy, sp_runtime::RuntimeDebug, Eq, PartialEq, TypeInfo,
-)]
-pub struct PageIndex;
-#[derive(
-	Encode, Decode, Default, Clone, Copy, sp_runtime::RuntimeDebug, Eq, PartialEq, TypeInfo,
-)]
-pub struct MessageIndex;
-
-impl<IndexType> WrappingIndex<IndexType> {
-	/// Wrapping addition between two indexes.
-	pub fn wrapping_add(&self, other: WrappingIndex<IndexType>) -> Self {
-		WrappingIndex(self.0.wrapping_add(other.0), PhantomData)
-	}
-
-	/// Wrapping substraction between two indexes.
-	pub fn wrapping_sub(&self, other: WrappingIndex<IndexType>) -> Self {
-		WrappingIndex(self.0.wrapping_sub(other.0), PhantomData)
-	}
-
-	/// Wrapping increment.
-	pub fn wrapping_inc(&self) -> Self {
-		WrappingIndex(self.0.wrapping_add(1), PhantomData)
-	}
-
-	/// Wrapping decrement.
-	pub fn wrapping_dec(&self) -> Self {
-		WrappingIndex(self.0.wrapping_sub(1), PhantomData)
-	}
-}
-
-impl<IndexType> From<u64> for WrappingIndex<IndexType> {
-	fn from(idx: u64) -> Self {
-		WrappingIndex(idx, PhantomData)
-	}
-}
-
-impl<IndexType> Into<u64> for WrappingIndex<IndexType> {
-	fn into(self) -> u64 {
-		self.0
-	}
-}
 
 /// Unique identifier of an inbound downward message.
 #[derive(Encode, Decode, Clone, Default, Copy, sp_runtime::RuntimeDebug, PartialEq, TypeInfo)]
@@ -323,8 +274,8 @@ mod tests {
 	#[should_panic]
 	fn ringbuf_extend_over_capacity() {
 		// This ringbuf will have 2 free pages.
-		let head = WrappingIndex(100, PhantomData);
-		let tail = WrappingIndex(98, PhantomData);
+		let head = 100.into();
+		let tail = 98.into();
 		let mut rb = RingBuffer::with_state(
 			RingBufferState { head_page_idx: head, tail_page_idx: tail },
 			0.into(),
@@ -383,7 +334,7 @@ mod tests {
 		assert_eq!(rb.front().unwrap().page_idx, 0.into());
 		assert_eq!(rb.last_used().unwrap().page_idx, 1023.into());
 
-		let mut idx = WrappingIndex(0u64, PhantomData);
+		let mut idx: WrappingIndex<PageIndex> = 0u64.into();
 
 		while rb.size() > 0 {
 			let page = rb.pop_front().unwrap();
@@ -398,7 +349,8 @@ mod tests {
 
 	#[test]
 	fn ringbuf_extend_loop_then_iterate_wrap_around() {
-		let head = WrappingIndex(0u64, PhantomData).wrapping_sub(512.into());
+		let mut head: WrappingIndex<PageIndex> = 0u64.into();
+		head = head.wrapping_sub(512.into());
 		let mut rb = RingBuffer::with_state(
 			RingBufferState { head_page_idx: head, tail_page_idx: head },
 			0.into(),

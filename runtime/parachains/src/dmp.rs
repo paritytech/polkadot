@@ -57,6 +57,9 @@ pub use pallet::*;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+use polkadot_parachain::primitives::{MessageIndex, PageIndex, WrappingIndex};
+
 pub mod migration;
 pub mod ringbuf;
 pub use ringbuf::*;

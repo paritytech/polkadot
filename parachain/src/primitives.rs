@@ -17,7 +17,7 @@
 //! Primitive types which are strictly necessary from a parachain-execution point
 //! of view.
 
-use sp_std::{num::Wrapping, vec::Vec};
+use sp_std::{marker::PhantomData, vec::Vec};
 
 use frame_support::weights::Weight;
 use parity_scale_codec::{CompactAs, Decode, Encode, MaxEncodedLen};
@@ -300,12 +300,62 @@ impl HrmpChannelId {
 /// A message from a parachain to its Relay Chain.
 pub type UpwardMessage = Vec<u8>;
 
+/// A type of index that wraps around. It is used for messages and pagination.
+#[derive(
+	Encode, Decode, Default, Clone, Copy, sp_runtime::RuntimeDebug, Eq, PartialEq, TypeInfo,
+)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct WrappingIndex<IndexType>(pub u64, PhantomData<IndexType>);
+
+#[derive(
+	Encode, Decode, Default, Clone, Copy, sp_runtime::RuntimeDebug, Eq, PartialEq, TypeInfo,
+)]
+pub struct PageIndex;
+#[derive(
+	Encode, Decode, Default, Clone, Copy, sp_runtime::RuntimeDebug, Eq, PartialEq, TypeInfo,
+)]
+pub struct MessageIndex;
+
+impl<IndexType> WrappingIndex<IndexType> {
+	/// Wrapping addition between two indexes.
+	pub fn wrapping_add(&self, other: WrappingIndex<IndexType>) -> Self {
+		WrappingIndex(self.0.wrapping_add(other.0), PhantomData)
+	}
+
+	/// Wrapping substraction between two indexes.
+	pub fn wrapping_sub(&self, other: WrappingIndex<IndexType>) -> Self {
+		WrappingIndex(self.0.wrapping_sub(other.0), PhantomData)
+	}
+
+	/// Wrapping increment.
+	pub fn wrapping_inc(&self) -> Self {
+		WrappingIndex(self.0.wrapping_add(1), PhantomData)
+	}
+
+	/// Wrapping decrement.
+	pub fn wrapping_dec(&self) -> Self {
+		WrappingIndex(self.0.wrapping_sub(1), PhantomData)
+	}
+}
+
+impl<IndexType> From<u64> for WrappingIndex<IndexType> {
+	fn from(idx: u64) -> Self {
+		WrappingIndex(idx, PhantomData)
+	}
+}
+
+impl<IndexType> Into<u64> for WrappingIndex<IndexType> {
+	fn into(self) -> u64 {
+		self.0
+	}
+}
+
 /// A structure providing the context for the DMP message handler.
 pub struct DmpMessageHandlerContext {
 	/// The weight limit for processing the messages.
 	pub max_weight: Weight,
 	/// The index of the next message to be processed.
-	pub next_message_index: Wrapping<u64>,
+	pub next_message_index: WrappingIndex<MessageIndex>,
 	/// The current head of the MQC.
 	pub mqc_head: MessageQueueChain,
 }
