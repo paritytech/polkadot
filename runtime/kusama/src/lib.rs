@@ -102,6 +102,10 @@ mod bag_thresholds;
 // XCM configurations.
 pub mod xcm_config;
 
+// Governance configurations.
+pub mod governance;
+use governance::old::CouncilCollective;
+
 #[cfg(test)]
 mod tests;
 
