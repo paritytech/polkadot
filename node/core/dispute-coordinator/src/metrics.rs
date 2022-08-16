@@ -34,6 +34,8 @@ struct MetricsInner {
 	///
 	/// in total and on individual processing steps.
 	active_leaves_update_time: prometheus::HistogramVec,
+	/// How long processing a certain message takes.
+	process_message_time: prometheus::HistogramVec,
 }
 
 /// Candidate validation metrics.
@@ -99,6 +101,15 @@ impl Metrics {
 	) -> Option<prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| {
 			metrics.active_leaves_update_time.with_label_values(&[label]).start_timer()
+		})
+	}
+
+	pub(crate) fn time_process_message(
+		&self,
+		label: &'static str,
+	) -> Option<prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| {
+			metrics.process_message_time.with_label_values(&[label]).start_timer()
 		})
 	}
 }
@@ -171,6 +182,20 @@ impl metrics::Metrics for Metrics {
 						1.0, 2.0, 3.0,
 					]),
 					&["task"],
+				)?,
+				registry,
+			)?,
+			process_message_time: prometheus::register(
+				prometheus::HistogramVec::new(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_dispute_coordinator_process_message_time",
+						"Time spent processing messages",
+					)
+					.buckets(vec![
+						0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.5, 
+						1.0, 2.0, 3.0,
+					]),
+					&["msg"],
 				)?,
 				registry,
 			)?,

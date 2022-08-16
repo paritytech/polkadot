@@ -562,6 +562,7 @@ impl Initialized {
 		message: DisputeCoordinatorMessage,
 		now: Timestamp,
 	) -> Result<Box<dyn FnOnce() -> JfyiResult<()>>> {
+		let _any_req = self.metrics.time_process_message("total");
 		match message {
 			DisputeCoordinatorMessage::ImportStatements {
 				candidate_receipt,
@@ -569,6 +570,7 @@ impl Initialized {
 				statements,
 				pending_confirmation,
 			} => {
+				let _req = self.metrics.time_process_message("ImportStatements");
 				gum::trace!(
 					target: LOG_TARGET,
 					candidate_hash = ?candidate_receipt.hash(),
@@ -601,6 +603,7 @@ impl Initialized {
 				}
 			},
 			DisputeCoordinatorMessage::RecentDisputes(tx) => {
+				let _req = self.metrics.time_process_message("RecentDisputes");
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 
@@ -615,6 +618,7 @@ impl Initialized {
 				let _ = tx.send(recent_disputes.keys().cloned().collect());
 			},
 			DisputeCoordinatorMessage::ActiveDisputes(tx) => {
+				let _req = self.metrics.time_process_message("ActiveDisputes");
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 
@@ -631,8 +635,10 @@ impl Initialized {
 						.map(|(k, _)| k)
 						.collect(),
 				);
+				gum::trace!(target: LOG_TARGET, "DisputeCoordinatorMessage::ActiveDisputes DONE");
 			},
 			DisputeCoordinatorMessage::QueryCandidateVotes(query, tx) => {
+				let _req = self.metrics.time_process_message("QueryCandidateVotes");
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 
@@ -677,6 +683,7 @@ impl Initialized {
 				block_descriptions,
 				tx,
 			} => {
+				let _req = self.metrics.time_process_message("DetermineUndisputedChain");
 				// Return error if session information is missing.
 				self.ensure_available_session_info()?;
 				gum::trace!(
@@ -690,6 +697,10 @@ impl Initialized {
 					base_hash,
 					block_descriptions,
 				)?;
+				gum::trace!(
+					target: LOG_TARGET,
+					"DisputeCoordinatorMessage::DeterminedUndisputedChain"
+				);
 
 				let _ = tx.send(undisputed_chain);
 			},
