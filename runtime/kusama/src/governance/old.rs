@@ -16,7 +16,7 @@
 
 //! Old governance configurations for the Kusama runtime.
 
-use super::*;
+use crate::*;
 use frame_support::{parameter_types, traits::EitherOfDiverse};
 
 parameter_types! {
