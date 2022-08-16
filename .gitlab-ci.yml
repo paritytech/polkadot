@@ -636,13 +636,15 @@ check-runtime-migration:
   <<:                              *docker-env
   <<:                              *compiler-info
   script:
-    - export has_runtimemigration_label=$(curl -sS -H "Accept: application/vnd.github+json"
-         -H "Authorization: token $GITHUB_PR_TOKEN"
+    - |
+      export has_runtimemigration_label=$(curl -sS -H "Accept: application/vnd.github+json" \
+        -H "Authorization: token $GITHUB_PR_TOKEN" \
         https://api.github.com/repos/paritytech/polkadot/issues/$CI_COMMIT_REF_NAME/labels | grep "runtimemigration" | wc -l)
-    - if [[ $has_runtimemigration_label != 0 ]]; then
+    - |
+      if [[ $has_runtimemigration_label != 0 ]]; then
         echo "Found label runtimemigration. Running tests"
-        export RUST_LOG=remote-ext=debug,runtime=debug;
-        time cargo test --release -p westend-runtime -p polkadot-runtime -p kusama-runtime --features try-runtime;
+        export RUST_LOG=remote-ext=debug,runtime=debug
+        time cargo test --release -p westend-runtime -p polkadot-runtime -p kusama-runtime --features try-runtime
       else
         echo "runtimemigration label not found. Skipping"
       fi
