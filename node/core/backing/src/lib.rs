@@ -811,17 +811,22 @@ impl<Context> CandidateBackingJob<Context> {
 								.sign_import_and_distribute_statement(ctx, statement, root_span)
 								.await?
 							{
-								ctx.send_message(CollatorProtocolMessage::Seconded(
+								// Break cycle - bounded as there is only one candidate to
+								// second per block.
+								ctx.send_unbounded_message(CollatorProtocolMessage::Seconded(
 									self.parent,
 									stmt,
-								))
-								.await;
+								));
 							}
 						}
 					},
 					Err(candidate) => {
-						ctx.send_message(CollatorProtocolMessage::Invalid(self.parent, candidate))
-							.await;
+						// Break cycle - bounded as there is only one candidate to
+						// second per block.
+						ctx.send_unbounded_message(CollatorProtocolMessage::Invalid(
+							self.parent,
+							candidate,
+						));
 					},
 				}
 			},
@@ -911,8 +916,12 @@ impl<Context> CandidateBackingJob<Context> {
 			.as_ref()
 			.map_or(false, |c| c != &candidate.descriptor().collator)
 		{
-			ctx.send_message(CollatorProtocolMessage::Invalid(self.parent, candidate.clone()))
-				.await;
+			// Break cycle - bounded as there is only one candidate to
+			// second per block.
+			ctx.send_unbounded_message(CollatorProtocolMessage::Invalid(
+				self.parent,
+				candidate.clone(),
+			));
 			return Ok(())
 		}
 
