@@ -269,9 +269,15 @@ impl Initialized {
 		update: ActiveLeavesUpdate,
 		now: u64,
 	) -> Result<()> {
-		let on_chain_votes =
-			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
-		self.participation.process_active_leaves_update(ctx, &update).await?;
+		let _total = self.metrics.time_active_leaves_update("total");
+		let on_chain_votes = {
+			let _scraper = self.metrics.time_active_leaves_update("scraper");
+			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?
+		};
+		{
+			let _scraper = self.metrics.time_active_leaves_update("participation");
+			self.participation.process_active_leaves_update(ctx, &update).await?;
+		}
 
 		if let Some(new_leaf) = update.activated {
 			match self
@@ -306,8 +312,7 @@ impl Initialized {
 				Ok(SessionWindowUpdate::Unchanged) => {},
 			};
 
-			// The `runtime-api` subsystem has an internal queue which serializes the execution,
-			// so there is no point in running these in parallel.
+			let _on_chain_votes = self.metrics.time_active_leaves_update("on-chain-votes");
 			for votes in on_chain_votes {
 				let _ = self.process_on_chain_votes(ctx, overlay_db, votes, now).await.map_err(
 					|error| {
@@ -392,13 +397,16 @@ impl Initialized {
 								ValidDisputeStatementKind::BackingValid(relay_parent),
 						};
                     debug_assert!(
-                        SignedDisputeStatement::new_checked(
-							DisputeStatement::Valid(valid_statement_kind),
-							candidate_hash,
-							session,
-							validator_public.clone(),
-							validator_signature.clone(),
-                        ).is_ok(),
+						{
+							let _signature_check = self.metrics.time_active_leaves_update("on-chain-vote-signature-check");
+							SignedDisputeStatement::new_checked(
+								DisputeStatement::Valid(valid_statement_kind),
+								candidate_hash,
+								session,
+								validator_public.clone(),
+								validator_signature.clone(),
+							).is_ok()
+						},
                         "Scraped backing votes had invalid signature! candidate: {:?}, session: {:?}, validator_public: {:?}",
                         candidate_hash,
                         session,
@@ -416,8 +424,9 @@ impl Initialized {
 				})
 				.collect();
 
-			let import_result = self
-				.handle_import_statements(
+			let import_result = {
+				let _vote_import = self.metrics.time_active_leaves_update("backing-vote-import");
+				self.handle_import_statements(
 					ctx,
 					overlay_db,
 					MaybeCandidateReceipt::Provides(candidate_receipt),
@@ -425,7 +434,8 @@ impl Initialized {
 					statements,
 					now,
 				)
-				.await?;
+				.await?
+			};
 			match import_result {
 				ImportStatementsResult::ValidImport => gum::trace!(
 					target: LOG_TARGET,
@@ -512,8 +522,10 @@ impl Initialized {
 					))
 				})
 				.collect::<Vec<_>>();
-			let import_result = self
-				.handle_import_statements(
+			let import_result = {
+				let _dispute_vote_import =
+					self.metrics.time_active_leaves_update("dispute-vote-import");
+				self.handle_import_statements(
 					ctx,
 					overlay_db,
 					// TODO <https://github.com/paritytech/polkadot/issues/4011>
@@ -522,7 +534,8 @@ impl Initialized {
 					statements,
 					now,
 				)
-				.await?;
+				.await?
+			};
 			match import_result {
 				ImportStatementsResult::ValidImport => gum::trace!(
 					target: LOG_TARGET,

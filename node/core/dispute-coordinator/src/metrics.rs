@@ -30,6 +30,10 @@ struct MetricsInner {
 	queued_participations: prometheus::CounterVec<prometheus::U64>,
 	/// How long vote cleanup batches take.
 	vote_cleanup_time: prometheus::Histogram,
+	/// How long processing `ActiveLeaves` update takes.
+	///
+	/// in total and on individual processing steps.
+	active_leaves_update_time: prometheus::HistogramVec,
 }
 
 /// Candidate validation metrics.
@@ -88,6 +92,15 @@ impl Metrics {
 	pub(crate) fn time_vote_cleanup(&self) -> Option<prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.vote_cleanup_time.start_timer())
 	}
+
+	pub(crate) fn time_active_leaves_update(
+		&self,
+		label: &'static str,
+	) -> Option<prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| {
+			metrics.active_leaves_update_time.with_label_values(&[label]).start_timer()
+		})
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -144,6 +157,20 @@ impl metrics::Metrics for Metrics {
 						"Time spent cleaning up old votes per batch.",
 					)
 					.buckets([0.01, 0.1, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0].into()),
+				)?,
+				registry,
+			)?,
+			active_leaves_update_time: prometheus::register(
+				prometheus::HistogramVec::new(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_dispute_coordinator_active_leaves_update_time",
+						"Time spent on tasks on active leaves update",
+					)
+					.buckets(vec![
+						0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.15, 0.25, 0.5, 
+						1.0, 2.0, 3.0,
+					]),
+					&["task"],
 				)?,
 				registry,
 			)?,
