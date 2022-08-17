@@ -629,9 +629,9 @@ check-try-runtime:
 check-runtime-migration:
   stage:                           stage3
   # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
-  # needs:
-  #   - job:                         test-node-metrics
-  #     artifacts:                   false
+  needs:
+    - job:                         test-node-metrics
+      artifacts:                   false
   <<:                              *test-pr-refs
   <<:                              *docker-env
   <<:                              *compiler-info
