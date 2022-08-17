@@ -639,7 +639,7 @@ check-runtime-migration:
     - |
       export has_runtimemigration_label=$(curl -sS -H "Accept: application/vnd.github+json" \
         -H "Authorization: token $GITHUB_PR_TOKEN" \
-        https://api.github.com/repos/paritytech/polkadot/issues/$CI_COMMIT_REF_NAME/labels | grep "runtimemigration" | wc -l)
+        https://api.github.com/repos/paritytech/polkadot/issues/$CI_COMMIT_REF_NAME/labels | grep "E1" | wc -l)
     - |
       if [[ $has_runtimemigration_label != 0 ]]; then
         echo "Found label runtimemigration. Running tests"
