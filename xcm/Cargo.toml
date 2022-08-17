@@ -9,7 +9,7 @@ edition = "2021"
 impl-trait-for-tuples = "0.2.2"
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.28" }
 derivative = {version = "2.2.0", default-features = false, features = [ "use_core" ] }
 log = { version = "0.4.17", default-features = false }
 xcm-procedural = { path = "procedural" }
