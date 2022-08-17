@@ -9,7 +9,7 @@ readme = "README.md"
 publish = false
 
 [dependencies]
-tokio = { version = "1.18.2", default-features = false, features = ["macros", "net", "rt-multi-thread", "sync"] }
+tokio = { version = "1.19.2", default-features = false, features = ["macros", "net", "rt-multi-thread", "sync"] }
 url = "2.0.0"
 tokio-tungstenite = "0.17"
 futures-util = "0.3.21"
