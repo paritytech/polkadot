@@ -133,10 +133,9 @@ impl PeerSet {
 	}
 
 	/// Get the protocol label for metrics reporting.
-	///
-	/// Unfortunately, labels must be static strings, so we must manually cover them
-	/// for all protocol versions here.
 	pub fn get_protocol_label(self, version: ProtocolVersion) -> Option<&'static str> {
+		// Unfortunately, labels must be static strings, so we must manually cover them
+		// for all protocol versions here.
 		match (self, version) {
 			(PeerSet::Validation, 1) => Some("validation/1"),
 			(PeerSet::Collation, 1) => Some("collation/1"),
