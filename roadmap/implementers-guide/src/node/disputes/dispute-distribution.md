@@ -187,9 +187,11 @@ Goals for the receiving side:
 1. Get new disputes to the dispute-coordinator as fast as possible, so
   prioritization can happen properly.
 2. Batch votes per disputes as much as possible for good import performance.
-3. Prevent malicous nodes exhausting node resources by sending lots of messages.
-4. Prevent malicous nodes from sending so many messages/(fake) disputes,
+3. Prevent malicious nodes exhausting node resources by sending lots of messages.
+4. Prevent malicious nodes from sending so many messages/(fake) disputes,
   preventing us from concluding good ones.
+5. Limit ability of malicious nodes of delaying the vote import due to batching
+   logic.
 
 Goal 1 and 2 seem to be conflicting, but an easy compromise is possible: When
 learning about a new dispute, we will import the vote immediately, making the
@@ -199,11 +201,10 @@ the dispute-coordinator already knows about the dispute.
 
 Goal 3 and 4 are obviously very related and both can easily be solved via rate
 limiting as we shall see below. Rate limits should already be implemented at the
-substrate level, but [are
-not](https://github.com/paritytech/substrate/issues/7750) at the time of
-writing. But even if they were, the enforce substrate limits would likely not be
-configurable and thus be still to high for our needs as we can rely on the
-following observations:
+substrate level, but [are not](https://github.com/paritytech/substrate/issues/7750)
+at the time of writing. But even if they were, the enforced substrate limits would
+likely not be configurable and thus would still be to high for our needs as we can
+rely on the following observations:
 
 1. Each honest validator will only send one message (apart from duplicates on
   timeout) per candidate/dispute.
@@ -232,9 +233,18 @@ This is good enough! All those disputes are valid ones and will result in
 slashing. Let's assume all of them conclude `valid`, and we slash 1% on those.
 This will still mean that nodes get slashed 100% in just 20 seconds.
 
-In addition participation is expected to take longer, which means on average we
-can import/conclude disputes faster than they are generated - regardless of
-dispute spam!
+One could also think that in  addition participation is expected to take longer,
+which means on average we can import/conclude disputes faster than they are
+generated - regardless of dispute spam. Unfortunately this is not necessarily
+true: There might be parachains with very light load where recovery and
+validation can be accomplished very quickly - maybe faster than we can import
+those disputes.
+
+This is probably an argument for not imposing a too low rate limit, although the
+issue is more general. Even without any rate limit, if an attacker generates
+disputes at a very high rate, nodes will be having trouble keeping participation
+up, hence the problem should be mitigated at a [more fundamental
+layer](https://github.com/paritytech/polkadot/issues/5898).
 
 For nodes that have been offline for a while, the same argument as for session
 changes holds, but matters even less: We assume 2/3 of nodes to be online, so
@@ -244,15 +254,84 @@ enough (as argued above, they in fact can) it would not matter for consensus.
 ### Rate Limiting
 
 As suggested previously, rate limiting allows to mitigate all threats that come
-from malicous actors trying to overwhelm the system in order to get away
-without a slash. In this section we will explain how in greater detail.
+from malicious actors trying to overwhelm the system in order to get away without
+a slash, when it comes to dispute-distribution. In this section we will explain
+how in greater detail.
 
-### "Unlimited" Imports
+The idea is to open a queue with limited size for each peer. We will process
+incoming messages as fast as we can by doing the following:
 
-We want to make sure the dispute coordinator learns about _all_ disputes, so it
-can prioritize correctly.
+1. Check that the sending peer is actually a valid authority - otherwise drop
+   message and decrease reputation/disconnect.
+2. Put message on the peer's queue, if queue is full - drop it.
 
-Rate limiting also helps with this goal. Some math.
+Every `RATE_LIMIT` seconds (or rather milliseconds), we pause processing
+incoming requests to go a full circle and process one message from each queue.
+Processing means `Batching` as explained in the next section.
+
+### Batching
+
+To achieve goal 2 we will batch incoming votes/messages together before passing
+them on as a single batch to the `dispute-coordinator`. To adhere to goal 1 as
+well, we will do the following:
+
+1. For an incoming message, we check whether we have an existing batch for that
+   candidate, if not we import directly to the dispute-coordinator, as we have
+   to assume this is concerning a new dispute.
+2. We open a batch and start collecting incoming messages for that candidate,
+   instead of immediately forwarding.
+4. We keep collecting votes in the batch until we received less than
+   `MIN_KEEP_BATCH_ALIVE_VOTES` unique votes in the last `BATCH_COLLECTING_INTERVAL`. This is
+   important to accommodate for goal 5 and also 3.
+5. We send the whole batch to the dispute-coordinator.
+
+This together with rate limiting explained above ensures we will be able to
+process valid disputes: We can limit the number of simultaneous existing batches
+to some high value, but can be rather certain that this limit will never be
+reached - hence we won't drop valid disputes.
+
+Let's assume `MIN_KEEP_BATCH_ALIVE_VOTES` is 10, `BATCH_COLLECTING_INTERVAL`
+is `500ms` and above `RATE_LIMIT` is `100ms`. 1/3 of validators are malicious,
+so for 1000 this means around 330 malicious actors worst case.
+
+All those actors can send a message every `100ms`, that is 10 per second. This
+means at the begin of an attack they can open up around 3300 batches. Each
+containing two votes. So memory usage is still negligible. In reality it is even
+less, as we also demand 10 new votes to trickle in per batch in order to keep it
+alive, every `500ms`. Hence for the first second, each batch requires 20 votes
+each. Each message is 2 votes, so this means 10 messages per batch. Hence to
+keep those batches alive 10 attackers are needed for each batch. This reduces
+the number of opened batches by a factor of 10: So we only have 330 batches in 1
+second - each containing 20 votes.
+
+The next second: In order to further grow memory usage, attackers have to
+maintain 10 messages per batch and second. Number of batches equals the number
+of attackers, each has 10 messages per second, all are needed to maintain the
+batches in memory. Therefore we have a hard cap of around 330 (number of
+malicious nodes) open batches. Each can be filled with number of malicious
+actor's votes. So 330 batches with each 330 votes: Let's assume approximately 100
+bytes per signature/vote. This results in a worst case memory usage of 330 * 330
+* 100 ~= 10 MiB.
+
+For 10_000 validators, we are already in the Gigabyte range, which means that
+with a validator set that large we might want to be more strict with the rate limit or
+require a larger rate of incoming votes per batch to keep them alive.
+
+For a thousand validators a limit on batches of around 1000 should never be
+reached in practice. Hence due to rate limiting we have a very good chance to
+not ever having to drop a potential valid dispute due to some resource limit.
+
+Further safe guards: The dispute-coordinator actually confirms/denies imports.
+So once we receive a denial by the dispute-coordinator for the initial imported
+votes, we can opt into flushing the batch immediately and importing the votes.
+This swaps memory usage for more CPU usage, but if that import is deemed invalid
+again we can immediately decrease the reputation of the sending peers, so this
+should be a net win.
+
+Instead of filling batches to maximize memory usage, attackers could also try to
+overwhelm the dispute coordinator by only sending votes for new candidates all
+the time. This attack vector is mitigated by decreasing the peer's reputation on
+denial of the invalid imports by the coordinator.
 
 ### Import Performance Considerations
 
