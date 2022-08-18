@@ -237,7 +237,7 @@ impl<'a, I: AsRef<[u8]>> Iterator for Branches<'a, I> {
 
 		match res.expect("all nodes in trie present; qed") {
 			Some(_) => {
-				let nodes: Vec<Vec<u8>> = recorder.drain().into_iter().map(|r| r.1).collect();
+				let nodes: Vec<Vec<u8>> = recorder.drain().into_iter().map(|r| r.data).collect();
 				let chunk = self.chunks.get(self.current_pos).expect(
 					"there is a one-to-one mapping of chunks to valid merkle branches; qed",
 				);

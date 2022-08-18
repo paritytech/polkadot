@@ -7029,7 +7029,6 @@ dependencies = [
  "substrate-wasm-builder",
  "tiny-keccak",
  "tokio",
- "trie-db 0.23.1",
  "xcm",
  "xcm-builder",
  "xcm-executor",
@@ -7083,7 +7082,6 @@ dependencies = [
  "sp-staking",
  "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
  "static_assertions",
- "trie-db 0.23.1",
  "xcm",
 ]
 
@@ -10077,7 +10075,7 @@ dependencies = [
 [[package]]
 name = "sp-core"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#0616c783cb068b1bac87e244310b3e23cfbe6cfd"
+source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#bd972a282c76fda2010baa3353c5ea0dac6e796a"
 dependencies = [
  "base58",
  "bitflags",
@@ -10169,7 +10167,7 @@ dependencies = [
 [[package]]
 name = "sp-core-hashing"
 version = "4.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#0616c783cb068b1bac87e244310b3e23cfbe6cfd"
+source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#bd972a282c76fda2010baa3353c5ea0dac6e796a"
 dependencies = [
  "blake2",
  "byteorder",
@@ -10217,7 +10215,7 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "4.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#0616c783cb068b1bac87e244310b3e23cfbe6cfd"
+source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#bd972a282c76fda2010baa3353c5ea0dac6e796a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -10237,7 +10235,7 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.12.0"
-source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#0616c783cb068b1bac87e244310b3e23cfbe6cfd"
+source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#bd972a282c76fda2010baa3353c5ea0dac6e796a"
 dependencies = [
  "environmental",
  "parity-scale-codec",
@@ -10435,7 +10433,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#0616c783cb068b1bac87e244310b3e23cfbe6cfd"
+source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#bd972a282c76fda2010baa3353c5ea0dac6e796a"
 dependencies = [
  "bytes",
  "impl-trait-for-tuples",
@@ -10471,7 +10469,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "5.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#0616c783cb068b1bac87e244310b3e23cfbe6cfd"
+source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#bd972a282c76fda2010baa3353c5ea0dac6e796a"
 dependencies = [
  "Inflector",
  "proc-macro-crate",
@@ -10556,7 +10554,7 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "4.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#0616c783cb068b1bac87e244310b3e23cfbe6cfd"
+source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#bd972a282c76fda2010baa3353c5ea0dac6e796a"
 
 [[package]]
 name = "sp-std"
@@ -10566,7 +10564,7 @@ source = "git+https://github.com/paritytech/substrate?branch=master#e7aa858767c2
 [[package]]
 name = "sp-storage"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#0616c783cb068b1bac87e244310b3e23cfbe6cfd"
+source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#bd972a282c76fda2010baa3353c5ea0dac6e796a"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
@@ -10621,7 +10619,7 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "5.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#0616c783cb068b1bac87e244310b3e23cfbe6cfd"
+source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#bd972a282c76fda2010baa3353c5ea0dac6e796a"
 dependencies = [
  "parity-scale-codec",
  "sp-std 4.0.0 (git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark)",
@@ -10670,7 +10668,7 @@ dependencies = [
 [[package]]
 name = "sp-trie"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#0616c783cb068b1bac87e244310b3e23cfbe6cfd"
+source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#bd972a282c76fda2010baa3353c5ea0dac6e796a"
 dependencies = [
  "ahash",
  "hash-db",
@@ -10737,7 +10735,7 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "6.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#0616c783cb068b1bac87e244310b3e23cfbe6cfd"
+source = "git+https://github.com/paritytech/substrate?branch=bkchr-state-access-benchmark#bd972a282c76fda2010baa3353c5ea0dac6e796a"
 dependencies = [
  "impl-trait-for-tuples",
  "log",
