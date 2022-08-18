@@ -8,3 +8,8 @@
 <!-- Such a comment will be rendered but remain invisible in the rendered markdown -->
 <!-- Edit below this line -->
 <!-- Edit above this line -->
+
+This release contains a performance enhancement, which should reduce load on validators significantly and resulted in better parachain block times on test networks.
+More details on the changes here:
+
+https://github.com/paritytech/polkadot/pull/5785
