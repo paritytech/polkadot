@@ -331,8 +331,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				"Trapping assets in holding register: {:?}, context: {:?} (original_origin: {:?})",
 				self.holding, self.context, self.original_origin,
 			);
+			let effective_origin = self.context.origin.as_ref().unwrap_or(&self.original_origin);
 			let trap_weight =
-				Config::AssetTrap::drop_assets(&self.original_origin, self.holding, &self.context);
+				Config::AssetTrap::drop_assets(effective_origin, self.holding, &self.context);
 			weight_used.saturating_accrue(trap_weight);
 		};
 
@@ -473,9 +474,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Config::AssetTransactor::transfer_asset(asset, origin, &dest, &self.context)?;
 				}
 				let reanchor_context = Config::UniversalLocation::get();
-				assets
-					.reanchor(&dest, reanchor_context)
-					.map_err(|()| XcmError::MultiLocationFull)?;
+				assets.reanchor(&dest, reanchor_context).map_err(|()| XcmError::LocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				self.send(dest, Xcm(message), FeeReason::TransferReserveAsset)?;
@@ -553,7 +552,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				.as_mut()
 				.ok_or(XcmError::BadOrigin)?
 				.append_with(who)
-				.map_err(|_| XcmError::MultiLocationFull),
+				.map_err(|_| XcmError::LocationFull),
 			ClearOrigin => {
 				self.context.origin = None;
 				Ok(())
@@ -767,13 +766,29 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			ExportMessage { network, destination, xcm } => {
+				// The actual message send to the bridge for forwarding is prepended with `UniversalOrigin`
+				// and `DescendOrigin` in order to ensure that the message is executed with this Origin.
+				//
+				// Prepend the desired message with instructions which effectively rewrite the origin.
+				//
+				// This only works because the remote chain empowers the bridge
+				// to speak for the local network.
+				let origin = self.context.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
+				let universal_source = Config::UniversalLocation::get()
+					.within_global(origin)
+					.map_err(|()| XcmError::Unanchored)?;
 				let hash = (self.origin_ref(), &destination).using_encoded(blake2_128);
 				let channel = u32::decode(&mut hash.as_ref()).unwrap_or(0);
 				// Hash identifies the lane on the exporter which we use. We use the pairwise
 				// combination of the origin and destination to ensure origin/destination pairs will
 				// generally have their own lanes.
-				let (ticket, fee) =
-					validate_export::<Config::MessageExporter>(network, channel, destination, xcm)?;
+				let (ticket, fee) = validate_export::<Config::MessageExporter>(
+					network,
+					channel,
+					universal_source,
+					destination,
+					xcm,
+				)?;
 				self.take_fee(fee, FeeReason::Export(network))?;
 				Config::MessageExporter::deliver(ticket)?;
 				Ok(())

@@ -26,12 +26,12 @@ use SendError::*;
 fn ensure_is_remote(
 	universal_local: impl Into<InteriorMultiLocation>,
 	dest: impl Into<MultiLocation>,
-) -> Result<(NetworkId, InteriorMultiLocation, NetworkId, InteriorMultiLocation), MultiLocation> {
+) -> Result<(NetworkId, InteriorMultiLocation), MultiLocation> {
 	let dest = dest.into();
 	let universal_local = universal_local.into();
-	let (local_net, local_loc) = match universal_local.clone().split_first() {
-		(location, Some(GlobalConsensus(network))) => (network, location),
-		_ => return Err(dest),
+	let local_net = match universal_local.global_consensus() {
+		Ok(x) => x,
+		Err(_) => return Err(dest),
 	};
 	let universal_destination: InteriorMultiLocation = universal_local
 		.into_location()
@@ -42,14 +42,11 @@ fn ensure_is_remote(
 		(d, Some(GlobalConsensus(n))) if n != local_net => (d, n),
 		_ => return Err(dest),
 	};
-	Ok((remote_net, remote_dest, local_net, local_loc))
+	Ok((remote_net, remote_dest))
 }
 
 /// Implementation of `SendXcm` which uses the given `ExportXcm` implementation in order to forward
 /// the message over a bridge.
-///
-/// The actual message forwarded over the bridge is prepended with `UniversalOrigin` and
-/// `DescendOrigin` in order to ensure that the message is executed with this Origin.
 ///
 /// No effort is made to charge for any bridge fees, so this can only be used when it is known
 /// that the message sending cannot be abused in any way.
@@ -68,22 +65,17 @@ impl<Exporter: ExportXcm, UniversalLocation: Get<InteriorMultiLocation>> SendXcm
 		xcm: &mut Option<Xcm<()>>,
 	) -> SendResult<Exporter::Ticket> {
 		let d = dest.take().ok_or(MissingArgument)?;
-		let devolved = match ensure_is_remote(UniversalLocation::get(), d) {
+		let universal_source = UniversalLocation::get();
+		let devolved = match ensure_is_remote(universal_source, d) {
 			Ok(x) => x,
 			Err(d) => {
 				*dest = Some(d);
 				return Err(NotApplicable)
 			},
 		};
-		let (network, destination, local_network, local_location) = devolved;
-
-		let inner = xcm.take().ok_or(MissingArgument)?;
-		let mut message: Xcm<()> = vec![UniversalOrigin(GlobalConsensus(local_network))].into();
-		if local_location != Here {
-			message.inner_mut().push(DescendOrigin(local_location));
-		}
-		message.inner_mut().extend(inner.into_iter());
-		validate_export::<Exporter>(network, 0, destination, message)
+		let (network, destination) = devolved;
+		let xcm = xcm.take().ok_or(SendError::MissingArgument)?;
+		validate_export::<Exporter>(network, 0, universal_source, destination, xcm)
 	}
 
 	fn deliver(ticket: Exporter::Ticket) -> Result<XcmHash, SendError> {
@@ -137,9 +129,6 @@ impl<T: Get<Vec<(NetworkId, MultiLocation, Option<MultiAsset>)>>> ExporterFor
 /// Implementation of `SendXcm` which wraps the message inside an `ExportMessage` instruction
 /// and sends it to a destination known to be able to handle it.
 ///
-/// The actual message send to the bridge for forwarding is prepended with `UniversalOrigin`
-/// and `DescendOrigin` in order to ensure that the message is executed with our Origin.
-///
 /// No effort is made to make payment to the bridge for its services, so the bridge location
 /// must have been configured with a barrier rule allowing unpaid execution for this message
 /// coming from our origin.
@@ -160,31 +149,17 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 	) -> SendResult<Router::Ticket> {
 		let d = dest.as_ref().ok_or(MissingArgument)?.clone();
 		let devolved = ensure_is_remote(UniversalLocation::get(), d).map_err(|_| NotApplicable)?;
-		let (remote_network, remote_location, local_network, local_location) = devolved;
-
-		// Prepend the desired message with instructions which effectively rewrite the origin.
-		//
-		// This only works because the remote chain empowers the bridge
-		// to speak for the local network.
-		let mut exported: Xcm<()> = vec![UniversalOrigin(GlobalConsensus(local_network))].into();
-		if local_location != Here {
-			exported.inner_mut().push(DescendOrigin(local_location));
-		}
-		exported.inner_mut().extend(xcm.take().ok_or(MissingArgument)?.into_iter());
-
+		let (remote_network, remote_location) = devolved;
+		let xcm = xcm.take().ok_or(MissingArgument)?;
 		let (bridge, maybe_payment) =
-			Bridges::exporter_for(&remote_network, &remote_location, &exported)
-				.ok_or(NotApplicable)?;
+			Bridges::exporter_for(&remote_network, &remote_location, &xcm).ok_or(NotApplicable)?;
 		ensure!(maybe_payment.is_none(), Unroutable);
 
 		// We then send a normal message to the bridge asking it to export the prepended
 		// message to the remote chain. This will only work if the bridge will do the message
 		// export for free. Common-good chains will typically be afforded this.
-		let message = Xcm(vec![ExportMessage {
-			network: remote_network,
-			destination: remote_location,
-			xcm: exported,
-		}]);
+		let message =
+			Xcm(vec![ExportMessage { network: remote_network, destination: remote_location, xcm }]);
 		let (v, mut cost) = validate_send::<Router>(bridge, message)?;
 		if let Some(payment) = maybe_payment {
 			cost.push(payment);
@@ -199,9 +174,6 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 
 /// Implementation of `SendXcm` which wraps the message inside an `ExportMessage` instruction
 /// and sends it to a destination known to be able to handle it.
-///
-/// The actual message send to the bridge for forwarding is prepended with `UniversalOrigin`
-/// and `DescendOrigin` in order to ensure that the message is executed with this Origin.
 ///
 /// The `ExportMessage` instruction on the bridge is paid for from the local chain's sovereign
 /// account on the bridge. The amount paid is determined through the `ExporterFor` trait.
@@ -219,26 +191,16 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 	) -> SendResult<Router::Ticket> {
 		let d = dest.as_ref().ok_or(MissingArgument)?.clone();
 		let devolved = ensure_is_remote(UniversalLocation::get(), d).map_err(|_| NotApplicable)?;
-		let (remote_network, remote_location, local_network, local_location) = devolved;
+		let (remote_network, remote_location) = devolved;
 
-		// Prepend the desired message with instructions which effectively rewrite the origin.
-		//
-		// This only works because the remote chain empowers the bridge
-		// to speak for the local network.
-		let mut exported: Xcm<()> = vec![UniversalOrigin(GlobalConsensus(local_network))].into();
-		if local_location != Here {
-			exported.inner_mut().push(DescendOrigin(local_location));
-		}
-		exported.inner_mut().extend(xcm.take().ok_or(MissingArgument)?.into_iter());
-
+		let xcm = xcm.take().ok_or(MissingArgument)?;
 		let (bridge, maybe_payment) =
-			Bridges::exporter_for(&remote_network, &remote_location, &exported)
-				.ok_or(NotApplicable)?;
+			Bridges::exporter_for(&remote_network, &remote_location, &xcm).ok_or(NotApplicable)?;
 
 		let local_from_bridge =
 			UniversalLocation::get().invert_target(&bridge).map_err(|_| Unroutable)?;
 		let export_instruction =
-			ExportMessage { network: remote_network, destination: remote_location, xcm: exported };
+			ExportMessage { network: remote_network, destination: remote_location, xcm };
 
 		let message = Xcm(if let Some(ref payment) = maybe_payment {
 			let fees = payment
@@ -338,6 +300,7 @@ impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>, Price: Get<MultiAssets>> 
 	fn validate(
 		network: NetworkId,
 		_channel: u32,
+		universal_source: &mut Option<InteriorMultiLocation>,
 		destination: &mut Option<InteriorMultiLocation>,
 		message: &mut Option<Xcm<()>>,
 	) -> Result<((Vec<u8>, XcmHash), MultiAssets), SendError> {
@@ -352,7 +315,19 @@ impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>, Price: Get<MultiAssets>> 
 				return Err(SendError::NotApplicable)
 			},
 		};
-		let message = VersionedXcm::from(message.take().ok_or(SendError::MissingArgument)?);
+		let (local_net, local_sub) = universal_source
+			.take()
+			.ok_or(SendError::MissingArgument)?
+			.split_global()
+			.map_err(|()| SendError::Unroutable)?;
+		let mut inner: Xcm<()> = vec![UniversalOrigin(GlobalConsensus(local_net))].into();
+		if local_sub != Here {
+			inner.inner_mut().push(DescendOrigin(local_sub));
+		}
+		inner
+			.inner_mut()
+			.extend(message.take().ok_or(SendError::MissingArgument)?.into_iter());
+		let message = VersionedXcm::from(inner);
 		let hash = message.using_encoded(sp_io::hashing::blake2_256);
 		let blob = BridgeMessage { universal_dest, message }.encode();
 		Ok(((blob, hash), Price::get()))
@@ -372,11 +347,11 @@ mod tests {
 	fn ensure_is_remote_works() {
 		// A Kusama parachain is remote from the Polkadot Relay.
 		let x = ensure_is_remote(Polkadot, (Parent, Kusama, Parachain(1000)));
-		assert_eq!(x, Ok((Kusama, Parachain(1000).into(), Polkadot, Here)));
+		assert_eq!(x, Ok((Kusama, Parachain(1000).into())));
 
 		// Polkadot Relay is remote from a Kusama parachain.
 		let x = ensure_is_remote((Kusama, Parachain(1000)), (Parent, Parent, Polkadot));
-		assert_eq!(x, Ok((Polkadot, Here, Kusama, Parachain(1000).into())));
+		assert_eq!(x, Ok((Polkadot, Here)));
 
 		// Our own parachain is local.
 		let x = ensure_is_remote(Polkadot, Parachain(1000));

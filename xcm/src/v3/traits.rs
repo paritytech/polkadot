@@ -41,10 +41,10 @@ pub enum Error {
 	UntrustedTeleportLocation,
 	/// `MultiLocation` value too large to descend further.
 	#[codec(index = 4)]
-	MultiLocationFull,
+	LocationFull,
 	/// `MultiLocation` value ascend more parents than known ancestors of local location.
 	#[codec(index = 5)]
-	MultiLocationNotInvertible,
+	LocationNotInvertible,
 	/// The Origin Register does not contain a valid value for instruction.
 	#[codec(index = 6)]
 	BadOrigin,
@@ -126,6 +126,9 @@ pub enum Error {
 	/// The state was not in a condition where the operation was valid to make.
 	#[codec(index = 32)]
 	NoPermission,
+	/// The universal location of the local consensus is improper.
+	#[codec(index = 33)]
+	Unanchored,
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	/// XCM version not able to be handled.
@@ -161,8 +164,8 @@ impl TryFrom<OldError> for Error {
 			Unimplemented => Self::Unimplemented,
 			UntrustedReserveLocation => Self::UntrustedReserveLocation,
 			UntrustedTeleportLocation => Self::UntrustedTeleportLocation,
-			MultiLocationFull => Self::MultiLocationFull,
-			MultiLocationNotInvertible => Self::MultiLocationNotInvertible,
+			MultiLocationFull => Self::LocationFull,
+			MultiLocationNotInvertible => Self::LocationNotInvertible,
 			BadOrigin => Self::BadOrigin,
 			InvalidLocation => Self::InvalidLocation,
 			AssetNotFound => Self::AssetNotFound,
