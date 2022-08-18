@@ -21,7 +21,7 @@ use futures::{executor, future};
 use futures_timer::Delay;
 
 use parity_scale_codec::Encode;
-use polkadot_node_network_protocol::request_response::IncomingRequest;
+use polkadot_node_network_protocol::request_response::{IncomingRequest, ReqProtocolNames};
 
 use super::*;
 
@@ -36,10 +36,13 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash, HeadData, PersistedValidationData};
 use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 
 type VirtualOverseer = TestSubsystemContextHandle<AvailabilityRecoveryMessage>;
+
+// Deterministic genesis hash for protocol names
+const GENESIS_HASH: Hash = Hash::repeat_byte(0xff);
 
 fn test_harness_fast_path<T: Future<Output = (VirtualOverseer, RequestResponseConfig)>>(
 	test: impl FnOnce(VirtualOverseer, RequestResponseConfig) -> T,
@@ -53,7 +56,8 @@ fn test_harness_fast_path<T: Future<Output = (VirtualOverseer, RequestResponseCo
 
 	let (context, virtual_overseer) = make_subsystem_context(pool.clone());
 
-	let (collation_req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
+	let (collation_req_receiver, req_cfg) =
+		IncomingRequest::get_config_receiver(&ReqProtocolNames::new(&GENESIS_HASH, None));
 	let subsystem =
 		AvailabilityRecoverySubsystem::with_fast_path(collation_req_receiver, Metrics::new_dummy());
 	let subsystem = async {
@@ -87,7 +91,8 @@ fn test_harness_chunks_only<T: Future<Output = (VirtualOverseer, RequestResponse
 
 	let (context, virtual_overseer) = make_subsystem_context(pool.clone());
 
-	let (collation_req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
+	let (collation_req_receiver, req_cfg) =
+		IncomingRequest::get_config_receiver(&ReqProtocolNames::new(&GENESIS_HASH, None));
 	let subsystem = AvailabilityRecoverySubsystem::with_chunks_only(
 		collation_req_receiver,
 		Metrics::new_dummy(),
@@ -282,8 +287,8 @@ impl TestState {
 			// Receive a request for a chunk.
 			assert_matches!(
 				overseer_recv(virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendRequests(
+				AllMessages::NetworkBridgeTx(
+					NetworkBridgeTxMessage::SendRequests(
 						requests,
 						IfDisconnected::ImmediateError,
 					)
@@ -331,8 +336,8 @@ impl TestState {
 			// Receive a request for a chunk.
 			assert_matches!(
 				overseer_recv(virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendRequests(
+				AllMessages::NetworkBridgeTx(
+					NetworkBridgeTxMessage::SendRequests(
 						mut requests,
 						IfDisconnected::ImmediateError,
 					)

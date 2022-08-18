@@ -58,7 +58,7 @@ use sp_runtime::{
 		OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, FixedU128, KeyTypeId,
+	ApplyExtrinsicResult, KeyTypeId,
 };
 use sp_staking::SessionIndex;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -75,11 +75,11 @@ use runtime_parachains::{
 };
 
 pub use frame_system::Call as SystemCall;
+pub use pallet_balances::Call as BalancesCall;
 
 /// Constant values used within the runtime.
 use rococo_runtime_constants::{currency::*, fee::*, time::*};
 
-mod bridge_messages;
 mod validator_manager;
 mod weights;
 pub mod xcm_config;
@@ -96,13 +96,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v2.0"),
 	authoring_version: 0,
-	spec_version: 9230,
+	spec_version: 9270,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 0,
+	transaction_version: 1,
 	state_version: 0,
 };
 
@@ -442,6 +442,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Config for Runtime {
+	type Event = Event;
 	type OnChargeTransaction = CurrencyAdapter<Balances, ToAuthor<Runtime>>;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
@@ -663,6 +664,7 @@ impl paras_registrar::Config for Runtime {
 impl pallet_beefy::Config for Runtime {
 	type BeefyId = BeefyId;
 	type MaxAuthorities = MaxAuthorities;
+	type OnNewValidatorSet = MmrLeaf;
 }
 
 type MmrHash = <Keccak256 as sp_runtime::traits::Hash>::Output;
@@ -1278,87 +1280,13 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl bp_rococo::RococoFinalityApi<Block> for Runtime {
-		fn best_finalized() -> (bp_rococo::BlockNumber, bp_rococo::Hash) {
-			let header = BridgeRococoGrandpa::best_finalized();
-			(header.number, header.hash())
-		}
-	}
-
-	impl bp_wococo::WococoFinalityApi<Block> for Runtime {
-		fn best_finalized() -> (bp_wococo::BlockNumber, bp_wococo::Hash) {
-			let header = BridgeWococoGrandpa::best_finalized();
-			(header.number, header.hash())
-		}
-	}
-
-	impl bp_rococo::ToRococoOutboundLaneApi<Block, Balance, bridge_messages::ToRococoMessagePayload> for Runtime {
-		fn estimate_message_delivery_and_dispatch_fee(
-			_lane_id: bp_messages::LaneId,
-			payload: bridge_messages::ToWococoMessagePayload,
-			rococo_to_wococo_conversion_rate: Option<FixedU128>,
-		) -> Option<Balance> {
-			estimate_message_dispatch_and_delivery_fee::<bridge_messages::AtWococoWithRococoMessageBridge>(
-				&payload,
-				bridge_messages::AtWococoWithRococoMessageBridge::RELAYER_FEE_PERCENT,
-				rococo_to_wococo_conversion_rate,
-			).ok()
+	impl beefy_merkle_tree::BeefyMmrApi<Block, Hash> for RuntimeApi {
+		fn authority_set_proof() -> beefy_primitives::mmr::BeefyAuthoritySet<Hash> {
+			MmrLeaf::authority_set_proof()
 		}
 
-		fn message_details(
-			lane: bp_messages::LaneId,
-			begin: bp_messages::MessageNonce,
-			end: bp_messages::MessageNonce,
-		) -> Vec<bp_messages::MessageDetails<Balance>> {
-			(begin..=end).filter_map(|nonce| {
-				let message_data = BridgeRococoMessages::outbound_message_data(lane, nonce)?;
-				let decoded_payload = bridge_messages::ToRococoMessagePayload::decode(
-					&mut &message_data.payload[..]
-				).ok()?;
-				Some(bp_messages::MessageDetails {
-					nonce,
-					dispatch_weight: decoded_payload.weight,
-					size: message_data.payload.len() as _,
-					delivery_and_dispatch_fee: message_data.fee,
-					dispatch_fee_payment: decoded_payload.dispatch_fee_payment,
-				})
-			})
-			.collect()
-		}
-	}
-
-	impl bp_wococo::ToWococoOutboundLaneApi<Block, Balance, bridge_messages::ToWococoMessagePayload> for Runtime {
-		fn estimate_message_delivery_and_dispatch_fee(
-			_lane_id: bp_messages::LaneId,
-			payload: bridge_messages::ToWococoMessagePayload,
-			wococo_to_rococo_conversion_rate: Option<FixedU128>,
-		) -> Option<Balance> {
-			estimate_message_dispatch_and_delivery_fee::<bridge_messages::AtRococoWithWococoMessageBridge>(
-				&payload,
-				bridge_messages::AtRococoWithWococoMessageBridge::RELAYER_FEE_PERCENT,
-				wococo_to_rococo_conversion_rate,
-			).ok()
-		}
-
-		fn message_details(
-			lane: bp_messages::LaneId,
-			begin: bp_messages::MessageNonce,
-			end: bp_messages::MessageNonce,
-		) -> Vec<bp_messages::MessageDetails<Balance>> {
-			(begin..=end).filter_map(|nonce| {
-				let message_data = BridgeWococoMessages::outbound_message_data(lane, nonce)?;
-				let decoded_payload = bridge_messages::ToWococoMessagePayload::decode(
-					&mut &message_data.payload[..]
-				).ok()?;
-				Some(bp_messages::MessageDetails {
-					nonce,
-					dispatch_weight: decoded_payload.weight,
-					size: message_data.payload.len() as _,
-					delivery_and_dispatch_fee: message_data.fee,
-					dispatch_fee_payment: decoded_payload.dispatch_fee_payment,
-				})
-			})
-			.collect()
+		fn next_authority_set_proof() -> beefy_primitives::mmr::BeefyNextAuthoritySet<Hash> {
+			MmrLeaf::next_authority_set_proof()
 		}
 	}
 
@@ -1377,6 +1305,17 @@ sp_api::impl_runtime_apis! {
 		}
 		fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
 			TransactionPayment::query_fee_details(uxt, len)
+		}
+	}
+
+	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentCallApi<Block, Balance, Call>
+		for Runtime
+	{
+		fn query_call_info(call: Call, len: u32) -> RuntimeDispatchInfo<Balance> {
+			TransactionPayment::query_call_info(call, len)
+		}
+		fn query_call_fee_details(call: Call, len: u32) -> FeeDetails<Balance> {
+			TransactionPayment::query_call_fee_details(call, len)
 		}
 	}
 

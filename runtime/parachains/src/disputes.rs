@@ -600,7 +600,7 @@ struct ImportUndo {
 	/// The direction of the vote, for block validity (`true`) or invalidity (`false`).
 	valid: bool,
 	/// Has the validator participated before, i.e. in backing or
-	/// with an oposing vote.
+	/// with an opposing vote.
 	new_participant: bool,
 }
 

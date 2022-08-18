@@ -203,15 +203,13 @@ pub mod pallet {
 
 	#[pallet::extra_constants]
 	impl<T: Config> Pallet<T> {
-		//TODO: rename to snake case after https://github.com/paritytech/substrate/issues/8826 fixed.
-		#[allow(non_snake_case)]
-		fn SlotRangeCount() -> u32 {
+		#[pallet::constant_name(SlotRangeCount)]
+		fn slot_range_count() -> u32 {
 			SlotRange::SLOT_RANGE_COUNT as u32
 		}
 
-		//TODO: rename to snake case after https://github.com/paritytech/substrate/issues/8826 fixed.
-		#[allow(non_snake_case)]
-		fn LeasePeriodsPerSlot() -> u32 {
+		#[pallet::constant_name(LeasePeriodsPerSlot)]
+		fn lease_periods_per_slot() -> u32 {
 			SlotRange::LEASE_PERIODS_PER_SLOT as u32
 		}
 	}
@@ -1786,7 +1784,7 @@ mod benchmarking {
 			let duration = T::BlockNumber::max_value();
 			let lease_period_index = LeasePeriodOf::<T>::max_value();
 			let origin = T::InitiateOrigin::successful_origin();
-		}: _(RawOrigin::Root, duration, lease_period_index)
+		}: _<T::Origin>(origin, duration, lease_period_index)
 		verify {
 			assert_last_event::<T>(Event::<T>::AuctionStarted {
 				auction_index: AuctionCounter::<T>::get(),
@@ -1804,7 +1802,8 @@ mod benchmarking {
 			// Create a new auction
 			let duration = T::BlockNumber::max_value();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
-			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
+			let origin = T::InitiateOrigin::successful_origin();
+			Auctions::<T>::new_auction(origin, duration, lease_period_index)?;
 
 			let para = ParaId::from(0);
 			let new_para = ParaId::from(1_u32);
@@ -1855,7 +1854,8 @@ mod benchmarking {
 			let duration: T::BlockNumber = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
-			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
+			let origin = T::InitiateOrigin::successful_origin();
+			Auctions::<T>::new_auction(origin, duration, lease_period_index)?;
 
 			fill_winners::<T>(lease_period_index);
 
@@ -1898,7 +1898,8 @@ mod benchmarking {
 			let duration: T::BlockNumber = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
-			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
+			let origin = T::InitiateOrigin::successful_origin();
+			Auctions::<T>::new_auction(origin, duration, lease_period_index)?;
 
 			fill_winners::<T>(lease_period_index);
 

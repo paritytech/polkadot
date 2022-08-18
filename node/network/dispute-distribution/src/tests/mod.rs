@@ -31,7 +31,7 @@ use parity_scale_codec::{Decode, Encode};
 use sc_network::config::RequestResponseConfig;
 
 use polkadot_node_network_protocol::{
-	request_response::{v1::DisputeRequest, IncomingRequest},
+	request_response::{v1::DisputeRequest, IncomingRequest, ReqProtocolNames},
 	PeerId,
 };
 use sp_keyring::Sr25519Keyring;
@@ -44,7 +44,7 @@ use polkadot_node_primitives::{CandidateVotes, UncheckedDisputeMessage};
 use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, DisputeCoordinatorMessage, DisputeDistributionMessage, ImportStatementsResult,
-		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
+		NetworkBridgeTxMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal, Span,
 };
@@ -274,16 +274,19 @@ fn disputes_are_recovered_at_startup() {
 				let unchecked: UncheckedDisputeMessage = message.into();
 				tx.send(vec![(session_index, candidate_hash, CandidateVotes {
 					candidate_receipt: candidate,
-					valid: vec![(
-						unchecked.valid_vote.kind,
+					valid: [(
 						unchecked.valid_vote.validator_index,
+						(unchecked.valid_vote.kind,
 						unchecked.valid_vote.signature
-					)],
-					invalid: vec![(
-						unchecked.invalid_vote.kind,
+						),
+					)].into_iter().collect(),
+					invalid: [(
 						unchecked.invalid_vote.validator_index,
+						(
+						unchecked.invalid_vote.kind,
 						unchecked.invalid_vote.signature
-					)],
+						),
+					)].into_iter().collect(),
 				})])
 				.expect("Receiver should stay alive.");
 			}
@@ -522,16 +525,15 @@ async fn nested_network_dispute_request<'a, F, O>(
 		handle.recv().await,
 		AllMessages::DisputeCoordinator(
 			DisputeCoordinatorMessage::ImportStatements {
-				candidate_hash,
 				candidate_receipt,
 				session,
 				statements,
 				pending_confirmation: Some(pending_confirmation),
 			}
 		) => {
+			let candidate_hash = candidate_receipt.hash();
 			assert_eq!(session, MOCK_SESSION_INDEX);
 			assert_eq!(candidate_hash, message.0.candidate_receipt.hash());
-			assert_eq!(candidate_hash, candidate_receipt.hash());
 			assert_eq!(statements.len(), 2);
 			pending_confirmation
 		}
@@ -662,8 +664,8 @@ async fn check_sent_requests(
 	// Sends to concerned validators:
 	assert_matches!(
 		handle.recv().await,
-		AllMessages::NetworkBridge(
-			NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
+		AllMessages::NetworkBridgeTx(
+			NetworkBridgeTxMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
 		) => {
 			let reqs: Vec<_> = reqs.into_iter().map(|r|
 				assert_matches!(
@@ -723,7 +725,9 @@ where
 	sp_tracing::try_init_simple();
 	let keystore = make_ferdie_keystore();
 
-	let (req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
+	let genesis_hash = Hash::repeat_byte(0xff);
+	let req_protocol_names = ReqProtocolNames::new(&genesis_hash, None);
+	let (req_receiver, req_cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	let subsystem = DisputeDistributionSubsystem::new(
 		keystore,
 		req_receiver,
