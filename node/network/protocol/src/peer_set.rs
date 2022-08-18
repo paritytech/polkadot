@@ -27,8 +27,8 @@ use std::{
 use strum::{EnumIter, IntoEnumIterator};
 
 // Only supported protocol versions should be defined here.
-const VALIDATION_PROTOCOL_V1: &str = "/polkadot/validation/1";
-const COLLATION_PROTOCOL_V1: &str = "/polkadot/collation/1";
+const LEGACY_VALIDATION_PROTOCOL_V1: &str = "/polkadot/validation/1";
+const LEGACY_COLLATION_PROTOCOL_V1: &str = "/polkadot/collation/1";
 
 /// The main protocol version, currently the same for validation & collation.
 const MAIN_PROTOCOL_VERSION: ProtocolVersion = 1;
