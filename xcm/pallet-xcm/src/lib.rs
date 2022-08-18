@@ -682,7 +682,7 @@ pub mod pallet {
 							xcm: Xcm(vec![]),
 						},
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000.saturating_add(w))
 				},
 				_ => Weight::max_value(),
 			}
@@ -720,7 +720,7 @@ pub mod pallet {
 					let mut message = Xcm(vec![
 						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000.saturating_add(w))
 				},
 				_ => Weight::max_value(),
 			}
@@ -884,7 +884,7 @@ pub mod pallet {
 					let mut message = Xcm(vec![
 						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000.saturating_add(w))
 				},
 				_ => Weight::max_value(),
 			}
@@ -934,7 +934,7 @@ pub mod pallet {
 						WithdrawAsset(assets),
 						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000.saturating_add(w))
 				},
 				_ => Weight::max_value(),
 			}

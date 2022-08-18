@@ -1,0 +1,28 @@
+{# This macro shows one runtime #}
+{%- macro runtime(runtime) -%}
+
+### {{ runtime.name | capitalize }}
+
+{%- if runtime.data.runtimes.compressed.subwasm.compression.compressed %}
+{%- set compressed = "Yes" %}
+{%- else %}
+{%- set compressed = "No" %}
+{%- endif %}
+
+{%- set comp_ratio = 100 - (runtime.data.runtimes.compressed.subwasm.compression.size_compressed / runtime.data.runtimes.compressed.subwasm.compression.size_decompressed *100) %}
+<!-- commit : {{ runtime.data.commit }} -->
+<!-- tag    : {{ runtime.data.tag }} -->
+<!-- branch : {{ runtime.data.branch }} -->
+<!-- pkg    : {{ runtime.data.pkg }} -->
+
+```
+🏋️ Runtime Size:           {{ runtime.data.runtimes.compressed.subwasm.size | filesizeformat }} ({{ runtime.data.runtimes.compressed.subwasm.size }} bytes)
+🔥 Core Version:           {{ runtime.data.runtimes.compressed.subwasm.core_version.specName }}-{{ runtime.data.runtimes.compressed.subwasm.core_version.specVersion }} ({{ runtime.data.runtimes.compressed.subwasm.core_version.implName }}-{{ runtime.data.runtimes.compressed.subwasm.core_version.implVersion }}.tx{{ runtime.data.runtimes.compressed.subwasm.core_version.transactionVersion }}.au{{ runtime.data.runtimes.compressed.subwasm.core_version.authoringVersion }})
+🗜 Compressed:             {{ compressed }}: {{ comp_ratio | round(method="ceil", precision=2) }}%
+🎁 Metadata version:       V{{ runtime.data.runtimes.compressed.subwasm.metadata_version }}
+🗳️ system.setCode hash:    {{ runtime.data.runtimes.compressed.subwasm.proposal_hash }}
+🗳️ authorizeUpgrade hash:  {{ runtime.data.runtimes.compressed.subwasm.parachain_authorize_upgrade_hash }}
+🗳️ Blake2-256 hash:        {{ runtime.data.runtimes.compressed.subwasm.blake2_256 }}
+📦 IPFS:                   {{ runtime.data.runtimes.compressed.subwasm.ipfs_hash }}
+```
+{%- endmacro runtime %}

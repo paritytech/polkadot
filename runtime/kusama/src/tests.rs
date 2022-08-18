@@ -17,7 +17,7 @@
 //! Tests for the Kusama Runtime Configuration
 
 use crate::*;
-use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
+use frame_support::weights::{GetDispatchInfo, WeightToFee as WeightToFeeT};
 use keyring::Sr25519Keyring::Charlie;
 use pallet_transaction_payment::Multiplier;
 use parity_scale_codec::Encode;
@@ -68,7 +68,7 @@ fn payout_weight_portion() {
 #[ignore]
 fn block_cost() {
 	let max_block_weight = BlockWeights::get().max_block;
-	let raw_fee = WeightToFee::calc(&max_block_weight);
+	let raw_fee = WeightToFee::weight_to_fee(&max_block_weight);
 
 	println!(
 		"Full Block weight == {} // WeightToFee(full_block) == {} plank",
@@ -173,10 +173,5 @@ fn era_payout_should_give_sensible_results() {
 
 #[test]
 fn call_size() {
-	assert!(
-		core::mem::size_of::<Call>() <= 230,
-		"size of Call is more than 230 bytes: some calls have too big arguments, use Box to reduce \
-		the size of Call.
-		If the limit is too strong, maybe consider increase the limit to 300.",
-	);
+	Call::assert_size_under(230);
 }

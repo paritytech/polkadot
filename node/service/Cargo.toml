@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.9.19"
+version = "0.9.27"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -15,16 +15,17 @@ sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-offchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
 
@@ -63,11 +64,12 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https:
 futures = "0.3.21"
 hex-literal = "0.3.4"
 gum = { package = "tracing-gum", path = "../gum/" }
-serde = { version = "1.0.136", features = ["derive"] }
-thiserror = "1.0.30"
+serde = { version = "1.0.137", features = ["derive"] }
+serde_json = "1.0.81"
+thiserror = "1.0.31"
 kvdb = "0.11.0"
 kvdb-rocksdb = { version = "0.15.2", optional = true }
-parity-db = { version = "0.3.9", optional = true }
+parity-db = { version = "0.3.16", optional = true }
 async-trait = "0.1.53"
 lru = "0.7"
 
@@ -79,8 +81,9 @@ polkadot-parachain = { path = "../../parachain" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-rpc = { path = "../../rpc" }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
+polkadot-node-subsystem = {path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
+polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 
@@ -123,14 +126,15 @@ polkadot-statement-distribution = { path = "../network/statement-distribution", 
 polkadot-test-client = { path = "../test/client" }
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 env_logger = "0.9.0"
-log = "0.4.16"
+log = "0.4.17"
 assert_matches = "1.5.0"
+tempfile = "3.2"
 
 [features]
 default = ["db", "full-node", "polkadot-native"]
 
 db = [
-	"service/db"
+	"service/rocksdb"
 ]
 
 full-node = [
@@ -196,3 +200,5 @@ runtime-metrics = [
 	"polkadot-runtime/runtime-metrics",
 	"polkadot-runtime-parachains/runtime-metrics"
 ]
+
+staging-client = ["polkadot-node-core-provisioner/staging-client"]

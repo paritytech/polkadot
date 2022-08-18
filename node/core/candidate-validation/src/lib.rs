@@ -35,10 +35,9 @@ use polkadot_node_subsystem::{
 		CandidateValidationMessage, PreCheckOutcome, RuntimeApiMessage, RuntimeApiRequest,
 		ValidationFailed,
 	},
-	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
-	SubsystemResult, SubsystemSender,
+	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
+	SubsystemSender,
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
 use polkadot_primitives::v2::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, Hash, OccupiedCoreAssumption,
@@ -52,6 +51,9 @@ use futures::{channel::oneshot, prelude::*};
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+
+mod metrics;
+use self::metrics::Metrics;
 
 #[cfg(test)]
 mod tests;
@@ -91,11 +93,8 @@ impl CandidateValidationSubsystem {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for CandidateValidationSubsystem
-where
-	Context: SubsystemContext<Message = CandidateValidationMessage>,
-	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
-{
+#[overseer::subsystem(CandidateValidation, error=SubsystemError, prefix=self::overseer)]
+impl<Context> CandidateValidationSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(
 			ctx,
@@ -110,17 +109,14 @@ where
 	}
 }
 
+#[overseer::contextbounds(CandidateValidation, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
 	metrics: Metrics,
 	pvf_metrics: polkadot_node_core_pvf::Metrics,
 	cache_path: PathBuf,
 	program_path: PathBuf,
-) -> SubsystemResult<()>
-where
-	Context: SubsystemContext<Message = CandidateValidationMessage>,
-	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
-{
+) -> SubsystemResult<()> {
 	let (validation_host, task) = polkadot_node_core_pvf::start(
 		polkadot_node_core_pvf::Config::new(cache_path, program_path),
 		pvf_metrics,
@@ -129,10 +125,10 @@ where
 
 	loop {
 		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-			FromOverseer::Communication { msg } => match msg {
+			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(_)) => {},
+			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
+			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+			FromOrchestra::Communication { msg } => match msg {
 				CandidateValidationMessage::ValidateFromChainState(
 					candidate_receipt,
 					pov,
@@ -233,7 +229,7 @@ async fn runtime_api_request<T, Sender>(
 	receiver: oneshot::Receiver<Result<T, RuntimeApiError>>,
 ) -> Result<T, RuntimeRequestFailed>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	sender
 		.send_message(RuntimeApiMessage::Request(relay_parent, request).into())
@@ -266,7 +262,7 @@ async fn request_validation_code_by_hash<Sender>(
 	validation_code_hash: ValidationCodeHash,
 ) -> Result<Option<ValidationCode>, RuntimeRequestFailed>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 	runtime_api_request(
@@ -285,7 +281,7 @@ async fn precheck_pvf<Sender>(
 	validation_code_hash: ValidationCodeHash,
 ) -> PreCheckOutcome
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	let validation_code =
 		match request_validation_code_by_hash(sender, relay_parent, validation_code_hash).await {
@@ -340,7 +336,7 @@ async fn check_assumption_validation_data<Sender>(
 	assumption: OccupiedCoreAssumption,
 ) -> AssumptionCheckOutcome
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	let validation_data = {
 		let (tx, rx) = oneshot::channel();
@@ -384,7 +380,7 @@ async fn find_assumed_validation_data<Sender>(
 	descriptor: &CandidateDescriptor,
 ) -> AssumptionCheckOutcome
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	// The candidate descriptor has a `persisted_validation_data_hash` which corresponds to
 	// one of up to two possible values that we can derive from the state of the
@@ -419,7 +415,7 @@ pub async fn find_validation_data<Sender>(
 	descriptor: &CandidateDescriptor,
 ) -> Result<Option<(PersistedValidationData, ValidationCode)>, ValidationFailed>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	match find_assumed_validation_data(sender, &descriptor).await {
 		AssumptionCheckOutcome::Matches(validation_data, validation_code) =>
@@ -444,7 +440,7 @@ async fn validate_from_chain_state<Sender>(
 	metrics: &Metrics,
 ) -> Result<ValidationResult, ValidationFailed>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	let mut new_sender = sender.clone();
 	let (validation_data, validation_code) =
@@ -684,96 +680,4 @@ fn perform_basic_checks(
 	}
 
 	Ok(())
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	validation_requests: prometheus::CounterVec<prometheus::U64>,
-	validate_from_chain_state: prometheus::Histogram,
-	validate_from_exhaustive: prometheus::Histogram,
-	validate_candidate_exhaustive: prometheus::Histogram,
-}
-
-/// Candidate validation metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_validation_event(&self, event: &Result<ValidationResult, ValidationFailed>) {
-		if let Some(metrics) = &self.0 {
-			match event {
-				Ok(ValidationResult::Valid(_, _)) => {
-					metrics.validation_requests.with_label_values(&["valid"]).inc();
-				},
-				Ok(ValidationResult::Invalid(_)) => {
-					metrics.validation_requests.with_label_values(&["invalid"]).inc();
-				},
-				Err(_) => {
-					metrics.validation_requests.with_label_values(&["validation failure"]).inc();
-				},
-			}
-		}
-	}
-
-	/// Provide a timer for `validate_from_chain_state` which observes on drop.
-	fn time_validate_from_chain_state(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.validate_from_chain_state.start_timer())
-	}
-
-	/// Provide a timer for `validate_from_exhaustive` which observes on drop.
-	fn time_validate_from_exhaustive(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.validate_from_exhaustive.start_timer())
-	}
-
-	/// Provide a timer for `validate_candidate_exhaustive` which observes on drop.
-	fn time_validate_candidate_exhaustive(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0
-			.as_ref()
-			.map(|metrics| metrics.validate_candidate_exhaustive.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			validation_requests: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_validation_requests_total",
-						"Number of validation requests served.",
-					),
-					&["validity"],
-				)?,
-				registry,
-			)?,
-			validate_from_chain_state: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_candidate_validation_validate_from_chain_state",
-					"Time spent within `candidate_validation::validate_from_chain_state`",
-				))?,
-				registry,
-			)?,
-			validate_from_exhaustive: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_candidate_validation_validate_from_exhaustive",
-					"Time spent within `candidate_validation::validate_from_exhaustive`",
-				))?,
-				registry,
-			)?,
-			validate_candidate_exhaustive: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_candidate_validation_validate_candidate_exhaustive",
-					"Time spent within `candidate_validation::validate_candidate_exhaustive`",
-				))?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
-	}
 }

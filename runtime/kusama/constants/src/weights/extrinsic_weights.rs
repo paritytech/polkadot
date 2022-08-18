@@ -16,7 +16,7 @@
 // limitations under the License.
 
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2022-03-24 (Y/M/D)
+//! DATE: 2022-04-20 (Y/M/D)
 //!
 //! SHORT-NAME: `extrinsic`, LONG-NAME: `ExtrinsicBase`, RUNTIME: `Development`
 //! WARMUPS: `10`, REPEAT: `100`
@@ -25,17 +25,14 @@
 
 // Executed Command:
 //   ./target/production/polkadot
-//   benchmark-overhead
-//   --chain
-//   kusama-dev
+//   benchmark
+//   overhead
+//   --chain=kusama-dev
 //   --execution=wasm
 //   --wasm-execution=compiled
-//   --weight-path
-//   runtime/kusama/constants/src/weights/
-//   --warmup
-//   10
-//   --repeat
-//   100
+//   --weight-path=runtime/kusama/constants/src/weights/
+//   --warmup=10
+//   --repeat=100
 
 use frame_support::{
 	parameter_types,
@@ -47,16 +44,16 @@ parameter_types! {
 	/// Calculated by multiplying the *Average* with `1` and adding `0`.
 	///
 	/// Stats [NS]:
-	///   Min, Max: 80_176, 81_558
-	///   Average:  80_350
-	///   Median:   80_335
-	///   Std-Dev:  136.56
+	///   Min, Max: 85_946, 88_408
+	///   Average:  86_309
+	///   Median:   86_213
+	///   Std-Dev:  345.03
 	///
 	/// Percentiles [NS]:
-	///   99th: 80_492
-	///   95th: 80_459
-	///   75th: 80_377
-	pub const ExtrinsicBaseWeight: Weight = 80_350 * WEIGHT_PER_NANOS;
+	///   99th: 87_527
+	///   95th: 86_901
+	///   75th: 86_308
+	pub const ExtrinsicBaseWeight: Weight = 86_309 * WEIGHT_PER_NANOS;
 }
 
 #[cfg(test)]

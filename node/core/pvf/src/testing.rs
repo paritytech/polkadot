@@ -29,17 +29,22 @@ pub fn validate_candidate(
 	code: &[u8],
 	params: &[u8],
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-	use crate::executor_intf::{execute, prepare, prevalidate, TaskExecutor};
+	use crate::executor_intf::{prepare, prevalidate, Executor};
 
 	let code = sp_maybe_compressed_blob::decompress(code, 10 * 1024 * 1024)
 		.expect("Decompressing code failed");
 
 	let blob = prevalidate(&*code)?;
 	let artifact = prepare(blob)?;
-	let executor = TaskExecutor::new()?;
+	let tmpdir = tempfile::tempdir()?;
+	let artifact_path = tmpdir.path().join("blob");
+	std::fs::write(&artifact_path, &artifact)?;
+
+	let executor = Executor::new()?;
 	let result = unsafe {
-		// SAFETY: This is trivially safe since the artifact is obtained by calling `prepare`.
-		execute(&artifact, params, executor)?
+		// SAFETY: This is trivially safe since the artifact is obtained by calling `prepare`
+		//         and is written into a temporary directory in an unmodified state.
+		executor.execute(&artifact_path, params)?
 	};
 
 	Ok(result)

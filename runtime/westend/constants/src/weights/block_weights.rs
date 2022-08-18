@@ -16,7 +16,8 @@
 // limitations under the License.
 
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2022-03-24 (Y/M/D)
+//! DATE: 2022-07-29 (Y/M/D)
+//! HOSTNAME: `bm5`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
 //!
 //! SHORT-NAME: `block`, LONG-NAME: `BlockExecution`, RUNTIME: `Development`
 //! WARMUPS: `10`, REPEAT: `100`
@@ -25,17 +26,14 @@
 
 // Executed Command:
 //   ./target/production/polkadot
-//   benchmark-overhead
-//   --chain
-//   westend-dev
+//   benchmark
+//   overhead
+//   --chain=westend-dev
 //   --execution=wasm
 //   --wasm-execution=compiled
-//   --weight-path
-//   runtime/westend/constants/src/weights/
-//   --warmup
-//   10
-//   --repeat
-//   100
+//   --weight-path=runtime/westend/constants/src/weights/
+//   --warmup=10
+//   --repeat=100
 
 use frame_support::{
 	parameter_types,
@@ -46,17 +44,17 @@ parameter_types! {
 	/// Time to execute an empty block.
 	/// Calculated by multiplying the *Average* with `1` and adding `0`.
 	///
-	/// Stats [NS]:
-	///   Min, Max: 3_553_100, 3_737_847
-	///   Average:  3_592_873
-	///   Median:   3_573_460
-	///   Std-Dev:  34948.46
+	/// Stats nanoseconds:
+	///   Min, Max: 5_164_333, 5_384_350
+	///   Average:  5_251_804
+	///   Median:   5_253_341
+	///   Std-Dev:  53972.35
 	///
-	/// Percentiles [NS]:
-	///   99th: 3_699_717
-	///   95th: 3_660_927
-	///   75th: 3_608_068
-	pub const BlockExecutionWeight: Weight = 3_592_873 * WEIGHT_PER_NANOS;
+	/// Percentiles nanoseconds:
+	///   99th: 5_376_408
+	///   95th: 5_346_393
+	///   75th: 5_286_569
+	pub const BlockExecutionWeight: Weight = 5_251_804 * WEIGHT_PER_NANOS;
 }
 
 #[cfg(test)]

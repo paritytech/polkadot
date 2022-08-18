@@ -41,9 +41,13 @@ use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
 	multiaddr,
 };
+use sc_network_common::service::NetworkStateInfo;
 use sc_service::{
-	config::{DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
-	BasePath, Configuration, KeepBlocks, Role, RpcHandlers, TaskManager,
+	config::{
+		DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod,
+		WasmtimeInstantiationStrategy,
+	},
+	BasePath, BlocksPruning, Configuration, Role, RpcHandlers, TaskManager,
 };
 use sp_arithmetic::traits::SaturatedConversion;
 use sp_blockchain::HeaderBackend;
@@ -97,6 +101,9 @@ pub fn new_full(
 		worker_program_path,
 		false,
 		polkadot_service::RealOverseerGen,
+		None,
+		None,
+		None,
 	)
 }
 
@@ -172,9 +179,11 @@ pub fn node_config(
 		state_cache_size: 16777216,
 		state_cache_child_ratio: None,
 		state_pruning: Default::default(),
-		keep_blocks: KeepBlocks::All,
+		blocks_pruning: BlocksPruning::All,
 		chain_spec: Box::new(spec),
-		wasm_method: WasmExecutionMethod::Compiled,
+		wasm_method: WasmExecutionMethod::Compiled {
+			instantiation_strategy: WasmtimeInstantiationStrategy::PoolingCopyOnWrite,
+		},
 		wasm_runtime_overrides: Default::default(),
 		// NOTE: we enforce the use of the native runtime to make the errors more debuggable
 		execution_strategies: ExecutionStrategies {
@@ -188,9 +197,13 @@ pub fn node_config(
 		rpc_ws: None,
 		rpc_ipc: None,
 		rpc_max_payload: None,
+		rpc_max_request_size: None,
+		rpc_max_response_size: None,
 		rpc_ws_max_connections: None,
 		rpc_cors: None,
 		rpc_methods: Default::default(),
+		rpc_id_provider: None,
+		rpc_max_subs_per_conn: None,
 		ws_max_out_buffer_capacity: None,
 		prometheus_config: None,
 		telemetry_endpoints: None,

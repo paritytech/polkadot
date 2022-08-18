@@ -108,7 +108,6 @@ Fuzzing is an approach to verify correctness against arbitrary or partially stru
 Currently implemented fuzzing targets:
 
 * `erasure-coding`
-* `bridges/storage-proof`
 
 The tooling of choice here is `honggfuzz-rs` as it allows _fastest_ coverage according to "some paper" which is a positive feature when run as part of PRs.
 
@@ -190,7 +189,7 @@ impl OverseerGen for BehaveMaleficient {
  where
   RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
   RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
-  Spawner: 'static + SpawnNamed + Clone + Unpin,
+  Spawner: 'static + overseer::gen::Spawner + Clone + Unpin,
  {
   let spawner = args.spawner.clone();
   let leaves = args.leaves.clone();

@@ -1,0 +1,31 @@
+{%- import "change.md.tera" as m_c -%}
+{%- set_global host_fn_count = 0 -%}
+
+{% for pr in changes | sort(attribute="merged_at") -%}
+
+{%- if pr.meta.B and pr.meta.B.value == 0 -%}
+{#- We skip silent ones -#}
+{%- else -%}
+    {%- if pr.meta.E and pr.meta.E.value == 4 -%}
+        {%- set_global host_fn_count = host_fn_count + 1 -%}
+            - {{ m_c::change(c=pr) }}
+        {% endif -%}
+    {% endif -%}
+{%- endfor -%}
+
+<!-- {{ host_fn_count }} host functions were detected -->
+
+## Host functions
+
+{%- if host_fn_count == 0 %}
+ℹ️ This release does not contain any new host functions.
+{% elif host_fn_count == 1 -%}
+{# ---- #}
+⚠️ The runtimes in this release contain one new **host function**.
+
+⚠️ It is critical that you update your client before the chain switches to the new runtime.
+{%- else -%}
+⚠️ The runtimes in this release contain {{ host_fn_count }} new **host function{{ host_fn_count | pluralize }}**.
+
+⚠️ It is critical that you update your client before the chain switches to the new runtime.
+{%- endif %}

@@ -26,7 +26,7 @@ use polkadot_node_primitives::{
 	approval::{
 		BlockApprovalMeta, DelayTranche, IndirectAssignmentCert, IndirectSignedApprovalVote,
 	},
-	SignedDisputeStatement, ValidationResult, APPROVAL_EXECUTION_TIMEOUT,
+	ValidationResult, APPROVAL_EXECUTION_TIMEOUT,
 };
 use polkadot_node_subsystem::{
 	errors::RecoveryError,
@@ -37,9 +37,8 @@ use polkadot_node_subsystem::{
 		ChainSelectionMessage, DisputeCoordinatorMessage, HighestApprovedAncestorBlock,
 		RuntimeApiMessage, RuntimeApiRequest,
 	},
-	overseer::{self, SubsystemSender as _},
-	FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
-	SubsystemResult, SubsystemSender,
+	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
+	SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
 	database::Database,
@@ -100,6 +99,11 @@ mod tests;
 pub const APPROVAL_SESSIONS: SessionWindowSize = new_session_window_size!(6);
 
 const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
+/// How long are we willing to wait for approval signatures?
+///
+/// Value rather arbitrarily: Should not be hit in practice, it exists to more easily diagnose dead
+/// lock issues for example.
+const WAIT_FOR_SIGS_TIMEOUT: Duration = Duration::from_millis(500);
 const APPROVAL_CACHE_SIZE: usize = 1024;
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 const APPROVAL_DELAY: Tick = 2;
@@ -153,6 +157,7 @@ struct MetricsInner {
 	block_approval_time_ticks: prometheus::Histogram,
 	time_db_transaction: prometheus::Histogram,
 	time_recover_and_approve: prometheus::Histogram,
+	candidate_signatures_requests_total: prometheus::Counter<prometheus::U64>,
 }
 
 /// Approval Voting metrics.
@@ -223,6 +228,12 @@ impl Metrics {
 	fn on_block_approved(&self, ticks: Tick) {
 		if let Some(metrics) = &self.0 {
 			metrics.block_approval_time_ticks.observe(ticks as f64);
+		}
+	}
+
+	fn on_candidate_signatures_request(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.candidate_signatures_requests_total.inc();
 		}
 	}
 
@@ -316,6 +327,13 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
+			candidate_signatures_requests_total: prometheus::register(
+				prometheus::Counter::new(
+					"polkadot_parachain_approval_candidate_signatures_requests_total",
+					"Number of times signatures got requested by other subsystems",
+				)?,
+				registry,
+			)?,
 		};
 
 		Ok(Metrics(Some(metrics)))
@@ -340,13 +358,23 @@ impl ApprovalVotingSubsystem {
 			metrics,
 		}
 	}
+
+	/// Revert to the block corresponding to the specified `hash`.
+	/// The operation is not allowed for blocks older than the last finalized one.
+	pub fn revert_to(&self, hash: Hash) -> Result<(), SubsystemError> {
+		let config = approval_db::v1::Config { col_data: self.db_config.col_data };
+		let mut backend = approval_db::v1::DbBackend::new(self.db.clone(), config);
+		let mut overlay = OverlayedBackend::new(&backend);
+
+		ops::revert_to(&mut overlay, hash)?;
+
+		let ops = overlay.into_write_ops();
+		backend.write(ops)
+	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for ApprovalVotingSubsystem
-where
-	Context: SubsystemContext<Message = ApprovalVotingMessage>,
-	Context: overseer::SubsystemContext<Message = ApprovalVotingMessage>,
-{
+#[overseer::subsystem(ApprovalVoting, error = SubsystemError, prefix = self::overseer)]
+impl<Context: Send> ApprovalVotingSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = DbBackend::new(self.db.clone(), self.db_config);
 		let future = run::<DbBackend, Context>(
@@ -584,27 +612,34 @@ struct State {
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 }
 
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 impl State {
 	fn session_info(&self, i: SessionIndex) -> Option<&SessionInfo> {
 		self.session_window.as_ref().and_then(|w| w.session_info(i))
 	}
 
 	/// Bring `session_window` up to date.
-	pub async fn cache_session_info_for_head(
+	pub async fn cache_session_info_for_head<Context>(
 		&mut self,
-		ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+		ctx: &mut Context,
 		head: Hash,
-	) -> Result<Option<SessionWindowUpdate>, SessionsUnavailable> {
+	) -> Result<Option<SessionWindowUpdate>, SessionsUnavailable>
+	where
+		<Context as overseer::SubsystemContext>::Sender: Sized + Send,
+	{
 		let session_window = self.session_window.take();
 		match session_window {
 			None => {
+				let sender = ctx.sender().clone();
 				self.session_window =
-					Some(RollingSessionWindow::new(ctx, APPROVAL_SESSIONS, head).await?);
+					Some(RollingSessionWindow::new(sender, APPROVAL_SESSIONS, head).await?);
 				Ok(None)
 			},
 			Some(mut session_window) => {
-				let r =
-					session_window.cache_session_info_for_head(ctx, head).await.map(Option::Some);
+				let r = session_window
+					.cache_session_info_for_head(ctx.sender(), head)
+					.await
+					.map(Option::Some);
 				self.session_window = Some(session_window);
 				r
 			},
@@ -675,19 +710,13 @@ enum Action {
 		candidate: CandidateReceipt,
 		backing_group: GroupIndex,
 	},
-	InformDisputeCoordinator {
-		candidate_hash: CandidateHash,
-		candidate_receipt: CandidateReceipt,
-		session: SessionIndex,
-		dispute_statement: SignedDisputeStatement,
-		validator_index: ValidatorIndex,
-	},
 	NoteApprovedInChainSelection(Hash),
 	IssueApproval(CandidateHash, ApprovalVoteRequest),
 	BecomeActive,
 	Conclude,
 }
 
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
 async fn run<B, Context>(
 	mut ctx: Context,
 	mut subsystem: ApprovalVotingSubsystem,
@@ -696,8 +725,6 @@ async fn run<B, Context>(
 	mut backend: B,
 ) -> SubsystemResult<()>
 where
-	Context: SubsystemContext<Message = ApprovalVotingMessage>,
-	Context: overseer::SubsystemContext<Message = ApprovalVotingMessage>,
 	B: Backend,
 {
 	let mut state = State {
@@ -835,9 +862,9 @@ where
 // 	https://github.com/paritytech/polkadot/issues/3311
 //
 // returns `true` if any of the actions was a `Conclude` command.
-async fn handle_actions(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage>
-	          + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+async fn handle_actions<Context>(
+	ctx: &mut Context,
 	state: &mut State,
 	overlayed_db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
@@ -855,7 +882,6 @@ async fn handle_actions(
 			Action::ScheduleWakeup { block_hash, block_number, candidate_hash, tick } =>
 				wakeups.schedule(block_hash, block_number, candidate_hash, tick),
 			Action::IssueApproval(candidate_hash, approval_request) => {
-				let mut sender = ctx.sender().clone();
 				// Note that the IssueApproval action will create additional
 				// actions that will need to all be processed before we can
 				// handle the next action in the set passed to the ambient
@@ -868,7 +894,7 @@ async fn handle_actions(
 				// Note that chaining these iterators is O(n) as we must consume
 				// the prior iterator.
 				let next_actions: Vec<Action> = issue_approval(
-					&mut sender,
+					ctx,
 					state,
 					overlayed_db,
 					metrics,
@@ -943,25 +969,6 @@ async fn handle_actions(
 					Some(_) => {},
 				}
 			},
-			Action::InformDisputeCoordinator {
-				candidate_hash,
-				candidate_receipt,
-				session,
-				dispute_statement,
-				validator_index,
-			} => {
-				// TODO: Log confirmation results in an efficient way:
-				// https://github.com/paritytech/polkadot/issues/5156
-				let (pending_confirmation, _confirmation_rx) = oneshot::channel();
-				ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
-					candidate_hash,
-					candidate_receipt,
-					session,
-					statements: vec![(dispute_statement, validator_index)],
-					pending_confirmation,
-				})
-				.await;
-			},
 			Action::NoteApprovedInChainSelection(block_hash) => {
 				ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
 			},
@@ -1006,6 +1013,7 @@ fn distribution_messages_for_activation(
 			parent_hash: block_entry.parent_hash(),
 			candidates: block_entry.candidates().iter().map(|(_, c_hash)| *c_hash).collect(),
 			slot: block_entry.slot(),
+			session: block_entry.session(),
 		});
 
 		for (i, (_, candidate_hash)) in block_entry.candidates().iter().enumerate() {
@@ -1075,18 +1083,18 @@ fn distribution_messages_for_activation(
 }
 
 // Handle an incoming signal from the overseer. Returns true if execution should conclude.
-async fn handle_from_overseer(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage>
-	          + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+async fn handle_from_overseer<Context>(
+	ctx: &mut Context,
 	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
-	x: FromOverseer<ApprovalVotingMessage>,
+	x: FromOrchestra<ApprovalVotingMessage>,
 	last_finalized_height: &mut Option<BlockNumber>,
 	wakeups: &mut Wakeups,
 ) -> SubsystemResult<Vec<Action>> {
 	let actions = match x {
-		FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+		FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			let mut actions = Vec::new();
 
 			for activated in update.activated {
@@ -1140,7 +1148,7 @@ async fn handle_from_overseer(
 
 			actions
 		},
-		FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
+		FromOrchestra::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
 			gum::debug!(target: LOG_TARGET, ?block_hash, ?block_number, "Block finalized");
 			*last_finalized_height = Some(block_number);
 
@@ -1151,10 +1159,10 @@ async fn handle_from_overseer(
 
 			Vec::new()
 		},
-		FromOverseer::Signal(OverseerSignal::Conclude) => {
+		FromOrchestra::Signal(OverseerSignal::Conclude) => {
 			vec![Action::Conclude]
 		},
-		FromOverseer::Communication { msg } => match msg {
+		FromOrchestra::Communication { msg } => match msg {
 			ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
 				let (check_outcome, actions) =
 					check_and_import_assignment(state, db, a, claimed_core)?;
@@ -1180,14 +1188,97 @@ async fn handle_from_overseer(
 
 				Vec::new()
 			},
+			ApprovalVotingMessage::GetApprovalSignaturesForCandidate(candidate_hash, tx) => {
+				metrics.on_candidate_signatures_request();
+				get_approval_signatures_for_candidate(ctx, db, candidate_hash, tx).await?;
+				Vec::new()
+			},
 		},
 	};
 
 	Ok(actions)
 }
 
-async fn handle_approved_ancestor(
-	ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
+/// Retrieve approval signatures.
+///
+/// This involves an unbounded message send to approval-distribution, the caller has to ensure that
+/// calls to this function are infrequent and bounded.
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+async fn get_approval_signatures_for_candidate<Context>(
+	ctx: &mut Context,
+	db: &OverlayedBackend<'_, impl Backend>,
+	candidate_hash: CandidateHash,
+	tx: oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
+) -> SubsystemResult<()> {
+	let entry = match db.load_candidate_entry(&candidate_hash)? {
+		None => return Ok(()),
+		Some(e) => e,
+	};
+
+	let relay_hashes = entry.block_assignments.iter().map(|(relay_hash, _)| relay_hash);
+
+	let mut candidate_indices = HashSet::new();
+	// Retrieve `CoreIndices`/`CandidateIndices` as required by approval-distribution:
+	for hash in relay_hashes {
+		let entry = match db.load_block_entry(hash)? {
+			None => {
+				gum::debug!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?hash,
+					"Block entry for assignment missing."
+				);
+				continue
+			},
+			Some(e) => e,
+		};
+		for (candidate_index, (_core_index, c_hash)) in entry.candidates().iter().enumerate() {
+			if c_hash == &candidate_hash {
+				candidate_indices.insert((*hash, candidate_index as u32));
+				break
+			}
+		}
+	}
+
+	let mut sender = ctx.sender().clone();
+	let get_approvals = async move {
+		let (tx_distribution, rx_distribution) = oneshot::channel();
+		sender.send_unbounded_message(ApprovalDistributionMessage::GetApprovalSignatures(
+			candidate_indices,
+			tx_distribution,
+		));
+
+		// Because of the unbounded sending and the nature of the call (just fetching data from state),
+		// this should not block long:
+		match rx_distribution.timeout(WAIT_FOR_SIGS_TIMEOUT).await {
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					"Waiting for approval signatures timed out - dead lock?"
+				);
+			},
+			Some(Err(_)) => gum::debug!(
+				target: LOG_TARGET,
+				"Request for approval signatures got cancelled by `approval-distribution`."
+			),
+			Some(Ok(votes)) =>
+				if let Err(_) = tx.send(votes) {
+					gum::debug!(
+						target: LOG_TARGET,
+						"Sending approval signatures back failed, as receiver got closed"
+					);
+				},
+		}
+	};
+
+	// No need to block subsystem on this (also required to break cycle).
+	// We should not be sending this message frequently - caller must make sure this is bounded.
+	ctx.spawn("get-approval-signatures", Box::pin(get_approvals))
+}
+
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+async fn handle_approved_ancestor<Context>(
+	ctx: &mut Context,
 	db: &OverlayedBackend<'_, impl Backend>,
 	target: Hash,
 	lower_bound: BlockNumber,
@@ -1597,10 +1688,11 @@ fn check_and_import_assignment(
 		);
 
 		let tranche = match res {
-			Err(crate::criteria::InvalidAssignment) =>
+			Err(crate::criteria::InvalidAssignment(reason)) =>
 				return Ok((
 					AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCert(
 						assignment.validator,
+						format!("{:?}", reason),
 					)),
 					Vec::new(),
 				)),
@@ -1703,19 +1795,17 @@ fn check_and_import_approval<T>(
 		)),
 	};
 
-	// Transform the approval vote into the wrapper used to import statements into disputes.
-	// This also does signature checking.
-	let signed_dispute_statement = match SignedDisputeStatement::new_checked(
-		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
+	// Signature check:
+	match DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking).check_signature(
+		&pubkey,
 		approved_candidate_hash,
 		block_entry.session(),
-		pubkey.clone(),
-		approval.signature.clone(),
+		&approval.signature,
 	) {
 		Err(_) => respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::InvalidSignature(
 			approval.validator
 		),)),
-		Ok(s) => s,
+		Ok(()) => {},
 	};
 
 	let candidate_entry = match db.load_candidate_entry(&approved_candidate_hash)? {
@@ -1756,23 +1846,7 @@ fn check_and_import_approval<T>(
 		"Importing approval vote",
 	);
 
-	let inform_disputes_action = if !candidate_entry.has_approved(approval.validator) {
-		// The approval voting system requires a separate approval for each assignment
-		// to the candidate. It's possible that there are semi-duplicate approvals,
-		// but we only need to inform the dispute coordinator about the first expressed
-		// opinion by the validator about the candidate.
-		Some(Action::InformDisputeCoordinator {
-			candidate_hash: approved_candidate_hash,
-			candidate_receipt: candidate_entry.candidate_receipt().clone(),
-			session: block_entry.session(),
-			dispute_statement: signed_dispute_statement,
-			validator_index: approval.validator,
-		})
-	} else {
-		None
-	};
-
-	let mut actions = advance_approval_state(
+	let actions = advance_approval_state(
 		state,
 		db,
 		&metrics,
@@ -1781,8 +1855,6 @@ fn check_and_import_approval<T>(
 		candidate_entry,
 		ApprovalStateTransition::RemoteApproval(approval.validator),
 	);
-
-	actions.extend(inform_disputes_action);
 
 	Ok((actions, t))
 }
@@ -2135,9 +2207,9 @@ fn process_wakeup(
 // Launch approval work, returning an `AbortHandle` which corresponds to the background task
 // spawned. When the background work is no longer needed, the `AbortHandle` should be dropped
 // to cancel the background work and any requests it has spawned.
-async fn launch_approval(
-	ctx: &mut (impl SubsystemContext<Message = ApprovalVotingMessage>
-	          + overseer::SubsystemContext<Message = ApprovalVotingMessage>),
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+async fn launch_approval<Context>(
+	ctx: &mut Context,
 	metrics: Metrics,
 	session_index: SessionIndex,
 	candidate: CandidateReceipt,
@@ -2228,18 +2300,12 @@ async fn launch_approval(
 							"Data recovery invalid for candidate {:?}",
 							(candidate_hash, candidate.descriptor.para_id),
 						);
-
-						sender
-							.send_message(
-								DisputeCoordinatorMessage::IssueLocalStatement(
-									session_index,
-									candidate_hash,
-									candidate.clone(),
-									false,
-								)
-								.into(),
-							)
-							.await;
+						issue_local_invalid_statement(
+							&mut sender,
+							session_index,
+							candidate_hash,
+							candidate.clone(),
+						);
 						metrics_guard.take().on_approval_invalid();
 					},
 				}
@@ -2269,17 +2335,14 @@ async fn launch_approval(
 		let (val_tx, val_rx) = oneshot::channel();
 
 		sender
-			.send_message(
-				CandidateValidationMessage::ValidateFromExhaustive(
-					available_data.validation_data,
-					validation_code,
-					candidate.clone(),
-					available_data.pov,
-					APPROVAL_EXECUTION_TIMEOUT,
-					val_tx,
-				)
-				.into(),
-			)
+			.send_message(CandidateValidationMessage::ValidateFromExhaustive(
+				available_data.validation_data,
+				validation_code,
+				candidate.clone(),
+				available_data.pov,
+				APPROVAL_EXECUTION_TIMEOUT,
+				val_tx,
+			))
 			.await;
 
 		match val_rx.await {
@@ -2296,17 +2359,12 @@ async fn launch_approval(
 					return ApprovalState::approved(validator_index, candidate_hash)
 				} else {
 					// Commitments mismatch - issue a dispute.
-					sender
-						.send_message(
-							DisputeCoordinatorMessage::IssueLocalStatement(
-								session_index,
-								candidate_hash,
-								candidate.clone(),
-								false,
-							)
-							.into(),
-						)
-						.await;
+					issue_local_invalid_statement(
+						&mut sender,
+						session_index,
+						candidate_hash,
+						candidate.clone(),
+					);
 
 					metrics_guard.take().on_approval_invalid();
 					return ApprovalState::failed(validator_index, candidate_hash)
@@ -2321,17 +2379,12 @@ async fn launch_approval(
 					"Detected invalid candidate as an approval checker.",
 				);
 
-				sender
-					.send_message(
-						DisputeCoordinatorMessage::IssueLocalStatement(
-							session_index,
-							candidate_hash,
-							candidate.clone(),
-							false,
-						)
-						.into(),
-					)
-					.await;
+				issue_local_invalid_statement(
+					&mut sender,
+					session_index,
+					candidate_hash,
+					candidate.clone(),
+				);
 
 				metrics_guard.take().on_approval_invalid();
 				return ApprovalState::failed(validator_index, candidate_hash)
@@ -2356,8 +2409,9 @@ async fn launch_approval(
 
 // Issue and import a local approval vote. Should only be invoked after approval checks
 // have been done.
-async fn issue_approval(
-	ctx: &mut impl SubsystemSender,
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+async fn issue_approval<Context>(
+	ctx: &mut Context,
 	state: &mut State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
@@ -2465,17 +2519,6 @@ async fn issue_approval(
 		},
 	};
 
-	// Record our statement in the dispute coordinator for later
-	// participation in disputes on the same candidate.
-	let signed_dispute_statement = SignedDisputeStatement::new_checked(
-		DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
-		candidate_hash,
-		session,
-		validator_pubkey.clone(),
-		sig.clone(),
-	)
-	.expect("Statement just signed; should pass checks; qed");
-
 	gum::trace!(
 		target: LOG_TARGET,
 		?candidate_hash,
@@ -2484,25 +2527,7 @@ async fn issue_approval(
 		"Issuing approval vote",
 	);
 
-	let candidate_receipt = candidate_entry.candidate_receipt().clone();
-
-	let inform_disputes_action = if candidate_entry.has_approved(validator_index) {
-		// The approval voting system requires a separate approval for each assignment
-		// to the candidate. It's possible that there are semi-duplicate approvals,
-		// but we only need to inform the dispute coordinator about the first expressed
-		// opinion by the validator about the candidate.
-		Some(Action::InformDisputeCoordinator {
-			candidate_hash,
-			candidate_receipt,
-			session,
-			dispute_statement: signed_dispute_statement,
-			validator_index,
-		})
-	} else {
-		None
-	};
-
-	let mut actions = advance_approval_state(
+	let actions = advance_approval_state(
 		state,
 		db,
 		metrics,
@@ -2515,18 +2540,14 @@ async fn issue_approval(
 	metrics.on_approval_produced();
 
 	// dispatch to approval distribution.
-	ctx.send_unbounded_message(
-		ApprovalDistributionMessage::DistributeApproval(IndirectSignedApprovalVote {
+	ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeApproval(
+		IndirectSignedApprovalVote {
 			block_hash,
 			candidate_index: candidate_index as _,
 			validator: validator_index,
 			signature: sig,
-		})
-		.into(),
-	);
-
-	// dispatch to dispute coordinator.
-	actions.extend(inform_disputes_action);
+		},
+	));
 
 	Ok(actions)
 }
@@ -2543,4 +2564,30 @@ fn sign_approval(
 	let payload = ApprovalVote(candidate_hash).signing_payload(session_index);
 
 	Some(key.sign(&payload[..]))
+}
+
+/// Send `IssueLocalStatement` to dispute-coordinator.
+fn issue_local_invalid_statement<Sender>(
+	sender: &mut Sender,
+	session_index: SessionIndex,
+	candidate_hash: CandidateHash,
+	candidate: CandidateReceipt,
+) where
+	Sender: overseer::ApprovalVotingSenderTrait,
+{
+	// We need to send an unbounded message here to break a cycle:
+	// DisputeCoordinatorMessage::IssueLocalStatement ->
+	// ApprovalVotingMessage::GetApprovalSignaturesForCandidate.
+	//
+	// Use of unbounded _should_ be fine here as raising a dispute should be an
+	// exceptional event. Even in case of bugs: There can be no more than
+	// number of slots per block requests every block. Also for sending this
+	// message a full recovery and validation procedure took place, which takes
+	// longer than issuing a local statement + import.
+	sender.send_unbounded_message(DisputeCoordinatorMessage::IssueLocalStatement(
+		session_index,
+		candidate_hash,
+		candidate.clone(),
+		false,
+	));
 }

@@ -75,15 +75,21 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		);
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
+		//
+		// for peer-set management, the default should be used regardless of
+		// the negotiated version.
 		if let Err(e) = network_service
-			.set_reserved_peers(peer_set.into_protocol_name(), newly_requested)
+			.set_reserved_peers(peer_set.into_default_protocol_name(), newly_requested)
 			.await
 		{
 			gum::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
 		// the addresses are known to be valid
+		//
+		// for peer-set management, the default should be used regardless of
+		// the negotiated version.
 		let _ = network_service
-			.remove_from_peers_set(peer_set.into_protocol_name(), peers_to_remove)
+			.remove_from_peers_set(peer_set.into_default_protocol_name(), peers_to_remove)
 			.await;
 
 		network_service
@@ -156,7 +162,10 @@ mod tests {
 
 	use async_trait::async_trait;
 	use futures::stream::BoxStream;
-	use polkadot_node_network_protocol::{request_response::outgoing::Requests, PeerId};
+	use polkadot_node_network_protocol::{
+		request_response::{outgoing::Requests, ReqProtocolNames},
+		PeerId,
+	};
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
 	use sp_keyring::Sr25519Keyring;
 	use std::{
@@ -230,6 +239,7 @@ mod tests {
 			&self,
 			_: &mut AD,
 			_: Requests,
+			_: &ReqProtocolNames,
 			_: IfDisconnected,
 		) {
 		}

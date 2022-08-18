@@ -23,9 +23,11 @@ use polkadot_cli::{
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
 		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
-		ProvideRuntimeApi, SpawnNamed,
+		ProvideRuntimeApi,
 	},
 };
+use polkadot_node_subsystem::SpawnGlue;
+use sp_core::traits::SpawnNamed;
 
 use crate::{
 	interceptor::*,
@@ -43,7 +45,7 @@ impl OverseerGen for BackGarbageCandidate {
 		&self,
 		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
-	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
+	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
@@ -53,7 +55,7 @@ impl OverseerGen for BackGarbageCandidate {
 		let validation_filter = ReplaceValidationResult::new(
 			FakeCandidateValidation::BackingAndApprovalValid,
 			FakeCandidateValidationError::InvalidOutputs,
-			spawner.clone(),
+			SpawnGlue(spawner),
 		);
 
 		prepared_overseer_builder(args)?

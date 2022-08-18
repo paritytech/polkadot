@@ -25,17 +25,21 @@ use sc_network::{
 	config::parse_addr, multiaddr::Multiaddr, Event as NetworkEvent, IfDisconnected,
 	NetworkService, OutboundFailure, RequestFailure,
 };
+use sc_network_common::service::{
+	NetworkEventStream, NetworkNotification, NetworkPeers, NetworkRequest,
+};
 
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
-	request_response::{OutgoingRequest, Recipient, Requests},
-	PeerId, UnifiedReputationChange as Rep,
+	request_response::{OutgoingRequest, Recipient, ReqProtocolNames, Requests},
+	PeerId, ProtocolVersion, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::v2::{AuthorityDiscoveryId, Block, Hash};
 
 use crate::validator_discovery::AuthorityDiscovery;
 
-use super::LOG_TARGET;
+// network bridge network abstraction log target
+const LOG_TARGET: &'static str = "parachain::network-bridge-net";
 
 /// Send a message to the network.
 ///
@@ -46,6 +50,7 @@ pub(crate) fn send_message<M>(
 	net: &mut impl Network,
 	mut peers: Vec<PeerId>,
 	peer_set: PeerSet,
+	version: ProtocolVersion,
 	message: M,
 	metrics: &super::Metrics,
 ) where
@@ -53,7 +58,7 @@ pub(crate) fn send_message<M>(
 {
 	let message = {
 		let encoded = message.encode();
-		metrics.on_notification_sent(peer_set, encoded.len(), peers.len());
+		metrics.on_notification_sent(peer_set, version, encoded.len(), peers.len());
 		encoded
 	};
 
@@ -95,6 +100,7 @@ pub trait Network: Clone + Send + 'static {
 		&self,
 		authority_discovery: &mut AD,
 		req: Requests,
+		req_protocol_names: &ReqProtocolNames,
 		if_disconnected: IfDisconnected,
 	);
 
@@ -119,26 +125,26 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		protocol: Cow<'static, str>,
 		multiaddresses: HashSet<Multiaddr>,
 	) -> Result<(), String> {
-		sc_network::NetworkService::set_reserved_peers(&**self, protocol, multiaddresses)
+		NetworkService::set_reserved_peers(&**self, protocol, multiaddresses)
 	}
 
 	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, peers: Vec<PeerId>) {
-		sc_network::NetworkService::remove_peers_from_reserved_set(&**self, protocol, peers);
+		NetworkService::remove_peers_from_reserved_set(&**self, protocol, peers);
 	}
 
 	fn report_peer(&self, who: PeerId, cost_benefit: Rep) {
-		sc_network::NetworkService::report_peer(&**self, who, cost_benefit.into_base_rep());
+		NetworkService::report_peer(&**self, who, cost_benefit.into_base_rep());
 	}
 
 	fn disconnect_peer(&self, who: PeerId, peer_set: PeerSet) {
-		sc_network::NetworkService::disconnect_peer(&**self, who, peer_set.into_protocol_name());
+		NetworkService::disconnect_peer(&**self, who, peer_set.into_default_protocol_name());
 	}
 
 	fn write_notification(&self, who: PeerId, peer_set: PeerSet, message: Vec<u8>) {
-		sc_network::NetworkService::write_notification(
+		NetworkService::write_notification(
 			&**self,
 			who,
-			peer_set.into_protocol_name(),
+			peer_set.into_default_protocol_name(),
 			message,
 		);
 	}
@@ -147,6 +153,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		&self,
 		authority_discovery: &mut AD,
 		req: Requests,
+		req_protocol_names: &ReqProtocolNames,
 		if_disconnected: IfDisconnected,
 	) {
 		let (protocol, OutgoingRequest { peer, payload, pending_response }) = req.encode_request();
@@ -192,7 +199,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		NetworkService::start_request(
 			&*self,
 			peer_id,
-			protocol.into_protocol_name(),
+			req_protocol_names.get_name(protocol),
 			payload,
 			pending_response,
 			if_disconnected,

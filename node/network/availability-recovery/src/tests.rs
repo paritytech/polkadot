@@ -21,7 +21,7 @@ use futures::{executor, future};
 use futures_timer::Delay;
 
 use parity_scale_codec::Encode;
-use polkadot_node_network_protocol::request_response::IncomingRequest;
+use polkadot_node_network_protocol::request_response::{IncomingRequest, ReqProtocolNames};
 
 use super::*;
 
@@ -29,17 +29,20 @@ use sc_network::config::RequestResponseConfig;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_primitives::{BlockData, PoV, Proof};
-use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
-use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
-use polkadot_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash, HeadData, PersistedValidationData};
+use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 
 type VirtualOverseer = TestSubsystemContextHandle<AvailabilityRecoveryMessage>;
+
+// Deterministic genesis hash for protocol names
+const GENESIS_HASH: Hash = Hash::repeat_byte(0xff);
 
 fn test_harness_fast_path<T: Future<Output = (VirtualOverseer, RequestResponseConfig)>>(
 	test: impl FnOnce(VirtualOverseer, RequestResponseConfig) -> T,
@@ -53,7 +56,8 @@ fn test_harness_fast_path<T: Future<Output = (VirtualOverseer, RequestResponseCo
 
 	let (context, virtual_overseer) = make_subsystem_context(pool.clone());
 
-	let (collation_req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
+	let (collation_req_receiver, req_cfg) =
+		IncomingRequest::get_config_receiver(&ReqProtocolNames::new(&GENESIS_HASH, None));
 	let subsystem =
 		AvailabilityRecoverySubsystem::with_fast_path(collation_req_receiver, Metrics::new_dummy());
 	let subsystem = async {
@@ -87,7 +91,8 @@ fn test_harness_chunks_only<T: Future<Output = (VirtualOverseer, RequestResponse
 
 	let (context, virtual_overseer) = make_subsystem_context(pool.clone());
 
-	let (collation_req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
+	let (collation_req_receiver, req_cfg) =
+		IncomingRequest::get_config_receiver(&ReqProtocolNames::new(&GENESIS_HASH, None));
 	let subsystem = AvailabilityRecoverySubsystem::with_chunks_only(
 		collation_req_receiver,
 		Metrics::new_dummy(),
@@ -124,7 +129,7 @@ async fn overseer_signal(
 ) {
 	delay!(50);
 	overseer
-		.send(FromOverseer::Signal(signal))
+		.send(FromOrchestra::Signal(signal))
 		.timeout(TIMEOUT)
 		.await
 		.expect("10ms is more than enough for sending signals.");
@@ -136,7 +141,7 @@ async fn overseer_send(
 ) {
 	gum::trace!(msg = ?msg, "sending message");
 	overseer
-		.send(FromOverseer::Communication { msg })
+		.send(FromOrchestra::Communication { msg })
 		.timeout(TIMEOUT)
 		.await
 		.expect("10ms is more than enough for sending messages.");
@@ -282,8 +287,8 @@ impl TestState {
 			// Receive a request for a chunk.
 			assert_matches!(
 				overseer_recv(virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendRequests(
+				AllMessages::NetworkBridgeTx(
+					NetworkBridgeTxMessage::SendRequests(
 						requests,
 						IfDisconnected::ImmediateError,
 					)
@@ -292,7 +297,7 @@ impl TestState {
 						i += 1;
 						assert_matches!(
 							req,
-							Requests::ChunkFetching(req) => {
+							Requests::ChunkFetchingV1(req) => {
 								assert_eq!(req.payload.candidate_hash, candidate_hash);
 
 								let validator_index = req.payload.index.0 as usize;
@@ -331,8 +336,8 @@ impl TestState {
 			// Receive a request for a chunk.
 			assert_matches!(
 				overseer_recv(virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendRequests(
+				AllMessages::NetworkBridgeTx(
+					NetworkBridgeTxMessage::SendRequests(
 						mut requests,
 						IfDisconnected::ImmediateError,
 					)
@@ -341,7 +346,7 @@ impl TestState {
 
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AvailableDataFetching(req) => {
+						Requests::AvailableDataFetchingV1(req) => {
 							assert_eq!(req.payload.candidate_hash, candidate_hash);
 							let validator_index = self.validator_authority_id
 								.iter()

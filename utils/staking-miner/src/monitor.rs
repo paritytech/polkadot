@@ -87,6 +87,7 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 	at: Hash,
 	score: sp_npos_elections::ElectionScore,
 	strategy: SubmissionStrategy,
+	max_submissions: u32,
 ) -> Result<(), Error<T>> {
 	let epsilon = match strategy {
 		// don't care about current scores.
@@ -103,14 +104,53 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 		.map_err::<Error<T>, _>(Into::into)?
 		.unwrap_or_default();
 
+	let mut is_best_score = true;
+	let mut scores = 0;
+
+	log::debug!(target: LOG_TARGET, "submitted solutions on chain: {:?}", indices);
+
 	// BTreeMap is ordered, take last to get the max score.
-	if let Some(curr_max_score) = indices.into_iter().last().map(|(s, _)| s) {
+	for (curr_max_score, _) in indices.into_iter() {
 		if !score.strict_threshold_better(curr_max_score, epsilon) {
-			return Err(Error::StrategyNotSatisfied)
+			log::warn!(target: LOG_TARGET, "mined score is not better; skipping to submit");
+			is_best_score = false;
 		}
+
+		if score == curr_max_score {
+			log::warn!(
+				target: LOG_TARGET,
+				"mined score has the same score as already submitted score"
+			);
+		}
+
+		// Indices can't be bigger than u32::MAX so can't overflow.
+		scores += 1;
 	}
 
-	Ok(())
+	if scores == max_submissions {
+		log::warn!(target: LOG_TARGET, "The submissions queue is full");
+	}
+
+	if is_best_score {
+		Ok(())
+	} else {
+		Err(Error::StrategyNotSatisfied)
+	}
+}
+
+async fn get_latest_head<T: EPM::Config>(
+	rpc: &SharedRpcClient,
+	mode: &str,
+) -> Result<Hash, Error<T>> {
+	if mode == "head" {
+		match rpc.block_hash(None).await {
+			Ok(Some(hash)) => Ok(hash),
+			Ok(None) => Err(Error::Other("Best head not found".into())),
+			Err(e) => Err(e.into()),
+		}
+	} else {
+		rpc.finalized_head().await.map_err(Into::into)
+	}
 }
 
 macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
@@ -139,12 +179,6 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				maybe_rp = subscription.next() => {
 					match maybe_rp {
 						Some(Ok(r)) => r,
-						// Custom `jsonrpsee` message sent by the server if the subscription was closed on the server side.
-						Some(Err(RpcError::SubscriptionClosed(reason))) => {
-							log::warn!(target: LOG_TARGET, "subscription to `subscribeNewHeads/subscribeFinalizedHeads` terminated: {:?}. Retrying..", reason);
-							subscription = heads_subscription().await?;
-							continue;
-						}
 						Some(Err(e)) => {
 							log::error!(target: LOG_TARGET, "subscription failed to decode Header {:?}, this is bug please file an issue", e);
 							return Err(e.into());
@@ -212,6 +246,8 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				ensure_signed_phase::<Runtime, Block>(&rpc1, hash).await
 			});
 
+			tokio::time::sleep(std::time::Duration::from_secs(config.delay as u64)).await;
+
 			let no_prev_sol_fut = tokio::spawn(async move {
 				ensure_no_previous_solution::<Runtime, Block>(&rpc2, hash, &account).await
 			});
@@ -270,19 +306,29 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			let rpc1 = rpc.clone();
 			let rpc2 = rpc.clone();
 
+			let latest_head = match get_latest_head::<Runtime>(&rpc, &config.listen).await {
+				Ok(hash) => hash,
+				Err(e) => {
+					log::debug!(target: LOG_TARGET, "Skipping to submit at block {}; {}", at.number, e);
+					return;
+				}
+			};
+
 			let ensure_no_better_fut = tokio::spawn(async move {
-				ensure_no_better_solution::<Runtime, Block>(&rpc1, hash, score, config.submission_strategy).await
+				ensure_no_better_solution::<Runtime, Block>(&rpc1, latest_head, score, config.submission_strategy,
+					SignedMaxSubmissions::get()).await
 			});
 
 			let ensure_signed_phase_fut = tokio::spawn(async move {
-				ensure_signed_phase::<Runtime, Block>(&rpc2, hash).await
+				ensure_signed_phase::<Runtime, Block>(&rpc2, latest_head).await
 			});
 
 			// Run the calls in parallel and return once all has completed or any failed.
-			if tokio::try_join!(
+			if let Err(err) = tokio::try_join!(
 				flatten(ensure_no_better_fut),
 				flatten(ensure_signed_phase_fut),
-			).is_err() {
+			) {
+				log::debug!(target: LOG_TARGET, "Skipping to submit at block {}; {}", at.number, err);
 				return;
 			}
 
@@ -312,15 +358,6 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			while let Some(rp) = tx_subscription.next().await {
 				let status_update = match rp {
 					Ok(r) => r,
-					// Custom `jsonrpsee` message sent by the server if the subscription was closed on the server side.
-					Err(RpcError::SubscriptionClosed(reason)) => {
-						log::warn!(
-							target: LOG_TARGET,
-							"tx subscription closed by the server: {:?}; skip block: {}",
-							reason, at.number
-						);
-						return;
-					},
 					Err(e) => {
 						log::error!(target: LOG_TARGET, "subscription failed to decode TransactionStatus {:?}, this is a bug please file an issue", e);
 						let _ = tx.send(e.into());
