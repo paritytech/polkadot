@@ -23,7 +23,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-use codec::{Decode, Encode, EncodeLike};
+use codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::traits::{
 	Contains, ContainsPair, Currency, Defensive, EnsureOrigin, Get, LockableCurrency, OriginTrait,
 };
@@ -271,7 +271,7 @@ pub mod pallet {
 	}
 
 	#[pallet::origin]
-	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 	pub enum Origin {
 		/// It comes from somewhere in the XCM space wanting to transact.
 		Xcm(MultiLocation),
@@ -536,13 +536,13 @@ pub mod pallet {
 			// by the destinations being most sent to.
 			let mut q = VersionDiscoveryQueue::<T>::take().into_inner();
 			// TODO: correct weights.
-			weight_used += T::DbWeight::get().read + T::DbWeight::get().write;
+			weight_used.saturating_accrue(T::DbWeight::get().reads_writes(1, 1));
 			q.sort_by_key(|i| i.1);
 			while let Some((versioned_dest, _)) = q.pop() {
 				if let Ok(dest) = MultiLocation::try_from(versioned_dest) {
 					if Self::request_version_notify(dest).is_ok() {
 						// TODO: correct weights.
-						weight_used += T::DbWeight::get().read + T::DbWeight::get().write;
+						weight_used.saturating_accrue(T::DbWeight::get().reads_writes(1, 1));
 						break
 					}
 				}
@@ -1285,7 +1285,7 @@ impl<T: Config> Pallet<T> {
 
 	pub fn check_account() -> T::AccountId {
 		const ID: PalletId = PalletId(*b"py/xcmch");
-		AccountIdConversion::<T::AccountId>::into_account(&ID)
+		AccountIdConversion::<T::AccountId>::into_account_truncating(&ID)
 	}
 
 	/// Create a new expectation of a query response with the querier being here.
