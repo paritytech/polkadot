@@ -26,7 +26,7 @@ use std::{
 };
 use strum::{EnumIter, IntoEnumIterator};
 
-// Only supported protocol versions should be defined here.
+// The legacy protocol names. Only supported on version = 1.
 const LEGACY_VALIDATION_PROTOCOL_V1: &str = "/polkadot/validation/1";
 const LEGACY_COLLATION_PROTOCOL_V1: &str = "/polkadot/collation/1";
 
@@ -277,8 +277,8 @@ impl PeerSetProtocolNames {
 	/// Get the legacy protocol name, only `LEGACY_PROTOCOL_VERSION` = 1 is supported.
 	fn get_legacy_name(protocol: PeerSet) -> Cow<'static, str> {
 		match protocol {
-			PeerSet::Validation => VALIDATION_PROTOCOL_V1,
-			PeerSet::Collation => COLLATION_PROTOCOL_V1,
+			PeerSet::Validation => LEGACY_VALIDATION_PROTOCOL_V1,
+			PeerSet::Collation => LEGACY_COLLATION_PROTOCOL_V1,
 		}
 		.into()
 	}
