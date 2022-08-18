@@ -25,22 +25,22 @@ polkadot-client = { path = "../node/client", optional = true }
 polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "slumber-aura-logs" }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "slumber-aura-logs" }
+sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "slumber-aura-logs" }
+sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "slumber-aura-logs" }
 polkadot-node-metrics = { path = "../node/metrics" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "slumber-aura-logs" }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "slumber-aura-logs" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
 
 [features]
 default = ["wasmtime", "db", "cli", "hostperfcheck", "full-node", "trie-memory-tracker", "polkadot-native"]

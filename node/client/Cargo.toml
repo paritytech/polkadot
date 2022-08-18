@@ -5,37 +5,37 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
 
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "slumber-aura-logs" }
 
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sc-service = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "slumber-aura-logs" }
 
-beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
 
 # Polkadot Runtimes
 polkadot-runtime = { path = "../../runtime/polkadot", optional = true }

@@ -6,5 +6,5 @@ edition = "2021"
 
 [dependencies]
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
 primitives = { package = "polkadot-primitives", path = "../primitives" }

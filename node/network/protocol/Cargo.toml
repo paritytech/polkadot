@@ -12,8 +12,8 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-jaeger = { path = "../../jaeger" }
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "slumber-aura-logs" }
 strum = { version = "0.24", features = ["derive"] }
 futures = "0.3.21"
 thiserror = "1.0.31"
