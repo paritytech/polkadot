@@ -184,12 +184,14 @@ pub fn peer_sets_info(
 }
 
 /// Supported validation protocol versions. Only versions defined here must be used in the codebase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
 pub enum ValidationVersion {
 	/// The first version.
 	V1 = 1,
 }
 
 /// Supported collation protocol versions. Only versions defined here must be used in the codebase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
 pub enum CollationVersion {
 	/// The first version.
 	V1 = 1,
@@ -325,7 +327,8 @@ impl PeerSetProtocolNames {
 
 #[cfg(test)]
 mod tests {
-	use super::{Hash, PeerSet, PeerSetProtocolNames};
+	use super::{CollationVersion, Hash, PeerSet, PeerSetProtocolNames, ValidationVersion};
+	use strum::IntoEnumIterator;
 
 	#[test]
 	fn protocol_names_are_correctly_generated() {
@@ -390,5 +393,43 @@ mod tests {
 			protocol_names.try_get_protocol(&collation_legacy.into()),
 			Some((PeerSet::Collation, 1)),
 		);
+	}
+
+	#[test]
+	fn all_protocol_versions_are_registered() {
+		let genesis_hash = Hash::from([
+			122, 200, 116, 29, 232, 183, 20, 109, 138, 86, 23, 253, 70, 41, 20, 85, 127, 230, 60,
+			38, 90, 127, 28, 16, 231, 218, 227, 40, 88, 238, 187, 128,
+		]);
+		let protocol_names = PeerSetProtocolNames::new(genesis_hash, None);
+
+		for protocol in PeerSet::iter() {
+			match protocol {
+				PeerSet::Validation =>
+					for version in ValidationVersion::iter() {
+						assert_eq!(
+							protocol_names.get_name(protocol, version.into()),
+							PeerSetProtocolNames::generate_name(
+								&genesis_hash,
+								None,
+								protocol,
+								version.into(),
+							),
+						);
+					},
+				PeerSet::Collation =>
+					for version in CollationVersion::iter() {
+						assert_eq!(
+							protocol_names.get_name(protocol, version.into()),
+							PeerSetProtocolNames::generate_name(
+								&genesis_hash,
+								None,
+								protocol,
+								version.into(),
+							),
+						);
+					},
+			}
+		}
 	}
 }
