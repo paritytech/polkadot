@@ -183,25 +183,56 @@ pub fn peer_sets_info(
 		.collect()
 }
 
+/// Supported validation protocol versions. Only versions defined here must be used in the codebase.
+pub enum ValidationVersion {
+	/// The first version.
+	V1 = 1,
+}
+
+/// Supported collation protocol versions. Only versions defined here must be used in the codebase.
+pub enum CollationVersion {
+	/// The first version.
+	V1 = 1,
+}
+
+impl From<ValidationVersion> for ProtocolVersion {
+	fn from(version: ValidationVersion) -> ProtocolVersion {
+		version as ProtocolVersion
+	}
+}
+
+impl From<CollationVersion> for ProtocolVersion {
+	fn from(version: CollationVersion) -> ProtocolVersion {
+		version as ProtocolVersion
+	}
+}
+
 /// On the wire protocol name to [`PeerSet`] mapping.
 #[derive(Clone)]
 pub struct PeerSetProtocolNames {
-	genesis_hash: Hash,
-	fork_id: Option<String>,
 	protocols: HashMap<Cow<'static, str>, (PeerSet, ProtocolVersion)>,
+	names: HashMap<(PeerSet, ProtocolVersion), Cow<'static, str>>,
 }
 
 impl PeerSetProtocolNames {
 	/// Construct [`PeerSetProtocols`] using `genesis_hash` and `fork_id`.
 	pub fn new(genesis_hash: Hash, fork_id: Option<&str>) -> Self {
 		let mut protocols = HashMap::new();
+		let mut names = HashMap::new();
 		for protocol in PeerSet::iter() {
+			// All protocol versions from [`ValidationVersion`] and [`CollationVersion`] must be
+			// registered here. Currently it's only `MAIN_PROTOCOL_VERSION` = `V1` = 1.
+			// Register main protocol name.
+			let main_protocol_name =
+				Self::generate_name(&genesis_hash, fork_id, protocol, MAIN_PROTOCOL_VERSION);
+			names.insert((protocol, MAIN_PROTOCOL_VERSION), main_protocol_name.clone());
 			Self::insert_protocol_or_panic(
 				&mut protocols,
-				Self::generate_name(&genesis_hash, fork_id, protocol, MAIN_PROTOCOL_VERSION),
+				main_protocol_name,
 				protocol,
 				MAIN_PROTOCOL_VERSION,
 			);
+			// Register legacy protocol name.
 			Self::insert_protocol_or_panic(
 				&mut protocols,
 				Self::get_legacy_name(protocol),
@@ -209,7 +240,7 @@ impl PeerSetProtocolNames {
 				LEGACY_PROTOCOL_VERSION,
 			)
 		}
-		Self { genesis_hash, fork_id: fork_id.map(ToOwned::to_owned), protocols }
+		Self { protocols, names }
 	}
 
 	/// Helper function to make sure no protocols have the same name.
@@ -249,7 +280,10 @@ impl PeerSetProtocolNames {
 
 	/// Get the protocol name for specific version.
 	pub fn get_name(&self, protocol: PeerSet, version: ProtocolVersion) -> Cow<'static, str> {
-		Self::generate_name(&self.genesis_hash, self.fork_id.as_deref(), protocol, version).into()
+		self.names
+			.get(&(protocol, version))
+			.expect("Only versions defined above must be used in the codebase, and they are all registered in `new()`; qed")
+			.clone()
 	}
 
 	/// The protocol name of this protocol based on `genesis_hash` and `fork_id`.

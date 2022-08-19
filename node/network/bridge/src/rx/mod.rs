@@ -27,7 +27,7 @@ use sp_consensus::SyncOracle;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
-	peer_set::{PeerSet, PeerSetProtocolNames, PerPeerSet},
+	peer_set::{CollationVersion, PeerSet, PeerSetProtocolNames, PerPeerSet, ValidationVersion},
 	v1 as protocol_v1, ObservedRole, OurView, PeerId, ProtocolVersion,
 	UnifiedReputationChange as Rep, View,
 };
@@ -810,7 +810,15 @@ fn send_validation_message_v1(
 	message: WireMessage<protocol_v1::ValidationProtocol>,
 	metrics: &Metrics,
 ) {
-	send_message(net, peers, PeerSet::Validation, 1, peerset_protocol_names, message, metrics);
+	send_message(
+		net,
+		peers,
+		PeerSet::Validation,
+		ValidationVersion::V1.into(),
+		peerset_protocol_names,
+		message,
+		metrics,
+	);
 }
 
 fn send_collation_message_v1(
@@ -820,7 +828,15 @@ fn send_collation_message_v1(
 	message: WireMessage<protocol_v1::CollationProtocol>,
 	metrics: &Metrics,
 ) {
-	send_message(net, peers, PeerSet::Collation, 1, peerset_protocol_names, message, metrics);
+	send_message(
+		net,
+		peers,
+		PeerSet::Collation,
+		CollationVersion::V1.into(),
+		peerset_protocol_names,
+		message,
+		metrics,
+	);
 }
 
 async fn dispatch_validation_event_to_all(
