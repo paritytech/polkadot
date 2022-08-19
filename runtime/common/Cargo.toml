@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-common"
-version = "0.9.26"
+version = "0.9.27"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -57,7 +57,6 @@ frame-support-test = { git = "https://github.com/paritytech/substrate", branch =
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-trie-db = "0.23.1"
 serde_json = "1.0.81"
 libsecp256k1 = "0.7.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers" }

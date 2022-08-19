@@ -22,6 +22,8 @@ struct MetricsInner {
 	open: prometheus::Counter<prometheus::U64>,
 	/// Votes of all disputes.
 	votes: prometheus::CounterVec<prometheus::U64>,
+	/// Number of approval votes explicitly fetched from approval voting.
+	approval_votes: prometheus::Counter<prometheus::U64>,
 	/// Conclusion across all disputes.
 	concluded: prometheus::CounterVec<prometheus::U64>,
 	/// Number of participations that have been queued.
@@ -41,15 +43,21 @@ impl Metrics {
 		}
 	}
 
-	pub(crate) fn on_valid_vote(&self) {
+	pub(crate) fn on_valid_votes(&self, vote_count: u32) {
 		if let Some(metrics) = &self.0 {
-			metrics.votes.with_label_values(&["valid"]).inc();
+			metrics.votes.with_label_values(&["valid"]).inc_by(vote_count as _);
 		}
 	}
 
-	pub(crate) fn on_invalid_vote(&self) {
+	pub(crate) fn on_invalid_votes(&self, vote_count: u32) {
 		if let Some(metrics) = &self.0 {
-			metrics.votes.with_label_values(&["invalid"]).inc();
+			metrics.votes.with_label_values(&["invalid"]).inc_by(vote_count as _);
+		}
+	}
+
+	pub(crate) fn on_approval_votes(&self, vote_count: u32) {
+		if let Some(metrics) = &self.0 {
+			metrics.approval_votes.inc_by(vote_count as _);
 		}
 	}
 
@@ -110,6 +118,13 @@ impl metrics::Metrics for Metrics {
 					),
 					&["validity"],
 				)?,
+				registry,
+			)?,
+			approval_votes: prometheus::register(
+				prometheus::Counter::with_opts(prometheus::Opts::new(
+					"polkadot_parachain_dispute_candidate_approval_votes_fetched_total",
+					"Number of approval votes fetched from approval voting.",
+				))?,
 				registry,
 			)?,
 			queued_participations: prometheus::register(

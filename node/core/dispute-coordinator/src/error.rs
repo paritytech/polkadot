@@ -122,7 +122,7 @@ impl JfyiError {
 	pub fn log(self) {
 		match self {
 			// don't spam the log with spurious errors
-			Self::Runtime(_) | Self::Oneshot(_) => {
+			Self::Runtime(runtime::Error::RuntimeRequestCanceled(_)) | Self::Oneshot(_) => {
 				gum::debug!(target: LOG_TARGET, error = ?self)
 			},
 			// it's worth reporting otherwise
