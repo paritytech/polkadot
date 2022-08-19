@@ -39,7 +39,7 @@ for PALLET in "${PALLETS[@]}"; do
     --execution=wasm \
     --wasm-execution=compiled \
     --header=./file_header.txt \
-    --output="./runtime/${runtime}/src/weights/${PALLET/::/_}.rs" 2>&1
+    --output="./runtime/${runtime}/src/weights/" 2>&1
   )
   if [ $? -ne 0 ]; then
     echo "$OUTPUT" >> "$ERR_FILE"
