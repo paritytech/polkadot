@@ -718,20 +718,6 @@ impl pallet_beefy_mmr::Config for Runtime {
 }
 
 parameter_types! {
-	/// This is a pretty unscientific cap.
-	///
-	/// Note that once this is hit the pallet will essentially throttle incoming requests down to one
-	/// call per block.
-	pub const MaxRequests: u32 = 4 * HOURS as u32;
-
-	/// Number of headers to keep.
-	///
-	/// Assuming the worst case of every header being finalized, we will keep headers at least for a
-	/// week.
-	pub const HeadersToKeep: u32 = 7 * DAYS as u32;
-}
-
-parameter_types! {
 	pub const EndingPeriod: BlockNumber = 1 * HOURS;
 	pub const SampleLength: BlockNumber = 1;
 }
