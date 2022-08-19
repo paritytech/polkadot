@@ -296,7 +296,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 pub type FellowshipReferendaInstance = pallet_referenda::Instance2;
 
 impl pallet_referenda::Config<FellowshipReferendaInstance> for Runtime {
-	type WeightInfo = pallet_referenda::weights::SubstrateWeight<Self>;
+	type WeightInfo = weights::pallet_referenda_fellowship_referenda::WeightInfo<Self>;
 	type Call = Call;
 	type Event = Event;
 	type Scheduler = Scheduler;
@@ -326,7 +326,7 @@ morph_types! {
 }
 
 impl pallet_ranked_collective::Config<FellowshipCollectiveInstance> for Runtime {
-	type WeightInfo = pallet_ranked_collective::weights::SubstrateWeight<Self>;
+	type WeightInfo = weights::pallet_ranked_collective::WeightInfo<Self>;
 	type Event = Event;
 	// Promotion is by any of:
 	// - Root can demote arbitrarily.

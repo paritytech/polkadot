@@ -42,7 +42,7 @@ parameter_types! {
 }
 
 impl pallet_conviction_voting::Config for Runtime {
-	type WeightInfo = pallet_conviction_voting::weights::SubstrateWeight<Self>; //TODO
+	type WeightInfo = weights::pallet_conviction_voting::WeightInfo<Self>;
 	type Event = Event;
 	type Currency = Balances;
 	type VoteLockingPeriod = VoteLockingPeriod;
@@ -65,7 +65,7 @@ pub type TreasurySpender = EitherOf<EnsureRootWithSuccess<AccountId, MaxBalance>
 impl origins::pallet_custom_origins::Config for Runtime {}
 
 impl pallet_whitelist::Config for Runtime {
-	type WeightInfo = pallet_whitelist::weights::SubstrateWeight<Self>; //TODO
+	type WeightInfo = weights::pallet_whitelist::WeightInfo<Self>;
 	type Event = Event;
 	type Call = Call;
 	type WhitelistOrigin =
@@ -75,7 +75,7 @@ impl pallet_whitelist::Config for Runtime {
 }
 
 impl pallet_referenda::Config for Runtime {
-	type WeightInfo = pallet_referenda::weights::SubstrateWeight<Self>; //TODO
+	type WeightInfo = weights::pallet_referenda_referenda::WeightInfo<Self>;
 	type Call = Call;
 	type Event = Event;
 	type Scheduler = Scheduler;

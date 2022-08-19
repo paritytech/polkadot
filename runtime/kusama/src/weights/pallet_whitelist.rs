@@ -44,7 +44,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for `pallet_whitelist`.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Config> pallet_whitelist::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> pallet_whitelist::weights::WeightInfo for WeightInfo<T> {
 	// Storage: Whitelist WhitelistedCall (r:1 w:1)
 	// Storage: Preimage StatusFor (r:1 w:1)
 	fn whitelist_call() -> Weight {
