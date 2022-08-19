@@ -31,7 +31,7 @@ use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom, BackingToPlurality,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsConcrete,
+	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsConcrete, MintLocation,
 	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, UsingComponents,
 };
 use xcm_executor::XcmExecutor;
@@ -40,7 +40,7 @@ parameter_types! {
 	pub const TokenLocation: MultiLocation = Here.into_location();
 	pub const ThisNetwork: NetworkId = NetworkId::Rococo;
 	pub UniversalLocation: InteriorMultiLocation = ThisNetwork::get().into();
-	pub CheckAccount: AccountId = XcmPallet::check_account();
+	pub CheckAccount: (AccountId, MintLocation) = (XcmPallet::check_account(), MintLocation::Local);
 }
 
 pub type LocationConverter =

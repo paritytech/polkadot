@@ -250,4 +250,7 @@ impl<Call> XcmWeightInfo<Call> for KusamaXcmWeight<Call> {
 		// XCM Executor does not currently support alias origin operations
 		Weight::MAX
 	}
+	fn unpaid_execution(_: &WeightLimit, _: &Option<MultiLocation>) -> Weight {
+		Weight::MAX
+	}
 }

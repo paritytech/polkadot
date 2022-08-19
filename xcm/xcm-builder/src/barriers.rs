@@ -75,7 +75,10 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		);
 
 		ensure!(T::contains(origin), ());
-		let mut iter = instructions.iter_mut();
+		// We will read up to 5 instructions. This allows up to 3 `ClearOrigin`s instructions. We
+		// allow for more than one since anything beyond the first is a no-op and it's conceivable
+		// that composition of operations might result in more than one being appended.
+		let mut iter = instructions.iter_mut().take(5);
 		let i = iter.next().ok_or(())?;
 		match i {
 			ReceiveTeleportedAsset(..) |
@@ -197,9 +200,10 @@ impl<
 	}
 }
 
-/// Allows execution from any origin that is contained in `T` (i.e. `T::Contains(origin)`) without
-/// any payments.
-/// Use only for executions from trusted origin groups.
+/// Allows execution from any origin that is contained in `T` (i.e. `T::Contains(origin)`).
+///
+/// Use only for executions from completely trusted origins, from which no unpermissioned messages
+/// can be sent.
 pub struct AllowUnpaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 	fn should_execute<Call>(
@@ -215,6 +219,32 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 		);
 		ensure!(T::contains(origin), ());
 		Ok(())
+	}
+}
+
+/// Allows execution from any origin that is contained in `T` (i.e. `T::Contains(origin)`) if the
+/// message begins with the instruction `UnpaidExecution`.
+///
+/// Use only for executions from trusted origin groups.
+pub struct AllowExplicitUnpaidExecutionFrom<T>(PhantomData<T>);
+impl<T: Contains<MultiLocation>> ShouldExecute for AllowExplicitUnpaidExecutionFrom<T> {
+	fn should_execute<Call>(
+		origin: &MultiLocation,
+		instructions: &mut [Instruction<Call>],
+		max_weight: Weight,
+		_weight_credit: &mut Weight,
+	) -> Result<(), ()> {
+		log::trace!(
+			target: "xcm::barriers",
+			"AllowUnpaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			origin, instructions, max_weight, _weight_credit,
+		);
+		ensure!(T::contains(origin), ());
+		match instructions.first() {
+			Some(UnpaidExecution { weight_limit: Limited(m), .. }) if *m >= max_weight => Ok(()),
+			Some(UnpaidExecution { weight_limit: Unlimited, .. }) => Ok(()),
+			_ => Err(()),
+		}
 	}
 }
 
@@ -244,6 +274,7 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 			"AllowKnownQueryResponses origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, _max_weight, _weight_credit,
 		);
+		ensure!(instructions.len() == 1, ());
 		match instructions.first() {
 			Some(QueryResponse { query_id, querier, .. })
 				if ResponseHandler::expecting_response(origin, *query_id, querier.as_ref()) =>

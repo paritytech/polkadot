@@ -17,13 +17,14 @@
 //! Adapters to work with `frame_support::traits::Currency` through XCM.
 
 use frame_support::traits::{ExistenceRequirement::AllowDeath, Get, WithdrawReasons};
-use sp_runtime::traits::CheckedSub;
-use sp_std::{marker::PhantomData, result};
+use sp_runtime::traits::{CheckedSub, SaturatedConversion};
+use sp_std::{convert::TryInto, marker::PhantomData, result};
 use xcm::latest::{Error as XcmError, MultiAsset, MultiLocation, Result, XcmContext};
 use xcm_executor::{
 	traits::{Convert, MatchesFungible, TransactAsset},
 	Assets,
 };
+use super::MintLocation;
 
 /// Asset transaction errors.
 enum Error {
@@ -31,6 +32,8 @@ enum Error {
 	AssetNotFound,
 	/// `MultiLocation` to `AccountId` conversion failed.
 	AccountIdConversionFailed,
+	/// `u128` amount to currency `Balance` conversion failed.
+	AmountToBalanceConversionFailed,
 }
 
 impl From<Error> for XcmError {
@@ -39,6 +42,8 @@ impl From<Error> for XcmError {
 		match e {
 			Error::AssetNotFound => XcmError::AssetNotFound,
 			Error::AccountIdConversionFailed => FailedToTransactAsset("AccountIdConversionFailed"),
+			Error::AmountToBalanceConversionFailed =>
+				FailedToTransactAsset("AmountToBalanceConversionFailed"),
 		}
 	}
 }
@@ -60,7 +65,7 @@ impl From<Error> for XcmError {
 /// /// Our relay chain's location.
 /// parameter_types! {
 ///     pub RelayChain: MultiLocation = Parent.into();
-///     pub CheckingAccount: AccountId = PalletId(*b"checking").into_account_truncating();
+///     pub CheckingAccount: AccountId = PalletId(*b"checking").into_account();
 /// }
 ///
 /// /// Some items that implement `Convert<MultiLocation, AccountId>`. Can be more, but for now we just assume we accept
@@ -93,7 +98,48 @@ impl<
 		Matcher: MatchesFungible<Currency::Balance>,
 		AccountIdConverter: Convert<MultiLocation, AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
-		CheckedAccount: Get<Option<AccountId>>,
+		CheckedAccount: Get<Option<(AccountId, MintLocation)>>,
+	> CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId, CheckedAccount>
+{
+	fn can_accrue_checked(_checked_account: AccountId, _amount: Currency::Balance) -> Result {
+		Ok(())
+	}
+	fn can_reduce_checked(checked_account: AccountId, amount: Currency::Balance) -> Result {
+		let new_balance = Currency::free_balance(&checked_account)
+			.checked_sub(&amount)
+			.ok_or(XcmError::NotWithdrawable)?;
+		Currency::ensure_can_withdraw(
+			&checked_account,
+			amount,
+			WithdrawReasons::TRANSFER,
+			new_balance,
+		)
+		.map_err(|_| XcmError::NotWithdrawable)
+	}
+	fn accrue_checked(checked_account: AccountId, amount: Currency::Balance) {
+		Currency::deposit_creating(&checked_account, amount);
+	}
+	fn reduce_checked(checked_account: AccountId, amount: Currency::Balance) {
+		let ok = Currency::withdraw(
+			&checked_account,
+			amount,
+			WithdrawReasons::TRANSFER,
+			AllowDeath,
+		)
+		.is_ok();
+		debug_assert!(
+			ok,
+			"`can_check_in` must have returned `true` immediately prior; qed"
+		);
+}
+}
+
+impl<
+		Currency: frame_support::traits::Currency<AccountId>,
+		Matcher: MatchesFungible<Currency::Balance>,
+		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountId: Clone, // can't get away without it since Currency is generic over it.
+		CheckedAccount: Get<Option<(AccountId, MintLocation)>>,
 	> TransactAsset
 	for CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId, CheckedAccount>
 {
@@ -102,45 +148,49 @@ impl<
 		// Check we handle this asset.
 		let amount: Currency::Balance =
 			Matcher::matches_fungible(what).ok_or(Error::AssetNotFound)?;
-		if let Some(checked_account) = CheckedAccount::get() {
-			let new_balance = Currency::free_balance(&checked_account)
-				.checked_sub(&amount)
-				.ok_or(XcmError::NotWithdrawable)?;
-			Currency::ensure_can_withdraw(
-				&checked_account,
-				amount,
-				WithdrawReasons::TRANSFER,
-				new_balance,
-			)
-			.map_err(|_| XcmError::NotWithdrawable)?;
+		match CheckedAccount::get() {
+			Some((checked_account, MintLocation::Local)) =>
+				Self::can_reduce_checked(checked_account, amount),
+			Some((checked_account, MintLocation::NonLocal)) =>
+				Self::can_accrue_checked(checked_account, amount),
+			None => Ok(()),
 		}
-		Ok(())
 	}
 
 	fn check_in(_origin: &MultiLocation, what: &MultiAsset, _context: &XcmContext) {
 		log::trace!(target: "xcm::currency_adapter", "check_in origin: {:?}, what: {:?}", _origin, what);
 		if let Some(amount) = Matcher::matches_fungible(what) {
-			if let Some(checked_account) = CheckedAccount::get() {
-				let ok = Currency::withdraw(
-					&checked_account,
-					amount,
-					WithdrawReasons::TRANSFER,
-					AllowDeath,
-				)
-				.is_ok();
-				debug_assert!(
-					ok,
-					"`can_check_in` must have returned `true` immediately prior; qed"
-				);
+			match CheckedAccount::get() {
+				Some((checked_account, MintLocation::Local)) =>
+					Self::reduce_checked(checked_account, amount),
+				Some((checked_account, MintLocation::NonLocal)) =>
+					Self::accrue_checked(checked_account, amount),
+				None => (),
 			}
+		}
+	}
+
+	fn can_check_out(_dest: &MultiLocation, what: &MultiAsset, _context: &XcmContext) -> Result {
+		log::trace!(target: "xcm::currency_adapter", "check_out dest: {:?}, what: {:?}", _dest, what);
+		let amount = Matcher::matches_fungible(what).ok_or(Error::AssetNotFound)?;
+		match CheckedAccount::get() {
+			Some((checked_account, MintLocation::Local)) =>
+				Self::can_accrue_checked(checked_account, amount),
+			Some((checked_account, MintLocation::NonLocal)) =>
+				Self::can_reduce_checked(checked_account, amount),
+			None => Ok(()),
 		}
 	}
 
 	fn check_out(_dest: &MultiLocation, what: &MultiAsset, _context: &XcmContext) {
 		log::trace!(target: "xcm::currency_adapter", "check_out dest: {:?}, what: {:?}", _dest, what);
 		if let Some(amount) = Matcher::matches_fungible(what) {
-			if let Some(checked_account) = CheckedAccount::get() {
-				Currency::deposit_creating(&checked_account, amount);
+			match CheckedAccount::get() {
+				Some((checked_account, MintLocation::Local)) =>
+					Self::accrue_checked(checked_account, amount),
+				Some((checked_account, MintLocation::NonLocal)) =>
+					Self::reduce_checked(checked_account, amount),
+				None => (),
 			}
 		}
 	}
@@ -148,10 +198,13 @@ impl<
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation, _context: &XcmContext) -> Result {
 		log::trace!(target: "xcm::currency_adapter", "deposit_asset what: {:?}, who: {:?}", what, who);
 		// Check we handle this asset.
-		let amount = Matcher::matches_fungible(&what).ok_or(Error::AssetNotFound)?;
+		let amount: u128 =
+			Matcher::matches_fungible(&what).ok_or(Error::AssetNotFound)?.saturated_into();
 		let who =
 			AccountIdConverter::convert_ref(who).map_err(|()| Error::AccountIdConversionFailed)?;
-		let _imbalance = Currency::deposit_creating(&who, amount);
+		let balance_amount =
+			amount.try_into().map_err(|_| Error::AmountToBalanceConversionFailed)?;
+		let _imbalance = Currency::deposit_creating(&who, balance_amount);
 		Ok(())
 	}
 
@@ -162,28 +215,14 @@ impl<
 	) -> result::Result<Assets, XcmError> {
 		log::trace!(target: "xcm::currency_adapter", "withdraw_asset what: {:?}, who: {:?}", what, who);
 		// Check we handle this asset.
-		let amount = Matcher::matches_fungible(what).ok_or(Error::AssetNotFound)?;
+		let amount: u128 =
+			Matcher::matches_fungible(what).ok_or(Error::AssetNotFound)?.saturated_into();
 		let who =
 			AccountIdConverter::convert_ref(who).map_err(|()| Error::AccountIdConversionFailed)?;
-		Currency::withdraw(&who, amount, WithdrawReasons::TRANSFER, AllowDeath)
+		let balance_amount =
+			amount.try_into().map_err(|_| Error::AmountToBalanceConversionFailed)?;
+		Currency::withdraw(&who, balance_amount, WithdrawReasons::TRANSFER, AllowDeath)
 			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
 		Ok(what.clone().into())
-	}
-
-	fn internal_transfer_asset(
-		asset: &MultiAsset,
-		from: &MultiLocation,
-		to: &MultiLocation,
-		_context: &XcmContext,
-	) -> result::Result<Assets, XcmError> {
-		log::trace!(target: "xcm::currency_adapter", "internal_transfer_asset asset: {:?}, from: {:?}, to: {:?}", asset, from, to);
-		let amount = Matcher::matches_fungible(asset).ok_or(Error::AssetNotFound)?;
-		let from =
-			AccountIdConverter::convert_ref(from).map_err(|()| Error::AccountIdConversionFailed)?;
-		let to =
-			AccountIdConverter::convert_ref(to).map_err(|()| Error::AccountIdConversionFailed)?;
-		Currency::transfer(&from, &to, amount, AllowDeath)
-			.map_err(|e| XcmError::FailedToTransactAsset(e.into()))?;
-		Ok(asset.clone().into())
 	}
 }

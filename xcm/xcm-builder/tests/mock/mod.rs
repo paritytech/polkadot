@@ -34,7 +34,7 @@ use xcm_builder::{
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds,
 	IsChildSystemParachain, IsConcrete, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit,
+	SovereignSignedViaLocation, TakeWeightCredit, MintLocation,
 };
 
 pub type AccountId = AccountId32;
@@ -129,21 +129,19 @@ parameter_types! {
 	pub const KsmLocation: MultiLocation = MultiLocation::here();
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
 	pub UniversalLocation: InteriorMultiLocation = Here;
-	pub CheckAccount: AccountId = XcmPallet::check_account();
+	pub CheckAccount: (AccountId, MintLocation) = (XcmPallet::check_account(), MintLocation::Local);
 }
 
 pub type SovereignAccountOf =
 	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<KusamaNetwork, AccountId>);
 
-pub type LocalCurrencyAdapter = XcmCurrencyAdapter<
+pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	Balances,
 	IsConcrete<KsmLocation>,
 	SovereignAccountOf,
 	AccountId,
 	CheckAccount,
 >;
-
-pub type LocalAssetTransactor = (LocalCurrencyAdapter,);
 
 type LocalOriginConverter = (
 	SovereignSignedViaLocation<SovereignAccountOf, Origin>,

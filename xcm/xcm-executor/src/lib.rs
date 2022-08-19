@@ -40,7 +40,7 @@ pub use assets::Assets;
 mod config;
 pub use config::Config;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone)]
 pub struct FeesMode {
 	pub jit_withdraw: bool,
 }
@@ -458,7 +458,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// Take `assets` from the origin account (on-chain) and place into dest account.
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
 				for asset in assets.inner() {
-					Config::AssetTransactor::transfer_asset(
+					Config::AssetTransactor::beam_asset(
 						&asset,
 						origin,
 						&beneficiary,
@@ -471,7 +471,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
 				// Take `assets` from the origin account (on-chain) and place into dest account.
 				for asset in assets.inner() {
-					Config::AssetTransactor::transfer_asset(asset, origin, &dest, &self.context)?;
+					Config::AssetTransactor::beam_asset(asset, origin, &dest, &self.context)?;
 				}
 				let reanchor_context = Config::UniversalLocation::get();
 				assets.reanchor(&dest, reanchor_context).map_err(|()| XcmError::LocationFull)?;
@@ -604,6 +604,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			InitiateTeleport { assets, dest, xcm } => {
 				// We must do this first in order to resolve wildcards.
 				let assets = self.holding.saturating_take(assets);
+				for asset in assets.assets_iter() {
+					// We should check that the asset can actually be teleported out (for this to
+					// be in error, there would need to be an accounting violation by ourselves,
+					// so it's unlikely, but we don't want to allow that kind of bug to leak into
+					// a trusted chain.
+					Config::AssetTransactor::can_check_out(&dest, &asset, &self.context)?;
+				}
 				for asset in assets.assets_iter() {
 					Config::AssetTransactor::check_out(&dest, &asset, &self.context);
 				}
@@ -861,6 +868,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			AliasOrigin(_) => Err(XcmError::NoPermission),
+			UnpaidExecution { check_origin, .. } => {
+				ensure!(check_origin.is_none() || self.context.origin == check_origin, XcmError::BadOrigin);
+				Ok(())
+			},
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelClosing { .. } => Err(XcmError::Unimplemented),

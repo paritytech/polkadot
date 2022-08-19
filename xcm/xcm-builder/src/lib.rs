@@ -48,14 +48,15 @@ pub use asset_conversion::{ConvertedAbstractAssetId, ConvertedConcreteAssetId};
 mod barriers;
 pub use barriers::{
 	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
-	AllowUnpaidExecutionFrom, IsChildSystemParachain, TakeWeightCredit, WithComputedOrigin,
+	AllowUnpaidExecutionFrom, AllowExplicitUnpaidExecutionFrom, IsChildSystemParachain,
+	TakeWeightCredit, WithComputedOrigin,
 };
 
 mod currency_adapter;
 pub use currency_adapter::CurrencyAdapter;
 
 mod fungibles_adapter;
-pub use fungibles_adapter::{FungiblesAdapter, FungiblesMutateAdapter, FungiblesTransferAdapter};
+pub use fungibles_adapter::{FungiblesAdapter, FungiblesMutateAdapter, FungiblesTransferAdapter, MintLocation, LocalMint, NonLocalMint, DualMint, AssetChecking};
 
 mod nonfungibles_adapter;
 pub use nonfungibles_adapter::{

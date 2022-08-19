@@ -129,6 +129,9 @@ pub enum Error {
 	/// The universal location of the local consensus is improper.
 	#[codec(index = 33)]
 	Unanchored,
+	/// An asset cannot be deposited, probably because (too much of) it already exists.
+	#[codec(index = 34)]
+	NotDepositable,
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	/// XCM version not able to be handled.
