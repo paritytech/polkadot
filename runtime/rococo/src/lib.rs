@@ -27,7 +27,7 @@ use beefy_primitives::{
 };
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, InstanceFilter, KeyOwnerProofSystem},
+	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, ConstU32},
 	PalletId,
 };
 use frame_system::EnsureRoot;
@@ -277,7 +277,7 @@ impl frame_system::Config for Runtime {
 	type SystemWeightInfo = weights::frame_system::WeightInfo<Runtime>;
 	type SS58Prefix = SS58Prefix;
 	type OnSetCode = ();
-	type MaxConsumers = frame_support::traits::ConstU32<16>;
+	type MaxConsumers = ConstU32<16>;
 }
 
 parameter_types! {
@@ -468,6 +468,7 @@ impl pallet_session::Config for Runtime {
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type WeightInfo = ();
+	type MaxValidators = ConstU32<3072>;
 }
 
 parameter_types! {

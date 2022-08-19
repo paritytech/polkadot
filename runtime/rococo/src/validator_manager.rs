@@ -113,11 +113,11 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Pallet<T> {
 
 		ValidatorsToAdd::<T>::take().into_iter().for_each(|v| {
 			if !validators.contains(&v) {
-				validators.push(v);
+				validators.try_push(v).expect("Too many validators");
 			}
 		});
 
-		Some(validators)
+		Some(validators.into_inner())
 	}
 
 	fn end_session(_: SessionIndex) {}
