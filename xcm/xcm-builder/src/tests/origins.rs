@@ -86,18 +86,20 @@ fn unpaid_execution_should_work() {
 	// asks.
 	AllowExplicitUnpaidFrom::set(vec![X1(Parachain(2)).into()]);
 	// Asking for unpaid execution of up to 9 weight on the assumption it is origin of #2.
-	let message = Xcm(vec![
-		UnpaidExecution { weight_limit: Limited(9), check_origin: Some(Parachain(2).into()) },
-	]);
+	let message = Xcm(vec![UnpaidExecution {
+		weight_limit: Limited(9),
+		check_origin: Some(Parachain(2).into()),
+	}]);
 	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message.clone(), hash, 50);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::BadOrigin));
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(2), message.clone(), hash, 50);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
-	let message = Xcm(vec![
-		UnpaidExecution { weight_limit: Limited(10), check_origin: Some(Parachain(2).into()) },
-	]);
+	let message = Xcm(vec![UnpaidExecution {
+		weight_limit: Limited(10),
+		check_origin: Some(Parachain(2).into()),
+	}]);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(2), message.clone(), hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
 }

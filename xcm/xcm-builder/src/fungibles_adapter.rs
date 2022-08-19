@@ -90,7 +90,9 @@ impl<AssetId, T: Contains<AssetId>> AssetChecking<AssetId> for NonLocalMint<T> {
 }
 
 pub struct DualMint<L, R>(sp_std::marker::PhantomData<(L, R)>);
-impl<AssetId, L: Contains<AssetId>, R: Contains<AssetId>> AssetChecking<AssetId> for DualMint<L, R> {
+impl<AssetId, L: Contains<AssetId>, R: Contains<AssetId>> AssetChecking<AssetId>
+	for DualMint<L, R>
+{
 	fn asset_checking(asset: &AssetId) -> Option<MintLocation> {
 		if L::contains(asset) {
 			Some(MintLocation::Local)
@@ -118,14 +120,8 @@ impl<
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::AssetId>,
 		CheckingAccount: Get<AccountId>,
-	> FungiblesMutateAdapter<
-		Assets,
-		Matcher,
-		AccountIdConverter,
-		AccountId,
-		CheckAsset,
-		CheckingAccount,
 	>
+	FungiblesMutateAdapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>
 {
 	fn can_accrue_checked(asset_id: Assets::AssetId, amount: Assets::Balance) -> XcmResult {
 		let checking_account = CheckingAccount::get();

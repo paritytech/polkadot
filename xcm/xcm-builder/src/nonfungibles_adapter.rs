@@ -16,6 +16,7 @@
 
 //! Adapters to work with `frame_support::traits::tokens::fungibles` through XCM.
 
+use crate::{AssetChecking, MintLocation};
 use frame_support::{
 	ensure,
 	traits::{tokens::nonfungibles, Contains, Get},
@@ -23,7 +24,6 @@ use frame_support::{
 use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::{Convert, Error as MatchError, MatchesNonFungibles, TransactAsset};
-use crate::{AssetChecking, MintLocation};
 
 pub struct NonFungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
 	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>,
@@ -72,7 +72,8 @@ impl<
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::ItemId>,
 		CheckingAccount: Get<Option<AccountId>>,
-	> NonFungiblesMutateAdapter<
+	>
+	NonFungiblesMutateAdapter<
 		Assets,
 		Matcher,
 		AccountIdConverter,
@@ -99,13 +100,10 @@ impl<
 			let ok = Assets::mint_into(&instance, &class, &checking_account).is_ok();
 			debug_assert!(ok, "`mint_into` cannot generally fail; qed");
 		}
-}
+	}
 	fn reduce_checked(class: Assets::ItemId, instance: Assets::CollectionId) {
 		let ok = Assets::burn(&instance, &class, None).is_ok();
-		debug_assert!(
-			ok,
-			"`can_check_in` must have returned `true` immediately prior; qed"
-		);
+		debug_assert!(ok, "`can_check_in` must have returned `true` immediately prior; qed");
 	}
 }
 

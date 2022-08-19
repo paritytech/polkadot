@@ -16,6 +16,7 @@
 
 //! Adapters to work with `frame_support::traits::Currency` through XCM.
 
+use super::MintLocation;
 use frame_support::traits::{ExistenceRequirement::AllowDeath, Get, WithdrawReasons};
 use sp_runtime::traits::{CheckedSub, SaturatedConversion};
 use sp_std::{convert::TryInto, marker::PhantomData, result};
@@ -24,7 +25,6 @@ use xcm_executor::{
 	traits::{Convert, MatchesFungible, TransactAsset},
 	Assets,
 };
-use super::MintLocation;
 
 /// Asset transaction errors.
 enum Error {
@@ -120,18 +120,11 @@ impl<
 		Currency::deposit_creating(&checked_account, amount);
 	}
 	fn reduce_checked(checked_account: AccountId, amount: Currency::Balance) {
-		let ok = Currency::withdraw(
-			&checked_account,
-			amount,
-			WithdrawReasons::TRANSFER,
-			AllowDeath,
-		)
-		.is_ok();
-		debug_assert!(
-			ok,
-			"`can_check_in` must have returned `true` immediately prior; qed"
-		);
-}
+		let ok =
+			Currency::withdraw(&checked_account, amount, WithdrawReasons::TRANSFER, AllowDeath)
+				.is_ok();
+		debug_assert!(ok, "`can_check_in` must have returned `true` immediately prior; qed");
+	}
 }
 
 impl<
