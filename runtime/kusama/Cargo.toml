@@ -1,13 +1,13 @@
 [package]
 name = "kusama-runtime"
-version = "0.9.25"
+version = "0.9.27"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 build = "build.rs"
 
 [dependencies]
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "3.1.2", default-features = false, features = ["derive", "max-encoded-len"] }
+parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
@@ -45,6 +45,7 @@ pallet-bounties = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-child-bounties = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-nomination-pools-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -98,11 +99,14 @@ xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default
 
 [dev-dependencies]
 hex-literal = "0.3.4"
-tiny-keccak = "2.0.2"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 separator = "0.4.1"
 serde_json = "1.0.81"
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+tokio = { version = "1.19.2", features = ["macros"] }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -148,6 +152,7 @@ std = [
 	"pallet-membership/std",
 	"pallet-multisig/std",
 	"pallet-nomination-pools/std",
+	"pallet-nomination-pools-runtime-api/std",
 	"pallet-offences/std",
 	"pallet-preimage/std",
 	"pallet-proxy/std",

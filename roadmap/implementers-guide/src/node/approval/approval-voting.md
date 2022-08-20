@@ -6,7 +6,7 @@ Approval votes are split into two parts: Assignments and Approvals. Validators f
 
 The core of this subsystem is a Tick-based timer loop, where Ticks are 500ms. We also reason about time in terms of `DelayTranche`s, which measure the number of ticks elapsed since a block was produced. We track metadata for all un-finalized but included candidates. We compute our local assignments to check each candidate, as well as which `DelayTranche` those assignments may be minimally triggered at. As the same candidate may appear in more than one block, we must produce our potential assignments for each (Block, Candidate) pair. The timing loop is based on waiting for assignments to become no-shows or waiting to broadcast and begin our own assignment to check.
 
-Another main component of this subsystem is the logic for determining when a (Block, Candidate) pair has been approved and when to broadcast and trigger our own assignment. Once a (Block, Candidate) pair has been approved, we mark a corresponding bit in the `BlockEntry` that indicates the candidate has been approved under the block. When we trigger our own assignment, we broadcast it via Approval Distribution, begin fetching the data from Availability Recovery, and then pass it through to the Candidate Validation. Once these steps are successful, we issue our approval vote. If any of these steps fail, we don't issue any vote and will "no-show" from the perspective of other validators. In the future we will initiate disputes as well.
+Another main component of this subsystem is the logic for determining when a (Block, Candidate) pair has been approved and when to broadcast and trigger our own assignment. Once a (Block, Candidate) pair has been approved, we mark a corresponding bit in the `BlockEntry` that indicates the candidate has been approved under the block. When we trigger our own assignment, we broadcast it via Approval Distribution, begin fetching the data from Availability Recovery, and then pass it through to the Candidate Validation. Once these steps are successful, we issue our approval vote. If any of these steps fail, we don't issue any vote and will "no-show" from the perspective of other validators in addition a dispute is raised via the dispute-coordinator, by sending `IssueLocalStatement`.
 
 Where this all fits into Polkadot is via block finality. Our goal is to not finalize any block containing a candidate that is not approved. We provide a hook for a custom GRANDPA voting rule - GRANDPA makes requests of the form (target, minimum) consisting of a target block (i.e. longest chain) that it would like to finalize, and a minimum block which, due to the rules of GRANDPA, must be voted on. The minimum is typically the last finalized block, but may be beyond it, in the case of having a last-round-estimate beyond the last finalized. Thus, our goal is to inform GRANDPA of some block between target and minimum which we believe can be finalized safely. We do this by iterating backwards from the target to the minimum and finding the longest continuous chain from minimum where all candidates included by those blocks have been approved.
 
@@ -142,7 +142,7 @@ struct State {
 
     // A scheduler which keeps at most one wakeup per hash, candidate hash pair and
     // maps such pairs to `Tick`s.
-    wakeups: Wakeups, 
+    wakeups: Wakeups,
 
     // These are connected to each other.
     background_tx: mpsc::Sender<BackgroundRequest>,
@@ -220,7 +220,6 @@ On receiving a `CheckAndImportApproval(indirect_approval_vote, response_channel)
   * Fetch the `CandidateEntry` from the indirect approval vote's `candidate_index`. If the block did not trigger inclusion of enough candidates, return `ApprovalCheckResult::Bad`.
   * Construct a `SignedApprovalVote` using the candidate hash and check against the validator's approval key, based on the session info of the block. If invalid or no such validator, return `ApprovalCheckResult::Bad`.
   * Send `ApprovalCheckResult::Accepted`
-  * Dispatch a [`DisputeCoordinatorMessage::ImportStatement`](../../types/overseer-protocol.md#dispute-coordinator-message) with the approval statement.
   * [Import the checked approval vote](#import-checked-approval)
 
 #### `ApprovalVotingMessage::ApprovedAncestor`
@@ -256,7 +255,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * Determine if we should trigger our assignment.
     * If we've already triggered or `OurAssignment` is `None`, we do not trigger.
     * If we have  `RequiredTranches::All`, then we trigger if the candidate is [not approved](#check-approval). We have no next wakeup as we assume that other validators are doing the same and we will be implicitly woken up by handling new votes.
-    * If we have `RequiredTranches::Pending { considered, next_no_show, uncovered, maximum_broadcast, clock_drift }`, then we trigger if our assignment's tranche is less than or equal to `maximum_broadcast` and the current tick, with `clock_drift` applied, is at least the tick of our tranche. 
+    * If we have `RequiredTranches::Pending { considered, next_no_show, uncovered, maximum_broadcast, clock_drift }`, then we trigger if our assignment's tranche is less than or equal to `maximum_broadcast` and the current tick, with `clock_drift` applied, is at least the tick of our tranche.
     * If we have `RequiredTranches::Exact { .. }` then we do not trigger, because this value indicates that no new assignments are needed at the moment.
   * If we should trigger our assignment
     * Import the assignment to the `ApprovalEntry`
@@ -348,7 +347,7 @@ enum RequiredTranches {
 
 Our vote-counting procedure depends heavily on how we interpret time based on the presence of no-shows - assignments which have no corresponding approval after some time.
 
-We have this is because of how we handle no-shows: we keep track of the depth of no-shows we are covering. 
+We have this is because of how we handle no-shows: we keep track of the depth of no-shows we are covering.
 
 As an example: there may be initial no-shows in tranche 0. It'll take `no_show_duration` ticks before those are considered no-shows. Then, we don't want to immediately take `no_show_duration` more tranches. Instead, we want to take one tranche for each uncovered no-show. However, as we take those tranches, there may be further no-shows. Since these depth-1 no-shows should have only been triggered after the depth-0 no-shows were already known to be no-shows, we need to discount the local clock by `no_show_duration` to  see whether these should be considered no-shows or not. There may be malicious parties who broadcast their assignment earlier than they were meant to, who shouldn't be counted as instant no-shows. We continue onwards to cover all depth-1 no-shows which may lead to depth-2 no-shows and so on.
 
@@ -373,8 +372,8 @@ Likewise, when considering how many tranches to take, the no-show depth should b
   * If we have `3 * n_approvals > n_validators`, return true. This is because any set with f+1 validators must have at least one honest validator, who has approved the candidate.
   * If `n_tranches` is `RequiredTranches::Pending`, return false
   * If `n_tranches` is `RequiredTranches::All`, return false.
-  * If `n_tranches` is `RequiredTranches::Exact { tranche, tolerated_missing, latest_assignment_tick, .. }`, then we return whether all assigned validators up to `tranche` less `tolerated_missing` have approved and `latest_assignment_tick + APPROVAL_DELAY >= tick_now`. 
-    * e.g. if we had 5 tranches and 1 tolerated missing, we would accept only if all but 1 of assigned validators in tranches 0..=5 have approved. In that example, we also accept all validators in tranches 0..=5 having approved, but that would indicate that the `RequiredTranches` value was incorrectly constructed, so it is not realistic. `tolerated_missing` actually represents covered no-shows. If there are more missing approvals than there are tolerated missing, that indicates that there are some assignments which are not yet no-shows, but may become no-shows, and we should wait for the validators to either approve or become no-shows. 
+  * If `n_tranches` is `RequiredTranches::Exact { tranche, tolerated_missing, latest_assignment_tick, .. }`, then we return whether all assigned validators up to `tranche` less `tolerated_missing` have approved and `latest_assignment_tick + APPROVAL_DELAY >= tick_now`.
+    * e.g. if we had 5 tranches and 1 tolerated missing, we would accept only if all but 1 of assigned validators in tranches 0..=5 have approved. In that example, we also accept all validators in tranches 0..=5 having approved, but that would indicate that the `RequiredTranches` value was incorrectly constructed, so it is not realistic. `tolerated_missing` actually represents covered no-shows. If there are more missing approvals than there are tolerated missing, that indicates that there are some assignments which are not yet no-shows, but may become no-shows, and we should wait for the validators to either approve or become no-shows.
     * e.g. If the above passes and the `latest_assignment_tick` was 5 and the current tick was 6, then we'd return false.
 
 ### Time
