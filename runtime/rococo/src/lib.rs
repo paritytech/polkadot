@@ -27,7 +27,7 @@ use beefy_primitives::{
 };
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, InstanceFilter, KeyOwnerProofSystem, ConstU32},
+	traits::{ConstU32, Contains, InstanceFilter, KeyOwnerProofSystem},
 	PalletId,
 };
 use frame_system::EnsureRoot;

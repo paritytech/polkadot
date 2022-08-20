@@ -412,6 +412,10 @@ impl_opaque_keys! {
 	}
 }
 
+parameter_types! {
+	pub const MaxValidators: u32 = 3072;
+}
+
 impl pallet_session::Config for Runtime {
 	type Event = Event;
 	type ValidatorId = AccountId;
@@ -422,6 +426,7 @@ impl pallet_session::Config for Runtime {
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type WeightInfo = weights::pallet_session::WeightInfo<Runtime>;
+	type MaxValidators = MaxValidators;
 }
 
 impl pallet_session::historical::Config for Runtime {
@@ -616,6 +621,7 @@ impl pallet_staking::Config for Runtime {
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type OnStakerSlash = NominationPools;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
+	type MaxValidators = MaxValidators;
 }
 
 parameter_types! {
