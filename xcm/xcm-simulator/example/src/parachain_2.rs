@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright 2022 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -149,59 +149,39 @@ impl Config for XcmConfig {
 	type SubscriptionService = ();
 }
 
-mod parachain_2 {
-	use super::*;
-
-	#[derive(Encode, Decode)]
-	pub enum MockPalletCall {
-		// In order to construct the Call enum for parachain_2's runtime
-		// we need to know the index of the particular extrinsic we wish to call
-		// which happens to be 0.
-		#[codec(index = 0)]
-		MockExtrinsic,
-	}
-
-	#[derive(Encode, Decode)]
-	pub enum Parachain2Call {
-		// In order to construct the Call enum for parachain_2's runtime
-		// we need to know the index of the Pallet we wish to access
-		// which happens to be 42 as defined in parachain_2's construct runtime.
-		#[codec(index = 42)]
-		Parachain2Type(MockPalletCall),
-	}
-}
-
 #[frame_support::pallet]
-pub mod parachain_2_call_generator {
-	use super::*;
-	use parachain_2::*;
-	use frame_support::pallet_prelude::*;
+pub mod mock_pallet {
+    use frame_support::pallet_prelude::*;
+    use frame_system::pallet_prelude::*;
 
-	#[pallet::config]
-	pub trait Config: frame_system::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-	}
+    #[pallet::config]
+    pub trait Config: frame_system::Config {
+        type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+    }
 
-	#[pallet::event]
-	pub enum Event<T: Config> {}
-
-	#[pallet::pallet]
+    #[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
-	pub struct Pallet<T>(PhantomData<T>);
+	pub struct Pallet<T>(_);
 
-	#[pallet::call]
-	impl<T: Config> Pallet<T> {}
+    #[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event<T: Config> {
+        StandardEvent,
+    }
 
-	impl<T: Config> Pallet<T>
-	{
-		pub fn construct_mock_pallet_extrinsic_call() -> Parachain2Call {
-			Parachain2Call::Parachain2Type(MockPalletCall::MockExtrinsic)
-		}
-	}
+    #[pallet::call]
+    impl<T: Config> Pallet<T> {
+		#[pallet::weight(0)]
+        pub fn mock_extrinsic(origin: OriginFor<T>) -> DispatchResult {
+            ensure_signed(origin)?;
+            Self::deposit_event(Event::StandardEvent);
+            Ok(())
+        }
+    }
 }
 
-impl parachain_2_call_generator::Config for Runtime {
+impl mock_pallet::Config for Runtime {
 	type Event = Event;
 }
 
@@ -263,7 +243,7 @@ pub mod mock_msg_queue {
 		ExecutedDownward(MessageId, Outcome),
 	}
 
-	impl<T: Config> Pallet<T> {
+    impl<T: Config> Pallet<T> {
 		pub fn set_para_id(para_id: ParaId) {
 			ParachainId::<T>::put(para_id);
 		}
@@ -377,10 +357,10 @@ construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		MsgQueue: mock_msg_queue::{Pallet, Storage, Event<T>},
-		PolkadotXcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
-		Parachain2CallGenerator: parachain_2_call_generator::{Pallet, Call, Event<T>},
+		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 1,
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 2,
+		MsgQueue: mock_msg_queue::{Pallet, Storage, Event<T>} = 3,
+		PolkadotXcm: pallet_xcm::{Pallet, Call, Event<T>, Origin} = 4,
+        MockPallet: mock_pallet::{Pallet, Call, Event<T>} = 42,
 	}
 );
