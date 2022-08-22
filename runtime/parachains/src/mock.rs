@@ -455,9 +455,9 @@ pub struct MockGenesisConfig {
 	pub paras: crate::paras::GenesisConfig,
 }
 
-pub fn assert_last_event(generic_event: Event) {
+pub fn assert_last_event(generic_event: RuntimeEvent) {
 	let events = frame_system::Pallet::<Test>::events();
-	let system_event: <Test as frame_system::Config>::Event = generic_event.into();
+	let system_event: <Test as frame_system::Config>::RuntimeEvent = generic_event.into();
 	// compare to the last event record
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 	assert_eq!(event, &system_event);

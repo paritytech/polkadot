@@ -114,7 +114,7 @@ fn check_code_is_not_stored(validation_code: &ValidationCode) {
 struct EventValidator {
 	events: Vec<
 		frame_system::EventRecord<
-			<Test as frame_system::Config>::PalletEvent,
+			<Test as frame_system::Config>::RuntimeEvent,
 			primitives::v2::Hash,
 		>,
 	>,
