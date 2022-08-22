@@ -253,7 +253,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {
+	pub enum PalletEvent<T: Config> {
 		/// Create a new crowdloaning campaign.
 		Created { para_id: ParaId },
 		/// Contributed to a crowd sale.

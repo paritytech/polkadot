@@ -486,7 +486,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event {
+	pub enum PalletEvent {
 		/// Current code has been updated for a Para. `para_id`
 		CurrentCodeUpdated(ParaId),
 		/// Current head has been updated for a Para. `para_id`

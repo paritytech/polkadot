@@ -238,7 +238,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event {
+	pub enum PalletEvent {
 		/// Upward message is invalid XCM.
 		/// \[ id \]
 		InvalidFormat(MessageId),

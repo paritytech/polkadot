@@ -152,7 +152,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {
+	pub enum PalletEvent<T: Config> {
 		/// A para was assigned a permanent parachain slot
 		PermanentSlotAssigned(ParaId),
 		/// A para was assigned a temporary parachain slot

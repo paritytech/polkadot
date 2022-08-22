@@ -597,7 +597,7 @@ pub mod pallet_test_notifier {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {
+	pub enum PalletEvent<T: Config> {
 		QueryPrepared(QueryId),
 		NotifyQueryPrepared(QueryId),
 		ResponseReceived(MultiLocation, QueryId, Response),

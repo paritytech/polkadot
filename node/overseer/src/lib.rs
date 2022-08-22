@@ -265,7 +265,7 @@ impl From<FinalityNotification<Block>> for BlockInfo {
 
 /// An event from outside the overseer scope, such
 /// as the substrate framework or user interaction.
-pub enum Event {
+pub enum PalletEvent {
 	/// A new block was imported.
 	BlockImported(BlockInfo),
 	/// A block was finalized with i.e. babe or another consensus algorithm.

@@ -120,7 +120,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {
+	pub enum PalletEvent<T: Config> {
 		/// A new `[lease_period]` is beginning.
 		NewLeasePeriod { lease_period: LeasePeriodOf<T> },
 		/// A para has won the right to a continuous set of lease periods as a parachain.

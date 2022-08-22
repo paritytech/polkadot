@@ -45,7 +45,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {
+	pub enum PalletEvent<T: Config> {
 		/// New validators were added to the set.
 		ValidatorsRegistered(Vec<T::ValidatorId>),
 		/// Validators were removed from the set.
