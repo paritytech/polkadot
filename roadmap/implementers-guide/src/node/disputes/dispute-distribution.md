@@ -173,7 +173,7 @@ order, even on retry.
 
 ### Rate Limit
 
-For spam protection (see below), we employ an artifical rate limiting on sending
+For spam protection (see below), we employ an artificial rate limiting on sending
 out messages in order to not hit the rate limit at the receiving side, which
 would result in our messages getting dropped and our reputation getting reduced.
 
@@ -288,7 +288,7 @@ well, we will do the following:
 This together with rate limiting explained above ensures we will be able to
 process valid disputes: We can limit the number of simultaneous existing batches
 to some high value, but can be rather certain that this limit will never be
-reached - hence we won't drop valid disputes.
+reached - hence we won't drop valid disputes:
 
 Let's assume `MIN_KEEP_BATCH_ALIVE_VOTES` is 10, `BATCH_COLLECTING_INTERVAL`
 is `500ms` and above `RATE_LIMIT` is `100ms`. 1/3 of validators are malicious,
@@ -330,22 +330,9 @@ should be a net win.
 
 Instead of filling batches to maximize memory usage, attackers could also try to
 overwhelm the dispute coordinator by only sending votes for new candidates all
-the time. This attack vector is mitigated by decreasing the peer's reputation on
-denial of the invalid imports by the coordinator.
-
-### Import Performance Considerations
-
-The dispute coordinator is not optimized for importing votes individually and
-will expose very bad import performance in that case. Therefore we will batch
-together votes over some time and import votes in batches.
-
-To trigger participation immediately, we will always import the very first
-message for a candidate immediately, but we will keep a record that we have
-started an import for that candidate and will batch up more votes for that
-candidate over some time and then import them all at once.
-
-If we ignore duplicate votes, even if imports keep trickling in - it is bounded,
-because at some point all validators have voted.
+the time. This attack vector is mitigated also by above rate limit and
+decreasing the peer's reputation on denial of the invalid imports by the
+coordinator.
 
 ### Node Startup
 
