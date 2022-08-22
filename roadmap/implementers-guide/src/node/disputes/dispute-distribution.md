@@ -161,7 +161,8 @@ statements so they can include them in blocks.
 
 We only consider a message transmitted, once we received a confirmation message.
 If not, we will keep retrying getting that message out as long as the dispute is
-deemed alive. To determine whether a dispute is still alive we will issue a
+deemed alive. To determine whether a dispute is still alive we will the
+`dispute-coordinator` for a list of all still active disputes via a
 `DisputeCoordinatorMessage::ActiveDisputes` message before each retry run. Once
 a dispute is no longer live, we will clean up the state accordingly.
 
