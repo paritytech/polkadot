@@ -80,10 +80,10 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Pallet, Call, Config, Storage, Event},
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 			Authorship: pallet_authorship::{Pallet, Call, Storage, Inherent},
-			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event},
-			Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event},
+			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+			Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
 		}
 	);
 

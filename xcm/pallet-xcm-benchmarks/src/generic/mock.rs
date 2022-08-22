@@ -43,7 +43,7 @@ frame_support::construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event},
+		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		XcmGenericBenchmarks: generic::{Pallet},
 	}
 );
