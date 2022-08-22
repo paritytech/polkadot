@@ -251,8 +251,8 @@ where
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn try_successful_origin() -> Result<Origin, ()> {
-		Ok(Origin::root())
+	fn successful_origin() -> Origin {
+		Origin::root()
 	}
 }
 

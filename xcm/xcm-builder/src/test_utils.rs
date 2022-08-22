@@ -19,7 +19,7 @@
 use frame_support::{
 	dispatch::Weight,
 	parameter_types,
-	traits::{Contains, PalletInfoData, PalletsInfoAccess},
+	traits::{Contains, CrateVersion, PalletInfoData, PalletsInfoAccess},
 };
 use sp_std::vec::Vec;
 pub use xcm::latest::prelude::*;
@@ -118,7 +118,20 @@ impl PalletsInfoAccess for TestPalletsInfo {
 		2
 	}
 	fn infos() -> Vec<PalletInfoData> {
-		vec![]
+		let mut acc: Vec<PalletInfoData> = vec![];
+		acc.push(PalletInfoData {
+			index: 0,
+			name: "System",
+			module_name: "pallet_system",
+			crate_version: CrateVersion { major: 1, minor: 10, patch: 1 },
+		});
+		acc.push(PalletInfoData {
+			index: 1,
+			name: "Balances",
+			module_name: "pallet_balances",
+			crate_version: CrateVersion { major: 1, minor: 42, patch: 69 },
+		});
+		acc
 	}
 }
 

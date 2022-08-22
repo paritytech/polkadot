@@ -89,7 +89,7 @@ fn transfer_asset_works() {
 			weight,
 		);
 		System::assert_last_event(
-			pallet_balances::Event::Transfer { from: ALICE, to: bob.clone(), amount }.into(),
+			pallet_balances::Event::Deposit { who: bob.clone(), amount }.into(),
 		);
 		assert_eq!(r, Outcome::Complete(weight));
 		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - amount);
