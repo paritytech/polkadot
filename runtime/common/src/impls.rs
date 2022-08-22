@@ -80,10 +80,10 @@ mod tests {
 			NodeBlock = Block,
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
-			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			System: frame_system::{Pallet, Call, Config, Storage, Event},
 			Authorship: pallet_authorship::{Pallet, Call, Storage, Inherent},
-			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-			Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
+			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event},
+			Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event},
 		}
 	);
 
@@ -113,7 +113,7 @@ mod tests {
 		type AccountId = AccountId;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type BlockLength = BlockLength;
 		type BlockWeights = BlockWeights;
@@ -131,7 +131,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type DustRemoval = ();
 		type ExistentialDeposit = ();
 		type AccountStore = System;
@@ -150,7 +150,7 @@ mod tests {
 		type Currency = pallet_balances::Pallet<Test>;
 		type ApproveOrigin = frame_system::EnsureRoot<AccountId>;
 		type RejectOrigin = frame_system::EnsureRoot<AccountId>;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type OnSlash = ();
 		type ProposalBond = ();
 		type ProposalBondMinimum = ();

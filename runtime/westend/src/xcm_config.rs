@@ -17,7 +17,7 @@
 //! XCM configurations for Westend.
 
 use super::{
-	parachains_origin, weights, AccountId, Balances, Call, Event, Origin, ParaId, Runtime,
+	parachains_origin, weights, AccountId, Balances, Call, RuntimeEvent, Origin, ParaId, Runtime,
 	WeightToFee, XcmPallet,
 };
 use frame_support::{
@@ -131,7 +131,7 @@ pub type LocalOriginToLocation = (
 );
 
 impl pallet_xcm::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...

@@ -98,7 +98,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<PalletEvent<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// Balances Pallet
 		type Currency: Currency<Self::AccountId>;
@@ -222,7 +222,7 @@ pub mod pallet {
 				vat: Permill::zero(),
 			};
 			Accounts::<T>::insert(&who, status);
-			Self::deposit_event(Event::<T>::AccountCreated { who });
+			Self::deposit_event(PalletEvent::<T>::AccountCreated { who });
 			Ok(())
 		}
 
@@ -251,7 +251,7 @@ pub mod pallet {
 					Ok(())
 				},
 			)?;
-			Self::deposit_event(Event::<T>::ValidityUpdated { who, validity });
+			Self::deposit_event(PalletEvent::<T>::ValidityUpdated { who, validity });
 			Ok(())
 		}
 
@@ -283,7 +283,7 @@ pub mod pallet {
 					Ok(())
 				},
 			)?;
-			Self::deposit_event(Event::<T>::BalanceUpdated {
+			Self::deposit_event(PalletEvent::<T>::BalanceUpdated {
 				who,
 				free: free_balance,
 				locked: locked_balance,
@@ -350,7 +350,7 @@ pub mod pallet {
 
 					// Setting the user account to `Completed` ends the purchase process for this user.
 					status.validity = AccountValidity::Completed;
-					Self::deposit_event(Event::<T>::PaymentComplete {
+					Self::deposit_event(PalletEvent::<T>::PaymentComplete {
 						who: who.clone(),
 						free: status.free_balance,
 						locked: status.locked_balance,
@@ -371,7 +371,7 @@ pub mod pallet {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			// Possibly this is worse than having the caller account be the payment account?
 			PaymentAccount::<T>::put(who.clone());
-			Self::deposit_event(Event::<T>::PaymentAccountSet { who });
+			Self::deposit_event(PalletEvent::<T>::PaymentAccountSet { who });
 			Ok(())
 		}
 
@@ -387,7 +387,7 @@ pub mod pallet {
 			);
 			// Possibly this is worse than having the caller account be the payment account?
 			Statement::<T>::set(statement);
-			Self::deposit_event(Event::<T>::StatementUpdated);
+			Self::deposit_event(PalletEvent::<T>::StatementUpdated);
 			Ok(())
 		}
 
@@ -406,7 +406,7 @@ pub mod pallet {
 			);
 			// Possibly this is worse than having the caller account be the payment account?
 			UnlockBlock::<T>::set(unlock_block);
-			Self::deposit_event(Event::<T>::UnlockBlockUpdated { block_number: unlock_block });
+			Self::deposit_event(PalletEvent::<T>::UnlockBlockUpdated { block_number: unlock_block });
 			Ok(())
 		}
 	}
@@ -519,7 +519,7 @@ mod tests {
 		type AccountId = AccountId;
 		type Lookup = IdentityLookup<AccountId>;
 		type Header = Header;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
 		type PalletInfo = PalletInfo;
@@ -538,7 +538,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
@@ -553,7 +553,7 @@ mod tests {
 	}
 
 	impl pallet_vesting::Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
@@ -574,7 +574,7 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type Currency = Balances;
 		type VestingSchedule = Vesting;
 		type ValidityOrigin = frame_system::EnsureSignedBy<ValidityOrigin, AccountId>;

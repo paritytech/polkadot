@@ -239,7 +239,7 @@ pub mod pallet {
 		frame_system::Config + configuration::Config + paras::Config + dmp::Config
 	{
 		/// The outer event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<PalletEvent<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		type Origin: From<crate::Origin>
 			+ From<<Self as frame_system::Config>::Origin>
@@ -472,7 +472,7 @@ pub mod pallet {
 				proposed_max_capacity,
 				proposed_max_message_size,
 			)?;
-			Self::deposit_event(Event::OpenChannelRequested(
+			Self::deposit_event(PalletEvent::OpenChannelRequested(
 				origin,
 				recipient,
 				proposed_max_capacity,
@@ -488,7 +488,7 @@ pub mod pallet {
 		pub fn hrmp_accept_open_channel(origin: OriginFor<T>, sender: ParaId) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::accept_open_channel(origin, sender)?;
-			Self::deposit_event(Event::OpenChannelAccepted(sender, origin));
+			Self::deposit_event(PalletEvent::OpenChannelAccepted(sender, origin));
 			Ok(())
 		}
 
@@ -503,7 +503,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::close_channel(origin, channel_id.clone())?;
-			Self::deposit_event(Event::ChannelClosed(origin, channel_id));
+			Self::deposit_event(PalletEvent::ChannelClosed(origin, channel_id));
 			Ok(())
 		}
 
@@ -574,7 +574,7 @@ pub mod pallet {
 				Error::<T>::WrongWitness
 			);
 			Self::cancel_open_request(origin, channel_id.clone())?;
-			Self::deposit_event(Event::OpenChannelCanceled(origin, channel_id));
+			Self::deposit_event(PalletEvent::OpenChannelCanceled(origin, channel_id));
 			Ok(())
 		}
 	}

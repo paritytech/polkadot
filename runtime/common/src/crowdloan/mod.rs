@@ -189,7 +189,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<PalletEvent<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// `PalletId` for the crowdloan pallet. An appropriate value could be `PalletId(*b"py/cfund")`
 		#[pallet::constant]
@@ -351,7 +351,7 @@ pub mod pallet {
 						fund.raised,
 					);
 
-					Self::deposit_event(Event::<T>::HandleBidResult { para_id, result });
+					Self::deposit_event(PalletEvent::<T>::HandleBidResult { para_id, result });
 				}
 				T::WeightInfo::on_initialize(new_raise_len)
 			} else {
@@ -437,7 +437,7 @@ pub mod pallet {
 			// Add a lock to the para so that the configuration cannot be changed.
 			T::Registrar::apply_lock(index);
 
-			Self::deposit_event(Event::<T>::Created { para_id: index });
+			Self::deposit_event(PalletEvent::<T>::Created { para_id: index });
 			Ok(())
 		}
 
@@ -494,7 +494,7 @@ pub mod pallet {
 
 			Funds::<T>::insert(index, &fund);
 
-			Self::deposit_event(Event::<T>::Withdrew { who, fund_index: index, amount: balance });
+			Self::deposit_event(PalletEvent::<T>::Withdrew { who, fund_index: index, amount: balance });
 			Ok(())
 		}
 
@@ -536,11 +536,11 @@ pub mod pallet {
 			Funds::<T>::insert(index, &fund);
 
 			if all_refunded {
-				Self::deposit_event(Event::<T>::AllRefunded { para_id: index });
+				Self::deposit_event(PalletEvent::<T>::AllRefunded { para_id: index });
 				// Refund for unused refund count.
 				Ok(Some(T::WeightInfo::refund(refund_count)).into())
 			} else {
-				Self::deposit_event(Event::<T>::PartiallyRefunded { para_id: index });
+				Self::deposit_event(PalletEvent::<T>::PartiallyRefunded { para_id: index });
 				// No weight to refund since we did not finish the loop.
 				Ok(().into())
 			}
@@ -567,7 +567,7 @@ pub mod pallet {
 
 			CurrencyOf::<T>::unreserve(&fund.depositor, fund.deposit);
 			Funds::<T>::remove(index);
-			Self::deposit_event(Event::<T>::Dissolved { para_id: index });
+			Self::deposit_event(PalletEvent::<T>::Dissolved { para_id: index });
 			Ok(())
 		}
 
@@ -604,7 +604,7 @@ pub mod pallet {
 				},
 			);
 
-			Self::deposit_event(Event::<T>::Edited { para_id: index });
+			Self::deposit_event(PalletEvent::<T>::Edited { para_id: index });
 			Ok(())
 		}
 
@@ -622,7 +622,7 @@ pub mod pallet {
 			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);
 
 			Self::contribution_put(fund.fund_index, &who, &balance, &memo);
-			Self::deposit_event(Event::<T>::MemoUpdated { who, para_id: index, memo });
+			Self::deposit_event(PalletEvent::<T>::MemoUpdated { who, para_id: index, memo });
 			Ok(())
 		}
 
@@ -636,7 +636,7 @@ pub mod pallet {
 			ensure!(!fund.raised.is_zero(), Error::<T>::NoContributions);
 			ensure!(!NewRaise::<T>::get().contains(&index), Error::<T>::AlreadyInNewRaise);
 			NewRaise::<T>::append(index);
-			Self::deposit_event(Event::<T>::AddedToNewRaise { para_id: index });
+			Self::deposit_event(PalletEvent::<T>::AddedToNewRaise { para_id: index });
 			Ok(())
 		}
 
@@ -811,7 +811,7 @@ impl<T: Config> Pallet<T> {
 
 		Funds::<T>::insert(index, &fund);
 
-		Self::deposit_event(Event::<T>::Contributed { who, fund_index: index, amount: value });
+		Self::deposit_event(PalletEvent::<T>::Contributed { who, fund_index: index, amount: value });
 		Ok(())
 	}
 }
@@ -901,7 +901,7 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
 		type PalletInfo = PalletInfo;
@@ -920,7 +920,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
@@ -1072,7 +1072,7 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type SubmissionDeposit = SubmissionDeposit;
 		type MinContribution = MinContribution;
 		type PalletId = CrowdloanPalletId;
@@ -1129,8 +1129,8 @@ mod tests {
 		}
 	}
 
-	fn last_event() -> Event {
-		System::events().pop().expect("Event expected").event
+	fn last_event() -> PalletEvent {
+		System::events().pop().expect("PalletEvent expected").event
 	}
 
 	#[test]
@@ -1651,7 +1651,7 @@ mod tests {
 			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
 			assert_eq!(
 				last_event(),
-				super::Event::<Test>::PartiallyRefunded { para_id: para }.into()
+				super::PalletEvent::<Test>::PartiallyRefunded { para_id: para }.into()
 			);
 
 			// Funds still left over
@@ -1659,7 +1659,7 @@ mod tests {
 
 			// Call again
 			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
-			assert_eq!(last_event(), super::Event::<Test>::AllRefunded { para_id: para }.into());
+			assert_eq!(last_event(), super::PalletEvent::<Test>::AllRefunded { para_id: para }.into());
 
 			// Funds are returned
 			assert_eq!(Balances::free_balance(account_id), 0);
@@ -1906,9 +1906,9 @@ mod benchmarking {
 
 	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 
-	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::PalletEvent) {
 		let events = frame_system::Pallet::<T>::events();
-		let system_event: <T as frame_system::Config>::Event = generic_event.into();
+		let system_event: <T as frame_system::Config>::PalletEvent = generic_event.into();
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 		assert_eq!(event, &system_event);
@@ -1987,7 +1987,7 @@ mod benchmarking {
 
 		}: _(RawOrigin::Signed(caller), para_id, cap, first_period, last_period, end, Some(verifier))
 		verify {
-			assert_last_event::<T>(Event::<T>::Created { para_id }.into())
+			assert_last_event::<T>(PalletEvent::<T>::Created { para_id }.into())
 		}
 
 		// Contribute has two arms: PreEnding and Ending, but both are equal complexity.
@@ -2008,7 +2008,7 @@ mod benchmarking {
 		verify {
 			// NewRaise is appended to, so we don't need to fill it up for worst case scenario.
 			assert!(!NewRaise::<T>::get().is_empty());
-			assert_last_event::<T>(Event::<T>::Contributed { who: caller, fund_index, amount: contribution }.into());
+			assert_last_event::<T>(PalletEvent::<T>::Contributed { who: caller, fund_index, amount: contribution }.into());
 		}
 
 		withdraw {
@@ -2021,7 +2021,7 @@ mod benchmarking {
 			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
 		}: _(RawOrigin::Signed(caller), contributor.clone(), fund_index)
 		verify {
-			assert_last_event::<T>(Event::<T>::Withdrew { who: contributor, fund_index, amount: T::MinContribution::get() }.into());
+			assert_last_event::<T>(PalletEvent::<T>::Withdrew { who: contributor, fund_index, amount: T::MinContribution::get() }.into());
 		}
 
 		// Worst case: Refund removes `RemoveKeysLimit` keys, and is fully refunded.
@@ -2041,7 +2041,7 @@ mod benchmarking {
 			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
 		}: _(RawOrigin::Signed(caller), fund_index)
 		verify {
-			assert_last_event::<T>(Event::<T>::AllRefunded { para_id: fund_index }.into());
+			assert_last_event::<T>(PalletEvent::<T>::AllRefunded { para_id: fund_index }.into());
 		}
 
 		dissolve {
@@ -2052,7 +2052,7 @@ mod benchmarking {
 			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
 		}: _(RawOrigin::Signed(caller.clone()), fund_index)
 		verify {
-			assert_last_event::<T>(Event::<T>::Dissolved { para_id: fund_index }.into());
+			assert_last_event::<T>(PalletEvent::<T>::Dissolved { para_id: fund_index }.into());
 		}
 
 		edit {
@@ -2081,7 +2081,7 @@ mod benchmarking {
 			// Doesn't matter what we edit to, so use the same values.
 		}: _(RawOrigin::Root, para_id, cap, first_period, last_period, end, Some(verifier))
 		verify {
-			assert_last_event::<T>(Event::<T>::Edited { para_id }.into())
+			assert_last_event::<T>(PalletEvent::<T>::Edited { para_id }.into())
 		}
 
 		add_memo {
@@ -2111,7 +2111,7 @@ mod benchmarking {
 		}: _(RawOrigin::Signed(caller), fund_index)
 		verify {
 			assert!(!NewRaise::<T>::get().is_empty());
-			assert_last_event::<T>(Event::<T>::AddedToNewRaise { para_id: fund_index }.into())
+			assert_last_event::<T>(PalletEvent::<T>::AddedToNewRaise { para_id: fund_index }.into())
 		}
 
 		// Worst case scenario: N funds are all in the `NewRaise` list, we are
@@ -2150,7 +2150,7 @@ mod benchmarking {
 			Crowdloan::<T>::on_initialize(end_block);
 		} verify {
 			assert_eq!(EndingsCount::<T>::get(), old_endings_count + 1);
-			assert_last_event::<T>(Event::<T>::HandleBidResult { para_id: (n - 1).into(), result: Ok(()) }.into());
+			assert_last_event::<T>(PalletEvent::<T>::HandleBidResult { para_id: (n - 1).into(), result: Ok(()) }.into());
 		}
 
 		impl_benchmark_test_suite!(

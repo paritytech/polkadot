@@ -17,7 +17,7 @@
 //! XCM configurations for the Kusama runtime.
 
 use super::{
-	parachains_origin, AccountId, Balances, Call, CouncilCollective, Event, Origin, ParaId,
+	parachains_origin, AccountId, Balances, Call, CouncilCollective, RuntimeEvent, Origin, ParaId,
 	Runtime, WeightToFee, XcmPallet,
 };
 use frame_support::{match_types, parameter_types, traits::Everything, weights::Weight};
@@ -169,7 +169,7 @@ pub type LocalOriginToLocation = (
 	SignedToAccountId32<Origin, AccountId, KusamaNetwork>,
 );
 impl pallet_xcm::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	// We only allow the council to send messages. This is basically safe to enable for everyone
 	// (safe the possibility of someone spamming the parachain if they're willing to pay the KSM to
 	// send from the Relay-chain), but it's useless until we bring in XCM v3 which will make

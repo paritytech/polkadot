@@ -138,7 +138,7 @@ mod tests {
 			use parachain::{Event, System};
 			assert!(System::events()
 				.iter()
-				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
+				.any(|r| matches!(r.event, PalletEvent::System(frame_system::PalletEvent::Remarked { .. }))));
 		});
 	}
 
@@ -165,7 +165,7 @@ mod tests {
 			use relay_chain::{Event, System};
 			assert!(System::events()
 				.iter()
-				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
+				.any(|r| matches!(r.event, PalletEvent::System(frame_system::PalletEvent::Remarked { .. }))));
 		});
 	}
 
@@ -193,7 +193,7 @@ mod tests {
 			use parachain::{Event, System};
 			assert!(System::events()
 				.iter()
-				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
+				.any(|r| matches!(r.event, PalletEvent::System(frame_system::PalletEvent::Remarked { .. }))));
 		});
 	}
 

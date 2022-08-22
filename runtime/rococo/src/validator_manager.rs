@@ -37,7 +37,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_session::Config {
 		/// The overreaching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<PalletEvent<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// Privileged origin that can add or remove validators.
 		type PrivilegedOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
@@ -75,7 +75,7 @@ pub mod pallet {
 
 			validators.clone().into_iter().for_each(|v| ValidatorsToAdd::<T>::append(v));
 
-			Self::deposit_event(Event::ValidatorsRegistered(validators));
+			Self::deposit_event(PalletEvent::ValidatorsRegistered(validators));
 			Ok(())
 		}
 
@@ -91,7 +91,7 @@ pub mod pallet {
 
 			validators.clone().into_iter().for_each(|v| ValidatorsToRetire::<T>::append(v));
 
-			Self::deposit_event(Event::ValidatorsDeregistered(validators));
+			Self::deposit_event(PalletEvent::ValidatorsDeregistered(validators));
 			Ok(())
 		}
 	}

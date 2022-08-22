@@ -18,9 +18,9 @@ use super::{Pallet as Ump, *};
 use frame_system::RawOrigin;
 use xcm::prelude::*;
 
-fn assert_last_event_type<T: Config>(generic_event: <T as Config>::Event) {
+fn assert_last_event_type<T: Config>(generic_event: <T as Config>::PalletEvent) {
 	let events = frame_system::Pallet::<T>::events();
-	let system_event: <T as frame_system::Config>::Event = generic_event.into();
+	let system_event: <T as frame_system::Config>::PalletEvent = generic_event.into();
 	// compare to the last event record
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 	assert_eq!(sp_std::mem::discriminant(event), sp_std::mem::discriminant(&system_event));
@@ -35,7 +35,7 @@ fn queue_upward_msg<T: Config>(
 	let msgs = vec![msg];
 	Ump::<T>::check_upward_messages(host_conf, para, &msgs).unwrap();
 	let _ = Ump::<T>::receive_upward_messages(para, msgs);
-	assert_last_event_type::<T>(Event::UpwardMessagesReceived(para, 1, len).into());
+	assert_last_event_type::<T>(PalletEvent::UpwardMessagesReceived(para, 1, len).into());
 }
 
 // Create a message with at least `size` bytes encoded length
@@ -124,11 +124,11 @@ frame_benchmarking::benchmarks! {
 		queue_upward_msg::<T>(&host_conf, para, msg.clone());
 		Ump::<T>::process_pending_upward_messages();
 		assert_last_event_type::<T>(
-			Event::OverweightEnqueued(para, upward_message_id(&msg), 0, 0).into()
+			PalletEvent::OverweightEnqueued(para, upward_message_id(&msg), 0, 0).into()
 			);
 	}: _(RawOrigin::Root, 0, Weight::MAX)
 	verify {
-		assert_last_event_type::<T>(Event::OverweightServiced(0, 0).into());
+		assert_last_event_type::<T>(PalletEvent::OverweightServiced(0, 0).into());
 	}
 }
 

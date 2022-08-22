@@ -175,7 +175,7 @@ impl frame_system::Config for Runtime {
 	type AccountId = AccountId;
 	type Lookup = AccountIdLookup<AccountId, ()>;
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type DbWeight = RocksDbWeight;
 	type Version = Version;
@@ -225,7 +225,7 @@ impl PrivilegeCmp<OriginCaller> for OriginPrivilegeCmp {
 }
 
 impl pallet_scheduler::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Origin = Origin;
 	type PalletsOrigin = OriginCaller;
 	type Call = Call;
@@ -246,7 +246,7 @@ parameter_types! {
 
 impl pallet_preimage::Config for Runtime {
 	type WeightInfo = weights::pallet_preimage::WeightInfo<Runtime>;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type ManagerOrigin = EnsureRoot<AccountId>;
 	type MaxSize = PreimageMaxSize;
@@ -302,7 +302,7 @@ impl pallet_indices::Config for Runtime {
 	type AccountIndex = AccountIndex;
 	type Currency = Balances;
 	type Deposit = IndexDeposit;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = weights::pallet_indices::WeightInfo<Runtime>;
 }
 
@@ -315,7 +315,7 @@ parameter_types! {
 impl pallet_balances::Config for Runtime {
 	type Balance = Balance;
 	type DustRemoval = ();
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type MaxLocks = MaxLocks;
@@ -332,7 +332,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Self>>;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
@@ -378,7 +378,7 @@ impl_opaque_keys! {
 }
 
 impl pallet_session::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = pallet_staking::StashOf<Self>;
 	type ShouldEndSession = Babe;
@@ -468,7 +468,7 @@ impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
 }
 
 impl pallet_election_provider_multi_phase::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type EstimateCallFee = TransactionPayment;
 	type UnsignedPhase = UnsignedPhase;
@@ -511,7 +511,7 @@ parameter_types! {
 }
 
 impl pallet_bags_list::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ScoreProvider = Staking;
 	type WeightInfo = weights::pallet_bags_list::WeightInfo<Runtime>;
 	type BagThresholds = BagThresholds;
@@ -607,7 +607,7 @@ impl pallet_staking::Config for Runtime {
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
 	type RewardRemainder = Treasury;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Slash = Treasury;
 	type Reward = ();
 	type SessionsPerEra = SessionsPerEra;
@@ -656,7 +656,7 @@ impl pallet_treasury::Config for Runtime {
 	type Currency = Balances;
 	type ApproveOrigin = ApproveOrigin;
 	type RejectOrigin = MoreThanHalfCouncil;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type OnSlash = Treasury;
 	type ProposalBond = ProposalBond;
 	type ProposalBondMinimum = ProposalBondMinimum;
@@ -691,7 +691,7 @@ impl pallet_bounties::Config for Runtime {
 	type BountyValueMinimum = BountyValueMinimum;
 	type ChildBountyManager = ChildBounties;
 	type DataDepositPerByte = DataDepositPerByte;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type MaximumReasonLength = MaximumReasonLength;
 	type WeightInfo = weights::pallet_bounties::WeightInfo<Runtime>;
 }
@@ -702,7 +702,7 @@ parameter_types! {
 }
 
 impl pallet_child_bounties::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type MaxActiveChildBountyCount = MaxActiveChildBountyCount;
 	type ChildBountyValueMinimum = ChildBountyValueMinimum;
 	type WeightInfo = weights::pallet_child_bounties::WeightInfo<Runtime>;
@@ -715,12 +715,12 @@ impl pallet_tips::Config for Runtime {
 	type TipCountdown = TipCountdown;
 	type TipFindersFee = TipFindersFee;
 	type TipReportDepositBase = TipReportDepositBase;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = weights::pallet_tips::WeightInfo<Runtime>;
 }
 
 impl pallet_offences::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
 }
@@ -737,7 +737,7 @@ parameter_types! {
 
 impl pallet_im_online::Config for Runtime {
 	type AuthorityId = ImOnlineId;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ValidatorSet = Historical;
 	type NextSessionRotation = Babe;
 	type ReportUnresponsiveness = Offences;
@@ -749,7 +749,7 @@ impl pallet_im_online::Config for Runtime {
 }
 
 impl pallet_grandpa::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Call = Call;
 
 	type KeyOwnerProof =
@@ -838,7 +838,7 @@ parameter_types! {
 }
 
 impl claims::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
 	type MoveClaimOrigin =
@@ -857,7 +857,7 @@ parameter_types! {
 }
 
 impl pallet_identity::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type BasicDeposit = BasicDeposit;
 	type FieldDeposit = FieldDeposit;
@@ -872,7 +872,7 @@ impl pallet_identity::Config for Runtime {
 }
 
 impl pallet_utility::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Call = Call;
 	type PalletsOrigin = OriginCaller;
 	type WeightInfo = weights::pallet_utility::WeightInfo<Runtime>;
@@ -887,7 +887,7 @@ parameter_types! {
 }
 
 impl pallet_multisig::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Call = Call;
 	type Currency = Balances;
 	type DepositBase = DepositBase;
@@ -904,7 +904,7 @@ parameter_types! {
 }
 
 impl pallet_recovery::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
 	type Call = Call;
 	type Currency = Balances;
@@ -927,7 +927,7 @@ parameter_types! {
 }
 
 impl pallet_society::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type CandidateDeposit = CandidateDeposit;
@@ -950,7 +950,7 @@ parameter_types! {
 }
 
 impl pallet_vesting::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
@@ -1094,7 +1094,7 @@ impl InstanceFilter<Call> for ProxyType {
 }
 
 impl pallet_proxy::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Call = Call;
 	type Currency = Balances;
 	type ProxyType = ProxyType;
@@ -1121,7 +1121,7 @@ impl parachains_session_info::Config for Runtime {
 }
 
 impl parachains_inclusion::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type DisputesHandler = ParasDisputes;
 	type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
 }
@@ -1131,7 +1131,7 @@ parameter_types! {
 }
 
 impl parachains_paras::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = weights::runtime_parachains_paras::WeightInfo<Runtime>;
 	type UnsignedPriority = ParasUnsignedPriority;
 	type NextSessionRotation = Babe;
@@ -1142,7 +1142,7 @@ parameter_types! {
 }
 
 impl parachains_ump::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type UmpSink =
 		crate::parachains_ump::XcmSink<xcm_executor::XcmExecutor<xcm_config::XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
@@ -1153,7 +1153,7 @@ impl parachains_ump::Config for Runtime {
 impl parachains_dmp::Config for Runtime {}
 
 impl parachains_hrmp::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Origin = Origin;
 	type Currency = Balances;
 	type WeightInfo = weights::runtime_parachains_hrmp::WeightInfo<Self>;
@@ -1172,7 +1172,7 @@ impl parachains_initializer::Config for Runtime {
 }
 
 impl parachains_disputes::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type RewardValidators = ();
 	type PunishValidators = ();
 	type WeightInfo = weights::runtime_parachains_disputes::WeightInfo<Runtime>;
@@ -1183,7 +1183,7 @@ parameter_types! {
 }
 
 impl paras_registrar::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Origin = Origin;
 	type Currency = Balances;
 	type OnSwap = (Crowdloan, Slots);
@@ -1198,7 +1198,7 @@ parameter_types! {
 }
 
 impl slots::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
@@ -1217,7 +1217,7 @@ parameter_types! {
 }
 
 impl crowdloan::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type PalletId = CrowdloanId;
 	type SubmissionDeposit = SubmissionDeposit;
 	type MinContribution = MinContribution;
@@ -1242,7 +1242,7 @@ type AuctionInitiate = EitherOfDiverse<
 >;
 
 impl auctions::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Leaser = Slots;
 	type Registrar = Registrar;
 	type EndingPeriod = EndingPeriod;
@@ -1264,7 +1264,7 @@ parameter_types! {
 }
 
 impl pallet_gilt::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;
 	type AdminOrigin = MoreThanHalfCouncil;
@@ -1287,7 +1287,7 @@ parameter_types! {
 }
 
 impl pallet_nomination_pools::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;
@@ -1621,7 +1621,7 @@ sp_api::impl_runtime_apis! {
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
 			parachains_runtime_api_impl::candidate_events::<Runtime, _>(|ev| {
 				match ev {
-					Event::ParaInclusion(ev) => {
+					RuntimeEvent::ParaInclusion(ev) => {
 						Some(ev)
 					}
 					_ => None,

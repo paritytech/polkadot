@@ -17,7 +17,7 @@
 //! XCM configuration for Polkadot.
 
 use super::{
-	parachains_origin, AccountId, Balances, Call, CouncilCollective, Event, Origin, ParaId,
+	parachains_origin, AccountId, Balances, Call, CouncilCollective, RuntimeEvent, Origin, ParaId,
 	Runtime, WeightToFee, XcmPallet,
 };
 use frame_support::{
@@ -175,7 +175,7 @@ pub type LocalOriginToLocation = (
 );
 
 impl pallet_xcm::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	// Only allow the council to send messages.
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, CouncilToPlurality>;
 	type XcmRouter = XcmRouter;

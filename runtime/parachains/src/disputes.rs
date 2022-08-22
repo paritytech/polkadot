@@ -410,7 +410,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + configuration::Config + session_info::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<PalletEvent<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type RewardValidators: RewardValidators;
 		type PunishValidators: PunishValidators;
 
@@ -804,7 +804,7 @@ impl<T: Config> Pallet<T> {
 			if dispute.concluded_at.is_none() &&
 				dispute.start + config.dispute_conclusion_by_time_out_period < now
 			{
-				Self::deposit_event(Event::DisputeTimedOut(candidate_hash));
+				Self::deposit_event(PalletEvent::DisputeTimedOut(candidate_hash));
 
 				dispute.concluded_at = Some(now);
 				<Disputes<T>>::insert(session_index, candidate_hash, &dispute);
@@ -1195,7 +1195,7 @@ impl<T: Config> Pallet<T> {
 		if fresh {
 			let is_local = <Included<T>>::contains_key(&session, &candidate_hash);
 
-			Self::deposit_event(Event::DisputeInitiated(
+			Self::deposit_event(PalletEvent::DisputeInitiated(
 				candidate_hash,
 				if is_local { DisputeLocation::Local } else { DisputeLocation::Remote },
 			));
@@ -1203,7 +1203,7 @@ impl<T: Config> Pallet<T> {
 
 		{
 			if summary.new_flags.contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
-				Self::deposit_event(Event::DisputeConcluded(candidate_hash, DisputeResult::Valid));
+				Self::deposit_event(PalletEvent::DisputeConcluded(candidate_hash, DisputeResult::Valid));
 			}
 
 			// It is possible, although unexpected, for a dispute to conclude twice.
@@ -1211,7 +1211,7 @@ impl<T: Config> Pallet<T> {
 			// A dispute cannot conclude more than once in each direction.
 
 			if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
-				Self::deposit_event(Event::DisputeConcluded(
+				Self::deposit_event(PalletEvent::DisputeConcluded(
 					candidate_hash,
 					DisputeResult::Invalid,
 				));
@@ -1304,7 +1304,7 @@ impl<T: Config> Pallet<T> {
 			// If we want to revert to block X in the current chain, we need to revert
 			// block X+1.
 			let revert = revert_to + One::one();
-			Self::deposit_event(Event::Revert(revert));
+			Self::deposit_event(PalletEvent::Revert(revert));
 			frame_system::Pallet::<T>::deposit_log(
 				ConsensusLog::Revert(revert.saturated_into()).into(),
 			);

@@ -1341,7 +1341,7 @@ fn test_revert_and_freeze() {
 
 		assert_eq!(Frozen::<Test>::get(), Some(0));
 		assert_eq!(System::digest().logs[0], ConsensusLog::Revert(1).into());
-		System::assert_has_event(Event::Revert(1).into());
+		System::assert_has_event(PalletEvent::Revert(1).into());
 	})
 }
 

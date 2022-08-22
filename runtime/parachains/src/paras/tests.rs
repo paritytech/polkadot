@@ -113,7 +113,7 @@ fn check_code_is_not_stored(validation_code: &ValidationCode) {
 /// An utility for checking that certain events were deposited.
 struct EventValidator {
 	events:
-		Vec<frame_system::EventRecord<<Test as frame_system::Config>::Event, primitives::v2::Hash>>,
+		Vec<frame_system::EventRecord<<Test as frame_system::Config>::PalletEvent, primitives::v2::Hash>>,
 }
 
 impl EventValidator {
@@ -124,7 +124,7 @@ impl EventValidator {
 	fn started(&mut self, code: &ValidationCode, id: ParaId) -> &mut Self {
 		self.events.push(frame_system::EventRecord {
 			phase: frame_system::Phase::Initialization,
-			event: Event::PvfCheckStarted(code.hash(), id).into(),
+			event: PalletEvent::PvfCheckStarted(code.hash(), id).into(),
 			topics: vec![],
 		});
 		self
@@ -133,7 +133,7 @@ impl EventValidator {
 	fn rejected(&mut self, code: &ValidationCode, id: ParaId) -> &mut Self {
 		self.events.push(frame_system::EventRecord {
 			phase: frame_system::Phase::Initialization,
-			event: Event::PvfCheckRejected(code.hash(), id).into(),
+			event: PalletEvent::PvfCheckRejected(code.hash(), id).into(),
 			topics: vec![],
 		});
 		self
@@ -142,7 +142,7 @@ impl EventValidator {
 	fn accepted(&mut self, code: &ValidationCode, id: ParaId) -> &mut Self {
 		self.events.push(frame_system::EventRecord {
 			phase: frame_system::Phase::Initialization,
-			event: Event::PvfCheckAccepted(code.hash(), id).into(),
+			event: PalletEvent::PvfCheckAccepted(code.hash(), id).into(),
 			topics: vec![],
 		});
 		self

@@ -71,7 +71,7 @@ pub mod pallet {
 	/// The module configuration trait.
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<PalletEvent<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// Required origin for sending XCM messages. If successful, it resolves to `MultiLocation`
 		/// which exists as an interior location within this chain's XCM context.
@@ -461,7 +461,7 @@ pub mod pallet {
 				SendError::CannotReachDestination(..) => Error::<T>::Unreachable,
 				_ => Error::<T>::SendFailure,
 			})?;
-			Self::deposit_event(Event::Sent(origin_location, dest, message));
+			Self::deposit_event(PalletEvent::Sent(origin_location, dest, message));
 			Ok(())
 		}
 
@@ -579,7 +579,7 @@ pub mod pallet {
 				max_weight,
 			);
 			let result = Ok(Some(outcome.weight_used().saturating_add(100_000_000)).into());
-			Self::deposit_event(Event::Attempted(outcome));
+			Self::deposit_event(PalletEvent::Attempted(outcome));
 			result
 		}
 
@@ -602,7 +602,7 @@ pub mod pallet {
 				LatestVersionedMultiLocation(&location),
 				xcm_version,
 			);
-			Self::deposit_event(Event::SupportedVersionChanged(location, xcm_version));
+			Self::deposit_event(PalletEvent::SupportedVersionChanged(location, xcm_version));
 			Ok(())
 		}
 
@@ -818,7 +818,7 @@ pub mod pallet {
 				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
 			let outcome =
 				T::XcmExecutor::execute_xcm_in_credit(origin_location, message, weight, weight);
-			Self::deposit_event(Event::Attempted(outcome));
+			Self::deposit_event(PalletEvent::Attempted(outcome));
 			Ok(())
 		}
 
@@ -876,7 +876,7 @@ pub mod pallet {
 				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
 			let outcome =
 				T::XcmExecutor::execute_xcm_in_credit(origin_location, message, weight, weight);
-			Self::deposit_event(Event::Attempted(outcome));
+			Self::deposit_event(PalletEvent::Attempted(outcome));
 			Ok(())
 		}
 
@@ -954,11 +954,11 @@ pub mod pallet {
 						Ok(()) => {
 							let value = (query_id, max_weight, xcm_version);
 							VersionNotifyTargets::<T>::insert(XCM_VERSION, key, value);
-							Event::VersionChangeNotified(new_key, xcm_version)
+							PalletEvent::VersionChangeNotified(new_key, xcm_version)
 						},
 						Err(e) => {
 							VersionNotifyTargets::<T>::remove(XCM_VERSION, key);
-							Event::NotifyTargetSendFail(new_key, query_id, e.into())
+							PalletEvent::NotifyTargetSendFail(new_key, query_id, e.into())
 						},
 					};
 					Self::deposit_event(event);
@@ -977,7 +977,7 @@ pub mod pallet {
 						let new_key = match MultiLocation::try_from(old_key.clone()) {
 							Ok(k) => k,
 							Err(()) => {
-								Self::deposit_event(Event::NotifyTargetMigrationFail(
+								Self::deposit_event(PalletEvent::NotifyTargetMigrationFail(
 									old_key, value.0,
 								));
 								weight_used.saturating_accrue(todo_vnt_migrate_fail_weight);
@@ -1004,9 +1004,9 @@ pub mod pallet {
 										versioned_key,
 										(query_id, max_weight, xcm_version),
 									);
-									Event::VersionChangeNotified(new_key, xcm_version)
+									PalletEvent::VersionChangeNotified(new_key, xcm_version)
 								},
-								Err(e) => Event::NotifyTargetSendFail(new_key, query_id, e.into()),
+								Err(e) => PalletEvent::NotifyTargetSendFail(new_key, query_id, e.into()),
 							};
 							Self::deposit_event(event);
 							weight_used.saturating_accrue(todo_vnt_notify_migrate_weight);
@@ -1182,7 +1182,7 @@ pub mod pallet {
 			if let Some(QueryStatus::Ready { response, at }) = Queries::<T>::get(query_id) {
 				let response = response.try_into().ok()?;
 				Queries::<T>::remove(query_id);
-				Self::deposit_event(Event::ResponseTaken(query_id));
+				Self::deposit_event(PalletEvent::ResponseTaken(query_id));
 				Some((response, at))
 			} else {
 				None
@@ -1277,7 +1277,7 @@ pub mod pallet {
 			let versioned = VersionedMultiAssets::from(MultiAssets::from(assets));
 			let hash = BlakeTwo256::hash_of(&(&origin, &versioned));
 			AssetTraps::<T>::mutate(hash, |n| *n += 1);
-			Self::deposit_event(Event::AssetsTrapped(hash, origin.clone(), versioned));
+			Self::deposit_event(PalletEvent::AssetsTrapped(hash, origin.clone(), versioned));
 			// TODO #3735: Put the real weight in there.
 			0
 		}
@@ -1334,7 +1334,7 @@ pub mod pallet {
 					let origin: MultiLocation = match expected_origin.try_into() {
 						Ok(o) if &o == origin => o,
 						Ok(o) => {
-							Self::deposit_event(Event::InvalidResponder(
+							Self::deposit_event(PalletEvent::InvalidResponder(
 								origin.clone(),
 								query_id,
 								Some(o),
@@ -1342,7 +1342,7 @@ pub mod pallet {
 							return 0
 						},
 						_ => {
-							Self::deposit_event(Event::InvalidResponder(
+							Self::deposit_event(PalletEvent::InvalidResponder(
 								origin.clone(),
 								query_id,
 								None,
@@ -1367,14 +1367,14 @@ pub mod pallet {
 						LatestVersionedMultiLocation(&origin),
 						v,
 					);
-					Self::deposit_event(Event::SupportedVersionChanged(origin, v));
+					Self::deposit_event(PalletEvent::SupportedVersionChanged(origin, v));
 					0
 				},
 				(response, Some(QueryStatus::Pending { responder, maybe_notify, .. })) => {
 					let responder = match MultiLocation::try_from(responder) {
 						Ok(r) => r,
 						Err(_) => {
-							Self::deposit_event(Event::InvalidResponderVersion(
+							Self::deposit_event(PalletEvent::InvalidResponderVersion(
 								origin.clone(),
 								query_id,
 							));
@@ -1382,7 +1382,7 @@ pub mod pallet {
 						},
 					};
 					if origin != &responder {
-						Self::deposit_event(Event::InvalidResponder(
+						Self::deposit_event(PalletEvent::InvalidResponder(
 							origin.clone(),
 							query_id,
 							Some(responder),
@@ -1401,7 +1401,7 @@ pub mod pallet {
 								Queries::<T>::remove(query_id);
 								let weight = call.get_dispatch_info().weight;
 								if weight > max_weight {
-									let e = Event::NotifyOverweight(
+									let e = PalletEvent::NotifyOverweight(
 										query_id,
 										pallet_index,
 										call_index,
@@ -1414,12 +1414,12 @@ pub mod pallet {
 								let dispatch_origin = Origin::Response(origin.clone()).into();
 								match call.dispatch(dispatch_origin) {
 									Ok(post_info) => {
-										let e = Event::Notified(query_id, pallet_index, call_index);
+										let e = PalletEvent::Notified(query_id, pallet_index, call_index);
 										Self::deposit_event(e);
 										post_info.actual_weight
 									},
 									Err(error_and_info) => {
-										let e = Event::NotifyDispatchError(
+										let e = PalletEvent::NotifyDispatchError(
 											query_id,
 											pallet_index,
 											call_index,
@@ -1433,13 +1433,13 @@ pub mod pallet {
 								.unwrap_or(weight)
 							} else {
 								let e =
-									Event::NotifyDecodeFailed(query_id, pallet_index, call_index);
+									PalletEvent::NotifyDecodeFailed(query_id, pallet_index, call_index);
 								Self::deposit_event(e);
 								0
 							}
 						},
 						None => {
-							let e = Event::ResponseReady(query_id, response.clone());
+							let e = PalletEvent::ResponseReady(query_id, response.clone());
 							Self::deposit_event(e);
 							let at = frame_system::Pallet::<T>::current_block_number();
 							let response = response.into();
@@ -1449,7 +1449,7 @@ pub mod pallet {
 					}
 				},
 				_ => {
-					Self::deposit_event(Event::UnexpectedResponse(origin.clone(), query_id));
+					Self::deposit_event(PalletEvent::UnexpectedResponse(origin.clone(), query_id));
 					return 0
 				},
 			}

@@ -145,7 +145,7 @@ impl frame_system::Config for Runtime {
 	type AccountId = AccountId;
 	type Lookup = Indices;
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type Version = Version;
 	type PalletInfo = PalletInfo;
@@ -206,7 +206,7 @@ impl pallet_indices::Config for Runtime {
 	type AccountIndex = AccountIndex;
 	type Currency = Balances;
 	type Deposit = IndexDeposit;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
 }
 
@@ -219,7 +219,7 @@ parameter_types! {
 impl pallet_balances::Config for Runtime {
 	type Balance = Balance;
 	type DustRemoval = ();
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type MaxLocks = MaxLocks;
@@ -236,7 +236,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
@@ -282,7 +282,7 @@ impl_opaque_keys! {
 }
 
 impl pallet_session::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = pallet_staking::StashOf<Self>;
 	type ShouldEndSession = Babe;
@@ -337,7 +337,7 @@ impl pallet_staking::Config for Runtime {
 	type UnixTime = Timestamp;
 	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
 	type RewardRemainder = ();
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Slash = ();
 	type Reward = ();
 	type SessionsPerEra = SessionsPerEra;
@@ -362,7 +362,7 @@ impl pallet_staking::Config for Runtime {
 }
 
 impl pallet_grandpa::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Call = Call;
 
 	type KeyOwnerProofSystem = ();
@@ -427,7 +427,7 @@ impl frame_system::offchain::SigningTypes for Runtime {
 }
 
 impl pallet_offences::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
 }
@@ -446,7 +446,7 @@ parameter_types! {
 }
 
 impl claims::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
 	type MoveClaimOrigin = frame_system::EnsureRoot<AccountId>;
@@ -458,7 +458,7 @@ parameter_types! {
 }
 
 impl pallet_vesting::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
@@ -467,7 +467,7 @@ impl pallet_vesting::Config for Runtime {
 }
 
 impl pallet_sudo::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Call = Call;
 }
 
@@ -478,13 +478,13 @@ impl parachains_configuration::Config for Runtime {
 impl parachains_shared::Config for Runtime {}
 
 impl parachains_inclusion::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type DisputesHandler = ParasDisputes;
 	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
 }
 
 impl parachains_disputes::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type RewardValidators = ();
 	type PunishValidators = ();
 	type WeightInfo = parachains_disputes::TestWeightInfo;
@@ -509,7 +509,7 @@ parameter_types! {
 }
 
 impl parachains_paras::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = parachains_paras::TestWeightInfo;
 	type UnsignedPriority = ParasUnsignedPriority;
 	type NextSessionRotation = Babe;
@@ -522,7 +522,7 @@ parameter_types! {
 }
 
 impl parachains_ump::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type UmpSink = ();
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
@@ -540,7 +540,7 @@ pub type LocalOriginToLocation = xcm_builder::SignedToAccountId32<Origin, Accoun
 impl pallet_xcm::Config for Runtime {
 	// The config types here are entirely configurable, since the only one that is sorely needed
 	// is `XcmExecutor`, which will be used in unit tests located in xcm-executor.
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type LocationInverter = xcm_config::InvertNothing;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
@@ -557,7 +557,7 @@ impl pallet_xcm::Config for Runtime {
 }
 
 impl parachains_hrmp::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Origin = Origin;
 	type Currency = Balances;
 	type WeightInfo = parachains_hrmp::TestWeightInfo;
@@ -570,7 +570,7 @@ impl paras_sudo_wrapper::Config for Runtime {}
 impl parachains_origin::Config for Runtime {}
 
 impl pallet_test_notifier::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Origin = Origin;
 	type Call = Call;
 }
@@ -589,7 +589,7 @@ pub mod pallet_test_notifier {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_xcm::Config {
-		type Event: IsType<<Self as frame_system::Config>::Event> + From<Event<Self>>;
+		type RuntimeEvent: IsType<<Self as frame_system::Config>::RuntimeEvent> + From<PalletEvent<Self>>;
 		type Origin: IsType<<Self as frame_system::Config>::Origin>
 			+ Into<Result<pallet_xcm::Origin, <Self as Config>::Origin>>;
 		type Call: IsType<<Self as pallet_xcm::Config>::Call> + From<Call<Self>>;
@@ -621,7 +621,7 @@ pub mod pallet_test_notifier {
 				Junction::AccountId32 { network: Any, id }.into(),
 				100u32.into(),
 			);
-			Self::deposit_event(Event::<T>::QueryPrepared(qid));
+			Self::deposit_event(PalletEvent::<T>::QueryPrepared(qid));
 			Ok(())
 		}
 
@@ -638,7 +638,7 @@ pub mod pallet_test_notifier {
 				<T as Config>::Call::from(call),
 				100u32.into(),
 			);
-			Self::deposit_event(Event::<T>::NotifyQueryPrepared(qid));
+			Self::deposit_event(PalletEvent::<T>::NotifyQueryPrepared(qid));
 			Ok(())
 		}
 
@@ -649,7 +649,7 @@ pub mod pallet_test_notifier {
 			response: Response,
 		) -> DispatchResult {
 			let responder = ensure_response(<T as Config>::Origin::from(origin))?;
-			Self::deposit_event(Event::<T>::ResponseReceived(responder, query_id, response));
+			Self::deposit_event(PalletEvent::<T>::ResponseReceived(responder, query_id, response));
 			Ok(())
 		}
 	}

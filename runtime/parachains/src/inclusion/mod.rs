@@ -198,7 +198,7 @@ pub mod pallet {
 		+ hrmp::Config
 		+ configuration::Config
 	{
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<PalletEvent<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
 		type RewardValidators: RewardValidators;
 	}
@@ -655,7 +655,7 @@ impl<T: Config> Pallet<T> {
 			let availability_votes: BitVec<u8, BitOrderLsb0> =
 				bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
 
-			Self::deposit_event(Event::<T>::CandidateBacked(
+			Self::deposit_event(PalletEvent::<T>::CandidateBacked(
 				candidate.candidate.to_plain(),
 				candidate.candidate.commitments.head_data.clone(),
 				core,
@@ -778,7 +778,7 @@ impl<T: Config> Pallet<T> {
 			commitments.horizontal_messages,
 		);
 
-		Self::deposit_event(Event::<T>::CandidateIncluded(
+		Self::deposit_event(PalletEvent::<T>::CandidateIncluded(
 			plain,
 			commitments.head_data.clone(),
 			core_index,
@@ -823,7 +823,7 @@ impl<T: Config> Pallet<T> {
 					commitments_hash: commitments.hash(),
 				};
 
-				Self::deposit_event(Event::<T>::CandidateTimedOut(
+				Self::deposit_event(PalletEvent::<T>::CandidateTimedOut(
 					candidate,
 					commitments.head_data,
 					pending.core,

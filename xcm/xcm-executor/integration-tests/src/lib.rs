@@ -66,7 +66,7 @@ fn basic_buy_fees_message_executes() {
 		.inspect_state(|| {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 				r.event,
-				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::Attempted(Outcome::Complete(
+				polkadot_test_runtime::PalletEvent::Xcm(pallet_xcm::PalletEvent::Attempted(Outcome::Complete(
 					_
 				))),
 			)));
@@ -75,9 +75,9 @@ fn basic_buy_fees_message_executes() {
 
 #[test]
 fn query_response_fires() {
-	use pallet_test_notifier::Event::*;
+	use pallet_test_notifier::PalletEvent::*;
 	use pallet_xcm::QueryStatus;
-	use polkadot_test_runtime::Event::TestNotifier;
+	use polkadot_test_runtime::PalletEvent::TestNotifier;
 
 	sp_tracing::try_init_simple();
 	let mut client = TestClientBuilder::new()
@@ -146,7 +146,7 @@ fn query_response_fires() {
 		.inspect_state(|| {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 				r.event,
-				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::ResponseReady(
+				polkadot_test_runtime::PalletEvent::Xcm(pallet_xcm::PalletEvent::ResponseReady(
 					q,
 					Response::ExecutionResult(None),
 				)) if q == query_id,
@@ -163,8 +163,8 @@ fn query_response_fires() {
 
 #[test]
 fn query_response_elicits_handler() {
-	use pallet_test_notifier::Event::*;
-	use polkadot_test_runtime::Event::TestNotifier;
+	use pallet_test_notifier::PalletEvent::*;
+	use polkadot_test_runtime::PalletEvent::TestNotifier;
 
 	sp_tracing::try_init_simple();
 	let mut client = TestClientBuilder::new()

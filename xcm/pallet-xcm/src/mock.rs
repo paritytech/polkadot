@@ -51,7 +51,7 @@ pub mod pallet_test_notifier {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + crate::Config {
-		type Event: IsType<<Self as frame_system::Config>::Event> + From<Event<Self>>;
+		type RuntimeEvent: IsType<<Self as frame_system::Config>::RuntimeEvent> + From<PalletEvent<Self>>;
 		type Origin: IsType<<Self as frame_system::Config>::Origin>
 			+ Into<Result<crate::Origin, <Self as Config>::Origin>>;
 		type Call: IsType<<Self as crate::Config>::Call> + From<Call<Self>>;
@@ -83,7 +83,7 @@ pub mod pallet_test_notifier {
 				Junction::AccountId32 { network: Any, id }.into(),
 				100u32.into(),
 			);
-			Self::deposit_event(Event::<T>::QueryPrepared(qid));
+			Self::deposit_event(PalletEvent::<T>::QueryPrepared(qid));
 			Ok(())
 		}
 
@@ -100,7 +100,7 @@ pub mod pallet_test_notifier {
 				<T as Config>::Call::from(call),
 				100u32.into(),
 			);
-			Self::deposit_event(Event::<T>::NotifyQueryPrepared(qid));
+			Self::deposit_event(PalletEvent::<T>::NotifyQueryPrepared(qid));
 			Ok(())
 		}
 
@@ -111,7 +111,7 @@ pub mod pallet_test_notifier {
 			response: Response,
 		) -> DispatchResult {
 			let responder = ensure_response(<T as Config>::Origin::from(origin))?;
-			Self::deposit_event(Event::<T>::ResponseReceived(responder, query_id, response));
+			Self::deposit_event(PalletEvent::<T>::ResponseReceived(responder, query_id, response));
 			Ok(())
 		}
 	}
@@ -180,7 +180,7 @@ impl frame_system::Config for Test {
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type BlockWeights = ();
 	type BlockLength = ();
@@ -206,7 +206,7 @@ parameter_types! {
 impl pallet_balances::Config for Test {
 	type MaxLocks = MaxLocks;
 	type Balance = Balance;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
@@ -274,7 +274,7 @@ parameter_types! {
 }
 
 impl pallet_xcm::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = (TestSendXcmErrX8, TestSendXcm);
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
@@ -293,16 +293,16 @@ impl pallet_xcm::Config for Test {
 impl origin::Config for Test {}
 
 impl pallet_test_notifier::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Origin = Origin;
 	type Call = Call;
 }
 
-pub(crate) fn last_event() -> Event {
-	System::events().pop().expect("Event expected").event
+pub(crate) fn last_event() -> PalletEvent {
+	System::events().pop().expect("PalletEvent expected").event
 }
 
-pub(crate) fn last_events(n: usize) -> Vec<Event> {
+pub(crate) fn last_events(n: usize) -> Vec<PalletEvent> {
 	System::events().into_iter().map(|e| e.event).rev().take(n).rev().collect()
 }
 
