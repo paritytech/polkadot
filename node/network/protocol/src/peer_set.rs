@@ -16,7 +16,7 @@
 
 //! All peersets and protocols used for parachains.
 
-use super::ProtocolVersion;
+use derive_more::Display;
 use polkadot_primitives::v2::Hash;
 use sc_network::config::{NonDefaultSetConfig, SetConfig};
 use std::{
@@ -26,15 +26,12 @@ use std::{
 };
 use strum::{EnumIter, IntoEnumIterator};
 
-// The legacy protocol names. Only supported on version = 1.
+/// The legacy protocol names. Only supported on version = 1.
 const LEGACY_VALIDATION_PROTOCOL_V1: &str = "/polkadot/validation/1";
 const LEGACY_COLLATION_PROTOCOL_V1: &str = "/polkadot/collation/1";
 
-/// The main protocol version, currently the same for validation & collation.
-const MAIN_PROTOCOL_VERSION: ProtocolVersion = 1;
-
-/// The protocol version for legacy on the wire protocol name, must always be 1.
-const LEGACY_PROTOCOL_VERSION: ProtocolVersion = 1;
+/// The legacy prtocol version. Is always 1.
+const LEGACY_PROTOCOL_VERSION_V1: u32 = 1;
 
 /// Max notification size is currently constant.
 const MAX_NOTIFICATION_SIZE: u64 = 100 * 1024;
@@ -115,8 +112,11 @@ impl PeerSet {
 	///
 	/// Networking layer relies on `get_main_version()` being the version
 	/// of the main protocol name reported by [`PeerSetProtocolNames::get_main_name()`].
-	pub const fn get_main_version(self) -> ProtocolVersion {
-		MAIN_PROTOCOL_VERSION
+	pub fn get_main_version(self) -> ProtocolVersion {
+		match self {
+			PeerSet::Validation => ValidationVersion::V1.into(),
+			PeerSet::Collation => CollationVersion::V1.into(),
+		}
 	}
 
 	/// Get the max notification size for this peer set.
@@ -136,10 +136,19 @@ impl PeerSet {
 	pub fn get_protocol_label(self, version: ProtocolVersion) -> Option<&'static str> {
 		// Unfortunately, labels must be static strings, so we must manually cover them
 		// for all protocol versions here.
-		match (self, version) {
-			(PeerSet::Validation, 1) => Some("validation/1"),
-			(PeerSet::Collation, 1) => Some("collation/1"),
-			_ => None,
+		match self {
+			PeerSet::Validation =>
+				if version == ValidationVersion::V1.into() {
+					Some("validation/1")
+				} else {
+					None
+				},
+			PeerSet::Collation =>
+				if version == CollationVersion::V1.into() {
+					Some("collation/1")
+				} else {
+					None
+				},
 		}
 	}
 }
@@ -183,6 +192,10 @@ pub fn peer_sets_info(
 		.collect()
 }
 
+/// A generic version of the protocol. This struct must not be created directly.
+#[derive(Debug, Clone, Copy, Display, PartialEq, Eq, Hash)]
+pub struct ProtocolVersion(u32);
+
 /// Supported validation protocol versions. Only versions defined here must be used in the codebase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
 pub enum ValidationVersion {
@@ -199,13 +212,13 @@ pub enum CollationVersion {
 
 impl From<ValidationVersion> for ProtocolVersion {
 	fn from(version: ValidationVersion) -> ProtocolVersion {
-		version as ProtocolVersion
+		ProtocolVersion(version as u32)
 	}
 }
 
 impl From<CollationVersion> for ProtocolVersion {
 	fn from(version: CollationVersion) -> ProtocolVersion {
-		version as ProtocolVersion
+		ProtocolVersion(version as u32)
 	}
 }
 
@@ -222,27 +235,60 @@ impl PeerSetProtocolNames {
 		let mut protocols = HashMap::new();
 		let mut names = HashMap::new();
 		for protocol in PeerSet::iter() {
-			// All protocol versions from [`ValidationVersion`] and [`CollationVersion`] must be
-			// registered here. Currently it's only `MAIN_PROTOCOL_VERSION` = `V1` = 1.
-			// Register main protocol name.
-			let main_protocol_name =
-				Self::generate_name(&genesis_hash, fork_id, protocol, MAIN_PROTOCOL_VERSION);
-			names.insert((protocol, MAIN_PROTOCOL_VERSION), main_protocol_name.clone());
-			Self::insert_protocol_or_panic(
-				&mut protocols,
-				main_protocol_name,
-				protocol,
-				MAIN_PROTOCOL_VERSION,
-			);
-			// Register legacy protocol name.
-			Self::insert_protocol_or_panic(
-				&mut protocols,
-				Self::get_legacy_name(protocol),
-				protocol,
-				LEGACY_PROTOCOL_VERSION,
-			)
+			match protocol {
+				PeerSet::Validation =>
+					for version in ValidationVersion::iter() {
+						Self::register_main_protocol(
+							&mut protocols,
+							&mut names,
+							protocol,
+							version.into(),
+							&genesis_hash,
+							fork_id,
+						);
+					},
+				PeerSet::Collation =>
+					for version in CollationVersion::iter() {
+						Self::register_main_protocol(
+							&mut protocols,
+							&mut names,
+							protocol,
+							version.into(),
+							&genesis_hash,
+							fork_id,
+						);
+					},
+			}
+			Self::register_legacy_protocol(&mut protocols, protocol);
 		}
 		Self { protocols, names }
+	}
+
+	/// Helper function to register main protocol.
+	fn register_main_protocol(
+		protocols: &mut HashMap<Cow<'static, str>, (PeerSet, ProtocolVersion)>,
+		names: &mut HashMap<(PeerSet, ProtocolVersion), Cow<'static, str>>,
+		protocol: PeerSet,
+		version: ProtocolVersion,
+		genesis_hash: &Hash,
+		fork_id: Option<&str>,
+	) {
+		let protocol_name = Self::generate_name(genesis_hash, fork_id, protocol, version);
+		names.insert((protocol, version), protocol_name.clone());
+		Self::insert_protocol_or_panic(protocols, protocol_name, protocol, version);
+	}
+
+	/// Helper function to register legacy protocol.
+	fn register_legacy_protocol(
+		protocols: &mut HashMap<Cow<'static, str>, (PeerSet, ProtocolVersion)>,
+		protocol: PeerSet,
+	) {
+		Self::insert_protocol_or_panic(
+			protocols,
+			Self::get_legacy_name(protocol),
+			protocol,
+			ProtocolVersion(LEGACY_PROTOCOL_VERSION_V1),
+		)
 	}
 
 	/// Helper function to make sure no protocols have the same name.
@@ -277,7 +323,7 @@ impl PeerSetProtocolNames {
 	/// Get the main protocol name. It's used by the networking for keeping track
 	/// of peersets and connections.
 	pub fn get_main_name(&self, protocol: PeerSet) -> Cow<'static, str> {
-		self.get_name(protocol, MAIN_PROTOCOL_VERSION)
+		self.get_name(protocol, protocol.get_main_version())
 	}
 
 	/// Get the protocol name for specific version.
@@ -327,8 +373,18 @@ impl PeerSetProtocolNames {
 
 #[cfg(test)]
 mod tests {
-	use super::{CollationVersion, Hash, PeerSet, PeerSetProtocolNames, ValidationVersion};
+	use super::{
+		CollationVersion, Hash, PeerSet, PeerSetProtocolNames, ProtocolVersion, ValidationVersion,
+	};
 	use strum::IntoEnumIterator;
+
+	struct TestVersion(u32);
+
+	impl From<TestVersion> for ProtocolVersion {
+		fn from(version: TestVersion) -> ProtocolVersion {
+			ProtocolVersion(version.0)
+		}
+	}
 
 	#[test]
 	fn protocol_names_are_correctly_generated() {
@@ -336,25 +392,43 @@ mod tests {
 			122, 200, 116, 29, 232, 183, 20, 109, 138, 86, 23, 253, 70, 41, 20, 85, 127, 230, 60,
 			38, 90, 127, 28, 16, 231, 218, 227, 40, 88, 238, 187, 128,
 		]);
-		let name = PeerSetProtocolNames::generate_name(&genesis_hash, None, PeerSet::Validation, 3);
+		let name = PeerSetProtocolNames::generate_name(
+			&genesis_hash,
+			None,
+			PeerSet::Validation,
+			TestVersion(3).into(),
+		);
 		let expected =
 			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/validation/3";
 		assert_eq!(name, expected);
 
-		let name = PeerSetProtocolNames::generate_name(&genesis_hash, None, PeerSet::Collation, 5);
+		let name = PeerSetProtocolNames::generate_name(
+			&genesis_hash,
+			None,
+			PeerSet::Collation,
+			TestVersion(5).into(),
+		);
 		let expected =
 			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/collation/5";
 		assert_eq!(name, expected);
 
 		let fork_id = Some("test-fork");
-		let name =
-			PeerSetProtocolNames::generate_name(&genesis_hash, fork_id, PeerSet::Validation, 7);
+		let name = PeerSetProtocolNames::generate_name(
+			&genesis_hash,
+			fork_id,
+			PeerSet::Validation,
+			TestVersion(7).into(),
+		);
 		let expected =
 			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/test-fork/validation/7";
 		assert_eq!(name, expected);
 
-		let name =
-			PeerSetProtocolNames::generate_name(&genesis_hash, fork_id, PeerSet::Collation, 11);
+		let name = PeerSetProtocolNames::generate_name(
+			&genesis_hash,
+			fork_id,
+			PeerSet::Collation,
+			TestVersion(11).into(),
+		);
 		let expected =
 			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/test-fork/collation/11";
 		assert_eq!(name, expected);
@@ -372,26 +446,26 @@ mod tests {
 			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/validation/1";
 		assert_eq!(
 			protocol_names.try_get_protocol(&validation_main.into()),
-			Some((PeerSet::Validation, 1)),
+			Some((PeerSet::Validation, TestVersion(1).into())),
 		);
 
 		let validation_legacy = "/polkadot/validation/1";
 		assert_eq!(
 			protocol_names.try_get_protocol(&validation_legacy.into()),
-			Some((PeerSet::Validation, 1)),
+			Some((PeerSet::Validation, TestVersion(1).into())),
 		);
 
 		let collation_main =
 			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/collation/1";
 		assert_eq!(
 			protocol_names.try_get_protocol(&collation_main.into()),
-			Some((PeerSet::Collation, 1)),
+			Some((PeerSet::Collation, TestVersion(1).into())),
 		);
 
 		let collation_legacy = "/polkadot/collation/1";
 		assert_eq!(
 			protocol_names.try_get_protocol(&collation_legacy.into()),
-			Some((PeerSet::Collation, 1)),
+			Some((PeerSet::Collation, TestVersion(1).into())),
 		);
 	}
 
@@ -428,6 +502,26 @@ mod tests {
 								version.into(),
 							),
 						);
+					},
+			}
+		}
+	}
+
+	#[test]
+	fn all_protocol_versions_have_labels() {
+		for protocol in PeerSet::iter() {
+			match protocol {
+				PeerSet::Validation =>
+					for version in ValidationVersion::iter() {
+						protocol
+							.get_protocol_label(version.into())
+							.expect("All validation protocol versions must have a label.");
+					},
+				PeerSet::Collation =>
+					for version in CollationVersion::iter() {
+						protocol
+							.get_protocol_label(version.into())
+							.expect("All collation protocol versions must have a label.");
 					},
 			}
 		}
