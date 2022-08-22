@@ -163,7 +163,7 @@ pub struct OutboundHrmpMessage<Id> {
 /// possible to represent a sequence of messages using only a single hash.
 ///
 /// A head for an empty chain is agreed to be a zero hash.
-/// [hash chain]: https://en.wikipedia.org/wiki/Hash_chain
+/// `[hash chain]: https://en.wikipedia.org/wiki/Hash_chain`
 #[derive(Default, Clone, Copy, Encode, Decode, scale_info::TypeInfo)]
 pub struct MessageQueueChain(Hash);
 
