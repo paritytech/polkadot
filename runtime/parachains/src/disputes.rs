@@ -410,7 +410,8 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + configuration::Config + session_info::Config {
-		type RuntimeEvent: From<PalletEvent<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type RuntimeEvent: From<PalletEvent<Self>>
+			+ IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type RewardValidators: RewardValidators;
 		type PunishValidators: PunishValidators;
 
@@ -1203,7 +1204,10 @@ impl<T: Config> Pallet<T> {
 
 		{
 			if summary.new_flags.contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
-				Self::deposit_event(PalletEvent::DisputeConcluded(candidate_hash, DisputeResult::Valid));
+				Self::deposit_event(PalletEvent::DisputeConcluded(
+					candidate_hash,
+					DisputeResult::Valid,
+				));
 			}
 
 			// It is possible, although unexpected, for a dispute to conclude twice.

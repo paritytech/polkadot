@@ -189,7 +189,8 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type RuntimeEvent: From<PalletEvent<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type RuntimeEvent: From<PalletEvent<Self>>
+			+ IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// `PalletId` for the crowdloan pallet. An appropriate value could be `PalletId(*b"py/cfund")`
 		#[pallet::constant]
@@ -494,7 +495,11 @@ pub mod pallet {
 
 			Funds::<T>::insert(index, &fund);
 
-			Self::deposit_event(PalletEvent::<T>::Withdrew { who, fund_index: index, amount: balance });
+			Self::deposit_event(PalletEvent::<T>::Withdrew {
+				who,
+				fund_index: index,
+				amount: balance,
+			});
 			Ok(())
 		}
 
@@ -811,7 +816,11 @@ impl<T: Config> Pallet<T> {
 
 		Funds::<T>::insert(index, &fund);
 
-		Self::deposit_event(PalletEvent::<T>::Contributed { who, fund_index: index, amount: value });
+		Self::deposit_event(PalletEvent::<T>::Contributed {
+			who,
+			fund_index: index,
+			amount: value,
+		});
 		Ok(())
 	}
 }
@@ -1659,7 +1668,10 @@ mod tests {
 
 			// Call again
 			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
-			assert_eq!(last_event(), super::PalletEvent::<Test>::AllRefunded { para_id: para }.into());
+			assert_eq!(
+				last_event(),
+				super::PalletEvent::<Test>::AllRefunded { para_id: para }.into()
+			);
 
 			// Funds are returned
 			assert_eq!(Balances::free_balance(account_id), 0);

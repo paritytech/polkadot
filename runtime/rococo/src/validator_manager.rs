@@ -37,7 +37,8 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_session::Config {
 		/// The overreaching event type.
-		type RuntimeEvent: From<PalletEvent<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type RuntimeEvent: From<PalletEvent<Self>>
+			+ IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// Privileged origin that can add or remove validators.
 		type PrivilegedOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;

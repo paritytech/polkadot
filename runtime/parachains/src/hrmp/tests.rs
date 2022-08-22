@@ -16,8 +16,8 @@
 
 use super::*;
 use crate::mock::{
-	new_test_ext, Configuration, PalletEvent as MockEvent, Hrmp, MockGenesisConfig, Paras, ParasShared,
-	System, Test,
+	new_test_ext, Configuration, Hrmp, MockGenesisConfig, PalletEvent as MockEvent, Paras,
+	ParasShared, System, Test,
 };
 use frame_support::{assert_noop, assert_ok, traits::Currency as _};
 use primitives::v2::BlockNumber;
@@ -177,10 +177,8 @@ fn open_channel_works() {
 
 		Hrmp::hrmp_accept_open_channel(para_b_origin.into(), para_a).unwrap();
 		Hrmp::assert_storage_consistency_exhaustive();
-		assert!(System::events()
-			.iter()
-			.any(|record| record.event ==
-				MockEvent::Hrmp(PalletEvent::OpenChannelAccepted(para_a, para_b))));
+		assert!(System::events().iter().any(|record| record.event ==
+			MockEvent::Hrmp(PalletEvent::OpenChannelAccepted(para_a, para_b))));
 
 		// Advance to a block 6, but without session change. That means that the channel has
 		// not been created yet.

@@ -66,9 +66,9 @@ fn basic_buy_fees_message_executes() {
 		.inspect_state(|| {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 				r.event,
-				polkadot_test_runtime::PalletEvent::Xcm(pallet_xcm::PalletEvent::Attempted(Outcome::Complete(
-					_
-				))),
+				polkadot_test_runtime::PalletEvent::Xcm(pallet_xcm::PalletEvent::Attempted(
+					Outcome::Complete(_)
+				)),
 			)));
 		});
 }

@@ -589,7 +589,8 @@ pub mod pallet_test_notifier {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_xcm::Config {
-		type RuntimeEvent: IsType<<Self as frame_system::Config>::RuntimeEvent> + From<PalletEvent<Self>>;
+		type RuntimeEvent: IsType<<Self as frame_system::Config>::RuntimeEvent>
+			+ From<PalletEvent<Self>>;
 		type Origin: IsType<<Self as frame_system::Config>::Origin>
 			+ Into<Result<pallet_xcm::Origin, <Self as Config>::Origin>>;
 		type Call: IsType<<Self as pallet_xcm::Config>::Call> + From<Call<Self>>;

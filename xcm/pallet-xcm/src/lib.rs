@@ -71,7 +71,8 @@ pub mod pallet {
 	/// The module configuration trait.
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
-		type RuntimeEvent: From<PalletEvent<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type RuntimeEvent: From<PalletEvent<Self>>
+			+ IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// Required origin for sending XCM messages. If successful, it resolves to `MultiLocation`
 		/// which exists as an interior location within this chain's XCM context.
@@ -1006,7 +1007,8 @@ pub mod pallet {
 									);
 									PalletEvent::VersionChangeNotified(new_key, xcm_version)
 								},
-								Err(e) => PalletEvent::NotifyTargetSendFail(new_key, query_id, e.into()),
+								Err(e) =>
+									PalletEvent::NotifyTargetSendFail(new_key, query_id, e.into()),
 							};
 							Self::deposit_event(event);
 							weight_used.saturating_accrue(todo_vnt_notify_migrate_weight);
@@ -1414,7 +1416,11 @@ pub mod pallet {
 								let dispatch_origin = Origin::Response(origin.clone()).into();
 								match call.dispatch(dispatch_origin) {
 									Ok(post_info) => {
-										let e = PalletEvent::Notified(query_id, pallet_index, call_index);
+										let e = PalletEvent::Notified(
+											query_id,
+											pallet_index,
+											call_index,
+										);
 										Self::deposit_event(e);
 										post_info.actual_weight
 									},
@@ -1432,8 +1438,11 @@ pub mod pallet {
 								}
 								.unwrap_or(weight)
 							} else {
-								let e =
-									PalletEvent::NotifyDecodeFailed(query_id, pallet_index, call_index);
+								let e = PalletEvent::NotifyDecodeFailed(
+									query_id,
+									pallet_index,
+									call_index,
+								);
 								Self::deposit_event(e);
 								0
 							}

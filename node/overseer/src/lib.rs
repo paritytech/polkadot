@@ -190,7 +190,8 @@ impl Handle {
 
 	/// Send some message to one of the `Subsystem`s.
 	pub async fn send_msg(&mut self, msg: impl Into<AllMessages>, origin: &'static str) {
-		self.send_and_log_error(PalletEvent::MsgToSubsystem { msg: msg.into(), origin }).await
+		self.send_and_log_error(PalletEvent::MsgToSubsystem { msg: msg.into(), origin })
+			.await
 	}
 
 	/// Send a message not providing an origin.

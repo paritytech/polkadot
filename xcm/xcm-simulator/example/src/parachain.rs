@@ -156,7 +156,8 @@ pub mod mock_msg_queue {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type RuntimeEvent: From<PalletEvent<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type RuntimeEvent: From<PalletEvent<Self>>
+			+ IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type XcmExecutor: ExecuteXcm<Self::Call>;
 	}
 
@@ -230,7 +231,8 @@ pub mod mock_msg_queue {
 						Outcome::Incomplete(w, e) => (Ok(w), PalletEvent::Fail(Some(hash), e)),
 					}
 				},
-				Err(()) => (Err(XcmError::UnhandledXcmVersion), PalletEvent::BadVersion(Some(hash))),
+				Err(()) =>
+					(Err(XcmError::UnhandledXcmVersion), PalletEvent::BadVersion(Some(hash))),
 			};
 			Self::deposit_event(event);
 			result

@@ -550,7 +550,9 @@ impl<T: Config> Pallet<T> {
 						} else {
 							// we process messages in order and don't drop them if we run out of weight,
 							// so need to break here without calling `consume_front`.
-							Self::deposit_event(PalletEvent::WeightExhausted(id, max_weight, required));
+							Self::deposit_event(PalletEvent::WeightExhausted(
+								id, max_weight, required,
+							));
 							break
 						}
 					},

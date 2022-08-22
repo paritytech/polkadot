@@ -139,7 +139,10 @@ fn report_outcome_works() {
 		assert_eq!(r, Outcome::Complete(1_000));
 		assert_eq!(
 			last_event(),
-			PalletEvent::XcmPallet(crate::PalletEvent::ResponseReady(0, Response::ExecutionResult(None),))
+			PalletEvent::XcmPallet(crate::PalletEvent::ResponseReady(
+				0,
+				Response::ExecutionResult(None),
+			))
 		);
 
 		let response = Some((Response::ExecutionResult(None), 1));
@@ -551,7 +554,11 @@ fn trapped_assets_can_be_claimed() {
 		assert_eq!(
 			last_events(2),
 			vec![
-				PalletEvent::XcmPallet(crate::PalletEvent::AssetsTrapped(hash.clone(), source, vma)),
+				PalletEvent::XcmPallet(crate::PalletEvent::AssetsTrapped(
+					hash.clone(),
+					source,
+					vma
+				)),
 				PalletEvent::XcmPallet(crate::PalletEvent::Attempted(Outcome::Complete(
 					5 * BaseXcmWeight::get()
 				)))

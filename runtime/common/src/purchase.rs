@@ -98,7 +98,8 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
-		type RuntimeEvent: From<PalletEvent<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type RuntimeEvent: From<PalletEvent<Self>>
+			+ IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// Balances Pallet
 		type Currency: Currency<Self::AccountId>;
@@ -406,7 +407,9 @@ pub mod pallet {
 			);
 			// Possibly this is worse than having the caller account be the payment account?
 			UnlockBlock::<T>::set(unlock_block);
-			Self::deposit_event(PalletEvent::<T>::UnlockBlockUpdated { block_number: unlock_block });
+			Self::deposit_event(PalletEvent::<T>::UnlockBlockUpdated {
+				block_number: unlock_block,
+			});
 			Ok(())
 		}
 	}
