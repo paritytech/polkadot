@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
 use polkadot_primitives::v2::{CandidateHash, SessionIndex, ValidatorIndex};
 
@@ -54,7 +54,7 @@ pub struct SpamSlots {
 }
 
 /// Unconfirmed disputes to be passed at initialization.
-pub type UnconfirmedDisputes = HashMap<(SessionIndex, CandidateHash), HashSet<ValidatorIndex>>;
+pub type UnconfirmedDisputes = HashMap<(SessionIndex, CandidateHash), BTreeSet<ValidatorIndex>>;
 
 impl SpamSlots {
 	/// Recover `SpamSlots` from state on startup.

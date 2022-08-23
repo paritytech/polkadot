@@ -264,10 +264,8 @@ where
 		};
 
 		let (pending_confirmation, confirmation_rx) = oneshot::channel();
-		let candidate_hash = candidate_receipt.hash();
 		self.sender
 			.send_message(DisputeCoordinatorMessage::ImportStatements {
-				candidate_hash,
 				candidate_receipt,
 				session: valid_vote.0.session_index(),
 				statements: vec![valid_vote, invalid_vote],
