@@ -58,8 +58,17 @@ const COST_INVALID_SIGNATURE: Rep = Rep::Malicious("Signatures were invalid.");
 const COST_INVALID_CANDIDATE: Rep = Rep::Malicious("Reported candidate was not available.");
 const COST_NOT_A_VALIDATOR: Rep = Rep::CostMajor("Reporting peer was not a validator.");
 
-/// How many statement imports we want to issue in parallel (for different candidates):
-pub const MAX_PARALLEL_IMPORTS: usize = 10;
+/// How many votes must have arrived in the last `BATCH_COLLECTING_INTERVAL`
+///
+/// in order for a batch to stay alive and not get flushed/imported to the dispute-coordinator.
+///
+/// This ensures a timely import once of batches.
+pub const MIN_KEEP_BATCH_ALIVE_VOTES: u32 = 10;
+
+/// Time we allow to pass for new votes to trickle in.
+///
+/// See `MIN_KEEP_BATCH_ALIVE_VOTES` above.
+pub const BATCH_COLLECTING_INTERVAL: Duration = Duration::from_millis(500);
 
 /// State for handling incoming `DisputeRequest` messages.
 ///
