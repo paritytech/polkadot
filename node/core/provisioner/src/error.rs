@@ -58,6 +58,9 @@ pub enum Error {
 	#[error("failed to send message to CandidateBacking to get backed candidates")]
 	GetBackedCandidatesSend(#[source] mpsc::SendError),
 
+	#[error("Send inherent data timeout.")]
+	SendInherentDataTimeout,
+
 	#[error("failed to send return message with Inherents")]
 	InherentDataReturnChannel,
 
