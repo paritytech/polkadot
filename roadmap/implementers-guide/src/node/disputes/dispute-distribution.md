@@ -231,10 +231,11 @@ malicious actors are doing. This is assuming dispute messages are sent ordered,
 but even if not perfectly ordered: On average it will be 5 disputes per second.
 
 This is good enough! All those disputes are valid ones and will result in
-slashing. Let's assume all of them conclude `valid`, and we slash 1% on those.
-This will still mean that nodes get slashed 100% in just 20 seconds.
+slashing and disabling of validators. Let's assume all of them conclude `valid`,
+and we disable validators only after 100 raised concluding valid disputes, we
+would still start disabling misbehaving validators in only 20 seconds.
 
-One could also think that in  addition participation is expected to take longer,
+One could also think that in addition participation is expected to take longer,
 which means on average we can import/conclude disputes faster than they are
 generated - regardless of dispute spam. Unfortunately this is not necessarily
 true: There might be parachains with very light load where recovery and
@@ -242,7 +243,7 @@ validation can be accomplished very quickly - maybe faster than we can import
 those disputes.
 
 This is probably an argument for not imposing a too low rate limit, although the
-issue is more general. Even without any rate limit, if an attacker generates
+issue is more general: Even without any rate limit, if an attacker generates
 disputes at a very high rate, nodes will be having trouble keeping participation
 up, hence the problem should be mitigated at a [more fundamental
 layer](https://github.com/paritytech/polkadot/issues/5898).
