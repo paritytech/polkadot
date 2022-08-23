@@ -46,7 +46,7 @@
 //!	With the types and traits in this module you can achieve exactly that: You write modules which
 //!	just execute logic and can call into the functions of other modules - yes we are calling normal
 //!	functions. For the case a module you are calling into requires an occasional background task,
-//!	you provide it with a `MessageSender` that it can pass to any spawned tasks.
+//!	you provide it with a `MessageSender<M, ChildModuleMessage>` that it can pass to any spawned tasks.
 //!
 //!	The interesting part is, that we get full separation of concerns: The called module only needs
 //!	to care about its own message type. The calling module, takes care of wrapping up the messages
@@ -57,8 +57,8 @@
 //!	Because the wrapping is optional and transparent to the lower modules, each module can also be
 //!	used at the top directly without any wrapping, e.g. for standalone use or for testing purposes.
 //!
-//!	In the interest of time I refrain from providing a usage example here for now, but instead
-//!	refer you to the dispute-distribution subsystem which makes use of it.
+//!	In the interest of time I refrain from providing a usage example here for now, but would instead
+//!	like to point you to the dispute-distribution subsystem which makes use of this architecture.
 //!
 //!	What makes this architecture nice is the separation of concerns - at the top you only have to
 //!	provide a sender and dispatch received messages to the root module - it is completely
@@ -68,60 +68,31 @@
 //!	in any non blocking/CPU intensive parts, which allows us to share data via references for
 //!	example.
 //!
-//!	Nothing is ever for free though: Each level adds an indirect function call to message sending.
-//!	which should be cheap enough for most applications. In particular we avoided the use of of
-//!	async traits, which would have required memory allocations on each send.
-//!
-//!	TODO: Remove async trait requirement as this means an allocation for each message to be sent.
+//!	Nothing is ever for free of course: Each level adds an indirect function call to message
+//!	sending. which should be cheap enough for most applications, but something to keep in mind. In
+//!	particular we avoided the use of of async traits, which would have required memory allocations
+//!	on each send.
 
-use std::{marker::PhantomData, convert::identity};
+use std::convert::identity;
 
-use futures::mpsc;
+use futures::channel::mpsc;
+use futures::SinkExt;
 
-struct RootSender {}
-struct ChildSender {}
-struct GrandChildSender {}
-
-struct MessageSender<M, M1> {
+/// A message sender that supports nested messages.
+///
+/// This sender wraps an `mpsc::Sender` and a conversion function for converting given messages of
+/// type `M1` to the message type actually supported by the mpsc (`M`).
+pub struct MessageSender<M, M1> {
 	sender: mpsc::Sender<M>,
-	conversion: Box<dyn Fn(M1) -> M>,
+	conversion: Box<dyn Conversion<M, M1>>,
 }
 
-trait MessageConversion<P, M> {
-
-	fn convert(message: M) -> P;
-	fn box_clone(self: Box<Self>) -> Box<Self>;
-}
-
-struct ParentChild { }
-
-enum ParentMessage {
-	Child(ChildMessage)
-}
-
-enum ChildMessage {
-	Huhu,
-	GrandChild(GrandChildMessage),
-
-}
-
-enum GrandChildMessage {
-	Haha,
-}
-
-impl MessageConversion<ParentMessage, ChildMessage> for ParentChild {
-
-	fn convert(message: ChildMessage) -> ParentMessage {
-		ParentMessage::Child(message)
-	}
-
-	fn box_clone(self: Box<Self>) -> Box<Self> {
-		Box::new(ParentChild {})
-	}
-}
-
-impl<M> MessageSender<M, M>
+impl<M> MessageSender<M, M> where
+M: 'static
 {
+	/// Create a new "root" sender.
+	/// 
+	/// This is a sender that directly passes messages to the mpsc.
 	pub fn new_root(root: mpsc::Sender<M>) -> Self {
 		Self {
 			sender: root,
@@ -130,7 +101,13 @@ impl<M> MessageSender<M, M>
 	}
 }
 
-impl<M, M1> MessageSender<M, M1> {
+impl<M, M1> MessageSender<M, M1> where 
+M: 'static,
+M1: 'static {
+	/// Create a new `MessageSender` which wraps a given "parent" sender.
+	///
+	/// Doing the necessary conversion from the child message type `M1` to the parent message type
+	/// `M2.
 	/// M1 -> M2 -> M 
 	/// Inputs:
 	///		F(M2) -> M (via parent)
@@ -138,38 +115,55 @@ impl<M, M1> MessageSender<M, M1> {
 	/// Result: F(M1) -> M 
 	pub fn new<M2, F>(parent: MessageSender<M, M2>, child_conversion: F) -> Self 
 	where 
-	F: Fn(M1) -> M2 {
+	F: Fn(M1) -> M2 + Clone + 'static, M2: 'static {
 		let MessageSender { sender, conversion } = parent;
 		Self {
 			sender,
-			conversion: Box::new(|x| conversion(child_conversion(x)))
+			conversion: Box::new(move |x| conversion(child_conversion(x))),
 		}
 	}
 
-	pub async fn send_message(&mut self, m: M1) {
-		self.sender.feed((*self.conversion)(m)).await
+	/// Send a message via the underlying mpsc.
+	///
+	/// Necessary conversion is accomplished.
+	pub async fn send_message(&mut self, m: M1) -> Result<(), mpsc::SendError> {
+		// Flushing on an mpsc means to wait for the receiver to pick up the data - we don't want
+		// to wait for that.
+		self.sender.feed((self.conversion)(m)).await
 	}
 }
 
-// impl<M1, M, F> MessageSender<M, M1, F>  
-// where
-//     F: Fn(M1) -> M, {
-	//
-	// M1 -> M2 -> M 
-	// Inputs:
-	//		F(M2) -> M
-	//		F(M1) -> M2
-	// Result: F(M1) -> M 
-	//
-//     pub fn new_nested<M2, F2, F3>(parent: MessageSender<M, F2>, nested_conversion: F3) -> Self 
-//         where
-//             F2: Fn(M2) -> M,
-//             F3: Fn(M1) -> M2 {
-//                 let Self { sender, conversion } = parent;
-//                 let full_conversion = |m| conversion(nested_conversion(m));
-//                 Self {
-//                     sender,
-//                     conversion: full_conversion,
-//                 }
-//             }
-// }
+// Helper traits and implementations:
+
+impl<M, M1> Clone for MessageSender<M, M1> 
+where
+	M: 'static,
+	M1: 'static,
+{
+	fn clone(&self) -> Self {
+		Self {
+			sender: self.sender.clone(),
+			conversion: self.conversion.clone(),
+		}
+	}
+}
+
+trait Conversion<M, M1>: Fn(M1) -> M {
+	fn box_clone(&self) -> Box<dyn Conversion<M, M1>>;
+}
+
+impl<M, M1, T> Conversion<M, M1> for T where 
+T: Fn(M1) -> M + 'static + Clone {
+	fn box_clone(&self) -> Box<dyn Conversion<M, M1>> {
+		Box::new(self.clone())
+	}
+}
+
+impl<M, M1> Clone for Box<dyn Conversion<M, M1>> 
+where
+ M: 'static,
+ M1: 'static, {
+	fn clone(&self) -> Self {
+		self.box_clone()
+	}
+}
