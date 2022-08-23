@@ -21,4 +21,4 @@ sp-authority-discovery = { git = "https://github.com/paritytech/substrate", bran
 smallvec = "1.8.0"
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.31"
-async-trait = "0.1.56"
+async-trait = "0.1.57"
