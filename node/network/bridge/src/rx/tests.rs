@@ -673,7 +673,12 @@ fn peer_view_updates_sent_via_overseer() {
 		// bridge will inform about all connected peers.
 		{
 			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
+				NetworkBridgeEvent::PeerConnected(
+					peer.clone(),
+					ObservedRole::Full,
+					ValidationVersion::V1.into(),
+					None,
+				),
 				&mut virtual_overseer,
 			)
 			.await;
@@ -716,7 +721,12 @@ fn peer_messages_sent_via_overseer() {
 		// bridge will inform about all connected peers.
 		{
 			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
+				NetworkBridgeEvent::PeerConnected(
+					peer.clone(),
+					ObservedRole::Full,
+					ValidationVersion::V1.into(),
+					None,
+				),
 				&mut virtual_overseer,
 			)
 			.await;
@@ -786,7 +796,12 @@ fn peer_disconnect_from_just_one_peerset() {
 		// bridge will inform about all connected peers.
 		{
 			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
+				NetworkBridgeEvent::PeerConnected(
+					peer.clone(),
+					ObservedRole::Full,
+					ValidationVersion::V1.into(),
+					None,
+				),
 				&mut virtual_overseer,
 			)
 			.await;
@@ -800,7 +815,12 @@ fn peer_disconnect_from_just_one_peerset() {
 
 		{
 			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
+				NetworkBridgeEvent::PeerConnected(
+					peer.clone(),
+					ObservedRole::Full,
+					ValidationVersion::V1.into(),
+					None,
+				),
 				&mut virtual_overseer,
 			)
 			.await;
@@ -869,7 +889,12 @@ fn relays_collation_protocol_messages() {
 		// bridge will inform about all connected peers.
 		{
 			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full, 1, None),
+				NetworkBridgeEvent::PeerConnected(
+					peer_a.clone(),
+					ObservedRole::Full,
+					ValidationVersion::V1.into(),
+					None,
+				),
 				&mut virtual_overseer,
 			)
 			.await;
@@ -883,7 +908,12 @@ fn relays_collation_protocol_messages() {
 
 		{
 			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, 1, None),
+				NetworkBridgeEvent::PeerConnected(
+					peer_b.clone(),
+					ObservedRole::Full,
+					ValidationVersion::V1.into(),
+					None,
+				),
 				&mut virtual_overseer,
 			)
 			.await;
@@ -962,7 +992,12 @@ fn different_views_on_different_peer_sets() {
 		// bridge will inform about all connected peers.
 		{
 			assert_sends_validation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
+				NetworkBridgeEvent::PeerConnected(
+					peer.clone(),
+					ObservedRole::Full,
+					ValidationVersion::V1.into(),
+					None,
+				),
 				&mut virtual_overseer,
 			)
 			.await;
@@ -976,7 +1011,12 @@ fn different_views_on_different_peer_sets() {
 
 		{
 			assert_sends_collation_event_to_all(
-				NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full, 1, None),
+				NetworkBridgeEvent::PeerConnected(
+					peer.clone(),
+					ObservedRole::Full,
+					ValidationVersion::V1.into(),
+					None,
+				),
 				&mut virtual_overseer,
 			)
 			.await;

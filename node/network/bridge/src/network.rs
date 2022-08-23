@@ -30,9 +30,9 @@ use sc_network_common::service::{
 };
 
 use polkadot_node_network_protocol::{
-	peer_set::{PeerSet, PeerSetProtocolNames},
+	peer_set::{PeerSet, PeerSetProtocolNames, ProtocolVersion},
 	request_response::{OutgoingRequest, Recipient, ReqProtocolNames, Requests},
-	PeerId, ProtocolVersion, UnifiedReputationChange as Rep,
+	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::v2::{AuthorityDiscoveryId, Block, Hash};
 

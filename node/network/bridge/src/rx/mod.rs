@@ -27,9 +27,11 @@ use sp_consensus::SyncOracle;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
-	peer_set::{CollationVersion, PeerSet, PeerSetProtocolNames, PerPeerSet, ValidationVersion},
-	v1 as protocol_v1, ObservedRole, OurView, PeerId, ProtocolVersion,
-	UnifiedReputationChange as Rep, View,
+	peer_set::{
+		CollationVersion, PeerSet, PeerSetProtocolNames, PerPeerSet, ProtocolVersion,
+		ValidationVersion,
+	},
+	v1 as protocol_v1, ObservedRole, OurView, PeerId, UnifiedReputationChange as Rep, View,
 };
 
 use polkadot_node_subsystem::{
@@ -221,7 +223,7 @@ where
 					target: LOG_TARGET,
 					action = "PeerConnected",
 					peer_set = ?peer_set,
-					version,
+					version = u32::from(version),
 					peer = ?peer,
 					role = ?role
 				);
@@ -256,7 +258,7 @@ where
 								NetworkBridgeEvent::PeerConnected(
 									peer.clone(),
 									role,
-									1,
+									version,
 									maybe_authority,
 								),
 								NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
@@ -281,7 +283,7 @@ where
 								NetworkBridgeEvent::PeerConnected(
 									peer.clone(),
 									role,
-									1,
+									version,
 									maybe_authority,
 								),
 								NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
@@ -437,7 +439,9 @@ where
 
 				if !v_messages.is_empty() {
 					let (events, reports) =
-						if expected_versions[PeerSet::Validation] == Some(1) {
+						if expected_versions[PeerSet::Validation] ==
+							Some(ValidationVersion::V1.into())
+						{
 							handle_v1_peer_messages::<protocol_v1::ValidationProtocol, _>(
 								remote.clone(),
 								PeerSet::Validation,
@@ -468,7 +472,9 @@ where
 
 				if !c_messages.is_empty() {
 					let (events, reports) =
-						if expected_versions[PeerSet::Collation] == Some(1) {
+						if expected_versions[PeerSet::Collation] ==
+							Some(CollationVersion::V1.into())
+						{
 							handle_v1_peer_messages::<protocol_v1::CollationProtocol, _>(
 								remote.clone(),
 								PeerSet::Collation,

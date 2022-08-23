@@ -18,7 +18,7 @@
 use super::*;
 
 use polkadot_node_network_protocol::{
-	peer_set::{PeerSet, PeerSetProtocolNames},
+	peer_set::{CollationVersion, PeerSet, PeerSetProtocolNames, ValidationVersion},
 	request_response::ReqProtocolNames,
 	v1 as protocol_v1, PeerId, Versioned,
 };
@@ -164,6 +164,7 @@ where
 				peer_set = ?peer_set,
 			);
 
+			// [`NetworkService`] keeps track of the protocols by their main name.
 			let protocol = peerset_protocol_names.get_main_name(peer_set);
 			network_service.disconnect_peer(peer, protocol);
 		},
@@ -338,7 +339,15 @@ fn send_validation_message_v1(
 	message: WireMessage<protocol_v1::ValidationProtocol>,
 	metrics: &Metrics,
 ) {
-	send_message(net, peers, PeerSet::Validation, 1, protocol_names, message, metrics);
+	send_message(
+		net,
+		peers,
+		PeerSet::Validation,
+		ValidationVersion::V1.into(),
+		protocol_names,
+		message,
+		metrics,
+	);
 }
 
 fn send_collation_message_v1(
@@ -348,5 +357,13 @@ fn send_collation_message_v1(
 	message: WireMessage<protocol_v1::CollationProtocol>,
 	metrics: &Metrics,
 ) {
-	send_message(net, peers, PeerSet::Collation, 1, protocol_names, message, metrics);
+	send_message(
+		net,
+		peers,
+		PeerSet::Collation,
+		CollationVersion::V1.into(),
+		protocol_names,
+		message,
+		metrics,
+	);
 }

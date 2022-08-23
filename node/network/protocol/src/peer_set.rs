@@ -30,7 +30,7 @@ use strum::{EnumIter, IntoEnumIterator};
 const LEGACY_VALIDATION_PROTOCOL_V1: &str = "/polkadot/validation/1";
 const LEGACY_COLLATION_PROTOCOL_V1: &str = "/polkadot/collation/1";
 
-/// The legacy prtocol version. Is always 1.
+/// The legacy protocol version. Is always 1 for both validation & collation.
 const LEGACY_PROTOCOL_VERSION_V1: u32 = 1;
 
 /// Max notification size is currently constant.
@@ -195,6 +195,12 @@ pub fn peer_sets_info(
 /// A generic version of the protocol. This struct must not be created directly.
 #[derive(Debug, Clone, Copy, Display, PartialEq, Eq, Hash)]
 pub struct ProtocolVersion(u32);
+
+impl From<ProtocolVersion> for u32 {
+	fn from(version: ProtocolVersion) -> u32 {
+		version.0
+	}
+}
 
 /// Supported validation protocol versions. Only versions defined here must be used in the codebase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
