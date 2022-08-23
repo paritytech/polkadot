@@ -336,7 +336,7 @@ impl PeerSetProtocolNames {
 	pub fn get_name(&self, protocol: PeerSet, version: ProtocolVersion) -> Cow<'static, str> {
 		self.names
 			.get(&(protocol, version))
-			.expect("Only versions defined above must be used in the codebase, and they are all registered in `new()`; qed")
+			.expect("Protocols & versions are specified via enums defined above, and they are all registered in `new()`; qed")
 			.clone()
 	}
 
