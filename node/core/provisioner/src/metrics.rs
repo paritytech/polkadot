@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-#[cfg(feature = "staging-client")]
 use crate::disputes::with_staging_api::PartitionedDisputes;
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
@@ -31,7 +30,6 @@ struct MetricsInner {
 	inherent_data_dispute_statement_sets: prometheus::Counter<prometheus::U64>,
 	inherent_data_dispute_statements: prometheus::CounterVec<prometheus::U64>,
 
-	#[cfg(feature = "staging-client")]
 	// The disputes received from `disputes-coordinator` by partition
 	partitioned_disputes: prometheus::CounterVec<prometheus::U64>,
 }
@@ -102,7 +100,6 @@ impl Metrics {
 		}
 	}
 
-	#[cfg(feature = "staging-client")]
 	pub(crate) fn on_partition_recent_disputes(&self, disputes: &PartitionedDisputes) {
 		if let Some(metrics) = &self.0 {
 			let PartitionedDisputes {
@@ -190,7 +187,6 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			#[cfg(feature = "staging-client")]
 			partitioned_disputes: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(

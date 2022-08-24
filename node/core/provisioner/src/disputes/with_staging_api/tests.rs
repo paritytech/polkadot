@@ -503,8 +503,8 @@ fn normal_flow() {
 	//concluded disputes unknown onchain
 	let (fifth_idx, fifth_votes) = input.add_concluded_disputes_unknown_onchain(DISPUTES_PER_BATCH);
 
-	// concluded disputes known onchain
-	let (fourth_idx, _) = input.add_concluded_disputes_known_onchain(DISPUTES_PER_BATCH);
+	// concluded disputes known onchain - these should be ignored
+	let (_, _) = input.add_concluded_disputes_known_onchain(DISPUTES_PER_BATCH);
 
 	// active disputes unknown onchain
 	let (second_idx, second_votes) =
@@ -520,52 +520,44 @@ fn normal_flow() {
 
 			assert!(!result.is_empty());
 
-			if cfg!(feature = "staging-client") {
-				assert_eq!(result.len(), 4 * DISPUTES_PER_BATCH);
+			assert_eq!(result.len(), 4 * DISPUTES_PER_BATCH);
 
-				// Naive checks that the result is partitioned correctly
-				let (first_batch, rest): (Vec<DisputeStatementSet>, Vec<DisputeStatementSet>) =
-					result.into_iter().partition(|d| d.session == first_idx);
-				assert_eq!(first_batch.len(), DISPUTES_PER_BATCH);
+			// Naive checks that the result is partitioned correctly
+			let (first_batch, rest): (Vec<DisputeStatementSet>, Vec<DisputeStatementSet>) =
+				result.into_iter().partition(|d| d.session == first_idx);
+			assert_eq!(first_batch.len(), DISPUTES_PER_BATCH);
 
-				let (second_batch, rest): (Vec<DisputeStatementSet>, Vec<DisputeStatementSet>) =
-					rest.into_iter().partition(|d| d.session == second_idx);
-				assert_eq!(second_batch.len(), DISPUTES_PER_BATCH);
+			let (second_batch, rest): (Vec<DisputeStatementSet>, Vec<DisputeStatementSet>) =
+				rest.into_iter().partition(|d| d.session == second_idx);
+			assert_eq!(second_batch.len(), DISPUTES_PER_BATCH);
 
-				let (third_batch, rest): (Vec<DisputeStatementSet>, Vec<DisputeStatementSet>) =
-					rest.into_iter().partition(|d| d.session == third_idx);
-				assert_eq!(third_batch.len(), DISPUTES_PER_BATCH);
+			let (third_batch, rest): (Vec<DisputeStatementSet>, Vec<DisputeStatementSet>) =
+				rest.into_iter().partition(|d| d.session == third_idx);
+			assert_eq!(third_batch.len(), DISPUTES_PER_BATCH);
 
-				let (fifth_batch, rest): (Vec<DisputeStatementSet>, Vec<DisputeStatementSet>) =
-					rest.into_iter().partition(|d| d.session == fifth_idx);
-				assert_eq!(fifth_batch.len(), DISPUTES_PER_BATCH);
+			let (fifth_batch, rest): (Vec<DisputeStatementSet>, Vec<DisputeStatementSet>) =
+				rest.into_iter().partition(|d| d.session == fifth_idx);
+			assert_eq!(fifth_batch.len(), DISPUTES_PER_BATCH);
 
-				// Ensure there are no more disputes - fourth_batch should be dropped
-				assert_eq!(rest.len(), 0);
+			// Ensure there are no more disputes - fourth_batch should be dropped
+			assert_eq!(rest.len(), 0);
 
-				assert_eq!(
-					first_batch.iter().map(|d| d.statements.len()).fold(0, |acc, v| acc + v),
-					first_votes
-				);
-				assert_eq!(
-					second_batch.iter().map(|d| d.statements.len()).fold(0, |acc, v| acc + v),
-					second_votes
-				);
-				assert_eq!(
-					third_batch.iter().map(|d| d.statements.len()).fold(0, |acc, v| acc + v),
-					third_votes
-				);
-				assert_eq!(
-					fifth_batch.iter().map(|d| d.statements.len()).fold(0, |acc, v| acc + v),
-					fifth_votes
-				);
-			} else {
-				assert_eq!(result.len(), 5 * DISPUTES_PER_BATCH);
-				for i in 0..3 * DISPUTES_PER_BATCH {
-					assert_ne!(result.get(i).unwrap().session, fourth_idx);
-					assert_ne!(result.get(i).unwrap().session, fifth_idx);
-				}
-			}
+			assert_eq!(
+				first_batch.iter().map(|d| d.statements.len()).fold(0, |acc, v| acc + v),
+				first_votes
+			);
+			assert_eq!(
+				second_batch.iter().map(|d| d.statements.len()).fold(0, |acc, v| acc + v),
+				second_votes
+			);
+			assert_eq!(
+				third_batch.iter().map(|d| d.statements.len()).fold(0, |acc, v| acc + v),
+				third_votes
+			);
+			assert_eq!(
+				fifth_batch.iter().map(|d| d.statements.len()).fold(0, |acc, v| acc + v),
+				fifth_votes
+			);
 		},
 	);
 	assert!(vote_queries <= ACCEPTABLE_RUNTIME_VOTES_QUERIES_COUNT);

@@ -29,10 +29,10 @@ use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
 		CandidateBackingMessage, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
-		ProvisionerMessage,
+		ProvisionerMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
-	PerLeafSpan, SpawnedSubsystem, SubsystemError,
+	PerLeafSpan, RuntimeApiError, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data, TimeoutExt,
@@ -59,6 +59,8 @@ const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_mill
 const SEND_INHERENT_DATA_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(500);
 
 const LOG_TARGET: &str = "parachain::provisioner";
+
+const STAGING_RUNTIME_VERSION_REQUIREMENT: u32 = 3;
 
 /// The provisioner subsystem.
 pub struct ProvisionerSubsystem {
@@ -360,11 +362,13 @@ async fn send_inherent_data(
 		"Selecting disputes"
 	);
 
-	#[cfg(feature = "staging-client")]
-	let disputes = disputes::with_staging_api::select_disputes(from_job, metrics, leaf).await?;
-
-	#[cfg(not(feature = "staging-client"))]
-	let disputes = disputes::without_staging_api::select_disputes(from_job, metrics).await?;
+	let disputes =
+		match has_staging_runtime(from_job, leaf.hash.clone(), STAGING_RUNTIME_VERSION_REQUIREMENT)
+			.await
+		{
+			true => disputes::with_staging_api::select_disputes(from_job, metrics, leaf).await?,
+			false => disputes::without_staging_api::select_disputes(from_job, metrics).await?,
+		};
 
 	gum::trace!(
 		target: LOG_TARGET,
@@ -679,4 +683,55 @@ fn bitfields_indicate_availability(
 	}
 
 	3 * availability.count_ones() >= 2 * availability.len()
+}
+
+async fn has_staging_runtime(
+	sender: &mut impl overseer::ProvisionerSenderTrait,
+	relay_parent: Hash,
+	required_runtime_version: u32,
+) -> bool {
+	gum::trace!(target: LOG_TARGET, ?relay_parent, "Fetching runtime version");
+
+	let (tx, rx) = oneshot::channel();
+	sender
+		.send_message(RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::Version(tx)))
+		.await;
+
+	match rx.await {
+		Result::Ok(Ok(runtime_version)) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?runtime_version,
+				?required_runtime_version,
+				"Fetched runtime version"
+			);
+			runtime_version >= required_runtime_version
+		},
+		Result::Ok(Err(RuntimeApiError::Execution { source: error, .. })) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?error,
+				"Execution error while fetching runtime version"
+			);
+			false
+		},
+		Result::Ok(Err(RuntimeApiError::NotSupported { .. })) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				"NotSupported error while fetching runtime version"
+			);
+			false
+		},
+		Result::Err(_) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				"Cancelled error while fetching runtime version"
+			);
+			false
+		},
+	}
 }

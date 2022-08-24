@@ -46,8 +46,6 @@ async fn request_votes(
 	}
 }
 
-#[cfg(feature = "staging-client")]
 pub(crate) mod with_staging_api;
 
-#[cfg(not(feature = "staging-client"))]
 pub(crate) mod without_staging_api;
