@@ -31,14 +31,14 @@
 //!
 //! This module helps with this in part. It does not break the multithreaded by default approach,
 //! but it breaks the `spawn everything` approach. So once you `spawn` you will still be
-//! multithreaded by default, although for most tasks we spawn (which just wait for network or some
-//! message to arrive), that is very much pointless and needless overhead, you will spawn less in
+//! multithreaded by default, despite that for most tasks we spawn (which just wait for network or some
+//! message to arrive), that is very much pointless and needless overhead. You will just spawn less in
 //! the first place.
 //!
-//! By the default your code is single threaded, except when actually needed:
+//! By default your code is single threaded, except when actually needed:
 //!		- need to wait for long running synchronous IO (a threaded runtime is actually useful here)
 //!		- need to wait for some async event (message to arrive)
-//!		- need to do some hefty CPU bound processing
+//!		- need to do some hefty CPU bound processing (a thread is required here as well)
 //!
 //!	and it is not acceptable to block the main task for waiting for the result, because we actually
 //!	really have other things to do or at least need to stay responsive just in case.
@@ -48,11 +48,17 @@
 //!	functions. For the case a module you are calling into requires an occasional background task,
 //!	you provide it with a `MessageSender<M, ChildModuleMessage>` that it can pass to any spawned tasks.
 //!
-//!	The interesting part is, that we get full separation of concerns: The called module only needs
-//!	to care about its own message type. The calling module, takes care of wrapping up the messages
-//!	in a containing message type (if any). This way you can build full trees of modules all ending
-//!	up sending via the same channel and you end up with a single receiver at the top which needs to
-//!	awaited and then you can dispatch messages in a structured fashion again.
+//!	This way you don't have to spawn a task for each module just for it to be able to handle
+//!	asynchronous events. The module relies on the using/enclosing code/module to forward it any
+//!	asynchronous messages in a structured way.
+//!
+//!	What makes this architecture nice is the separation of concerns - at the top you only have to
+//!	provide a sender and dispatch received messages to the root module - it is completely
+//!	irrelevant how complex that module is, it might consist of child modules also having the need
+//!	to spawn and receive messages, which in turn do the same, still the root logic stays unchanged.
+//!	Everything is isolated to the level where it belongs, while we still keep a single task scope
+//!	in all non blocking/not CPU intensive parts, which allows us to share data via references for
+//!	example.
 //!
 //!	Because the wrapping is optional and transparent to the lower modules, each module can also be
 //!	used at the top directly without any wrapping, e.g. for standalone use or for testing purposes.
@@ -60,23 +66,21 @@
 //!	In the interest of time I refrain from providing a usage example here for now, but would instead
 //!	like to point you to the dispute-distribution subsystem which makes use of this architecture.
 //!
-//!	What makes this architecture nice is the separation of concerns - at the top you only have to
-//!	provide a sender and dispatch received messages to the root module - it is completely
-//!	irrelevant how complex that module is, it might consist of child modules also having the need
-//!	to spawn and receive messages, which in turn do the same, still the root logic stays unchanged.
-//!	Everything is isolated to the level where it belongs, while we still keep a single task scope
-//!	in any non blocking/CPU intensive parts, which allows us to share data via references for
-//!	example.
-//!
 //!	Nothing is ever for free of course: Each level adds an indirect function call to message
 //!	sending. which should be cheap enough for most applications, but something to keep in mind. In
 //!	particular we avoided the use of of async traits, which would have required memory allocations
-//!	on each send.
+//!	on each send. Also cloning of `MessageSender` is more expensive than cloning a plain
+//!	mpsc::Sender, the overhead should be negligible though.
+//!
+//!	Further limitations: Because everything is routed to the same channel, it is not possible with
+//!	this approach to put back pressure on only a single source (as all are the same). If a module
+//!	has a task that requires this, it indeed has to spawn a long running task which can do the
+//!	back-pressure on that message source. This is just one of the situations that justifies
+//!	spawning a task.
 
 use std::convert::identity;
 
-use futures::channel::mpsc;
-use futures::SinkExt;
+use futures::{channel::mpsc, SinkExt};
 
 /// A message sender that supports nested messages.
 ///
@@ -87,40 +91,38 @@ pub struct MessageSender<M, M1> {
 	conversion: Box<dyn Conversion<M, M1>>,
 }
 
-impl<M> MessageSender<M, M> where
-M: 'static
+impl<M> MessageSender<M, M>
+where
+	M: 'static,
 {
 	/// Create a new "root" sender.
-	/// 
+	///
 	/// This is a sender that directly passes messages to the mpsc.
 	pub fn new_root(root: mpsc::Sender<M>) -> Self {
-		Self {
-			sender: root,
-			conversion: Box::new(identity),
-		}
+		Self { sender: root, conversion: Box::new(identity) }
 	}
 }
 
-impl<M, M1> MessageSender<M, M1> where 
-M: 'static,
-M1: 'static {
+impl<M, M1> MessageSender<M, M1>
+where
+	M: 'static,
+	M1: 'static,
+{
 	/// Create a new `MessageSender` which wraps a given "parent" sender.
 	///
 	/// Doing the necessary conversion from the child message type `M1` to the parent message type
 	/// `M2.
-	/// M1 -> M2 -> M 
+	/// M1 -> M2 -> M
 	/// Inputs:
 	///		F(M2) -> M (via parent)
 	///		F(M1) -> M2 (via child_conversion)
-	/// Result: F(M1) -> M 
-	pub fn new<M2, F>(parent: MessageSender<M, M2>, child_conversion: F) -> Self 
-	where 
-	F: Fn(M1) -> M2 + Clone + 'static, M2: 'static {
+	/// Result: F(M1) -> M
+	pub fn new<M2>(parent: MessageSender<M, M2>, child_conversion: fn(M1) -> M2) -> Self
+	where
+		M2: 'static,
+	{
 		let MessageSender { sender, conversion } = parent;
-		Self {
-			sender,
-			conversion: Box::new(move |x| conversion(child_conversion(x))),
-		}
+		Self { sender, conversion: Box::new(move |x| conversion(child_conversion(x))) }
 	}
 
 	/// Send a message via the underlying mpsc.
@@ -135,16 +137,13 @@ M1: 'static {
 
 // Helper traits and implementations:
 
-impl<M, M1> Clone for MessageSender<M, M1> 
+impl<M, M1> Clone for MessageSender<M, M1>
 where
 	M: 'static,
 	M1: 'static,
 {
 	fn clone(&self) -> Self {
-		Self {
-			sender: self.sender.clone(),
-			conversion: self.conversion.clone(),
-		}
+		Self { sender: self.sender.clone(), conversion: self.conversion.clone() }
 	}
 }
 
@@ -152,17 +151,20 @@ trait Conversion<M, M1>: Fn(M1) -> M {
 	fn box_clone(&self) -> Box<dyn Conversion<M, M1>>;
 }
 
-impl<M, M1, T> Conversion<M, M1> for T where 
-T: Fn(M1) -> M + 'static + Clone {
+impl<M, M1, T> Conversion<M, M1> for T
+where
+	T: Fn(M1) -> M + 'static + Clone,
+{
 	fn box_clone(&self) -> Box<dyn Conversion<M, M1>> {
 		Box::new(self.clone())
 	}
 }
 
-impl<M, M1> Clone for Box<dyn Conversion<M, M1>> 
+impl<M, M1> Clone for Box<dyn Conversion<M, M1>>
 where
- M: 'static,
- M1: 'static, {
+	M: 'static,
+	M1: 'static,
+{
 	fn clone(&self) -> Self {
 		self.box_clone()
 	}
