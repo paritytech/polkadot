@@ -46,7 +46,7 @@
 //!	With the types and traits in this module you can achieve exactly that: You write modules which
 //!	just execute logic and can call into the functions of other modules - yes we are calling normal
 //!	functions. For the case a module you are calling into requires an occasional background task,
-//!	you provide it with a `MessageSender<M, ChildModuleMessage>` that it can pass to any spawned tasks.
+//!	you provide it with a `NestingSender<M, ChildModuleMessage>` that it can pass to any spawned tasks.
 //!
 //!	This way you don't have to spawn a task for each module just for it to be able to handle
 //!	asynchronous events. The module relies on the using/enclosing code/module to forward it any
@@ -69,7 +69,7 @@
 //!	Nothing is ever for free of course: Each level adds an indirect function call to message
 //!	sending. which should be cheap enough for most applications, but something to keep in mind. In
 //!	particular we avoided the use of of async traits, which would have required memory allocations
-//!	on each send. Also cloning of `MessageSender` is more expensive than cloning a plain
+//!	on each send. Also cloning of `NestingSender` is more expensive than cloning a plain
 //!	mpsc::Sender, the overhead should be negligible though.
 //!
 //!	Further limitations: Because everything is routed to the same channel, it is not possible with
@@ -86,12 +86,12 @@ use futures::{channel::mpsc, SinkExt};
 ///
 /// This sender wraps an `mpsc::Sender` and a conversion function for converting given messages of
 /// type `M1` to the message type actually supported by the mpsc (`M`).
-pub struct MessageSender<M, M1> {
+pub struct NestingSender<M, M1> {
 	sender: mpsc::Sender<M>,
 	conversion: Box<dyn Conversion<M, M1>>,
 }
 
-impl<M> MessageSender<M, M>
+impl<M> NestingSender<M, M>
 where
 	M: 'static,
 {
@@ -103,12 +103,12 @@ where
 	}
 }
 
-impl<M, M1> MessageSender<M, M1>
+impl<M, M1> NestingSender<M, M1>
 where
 	M: 'static,
 	M1: 'static,
 {
-	/// Create a new `MessageSender` which wraps a given "parent" sender.
+	/// Create a new `NestingSender` which wraps a given "parent" sender.
 	///
 	/// Doing the necessary conversion from the child message type `M1` to the parent message type
 	/// `M2.
@@ -117,11 +117,11 @@ where
 	///		F(M2) -> M (via parent)
 	///		F(M1) -> M2 (via child_conversion)
 	/// Result: F(M1) -> M
-	pub fn new<M2>(parent: MessageSender<M, M2>, child_conversion: fn(M1) -> M2) -> Self
+	pub fn new<M2>(parent: NestingSender<M, M2>, child_conversion: fn(M1) -> M2) -> Self
 	where
 		M2: 'static,
 	{
-		let MessageSender { sender, conversion } = parent;
+		let NestingSender { sender, conversion } = parent;
 		Self { sender, conversion: Box::new(move |x| conversion(child_conversion(x))) }
 	}
 
@@ -137,7 +137,7 @@ where
 
 // Helper traits and implementations:
 
-impl<M, M1> Clone for MessageSender<M, M1>
+impl<M, M1> Clone for NestingSender<M, M1>
 where
 	M: 'static,
 	M1: 'static,

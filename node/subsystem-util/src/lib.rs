@@ -72,8 +72,8 @@ pub mod runtime;
 /// Database trait for subsystem.
 pub mod database;
 
-/// Hierarchical message sending
-pub mod message_sender;
+/// Nested message sending
+pub mod nesting_sender;
 
 mod determine_new_blocks;
 
