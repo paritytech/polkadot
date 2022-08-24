@@ -18,6 +18,7 @@ use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use futures::channel::{mpsc, oneshot};
 
+use indexmap::IndexMap;
 use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
 use polkadot_node_primitives::{CandidateVotes, DisputeMessage, SignedDisputeStatement};
 use polkadot_node_subsystem::{messages::DisputeCoordinatorMessage, overseer, ActiveLeavesUpdate};
@@ -54,7 +55,9 @@ pub struct DisputeSender {
 	active_sessions: HashMap<SessionIndex, Hash>,
 
 	/// All ongoing dispute sendings this subsystem is aware of.
-	disputes: HashMap<CandidateHash, SendTask>,
+	///
+	/// Using an `IndexMap` so items can be iterated in the order of insertion.
+	disputes: IndexMap<CandidateHash, SendTask<M>>,
 
 	/// Sender to be cloned for `SendTask`s.
 	tx: mpsc::Sender<TaskFinish>,
@@ -134,10 +137,11 @@ impl DisputeSender {
 
 		let active_disputes: HashSet<_> = active_disputes.into_iter().map(|(_, c)| c).collect();
 
-		// Cleanup obsolete senders:
+		// Cleanup obsolete senders (retain keeps order of remaining elements):
 		self.disputes
 			.retain(|candidate_hash, _| active_disputes.contains(candidate_hash));
 
+		// Iterates in order of insertion:
 		for dispute in self.disputes.values_mut() {
 			if have_new_sessions || dispute.has_failed_sends() {
 				dispute
@@ -146,7 +150,11 @@ impl DisputeSender {
 			}
 		}
 
-		// This should only be non-empty on startup, but if not - we got you covered:
+		// This should only be non-empty on startup, but if not - we got you covered.
+		//
+		// Initial order will not be maintained in that case, but that should be fine as disputes
+		// recovered at startup will be relatively "old" anyway and we assume that no more than a
+		// third of the validators will go offline at any point in time anyway.
 		for dispute in unknown_disputes {
 			self.start_send_for_dispute(ctx, runtime, dispute).await?
 		}
