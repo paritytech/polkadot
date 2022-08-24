@@ -1224,7 +1224,7 @@ async fn get_approval_signatures_for_candidate<Context>(
 			gum::debug!(
 				target: LOG_TARGET,
 				?candidate_hash,
-				"Votes got requested, but candidate was not found in db."
+				"Sent back empty votes because the candidate was not found in db."
 			);
 			return Ok(())
 		},
