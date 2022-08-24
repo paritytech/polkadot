@@ -24,6 +24,8 @@
 //! The sender is responsible for getting our vote out, see [`sender`]. The receiver handles
 //! incoming [`DisputeRequest`]s and offers spam protection, see [`receiver`].
 
+use std::time::Duration;
+
 use futures::{channel::mpsc, FutureExt, StreamExt, TryFutureExt};
 
 use polkadot_node_network_protocol::authority_discovery::AuthorityDiscovery;
@@ -56,6 +58,8 @@ mod sender;
 use self::sender::{DisputeSender, TaskFinish};
 
 ///	## The receiver [`DisputesReceiver`]
+///
+///	TODO: Obsolete:
 ///
 ///	The receiving side is implemented as `DisputesReceiver` and is run as a separate long running task within
 ///	this subsystem ([`DisputesReceiver::run`]).
@@ -92,6 +96,20 @@ mod metrics;
 pub use metrics::Metrics;
 
 const LOG_TARGET: &'static str = "parachain::dispute-distribution";
+
+/// Rate limit on the `receiver` side.
+///
+/// If messages from one peer come in at a higher rate than every `RECEIVE_RATE_LIMIT` on average, we
+/// start dropping messages from that peer to enforce that limit.
+pub const RECEIVE_RATE_LIMIT: Duration = Duration::from_millis(100);
+
+/// Rate limit on the `sender` side.
+///
+/// In order to not hit the `RECEIVE_RATE_LIMIT` on the receiving side, we limit out sending rate as
+/// well.
+///
+/// We add 50ms extra, just to have some save margin to the `RECEIVE_RATE_LIMIT`.
+pub const SEND_RATE_LIMIT: Duration = RECEIVE_RATE_LIMIT.saturating_add(Duration::from_millis(50));
 
 /// The dispute distribution subsystem.
 pub struct DisputeDistributionSubsystem<AD> {
@@ -172,6 +190,12 @@ where
 		ctx.spawn("disputes-receiver", receiver.run().boxed())
 			.map_err(FatalError::SpawnTask)?;
 
+		// Process messages for sending side.
+		//
+		// Note: We want the sender to be rate limited and we are currently taking advantage of the
+		// fact that the root task of this subsystem is only concerned with sending: Functions of
+		// `DisputeSender` might back pressure if the rate limit is hit, which will slow down this
+		// loop. If this fact ever changes, we will likely need another task.
 		loop {
 			let message = MuxedMessage::receive(&mut ctx, &mut self.sender_rx).await;
 			match message {
@@ -247,9 +271,10 @@ impl MuxedMessage {
 		// ends.
 		let from_overseer = ctx.recv().fuse();
 		futures::pin_mut!(from_overseer, from_sender);
-		futures::select!(
-			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
+		// We select biased to make sure we finish up loose ends, before starting new work.
+		futures::select_biased!(
 			msg = from_sender.next() => MuxedMessage::Sender(msg),
+			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
 		)
 	}
 }

@@ -14,11 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::{
+	collections::{HashMap, HashSet},
+	time::Duration,
+};
 
 use futures::channel::{mpsc, oneshot};
 
-use indexmap::IndexMap;
+use futures_timer::Delay;
+use indexmap::{map::Entry, IndexMap};
 use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
 use polkadot_node_primitives::{CandidateVotes, DisputeMessage, SignedDisputeStatement};
 use polkadot_node_subsystem::{messages::DisputeCoordinatorMessage, overseer, ActiveLeavesUpdate};
@@ -29,6 +33,9 @@ use polkadot_primitives::v2::{CandidateHash, DisputeStatement, Hash, SessionInde
 ///
 /// It is going to spawn real tasks as it sees fit for getting the votes of the particular dispute
 /// out.
+///
+/// As we assume disputes have a priority, we start sending for disputes in the order
+/// `start_sender` got called.
 mod send_task;
 use send_task::SendTask;
 pub use send_task::TaskFinish;
@@ -38,13 +45,15 @@ mod error;
 pub use error::{Error, FatalError, JfyiError, Result};
 
 use self::error::JfyiErrorResult;
-use crate::{Metrics, LOG_TARGET};
+use crate::{Metrics, LOG_TARGET, SEND_RATE_LIMIT};
 
 /// The `DisputeSender` keeps track of all ongoing disputes we need to send statements out.
 ///
 /// For each dispute a `SendTask` is responsible for sending to the concerned validators for that
 /// particular dispute. The `DisputeSender` keeps track of those tasks, informs them about new
 /// sessions/validator sets and cleans them up when they become obsolete.
+///
+/// The unit of work for the  `DisputeSender` is a dispute, represended by `SendTask`s.
 pub struct DisputeSender {
 	/// All heads we currently consider active.
 	active_heads: Vec<Hash>,
@@ -57,10 +66,13 @@ pub struct DisputeSender {
 	/// All ongoing dispute sendings this subsystem is aware of.
 	///
 	/// Using an `IndexMap` so items can be iterated in the order of insertion.
-	disputes: IndexMap<CandidateHash, SendTask<M>>,
+	disputes: IndexMap<CandidateHash, SendTask>,
 
 	/// Sender to be cloned for `SendTask`s.
 	tx: mpsc::Sender<TaskFinish>,
+
+	/// Future for delaying too frequent creation of dispute sending tasks.
+	rate_limit: RateLimit,
 
 	/// Metrics for reporting stats about sent requests.
 	metrics: Metrics,
@@ -73,13 +85,17 @@ impl DisputeSender {
 		Self {
 			active_heads: Vec::new(),
 			active_sessions: HashMap::new(),
-			disputes: HashMap::new(),
+			disputes: IndexMap::new(),
 			tx,
+			rate_limit: RateLimit::new(),
 			metrics,
 		}
 	}
 
 	/// Create a `SendTask` for a particular new dispute.
+	///
+	/// This function is rate-limited by `SEND_RATE_LIMIT`. It will block if called too frequently
+	/// in order to maintain the limit.
 	pub async fn start_sender<Context>(
 		&mut self,
 		ctx: &mut Context,
@@ -106,6 +122,9 @@ impl DisputeSender {
 				vacant.insert(send_task);
 			},
 		}
+
+		self.rate_limit.limit().await;
+
 		Ok(())
 	}
 
@@ -115,6 +134,8 @@ impl DisputeSender {
 	/// - Get new authorities to send messages to.
 	/// - Get rid of obsolete tasks and disputes.
 	/// - Get dispute sending started in case we missed one for some reason (e.g. on node startup)
+	///
+	/// This function ensures the `SEND_RATE_LIMIT`, therefore it might block.
 	pub async fn update_leaves<Context>(
 		&mut self,
 		ctx: &mut Context,
@@ -141,14 +162,27 @@ impl DisputeSender {
 		self.disputes
 			.retain(|candidate_hash, _| active_disputes.contains(candidate_hash));
 
+		// Replace with limit, just in case of an error.
+		let mut rate_limit = self.rate_limit.replace_with_limit();
+
 		// Iterates in order of insertion:
 		for dispute in self.disputes.values_mut() {
 			if have_new_sessions || dispute.has_failed_sends() {
-				dispute
+				let sends_happened = dispute
 					.refresh_sends(ctx, runtime, &self.active_sessions, &self.metrics)
 					.await?;
+				// Only rate limit if we actually sent someting out _and_ it was not just because
+				// of errors on previous sends.
+				//
+				// Reasoning: It would not be acceptable to slow down the whole subsystem, just
+				// because of a few bad peers having problems. It is actually better to risk
+				// running into their rate limit in that case and accept a minor reputation change.
+				if sends_happened && have_new_sessions {
+					rate_limit.limit().await;
+				}
 			}
 		}
+		self.rate_limit = rate_limit;
 
 		// This should only be non-empty on startup, but if not - we got you covered.
 		//
@@ -156,7 +190,8 @@ impl DisputeSender {
 		// recovered at startup will be relatively "old" anyway and we assume that no more than a
 		// third of the validators will go offline at any point in time anyway.
 		for dispute in unknown_disputes {
-			self.start_send_for_dispute(ctx, runtime, dispute).await?
+			self.start_send_for_dispute(ctx, runtime, dispute).await?;
+			self.rate_limit.limit().await;
 		}
 		Ok(())
 	}
@@ -322,6 +357,41 @@ impl DisputeSender {
 		// Update in any case, so we use current heads for queries:
 		self.active_sessions = new_sessions;
 		Ok(updated)
+	}
+}
+
+/// Rate limiting logic.
+struct RateLimit {
+	limit: Delay,
+}
+
+impl RateLimit {
+	/// Create new `RateLimit` that is immediately ready.
+	fn new() -> Self {
+		// Start with an empty duration, as there has not been any previous call.
+		Self { limit: Delay::new(Duration::new(0, 0)) }
+	}
+
+	/// Initialized with actual `SEND_RATE_LIMIT` duration.
+	fn new_limit() -> Self {
+		Self { limit: Delay::new(SEND_RATE_LIMIT) }
+	}
+
+	/// Take the `RateLimit` and replace with one that immediately is ready.
+	fn take(&mut self) -> Self {
+		std::mem::replace(self, RateLimit::new())
+	}
+
+	/// Replace the `RateLimit` and replace `Self::new_limit()`.
+	fn replace_with_limit(&mut self) -> Self {
+		std::mem::replace(self, Self::new_limit())
+	}
+
+	/// Wait until ready and prepare for next call.
+	async fn limit(&mut self) {
+		let old = self.take();
+		old.limit.await;
+		*self = Self::new_limit();
 	}
 }
 
