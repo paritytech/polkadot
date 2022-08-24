@@ -153,7 +153,7 @@ sp_api::decl_runtime_apis! {
 		/***** STAGING *****/
 
 		/// Returns all onchain disputes.
-		/// This is a staging method! Do not use on production runtimes!
-		fn staging_get_disputes() -> Vec<(v2::SessionIndex, v2::CandidateHash, v2::DisputeState<v2::BlockNumber>)>;
+		#[api_version(3)]
+		fn get_disputes() -> Vec<(v2::SessionIndex, v2::CandidateHash, v2::DisputeState<v2::BlockNumber>)>;
 	}
 }

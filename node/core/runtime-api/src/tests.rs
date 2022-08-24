@@ -196,10 +196,6 @@ sp_api::mock_impl_runtime_apis! {
 		) -> Option<ValidationCodeHash> {
 			self.validation_code_hash.get(&para).map(|c| c.clone())
 		}
-
-		fn staging_get_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
-			unimplemented!()
-		}
 	}
 
 	impl BabeApi<Block> for MockRuntimeApi {

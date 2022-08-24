@@ -500,6 +500,6 @@ where
 		Request::ValidationCodeHash(para, assumption, sender) =>
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
 		Request::StagingDisputes(sender) =>
-			query!(StagingDisputes, staging_get_disputes(), ver = 2, sender),
+			query!(StagingDisputes, get_disputes(), ver = 2, sender),
 	}
 }
