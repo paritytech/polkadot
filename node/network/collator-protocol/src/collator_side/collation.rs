@@ -135,5 +135,11 @@ impl VersionedCollationRequest {
 	}
 }
 
-pub type ActiveCollationFetches =
-	FuturesUnordered<BoxFuture<'static, (Hash, CandidateHash, PeerId)>>;
+pub struct CollationSendResult {
+	pub relay_parent: Hash,
+	pub candidate_hash: CandidateHash,
+	pub peer_id: PeerId,
+	pub timed_out: bool,
+}
+
+pub type ActiveCollationFetches = FuturesUnordered<BoxFuture<'static, CollationSendResult>>;

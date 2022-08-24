@@ -62,8 +62,8 @@ mod metrics;
 mod tests;
 
 use collation::{
-	ActiveCollationFetches, Collation, CollationStatus, VersionedCollationRequest,
-	WaitingCollationFetches,
+	ActiveCollationFetches, Collation, CollationSendResult, CollationStatus,
+	VersionedCollationRequest, WaitingCollationFetches,
 };
 
 pub use metrics::Metrics;
@@ -300,6 +300,7 @@ async fn distribute_collation<Context>(
 		gum::debug!(
 			target: LOG_TARGET,
 			?candidate_relay_parent,
+			?relay_parent_mode,
 			"The limit of {} collations per relay parent is already reached",
 			collations_limit,
 		);
@@ -702,15 +703,9 @@ async fn send_collation(
 	state.active_collation_fetches.push(
 		async move {
 			let r = rx.timeout(MAX_UNSHARED_UPLOAD_TIME).await;
-			if r.is_none() {
-				gum::debug!(
-					target: LOG_TARGET,
-					?relay_parent,
-					?peer_id,
-					"Sending collation to validator timed out, carrying on with next validator."
-				);
-			}
-			(relay_parent, candidate_hash, peer_id)
+			let timed_out = r.is_none();
+
+			CollationSendResult { relay_parent, candidate_hash, peer_id, timed_out }
 		}
 		.boxed(),
 	);
@@ -1144,9 +1139,20 @@ pub(crate) async fn run<Context>(
 				FromOrchestra::Signal(BlockFinalized(..)) => {}
 				FromOrchestra::Signal(Conclude) => return Ok(()),
 			},
-			(relay_parent, candidate_hash, peer_id) = state.active_collation_fetches.select_next_some() => {
+			CollationSendResult { relay_parent, candidate_hash, peer_id, timed_out } = state.active_collation_fetches.select_next_some() => {
 				let next = if let Some(waiting) = state.waiting_collation_fetches.get_mut(&relay_parent) {
-					waiting.waiting_peers.remove(&(peer_id, candidate_hash));
+					if timed_out {
+						gum::debug!(
+							target: LOG_TARGET,
+							?relay_parent,
+							?peer_id,
+							?candidate_hash,
+							"Sending collation to validator timed out, carrying on with next validator."
+						);
+						waiting.waiting_peers.retain(|(waiting_peer_id, ..)|  *waiting_peer_id != peer_id);
+					} else {
+						waiting.waiting_peers.remove(&(peer_id, candidate_hash));
+					}
 					if let Some(next) = waiting.waiting.pop_front() {
 						next
 					} else {

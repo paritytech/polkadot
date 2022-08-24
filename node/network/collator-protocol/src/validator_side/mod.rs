@@ -46,8 +46,9 @@ use polkadot_node_primitives::{PoV, SignedFullStatement, Statement};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
-		CandidateBackingMessage, CollatorProtocolMessage, IfDisconnected, NetworkBridgeEvent,
-		NetworkBridgeMessage, ProspectiveParachainsMessage, ProspectiveValidationDataRequest,
+		CandidateBackingMessage, CollatorProtocolMessage, HypotheticalDepthRequest, IfDisconnected,
+		NetworkBridgeEvent, NetworkBridgeMessage, ProspectiveParachainsMessage,
+		ProspectiveValidationDataRequest,
 	},
 	overseer, CollatorProtocolSenderTrait, FromOrchestra, OverseerSignal, PerLeafSpan,
 };
@@ -132,7 +133,11 @@ struct PerRequest {
 struct CollatingPeerState {
 	collator_id: CollatorId,
 	para_id: ParaId,
-	// Advertised relay parents.
+	// Collations advertised by peer per relay parent.
+	//
+	// V1 network protocol doesn't include candidate hash in
+	// advertisements, we store an empty set in this case to occupy
+	// a slot in map.
 	advertisements: HashMap<Hash, HashSet<CandidateHash>>,
 	last_active: Instant,
 }
@@ -294,7 +299,7 @@ impl PeerData {
 		}
 	}
 
-	/// Note that a peer is now collating with the given collator and para ids.
+	/// Note that a peer is now collating with the given collator and para id.
 	///
 	/// This will overwrite any previous call to `set_collating` and should only be called
 	/// if `is_collating` is false.
@@ -443,7 +448,8 @@ struct State {
 	/// another collator the chance to be faster (dequeue next fetch request as well).
 	collation_fetch_timeouts: FuturesUnordered<BoxFuture<'static, (CollatorId, Hash)>>,
 
-	/// Keep track of all pending candidate collations
+	/// Collations that we have successfully requested from peers and waiting
+	/// on validation.
 	fetched_candidates: HashMap<FetchedCollation, CollationEvent>,
 }
 
@@ -455,7 +461,10 @@ fn is_relay_parent_in_implicit_view(
 	para_id: ParaId,
 ) -> bool {
 	match relay_parent_mode {
-		ProspectiveParachainsMode::Disabled => true,
+		ProspectiveParachainsMode::Disabled => {
+			// The head is known and async backing is disabled => it is an active leaf.
+			true
+		},
 		ProspectiveParachainsMode::Enabled => active_leaves.iter().any(|(hash, mode)| {
 			mode.is_enabled() &&
 				implicit_view
@@ -596,9 +605,7 @@ async fn fetch_collation(
 				Delay::new(MAX_UNSHARED_DOWNLOAD_TIME).await;
 				(collator_id, relay_parent)
 			};
-			state
-				.collation_fetch_timeouts
-				.push(timeout(id.clone(), relay_parent.clone()).boxed());
+			state.collation_fetch_timeouts.push(timeout(id.clone(), relay_parent).boxed());
 			request_collation(
 				sender,
 				state,
@@ -687,7 +694,7 @@ async fn handle_peer_view_change(state: &mut State, peer_id: PeerId, view: View)
 	);
 	state
 		.requested_collations
-		.retain(|pc, _| pc.peer_id != peer_id || !peer_data.has_advertised(&pc.relay_parent, None));
+		.retain(|pc, _| pc.peer_id != peer_id || peer_data.has_advertised(&pc.relay_parent, None));
 
 	Ok(())
 }
@@ -844,7 +851,7 @@ async fn process_incoming_peer_message<Context>(
 					target: LOG_TARGET,
 					peer_id = ?origin,
 					?para_id,
-					"Peer is not in the collating state",
+					"Peer is already in the collating state",
 				);
 				modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
 				return
@@ -913,24 +920,41 @@ async fn process_incoming_peer_message<Context>(
 	}
 }
 
-// async fn request_hypothetical_depth<Sender>(
-// 	sender: &mut Sender,
-// 	relay_parent: Hash,
-// 	candidate_hash: CandidateHash,
-// 	para_id: ParaId,
-// ) -> Option<Vec<usize>>
-// where
-// 	Sender: CollatorProtocolSenderTrait, {
-// 		let (tx, rx) = oneshot::channel();
+async fn is_seconding_allowed<Sender>(
+	sender: &mut Sender,
+	relay_parent: Hash,
+	candidate_hash: CandidateHash,
+	parent_head_data_hash: Hash,
+	para_id: ParaId,
+	active_leaves: impl IntoIterator<Item = Hash>,
+) -> Result<bool>
+where
+	Sender: CollatorProtocolSenderTrait,
+{
+	for leaf in active_leaves {
+		let (tx, rx) = oneshot::channel();
 
-// 		let request = HypotheticalDepthRequest {
-// 			candidate_hash,
-// 			candidate_para: todo!(),
-// 			parent_head_data_hash: todo!(),
-// 			candidate_relay_parent: todo!(),
-// 			fragment_tree_relay_parent: todo!(),
-// 		};
-// 	}
+		let request = HypotheticalDepthRequest {
+			candidate_hash,
+			candidate_para: para_id,
+			parent_head_data_hash,
+			candidate_relay_parent: relay_parent,
+			fragment_tree_relay_parent: leaf,
+		};
+
+		sender
+			.send_message(ProspectiveParachainsMessage::GetHypotheticalDepth(request, tx))
+			.await;
+
+		let response = rx.await.map_err(Error::CancelledGetHypotheticalDepth)?;
+
+		if !response.is_empty() {
+			return Ok(true)
+		}
+	}
+
+	Ok(false)
+}
 
 async fn handle_advertisement<Sender>(
 	sender: &mut Sender,
@@ -1023,24 +1047,33 @@ async fn handle_advertisement<Sender>(
 		return
 	}
 
-	let insert_result = match (relay_parent_mode, prospective_candidate) {
-		(ProspectiveParachainsMode::Disabled, None) => peer_data.insert_advertisement(
-			relay_parent,
-			relay_parent_mode,
-			None,
-			&state.implicit_view,
-			&state.active_leaves,
-		),
+	// TODO: only fetch a collation if it's built on top of backed nodes in fragment tree.
+	// https://github.com/paritytech/polkadot/issues/5923
+	let is_seconding_allowed = match (relay_parent_mode, prospective_candidate) {
+		(ProspectiveParachainsMode::Disabled, None) => true,
 		(ProspectiveParachainsMode::Enabled, Some((candidate_hash, parent_head_data_hash))) => {
-			// TODO [now]: request hypothetical depth and check for backed parent nodes
-			// in a fragment tree.
-			peer_data.insert_advertisement(
+			let active_leaves = state.active_leaves.keys().copied();
+			is_seconding_allowed(
+				sender,
 				relay_parent,
-				relay_parent_mode,
-				Some(candidate_hash),
-				&state.implicit_view,
-				&state.active_leaves,
+				candidate_hash,
+				parent_head_data_hash,
+				para_id,
+				active_leaves,
 			)
+			.await
+			.unwrap_or_else(|err| {
+				gum::warn!(
+					target: LOG_TARGET,
+					?relay_parent,
+					?para_id,
+					?candidate_hash,
+					?relay_parent_mode,
+					error = %err,
+					"Failed to query prospective parachains subsystem",
+				);
+				false
+			})
 		},
 		_ => {
 			gum::error!(
@@ -1053,6 +1086,19 @@ async fn handle_advertisement<Sender>(
 			return
 		},
 	};
+
+	if !is_seconding_allowed {
+		return
+	}
+
+	let candidate_hash = prospective_candidate.map(|(hash, ..)| hash);
+	let insert_result = peer_data.insert_advertisement(
+		relay_parent,
+		relay_parent_mode,
+		candidate_hash,
+		&state.implicit_view,
+		&state.active_leaves,
+	);
 
 	match insert_result {
 		Ok((id, para_id)) => {
@@ -1576,9 +1622,6 @@ async fn handle_collation_fetched_result<Context>(
 	state: &mut State,
 	(mut collation_event, res): PendingCollationFetch,
 ) {
-	// If no prior collation for this relay parent has been seconded, then
-	// memorize the `collation_event` for that `relay_parent`, such that we may
-	// notify the collator of their successful second backing
 	let relay_parent = collation_event.1.relay_parent;
 	let para_id = collation_event.1.para_id;
 
