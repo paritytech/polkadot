@@ -119,7 +119,7 @@ mod tests {
 		MockNet::reset();
 
 		let remark =
-			parachain::Call::System(frame_system::Call::<parachain::Runtime>::remark_with_event {
+			parachain::RuntimeCall::System(frame_system::Call::<parachain::Runtime>::remark_with_event {
 				remark: vec![1, 2, 3],
 			});
 		Relay::execute_with(|| {
@@ -146,7 +146,7 @@ mod tests {
 	fn ump() {
 		MockNet::reset();
 
-		let remark = relay_chain::Call::System(
+		let remark = relay_chain::RuntimeCall::System(
 			frame_system::Call::<relay_chain::Runtime>::remark_with_event { remark: vec![1, 2, 3] },
 		);
 		ParaA::execute_with(|| {
@@ -174,7 +174,7 @@ mod tests {
 		MockNet::reset();
 
 		let remark =
-			parachain::Call::System(frame_system::Call::<parachain::Runtime>::remark_with_event {
+			parachain::RuntimeCall::System(frame_system::Call::<parachain::Runtime>::remark_with_event {
 				remark: vec![1, 2, 3],
 			});
 		ParaA::execute_with(|| {

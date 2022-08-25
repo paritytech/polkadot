@@ -51,10 +51,10 @@ pub mod pallet_test_notifier {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + crate::Config {
-		type Event: IsType<<Self as frame_system::Config>::Event> + From<Event<Self>>;
+		type RuntimeEvent: IsType<<Self as frame_system::Config>::RuntimeEvent> + From<Event<Self>>;
 		type Origin: IsType<<Self as frame_system::Config>::Origin>
 			+ Into<Result<crate::Origin, <Self as Config>::Origin>>;
-		type Call: IsType<<Self as crate::Config>::Call> + From<Call<Self>>;
+		type RuntimeCall: IsType<<Self as crate::Config>::RuntimeCall> + From<Call<Self>>;
 	}
 
 	#[pallet::event]
@@ -97,7 +97,7 @@ pub mod pallet_test_notifier {
 				Call::<T>::notification_received { query_id: 0, response: Default::default() };
 			let qid = crate::Pallet::<T>::new_notify_query(
 				Junction::AccountId32 { network: Any, id }.into(),
-				<T as Config>::Call::from(call),
+				<T as Config>::RuntimeCall::from(call),
 				100u32.into(),
 			);
 			Self::deposit_event(Event::<T>::NotifyQueryPrepared(qid));
@@ -259,7 +259,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = Case<TrustedAssets>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<CurrencyPerSecond, ()>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
@@ -282,7 +282,7 @@ impl pallet_xcm::Config for Test {
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;
 	type RuntimeCall = RuntimeCall;

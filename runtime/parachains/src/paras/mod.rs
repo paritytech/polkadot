@@ -473,7 +473,7 @@ pub mod pallet {
 		+ shared::Config
 		+ frame_system::offchain::SendTransactionTypes<Call<Self>>
 	{
-		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		#[pallet::constant]
 		type UnsignedPriority: Get<TransactionPriority>;

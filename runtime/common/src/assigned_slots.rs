@@ -85,7 +85,7 @@ pub mod pallet {
 	#[pallet::disable_frame_system_supertrait_check]
 	pub trait Config: configuration::Config + paras::Config + slots::Config {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// Origin for assigning slots.
 		type AssignSlotOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
@@ -579,10 +579,10 @@ mod tests {
 
 	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
 	where
-		Call: From<C>,
+		RuntimeCall: From<C>,
 	{
 		type Extrinsic = UncheckedExtrinsic;
-		type OverarchingCall = Call;
+		type OverarchingCall = RuntimeCall;
 	}
 
 	parameter_types! {

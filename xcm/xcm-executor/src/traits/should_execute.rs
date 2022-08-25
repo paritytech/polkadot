@@ -31,9 +31,9 @@ pub trait ShouldExecute {
 	/// - `weight_credit`: The pre-established amount of weight that the system has determined this
 	///   message may utilize in its execution. Typically non-zero only because of prior fee
 	///   payment, but could in principle be due to other factors.
-	fn should_execute<Call>(
+	fn should_execute<RuntimeCall>(
 		origin: &MultiLocation,
-		message: &mut Xcm<Call>,
+		message: &mut Xcm<RuntimeCall>,
 		max_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()>;
@@ -41,9 +41,9 @@ pub trait ShouldExecute {
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl ShouldExecute for Tuple {
-	fn should_execute<Call>(
+	fn should_execute<RuntimeCall>(
 		origin: &MultiLocation,
-		message: &mut Xcm<Call>,
+		message: &mut Xcm<RuntimeCall>,
 		max_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {

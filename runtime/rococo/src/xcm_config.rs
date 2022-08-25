@@ -17,7 +17,7 @@
 //! XCM configuration for Rococo.
 
 use super::{
-	parachains_origin, AccountId, Balances, Call, Event, Origin, ParaId, Runtime, WeightToFee,
+	parachains_origin, AccountId, Balances, RuntimeCall, RuntimeEvent, Origin, ParaId, Runtime, WeightToFee,
 	XcmPallet,
 };
 use frame_support::{
@@ -128,7 +128,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	type Trader = UsingComponents<WeightToFee, RocLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
@@ -161,7 +161,7 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;
 	type RuntimeCall = RuntimeCall;

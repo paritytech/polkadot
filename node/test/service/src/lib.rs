@@ -396,7 +396,7 @@ pub fn construct_transfer_extrinsic(
 	dest: sp_keyring::AccountKeyring,
 	value: Balance,
 ) -> UncheckedExtrinsic {
-	let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer {
+	let function = polkadot_test_runtime::RuntimeCall::Balances(pallet_balances::Call::transfer {
 		dest: MultiSigner::from(dest.public()).into_account().into(),
 		value,
 	});

@@ -98,7 +98,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// Balances Pallet
 		type Currency: Currency<Self::AccountId>;
@@ -1081,7 +1081,7 @@ mod tests {
 			);
 			// Vesting lock is removed in whole on block 101 (100 blocks after block 1)
 			System::set_block_number(100);
-			let vest_call = Call::Vesting(pallet_vesting::Call::<Test>::vest {});
+			let vest_call = RuntimeCall::Vesting(pallet_vesting::Call::<Test>::vest {});
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(alice())));
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(bob())));
 			assert_eq!(<Test as Config>::VestingSchedule::vesting_balance(&alice()), Some(45));

@@ -64,8 +64,8 @@ impl WeighMultiAssets for MultiAssets {
 	}
 }
 
-pub struct KusamaXcmWeight<Call>(core::marker::PhantomData<Call>);
-impl<Call> XcmWeightInfo<Call> for KusamaXcmWeight<Call> {
+pub struct KusamaXcmWeight<RuntimeCall>(core::marker::PhantomData<RuntimeCall>);
+impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for KusamaXcmWeight<RuntimeCall> {
 	fn withdraw_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::withdraw_asset())
 	}
@@ -91,7 +91,7 @@ impl<Call> XcmWeightInfo<Call> for KusamaXcmWeight<Call> {
 	fn transact(
 		_origin_type: &OriginKind,
 		_require_weight_at_most: &u64,
-		_call: &DoubleEncoded<Call>,
+		_call: &DoubleEncoded<RuntimeCall>,
 	) -> Weight {
 		XcmGeneric::<Runtime>::transact()
 	}
@@ -171,10 +171,10 @@ impl<Call> XcmWeightInfo<Call> for KusamaXcmWeight<Call> {
 	fn refund_surplus() -> Weight {
 		XcmGeneric::<Runtime>::refund_surplus()
 	}
-	fn set_error_handler(_xcm: &Xcm<Call>) -> Weight {
+	fn set_error_handler(_xcm: &Xcm<RuntimeCall>) -> Weight {
 		XcmGeneric::<Runtime>::set_error_handler()
 	}
-	fn set_appendix(_xcm: &Xcm<Call>) -> Weight {
+	fn set_appendix(_xcm: &Xcm<RuntimeCall>) -> Weight {
 		XcmGeneric::<Runtime>::set_appendix()
 	}
 	fn clear_error() -> Weight {

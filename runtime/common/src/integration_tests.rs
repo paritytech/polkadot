@@ -92,10 +92,10 @@ frame_support::construct_runtime!(
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
 where
-	Call: From<C>,
+	RuntimeCall: From<C>,
 {
 	type Extrinsic = UncheckedExtrinsic;
-	type OverarchingCall = Call;
+	type OverarchingCall = RuntimeCall;
 }
 
 use crate::{auctions::Error as AuctionsError, crowdloan::Error as CrowdloanError};

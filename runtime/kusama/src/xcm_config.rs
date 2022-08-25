@@ -17,7 +17,7 @@
 //! XCM configurations for the Kusama runtime.
 
 use super::{
-	parachains_origin, AccountId, Balances, Call, CouncilCollective, Event, Origin, ParaId,
+	parachains_origin, AccountId, Balances, RuntimeCall, CouncilCollective, RuntimeEvent, Origin, ParaId,
 	Runtime, WeightToFee, XcmPallet,
 };
 use frame_support::{match_types, parameter_types, traits::Everything, weights::Weight};
@@ -139,7 +139,7 @@ impl xcm_executor::Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher =
-		WeightInfoBounds<crate::weights::xcm::KusamaXcmWeight<Call>, Call, MaxInstructions>;
+		WeightInfoBounds<crate::weights::xcm::KusamaXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
 	type Trader = UsingComponents<WeightToFee, KsmLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
@@ -185,7 +185,7 @@ impl pallet_xcm::Config for Runtime {
 	// Anyone is able to use reserve transfers regardless of who they are and what they want to
 	// transfer.
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;
 	type RuntimeCall = RuntimeCall;

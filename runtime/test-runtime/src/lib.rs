@@ -160,9 +160,9 @@ impl frame_system::Config for Runtime {
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
 where
-	Call: From<C>,
+	RuntimeCall: From<C>,
 {
-	type OverarchingCall = Call;
+	type OverarchingCall = RuntimeCall;
 	type Extrinsic = UncheckedExtrinsic;
 }
 
@@ -383,14 +383,14 @@ impl pallet_grandpa::Config for Runtime {
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 where
-	Call: From<LocalCall>,
+	RuntimeCall: From<LocalCall>,
 {
 	fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
-		call: Call,
+		call: RuntimeCall,
 		public: <Signature as Verify>::Signer,
 		account: AccountId,
 		nonce: <Runtime as frame_system::Config>::Index,
-	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
+	) -> Option<(RuntimeCall, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
 		let period =
 			BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
 
@@ -589,10 +589,10 @@ pub mod pallet_test_notifier {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_xcm::Config {
-		type Event: IsType<<Self as frame_system::Config>::Event> + From<Event<Self>>;
+		type RuntimeEvent: IsType<<Self as frame_system::Config>::RuntimeEvent> + From<Event<Self>>;
 		type Origin: IsType<<Self as frame_system::Config>::Origin>
 			+ Into<Result<pallet_xcm::Origin, <Self as Config>::Origin>>;
-		type Call: IsType<<Self as pallet_xcm::Config>::Call> + From<Call<Self>>;
+		type RuntimeCall: IsType<<Self as pallet_xcm::Config>::RuntimeCall> + From<Call<Self>>;
 	}
 
 	#[pallet::event]
@@ -635,7 +635,7 @@ pub mod pallet_test_notifier {
 				Call::<T>::notification_received { query_id: 0, response: Default::default() };
 			let qid = pallet_xcm::Pallet::<T>::new_notify_query(
 				Junction::AccountId32 { network: Any, id }.into(),
-				<T as Config>::Call::from(call),
+				<T as Config>::RuntimeCall::from(call),
 				100u32.into(),
 			);
 			Self::deposit_event(Event::<T>::NotifyQueryPrepared(qid));
@@ -732,7 +732,7 @@ pub type SignedExtra = (
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
-pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
+pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
 	Runtime,
@@ -742,7 +742,7 @@ pub type Executive = frame_executive::Executive<
 	AllPalletsWithSystem,
 >;
 /// The payload being signed in transactions.
-pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
 
 pub type Hash = <Block as BlockT>::Hash;
 pub type Extrinsic = <Block as BlockT>::Extrinsic;
@@ -1065,13 +1065,13 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentCallApi<Block, Balance, Call>
+	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentCallApi<Block, Balance, RuntimeCall>
 		for Runtime
 	{
-		fn query_call_info(call: Call, len: u32) -> RuntimeDispatchInfo<Balance> {
+		fn query_call_info(call: RuntimeCall, len: u32) -> RuntimeDispatchInfo<Balance> {
 			TransactionPayment::query_call_info(call, len)
 		}
-		fn query_call_fee_details(call: Call, len: u32) -> FeeDetails<Balance> {
+		fn query_call_fee_details(call: RuntimeCall, len: u32) -> FeeDetails<Balance> {
 			TransactionPayment::query_call_fee_details(call, len)
 		}
 	}

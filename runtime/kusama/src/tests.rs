@@ -87,7 +87,7 @@ fn transfer_cost_min_multiplier() {
 	};
 	let info = call.get_dispatch_info();
 	// convert to outer call.
-	let call = Call::Balances(call);
+	let call = RuntimeCall::Balances(call);
 	let len = call.using_encoded(|e| e.len()) as u32;
 
 	let mut ext = sp_io::TestExternalities::new_empty();

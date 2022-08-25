@@ -189,7 +189,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// `PalletId` for the crowdloan pallet. An appropriate value could be `PalletId(*b"py/cfund")`
 		#[pallet::constant]
@@ -1906,9 +1906,9 @@ mod benchmarking {
 
 	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 
-	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 		let events = frame_system::Pallet::<T>::events();
-		let system_event: <T as frame_system::Config>::Event = generic_event.into();
+		let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 		assert_eq!(event, &system_event);
