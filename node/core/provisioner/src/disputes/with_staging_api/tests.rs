@@ -379,8 +379,8 @@ impl TestDisputes {
 		&mut self,
 		dispute_count: usize,
 	) -> (u32, usize) {
-		let local_votes_count = self.validators_count / 100 * 90;
-		let onchain_votes_count = self.validators_count / 100 * 80;
+		let local_votes_count = self.validators_count * 90 / 100;
+		let onchain_votes_count = self.validators_count * 80 / 100;
 		let session_idx = 0;
 		let lf = leaf();
 		let dummy_receipt = test_helpers::dummy_candidate_receipt(lf.hash.clone());
@@ -397,8 +397,8 @@ impl TestDisputes {
 		&mut self,
 		dispute_count: usize,
 	) -> (u32, usize) {
-		let local_votes_count = self.validators_count / 100 * 90;
-		let onchain_votes_count = self.validators_count / 100 * 40;
+		let local_votes_count = self.validators_count * 90 / 100;
+		let onchain_votes_count = self.validators_count * 40 / 100;
 		let session_idx = 1;
 		let lf = leaf();
 		let dummy_receipt = test_helpers::dummy_candidate_receipt(lf.hash.clone());
@@ -415,7 +415,7 @@ impl TestDisputes {
 		&mut self,
 		dispute_count: usize,
 	) -> (u32, usize) {
-		let local_votes_count = self.validators_count / 100 * 70;
+		let local_votes_count = self.validators_count * 70 / 100;
 		let session_idx = 2;
 		let lf = leaf();
 		let dummy_receipt = test_helpers::dummy_candidate_receipt(lf.hash.clone());
@@ -427,8 +427,8 @@ impl TestDisputes {
 	}
 
 	pub fn add_concluded_disputes_known_onchain(&mut self, dispute_count: usize) -> (u32, usize) {
-		let local_votes_count = self.validators_count / 100 * 80;
-		let onchain_votes_count = self.validators_count / 100 * 75;
+		let local_votes_count = self.validators_count * 80 / 100;
+		let onchain_votes_count = self.validators_count * 75 / 100;
 		let session_idx = 3;
 		let lf = leaf();
 		let dummy_receipt = test_helpers::dummy_candidate_receipt(lf.hash.clone());
@@ -441,7 +441,7 @@ impl TestDisputes {
 	}
 
 	pub fn add_concluded_disputes_unknown_onchain(&mut self, dispute_count: usize) -> (u32, usize) {
-		let local_votes_count = self.validators_count / 100 * 80;
+		let local_votes_count = self.validators_count * 80 / 100;
 		let session_idx = 4;
 		let lf = leaf();
 		let dummy_receipt = test_helpers::dummy_candidate_receipt(lf.hash.clone());
