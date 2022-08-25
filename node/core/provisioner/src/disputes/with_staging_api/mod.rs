@@ -124,10 +124,9 @@ where
 	gum::trace!(
 		target: LOG_TARGET,
 		?leaf,
-		"Got {} recent disputes and {} onchain disputes. Runtime supports staging API: {}",
+		"Got {} recent disputes and {} onchain disputes.",
 		recent_disputes.len(),
 		onchain.len(),
-		if cfg!(feature = "staging-client") { true } else { false }
 	);
 
 	let partitioned = partition_recent_disputes(recent_disputes, &onchain);
