@@ -120,6 +120,8 @@ pub async fn select_disputes<Sender>(
 where
 	Sender: overseer::ProvisionerSenderTrait,
 {
+	gum::trace!(target: LOG_TARGET, "Selecting disputes for inherent data using random selection");
+
 	/// The maximum number of disputes Provisioner will include in the inherent data.
 	/// Serves as a protection not to flood the Runtime with excessive data.
 	const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 1_000;

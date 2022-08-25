@@ -85,7 +85,11 @@ pub async fn select_disputes<Sender>(
 where
 	Sender: overseer::ProvisionerSenderTrait,
 {
-	gum::trace!(target: LOG_TARGET, ?leaf, "Selecting disputes for inherent data");
+	gum::trace!(
+		target: LOG_TARGET,
+		?leaf,
+		"Selecting disputes for inherent data using prioritized selection"
+	);
 
 	// Fetch the onchain disputes. We'll do a prioritization based on them.
 	let onchain = match get_onchain_disputes(sender, leaf.hash.clone()).await {
