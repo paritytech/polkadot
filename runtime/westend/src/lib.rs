@@ -25,7 +25,7 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_election_provider_support::{onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{ConstU32, Contains, InstanceFilter, KeyOwnerProofSystem},
+	traits::{ConstU32, Contains, InstanceFilter, KeyOwnerProofSystem, WithdrawReasons},
 	weights::ConstantMultiplier,
 	PalletId,
 };
@@ -706,6 +706,8 @@ impl pallet_recovery::Config for Runtime {
 
 parameter_types! {
 	pub const MinVestedTransfer: Balance = 100 * CENTS;
+	pub UnvestedFundsAllowedWithdrawReasons: WithdrawReasons =
+		WithdrawReasons::except(WithdrawReasons::TRANSFER | WithdrawReasons::RESERVE);
 }
 
 impl pallet_vesting::Config for Runtime {
@@ -714,6 +716,7 @@ impl pallet_vesting::Config for Runtime {
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
 	type WeightInfo = weights::pallet_vesting::WeightInfo<Runtime>;
+	type UnvestedFundsAllowedWithdrawReasons = UnvestedFundsAllowedWithdrawReasons;
 	const MAX_VESTING_SCHEDULES: u32 = 28;
 }
 

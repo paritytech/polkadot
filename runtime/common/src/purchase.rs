@@ -18,7 +18,7 @@
 
 use frame_support::{
 	pallet_prelude::*,
-	traits::{Currency, EnsureOrigin, ExistenceRequirement, Get, VestingSchedule},
+	traits::{Currency, EnsureOrigin, ExistenceRequirement, Get, VestingSchedule, WithdrawReasons},
 };
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
@@ -550,6 +550,8 @@ mod tests {
 
 	parameter_types! {
 		pub const MinVestedTransfer: u64 = 1;
+		pub UnvestedFundsAllowedWithdrawReasons: WithdrawReasons =
+			WithdrawReasons::except(WithdrawReasons::TRANSFER | WithdrawReasons::RESERVE);
 	}
 
 	impl pallet_vesting::Config for Test {
@@ -558,6 +560,7 @@ mod tests {
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
 		type WeightInfo = ();
+		type UnvestedFundsAllowedWithdrawReasons = UnvestedFundsAllowedWithdrawReasons;
 		const MAX_VESTING_SCHEDULES: u32 = 28;
 	}
 
