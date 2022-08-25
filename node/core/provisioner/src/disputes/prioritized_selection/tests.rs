@@ -16,7 +16,7 @@
 
 use super::super::{
 	super::{tests::common::test_harness, *},
-	with_staging_api::*,
+	prioritized_selection::*,
 };
 use bitvec::prelude::*;
 use futures::channel::mpsc;

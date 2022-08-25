@@ -60,7 +60,7 @@ const SEND_INHERENT_DATA_TIMEOUT: std::time::Duration = core::time::Duration::fr
 
 const LOG_TARGET: &str = "parachain::provisioner";
 
-const STAGING_RUNTIME_VERSION_REQUIREMENT: u32 = 3;
+const PRIORITIZED_SELECTION_RUNTIME_VERSION_REQUIREMENT: u32 = 3;
 
 /// The provisioner subsystem.
 pub struct ProvisionerSubsystem {
@@ -362,13 +362,16 @@ async fn send_inherent_data(
 		"Selecting disputes"
 	);
 
-	let disputes =
-		match has_staging_runtime(from_job, leaf.hash.clone(), STAGING_RUNTIME_VERSION_REQUIREMENT)
-			.await
-		{
-			true => disputes::with_staging_api::select_disputes(from_job, metrics, leaf).await?,
-			false => disputes::without_staging_api::select_disputes(from_job, metrics).await?,
-		};
+	let disputes = match has_required_runtime(
+		from_job,
+		leaf.hash.clone(),
+		PRIORITIZED_SELECTION_RUNTIME_VERSION_REQUIREMENT,
+	)
+	.await
+	{
+		true => disputes::prioritized_selection::select_disputes(from_job, metrics, leaf).await?,
+		false => disputes::random_selection::select_disputes(from_job, metrics).await?,
+	};
 
 	gum::trace!(
 		target: LOG_TARGET,
@@ -685,7 +688,7 @@ fn bitfields_indicate_availability(
 	3 * availability.count_ones() >= 2 * availability.len()
 }
 
-async fn has_staging_runtime(
+async fn has_required_runtime(
 	sender: &mut impl overseer::ProvisionerSenderTrait,
 	relay_parent: Hash,
 	required_runtime_version: u32,

@@ -15,9 +15,11 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! The disputes module is responsible for selecting dispute votes to be sent with the inherent data. It contains two
-//! different implementations, extracted in two separate modules - `with_staging_api` and `without_staging_api`. The
-//! active one is controlled with a feature flag (`staging-client`). The entrypoint to these implementations is the
-//! `select_disputes` function. Refer to the documentation of the modules for more details about each implementation.
+//! different implementations, extracted in two separate modules - `random_selection` and `prioritized_selection`. Which
+//! implementation will be executed depends on the version of the runtime. Runtime v2 supports `random_selection`. Runtime
+//! v3 and above - `prioritized_selection`. The entrypoint to these implementations is the `select_disputes` function.
+//! prioritized_selection` is considered superior and will be the default one in the future. Refer to the documentation of
+//! the modules for more details about each implementation.
 
 use crate::LOG_TARGET;
 use futures::channel::oneshot;
@@ -46,6 +48,6 @@ async fn request_votes(
 	}
 }
 
-pub(crate) mod with_staging_api;
+pub(crate) mod prioritized_selection;
 
-pub(crate) mod without_staging_api;
+pub(crate) mod random_selection;
