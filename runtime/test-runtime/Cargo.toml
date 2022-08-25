@@ -58,7 +58,7 @@ runtime-common = { package = "polkadot-runtime-common", path = "../common", defa
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 polkadot-parachain = { path = "../../parachain", default-features = false }
-polkadot-runtime-parachains = { path = "../parachains", default-features = false, features = ["vstaging"]}
+polkadot-runtime-parachains = { path = "../parachains", default-features = false }
 xcm-builder = { path = "../../xcm/xcm-builder", default-features = false }
 xcm-executor = { path = "../../xcm/xcm-executor", default-features = false }
 xcm = { path = "../../xcm", default-features = false }

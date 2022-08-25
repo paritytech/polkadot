@@ -109,4 +109,3 @@ try-runtime = [
 	"pallet-vesting/try-runtime",
 ]
 runtime-metrics = ["sp-tracing/with-tracing", "polkadot-runtime-metrics/runtime-metrics"]
-vstaging = []

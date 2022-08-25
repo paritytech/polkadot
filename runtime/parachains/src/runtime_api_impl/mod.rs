@@ -21,5 +21,4 @@
 //! to a v2 would be done.
 
 pub mod v2;
-#[cfg(feature = "vstaging")]
 pub mod vstaging;
