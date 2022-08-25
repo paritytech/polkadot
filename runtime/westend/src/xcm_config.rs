@@ -17,8 +17,8 @@
 //! XCM configurations for Westend.
 
 use super::{
-	parachains_origin, weights, AccountId, Balances, RuntimeCall, RuntimeEvent, Origin, ParaId, Runtime,
-	WeightToFee, XcmPallet,
+	parachains_origin, weights, AccountId, Balances, Origin, ParaId, Runtime, RuntimeCall,
+	RuntimeEvent, WeightToFee, XcmPallet,
 };
 use frame_support::{
 	parameter_types,
@@ -115,7 +115,8 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = WeightInfoBounds<weights::xcm::WestendXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
+	type Weigher =
+		WeightInfoBounds<weights::xcm::WestendXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
 	type Trader = UsingComponents<WeightToFee, WndLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
@@ -141,7 +142,8 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = WeightInfoBounds<weights::xcm::WestendXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
+	type Weigher =
+		WeightInfoBounds<weights::xcm::WestendXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;
 	type RuntimeCall = RuntimeCall;

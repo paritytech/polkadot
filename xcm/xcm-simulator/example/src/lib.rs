@@ -118,10 +118,9 @@ mod tests {
 	fn dmp() {
 		MockNet::reset();
 
-		let remark =
-			parachain::RuntimeCall::System(frame_system::Call::<parachain::Runtime>::remark_with_event {
-				remark: vec![1, 2, 3],
-			});
+		let remark = parachain::RuntimeCall::System(
+			frame_system::Call::<parachain::Runtime>::remark_with_event { remark: vec![1, 2, 3] },
+		);
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::send_xcm(
 				Here,
@@ -173,10 +172,9 @@ mod tests {
 	fn xcmp() {
 		MockNet::reset();
 
-		let remark =
-			parachain::RuntimeCall::System(frame_system::Call::<parachain::Runtime>::remark_with_event {
-				remark: vec![1, 2, 3],
-			});
+		let remark = parachain::RuntimeCall::System(
+			frame_system::Call::<parachain::Runtime>::remark_with_event { remark: vec![1, 2, 3] },
+		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
 				Here,

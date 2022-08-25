@@ -269,7 +269,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	}
 
 	/// Process a single XCM instruction, mutating the state of the XCM virtual machine.
-	fn process_instruction(&mut self, instr: Instruction<Config::RuntimeCall>) -> Result<(), XcmError> {
+	fn process_instruction(
+		&mut self,
+		instr: Instruction<Config::RuntimeCall>,
+	) -> Result<(), XcmError> {
 		match instr {
 			WithdrawAsset(assets) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.

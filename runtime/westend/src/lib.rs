@@ -807,7 +807,10 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::NominationPools(..)
 			),
 			ProxyType::Staking => {
-				matches!(c, RuntimeCall::Staking(..) | RuntimeCall::Session(..) | RuntimeCall::Utility(..))
+				matches!(
+					c,
+					RuntimeCall::Staking(..) | RuntimeCall::Session(..) | RuntimeCall::Utility(..)
+				)
 			},
 			ProxyType::SudoBalances => match c {
 				RuntimeCall::Sudo(pallet_sudo::Call::sudo { call: ref x }) => {
@@ -818,14 +821,18 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 			},
 			ProxyType::IdentityJudgement => matches!(
 				c,
-				RuntimeCall::Identity(pallet_identity::Call::provide_judgement { .. }) | RuntimeCall::Utility(..)
+				RuntimeCall::Identity(pallet_identity::Call::provide_judgement { .. }) |
+					RuntimeCall::Utility(..)
 			),
 			ProxyType::CancelProxy => {
 				matches!(c, RuntimeCall::Proxy(pallet_proxy::Call::reject_announcement { .. }))
 			},
 			ProxyType::Auction => matches!(
 				c,
-				RuntimeCall::Auctions(..) | RuntimeCall::Crowdloan(..) | RuntimeCall::Registrar(..) | RuntimeCall::Slots(..)
+				RuntimeCall::Auctions(..) |
+					RuntimeCall::Crowdloan(..) |
+					RuntimeCall::Registrar(..) |
+					RuntimeCall::Slots(..)
 			),
 		}
 	}
@@ -1152,7 +1159,8 @@ pub type SignedExtra = (
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
-pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
+pub type UncheckedExtrinsic =
+	generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
 	Runtime,

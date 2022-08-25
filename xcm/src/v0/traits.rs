@@ -143,7 +143,11 @@ pub trait ExecuteXcm<RuntimeCall> {
 	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The weight limit is
 	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
 	/// other aspects.
-	fn execute_xcm(origin: MultiLocation, message: Xcm<RuntimeCall>, weight_limit: Weight) -> Outcome {
+	fn execute_xcm(
+		origin: MultiLocation,
+		message: Xcm<RuntimeCall>,
+		weight_limit: Weight,
+	) -> Outcome {
 		log::debug!(
 			target: "xcm::execute_xcm",
 			"origin: {:?}, message: {:?}, weight_limit: {:?}",

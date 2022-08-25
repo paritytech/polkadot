@@ -142,7 +142,8 @@ pub type SignedExtra = (
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
-pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
+pub type UncheckedExtrinsic =
+	generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
 	Runtime,
@@ -832,7 +833,8 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::Auctions { .. } |
 					RuntimeCall::Crowdloan { .. } |
 					RuntimeCall::Registrar { .. } |
-					RuntimeCall::Multisig(..) | RuntimeCall::Slots { .. }
+					RuntimeCall::Multisig(..) |
+					RuntimeCall::Slots { .. }
 			),
 		}
 	}

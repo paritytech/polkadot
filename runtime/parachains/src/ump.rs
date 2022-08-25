@@ -93,7 +93,9 @@ fn upward_message_id(data: &[u8]) -> MessageId {
 	sp_io::hashing::blake2_256(data)
 }
 
-impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink for XcmSink<XcmExecutor, C> {
+impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink
+	for XcmSink<XcmExecutor, C>
+{
 	fn process_upward_message(
 		origin: ParaId,
 		mut data: &[u8],

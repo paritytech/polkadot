@@ -209,7 +209,11 @@ pub enum Xcm<RuntimeCall> {
 	///
 	/// Errors:
 	#[codec(index = 6)]
-	Transact { origin_type: OriginKind, require_weight_at_most: u64, call: DoubleEncoded<RuntimeCall> },
+	Transact {
+		origin_type: OriginKind,
+		require_weight_at_most: u64,
+		call: DoubleEncoded<RuntimeCall>,
+	},
 
 	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
 	/// relay-chain to a para.

@@ -17,8 +17,8 @@
 //! XCM configurations for the Kusama runtime.
 
 use super::{
-	parachains_origin, AccountId, Balances, RuntimeCall, CouncilCollective, RuntimeEvent, Origin, ParaId,
-	Runtime, WeightToFee, XcmPallet,
+	parachains_origin, AccountId, Balances, CouncilCollective, Origin, ParaId, Runtime,
+	RuntimeCall, RuntimeEvent, WeightToFee, XcmPallet,
 };
 use frame_support::{match_types, parameter_types, traits::Everything, weights::Weight};
 use runtime_common::{xcm_sender, ToAuthor};
@@ -138,8 +138,11 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher =
-		WeightInfoBounds<crate::weights::xcm::KusamaXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
+	type Weigher = WeightInfoBounds<
+		crate::weights::xcm::KusamaXcmWeight<RuntimeCall>,
+		RuntimeCall,
+		MaxInstructions,
+	>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
 	type Trader = UsingComponents<WeightToFee, KsmLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;

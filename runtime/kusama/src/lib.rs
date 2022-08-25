@@ -1056,28 +1056,37 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::VoterList(..) |
 				RuntimeCall::NominationPools(..)
 			),
-			ProxyType::Governance => matches!(
-				c,
-				RuntimeCall::Democracy(..) |
-					RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) |
-					RuntimeCall::PhragmenElection(..) |
-					RuntimeCall::Treasury(..) | RuntimeCall::Bounties(..) |
-					RuntimeCall::Tips(..) | RuntimeCall::Utility(..) |
-					RuntimeCall::ChildBounties(..)
-			),
+			ProxyType::Governance =>
+				matches!(
+					c,
+					RuntimeCall::Democracy(..) |
+						RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) |
+						RuntimeCall::PhragmenElection(..) |
+						RuntimeCall::Treasury(..) |
+						RuntimeCall::Bounties(..) |
+						RuntimeCall::Tips(..) | RuntimeCall::Utility(..) |
+						RuntimeCall::ChildBounties(..)
+				),
 			ProxyType::Staking => {
-				matches!(c, RuntimeCall::Staking(..) | RuntimeCall::Session(..) | RuntimeCall::Utility(..))
+				matches!(
+					c,
+					RuntimeCall::Staking(..) | RuntimeCall::Session(..) | RuntimeCall::Utility(..)
+				)
 			},
 			ProxyType::IdentityJudgement => matches!(
 				c,
-				RuntimeCall::Identity(pallet_identity::Call::provide_judgement { .. }) | RuntimeCall::Utility(..)
+				RuntimeCall::Identity(pallet_identity::Call::provide_judgement { .. }) |
+					RuntimeCall::Utility(..)
 			),
 			ProxyType::CancelProxy => {
 				matches!(c, RuntimeCall::Proxy(pallet_proxy::Call::reject_announcement { .. }))
 			},
 			ProxyType::Auction => matches!(
 				c,
-				RuntimeCall::Auctions(..) | RuntimeCall::Crowdloan(..) | RuntimeCall::Registrar(..) | RuntimeCall::Slots(..)
+				RuntimeCall::Auctions(..) |
+					RuntimeCall::Crowdloan(..) |
+					RuntimeCall::Registrar(..) |
+					RuntimeCall::Slots(..)
 			),
 			ProxyType::Society => matches!(c, RuntimeCall::Society(..)),
 		}
@@ -1438,7 +1447,8 @@ pub type SignedExtra = (
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
-pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
+pub type UncheckedExtrinsic =
+	generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
 	Runtime,

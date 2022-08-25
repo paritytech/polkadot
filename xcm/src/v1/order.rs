@@ -224,8 +224,10 @@ impl<RuntimeCall> TryFrom<OldOrder<RuntimeCall>> for Order<RuntimeCall> {
 			OldOrder::QueryHolding { query_id, dest, assets } =>
 				QueryHolding { query_id, dest: dest.try_into()?, assets: assets.try_into()? },
 			OldOrder::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
-				let instructions =
-					xcm.into_iter().map(Xcm::<RuntimeCall>::try_from).collect::<result::Result<_, _>>()?;
+				let instructions = xcm
+					.into_iter()
+					.map(Xcm::<RuntimeCall>::try_from)
+					.collect::<result::Result<_, _>>()?;
 				BuyExecution { fees: fees.try_into()?, weight, debt, halt_on_error, instructions }
 			},
 		})

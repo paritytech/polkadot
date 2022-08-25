@@ -1395,9 +1395,9 @@ pub mod pallet {
 							// be built by `(pallet_index: u8, call_index: u8, QueryId, Response)`.
 							// So we just encode that and then re-encode to a real Call.
 							let bare = (pallet_index, call_index, query_id, response);
-							if let Ok(call) = bare
-								.using_encoded(|mut bytes| <T as Config>::RuntimeCall::decode(&mut bytes))
-							{
+							if let Ok(call) = bare.using_encoded(|mut bytes| {
+								<T as Config>::RuntimeCall::decode(&mut bytes)
+							}) {
 								Queries::<T>::remove(query_id);
 								let weight = call.get_dispatch_info().weight;
 								if weight > max_weight {
