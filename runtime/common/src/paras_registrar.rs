@@ -649,7 +649,7 @@ mod tests {
 	impl frame_system::Config for Test {
 		type BaseCallFilter = frame_support::traits::Everything;
 		type Origin = Origin;
-		type Call = Call;
+		type RuntimeCall = RuntimeCall;
 		type Index = u64;
 		type BlockNumber = BlockNumber;
 		type Hash = H256;
@@ -657,7 +657,7 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<u64>;
 		type Header = Header;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type DbWeight = ();
 		type BlockWeights = BlockWeights;
@@ -680,7 +680,7 @@ mod tests {
 	impl pallet_balances::Config for Test {
 		type Balance = u128;
 		type DustRemoval = ();
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
 		type MaxLocks = ();
@@ -698,7 +698,7 @@ mod tests {
 	}
 
 	impl paras::Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type WeightInfo = paras::TestWeightInfo;
 		type UnsignedPriority = ParasUnsignedPriority;
 		type NextSessionRotation = crate::mock::TestNextSessionRotation;
@@ -715,7 +715,7 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type Origin = Origin;
 		type Currency = Balances;
 		type OnSwap = MockSwap;

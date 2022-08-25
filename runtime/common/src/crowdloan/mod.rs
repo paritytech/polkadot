@@ -893,7 +893,7 @@ mod tests {
 		type BlockLength = ();
 		type DbWeight = ();
 		type Origin = Origin;
-		type Call = Call;
+		type RuntimeCall = RuntimeCall;
 		type Index = u64;
 		type BlockNumber = BlockNumber;
 		type Hash = H256;
@@ -901,7 +901,7 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
 		type PalletInfo = PalletInfo;
@@ -920,7 +920,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
@@ -1072,7 +1072,7 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type SubmissionDeposit = SubmissionDeposit;
 		type MinContribution = MinContribution;
 		type PalletId = CrowdloanPalletId;

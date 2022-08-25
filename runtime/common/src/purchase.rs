@@ -511,7 +511,7 @@ mod tests {
 		type BlockLength = ();
 		type DbWeight = ();
 		type Origin = Origin;
-		type Call = Call;
+		type RuntimeCall = RuntimeCall;
 		type Index = u64;
 		type BlockNumber = u64;
 		type Hash = H256;
@@ -519,7 +519,7 @@ mod tests {
 		type AccountId = AccountId;
 		type Lookup = IdentityLookup<AccountId>;
 		type Header = Header;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
 		type PalletInfo = PalletInfo;
@@ -538,7 +538,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
@@ -553,7 +553,7 @@ mod tests {
 	}
 
 	impl pallet_vesting::Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
@@ -574,7 +574,7 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type Currency = Balances;
 		type VestingSchedule = Vesting;
 		type ValidityOrigin = frame_system::EnsureSignedBy<ValidityOrigin, AccountId>;
