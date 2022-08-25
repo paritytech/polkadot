@@ -162,9 +162,6 @@ impl DisputeSender {
 		self.disputes
 			.retain(|candidate_hash, _| active_disputes.contains(candidate_hash));
 
-		// Replace with limit, just in case of an error.
-		let mut rate_limit = self.rate_limit.replace_with_limit();
-
 		// Iterates in order of insertion:
 		for dispute in self.disputes.values_mut() {
 			if have_new_sessions || dispute.has_failed_sends() {
@@ -178,11 +175,10 @@ impl DisputeSender {
 				// because of a few bad peers having problems. It is actually better to risk
 				// running into their rate limit in that case and accept a minor reputation change.
 				if sends_happened && have_new_sessions {
-					rate_limit.limit().await;
+					self.rate_limit.limit().await;
 				}
 			}
 		}
-		self.rate_limit = rate_limit;
 
 		// This should only be non-empty on startup, but if not - we got you covered.
 		//
@@ -361,6 +357,8 @@ impl DisputeSender {
 }
 
 /// Rate limiting logic.
+///
+/// Suitable for the sending side.
 struct RateLimit {
 	limit: Delay,
 }
