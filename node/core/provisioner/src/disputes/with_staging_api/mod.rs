@@ -45,7 +45,10 @@ mod tests;
 
 /// The maximum number of disputes Provisioner will include in the inherent data.
 /// Serves as a protection not to flood the Runtime with excessive data.
+#[cfg(not(test))]
 pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200 * 1_000;
+#[cfg(test)]
+pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200;
 // The magic numbers are: `estimated validators count` * `estimated disputes per validator`
 
 /// Implements the `select_disputes` function which selects dispute votes which should
@@ -153,7 +156,10 @@ async fn vote_selection<Sender>(
 where
 	Sender: overseer::ProvisionerSenderTrait,
 {
+	#[cfg(not(test))]
 	const BATCH_SIZE: usize = 1_100;
+	#[cfg(test)]
+	const BATCH_SIZE: usize = 11;
 
 	// fetch in batches until there are enough votes
 	let mut disputes = partitioned.into_iter().collect::<Vec<_>>();

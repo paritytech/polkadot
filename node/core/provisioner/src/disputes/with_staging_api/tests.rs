@@ -415,7 +415,7 @@ impl TestDisputes {
 		&mut self,
 		dispute_count: usize,
 	) -> (u32, usize) {
-		let local_votes_count = self.validators_count * 70 / 100;
+		let local_votes_count = self.validators_count * 90 / 100;
 		let session_idx = 2;
 		let lf = leaf();
 		let dummy_receipt = test_helpers::dummy_candidate_receipt(lf.hash.clone());
@@ -427,7 +427,7 @@ impl TestDisputes {
 	}
 
 	pub fn add_concluded_disputes_known_onchain(&mut self, dispute_count: usize) -> (u32, usize) {
-		let local_votes_count = self.validators_count * 80 / 100;
+		let local_votes_count = self.validators_count * 90 / 100;
 		let onchain_votes_count = self.validators_count * 75 / 100;
 		let session_idx = 3;
 		let lf = leaf();
@@ -441,7 +441,7 @@ impl TestDisputes {
 	}
 
 	pub fn add_concluded_disputes_unknown_onchain(&mut self, dispute_count: usize) -> (u32, usize) {
-		let local_votes_count = self.validators_count * 80 / 100;
+		let local_votes_count = self.validators_count * 90 / 100;
 		let session_idx = 4;
 		let lf = leaf();
 		let dummy_receipt = test_helpers::dummy_candidate_receipt(lf.hash.clone());
@@ -486,8 +486,8 @@ impl TestDisputes {
 
 #[test]
 fn normal_flow() {
-	const VALIDATOR_COUNT: usize = 100;
-	const DISPUTES_PER_BATCH: usize = 10;
+	const VALIDATOR_COUNT: usize = 10;
+	const DISPUTES_PER_BATCH: usize = 2;
 	const ACCEPTABLE_RUNTIME_VOTES_QUERIES_COUNT: usize = 1;
 
 	let mut input = TestDisputes::new(VALIDATOR_COUNT);
@@ -565,9 +565,12 @@ fn normal_flow() {
 
 #[test]
 fn many_batches() {
-	const VALIDATOR_COUNT: usize = 100;
-	const DISPUTES_PER_PARTITION: usize = 1000;
-	// Around 4_000 disputes are generated. `BATCH_SIZE` is 1_100.
+	const VALIDATOR_COUNT: usize = 10;
+	const DISPUTES_PER_PARTITION: usize = 10;
+
+	// 10 disputes per partition * 4 partitions = 40 disputes
+	// BATCH_SIZE = 11
+	// => There should be no more than 40 / 11 queries ( ~4 )
 	const ACCEPTABLE_RUNTIME_VOTES_QUERIES_COUNT: usize = 4;
 
 	let mut input = TestDisputes::new(VALIDATOR_COUNT);
@@ -618,8 +621,8 @@ fn many_batches() {
 
 #[test]
 fn votes_above_limit() {
-	const VALIDATOR_COUNT: usize = 100;
-	const DISPUTES_PER_PARTITION: usize = 5_000;
+	const VALIDATOR_COUNT: usize = 10;
+	const DISPUTES_PER_PARTITION: usize = 50;
 	const ACCEPTABLE_RUNTIME_VOTES_QUERIES_COUNT: usize = 4;
 
 	let mut input = TestDisputes::new(VALIDATOR_COUNT);
