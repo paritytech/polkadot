@@ -272,7 +272,7 @@ async fn mock_overseer(
 		match from_job {
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				_,
-				RuntimeApiRequest::StagingDisputes(sender),
+				RuntimeApiRequest::Disputes(sender),
 			)) => {
 				let _ = sender.send(Ok(disputes_db
 					.onchain_disputes

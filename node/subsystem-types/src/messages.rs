@@ -699,8 +699,8 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCodeHash>>,
 	),
-	/// Returns all on-chain disputes at given block number.
-	StagingDisputes(
+	/// Returns all on-chain disputes at given block number. Available in v3.
+	Disputes(
 		RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
 	),
 }

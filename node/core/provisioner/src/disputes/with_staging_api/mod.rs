@@ -75,7 +75,7 @@ pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200;
 ///
 /// # How the onchain votes are fetched
 ///
-/// The logic outlined above relies on `RuntimeApiRequest::StagingDisputes` message from the Runtime staging API.
+/// The logic outlined above relies on `RuntimeApiRequest::Disputes` message from the Runtime staging API.
 /// If the staging API is not enabled - the same logic is executed with empty onchain votes set. Effectively this
 /// means that all disputes are partitioned in groups 2 or 4 and all votes are sent to the Runtime.
 pub async fn select_disputes<Sender>(
@@ -92,7 +92,8 @@ where
 	let onchain = match get_onchain_disputes(sender, leaf.hash.clone()).await {
 		Ok(r) => r,
 		Err(GetOnchainDisputesError::NotSupported(runtime_api_err, relay_parent)) => {
-			gum::debug!(
+			// Runtime version is checked before calling this method, so the error below should never happen!
+			gum::error!(
 				target: LOG_TARGET,
 				?runtime_api_err,
 				?relay_parent,
@@ -427,7 +428,7 @@ where
 	sender
 		.send_message(RuntimeApiMessage::Request(
 			relay_parent,
-			RuntimeApiRequest::StagingDisputes(tx),
+			RuntimeApiRequest::Disputes(tx),
 		))
 		.await;
 
