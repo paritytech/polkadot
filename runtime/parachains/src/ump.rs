@@ -122,11 +122,11 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 		});
 		match maybe_msg_and_weight {
 			Err(_) => {
-				Pallet::<C>::deposit_event(PalletEvent::InvalidFormat(id));
+				Pallet::<C>::deposit_event(Event::InvalidFormat(id));
 				Ok(0)
 			},
 			Ok((Err(()), weight_used)) => {
-				Pallet::<C>::deposit_event(PalletEvent::UnsupportedVersion(id));
+				Pallet::<C>::deposit_event(Event::UnsupportedVersion(id));
 				Ok(weight_used)
 			},
 			Ok((Ok(xcm_message), weight_used)) => {
@@ -136,7 +136,7 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 					Outcome::Error(XcmError::WeightLimitReached(required)) => Err((id, required)),
 					outcome => {
 						let outcome_weight = outcome.weight_used();
-						Pallet::<C>::deposit_event(PalletEvent::ExecutedUpward(id, outcome));
+						Pallet::<C>::deposit_event(Event::ExecutedUpward(id, outcome));
 						Ok(weight_used.saturating_add(outcome_weight))
 					},
 				}
@@ -216,7 +216,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + configuration::Config {
 		/// The aggregate event.
-		type RuntimeEvent: From<PalletEvent> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
 
 		/// A place where all received upward messages are funneled.
 		type UmpSink: UmpSink;
@@ -238,7 +238,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum PalletEvent {
+	pub enum Event {
 		/// Upward message is invalid XCM.
 		/// \[ id \]
 		InvalidFormat(MessageId),
@@ -358,7 +358,7 @@ pub mod pallet {
 			let used = T::UmpSink::process_upward_message(sender, &data[..], weight_limit)
 				.map_err(|_| Error::<T>::WeightOverLimit)?;
 			Overweight::<T>::remove(index);
-			Self::deposit_event(PalletEvent::OverweightServiced(index, used));
+			Self::deposit_event(Event::OverweightServiced(index, used));
 			Ok(Some(used.saturating_add(<T as Config>::WeightInfo::service_overweight())).into())
 		}
 	}
@@ -495,7 +495,7 @@ impl<T: Config> Pallet<T> {
 			// NOTE: The actual computation is not accounted for. It should be benchmarked.
 			weight += T::DbWeight::get().reads_writes(3, 3);
 
-			Self::deposit_event(PalletEvent::UpwardMessagesReceived(para, extra_count, extra_size));
+			Self::deposit_event(Event::UpwardMessagesReceived(para, extra_count, extra_size));
 		}
 
 		weight
@@ -544,15 +544,13 @@ impl<T: Config> Pallet<T> {
 								thus `upward_message` cannot be `None`; qed",
 							);
 							let index = Self::stash_overweight(dispatchee, upward_message);
-							Self::deposit_event(PalletEvent::OverweightEnqueued(
+							Self::deposit_event(Event::OverweightEnqueued(
 								dispatchee, id, index, required,
 							));
 						} else {
 							// we process messages in order and don't drop them if we run out of weight,
 							// so need to break here without calling `consume_front`.
-							Self::deposit_event(PalletEvent::WeightExhausted(
-								id, max_weight, required,
-							));
+							Self::deposit_event(Event::WeightExhausted(id, max_weight, required));
 							break
 						}
 					},

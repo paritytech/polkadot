@@ -39,9 +39,9 @@ fn register_parachain_with_balance<T: Config>(id: ParaId, balance: BalanceOf<T>)
 	T::Currency::make_free_balance_be(&id.into_account_truncating(), balance);
 }
 
-fn assert_last_event<T: Config>(generic_event: <T as Config>::PalletEvent) {
+fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 	let events = frame_system::Pallet::<T>::events();
-	let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
+	let system_event: <T as frame_system::Config>::Event = generic_event.into();
 	// compare to the last event record
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 	assert_eq!(event, &system_event);
@@ -156,7 +156,7 @@ frame_benchmarking::benchmarks! {
 	}: _(sender_origin, recipient_id, capacity, message_size)
 	verify {
 		assert_last_event::<T>(
-			PalletEvent::<T>::OpenChannelRequested(sender_id, recipient_id, capacity, message_size).into()
+			Event::<T>::OpenChannelRequested(sender_id, recipient_id, capacity, message_size).into()
 		);
 	}
 
@@ -165,7 +165,7 @@ frame_benchmarking::benchmarks! {
 			establish_para_connection::<T>(1, 2, ParachainSetupStep::Requested);
 	}: _(recipient_origin, sender)
 	verify {
-		assert_last_event::<T>(PalletEvent::<T>::OpenChannelAccepted(sender, recipient).into());
+		assert_last_event::<T>(Event::<T>::OpenChannelAccepted(sender, recipient).into());
 	}
 
 	hrmp_close_channel {
@@ -174,7 +174,7 @@ frame_benchmarking::benchmarks! {
 		let channel_id = HrmpChannelId { sender, recipient };
 	}: _(sender_origin, channel_id.clone())
 	verify {
-		assert_last_event::<T>(PalletEvent::<T>::ChannelClosed(sender, channel_id).into());
+		assert_last_event::<T>(Event::<T>::ChannelClosed(sender, channel_id).into());
 	}
 
 	// NOTE: a single parachain should have the maximum number of allowed ingress and egress

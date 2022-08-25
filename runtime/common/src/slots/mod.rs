@@ -74,8 +74,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
-		type RuntimeEvent: From<PalletEvent<Self>>
-			+ IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
 		/// The currency type used for bidding.
 		type Currency: ReservableCurrency<Self::AccountId>;
@@ -121,7 +120,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum PalletEvent<T: Config> {
+	pub enum Event<T: Config> {
 		/// A new `[lease_period]` is beginning.
 		NewLeasePeriod { lease_period: LeasePeriodOf<T> },
 		/// A para has won the right to a continuous set of lease periods as a parachain.
@@ -228,7 +227,7 @@ impl<T: Config> Pallet<T> {
 	/// We need to on-board and off-board parachains as needed. We should also handle reducing/
 	/// returning deposits.
 	fn manage_lease_period_start(lease_period_index: LeasePeriodOf<T>) -> Weight {
-		Self::deposit_event(PalletEvent::<T>::NewLeasePeriod { lease_period: lease_period_index });
+		Self::deposit_event(Event::<T>::NewLeasePeriod { lease_period: lease_period_index });
 
 		let old_parachains = T::Registrar::parachains();
 
@@ -408,7 +407,7 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 				let _ = T::Registrar::make_parachain(para);
 			}
 
-			Self::deposit_event(PalletEvent::<T>::Leased {
+			Self::deposit_event(Event::<T>::Leased {
 				para_id: para,
 				leaser: leaser.clone(),
 				period_begin,
@@ -539,7 +538,7 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type RuntimeEvent = RuntimeEvent;
+		type Event = Event;
 		type BlockHashCount = BlockHashCount;
 		type DbWeight = ();
 		type Version = ();
@@ -559,7 +558,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type RuntimeEvent = RuntimeEvent;
+		type Event = Event;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
@@ -576,7 +575,7 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type RuntimeEvent = RuntimeEvent;
+		type Event = Event;
 		type Currency = Balances;
 		type Registrar = TestRegistrar<Test>;
 		type LeasePeriod = LeasePeriod;
@@ -989,9 +988,9 @@ mod benchmarking {
 
 	use crate::slots::Pallet as Slots;
 
-	fn assert_last_event<T: Config>(generic_event: <T as Config>::PalletEvent) {
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Pallet::<T>::events();
-		let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
+		let system_event: <T as frame_system::Config>::Event = generic_event.into();
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 		assert_eq!(event, &system_event);
@@ -1028,7 +1027,7 @@ mod benchmarking {
 			let origin = T::ForceOrigin::successful_origin();
 		}: _<T::Origin>(origin, para, leaser.clone(), amount, period_begin, period_count)
 		verify {
-			assert_last_event::<T>(PalletEvent::<T>::Leased {
+			assert_last_event::<T>(Event::<T>::Leased {
 				para_id: para,
 				leaser, period_begin,
 				period_count,

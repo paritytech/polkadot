@@ -101,7 +101,7 @@ impl frame_system::Config for Test {
 	type AccountId = u64;
 	type Lookup = IdentityLookup<u64>;
 	type Header = Header;
-	type RuntimeEvent = RuntimeEvent;
+	type Event = Event;
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
 	type PalletInfo = PalletInfo;
@@ -123,7 +123,7 @@ impl pallet_balances::Config for Test {
 	type MaxReserves = ();
 	type ReserveIdentifier = [u8; 8];
 	type Balance = Balance;
-	type RuntimeEvent = RuntimeEvent;
+	type Event = Event;
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
@@ -213,7 +213,7 @@ impl frame_support::traits::EstimateNextSessionRotation<u32> for TestNextSession
 }
 
 impl crate::paras::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
+	type Event = Event;
 	type WeightInfo = crate::paras::TestWeightInfo;
 	type UnsignedPriority = ParasUnsignedPriority;
 	type NextSessionRotation = TestNextSessionRotation;
@@ -226,7 +226,7 @@ parameter_types! {
 }
 
 impl crate::ump::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
+	type Event = Event;
 	type UmpSink = TestUmpSink;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
@@ -234,14 +234,14 @@ impl crate::ump::Config for Test {
 }
 
 impl crate::hrmp::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
+	type Event = Event;
 	type Origin = Origin;
 	type Currency = pallet_balances::Pallet<Test>;
 	type WeightInfo = crate::hrmp::TestWeightInfo;
 }
 
 impl crate::disputes::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
+	type Event = Event;
 	type RewardValidators = Self;
 	type PunishValidators = Self;
 	type WeightInfo = crate::disputes::TestWeightInfo;
@@ -292,7 +292,7 @@ impl crate::disputes::PunishValidators for Test {
 impl crate::scheduler::Config for Test {}
 
 impl crate::inclusion::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
+	type Event = Event;
 	type DisputesHandler = Disputes;
 	type RewardValidators = TestRewardValidators;
 }
@@ -455,9 +455,9 @@ pub struct MockGenesisConfig {
 	pub paras: crate::paras::GenesisConfig,
 }
 
-pub fn assert_last_event(generic_event: RuntimeEvent) {
+pub fn assert_last_event(generic_event: Event) {
 	let events = frame_system::Pallet::<Test>::events();
-	let system_event: <Test as frame_system::Config>::RuntimeEvent = generic_event.into();
+	let system_event: <Test as frame_system::Config>::Event = generic_event.into();
 	// compare to the last event record
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 	assert_eq!(event, &system_event);

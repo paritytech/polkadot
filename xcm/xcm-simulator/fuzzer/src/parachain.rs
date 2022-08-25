@@ -61,7 +61,7 @@ impl frame_system::Config for Runtime {
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type RuntimeEvent = RuntimeEvent;
+	type Event = Event;
 	type BlockHashCount = BlockHashCount;
 	type BlockWeights = ();
 	type BlockLength = ();
@@ -87,7 +87,7 @@ parameter_types! {
 impl pallet_balances::Config for Runtime {
 	type MaxLocks = MaxLocks;
 	type Balance = Balance;
-	type RuntimeEvent = RuntimeEvent;
+	type Event = Event;
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
@@ -156,8 +156,7 @@ pub mod mock_msg_queue {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type RuntimeEvent: From<PalletEvent<Self>>
-			+ IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type XcmExecutor: ExecuteXcm<Self::Call>;
 	}
 
@@ -188,7 +187,7 @@ pub mod mock_msg_queue {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum PalletEvent<T: Config> {
+	pub enum Event<T: Config> {
 		// XCMP
 		/// Some XCM was executed OK.
 		Success(Option<T::Hash>),
@@ -224,15 +223,14 @@ pub mod mock_msg_queue {
 				Ok(xcm) => {
 					let location = MultiLocation::new(1, X1(Parachain(sender.into())));
 					match T::XcmExecutor::execute_xcm(location, xcm, max_weight) {
-						Outcome::Error(e) => (Err(e.clone()), PalletEvent::Fail(Some(hash), e)),
-						Outcome::Complete(w) => (Ok(w), PalletEvent::Success(Some(hash))),
+						Outcome::Error(e) => (Err(e.clone()), Event::Fail(Some(hash), e)),
+						Outcome::Complete(w) => (Ok(w), Event::Success(Some(hash))),
 						// As far as the caller is concerned, this was dispatched without error, so
 						// we just report the weight used.
-						Outcome::Incomplete(w, e) => (Ok(w), PalletEvent::Fail(Some(hash), e)),
+						Outcome::Incomplete(w, e) => (Ok(w), Event::Fail(Some(hash), e)),
 					}
 				},
-				Err(()) =>
-					(Err(XcmError::UnhandledXcmVersion), PalletEvent::BadVersion(Some(hash))),
+				Err(()) => (Err(XcmError::UnhandledXcmVersion), Event::BadVersion(Some(hash))),
 			};
 			Self::deposit_event(event);
 			result
@@ -273,15 +271,15 @@ pub mod mock_msg_queue {
 					VersionedXcm::<T::Call>::decode(&mut &data[..]).map(Xcm::<T::Call>::try_from);
 				match maybe_msg {
 					Err(_) => {
-						Self::deposit_event(PalletEvent::InvalidFormat(id));
+						Self::deposit_event(Event::InvalidFormat(id));
 					},
 					Ok(Err(())) => {
-						Self::deposit_event(PalletEvent::UnsupportedVersion(id));
+						Self::deposit_event(Event::UnsupportedVersion(id));
 					},
 					Ok(Ok(x)) => {
 						let outcome = T::XcmExecutor::execute_xcm(Parent, x.clone(), limit);
 						<ReceivedDmp<T>>::append(x);
-						Self::deposit_event(PalletEvent::ExecutedDownward(id, outcome));
+						Self::deposit_event(Event::ExecutedDownward(id, outcome));
 					},
 				}
 			}
@@ -291,14 +289,14 @@ pub mod mock_msg_queue {
 }
 
 impl mock_msg_queue::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
+	type Event = Event;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, RelayNetwork>;
 
 impl pallet_xcm::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
+	type Event = Event;
 	type SendXcmOrigin = EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	type ExecuteXcmOrigin = EnsureXcmOrigin<Origin, LocalOriginToLocation>;

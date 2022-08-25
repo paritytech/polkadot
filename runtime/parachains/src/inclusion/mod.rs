@@ -198,15 +198,14 @@ pub mod pallet {
 		+ hrmp::Config
 		+ configuration::Config
 	{
-		type RuntimeEvent: From<PalletEvent<Self>>
-			+ IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
 		type RewardValidators: RewardValidators;
 	}
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum PalletEvent<T: Config> {
+	pub enum Event<T: Config> {
 		/// A candidate was backed. `[candidate, head_data]`
 		CandidateBacked(CandidateReceipt<T::Hash>, HeadData, CoreIndex, GroupIndex),
 		/// A candidate was included. `[candidate, head_data]`
@@ -656,7 +655,7 @@ impl<T: Config> Pallet<T> {
 			let availability_votes: BitVec<u8, BitOrderLsb0> =
 				bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
 
-			Self::deposit_event(PalletEvent::<T>::CandidateBacked(
+			Self::deposit_event(Event::<T>::CandidateBacked(
 				candidate.candidate.to_plain(),
 				candidate.candidate.commitments.head_data.clone(),
 				core,
@@ -779,7 +778,7 @@ impl<T: Config> Pallet<T> {
 			commitments.horizontal_messages,
 		);
 
-		Self::deposit_event(PalletEvent::<T>::CandidateIncluded(
+		Self::deposit_event(Event::<T>::CandidateIncluded(
 			plain,
 			commitments.head_data.clone(),
 			core_index,
@@ -824,7 +823,7 @@ impl<T: Config> Pallet<T> {
 					commitments_hash: commitments.hash(),
 				};
 
-				Self::deposit_event(PalletEvent::<T>::CandidateTimedOut(
+				Self::deposit_event(Event::<T>::CandidateTimedOut(
 					candidate,
 					commitments.head_data,
 					pending.core,

@@ -91,8 +91,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
-		type RuntimeEvent: From<PalletEvent<Self>>
-			+ IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
 		/// The type representing the leasing system.
 		type Leaser: Leaser<
@@ -126,7 +125,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum PalletEvent<T: Config> {
+	pub enum Event<T: Config> {
 		/// An auction started. Provides its index and the block number where it will begin to
 		/// close and the first lease period of the quadruplet that is auctioned.
 		AuctionStarted {
@@ -403,7 +402,7 @@ impl<T: Config> Pallet<T> {
 		let ending = frame_system::Pallet::<T>::block_number().saturating_add(duration);
 		AuctionInfo::<T>::put((lease_period_index, ending));
 
-		Self::deposit_event(PalletEvent::<T>::AuctionStarted {
+		Self::deposit_event(Event::<T>::AuctionStarted {
 			auction_index: n,
 			lease_period: lease_period_index,
 			ending,
@@ -482,7 +481,7 @@ impl<T: Config> Pallet<T> {
 				// ...and record the amount reserved.
 				ReservedAmounts::<T>::insert(&bidder_para, reserve_required);
 
-				Self::deposit_event(PalletEvent::<T>::Reserved {
+				Self::deposit_event(Event::<T>::Reserved {
 					bidder: bidder.clone(),
 					extra_reserved: additional,
 					total_amount: reserve_required,
@@ -505,14 +504,14 @@ impl<T: Config> Pallet<T> {
 						// It really should be reserved; there's not much we can do here on fail.
 						let err_amt = CurrencyOf::<T>::unreserve(&who, amount);
 						debug_assert!(err_amt.is_zero());
-						Self::deposit_event(PalletEvent::<T>::Unreserved { bidder: who, amount });
+						Self::deposit_event(Event::<T>::Unreserved { bidder: who, amount });
 					}
 				}
 			}
 
 			// Update the range winner.
 			Winning::<T>::insert(offset, &current_winning);
-			Self::deposit_event(PalletEvent::<T>::BidAccepted {
+			Self::deposit_event(Event::<T>::BidAccepted {
 				bidder,
 				para_id: para,
 				amount,
@@ -549,7 +548,7 @@ impl<T: Config> Pallet<T> {
 						T::SampleLength::get().max(One::one());
 
 					let auction_counter = AuctionCounter::<T>::get();
-					Self::deposit_event(PalletEvent::<T>::WinningOffset {
+					Self::deposit_event(Event::<T>::WinningOffset {
 						auction_index: auction_counter,
 						block_number: offset,
 					});
@@ -603,7 +602,7 @@ impl<T: Config> Pallet<T> {
 					// The leaser attempted to get a second lease on the same para ID, possibly griefing us. Let's
 					// keep the amount reserved and let governance sort it out.
 					if CurrencyOf::<T>::reserve(&leaser, amount).is_ok() {
-						Self::deposit_event(PalletEvent::<T>::ReserveConfiscated {
+						Self::deposit_event(Event::<T>::ReserveConfiscated {
 							para_id: para,
 							leaser,
 							amount,
@@ -614,7 +613,7 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		Self::deposit_event(PalletEvent::<T>::AuctionClosed {
+		Self::deposit_event(Event::<T>::AuctionClosed {
 			auction_index: AuctionCounter::<T>::get(),
 		});
 	}
@@ -719,7 +718,7 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type PalletEvent = PalletEvent;
+		type Event = Event;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
 		type PalletInfo = PalletInfo;
@@ -740,7 +739,7 @@ mod tests {
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
 		type DustRemoval = ();
-		type PalletEvent = PalletEvent;
+		type Event = Event;
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
 		type WeightInfo = ();
@@ -868,7 +867,7 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type PalletEvent = PalletEvent;
+		type Event = Event;
 		type Leaser = TestLeaser;
 		type Registrar = TestRegistrar<Self>;
 		type EndingPeriod = EndingPeriod;
@@ -1730,9 +1729,9 @@ mod benchmarking {
 
 	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 
-	fn assert_last_event<T: Config>(generic_event: <T as Config>::PalletEvent) {
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Pallet::<T>::events();
-		let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
+		let system_event: <T as frame_system::Config>::Event = generic_event.into();
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 		assert_eq!(event, &system_event);
@@ -1787,7 +1786,7 @@ mod benchmarking {
 			let origin = T::InitiateOrigin::successful_origin();
 		}: _<T::Origin>(origin, duration, lease_period_index)
 		verify {
-			assert_last_event::<T>(PalletEvent::<T>::AuctionStarted {
+			assert_last_event::<T>(Event::<T>::AuctionStarted {
 				auction_index: AuctionCounter::<T>::get(),
 				lease_period: LeasePeriodOf::<T>::max_value(),
 				ending: T::BlockNumber::max_value(),
@@ -1885,7 +1884,7 @@ mod benchmarking {
 			Auctions::<T>::on_initialize(duration + now + T::EndingPeriod::get());
 		} verify {
 			let auction_index = AuctionCounter::<T>::get();
-			assert_last_event::<T>(PalletEvent::<T>::AuctionClosed { auction_index }.into());
+			assert_last_event::<T>(Event::<T>::AuctionClosed { auction_index }.into());
 			assert!(Winning::<T>::iter().count().is_zero());
 		}
 

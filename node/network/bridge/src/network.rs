@@ -22,12 +22,11 @@ use futures::{prelude::*, stream::BoxStream};
 use parity_scale_codec::Encode;
 
 use sc_network::{
-	multiaddr::Multiaddr, Event as NetworkEvent, IfDisconnected, NetworkService, OutboundFailure,
-	RequestFailure,
+	config::parse_addr, multiaddr::Multiaddr, Event as NetworkEvent, IfDisconnected,
+	NetworkService, OutboundFailure, RequestFailure,
 };
-use sc_network_common::{
-	config::parse_addr,
-	service::{NetworkEventStream, NetworkNotification, NetworkPeers, NetworkRequest},
+use sc_network_common::service::{
+	NetworkEventStream, NetworkNotification, NetworkPeers, NetworkRequest,
 };
 
 use polkadot_node_network_protocol::{

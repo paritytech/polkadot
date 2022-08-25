@@ -31,9 +31,9 @@ use self::pvf_check::{VoteCause, VoteOutcome};
 // shouldn't exceed this number.
 const SAMPLE_SIZE: u32 = 1024;
 
-fn assert_last_event<T: Config>(generic_event: <T as Config>::PalletEvent) {
+fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 	let events = frame_system::Pallet::<T>::events();
-	let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
+	let system_event: <T as frame_system::Config>::Event = generic_event.into();
 	// compare to the last event record
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 	assert_eq!(event, &system_event);
@@ -89,7 +89,7 @@ benchmarks! {
 		generate_disordered_pruning::<T>();
 	}: _(RawOrigin::Root, para_id, new_code)
 	verify {
-		assert_last_event::<T>(PalletEvent::CurrentCodeUpdated(para_id).into());
+		assert_last_event::<T>(Event::CurrentCodeUpdated(para_id).into());
 	}
 	force_set_current_head {
 		let s in 1 .. MAX_HEAD_DATA_SIZE;
@@ -97,7 +97,7 @@ benchmarks! {
 		let para_id = ParaId::from(1000);
 	}: _(RawOrigin::Root, para_id, new_head)
 	verify {
-		assert_last_event::<T>(PalletEvent::CurrentHeadUpdated(para_id).into());
+		assert_last_event::<T>(Event::CurrentHeadUpdated(para_id).into());
 	}
 	force_schedule_code_upgrade {
 		let c in 1 .. MAX_CODE_SIZE;
@@ -107,7 +107,7 @@ benchmarks! {
 		generate_disordered_upgrades::<T>();
 	}: _(RawOrigin::Root, para_id, new_code, block)
 	verify {
-		assert_last_event::<T>(PalletEvent::CodeUpgradeScheduled(para_id).into());
+		assert_last_event::<T>(Event::CodeUpgradeScheduled(para_id).into());
 	}
 	force_note_new_head {
 		let s in 1 .. MAX_HEAD_DATA_SIZE;
@@ -123,7 +123,7 @@ benchmarks! {
 		Pallet::<T>::schedule_code_upgrade(para_id, ValidationCode(vec![0]), expired, &config);
 	}: _(RawOrigin::Root, para_id, new_head)
 	verify {
-		assert_last_event::<T>(PalletEvent::NewHeadNoted(para_id).into());
+		assert_last_event::<T>(Event::NewHeadNoted(para_id).into());
 	}
 	force_queue_action {
 		let para_id = ParaId::from(1000);
@@ -131,7 +131,7 @@ benchmarks! {
 	}: _(RawOrigin::Root, para_id)
 	verify {
 		let next_session = crate::shared::Pallet::<T>::session_index().saturating_add(One::one());
-		assert_last_event::<T>(PalletEvent::ActionQueued(para_id, next_session).into());
+		assert_last_event::<T>(Event::ActionQueued(para_id, next_session).into());
 	}
 
 	add_trusted_validation_code {

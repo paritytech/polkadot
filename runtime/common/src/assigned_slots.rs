@@ -84,9 +84,8 @@ pub mod pallet {
 	#[pallet::config]
 	#[pallet::disable_frame_system_supertrait_check]
 	pub trait Config: configuration::Config + paras::Config + slots::Config {
-		/// The overarching PalletEvent type.
-		type RuntimeEvent: From<PalletEvent<Self>>
-			+ IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		/// The overarching event type.
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
 		/// Origin for assigning slots.
 		type AssignSlotOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
@@ -153,7 +152,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum PalletEvent<T: Config> {
+	pub enum Event<T: Config> {
 		/// A para was assigned a permanent parachain slot
 		PermanentSlotAssigned(ParaId),
 		/// A para was assigned a temporary parachain slot
@@ -251,7 +250,7 @@ pub mod pallet {
 			);
 			<PermanentSlotCount<T>>::mutate(|count| count.saturating_inc());
 
-			Self::deposit_event(PalletEvent::<T>::PermanentSlotAssigned(id));
+			Self::deposit_event(Event::<T>::PermanentSlotAssigned(id));
 			Ok(())
 		}
 
@@ -335,7 +334,7 @@ pub mod pallet {
 			TemporarySlots::<T>::insert(id, temp_slot);
 			<TemporarySlotCount<T>>::mutate(|count| count.saturating_inc());
 
-			Self::deposit_event(PalletEvent::<T>::TemporarySlotAssigned(id));
+			Self::deposit_event(Event::<T>::TemporarySlotAssigned(id));
 
 			Ok(())
 		}
@@ -602,7 +601,7 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type PalletEvent = PalletEvent;
+		type Event = Event;
 		type BlockHashCount = BlockHashCount;
 		type DbWeight = ();
 		type Version = ();
@@ -622,7 +621,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type PalletEvent = PalletEvent;
+		type Event = Event;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
@@ -641,7 +640,7 @@ mod tests {
 	}
 
 	impl parachains_paras::Config for Test {
-		type PalletEvent = PalletEvent;
+		type Event = Event;
 		type WeightInfo = parachains_paras::TestWeightInfo;
 		type UnsignedPriority = ParasUnsignedPriority;
 		type NextSessionRotation = crate::mock::TestNextSessionRotation;
@@ -656,7 +655,7 @@ mod tests {
 	}
 
 	impl slots::Config for Test {
-		type PalletEvent = PalletEvent;
+		type Event = Event;
 		type Currency = Balances;
 		type Registrar = TestRegistrar<Test>;
 		type LeasePeriod = LeasePeriod;
@@ -674,7 +673,7 @@ mod tests {
 	}
 
 	impl assigned_slots::Config for Test {
-		type PalletEvent = PalletEvent;
+		type Event = Event;
 		type AssignSlotOrigin = EnsureRoot<Self::AccountId>;
 		type Leaser = Slots;
 		type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;

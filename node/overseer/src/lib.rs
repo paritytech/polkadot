@@ -185,13 +185,12 @@ impl Handle {
 
 	/// Inform the `Overseer` that that some block was imported.
 	pub async fn block_imported(&mut self, block: BlockInfo) {
-		self.send_and_log_error(PalletEvent::BlockImported(block)).await
+		self.send_and_log_error(Event::BlockImported(block)).await
 	}
 
 	/// Send some message to one of the `Subsystem`s.
 	pub async fn send_msg(&mut self, msg: impl Into<AllMessages>, origin: &'static str) {
-		self.send_and_log_error(PalletEvent::MsgToSubsystem { msg: msg.into(), origin })
-			.await
+		self.send_and_log_error(Event::MsgToSubsystem { msg: msg.into(), origin }).await
 	}
 
 	/// Send a message not providing an origin.
@@ -202,7 +201,7 @@ impl Handle {
 
 	/// Inform the `Overseer` that some block was finalized.
 	pub async fn block_finalized(&mut self, block: BlockInfo) {
-		self.send_and_log_error(PalletEvent::BlockFinalized(block)).await
+		self.send_and_log_error(Event::BlockFinalized(block)).await
 	}
 
 	/// Wait for a block with the given hash to be in the active-leaves set.
@@ -216,7 +215,7 @@ impl Handle {
 		hash: Hash,
 		response_channel: oneshot::Sender<SubsystemResult<()>>,
 	) {
-		self.send_and_log_error(PalletEvent::ExternalRequest(ExternalRequest::WaitForActivation {
+		self.send_and_log_error(Event::ExternalRequest(ExternalRequest::WaitForActivation {
 			hash,
 			response_channel,
 		}))
@@ -225,11 +224,11 @@ impl Handle {
 
 	/// Tell `Overseer` to shutdown.
 	pub async fn stop(&mut self) {
-		self.send_and_log_error(PalletEvent::Stop).await;
+		self.send_and_log_error(Event::Stop).await;
 	}
 
 	/// Most basic operation, to stop a server.
-	async fn send_and_log_error(&mut self, event: PalletEvent) {
+	async fn send_and_log_error(&mut self, event: Event) {
 		if self.0.send(event).await.is_err() {
 			gum::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
 		}
@@ -266,7 +265,7 @@ impl From<FinalityNotification<Block>> for BlockInfo {
 
 /// An event from outside the overseer scope, such
 /// as the substrate framework or user interaction.
-pub enum PalletEvent {
+pub enum Event {
 	/// A new block was imported.
 	BlockImported(BlockInfo),
 	/// A block was finalized with i.e. babe or another consensus algorithm.
@@ -443,7 +442,7 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 /// ```
 #[orchestra(
 	gen=AllMessages,
-	event=PalletEvent,
+	event=Event,
 	signal=OverseerSignal,
 	error=SubsystemError,
 	message_capacity=2048,
@@ -725,21 +724,21 @@ where
 			select! {
 				msg = self.events_rx.select_next_some() => {
 					match msg {
-						PalletEvent::MsgToSubsystem { msg, origin } => {
+						Event::MsgToSubsystem { msg, origin } => {
 							self.route_message(msg.into(), origin).await?;
 							self.metrics.on_message_relayed();
 						}
-						PalletEvent::Stop => {
+						Event::Stop => {
 							self.stop().await;
 							return Ok(());
 						}
-						PalletEvent::BlockImported(block) => {
+						Event::BlockImported(block) => {
 							self.block_imported(block).await?;
 						}
-						PalletEvent::BlockFinalized(block) => {
+						Event::BlockFinalized(block) => {
 							self.block_finalized(block).await?;
 						}
-						PalletEvent::ExternalRequest(request) => {
+						Event::ExternalRequest(request) => {
 							self.handle_external_request(request);
 						}
 					}

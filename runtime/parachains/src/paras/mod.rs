@@ -473,7 +473,7 @@ pub mod pallet {
 		+ shared::Config
 		+ frame_system::offchain::SendTransactionTypes<Call<Self>>
 	{
-		type RuntimeEvent: From<PalletEvent> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
 
 		#[pallet::constant]
 		type UnsignedPriority: Get<TransactionPriority>;
@@ -486,7 +486,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum PalletEvent {
+	pub enum Event {
 		/// Current code has been updated for a Para. `para_id`
 		CurrentCodeUpdated(ParaId),
 		/// Current head has been updated for a Para. `para_id`
@@ -740,7 +740,7 @@ pub mod pallet {
 					&para
 				);
 			}
-			Self::deposit_event(PalletEvent::CurrentCodeUpdated(para));
+			Self::deposit_event(Event::CurrentCodeUpdated(para));
 			Ok(())
 		}
 
@@ -753,7 +753,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			<Self as Store>::Heads::insert(&para, new_head);
-			Self::deposit_event(PalletEvent::CurrentHeadUpdated(para));
+			Self::deposit_event(Event::CurrentHeadUpdated(para));
 			Ok(())
 		}
 
@@ -768,7 +768,7 @@ pub mod pallet {
 			ensure_root(origin)?;
 			let config = configuration::Pallet::<T>::config();
 			Self::schedule_code_upgrade(para, new_code, relay_parent_number, &config);
-			Self::deposit_event(PalletEvent::CodeUpgradeScheduled(para));
+			Self::deposit_event(Event::CodeUpgradeScheduled(para));
 			Ok(())
 		}
 
@@ -782,7 +782,7 @@ pub mod pallet {
 			ensure_root(origin)?;
 			let now = frame_system::Pallet::<T>::block_number();
 			Self::note_new_head(para, new_head, now);
-			Self::deposit_event(PalletEvent::NewHeadNoted(para));
+			Self::deposit_event(Event::NewHeadNoted(para));
 			Ok(())
 		}
 
@@ -798,7 +798,7 @@ pub mod pallet {
 					v.insert(i, para);
 				}
 			});
-			Self::deposit_event(PalletEvent::ActionQueued(para, next_session));
+			Self::deposit_event(Event::ActionQueued(para, next_session));
 			Ok(())
 		}
 
@@ -1375,7 +1375,7 @@ impl<T: Config> Pallet<T> {
 		let mut weight = 0;
 		for cause in causes {
 			weight += T::DbWeight::get().reads_writes(3, 2);
-			Self::deposit_event(PalletEvent::PvfCheckAccepted(*code_hash, cause.para_id()));
+			Self::deposit_event(Event::PvfCheckAccepted(*code_hash, cause.para_id()));
 
 			match cause {
 				PvfCheckCause::Onboarding(id) => {
@@ -1465,7 +1465,7 @@ impl<T: Config> Pallet<T> {
 			weight += Self::decrease_code_ref(code_hash);
 
 			weight += T::DbWeight::get().reads_writes(3, 2);
-			Self::deposit_event(PalletEvent::PvfCheckRejected(*code_hash, cause.para_id()));
+			Self::deposit_event(Event::PvfCheckRejected(*code_hash, cause.para_id()));
 
 			match cause {
 				PvfCheckCause::Onboarding(id) => {
@@ -1749,7 +1749,7 @@ impl<T: Config> Pallet<T> {
 		let mut weight = 0;
 
 		weight += T::DbWeight::get().reads_writes(3, 2);
-		Self::deposit_event(PalletEvent::PvfCheckStarted(code_hash, cause.para_id()));
+		Self::deposit_event(Event::PvfCheckStarted(code_hash, cause.para_id()));
 
 		weight += T::DbWeight::get().reads(1);
 		match PvfActiveVoteMap::<T>::get(&code_hash) {

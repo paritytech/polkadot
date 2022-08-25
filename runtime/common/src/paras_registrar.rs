@@ -96,8 +96,7 @@ pub mod pallet {
 	#[pallet::disable_frame_system_supertrait_check]
 	pub trait Config: configuration::Config + paras::Config {
 		/// The overarching event type.
-		type RuntimeEvent: From<PalletEvent<Self>>
-			+ IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
 		/// The aggregated origin type must support the `parachains` origin. We require that we can
 		/// infallibly convert between this origin and the system origin, but in reality, they're the
@@ -127,7 +126,7 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum PalletEvent<T: Config> {
+	pub enum Event<T: Config> {
 		Registered { para_id: ParaId, manager: T::AccountId },
 		Deregistered { para_id: ParaId },
 		Reserved { para_id: ParaId, who: T::AccountId },
@@ -493,7 +492,7 @@ impl<T: Config> Pallet<T> {
 		let info = ParaInfo { manager: who.clone(), deposit, locked: false };
 
 		Paras::<T>::insert(id, info);
-		Self::deposit_event(PalletEvent::<T>::Reserved { para_id: id, who });
+		Self::deposit_event(Event::<T>::Reserved { para_id: id, who });
 		Ok(())
 	}
 
@@ -531,7 +530,7 @@ impl<T: Config> Pallet<T> {
 		// We check above that para has no lifecycle, so this should not fail.
 		let res = runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 		debug_assert!(res.is_ok());
-		Self::deposit_event(PalletEvent::<T>::Registered { para_id: id, manager: who });
+		Self::deposit_event(Event::<T>::Registered { para_id: id, manager: who });
 		Ok(())
 	}
 
@@ -550,7 +549,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		PendingSwap::<T>::remove(id);
-		Self::deposit_event(PalletEvent::<T>::Deregistered { para_id: id });
+		Self::deposit_event(Event::<T>::Deregistered { para_id: id });
 		Ok(())
 	}
 
@@ -658,7 +657,7 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<u64>;
 		type Header = Header;
-		type RuntimeEvent = RuntimeEvent;
+		type Event = Event;
 		type BlockHashCount = BlockHashCount;
 		type DbWeight = ();
 		type BlockWeights = BlockWeights;
@@ -681,7 +680,7 @@ mod tests {
 	impl pallet_balances::Config for Test {
 		type Balance = u128;
 		type DustRemoval = ();
-		type RuntimeEvent = RuntimeEvent;
+		type Event = Event;
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
 		type MaxLocks = ();
@@ -699,7 +698,7 @@ mod tests {
 	}
 
 	impl paras::Config for Test {
-		type RuntimeEvent = RuntimeEvent;
+		type Event = Event;
 		type WeightInfo = paras::TestWeightInfo;
 		type UnsignedPriority = ParasUnsignedPriority;
 		type NextSessionRotation = crate::mock::TestNextSessionRotation;
@@ -716,7 +715,7 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type RuntimeEvent = RuntimeEvent;
+		type Event = Event;
 		type Origin = Origin;
 		type Currency = Balances;
 		type OnSwap = MockSwap;
@@ -1227,9 +1226,9 @@ mod benchmarking {
 
 	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 
-	fn assert_last_event<T: Config>(generic_event: <T as Config>::PalletEvent) {
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Pallet::<T>::events();
-		let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
+		let system_event: <T as frame_system::Config>::Event = generic_event.into();
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 		assert_eq!(event, &system_event);
@@ -1269,7 +1268,7 @@ mod benchmarking {
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 		}: _(RawOrigin::Signed(caller.clone()))
 		verify {
-			assert_last_event::<T>(PalletEvent::<T>::Reserved { para_id: LOWEST_PUBLIC_ID, who: caller }.into());
+			assert_last_event::<T>(Event::<T>::Reserved { para_id: LOWEST_PUBLIC_ID, who: caller }.into());
 			assert!(Paras::<T>::get(LOWEST_PUBLIC_ID).is_some());
 			assert_eq!(paras::Pallet::<T>::lifecycle(LOWEST_PUBLIC_ID), None);
 		}
@@ -1283,7 +1282,7 @@ mod benchmarking {
 			assert_ok!(Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()).into()));
 		}: _(RawOrigin::Signed(caller.clone()), para, genesis_head, validation_code)
 		verify {
-			assert_last_event::<T>(PalletEvent::<T>::Registered{ para_id: para, manager: caller }.into());
+			assert_last_event::<T>(Event::<T>::Registered{ para_id: para, manager: caller }.into());
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
 			next_scheduled_session::<T>();
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
@@ -1297,7 +1296,7 @@ mod benchmarking {
 			let validation_code = Registrar::<T>::worst_validation_code();
 		}: _(RawOrigin::Root, manager.clone(), deposit, para, genesis_head, validation_code)
 		verify {
-			assert_last_event::<T>(PalletEvent::<T>::Registered { para_id: para, manager }.into());
+			assert_last_event::<T>(Event::<T>::Registered { para_id: para, manager }.into());
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
 			next_scheduled_session::<T>();
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
@@ -1309,7 +1308,7 @@ mod benchmarking {
 			let caller: T::AccountId = whitelisted_caller();
 		}: _(RawOrigin::Signed(caller), para)
 		verify {
-			assert_last_event::<T>(PalletEvent::<T>::Deregistered { para_id: para }.into());
+			assert_last_event::<T>(Event::<T>::Deregistered { para_id: para }.into());
 		}
 
 		swap {
