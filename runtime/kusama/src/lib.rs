@@ -84,6 +84,7 @@ use static_assertions::const_assert;
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_election_provider_multi_phase::Call as EPMCall;
+use pallet_staking::UseValidatorsMap;
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
 pub use pallet_timestamp::Call as TimestampCall;
@@ -510,7 +511,8 @@ parameter_types! {
 	pub const BagThresholds: &'static [u64] = &bag_thresholds::THRESHOLDS;
 }
 
-impl pallet_bags_list::Config for Runtime {
+type VoterBagsListInstance = pallet_bags_list::Instance1;
+impl pallet_bags_list::Config<VoterBagsListInstance> for Runtime {
 	type Event = Event;
 	type ScoreProvider = Staking;
 	type WeightInfo = weights::pallet_bags_list::WeightInfo<Runtime>;
@@ -620,11 +622,30 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
-	type VoterList = VoterList;
+	type VoterList = VoterBagsList;
+	type TargetList = UseValidatorsMap<Self>;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type OnStakerSlash = NominationPools;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
+}
+
+const OLD_PALLET_NAME:  &'static str = "VoterList";
+pub struct StakingMigrationV11;
+impl frame_support::traits::OnRuntimeUpgrade for StakingMigrationV11 {
+	fn on_runtime_upgrade() -> Weight {
+		pallet_staking::migrations::v11::migrate::<Runtime, VoterBagsList, &'static str>(OLD_PALLET_NAME)
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		pallet_staking::migrations::v11::pre_upgrade::<Runtime, VoterBagsList, &'static str>(OLD_PALLET_NAME)
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_staking::migrations::v11::post_upgrade::<Runtime, VoterBagsList, &'static str>(OLD_PALLET_NAME)
+	}
 }
 
 parameter_types! {
@@ -1053,7 +1074,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
 				Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
-				Call::VoterList(..) |
+				Call::VoterBagsList(..) |
 				Call::NominationPools(..)
 			),
 			ProxyType::Governance => matches!(
@@ -1385,7 +1406,7 @@ construct_runtime! {
 		Gilt: pallet_gilt::{Pallet, Call, Storage, Event<T>, Config} = 38,
 
 		// Provides a semi-sorted list of nominators for staking.
-		VoterList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 39,
+		VoterBagsList: pallet_bags_list::<Instance1>::{Pallet, Call, Storage, Event<T>} = 39,
 
 		// nomination pools: extension to staking.
 		NominationPools: pallet_nomination_pools::{Pallet, Call, Storage, Event<T>, Config<T>} = 41,
@@ -1446,7 +1467,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(pallet_staking::migrations::v10::MigrateToV10<Runtime>,),
+	(pallet_staking::migrations::v10::MigrateToV10<Runtime>, StakingMigrationV11),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1475,7 +1496,7 @@ mod benches {
 		[runtime_parachains::ump, Ump]
 		// Substrate
 		[pallet_balances, Balances]
-		[pallet_bags_list, VoterList]
+		[pallet_bags_list, VoterBagsList]
 		[frame_benchmarking::baseline, Baseline::<Runtime>]
 		[pallet_bounties, Bounties]
 		[pallet_child_bounties, ChildBounties]
