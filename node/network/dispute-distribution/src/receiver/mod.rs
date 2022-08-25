@@ -239,10 +239,7 @@ where
 		// - Keep track of import rate.
 		// - Flush if import rate is not matched
 		// Wait for a free slot:
-        //
-        // struct Batch {
-        //  
-        // }
+		//
 		if self.pending_imports.len() >= MAX_PARALLEL_IMPORTS as usize {
 			// Wait for one to finish:
 			let r = self.pending_imports.next().await;

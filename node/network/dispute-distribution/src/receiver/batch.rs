@@ -17,8 +17,7 @@
 use std::collections::HashMap;
 
 use polkadot_node_primitives::SignedDisputeStatement;
-use polkadot_primitives::v2::{ValidatorIndex, CandidateReceipt, CandidateHash};
-
+use polkadot_primitives::v2::{CandidateHash, CandidateReceipt, ValidatorIndex};
 
 struct Batch {
 	/// The actual candidate this batch is concerned with.
@@ -57,7 +56,12 @@ impl Batch {
 	}
 
 	/// Import votes into the batch.
-	pub fn import_votes(&mut self, receipt: CandidateReceipt, valid_vote: (SignedDisputeStatement, ValidatorIndex), invalid_vote: (SignedDisputeStatement, ValidatorIndex)) {
+	pub fn import_votes(
+		&mut self,
+		receipt: CandidateReceipt,
+		valid_vote: (SignedDisputeStatement, ValidatorIndex),
+		invalid_vote: (SignedDisputeStatement, ValidatorIndex),
+	) {
 		debug_assert!(valid_vote.0.candidate_hash() == invalid_vote.0.candidate_hash());
 		debug_assert!(valid_vote.0.candidate_hash() == &self.candidate_hash);
 

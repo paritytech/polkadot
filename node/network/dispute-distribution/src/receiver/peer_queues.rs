@@ -54,9 +54,7 @@ impl PeerQueues {
 		req: IncomingRequest<DisputeRequest>,
 	) -> Result<(), (AuthorityDiscoveryId, IncomingRequest<DisputeRequest>)> {
 		let queue = match self.queues.entry(peer) {
-			Entry::Vacant(vacant) => {
-				vacant.insert(VecDeque::new())
-			},
+			Entry::Vacant(vacant) => vacant.insert(VecDeque::new()),
 			Entry::Occupied(occupied) => {
 				if occupied.get().len() >= PEER_QUEUE_CAPACITY {
 					return Err((occupied.key().clone(), req))
