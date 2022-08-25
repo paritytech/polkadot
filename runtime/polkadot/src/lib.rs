@@ -2121,7 +2121,7 @@ mod test_fees {
 		};
 		let info = call.get_dispatch_info();
 		println!("call = {:?} / info = {:?}", call, info);
-		// convert to outer call.
+		// convert to runtime call.
 		let call = Call::Balances(call);
 		let extra: SignedExtra = (
 			frame_system::CheckNonZeroSender::<Runtime>::new(),
