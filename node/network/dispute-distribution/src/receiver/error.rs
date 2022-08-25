@@ -21,6 +21,7 @@ use fatality::Nested;
 
 use polkadot_node_network_protocol::{request_response::incoming, PeerId};
 use polkadot_node_subsystem_util::runtime;
+use polkadot_primitives::v2::AuthorityDiscoveryId;
 
 use crate::LOG_TARGET;
 
@@ -49,11 +50,14 @@ pub enum Error {
 
 	#[error("Peer {0} attempted to participate in dispute and is not a validator.")]
 	NotAValidator(PeerId),
+
+	#[error("Authority {0} sent messages at a too high rate.")]
+	AuthorityFlooding(AuthorityDiscoveryId),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub type JfyiErrorResult<T> = std::result::Result<T, JfyiError>;
+pub type JfyiResult<T> = std::result::Result<T, JfyiError>;
 
 /// Utility for eating top level errors and log them.
 ///
