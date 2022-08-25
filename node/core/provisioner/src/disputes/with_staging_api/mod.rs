@@ -425,10 +425,7 @@ where
 	gum::trace!(target: LOG_TARGET, ?relay_parent, "Fetching on-chain disputes");
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send_message(RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::Disputes(tx),
-		))
+		.send_message(RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::Disputes(tx)))
 		.await;
 
 	rx.await
