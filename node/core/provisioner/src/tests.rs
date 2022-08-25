@@ -571,8 +571,8 @@ mod select_disputes {
 					let mut res = Vec::new();
 					let v = CandidateVotes {
 						candidate_receipt: test_helpers::dummy_candidate_receipt(leaf.hash.clone()),
-						valid: vec![],
-						invalid: vec![],
+						valid: BTreeMap::new(),
+						invalid: BTreeMap::new(),
 					};
 					for r in disputes.iter() {
 						res.push((r.0, r.1, v.clone()));

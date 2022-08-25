@@ -47,9 +47,9 @@ pub trait WeightTrader: Sized {
 	/// Create a new trader instance.
 	fn new() -> Self;
 
-	/// Purchase execution weight credit in return for up to a given `fee`. If less of the fee is required
-	/// then the surplus is returned. If the `fee` cannot be used to pay for the `weight`, then an error is
-	/// returned.
+	/// Purchase execution weight credit in return for up to a given `payment`. If less of the
+	/// payment is required then the surplus is returned. If the `payment` cannot be used to pay
+	/// for the `weight`, then an error is returned.
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError>;
 
 	/// Attempt a refund of `weight` into some asset. The caller does not guarantee that the weight was
