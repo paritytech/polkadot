@@ -544,7 +544,7 @@ impl pallet_xcm::Config for Runtime {
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type LocationInverter = xcm_config::InvertNothing;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	type XcmRouter = xcm_config::DoNothingRouter;
 	type XcmExecuteFilter = Everything;
 	type XcmExecutor = xcm_executor::XcmExecutor<xcm_config::XcmConfig>;

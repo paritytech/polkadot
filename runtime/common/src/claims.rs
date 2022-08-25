@@ -1546,9 +1546,9 @@ mod benchmarking {
 			Preclaims::<T>::insert(&account, eth_address);
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
 
-			let call = super::Call::<T>::attest { statement: StatementKind::Regular.to_text().to_vec() };
+			let call = super::RuntimeCall::<T>::attest { statement: StatementKind::Regular.to_text().to_vec() };
 			// We have to copy the validate statement here because of trait issues... :(
-			let validate = |who: &T::AccountId, call: &super::Call<T>| -> DispatchResult {
+			let validate = |who: &T::AccountId, call: &super::RuntimeCall<T>| -> DispatchResult {
 				if let Call::attest{ statement: attested_statement } = call {
 					let signer = Preclaims::<T>::get(who).ok_or("signer has no claim")?;
 					if let Some(s) = Signing::<T>::get(signer) {
