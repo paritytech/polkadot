@@ -102,7 +102,7 @@ where
 	let (mut ws_sender, ws_receiver) = unbounded();
 
 	let mut ws_server =
-		websocket_server::BridgeMirrorServer::new("127.0.0.1:13370".to_string(), ws_receiver).await;
+		websocket_server::BridgeMirrorServer::new("127.0.0.1".to_string(), ws_receiver).await;
 
 	loop {
 		select! {

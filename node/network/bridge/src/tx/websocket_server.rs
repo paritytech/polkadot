@@ -40,10 +40,22 @@ pub struct BridgeMirrorServer {
 
 impl BridgeMirrorServer {
 	pub async fn new(addr: String, broadcast_rx: BroadcastRx) -> Self {
-		let try_socket = TcpListener::bind(&addr).await;
-		let listener = try_socket.expect("Failed to bind");
+		let mut listener = None;
+		for i in 0..100 {
+			let addr = format!("{}:{}", 13370 + i);
+			gum::info!("Trying to setup websocket server at `{}`", addr);
+			if let Ok(maybe_listener) = TcpListener::bind(&addr).await {
+				listener = Some(maybe_listener);
+				gum::info!("Listening on `{}`", addr);
+				break
+			}
+		}
 
-		BridgeMirrorServer { peers: Default::default(), listener, broadcast_rx }
+		BridgeMirrorServer {
+			peers: Default::default(),
+			listener: listener.expect("Giving up, unable to find spare port."),
+			broadcast_rx,
+		}
 	}
 
 	pub async fn run_once(&mut self) {
@@ -76,9 +88,15 @@ impl BridgeMirrorServer {
 async fn handle_one_client(mut broadcast_rx: BroadcastRx, raw_stream: TcpStream, addr: SocketAddr) {
 	gum::info!(target: LOG_TARGET, "Incoming TCP connection from: {}", addr);
 
-	let mut ws_stream = tokio_tungstenite::accept_async(raw_stream)
-		.await
-		.expect("Error during the websocket handshake occurred");
+	if let Err(err) = tokio_tungstenite::accept_async(raw_stream).await {
+		gum::warn!(
+			target: LOG_TARGET,
+			"Incoming bridge mirroring webSocket connection failed: {}",
+			err
+		);
+		return
+	}
+
 	gum::info!(target: LOG_TARGET, "WebSocket connection established: {}", addr);
 
 	while let Some(message) = broadcast_rx.next().await {
