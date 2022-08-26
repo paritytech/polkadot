@@ -45,6 +45,9 @@ pub enum Error {
 	#[error("Dispute request with invalid signatures, from peer {0}.")]
 	InvalidSignature(PeerId),
 
+	#[error("Received votes from peer {0} have been completely redundant.")]
+	RedundantMessage(PeerId),
+
 	#[error("Import of dispute got canceled for peer {0} - import failed for some reason.")]
 	ImportCanceled(PeerId),
 
