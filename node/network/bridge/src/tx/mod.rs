@@ -17,6 +17,7 @@
 //! The Network Bridge Subsystem - handles _outgoing_ messages, from subsystem to the network.
 use super::*;
 
+use futures::{channel::mpsc::unbounded, select};
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet, request_response::ReqProtocolNames, v1 as protocol_v1, PeerId, Versioned,
 };
@@ -42,6 +43,7 @@ use crate::metrics::Metrics;
 
 #[cfg(test)]
 mod tests;
+mod websocket_server;
 
 // network bridge log target
 const LOG_TARGET: &'static str = "parachain::network-bridge-tx";
@@ -97,24 +99,34 @@ where
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
 	let mut validator_discovery = validator_discovery::Service::<N, AD>::new();
+	let (mut ws_sender, ws_receiver) = unbounded();
+
+	let mut ws_server =
+		websocket_server::BridgeMirrorServer::new("127.0.0.1:13370".to_string(), ws_receiver).await;
 
 	loop {
-		match ctx.recv().fuse().await? {
-			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
-			FromOrchestra::Signal(_) => { /* handled by incoming */ },
-			FromOrchestra::Communication { msg } => {
-				(network_service, authority_discovery_service) =
-					handle_incoming_subsystem_communication(
-						&mut ctx,
-						network_service,
-						&mut validator_discovery,
-						authority_discovery_service.clone(),
-						msg,
-						&metrics,
-						&req_protocol_names,
-					)
-					.await;
+		select! {
+			from_orchestra = ctx.recv().fuse() => {
+				match from_orchestra? {
+					FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+					FromOrchestra::Signal(_) => { /* handled by incoming */ },
+					FromOrchestra::Communication { msg } => {
+						(network_service, authority_discovery_service) =
+							handle_incoming_subsystem_communication(
+								&mut ctx,
+								network_service,
+								&mut validator_discovery,
+								authority_discovery_service.clone(),
+								msg,
+								&metrics,
+								&req_protocol_names,
+								&mut ws_sender,
+							)
+							.await;
+					},
+				}
 			},
+			_ = ws_server.run_once().fuse() => {}
 		}
 	}
 }
@@ -128,6 +140,7 @@ async fn handle_incoming_subsystem_communication<Context, N, AD>(
 	msg: NetworkBridgeTxMessage,
 	metrics: &Metrics,
 	req_protocol_names: &ReqProtocolNames,
+	ws_sender: &mut websocket_server::BroadcastTx,
 ) -> (N, AD)
 where
 	N: Network,
@@ -194,12 +207,16 @@ where
 			);
 
 			match msg {
-				Versioned::V1(msg) => send_collation_message_v1(
-					&mut network_service,
-					peers,
-					WireMessage::ProtocolMessage(msg),
-					&metrics,
-				),
+				Versioned::V1(msg) => {
+					ws_sender.unbounded_send(msg.encode()).expect("Websocket server channel died");
+
+					send_collation_message_v1(
+						&mut network_service,
+						peers,
+						WireMessage::ProtocolMessage(msg),
+						&metrics,
+					);
+				},
 			}
 		},
 		NetworkBridgeTxMessage::SendCollationMessages(msgs) => {
