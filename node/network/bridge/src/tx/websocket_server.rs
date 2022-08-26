@@ -42,7 +42,7 @@ impl BridgeMirrorServer {
 	pub async fn new(addr: String, broadcast_rx: BroadcastRx) -> Self {
 		let mut listener = None;
 		for i in 0..100 {
-			let addr = format!("{}:{}", 13370 + i);
+			let addr = format!("{}:{}", addr, 13370 + i);
 			gum::info!("Trying to setup websocket server at `{}`", addr);
 			if let Ok(maybe_listener) = TcpListener::bind(&addr).await {
 				listener = Some(maybe_listener);
@@ -88,14 +88,17 @@ impl BridgeMirrorServer {
 async fn handle_one_client(mut broadcast_rx: BroadcastRx, raw_stream: TcpStream, addr: SocketAddr) {
 	gum::info!(target: LOG_TARGET, "Incoming TCP connection from: {}", addr);
 
-	if let Err(err) = tokio_tungstenite::accept_async(raw_stream).await {
-		gum::warn!(
-			target: LOG_TARGET,
-			"Incoming bridge mirroring webSocket connection failed: {}",
-			err
-		);
-		return
-	}
+	let mut ws_stream = match tokio_tungstenite::accept_async(raw_stream).await {
+		Ok(ws_stream) => ws_stream,
+		Err(err) => {
+			gum::warn!(
+				target: LOG_TARGET,
+				"Incoming bridge mirroring webSocket connection failed: {}",
+				err
+			);
+			return
+		},
+	};
 
 	gum::info!(target: LOG_TARGET, "WebSocket connection established: {}", addr);
 
