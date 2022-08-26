@@ -26,8 +26,8 @@ use crate::RECEIVE_RATE_LIMIT;
 /// How many messages we are willing to queue per peer (validator).
 ///
 /// The larger this value is, the larger bursts are allowed to be without us dropping messages. On
-/// the flipside we should this gets allocated per validator, so for a size of 10 this will result
-/// in 10_000 * size_of(IncomingRequest).
+/// the flip side we should this gets allocated per validator, so for a size of 10 this will result
+/// in 10_000 * size_of(`IncomingRequest`).
 ///
 /// `PEER_QUEUE_CAPACITY` must not be 0 for obvious reasons.
 pub const PEER_QUEUE_CAPACITY: usize = 10;

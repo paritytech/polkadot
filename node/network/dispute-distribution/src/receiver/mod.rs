@@ -283,55 +283,6 @@ where
 		.await
 	}
 
-	/// Wait for a message or one of `rate_limit` or `batch_check` timeout to hit (if there is one).
-	///
-	/// In case a message got received `rate_limit` will be populated by this function. This way we
-	/// only wake on timeouts if there are actually any messages to process.
-	///
-	/// In case of any timeout we return Ok(None).
-	async fn wait_for_message_or_timeout(&mut self) -> Result<Option<MuxedMessage>> {
-		let rcv_msg = MuxedMessage::receive(&mut self.pending_imports, &mut self.receiver).fuse();
-
-		let mut timeout = if let Some(timeout) = self.waker.as_mut() {
-			Pin::new(timeout)
-		} else {
-			// No need to get woken:
-			return Ok(Some(rcv_msg.await?))
-		};
-
-		pin_mut!(rcv_msg);
-		let result = select_biased!(
-			() = timeout => None,
-			msg = rcv_msg => Some(msg?),
-		);
-
-		if result.is_none() {
-			// Timeout hit - we need a new Delay (started immediately so the following processing
-			// does not further decrease allowed rate (assuming processing takes less than
-			// `RECEIVE_RATE_LIMIT`):
-			self.waker = self.get_new_waker();
-		}
-
-		Ok(result)
-	}
-
-	/// Get a new waker.
-	///
-	/// Ensure we wake up again when needed:
-	fn get_new_waker(&self) -> Option<Fuse<Delay>> {
-		// Ensure assumption this code makes:
-		debug_assert!(RECEIVE_RATE_LIMIT <= BATCH_COLLECTING_INTERVAL);
-		// Messages to process?
-		if !self.peer_queues.is_empty() {
-			return Some(Delay::new(RECEIVE_RATE_LIMIT).fuse())
-		}
-		if !self.batches.is_empty() {
-			return Some(Delay::new(BATCH_COLLECTING_INTERVAL).fuse())
-		}
-		// No need to wake at all:
-		return None
-	}
-
 	/// Process incoming requests.
 	///
 	/// - Check sender is authority
@@ -438,7 +389,7 @@ where
 					// faster sending the same votes in order to harm the reputation of that honest
 					// node. Given that we already have a rate limit, if a validator chooses to
 					// waste available rate with redundant votes - so be it. The actual dispute
-					// resolution is uneffected.
+					// resolution is unaffected.
 					gum::debug!(
 						target: LOG_TARGET,
 						"Peer sent completely redundant votes within a single batch - that looks fishy!",
