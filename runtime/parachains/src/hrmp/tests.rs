@@ -16,7 +16,7 @@
 
 use super::*;
 use crate::mock::{
-	new_test_ext, Configuration, Event as MockEvent, Hrmp, MockGenesisConfig, Paras, ParasShared,
+	new_test_ext, Configuration, RuntimeEvent as MockEvent, Hrmp, MockGenesisConfig, Paras, ParasShared,
 	System, Test,
 };
 use frame_support::{assert_noop, assert_ok, traits::Currency as _};

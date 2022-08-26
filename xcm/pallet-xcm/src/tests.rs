@@ -49,7 +49,7 @@ fn report_outcome_notify_works() {
 		query_id: 0,
 		response: Default::default(),
 	};
-	let notify = Call::TestNotifier(call);
+	let notify = RuntimeCall::TestNotifier(call);
 	new_test_ext_with_balances(balances).execute_with(|| {
 		XcmPallet::report_outcome_notify(&mut message, Parachain(PARA_ID).into(), notify, 100)
 			.unwrap();
