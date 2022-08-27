@@ -183,7 +183,7 @@ impl Contains<Call> for BaseFilter {
 			Call::Registrar(_) |
 			Call::Auctions(_) |
 			Call::Crowdloan(_) |
-			Call::VoterBagsList(_) |
+			Call::VoterList(_) |
 			Call::XcmPallet(_) |
 			Call::NominationPools(_) => true,
 			// All pallets are allowed, but exhaustive match is defensive
@@ -613,7 +613,7 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
-	type VoterList = VoterBagsList;
+	type VoterList = VoterList;
 	type TargetList = UseValidatorsMap<Self>;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
@@ -625,18 +625,18 @@ const OLD_PALLET_NAME:  &'static str = "VoterList";
 pub struct StakingMigrationV11;
 impl frame_support::traits::OnRuntimeUpgrade for StakingMigrationV11 {
 	fn on_runtime_upgrade() -> Weight {
-		pallet_staking::migrations::v11::migrate::<Runtime, VoterBagsList, &'static str>(OLD_PALLET_NAME)
+		pallet_staking::migrations::v11::migrate::<Runtime, VoterList, &'static str>(OLD_PALLET_NAME)
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_staking::migrations::v11::pre_upgrade::<Runtime, VoterBagsList, &'static str>(OLD_PALLET_NAME)
+		pallet_staking::migrations::v11::pre_upgrade::<Runtime, VoterList, &'static str>(OLD_PALLET_NAME)
 
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_staking::migrations::v11::post_upgrade::<Runtime, VoterBagsList, &'static str>(OLD_PALLET_NAME)
+		pallet_staking::migrations::v11::post_upgrade::<Runtime, VoterList, &'static str>(OLD_PALLET_NAME)
 	}
 }
 
@@ -1207,7 +1207,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
 				Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
-				Call::VoterBagsList(..) |
+				Call::VoterList(..) |
 				Call::NominationPools(..)
 			),
 			ProxyType::Governance => matches!(
@@ -1531,7 +1531,7 @@ construct_runtime! {
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 36,
 
 		// Provides a semi-sorted list of nominators for staking.
-		VoterBagsList: pallet_bags_list::<Instance1>::{Pallet, Call, Storage, Event<T>} = 37,
+		VoterList: pallet_bags_list::<Instance1>::{Pallet, Call, Storage, Event<T>} = 37,
 
 		// nomination pools: extension to staking.
 		NominationPools: pallet_nomination_pools::{Pallet, Call, Storage, Event<T>, Config<T>} = 39,
@@ -1621,7 +1621,7 @@ mod benches {
 		[runtime_parachains::paras_inherent, ParaInherent]
 		[runtime_parachains::ump, Ump]
 		// Substrate
-		[pallet_bags_list, VoterBagsList]
+		[pallet_bags_list, VoterList]
 		[pallet_balances, Balances]
 		[frame_benchmarking::baseline, Baseline::<Runtime>]
 		[pallet_bounties, Bounties]
