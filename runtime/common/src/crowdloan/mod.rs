@@ -1129,8 +1129,8 @@ mod tests {
 		}
 	}
 
-	fn last_event() -> Event {
-		System::events().pop().expect("Event expected").event
+	fn last_event() -> RuntimeEvent {
+		System::events().pop().expect("RuntimeEvent expected").event
 	}
 
 	#[test]

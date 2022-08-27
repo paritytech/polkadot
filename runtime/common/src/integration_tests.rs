@@ -342,11 +342,11 @@ fn run_to_session(n: u32) {
 	run_to_block(block_number);
 }
 
-fn last_event() -> Event {
-	System::events().pop().expect("Event expected").event
+fn last_event() -> RuntimeEvent {
+	System::events().pop().expect("RuntimeEvent expected").event
 }
 
-fn contains_event(event: Event) -> bool {
+fn contains_event(event: RuntimeEvent) -> bool {
 	System::events().iter().any(|x| x.event == event)
 }
 
