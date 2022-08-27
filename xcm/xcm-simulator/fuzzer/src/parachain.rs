@@ -157,7 +157,7 @@ pub mod mock_msg_queue {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		type XcmExecutor: ExecuteXcm<Self::Call>;
+		type XcmExecutor: ExecuteXcm<Self::RuntimeCall>;
 	}
 
 	#[pallet::call]
