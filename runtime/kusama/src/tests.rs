@@ -173,5 +173,5 @@ fn era_payout_should_give_sensible_results() {
 
 #[test]
 fn call_size() {
-	Call::assert_size_under(230);
+	RuntimeCall::assert_size_under(230);
 }
