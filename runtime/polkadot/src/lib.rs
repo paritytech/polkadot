@@ -89,6 +89,7 @@ pub use pallet_staking::StakerStatus;
 pub use pallet_timestamp::Call as TimestampCall;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
+use sp_runtime::traits::Get;
 
 /// Constant values used within the runtime.
 use polkadot_runtime_constants::{currency::*, fee::*, time::*};
@@ -619,25 +620,6 @@ impl pallet_staking::Config for Runtime {
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type OnStakerSlash = NominationPools;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
-}
-
-const OLD_PALLET_NAME:  &'static str = "VoterList";
-pub struct StakingMigrationV11;
-impl frame_support::traits::OnRuntimeUpgrade for StakingMigrationV11 {
-	fn on_runtime_upgrade() -> Weight {
-		pallet_staking::migrations::v11::migrate::<Runtime, VoterList, &'static str>(OLD_PALLET_NAME)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_staking::migrations::v11::pre_upgrade::<Runtime, VoterList, &'static str>(OLD_PALLET_NAME)
-
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_staking::migrations::v11::post_upgrade::<Runtime, VoterList, &'static str>(OLD_PALLET_NAME)
-	}
 }
 
 parameter_types! {
@@ -1584,6 +1566,14 @@ pub type SignedExtra = (
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 	claims::PrevalidateAttests<Runtime>,
 );
+
+pub struct StakingMigrationV11OldPallet;
+impl Get<&'static str> for StakingMigrationV11OldPallet {
+	fn get() -> &'static str {
+		"VoterList"
+	}
+}
+
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
@@ -1593,7 +1583,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(InitiateNominationPools, StakingMigrationV11),
+	(InitiateNominationPools, pallet_staking::migrations::v11::MigrateToV11<Runtime, VoterList, StakingMigrationV11OldPallet>),
 >;
 
 /// The payload being signed in transactions.
