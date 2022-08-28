@@ -45,7 +45,7 @@ pub mod pallet {
 		/// Give me a fungible asset that your asset transactor is going to accept.
 		fn get_multi_asset() -> xcm::latest::MultiAsset;
 
-		/// Disable tracking teleports of balances
+		/// Disable tracking teleports of balances.
 		type TrackBalances: Get<bool>;
 	}
 
