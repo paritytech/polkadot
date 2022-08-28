@@ -44,7 +44,7 @@ fn basic_buy_fees_message_executes() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute {
+		polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
 			message: Box::new(VersionedXcm::from(msg)),
 			max_weight: 1_000_000_000,
 		}),
@@ -88,7 +88,7 @@ fn query_response_fires() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::TestNotifier(pallet_test_notifier::Call::prepare_new_query {}),
+		polkadot_test_runtime::RuntimeCall::TestNotifier(pallet_test_notifier::Call::prepare_new_query {}),
 		sp_keyring::Sr25519Keyring::Alice,
 		0,
 	);
@@ -124,7 +124,7 @@ fn query_response_fires() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute {
+		polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
 			message: msg,
 			max_weight: 1_000_000_000,
 		}),
@@ -175,7 +175,7 @@ fn query_response_elicits_handler() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::TestNotifier(
+		polkadot_test_runtime::RuntimeCall::TestNotifier(
 			pallet_test_notifier::Call::prepare_new_notify_query {},
 		),
 		sp_keyring::Sr25519Keyring::Alice,
@@ -212,7 +212,7 @@ fn query_response_elicits_handler() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute {
+		polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
 			message: Box::new(VersionedXcm::from(msg)),
 			max_weight: 1_000_000_000,
 		}),
