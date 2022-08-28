@@ -1670,6 +1670,7 @@ sp_api::impl_runtime_apis! {
 					Westmint::get(),
 					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(WndLocation::get()) },
 				));
+				pub const TrackBalances: bool = true;
 			}
 
 			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
@@ -1678,6 +1679,7 @@ sp_api::impl_runtime_apis! {
 				type CheckedAccount = xcm_config::CheckAccount;
 				type TrustedTeleporter = TrustedTeleporter;
 				type TrustedReserve = TrustedReserve;
+				type TrackBalances = TrackBalances;
 
 				fn get_multi_asset() -> MultiAsset {
 					MultiAsset {

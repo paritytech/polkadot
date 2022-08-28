@@ -233,7 +233,7 @@ benchmarks_instance_pallet! {
 	}: {
 		executor.execute(xcm)?;
 	} verify {
-		if let Some(checked_account) = T::CheckedAccount::get() {
+		if T::TrackBalances::get() && let Some(checked_account) = T::CheckedAccount::get() {
 			// teleport checked account should have received some asset.
 			assert!(!T::TransactAsset::balance(&checked_account).is_zero());
 		}

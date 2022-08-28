@@ -172,6 +172,7 @@ parameter_types! {
 		ChildTeleporter::get(),
 		MultiAsset { id: Concrete(Here.into()), fun: Fungible(100) },
 	));
+	pub const TrackaBalances: bool = true;
 	pub const TeleConcreteFung: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into()) }), ChildTeleporter::get());
 	pub const RsrvConcreteFung: (MultiAssetFilter, MultiLocation) =
@@ -183,6 +184,7 @@ impl xcm_balances_benchmark::Config for Test {
 	type CheckedAccount = CheckedAccount;
 	type TrustedTeleporter = TrustedTeleporter;
 	type TrustedReserve = TrustedReserve;
+	type TrackBalances = TrackaBalances;
 
 	fn get_multi_asset() -> MultiAsset {
 		let amount =
