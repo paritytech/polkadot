@@ -1210,10 +1210,10 @@ pub mod pallet {
 	}
 
 	impl<T: Config> WrapVersion for Pallet<T> {
-		fn wrap_version<Call>(
+		fn wrap_version<RuntimeCall>(
 			dest: &MultiLocation,
-			xcm: impl Into<VersionedXcm<Call>>,
-		) -> Result<VersionedXcm<Call>, ()> {
+			xcm: impl Into<VersionedXcm<RuntimeCall>>,
+		) -> Result<VersionedXcm<RuntimeCall>, ()> {
 			SupportedVersion::<T>::get(XCM_VERSION, LatestVersionedMultiLocation(dest))
 				.or_else(|| {
 					Self::note_unknown_version(dest);
