@@ -145,10 +145,10 @@ where
 	}
 	let result = vote_selection(sender, partitioned, &onchain).await;
 
-	process_selected_disputes(metrics, result)
+	into_multi_dispute_statement_set(metrics, result)
 }
 
-/// Selects dispute votes from `PartitionedDispites` which should be sent to the runtime. Votes which
+/// Selects dispute votes from `PartitionedDisputes` which should be sent to the runtime. Votes which
 /// are already onchain are filtered out. Result should be sorted by `(SessionIndex, CandidateHash)`
 /// which is enforced by the `BTreeMap`. This is a requirement from the runtime.
 async fn vote_selection<Sender>(
@@ -318,17 +318,17 @@ fn partition_recent_disputes(
 // Helper trait to obtain the value of vote for `InvalidDisputeStatementKind` and `ValidDisputeStatementKind`.
 // The alternative was to pass a bool to `fn is_vote_worth_to_keep` explicitly but it's pointless as the value is already 'encoded' in the type.
 trait VoteType {
-	fn vote_value() -> bool;
+	fn is_valid() -> bool;
 }
 
 impl VoteType for InvalidDisputeStatementKind {
-	fn vote_value() -> bool {
+	fn is_valid() -> bool {
 		false
 	}
 }
 
 impl VoteType for ValidDisputeStatementKind {
-	fn vote_value() -> bool {
+	fn is_valid() -> bool {
 		true
 	}
 }
@@ -339,7 +339,7 @@ fn is_vote_worth_to_keep<T: VoteType>(
 	_: &T,
 	onchain_state: &DisputeState,
 ) -> bool {
-	let offchain_vote = T::vote_value();
+	let offchain_vote = T::is_valid();
 	let in_validators_for = onchain_state
 		.validators_for
 		.get(validator_index.0 as usize)
@@ -386,7 +386,7 @@ async fn request_disputes(
 }
 
 // This function produces the return value for `pub fn select_disputes()`
-fn process_selected_disputes(
+fn into_multi_dispute_statement_set(
 	metrics: &metrics::Metrics,
 	dispute_candidate_votes: BTreeMap<(SessionIndex, CandidateHash), CandidateVotes>,
 ) -> Result<MultiDisputeStatementSet, Error> {
