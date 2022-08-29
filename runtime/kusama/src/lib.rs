@@ -489,6 +489,9 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
+	#[cfg(feature = "fast-runtime")]
+	type Fallback = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	#[cfg(not(feature = "fast-runtime"))]
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
 	type GovernanceFallback = onchain::UnboundedExecution<OnChainSeqPhragmen>;
 	type Solver = SequentialPhragmen<
@@ -582,7 +585,7 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 
 parameter_types! {
 	// Six sessions in an era (6 hours).
-	pub const SessionsPerEra: SessionIndex = 6;
+	pub const SessionsPerEra: SessionIndex = prod_or_fast!(6, 1);
 	// 28 eras for unbonding (7 days).
 	pub const BondingDuration: sp_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
@@ -1446,7 +1449,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(pallet_staking::migrations::v10::MigrateToV10<Runtime>,),
+	(),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1868,7 +1871,7 @@ sp_api::impl_runtime_apis! {
 		Balance,
 	> for Runtime {
 		fn pending_rewards(member: AccountId) -> Balance {
-			NominationPools::pending_rewards(member)
+			NominationPools::pending_rewards(member).unwrap_or_default()
 		}
 	}
 
