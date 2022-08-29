@@ -12,7 +12,7 @@ publish = false
 tokio = { version = "1.19.2", default-features = false, features = ["macros", "net", "rt-multi-thread", "sync"] }
 url = "2.0.0"
 tokio-tungstenite = "0.17"
-futures-util = "0.3.21"
+futures-util = "0.3.23"
 lazy_static = "1.4.0"
 parity-scale-codec = { version = "3.1.5", features = ["derive"] }
 reqwest = "0.11"
