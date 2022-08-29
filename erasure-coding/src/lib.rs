@@ -28,11 +28,11 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::{AvailableData, Proof};
 use polkadot_primitives::v2::{BlakeTwo256, Hash as H256, HashT};
 use sp_core::Blake2Hasher;
-use thiserror::Error;
-use trie::{
-	trie_types::{TrieDB, TrieDBMutV0 as TrieDBMut},
-	MemoryDB, Trie, TrieMut, EMPTY_PREFIX,
+use sp_trie::{
+	trie_types::{TrieDBBuilder, TrieDBMutBuilderV0 as TrieDBMutBuilder},
+	LayoutV0, MemoryDB, Trie, TrieMut, EMPTY_PREFIX,
 };
+use thiserror::Error;
 
 use novelpoly::{CodeParams, WrappedShard};
 
@@ -224,13 +224,16 @@ impl<'a, I: AsRef<[u8]>> Iterator for Branches<'a, I> {
 	type Item = (Proof, &'a [u8]);
 
 	fn next(&mut self) -> Option<Self::Item> {
-		use trie::Recorder;
+		use sp_trie::Recorder;
 
-		let trie = TrieDB::new(&self.trie_storage, &self.root)
-			.expect("`Branches` is only created with a valid memorydb that contains all nodes for the trie with given root; qed");
+		let mut recorder = Recorder::<LayoutV0<Blake2Hasher>>::new();
+		let res = {
+			let trie = TrieDBBuilder::new(&self.trie_storage, &self.root)
+				.with_recorder(&mut recorder)
+				.build();
 
-		let mut recorder = Recorder::new();
-		let res = (self.current_pos as u32).using_encoded(|s| trie.get_with(s, &mut recorder));
+			(self.current_pos as u32).using_encoded(|s| trie.get(s))
+		};
 
 		match res.expect("all nodes in trie present; qed") {
 			Some(_) => {
@@ -257,7 +260,7 @@ where
 
 	// construct trie mapping each chunk's index to its hash.
 	{
-		let mut trie = TrieDBMut::new(&mut trie_storage, &mut root);
+		let mut trie = TrieDBMutBuilder::new(&mut trie_storage, &mut root).build();
 		for (i, chunk) in chunks.as_ref().iter().enumerate() {
 			(i as u32).using_encoded(|encoded_index| {
 				let chunk_hash = BlakeTwo256::hash(chunk.as_ref());
@@ -275,10 +278,10 @@ where
 pub fn branch_hash(root: &H256, branch_nodes: &Proof, index: usize) -> Result<H256, Error> {
 	let mut trie_storage: MemoryDB<Blake2Hasher> = MemoryDB::default();
 	for node in branch_nodes.iter() {
-		(&mut trie_storage as &mut trie::HashDB<_>).insert(EMPTY_PREFIX, node);
+		(&mut trie_storage as &mut sp_trie::HashDB<_>).insert(EMPTY_PREFIX, node);
 	}
 
-	let trie = TrieDB::new(&trie_storage, &root).map_err(|_| Error::InvalidBranchProof)?;
+	let trie = TrieDBBuilder::new(&trie_storage, &root).build();
 	let res = (index as u32).using_encoded(|key| {
 		trie.get_with(key, |raw_hash: &[u8]| H256::decode(&mut &raw_hash[..]))
 	});
