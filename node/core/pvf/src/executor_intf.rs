@@ -221,6 +221,7 @@ type HostFunctions = (
 	sp_io::allocator::HostFunctions,
 	sp_io::logging::HostFunctions,
 	sp_io::trie::HostFunctions,
+	sp_io::sandbox::HostFunctions,
 );
 
 /// The validation externalities that will panic on any storage related access.
