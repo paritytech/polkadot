@@ -85,6 +85,7 @@ pub enum ProtocolSide {
 /// The collator protocol subsystem.
 pub struct CollatorProtocolSubsystem {
 	protocol_side: ProtocolSide,
+	ws_sender: polkadot_network_bridge::websocket_server::BroadcastTx,
 }
 
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
@@ -93,14 +94,14 @@ impl CollatorProtocolSubsystem {
 	/// If `id` is `Some` this is a collator side of the protocol.
 	/// If `id` is `None` this is a validator side of the protocol.
 	/// Caller must provide a registry for prometheus metrics.
-	pub fn new(protocol_side: ProtocolSide) -> Self {
-		Self { protocol_side }
+	pub fn new(protocol_side: ProtocolSide, ws_sender: polkadot_network_bridge::websocket_server::BroadcastTx) -> Self {
+		Self { protocol_side, ws_sender }
 	}
 
 	async fn run<Context>(self, ctx: Context) -> std::result::Result<(), error::FatalError> {
 		match self.protocol_side {
 			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
-				validator_side::run(ctx, keystore, eviction_policy, metrics).await,
+				validator_side::run(ctx, keystore, eviction_policy, metrics, self.ws_sender).await,
 			ProtocolSide::Collator(local_peer_id, collator_pair, req_receiver, metrics) =>
 				collator_side::run(ctx, local_peer_id, collator_pair, req_receiver, metrics).await,
 		}

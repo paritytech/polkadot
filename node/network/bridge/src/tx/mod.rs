@@ -43,7 +43,7 @@ use crate::metrics::Metrics;
 
 #[cfg(test)]
 mod tests;
-mod websocket_server;
+pub mod websocket_server;
 
 // network bridge log target
 const LOG_TARGET: &'static str = "parachain::network-bridge-tx";
@@ -55,6 +55,8 @@ pub struct NetworkBridgeTx<N, AD> {
 	authority_discovery_service: AD,
 	metrics: Metrics,
 	req_protocol_names: ReqProtocolNames,
+	ws_server: websocket_server::BridgeMirrorServer,
+	ws_sender: websocket_server::BroadcastTx,
 }
 
 impl<N, AD> NetworkBridgeTx<N, AD> {
@@ -67,8 +69,10 @@ impl<N, AD> NetworkBridgeTx<N, AD> {
 		authority_discovery_service: AD,
 		metrics: Metrics,
 		req_protocol_names: ReqProtocolNames,
+		ws_server: websocket_server::BridgeMirrorServer,
+		ws_sender: websocket_server::BroadcastTx,
 	) -> Self {
-		Self { network_service, authority_discovery_service, metrics, req_protocol_names }
+		Self { network_service, authority_discovery_service, metrics, req_protocol_names, ws_server, ws_sender }
 	}
 }
 
@@ -93,16 +97,14 @@ async fn handle_subsystem_messages<Context, N, AD>(
 	mut authority_discovery_service: AD,
 	metrics: Metrics,
 	req_protocol_names: ReqProtocolNames,
+	mut ws_server: websocket_server::BridgeMirrorServer,
+	mut ws_sender: websocket_server::BroadcastTx,
 ) -> Result<(), Error>
 where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
 	let mut validator_discovery = validator_discovery::Service::<N, AD>::new();
-	let (mut ws_sender, ws_receiver) = unbounded();
-
-	let mut ws_server =
-		websocket_server::BridgeMirrorServer::new("127.0.0.1".to_string(), ws_receiver).await;
 
 	loop {
 		select! {
@@ -313,7 +315,11 @@ where
 		authority_discovery_service,
 		metrics,
 		req_protocol_names,
+		mut ws_server,
+		ws_sender,
 	} = bridge;
+
+	ws_server.start().await;
 
 	handle_subsystem_messages(
 		ctx,
@@ -321,6 +327,8 @@ where
 		authority_discovery_service,
 		metrics,
 		req_protocol_names,
+		ws_server,
+		ws_sender,
 	)
 	.await?;
 

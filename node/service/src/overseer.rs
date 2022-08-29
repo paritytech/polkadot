@@ -16,6 +16,7 @@
 
 use super::{AuthorityDiscoveryApi, Block, Error, Hash, IsCollator, Registry};
 use sp_core::traits::SpawnNamed;
+use futures::channel::mpsc::unbounded;
 
 use lru::LruCache;
 use polkadot_availability_distribution::IncomingRequestReceivers;
@@ -56,7 +57,7 @@ pub use polkadot_dispute_distribution::DisputeDistributionSubsystem;
 pub use polkadot_gossip_support::GossipSupport as GossipSupportSubsystem;
 pub use polkadot_network_bridge::{
 	Metrics as NetworkBridgeMetrics, NetworkBridgeRx as NetworkBridgeRxSubsystem,
-	NetworkBridgeTx as NetworkBridgeTxSubsystem,
+	NetworkBridgeTx as NetworkBridgeTxSubsystem, websocket_server
 };
 pub use polkadot_node_collation_generation::CollationGenerationSubsystem;
 pub use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
@@ -199,6 +200,10 @@ where
 	let spawner = SpawnGlue(spawner);
 
 	let network_bridge_metrics: NetworkBridgeMetrics = Metrics::register(registry)?;
+	let (ws_sender, ws_receiver) = unbounded();
+
+	let ws_server =
+		websocket_server::BridgeMirrorServer::new("127.0.0.1".to_string(), ws_receiver);
 
 	let builder = Overseer::builder()
 		.network_bridge_tx(NetworkBridgeTxSubsystem::new(
@@ -206,6 +211,8 @@ where
 			authority_discovery_service.clone(),
 			network_bridge_metrics.clone(),
 			req_protocol_names,
+			ws_server,
+			ws_sender.clone(),
 		))
 		.network_bridge_rx(NetworkBridgeRxSubsystem::new(
 			network_service.clone(),
@@ -262,7 +269,7 @@ where
 					metrics: Metrics::register(registry)?,
 				},
 			};
-			CollatorProtocolSubsystem::new(side)
+			CollatorProtocolSubsystem::new(side, ws_sender)
 		})
 		.provisioner(ProvisionerSubsystem::new(Metrics::register(registry)?))
 		.runtime_api(RuntimeApiSubsystem::new(

@@ -6185,6 +6185,7 @@ dependencies = [
  "futures-timer",
  "log",
  "parity-scale-codec",
+ "polkadot-network-bridge",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",

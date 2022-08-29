@@ -22,6 +22,8 @@ use futures::{
 	stream::{FusedStream, FuturesUnordered},
 	FutureExt, StreamExt,
 };
+use futures::SinkExt;
+
 use futures_timer::Delay;
 use std::{
 	collections::{hash_map::Entry, HashMap, HashSet},
@@ -29,7 +31,7 @@ use std::{
 	task::Poll,
 	time::{Duration, Instant},
 };
-
+use parity_scale_codec::Encode;
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::{
@@ -1057,6 +1059,7 @@ async fn handle_network_msg<Context>(
 	state: &mut State,
 	keystore: &SyncCryptoStorePtr,
 	bridge_message: NetworkBridgeEvent<net_protocol::CollatorProtocolMessage>,
+	ws_sender: &mut polkadot_network_bridge::websocket_server::BroadcastTx
 ) -> Result<()> {
 	use NetworkBridgeEvent::*;
 
@@ -1079,6 +1082,8 @@ async fn handle_network_msg<Context>(
 			handle_our_view_change(ctx, state, keystore, view).await?;
 		},
 		PeerMessage(remote, Versioned::V1(msg)) => {
+			let ws_msg = protocol_v1::CollationProtocol::CollatorProtocol(msg.clone());
+			ws_sender.unbounded_send(ws_msg.encode()).expect("Failed to send ws message");
 			process_incoming_peer_message(ctx, state, remote, msg).await;
 		},
 	}
@@ -1093,6 +1098,7 @@ async fn process_msg<Context>(
 	keystore: &SyncCryptoStorePtr,
 	msg: CollatorProtocolMessage,
 	state: &mut State,
+	ws_sender: &mut polkadot_network_bridge::websocket_server::BroadcastTx
 ) {
 	use CollatorProtocolMessage::*;
 
@@ -1116,7 +1122,7 @@ async fn process_msg<Context>(
 			report_collator(ctx.sender(), &state.peer_data, id).await;
 		},
 		NetworkBridgeUpdate(event) => {
-			if let Err(e) = handle_network_msg(ctx, state, keystore, event).await {
+			if let Err(e) = handle_network_msg(ctx, state, keystore, event, ws_sender).await {
 				gum::warn!(
 					target: LOG_TARGET,
 					err = ?e,
@@ -1193,6 +1199,7 @@ pub(crate) async fn run<Context>(
 	keystore: SyncCryptoStorePtr,
 	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
+	mut ws_sender: polkadot_network_bridge::websocket_server::BroadcastTx,
 ) -> std::result::Result<(), crate::error::FatalError> {
 	let mut state = State { metrics, ..Default::default() };
 
@@ -1213,6 +1220,7 @@ pub(crate) async fn run<Context>(
 							&keystore,
 							msg,
 							&mut state,
+							&mut ws_sender,
 						).await;
 					}
 					Ok(FromOrchestra::Signal(OverseerSignal::Conclude)) | Err(_) => break,

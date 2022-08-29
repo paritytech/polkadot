@@ -34,15 +34,27 @@ pub type BroadcastTx = UnboundedSender<Vec<u8>>;
 
 pub struct BridgeMirrorServer {
 	peers: Vec<BroadcastTx>,
-	listener: TcpListener,
+	listener: Option<TcpListener>,
 	broadcast_rx: BroadcastRx,
+	addr: String,
 }
 
 impl BridgeMirrorServer {
-	pub async fn new(addr: String, broadcast_rx: BroadcastRx) -> Self {
+	pub fn new(addr: String, broadcast_rx: BroadcastRx) -> Self {
+
+		BridgeMirrorServer {
+			peers: Default::default(),
+			listener: None,
+			broadcast_rx,
+			addr,
+		}
+	}
+
+	/// Start the websocket server - will try to find port to listen on.
+	pub async fn start(&mut self) {
 		let mut listener = None;
 		for i in 0..100 {
-			let addr = format!("{}:{}", addr, 13370 + i);
+			let addr = format!("{}:{}", self.addr, 13370 + i);
 			gum::info!("Trying to setup websocket server at `{}`", addr);
 			if let Ok(maybe_listener) = TcpListener::bind(&addr).await {
 				listener = Some(maybe_listener);
@@ -50,37 +62,40 @@ impl BridgeMirrorServer {
 				break
 			}
 		}
-
-		BridgeMirrorServer {
-			peers: Default::default(),
-			listener: listener.expect("Giving up, unable to find spare port."),
-			broadcast_rx,
-		}
+		self.listener = Some(listener.expect("Giving up, unable to find spare port."));
 	}
 
+	/// Poll exactly one message or accept a connection over the websocket. 
 	pub async fn run_once(&mut self) {
-		select! {
-			result = self.listener.accept().fuse() => {
-				if let Ok((stream, addr)) = result {
-					let (broadcast_tx, broadcast_rx) = unbounded();
-					self.peers.push(broadcast_tx);
-					tokio::spawn(handle_one_client(broadcast_rx, stream, addr));
-				} else {
-					gum::error!(target: LOG_TARGET, "Error listening: {:?}", result);
-				}
-
-			},
-			message = self.broadcast_rx.next().fuse() => {
-				if let Some(message) = message {
-					for peer in &self.peers {
-						gum::info!(target: LOG_TARGET, "Sending message to peer");
-						if let Err(err) = peer.unbounded_send(message.clone()) {
-							gum::error!(target: LOG_TARGET, "Removing client: {:?}", err);
+		if let Some(listener) = self.listener.as_ref() {
+			select! {
+				result = listener.accept().fuse() => {
+					if let Ok((stream, addr)) = result {
+						let (broadcast_tx, broadcast_rx) = unbounded();
+						self.peers.push(broadcast_tx);
+						tokio::spawn(handle_one_client(broadcast_rx, stream, addr));
+					} else {
+						gum::error!(target: LOG_TARGET, "Error listening: {:?}", result);
+					}
+				},
+				message = self.broadcast_rx.next().fuse() => {
+					if let Some(message) = message {
+						let mut peers_to_remove = Vec::new();
+						for (idx, peer) in self.peers.iter().enumerate() {
+							gum::info!(target: LOG_TARGET, "Sending message to peer");
+							if let Err(err) = peer.unbounded_send(message.clone()) {
+								gum::error!(target: LOG_TARGET, "Removing client: {:?}", err);
+								peers_to_remove.push(idx);
+							}
+						}
+	
+						for peer in peers_to_remove {
+							self.peers.remove(peer);
 						}
 					}
-				}
-			},
-		};
+				},
+			};
+		}
 	}
 }
 
