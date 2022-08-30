@@ -19,7 +19,7 @@
 pub use codec::Encode;
 pub use paste;
 
-pub use frame_support::{traits::Get, weights::Weight};
+pub use frame_support::traits::Get;
 pub use sp_io::TestExternalities;
 pub use sp_std::{cell::RefCell, collections::vec_deque::VecDeque, marker::PhantomData};
 

@@ -14,9 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::weights::Weight;
 use sp_std::result::Result;
-use xcm::latest::{MultiLocation, Xcm};
+use xcm::latest::{MultiLocation, Weight, Xcm};
 
 /// Trait to determine whether the execution engine should actually execute a given XCM.
 ///
