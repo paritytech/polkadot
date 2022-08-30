@@ -17,7 +17,7 @@
 use super::*;
 use assert_matches::assert_matches;
 use futures::{executor, future, Future};
-use polkadot_node_network_protocol::{our_view, view, ObservedRole};
+use polkadot_node_network_protocol::{our_view, peer_set::ValidationVersion, view, ObservedRole};
 use polkadot_node_primitives::approval::{
 	AssignmentCertKind, VRFOutput, VRFProof, RELAY_VRF_MODULO_CONTEXT,
 };
@@ -174,7 +174,7 @@ async fn setup_peer_with_view(
 		ApprovalDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 			peer_id.clone(),
 			ObservedRole::Full,
-			1,
+			ValidationVersion::V1.into(),
 			None,
 		)),
 	)

@@ -213,7 +213,6 @@ impl Participation {
 	}
 
 	/// Dequeue until `MAX_PARALLEL_PARTICIPATIONS` is reached.
-
 	async fn dequeue_until_capacity<Context>(
 		&mut self,
 		ctx: &mut Context,

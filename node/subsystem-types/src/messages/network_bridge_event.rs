@@ -22,7 +22,8 @@ use std::{
 pub use sc_network::{PeerId, ReputationChange};
 
 use polkadot_node_network_protocol::{
-	grid_topology::SessionGridTopology, ObservedRole, OurView, ProtocolVersion, View, WrongVariant,
+	grid_topology::SessionGridTopology, peer_set::ProtocolVersion, ObservedRole, OurView, View,
+	WrongVariant,
 };
 use polkadot_primitives::v2::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
 
