@@ -24,7 +24,7 @@ use sp_std::cell::RefCell;
 
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::{configuration, origin, shared};
-use xcm::latest::{opaque, prelude::*, Weight};
+use xcm::latest::{opaque, prelude::*};
 use xcm_executor::XcmExecutor;
 
 use xcm_builder::{
