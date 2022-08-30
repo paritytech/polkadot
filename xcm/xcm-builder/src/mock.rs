@@ -33,7 +33,7 @@ pub use sp_std::{
 	fmt::Debug,
 	marker::PhantomData,
 };
-pub use xcm::latest::prelude::*;
+pub use xcm::latest::{prelude::*, Weight};
 pub use xcm_executor::{
 	traits::{ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset},
 	Assets, Config,
@@ -45,8 +45,6 @@ pub enum TestOrigin {
 	Signed(u64),
 	Parachain(u32),
 }
-
-type Weight = u64;
 
 /// A dummy call.
 ///

@@ -22,7 +22,7 @@ use sp_std::{marker::PhantomData, prelude::*};
 use xcm::latest::{
 	Error as XcmError, ExecuteXcm,
 	Instruction::{self, *},
-	MultiAssets, MultiLocation, Outcome, Response, SendXcm, Xcm,
+	MultiAssets, MultiLocation, Outcome, Response, SendXcm, Weight, Xcm,
 };
 
 pub mod traits;
@@ -30,8 +30,6 @@ use traits::{
 	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
 	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
-
-type Weight = u64;
 
 mod assets;
 pub use assets::Assets;
