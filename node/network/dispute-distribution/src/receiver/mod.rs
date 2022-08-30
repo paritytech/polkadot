@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::{
-	collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
+	collections::HashSet,
 	pin::Pin,
 	task::{Context, Poll},
 	time::Duration,
@@ -23,13 +23,11 @@ use std::{
 
 use futures::{
 	channel::oneshot,
-	future::{poll_fn, BoxFuture, Fuse},
-	pin_mut, select_biased,
+	future::{poll_fn, BoxFuture},
+	pin_mut,
 	stream::{FusedStream, FuturesUnordered, StreamExt},
 	Future, FutureExt, Stream,
 };
-use futures_timer::Delay;
-use lru::LruCache;
 
 use polkadot_node_network_protocol::{
 	authority_discovery::AuthorityDiscovery,
@@ -46,11 +44,10 @@ use polkadot_node_subsystem::{
 	overseer,
 };
 use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
-use polkadot_primitives::v2::{AuthorityDiscoveryId, CandidateHash};
 
 use crate::{
 	metrics::{FAILED, SUCCEEDED},
-	Metrics, LOG_TARGET, RECEIVE_RATE_LIMIT,
+	Metrics, LOG_TARGET,
 };
 
 mod error;
@@ -59,10 +56,10 @@ mod error;
 mod peer_queues;
 
 /// Batch imports together.
-mod batch;
+mod batches;
 
 use self::{
-	batch::Batch,
+	batches::{Batches, FoundBatch, PreparedImport},
 	error::{log_error, JfyiError, JfyiResult, Result},
 	peer_queues::PeerQueues,
 };
@@ -103,20 +100,15 @@ pub struct DisputesReceiver<Sender, AD> {
 	/// Rate limiting queue for each peer (only authorities).
 	peer_queues: PeerQueues,
 
-	/// Time to check on batches whether they are ready for import.
-	check_batches_waker: Option<Fuse<Delay>>,
-
 	/// Currently active batches of imports per candidate.
-	///
-	/// We use an `IndexMap` here as the order of insertion is important.
-	///
-	/// We rely on `time_next_tick()` of the oldest (first inserted
-	batches: HashMap<CandidateHash, Batch>,
+	batches: Batches,
 
 	/// Authority discovery service:
 	authority_discovery: AD,
 
 	/// Imports currently being processed.
+	///
+	/// TODO: Flush batches on invalid result of first vote import.
 	pending_imports: PendingImports,
 
 	/// Log received requests.
@@ -138,13 +130,17 @@ enum MuxedMessage {
 	NewRequest(IncomingRequest<DisputeRequest>),
 
 	/// Rate limit timer hit - is is time to process one row of messages.
-	RateLimitedReady(Vec<IncomingRequest<DisputeRequest>>),
+	///
+	/// This is the result of calling self.peer_queues.pop_reqs().
+	WakePeerQueuesPopReqs(Vec<IncomingRequest<DisputeRequest>>),
 
 	/// It is time to check batches.
 	///
 	/// Every `BATCH_COLLECTING_INTERVAL` we check whether less than `MIN_KEEP_BATCH_ALIVE_VOTES`
 	/// new votes arrived, if so the batch is ready for import.
-	WakeCheckBatches,
+	///
+	/// This is the result of calling self.batches.check_batches().
+	WakeCheckBatches(Vec<PreparedImport>),
 }
 
 impl<Sender, AD> DisputesReceiver<Sender, AD>
@@ -168,8 +164,7 @@ where
 			sender,
 			receiver,
 			peer_queues: PeerQueues::new(),
-			check_batches_waker: None,
-			batches: HashMap::new(),
+			batches: Batches::new(),
 			authority_discovery,
 			pending_imports: PendingImports::new(),
 			// Size of MAX_PARALLEL_IMPORTS ensures we are going to immediately get rid of any
@@ -211,7 +206,7 @@ where
 				self.metrics.on_received_request();
 				self.dispatch_to_queues(req).await?;
 			},
-			MuxedMessage::RateLimitedReady(reqs) => {
+			MuxedMessage::WakePeerQueuesPopReqs(reqs) => {
 				// Phase 2:
 				for req in reqs {
 					// No early return - we cannot cancel imports of one peer, because the import of
@@ -222,35 +217,23 @@ where
 					}
 				}
 			},
-			MuxedMessage::WakeCheckBatches => {
+			MuxedMessage::WakeCheckBatches(ready_imports) => {
 				// Phase 3:
+				self.import_ready_batches(ready_imports).await?;
 			},
 			MuxedMessage::ConfirmedImport(m_bad) => {
 				// Handle import confirmation:
 				self.ban_bad_peer(m_bad)?;
-				return Ok(())
 			},
 		}
 
-		// Let's actually process messages, that made it through the rate limit:
-		//
-		// Batch:
-		// - Collect votes - get rid of duplicates.
-		// - Keep track of import rate.
-		// - Flush if import rate is not matched
-		// Wait for a free slot:
-		//
-		if self.pending_imports.len() >= MAX_PARALLEL_IMPORTS as usize {
-			// Wait for one to finish:
-			let r = self.pending_imports.next().await;
-			self.ban_bad_peer(r.expect("pending_imports.len() is greater 0. qed."))?;
-		}
-
-		// All good - initiate import.
-		self.start_import_or_batch(incoming).await
+		Ok(())
 	}
 
 	/// Receive one `MuxedMessage`.
+	///
+	///
+	/// Dispatching events to messages as they happen.
 	async fn receive_message(&mut self) -> Result<MuxedMessage> {
 		poll_fn(|ctx| {
 			// In case of Ready(None), we want to wait for pending requests:
@@ -260,14 +243,16 @@ where
 
 			let rate_limited = self.peer_queues.pop_reqs();
 			pin_mut!(rate_limited);
+			// We poll rate_limit before batches, so we don't unecessarily delay importing to
+			// batches.
 			if let Poll::Ready(reqs) = rate_limited.poll(ctx) {
-				return Poll::Ready(Ok(MuxedMessage::RateLimitedReady(reqs)))
+				return Poll::Ready(Ok(MuxedMessage::WakePeerQueuesPopReqs(reqs)))
 			}
 
-			if let Some(timer) = self.check_batches_waker.as_mut() {
-				if let Poll::Ready(()) = Pin::new(timer).poll(ctx) {
-					return Poll::Ready(Ok(MuxedMessage::WakeCheckBatches))
-				}
+			let ready_batches = self.batches.check_batches();
+			pin_mut!(ready_batches);
+			if let Poll::Ready(ready_batches) = ready_batches.poll(ctx) {
+				return Poll::Ready(Ok(MuxedMessage::WakeCheckBatches(ready_batches)))
 			}
 
 			let next_req = self.receiver.recv(|| vec![COST_INVALID_REQUEST]);
@@ -361,14 +346,13 @@ where
 			Ok(votes) => votes,
 		};
 
-		match self.batches.entry(*valid_vote.0.candidate_hash()) {
-			Entry::Vacant(vacant) => {
-				vacant.insert(Batch::new(candidate_receipt.clone()));
+		match self.batches.find_batch(*valid_vote.0.candidate_hash(), candidate_receipt) {
+			FoundBatch::Created(batch) => {
 				// There was no entry yet - start import immediately:
 				let (pending_confirmation, confirmation_rx) = oneshot::channel();
 				self.sender
 					.send_message(DisputeCoordinatorMessage::ImportStatements {
-						candidate_receipt,
+						candidate_receipt: batch.candidate_receipt().clone(),
 						session: valid_vote.0.session_index(),
 						statements: vec![valid_vote, invalid_vote],
 						pending_confirmation: Some(pending_confirmation),
@@ -377,10 +361,8 @@ where
 
 				self.pending_imports.push(peer, confirmation_rx, pending_response);
 			},
-			Entry::Occupied(mut occupied) => {
-				// Just import to batch:
-				let batch_result =
-					occupied.get_mut().add_votes(valid_vote, invalid_vote, pending_response);
+			FoundBatch::Found(batch) => {
+				let batch_result = batch.add_votes(valid_vote, invalid_vote, pending_response);
 
 				if let Err(pending_response) = batch_result {
 					// We don't expect honest peers to send redundant votes within a single batch,
@@ -411,6 +393,37 @@ where
 		}
 
 		Ok(())
+	}
+
+	/// Trigger import into the dispute-coordinator of ready batches (`PreparedImport`s).
+	async fn import_ready_batches(&mut self, ready_imports: Vec<PreparedImport>) -> Result<()> {
+		for import in ready_imports {
+			let PreparedImport { candidate_receipt, statements, pending_responses } = import;
+			let session_index = match statements.iter().next() {
+				None => {
+					gum::debug!(
+						target: LOG_TARGET,
+						candidate_hash = ?candidate_receipt.hash(),
+						"Not importing empty batch"
+					);
+					continue
+				},
+				Some(vote) => vote.0.session_index(),
+			};
+
+			let (pending_confirmation, confirmation_rx) = oneshot::channel();
+			self.sender
+				.send_message(DisputeCoordinatorMessage::ImportStatements {
+					candidate_receipt,
+					session: session_index,
+					statements,
+					pending_confirmation: Some(pending_confirmation),
+				})
+				.await;
+			// TODO:
+			//	Confirmation has to trigger response senders:
+		}
+		unimplemented!("WIP")
 	}
 
 	/// Await an import and ban any misbehaving peers.

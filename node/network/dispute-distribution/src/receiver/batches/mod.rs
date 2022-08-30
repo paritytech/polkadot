@@ -53,7 +53,7 @@ const MAX_BATCH_LIFETIME: Duration = DISPUTE_REQUEST_TIMEOUT - Duration::from_se
 ///
 /// - Batches can be found via `find_batch()` in order to add votes to them/check they exist.
 /// - Batches can be checked for being ready for flushing in order to import contained votes.
-struct Batches {
+pub struct Batches {
 	/// The batches we manage.
 	///
 	/// Kept invariants:
@@ -68,7 +68,7 @@ struct Batches {
 }
 
 /// A found batch is either really found or got created so it can be found.
-enum FoundBatch<'a> {
+pub enum FoundBatch<'a> {
 	/// Batch just got created.
 	Created(&'a mut Batch),
 	/// Batch already existed.
@@ -116,7 +116,7 @@ impl Batches {
 	/// function will always return `Poll::Pending`.
 	///
 	/// Returns: A `Vec` of all `PreparedImport`s from batches that became ready.
-	pub async fn wait_tick(&mut self) -> Vec<PreparedImport> {
+	pub async fn check_batches(&mut self) -> Vec<PreparedImport> {
 		let now = Instant::now();
 
 		let mut imports = Vec::new();

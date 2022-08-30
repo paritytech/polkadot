@@ -128,6 +128,11 @@ impl Batch {
 		&self.candidate_hash
 	}
 
+	/// Receipt of the candidate this batch is batching votes for.
+	pub fn candidate_receipt(&self) -> &CandidateReceipt {
+		&self.candidate_receipt
+	}
+
 	/// Add votes from a validator into the batch.
 	///
 	/// The statements are supposed to be the valid and invalid statements received in a
