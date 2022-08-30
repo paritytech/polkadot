@@ -1100,7 +1100,7 @@ sp_api::impl_runtime_apis! {
 			runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
 		}
 
-		fn get_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
+		fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
 			runtime_parachains::runtime_api_impl::vstaging::get_session_disputes::<Runtime>()
 		}
 	}

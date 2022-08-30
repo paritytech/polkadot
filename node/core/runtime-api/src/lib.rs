@@ -499,6 +499,6 @@ where
 		},
 		Request::ValidationCodeHash(para, assumption, sender) =>
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
-		Request::Disputes(sender) => query!(Disputes, get_disputes(), ver = 3, sender),
+		Request::Disputes(sender) => query!(Disputes, disputes(), ver = 3, sender),
 	}
 }

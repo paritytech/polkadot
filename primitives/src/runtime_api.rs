@@ -220,6 +220,6 @@ sp_api::decl_runtime_apis! {
 
 		/// Returns all onchain disputes.
 		#[api_version(3)]
-		fn get_disputes() -> Vec<(v2::SessionIndex, v2::CandidateHash, v2::DisputeState<v2::BlockNumber>)>;
+		fn disputes() -> Vec<(v2::SessionIndex, v2::CandidateHash, v2::DisputeState<v2::BlockNumber>)>;
 	}
 }
