@@ -114,7 +114,7 @@ type LocalOriginConverter = (
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: Weight = 1_000;
+	pub const BaseXcmWeight: u64 = 1_000;
 	pub KsmPerSecond: (AssetId, u128) = (Concrete(KsmLocation::get()), 1);
 	pub const MaxInstructions: u32 = 100;
 }
@@ -161,7 +161,7 @@ impl pallet_xcm::Config for Runtime {
 }
 
 parameter_types! {
-	pub const FirstMessageFactorPercent: u64 = 100;
+	pub const FirstMessageFactorPercent: Weight = Weight::from_ref_time(100);
 }
 
 impl ump::Config for Runtime {

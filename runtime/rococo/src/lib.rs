@@ -592,7 +592,7 @@ impl parachains_session_info::Config for Runtime {
 }
 
 parameter_types! {
-	pub const FirstMessageFactorPercent: u64 = 100;
+	pub const FirstMessageFactorPercent: Weight = Weight::from_ref_time(100);
 }
 
 impl parachains_ump::Config for Runtime {

@@ -236,7 +236,7 @@ type LocalOriginConverter = (
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: Weight = 1_000;
+	pub const BaseXcmWeight: u64 = 1_000;
 	pub CurrencyPerSecond: (AssetId, u128) = (Concrete(RelayLocation::get()), 1);
 	pub TrustedAssets: (MultiAssetFilter, MultiLocation) = (All.into(), Here.into());
 	pub const MaxInstructions: u32 = 100;
