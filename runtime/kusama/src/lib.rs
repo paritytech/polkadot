@@ -2089,8 +2089,8 @@ mod multiplier_tests {
 
 		let call = frame_system::Call::<Runtime>::fill_block {
 			ratio: Perbill::from_rational(
-				block_weight,
-				BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap(),
+				block_weight.ref_time(),
+				BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap().ref_time(),
 			),
 		};
 		println!("calling {:?}", call);
