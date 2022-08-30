@@ -57,16 +57,16 @@ impl WeightInfo for TestWeightInfo {
 #[cfg(feature = "runtime-benchmarks")]
 impl WeightInfo for TestWeightInfo {
 	fn enter_variable_disputes(_v: u32) -> Weight {
-		0
+		Weight::zero()
 	}
 	fn enter_bitfields() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn enter_backed_candidates_variable(_v: u32) -> Weight {
-		0
+		Weight::zero()
 	}
 	fn enter_backed_candidate_code_upgrade() -> Weight {
-		0
+		Weight::zero()
 	}
 }
 

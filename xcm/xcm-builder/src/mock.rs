@@ -255,7 +255,7 @@ pub fn response(query_id: u64) -> Option<Response> {
 
 parameter_types! {
 	pub TestAncestry: MultiLocation = X1(Parachain(42)).into();
-	pub UnitWeightCost: Weight = 10;
+	pub UnitWeightCost: u64 = 10;
 }
 parameter_types! {
 	// Nothing is allowed to be paid/unpaid by default.

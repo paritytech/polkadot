@@ -219,7 +219,7 @@ parameter_types! {
 	pub const RelayLocation: MultiLocation = Here.into();
 	pub const AnyNetwork: NetworkId = NetworkId::Any;
 	pub Ancestry: MultiLocation = Here.into();
-	pub UnitWeightCost: Weight = 1_000;
+	pub UnitWeightCost: u64 = 1_000;
 }
 
 pub type SovereignAccountOf =

@@ -20,7 +20,7 @@ use codec::{Decode, Encode};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Everything, Nothing},
-	weights::constants::WEIGHT_PER_SECOND,
+	weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use sp_core::H256;
 use sp_runtime::{
@@ -120,7 +120,7 @@ pub type XcmOriginToCallOrigin = (
 );
 
 parameter_types! {
-	pub const UnitWeightCost: Weight = 1;
+	pub const UnitWeightCost: u64 = 1;
 	pub KsmPerSecond: (AssetId, u128) = (Concrete(Parent.into()), 1);
 	pub const MaxInstructions: u32 = 100;
 }
