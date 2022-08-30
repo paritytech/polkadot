@@ -275,7 +275,8 @@ fn partition_recent_disputes(
 		})
 		.collect::<HashMap<_, _>>();
 
-	// Split ACTIVE from CONCLUDED disputes
+	// Split recent disputes in ACTIVE and INACTIVE
+	let time_now = &secs_since_epoch();
 	let (active, inactive): (
 		Vec<(SessionIndex, CandidateHash, DisputeStatus)>,
 		Vec<(SessionIndex, CandidateHash, DisputeStatus)>,
@@ -284,7 +285,7 @@ fn partition_recent_disputes(
 		.map(|((session_index, candidate_hash), dispute_state)| {
 			(session_index, candidate_hash, dispute_state)
 		})
-		.partition(|(_, _, status)| !dispute_is_inactive(status, &secs_since_epoch()));
+		.partition(|(_, _, status)| !dispute_is_inactive(status, time_now));
 
 	// Split ACTIVE in three groups...
 	for (session_index, candidate_hash, _) in active {
