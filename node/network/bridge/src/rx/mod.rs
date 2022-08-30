@@ -223,7 +223,7 @@ where
 					target: LOG_TARGET,
 					action = "PeerConnected",
 					peer_set = ?peer_set,
-					version = ?version,
+					version = %version,
 					peer = ?peer,
 					role = ?role
 				);
