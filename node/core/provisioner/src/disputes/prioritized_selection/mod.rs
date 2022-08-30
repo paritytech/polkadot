@@ -74,9 +74,9 @@ pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200;
 ///
 /// # How the onchain votes are fetched
 ///
-/// The logic outlined above relies on `RuntimeApiRequest::Disputes` message from the Runtime staging API.
-/// If the staging API is not enabled - the same logic is executed with empty onchain votes set. Effectively this
-/// means that all disputes are partitioned in groups 2 or 4 and all votes are sent to the Runtime.
+/// The logic outlined above relies on `RuntimeApiRequest::Disputes` message from the Runtime. The user
+/// check the Runtime version before calling `select_disputes`. If the function is used with old runtime
+/// an error is logged and the logic will continue with empty onchain votes HashMap.
 pub async fn select_disputes<Sender>(
 	sender: &mut Sender,
 	metrics: &metrics::Metrics,
@@ -217,19 +217,26 @@ pub(crate) struct PartitionedDisputes {
 	/// Hopefully this should never happen.
 	/// Will be sent to the Runtime with FIRST priority.
 	pub inactive_unknown_onchain: Vec<(SessionIndex, CandidateHash)>,
-	/// Active disputes completely unknown onchain.
+	/// Disputes which are INACTIVE locally but they are unconcluded for the Runtime.
+	/// A dispute can have enough local vote to conclude and at the same time the
+	/// Runtime knows nothing about them at treats it as unconcluded. This discrepancy
+	/// should be treated with high priority.
 	/// Will be sent to the Runtime with SECOND priority.
+	pub inactive_unconcluded_onchain: Vec<(SessionIndex, CandidateHash)>,
+	/// Active disputes completely unknown onchain.
+	/// Will be sent to the Runtime with THIRD priority.
 	pub active_unknown_onchain: Vec<(SessionIndex, CandidateHash)>,
 	/// Active disputes unconcluded onchain.
-	/// Will be sent to the Runtime with THIRD priority.
+	/// Will be sent to the Runtime with FOURTH priority.
 	pub active_unconcluded_onchain: Vec<(SessionIndex, CandidateHash)>,
 	/// Active disputes concluded onchain. New votes are not that important for
 	/// this partition.
-	/// Will be sent to the Runtime with FOURTH priority.
+	/// Will be sent to the Runtime with FIFTH priority.
 	pub active_concluded_onchain: Vec<(SessionIndex, CandidateHash)>,
-	/// Inactive disputes which are known onchain. These are not
-	/// interesting and won't be sent to the Runtime.
-	pub inactive_known_onchain: Vec<(SessionIndex, CandidateHash)>,
+	/// Inactive disputes which has concluded onchain. These are not interesting and
+	/// won't be sent to the Runtime.
+	/// Will be DROPPED
+	pub inactive_concluded_onchain: Vec<(SessionIndex, CandidateHash)>,
 }
 
 impl PartitionedDisputes {
@@ -240,10 +247,11 @@ impl PartitionedDisputes {
 	fn into_iter(self) -> impl Iterator<Item = (SessionIndex, CandidateHash)> {
 		self.inactive_unknown_onchain
 			.into_iter()
+			.chain(self.inactive_unconcluded_onchain.into_iter())
 			.chain(self.active_unknown_onchain.into_iter())
 			.chain(self.active_unconcluded_onchain.into_iter())
 			.chain(self.active_concluded_onchain.into_iter())
-		// inactive_known_onchain is dropped on purpose
+		// inactive_concluded_onchain is dropped on purpose
 	}
 }
 
@@ -259,6 +267,14 @@ fn secs_since_epoch() -> Timestamp {
 			0
 		},
 	}
+}
+
+fn concluded_onchain(onchain_state: &DisputeState) -> bool {
+	// Check if there are enough onchain votes for or against to conclude the dispute
+	let supermajority = supermajority_threshold(onchain_state.validators_for.len());
+
+	onchain_state.validators_for.count_ones() >= supermajority ||
+		onchain_state.validators_against.count_ones() >= supermajority
 }
 
 fn partition_recent_disputes(
@@ -290,25 +306,24 @@ fn partition_recent_disputes(
 	// Split ACTIVE in three groups...
 	for (session_index, candidate_hash, _) in active {
 		match onchain.get(&(session_index, candidate_hash)) {
-			Some(d) => {
-				// Check if there are enough onchain votes for or against to conclude the dispute
-				let supermajority = supermajority_threshold(d.validators_for.len());
-				if d.validators_for.count_ones() >= supermajority ||
-					d.validators_against.count_ones() >= supermajority
-				{
-					partitioned.active_concluded_onchain.push((session_index, candidate_hash));
-				} else {
-					partitioned.active_unconcluded_onchain.push((session_index, candidate_hash));
-				}
+			Some(d) => match concluded_onchain(d) {
+				true => partitioned.active_concluded_onchain.push((session_index, candidate_hash)),
+				false =>
+					partitioned.active_unconcluded_onchain.push((session_index, candidate_hash)),
 			},
 			None => partitioned.active_unknown_onchain.push((session_index, candidate_hash)),
 		};
 	}
 
-	// ... and INACTIVE in two more
+	// ... and INACTIVE in three more
 	for (session_index, candidate_hash, _) in inactive {
 		match onchain.get(&(session_index, candidate_hash)) {
-			Some(_) => partitioned.inactive_known_onchain.push((session_index, candidate_hash)),
+			Some(onchain_state) => match concluded_onchain(onchain_state) {
+				true =>
+					partitioned.inactive_concluded_onchain.push((session_index, candidate_hash)),
+				false =>
+					partitioned.inactive_unconcluded_onchain.push((session_index, candidate_hash)),
+			},
 			None => partitioned.inactive_unknown_onchain.push((session_index, candidate_hash)),
 		}
 	}

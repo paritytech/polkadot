@@ -103,33 +103,38 @@ impl Metrics {
 	pub(crate) fn on_partition_recent_disputes(&self, disputes: &PartitionedDisputes) {
 		if let Some(metrics) = &self.0 {
 			let PartitionedDisputes {
-				active_unconcluded_onchain,
-				active_unknown_onchain,
-				active_concluded_onchain,
-				inactive_known_onchain,
 				inactive_unknown_onchain,
+				inactive_unconcluded_onchain: inactive_unconcluded_known_onchain,
+				active_unknown_onchain,
+				active_unconcluded_onchain,
+				active_concluded_onchain,
+				inactive_concluded_onchain: inactive_concluded_known_onchain,
 			} = disputes;
 
 			metrics
 				.partitioned_disputes
-				.with_label_values(&["active_unconcluded_onchain"])
-				.inc_by(active_unconcluded_onchain.len().try_into().unwrap_or(0));
+				.with_label_values(&["inactive_unknown_onchain"])
+				.inc_by(inactive_unknown_onchain.len().try_into().unwrap_or(0));
+			metrics
+				.partitioned_disputes
+				.with_label_values(&["inactive_unconcluded_known_onchain"])
+				.inc_by(inactive_unconcluded_known_onchain.len().try_into().unwrap_or(0));
 			metrics
 				.partitioned_disputes
 				.with_label_values(&["active_unknown_onchain"])
 				.inc_by(active_unknown_onchain.len().try_into().unwrap_or(0));
 			metrics
 				.partitioned_disputes
+				.with_label_values(&["active_unconcluded_onchain"])
+				.inc_by(active_unconcluded_onchain.len().try_into().unwrap_or(0));
+			metrics
+				.partitioned_disputes
 				.with_label_values(&["active_concluded_onchain"])
 				.inc_by(active_concluded_onchain.len().try_into().unwrap_or(0));
 			metrics
 				.partitioned_disputes
-				.with_label_values(&["inactive_known_onchain"])
-				.inc_by(inactive_known_onchain.len().try_into().unwrap_or(0));
-			metrics
-				.partitioned_disputes
-				.with_label_values(&["inactive_unknown_onchain"])
-				.inc_by(inactive_unknown_onchain.len().try_into().unwrap_or(0));
+				.with_label_values(&["inactive_concluded_known_onchain"])
+				.inc_by(inactive_concluded_known_onchain.len().try_into().unwrap_or(0));
 		}
 	}
 }
