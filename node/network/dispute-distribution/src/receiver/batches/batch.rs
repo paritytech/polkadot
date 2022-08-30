@@ -14,82 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{
-	cmp::{Ord, Ordering},
-	collections::{hash_map, BTreeMap, BinaryHeap, HashMap, HashSet},
-	time::Instant,
-};
+use std::{collections::HashMap, time::Instant};
 
-use futures_timer::Delay;
+use gum::CandidateHash;
 use polkadot_node_network_protocol::request_response::{
 	incoming::OutgoingResponseSender, v1::DisputeRequest,
 };
 use polkadot_node_primitives::SignedDisputeStatement;
-use polkadot_primitives::v2::{CandidateHash, CandidateReceipt, ValidatorIndex};
+use polkadot_primitives::v2::{CandidateReceipt, ValidatorIndex};
 
-use super::BATCH_COLLECTING_INTERVAL;
+use crate::receiver::{BATCH_COLLECTING_INTERVAL, MIN_KEEP_BATCH_ALIVE_VOTES};
 
-/// TODO: Limit number of batches
-
-// - Batches can be added very rate limit timeout.
-// - They have to be checked every BATCH_COLLECTING_INTERVAL.
-// - We can get the earliest next wakeup - keep ordered list of wakeups! Then we always know when
-// the next one comes - only needs to get updated on insert. - Tada!
-struct Batches {
-	batches: HashMap<CandidateHash, Batch>,
-	check_waker: Option<Delay>,
-	pending_wakes: BinaryHeap<PendingWake>,
-}
-
-/// Represents some batch waiting for its next tick to happen at `next_tick`.
-///
-/// This is an internal type meant to be used in the `pending_wakes` `BinaryHeap` field of
-/// `Batches`. It provides an `Ord` instance, that sorts descending with regard to `Instant` (so we
-/// get a `min-heap` with the earliest `Instant` at the top.
-#[derive(Eq, PartialEq)]
-struct PendingWake {
-	candidate_hash: CandidateHash,
-	next_tick: Instant,
-}
-
-/// A found batch is either really found or got created so it can be found.
-enum FoundBatch<'a> {
-	/// Batch just got created.
-	Created(&'a mut Batch),
-	/// Batch already existed.
-	Found(&'a mut Batch),
-}
-
-impl Batches {
-	/// Create new empty `Batches`.
-	pub fn new() -> Self {
-		Self { batches: HashMap::new(), check_waker: None, pending_wakes: BinaryHeap::new() }
-	}
-
-	/// Find a particular batch.
-	///
-	/// That is either find it, or we create it as reflected by the result `FoundBatch`.
-	pub fn find_batch(
-		&mut self,
-		candidate_hash: CandidateHash,
-		candidate_receipt: CandidateReceipt,
-	) -> FoundBatch {
-		debug_assert!(candidate_hash == candidate_receipt.hash());
-		match self.batches.entry(candidate_hash) {
-			hash_map::Entry::Vacant(vacant) =>
-				FoundBatch::Created(vacant.insert(Batch::new(candidate_receipt))),
-			hash_map::Entry::Occupied(occupied) => FoundBatch::Found(occupied.get_mut()),
-		}
-	}
-	// Next steps:
-	//
-	// - Make sure binary heap above stays current.
-	// - Use head of binary heap to schedule next wakeup.
-	// - Provide funtion that provides imports delayed by the wakeup future (similar to rate
-	// limiting).
-	// - Important: Direct updating of last_tick of `Batch` has to be forbidden as this would break
-	// our binary heap. Instead all updates have to go through `Batches`
-}
+use super::MAX_BATCH_LIFETIME;
 
 /// A batch of votes to be imported into the `dispute-coordinator`.
 ///
@@ -103,7 +39,7 @@ pub struct Batch {
 	/// The actual candidate this batch is concerned with.
 	candidate_receipt: CandidateReceipt,
 
-	/// Cache `CandidateHash` to do efficient sanity checks.
+	/// Cache of `CandidateHash` (candidate_receipt.hash()).
 	candidate_hash: CandidateHash,
 
 	/// All valid votes received in this batch so far.
@@ -119,30 +55,77 @@ pub struct Batch {
 	/// All invalid votes received in this batch so far.
 	invalid_votes: HashMap<ValidatorIndex, SignedDisputeStatement>,
 
-	/// How many votes have been batched in the last `BATCH_COLLECTING_INTERVAL`?
+	/// How many votes have been batched since the last tick/creation.
 	votes_batched_since_last_tick: u32,
 
-	/// Timestamp of creation or last time we checked incoming rate.
-	last_tick: Instant,
+	/// Expiry time for the batch.
+	///
+	/// By this time the lastest this batch will get flushed.
+	best_before: Instant,
 
 	/// Requesters waiting for a response.
 	pending_responses: Vec<OutgoingResponseSender<DisputeRequest>>,
+}
+
+/// Result of checking a batch every `BATCH_COLLECTING_INTERVAL`.
+pub(super) enum TickResult {
+	/// Batch is still alive, please call `tick` again at the given `Instant`.
+	Alive(Batch, Instant),
+	/// Batch is done, ready for import!
+	Done(PreparedImport),
+}
+
+/// Ready for import.
+pub struct PreparedImport {
+	pub candidate_receipt: CandidateReceipt,
+	pub statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
+	pub pending_responses: Vec<OutgoingResponseSender<DisputeRequest>>,
+}
+
+impl From<Batch> for PreparedImport {
+	fn from(batch: Batch) -> Self {
+		let Batch { candidate_receipt, valid_votes, invalid_votes, pending_responses, .. } = batch;
+
+		let statements = valid_votes
+			.into_iter()
+			.chain(invalid_votes.into_iter())
+			.map(|(index, statement)| (statement, index))
+			.collect();
+
+		Self { candidate_receipt, statements, pending_responses }
+	}
 }
 
 impl Batch {
 	/// Create a new empty batch based on the given `CandidateReceipt`.
 	///
 	/// To create a `Batch` use Batches::find_batch`.
-	fn new(candidate_receipt: CandidateReceipt) -> Self {
-		Self {
+	///
+	/// Arguments:
+	///
+	/// * candidate_recipt - The candidate this batch is meant to track votes for.
+	/// * `now` - current timestamp for calculating the first tick.
+	///
+	/// Returns:
+	///
+	///		A batch and the first `Instant` you are supposed to call `tick`.
+	///
+	pub(super) fn new(candidate_receipt: CandidateReceipt, now: Instant) -> (Self, Instant) {
+		let s = Self {
 			candidate_hash: candidate_receipt.hash(),
 			candidate_receipt,
 			valid_votes: HashMap::new(),
 			invalid_votes: HashMap::new(),
 			votes_batched_since_last_tick: 0,
-			last_tick: Instant::now(),
+			best_before: Instant::now() + MAX_BATCH_LIFETIME,
 			pending_responses: Vec::new(),
-		}
+		};
+		(s, s.calculate_next_tick(now))
+	}
+
+	/// Hash of the candidate this batch is batching votes for.
+	pub fn candidate_hash(&self) -> &CandidateHash {
+		&self.candidate_hash
 	}
 
 	/// Add votes from a validator into the batch.
@@ -180,23 +163,44 @@ impl Batch {
 		}
 	}
 
-	/// When the next "tick" is supposed to happen.
-	fn time_next_tick(&self) -> Instant {
-		self.last_tick + BATCH_COLLECTING_INTERVAL
+	/// Check batch for liveness.
+	///
+	/// This function is supposed to be called at instants given at construction and as returned as
+	/// part of `TickResult`.
+	pub fn tick(self, now: Instant) -> TickResult {
+		if self.votes_batched_since_last_tick >= MIN_KEEP_BATCH_ALIVE_VOTES &&
+			now < self.best_before
+		{
+			// Still good:
+			let next_tick = self.calculate_next_tick(now);
+			// Reset counter:
+			self.votes_batched_since_last_tick = 0;
+			TickResult::Alive(self, next_tick)
+		} else {
+			TickResult::Done(PreparedImport::from(self))
+		}
 	}
-}
 
-impl PartialOrd<PendingWake> for PendingWake {
-	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-		Some(self.cmp(other))
-	}
-}
-impl Ord for PendingWake {
-	fn cmp(&self, other: &Self) -> Ordering {
-		// Reverse order for min-heap:
-		match other.next_tick.cmp(&self.next_tick) {
-			Ordering::Equal => other.candidate_hash.cmp(&self.candidate_hash),
-			o => o,
+	/// Calculate when the next tick should happen.
+	///
+	/// This will usually return `now + BATCH_COLLECTING_INTERVAL`, except if the lifetime of this batch
+	/// would exceed `MAX_BATCH_LIFETIME`.
+	///
+	/// # Arguments
+	///
+	/// * `now` - The current time.
+	fn calculate_next_tick(&self, now: Instant) -> Instant {
+		let next_tick = now + BATCH_COLLECTING_INTERVAL;
+		if next_tick < self.best_before {
+			next_tick
+		} else {
+			self.best_before
 		}
 	}
 }
+
+// Test tick behaviour:
+//	- If less than `MIN_KEEP_BATCH_ALIVE_VOTES` trickled in since last tick - batch should become
+//	done.
+//  - If batch surpased its `best_before` it should become done.
+//  - Batch does not count duplicate votes.
