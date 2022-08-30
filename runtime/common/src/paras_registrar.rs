@@ -65,19 +65,19 @@ pub trait WeightInfo {
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn reserve() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn register() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn force_register() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn deregister() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn swap() -> Weight {
-		0
+		Weight::zero()
 	}
 }
 
