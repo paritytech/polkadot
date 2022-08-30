@@ -52,27 +52,27 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 	/// The range of component `n` is `[1, 100]`.
 	/// The range of component `p` is `[1, 100]`.
 	fn set_members(m: u32, n: u32, p: u32, ) -> Weight {
-		(0 as RefTimeWeight)
+		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 11_000
-			.saturating_add((9_184_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(9_184_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			// Standard Error: 11_000
-			.saturating_add((10_000 as RefTimeWeight).scalar_saturating_mul(n as Weight))
+			.saturating_add(Weight::from_ref_time(10_000 as RefTimeWeight).scalar_saturating_mul(n as RefTimeWeight))
 			// Standard Error: 11_000
-			.saturating_add((11_927_000 as RefTimeWeight).scalar_saturating_mul(p as Weight))
+			.saturating_add(Weight::from_ref_time(11_927_000 as RefTimeWeight).scalar_saturating_mul(p as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((1 as RefTimeWeight).saturating_mul(p as Weight)))
+			.saturating_add(T::DbWeight::get().reads((1 as RefTimeWeight).saturating_mul(p as RefTimeWeight)))
 			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((1 as RefTimeWeight).saturating_mul(p as Weight)))
+			.saturating_add(T::DbWeight::get().writes((1 as RefTimeWeight).saturating_mul(p as RefTimeWeight)))
 	}
 	// Storage: Collective Members (r:1 w:0)
 	/// The range of component `b` is `[1, 1024]`.
 	/// The range of component `m` is `[1, 100]`.
 	fn execute(b: u32, m: u32, ) -> Weight {
-		(16_514_000 as RefTimeWeight)
+		Weight::from_ref_time(16_514_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((2_000 as RefTimeWeight).scalar_saturating_mul(b as Weight))
+			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).scalar_saturating_mul(b as RefTimeWeight))
 			// Standard Error: 0
-			.saturating_add((15_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(15_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
 	}
 	// Storage: Collective Members (r:1 w:0)
@@ -80,11 +80,11 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 	/// The range of component `b` is `[1, 1024]`.
 	/// The range of component `m` is `[1, 100]`.
 	fn propose_execute(b: u32, m: u32, ) -> Weight {
-		(19_149_000 as RefTimeWeight)
+		Weight::from_ref_time(19_149_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((2_000 as RefTimeWeight).scalar_saturating_mul(b as Weight))
+			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).scalar_saturating_mul(b as RefTimeWeight))
 			// Standard Error: 0
-			.saturating_add((20_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(20_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
 	}
 	// Storage: Collective Members (r:1 w:0)
@@ -96,13 +96,13 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 	/// The range of component `m` is `[2, 100]`.
 	/// The range of component `p` is `[1, 100]`.
 	fn propose_proposed(b: u32, m: u32, p: u32, ) -> Weight {
-		(25_040_000 as RefTimeWeight)
+		Weight::from_ref_time(25_040_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((3_000 as RefTimeWeight).scalar_saturating_mul(b as Weight))
+			.saturating_add(Weight::from_ref_time(3_000 as RefTimeWeight).scalar_saturating_mul(b as RefTimeWeight))
 			// Standard Error: 0
-			.saturating_add((20_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(20_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			// Standard Error: 0
-			.saturating_add((125_000 as RefTimeWeight).scalar_saturating_mul(p as Weight))
+			.saturating_add(Weight::from_ref_time(125_000 as RefTimeWeight).scalar_saturating_mul(p as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 	}
@@ -110,9 +110,9 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 	// Storage: Collective Voting (r:1 w:1)
 	/// The range of component `m` is `[5, 100]`.
 	fn vote(m: u32, ) -> Weight {
-		(23_127_000 as RefTimeWeight)
+		Weight::from_ref_time(23_127_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((53_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(53_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
@@ -123,11 +123,11 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 	/// The range of component `m` is `[4, 100]`.
 	/// The range of component `p` is `[1, 100]`.
 	fn close_early_disapproved(m: u32, p: u32, ) -> Weight {
-		(27_759_000 as RefTimeWeight)
+		Weight::from_ref_time(27_759_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((25_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(25_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			// Standard Error: 0
-			.saturating_add((95_000 as RefTimeWeight).scalar_saturating_mul(p as Weight))
+			.saturating_add(Weight::from_ref_time(95_000 as RefTimeWeight).scalar_saturating_mul(p as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
@@ -139,13 +139,13 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 	/// The range of component `m` is `[4, 100]`.
 	/// The range of component `p` is `[1, 100]`.
 	fn close_early_approved(b: u32, m: u32, p: u32, ) -> Weight {
-		(37_384_000 as RefTimeWeight)
+		Weight::from_ref_time(37_384_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((1_000 as RefTimeWeight).scalar_saturating_mul(b as Weight))
+			.saturating_add(Weight::from_ref_time(1_000 as RefTimeWeight).scalar_saturating_mul(b as RefTimeWeight))
 			// Standard Error: 0
-			.saturating_add((29_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(29_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			// Standard Error: 0
-			.saturating_add((105_000 as RefTimeWeight).scalar_saturating_mul(p as Weight))
+			.saturating_add(Weight::from_ref_time(105_000 as RefTimeWeight).scalar_saturating_mul(p as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
@@ -157,11 +157,11 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 	/// The range of component `m` is `[4, 100]`.
 	/// The range of component `p` is `[1, 100]`.
 	fn close_disapproved(m: u32, p: u32, ) -> Weight {
-		(29_142_000 as RefTimeWeight)
+		Weight::from_ref_time(29_142_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((32_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(32_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			// Standard Error: 0
-			.saturating_add((105_000 as RefTimeWeight).scalar_saturating_mul(p as Weight))
+			.saturating_add(Weight::from_ref_time(105_000 as RefTimeWeight).scalar_saturating_mul(p as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
@@ -174,13 +174,13 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 	/// The range of component `m` is `[4, 100]`.
 	/// The range of component `p` is `[1, 100]`.
 	fn close_approved(b: u32, m: u32, p: u32, ) -> Weight {
-		(40_384_000 as RefTimeWeight)
+		Weight::from_ref_time(40_384_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((1_000 as RefTimeWeight).scalar_saturating_mul(b as Weight))
+			.saturating_add(Weight::from_ref_time(1_000 as RefTimeWeight).scalar_saturating_mul(b as RefTimeWeight))
 			// Standard Error: 0
-			.saturating_add((26_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(26_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			// Standard Error: 0
-			.saturating_add((103_000 as RefTimeWeight).scalar_saturating_mul(p as Weight))
+			.saturating_add(Weight::from_ref_time(103_000 as RefTimeWeight).scalar_saturating_mul(p as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(5 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
@@ -189,9 +189,9 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 	// Storage: Collective ProposalOf (r:0 w:1)
 	/// The range of component `p` is `[1, 100]`.
 	fn disapprove_proposal(p: u32, ) -> Weight {
-		(17_661_000 as RefTimeWeight)
+		Weight::from_ref_time(17_661_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((106_000 as RefTimeWeight).scalar_saturating_mul(p as Weight))
+			.saturating_add(Weight::from_ref_time(106_000 as RefTimeWeight).scalar_saturating_mul(p as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}

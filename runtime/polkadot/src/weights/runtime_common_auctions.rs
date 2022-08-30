@@ -47,7 +47,7 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 	// Storage: Auctions AuctionInfo (r:1 w:1)
 	// Storage: Auctions AuctionCounter (r:1 w:1)
 	fn new_auction() -> Weight {
-		(15_720_000 as RefTimeWeight)
+		Weight::from_ref_time(15_720_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
@@ -59,7 +59,7 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 	// Storage: Auctions ReservedAmounts (r:2 w:2)
 	// Storage: System Account (r:1 w:1)
 	fn bid() -> Weight {
-		(70_200_000 as RefTimeWeight)
+		Weight::from_ref_time(70_200_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(8 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 	}
@@ -76,7 +76,7 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 	// Storage: Paras ActionsQueue (r:1 w:1)
 	// Storage: Registrar Paras (r:1 w:1)
 	fn on_initialize() -> Weight {
-		(16_024_103_000 as RefTimeWeight)
+		Weight::from_ref_time(16_024_103_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(3688 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3683 as RefTimeWeight))
 	}
@@ -85,7 +85,7 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 	// Storage: Auctions Winning (r:0 w:3600)
 	// Storage: Auctions AuctionInfo (r:0 w:1)
 	fn cancel_auction() -> Weight {
-		(4_682_562_000 as RefTimeWeight)
+		Weight::from_ref_time(4_682_562_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(73 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3673 as RefTimeWeight))
 	}

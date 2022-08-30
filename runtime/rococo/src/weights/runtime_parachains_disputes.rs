@@ -46,7 +46,7 @@ pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> runtime_parachains::disputes::WeightInfo for WeightInfo<T> {
 	// Storage: ParasDisputes Frozen (r:0 w:1)
 	fn force_unfreeze() -> Weight {
-		(3_239_000 as RefTimeWeight)
+		Weight::from_ref_time(3_239_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 }

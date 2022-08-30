@@ -47,9 +47,9 @@ impl<T: frame_system::Config> runtime_parachains::initializer::WeightInfo for We
 	// Storage: System Digest (r:1 w:1)
 	/// The range of component `d` is `[0, 65536]`.
 	fn force_approve(d: u32, ) -> Weight {
-		(6_367_000 as RefTimeWeight)
+		Weight::from_ref_time(6_367_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((2_000 as RefTimeWeight).scalar_saturating_mul(d as Weight))
+			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).scalar_saturating_mul(d as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}

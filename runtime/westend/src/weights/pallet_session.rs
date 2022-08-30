@@ -48,7 +48,7 @@ impl<T: frame_system::Config> pallet_session::WeightInfo for WeightInfo<T> {
 	// Storage: Session NextKeys (r:1 w:1)
 	// Storage: Session KeyOwner (r:6 w:6)
 	fn set_keys() -> Weight {
-		(42_352_000 as RefTimeWeight)
+		Weight::from_ref_time(42_352_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(8 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(7 as RefTimeWeight))
 	}
@@ -56,7 +56,7 @@ impl<T: frame_system::Config> pallet_session::WeightInfo for WeightInfo<T> {
 	// Storage: Session NextKeys (r:1 w:1)
 	// Storage: Session KeyOwner (r:0 w:6)
 	fn purge_keys() -> Weight {
-		(26_312_000 as RefTimeWeight)
+		Weight::from_ref_time(26_312_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(7 as RefTimeWeight))
 	}

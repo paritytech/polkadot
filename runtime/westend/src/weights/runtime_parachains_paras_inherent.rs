@@ -76,9 +76,9 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	/// The range of component `v` is `[10, 200]`.
 	fn enter_variable_disputes(v: u32, ) -> Weight {
-		(367_606_000 as RefTimeWeight)
+		Weight::from_ref_time(367_606_000 as RefTimeWeight)
 			// Standard Error: 14_000
-			.saturating_add((48_163_000 as RefTimeWeight).scalar_saturating_mul(v as Weight))
+			.saturating_add(Weight::from_ref_time(48_163_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(28 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(18 as RefTimeWeight))
 	}
@@ -112,7 +112,7 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Paras Heads (r:0 w:1)
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	fn enter_bitfields() -> Weight {
-		(355_084_000 as RefTimeWeight)
+		Weight::from_ref_time(355_084_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(25 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(17 as RefTimeWeight))
 	}
@@ -148,9 +148,9 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	/// The range of component `v` is `[101, 200]`.
 	fn enter_backed_candidates_variable(v: u32, ) -> Weight {
-		(949_843_000 as RefTimeWeight)
+		Weight::from_ref_time(949_843_000 as RefTimeWeight)
 			// Standard Error: 40_000
-			.saturating_add((48_022_000 as RefTimeWeight).scalar_saturating_mul(v as Weight))
+			.saturating_add(Weight::from_ref_time(48_022_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(28 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(16 as RefTimeWeight))
 	}
@@ -187,7 +187,7 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Paras Heads (r:0 w:1)
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	fn enter_backed_candidate_code_upgrade() -> Weight {
-		(42_881_188_000 as RefTimeWeight)
+		Weight::from_ref_time(42_881_188_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(30 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(16 as RefTimeWeight))
 	}

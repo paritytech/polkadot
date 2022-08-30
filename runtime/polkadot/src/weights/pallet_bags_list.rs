@@ -49,7 +49,7 @@ impl<T: frame_system::Config> pallet_bags_list::WeightInfo for WeightInfo<T> {
 	// Storage: VoterList ListNodes (r:4 w:4)
 	// Storage: VoterList ListBags (r:1 w:1)
 	fn rebag_non_terminal() -> Weight {
-		(51_184_000 as RefTimeWeight)
+		Weight::from_ref_time(51_184_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(7 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(5 as RefTimeWeight))
 	}
@@ -58,7 +58,7 @@ impl<T: frame_system::Config> pallet_bags_list::WeightInfo for WeightInfo<T> {
 	// Storage: VoterList ListNodes (r:3 w:3)
 	// Storage: VoterList ListBags (r:2 w:2)
 	fn rebag_terminal() -> Weight {
-		(48_605_000 as RefTimeWeight)
+		Weight::from_ref_time(48_605_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(7 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(5 as RefTimeWeight))
 	}
@@ -68,7 +68,7 @@ impl<T: frame_system::Config> pallet_bags_list::WeightInfo for WeightInfo<T> {
 	// Storage: VoterList CounterForListNodes (r:1 w:1)
 	// Storage: VoterList ListBags (r:1 w:1)
 	fn put_in_front_of() -> Weight {
-		(52_660_000 as RefTimeWeight)
+		Weight::from_ref_time(52_660_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(10 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
 	}

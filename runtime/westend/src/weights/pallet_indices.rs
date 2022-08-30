@@ -46,33 +46,33 @@ pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_indices::WeightInfo for WeightInfo<T> {
 	// Storage: Indices Accounts (r:1 w:1)
 	fn claim() -> Weight {
-		(22_910_000 as RefTimeWeight)
+		Weight::from_ref_time(22_910_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 	// Storage: Indices Accounts (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
 	fn transfer() -> Weight {
-		(28_812_000 as RefTimeWeight)
+		Weight::from_ref_time(28_812_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 	// Storage: Indices Accounts (r:1 w:1)
 	fn free() -> Weight {
-		(24_455_000 as RefTimeWeight)
+		Weight::from_ref_time(24_455_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 	// Storage: Indices Accounts (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
 	fn force_transfer() -> Weight {
-		(23_888_000 as RefTimeWeight)
+		Weight::from_ref_time(23_888_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 	// Storage: Indices Accounts (r:1 w:1)
 	fn freeze() -> Weight {
-		(27_183_000 as RefTimeWeight)
+		Weight::from_ref_time(27_183_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}

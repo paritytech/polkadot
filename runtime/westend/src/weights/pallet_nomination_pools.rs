@@ -58,7 +58,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: VoterList ListNodes (r:3 w:3)
 	// Storage: VoterList ListBags (r:2 w:2)
 	fn join() -> Weight {
-		(127_461_000 as RefTimeWeight)
+		Weight::from_ref_time(127_461_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(17 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(12 as RefTimeWeight))
 	}
@@ -72,7 +72,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: VoterList ListNodes (r:3 w:3)
 	// Storage: VoterList ListBags (r:2 w:2)
 	fn bond_extra_transfer() -> Weight {
-		(119_965_000 as RefTimeWeight)
+		Weight::from_ref_time(119_965_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(14 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(12 as RefTimeWeight))
 	}
@@ -86,7 +86,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: VoterList ListNodes (r:2 w:2)
 	// Storage: VoterList ListBags (r:2 w:2)
 	fn bond_extra_reward() -> Weight {
-		(126_924_000 as RefTimeWeight)
+		Weight::from_ref_time(126_924_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(13 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(12 as RefTimeWeight))
 	}
@@ -95,7 +95,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: NominationPools RewardPools (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
 	fn claim_payout() -> Weight {
-		(48_168_000 as RefTimeWeight)
+		Weight::from_ref_time(48_168_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 	}
@@ -114,7 +114,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: NominationPools SubPoolsStorage (r:1 w:1)
 	// Storage: NominationPools CounterForSubPoolsStorage (r:1 w:1)
 	fn unbond() -> Weight {
-		(124_841_000 as RefTimeWeight)
+		Weight::from_ref_time(124_841_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(18 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(13 as RefTimeWeight))
 	}
@@ -124,9 +124,9 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: Balances Locks (r:1 w:1)
 	/// The range of component `s` is `[0, 100]`.
 	fn pool_withdraw_unbonded(s: u32, ) -> Weight {
-		(41_129_000 as RefTimeWeight)
+		Weight::from_ref_time(41_129_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((33_000 as RefTimeWeight).scalar_saturating_mul(s as Weight))
+			.saturating_add(Weight::from_ref_time(33_000 as RefTimeWeight).scalar_saturating_mul(s as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
@@ -140,9 +140,9 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: NominationPools CounterForPoolMembers (r:1 w:1)
 	/// The range of component `s` is `[0, 100]`.
 	fn withdraw_unbonded_update(s: u32, ) -> Weight {
-		(78_870_000 as RefTimeWeight)
+		Weight::from_ref_time(78_870_000 as RefTimeWeight)
 			// Standard Error: 1_000
-			.saturating_add((49_000 as RefTimeWeight).scalar_saturating_mul(s as Weight))
+			.saturating_add(Weight::from_ref_time(49_000 as RefTimeWeight).scalar_saturating_mul(s as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(8 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(7 as RefTimeWeight))
 	}
@@ -167,7 +167,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: Staking Payee (r:0 w:1)
 	/// The range of component `s` is `[0, 100]`.
 	fn withdraw_unbonded_kill(_s: u32, ) -> Weight {
-		(137_414_000 as RefTimeWeight)
+		Weight::from_ref_time(137_414_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(19 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(16 as RefTimeWeight))
 	}
@@ -194,7 +194,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: NominationPools BondedPools (r:1 w:1)
 	// Storage: Staking Payee (r:0 w:1)
 	fn create() -> Weight {
-		(131_154_000 as RefTimeWeight)
+		Weight::from_ref_time(131_154_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(22 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(15 as RefTimeWeight))
 	}
@@ -212,17 +212,17 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: Staking CounterForNominators (r:1 w:1)
 	/// The range of component `n` is `[1, 16]`.
 	fn nominate(n: u32, ) -> Weight {
-		(50_310_000 as RefTimeWeight)
+		Weight::from_ref_time(50_310_000 as RefTimeWeight)
 			// Standard Error: 4_000
-			.saturating_add((2_137_000 as RefTimeWeight).scalar_saturating_mul(n as Weight))
+			.saturating_add(Weight::from_ref_time(2_137_000 as RefTimeWeight).scalar_saturating_mul(n as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(12 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((1 as RefTimeWeight).saturating_mul(n as Weight)))
+			.saturating_add(T::DbWeight::get().reads((1 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
 			.saturating_add(T::DbWeight::get().writes(5 as RefTimeWeight))
 	}
 	// Storage: NominationPools BondedPools (r:1 w:1)
 	// Storage: Staking Ledger (r:1 w:0)
 	fn set_state() -> Weight {
-		(25_062_000 as RefTimeWeight)
+		Weight::from_ref_time(25_062_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
@@ -231,9 +231,9 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: NominationPools CounterForMetadata (r:1 w:1)
 	/// The range of component `n` is `[1, 256]`.
 	fn set_metadata(n: u32, ) -> Weight {
-		(13_890_000 as RefTimeWeight)
+		Weight::from_ref_time(13_890_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((1_000 as RefTimeWeight).scalar_saturating_mul(n as Weight))
+			.saturating_add(Weight::from_ref_time(1_000 as RefTimeWeight).scalar_saturating_mul(n as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
@@ -243,12 +243,12 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: NominationPools MinCreateBond (r:0 w:1)
 	// Storage: NominationPools MaxPools (r:0 w:1)
 	fn set_configs() -> Weight {
-		(6_811_000 as RefTimeWeight)
+		Weight::from_ref_time(6_811_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().writes(5 as RefTimeWeight))
 	}
 	// Storage: NominationPools BondedPools (r:1 w:1)
 	fn update_roles() -> Weight {
-		(21_056_000 as RefTimeWeight)
+		Weight::from_ref_time(21_056_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
@@ -261,7 +261,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: VoterList ListBags (r:1 w:1)
 	// Storage: VoterList CounterForListNodes (r:1 w:1)
 	fn chill() -> Weight {
-		(48_506_000 as RefTimeWeight)
+		Weight::from_ref_time(48_506_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(8 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(5 as RefTimeWeight))
 	}

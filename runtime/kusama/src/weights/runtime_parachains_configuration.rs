@@ -48,7 +48,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration BypassConsistencyCheck (r:1 w:0)
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	fn set_config_with_block_number() -> Weight {
-		(9_052_000 as RefTimeWeight)
+		Weight::from_ref_time(9_052_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
@@ -56,7 +56,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration BypassConsistencyCheck (r:1 w:0)
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	fn set_config_with_u32() -> Weight {
-		(9_242_000 as RefTimeWeight)
+		Weight::from_ref_time(9_242_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
@@ -64,7 +64,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration BypassConsistencyCheck (r:1 w:0)
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	fn set_config_with_option_u32() -> Weight {
-		(9_372_000 as RefTimeWeight)
+		Weight::from_ref_time(9_372_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
@@ -72,19 +72,19 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration BypassConsistencyCheck (r:1 w:0)
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	fn set_config_with_weight() -> Weight {
-		(9_436_000 as RefTimeWeight)
+		Weight::from_ref_time(9_436_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 	// Storage: Benchmark Override (r:0 w:0)
 	fn set_hrmp_open_request_ttl() -> Weight {
-		(2_000_000_000_000 as RefTimeWeight)
+		Weight::from_ref_time(2_000_000_000_000 as RefTimeWeight)
 	}
 	// Storage: Configuration PendingConfigs (r:1 w:1)
 	// Storage: Configuration BypassConsistencyCheck (r:1 w:0)
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	fn set_config_with_balance() -> Weight {
-		(9_373_000 as RefTimeWeight)
+		Weight::from_ref_time(9_373_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}

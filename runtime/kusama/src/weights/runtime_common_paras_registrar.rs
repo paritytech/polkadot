@@ -48,7 +48,7 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Registrar Paras (r:1 w:1)
 	// Storage: Paras ParaLifecycles (r:1 w:0)
 	fn reserve() -> Weight {
-		(28_294_000 as RefTimeWeight)
+		Weight::from_ref_time(28_294_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
@@ -62,7 +62,7 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Paras CurrentCodeHash (r:0 w:1)
 	// Storage: Paras UpcomingParasGenesis (r:0 w:1)
 	fn register() -> Weight {
-		(8_981_293_000 as RefTimeWeight)
+		Weight::from_ref_time(8_981_293_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(7 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(7 as RefTimeWeight))
 	}
@@ -76,7 +76,7 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Paras CurrentCodeHash (r:0 w:1)
 	// Storage: Paras UpcomingParasGenesis (r:0 w:1)
 	fn force_register() -> Weight {
-		(8_918_597_000 as RefTimeWeight)
+		Weight::from_ref_time(8_918_597_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(7 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(7 as RefTimeWeight))
 	}
@@ -87,7 +87,7 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Paras ActionsQueue (r:1 w:1)
 	// Storage: Registrar PendingSwap (r:0 w:1)
 	fn deregister() -> Weight {
-		(42_792_000 as RefTimeWeight)
+		Weight::from_ref_time(42_792_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(5 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 	}
@@ -99,7 +99,7 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Crowdloan Funds (r:2 w:2)
 	// Storage: Slots Leases (r:2 w:2)
 	fn swap() -> Weight {
-		(36_942_000 as RefTimeWeight)
+		Weight::from_ref_time(36_942_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(10 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(8 as RefTimeWeight))
 	}

@@ -52,7 +52,7 @@ impl<T: frame_system::Config> runtime_common::claims::WeightInfo for WeightInfo<
 	// Storage: System Account (r:1 w:0)
 	// Storage: Balances Locks (r:1 w:1)
 	fn claim() -> Weight {
-		(138_843_000 as RefTimeWeight)
+		Weight::from_ref_time(138_843_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(7 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
 	}
@@ -61,7 +61,7 @@ impl<T: frame_system::Config> runtime_common::claims::WeightInfo for WeightInfo<
 	// Storage: Claims Claims (r:0 w:1)
 	// Storage: Claims Signing (r:0 w:1)
 	fn mint_claim() -> Weight {
-		(9_350_000 as RefTimeWeight)
+		Weight::from_ref_time(9_350_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 	}
@@ -73,7 +73,7 @@ impl<T: frame_system::Config> runtime_common::claims::WeightInfo for WeightInfo<
 	// Storage: System Account (r:1 w:0)
 	// Storage: Balances Locks (r:1 w:1)
 	fn claim_attest() -> Weight {
-		(141_991_000 as RefTimeWeight)
+		Weight::from_ref_time(141_991_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(7 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
 	}
@@ -86,7 +86,7 @@ impl<T: frame_system::Config> runtime_common::claims::WeightInfo for WeightInfo<
 	// Storage: System Account (r:1 w:0)
 	// Storage: Balances Locks (r:1 w:1)
 	fn attest() -> Weight {
-		(63_600_000 as RefTimeWeight)
+		Weight::from_ref_time(63_600_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(8 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(7 as RefTimeWeight))
 	}
@@ -95,7 +95,7 @@ impl<T: frame_system::Config> runtime_common::claims::WeightInfo for WeightInfo<
 	// Storage: Claims Signing (r:1 w:2)
 	// Storage: Claims Preclaims (r:1 w:1)
 	fn move_claim() -> Weight {
-		(19_341_000 as RefTimeWeight)
+		Weight::from_ref_time(19_341_000 as RefTimeWeight)
 			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(7 as RefTimeWeight))
 	}

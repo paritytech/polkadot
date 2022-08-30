@@ -74,7 +74,7 @@ pub mod fee {
 		type Balance = Balance;
 		fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
 			let p = super::currency::CENTS;
-			let q = 10 * Balance::from(ExtrinsicBaseWeight::get());
+			let q = 10 * Balance::from(ExtrinsicBaseWeight::get().ref_time());
 			smallvec![WeightToFeeCoefficient {
 				degree: 1,
 				negative: false,

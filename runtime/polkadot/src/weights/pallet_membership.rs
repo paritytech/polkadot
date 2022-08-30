@@ -50,9 +50,9 @@ impl<T: frame_system::Config> pallet_membership::WeightInfo for WeightInfo<T> {
 	// Storage: TechnicalCommittee Prime (r:0 w:1)
 	/// The range of component `m` is `[1, 99]`.
 	fn add_member(m: u32, ) -> Weight {
-		(18_204_000 as RefTimeWeight)
+		Weight::from_ref_time(18_204_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((55_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(55_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
@@ -63,9 +63,9 @@ impl<T: frame_system::Config> pallet_membership::WeightInfo for WeightInfo<T> {
 	// Storage: TechnicalCommittee Prime (r:0 w:1)
 	/// The range of component `m` is `[2, 100]`.
 	fn remove_member(m: u32, ) -> Weight {
-		(20_617_000 as RefTimeWeight)
+		Weight::from_ref_time(20_617_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((45_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(45_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
@@ -76,9 +76,9 @@ impl<T: frame_system::Config> pallet_membership::WeightInfo for WeightInfo<T> {
 	// Storage: TechnicalCommittee Prime (r:0 w:1)
 	/// The range of component `m` is `[2, 100]`.
 	fn swap_member(m: u32, ) -> Weight {
-		(20_686_000 as RefTimeWeight)
+		Weight::from_ref_time(20_686_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((59_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(59_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
@@ -89,9 +89,9 @@ impl<T: frame_system::Config> pallet_membership::WeightInfo for WeightInfo<T> {
 	// Storage: TechnicalCommittee Prime (r:0 w:1)
 	/// The range of component `m` is `[1, 100]`.
 	fn reset_member(m: u32, ) -> Weight {
-		(20_032_000 as RefTimeWeight)
+		Weight::from_ref_time(20_032_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((179_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(179_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
@@ -102,9 +102,9 @@ impl<T: frame_system::Config> pallet_membership::WeightInfo for WeightInfo<T> {
 	// Storage: TechnicalCommittee Prime (r:0 w:1)
 	/// The range of component `m` is `[1, 100]`.
 	fn change_key(m: u32, ) -> Weight {
-		(21_386_000 as RefTimeWeight)
+		Weight::from_ref_time(21_386_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((56_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(56_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 	}
@@ -113,9 +113,9 @@ impl<T: frame_system::Config> pallet_membership::WeightInfo for WeightInfo<T> {
 	// Storage: TechnicalCommittee Prime (r:0 w:1)
 	/// The range of component `m` is `[1, 100]`.
 	fn set_prime(m: u32, ) -> Weight {
-		(7_077_000 as RefTimeWeight)
+		Weight::from_ref_time(7_077_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((11_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(11_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
@@ -123,9 +123,9 @@ impl<T: frame_system::Config> pallet_membership::WeightInfo for WeightInfo<T> {
 	// Storage: TechnicalCommittee Prime (r:0 w:1)
 	/// The range of component `m` is `[1, 100]`.
 	fn clear_prime(m: u32, ) -> Weight {
-		(3_931_000 as RefTimeWeight)
+		Weight::from_ref_time(3_931_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((1_000 as RefTimeWeight).scalar_saturating_mul(m as Weight))
+			.saturating_add(Weight::from_ref_time(1_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 }
