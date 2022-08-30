@@ -66,12 +66,14 @@ impl Dispatchable for TestCall {
 	type PostInfo = PostDispatchInfo;
 	fn dispatch(self, origin: Self::Origin) -> DispatchResultWithPostInfo {
 		let mut post_info = PostDispatchInfo::default();
-		post_info.actual_weight = match self {
+		let maybe_actual = match self {
 			TestCall::OnlyRoot(_, maybe_actual) |
 			TestCall::OnlySigned(_, maybe_actual, _) |
 			TestCall::OnlyParachain(_, maybe_actual, _) |
 			TestCall::Any(_, maybe_actual) => maybe_actual,
 		};
+		post_info.actual_weight =
+			maybe_actual.map(|x| frame_support::weights::Weight::from_ref_time(x));
 		if match (&origin, &self) {
 			(TestOrigin::Parachain(i), TestCall::OnlyParachain(_, _, Some(j))) => i == j,
 			(TestOrigin::Signed(i), TestCall::OnlySigned(_, _, Some(j))) => i == j,
@@ -96,7 +98,10 @@ impl GetDispatchInfo for TestCall {
 			TestCall::OnlySigned(estimate, ..) |
 			TestCall::Any(estimate, ..) => estimate,
 		};
-		DispatchInfo { weight, ..Default::default() }
+		DispatchInfo {
+			weight: frame_support::weights::Weight::from_ref_time(weight),
+			..Default::default()
+		}
 	}
 }
 
