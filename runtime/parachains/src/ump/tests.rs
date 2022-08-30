@@ -38,8 +38,8 @@ impl Default for GenesisConfigBuilder {
 			max_upward_message_num_per_candidate: 2,
 			max_upward_queue_count: 4,
 			max_upward_queue_size: 64,
-			ump_service_total_weight: 1000,
-			ump_max_individual_weight: 100,
+			ump_service_total_weight: Weight::from_ref_time(1000),
+			ump_max_individual_weight: Weight::from_ref_time(100),
 		}
 	}
 }
@@ -155,7 +155,11 @@ fn dispatch_resume_after_exceeding_dispatch_stage_weight() {
 	let q_msg = (500u32, "q_msg").encode();
 
 	new_test_ext(
-		GenesisConfigBuilder { ump_service_total_weight: 500, ..Default::default() }.build(),
+		GenesisConfigBuilder {
+			ump_service_total_weight: Weight::from_ref_time(500),
+			..Default::default()
+		}
+		.build(),
 	)
 	.execute_with(|| {
 		queue_upward_msg(q, q_msg.clone());
@@ -199,8 +203,8 @@ fn dispatch_keeps_message_after_weight_exhausted() {
 
 	new_test_ext(
 		GenesisConfigBuilder {
-			ump_service_total_weight: 500,
-			ump_max_individual_weight: 300,
+			ump_service_total_weight: Weight::from_ref_time(500),
+			ump_max_individual_weight: Weight::from_ref_time(300),
 			..Default::default()
 		}
 		.build(),
@@ -238,7 +242,11 @@ fn dispatch_correctly_handle_remove_of_latest() {
 	let b_msg_1 = (300u32, "b_msg_1").encode();
 
 	new_test_ext(
-		GenesisConfigBuilder { ump_service_total_weight: 900, ..Default::default() }.build(),
+		GenesisConfigBuilder {
+			ump_service_total_weight: Weight::from_ref_time(900),
+			..Default::default()
+		}
+		.build(),
 	)
 	.execute_with(|| {
 		// We want to test here an edge case, where we remove the queue with the highest
@@ -304,8 +312,8 @@ fn overweight_queue_works() {
 
 	new_test_ext(
 		GenesisConfigBuilder {
-			ump_service_total_weight: 900,
-			ump_max_individual_weight: 300,
+			ump_service_total_weight: Weight::from_ref_time(900),
+			ump_max_individual_weight: Weight::from_ref_time(300),
 			..Default::default()
 		}
 		.build(),
@@ -326,7 +334,13 @@ fn overweight_queue_works() {
 		queue_upward_msg(para_a, a_msg_3.clone());
 		Ump::process_pending_upward_messages();
 		assert_last_event(
-			Event::OverweightEnqueued(para_a, upward_message_id(&a_msg_3[..]), 0, 500).into(),
+			Event::OverweightEnqueued(
+				para_a,
+				upward_message_id(&a_msg_3[..]),
+				0,
+				Weight::from_ref_time(500),
+			)
+			.into(),
 		);
 
 		// Now verify that if we wanted to service this overweight message with less than enough
