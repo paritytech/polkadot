@@ -73,7 +73,7 @@ impl UmpSink for () {
 		_: &[u8],
 		_: Weight,
 	) -> Result<Weight, (MessageId, Weight)> {
-		Ok(0)
+		Ok(Weight::zero())
 	}
 }
 
@@ -123,7 +123,7 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 		match maybe_msg_and_weight {
 			Err(_) => {
 				Pallet::<C>::deposit_event(Event::InvalidFormat(id));
-				Ok(0)
+				Ok(Weight::zero())
 			},
 			Ok((Err(()), weight_used)) => {
 				Pallet::<C>::deposit_event(Event::UnsupportedVersion(id));
@@ -131,11 +131,13 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 			},
 			Ok((Ok(xcm_message), weight_used)) => {
 				let xcm_junction = Junction::Parachain(origin.into());
-				let outcome = XcmExecutor::execute_xcm(xcm_junction, xcm_message, max_weight);
+				let outcome =
+					XcmExecutor::execute_xcm(xcm_junction, xcm_message, max_weight.ref_time());
 				match outcome {
-					Outcome::Error(XcmError::WeightLimitReached(required)) => Err((id, required)),
+					Outcome::Error(XcmError::WeightLimitReached(required)) =>
+						Err((id, Weight::from_ref_time(required))),
 					outcome => {
-						let outcome_weight = outcome.weight_used();
+						let outcome_weight = Weight::from_ref_time(outcome.weight_used());
 						Pallet::<C>::deposit_event(Event::ExecutedUpward(id, outcome));
 						Ok(weight_used.saturating_add(outcome_weight))
 					},
@@ -368,7 +370,7 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	/// Block finalization logic, called by initializer.
@@ -385,7 +387,7 @@ impl<T: Config> Pallet<T> {
 	/// Iterate over all paras that were noted for offboarding and remove all the data
 	/// associated with them.
 	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) -> Weight {
-		let mut weight: Weight = 0;
+		let mut weight: Weight = Weight::new();
 		for outgoing_para in outgoing {
 			weight = weight.saturating_add(Self::clean_ump_after_outgoing(outgoing_para));
 		}
@@ -467,7 +469,7 @@ impl<T: Config> Pallet<T> {
 		para: ParaId,
 		upward_messages: Vec<UpwardMessage>,
 	) -> Weight {
-		let mut weight = 0;
+		let mut weight = Weight::new();
 
 		if !upward_messages.is_empty() {
 			let (extra_count, extra_size) = upward_messages
@@ -503,7 +505,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Devote some time into dispatching pending upward messages.
 	pub(crate) fn process_pending_upward_messages() -> Weight {
-		let mut weight_used = 0;
+		let mut weight_used = Weight::new();
 
 		let config = <configuration::Pallet<T>>::config();
 		let mut cursor = NeedsDispatchCursor::new::<T>();
@@ -517,7 +519,7 @@ impl<T: Config> Pallet<T> {
 				// if so - bail.
 				break
 			}
-			let max_weight = if weight_used == 0 {
+			let max_weight = if weight_used == Weight::zero() {
 				// we increase the amount of weight that we're allowed to use on the first message to try to prevent
 				// the possibility of blockage of the queue.
 				config.ump_service_total_weight * T::FirstMessageFactorPercent::get() / 100

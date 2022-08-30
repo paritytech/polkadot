@@ -188,7 +188,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Called by the initializer to initialize the session info pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	/// Called by the initializer to finalize the session info pallet.
