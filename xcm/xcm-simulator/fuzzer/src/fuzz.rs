@@ -22,7 +22,7 @@ use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::AccountIdConversion;
 use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain, TestExt};
 
-use frame_support::{assert_ok, weights::Weight};
+use frame_support::assert_ok;
 use xcm::{latest::prelude::*, MAX_XCM_DECODE_DEPTH};
 
 pub const ALICE: sp_runtime::AccountId32 = sp_runtime::AccountId32::new([0u8; 32]);
