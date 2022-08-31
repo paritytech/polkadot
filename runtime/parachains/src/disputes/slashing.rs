@@ -148,7 +148,8 @@ where
 	fn disable_strategy(&self) -> DisableStrategy {
 		match self.kind {
 			SlashingOffenceKind::ForInvalid => DisableStrategy::Always,
-			// in the future we might change it based on number of disputes initiated
+			// in the future we might change it based on number of disputes initiated:
+			// <https://github.com/paritytech/polkadot/issues/5946>
 			SlashingOffenceKind::AgainstValid => DisableStrategy::Never,
 		}
 	}
