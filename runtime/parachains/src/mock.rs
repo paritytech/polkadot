@@ -82,7 +82,7 @@ where
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(4 * 1024 * 1024);
+		frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(4 * 1024 * 1024));
 }
 
 pub type AccountId = u64;
@@ -204,11 +204,11 @@ impl frame_support::traits::EstimateNextSessionRotation<u32> for TestNextSession
 	}
 
 	fn estimate_current_session_progress(_now: u32) -> (Option<Permill>, Weight) {
-		(None, 0)
+		(None, Weight::zero())
 	}
 
 	fn estimate_next_session_rotation(_now: u32) -> (Option<u32>, Weight) {
-		(None, 0)
+		(None, Weight::zero())
 	}
 }
 
@@ -222,7 +222,7 @@ impl crate::paras::Config for Test {
 impl crate::dmp::Config for Test {}
 
 parameter_types! {
-	pub const FirstMessageFactorPercent: u64 = 100;
+	pub const FirstMessageFactorPercent: Weight = Weight::from_ref_time(100);
 }
 
 impl crate::ump::Config for Test {
@@ -392,8 +392,8 @@ impl UmpSink for TestUmpSink {
 		max_weight: Weight,
 	) -> Result<Weight, (MessageId, Weight)> {
 		let weight = match u32::decode(&mut &actual_msg[..]) {
-			Ok(w) => w as Weight,
-			Err(_) => return Ok(0), // same as the real `UmpSink`
+			Ok(w) => Weight::from_ref_time(w as u64),
+			Err(_) => return Ok(Weight::zero()), // same as the real `UmpSink`
 		};
 		if weight > max_weight {
 			let id = sp_io::hashing::blake2_256(actual_msg);

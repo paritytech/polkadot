@@ -322,7 +322,7 @@ impl<BlockNumber: Ord> DisputesHandler<BlockNumber> for () {
 	}
 
 	fn initializer_initialize(_now: BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	fn initializer_finalize() {}
@@ -398,7 +398,7 @@ pub trait WeightInfo {
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn force_unfreeze() -> Weight {
-		0
+		Weight::zero()
 	}
 }
 
@@ -797,7 +797,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
 		let config = <configuration::Pallet<T>>::config();
 
-		let mut weight = 0;
+		let mut weight = Weight::new();
 		for (session_index, candidate_hash, mut dispute) in <Disputes<T>>::iter() {
 			weight += T::DbWeight::get().reads_writes(1, 0);
 

@@ -16,10 +16,12 @@
 
 //! Various implementations for `ShouldExecute`.
 
-use frame_support::{ensure, traits::Contains, weights::Weight};
+use frame_support::{ensure, traits::Contains};
 use polkadot_parachain::primitives::IsSystem;
 use sp_std::{marker::PhantomData, result::Result};
-use xcm::latest::{Instruction::*, Junction, Junctions, MultiLocation, WeightLimit::*, Xcm};
+use xcm::latest::{
+	Instruction::*, Junction, Junctions, MultiLocation, Weight, WeightLimit::*, Xcm,
+};
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 
 /// Execution barrier that just takes `max_weight` from `weight_credit`.

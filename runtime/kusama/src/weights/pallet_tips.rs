@@ -38,7 +38,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `pallet_tips`.
@@ -48,18 +48,18 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 	// Storage: Tips Tips (r:1 w:1)
 	/// The range of component `r` is `[0, 16384]`.
 	fn report_awesome(r: u32, ) -> Weight {
-		(28_045_000 as Weight)
+		Weight::from_ref_time(28_045_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((2_000 as Weight).saturating_mul(r as Weight))
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).scalar_saturating_mul(r as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 	// Storage: Tips Tips (r:1 w:1)
 	// Storage: Tips Reasons (r:0 w:1)
 	fn retract_tip() -> Weight {
-		(26_017_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(26_017_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 	// Storage: PhragmenElection Members (r:1 w:0)
 	// Storage: Tips Reasons (r:1 w:1)
@@ -67,23 +67,23 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 	/// The range of component `r` is `[0, 16384]`.
 	/// The range of component `t` is `[1, 19]`.
 	fn tip_new(r: u32, t: u32, ) -> Weight {
-		(19_125_000 as Weight)
+		Weight::from_ref_time(19_125_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((2_000 as Weight).saturating_mul(r as Weight))
+			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).scalar_saturating_mul(r as RefTimeWeight))
 			// Standard Error: 2_000
-			.saturating_add((41_000 as Weight).saturating_mul(t as Weight))
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+			.saturating_add(Weight::from_ref_time(41_000 as RefTimeWeight).scalar_saturating_mul(t as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 	// Storage: PhragmenElection Members (r:1 w:0)
 	// Storage: Tips Tips (r:1 w:1)
 	/// The range of component `t` is `[1, 19]`.
 	fn tip(t: u32, ) -> Weight {
-		(10_895_000 as Weight)
+		Weight::from_ref_time(10_895_000 as RefTimeWeight)
 			// Standard Error: 1_000
-			.saturating_add((158_000 as Weight).saturating_mul(t as Weight))
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+			.saturating_add(Weight::from_ref_time(158_000 as RefTimeWeight).scalar_saturating_mul(t as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 	// Storage: Tips Tips (r:1 w:1)
 	// Storage: PhragmenElection Members (r:1 w:0)
@@ -91,20 +91,20 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 	// Storage: Tips Reasons (r:0 w:1)
 	/// The range of component `t` is `[1, 19]`.
 	fn close_tip(t: u32, ) -> Weight {
-		(42_301_000 as Weight)
+		Weight::from_ref_time(42_301_000 as RefTimeWeight)
 			// Standard Error: 4_000
-			.saturating_add((154_000 as Weight).saturating_mul(t as Weight))
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+			.saturating_add(Weight::from_ref_time(154_000 as RefTimeWeight).scalar_saturating_mul(t as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
 	// Storage: Tips Tips (r:1 w:1)
 	// Storage: Tips Reasons (r:0 w:1)
 	/// The range of component `t` is `[1, 19]`.
 	fn slash_tip(t: u32, ) -> Weight {
-		(16_548_000 as Weight)
+		Weight::from_ref_time(16_548_000 as RefTimeWeight)
 			// Standard Error: 1_000
-			.saturating_add((21_000 as Weight).saturating_mul(t as Weight))
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+			.saturating_add(Weight::from_ref_time(21_000 as RefTimeWeight).scalar_saturating_mul(t as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 }
