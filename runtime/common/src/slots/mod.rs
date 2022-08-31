@@ -1024,7 +1024,8 @@ mod benchmarking {
 			let amount = T::Currency::minimum_balance();
 			let period_begin = 69u32.into();
 			let period_count = 3u32.into();
-		}: _(RawOrigin::Root, para, leaser.clone(), amount, period_begin, period_count)
+			let origin = T::ForceOrigin::successful_origin();
+		}: _<T::Origin>(origin, para, leaser.clone(), amount, period_begin, period_count)
 		verify {
 			assert_last_event::<T>(Event::<T>::Leased {
 				para_id: para,
@@ -1057,8 +1058,8 @@ mod benchmarking {
 			// T parathread are upgrading to parachains
 			for (para, leaser) in paras_info {
 				let amount = T::Currency::minimum_balance();
-
-				Slots::<T>::force_lease(RawOrigin::Root.into(), para, leaser, amount, period_begin, period_count)?;
+				let origin = T::ForceOrigin::successful_origin();
+				Slots::<T>::force_lease(origin, para, leaser, amount, period_begin, period_count)?;
 			}
 
 			T::Registrar::execute_pending_transitions();
@@ -1108,7 +1109,8 @@ mod benchmarking {
 				// Average slot has 4 lease periods.
 				let period_count: LeasePeriodOf<T> = 4u32.into();
 				let period_begin = period_count * i.into();
-				Slots::<T>::force_lease(RawOrigin::Root.into(), para, leaser, amount, period_begin, period_count)?;
+				let origin = T::ForceOrigin::successful_origin();
+				Slots::<T>::force_lease(origin, para, leaser, amount, period_begin, period_count)?;
 			}
 
 			for i in 0 .. max_people {
@@ -1116,7 +1118,8 @@ mod benchmarking {
 				assert_eq!(T::Currency::reserved_balance(&leaser), T::Currency::minimum_balance());
 			}
 
-		}: _(RawOrigin::Root, para)
+			let origin = T::ForceOrigin::successful_origin();
+		}: _<T::Origin>(origin, para)
 		verify {
 			for i in 0 .. max_people {
 				let leaser = account("lease_deposit", i, 0);

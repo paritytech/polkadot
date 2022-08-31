@@ -1784,7 +1784,7 @@ mod benchmarking {
 			let duration = T::BlockNumber::max_value();
 			let lease_period_index = LeasePeriodOf::<T>::max_value();
 			let origin = T::InitiateOrigin::successful_origin();
-		}: _(RawOrigin::Root, duration, lease_period_index)
+		}: _<T::Origin>(origin, duration, lease_period_index)
 		verify {
 			assert_last_event::<T>(Event::<T>::AuctionStarted {
 				auction_index: AuctionCounter::<T>::get(),
@@ -1802,7 +1802,8 @@ mod benchmarking {
 			// Create a new auction
 			let duration = T::BlockNumber::max_value();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
-			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
+			let origin = T::InitiateOrigin::successful_origin();
+			Auctions::<T>::new_auction(origin, duration, lease_period_index)?;
 
 			let para = ParaId::from(0);
 			let new_para = ParaId::from(1_u32);
@@ -1853,7 +1854,8 @@ mod benchmarking {
 			let duration: T::BlockNumber = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
-			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
+			let origin = T::InitiateOrigin::successful_origin();
+			Auctions::<T>::new_auction(origin, duration, lease_period_index)?;
 
 			fill_winners::<T>(lease_period_index);
 
@@ -1896,7 +1898,8 @@ mod benchmarking {
 			let duration: T::BlockNumber = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
-			Auctions::<T>::new_auction(RawOrigin::Root.into(), duration, lease_period_index)?;
+			let origin = T::InitiateOrigin::successful_origin();
+			Auctions::<T>::new_auction(origin, duration, lease_period_index)?;
 
 			fill_winners::<T>(lease_period_index);
 
