@@ -119,7 +119,7 @@ impl<BlockNumber> SlashingHandler<BlockNumber> for () {
 	}
 
 	fn initializer_initialize(_now: BlockNumber) -> Weight {
-		0
+		Weight::new()
 	}
 
 	fn initializer_finalize() {}

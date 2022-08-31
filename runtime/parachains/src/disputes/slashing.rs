@@ -404,7 +404,7 @@ pub trait WeightInfo {
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn report_dispute_lost(_validator_count: ValidatorSetCount) -> Weight {
-		0
+		Weight::new()
 	}
 }
 
@@ -570,7 +570,7 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the disputes slashing module.
 	fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+		Weight::new()
 	}
 
 	/// Called by the initializer to finalize the disputes slashing pallet.
