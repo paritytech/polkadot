@@ -122,11 +122,11 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 		});
 		match maybe_msg_and_weight {
 			Err(_) => {
-				Pallet::<C>::deposit_event(Event::InvalidFormat(id));
+				Pallet::<C>::deposit_event(Event::InvalidFormat { id });
 				Ok(0)
 			},
 			Ok((Err(()), weight_used)) => {
-				Pallet::<C>::deposit_event(Event::UnsupportedVersion(id));
+				Pallet::<C>::deposit_event(Event::UnsupportedVersion { id });
 				Ok(weight_used)
 			},
 			Ok((Ok(xcm_message), weight_used)) => {
@@ -136,7 +136,7 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 					Outcome::Error(XcmError::WeightLimitReached(required)) => Err((id, required)),
 					outcome => {
 						let outcome_weight = outcome.weight_used();
-						Pallet::<C>::deposit_event(Event::ExecutedUpward(id, outcome));
+						Pallet::<C>::deposit_event(Event::ExecutedUpward { id, outcome });
 						Ok(weight_used.saturating_add(outcome_weight))
 					},
 				}
@@ -240,32 +240,28 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event {
 		/// Upward message is invalid XCM.
-		/// \[ id \]
-		InvalidFormat(MessageId),
+		InvalidFormat { id: MessageId },
 		/// Upward message is unsupported version of XCM.
-		/// \[ id \]
-		UnsupportedVersion(MessageId),
+		UnsupportedVersion { id: MessageId },
 		/// Upward message executed with the given outcome.
-		/// \[ id, outcome \]
-		ExecutedUpward(MessageId, Outcome),
+		ExecutedUpward { id: MessageId, outcome: Outcome },
 		/// The weight limit for handling upward messages was reached.
-		/// \[ id, remaining, required \]
-		WeightExhausted(MessageId, Weight, Weight),
+		WeightExhausted { id: MessageId, remaining: Weight, required: Weight },
 		/// Some upward messages have been received and will be processed.
-		/// \[ para, count, size \]
-		UpwardMessagesReceived(ParaId, u32, u32),
+		UpwardMessagesReceived { para: ParaId, count: u32, size: u32 },
 		/// The weight budget was exceeded for an individual upward message.
 		///
 		/// This message can be later dispatched manually using `service_overweight` dispatchable
 		/// using the assigned `overweight_index`.
-		///
-		/// \[ para, id, overweight_index, required \]
-		OverweightEnqueued(ParaId, MessageId, OverweightIndex, Weight),
+		OverweightEnqueued {
+			para: ParaId,
+			id: MessageId,
+			overweight_index: OverweightIndex,
+			required: Weight,
+		},
 		/// Upward message from the overweight queue was executed with the given actual weight
 		/// used.
-		///
-		/// \[ overweight_index, used \]
-		OverweightServiced(OverweightIndex, Weight),
+		OverweightServiced { overweight_index: OverweightIndex, used: Weight },
 	}
 
 	#[pallet::error]
@@ -358,7 +354,7 @@ pub mod pallet {
 			let used = T::UmpSink::process_upward_message(sender, &data[..], weight_limit)
 				.map_err(|_| Error::<T>::WeightOverLimit)?;
 			Overweight::<T>::remove(index);
-			Self::deposit_event(Event::OverweightServiced(index, used));
+			Self::deposit_event(Event::OverweightServiced { overweight_index: index, used });
 			Ok(Some(used.saturating_add(<T as Config>::WeightInfo::service_overweight())).into())
 		}
 	}
@@ -495,7 +491,11 @@ impl<T: Config> Pallet<T> {
 			// NOTE: The actual computation is not accounted for. It should be benchmarked.
 			weight += T::DbWeight::get().reads_writes(3, 3);
 
-			Self::deposit_event(Event::UpwardMessagesReceived(para, extra_count, extra_size));
+			Self::deposit_event(Event::UpwardMessagesReceived {
+				para,
+				count: extra_count,
+				size: extra_size,
+			});
 		}
 
 		weight
@@ -544,13 +544,20 @@ impl<T: Config> Pallet<T> {
 								thus `upward_message` cannot be `None`; qed",
 							);
 							let index = Self::stash_overweight(dispatchee, upward_message);
-							Self::deposit_event(Event::OverweightEnqueued(
-								dispatchee, id, index, required,
-							));
+							Self::deposit_event(Event::OverweightEnqueued {
+								para: dispatchee,
+								id,
+								overweight_index: index,
+								required,
+							});
 						} else {
 							// we process messages in order and don't drop them if we run out of weight,
 							// so need to break here without calling `consume_front`.
-							Self::deposit_event(Event::WeightExhausted(id, max_weight, required));
+							Self::deposit_event(Event::WeightExhausted {
+								id,
+								remaining: max_weight,
+								required,
+							});
 							break
 						}
 					},

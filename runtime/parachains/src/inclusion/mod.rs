@@ -206,12 +206,26 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// A candidate was backed. `[candidate, head_data]`
-		CandidateBacked(CandidateReceipt<T::Hash>, HeadData, CoreIndex, GroupIndex),
-		/// A candidate was included. `[candidate, head_data]`
-		CandidateIncluded(CandidateReceipt<T::Hash>, HeadData, CoreIndex, GroupIndex),
-		/// A candidate timed out. `[candidate, head_data]`
-		CandidateTimedOut(CandidateReceipt<T::Hash>, HeadData, CoreIndex),
+		/// A candidate was backed.
+		CandidateBacked {
+			candidate: CandidateReceipt<T::Hash>,
+			head_data: HeadData,
+			core_index: CoreIndex,
+			group_index: GroupIndex,
+		},
+		/// A candidate was included.
+		CandidateIncluded {
+			candidate: CandidateReceipt<T::Hash>,
+			head_data: HeadData,
+			core_index: CoreIndex,
+			group_index: GroupIndex,
+		},
+		/// A candidate timed out.
+		CandidateTimedOut {
+			candidate: CandidateReceipt<T::Hash>,
+			head_data: HeadData,
+			core_index: CoreIndex,
+		},
 	}
 
 	#[pallet::error]
@@ -655,12 +669,12 @@ impl<T: Config> Pallet<T> {
 			let availability_votes: BitVec<u8, BitOrderLsb0> =
 				bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
 
-			Self::deposit_event(Event::<T>::CandidateBacked(
-				candidate.candidate.to_plain(),
-				candidate.candidate.commitments.head_data.clone(),
-				core,
-				group,
-			));
+			Self::deposit_event(Event::<T>::CandidateBacked {
+				candidate: candidate.candidate.to_plain(),
+				head_data: candidate.candidate.commitments.head_data.clone(),
+				core_index: core,
+				group_index: group,
+			});
 
 			let candidate_hash = candidate.candidate.hash();
 
@@ -778,12 +792,12 @@ impl<T: Config> Pallet<T> {
 			commitments.horizontal_messages,
 		);
 
-		Self::deposit_event(Event::<T>::CandidateIncluded(
-			plain,
-			commitments.head_data.clone(),
+		Self::deposit_event(Event::<T>::CandidateIncluded {
+			candidate: plain,
+			head_data: commitments.head_data.clone(),
 			core_index,
-			backing_group,
-		));
+			group_index: backing_group,
+		});
 
 		weight +
 			<paras::Pallet<T>>::note_new_head(
@@ -823,11 +837,11 @@ impl<T: Config> Pallet<T> {
 					commitments_hash: commitments.hash(),
 				};
 
-				Self::deposit_event(Event::<T>::CandidateTimedOut(
+				Self::deposit_event(Event::<T>::CandidateTimedOut {
 					candidate,
-					commitments.head_data,
-					pending.core,
-				));
+					head_data: commitments.head_data,
+					core_index: pending.core,
+				});
 			}
 		}
 
