@@ -43,11 +43,7 @@
 //! `KeyOwnershipProof` of an offender and submit it to the runtime
 //! to produce an offence.
 
-use crate::{
-	disputes,
-	initializer::ValidatorSetCount,
-	session_info::{AccountId, IdentificationTuple},
-};
+use crate::{disputes, initializer::ValidatorSetCount, session_info::IdentificationTuple};
 use frame_support::{
 	traits::{Defensive, Get, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
 	weights::{Pays, Weight},
@@ -198,7 +194,6 @@ where
 	/// otherwise.
 	fn maybe_identify_validators(
 		session_index: SessionIndex,
-		account_ids: &[AccountId<T>],
 		validators: impl IntoIterator<Item = ValidatorIndex>,
 	) -> Option<Vec<IdentificationTuple<T>>> {
 		// We use `ValidatorSet::session_index` and not
@@ -208,6 +203,9 @@ where
 		// updated at the end of the block.
 		let current_session = T::ValidatorSet::session_index();
 		if session_index == current_session {
+			let account_keys = crate::session_info::Pallet::<T>::account_keys(session_index);
+			let account_ids = account_keys.defensive_unwrap_or_default();
+
 			let fully_identified = validators
 				.into_iter()
 				.flat_map(|i| account_ids.get(i.0 as usize).cloned())
@@ -233,17 +231,14 @@ where
 			// Nothing to do
 			return
 		}
-		let account_keys = crate::session_info::Pallet::<T>::account_keys(session_index);
-		let account_ids = account_keys.defensive_unwrap_or_default();
 		let session_info = crate::session_info::Pallet::<T>::session_info(session_index);
 		let session_info = match session_info.defensive_proof(DEFENSIVE_PROOF) {
 			Some(info) => info,
 			None => return,
 		};
-		let validator_set_count = session_info.discovery_keys.len() as ValidatorSetCount;
-		let maybe =
-			Self::maybe_identify_validators(session_index, &account_ids, losers.iter().cloned());
+		let maybe = Self::maybe_identify_validators(session_index, losers.iter().cloned());
 		if let Some(offenders) = maybe {
+			let validator_set_count = session_info.discovery_keys.len() as ValidatorSetCount;
 			let offence = SlashingOffence::new(
 				session_index,
 				candidate_hash,
