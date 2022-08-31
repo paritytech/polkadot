@@ -38,7 +38,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `frame_election_provider_support`.
@@ -48,20 +48,20 @@ impl<T: frame_system::Config> frame_election_provider_support::WeightInfo for We
 	/// The range of component `t` is `[500, 1000]`.
 	/// The range of component `d` is `[5, 16]`.
 	fn phragmen(v: u32, _t: u32, d: u32, ) -> Weight {
-		(0 as Weight)
+		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 91_000
-			.saturating_add((21_885_000 as Weight).saturating_mul(v as Weight))
+			.saturating_add(Weight::from_ref_time(21_885_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
 			// Standard Error: 7_862_000
-			.saturating_add((3_527_431_000 as Weight).saturating_mul(d as Weight))
+			.saturating_add(Weight::from_ref_time(3_527_431_000 as RefTimeWeight).scalar_saturating_mul(d as RefTimeWeight))
 	}
 	/// The range of component `v` is `[1000, 2000]`.
 	/// The range of component `t` is `[500, 1000]`.
 	/// The range of component `d` is `[5, 16]`.
 	fn phragmms(v: u32, _t: u32, d: u32, ) -> Weight {
-		(0 as Weight)
+		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 73_000
-			.saturating_add((15_030_000 as Weight).saturating_mul(v as Weight))
+			.saturating_add(Weight::from_ref_time(15_030_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
 			// Standard Error: 6_376_000
-			.saturating_add((2_571_214_000 as Weight).saturating_mul(d as Weight))
+			.saturating_add(Weight::from_ref_time(2_571_214_000 as RefTimeWeight).scalar_saturating_mul(d as RefTimeWeight))
 	}
 }

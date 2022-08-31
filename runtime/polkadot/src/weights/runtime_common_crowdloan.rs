@@ -38,7 +38,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `runtime_common::crowdloan`.
@@ -49,9 +49,9 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 	// Storage: Paras ParaLifecycles (r:1 w:0)
 	// Storage: Crowdloan NextFundIndex (r:1 w:1)
 	fn create() -> Weight {
-		(42_118_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(4 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(42_118_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
 	// Storage: Crowdloan Funds (r:1 w:1)
 	// Storage: Slots Leases (r:1 w:0)
@@ -61,55 +61,55 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 	// Storage: Crowdloan NewRaise (r:1 w:1)
 	// Storage: unknown [0xd861ea1ebf4800d4b89f4ff787ad79ee96d9a708c85b57da7eb8f9ddeda61291] (r:1 w:1)
 	fn contribute() -> Weight {
-		(112_357_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(7 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(112_357_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(7 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 	}
 	// Storage: Crowdloan Funds (r:1 w:1)
 	// Storage: System Account (r:2 w:2)
 	// Storage: unknown [0xc85982571aa615c788ef9b2c16f54f25773fd439e8ee1ed2aa3ae43d48e880f0] (r:1 w:1)
 	fn withdraw() -> Weight {
-		(51_125_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(4 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(51_125_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 	}
 	// Storage: Skipped Metadata (r:0 w:0)
 	/// The range of component `k` is `[0, 1000]`.
 	fn refund(k: u32, ) -> Weight {
-		(0 as Weight)
+		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 17_000
-			.saturating_add((19_562_000 as Weight).saturating_mul(k as Weight))
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().reads((2 as Weight).saturating_mul(k as Weight)))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes((2 as Weight).saturating_mul(k as Weight)))
+			.saturating_add(Weight::from_ref_time(19_562_000 as RefTimeWeight).scalar_saturating_mul(k as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().reads((2 as RefTimeWeight).saturating_mul(k as RefTimeWeight)))
+			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes((2 as RefTimeWeight).saturating_mul(k as RefTimeWeight)))
 	}
 	// Storage: Crowdloan Funds (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
 	fn dissolve() -> Weight {
-		(31_834_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(31_834_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 	// Storage: Crowdloan Funds (r:1 w:1)
 	fn edit() -> Weight {
-		(20_820_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(20_820_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 	// Storage: Crowdloan Funds (r:1 w:0)
 	// Storage: unknown [0xd861ea1ebf4800d4b89f4ff787ad79ee96d9a708c85b57da7eb8f9ddeda61291] (r:1 w:1)
 	fn add_memo() -> Weight {
-		(28_173_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(28_173_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 	// Storage: Crowdloan Funds (r:1 w:0)
 	// Storage: Crowdloan NewRaise (r:1 w:1)
 	fn poke() -> Weight {
-		(24_193_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(24_193_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 	// Storage: Auctions AuctionInfo (r:1 w:0)
 	// Storage: Crowdloan EndingsCount (r:1 w:1)
@@ -123,12 +123,12 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 	// Storage: System Account (r:2 w:2)
 	/// The range of component `n` is `[2, 100]`.
 	fn on_initialize(n: u32, ) -> Weight {
-		(0 as Weight)
+		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 41_000
-			.saturating_add((49_451_000 as Weight).saturating_mul(n as Weight))
-			.saturating_add(T::DbWeight::get().reads(5 as Weight))
-			.saturating_add(T::DbWeight::get().reads((5 as Weight).saturating_mul(n as Weight)))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes((2 as Weight).saturating_mul(n as Weight)))
+			.saturating_add(Weight::from_ref_time(49_451_000 as RefTimeWeight).scalar_saturating_mul(n as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().reads(5 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().reads((5 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
+			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes((2 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
 	}
 }

@@ -38,7 +38,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `pallet_bounties`.
@@ -50,90 +50,90 @@ impl<T: frame_system::Config> pallet_bounties::WeightInfo for WeightInfo<T> {
 	// Storage: Bounties Bounties (r:0 w:1)
 	/// The range of component `d` is `[0, 16384]`.
 	fn propose_bounty(d: u32, ) -> Weight {
-		(26_654_000 as Weight)
+		Weight::from_ref_time(26_654_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((1_000 as Weight).saturating_mul(d as Weight))
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+			.saturating_add(Weight::from_ref_time(1_000 as RefTimeWeight).scalar_saturating_mul(d as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 	}
 	// Storage: Bounties Bounties (r:1 w:1)
 	// Storage: Bounties BountyApprovals (r:1 w:1)
 	fn approve_bounty() -> Weight {
-		(9_776_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(9_776_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 	// Storage: Bounties Bounties (r:1 w:1)
 	fn propose_curator() -> Weight {
-		(8_350_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(8_350_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 	// Storage: Bounties Bounties (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
 	fn unassign_curator() -> Weight {
-		(34_804_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(34_804_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 	// Storage: Bounties Bounties (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
 	fn accept_curator() -> Weight {
-		(23_414_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(23_414_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 	// Storage: Bounties Bounties (r:1 w:1)
 	// Storage: ChildBounties ParentChildBounties (r:1 w:0)
 	fn award_bounty() -> Weight {
-		(20_148_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(20_148_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 	// Storage: Bounties Bounties (r:1 w:1)
 	// Storage: System Account (r:3 w:3)
 	// Storage: ChildBounties ChildrenCuratorFees (r:1 w:1)
 	// Storage: Bounties BountyDescriptions (r:0 w:1)
 	fn claim_bounty() -> Weight {
-		(64_115_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(5 as Weight))
-			.saturating_add(T::DbWeight::get().writes(6 as Weight))
+		Weight::from_ref_time(64_115_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(5 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
 	}
 	// Storage: Bounties Bounties (r:1 w:1)
 	// Storage: ChildBounties ParentChildBounties (r:1 w:0)
 	// Storage: System Account (r:1 w:1)
 	// Storage: Bounties BountyDescriptions (r:0 w:1)
 	fn close_bounty_proposed() -> Weight {
-		(39_628_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(39_628_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
 	// Storage: Bounties Bounties (r:1 w:1)
 	// Storage: ChildBounties ParentChildBounties (r:1 w:0)
 	// Storage: System Account (r:2 w:2)
 	// Storage: Bounties BountyDescriptions (r:0 w:1)
 	fn close_bounty_active() -> Weight {
-		(47_429_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(4 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(47_429_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 	}
 	// Storage: Bounties Bounties (r:1 w:1)
 	fn extend_bounty_expiry() -> Weight {
-		(17_322_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(17_322_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 	// Storage: Bounties BountyApprovals (r:1 w:1)
 	// Storage: Bounties Bounties (r:1 w:1)
 	// Storage: System Account (r:2 w:2)
 	/// The range of component `b` is `[1, 100]`.
 	fn spend_funds(b: u32, ) -> Weight {
-		(0 as Weight)
+		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 30_000
-			.saturating_add((30_775_000 as Weight).saturating_mul(b as Weight))
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().reads((3 as Weight).saturating_mul(b as Weight)))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes((3 as Weight).saturating_mul(b as Weight)))
+			.saturating_add(Weight::from_ref_time(30_775_000 as RefTimeWeight).scalar_saturating_mul(b as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().reads((3 as RefTimeWeight).saturating_mul(b as RefTimeWeight)))
+			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes((3 as RefTimeWeight).saturating_mul(b as RefTimeWeight)))
 	}
 }

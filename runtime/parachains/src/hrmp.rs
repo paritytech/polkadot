@@ -609,7 +609,7 @@ fn preopen_hrmp_channel<T: Config>(
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	/// Block finalization logic, called by initializer.
@@ -953,7 +953,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub(crate) fn prune_hrmp(recipient: ParaId, new_hrmp_watermark: T::BlockNumber) -> Weight {
-		let mut weight = 0;
+		let mut weight = Weight::new();
 
 		// sift through the incoming messages digest to collect the paras that sent at least one
 		// message to this parachain between the old and new watermarks.
@@ -1020,7 +1020,7 @@ impl<T: Config> Pallet<T> {
 		sender: ParaId,
 		out_hrmp_msgs: Vec<OutboundHrmpMessage<ParaId>>,
 	) -> Weight {
-		let mut weight = 0;
+		let mut weight = Weight::new();
 		let now = <frame_system::Pallet<T>>::block_number();
 
 		for out_msg in out_hrmp_msgs {

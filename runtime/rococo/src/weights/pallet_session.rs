@@ -37,7 +37,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `pallet_session`.
@@ -47,16 +47,16 @@ impl<T: frame_system::Config> pallet_session::WeightInfo for WeightInfo<T> {
 	// Storage: Session NextKeys (r:1 w:1)
 	// Storage: Session KeyOwner (r:6 w:6)
 	fn set_keys() -> Weight {
-		(36_115_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(8 as Weight))
-			.saturating_add(T::DbWeight::get().writes(7 as Weight))
+		Weight::from_ref_time(36_115_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(8 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(7 as RefTimeWeight))
 	}
 	// Storage: Staking Ledger (r:1 w:0)
 	// Storage: Session NextKeys (r:1 w:1)
 	// Storage: Session KeyOwner (r:0 w:6)
 	fn purge_keys() -> Weight {
-		(21_459_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(7 as Weight))
+		Weight::from_ref_time(21_459_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(7 as RefTimeWeight))
 	}
 }

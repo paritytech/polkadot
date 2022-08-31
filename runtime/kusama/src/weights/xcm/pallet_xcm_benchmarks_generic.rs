@@ -39,7 +39,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
 use sp_std::marker::PhantomData;
 
 /// Weights for `pallet_xcm_benchmarks::generic`.
@@ -52,38 +52,38 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn query_holding() -> Weight {
-		(21_822_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(6 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(21_822_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(6 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
 	pub(crate) fn buy_execution() -> Weight {
-		(3_109_000 as Weight)
+		Weight::from_ref_time(3_109_000 as RefTimeWeight)
 	}
 	// Storage: XcmPallet Queries (r:1 w:0)
 	pub(crate) fn query_response() -> Weight {
-		(12_087_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+		Weight::from_ref_time(12_087_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
 	}
 	pub(crate) fn transact() -> Weight {
-		(12_398_000 as Weight)
+		Weight::from_ref_time(12_398_000 as RefTimeWeight)
 	}
 	pub(crate) fn refund_surplus() -> Weight {
-		(3_247_000 as Weight)
+		Weight::from_ref_time(3_247_000 as RefTimeWeight)
 	}
 	pub(crate) fn set_error_handler() -> Weight {
-		(3_086_000 as Weight)
+		Weight::from_ref_time(3_086_000 as RefTimeWeight)
 	}
 	pub(crate) fn set_appendix() -> Weight {
-		(3_112_000 as Weight)
+		Weight::from_ref_time(3_112_000 as RefTimeWeight)
 	}
 	pub(crate) fn clear_error() -> Weight {
-		(3_118_000 as Weight)
+		Weight::from_ref_time(3_118_000 as RefTimeWeight)
 	}
 	pub(crate) fn descend_origin() -> Weight {
-		(4_054_000 as Weight)
+		Weight::from_ref_time(4_054_000 as RefTimeWeight)
 	}
 	pub(crate) fn clear_origin() -> Weight {
-		(3_111_000 as Weight)
+		Weight::from_ref_time(3_111_000 as RefTimeWeight)
 	}
 	// Storage: XcmPallet SupportedVersion (r:1 w:0)
 	// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
@@ -92,18 +92,18 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn report_error() -> Weight {
-		(18_425_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(6 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(18_425_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(6 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
 	// Storage: XcmPallet AssetTraps (r:1 w:1)
 	pub(crate) fn claim_asset() -> Weight {
-		(7_144_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(7_144_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 	pub(crate) fn trap() -> Weight {
-		(3_060_000 as Weight)
+		Weight::from_ref_time(3_060_000 as RefTimeWeight)
 	}
 	// Storage: XcmPallet VersionNotifyTargets (r:1 w:1)
 	// Storage: XcmPallet SupportedVersion (r:1 w:0)
@@ -113,14 +113,14 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn subscribe_version() -> Weight {
-		(21_642_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(7 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(21_642_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(7 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 	}
 	// Storage: XcmPallet VersionNotifyTargets (r:0 w:1)
 	pub(crate) fn unsubscribe_version() -> Weight {
-		(4_873_000 as Weight)
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(4_873_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 	// Storage: XcmPallet SupportedVersion (r:1 w:0)
 	// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
@@ -129,8 +129,8 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn initiate_reserve_withdraw() -> Weight {
-		(22_809_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(6 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(22_809_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(6 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
 }

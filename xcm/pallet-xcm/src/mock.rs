@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::{construct_runtime, parameter_types, traits::Everything, weights::Weight};
+use frame_support::{construct_runtime, parameter_types, traits::Everything};
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::origin;
 use sp_core::H256;
@@ -219,7 +219,7 @@ parameter_types! {
 	pub const RelayLocation: MultiLocation = Here.into();
 	pub const AnyNetwork: NetworkId = NetworkId::Any;
 	pub Ancestry: MultiLocation = Here.into();
-	pub UnitWeightCost: Weight = 1_000;
+	pub UnitWeightCost: u64 = 1_000;
 }
 
 pub type SovereignAccountOf =
@@ -236,7 +236,7 @@ type LocalOriginConverter = (
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: Weight = 1_000;
+	pub const BaseXcmWeight: u64 = 1_000;
 	pub CurrencyPerSecond: (AssetId, u128) = (Concrete(RelayLocation::get()), 1);
 	pub TrustedAssets: (MultiAssetFilter, MultiLocation) = (All.into(), Here.into());
 	pub const MaxInstructions: u32 = 100;
