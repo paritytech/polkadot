@@ -351,8 +351,9 @@ where
 	let _timer = metrics.time_make_runtime_api_request();
 
 	macro_rules! query {
-		($req_variant:ident, $api_name:ident ($($param:expr),*), ver = $version:literal, $sender:expr) => {{
+		($req_variant:ident, $api_name:ident ($($param:expr),*), ver = $version:expr, $sender:expr) => {{
 			let sender = $sender;
+			let version: u32 = $version;	// enforce type for the version expression
 			let runtime_version = client.api_version_parachain_host(relay_parent).await
 				.unwrap_or_else(|e| {
 					gum::warn!(
@@ -370,7 +371,7 @@ where
 					0
 				});
 
-			let res = if runtime_version >= $version {
+			let res = if runtime_version >= version {
 				client.$api_name(relay_parent $(, $param.clone() )*).await
 					.map_err(|e| RuntimeApiError::Execution {
 						runtime_api_name: stringify!($api_name),
@@ -499,6 +500,7 @@ where
 		},
 		Request::ValidationCodeHash(para, assumption, sender) =>
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
-		Request::Disputes(sender) => query!(Disputes, disputes(), ver = 3, sender),
+		Request::Disputes(sender) =>
+			query!(Disputes, disputes(), ver = Request::DISPUTES_RUNTIME_REQ, sender),
 	}
 }

@@ -703,6 +703,13 @@ pub enum RuntimeApiRequest {
 	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
 }
 
+impl RuntimeApiRequest {
+	/// Runtime version requirements for each message
+
+	/// `Disputes`
+	pub const DISPUTES_RUNTIME_REQ: u32 = 3;
+}
+
 /// A message to the Runtime API subsystem.
 #[derive(Debug)]
 pub enum RuntimeApiMessage {
