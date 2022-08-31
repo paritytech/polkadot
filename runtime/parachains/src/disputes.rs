@@ -77,7 +77,6 @@ impl RewardValidators for () {
 pub trait SlashingHandler<BlockNumber> {
 	/// Punish a series of validators who were for an invalid parablock. This is
 	/// expected to be a major punishment.
-	/// Also distributes the rewards to `winners` from the slashing pot.
 	fn punish_for_invalid(
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
@@ -86,7 +85,6 @@ pub trait SlashingHandler<BlockNumber> {
 
 	/// Punish a series of validators who were against a valid parablock. This
 	/// is expected to be a minor punishment.
-	/// Also distributes the rewards to `winners` from the slashing pot.
 	fn punish_against_valid(
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
