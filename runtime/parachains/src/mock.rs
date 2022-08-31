@@ -242,14 +242,24 @@ impl crate::hrmp::Config for Test {
 
 impl crate::disputes::Config for Test {
 	type Event = Event;
-	type RewardValidators = ();
+	type RewardValidators = Self;
 	type SlashingHandler = Self;
 	type WeightInfo = crate::disputes::TestWeightInfo;
 }
 
 thread_local! {
+	pub static REWARD_VALIDATORS: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_FOR: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_AGAINST: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
+}
+
+impl crate::disputes::RewardValidators for Test {
+	fn reward_dispute_statement(
+		session: SessionIndex,
+		validators: impl IntoIterator<Item = ValidatorIndex>,
+	) {
+		REWARD_VALIDATORS.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
+	}
 }
 
 impl crate::disputes::SlashingHandler<BlockNumber> for Test {
@@ -271,7 +281,7 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 	}
 
 	fn initializer_initialize(_now: BlockNumber) -> Weight {
-		0
+		Weight::new()
 	}
 
 	fn initializer_finalize() {}
