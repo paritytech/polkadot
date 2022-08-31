@@ -17,7 +17,6 @@
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Everything, Nothing},
-	weights::Weight,
 };
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
@@ -141,7 +140,7 @@ type LocalOriginConverter = (
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: Weight = 1_000_000_000;
+	pub const BaseXcmWeight: u64 = 1_000_000_000;
 	pub KsmPerSecond: (AssetId, u128) = (KsmLocation::get().into(), 1);
 }
 

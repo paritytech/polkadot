@@ -21,6 +21,7 @@ use crate::{
 use frame_support::{
 	assert_noop, assert_ok,
 	traits::{Currency, Hooks},
+	weights::Weight,
 };
 use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, Hash};
@@ -512,7 +513,7 @@ fn execute_withdraw_to_deposit_works() {
 				buy_execution((Here, SEND_AMOUNT)),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
 			]))),
-			weight
+			Weight::from_ref_time(weight)
 		));
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
 		assert_eq!(Balances::total_balance(&BOB), SEND_AMOUNT);
@@ -544,7 +545,7 @@ fn trapped_assets_can_be_claimed() {
 				// This would succeed, but we never get to it.
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest.clone() },
 			]))),
-			weight
+			Weight::from_ref_time(weight)
 		));
 		let source: MultiLocation =
 			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
@@ -574,7 +575,7 @@ fn trapped_assets_can_be_claimed() {
 				buy_execution((Here, SEND_AMOUNT)),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest.clone() },
 			]))),
-			weight
+			Weight::from_ref_time(weight)
 		));
 
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
@@ -589,7 +590,7 @@ fn trapped_assets_can_be_claimed() {
 				buy_execution((Here, SEND_AMOUNT)),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
 			]))),
-			weight
+			Weight::from_ref_time(weight)
 		));
 		assert_eq!(
 			last_event(),
@@ -986,7 +987,7 @@ fn subscription_side_upgrades_work_with_multistage_notify() {
 		let mut counter = 0;
 		while let Some(migration) = maybe_migration.take() {
 			counter += 1;
-			let (_, m) = XcmPallet::check_xcm_version_change(migration, 0);
+			let (_, m) = XcmPallet::check_xcm_version_change(migration, Weight::zero());
 			maybe_migration = m;
 		}
 		assert_eq!(counter, 4);

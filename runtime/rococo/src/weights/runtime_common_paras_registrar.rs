@@ -38,7 +38,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `runtime_common::paras_registrar`.
@@ -48,9 +48,9 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Registrar Paras (r:1 w:1)
 	// Storage: Paras ParaLifecycles (r:1 w:0)
 	fn reserve() -> Weight {
-		(27_519_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(27_519_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 	// Storage: Registrar Paras (r:1 w:1)
 	// Storage: Paras ParaLifecycles (r:1 w:1)
@@ -63,9 +63,9 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Paras CurrentCodeHash (r:0 w:1)
 	// Storage: Paras UpcomingParasGenesis (r:0 w:1)
 	fn register() -> Weight {
-		(9_070_714_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(8 as Weight))
-			.saturating_add(T::DbWeight::get().writes(7 as Weight))
+		Weight::from_ref_time(9_070_714_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(8 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(7 as RefTimeWeight))
 	}
 	// Storage: Registrar Paras (r:1 w:1)
 	// Storage: Paras ParaLifecycles (r:1 w:1)
@@ -78,9 +78,9 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Paras CurrentCodeHash (r:0 w:1)
 	// Storage: Paras UpcomingParasGenesis (r:0 w:1)
 	fn force_register() -> Weight {
-		(8_963_395_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(8 as Weight))
-			.saturating_add(T::DbWeight::get().writes(7 as Weight))
+		Weight::from_ref_time(8_963_395_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(8 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(7 as RefTimeWeight))
 	}
 	// Storage: Registrar Paras (r:1 w:1)
 	// Storage: Paras ParaLifecycles (r:1 w:1)
@@ -89,9 +89,9 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Paras ActionsQueue (r:1 w:1)
 	// Storage: Registrar PendingSwap (r:0 w:1)
 	fn deregister() -> Weight {
-		(42_284_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(5 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(42_284_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(5 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 	}
 	// Storage: Registrar Paras (r:1 w:0)
 	// Storage: Paras ParaLifecycles (r:2 w:2)
@@ -101,8 +101,8 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Crowdloan Funds (r:2 w:2)
 	// Storage: Slots Leases (r:2 w:2)
 	fn swap() -> Weight {
-		(36_098_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(10 as Weight))
-			.saturating_add(T::DbWeight::get().writes(8 as Weight))
+		Weight::from_ref_time(36_098_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(10 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(8 as RefTimeWeight))
 	}
 }

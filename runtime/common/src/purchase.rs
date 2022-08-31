@@ -195,7 +195,7 @@ pub mod pallet {
 		/// We check that the account does not exist at this stage.
 		///
 		/// Origin must match the `ValidityOrigin`.
-		#[pallet::weight(200_000_000 + T::DbWeight::get().reads_writes(4, 1))]
+		#[pallet::weight(Weight::from_ref_time(200_000_000) + T::DbWeight::get().reads_writes(4, 1))]
 		pub fn create_account(
 			origin: OriginFor<T>,
 			who: T::AccountId,

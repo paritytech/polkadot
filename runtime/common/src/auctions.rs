@@ -50,16 +50,16 @@ pub trait WeightInfo {
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn new_auction() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn bid() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn cancel_auction() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn on_initialize() -> Weight {
-		0
+		Weight::zero()
 	}
 }
 

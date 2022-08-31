@@ -449,7 +449,7 @@ impl WeightInfo for TestWeightInfo {
 	}
 	fn include_pvf_check_statement() -> Weight {
 		// This special value is to distinguish from the finalizing variants above in tests.
-		Weight::MAX - 1
+		Weight::MAX - Weight::one()
 	}
 }
 
@@ -1372,7 +1372,7 @@ impl<T: Config> Pallet<T> {
 		sessions_observed: SessionIndex,
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
-		let mut weight = 0;
+		let mut weight = Weight::new();
 		for cause in causes {
 			weight += T::DbWeight::get().reads_writes(3, 2);
 			Self::deposit_event(Event::PvfCheckAccepted(*code_hash, cause.para_id()));
@@ -1417,7 +1417,7 @@ impl<T: Config> Pallet<T> {
 		relay_parent_number: T::BlockNumber,
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
-		let mut weight = 0;
+		let mut weight = Weight::new();
 
 		// Compute the relay-chain block number starting at which the code upgrade is ready to be
 		// applied.
@@ -1457,7 +1457,7 @@ impl<T: Config> Pallet<T> {
 		code_hash: &ValidationCodeHash,
 		causes: Vec<PvfCheckCause<T::BlockNumber>>,
 	) -> Weight {
-		let mut weight = 0;
+		let mut weight = Weight::new();
 
 		for cause in causes {
 			// Whenever PVF pre-checking is started or a new cause is added to it, the RC is bumped.
@@ -1746,7 +1746,7 @@ impl<T: Config> Pallet<T> {
 		code: ValidationCode,
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
-		let mut weight = 0;
+		let mut weight = Weight::new();
 
 		weight += T::DbWeight::get().reads_writes(3, 2);
 		Self::deposit_event(Event::PvfCheckStarted(code_hash, cause.para_id()));
@@ -1845,7 +1845,7 @@ impl<T: Config> Pallet<T> {
 					Self::note_past_code(id, expected_at, now, prior_code_hash)
 				} else {
 					log::error!(target: LOG_TARGET, "Missing prior code hash for para {:?}", &id);
-					0 as Weight
+					Weight::zero()
 				};
 
 				// add 1 to writes due to heads update.

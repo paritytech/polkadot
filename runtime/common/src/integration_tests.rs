@@ -25,6 +25,7 @@ use crate::{
 use frame_support::{
 	assert_noop, assert_ok, parameter_types,
 	traits::{Currency, GenesisBuild, KeyOwnerProofSystem, OnFinalize, OnInitialize},
+	weights::Weight,
 	PalletId,
 };
 use frame_support_test::TestRandomness;
@@ -103,7 +104,7 @@ use crate::{auctions::Error as AuctionsError, crowdloan::Error as CrowdloanError
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(4 * 1024 * 1024);
+		frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(4 * 1024 * 1024));
 }
 
 impl frame_system::Config for Test {

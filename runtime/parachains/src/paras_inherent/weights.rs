@@ -37,18 +37,18 @@ pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn enter_variable_disputes(v: u32) -> Weight {
 		// MAX Block Weight should fit 4 disputes
-		80_000 * v as Weight + 80_000
+		Weight::from_ref_time(80_000 * v as u64 + 80_000)
 	}
 	fn enter_bitfields() -> Weight {
 		// MAX Block Weight should fit 4 backed candidates
-		40_000 as Weight
+		Weight::from_ref_time(40_000u64)
 	}
 	fn enter_backed_candidates_variable(v: u32) -> Weight {
 		// MAX Block Weight should fit 4 backed candidates
-		40_000 * v as Weight + 40_000
+		Weight::from_ref_time(40_000 * v as u64 + 40_000)
 	}
 	fn enter_backed_candidate_code_upgrade() -> Weight {
-		0
+		Weight::zero()
 	}
 }
 // To simplify benchmarks running as tests, we set all the weights to 0. `enter` will exit early
@@ -57,16 +57,16 @@ impl WeightInfo for TestWeightInfo {
 #[cfg(feature = "runtime-benchmarks")]
 impl WeightInfo for TestWeightInfo {
 	fn enter_variable_disputes(_v: u32) -> Weight {
-		0
+		Weight::zero()
 	}
 	fn enter_bitfields() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn enter_backed_candidates_variable(_v: u32) -> Weight {
-		0
+		Weight::zero()
 	}
 	fn enter_backed_candidate_code_upgrade() -> Weight {
-		0
+		Weight::zero()
 	}
 }
 
@@ -99,12 +99,12 @@ pub fn multi_dispute_statement_sets_weight<
 		.as_ref()
 		.iter()
 		.map(|d| dispute_statement_set_weight::<T, &S>(d))
-		.fold(0, |acc_weight, weight| acc_weight.saturating_add(weight))
+		.fold(Weight::new(), |acc_weight, weight| acc_weight.saturating_add(weight))
 }
 
 pub fn signed_bitfields_weight<T: Config>(bitfields_len: usize) -> Weight {
 	<<T as Config>::WeightInfo as WeightInfo>::enter_bitfields()
-		.saturating_mul(bitfields_len as Weight)
+		.saturating_mul(Weight::from_ref_time(bitfields_len as u64))
 }
 
 pub fn backed_candidate_weight<T: frame_system::Config + Config>(
@@ -125,5 +125,5 @@ pub fn backed_candidates_weight<T: frame_system::Config + Config>(
 	candidates
 		.iter()
 		.map(|c| backed_candidate_weight::<T>(c))
-		.fold(0, |acc, x| acc.saturating_add(x))
+		.fold(Weight::new(), |acc, x| acc.saturating_add(x))
 }

@@ -192,7 +192,7 @@ pub mod pallet {
 			}
 
 			// We didn't return early above, so we didn't do anything.
-			0
+			Weight::zero()
 		}
 	}
 

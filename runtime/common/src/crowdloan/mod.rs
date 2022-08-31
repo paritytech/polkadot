@@ -106,31 +106,31 @@ pub trait WeightInfo {
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn create() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn contribute() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn withdraw() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn refund(_k: u32) -> Weight {
-		0
+		Weight::zero()
 	}
 	fn dissolve() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn edit() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn add_memo() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn on_initialize(_n: u32) -> Weight {
-		0
+		Weight::zero()
 	}
 	fn poke() -> Weight {
-		0
+		Weight::zero()
 	}
 }
 

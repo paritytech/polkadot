@@ -38,7 +38,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `runtime_parachains::ump`.
@@ -46,23 +46,23 @@ pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo<T> {
 	/// The range of component `s` is `[0, 51200]`.
 	fn process_upward_message(s: u32, ) -> Weight {
-		(5_203_000 as Weight)
+		Weight::from_ref_time(5_203_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((2_000 as Weight).saturating_mul(s as Weight))
+			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).scalar_saturating_mul(s as RefTimeWeight))
 	}
 	// Storage: Ump NeedsDispatch (r:1 w:1)
 	// Storage: Ump NextDispatchRoundStartWith (r:1 w:1)
 	// Storage: Ump RelayDispatchQueues (r:0 w:1)
 	// Storage: Ump RelayDispatchQueueSize (r:0 w:1)
 	fn clean_ump_after_outgoing() -> Weight {
-		(7_378_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(7_378_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 	}
 	// Storage: Ump Overweight (r:1 w:1)
 	fn service_overweight() -> Weight {
-		(22_049_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(22_049_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 }

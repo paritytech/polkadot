@@ -121,7 +121,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9270,
+	spec_version: 9280,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -1150,7 +1150,7 @@ impl parachains_paras::Config for Runtime {
 }
 
 parameter_types! {
-	pub const FirstMessageFactorPercent: u64 = 100;
+	pub const FirstMessageFactorPercent: Weight = Weight::from_ref_time(100);
 }
 
 impl parachains_ump::Config for Runtime {
@@ -2099,8 +2099,8 @@ mod multiplier_tests {
 
 		let call = frame_system::Call::<Runtime>::fill_block {
 			ratio: Perbill::from_rational(
-				block_weight,
-				BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap(),
+				block_weight.ref_time(),
+				BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap().ref_time(),
 			),
 		};
 		println!("calling {:?}", call);
