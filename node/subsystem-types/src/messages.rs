@@ -707,7 +707,7 @@ impl RuntimeApiRequest {
 	/// Runtime version requirements for each message
 
 	/// `Disputes`
-	pub const DISPUTES_RUNTIME_REQ: u32 = 3;
+	pub const DISPUTES_RUNTIME_REQUIREMENT: u32 = 3;
 }
 
 /// A message to the Runtime API subsystem.

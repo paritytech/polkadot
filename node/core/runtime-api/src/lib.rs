@@ -501,6 +501,6 @@ where
 		Request::ValidationCodeHash(para, assumption, sender) =>
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
 		Request::Disputes(sender) =>
-			query!(Disputes, disputes(), ver = Request::DISPUTES_RUNTIME_REQ, sender),
+			query!(Disputes, disputes(), ver = Request::DISPUTES_RUNTIME_REQUIREMENT, sender),
 	}
 }

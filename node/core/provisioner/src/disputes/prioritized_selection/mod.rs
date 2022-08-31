@@ -318,12 +318,12 @@ fn partition_recent_disputes(
 	// ... and INACTIVE in three more
 	for (session_index, candidate_hash, _) in inactive {
 		match onchain.get(&(session_index, candidate_hash)) {
-			Some(onchain_state) => match concluded_onchain(onchain_state) {
-				true =>
-					partitioned.inactive_concluded_onchain.push((session_index, candidate_hash)),
-				false =>
-					partitioned.inactive_unconcluded_onchain.push((session_index, candidate_hash)),
-			},
+			Some(onchain_state) =>
+				if concluded_onchain(onchain_state) {
+					partitioned.inactive_concluded_onchain.push((session_index, candidate_hash));
+				} else {
+					partitioned.inactive_unconcluded_onchain.push((session_index, candidate_hash));
+				},
 			None => partitioned.inactive_unknown_onchain.push((session_index, candidate_hash)),
 		}
 	}

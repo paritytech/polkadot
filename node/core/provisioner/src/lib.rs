@@ -61,7 +61,7 @@ const SEND_INHERENT_DATA_TIMEOUT: std::time::Duration = core::time::Duration::fr
 const LOG_TARGET: &str = "parachain::provisioner";
 
 const PRIORITIZED_SELECTION_RUNTIME_VERSION_REQUIREMENT: u32 =
-	RuntimeApiRequest::DISPUTES_RUNTIME_REQ;
+	RuntimeApiRequest::DISPUTES_RUNTIME_REQUIREMENT;
 
 /// The provisioner subsystem.
 pub struct ProvisionerSubsystem {
