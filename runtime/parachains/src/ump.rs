@@ -387,7 +387,7 @@ impl<T: Config> Pallet<T> {
 	/// Iterate over all paras that were noted for offboarding and remove all the data
 	/// associated with them.
 	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) -> Weight {
-		let mut weight: Weight = Weight::new();
+		let mut weight: Weight = Weight::zero();
 		for outgoing_para in outgoing {
 			weight = weight.saturating_add(Self::clean_ump_after_outgoing(outgoing_para));
 		}
@@ -469,7 +469,7 @@ impl<T: Config> Pallet<T> {
 		para: ParaId,
 		upward_messages: Vec<UpwardMessage>,
 	) -> Weight {
-		let mut weight = Weight::new();
+		let mut weight = Weight::zero();
 
 		if !upward_messages.is_empty() {
 			let (extra_count, extra_size) = upward_messages
@@ -505,7 +505,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Devote some time into dispatching pending upward messages.
 	pub(crate) fn process_pending_upward_messages() -> Weight {
-		let mut weight_used = Weight::new();
+		let mut weight_used = Weight::zero();
 
 		let config = <configuration::Pallet<T>>::config();
 		let mut cursor = NeedsDispatchCursor::new::<T>();

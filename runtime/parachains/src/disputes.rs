@@ -797,7 +797,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
 		let config = <configuration::Pallet<T>>::config();
 
-		let mut weight = Weight::new();
+		let mut weight = Weight::zero();
 		for (session_index, candidate_hash, mut dispute) in <Disputes<T>>::iter() {
 			weight += T::DbWeight::get().reads_writes(1, 0);
 
