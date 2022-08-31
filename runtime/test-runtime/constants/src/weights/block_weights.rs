@@ -23,7 +23,7 @@ pub mod constants {
 
 	parameter_types! {
 		/// Importing a block with 0 Extrinsics.
-		pub const BlockExecutionWeight: Weight = constants::WEIGHT_PER_NANOS.scalar_saturating_mul(5_000_000);
+		pub const BlockExecutionWeight: Weight = constants::WEIGHT_PER_NANOS.saturating_mul(5_000_000);
 	}
 
 	#[cfg(test)]

@@ -79,7 +79,7 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	fn enter_variable_disputes(v: u32, ) -> Weight {
 		Weight::from_ref_time(364_277_000 as RefTimeWeight)
 			// Standard Error: 23_000
-			.saturating_add(Weight::from_ref_time(48_774_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(48_774_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(29 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(18 as RefTimeWeight))
 	}
@@ -153,7 +153,7 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	fn enter_backed_candidates_variable(v: u32, ) -> Weight {
 		Weight::from_ref_time(984_915_000 as RefTimeWeight)
 			// Standard Error: 47_000
-			.saturating_add(Weight::from_ref_time(48_309_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(48_309_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(29 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(16 as RefTimeWeight))
 	}

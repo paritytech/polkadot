@@ -49,7 +49,7 @@ impl WeighMultiAssets for MultiAssetFilter {
 					AssetTypes::Unknown => Weight::MAX,
 				})
 				.fold(Weight::new(), |acc, x| acc.saturating_add(x)),
-			Self::Wild(_) => balances_weight.scalar_saturating_mul(MAX_ASSETS as u64),
+			Self::Wild(_) => balances_weight.saturating_mul(MAX_ASSETS as u64),
 		};
 
 		weight.ref_time()

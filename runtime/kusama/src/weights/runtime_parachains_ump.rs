@@ -48,7 +48,7 @@ impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo
 	fn process_upward_message(s: u32, ) -> Weight {
 		Weight::from_ref_time(5_919_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).scalar_saturating_mul(s as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
 	}
 	// Storage: Ump NeedsDispatch (r:1 w:1)
 	// Storage: Ump NextDispatchRoundStartWith (r:1 w:1)

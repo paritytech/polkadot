@@ -54,7 +54,7 @@ impl<T: frame_system::Config> pallet_child_bounties::WeightInfo for WeightInfo<T
 	fn add_child_bounty(d: u32, ) -> Weight {
 		Weight::from_ref_time(48_890_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(1_000 as RefTimeWeight).scalar_saturating_mul(d as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(1_000 as RefTimeWeight).saturating_mul(d as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(5 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
 	}

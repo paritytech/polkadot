@@ -23,7 +23,7 @@ pub mod constants {
 
 	parameter_types! {
 		/// Executing a NO-OP `System::remarks` Extrinsic.
-		pub const ExtrinsicBaseWeight: Weight = constants::WEIGHT_PER_NANOS.scalar_saturating_mul(125_000);
+		pub const ExtrinsicBaseWeight: Weight = constants::WEIGHT_PER_NANOS.saturating_mul(125_000);
 	}
 
 	#[cfg(test)]

@@ -62,9 +62,9 @@ impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T
 	fn manage_lease_period_start(c: u32, t: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 28_000
-			.saturating_add(Weight::from_ref_time(6_721_000 as RefTimeWeight).scalar_saturating_mul(c as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(6_721_000 as RefTimeWeight).saturating_mul(c as RefTimeWeight))
 			// Standard Error: 28_000
-			.saturating_add(Weight::from_ref_time(17_731_000 as RefTimeWeight).scalar_saturating_mul(t as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(17_731_000 as RefTimeWeight).saturating_mul(t as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads((1 as RefTimeWeight).saturating_mul(c as RefTimeWeight)))
 			.saturating_add(T::DbWeight::get().reads((3 as RefTimeWeight).saturating_mul(t as RefTimeWeight)))
