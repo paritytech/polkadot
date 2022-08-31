@@ -38,7 +38,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `runtime_parachains::disputes::slashing`.
@@ -60,10 +60,10 @@ impl<T: frame_system::Config> runtime_parachains::disputes::slashing::WeightInfo
 	// Storage: Staking ValidatorSlashInEra (r:1 w:0)
 	/// The range of component `n` is `[4, 1024]`.
 	fn report_dispute_lost(n: u32, ) -> Weight {
-		(84_424_000 as Weight)
+		Weight::from_ref_time(84_424_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((111_000 as Weight).saturating_mul(n as Weight))
-			.saturating_add(T::DbWeight::get().reads(14 as Weight))
-			.saturating_add(T::DbWeight::get().writes(6 as Weight))
+			.saturating_add(Weight::from_ref_time((111_000 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
+			.saturating_add(T::DbWeight::get().reads(14 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
 	}
 }
