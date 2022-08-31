@@ -229,7 +229,7 @@ pub mod pallet {
 		/// stalls the queue in doing so. More than 100 will provide additional weight for the first message only.
 		///
 		/// Generally you'll want this to be a bit more - 150 or 200 would be good values.
-		type FirstMessageFactorPercent: Get<Weight>;
+		type FirstMessageFactorPercent: Get<u64>;
 
 		/// Origin which is allowed to execute overweight messages.
 		type ExecuteOverweightOrigin: EnsureOrigin<Self::Origin>;

@@ -162,7 +162,7 @@ impl pallet_xcm::Config for Runtime {
 }
 
 parameter_types! {
-	pub const FirstMessageFactorPercent: Weight = Weight::from_ref_time(100);
+	pub const FirstMessageFactorPercent: u64 = 100;
 }
 
 impl ump::Config for Runtime {

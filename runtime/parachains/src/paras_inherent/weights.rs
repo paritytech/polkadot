@@ -104,7 +104,7 @@ pub fn multi_dispute_statement_sets_weight<
 
 pub fn signed_bitfields_weight<T: Config>(bitfields_len: usize) -> Weight {
 	<<T as Config>::WeightInfo as WeightInfo>::enter_bitfields()
-		.saturating_mul(Weight::from_ref_time(bitfields_len as u64))
+		.saturating_mul(bitfields_len as u64)
 }
 
 pub fn backed_candidate_weight<T: frame_system::Config + Config>(
