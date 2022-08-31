@@ -58,21 +58,6 @@ impl<Payload: Eq + Ord> WaitingQueue<Payload> {
 		self.waker = None;
 	}
 
-	/// Pop an item from the queue if ready.
-	///
-	/// Whether ready or not is determined based on the passed timestamp `now` which should be the
-	/// current time as returned by `Instant::now()`
-	///
-	/// Returns: The next `PendingWake` after it became ready. `pop` will wait for that
-	/// asynchronously to happen if it is not already the case. If there is no more item, this call
-	/// will wait forever (return Poll::Pending without scheduling a wake).
-	pub async fn pop(&mut self, now: Instant) -> PendingWake<Payload> {
-		self.wait_ready(now).await;
-		self.pending_wakes
-			.pop()
-			.expect("We just waited for an item to become ready. qed.")
-	}
-
 	/// Pop the next ready item.
 	///
 	/// In contrast to `pop` this function does not wait, if nothing is ready right now as
@@ -90,8 +75,11 @@ impl<Payload: Eq + Ord> WaitingQueue<Payload> {
 	///
 	/// Once this function returns `Poll::Ready(())` `pop_ready()` will return `Some`.
 	///
-	/// Behaviour of this function is equal to `pop` otherwise, only difference is that the next
-	/// item is not actually popped.
+	/// Whether ready or not is determined based on the passed timestamp `now` which should be the
+	/// current time as returned by `Instant::now()`
+	///
+	/// This function waits asynchronously for an item to become ready. If there is no more item,
+	/// this call will wait forever (return Poll::Pending without scheduling a wake).
 	pub async fn wait_ready(&mut self, now: Instant) {
 		if let Some(waker) = &mut self.waker {
 			// Previous timer was not done yet.

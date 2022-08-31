@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::{
-	collections::HashSet,
 	pin::Pin,
 	task::{Context, Poll},
 	time::Duration,
@@ -23,12 +22,13 @@ use std::{
 
 use futures::{
 	channel::oneshot,
-	future::{poll_fn, BoxFuture},
+	future::poll_fn,
 	pin_mut,
-	stream::{FusedStream, FuturesUnordered, StreamExt},
-	Future, FutureExt, Stream,
+	stream::{FuturesUnordered, StreamExt},
+	Future,
 };
 
+use gum::CandidateHash;
 use polkadot_node_network_protocol::{
 	authority_discovery::AuthorityDiscovery,
 	request_response::{
@@ -45,10 +45,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 
-use crate::{
-	metrics::{FAILED, SUCCEEDED},
-	Metrics, LOG_TARGET,
-};
+use crate::{Metrics, LOG_TARGET};
 
 mod error;
 
@@ -66,7 +63,8 @@ use self::{
 
 const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Received message could not be decoded.");
 const COST_INVALID_SIGNATURE: Rep = Rep::Malicious("Signatures were invalid.");
-const COST_INVALID_CANDIDATE: Rep = Rep::Malicious("Reported candidate was not available.");
+const COST_INVALID_IMPORT: Rep =
+	Rep::Malicious("Import was deemed invalid by dispute-coordinator.");
 const COST_NOT_A_VALIDATOR: Rep = Rep::CostMajor("Reporting peer was not a validator.");
 /// Mildly punish peers exceeding their rate limit.
 ///
@@ -107,9 +105,7 @@ pub struct DisputesReceiver<Sender, AD> {
 	authority_discovery: AD,
 
 	/// Imports currently being processed.
-	///
-	/// TODO: Flush batches on invalid result of first vote import.
-	pending_imports: PendingImports,
+	pending_imports: FuturesUnordered<PendingImport>,
 
 	/// Log received requests.
 	metrics: Metrics,
@@ -123,8 +119,8 @@ enum MuxedMessage {
 	///
 	/// - We need to make sure responses are actually sent (therefore we need to await futures
 	/// promptly).
-	/// - We need to update `banned_peers` accordingly to the result.
-	ConfirmedImport(JfyiResult<(PeerId, ImportStatementsResult)>),
+	/// - We need to punish peers whose import got rejected.
+	ConfirmedImport(ImportResult),
 
 	/// A new request has arrived and should be handled.
 	NewRequest(IncomingRequest<DisputeRequest>),
@@ -166,7 +162,7 @@ where
 			peer_queues: PeerQueues::new(),
 			batches: Batches::new(),
 			authority_discovery,
-			pending_imports: PendingImports::new(),
+			pending_imports: FuturesUnordered::new(),
 			// Size of MAX_PARALLEL_IMPORTS ensures we are going to immediately get rid of any
 			// malicious requests still pending in the incoming queue.
 			metrics,
@@ -219,11 +215,11 @@ where
 			},
 			MuxedMessage::WakeCheckBatches(ready_imports) => {
 				// Phase 3:
-				self.import_ready_batches(ready_imports).await?;
+				self.import_ready_batches(ready_imports).await;
 			},
-			MuxedMessage::ConfirmedImport(m_bad) => {
-				// Handle import confirmation:
-				self.ban_bad_peer(m_bad)?;
+			MuxedMessage::ConfirmedImport(import_result) => {
+				// Confirm imports to requesters/punish them on invalid imports:
+				send_responses_to_requesters(import_result).await?;
 			},
 		}
 
@@ -238,7 +234,7 @@ where
 		poll_fn(|ctx| {
 			// In case of Ready(None), we want to wait for pending requests:
 			if let Poll::Ready(Some(v)) = self.pending_imports.poll_next_unpin(ctx) {
-				return Poll::Ready(Ok(MuxedMessage::ConfirmedImport(v)))
+				return Poll::Ready(Ok(MuxedMessage::ConfirmedImport(v?)))
 			}
 
 			let rate_limited = self.peer_queues.pop_reqs();
@@ -290,7 +286,7 @@ where
 					reputation_changes: vec![COST_NOT_A_VALIDATOR],
 					sent_feedback: None,
 				})
-				.map_err(|_| JfyiError::SendResponse(peer))?;
+				.map_err(|_| JfyiError::SendResponses(vec![peer]))?;
 				return Err(JfyiError::NotAValidator(peer).into())
 			},
 			Some(auth_id) => auth_id,
@@ -303,7 +299,7 @@ where
 				reputation_changes: vec![COST_APPARENT_FLOOD],
 				sent_feedback: None,
 			})
-			.map_err(|_| JfyiError::SendResponse(peer))?;
+			.map_err(|_| JfyiError::SendResponses(vec![peer]))?;
 			return Err(JfyiError::AuthorityFlooding(authority_id))
 		}
 		Ok(())
@@ -346,23 +342,19 @@ where
 			Ok(votes) => votes,
 		};
 
-		match self.batches.find_batch(*valid_vote.0.candidate_hash(), candidate_receipt) {
+		match self.batches.find_batch(*valid_vote.0.candidate_hash(), candidate_receipt)? {
 			FoundBatch::Created(batch) => {
 				// There was no entry yet - start import immediately:
-				let (pending_confirmation, confirmation_rx) = oneshot::channel();
-				self.sender
-					.send_message(DisputeCoordinatorMessage::ImportStatements {
-						candidate_receipt: batch.candidate_receipt().clone(),
-						session: valid_vote.0.session_index(),
-						statements: vec![valid_vote, invalid_vote],
-						pending_confirmation: Some(pending_confirmation),
-					})
-					.await;
-
-				self.pending_imports.push(peer, confirmation_rx, pending_response);
+				let import = PreparedImport {
+					candidate_receipt: batch.candidate_receipt().clone(),
+					statements: vec![valid_vote, invalid_vote],
+					requesters: vec![(peer, pending_response)],
+				};
+				self.start_import(import).await;
 			},
 			FoundBatch::Found(batch) => {
-				let batch_result = batch.add_votes(valid_vote, invalid_vote, pending_response);
+				let batch_result =
+					batch.add_votes(valid_vote, invalid_vote, peer, pending_response);
 
 				if let Err(pending_response) = batch_result {
 					// We don't expect honest peers to send redundant votes within a single batch,
@@ -386,7 +378,7 @@ where
 							reputation_changes: Vec::new(),
 							sent_feedback: None,
 						})
-						.map_err(|_| JfyiError::SendResponse(peer))?;
+						.map_err(|_| JfyiError::SendResponses(vec![peer]))?;
 					return Err(From::from(JfyiError::RedundantMessage(peer)))
 				}
 			},
@@ -396,143 +388,107 @@ where
 	}
 
 	/// Trigger import into the dispute-coordinator of ready batches (`PreparedImport`s).
-	async fn import_ready_batches(&mut self, ready_imports: Vec<PreparedImport>) -> Result<()> {
+	async fn import_ready_batches(&mut self, ready_imports: Vec<PreparedImport>) {
 		for import in ready_imports {
-			let PreparedImport { candidate_receipt, statements, pending_responses } = import;
-			let session_index = match statements.iter().next() {
-				None => {
-					gum::debug!(
-						target: LOG_TARGET,
-						candidate_hash = ?candidate_receipt.hash(),
-						"Not importing empty batch"
-					);
-					continue
-				},
-				Some(vote) => vote.0.session_index(),
-			};
-
-			let (pending_confirmation, confirmation_rx) = oneshot::channel();
-			self.sender
-				.send_message(DisputeCoordinatorMessage::ImportStatements {
-					candidate_receipt,
-					session: session_index,
-					statements,
-					pending_confirmation: Some(pending_confirmation),
-				})
-				.await;
-			// TODO:
-			//	Confirmation has to trigger response senders:
-		}
-		unimplemented!("WIP")
-	}
-
-	/// Await an import and ban any misbehaving peers.
-	///
-	/// In addition we report import metrics.
-	fn ban_bad_peer(
-		&mut self,
-		result: JfyiResult<(PeerId, ImportStatementsResult)>,
-	) -> JfyiResult<()> {
-		match result? {
-			(_, ImportStatementsResult::ValidImport) => {
-				self.metrics.on_imported(SUCCEEDED);
-			},
-			(bad_peer, ImportStatementsResult::InvalidImport) => {
-				self.metrics.on_imported(FAILED);
-				self.banned_peers.put(bad_peer, ());
-			},
-		}
-		Ok(())
-	}
-}
-
-/// Manage pending imports in a way that preserves invariants.
-struct PendingImports {
-	/// Futures in flight.
-	futures: FuturesUnordered<BoxFuture<'static, (PeerId, JfyiResult<ImportStatementsResult>)>>,
-	/// Peers whose requests are currently in flight.
-	peers: HashSet<PeerId>,
-}
-
-impl PendingImports {
-	pub fn new() -> Self {
-		Self { futures: FuturesUnordered::new(), peers: HashSet::new() }
-	}
-
-	pub fn push(
-		&mut self,
-		peer: PeerId,
-		handled: oneshot::Receiver<ImportStatementsResult>,
-		pending_response: OutgoingResponseSender<DisputeRequest>,
-	) {
-		self.peers.insert(peer);
-		self.futures.push(
-			async move {
-				let r = respond_to_request(peer, handled, pending_response).await;
-				(peer, r)
-			}
-			.boxed(),
-		)
-	}
-
-	/// Returns the number of contained futures.
-	pub fn len(&self) -> usize {
-		self.futures.len()
-	}
-
-	/// Check whether a peer has a pending import.
-	pub fn peer_is_pending(&self, peer: &PeerId) -> bool {
-		self.peers.contains(peer)
-	}
-}
-
-impl Stream for PendingImports {
-	type Item = JfyiResult<(PeerId, ImportStatementsResult)>;
-	fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-		match Pin::new(&mut self.futures).poll_next(ctx) {
-			Poll::Pending => Poll::Pending,
-			Poll::Ready(None) => Poll::Ready(None),
-			Poll::Ready(Some((peer, result))) => {
-				self.peers.remove(&peer);
-				Poll::Ready(Some(result.map(|r| (peer, r))))
-			},
+			self.start_import(import).await;
 		}
 	}
-}
-impl FusedStream for PendingImports {
-	fn is_terminated(&self) -> bool {
-		self.futures.is_terminated()
+
+	/// Start import and add response receiver to `pending_imports`.
+	async fn start_import(&mut self, import: PreparedImport) {
+		let PreparedImport { candidate_receipt, statements, requesters } = import;
+		let (session_index, candidate_hash) = match statements.iter().next() {
+			None => {
+				gum::debug!(
+				target: LOG_TARGET,
+				candidate_hash = ?candidate_receipt.hash(),
+				"Not importing empty batch"
+				);
+				return
+			},
+			Some(vote) => (vote.0.session_index(), vote.0.candidate_hash().clone()),
+		};
+
+		let (pending_confirmation, confirmation_rx) = oneshot::channel();
+		self.sender
+			.send_message(DisputeCoordinatorMessage::ImportStatements {
+				candidate_receipt,
+				session: session_index,
+				statements,
+				pending_confirmation: Some(pending_confirmation),
+			})
+			.await;
+
+		let pending =
+			PendingImport { candidate_hash, requesters, pending_response: confirmation_rx };
+
+		self.pending_imports.push(pending);
 	}
 }
 
-// Future for `PendingImports`
-//
-// - Wait for import
-// - Punish peer
-// - Deliver result
-async fn respond_to_request(
-	peer: PeerId,
-	handled: oneshot::Receiver<ImportStatementsResult>,
-	pending_response: OutgoingResponseSender<DisputeRequest>,
-) -> JfyiResult<ImportStatementsResult> {
-	let result = handled.await.map_err(|_| JfyiError::ImportCanceled(peer))?;
+async fn send_responses_to_requesters(import_result: ImportResult) -> JfyiResult<()> {
+	let ImportResult { requesters, result } = import_result;
 
-	let response = match result {
-		ImportStatementsResult::ValidImport => OutgoingResponse {
+	let mk_response = match result {
+		ImportStatementsResult::ValidImport => || OutgoingResponse {
 			result: Ok(DisputeResponse::Confirmed),
 			reputation_changes: Vec::new(),
 			sent_feedback: None,
 		},
-		ImportStatementsResult::InvalidImport => OutgoingResponse {
+		ImportStatementsResult::InvalidImport => || OutgoingResponse {
 			result: Err(()),
-			reputation_changes: vec![COST_INVALID_CANDIDATE],
+			reputation_changes: vec![COST_INVALID_IMPORT],
 			sent_feedback: None,
 		},
 	};
 
-	pending_response
-		.send_outgoing_response(response)
-		.map_err(|_| JfyiError::SendResponse(peer))?;
+	let mut sending_failed_for = Vec::new();
+	for (peer, pending_response) in requesters {
+		if let Err(()) = pending_response.send_outgoing_response(mk_response()) {
+			sending_failed_for.push(peer);
+		}
+	}
 
-	Ok(result)
+	if !sending_failed_for.is_empty() {
+		Err(JfyiError::SendResponses(sending_failed_for))
+	} else {
+		Ok(())
+	}
+}
+
+/// A future that resolves into an `ImportResult` when ready.
+///
+/// This future is used on import calls for the response receiver to:
+/// - Keep track of concerned `CandidateHash` so we can flush batches if needed.
+/// - Keep track of requesting peers so we can confirm the import/punish them on invalid imports.
+struct PendingImport {
+	candidate_hash: CandidateHash,
+	requesters: Vec<(PeerId, OutgoingResponseSender<DisputeRequest>)>,
+	pending_response: oneshot::Receiver<ImportStatementsResult>,
+}
+
+/// A `PendingImport` becomes an `ImportResult` once done.
+struct ImportResult {
+	/// Requesters of that import.
+	requesters: Vec<(PeerId, OutgoingResponseSender<DisputeRequest>)>,
+	/// Actual result of the import.
+	result: ImportStatementsResult,
+}
+
+impl PendingImport {
+	async fn wait_for_result(&mut self) -> JfyiResult<ImportResult> {
+		let result = (&mut self.pending_response)
+			.await
+			.map_err(|_| JfyiError::ImportCanceled(self.candidate_hash))?;
+		Ok(ImportResult { requesters: std::mem::take(&mut self.requesters), result })
+	}
+}
+
+impl Future for PendingImport {
+	type Output = JfyiResult<ImportResult>;
+	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+		let fut = self.wait_for_result();
+		pin_mut!(fut);
+		fut.poll(cx)
+	}
 }

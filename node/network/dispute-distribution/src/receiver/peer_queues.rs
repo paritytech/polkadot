@@ -16,7 +16,7 @@
 
 use std::collections::{hash_map::Entry, HashMap, VecDeque};
 
-use futures::future::{pending, Fuse};
+use futures::future::pending;
 use futures_timer::Delay;
 use polkadot_node_network_protocol::request_response::{v1::DisputeRequest, IncomingRequest};
 use polkadot_primitives::v2::AuthorityDiscoveryId;
@@ -70,7 +70,7 @@ impl PeerQueues {
 				if occupied.get().len() >= PEER_QUEUE_CAPACITY {
 					return Err((occupied.key().clone(), req))
 				}
-				occupied.get_mut()
+				occupied.into_mut()
 			},
 		};
 		queue.push_back(req);

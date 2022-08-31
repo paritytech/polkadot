@@ -380,11 +380,6 @@ impl RateLimit {
 		std::mem::replace(self, RateLimit::new())
 	}
 
-	/// Replace the `RateLimit` and replace `Self::new_limit()`.
-	fn replace_with_limit(&mut self) -> Self {
-		std::mem::replace(self, Self::new_limit())
-	}
-
 	/// Wait until ready and prepare for next call.
 	async fn limit(&mut self) {
 		let old = self.take();

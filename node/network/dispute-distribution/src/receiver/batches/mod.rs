@@ -29,7 +29,10 @@ use crate::receiver::batches::{batch::TickResult, waiting_queue::PendingWake};
 pub use self::batch::{Batch, PreparedImport};
 use self::waiting_queue::WaitingQueue;
 
-use super::BATCH_COLLECTING_INTERVAL;
+use super::{
+	error::{JfyiError, JfyiResult},
+	BATCH_COLLECTING_INTERVAL,
+};
 
 /// A single batch (per candidate) as managed by `Batches`.
 mod batch;
@@ -41,7 +44,12 @@ mod waiting_queue;
 ///
 /// If the batch life time exceeded the time the sender is willing to wait for a confirmation, we
 /// would trigger pointless re-sends.
-const MAX_BATCH_LIFETIME: Duration = DISPUTE_REQUEST_TIMEOUT - Duration::from_secs(2);
+const MAX_BATCH_LIFETIME: Duration = DISPUTE_REQUEST_TIMEOUT.saturating_sub(Duration::from_secs(2));
+
+/// Limit the number of batches that can be alive at any given time.
+///
+/// Reasoning for this number, see guide.
+pub const MAX_BATCHES: usize = 1000;
 
 /// TODO: Limit number of batches
 
@@ -92,9 +100,12 @@ impl Batches {
 		&mut self,
 		candidate_hash: CandidateHash,
 		candidate_receipt: CandidateReceipt,
-	) -> FoundBatch {
+	) -> JfyiResult<FoundBatch> {
+		if self.batches.len() >= MAX_BATCHES {
+			return Err(JfyiError::MaxBatchLimitReached)
+		}
 		debug_assert!(candidate_hash == candidate_receipt.hash());
-		match self.batches.entry(candidate_hash) {
+		let result = match self.batches.entry(candidate_hash) {
 			hash_map::Entry::Vacant(vacant) => {
 				let now = Instant::now();
 				let (created, ready_at) = Batch::new(candidate_receipt, now);
@@ -102,8 +113,9 @@ impl Batches {
 				self.waiting_queue.push(pending_wake);
 				FoundBatch::Created(vacant.insert(created))
 			},
-			hash_map::Entry::Occupied(occupied) => FoundBatch::Found(occupied.get_mut()),
-		}
+			hash_map::Entry::Occupied(occupied) => FoundBatch::Found(occupied.into_mut()),
+		};
+		Ok(result)
 	}
 
 	/// Wait for the next `tick` to check for ready batches.
@@ -122,7 +134,7 @@ impl Batches {
 		let mut imports = Vec::new();
 
 		// Wait for at least one batch to become ready:
-		self.waiting_queue.wait_ready(now);
+		self.waiting_queue.wait_ready(now).await;
 
 		// Process all ready waits:
 		while let Some(wake) = self.waiting_queue.pop_ready(now) {

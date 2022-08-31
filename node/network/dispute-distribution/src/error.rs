@@ -57,8 +57,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub type FatalResult<T> = std::result::Result<T, FatalError>;
 
-pub type JfyiResult<T> = std::result::Result<T, JfyiError>;
-
 /// Utility for eating top level errors and log them.
 ///
 /// We basically always want to try and continue on error. This utility function is meant to

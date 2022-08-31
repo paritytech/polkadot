@@ -17,8 +17,9 @@
 use std::{collections::HashMap, time::Instant};
 
 use gum::CandidateHash;
-use polkadot_node_network_protocol::request_response::{
-	incoming::OutgoingResponseSender, v1::DisputeRequest,
+use polkadot_node_network_protocol::{
+	request_response::{incoming::OutgoingResponseSender, v1::DisputeRequest},
+	PeerId,
 };
 use polkadot_node_primitives::SignedDisputeStatement;
 use polkadot_primitives::v2::{CandidateReceipt, ValidatorIndex};
@@ -64,7 +65,7 @@ pub struct Batch {
 	best_before: Instant,
 
 	/// Requesters waiting for a response.
-	pending_responses: Vec<OutgoingResponseSender<DisputeRequest>>,
+	requesters: Vec<(PeerId, OutgoingResponseSender<DisputeRequest>)>,
 }
 
 /// Result of checking a batch every `BATCH_COLLECTING_INTERVAL`.
@@ -79,12 +80,19 @@ pub(super) enum TickResult {
 pub struct PreparedImport {
 	pub candidate_receipt: CandidateReceipt,
 	pub statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
-	pub pending_responses: Vec<OutgoingResponseSender<DisputeRequest>>,
+	/// Information about original requesters.
+	pub requesters: Vec<(PeerId, OutgoingResponseSender<DisputeRequest>)>,
 }
 
 impl From<Batch> for PreparedImport {
 	fn from(batch: Batch) -> Self {
-		let Batch { candidate_receipt, valid_votes, invalid_votes, pending_responses, .. } = batch;
+		let Batch {
+			candidate_receipt,
+			valid_votes,
+			invalid_votes,
+			requesters: pending_responses,
+			..
+		} = batch;
 
 		let statements = valid_votes
 			.into_iter()
@@ -92,7 +100,7 @@ impl From<Batch> for PreparedImport {
 			.map(|(index, statement)| (statement, index))
 			.collect();
 
-		Self { candidate_receipt, statements, pending_responses }
+		Self { candidate_receipt, statements, requesters: pending_responses }
 	}
 }
 
@@ -118,14 +126,10 @@ impl Batch {
 			invalid_votes: HashMap::new(),
 			votes_batched_since_last_tick: 0,
 			best_before: Instant::now() + MAX_BATCH_LIFETIME,
-			pending_responses: Vec::new(),
+			requesters: Vec::new(),
 		};
-		(s, s.calculate_next_tick(now))
-	}
-
-	/// Hash of the candidate this batch is batching votes for.
-	pub fn candidate_hash(&self) -> &CandidateHash {
-		&self.candidate_hash
+		let next_tick = s.calculate_next_tick(now);
+		(s, next_tick)
 	}
 
 	/// Receipt of the candidate this batch is batching votes for.
@@ -138,13 +142,15 @@ impl Batch {
 	/// The statements are supposed to be the valid and invalid statements received in a
 	/// `DisputeRequest`.
 	///
-	/// The given `pending_response` is the corresponding response sender. If at least one of the
-	/// votes is new as far as this batch is concerned we record the pending_response, for later
-	/// use. In case both votes are known already, we return the response sender as an `Err` value.
+	/// The given `pending_response` is the corresponding response sender for responding to `peer`.
+	/// If at least one of the votes is new as far as this batch is concerned we record the
+	/// pending_response, for later use. In case both votes are known already, we return the
+	/// response sender as an `Err` value.
 	pub fn add_votes(
 		&mut self,
 		valid_vote: (SignedDisputeStatement, ValidatorIndex),
 		invalid_vote: (SignedDisputeStatement, ValidatorIndex),
+		peer: PeerId,
 		pending_response: OutgoingResponseSender<DisputeRequest>,
 	) -> Result<(), OutgoingResponseSender<DisputeRequest>> {
 		debug_assert!(valid_vote.0.candidate_hash() == invalid_vote.0.candidate_hash());
@@ -164,6 +170,7 @@ impl Batch {
 		if duplicate {
 			Err(pending_response)
 		} else {
+			self.requesters.push((peer, pending_response));
 			Ok(())
 		}
 	}
@@ -172,7 +179,7 @@ impl Batch {
 	///
 	/// This function is supposed to be called at instants given at construction and as returned as
 	/// part of `TickResult`.
-	pub fn tick(self, now: Instant) -> TickResult {
+	pub(super) fn tick(mut self, now: Instant) -> TickResult {
 		if self.votes_batched_since_last_tick >= MIN_KEEP_BATCH_ALIVE_VOTES &&
 			now < self.best_before
 		{

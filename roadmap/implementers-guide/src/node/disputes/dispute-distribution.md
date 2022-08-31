@@ -323,12 +323,13 @@ For a thousand validators a limit on batches of around 1000 should never be
 reached in practice. Hence due to rate limiting we have a very good chance to
 not ever having to drop a potential valid dispute due to some resource limit.
 
-Further safe guards: The dispute-coordinator actually confirms/denies imports.
-So once we receive a denial by the dispute-coordinator for the initial imported
-votes, we can opt into flushing the batch immediately and importing the votes.
-This swaps memory usage for more CPU usage, but if that import is deemed invalid
-again we can immediately decrease the reputation of the sending peers, so this
-should be a net win.
+Further safe guards are possible: The dispute-coordinator actually
+confirms/denies imports. So once we receive a denial by the dispute-coordinator
+for the initial imported votes, we can opt into flushing the batch immediately
+and importing the votes. This swaps memory usage for more CPU usage, but if that
+import is deemed invalid again we can immediately decrease the reputation of the
+sending peers, so this should be a net win. For the time being we punt on this
+for simplicity.
 
 Instead of filling batches to maximize memory usage, attackers could also try to
 overwhelm the dispute coordinator by only sending votes for new candidates all
