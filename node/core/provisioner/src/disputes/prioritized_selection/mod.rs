@@ -34,7 +34,6 @@ use polkadot_primitives::v2::{
 	Hash, InvalidDisputeStatementKind, MultiDisputeStatementSet, SessionIndex,
 	ValidDisputeStatementKind, ValidatorIndex,
 };
-use rand as _;
 use std::{
 	collections::{BTreeMap, HashMap},
 	time::{SystemTime, UNIX_EPOCH},
