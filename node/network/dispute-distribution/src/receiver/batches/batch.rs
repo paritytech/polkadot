@@ -48,7 +48,7 @@ pub struct Batch {
 	/// We differentiate between valid and invalid votes, so we can detect (and drop) duplicates,
 	/// while still allowing validators to equivocate.
 	///
-	/// Detecting and rejecting duplicats is crucial in order to effectively enforce
+	/// Detecting and rejecting duplicates is crucial in order to effectively enforce
 	/// `MIN_KEEP_BATCH_ALIVE_VOTES` per `BATCH_COLLECTING_INTERVAL`. If we would count duplicates
 	/// here, the mechanism would be broken.
 	valid_votes: HashMap<ValidatorIndex, SignedDisputeStatement>,
