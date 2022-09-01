@@ -24,7 +24,10 @@ use futures::future::pending;
 use polkadot_node_network_protocol::request_response::DISPUTE_REQUEST_TIMEOUT;
 use polkadot_primitives::v2::{CandidateHash, CandidateReceipt};
 
-use crate::receiver::batches::{batch::TickResult, waiting_queue::PendingWake};
+use crate::{
+	receiver::batches::{batch::TickResult, waiting_queue::PendingWake},
+	LOG_TARGET,
+};
 
 pub use self::batch::{Batch, PreparedImport};
 use self::waiting_queue::WaitingQueue;
@@ -37,7 +40,7 @@ use super::{
 /// A single batch (per candidate) as managed by `Batches`.
 mod batch;
 
-/// Simple abstraction queue events in time and wait for them to become ready.
+/// Queue events in time and wait for them to become ready.
 mod waiting_queue;
 
 /// Safe-guard in case votes trickle in real slow.
@@ -51,12 +54,6 @@ const MAX_BATCH_LIFETIME: Duration = DISPUTE_REQUEST_TIMEOUT.saturating_sub(Dura
 /// Reasoning for this number, see guide.
 pub const MAX_BATCHES: usize = 1000;
 
-/// TODO: Limit number of batches
-
-// - Batches can be added very rate limit timeout.
-// - They have to be checked every BATCH_COLLECTING_INTERVAL.
-// - We can get the earliest next wakeup - keep ordered list of wakeups! Then we always know when
-// the next one comes - only needs to get updated on insert. - Tada!
 /// Manage batches.
 ///
 /// - Batches can be found via `find_batch()` in order to add votes to them/check they exist.
@@ -149,9 +146,19 @@ impl Batches {
 			};
 			match batch.tick(now) {
 				TickResult::Done(import) => {
+					gum::trace!(
+						target: LOG_TARGET,
+						candidate_hash = ?wake.payload,
+						"Batch became ready."
+					);
 					imports.push(import);
 				},
 				TickResult::Alive(old_batch, next_tick) => {
+					gum::trace!(
+						target: LOG_TARGET,
+						candidate_hash = ?wake.payload,
+						"Batch found to be still alive on check."
+					);
 					let pending_wake = PendingWake { payload: wake.payload, ready_at: next_tick };
 					self.waiting_queue.push(pending_wake);
 					self.batches.insert(wake.payload, old_batch);

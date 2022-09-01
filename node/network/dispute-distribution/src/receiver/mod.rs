@@ -45,7 +45,6 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 
-use crate::{Metrics, LOG_TARGET};
 use crate::{
 	metrics::{FAILED, SUCCEEDED},
 	Metrics, LOG_TARGET,
@@ -80,12 +79,13 @@ const COST_APPARENT_FLOOD: Rep = Rep::CostMinor("Peer exceeded the rate limit.")
 ///
 /// in order for a batch to stay alive and not get flushed/imported to the dispute-coordinator.
 ///
-/// This ensures a timely import once of batches.
+/// This ensures a timely import of batches.
 pub const MIN_KEEP_BATCH_ALIVE_VOTES: u32 = 10;
 
 /// Time we allow to pass for new votes to trickle in.
 ///
-/// See `MIN_KEEP_BATCH_ALIVE_VOTES` above. Must be greater or equal to `RECEIVE_RATE_LIMIT`.
+/// See `MIN_KEEP_BATCH_ALIVE_VOTES` above.
+/// Should be greater or equal to `RECEIVE_RATE_LIMIT` (there is no point in checking any faster).
 pub const BATCH_COLLECTING_INTERVAL: Duration = Duration::from_millis(500);
 
 /// State for handling incoming `DisputeRequest` messages.
@@ -108,7 +108,7 @@ pub struct DisputesReceiver<Sender, AD> {
 	/// Authority discovery service:
 	authority_discovery: AD,
 
-	/// Imports currently being processed.
+	/// Imports currently being processed by the `dispute-coordinator`.
 	pending_imports: FuturesUnordered<PendingImport>,
 
 	/// Log received requests.
@@ -167,8 +167,6 @@ where
 			batches: Batches::new(),
 			authority_discovery,
 			pending_imports: FuturesUnordered::new(),
-			// Size of MAX_PARALLEL_IMPORTS ensures we are going to immediately get rid of any
-			// malicious requests still pending in the incoming queue.
 			metrics,
 		}
 	}
@@ -471,8 +469,9 @@ async fn send_responses_to_requesters(import_result: ImportResult) -> JfyiResult
 
 /// A future that resolves into an `ImportResult` when ready.
 ///
-/// This future is used on import calls for the response receiver to:
-/// - Keep track of concerned `CandidateHash` so we can flush batches if needed.
+/// This future is used on `dispute-coordinator` import messages for the oneshot response receiver
+/// to:
+/// - Keep track of concerned `CandidateHash` for reporting errors.
 /// - Keep track of requesting peers so we can confirm the import/punish them on invalid imports.
 struct PendingImport {
 	candidate_hash: CandidateHash,

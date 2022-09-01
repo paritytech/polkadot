@@ -40,7 +40,7 @@ mod send_task;
 use send_task::SendTask;
 pub use send_task::TaskFinish;
 
-/// Error and [`Result`] type for sender
+/// Error and [`Result`] type for sender.
 mod error;
 pub use error::{Error, FatalError, JfyiError, Result};
 
@@ -53,7 +53,7 @@ use crate::{Metrics, LOG_TARGET, SEND_RATE_LIMIT};
 /// particular dispute. The `DisputeSender` keeps track of those tasks, informs them about new
 /// sessions/validator sets and cleans them up when they become obsolete.
 ///
-/// The unit of work for the  `DisputeSender` is a dispute, represended by `SendTask`s.
+/// The unit of work for the  `DisputeSender` is a dispute, represented by `SendTask`s.
 pub struct DisputeSender {
 	/// All heads we currently consider active.
 	active_heads: Vec<Hash>,
@@ -168,7 +168,7 @@ impl DisputeSender {
 				let sends_happened = dispute
 					.refresh_sends(ctx, runtime, &self.active_sessions, &self.metrics)
 					.await?;
-				// Only rate limit if we actually sent someting out _and_ it was not just because
+				// Only rate limit if we actually sent something out _and_ it was not just because
 				// of errors on previous sends.
 				//
 				// Reasoning: It would not be acceptable to slow down the whole subsystem, just

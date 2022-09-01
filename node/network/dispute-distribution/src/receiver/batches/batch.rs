@@ -61,7 +61,7 @@ pub struct Batch {
 
 	/// Expiry time for the batch.
 	///
-	/// By this time the lastest this batch will get flushed.
+	/// By this time the latest this batch will get flushed.
 	best_before: Instant,
 
 	/// Requesters waiting for a response.
@@ -111,8 +111,8 @@ impl Batch {
 	///
 	/// Arguments:
 	///
-	/// * candidate_recipt - The candidate this batch is meant to track votes for.
-	/// * `now` - current timestamp for calculating the first tick.
+	/// * `candidate_receipt` - The candidate this batch is meant to track votes for.
+	/// * `now` - current time stamp for calculating the first tick.
 	///
 	/// Returns:
 	///
@@ -214,5 +214,5 @@ impl Batch {
 // Test tick behaviour:
 //	- If less than `MIN_KEEP_BATCH_ALIVE_VOTES` trickled in since last tick - batch should become
 //	done.
-//  - If batch surpased its `best_before` it should become done.
+//  - If batch surpassed its `best_before` it should become done.
 //  - Batch does not count duplicate votes.

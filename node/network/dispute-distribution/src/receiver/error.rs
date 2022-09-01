@@ -58,7 +58,7 @@ pub enum Error {
 	#[error("Force flush for batch that could not be found attempted, candidate hash: {0}")]
 	ForceFlushBatchDoesNotExist(CandidateHash),
 
-	// shoud never happen in practice:
+	// Should never happen in practice:
 	#[error("We needed to drop messages, because we reached limit on concurrent batches.")]
 	MaxBatchLimitReached,
 

@@ -26,8 +26,8 @@ use crate::RECEIVE_RATE_LIMIT;
 /// How many messages we are willing to queue per peer (validator).
 ///
 /// The larger this value is, the larger bursts are allowed to be without us dropping messages. On
-/// the flip side we should this gets allocated per validator, so for a size of 10 this will result
-/// in 10_000 * size_of(`IncomingRequest`).
+/// the flip side this gets allocated per validator, so for a size of 10 this will result
+/// in 10_000 * size_of(`IncomingRequest`) in the worst case.
 ///
 /// `PEER_QUEUE_CAPACITY` must not be 0 for obvious reasons.
 pub const PEER_QUEUE_CAPACITY: usize = 10;
@@ -75,7 +75,7 @@ impl PeerQueues {
 		};
 		queue.push_back(req);
 
-		// We have at least one element to process - rate limit waker needs to exist now:
+		// We have at least one element to process - rate limit `waker` needs to exist now:
 		self.ensure_waker();
 		Ok(())
 	}
@@ -118,14 +118,14 @@ impl PeerQueues {
 		self.queues.is_empty()
 	}
 
-	/// Ensure there is an active waker.
+	/// Ensure there is an active `waker`.
 	///
 	/// Checks whether one exists and if not creates one.
 	fn ensure_waker(&mut self) -> &mut Delay {
 		self.rate_limit_waker.get_or_insert(Delay::new(RECEIVE_RATE_LIMIT))
 	}
 
-	/// Wait for waker if it exists, or be `Pending` forever.
+	/// Wait for `waker` if it exists, or be `Pending` forever.
 	///
 	/// Afterwards it gets set back to `None`.
 	async fn wait_for_waker(&mut self) {

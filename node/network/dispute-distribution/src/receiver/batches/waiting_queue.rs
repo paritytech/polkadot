@@ -21,8 +21,8 @@ use futures_timer::Delay;
 
 /// Wait asynchronously for given `Instant`s one after the other.
 ///
-/// `PendingWake`s can be inserted and `WaitingQueue` makes sure to wake calls to `pop` so those
-/// structs can be processed when they are deemed ready.
+/// `PendingWake`s can be inserted and `WaitingQueue` makes `wait_ready()` to always wait for the
+/// next `Instant` in the queue.
 pub struct WaitingQueue<Payload> {
 	/// All pending wakes we are supposed to wait on in order.
 	pending_wakes: BinaryHeap<PendingWake<Payload>>,
@@ -33,7 +33,7 @@ pub struct WaitingQueue<Payload> {
 /// Represents some event waiting to be processed at `ready_at`.
 ///
 /// This is an event in `WaitingQueue`. It provides an `Ord` instance, that sorts descending with
-/// regard to `Instant` (so we get a `min-heap` with the earliest `Instant` at the top.
+/// regard to `Instant` (so we get a `min-heap` with the earliest `Instant` at the top).
 #[derive(Eq, PartialEq)]
 pub struct PendingWake<Payload> {
 	pub payload: Payload,
@@ -43,14 +43,14 @@ pub struct PendingWake<Payload> {
 impl<Payload: Eq + Ord> WaitingQueue<Payload> {
 	/// Get a new empty `WaitingQueue`.
 	///
-	/// If you call `pop` on this queue immediately it will always return `Poll::Pending`.
+	/// If you call `pop` on this queue immediately, it will always return `Poll::Pending`.
 	pub fn new() -> Self {
 		Self { pending_wakes: BinaryHeap::new(), waker: None }
 	}
 
 	/// Push a `PendingWake`.
 	///
-	/// The next call to `pop` will make sure to wake soon enough to process that newly event in a
+	/// The next call to `wait_ready` will make sure to wake soon enough to process that new event in a
 	/// timely manner.
 	pub fn push(&mut self, wake: PendingWake<Payload>) {
 		self.pending_wakes.push(wake);
@@ -60,8 +60,8 @@ impl<Payload: Eq + Ord> WaitingQueue<Payload> {
 
 	/// Pop the next ready item.
 	///
-	/// In contrast to `pop` this function does not wait, if nothing is ready right now as
-	/// determined by the passed `now` timestamp, this function simply returns `None`.
+	/// This function does not wait, if nothing is ready right now as determined by the passed
+	/// `now` time stamp, this function simply returns `None`.
 	pub fn pop_ready(&mut self, now: Instant) -> Option<PendingWake<Payload>> {
 		let is_ready = self.pending_wakes.peek().map_or(false, |p| p.ready_at <= now);
 		if is_ready {
@@ -75,7 +75,7 @@ impl<Payload: Eq + Ord> WaitingQueue<Payload> {
 	///
 	/// Once this function returns `Poll::Ready(())` `pop_ready()` will return `Some`.
 	///
-	/// Whether ready or not is determined based on the passed timestamp `now` which should be the
+	/// Whether ready or not is determined based on the passed time stamp `now` which should be the
 	/// current time as returned by `Instant::now()`
 	///
 	/// This function waits asynchronously for an item to become ready. If there is no more item,
