@@ -71,7 +71,7 @@ const LOG_TARGET: &str = "runtime::parachains::slashing";
 // These are constants, but we want to make them configurable
 // via `HostConfiguration` in the future.
 const SLASH_FOR_INVALID: Perbill = Perbill::from_percent(100);
-const SLASH_AGAINST_VALID: Perbill = Perbill::from_percent(1);
+const SLASH_AGAINST_VALID: Perbill = Perbill::from_rational(1, 1_000);
 const DEFENSIVE_PROOF: &'static str = "disputes module should bail on old session";
 
 #[cfg(feature = "runtime-benchmarks")]
