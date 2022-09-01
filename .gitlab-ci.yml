@@ -792,6 +792,7 @@ zombienet-tests-parachains-disputes-garbage-candidate:
     - job:                         publish-malus-image
   variables:
     GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
+    ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.2.58"
   before_script:
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE_NAME}"
