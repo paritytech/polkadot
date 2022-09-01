@@ -46,6 +46,10 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 
 use crate::{Metrics, LOG_TARGET};
+use crate::{
+	metrics::{FAILED, SUCCEEDED},
+	Metrics, LOG_TARGET,
+};
 
 mod error;
 
@@ -218,6 +222,7 @@ where
 				self.import_ready_batches(ready_imports).await;
 			},
 			MuxedMessage::ConfirmedImport(import_result) => {
+				self.update_imported_requests_metrics(&import_result);
 				// Confirm imports to requesters/punish them on invalid imports:
 				send_responses_to_requesters(import_result).await?;
 			},
@@ -423,6 +428,14 @@ where
 			PendingImport { candidate_hash, requesters, pending_response: confirmation_rx };
 
 		self.pending_imports.push(pending);
+	}
+
+	fn update_imported_requests_metrics(&self, result: &ImportResult) {
+		let label = match result.result {
+			ImportStatementsResult::ValidImport => SUCCEEDED,
+			ImportStatementsResult::InvalidImport => FAILED,
+		};
+		self.metrics.on_imported(label, result.requesters.len());
 	}
 }
 
