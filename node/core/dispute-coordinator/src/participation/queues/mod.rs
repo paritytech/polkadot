@@ -139,9 +139,6 @@ impl ParticipationRequest {
 	pub fn session(&self) -> SessionIndex {
 		self.session
 	}
-	pub fn n_validators(&self) -> usize {
-		self.n_validators
-	}
 	pub fn into_candidate_info(self) -> (CandidateHash, CandidateReceipt) {
 		let Self { candidate_hash, candidate_receipt, .. } = self;
 		(candidate_hash, candidate_receipt)
