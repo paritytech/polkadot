@@ -68,9 +68,8 @@ async fn participate_with_commitments_hash<Context>(
 		receipt
 	};
 	let session = 1;
-	let n_validators = 10;
 
-	let req = ParticipationRequest::new(candidate_receipt, session, n_validators);
+	let req = ParticipationRequest::new(candidate_receipt, session);
 
 	participation
 		.queue_participation(ctx, ParticipationPriority::BestEffort, req)
