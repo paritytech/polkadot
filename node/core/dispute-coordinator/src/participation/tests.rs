@@ -116,7 +116,6 @@ pub async fn participation_full_happy_path(
 ) {
 	recover_available_data(ctx_handle).await;
 	fetch_validation_code(ctx_handle).await;
-	store_available_data(ctx_handle, true).await;
 
 	assert_matches!(
 	ctx_handle.recv().await,
@@ -183,20 +182,6 @@ async fn fetch_validation_code(virtual_overseer: &mut VirtualOverseer) -> Hash {
 		},
 		"overseer did not receive runtime API request for validation code",
 	)
-}
-
-async fn store_available_data(virtual_overseer: &mut VirtualOverseer, success: bool) {
-	assert_matches!(
-		virtual_overseer.recv().await,
-		AllMessages::AvailabilityStore(AvailabilityStoreMessage::StoreAvailableData { tx, .. }) => {
-			if success {
-				tx.send(Ok(())).unwrap();
-			} else {
-				tx.send(Err(())).unwrap();
-			}
-		},
-		"overseer did not receive store available data request",
-	);
 }
 
 #[test]
@@ -423,7 +408,6 @@ fn cast_invalid_vote_if_validation_fails_or_is_invalid() {
 			fetch_validation_code(&mut ctx_handle).await,
 			participation.recent_block.unwrap().1
 		);
-		store_available_data(&mut ctx_handle, true).await;
 
 		assert_matches!(
 			ctx_handle.recv().await,
@@ -461,7 +445,6 @@ fn cast_invalid_vote_if_commitments_dont_match() {
 			fetch_validation_code(&mut ctx_handle).await,
 			participation.recent_block.unwrap().1
 		);
-		store_available_data(&mut ctx_handle, true).await;
 
 		assert_matches!(
 			ctx_handle.recv().await,
@@ -499,7 +482,6 @@ fn cast_valid_vote_if_validation_passes() {
 			fetch_validation_code(&mut ctx_handle).await,
 			participation.recent_block.unwrap().1
 		);
-		store_available_data(&mut ctx_handle, true).await;
 
 		assert_matches!(
 			ctx_handle.recv().await,
@@ -518,45 +500,6 @@ fn cast_valid_vote_if_validation_passes() {
 		assert_matches!(
 			result.outcome,
 			ParticipationOutcome::Valid => {}
-		);
-	})
-}
-
-#[test]
-fn failure_to_store_available_data_does_not_preclude_participation() {
-	futures::executor::block_on(async {
-		let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
-
-		let (sender, mut worker_receiver) = mpsc::channel(1);
-		let mut participation = Participation::new(sender);
-		activate_leaf(&mut ctx, &mut participation, 10).await.unwrap();
-		participate(&mut ctx, &mut participation).await.unwrap();
-
-		recover_available_data(&mut ctx_handle).await;
-		assert_eq!(
-			fetch_validation_code(&mut ctx_handle).await,
-			participation.recent_block.unwrap().1
-		);
-		// the store available data request should fail:
-		store_available_data(&mut ctx_handle, false).await;
-
-		assert_matches!(
-			ctx_handle.recv().await,
-			AllMessages::CandidateValidation(
-				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)
-			) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
-				tx.send(Err(ValidationFailed("fail".to_string()))).unwrap();
-			},
-			"overseer did not receive candidate validation message",
-		);
-
-		let result = participation
-			.get_participation_result(&mut ctx, worker_receiver.next().await.unwrap())
-			.await
-			.unwrap();
-		assert_matches!(
-			result.outcome,
-			ParticipationOutcome::Invalid => {}
 		);
 	})
 }
