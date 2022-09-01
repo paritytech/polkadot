@@ -281,7 +281,7 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 	}
 
 	fn initializer_initialize(_now: BlockNumber) -> Weight {
-		Weight::new()
+		Weight::zero()
 	}
 
 	fn initializer_finalize() {}

@@ -63,7 +63,7 @@ impl<T: frame_system::Config> runtime_parachains::disputes::slashing::WeightInfo
 	fn report_dispute_lost(n: u32, ) -> Weight {
 		Weight::from_ref_time(97_366_000 as RefTimeWeight)
 			// Standard Error: 2_000
-			.saturating_add(Weight::from_ref_time(467_000 as RefTimeWeight).scalar_saturating_mul(n as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(467_000 as RefTimeWeight).saturating_mul(n as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(14 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 	}
