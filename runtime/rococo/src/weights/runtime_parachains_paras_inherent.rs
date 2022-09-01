@@ -37,7 +37,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `runtime_parachains::paras_inherent`.
@@ -70,11 +70,11 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Hrmp HrmpWatermarks (r:0 w:1)
 	// Storage: Paras Heads (r:0 w:1)
 	fn enter_variable_disputes(v: u32, ) -> Weight {
-		(352_590_000 as Weight)
+		Weight::from_ref_time(352_590_000 as RefTimeWeight)
 			// Standard Error: 13_000
-			.saturating_add((49_254_000 as Weight).saturating_mul(v as Weight))
-			.saturating_add(T::DbWeight::get().reads(24 as Weight))
-			.saturating_add(T::DbWeight::get().writes(16 as Weight))
+			.saturating_add(Weight::from_ref_time(49_254_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().reads(24 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(16 as RefTimeWeight))
 	}
 	// Storage: ParaInherent Included (r:1 w:1)
 	// Storage: System ParentHash (r:1 w:0)
@@ -102,9 +102,9 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Hrmp HrmpWatermarks (r:0 w:1)
 	// Storage: Paras Heads (r:0 w:1)
 	fn enter_bitfields() -> Weight {
-		(299_878_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(21 as Weight))
-			.saturating_add(T::DbWeight::get().writes(15 as Weight))
+		Weight::from_ref_time(299_878_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(21 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(15 as RefTimeWeight))
 	}
 	// Storage: ParaInherent Included (r:1 w:1)
 	// Storage: System ParentHash (r:1 w:0)
@@ -134,9 +134,9 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Hrmp HrmpWatermarks (r:0 w:1)
 	// Storage: Paras Heads (r:0 w:1)
 	fn enter_backed_candidates_variable(_v: u32) -> Weight {
-		(442_472_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(25 as Weight))
-			.saturating_add(T::DbWeight::get().writes(14 as Weight))
+		Weight::from_ref_time(442_472_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(25 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(14 as RefTimeWeight))
 	}
 	// Storage: ParaInherent Included (r:1 w:1)
 	// Storage: System ParentHash (r:1 w:0)
@@ -166,8 +166,8 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Hrmp HrmpWatermarks (r:0 w:1)
 	// Storage: Paras Heads (r:0 w:1)
 	fn enter_backed_candidate_code_upgrade() -> Weight {
-		(36_903_411_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(25 as Weight))
-			.saturating_add(T::DbWeight::get().writes(14 as Weight))
+		Weight::from_ref_time(36_903_411_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(25 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(14 as RefTimeWeight))
 	}
 }

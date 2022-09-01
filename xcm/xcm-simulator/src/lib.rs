@@ -243,10 +243,10 @@ macro_rules! decl_test_network {
 						let encoded = $crate::encode_xcm(message, $crate::MessageKind::Ump);
 						let r = <$relay_chain>::process_upward_message(
 							para_id, &encoded[..],
-							$crate::Weight::max_value(),
+							$crate::Weight::MAX,
 						);
 						if let Err((id, required)) = r {
-							return Err($crate::XcmError::WeightLimitReached(required));
+							return Err($crate::XcmError::WeightLimitReached(required.ref_time()));
 						}
 					},
 					$(
@@ -255,7 +255,7 @@ macro_rules! decl_test_network {
 							let messages = vec![(para_id, 1, &encoded[..])];
 							let _weight = <$parachain>::handle_xcmp_messages(
 								messages.into_iter(),
-								$crate::Weight::max_value(),
+								$crate::Weight::MAX,
 							);
 						},
 					)*
@@ -281,7 +281,7 @@ macro_rules! decl_test_network {
 							// NOTE: RelayChainBlockNumber is hard-coded to 1
 							let messages = vec![(1, encoded)];
 							let _weight = <$parachain>::handle_dmp_messages(
-								messages.into_iter(), $crate::Weight::max_value(),
+								messages.into_iter(), $crate::Weight::MAX,
 							);
 						},
 					)*

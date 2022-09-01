@@ -38,7 +38,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `pallet_child_bounties`.
@@ -52,51 +52,51 @@ impl<T: frame_system::Config> pallet_child_bounties::WeightInfo for WeightInfo<T
 	// Storage: ChildBounties ChildBounties (r:0 w:1)
 	/// The range of component `d` is `[0, 16384]`.
 	fn add_child_bounty(d: u32, ) -> Weight {
-		(47_819_000 as Weight)
+		Weight::from_ref_time(47_819_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add((1_000 as Weight).saturating_mul(d as Weight))
-			.saturating_add(T::DbWeight::get().reads(5 as Weight))
-			.saturating_add(T::DbWeight::get().writes(6 as Weight))
+			.saturating_add(Weight::from_ref_time(1_000 as RefTimeWeight).scalar_saturating_mul(d as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().reads(5 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
 	}
 	// Storage: Bounties Bounties (r:1 w:0)
 	// Storage: ChildBounties ChildBounties (r:1 w:1)
 	// Storage: ChildBounties ChildrenCuratorFees (r:1 w:1)
 	fn propose_curator() -> Weight {
-		(14_018_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(14_018_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 	// Storage: Bounties Bounties (r:1 w:0)
 	// Storage: ChildBounties ChildBounties (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
 	fn accept_curator() -> Weight {
-		(25_943_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(25_943_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 	// Storage: ChildBounties ChildBounties (r:1 w:1)
 	// Storage: Bounties Bounties (r:1 w:0)
 	// Storage: System Account (r:1 w:1)
 	fn unassign_curator() -> Weight {
-		(38_240_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(38_240_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 	// Storage: Bounties Bounties (r:1 w:0)
 	// Storage: ChildBounties ChildBounties (r:1 w:1)
 	fn award_child_bounty() -> Weight {
-		(20_823_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(20_823_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 	// Storage: ChildBounties ChildBounties (r:1 w:1)
 	// Storage: System Account (r:3 w:3)
 	// Storage: ChildBounties ParentChildBounties (r:1 w:1)
 	// Storage: ChildBounties ChildBountyDescriptions (r:0 w:1)
 	fn claim_child_bounty() -> Weight {
-		(63_323_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(5 as Weight))
-			.saturating_add(T::DbWeight::get().writes(6 as Weight))
+		Weight::from_ref_time(63_323_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(5 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
 	}
 	// Storage: Bounties Bounties (r:1 w:0)
 	// Storage: ChildBounties ChildBounties (r:1 w:1)
@@ -105,9 +105,9 @@ impl<T: frame_system::Config> pallet_child_bounties::WeightInfo for WeightInfo<T
 	// Storage: System Account (r:2 w:2)
 	// Storage: ChildBounties ChildBountyDescriptions (r:0 w:1)
 	fn close_child_bounty_added() -> Weight {
-		(45_174_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(6 as Weight))
-			.saturating_add(T::DbWeight::get().writes(6 as Weight))
+		Weight::from_ref_time(45_174_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(6 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
 	}
 	// Storage: Bounties Bounties (r:1 w:0)
 	// Storage: ChildBounties ChildBounties (r:1 w:1)
@@ -116,8 +116,8 @@ impl<T: frame_system::Config> pallet_child_bounties::WeightInfo for WeightInfo<T
 	// Storage: ChildBounties ParentChildBounties (r:1 w:1)
 	// Storage: ChildBounties ChildBountyDescriptions (r:0 w:1)
 	fn close_child_bounty_active() -> Weight {
-		(54_312_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(7 as Weight))
-			.saturating_add(T::DbWeight::get().writes(7 as Weight))
+		Weight::from_ref_time(54_312_000 as RefTimeWeight)
+			.saturating_add(T::DbWeight::get().reads(7 as RefTimeWeight))
+			.saturating_add(T::DbWeight::get().writes(7 as RefTimeWeight))
 	}
 }

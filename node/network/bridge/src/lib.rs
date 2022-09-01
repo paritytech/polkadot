@@ -28,7 +28,8 @@ use parking_lot::Mutex;
 use sp_consensus::SyncOracle;
 
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet, PeerId, ProtocolVersion, UnifiedReputationChange as Rep, View,
+	peer_set::{PeerSet, ProtocolVersion},
+	PeerId, UnifiedReputationChange as Rep, View,
 };
 
 /// Peer set info for network initialization.

@@ -16,17 +16,13 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{
-	dispatch::{Dispatchable, Weight},
-	ensure,
-	weights::GetDispatchInfo,
-};
+use frame_support::{dispatch::Dispatchable, ensure, weights::GetDispatchInfo};
 use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
 use xcm::latest::{
 	Error as XcmError, ExecuteXcm,
 	Instruction::{self, *},
-	MultiAssets, MultiLocation, Outcome, Response, SendXcm, Xcm,
+	MultiAssets, MultiLocation, Outcome, Response, SendXcm, Weight, Xcm,
 };
 
 pub mod traits;
@@ -343,7 +339,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)
 					.map_err(|_| XcmError::BadOrigin)?;
 				let weight = message_call.get_dispatch_info().weight;
-				ensure!(weight <= require_weight_at_most, XcmError::MaxWeightInvalid);
+				ensure!(weight.ref_time() <= require_weight_at_most, XcmError::MaxWeightInvalid);
 				let actual_weight = match message_call.dispatch(dispatch_origin) {
 					Ok(post_info) => post_info.actual_weight,
 					Err(error_and_info) => {
@@ -362,7 +358,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// reported back to the caller and this ensures that they account for the total
 				// weight consumed correctly (potentially allowing them to do more operations in a
 				// block than they otherwise would).
-				self.total_surplus.saturating_accrue(surplus);
+				self.total_surplus.saturating_accrue(surplus.ref_time());
 				Ok(())
 			},
 			QueryResponse { query_id, response, max_weight } => {
