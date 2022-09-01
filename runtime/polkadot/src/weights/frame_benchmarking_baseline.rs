@@ -64,20 +64,20 @@ impl<T: frame_system::Config> frame_benchmarking::baseline::WeightInfo for Weigh
 	fn hashing(i: u32, ) -> Weight {
 		Weight::from_ref_time(19_362_503_000 as RefTimeWeight)
 			// Standard Error: 194_000
-			.saturating_add(Weight::from_ref_time(389_000 as RefTimeWeight).scalar_saturating_mul(i as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(389_000 as RefTimeWeight).saturating_mul(i as RefTimeWeight))
 	}
 	/// The range of component `i` is `[1, 100]`.
 	fn sr25519_verification(i: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 39_000
-			.saturating_add(Weight::from_ref_time(47_745_000 as RefTimeWeight).scalar_saturating_mul(i as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(47_745_000 as RefTimeWeight).saturating_mul(i as RefTimeWeight))
 	}
 	// Storage: Skipped Metadata (r:0 w:0)
 	/// The range of component `i` is `[0, 1000]`.
 	fn storage_read(i: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 3_000
-			.saturating_add(Weight::from_ref_time(2_129_000 as RefTimeWeight).scalar_saturating_mul(i as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(2_129_000 as RefTimeWeight).saturating_mul(i as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads((1 as RefTimeWeight).saturating_mul(i as RefTimeWeight)))
 	}
 	// Storage: Skipped Metadata (r:0 w:0)
@@ -85,7 +85,7 @@ impl<T: frame_system::Config> frame_benchmarking::baseline::WeightInfo for Weigh
 	fn storage_write(i: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(330_000 as RefTimeWeight).scalar_saturating_mul(i as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(330_000 as RefTimeWeight).saturating_mul(i as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes((1 as RefTimeWeight).saturating_mul(i as RefTimeWeight)))
 	}
 }

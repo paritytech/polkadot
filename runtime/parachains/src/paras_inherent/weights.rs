@@ -99,12 +99,12 @@ pub fn multi_dispute_statement_sets_weight<
 		.as_ref()
 		.iter()
 		.map(|d| dispute_statement_set_weight::<T, &S>(d))
-		.fold(Weight::new(), |acc_weight, weight| acc_weight.saturating_add(weight))
+		.fold(Weight::zero(), |acc_weight, weight| acc_weight.saturating_add(weight))
 }
 
 pub fn signed_bitfields_weight<T: Config>(bitfields_len: usize) -> Weight {
 	<<T as Config>::WeightInfo as WeightInfo>::enter_bitfields()
-		.saturating_mul(Weight::from_ref_time(bitfields_len as u64))
+		.saturating_mul(bitfields_len as u64)
 }
 
 pub fn backed_candidate_weight<T: frame_system::Config + Config>(
@@ -125,5 +125,5 @@ pub fn backed_candidates_weight<T: frame_system::Config + Config>(
 	candidates
 		.iter()
 		.map(|c| backed_candidate_weight::<T>(c))
-		.fold(Weight::new(), |acc, x| acc.saturating_add(x))
+		.fold(Weight::zero(), |acc, x| acc.saturating_add(x))
 }
