@@ -29,10 +29,7 @@ use parity_scale_codec::Encode;
 use polkadot_node_primitives::{AvailableData, BlockData, InvalidCandidate, PoV};
 use polkadot_node_subsystem::{
 	jaeger,
-	messages::{
-		AllMessages, DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest,
-		ValidationFailed,
-	},
+	messages::{AllMessages, DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SpawnGlue,
 };
 use polkadot_node_subsystem_test_helpers::{
