@@ -552,13 +552,13 @@ pub fn run() -> Result<()> {
 
 								unwrap_client!(
 									client,
-									cmd.run(client.clone(), inherent_data, &ext_factory)
+									cmd.run(client.clone(), inherent_data, Vec::new(), &ext_factory)
 										.map_err(Error::SubstrateCli)
 								)
 							},
 							BenchmarkCmd::Overhead(cmd) => unwrap_client!(
 								client,
-								cmd.run(config, client.clone(), inherent_data, &remark_builder)
+								cmd.run(config, client.clone(), inherent_data, Vec::new(), &remark_builder)
 									.map_err(Error::SubstrateCli)
 							),
 							_ => unreachable!("Ensured by the outside match; qed"),
