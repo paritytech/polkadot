@@ -54,9 +54,9 @@ impl<T: frame_system::Config> pallet_im_online::WeightInfo for WeightInfo<T> {
 	fn validate_unsigned_and_then_heartbeat(k: u32, e: u32, ) -> Weight {
 		Weight::from_ref_time(75_125_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(26_000 as RefTimeWeight).scalar_saturating_mul(k as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(26_000 as RefTimeWeight).saturating_mul(k as RefTimeWeight))
 			// Standard Error: 3_000
-			.saturating_add(Weight::from_ref_time(309_000 as RefTimeWeight).scalar_saturating_mul(e as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(309_000 as RefTimeWeight).saturating_mul(e as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}

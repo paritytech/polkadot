@@ -91,9 +91,9 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 	fn create_snapshot_internal(v: u32, t: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 2_000
-			.saturating_add(Weight::from_ref_time(406_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(406_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
 			// Standard Error: 5_000
-			.saturating_add(Weight::from_ref_time(62_000 as RefTimeWeight).scalar_saturating_mul(t as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(62_000 as RefTimeWeight).saturating_mul(t as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
 	// Storage: ElectionProviderMultiPhase SignedSubmissionIndices (r:1 w:1)
@@ -111,9 +111,9 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 	fn elect_queued(a: u32, d: u32, ) -> Weight {
 		Weight::from_ref_time(113_324_000 as RefTimeWeight)
 			// Standard Error: 7_000
-			.saturating_add(Weight::from_ref_time(342_000 as RefTimeWeight).scalar_saturating_mul(a as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(342_000 as RefTimeWeight).saturating_mul(a as RefTimeWeight))
 			// Standard Error: 11_000
-			.saturating_add(Weight::from_ref_time(54_000 as RefTimeWeight).scalar_saturating_mul(d as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(54_000 as RefTimeWeight).saturating_mul(d as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(7 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(9 as RefTimeWeight))
 	}
@@ -142,13 +142,13 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 	fn submit_unsigned(v: u32, t: u32, a: u32, d: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 5_000
-			.saturating_add(Weight::from_ref_time(850_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(850_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
 			// Standard Error: 11_000
-			.saturating_add(Weight::from_ref_time(11_000 as RefTimeWeight).scalar_saturating_mul(t as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(11_000 as RefTimeWeight).saturating_mul(t as RefTimeWeight))
 			// Standard Error: 19_000
-			.saturating_add(Weight::from_ref_time(7_957_000 as RefTimeWeight).scalar_saturating_mul(a as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(7_957_000 as RefTimeWeight).saturating_mul(a as RefTimeWeight))
 			// Standard Error: 28_000
-			.saturating_add(Weight::from_ref_time(1_659_000 as RefTimeWeight).scalar_saturating_mul(d as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(1_659_000 as RefTimeWeight).saturating_mul(d as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(7 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
@@ -163,13 +163,13 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 	fn feasibility_check(v: u32, t: u32, a: u32, d: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 4_000
-			.saturating_add(Weight::from_ref_time(856_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(856_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
 			// Standard Error: 9_000
-			.saturating_add(Weight::from_ref_time(63_000 as RefTimeWeight).scalar_saturating_mul(t as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(63_000 as RefTimeWeight).saturating_mul(t as RefTimeWeight))
 			// Standard Error: 16_000
-			.saturating_add(Weight::from_ref_time(5_762_000 as RefTimeWeight).scalar_saturating_mul(a as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(5_762_000 as RefTimeWeight).saturating_mul(a as RefTimeWeight))
 			// Standard Error: 24_000
-			.saturating_add(Weight::from_ref_time(1_360_000 as RefTimeWeight).scalar_saturating_mul(d as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(1_360_000 as RefTimeWeight).saturating_mul(d as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
 	}
 }

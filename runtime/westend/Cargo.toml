@@ -227,10 +227,10 @@ try-runtime = [
 	"frame-executive/try-runtime",
 	"frame-system/try-runtime",
 	"frame-try-runtime",
-	"pallet-authorship/try-runtime",
+	"runtime-common/try-runtime",
 	"pallet-authority-discovery/try-runtime",
+	"pallet-authorship/try-runtime",
 	"pallet-balances/try-runtime",
-	"pallet-bags-list/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"pallet-collective/try-runtime",
 	"pallet-elections-phragmen/try-runtime",
@@ -256,8 +256,9 @@ try-runtime = [
 	"pallet-treasury/try-runtime",
 	"pallet-utility/try-runtime",
 	"pallet-vesting/try-runtime",
+	"pallet-xcm/try-runtime",
 	"pallet-babe/try-runtime",
-	"runtime-common/try-runtime",
+	"pallet-bags-list/try-runtime",
 ]
 # When enabled, the runtime API will not be build.
 #

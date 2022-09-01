@@ -20,10 +20,7 @@ use codec::Encode;
 use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
 use sp_std::vec;
-use xcm::{
-	latest::{prelude::*, MultiAssets},
-	DoubleEncoded,
-};
+use xcm::{latest::prelude::*, DoubleEncoded};
 
 benchmarks! {
 	query_holding {
@@ -68,26 +65,6 @@ benchmarks! {
 		executor.execute(xcm)?;
 	} verify {
 
-	}
-
-	// Worst case scenario for this benchmark is a large number of assets to
-	// filter through the reserve.
-	reserve_asset_deposited {
-		const MAX_ASSETS: u32 = 100; // TODO when executor has a built in limit, use it here. #4426
-		let mut executor = new_executor::<T>(Default::default());
-		let assets = (0..MAX_ASSETS).map(|i| MultiAsset {
-			id: Abstract(i.encode()),
-			fun: Fungible(i as u128),
-
-		}).collect::<vec::Vec<_>>();
-		let multiassets: MultiAssets = assets.into();
-
-		let instruction = Instruction::ReserveAssetDeposited(multiassets.clone());
-		let xcm = Xcm(vec![instruction]);
-	}: {
-		executor.execute(xcm).map_err(|_| BenchmarkError::Skip)?;
-	} verify {
-		assert_eq!(executor.holding, multiassets.into());
 	}
 
 	query_response {
