@@ -175,7 +175,11 @@ zeroize = { opt-level = 3 }
 [profile.release]
 # Polkadot runtime requires unwinding.
 panic = "unwind"
-opt-level = 3
+# opt-level = 3
+opt-level = "z"
+strip = true
+ltro = true
+codegen-units = 1
 
 # make sure dev builds with backtrace do
 # not slow us down
