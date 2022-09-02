@@ -175,6 +175,7 @@ mod tests {
 	};
 	use polkadot_primitives::v2::Hash;
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
+	use sc_network_common::protocol::ProtocolName;
 	use sp_keyring::Sr25519Keyring;
 	use std::{
 		borrow::Cow,
@@ -232,18 +233,14 @@ mod tests {
 
 		async fn set_reserved_peers(
 			&mut self,
-			_protocol: Cow<'static, str>,
+			_protocol: ProtocolName,
 			multiaddresses: HashSet<Multiaddr>,
 		) -> Result<(), String> {
 			self.peers_set = extract_peer_ids(multiaddresses.into_iter());
 			Ok(())
 		}
 
-		async fn remove_from_peers_set(
-			&mut self,
-			_protocol: Cow<'static, str>,
-			peers: Vec<PeerId>,
-		) {
+		async fn remove_from_peers_set(&mut self, _protocol: ProtocolName, peers: Vec<PeerId>) {
 			self.peers_set.retain(|elem| !peers.contains(elem));
 		}
 
@@ -260,11 +257,11 @@ mod tests {
 			panic!()
 		}
 
-		fn disconnect_peer(&self, _: PeerId, _: Cow<'static, str>) {
+		fn disconnect_peer(&self, _: PeerId, _: ProtocolName) {
 			panic!()
 		}
 
-		fn write_notification(&self, _: PeerId, _: Cow<'static, str>, _: Vec<u8>) {
+		fn write_notification(&self, _: PeerId, _: ProtocolName, _: Vec<u8>) {
 			panic!()
 		}
 	}

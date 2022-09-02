@@ -29,6 +29,7 @@ use std::{
 };
 
 use sc_network::{Event as NetworkEvent, IfDisconnected};
+use sc_network_common::protocol::ProtocolName;
 
 use polkadot_node_network_protocol::{
 	peer_set::PeerSetProtocolNames,
@@ -112,13 +113,13 @@ impl Network for TestNetwork {
 
 	async fn set_reserved_peers(
 		&mut self,
-		_protocol: Cow<'static, str>,
+		_protocol: ProtocolName,
 		_: HashSet<Multiaddr>,
 	) -> Result<(), String> {
 		Ok(())
 	}
 
-	async fn remove_from_peers_set(&mut self, _protocol: Cow<'static, str>, _: Vec<PeerId>) {}
+	async fn remove_from_peers_set(&mut self, _protocol: ProtocolName, _: Vec<PeerId>) {}
 
 	async fn start_request<AD: AuthorityDiscovery>(
 		&self,
@@ -136,7 +137,7 @@ impl Network for TestNetwork {
 			.unwrap();
 	}
 
-	fn disconnect_peer(&self, who: PeerId, protocol: Cow<'static, str>) {
+	fn disconnect_peer(&self, who: PeerId, protocol: ProtocolName) {
 		let (peer_set, version) = self.protocol_names.try_get_protocol(&protocol).unwrap();
 		assert_eq!(version, peer_set.get_main_version());
 
@@ -146,7 +147,7 @@ impl Network for TestNetwork {
 			.unwrap();
 	}
 
-	fn write_notification(&self, who: PeerId, protocol: Cow<'static, str>, message: Vec<u8>) {
+	fn write_notification(&self, who: PeerId, protocol: ProtocolName, message: Vec<u8>) {
 		let (peer_set, version) = self.protocol_names.try_get_protocol(&protocol).unwrap();
 		assert_eq!(version, peer_set.get_main_version());
 
