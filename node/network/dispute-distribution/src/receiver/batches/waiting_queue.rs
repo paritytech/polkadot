@@ -19,6 +19,8 @@ use std::{cmp::Ordering, collections::BinaryHeap, time::Instant};
 use futures::future::pending;
 use futures_timer::Delay;
 
+use crate::LOG_TARGET;
+
 /// Wait asynchronously for given `Instant`s one after the other.
 ///
 /// `PendingWake`s can be inserted and `WaitingQueue` makes `wait_ready()` to always wait for the
@@ -73,7 +75,8 @@ impl<Payload: Eq + Ord> WaitingQueue<Payload> {
 
 	/// Don't pop, just wait until something is ready.
 	///
-	/// Once this function returns `Poll::Ready(())` `pop_ready()` will return `Some`.
+	/// Once this function returns `Poll::Ready(())` `pop_ready()` will return `Some`, if passed
+	/// the same `Instant`.
 	///
 	/// Whether ready or not is determined based on the passed time stamp `now` which should be the
 	/// current time as returned by `Instant::now()`
@@ -85,18 +88,17 @@ impl<Payload: Eq + Ord> WaitingQueue<Payload> {
 			// Previous timer was not done yet.
 			waker.await
 		}
-		loop {
-			let next_waiting = self.pending_wakes.peek();
-			let is_ready = next_waiting.map_or(false, |p| p.ready_at <= now);
-			if !is_ready {
-				self.waker = next_waiting.map(|p| Delay::new(p.ready_at.duration_since(now)));
-				match &mut self.waker {
-					None => return pending().await,
-					Some(waker) => waker.await,
-				}
-			} else {
-				return
-			}
+
+		let next_waiting = self.pending_wakes.peek();
+		let is_ready = next_waiting.map_or(false, |p| p.ready_at <= now);
+		if is_ready {
+			return
+		}
+
+		self.waker = next_waiting.map(|p| Delay::new(p.ready_at.duration_since(now)));
+		match &mut self.waker {
+			None => return pending().await,
+			Some(waker) => waker.await,
 		}
 	}
 }
@@ -114,5 +116,91 @@ impl<Payload: Ord> Ord for PendingWake<Payload> {
 			Ordering::Equal => other.payload.cmp(&self.payload),
 			o => o,
 		}
+	}
+}
+#[cfg(test)]
+mod tests {
+	use std::{
+		task::Poll,
+		time::{Duration, Instant},
+	};
+
+	use assert_matches::assert_matches;
+	use futures::{future::poll_fn, pin_mut, Future};
+
+	use crate::LOG_TARGET;
+
+	use super::{PendingWake, WaitingQueue};
+
+	#[test]
+	fn wait_ready_waits_for_earliest_event_always() {
+		sp_tracing::try_init_simple();
+		let mut queue = WaitingQueue::new();
+		let now = Instant::now();
+		let start = now;
+		queue.push(PendingWake { payload: 1u32, ready_at: now + Duration::from_millis(3) });
+		// Push another one in order:
+		queue.push(PendingWake { payload: 2u32, ready_at: now + Duration::from_millis(5) });
+		// Push one out of order:
+		queue.push(PendingWake { payload: 0u32, ready_at: now + Duration::from_millis(1) });
+		// Push another one at same timestamp (should become ready at the same time)
+		queue.push(PendingWake { payload: 10u32, ready_at: now + Duration::from_millis(1) });
+
+		futures::executor::block_on(async move {
+			// No time passed yet - nothing should be ready.
+			assert!(queue.pop_ready(now).is_none(), "No time has passed, nothing should be ready");
+
+			// Receive them in order at expected times:
+			queue.wait_ready(now).await;
+			gum::trace!(target: LOG_TARGET, "After first wait.");
+
+			let now = start + Duration::from_millis(1);
+			assert!(Instant::now() - start >= Duration::from_millis(1));
+			assert_eq!(queue.pop_ready(now).map(|p| p.payload), Some(0u32));
+			// One more should be ready:
+			assert_eq!(queue.pop_ready(now).map(|p| p.payload), Some(10u32));
+			assert!(queue.pop_ready(now).is_none(), "No more entry expected to be ready.");
+
+			queue.wait_ready(now).await;
+			gum::trace!(target: LOG_TARGET, "After second wait.");
+			let now = start + Duration::from_millis(3);
+			assert!(Instant::now() - start >= Duration::from_millis(3));
+			assert_eq!(queue.pop_ready(now).map(|p| p.payload), Some(1u32));
+			assert!(queue.pop_ready(now).is_none(), "No more entry expected to be ready.");
+
+			// Push in between wait:
+			poll_fn(|cx| {
+				let fut = queue.wait_ready(now);
+				pin_mut!(fut);
+				assert_matches!(fut.poll(cx), Poll::Pending);
+				Poll::Ready(())
+			})
+			.await;
+			queue.push(PendingWake { payload: 3u32, ready_at: start + Duration::from_millis(4) });
+
+			queue.wait_ready(now).await;
+			// Newly pushed element should have become ready:
+			gum::trace!(target: LOG_TARGET, "After third wait.");
+			let now = start + Duration::from_millis(4);
+			assert!(Instant::now() - start >= Duration::from_millis(4));
+			assert_eq!(queue.pop_ready(now).map(|p| p.payload), Some(3u32));
+			assert!(queue.pop_ready(now).is_none(), "No more entry expected to be ready.");
+
+			queue.wait_ready(now).await;
+			gum::trace!(target: LOG_TARGET, "After fourth wait.");
+			let now = start + Duration::from_millis(5);
+			assert!(Instant::now() - start >= Duration::from_millis(5));
+			assert_eq!(queue.pop_ready(now).map(|p| p.payload), Some(2u32));
+			assert!(queue.pop_ready(now).is_none(), "No more entry expected to be ready.");
+
+			// queue empty - should wait forever now:
+			poll_fn(|cx| {
+				let fut = queue.wait_ready(now);
+				pin_mut!(fut);
+				assert_matches!(fut.poll(cx), Poll::Pending);
+				Poll::Ready(())
+			})
+			.await;
+		});
 	}
 }

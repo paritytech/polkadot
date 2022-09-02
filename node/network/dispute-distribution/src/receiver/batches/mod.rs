@@ -168,6 +168,3 @@ impl Batches {
 		imports
 	}
 }
-
-// Tests:
-//	- Make sure waker gets updated to earlier event in case an earlier event gets inserted.
