@@ -1274,7 +1274,7 @@ pub mod pallet {
 	}
 
 	impl<T: Config> DropAssets for Pallet<T> {
-		fn drop_assets(origin: &MultiLocation, assets: Assets) -> RefTimeWeight {
+		fn drop_assets(origin: &MultiLocation, assets: Assets) -> u64 {
 			if assets.is_empty() {
 				return 0
 			}
@@ -1328,8 +1328,8 @@ pub mod pallet {
 			origin: &MultiLocation,
 			query_id: QueryId,
 			response: Response,
-			max_weight: RefTimeWeight,
-		) -> RefTimeWeight {
+			max_weight: u64,
+		) -> u64 {
 			match (response, Queries::<T>::get(query_id)) {
 				(
 					Response::Version(v),

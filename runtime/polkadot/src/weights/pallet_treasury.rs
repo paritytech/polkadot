@@ -38,44 +38,44 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
+use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `pallet_treasury`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_treasury::WeightInfo for WeightInfo<T> {
 	fn spend() -> Weight {
-		Weight::from_ref_time(150_000 as RefTimeWeight)
+		Weight::from_ref_time(150_000 as u64)
 	}
 	// Storage: Treasury ProposalCount (r:1 w:1)
 	// Storage: Treasury Proposals (r:0 w:1)
 	fn propose_spend() -> Weight {
-		Weight::from_ref_time(24_642_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
+		Weight::from_ref_time(24_642_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
 	// Storage: Treasury Proposals (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
 	fn reject_proposal() -> Weight {
-		Weight::from_ref_time(34_552_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
+		Weight::from_ref_time(34_552_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
 	// Storage: Treasury Proposals (r:1 w:0)
 	// Storage: Treasury Approvals (r:1 w:1)
 	/// The range of component `p` is `[0, 99]`.
 	fn approve_proposal(p: u32, ) -> Weight {
-		Weight::from_ref_time(9_927_000 as RefTimeWeight)
+		Weight::from_ref_time(9_927_000 as u64)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(38_000 as RefTimeWeight).saturating_mul(p as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(38_000 as u64).saturating_mul(p as u64))
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Treasury Approvals (r:1 w:1)
 	fn remove_approval() -> Weight {
-		Weight::from_ref_time(5_599_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+		Weight::from_ref_time(5_599_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Treasury Approvals (r:1 w:1)
 	// Storage: Bounties BountyApprovals (r:1 w:1)
@@ -83,12 +83,12 @@ impl<T: frame_system::Config> pallet_treasury::WeightInfo for WeightInfo<T> {
 	// Storage: System Account (r:4 w:4)
 	/// The range of component `p` is `[0, 100]`.
 	fn on_initialize_proposals(p: u32, ) -> Weight {
-		Weight::from_ref_time(17_797_000 as RefTimeWeight)
+		Weight::from_ref_time(17_797_000 as u64)
 			// Standard Error: 28_000
-			.saturating_add(Weight::from_ref_time(29_621_000 as RefTimeWeight).saturating_mul(p as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((3 as RefTimeWeight).saturating_mul(p as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((3 as RefTimeWeight).saturating_mul(p as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(29_621_000 as u64).saturating_mul(p as u64))
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().reads((3 as u64).saturating_mul(p as u64)))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
+			.saturating_add(T::DbWeight::get().writes((3 as u64).saturating_mul(p as u64)))
 	}
 }

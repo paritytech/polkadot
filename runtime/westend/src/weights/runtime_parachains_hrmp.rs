@@ -38,7 +38,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
+use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `runtime_parachains::hrmp`.
@@ -53,9 +53,9 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	fn hrmp_init_open_channel() -> Weight {
-		Weight::from_ref_time(37_290_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(9 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(5 as RefTimeWeight))
+		Weight::from_ref_time(37_290_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(9 as u64))
+			.saturating_add(T::DbWeight::get().writes(5 as u64))
 	}
 	// Storage: Hrmp HrmpOpenChannelRequests (r:1 w:1)
 	// Storage: Paras ParaLifecycles (r:1 w:0)
@@ -64,9 +64,9 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	fn hrmp_accept_open_channel() -> Weight {
-		Weight::from_ref_time(33_687_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(6 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
+		Weight::from_ref_time(33_687_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(6 as u64))
+			.saturating_add(T::DbWeight::get().writes(4 as u64))
 	}
 	// Storage: Hrmp HrmpChannels (r:1 w:0)
 	// Storage: Hrmp HrmpCloseChannelRequests (r:1 w:1)
@@ -74,9 +74,9 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	fn hrmp_close_channel() -> Weight {
-		Weight::from_ref_time(31_507_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(5 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
+		Weight::from_ref_time(31_507_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(5 as u64))
+			.saturating_add(T::DbWeight::get().writes(4 as u64))
 	}
 	// Storage: Hrmp HrmpIngressChannelsIndex (r:128 w:127)
 	// Storage: Hrmp HrmpEgressChannelsIndex (r:1 w:1)
@@ -87,17 +87,17 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	/// The range of component `i` is `[0, 127]`.
 	/// The range of component `e` is `[0, 127]`.
 	fn force_clean_hrmp(i: u32, e: u32, ) -> Weight {
-		Weight::from_ref_time(0 as RefTimeWeight)
+		Weight::from_ref_time(0 as u64)
 			// Standard Error: 18_000
-			.saturating_add(Weight::from_ref_time(9_857_000 as RefTimeWeight).saturating_mul(i as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(9_857_000 as u64).saturating_mul(i as u64))
 			// Standard Error: 18_000
-			.saturating_add(Weight::from_ref_time(9_902_000 as RefTimeWeight).saturating_mul(e as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((2 as RefTimeWeight).saturating_mul(i as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().reads((2 as RefTimeWeight).saturating_mul(e as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((3 as RefTimeWeight).saturating_mul(i as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes((3 as RefTimeWeight).saturating_mul(e as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(9_902_000 as u64).saturating_mul(e as u64))
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().reads((2 as u64).saturating_mul(i as u64)))
+			.saturating_add(T::DbWeight::get().reads((2 as u64).saturating_mul(e as u64)))
+			.saturating_add(T::DbWeight::get().writes(4 as u64))
+			.saturating_add(T::DbWeight::get().writes((3 as u64).saturating_mul(i as u64)))
+			.saturating_add(T::DbWeight::get().writes((3 as u64).saturating_mul(e as u64)))
 	}
 	// Storage: Hrmp HrmpOpenChannelRequestsList (r:1 w:0)
 	// Storage: Hrmp HrmpOpenChannelRequests (r:2 w:2)
@@ -109,13 +109,13 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	// Storage: Hrmp HrmpChannels (r:0 w:2)
 	/// The range of component `c` is `[0, 128]`.
 	fn force_process_hrmp_open(c: u32, ) -> Weight {
-		Weight::from_ref_time(0 as RefTimeWeight)
+		Weight::from_ref_time(0 as u64)
 			// Standard Error: 35_000
-			.saturating_add(Weight::from_ref_time(23_225_000 as RefTimeWeight).saturating_mul(c as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((7 as RefTimeWeight).saturating_mul(c as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((6 as RefTimeWeight).saturating_mul(c as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(23_225_000 as u64).saturating_mul(c as u64))
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().reads((7 as u64).saturating_mul(c as u64)))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
+			.saturating_add(T::DbWeight::get().writes((6 as u64).saturating_mul(c as u64)))
 	}
 	// Storage: Hrmp HrmpCloseChannelRequestsList (r:1 w:0)
 	// Storage: Hrmp HrmpChannels (r:2 w:2)
@@ -125,35 +125,35 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	// Storage: Hrmp HrmpChannelContents (r:0 w:2)
 	/// The range of component `c` is `[0, 128]`.
 	fn force_process_hrmp_close(c: u32, ) -> Weight {
-		Weight::from_ref_time(0 as RefTimeWeight)
+		Weight::from_ref_time(0 as u64)
 			// Standard Error: 18_000
-			.saturating_add(Weight::from_ref_time(13_030_000 as RefTimeWeight).saturating_mul(c as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((3 as RefTimeWeight).saturating_mul(c as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((5 as RefTimeWeight).saturating_mul(c as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(13_030_000 as u64).saturating_mul(c as u64))
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().reads((3 as u64).saturating_mul(c as u64)))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
+			.saturating_add(T::DbWeight::get().writes((5 as u64).saturating_mul(c as u64)))
 	}
 	// Storage: Hrmp HrmpOpenChannelRequestsList (r:1 w:1)
 	// Storage: Hrmp HrmpOpenChannelRequests (r:1 w:1)
 	// Storage: Hrmp HrmpOpenChannelRequestCount (r:1 w:1)
 	/// The range of component `c` is `[0, 128]`.
 	fn hrmp_cancel_open_request(c: u32, ) -> Weight {
-		Weight::from_ref_time(26_560_000 as RefTimeWeight)
+		Weight::from_ref_time(26_560_000 as u64)
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(49_000 as RefTimeWeight).saturating_mul(c as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(49_000 as u64).saturating_mul(c as u64))
+			.saturating_add(T::DbWeight::get().reads(3 as u64))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
 	}
 	// Storage: Hrmp HrmpOpenChannelRequestsList (r:1 w:1)
 	// Storage: Hrmp HrmpOpenChannelRequests (r:2 w:2)
 	/// The range of component `c` is `[0, 128]`.
 	fn clean_open_channel_requests(c: u32, ) -> Weight {
-		Weight::from_ref_time(0 as RefTimeWeight)
+		Weight::from_ref_time(0 as u64)
 			// Standard Error: 9_000
-			.saturating_add(Weight::from_ref_time(3_867_000 as RefTimeWeight).saturating_mul(c as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((1 as RefTimeWeight).saturating_mul(c as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((1 as RefTimeWeight).saturating_mul(c as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(3_867_000 as u64).saturating_mul(c as u64))
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(c as u64)))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
+			.saturating_add(T::DbWeight::get().writes((1 as u64).saturating_mul(c as u64)))
 	}
 }
