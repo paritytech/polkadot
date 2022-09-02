@@ -72,7 +72,7 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	fn enter_variable_disputes(v: u32, ) -> Weight {
 		Weight::from_ref_time(352_590_000 as RefTimeWeight)
 			// Standard Error: 13_000
-			.saturating_add(Weight::from_ref_time(49_254_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(49_254_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(24 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(16 as RefTimeWeight))
 	}

@@ -87,7 +87,7 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	fn withdraw_unbonded_update(s: u32, ) -> Weight {
 		Weight::from_ref_time(32_006_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(27_000 as RefTimeWeight).scalar_saturating_mul(s as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(27_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
@@ -132,7 +132,7 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	fn kick(k: u32, ) -> Weight {
 		Weight::from_ref_time(11_581_000 as RefTimeWeight)
 			// Standard Error: 11_000
-			.saturating_add(Weight::from_ref_time(8_835_000 as RefTimeWeight).scalar_saturating_mul(k as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(8_835_000 as RefTimeWeight).saturating_mul(k as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads((1 as RefTimeWeight).saturating_mul(k as RefTimeWeight)))
 			.saturating_add(T::DbWeight::get().writes((1 as RefTimeWeight).saturating_mul(k as RefTimeWeight)))
@@ -152,7 +152,7 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	fn nominate(n: u32, ) -> Weight {
 		Weight::from_ref_time(52_135_000 as RefTimeWeight)
 			// Standard Error: 5_000
-			.saturating_add(Weight::from_ref_time(3_209_000 as RefTimeWeight).scalar_saturating_mul(n as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(3_209_000 as RefTimeWeight).saturating_mul(n as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(12 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads((1 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
 			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
@@ -208,7 +208,7 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	fn set_invulnerables(v: u32, ) -> Weight {
 		Weight::from_ref_time(3_866_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(10_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(10_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
 	// Storage: Staking Bonded (r:1 w:1)
@@ -228,7 +228,7 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	fn force_unstake(s: u32, ) -> Weight {
 		Weight::from_ref_time(58_815_000 as RefTimeWeight)
 			// Standard Error: 2_000
-			.saturating_add(Weight::from_ref_time(904_000 as RefTimeWeight).scalar_saturating_mul(s as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(904_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(11 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(12 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes((1 as RefTimeWeight).saturating_mul(s as RefTimeWeight)))
@@ -238,7 +238,7 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	fn cancel_deferred_slash(s: u32, ) -> Weight {
 		Weight::from_ref_time(3_402_940_000 as RefTimeWeight)
 			// Standard Error: 237_000
-			.saturating_add(Weight::from_ref_time(19_758_000 as RefTimeWeight).scalar_saturating_mul(s as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(19_758_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
@@ -256,7 +256,7 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	fn payout_stakers_dead_controller(n: u32, ) -> Weight {
 		Weight::from_ref_time(73_127_000 as RefTimeWeight)
 			// Standard Error: 22_000
-			.saturating_add(Weight::from_ref_time(26_095_000 as RefTimeWeight).scalar_saturating_mul(n as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(26_095_000 as RefTimeWeight).saturating_mul(n as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(10 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads((3 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
 			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
@@ -277,7 +277,7 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	fn payout_stakers_alive_staked(n: u32, ) -> Weight {
 		Weight::from_ref_time(80_071_000 as RefTimeWeight)
 			// Standard Error: 25_000
-			.saturating_add(Weight::from_ref_time(34_679_000 as RefTimeWeight).scalar_saturating_mul(n as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(34_679_000 as RefTimeWeight).saturating_mul(n as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(11 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads((5 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
@@ -293,7 +293,7 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	fn rebond(l: u32, ) -> Weight {
 		Weight::from_ref_time(69_288_000 as RefTimeWeight)
 			// Standard Error: 2_000
-			.saturating_add(Weight::from_ref_time(51_000 as RefTimeWeight).scalar_saturating_mul(l as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(51_000 as RefTimeWeight).saturating_mul(l as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(9 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(8 as RefTimeWeight))
 	}
@@ -310,7 +310,7 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	fn set_history_depth(e: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 83_000
-			.saturating_add(Weight::from_ref_time(21_591_000 as RefTimeWeight).scalar_saturating_mul(e as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(21_591_000 as RefTimeWeight).saturating_mul(e as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes((7 as RefTimeWeight).saturating_mul(e as RefTimeWeight)))
@@ -332,7 +332,7 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	fn reap_stash(s: u32, ) -> Weight {
 		Weight::from_ref_time(64_446_000 as RefTimeWeight)
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(899_000 as RefTimeWeight).scalar_saturating_mul(s as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(899_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(12 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(12 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes((1 as RefTimeWeight).saturating_mul(s as RefTimeWeight)))
@@ -361,9 +361,9 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	fn new_era(v: u32, n: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 1_296_000
-			.saturating_add(Weight::from_ref_time(286_045_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(286_045_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
 			// Standard Error: 125_000
-			.saturating_add(Weight::from_ref_time(37_667_000 as RefTimeWeight).scalar_saturating_mul(n as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(37_667_000 as RefTimeWeight).saturating_mul(n as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(192 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads((5 as RefTimeWeight).saturating_mul(v as RefTimeWeight)))
 			.saturating_add(T::DbWeight::get().reads((4 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
@@ -385,11 +385,11 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	fn get_npos_voters(v: u32, n: u32, s: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 108_000
-			.saturating_add(Weight::from_ref_time(24_629_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(24_629_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
 			// Standard Error: 108_000
-			.saturating_add(Weight::from_ref_time(22_598_000 as RefTimeWeight).scalar_saturating_mul(n as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(22_598_000 as RefTimeWeight).saturating_mul(n as RefTimeWeight))
 			// Standard Error: 2_778_000
-			.saturating_add(Weight::from_ref_time(59_951_000 as RefTimeWeight).scalar_saturating_mul(s as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(59_951_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(186 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads((5 as RefTimeWeight).saturating_mul(v as RefTimeWeight)))
 			.saturating_add(T::DbWeight::get().reads((4 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
@@ -402,7 +402,7 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	fn get_npos_targets(v: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 40_000
-			.saturating_add(Weight::from_ref_time(7_752_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(7_752_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads((1 as RefTimeWeight).saturating_mul(v as RefTimeWeight)))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))

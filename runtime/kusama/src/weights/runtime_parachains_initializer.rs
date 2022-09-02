@@ -49,7 +49,7 @@ impl<T: frame_system::Config> runtime_parachains::initializer::WeightInfo for We
 	fn force_approve(d: u32, ) -> Weight {
 		Weight::from_ref_time(6_367_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).scalar_saturating_mul(d as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).saturating_mul(d as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
