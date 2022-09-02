@@ -19,8 +19,6 @@ use std::{cmp::Ordering, collections::BinaryHeap, time::Instant};
 use futures::future::pending;
 use futures_timer::Delay;
 
-use crate::LOG_TARGET;
-
 /// Wait asynchronously for given `Instant`s one after the other.
 ///
 /// `PendingWake`s can be inserted and `WaitingQueue` makes `wait_ready()` to always wait for the
