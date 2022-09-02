@@ -21,7 +21,6 @@ use polkadot_primitives::v2::Hash;
 use sc_network::config::{NonDefaultSetConfig, SetConfig};
 use sc_network_common::protocol::ProtocolName;
 use std::{
-	borrow::Cow,
 	collections::{hash_map::Entry, HashMap},
 	ops::{Index, IndexMut},
 };
@@ -407,7 +406,7 @@ mod tests {
 		);
 		let expected =
 			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/validation/3";
-		assert_eq!(name, expected);
+		assert_eq!(name, expected.into());
 
 		let name = PeerSetProtocolNames::generate_name(
 			&genesis_hash,
@@ -417,7 +416,7 @@ mod tests {
 		);
 		let expected =
 			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/collation/5";
-		assert_eq!(name, expected);
+		assert_eq!(name, expected.into());
 
 		let fork_id = Some("test-fork");
 		let name = PeerSetProtocolNames::generate_name(
@@ -428,7 +427,7 @@ mod tests {
 		);
 		let expected =
 			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/test-fork/validation/7";
-		assert_eq!(name, expected);
+		assert_eq!(name, expected.into());
 
 		let name = PeerSetProtocolNames::generate_name(
 			&genesis_hash,
@@ -438,7 +437,7 @@ mod tests {
 		);
 		let expected =
 			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/test-fork/collation/11";
-		assert_eq!(name, expected);
+		assert_eq!(name, expected.into());
 	}
 
 	#[test]

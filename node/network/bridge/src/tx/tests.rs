@@ -20,7 +20,7 @@ use polkadot_node_subsystem_util::TimeoutExt;
 
 use async_trait::async_trait;
 use parking_lot::Mutex;
-use std::{borrow::Cow, collections::HashSet};
+use std::collections::HashSet;
 
 use sc_network::{Event as NetworkEvent, IfDisconnected};
 use sc_network_common::protocol::ProtocolName;

@@ -177,10 +177,7 @@ mod tests {
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
 	use sc_network_common::protocol::ProtocolName;
 	use sp_keyring::Sr25519Keyring;
-	use std::{
-		borrow::Cow,
-		collections::{HashMap, HashSet},
-	};
+	use std::collections::{HashMap, HashSet};
 
 	fn new_service() -> Service<TestNetwork, TestAuthorityDiscovery> {
 		let genesis_hash = Hash::repeat_byte(0xff);

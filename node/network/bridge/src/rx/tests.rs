@@ -23,7 +23,6 @@ use assert_matches::assert_matches;
 use async_trait::async_trait;
 use parking_lot::Mutex;
 use std::{
-	borrow::Cow,
 	collections::HashSet,
 	sync::atomic::{AtomicBool, Ordering},
 };
