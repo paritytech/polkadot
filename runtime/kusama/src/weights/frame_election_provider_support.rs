@@ -50,9 +50,9 @@ impl<T: frame_system::Config> frame_election_provider_support::WeightInfo for We
 	fn phragmen(v: u32, _t: u32, d: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 87_000
-			.saturating_add(Weight::from_ref_time(22_196_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(22_196_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
 			// Standard Error: 7_520_000
-			.saturating_add(Weight::from_ref_time(3_555_366_000 as RefTimeWeight).scalar_saturating_mul(d as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(3_555_366_000 as RefTimeWeight).saturating_mul(d as RefTimeWeight))
 	}
 	/// The range of component `v` is `[1000, 2000]`.
 	/// The range of component `t` is `[500, 1000]`.
@@ -60,8 +60,8 @@ impl<T: frame_system::Config> frame_election_provider_support::WeightInfo for We
 	fn phragmms(v: u32, _t: u32, d: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 74_000
-			.saturating_add(Weight::from_ref_time(15_098_000 as RefTimeWeight).scalar_saturating_mul(v as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(15_098_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
 			// Standard Error: 6_402_000
-			.saturating_add(Weight::from_ref_time(2_580_118_000 as RefTimeWeight).scalar_saturating_mul(d as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(2_580_118_000 as RefTimeWeight).saturating_mul(d as RefTimeWeight))
 	}
 }

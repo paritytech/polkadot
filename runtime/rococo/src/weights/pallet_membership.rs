@@ -52,7 +52,7 @@ impl<T: frame_system::Config> pallet_membership::WeightInfo for WeightInfo<T> {
 	fn add_member(m: u32, ) -> Weight {
 		Weight::from_ref_time(16_814_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(60_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(60_000 as RefTimeWeight).saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
@@ -65,7 +65,7 @@ impl<T: frame_system::Config> pallet_membership::WeightInfo for WeightInfo<T> {
 	fn remove_member(m: u32, ) -> Weight {
 		Weight::from_ref_time(19_124_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(51_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(51_000 as RefTimeWeight).saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
@@ -78,7 +78,7 @@ impl<T: frame_system::Config> pallet_membership::WeightInfo for WeightInfo<T> {
 	fn swap_member(m: u32, ) -> Weight {
 		Weight::from_ref_time(19_143_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(63_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(63_000 as RefTimeWeight).saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
@@ -91,7 +91,7 @@ impl<T: frame_system::Config> pallet_membership::WeightInfo for WeightInfo<T> {
 	fn reset_member(m: u32, ) -> Weight {
 		Weight::from_ref_time(18_621_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(186_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(186_000 as RefTimeWeight).saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
@@ -104,7 +104,7 @@ impl<T: frame_system::Config> pallet_membership::WeightInfo for WeightInfo<T> {
 	fn change_key(m: u32, ) -> Weight {
 		Weight::from_ref_time(19_913_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(58_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(58_000 as RefTimeWeight).saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
 	}
@@ -115,7 +115,7 @@ impl<T: frame_system::Config> pallet_membership::WeightInfo for WeightInfo<T> {
 	fn set_prime(m: u32, ) -> Weight {
 		Weight::from_ref_time(6_445_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(10_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(10_000 as RefTimeWeight).saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
@@ -125,7 +125,7 @@ impl<T: frame_system::Config> pallet_membership::WeightInfo for WeightInfo<T> {
 	fn clear_prime(m: u32, ) -> Weight {
 		Weight::from_ref_time(3_524_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).scalar_saturating_mul(m as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).saturating_mul(m as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
 }

@@ -48,13 +48,13 @@ impl<T: frame_system::Config> frame_system::WeightInfo for WeightInfo<T> {
 	fn remark(b: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(1_000 as RefTimeWeight).scalar_saturating_mul(b as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(1_000 as RefTimeWeight).saturating_mul(b as RefTimeWeight))
 	}
 	/// The range of component `b` is `[0, 3932160]`.
 	fn remark_with_event(b: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).scalar_saturating_mul(b as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).saturating_mul(b as RefTimeWeight))
 	}
 	// Storage: System Digest (r:1 w:1)
 	// Storage: unknown [0x3a686561707061676573] (r:0 w:1)
@@ -68,7 +68,7 @@ impl<T: frame_system::Config> frame_system::WeightInfo for WeightInfo<T> {
 	fn set_storage(i: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(550_000 as RefTimeWeight).scalar_saturating_mul(i as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(550_000 as RefTimeWeight).saturating_mul(i as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes((1 as RefTimeWeight).saturating_mul(i as RefTimeWeight)))
 	}
 	// Storage: Skipped Metadata (r:0 w:0)
@@ -76,7 +76,7 @@ impl<T: frame_system::Config> frame_system::WeightInfo for WeightInfo<T> {
 	fn kill_storage(i: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(441_000 as RefTimeWeight).scalar_saturating_mul(i as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(441_000 as RefTimeWeight).saturating_mul(i as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes((1 as RefTimeWeight).saturating_mul(i as RefTimeWeight)))
 	}
 	// Storage: Skipped Metadata (r:0 w:0)
@@ -84,7 +84,7 @@ impl<T: frame_system::Config> frame_system::WeightInfo for WeightInfo<T> {
 	fn kill_prefix(p: u32, ) -> Weight {
 		Weight::from_ref_time(0 as RefTimeWeight)
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(955_000 as RefTimeWeight).scalar_saturating_mul(p as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(955_000 as RefTimeWeight).saturating_mul(p as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes((1 as RefTimeWeight).saturating_mul(p as RefTimeWeight)))
 	}
 }

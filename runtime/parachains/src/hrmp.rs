@@ -953,7 +953,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub(crate) fn prune_hrmp(recipient: ParaId, new_hrmp_watermark: T::BlockNumber) -> Weight {
-		let mut weight = Weight::new();
+		let mut weight = Weight::zero();
 
 		// sift through the incoming messages digest to collect the paras that sent at least one
 		// message to this parachain between the old and new watermarks.
@@ -1020,7 +1020,7 @@ impl<T: Config> Pallet<T> {
 		sender: ParaId,
 		out_hrmp_msgs: Vec<OutboundHrmpMessage<ParaId>>,
 	) -> Weight {
-		let mut weight = Weight::new();
+		let mut weight = Weight::zero();
 		let now = <frame_system::Pallet<T>>::block_number();
 
 		for out_msg in out_hrmp_msgs {

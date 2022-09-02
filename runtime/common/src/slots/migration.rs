@@ -51,7 +51,7 @@ pub mod slots_crowdloan_index_migration {
 	}
 
 	pub fn migrate<T: Config + crowdloan::Config>() -> frame_support::weights::Weight {
-		let mut weight = Weight::new();
+		let mut weight = Weight::zero();
 
 		for (para_id, mut leases) in Leases::<T>::iter() {
 			weight = weight.saturating_add(T::DbWeight::get().reads(2));

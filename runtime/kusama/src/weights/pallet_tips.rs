@@ -50,7 +50,7 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 	fn report_awesome(r: u32, ) -> Weight {
 		Weight::from_ref_time(28_045_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).scalar_saturating_mul(r as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).saturating_mul(r as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
@@ -69,9 +69,9 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 	fn tip_new(r: u32, t: u32, ) -> Weight {
 		Weight::from_ref_time(19_125_000 as RefTimeWeight)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).scalar_saturating_mul(r as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(2_000 as RefTimeWeight).saturating_mul(r as RefTimeWeight))
 			// Standard Error: 2_000
-			.saturating_add(Weight::from_ref_time(41_000 as RefTimeWeight).scalar_saturating_mul(t as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(41_000 as RefTimeWeight).saturating_mul(t as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
@@ -81,7 +81,7 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 	fn tip(t: u32, ) -> Weight {
 		Weight::from_ref_time(10_895_000 as RefTimeWeight)
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(158_000 as RefTimeWeight).scalar_saturating_mul(t as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(158_000 as RefTimeWeight).saturating_mul(t as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
 	}
@@ -93,7 +93,7 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 	fn close_tip(t: u32, ) -> Weight {
 		Weight::from_ref_time(42_301_000 as RefTimeWeight)
 			// Standard Error: 4_000
-			.saturating_add(Weight::from_ref_time(154_000 as RefTimeWeight).scalar_saturating_mul(t as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(154_000 as RefTimeWeight).saturating_mul(t as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
 	}
@@ -103,7 +103,7 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 	fn slash_tip(t: u32, ) -> Weight {
 		Weight::from_ref_time(16_548_000 as RefTimeWeight)
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(21_000 as RefTimeWeight).scalar_saturating_mul(t as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(21_000 as RefTimeWeight).saturating_mul(t as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
 			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
 	}
