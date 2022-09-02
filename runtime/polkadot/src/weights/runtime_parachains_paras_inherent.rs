@@ -38,7 +38,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
+use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `runtime_parachains::paras_inherent`.
@@ -77,11 +77,11 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	/// The range of component `v` is `[10, 200]`.
 	fn enter_variable_disputes(v: u32, ) -> Weight {
-		Weight::from_ref_time(364_277_000 as RefTimeWeight)
+		Weight::from_ref_time(364_277_000 as u64)
 			// Standard Error: 23_000
-			.saturating_add(Weight::from_ref_time(48_774_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(29 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(18 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(48_774_000 as u64).saturating_mul(v as u64))
+			.saturating_add(T::DbWeight::get().reads(29 as u64))
+			.saturating_add(T::DbWeight::get().writes(18 as u64))
 	}
 	// Storage: ParaInherent Included (r:1 w:1)
 	// Storage: System ParentHash (r:1 w:0)
@@ -114,9 +114,9 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Paras Heads (r:0 w:1)
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	fn enter_bitfields() -> Weight {
-		Weight::from_ref_time(361_620_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(26 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(17 as RefTimeWeight))
+		Weight::from_ref_time(361_620_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(26 as u64))
+			.saturating_add(T::DbWeight::get().writes(17 as u64))
 	}
 	// Storage: ParaInherent Included (r:1 w:1)
 	// Storage: System ParentHash (r:1 w:0)
@@ -151,11 +151,11 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	/// The range of component `v` is `[101, 200]`.
 	fn enter_backed_candidates_variable(v: u32, ) -> Weight {
-		Weight::from_ref_time(984_915_000 as RefTimeWeight)
+		Weight::from_ref_time(984_915_000 as u64)
 			// Standard Error: 47_000
-			.saturating_add(Weight::from_ref_time(48_309_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(29 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(16 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(48_309_000 as u64).saturating_mul(v as u64))
+			.saturating_add(T::DbWeight::get().reads(29 as u64))
+			.saturating_add(T::DbWeight::get().writes(16 as u64))
 	}
 	// Storage: ParaInherent Included (r:1 w:1)
 	// Storage: System ParentHash (r:1 w:0)
@@ -191,8 +191,8 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Paras Heads (r:0 w:1)
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	fn enter_backed_candidate_code_upgrade() -> Weight {
-		Weight::from_ref_time(43_858_899_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(31 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(16 as RefTimeWeight))
+		Weight::from_ref_time(43_858_899_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(31 as u64))
+			.saturating_add(T::DbWeight::get().writes(16 as u64))
 	}
 }

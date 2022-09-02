@@ -38,7 +38,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
+use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `pallet_gilt`.
@@ -48,46 +48,46 @@ impl<T: frame_system::Config> pallet_gilt::WeightInfo for WeightInfo<T> {
 	// Storage: Gilt QueueTotals (r:1 w:1)
 	/// The range of component `l` is `[0, 999]`.
 	fn place_bid(l: u32, ) -> Weight {
-		Weight::from_ref_time(36_767_000 as RefTimeWeight)
+		Weight::from_ref_time(36_767_000 as u64)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(115_000 as RefTimeWeight).saturating_mul(l as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(115_000 as u64).saturating_mul(l as u64))
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
 	// Storage: Gilt Queues (r:1 w:1)
 	// Storage: Gilt QueueTotals (r:1 w:1)
 	fn place_bid_max() -> Weight {
-		Weight::from_ref_time(119_333_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
+		Weight::from_ref_time(119_333_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
 	// Storage: Gilt Queues (r:1 w:1)
 	// Storage: Gilt QueueTotals (r:1 w:1)
 	/// The range of component `l` is `[1, 1000]`.
 	fn retract_bid(l: u32, ) -> Weight {
-		Weight::from_ref_time(37_108_000 as RefTimeWeight)
+		Weight::from_ref_time(37_108_000 as u64)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(94_000 as RefTimeWeight).saturating_mul(l as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(94_000 as u64).saturating_mul(l as u64))
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
 	// Storage: Gilt ActiveTotal (r:1 w:1)
 	fn set_target() -> Weight {
-		Weight::from_ref_time(5_188_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+		Weight::from_ref_time(5_188_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Gilt Active (r:1 w:1)
 	// Storage: Gilt ActiveTotal (r:1 w:1)
 	fn thaw() -> Weight {
-		Weight::from_ref_time(43_654_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
+		Weight::from_ref_time(43_654_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
 	// Storage: Gilt ActiveTotal (r:1 w:0)
 	fn pursue_target_noop() -> Weight {
-		Weight::from_ref_time(1_584_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
+		Weight::from_ref_time(1_584_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
 	}
 	// Storage: Gilt ActiveTotal (r:1 w:1)
 	// Storage: Gilt QueueTotals (r:1 w:1)
@@ -95,12 +95,12 @@ impl<T: frame_system::Config> pallet_gilt::WeightInfo for WeightInfo<T> {
 	// Storage: Gilt Active (r:0 w:1)
 	/// The range of component `b` is `[1, 1000]`.
 	fn pursue_target_per_item(b: u32, ) -> Weight {
-		Weight::from_ref_time(21_464_000 as RefTimeWeight)
+		Weight::from_ref_time(21_464_000 as u64)
 			// Standard Error: 2_000
-			.saturating_add(Weight::from_ref_time(4_387_000 as RefTimeWeight).saturating_mul(b as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((1 as RefTimeWeight).saturating_mul(b as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(4_387_000 as u64).saturating_mul(b as u64))
+			.saturating_add(T::DbWeight::get().reads(3 as u64))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
+			.saturating_add(T::DbWeight::get().writes((1 as u64).saturating_mul(b as u64)))
 	}
 	// Storage: Gilt ActiveTotal (r:1 w:1)
 	// Storage: Gilt QueueTotals (r:1 w:1)
@@ -108,12 +108,12 @@ impl<T: frame_system::Config> pallet_gilt::WeightInfo for WeightInfo<T> {
 	// Storage: Gilt Active (r:0 w:1)
 	/// The range of component `q` is `[1, 300]`.
 	fn pursue_target_per_queue(q: u32, ) -> Weight {
-		Weight::from_ref_time(12_881_000 as RefTimeWeight)
+		Weight::from_ref_time(12_881_000 as u64)
 			// Standard Error: 8_000
-			.saturating_add(Weight::from_ref_time(8_285_000 as RefTimeWeight).saturating_mul(q as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((1 as RefTimeWeight).saturating_mul(q as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((2 as RefTimeWeight).saturating_mul(q as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(8_285_000 as u64).saturating_mul(q as u64))
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(q as u64)))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
+			.saturating_add(T::DbWeight::get().writes((2 as u64).saturating_mul(q as u64)))
 	}
 }
