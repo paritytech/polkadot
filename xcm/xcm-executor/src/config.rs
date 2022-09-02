@@ -15,14 +15,15 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::traits::{
-	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
-	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
+	AssetExchange, AssetLock, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FeeManager,
+	OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
+	traits::{Contains, ContainsPair, Get, PalletsInfoAccess},
 	weights::{GetDispatchInfo, PostDispatchInfo},
 };
-use xcm::latest::SendXcm;
+use xcm::prelude::*;
 
 /// The trait to parameterize the `XcmExecutor`.
 pub trait Config {
@@ -38,14 +39,14 @@ pub trait Config {
 	/// How to get a call origin from a `OriginKind` value.
 	type OriginConverter: ConvertOrigin<<Self::Call as Dispatchable>::Origin>;
 
-	/// Combinations of (Location, Asset) pairs which we trust as reserves.
-	type IsReserve: FilterAssetLocation;
+	/// Combinations of (Asset, Location) pairs which we trust as reserves.
+	type IsReserve: ContainsPair<MultiAsset, MultiLocation>;
 
-	/// Combinations of (Location, Asset) pairs which we trust as teleporters.
-	type IsTeleporter: FilterAssetLocation;
+	/// Combinations of (Asset, Location) pairs which we trust as teleporters.
+	type IsTeleporter: ContainsPair<MultiAsset, MultiLocation>;
 
-	/// Means of inverting a location.
-	type LocationInverter: InvertLocation;
+	/// This chain's Universal Location.
+	type UniversalLocation: Get<InteriorMultiLocation>;
 
 	/// Whether we should execute the given XCM at all.
 	type Barrier: ShouldExecute;
@@ -63,9 +64,34 @@ pub trait Config {
 	/// end of execution.
 	type AssetTrap: DropAssets;
 
+	/// Handler for asset locking.
+	type AssetLocker: AssetLock;
+
+	/// Handler for exchanging assets.
+	type AssetExchanger: AssetExchange;
+
 	/// The handler for when there is an instruction to claim assets.
 	type AssetClaims: ClaimAssets;
 
 	/// How we handle version subscription requests.
 	type SubscriptionService: VersionChangeNotifier;
+
+	/// Information on all pallets.
+	type PalletInstancesInfo: PalletsInfoAccess;
+
+	/// The maximum number of assets we target to have in the Holding Register at any one time.
+	///
+	/// NOTE: In the worse case, the Holding Register may contain up to twice as many assets as this
+	/// and any benchmarks should take that into account.
+	type MaxAssetsIntoHolding: Get<u32>;
+
+	/// Configure the fees.
+	type FeeManager: FeeManager;
+
+	/// The method of exporting a message.
+	type MessageExporter: ExportXcm;
+
+	/// The origin locations and specific universal junctions to which they are allowed to elevate
+	/// themselves.
+	type UniversalAliases: Contains<(MultiLocation, Junction)>;
 }

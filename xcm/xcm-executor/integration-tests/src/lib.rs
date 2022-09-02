@@ -37,7 +37,7 @@ fn basic_buy_fees_message_executes() {
 	let msg = Xcm(vec![
 		WithdrawAsset((Parent, 100).into()),
 		BuyExecution { fees: (Parent, 1).into(), weight_limit: Unlimited },
-		DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Parent.into() },
+		DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Parent.into() },
 	]);
 
 	let mut block_builder = client.init_polkadot_block_builder();
@@ -119,7 +119,8 @@ fn query_response_fires() {
 
 	let response = Response::ExecutionResult(None);
 	let max_weight = 1_000_000;
-	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
+	let querier = Some(Here.into());
+	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight, querier }]);
 	let msg = Box::new(VersionedXcm::from(msg));
 
 	let execute = construct_extrinsic(
@@ -154,7 +155,7 @@ fn query_response_fires() {
 			assert_eq!(
 				polkadot_test_runtime::Xcm::query(query_id),
 				Some(QueryStatus::Ready {
-					response: VersionedResponse::V2(Response::ExecutionResult(None)),
+					response: VersionedResponse::V3(Response::ExecutionResult(None)),
 					at: 2u32.into()
 				}),
 			)
@@ -208,7 +209,8 @@ fn query_response_elicits_handler() {
 
 	let response = Response::ExecutionResult(None);
 	let max_weight = 1_000_000;
-	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
+	let querier = Some(Here.into());
+	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight, querier }]);
 
 	let execute = construct_extrinsic(
 		&client,

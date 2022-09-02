@@ -16,7 +16,7 @@
 
 use parity_scale_codec::{Decode, Encode};
 use sp_std::{borrow::Borrow, prelude::*, result::Result};
-use xcm::latest::{MultiLocation, OriginKind};
+use xcm::latest::prelude::*;
 
 /// Generic third-party conversion trait. Use this when you don't want to force the user to use default
 /// implementations of `From` and `Into` for the types you wish to convert between.
@@ -202,11 +202,4 @@ impl<O> ConvertOrigin<O> for Tuple {
 		);
 		Err(origin)
 	}
-}
-
-/// Means of inverting a location: given a location which describes a `target` interpreted from the
-/// `source`, this will provide the corresponding location which describes the `source`.
-pub trait InvertLocation {
-	fn ancestry() -> MultiLocation;
-	fn invert_location(l: &MultiLocation) -> Result<MultiLocation, ()>;
 }
