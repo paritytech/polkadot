@@ -174,8 +174,7 @@ mod tests {
 		PeerId,
 	};
 	use polkadot_primitives::v2::Hash;
-	use sc_network::{Event as NetworkEvent, IfDisconnected};
-	use sc_network_common::protocol::ProtocolName;
+	use sc_network::{Event as NetworkEvent, IfDisconnected, ProtocolName};
 	use sp_keyring::Sr25519Keyring;
 	use std::collections::{HashMap, HashSet};
 

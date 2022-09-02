@@ -36,10 +36,9 @@ use std::{collections::HashMap, time::Duration, u64};
 
 use futures::channel::mpsc;
 use polkadot_primitives::v2::{MAX_CODE_SIZE, MAX_POV_SIZE};
-use sc_network_common::protocol::ProtocolName;
 use strum::{EnumIter, IntoEnumIterator};
 
-pub use sc_network::{config as network, config::RequestResponseConfig};
+pub use sc_network::{config as network, config::RequestResponseConfig, ProtocolName};
 
 /// Everything related to handling of incoming requests.
 pub mod incoming;

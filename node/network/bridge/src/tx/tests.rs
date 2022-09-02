@@ -22,8 +22,7 @@ use async_trait::async_trait;
 use parking_lot::Mutex;
 use std::collections::HashSet;
 
-use sc_network::{Event as NetworkEvent, IfDisconnected};
-use sc_network_common::protocol::ProtocolName;
+use sc_network::{Event as NetworkEvent, IfDisconnected, ProtocolName};
 
 use polkadot_node_network_protocol::{
 	peer_set::PeerSetProtocolNames,
