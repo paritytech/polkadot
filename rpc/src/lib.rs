@@ -61,11 +61,11 @@ pub struct GrandpaDeps<B> {
 	pub finality_provider: Arc<FinalityProofProvider<B, Block>>,
 }
 
-use beefy_gadget::notification::{BeefyBestBlockStream, BeefySignedCommitmentStream};
+use beefy_gadget::notification::{BeefyBestBlockStream, BeefyVersionedFinalityProofStream};
 /// Dependencies for BEEFY
 pub struct BeefyDeps {
-	/// Receives notifications about signed commitment events from BEEFY.
-	pub beefy_commitment_stream: BeefySignedCommitmentStream<Block>,
+	/// Receives notifications about finality proof events from BEEFY.
+	pub beefy_finality_proof_stream: BeefyVersionedFinalityProofStream<Block>,
 	/// Receives notifications about best block events from BEEFY.
 	pub beefy_best_block_stream: BeefyBestBlockStream<Block>,
 	/// Executor to drive the subscription manager in the BEEFY RPC handler.
@@ -167,7 +167,7 @@ where
 
 	io.merge(
 		Beefy::<Block>::new(
-			beefy.beefy_commitment_stream,
+			beefy.beefy_finality_proof_stream,
 			beefy.beefy_best_block_stream,
 			beefy.subscription_executor,
 		)?

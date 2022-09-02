@@ -1,0 +1,46 @@
+[settings]
+timeout = 1000
+bootnode = true
+
+[relaychain.genesis.runtime.runtime_genesis_config.configuration.config]
+  max_validators_per_core = 1
+  needed_approvals = 2
+
+[relaychain]
+default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
+chain = "rococo-local"
+chain_spec_command = "polkadot build-spec --chain rococo-local --disable-default-bootnode"
+default_command = "polkadot"
+
+[relaychain.default_resources]
+limits = { memory = "4G", cpu = "2" }
+requests = { memory = "2G", cpu = "1" }
+
+  [[relaychain.node_groups]]
+  name = "honest-validator"
+  count = 3
+  args = ["-lparachain=debug,runtime=debug"]
+
+  [[relaychain.node_groups]]
+  image = "{{MALUS_IMAGE}}"
+  name = "malus-validator"
+  command = "malus suggest-garbage-candidate"
+  args = ["-lparachain=debug,MALUS=trace"]
+  count = 1
+ 
+{% for id in range(2000,2003) %}
+[[parachains]]
+id = {{id}}
+addToGenesis = true
+genesis_state_generator = "undying-collator export-genesis-state --pov-size={{10000*(id-1999)}} --pvf-complexity={{id - 1999}}"
+    [parachains.collator]
+    image = "{{COL_IMAGE}}"
+    name = "collator"
+    command = "undying-collator"
+    args = ["-lparachain=debug", "--pov-size={{10000*(id-1999)}}", "--parachain-id={{id}}", "--pvf-complexity={{id - 1999}}"]
+{% endfor %}
+
+[types.Header]
+number = "u64"
+parent_hash = "Hash"
+post_state = "Hash"

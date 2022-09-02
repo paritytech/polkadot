@@ -530,7 +530,7 @@ impl parachains_ump::Config for Runtime {
 }
 
 parameter_types! {
-	pub const BaseXcmWeight: frame_support::weights::Weight = 1_000;
+	pub const BaseXcmWeight: xcm::latest::Weight = 1_000;
 	pub const AnyNetwork: xcm::latest::NetworkId = xcm::latest::NetworkId::Any;
 	pub const MaxInstructions: u32 = 100;
 }
@@ -1058,6 +1058,17 @@ sp_api::impl_runtime_apis! {
 		}
 		fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
 			TransactionPayment::query_fee_details(uxt, len)
+		}
+	}
+
+	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentCallApi<Block, Balance, Call>
+		for Runtime
+	{
+		fn query_call_info(call: Call, len: u32) -> RuntimeDispatchInfo<Balance> {
+			TransactionPayment::query_call_info(call, len)
+		}
+		fn query_call_fee_details(call: Call, len: u32) -> FeeDetails<Balance> {
+			TransactionPayment::query_call_fee_details(call, len)
 		}
 	}
 

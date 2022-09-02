@@ -501,10 +501,11 @@ async fn validate_candidate_exhaustive(
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
 	let validation_code_hash = validation_code.hash();
+	let para_id = candidate_receipt.descriptor.para_id.clone();
 	gum::debug!(
 		target: LOG_TARGET,
 		?validation_code_hash,
-		para_id = ?candidate_receipt.descriptor.para_id,
+		?para_id,
 		"About to validate a candidate.",
 	);
 
@@ -514,6 +515,7 @@ async fn validate_candidate_exhaustive(
 		&*pov,
 		&validation_code_hash,
 	) {
+		gum::info!(target: LOG_TARGET, ?para_id, "Invalid candidate (basic checks)");
 		return Ok(ValidationResult::Invalid(e))
 	}
 
@@ -523,7 +525,7 @@ async fn validate_candidate_exhaustive(
 	) {
 		Ok(code) => code,
 		Err(e) => {
-			gum::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
+			gum::info!(target: LOG_TARGET, ?para_id, err=?e, "Invalid candidate (validation code)");
 
 			// If the validation code is invalid, the candidate certainly is.
 			return Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure))
@@ -534,7 +536,7 @@ async fn validate_candidate_exhaustive(
 		match sp_maybe_compressed_blob::decompress(&pov.block_data.0, POV_BOMB_LIMIT) {
 			Ok(block_data) => BlockData(block_data.to_vec()),
 			Err(e) => {
-				gum::debug!(target: LOG_TARGET, err=?e, "Invalid PoV code");
+				gum::info!(target: LOG_TARGET, ?para_id, err=?e, "Invalid candidate (PoV code)");
 
 				// If the PoV is invalid, the candidate certainly is.
 				return Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure))
@@ -552,12 +554,8 @@ async fn validate_candidate_exhaustive(
 		.validate_candidate(raw_validation_code.to_vec(), timeout, params)
 		.await;
 
-	if let Err(ref e) = result {
-		gum::debug!(
-			target: LOG_TARGET,
-			error = ?e,
-			"Failed to validate candidate",
-		);
+	if let Err(ref error) = result {
+		gum::info!(target: LOG_TARGET, ?para_id, ?error, "Failed to validate candidate",);
 	}
 
 	match result {
@@ -576,6 +574,7 @@ async fn validate_candidate_exhaustive(
 
 		Ok(res) =>
 			if res.head_data.hash() != candidate_receipt.descriptor.para_head {
+				gum::info!(target: LOG_TARGET, ?para_id, "Invalid candidate (para_head)");
 				Ok(ValidationResult::Invalid(InvalidCandidate::ParaHeadHashMismatch))
 			} else {
 				let outputs = CandidateCommitments {
@@ -587,6 +586,12 @@ async fn validate_candidate_exhaustive(
 					hrmp_watermark: res.hrmp_watermark,
 				};
 				if candidate_receipt.commitments_hash != outputs.hash() {
+					gum::info!(
+						target: LOG_TARGET,
+						?para_id,
+						"Invalid candidate (commitments hash)"
+					);
+
 					// If validation produced a new set of commitments, we treat the candidate as invalid.
 					Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))
 				} else {

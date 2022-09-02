@@ -1,6 +1,6 @@
 [package]
 name = "kusama-runtime"
-version = "0.9.27"
+version = "0.9.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 build = "build.rs"
@@ -104,6 +104,9 @@ keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substra
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 separator = "0.4.1"
 serde_json = "1.0.81"
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+tokio = { version = "1.19.2", features = ["macros"] }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -240,8 +243,8 @@ try-runtime = [
 	"frame-system/try-runtime",
 	"pallet-authority-discovery/try-runtime",
 	"pallet-authorship/try-runtime",
-	"pallet-balances/try-runtime",
 	"pallet-bags-list/try-runtime",
+	"pallet-balances/try-runtime",
 	"pallet-bounties/try-runtime",
 	"pallet-child-bounties/try-runtime",
 	"pallet-transaction-payment/try-runtime",
@@ -249,6 +252,7 @@ try-runtime = [
 	"pallet-elections-phragmen/try-runtime",
 	"pallet-election-provider-multi-phase/try-runtime",
 	"pallet-democracy/try-runtime",
+	"pallet-gilt/try-runtime",
 	"pallet-grandpa/try-runtime",
 	"pallet-identity/try-runtime",
 	"pallet-im-online/try-runtime",
@@ -270,6 +274,7 @@ try-runtime = [
 	"pallet-utility/try-runtime",
 	"pallet-vesting/try-runtime",
 	"pallet-babe/try-runtime",
+	"pallet-xcm/try-runtime",
 	"runtime-common/try-runtime",
 ]
 # When enabled, the runtime API will not be build.
