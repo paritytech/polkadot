@@ -345,9 +345,16 @@ where
 			Ok(votes) => votes,
 		};
 
-		match self.batches.find_batch(*valid_vote.0.candidate_hash(), candidate_receipt)? {
+		let candidate_hash = *valid_vote.0.candidate_hash();
+
+		match self.batches.find_batch(candidate_hash, candidate_receipt)? {
 			FoundBatch::Created(batch) => {
 				// There was no entry yet - start import immediately:
+				gum::trace!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					"No batch yet - triggering immediate import"
+				);
 				let import = PreparedImport {
 					candidate_receipt: batch.candidate_receipt().clone(),
 					statements: vec![valid_vote, invalid_vote],
@@ -356,6 +363,7 @@ where
 				self.start_import(import).await;
 			},
 			FoundBatch::Found(batch) => {
+				gum::trace!(target: LOG_TARGET, ?candidate_hash, "Batch exists - batching request");
 				let batch_result =
 					batch.add_votes(valid_vote, invalid_vote, peer, pending_response);
 
