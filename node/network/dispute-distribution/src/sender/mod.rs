@@ -102,6 +102,8 @@ impl DisputeSender {
 		runtime: &mut RuntimeInfo,
 		msg: DisputeMessage,
 	) -> Result<()> {
+		self.rate_limit.limit().await;
+
 		let req: DisputeRequest = msg.into();
 		let candidate_hash = req.0.candidate_receipt.hash();
 		match self.disputes.entry(candidate_hash) {
@@ -122,9 +124,6 @@ impl DisputeSender {
 				vacant.insert(send_task);
 			},
 		}
-
-		self.rate_limit.limit().await;
-
 		Ok(())
 	}
 
@@ -163,8 +162,12 @@ impl DisputeSender {
 			.retain(|candidate_hash, _| active_disputes.contains(candidate_hash));
 
 		// Iterates in order of insertion:
+		let mut should_rate_limit = true;
 		for dispute in self.disputes.values_mut() {
 			if have_new_sessions || dispute.has_failed_sends() {
+				if should_rate_limit {
+					self.rate_limit.limit().await;
+				}
 				let sends_happened = dispute
 					.refresh_sends(ctx, runtime, &self.active_sessions, &self.metrics)
 					.await?;
@@ -174,9 +177,7 @@ impl DisputeSender {
 				// Reasoning: It would not be acceptable to slow down the whole subsystem, just
 				// because of a few bad peers having problems. It is actually better to risk
 				// running into their rate limit in that case and accept a minor reputation change.
-				if sends_happened && have_new_sessions {
-					self.rate_limit.limit().await;
-				}
+				should_rate_limit = sends_happened && have_new_sessions;
 			}
 		}
 
@@ -186,8 +187,8 @@ impl DisputeSender {
 		// recovered at startup will be relatively "old" anyway and we assume that no more than a
 		// third of the validators will go offline at any point in time anyway.
 		for dispute in unknown_disputes {
-			self.start_send_for_dispute(ctx, runtime, dispute).await?;
 			self.rate_limit.limit().await;
+			self.start_send_for_dispute(ctx, runtime, dispute).await?;
 		}
 		Ok(())
 	}
