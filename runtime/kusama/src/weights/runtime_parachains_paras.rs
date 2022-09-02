@@ -38,7 +38,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
+use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `runtime_parachains::paras`.
@@ -52,19 +52,19 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: Paras CodeByHash (r:0 w:1)
 	/// The range of component `c` is `[1, 3145728]`.
 	fn force_set_current_code(c: u32, ) -> Weight {
-		Weight::from_ref_time(0 as RefTimeWeight)
+		Weight::from_ref_time(0 as u64)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(3_000 as RefTimeWeight).saturating_mul(c as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(3_000 as u64).saturating_mul(c as u64))
+			.saturating_add(T::DbWeight::get().reads(4 as u64))
+			.saturating_add(T::DbWeight::get().writes(6 as u64))
 	}
 	// Storage: Paras Heads (r:0 w:1)
 	/// The range of component `s` is `[1, 1048576]`.
 	fn force_set_current_head(s: u32, ) -> Weight {
-		Weight::from_ref_time(0 as RefTimeWeight)
+		Weight::from_ref_time(0 as u64)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(1_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(1_000 as u64).saturating_mul(s as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Paras FutureCodeHash (r:1 w:1)
 	// Storage: Paras CurrentCodeHash (r:1 w:0)
@@ -78,54 +78,54 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: Paras UpgradeRestrictionSignal (r:0 w:1)
 	/// The range of component `c` is `[1, 3145728]`.
 	fn force_schedule_code_upgrade(c: u32, ) -> Weight {
-		Weight::from_ref_time(0 as RefTimeWeight)
+		Weight::from_ref_time(0 as u64)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(3_000 as RefTimeWeight).saturating_mul(c as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(8 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(8 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(3_000 as u64).saturating_mul(c as u64))
+			.saturating_add(T::DbWeight::get().reads(8 as u64))
+			.saturating_add(T::DbWeight::get().writes(8 as u64))
 	}
 	// Storage: Paras FutureCodeUpgrades (r:1 w:0)
 	// Storage: Paras Heads (r:0 w:1)
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	/// The range of component `s` is `[1, 1048576]`.
 	fn force_note_new_head(s: u32, ) -> Weight {
-		Weight::from_ref_time(0 as RefTimeWeight)
+		Weight::from_ref_time(0 as u64)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(1_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(1_000 as u64).saturating_mul(s as u64))
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	// Storage: Paras ActionsQueue (r:1 w:1)
 	fn force_queue_action() -> Weight {
-		Weight::from_ref_time(19_558_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+		Weight::from_ref_time(19_558_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Paras PvfActiveVoteMap (r:1 w:0)
 	// Storage: Paras CodeByHash (r:1 w:1)
 	/// The range of component `c` is `[1, 3145728]`.
 	fn add_trusted_validation_code(c: u32, ) -> Weight {
-		Weight::from_ref_time(0 as RefTimeWeight)
+		Weight::from_ref_time(0 as u64)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(3_000 as RefTimeWeight).saturating_mul(c as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(3_000 as u64).saturating_mul(c as u64))
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Paras CodeByHashRefs (r:1 w:0)
 	// Storage: Paras CodeByHash (r:0 w:1)
 	fn poke_unused_validation_code() -> Weight {
-		Weight::from_ref_time(4_740_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+		Weight::from_ref_time(4_740_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: ParasShared ActiveValidatorKeys (r:1 w:0)
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	// Storage: Paras PvfActiveVoteMap (r:1 w:1)
 	fn include_pvf_check_statement() -> Weight {
-		Weight::from_ref_time(90_598_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+		Weight::from_ref_time(90_598_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(3 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: ParasShared ActiveValidatorKeys (r:1 w:0)
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
@@ -135,9 +135,9 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: System Digest (r:1 w:1)
 	// Storage: Paras FutureCodeUpgrades (r:0 w:100)
 	fn include_pvf_check_statement_finalize_upgrade_accept() -> Weight {
-		Weight::from_ref_time(687_743_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(6 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(104 as RefTimeWeight))
+		Weight::from_ref_time(687_743_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(6 as u64))
+			.saturating_add(T::DbWeight::get().writes(104 as u64))
 	}
 	// Storage: ParasShared ActiveValidatorKeys (r:1 w:0)
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
@@ -148,9 +148,9 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:100)
 	// Storage: Paras FutureCodeHash (r:0 w:100)
 	fn include_pvf_check_statement_finalize_upgrade_reject() -> Weight {
-		Weight::from_ref_time(643_066_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(5 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(204 as RefTimeWeight))
+		Weight::from_ref_time(643_066_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(5 as u64))
+			.saturating_add(T::DbWeight::get().writes(204 as u64))
 	}
 	// Storage: ParasShared ActiveValidatorKeys (r:1 w:0)
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
@@ -158,9 +158,9 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: Paras PvfActiveVoteList (r:1 w:1)
 	// Storage: Paras ActionsQueue (r:1 w:1)
 	fn include_pvf_check_statement_finalize_onboarding_accept() -> Weight {
-		Weight::from_ref_time(545_691_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(5 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
+		Weight::from_ref_time(545_691_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(5 as u64))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
 	}
 	// Storage: ParasShared ActiveValidatorKeys (r:1 w:0)
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
@@ -172,8 +172,8 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: Paras CurrentCodeHash (r:0 w:100)
 	// Storage: Paras UpcomingParasGenesis (r:0 w:100)
 	fn include_pvf_check_statement_finalize_onboarding_reject() -> Weight {
-		Weight::from_ref_time(722_173_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(5 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(304 as RefTimeWeight))
+		Weight::from_ref_time(722_173_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(5 as u64))
+			.saturating_add(T::DbWeight::get().writes(304 as u64))
 	}
 }
