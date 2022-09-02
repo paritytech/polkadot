@@ -17,7 +17,12 @@
 
 //! Subsystem unit tests
 
-use std::{collections::HashSet, sync::Arc, task::Poll, time::Duration};
+use std::{
+	collections::HashSet,
+	sync::Arc,
+	task::Poll,
+	time::{Duration, Instant},
+};
 
 use assert_matches::assert_matches;
 use futures::{
@@ -52,7 +57,7 @@ use polkadot_node_subsystem_test_helpers::{
 	mock::make_ferdie_keystore, subsystem_test_harness, TestSubsystemContextHandle,
 };
 use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, SessionInfo,
+	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, Hash, SessionIndex, SessionInfo,
 };
 
 use self::mock::{
@@ -60,7 +65,7 @@ use self::mock::{
 	MOCK_AUTHORITY_DISCOVERY, MOCK_NEXT_SESSION_INDEX, MOCK_NEXT_SESSION_INFO, MOCK_SESSION_INDEX,
 	MOCK_SESSION_INFO,
 };
-use crate::{DisputeDistributionSubsystem, Metrics, LOG_TARGET};
+use crate::{DisputeDistributionSubsystem, Metrics, LOG_TARGET, SEND_RATE_LIMIT};
 
 /// Useful mock providers.
 pub mod mock;
@@ -72,49 +77,106 @@ fn send_dispute_sends_dispute() {
 
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
-		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
-		handle
-			.send(FromOrchestra::Communication {
-				msg: DisputeDistributionMessage::SendDispute(message.clone()),
-			})
-			.await;
-		// Requests needed session info:
-		assert_matches!(
-			handle.recv().await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(
-					hash,
-					RuntimeApiRequest::SessionInfo(session_index, tx)
-				)
-			) => {
-				assert_eq!(session_index, MOCK_SESSION_INDEX);
-				assert_eq!(
-					hash,
-					message.candidate_receipt().descriptor.relay_parent
-				);
-				tx.send(Ok(Some(MOCK_SESSION_INFO.clone()))).expect("Receiver should stay alive.");
-			}
-		);
-
-		let expected_receivers = {
-			let info = &MOCK_SESSION_INFO;
-			info.discovery_keys
-				.clone()
-				.into_iter()
-				.filter(|a| a != &Sr25519Keyring::Ferdie.public().into())
-				.collect()
-			// All validators are also authorities in the first session, so we are
-			// done here.
-		};
-		check_sent_requests(&mut handle, expected_receivers, true).await;
-
+		send_dispute(&mut handle, candidate, true).await;
 		conclude(&mut handle).await;
 	};
 	test_harness(test);
 }
 
 #[test]
-fn received_request_triggers_import() {
+fn send_honors_rate_limit() {
+	sp_tracing::try_init_simple();
+	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>, _req_cfg| async move {
+		let _ = handle_subsystem_startup(&mut handle, None).await;
+
+		let relay_parent = Hash::random();
+		let candidate = make_candidate_receipt(relay_parent);
+		let before_request = Instant::now();
+		send_dispute(&mut handle, candidate, true).await;
+		// First send should not be rate limited:
+		gum::trace!("Passed time: {:#?}", Instant::now().saturating_duration_since(before_request));
+		assert!(Instant::now().saturating_duration_since(before_request) < SEND_RATE_LIMIT);
+
+		let relay_parent = Hash::random();
+		let candidate = make_candidate_receipt(relay_parent);
+		send_dispute(&mut handle, candidate, false).await;
+		// Second send should be rate limited:
+		gum::trace!(
+			"Passed time for send_dispute: {:#?}",
+			Instant::now().saturating_duration_since(before_request)
+		);
+		assert!(Instant::now() - before_request >= SEND_RATE_LIMIT);
+		conclude(&mut handle).await;
+	};
+	test_harness(test);
+}
+
+/// Helper for sending a new dispute to dispute-distribution sender and handling resulting messages.
+async fn send_dispute(
+	handle: &mut TestSubsystemContextHandle<DisputeDistributionMessage>,
+	candidate: CandidateReceipt,
+	needs_session_info: bool,
+) {
+	let before_request = Instant::now();
+	let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
+	gum::trace!(
+		"Passed time for making message: {:#?}",
+		Instant::now().saturating_duration_since(before_request)
+	);
+	let before_request = Instant::now();
+	handle
+		.send(FromOrchestra::Communication {
+			msg: DisputeDistributionMessage::SendDispute(message.clone()),
+		})
+		.await;
+	gum::trace!(
+		"Passed time for sending message: {:#?}",
+		Instant::now().saturating_duration_since(before_request)
+	);
+	if needs_session_info {
+		// Requests needed session info:
+		assert_matches!(
+		handle.recv().await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(
+				hash,
+				RuntimeApiRequest::SessionInfo(session_index, tx)
+				)
+			) => {
+			assert_eq!(session_index, MOCK_SESSION_INDEX);
+			assert_eq!(
+				hash,
+				message.candidate_receipt().descriptor.relay_parent
+				);
+			tx.send(Ok(Some(MOCK_SESSION_INFO.clone()))).expect("Receiver should stay alive.");
+		}
+		);
+	}
+
+	let expected_receivers = {
+		let info = &MOCK_SESSION_INFO;
+		info.discovery_keys
+			.clone()
+			.into_iter()
+			.filter(|a| a != &Sr25519Keyring::Ferdie.public().into())
+			.collect()
+		// All validators are also authorities in the first session, so we are
+		// done here.
+	};
+	check_sent_requests(handle, expected_receivers, true).await;
+}
+
+// Things to test:
+// - Request triggers import
+// - Subsequent imports get batched
+// - Batch live gets renewed if enough requests trickle in
+// - Batch gets flushed if not.
+// x Non authority requests get dropped.
+// - Sending rate limit is honored.
+// - Receiving rate limit is honored.
+
+#[test]
+fn received_non_authorities_are_dropped() {
 	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>,
 	            mut req_cfg: RequestResponseConfig| async move {
 		let req_tx = req_cfg.inbound_queue.as_mut().unwrap();
@@ -140,7 +202,40 @@ fn received_request_triggers_import() {
 				assert_eq!(reputation_changes.len(), 1);
 			}
 		);
+		conclude(&mut handle).await;
+	};
+	test_harness(test);
+}
 
+#[test]
+fn received_request_triggers_import() {
+	sp_tracing::try_init_simple();
+
+	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>,
+	            mut req_cfg: RequestResponseConfig| async move {
+		let req_tx = req_cfg.inbound_queue.as_mut().unwrap();
+		let _ = handle_subsystem_startup(&mut handle, None).await;
+
+		let relay_parent = Hash::random();
+		let candidate = make_candidate_receipt(relay_parent);
+		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
+
+		// Non validator request should get dropped:
+		let rx_response =
+			send_network_dispute_request(req_tx, PeerId::random(), message.clone().into()).await;
+
+		assert_matches!(
+			rx_response.await,
+			Ok(resp) => {
+				let sc_network::config::OutgoingResponse {
+					result: _,
+					reputation_changes,
+					sent_feedback: _,
+				} = resp;
+				// Peer should get punished:
+				assert_eq!(reputation_changes.len(), 1);
+			}
+		);
 		// Nested valid and invalid import.
 		//
 		// Nested requests from same peer should get dropped. For the invalid request even
