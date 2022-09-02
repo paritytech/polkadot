@@ -3,6 +3,7 @@ name = "polkadot-service"
 version = "0.9.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
+rust-version = "1.60"
 
 [dependencies]
 # Substrate Client
