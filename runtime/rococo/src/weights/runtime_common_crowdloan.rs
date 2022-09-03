@@ -38,7 +38,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
+use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `runtime_common::crowdloan`.
@@ -49,9 +49,9 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 	// Storage: Paras ParaLifecycles (r:1 w:0)
 	// Storage: Crowdloan NextFundIndex (r:1 w:1)
 	fn create() -> Weight {
-		Weight::from_ref_time(41_754_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
+		Weight::from_ref_time(41_754_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(4 as u64))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
 	}
 	// Storage: Crowdloan Funds (r:1 w:1)
 	// Storage: Slots Leases (r:1 w:0)
@@ -61,55 +61,55 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 	// Storage: Crowdloan NewRaise (r:1 w:1)
 	// Storage: unknown [0xd861ea1ebf4800d4b89f4ff787ad79ee96d9a708c85b57da7eb8f9ddeda61291] (r:1 w:1)
 	fn contribute() -> Weight {
-		Weight::from_ref_time(110_907_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(7 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
+		Weight::from_ref_time(110_907_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(7 as u64))
+			.saturating_add(T::DbWeight::get().writes(4 as u64))
 	}
 	// Storage: Crowdloan Funds (r:1 w:1)
 	// Storage: System Account (r:2 w:2)
 	// Storage: unknown [0xc85982571aa615c788ef9b2c16f54f25773fd439e8ee1ed2aa3ae43d48e880f0] (r:1 w:1)
 	fn withdraw() -> Weight {
-		Weight::from_ref_time(49_546_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
+		Weight::from_ref_time(49_546_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(4 as u64))
+			.saturating_add(T::DbWeight::get().writes(4 as u64))
 	}
 	// Storage: Skipped Metadata (r:0 w:0)
 	/// The range of component `k` is `[0, 500]`.
 	fn refund(k: u32, ) -> Weight {
-		Weight::from_ref_time(2_505_000 as RefTimeWeight)
+		Weight::from_ref_time(2_505_000 as u64)
 			// Standard Error: 13_000
-			.saturating_add(Weight::from_ref_time(19_613_000 as RefTimeWeight).saturating_mul(k as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((2 as RefTimeWeight).saturating_mul(k as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((2 as RefTimeWeight).saturating_mul(k as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(19_613_000 as u64).saturating_mul(k as u64))
+			.saturating_add(T::DbWeight::get().reads(3 as u64))
+			.saturating_add(T::DbWeight::get().reads((2 as u64).saturating_mul(k as u64)))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
+			.saturating_add(T::DbWeight::get().writes((2 as u64).saturating_mul(k as u64)))
 	}
 	// Storage: Crowdloan Funds (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
 	fn dissolve() -> Weight {
-		Weight::from_ref_time(31_248_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
+		Weight::from_ref_time(31_248_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
 	// Storage: Crowdloan Funds (r:1 w:1)
 	fn edit() -> Weight {
-		Weight::from_ref_time(20_623_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+		Weight::from_ref_time(20_623_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Crowdloan Funds (r:1 w:0)
 	// Storage: unknown [0xd861ea1ebf4800d4b89f4ff787ad79ee96d9a708c85b57da7eb8f9ddeda61291] (r:1 w:1)
 	fn add_memo() -> Weight {
-		Weight::from_ref_time(26_451_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+		Weight::from_ref_time(26_451_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Crowdloan Funds (r:1 w:0)
 	// Storage: Crowdloan NewRaise (r:1 w:1)
 	fn poke() -> Weight {
-		Weight::from_ref_time(21_215_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+		Weight::from_ref_time(21_215_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Auctions AuctionInfo (r:1 w:0)
 	// Storage: Crowdloan EndingsCount (r:1 w:1)
@@ -123,12 +123,12 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 	// Storage: System Account (r:2 w:2)
 	/// The range of component `n` is `[2, 100]`.
 	fn on_initialize(n: u32, ) -> Weight {
-		Weight::from_ref_time(0 as RefTimeWeight)
+		Weight::from_ref_time(0 as u64)
 			// Standard Error: 25_000
-			.saturating_add(Weight::from_ref_time(51_756_000 as RefTimeWeight).saturating_mul(n as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(5 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((5 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((2 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(51_756_000 as u64).saturating_mul(n as u64))
+			.saturating_add(T::DbWeight::get().reads(5 as u64))
+			.saturating_add(T::DbWeight::get().reads((5 as u64).saturating_mul(n as u64)))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
+			.saturating_add(T::DbWeight::get().writes((2 as u64).saturating_mul(n as u64)))
 	}
 }
