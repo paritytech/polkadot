@@ -18,9 +18,11 @@
 
 use derive_more::Display;
 use polkadot_primitives::v2::Hash;
-use sc_network::config::{NonDefaultSetConfig, SetConfig};
+use sc_network::{
+	config::{NonDefaultSetConfig, SetConfig},
+	ProtocolName,
+};
 use std::{
-	borrow::Cow,
 	collections::{hash_map::Entry, HashMap},
 	ops::{Index, IndexMut},
 };
@@ -231,8 +233,8 @@ impl From<CollationVersion> for ProtocolVersion {
 /// On the wire protocol name to [`PeerSet`] mapping.
 #[derive(Clone)]
 pub struct PeerSetProtocolNames {
-	protocols: HashMap<Cow<'static, str>, (PeerSet, ProtocolVersion)>,
-	names: HashMap<(PeerSet, ProtocolVersion), Cow<'static, str>>,
+	protocols: HashMap<ProtocolName, (PeerSet, ProtocolVersion)>,
+	names: HashMap<(PeerSet, ProtocolVersion), ProtocolName>,
 }
 
 impl PeerSetProtocolNames {
@@ -272,8 +274,8 @@ impl PeerSetProtocolNames {
 
 	/// Helper function to register main protocol.
 	fn register_main_protocol(
-		protocols: &mut HashMap<Cow<'static, str>, (PeerSet, ProtocolVersion)>,
-		names: &mut HashMap<(PeerSet, ProtocolVersion), Cow<'static, str>>,
+		protocols: &mut HashMap<ProtocolName, (PeerSet, ProtocolVersion)>,
+		names: &mut HashMap<(PeerSet, ProtocolVersion), ProtocolName>,
 		protocol: PeerSet,
 		version: ProtocolVersion,
 		genesis_hash: &Hash,
@@ -286,7 +288,7 @@ impl PeerSetProtocolNames {
 
 	/// Helper function to register legacy protocol.
 	fn register_legacy_protocol(
-		protocols: &mut HashMap<Cow<'static, str>, (PeerSet, ProtocolVersion)>,
+		protocols: &mut HashMap<ProtocolName, (PeerSet, ProtocolVersion)>,
 		protocol: PeerSet,
 	) {
 		Self::insert_protocol_or_panic(
@@ -299,8 +301,8 @@ impl PeerSetProtocolNames {
 
 	/// Helper function to make sure no protocols have the same name.
 	fn insert_protocol_or_panic(
-		protocols: &mut HashMap<Cow<'static, str>, (PeerSet, ProtocolVersion)>,
-		name: Cow<'static, str>,
+		protocols: &mut HashMap<ProtocolName, (PeerSet, ProtocolVersion)>,
+		name: ProtocolName,
 		protocol: PeerSet,
 		version: ProtocolVersion,
 	) {
@@ -322,18 +324,18 @@ impl PeerSetProtocolNames {
 	}
 
 	/// Lookup the protocol using its on the wire name.
-	pub fn try_get_protocol(&self, name: &Cow<'static, str>) -> Option<(PeerSet, ProtocolVersion)> {
+	pub fn try_get_protocol(&self, name: &ProtocolName) -> Option<(PeerSet, ProtocolVersion)> {
 		self.protocols.get(name).map(ToOwned::to_owned)
 	}
 
 	/// Get the main protocol name. It's used by the networking for keeping track
 	/// of peersets and connections.
-	pub fn get_main_name(&self, protocol: PeerSet) -> Cow<'static, str> {
+	pub fn get_main_name(&self, protocol: PeerSet) -> ProtocolName {
 		self.get_name(protocol, protocol.get_main_version())
 	}
 
 	/// Get the protocol name for specific version.
-	pub fn get_name(&self, protocol: PeerSet, version: ProtocolVersion) -> Cow<'static, str> {
+	pub fn get_name(&self, protocol: PeerSet, version: ProtocolVersion) -> ProtocolName {
 		self.names
 			.get(&(protocol, version))
 			.expect("Protocols & versions are specified via enums defined above, and they are all registered in `new()`; qed")
@@ -346,7 +348,7 @@ impl PeerSetProtocolNames {
 		fork_id: Option<&str>,
 		protocol: PeerSet,
 		version: ProtocolVersion,
-	) -> Cow<'static, str> {
+	) -> ProtocolName {
 		let prefix = if let Some(fork_id) = fork_id {
 			format!("/{}/{}", hex::encode(genesis_hash), fork_id)
 		} else {
@@ -362,7 +364,7 @@ impl PeerSetProtocolNames {
 	}
 
 	/// Get the legacy protocol name, only `LEGACY_PROTOCOL_VERSION` = 1 is supported.
-	fn get_legacy_name(protocol: PeerSet) -> Cow<'static, str> {
+	fn get_legacy_name(protocol: PeerSet) -> ProtocolName {
 		match protocol {
 			PeerSet::Validation => LEGACY_VALIDATION_PROTOCOL_V1,
 			PeerSet::Collation => LEGACY_COLLATION_PROTOCOL_V1,
@@ -372,7 +374,7 @@ impl PeerSetProtocolNames {
 
 	/// Get the protocol fallback names. Currently only holds the legacy name
 	/// for `LEGACY_PROTOCOL_VERSION` = 1.
-	fn get_fallback_names(protocol: PeerSet) -> Vec<Cow<'static, str>> {
+	fn get_fallback_names(protocol: PeerSet) -> Vec<ProtocolName> {
 		std::iter::once(Self::get_legacy_name(protocol)).collect()
 	}
 }
@@ -406,7 +408,7 @@ mod tests {
 		);
 		let expected =
 			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/validation/3";
-		assert_eq!(name, expected);
+		assert_eq!(name, expected.into());
 
 		let name = PeerSetProtocolNames::generate_name(
 			&genesis_hash,
@@ -416,7 +418,7 @@ mod tests {
 		);
 		let expected =
 			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/collation/5";
-		assert_eq!(name, expected);
+		assert_eq!(name, expected.into());
 
 		let fork_id = Some("test-fork");
 		let name = PeerSetProtocolNames::generate_name(
@@ -427,7 +429,7 @@ mod tests {
 		);
 		let expected =
 			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/test-fork/validation/7";
-		assert_eq!(name, expected);
+		assert_eq!(name, expected.into());
 
 		let name = PeerSetProtocolNames::generate_name(
 			&genesis_hash,
@@ -437,7 +439,7 @@ mod tests {
 		);
 		let expected =
 			"/7ac8741de8b7146d8a5617fd462914557fe63c265a7f1c10e7dae32858eebb80/test-fork/collation/11";
-		assert_eq!(name, expected);
+		assert_eq!(name, expected.into());
 	}
 
 	#[test]
