@@ -54,10 +54,14 @@ pub async fn wait_n_finalized_blocks(
 async fn wait_n_finalized_blocks_from(n: usize, url: &str) {
 	let mut built_blocks = std::collections::HashSet::new();
 	let mut interval = tokio::time::interval(Duration::from_secs(6));
-	let rpc_service = RpcService::new(url, false).await.unwrap();
 
 	loop {
-		if let Ok(block) = rpc_service.get_finalized_head::<Block>().await {
+		let rpc_service = RpcService::new(url, false).await;
+		if rpc_service.is_err() {
+			continue
+		}
+
+		if let Ok(block) = rpc_service.unwrap().get_finalized_head::<Block>().await {
 			built_blocks.insert(block);
 			if built_blocks.len() > n {
 				break
