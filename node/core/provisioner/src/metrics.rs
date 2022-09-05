@@ -24,7 +24,7 @@ struct MetricsInner {
 	request_inherent_data_duration: prometheus::Histogram,
 	/// How much time `ProvisionableData` processing takes
 	provisionable_data_duration: prometheus::Histogram,
-	/// Bitfileds array length in `ProvisionerInherentData` (the result for `RequestInherentData`)
+	/// Bitfields array length in `ProvisionerInherentData` (the result for `RequestInherentData`)
 	inherent_data_response_bitfields: prometheus::Histogram,
 
 	/// The following metrics track how many disputes/votes the runtime will have to process. These will count
