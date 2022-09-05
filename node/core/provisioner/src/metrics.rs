@@ -18,9 +18,13 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
 #[derive(Clone)]
 struct MetricsInner {
+	/// Tracks successful/unsuccessful inherent data requests
 	inherent_data_requests: prometheus::CounterVec<prometheus::U64>,
+	/// How much time the `RequestInherentData` processing takes
 	request_inherent_data: prometheus::Histogram,
+	/// How much time `ProvisionableData` processing takes
 	provisionable_data: prometheus::Histogram,
+	/// Bitfileds array length in `ProvisionerInherentData` (the result for `RequestInherentData`)
 	inherent_data_response_bitfields: prometheus::Histogram,
 
 	/// The following metrics track how many disputes/votes the runtime will have to process. These will count
