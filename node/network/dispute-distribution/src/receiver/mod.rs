@@ -80,7 +80,10 @@ const COST_APPARENT_FLOOD: Rep = Rep::CostMinor("Peer exceeded the rate limit.")
 /// in order for a batch to stay alive and not get flushed/imported to the dispute-coordinator.
 ///
 /// This ensures a timely import of batches.
+#[cfg(not(test))]
 pub const MIN_KEEP_BATCH_ALIVE_VOTES: u32 = 10;
+#[cfg(test)]
+pub const MIN_KEEP_BATCH_ALIVE_VOTES: u32 = 2;
 
 /// Time we allow to pass for new votes to trickle in.
 ///

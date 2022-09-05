@@ -114,10 +114,7 @@ impl Batch {
 	/// * `candidate_receipt` - The candidate this batch is meant to track votes for.
 	/// * `now` - current time stamp for calculating the first tick.
 	///
-	/// Returns:
-	///
-	///		A batch and the first `Instant` you are supposed to call `tick`.
-	///
+	/// Returns: A batch and the first `Instant` you are supposed to call `tick`.
 	pub(super) fn new(candidate_receipt: CandidateReceipt, now: Instant) -> (Self, Instant) {
 		let s = Self {
 			candidate_hash: candidate_receipt.hash(),

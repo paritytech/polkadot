@@ -30,7 +30,10 @@ use crate::RECEIVE_RATE_LIMIT;
 /// in 10_000 * size_of(`IncomingRequest`) in the worst case.
 ///
 /// `PEER_QUEUE_CAPACITY` must not be 0 for obvious reasons.
+#[cfg(not(test))]
 pub const PEER_QUEUE_CAPACITY: usize = 10;
+#[cfg(test)]
+pub const PEER_QUEUE_CAPACITY: usize = 2;
 
 /// Queues for messages from authority peers for rate limiting.
 ///
