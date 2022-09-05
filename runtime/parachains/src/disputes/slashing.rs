@@ -247,10 +247,9 @@ where
 				offenders,
 				kind,
 			);
-			let reporter = None;
 			// This is the first time we report an offence for this dispute,
 			// so it is not a duplicate.
-			let _ = T::HandleReports::report_offence(reporter, offence);
+			let _ = T::HandleReports::report_offence(offence);
 			return
 		}
 
@@ -342,7 +341,6 @@ pub trait HandleReports<T: Config> {
 
 	/// Report a `for valid` offence.
 	fn report_offence(
-		reporter: Option<T::AccountId>,
 		offence: SlashingOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError>;
 
@@ -352,9 +350,6 @@ pub trait HandleReports<T: Config> {
 		offenders: &[T::KeyOwnerIdentification],
 		time_slot: &DisputesTimeSlot,
 	) -> bool;
-
-	/// Fetch the current block author id, if defined.
-	fn block_author() -> Option<T::AccountId>;
 
 	/// Create and dispatch a slashing report extrinsic.
 	/// This should be called offchain.
@@ -368,7 +363,6 @@ impl<T: Config> HandleReports<T> for () {
 	type ReportLongevity = ();
 
 	fn report_offence(
-		_reporter: Option<T::AccountId>,
 		_offence: SlashingOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError> {
 		Ok(())
@@ -386,10 +380,6 @@ impl<T: Config> HandleReports<T> for () {
 		_key_owner_proof: T::KeyOwnerProof,
 	) -> DispatchResult {
 		Ok(())
-	}
-
-	fn block_author() -> Option<T::AccountId> {
-		None
 	}
 }
 
@@ -542,8 +532,7 @@ pub mod pallet {
 				dispute_proof.kind,
 			);
 
-			let block_author = <T::HandleReports as HandleReports<T>>::block_author();
-			<T::HandleReports as HandleReports<T>>::report_offence(block_author, offence)
+			<T::HandleReports as HandleReports<T>>::report_offence(offence)
 				.map_err(|_| Error::<T>::DuplicateSlashingReport)?;
 
 			Ok(Pays::No.into())
@@ -683,7 +672,7 @@ impl<I, R, L> Default for SlashingReportHandler<I, R, L> {
 
 impl<T, R, L> HandleReports<T> for SlashingReportHandler<T::KeyOwnerIdentification, R, L>
 where
-	T: Config + frame_system::offchain::SendTransactionTypes<Call<T>> + pallet_authorship::Config,
+	T: Config + frame_system::offchain::SendTransactionTypes<Call<T>>,
 	R: ReportOffence<
 		T::AccountId,
 		T::KeyOwnerIdentification,
@@ -694,10 +683,9 @@ where
 	type ReportLongevity = L;
 
 	fn report_offence(
-		reporter: Option<T::AccountId>,
 		offence: SlashingOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError> {
-		let reporters = reporter.into_iter().collect();
+		let reporters = Vec::new();
 		R::report_offence(reporters, offence)
 	}
 
@@ -745,9 +733,5 @@ where
 		}
 
 		Ok(())
-	}
-
-	fn block_author() -> Option<T::AccountId> {
-		<pallet_authorship::Pallet<T>>::author()
 	}
 }
