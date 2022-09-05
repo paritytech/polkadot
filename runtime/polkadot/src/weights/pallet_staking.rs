@@ -38,7 +38,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
+use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `pallet_staking`.
@@ -51,9 +51,9 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: Balances Locks (r:1 w:1)
 	// Storage: Staking Payee (r:0 w:1)
 	fn bond() -> Weight {
-		Weight::from_ref_time(38_939_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(5 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
+		Weight::from_ref_time(38_939_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(5 as u64))
+			.saturating_add(T::DbWeight::get().writes(4 as u64))
 	}
 	// Storage: Staking Bonded (r:1 w:0)
 	// Storage: Staking Ledger (r:1 w:1)
@@ -61,9 +61,9 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: VoterList ListNodes (r:3 w:3)
 	// Storage: VoterList ListBags (r:2 w:2)
 	fn bond_extra() -> Weight {
-		Weight::from_ref_time(69_559_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(8 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(7 as RefTimeWeight))
+		Weight::from_ref_time(69_559_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(8 as u64))
+			.saturating_add(T::DbWeight::get().writes(7 as u64))
 	}
 	// Storage: Staking Ledger (r:1 w:1)
 	// Storage: Staking Nominators (r:1 w:0)
@@ -75,9 +75,9 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: Staking Bonded (r:1 w:0)
 	// Storage: VoterList ListBags (r:2 w:2)
 	fn unbond() -> Weight {
-		Weight::from_ref_time(75_195_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(12 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(8 as RefTimeWeight))
+		Weight::from_ref_time(75_195_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(12 as u64))
+			.saturating_add(T::DbWeight::get().writes(8 as u64))
 	}
 	// Storage: Staking Ledger (r:1 w:1)
 	// Storage: Staking CurrentEra (r:1 w:0)
@@ -85,11 +85,11 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: System Account (r:1 w:1)
 	/// The range of component `s` is `[0, 100]`.
 	fn withdraw_unbonded_update(s: u32, ) -> Weight {
-		Weight::from_ref_time(31_282_000 as RefTimeWeight)
+		Weight::from_ref_time(31_282_000 as u64)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(32_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(32_000 as u64).saturating_mul(s as u64))
+			.saturating_add(T::DbWeight::get().reads(4 as u64))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
 	}
 	// Storage: Staking Ledger (r:1 w:1)
 	// Storage: Staking CurrentEra (r:1 w:0)
@@ -106,9 +106,9 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: Staking Payee (r:0 w:1)
 	/// The range of component `s` is `[0, 100]`.
 	fn withdraw_unbonded_kill(_s: u32, ) -> Weight {
-		Weight::from_ref_time(60_846_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(13 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(11 as RefTimeWeight))
+		Weight::from_ref_time(60_846_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(13 as u64))
+			.saturating_add(T::DbWeight::get().writes(11 as u64))
 	}
 	// Storage: Staking Ledger (r:1 w:0)
 	// Storage: Staking MinValidatorBond (r:1 w:0)
@@ -122,20 +122,20 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: VoterList CounterForListNodes (r:1 w:1)
 	// Storage: Staking CounterForValidators (r:1 w:1)
 	fn validate() -> Weight {
-		Weight::from_ref_time(49_099_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(11 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(5 as RefTimeWeight))
+		Weight::from_ref_time(49_099_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(11 as u64))
+			.saturating_add(T::DbWeight::get().writes(5 as u64))
 	}
 	// Storage: Staking Ledger (r:1 w:0)
 	// Storage: Staking Nominators (r:1 w:1)
 	/// The range of component `k` is `[1, 128]`.
 	fn kick(k: u32, ) -> Weight {
-		Weight::from_ref_time(11_488_000 as RefTimeWeight)
+		Weight::from_ref_time(11_488_000 as u64)
 			// Standard Error: 12_000
-			.saturating_add(Weight::from_ref_time(8_257_000 as RefTimeWeight).saturating_mul(k as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((1 as RefTimeWeight).saturating_mul(k as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes((1 as RefTimeWeight).saturating_mul(k as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(8_257_000 as u64).saturating_mul(k as u64))
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(k as u64)))
+			.saturating_add(T::DbWeight::get().writes((1 as u64).saturating_mul(k as u64)))
 	}
 	// Storage: Staking Ledger (r:1 w:0)
 	// Storage: Staking MinNominatorBond (r:1 w:0)
@@ -150,12 +150,12 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: Staking CounterForNominators (r:1 w:1)
 	/// The range of component `n` is `[1, 16]`.
 	fn nominate(n: u32, ) -> Weight {
-		Weight::from_ref_time(52_331_000 as RefTimeWeight)
+		Weight::from_ref_time(52_331_000 as u64)
 			// Standard Error: 6_000
-			.saturating_add(Weight::from_ref_time(3_297_000 as RefTimeWeight).saturating_mul(n as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(12 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((1 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(3_297_000 as u64).saturating_mul(n as u64))
+			.saturating_add(T::DbWeight::get().reads(12 as u64))
+			.saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(n as u64)))
+			.saturating_add(T::DbWeight::get().writes(6 as u64))
 	}
 	// Storage: Staking Ledger (r:1 w:0)
 	// Storage: Staking Validators (r:1 w:0)
@@ -165,51 +165,51 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: VoterList ListBags (r:1 w:1)
 	// Storage: VoterList CounterForListNodes (r:1 w:1)
 	fn chill() -> Weight {
-		Weight::from_ref_time(46_346_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(8 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
+		Weight::from_ref_time(46_346_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(8 as u64))
+			.saturating_add(T::DbWeight::get().writes(6 as u64))
 	}
 	// Storage: Staking Ledger (r:1 w:0)
 	// Storage: Staking Payee (r:0 w:1)
 	fn set_payee() -> Weight {
-		Weight::from_ref_time(9_573_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+		Weight::from_ref_time(9_573_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Staking Bonded (r:1 w:1)
 	// Storage: Staking Ledger (r:2 w:2)
 	fn set_controller() -> Weight {
-		Weight::from_ref_time(16_956_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
+		Weight::from_ref_time(16_956_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(3 as u64))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
 	}
 	// Storage: Staking ValidatorCount (r:0 w:1)
 	fn set_validator_count() -> Weight {
-		Weight::from_ref_time(3_283_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+		Weight::from_ref_time(3_283_000 as u64)
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Staking ForceEra (r:0 w:1)
 	fn force_no_eras() -> Weight {
-		Weight::from_ref_time(3_218_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+		Weight::from_ref_time(3_218_000 as u64)
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Staking ForceEra (r:0 w:1)
 	fn force_new_era() -> Weight {
-		Weight::from_ref_time(3_188_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+		Weight::from_ref_time(3_188_000 as u64)
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Staking ForceEra (r:0 w:1)
 	fn force_new_era_always() -> Weight {
-		Weight::from_ref_time(3_254_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+		Weight::from_ref_time(3_254_000 as u64)
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Staking Invulnerables (r:0 w:1)
 	/// The range of component `v` is `[0, 1000]`.
 	fn set_invulnerables(v: u32, ) -> Weight {
-		Weight::from_ref_time(3_706_000 as RefTimeWeight)
+		Weight::from_ref_time(3_706_000 as u64)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(10_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(10_000 as u64).saturating_mul(v as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Staking Bonded (r:1 w:1)
 	// Storage: Staking SlashingSpans (r:1 w:0)
@@ -226,21 +226,21 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: Staking SpanSlash (r:0 w:2)
 	/// The range of component `s` is `[0, 100]`.
 	fn force_unstake(s: u32, ) -> Weight {
-		Weight::from_ref_time(58_154_000 as RefTimeWeight)
+		Weight::from_ref_time(58_154_000 as u64)
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(894_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(11 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(12 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((1 as RefTimeWeight).saturating_mul(s as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(894_000 as u64).saturating_mul(s as u64))
+			.saturating_add(T::DbWeight::get().reads(11 as u64))
+			.saturating_add(T::DbWeight::get().writes(12 as u64))
+			.saturating_add(T::DbWeight::get().writes((1 as u64).saturating_mul(s as u64)))
 	}
 	// Storage: Staking UnappliedSlashes (r:1 w:1)
 	/// The range of component `s` is `[1, 1000]`.
 	fn cancel_deferred_slash(s: u32, ) -> Weight {
-		Weight::from_ref_time(2_565_318_000 as RefTimeWeight)
+		Weight::from_ref_time(2_565_318_000 as u64)
 			// Standard Error: 176_000
-			.saturating_add(Weight::from_ref_time(14_870_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(1 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(14_870_000 as u64).saturating_mul(s as u64))
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Staking CurrentEra (r:1 w:0)
 	// Storage: Staking HistoryDepth (r:1 w:0)
@@ -254,13 +254,13 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: System Account (r:2 w:2)
 	/// The range of component `n` is `[1, 256]`.
 	fn payout_stakers_dead_controller(n: u32, ) -> Weight {
-		Weight::from_ref_time(79_314_000 as RefTimeWeight)
+		Weight::from_ref_time(79_314_000 as u64)
 			// Standard Error: 20_000
-			.saturating_add(Weight::from_ref_time(25_615_000 as RefTimeWeight).saturating_mul(n as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(10 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((3 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((1 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(25_615_000 as u64).saturating_mul(n as u64))
+			.saturating_add(T::DbWeight::get().reads(10 as u64))
+			.saturating_add(T::DbWeight::get().reads((3 as u64).saturating_mul(n as u64)))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
+			.saturating_add(T::DbWeight::get().writes((1 as u64).saturating_mul(n as u64)))
 	}
 	// Storage: Staking CurrentEra (r:1 w:0)
 	// Storage: Staking HistoryDepth (r:1 w:0)
@@ -275,13 +275,13 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: Balances Locks (r:2 w:2)
 	/// The range of component `n` is `[1, 256]`.
 	fn payout_stakers_alive_staked(n: u32, ) -> Weight {
-		Weight::from_ref_time(100_678_000 as RefTimeWeight)
+		Weight::from_ref_time(100_678_000 as u64)
 			// Standard Error: 26_000
-			.saturating_add(Weight::from_ref_time(34_451_000 as RefTimeWeight).saturating_mul(n as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(11 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((5 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((3 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(34_451_000 as u64).saturating_mul(n as u64))
+			.saturating_add(T::DbWeight::get().reads(11 as u64))
+			.saturating_add(T::DbWeight::get().reads((5 as u64).saturating_mul(n as u64)))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
+			.saturating_add(T::DbWeight::get().writes((3 as u64).saturating_mul(n as u64)))
 	}
 	// Storage: Staking Ledger (r:1 w:1)
 	// Storage: Balances Locks (r:1 w:1)
@@ -291,11 +291,11 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: VoterList ListBags (r:2 w:2)
 	/// The range of component `l` is `[1, 32]`.
 	fn rebond(l: u32, ) -> Weight {
-		Weight::from_ref_time(68_008_000 as RefTimeWeight)
+		Weight::from_ref_time(68_008_000 as u64)
 			// Standard Error: 2_000
-			.saturating_add(Weight::from_ref_time(68_000 as RefTimeWeight).saturating_mul(l as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(9 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(8 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(68_000 as u64).saturating_mul(l as u64))
+			.saturating_add(T::DbWeight::get().reads(9 as u64))
+			.saturating_add(T::DbWeight::get().writes(8 as u64))
 	}
 	// Storage: Staking CurrentEra (r:1 w:0)
 	// Storage: Staking HistoryDepth (r:1 w:1)
@@ -308,12 +308,12 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: Staking ErasStartSessionIndex (r:0 w:1)
 	/// The range of component `e` is `[1, 100]`.
 	fn set_history_depth(e: u32, ) -> Weight {
-		Weight::from_ref_time(0 as RefTimeWeight)
+		Weight::from_ref_time(0 as u64)
 			// Standard Error: 84_000
-			.saturating_add(Weight::from_ref_time(21_963_000 as RefTimeWeight).saturating_mul(e as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((7 as RefTimeWeight).saturating_mul(e as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(21_963_000 as u64).saturating_mul(e as u64))
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(4 as u64))
+			.saturating_add(T::DbWeight::get().writes((7 as u64).saturating_mul(e as u64)))
 	}
 	// Storage: System Account (r:1 w:1)
 	// Storage: Staking Bonded (r:1 w:1)
@@ -330,12 +330,12 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: Staking SpanSlash (r:0 w:1)
 	/// The range of component `s` is `[1, 100]`.
 	fn reap_stash(s: u32, ) -> Weight {
-		Weight::from_ref_time(66_394_000 as RefTimeWeight)
+		Weight::from_ref_time(66_394_000 as u64)
 			// Standard Error: 4_000
-			.saturating_add(Weight::from_ref_time(874_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(12 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(12 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((1 as RefTimeWeight).saturating_mul(s as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(874_000 as u64).saturating_mul(s as u64))
+			.saturating_add(T::DbWeight::get().reads(12 as u64))
+			.saturating_add(T::DbWeight::get().writes(12 as u64))
+			.saturating_add(T::DbWeight::get().writes((1 as u64).saturating_mul(s as u64)))
 	}
 	// Storage: VoterList CounterForListNodes (r:1 w:0)
 	// Storage: Staking SlashingSpans (r:1 w:0)
@@ -359,16 +359,16 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	/// The range of component `v` is `[1, 10]`.
 	/// The range of component `n` is `[1, 100]`.
 	fn new_era(v: u32, n: u32, ) -> Weight {
-		Weight::from_ref_time(0 as RefTimeWeight)
+		Weight::from_ref_time(0 as u64)
 			// Standard Error: 1_253_000
-			.saturating_add(Weight::from_ref_time(288_357_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(288_357_000 as u64).saturating_mul(v as u64))
 			// Standard Error: 120_000
-			.saturating_add(Weight::from_ref_time(38_464_000 as RefTimeWeight).saturating_mul(n as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(187 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((5 as RefTimeWeight).saturating_mul(v as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().reads((4 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes((3 as RefTimeWeight).saturating_mul(v as RefTimeWeight)))
+			.saturating_add(Weight::from_ref_time(38_464_000 as u64).saturating_mul(n as u64))
+			.saturating_add(T::DbWeight::get().reads(187 as u64))
+			.saturating_add(T::DbWeight::get().reads((5 as u64).saturating_mul(v as u64)))
+			.saturating_add(T::DbWeight::get().reads((4 as u64).saturating_mul(n as u64)))
+			.saturating_add(T::DbWeight::get().writes(4 as u64))
+			.saturating_add(T::DbWeight::get().writes((3 as u64).saturating_mul(v as u64)))
 	}
 	// Storage: VoterList CounterForListNodes (r:1 w:0)
 	// Storage: Staking SlashingSpans (r:21 w:0)
@@ -383,29 +383,29 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	/// The range of component `n` is `[500, 1000]`.
 	/// The range of component `s` is `[1, 20]`.
 	fn get_npos_voters(v: u32, n: u32, s: u32, ) -> Weight {
-		Weight::from_ref_time(0 as RefTimeWeight)
+		Weight::from_ref_time(0 as u64)
 			// Standard Error: 117_000
-			.saturating_add(Weight::from_ref_time(25_453_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(25_453_000 as u64).saturating_mul(v as u64))
 			// Standard Error: 117_000
-			.saturating_add(Weight::from_ref_time(22_630_000 as RefTimeWeight).saturating_mul(n as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(22_630_000 as u64).saturating_mul(n as u64))
 			// Standard Error: 2_987_000
-			.saturating_add(Weight::from_ref_time(45_604_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(181 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((5 as RefTimeWeight).saturating_mul(v as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().reads((4 as RefTimeWeight).saturating_mul(n as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().reads((1 as RefTimeWeight).saturating_mul(s as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(45_604_000 as u64).saturating_mul(s as u64))
+			.saturating_add(T::DbWeight::get().reads(181 as u64))
+			.saturating_add(T::DbWeight::get().reads((5 as u64).saturating_mul(v as u64)))
+			.saturating_add(T::DbWeight::get().reads((4 as u64).saturating_mul(n as u64)))
+			.saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(s as u64)))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Staking Validators (r:501 w:0)
 	// Storage: System BlockWeight (r:1 w:1)
 	/// The range of component `v` is `[500, 1000]`.
 	fn get_npos_targets(v: u32, ) -> Weight {
-		Weight::from_ref_time(0 as RefTimeWeight)
+		Weight::from_ref_time(0 as u64)
 			// Standard Error: 37_000
-			.saturating_add(Weight::from_ref_time(7_545_000 as RefTimeWeight).saturating_mul(v as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads((1 as RefTimeWeight).saturating_mul(v as RefTimeWeight)))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(7_545_000 as u64).saturating_mul(v as u64))
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(v as u64)))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Staking MinCommission (r:0 w:1)
 	// Storage: Staking MinValidatorBond (r:0 w:1)
@@ -414,8 +414,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: Staking MaxNominatorsCount (r:0 w:1)
 	// Storage: Staking MinNominatorBond (r:0 w:1)
 	fn set_staking_configs_all_set() -> Weight {
-		Weight::from_ref_time(6_204_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
+		Weight::from_ref_time(6_204_000 as u64)
+			.saturating_add(T::DbWeight::get().writes(6 as u64))
 	}
 	// Storage: Staking MinCommission (r:0 w:1)
 	// Storage: Staking MinValidatorBond (r:0 w:1)
@@ -424,8 +424,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: Staking MaxNominatorsCount (r:0 w:1)
 	// Storage: Staking MinNominatorBond (r:0 w:1)
 	fn set_staking_configs_all_remove() -> Weight {
-		Weight::from_ref_time(5_674_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
+		Weight::from_ref_time(5_674_000 as u64)
+			.saturating_add(T::DbWeight::get().writes(6 as u64))
 	}
 	// Storage: Staking Ledger (r:1 w:0)
 	// Storage: Staking Nominators (r:1 w:1)
@@ -438,15 +438,15 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: VoterList ListBags (r:1 w:1)
 	// Storage: VoterList CounterForListNodes (r:1 w:1)
 	fn chill_other() -> Weight {
-		Weight::from_ref_time(57_011_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(11 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(6 as RefTimeWeight))
+		Weight::from_ref_time(57_011_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(11 as u64))
+			.saturating_add(T::DbWeight::get().writes(6 as u64))
 	}
 	// Storage: Staking MinCommission (r:1 w:0)
 	// Storage: Staking Validators (r:1 w:1)
 	fn force_apply_min_commission() -> Weight {
-		Weight::from_ref_time(10_470_000 as RefTimeWeight)
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(1 as RefTimeWeight))
+		Weight::from_ref_time(10_470_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 }

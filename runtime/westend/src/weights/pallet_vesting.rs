@@ -38,7 +38,7 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::{RefTimeWeight, Weight}};
+use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
 /// Weight functions for `pallet_vesting`.
@@ -49,26 +49,26 @@ impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	/// The range of component `l` is `[0, 49]`.
 	/// The range of component `s` is `[1, 28]`.
 	fn vest_locked(l: u32, s: u32, ) -> Weight {
-		Weight::from_ref_time(28_533_000 as RefTimeWeight)
+		Weight::from_ref_time(28_533_000 as u64)
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(70_000 as RefTimeWeight).saturating_mul(l as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(70_000 as u64).saturating_mul(l as u64))
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(152_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(152_000 as u64).saturating_mul(s as u64))
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
 	// Storage: Vesting Vesting (r:1 w:1)
 	// Storage: Balances Locks (r:1 w:1)
 	/// The range of component `l` is `[0, 49]`.
 	/// The range of component `s` is `[1, 28]`.
 	fn vest_unlocked(l: u32, s: u32, ) -> Weight {
-		Weight::from_ref_time(28_491_000 as RefTimeWeight)
+		Weight::from_ref_time(28_491_000 as u64)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(61_000 as RefTimeWeight).saturating_mul(l as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(61_000 as u64).saturating_mul(l as u64))
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(128_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(2 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(2 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(128_000 as u64).saturating_mul(s as u64))
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
 	// Storage: Vesting Vesting (r:1 w:1)
 	// Storage: Balances Locks (r:1 w:1)
@@ -76,13 +76,13 @@ impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	/// The range of component `l` is `[0, 49]`.
 	/// The range of component `s` is `[1, 28]`.
 	fn vest_other_locked(l: u32, s: u32, ) -> Weight {
-		Weight::from_ref_time(28_340_000 as RefTimeWeight)
+		Weight::from_ref_time(28_340_000 as u64)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(71_000 as RefTimeWeight).saturating_mul(l as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(71_000 as u64).saturating_mul(l as u64))
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(150_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(150_000 as u64).saturating_mul(s as u64))
+			.saturating_add(T::DbWeight::get().reads(3 as u64))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
 	}
 	// Storage: Vesting Vesting (r:1 w:1)
 	// Storage: Balances Locks (r:1 w:1)
@@ -90,13 +90,13 @@ impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	/// The range of component `l` is `[0, 49]`.
 	/// The range of component `s` is `[1, 28]`.
 	fn vest_other_unlocked(l: u32, s: u32, ) -> Weight {
-		Weight::from_ref_time(28_558_000 as RefTimeWeight)
+		Weight::from_ref_time(28_558_000 as u64)
 			// Standard Error: 0
-			.saturating_add(Weight::from_ref_time(64_000 as RefTimeWeight).saturating_mul(l as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(64_000 as u64).saturating_mul(l as u64))
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(120_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(120_000 as u64).saturating_mul(s as u64))
+			.saturating_add(T::DbWeight::get().reads(3 as u64))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
 	}
 	// Storage: Vesting Vesting (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
@@ -104,13 +104,13 @@ impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	/// The range of component `l` is `[0, 49]`.
 	/// The range of component `s` is `[0, 27]`.
 	fn vested_transfer(l: u32, s: u32, ) -> Weight {
-		Weight::from_ref_time(43_102_000 as RefTimeWeight)
+		Weight::from_ref_time(43_102_000 as u64)
 			// Standard Error: 2_000
-			.saturating_add(Weight::from_ref_time(65_000 as RefTimeWeight).saturating_mul(l as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(65_000 as u64).saturating_mul(l as u64))
 			// Standard Error: 4_000
-			.saturating_add(Weight::from_ref_time(130_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(130_000 as u64).saturating_mul(s as u64))
+			.saturating_add(T::DbWeight::get().reads(3 as u64))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
 	}
 	// Storage: Vesting Vesting (r:1 w:1)
 	// Storage: System Account (r:2 w:2)
@@ -118,13 +118,13 @@ impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	/// The range of component `l` is `[0, 49]`.
 	/// The range of component `s` is `[0, 27]`.
 	fn force_vested_transfer(l: u32, s: u32, ) -> Weight {
-		Weight::from_ref_time(42_364_000 as RefTimeWeight)
+		Weight::from_ref_time(42_364_000 as u64)
 			// Standard Error: 2_000
-			.saturating_add(Weight::from_ref_time(78_000 as RefTimeWeight).saturating_mul(l as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(78_000 as u64).saturating_mul(l as u64))
 			// Standard Error: 5_000
-			.saturating_add(Weight::from_ref_time(137_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(4 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(4 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(137_000 as u64).saturating_mul(s as u64))
+			.saturating_add(T::DbWeight::get().reads(4 as u64))
+			.saturating_add(T::DbWeight::get().writes(4 as u64))
 	}
 	// Storage: Vesting Vesting (r:1 w:1)
 	// Storage: Balances Locks (r:1 w:1)
@@ -132,13 +132,13 @@ impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	/// The range of component `l` is `[0, 49]`.
 	/// The range of component `s` is `[2, 28]`.
 	fn not_unlocking_merge_schedules(l: u32, s: u32, ) -> Weight {
-		Weight::from_ref_time(29_492_000 as RefTimeWeight)
+		Weight::from_ref_time(29_492_000 as u64)
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(64_000 as RefTimeWeight).saturating_mul(l as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(64_000 as u64).saturating_mul(l as u64))
 			// Standard Error: 2_000
-			.saturating_add(Weight::from_ref_time(154_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(154_000 as u64).saturating_mul(s as u64))
+			.saturating_add(T::DbWeight::get().reads(3 as u64))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
 	}
 	// Storage: Vesting Vesting (r:1 w:1)
 	// Storage: Balances Locks (r:1 w:1)
@@ -146,12 +146,12 @@ impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	/// The range of component `l` is `[0, 49]`.
 	/// The range of component `s` is `[2, 28]`.
 	fn unlocking_merge_schedules(l: u32, s: u32, ) -> Weight {
-		Weight::from_ref_time(29_532_000 as RefTimeWeight)
+		Weight::from_ref_time(29_532_000 as u64)
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(58_000 as RefTimeWeight).saturating_mul(l as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(58_000 as u64).saturating_mul(l as u64))
 			// Standard Error: 2_000
-			.saturating_add(Weight::from_ref_time(155_000 as RefTimeWeight).saturating_mul(s as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().reads(3 as RefTimeWeight))
-			.saturating_add(T::DbWeight::get().writes(3 as RefTimeWeight))
+			.saturating_add(Weight::from_ref_time(155_000 as u64).saturating_mul(s as u64))
+			.saturating_add(T::DbWeight::get().reads(3 as u64))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
 	}
 }
