@@ -56,10 +56,10 @@ async fn wait_n_finalized_blocks_from(n: usize, url: &str) {
 	let mut interval = tokio::time::interval(Duration::from_secs(6));
 
 	loop {
-		let rpc_service = RpcService::new(url, false).await;
-		if rpc_service.is_err() {
-			continue
-		}
+		let rpc_service = match RpcService::new(url, false).await {
+			Ok(rpc_service) => rpc_service,
+			Err(_) => continue,
+		};
 
 		if let Ok(block) = rpc_service.unwrap().get_finalized_head::<Block>().await {
 			built_blocks.insert(block);
