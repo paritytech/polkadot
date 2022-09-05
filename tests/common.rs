@@ -61,7 +61,7 @@ async fn wait_n_finalized_blocks_from(n: usize, url: &str) {
 			Err(_) => continue,
 		};
 
-		if let Ok(block) = rpc_service.unwrap().get_finalized_head::<Block>().await {
+		if let Ok(block) = rpc_service.get_finalized_head::<Block>().await {
 			built_blocks.insert(block);
 			if built_blocks.len() > n {
 				break
