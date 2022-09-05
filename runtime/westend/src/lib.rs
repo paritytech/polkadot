@@ -795,7 +795,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::Vesting(pallet_vesting::Call::vest{..}) |
 				RuntimeCall::Vesting(pallet_vesting::Call::vest_other{..}) |
 				// Specifically omitting Vesting `vested_transfer`, and `force_vested_transfer`
-				RuntimeCall::Vesting(..) |
+				RuntimeCall::Scheduler(..) |
 				// Specifically omitting Sudo pallet
 				RuntimeCall::Proxy(..) |
 				RuntimeCall::Multisig(..) |
