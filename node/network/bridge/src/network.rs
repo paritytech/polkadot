@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{borrow::Cow, collections::HashSet, sync::Arc};
+use std::{collections::HashSet, sync::Arc};
 
 use async_trait::async_trait;
 use futures::{prelude::*, stream::BoxStream};
@@ -27,6 +27,7 @@ use sc_network::{
 };
 use sc_network_common::{
 	config::parse_addr,
+	protocol::ProtocolName,
 	service::{NetworkEventStream, NetworkNotification, NetworkPeers, NetworkRequest},
 };
 
@@ -92,12 +93,12 @@ pub trait Network: Clone + Send + 'static {
 	/// Note that `out_peers` setting has no effect on this.
 	async fn set_reserved_peers(
 		&mut self,
-		protocol: Cow<'static, str>,
+		protocol: ProtocolName,
 		multiaddresses: HashSet<Multiaddr>,
 	) -> Result<(), String>;
 
 	/// Removes the peers for the protocol's peer set (both reserved and non-reserved).
-	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, peers: Vec<PeerId>);
+	async fn remove_from_peers_set(&mut self, protocol: ProtocolName, peers: Vec<PeerId>);
 
 	/// Send a request to a remote peer.
 	async fn start_request<AD: AuthorityDiscovery>(
@@ -112,10 +113,10 @@ pub trait Network: Clone + Send + 'static {
 	fn report_peer(&self, who: PeerId, cost_benefit: Rep);
 
 	/// Disconnect a given peer from the protocol specified without harming reputation.
-	fn disconnect_peer(&self, who: PeerId, protocol: Cow<'static, str>);
+	fn disconnect_peer(&self, who: PeerId, protocol: ProtocolName);
 
 	/// Write a notification to a peer on the given protocol.
-	fn write_notification(&self, who: PeerId, protocol: Cow<'static, str>, message: Vec<u8>);
+	fn write_notification(&self, who: PeerId, protocol: ProtocolName, message: Vec<u8>);
 }
 
 #[async_trait]
@@ -126,13 +127,13 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 
 	async fn set_reserved_peers(
 		&mut self,
-		protocol: Cow<'static, str>,
+		protocol: ProtocolName,
 		multiaddresses: HashSet<Multiaddr>,
 	) -> Result<(), String> {
 		NetworkService::set_reserved_peers(&**self, protocol, multiaddresses)
 	}
 
-	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, peers: Vec<PeerId>) {
+	async fn remove_from_peers_set(&mut self, protocol: ProtocolName, peers: Vec<PeerId>) {
 		NetworkService::remove_peers_from_reserved_set(&**self, protocol, peers);
 	}
 
@@ -140,11 +141,11 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		NetworkService::report_peer(&**self, who, cost_benefit.into_base_rep());
 	}
 
-	fn disconnect_peer(&self, who: PeerId, protocol: Cow<'static, str>) {
+	fn disconnect_peer(&self, who: PeerId, protocol: ProtocolName) {
 		NetworkService::disconnect_peer(&**self, who, protocol);
 	}
 
-	fn write_notification(&self, who: PeerId, protocol: Cow<'static, str>, message: Vec<u8>) {
+	fn write_notification(&self, who: PeerId, protocol: ProtocolName, message: Vec<u8>) {
 		NetworkService::write_notification(&**self, who, protocol, message);
 	}
 

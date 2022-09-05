@@ -53,7 +53,7 @@ parameter_types! {
 	///   99th: 79_591
 	///   95th: 78_730
 	///   75th: 78_272
-	pub const ExtrinsicBaseWeight: Weight = WEIGHT_PER_NANOS.scalar_saturating_mul(78_269);
+	pub const ExtrinsicBaseWeight: Weight = WEIGHT_PER_NANOS.saturating_mul(78_269);
 }
 
 #[cfg(test)]
@@ -68,7 +68,7 @@ mod test_weights {
 		let w = super::ExtrinsicBaseWeight::get();
 
 		// At least 10 µs.
-		assert!(w >= 10 * constants::WEIGHT_PER_MICROS, "Weight should be at least 10 µs.");
+		assert!(w >= 10u64 * constants::WEIGHT_PER_MICROS, "Weight should be at least 10 µs.");
 		// At most 1 ms.
 		assert!(w <= constants::WEIGHT_PER_MILLIS, "Weight should be at most 1 ms.");
 	}

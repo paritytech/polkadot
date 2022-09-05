@@ -78,7 +78,6 @@ pub struct ParticipationRequest {
 	candidate_hash: CandidateHash,
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
-	n_validators: usize,
 }
 
 /// Whether a `ParticipationRequest` should be put on best-effort or the priority queue.
@@ -122,12 +121,8 @@ pub enum QueueError {
 
 impl ParticipationRequest {
 	/// Create a new `ParticipationRequest` to be queued.
-	pub fn new(
-		candidate_receipt: CandidateReceipt,
-		session: SessionIndex,
-		n_validators: usize,
-	) -> Self {
-		Self { candidate_hash: candidate_receipt.hash(), candidate_receipt, session, n_validators }
+	pub fn new(candidate_receipt: CandidateReceipt, session: SessionIndex) -> Self {
+		Self { candidate_hash: candidate_receipt.hash(), candidate_receipt, session }
 	}
 
 	pub fn candidate_receipt(&'_ self) -> &'_ CandidateReceipt {
@@ -138,9 +133,6 @@ impl ParticipationRequest {
 	}
 	pub fn session(&self) -> SessionIndex {
 		self.session
-	}
-	pub fn n_validators(&self) -> usize {
-		self.n_validators
 	}
 	pub fn into_candidate_info(self) -> (CandidateHash, CandidateReceipt) {
 		let Self { candidate_hash, candidate_receipt, .. } = self;

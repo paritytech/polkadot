@@ -97,8 +97,8 @@ impl pallet_balances::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ReservedXcmpWeight: Weight = WEIGHT_PER_SECOND.scalar_div(4);
-	pub const ReservedDmpWeight: Weight = WEIGHT_PER_SECOND.scalar_div(4);
+	pub const ReservedXcmpWeight: Weight = WEIGHT_PER_SECOND.saturating_div(4);
+	pub const ReservedDmpWeight: Weight = WEIGHT_PER_SECOND.saturating_div(4);
 }
 
 parameter_types! {

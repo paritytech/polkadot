@@ -404,7 +404,7 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
-			let mut weight_used = Weight::new();
+			let mut weight_used = Weight::zero();
 			if let Some(migration) = CurrentMigration::<T>::get() {
 				// Consume 10% of block at most
 				let max_weight = T::BlockWeights::get().max_block / 10;
@@ -886,7 +886,7 @@ pub mod pallet {
 			mut stage: VersionMigrationStage,
 			weight_cutoff: Weight,
 		) -> (Weight, Option<VersionMigrationStage>) {
-			let mut weight_used = Weight::new();
+			let mut weight_used = Weight::zero();
 
 			// TODO: Correct weights for the components of this:
 			let todo_sv_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
@@ -1274,7 +1274,7 @@ pub mod pallet {
 	}
 
 	impl<T: Config> DropAssets for Pallet<T> {
-		fn drop_assets(origin: &MultiLocation, assets: Assets) -> RefTimeWeight {
+		fn drop_assets(origin: &MultiLocation, assets: Assets) -> u64 {
 			if assets.is_empty() {
 				return 0
 			}
@@ -1328,8 +1328,8 @@ pub mod pallet {
 			origin: &MultiLocation,
 			query_id: QueryId,
 			response: Response,
-			max_weight: RefTimeWeight,
-		) -> RefTimeWeight {
+			max_weight: u64,
+		) -> u64 {
 			match (response, Queries::<T>::get(query_id)) {
 				(
 					Response::Version(v),

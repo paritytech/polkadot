@@ -1272,7 +1272,7 @@ impl parachains_paras::Config for Runtime {
 }
 
 parameter_types! {
-	pub const FirstMessageFactorPercent: Weight = Weight::from_ref_time(100);
+	pub const FirstMessageFactorPercent: u64 = 100;
 }
 
 impl parachains_ump::Config for Runtime {
@@ -2002,8 +2002,15 @@ sp_api::impl_runtime_apis! {
 			(weight, BlockWeights::get().max_block)
 		}
 
-		fn execute_block_no_check(block: Block) -> Weight {
-			Executive::execute_block_no_check(block)
+		fn execute_block(block: Block, state_root_check: bool, select: frame_try_runtime::TryStateSelect) -> Weight {
+			log::info!(
+				target: "runtime::polkadot", "try-runtime: executing block #{} ({:?}) / root checks: {:?} / sanity-checks: {:?}",
+				block.header.number,
+				block.header.hash(),
+				state_root_check,
+				select,
+			);
+			Executive::try_execute_block(block, state_root_check, select).expect("try_execute_block failed")
 		}
 	}
 
