@@ -841,6 +841,7 @@ async fn handle_incoming_request<Context>(
 						target: LOG_TARGET,
 						relay_parent = %relay_parent,
 						mode = ?per_relay_parent.prospective_parachains_mode,
+						?peer_id,
 						"Collation request version is invalid",
 					);
 
@@ -1149,10 +1150,13 @@ pub(crate) async fn run<Context>(
 							?candidate_hash,
 							"Sending collation to validator timed out, carrying on with next validator."
 						);
+						// Drop all requests from slow peer.
 						waiting.waiting_peers.retain(|(waiting_peer_id, ..)|  *waiting_peer_id != peer_id);
+						waiting.waiting.retain(|req| req.peer_id() != peer_id);
 					} else {
 						waiting.waiting_peers.remove(&(peer_id, candidate_hash));
 					}
+
 					if let Some(next) = waiting.waiting.pop_front() {
 						next
 					} else {
@@ -1177,7 +1181,10 @@ pub(crate) async fn run<Context>(
 						(ProspectiveParachainsMode::Enabled, VersionedCollationRequest::VStaging(req)) => {
 							per_relay_parent.collations.get(&req.payload.candidate_hash)
 						},
-						_ => continue,
+						_ => {
+							// Request version is checked in `handle_incoming_request`.
+							continue
+						},
 					}
 				};
 
