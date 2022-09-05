@@ -21,9 +21,9 @@ struct MetricsInner {
 	/// Tracks successful/unsuccessful inherent data requests
 	inherent_data_requests: prometheus::CounterVec<prometheus::U64>,
 	/// How much time the `RequestInherentData` processing takes
-	request_inherent_data: prometheus::Histogram,
+	request_inherent_data_duration: prometheus::Histogram,
 	/// How much time `ProvisionableData` processing takes
-	provisionable_data: prometheus::Histogram,
+	provisionable_data_duration: prometheus::Histogram,
 	/// Bitfileds array length in `ProvisionerInherentData` (the result for `RequestInherentData`)
 	inherent_data_response_bitfields: prometheus::Histogram,
 
@@ -58,14 +58,16 @@ impl Metrics {
 	pub(crate) fn time_request_inherent_data(
 		&self,
 	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.request_inherent_data.start_timer())
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.request_inherent_data_duration.start_timer())
 	}
 
 	/// Provide a timer for `provisionable_data` which observes on drop.
 	pub(crate) fn time_provisionable_data(
 		&self,
 	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.provisionable_data.start_timer())
+		self.0.as_ref().map(|metrics| metrics.provisionable_data_duration.start_timer())
 	}
 
 	pub(crate) fn observe_inherent_data_bitfields_count(&self, bitfields_count: usize) {
@@ -114,14 +116,14 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			request_inherent_data: prometheus::register(
+			request_inherent_data_duration: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
 					"polkadot_parachain_provisioner_request_inherent_data_time",
 					"Time spent within `provisioner::request_inherent_data`",
 				))?,
 				registry,
 			)?,
-			provisionable_data: prometheus::register(
+			provisionable_data_duration: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
 					"polkadot_parachain_provisioner_provisionable_data_time",
 					"Time spent within `provisioner::provisionable_data`",
