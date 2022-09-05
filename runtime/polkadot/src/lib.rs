@@ -148,7 +148,6 @@ impl Contains<RuntimeCall> for BaseFilter {
 			RuntimeCall::PhragmenElection(_) |
 			RuntimeCall::System(_) |
 			RuntimeCall::Scheduler(_) |
-			RuntimeCall::Vesting(_) |
 			RuntimeCall::Preimage(_) |
 			RuntimeCall::Indices(_) |
 			RuntimeCall::Babe(_) |
@@ -161,6 +160,7 @@ impl Contains<RuntimeCall> for BaseFilter {
 			RuntimeCall::ImOnline(_) |
 			RuntimeCall::Utility(_) |
 			RuntimeCall::Claims(_) |
+			RuntimeCall::Vesting(_) |
 			RuntimeCall::Identity(_) |
 			RuntimeCall::Proxy(_) |
 			RuntimeCall::Multisig(_) |
@@ -1151,7 +1151,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 			ProxyType::NonTransfer => matches!(
 				c,
 				RuntimeCall::System(..) |
-				RuntimeCall::Vesting(..) |
+				RuntimeCall::Scheduler(..) |
 				RuntimeCall::Babe(..) |
 				RuntimeCall::Timestamp(..) |
 				RuntimeCall::Indices(pallet_indices::Call::claim{..}) |
@@ -1174,6 +1174,8 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::ChildBounties(..) |
 				RuntimeCall::Tips(..) |
 				RuntimeCall::Claims(..) |
+				RuntimeCall::Vesting(pallet_vesting::Call::vest{..}) |
+				RuntimeCall::Vesting(pallet_vesting::Call::vest_other{..}) |
 				// Specifically omitting Vesting `vested_transfer`, and `force_vested_transfer`
 				RuntimeCall::Utility(..) |
 				RuntimeCall::Identity(..) |
