@@ -16,10 +16,16 @@
 
 use std::{
 	collections::{HashMap, HashSet},
+	pin::Pin,
+	task::Poll,
 	time::Duration,
 };
 
-use futures::channel::{mpsc, oneshot};
+use futures::{
+	channel::{mpsc, oneshot},
+	future::poll_fn,
+	Future,
+};
 
 use futures_timer::Delay;
 use indexmap::{map::Entry, IndexMap};
@@ -376,15 +382,23 @@ impl RateLimit {
 		Self { limit: Delay::new(SEND_RATE_LIMIT) }
 	}
 
-	/// Take the `RateLimit` and replace with one that immediately is ready.
-	fn take(&mut self) -> Self {
-		std::mem::replace(self, RateLimit::new())
-	}
-
 	/// Wait until ready and prepare for next call.
 	async fn limit(&mut self) {
-		let old = self.take();
-		old.limit.await;
+		// Wait for rate limit and add some logging:
+		poll_fn(|cx| {
+			let old_limit = Pin::new(&mut self.limit);
+			match old_limit.poll(cx) {
+				Poll::Pending => {
+					gum::debug!(
+						target: LOG_TARGET,
+						"Sending rate limit hit, slowing down requests"
+					);
+					Poll::Pending
+				},
+				Poll::Ready(()) => Poll::Ready(()),
+			}
+		})
+		.await;
 		*self = Self::new_limit();
 	}
 }
