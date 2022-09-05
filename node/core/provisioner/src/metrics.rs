@@ -30,7 +30,7 @@ struct MetricsInner {
 	inherent_data_dispute_statement_sets: prometheus::Counter<prometheus::U64>,
 	inherent_data_dispute_statements: prometheus::CounterVec<prometheus::U64>,
 
-	// The disputes received from `disputes-coordinator` by partition
+	/// The disputes received from `disputes-coordinator` by partition
 	partitioned_disputes: prometheus::CounterVec<prometheus::U64>,
 }
 
