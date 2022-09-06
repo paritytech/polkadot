@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.9.27"
+version = "0.9.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -10,6 +10,7 @@ sc-authority-discovery = { git = "https://github.com/paritytech/substrate", bran
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -70,7 +71,7 @@ thiserror = "1.0.31"
 kvdb = "0.11.0"
 kvdb-rocksdb = { version = "0.15.2", optional = true }
 parity-db = { version = "0.3.16", optional = true }
-async-trait = "0.1.53"
+async-trait = "0.1.57"
 lru = "0.7"
 
 # Polkadot

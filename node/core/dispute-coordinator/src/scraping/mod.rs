@@ -55,7 +55,7 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: usize = 20;
 /// - Monitors for inclusion events to keep track of candidates that have been included on chains.
 /// - Calls `FetchOnChainVotes` for each block to gather potentially missed votes from chain.
 ///
-/// With this information it provies a `CandidateComparator` and as a return value of
+/// With this information it provides a `CandidateComparator` and as a return value of
 /// `process_active_leaves_update` any scraped votes.
 pub struct ChainScraper {
 	/// All candidates we have seen included, which not yet have been finalized.
@@ -136,7 +136,7 @@ impl ChainScraper {
 
 		let mut on_chain_votes = Vec::new();
 		for (block_number, block_hash) in block_numbers.zip(block_hashes) {
-			gum::trace!(?block_number, ?block_hash, "In ancestor processesing.");
+			gum::trace!(?block_number, ?block_hash, "In ancestor processing.");
 
 			self.process_candidate_events(sender, block_number, block_hash).await?;
 

@@ -24,8 +24,9 @@ use polkadot_node_core_av_store::Config as AvailabilityConfig;
 use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig;
 use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
-use polkadot_node_network_protocol::request_response::{
-	v1 as request_v1, IncomingRequestReceiver, ReqProtocolNames,
+use polkadot_node_network_protocol::{
+	peer_set::PeerSetProtocolNames,
+	request_response::{v1 as request_v1, IncomingRequestReceiver, ReqProtocolNames},
 };
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::{
@@ -122,6 +123,8 @@ where
 	pub overseer_message_channel_capacity_override: Option<usize>,
 	/// Request-response protocol names source.
 	pub req_protocol_names: ReqProtocolNames,
+	/// [`PeerSet`] protocol names to protocols mapping.
+	pub peerset_protocol_names: PeerSetProtocolNames,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -151,6 +154,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		pvf_checker_enabled,
 		overseer_message_channel_capacity_override,
 		req_protocol_names,
+		peerset_protocol_names,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
@@ -206,12 +210,14 @@ where
 			authority_discovery_service.clone(),
 			network_bridge_metrics.clone(),
 			req_protocol_names,
+			peerset_protocol_names.clone(),
 		))
 		.network_bridge_rx(NetworkBridgeRxSubsystem::new(
 			network_service.clone(),
 			authority_discovery_service.clone(),
 			Box::new(network_service.clone()),
 			network_bridge_metrics,
+			peerset_protocol_names,
 		))
 		.availability_distribution(AvailabilityDistributionSubsystem::new(
 			keystore.clone(),

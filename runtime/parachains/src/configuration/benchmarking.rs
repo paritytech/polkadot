@@ -26,7 +26,7 @@ benchmarks! {
 
 	set_config_with_option_u32 {}: set_max_validators(RawOrigin::Root, Some(10))
 
-	set_config_with_weight {}: set_ump_service_total_weight(RawOrigin::Root, 3_000_000)
+	set_config_with_weight {}: set_ump_service_total_weight(RawOrigin::Root, Weight::from_ref_time(3_000_000))
 
 	set_hrmp_open_request_ttl {}: {
 		Err(BenchmarkError::Override(
