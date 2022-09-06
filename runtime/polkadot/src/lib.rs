@@ -136,55 +136,55 @@ pub fn native_version() -> NativeVersion {
 }
 
 pub struct BaseFilter;
-impl Contains<RuntimeCall> for BaseFilter {
-	fn contains(call: &RuntimeCall) -> bool {
+impl Contains<Call> for BaseFilter {
+	fn contains(call: &Call) -> bool {
 		match call {
 			// These modules are all allowed to be called by transactions:
-			RuntimeCall::Democracy(_) |
-			RuntimeCall::Council(_) |
-			RuntimeCall::TechnicalCommittee(_) |
-			RuntimeCall::TechnicalMembership(_) |
-			RuntimeCall::Treasury(_) |
-			RuntimeCall::PhragmenElection(_) |
-			RuntimeCall::System(_) |
-			RuntimeCall::Scheduler(_) |
-			RuntimeCall::Preimage(_) |
-			RuntimeCall::Indices(_) |
-			RuntimeCall::Babe(_) |
-			RuntimeCall::Timestamp(_) |
-			RuntimeCall::Balances(_) |
-			RuntimeCall::Authorship(_) |
-			RuntimeCall::Staking(_) |
-			RuntimeCall::Session(_) |
-			RuntimeCall::Grandpa(_) |
-			RuntimeCall::ImOnline(_) |
-			RuntimeCall::Utility(_) |
-			RuntimeCall::Claims(_) |
-			RuntimeCall::Vesting(_) |
-			RuntimeCall::Identity(_) |
-			RuntimeCall::Proxy(_) |
-			RuntimeCall::Multisig(_) |
-			RuntimeCall::Bounties(_) |
-			RuntimeCall::ChildBounties(_) |
-			RuntimeCall::Tips(_) |
-			RuntimeCall::ElectionProviderMultiPhase(_) |
-			RuntimeCall::Configuration(_) |
-			RuntimeCall::ParasShared(_) |
-			RuntimeCall::ParaInclusion(_) |
-			RuntimeCall::Paras(_) |
-			RuntimeCall::Initializer(_) |
-			RuntimeCall::ParaInherent(_) |
-			RuntimeCall::ParasDisputes(_) |
-			RuntimeCall::Dmp(_) |
-			RuntimeCall::Ump(_) |
-			RuntimeCall::Hrmp(_) |
-			RuntimeCall::Slots(_) |
-			RuntimeCall::Registrar(_) |
-			RuntimeCall::Auctions(_) |
-			RuntimeCall::Crowdloan(_) |
-			RuntimeCall::VoterList(_) |
-			RuntimeCall::XcmPallet(_) |
-			RuntimeCall::NominationPools(_) => true,
+			Call::Democracy(_) |
+			Call::Council(_) |
+			Call::TechnicalCommittee(_) |
+			Call::TechnicalMembership(_) |
+			Call::Treasury(_) |
+			Call::PhragmenElection(_) |
+			Call::System(_) |
+			Call::Scheduler(_) |
+			Call::Preimage(_) |
+			Call::Indices(_) |
+			Call::Babe(_) |
+			Call::Timestamp(_) |
+			Call::Balances(_) |
+			Call::Authorship(_) |
+			Call::Staking(_) |
+			Call::Session(_) |
+			Call::Grandpa(_) |
+			Call::ImOnline(_) |
+			Call::Utility(_) |
+			Call::Claims(_) |
+			Call::Vesting(_) |
+			Call::Identity(_) |
+			Call::Proxy(_) |
+			Call::Multisig(_) |
+			Call::Bounties(_) |
+			Call::ChildBounties(_) |
+			Call::Tips(_) |
+			Call::ElectionProviderMultiPhase(_) |
+			Call::Configuration(_) |
+			Call::ParasShared(_) |
+			Call::ParaInclusion(_) |
+			Call::Paras(_) |
+			Call::Initializer(_) |
+			Call::ParaInherent(_) |
+			Call::ParasDisputes(_) |
+			Call::Dmp(_) |
+			Call::Ump(_) |
+			Call::Hrmp(_) |
+			Call::Slots(_) |
+			Call::Registrar(_) |
+			Call::Auctions(_) |
+			Call::Crowdloan(_) |
+			Call::VoterList(_) |
+			Call::XcmPallet(_) |
+			Call::NominationPools(_) => true,
 			// All pallets are allowed, but exhaustive match is defensive
 			// in the case of adding new pallets.
 		}
