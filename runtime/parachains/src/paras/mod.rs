@@ -879,9 +879,9 @@ pub mod pallet {
 		/// enacts the results if that was the last vote before achieving the supermajority.
 		#[pallet::weight(
 			<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_accept()
-				.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_reject()),
-				.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_accept(),
-					.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_reject()),
+				.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_reject())
+				.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_accept()
+					.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_reject())
 				)
 		)]
 		pub fn include_pvf_check_statement(
