@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use parity_scale_codec::{Decode, Encode};
+use std::any::Any;
 
 /// Result of PVF preparation performed by the validation host.
 pub type PrepareResult = Result<(), PrepareError>;
@@ -106,5 +107,19 @@ impl From<PrepareError> for ValidationError {
 			PrepareError::DidNotMakeIt =>
 				ValidationError::InternalError("prepare: did not make it".to_owned()),
 		}
+	}
+}
+
+/// Attempt to convert an opaque panic payload to a string.
+///
+/// This is a best effort, and is not guaranteed to provide the most accurate value.
+pub(crate) fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String {
+	match payload.downcast::<&'static str>() {
+		Ok(msg) => msg.to_string(),
+		Err(payload) => match payload.downcast::<String>() {
+			Ok(msg) => *msg,
+			// At least we tried...
+			Err(_) => "unknown panic payload".to_string(),
+		},
 	}
 }

@@ -1,7 +1,0 @@
-global:
-  scrape_interval: 15s
-scrape_configs:
-  - job_name: dummy
-    file_sd_configs:
-      - files:
-        - /etc/prometheus/targets-*.yml

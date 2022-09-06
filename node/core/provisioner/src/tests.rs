@@ -197,6 +197,7 @@ mod select_availability_bitfields {
 
 mod common {
 	use super::super::*;
+	use futures::channel::mpsc;
 	use polkadot_node_subsystem::messages::AllMessages;
 	use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
 
@@ -225,6 +226,7 @@ mod select_candidates {
 		scheduled_core,
 	};
 	use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
+	use futures::channel::mpsc;
 	use polkadot_node_subsystem::messages::{
 		AllMessages, RuntimeApiMessage,
 		RuntimeApiRequest::{
@@ -497,8 +499,8 @@ mod select_candidates {
 }
 
 mod select_disputes {
-
 	use super::{super::*, common::test_harness};
+	use futures::channel::mpsc;
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest},
 		RuntimeApiError,
@@ -569,8 +571,8 @@ mod select_disputes {
 					let mut res = Vec::new();
 					let v = CandidateVotes {
 						candidate_receipt: test_helpers::dummy_candidate_receipt(leaf.hash.clone()),
-						valid: vec![],
-						invalid: vec![],
+						valid: BTreeMap::new(),
+						invalid: BTreeMap::new(),
 					};
 					for r in disputes.iter() {
 						res.push((r.0, r.1, v.clone()));

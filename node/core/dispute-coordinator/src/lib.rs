@@ -24,7 +24,7 @@
 //! validation results as well as a sink for votes received by other subsystems. When importing a dispute vote from
 //! another node, this will trigger dispute participation to recover and validate the block.
 
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 
 use futures::FutureExt;
 
@@ -32,7 +32,7 @@ use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW};
 use polkadot_node_subsystem::{
-	overseer, ActivatedLeaf, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
+	overseer, ActivatedLeaf, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
 	database::Database, rolling_session_window::RollingSessionWindow,
@@ -89,6 +89,9 @@ mod spam_slots;
 /// if there are lots of them.
 pub(crate) mod participation;
 
+/// Pure processing of vote imports.
+pub(crate) mod import;
+
 /// Metrics types.
 mod metrics;
 
@@ -127,7 +130,11 @@ impl Config {
 impl<Context: Send> DisputeCoordinatorSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async {
-			let backend = DbBackend::new(self.store.clone(), self.config.column_config());
+			let backend = DbBackend::new(
+				self.store.clone(),
+				self.config.column_config(),
+				self.metrics.clone(),
+			);
 			self.run(ctx, backend, Box::new(SystemClock))
 				.await
 				.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
@@ -297,8 +304,7 @@ impl DisputeCoordinatorSubsystem {
 				Some(info) => info.validators.clone(),
 			};
 
-			let n_validators = validators.len();
-			let voted_indices: HashSet<_> = votes.voted_indices().into_iter().collect();
+			let voted_indices = votes.voted_indices();
 
 			// Determine if there are any missing local statements for this dispute. Validators are
 			// filtered if:
@@ -328,11 +334,7 @@ impl DisputeCoordinatorSubsystem {
 			if missing_local_statement {
 				participation_requests.push((
 					ParticipationPriority::with_priority_if(is_included),
-					ParticipationRequest::new(
-						votes.candidate_receipt.clone(),
-						session,
-						n_validators,
-					),
+					ParticipationRequest::new(votes.candidate_receipt.clone(), session),
 				));
 			}
 		}
@@ -369,14 +371,14 @@ async fn get_rolling_session_window<Context>(
 async fn wait_for_first_leaf<Context>(ctx: &mut Context) -> Result<Option<ActivatedLeaf>> {
 	loop {
 		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(None),
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(None),
+			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 				if let Some(activated) = update.activated {
 					return Ok(Some(activated))
 				}
 			},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
-			FromOverseer::Communication { msg } =>
+			FromOrchestra::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
+			FromOrchestra::Communication { msg } =>
 			// NOTE: We could technically actually handle a couple of message types, even if
 			// not initialized (e.g. all requests that only query the database). The problem
 			// is, we would deliver potentially outdated information, especially in the event

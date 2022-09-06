@@ -32,7 +32,7 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_subsystem::{
-	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
+	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan,
 	SpawnedSubsystem, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{self as util};
@@ -202,7 +202,7 @@ impl BitfieldDistribution {
 				},
 			};
 			match message {
-				FromOverseer::Communication {
+				FromOrchestra::Communication {
 					msg:
 						BitfieldDistributionMessage::DistributeBitfield(
 							relay_parent,
@@ -220,14 +220,14 @@ impl BitfieldDistribution {
 					)
 					.await;
 				},
-				FromOverseer::Communication {
+				FromOrchestra::Communication {
 					msg: BitfieldDistributionMessage::NetworkBridgeUpdate(event),
 				} => {
 					gum::trace!(target: LOG_TARGET, "Processing NetworkMessage");
 					// a network message was received
 					handle_network_msg(&mut ctx, state, &self.metrics, event, rng).await;
 				},
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated,
 					..
 				})) => {
@@ -260,10 +260,10 @@ impl BitfieldDistribution {
 						}
 					}
 				},
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
+				FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
 					gum::trace!(target: LOG_TARGET, ?hash, %number, "block finalized");
 				},
-				FromOverseer::Signal(OverseerSignal::Conclude) => {
+				FromOrchestra::Signal(OverseerSignal::Conclude) => {
 					gum::info!(target: LOG_TARGET, "Conclude");
 					return
 				},
@@ -281,7 +281,7 @@ async fn modify_reputation(
 ) {
 	gum::trace!(target: LOG_TARGET, ?relay_parent, ?rep, %peer, "reputation change");
 
-	sender.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
+	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await
 }
 /// Distribute a given valid and signature checked bitfield message.
 ///
@@ -427,7 +427,7 @@ async fn relay_message<Context>(
 		);
 	} else {
 		let _span = span.child("gossip");
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			interested_peers,
 			message.into_validation_protocol(),
 		))
@@ -722,7 +722,7 @@ async fn send_tracked_gossip_message<Context>(
 		.or_default()
 		.insert(validator.clone());
 
-	ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 		vec![dest],
 		message.into_validation_protocol(),
 	))

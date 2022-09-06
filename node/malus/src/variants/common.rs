@@ -23,13 +23,14 @@ use crate::{
 
 use polkadot_node_core_candidate_validation::find_validation_data;
 use polkadot_node_primitives::{InvalidCandidate, ValidationResult};
-use polkadot_node_subsystem::messages::{CandidateValidationMessage, ValidationFailed};
+use polkadot_node_subsystem::{
+	messages::{CandidateValidationMessage, ValidationFailed},
+	overseer,
+};
 
 use polkadot_primitives::v2::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, PersistedValidationData,
 };
-
-use polkadot_cli::service::SpawnNamed;
 
 use futures::channel::oneshot;
 
@@ -113,7 +114,7 @@ pub struct ReplaceValidationResult<Spawner> {
 
 impl<Spawner> ReplaceValidationResult<Spawner>
 where
-	Spawner: SpawnNamed,
+	Spawner: overseer::gen::Spawner,
 {
 	pub fn new(
 		fake_validation: FakeCandidateValidation,
@@ -197,7 +198,7 @@ fn create_validation_response(
 impl<Sender, Spawner> MessageInterceptor<Sender> for ReplaceValidationResult<Spawner>
 where
 	Sender: overseer::CandidateValidationSenderTrait + Clone + Send + 'static,
-	Spawner: SpawnNamed + Clone + 'static,
+	Spawner: overseer::gen::Spawner + Clone + 'static,
 {
 	type Message = CandidateValidationMessage;
 
@@ -205,10 +206,10 @@ where
 	fn intercept_incoming(
 		&self,
 		subsystem_sender: &mut Sender,
-		msg: FromOverseer<Self::Message>,
-	) -> Option<FromOverseer<Self::Message>> {
+		msg: FromOrchestra<Self::Message>,
+	) -> Option<FromOrchestra<Self::Message>> {
 		match msg {
-			FromOverseer::Communication {
+			FromOrchestra::Communication {
 				msg:
 					CandidateValidationMessage::ValidateFromExhaustive(
 						validation_data,
@@ -224,7 +225,7 @@ where
 					FakeCandidateValidation::BackingAndApprovalValid => {
 						// Behave normally if the `PoV` is not known to be malicious.
 						if pov.block_data.0.as_slice() != MALICIOUS_POV {
-							return Some(FromOverseer::Communication {
+							return Some(FromOrchestra::Communication {
 								msg: CandidateValidationMessage::ValidateFromExhaustive(
 									validation_data,
 									validation_code,
@@ -257,7 +258,7 @@ where
 						sender.send(Ok(validation_result)).unwrap();
 						None
 					},
-					_ => Some(FromOverseer::Communication {
+					_ => Some(FromOrchestra::Communication {
 						msg: CandidateValidationMessage::ValidateFromExhaustive(
 							validation_data,
 							validation_code,
@@ -269,7 +270,7 @@ where
 					}),
 				}
 			},
-			FromOverseer::Communication {
+			FromOrchestra::Communication {
 				msg:
 					CandidateValidationMessage::ValidateFromChainState(
 						candidate_receipt,
@@ -283,7 +284,7 @@ where
 					FakeCandidateValidation::BackingAndApprovalValid => {
 						// Behave normally if the `PoV` is not known to be malicious.
 						if pov.block_data.0.as_slice() != MALICIOUS_POV {
-							return Some(FromOverseer::Communication {
+							return Some(FromOrchestra::Communication {
 								msg: CandidateValidationMessage::ValidateFromChainState(
 									candidate_receipt,
 									pov,
@@ -314,7 +315,7 @@ where
 						response_sender.send(Ok(validation_result)).unwrap();
 						None
 					},
-					_ => Some(FromOverseer::Communication {
+					_ => Some(FromOrchestra::Communication {
 						msg: CandidateValidationMessage::ValidateFromChainState(
 							candidate_receipt,
 							pov,

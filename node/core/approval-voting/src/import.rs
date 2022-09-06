@@ -560,9 +560,15 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		// ancestors. this can only be done after writing the block entry above.
 		if let Some(up_to) = force_approve {
 			gum::debug!(target: LOG_TARGET, ?block_hash, up_to, "Enacting force-approve");
-
 			let approved_hashes = crate::ops::force_approve(db, block_hash, up_to)
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+			gum::debug!(
+				target: LOG_TARGET,
+				?block_hash,
+				up_to,
+				"Force-approving {} blocks",
+				approved_hashes.len()
+			);
 
 			// Notify chain-selection of all approved hashes.
 			for hash in approved_hashes {

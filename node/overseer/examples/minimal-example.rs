@@ -20,6 +20,7 @@
 
 use futures::{channel::oneshot, pending, pin_mut, select, stream, FutureExt, StreamExt};
 use futures_timer::Delay;
+use orchestra::async_trait;
 use std::time::Duration;
 
 use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
@@ -28,14 +29,16 @@ use polkadot_node_subsystem_types::messages::CandidateValidationMessage;
 use polkadot_overseer::{
 	self as overseer,
 	dummy::dummy_overseer_builder,
-	gen::{FromOverseer, SpawnedSubsystem},
+	gen::{FromOrchestra, SpawnedSubsystem},
 	HeadSupportsParachains, SubsystemError,
 };
 use polkadot_primitives::v2::{CandidateReceipt, Hash};
 
 struct AlwaysSupportsParachains;
+
+#[async_trait]
 impl HeadSupportsParachains for AlwaysSupportsParachains {
-	fn head_supports_parachains(&self, _head: &Hash) -> bool {
+	async fn head_supports_parachains(&self, _head: &Hash) -> bool {
 		true
 	}
 }
@@ -50,7 +53,7 @@ impl Subsystem1 {
 		'louy: loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
-					if let FromOverseer::Communication { msg } = msg {
+					if let FromOrchestra::Communication { msg } = msg {
 						gum::info!("msg {:?}", msg);
 					}
 					continue 'louy

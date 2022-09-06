@@ -146,7 +146,7 @@ const TIMEOUT: Duration = Duration::from_millis(100);
 async fn overseer_send(overseer: &mut VirtualOverseer, msg: AvailabilityStoreMessage) {
 	gum::trace!(meg = ?msg, "sending message");
 	overseer
-		.send(FromOverseer::Communication { msg })
+		.send(FromOrchestra::Communication { msg })
 		.timeout(TIMEOUT)
 		.await
 		.expect(&format!("{:?} is more than enough for sending messages.", TIMEOUT));
@@ -172,7 +172,7 @@ async fn overseer_recv_with_timeout(
 
 async fn overseer_signal(overseer: &mut VirtualOverseer, signal: OverseerSignal) {
 	overseer
-		.send(FromOverseer::Signal(signal))
+		.send(FromOrchestra::Signal(signal))
 		.timeout(TIMEOUT)
 		.await
 		.expect(&format!("{:?} is more than enough for sending signals.", TIMEOUT));
@@ -426,7 +426,7 @@ fn store_block_works() {
 			tx,
 		};
 
-		virtual_overseer.send(FromOverseer::Communication { msg: block_msg }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: block_msg }).await;
 		assert_eq!(rx.await.unwrap(), Ok(()));
 
 		let pov = query_available_data(&mut virtual_overseer, candidate_hash).await.unwrap();
@@ -479,7 +479,7 @@ fn store_pov_and_query_chunk_works() {
 			tx,
 		};
 
-		virtual_overseer.send(FromOverseer::Communication { msg: block_msg }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: block_msg }).await;
 
 		assert_eq!(rx.await.unwrap(), Ok(()));
 
@@ -525,7 +525,7 @@ fn query_all_chunks_works() {
 				tx,
 			};
 
-			virtual_overseer.send(FromOverseer::Communication { msg: block_msg }).await;
+			virtual_overseer.send(FromOrchestra::Communication { msg: block_msg }).await;
 			assert_eq!(rx.await.unwrap(), Ok(()));
 		}
 
@@ -557,7 +557,7 @@ fn query_all_chunks_works() {
 			};
 
 			virtual_overseer
-				.send(FromOverseer::Communication { msg: store_chunk_msg })
+				.send(FromOrchestra::Communication { msg: store_chunk_msg })
 				.await;
 			assert_eq!(rx.await.unwrap(), Ok(()));
 		}
@@ -566,7 +566,7 @@ fn query_all_chunks_works() {
 			let (tx, rx) = oneshot::channel();
 
 			let msg = AvailabilityStoreMessage::QueryAllChunks(candidate_hash_1, tx);
-			virtual_overseer.send(FromOverseer::Communication { msg }).await;
+			virtual_overseer.send(FromOrchestra::Communication { msg }).await;
 			assert_eq!(rx.await.unwrap().len(), n_validators as usize);
 		}
 
@@ -574,7 +574,7 @@ fn query_all_chunks_works() {
 			let (tx, rx) = oneshot::channel();
 
 			let msg = AvailabilityStoreMessage::QueryAllChunks(candidate_hash_2, tx);
-			virtual_overseer.send(FromOverseer::Communication { msg }).await;
+			virtual_overseer.send(FromOrchestra::Communication { msg }).await;
 			assert_eq!(rx.await.unwrap().len(), 1);
 		}
 
@@ -582,7 +582,7 @@ fn query_all_chunks_works() {
 			let (tx, rx) = oneshot::channel();
 
 			let msg = AvailabilityStoreMessage::QueryAllChunks(candidate_hash_3, tx);
-			virtual_overseer.send(FromOverseer::Communication { msg }).await;
+			virtual_overseer.send(FromOrchestra::Communication { msg }).await;
 			assert_eq!(rx.await.unwrap().len(), 0);
 		}
 		virtual_overseer
@@ -613,7 +613,7 @@ fn stored_but_not_included_data_is_pruned() {
 			tx,
 		};
 
-		virtual_overseer.send(FromOverseer::Communication { msg: block_msg }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: block_msg }).await;
 
 		rx.await.unwrap().unwrap();
 
@@ -665,7 +665,7 @@ fn stored_data_kept_until_finalized() {
 			tx,
 		};
 
-		virtual_overseer.send(FromOverseer::Communication { msg: block_msg }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: block_msg }).await;
 
 		rx.await.unwrap().unwrap();
 
@@ -900,7 +900,7 @@ fn forkfullness_works() {
 			tx,
 		};
 
-		virtual_overseer.send(FromOverseer::Communication { msg }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg }).await;
 
 		rx.await.unwrap().unwrap();
 
@@ -912,7 +912,7 @@ fn forkfullness_works() {
 			tx,
 		};
 
-		virtual_overseer.send(FromOverseer::Communication { msg }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg }).await;
 
 		rx.await.unwrap().unwrap();
 
@@ -1003,7 +1003,7 @@ async fn query_available_data(
 	let (tx, rx) = oneshot::channel();
 
 	let query = AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx);
-	virtual_overseer.send(FromOverseer::Communication { msg: query }).await;
+	virtual_overseer.send(FromOrchestra::Communication { msg: query }).await;
 
 	rx.await.unwrap()
 }
@@ -1016,7 +1016,7 @@ async fn query_chunk(
 	let (tx, rx) = oneshot::channel();
 
 	let query = AvailabilityStoreMessage::QueryChunk(candidate_hash, index, tx);
-	virtual_overseer.send(FromOverseer::Communication { msg: query }).await;
+	virtual_overseer.send(FromOrchestra::Communication { msg: query }).await;
 
 	rx.await.unwrap()
 }

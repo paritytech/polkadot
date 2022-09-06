@@ -37,10 +37,10 @@ where
 	fn intercept_incoming(
 		&self,
 		_sender: &mut Sender,
-		msg: FromOverseer<Self::Message>,
-	) -> Option<FromOverseer<Self::Message>> {
+		msg: FromOrchestra<Self::Message>,
+	) -> Option<FromOrchestra<Self::Message>> {
 		match msg {
-			FromOverseer::Communication { msg: _msg } => None,
+			FromOrchestra::Communication { msg: _msg } => None,
 			// to conclude the test cleanly
 			sig => Some(sig),
 		}
@@ -60,18 +60,20 @@ where
 }
 
 async fn overseer_send<T: Into<AllMessages>>(overseer: &mut TestSubsystemContextHandle<T>, msg: T) {
-	overseer.send(FromOverseer::Communication { msg }).await;
+	overseer.send(FromOrchestra::Communication { msg }).await;
 }
+
+use sp_core::testing::TaskExecutor;
 
 fn launch_harness<F, M, Sub, G>(test_gen: G)
 where
 	F: Future<Output = TestSubsystemContextHandle<M>> + Send,
 	M: AssociateOutgoing + std::fmt::Debug + Send + 'static,
 	// <M as AssociateOutgoing>::OutgoingMessages: From<M>,
-	Sub: Subsystem<TestSubsystemContext<M, sp_core::testing::TaskExecutor>, SubsystemError>,
+	Sub: Subsystem<TestSubsystemContext<M, SpawnGlue<TaskExecutor>>, SubsystemError>,
 	G: Fn(TestSubsystemContextHandle<M>) -> (F, Sub),
 {
-	let pool = sp_core::testing::TaskExecutor::new();
+	let pool = TaskExecutor::new();
 	let (context, overseer) = make_subsystem_context(pool);
 
 	let (test_fut, subsystem) = test_gen(overseer);
@@ -84,7 +86,7 @@ where
 	futures::executor::block_on(futures::future::join(
 		async move {
 			let mut overseer = test_fut.await;
-			overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 		},
 		subsystem,
 	))

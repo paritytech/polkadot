@@ -23,8 +23,8 @@ use parity_scale_codec::Encode;
 use polkadot_node_primitives::{AvailableData, CollationGenerationConfig, PoV};
 use polkadot_node_subsystem::{
 	messages::{CollationGenerationMessage, CollatorProtocolMessage},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError, SubsystemResult,
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
+	SubsystemContext, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data, request_validation_code,
@@ -103,12 +103,12 @@ impl CollationGenerationSubsystem {
 	// it should hopefully therefore be ok that it's an async function mutably borrowing self.
 	async fn handle_incoming<Context>(
 		&mut self,
-		incoming: SubsystemResult<FromOverseer<<Context as SubsystemContext>::Message>>,
+		incoming: SubsystemResult<FromOrchestra<<Context as SubsystemContext>::Message>>,
 		ctx: &mut Context,
 		sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
 	) -> bool {
 		match incoming {
-			Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+			Ok(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				activated,
 				..
 			}))) => {
@@ -130,8 +130,8 @@ impl CollationGenerationSubsystem {
 
 				false
 			},
-			Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => true,
-			Ok(FromOverseer::Communication {
+			Ok(FromOrchestra::Signal(OverseerSignal::Conclude)) => true,
+			Ok(FromOrchestra::Communication {
 				msg: CollationGenerationMessage::Initialize(config),
 			}) => {
 				if self.config.is_some() {
@@ -141,7 +141,7 @@ impl CollationGenerationSubsystem {
 				}
 				false
 			},
-			Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(..))) => false,
+			Ok(FromOrchestra::Signal(OverseerSignal::BlockFinalized(..))) => false,
 			Err(err) => {
 				gum::error!(
 					target: LOG_TARGET,

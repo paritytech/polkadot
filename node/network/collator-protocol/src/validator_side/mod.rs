@@ -48,9 +48,9 @@ use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
 		CandidateBackingMessage, CollatorProtocolMessage, IfDisconnected, NetworkBridgeEvent,
-		NetworkBridgeMessage, RuntimeApiMessage,
+		NetworkBridgeTxMessage, RuntimeApiMessage,
 	},
-	overseer, FromOverseer, OverseerSignal, PerLeafSpan, SubsystemSender,
+	overseer, FromOrchestra, OverseerSignal, PerLeafSpan, SubsystemSender,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v2::{CandidateReceipt, CollatorId, Hash, Id as ParaId};
@@ -632,7 +632,7 @@ fn collator_peer_id(
 
 async fn disconnect_peer(sender: &mut impl overseer::CollatorProtocolSenderTrait, peer_id: PeerId) {
 	sender
-		.send_message(NetworkBridgeMessage::DisconnectPeer(peer_id, PeerSet::Collation))
+		.send_message(NetworkBridgeTxMessage::DisconnectPeer(peer_id, PeerSet::Collation))
 		.await
 }
 
@@ -712,7 +712,7 @@ async fn notify_collation_seconded(
 	let wire_message =
 		protocol_v1::CollatorProtocolMessage::CollationSeconded(relay_parent, statement.into());
 	sender
-		.send_message(NetworkBridgeMessage::SendCollationMessage(
+		.send_message(NetworkBridgeTxMessage::SendCollationMessage(
 			vec![peer_id],
 			Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 		))
@@ -730,7 +730,7 @@ async fn handle_peer_view_change(state: &mut State, peer_id: PeerId, view: View)
 	peer_data.update_view(view);
 	state
 		.requested_collations
-		.retain(|pc, _| pc.peer_id != peer_id || !peer_data.has_advertised(&pc.relay_parent));
+		.retain(|pc, _| pc.peer_id != peer_id || peer_data.has_advertised(&pc.relay_parent));
 
 	Ok(())
 }
@@ -800,7 +800,7 @@ async fn request_collation(
 	);
 
 	sender
-		.send_message(NetworkBridgeMessage::SendRequests(
+		.send_message(NetworkBridgeTxMessage::SendRequests(
 			vec![requests],
 			IfDisconnected::ImmediateError,
 		))
@@ -1206,7 +1206,7 @@ pub(crate) async fn run<Context>(
 		select! {
 			res = ctx.recv().fuse() => {
 				match res {
-					Ok(FromOverseer::Communication { msg }) => {
+					Ok(FromOrchestra::Communication { msg }) => {
 						gum::trace!(target: LOG_TARGET, msg = ?msg, "received a message");
 						process_msg(
 							&mut ctx,
@@ -1215,8 +1215,8 @@ pub(crate) async fn run<Context>(
 							&mut state,
 						).await;
 					}
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) | Err(_) => break,
-					Ok(FromOverseer::Signal(_)) => continue,
+					Ok(FromOrchestra::Signal(OverseerSignal::Conclude)) | Err(_) => break,
+					Ok(FromOrchestra::Signal(_)) => continue,
 				}
 			}
 			_ = next_inactivity_stream.next() => {

@@ -50,6 +50,9 @@ pub mod time {
 	pub const WEEKS: BlockNumber = DAYS * 7;
 
 	// 1 in 4 blocks (on average, not counting collisions) will be primary babe blocks.
+	// The choice of is done in accordance to the slot duration and expected target
+	// block time, for safely resisting network delays of maximum two seconds.
+	// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
 	pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
 }
 
@@ -82,7 +85,7 @@ pub mod fee {
 		fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
 			// in Kusama, extrinsic base weight (smallest non-zero weight) is mapped to 1/10 CENT:
 			let p = super::currency::CENTS;
-			let q = 10 * Balance::from(ExtrinsicBaseWeight::get());
+			let q = 10 * Balance::from(ExtrinsicBaseWeight::get().ref_time());
 			smallvec![WeightToFeeCoefficient {
 				degree: 1,
 				negative: false,
@@ -100,14 +103,14 @@ mod tests {
 		fee::WeightToFee,
 	};
 	use crate::weights::ExtrinsicBaseWeight;
-	use frame_support::weights::WeightToFeePolynomial;
+	use frame_support::weights::WeightToFee as WeightToFeeT;
 	use runtime_common::MAXIMUM_BLOCK_WEIGHT;
 
 	#[test]
 	// Test that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight has sane bounds.
 	fn full_block_fee_is_correct() {
 		// A full block should cost between 1,000 and 10,000 CENTS.
-		let full_block = WeightToFee::calc(&MAXIMUM_BLOCK_WEIGHT);
+		let full_block = WeightToFee::weight_to_fee(&MAXIMUM_BLOCK_WEIGHT);
 		assert!(full_block >= 1_000 * CENTS);
 		assert!(full_block <= 10_000 * CENTS);
 	}
@@ -117,7 +120,7 @@ mod tests {
 	fn extrinsic_base_fee_is_correct() {
 		// `ExtrinsicBaseWeight` should cost 1/10 of a CENT
 		println!("Base: {}", ExtrinsicBaseWeight::get());
-		let x = WeightToFee::calc(&ExtrinsicBaseWeight::get());
+		let x = WeightToFee::weight_to_fee(&ExtrinsicBaseWeight::get());
 		let y = CENTS / 10;
 		assert!(x.max(y) - x.min(y) < MILLICENTS);
 	}

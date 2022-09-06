@@ -21,10 +21,10 @@
 
 use bitvec::vec::BitVec;
 use futures::{
-	channel::{mpsc, oneshot},
-	prelude::*,
+	channel::oneshot, future::BoxFuture, prelude::*, stream::FuturesUnordered, FutureExt,
 };
 use futures_timer::Delay;
+
 use polkadot_node_primitives::CandidateVotes;
 use polkadot_node_subsystem::{
 	jaeger,
@@ -32,228 +32,290 @@ use polkadot_node_subsystem::{
 		CandidateBackingMessage, ChainApiMessage, DisputeCoordinatorMessage, ProvisionableData,
 		ProvisionerInherentData, ProvisionerMessage,
 	},
-	overseer, ActivatedLeaf, LeafStatus, PerLeafSpan,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
+	PerLeafSpan, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
-	request_availability_cores, request_persisted_validation_data, JobSender, JobSubsystem,
-	JobTrait,
+	request_availability_cores, request_persisted_validation_data, TimeoutExt,
 };
 use polkadot_primitives::v2::{
 	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeState,
 	DisputeStatement, DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption,
 	SessionIndex, SignedAvailabilityBitfield, ValidatorIndex,
 };
-use std::{
-	collections::{BTreeMap, HashMap, HashSet},
-	pin::Pin,
-};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 mod error;
 mod metrics;
 mod onchain_disputes;
 
 pub use self::metrics::*;
-use error::Error;
+use error::{Error, FatalResult};
 
 #[cfg(test)]
 mod tests;
 
 /// How long to wait before proposing.
 const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(2000);
+/// Some timeout to ensure task won't hang around in the background forever on issues.
+const SEND_INHERENT_DATA_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(500);
 
 const LOG_TARGET: &str = "parachain::provisioner";
 
-enum InherentAfter {
-	Ready,
-	Wait(Delay),
+/// The provisioner subsystem.
+pub struct ProvisionerSubsystem {
+	metrics: Metrics,
 }
 
-impl InherentAfter {
-	fn new_from_now() -> Self {
-		InherentAfter::Wait(Delay::new(PRE_PROPOSE_TIMEOUT))
-	}
-
-	fn is_ready(&self) -> bool {
-		match *self {
-			InherentAfter::Ready => true,
-			InherentAfter::Wait(_) => false,
-		}
-	}
-
-	async fn ready(&mut self) {
-		match *self {
-			InherentAfter::Ready => {
-				// Make sure we never end the returned future.
-				// This is required because the `select!` that calls this future will end in a busy loop.
-				futures::pending!()
-			},
-			InherentAfter::Wait(ref mut d) => {
-				d.await;
-				*self = InherentAfter::Ready;
-			},
-		}
+impl ProvisionerSubsystem {
+	/// Create a new instance of the `ProvisionerSubsystem`.
+	pub fn new(metrics: Metrics) -> Self {
+		Self { metrics }
 	}
 }
 
-/// Provisioner run arguments.
-#[derive(Debug, Clone, Copy)]
-pub struct ProvisionerConfig;
-
-/// A per-relay-parent job for the provisioning subsystem.
-pub struct ProvisionerJob<Sender> {
+/// A per-relay-parent state for the provisioning subsystem.
+pub struct PerRelayParent {
 	leaf: ActivatedLeaf,
-	receiver: mpsc::Receiver<ProvisionerMessage>,
 	backed_candidates: Vec<CandidateReceipt>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
-	metrics: Metrics,
-	inherent_after: InherentAfter,
+	is_inherent_ready: bool,
 	awaiting_inherent: Vec<oneshot::Sender<ProvisionerInherentData>>,
-	_phantom: std::marker::PhantomData<Sender>,
+	span: PerLeafSpan,
 }
 
-impl<Sender> JobTrait for ProvisionerJob<Sender>
-where
-	Sender: overseer::ProvisionerSenderTrait + std::marker::Unpin,
-{
-	type ToJob = ProvisionerMessage;
-	type OutgoingMessages = overseer::ProvisionerOutgoingMessages;
-	type Sender = Sender;
-	type Error = Error;
-	type RunArgs = ProvisionerConfig;
-	type Metrics = Metrics;
+impl PerRelayParent {
+	fn new(leaf: ActivatedLeaf) -> Self {
+		let span = PerLeafSpan::new(leaf.span.clone(), "provisioner");
 
-	const NAME: &'static str = "provisioner-job";
-
-	/// Run a job for the parent block indicated
-	//
-	// this function is in charge of creating and executing the job's main loop
-	fn run(
-		leaf: ActivatedLeaf,
-		_: Self::RunArgs,
-		metrics: Self::Metrics,
-		receiver: mpsc::Receiver<ProvisionerMessage>,
-		mut sender: JobSender<Sender>,
-	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-		let span = leaf.span.clone();
-		async move {
-			let job = ProvisionerJob::new(leaf, metrics, receiver);
-
-			job.run_loop(sender.subsystem_sender(), PerLeafSpan::new(span, "provisioner"))
-				.await
-		}
-		.boxed()
-	}
-}
-
-impl<Sender> ProvisionerJob<Sender>
-where
-	Sender: overseer::ProvisionerSenderTrait,
-{
-	fn new(
-		leaf: ActivatedLeaf,
-		metrics: Metrics,
-		receiver: mpsc::Receiver<ProvisionerMessage>,
-	) -> Self {
 		Self {
 			leaf,
-			receiver,
 			backed_candidates: Vec::new(),
 			signed_bitfields: Vec::new(),
-			metrics,
-			inherent_after: InherentAfter::new_from_now(),
+			is_inherent_ready: false,
 			awaiting_inherent: Vec::new(),
-			_phantom: std::marker::PhantomData::<Sender>::default(),
+			span,
+		}
+	}
+}
+
+type InherentDelays = FuturesUnordered<BoxFuture<'static, Hash>>;
+
+#[overseer::subsystem(Provisioner, error=SubsystemError, prefix=self::overseer)]
+impl<Context> ProvisionerSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = async move {
+			run(ctx, self.metrics)
+				.await
+				.map_err(|e| SubsystemError::with_origin("provisioner", e))
+		}
+		.boxed();
+
+		SpawnedSubsystem { name: "provisioner-subsystem", future }
+	}
+}
+
+#[overseer::contextbounds(Provisioner, prefix = self::overseer)]
+async fn run<Context>(mut ctx: Context, metrics: Metrics) -> FatalResult<()> {
+	let mut inherent_delays = InherentDelays::new();
+	let mut per_relay_parent = HashMap::new();
+
+	loop {
+		let result =
+			run_iteration(&mut ctx, &mut per_relay_parent, &mut inherent_delays, &metrics).await;
+
+		match result {
+			Ok(()) => break,
+			err => crate::error::log_error(err)?,
 		}
 	}
 
-	async fn run_loop(mut self, sender: &mut Sender, span: PerLeafSpan) -> Result<(), Error> {
-		loop {
-			futures::select! {
-				msg = self.receiver.next() => match msg {
-					Some(ProvisionerMessage::RequestInherentData(_, return_sender)) => {
-						let _span = span.child("req-inherent-data");
-						let _timer = self.metrics.time_request_inherent_data();
+	Ok(())
+}
 
-						if self.inherent_after.is_ready() {
-							self.send_inherent_data(sender, vec![return_sender]).await;
-						} else {
-							self.awaiting_inherent.push(return_sender);
-						}
-					}
-					Some(ProvisionerMessage::ProvisionableData(_, data)) => {
-						let span = span.child("provisionable-data");
-						let _timer = self.metrics.time_provisionable_data();
+#[overseer::contextbounds(Provisioner, prefix = self::overseer)]
+async fn run_iteration<Context>(
+	ctx: &mut Context,
+	per_relay_parent: &mut HashMap<Hash, PerRelayParent>,
+	inherent_delays: &mut InherentDelays,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	loop {
+		futures::select! {
+			from_overseer = ctx.recv().fuse() => {
+				match from_overseer? {
+					FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) =>
+						handle_active_leaves_update(update, per_relay_parent, inherent_delays),
+					FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
+					FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+					FromOrchestra::Communication { msg } => {
+						handle_communication(ctx, per_relay_parent, msg, metrics).await?;
+					},
+				}
+			},
+			hash = inherent_delays.select_next_some() => {
+				if let Some(state) = per_relay_parent.get_mut(&hash) {
+					state.is_inherent_ready = true;
 
-						self.note_provisionable_data(&span, data);
-					}
-					None => break,
-				},
-				_ = self.inherent_after.ready().fuse() => {
-					let _span = span.child("send-inherent-data");
-					let return_senders = std::mem::take(&mut self.awaiting_inherent);
+					gum::trace!(
+						target: LOG_TARGET,
+						relay_parent = ?hash,
+						"Inherent Data became ready"
+					);
+
+					let return_senders = std::mem::take(&mut state.awaiting_inherent);
 					if !return_senders.is_empty() {
-						self.send_inherent_data(sender, return_senders).await;
+						send_inherent_data_bg(ctx, &state, return_senders, metrics.clone()).await?;
 					}
 				}
 			}
 		}
+	}
+}
 
-		Ok(())
+fn handle_active_leaves_update(
+	update: ActiveLeavesUpdate,
+	per_relay_parent: &mut HashMap<Hash, PerRelayParent>,
+	inherent_delays: &mut InherentDelays,
+) {
+	for deactivated in &update.deactivated {
+		per_relay_parent.remove(deactivated);
 	}
 
-	async fn send_inherent_data(
-		&mut self,
-		sender: &mut Sender,
-		return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
-	) {
-		if let Err(err) = send_inherent_data(
-			&self.leaf,
-			&self.signed_bitfields,
-			&self.backed_candidates,
+	for leaf in update.activated {
+		let delay_fut = Delay::new(PRE_PROPOSE_TIMEOUT).map(move |_| leaf.hash).boxed();
+		per_relay_parent.insert(leaf.hash, PerRelayParent::new(leaf));
+		inherent_delays.push(delay_fut);
+	}
+}
+
+#[overseer::contextbounds(Provisioner, prefix = self::overseer)]
+async fn handle_communication<Context>(
+	ctx: &mut Context,
+	per_relay_parent: &mut HashMap<Hash, PerRelayParent>,
+	message: ProvisionerMessage,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	match message {
+		ProvisionerMessage::RequestInherentData(relay_parent, return_sender) => {
+			gum::trace!(target: LOG_TARGET, ?relay_parent, "Inherent data got requested.");
+
+			if let Some(state) = per_relay_parent.get_mut(&relay_parent) {
+				if state.is_inherent_ready {
+					gum::trace!(target: LOG_TARGET, ?relay_parent, "Calling send_inherent_data.");
+					send_inherent_data_bg(ctx, &state, vec![return_sender], metrics.clone())
+						.await?;
+				} else {
+					gum::trace!(
+						target: LOG_TARGET,
+						?relay_parent,
+						"Queuing inherent data request (inherent data not yet ready)."
+					);
+					state.awaiting_inherent.push(return_sender);
+				}
+			}
+		},
+		ProvisionerMessage::ProvisionableData(relay_parent, data) => {
+			if let Some(state) = per_relay_parent.get_mut(&relay_parent) {
+				let span = state.span.child("provisionable-data");
+				let _timer = metrics.time_provisionable_data();
+
+				gum::trace!(target: LOG_TARGET, ?relay_parent, "Received provisionable data.");
+
+				note_provisionable_data(state, &span, data);
+			}
+		},
+	}
+
+	Ok(())
+}
+
+#[overseer::contextbounds(Provisioner, prefix = self::overseer)]
+async fn send_inherent_data_bg<Context>(
+	ctx: &mut Context,
+	per_relay_parent: &PerRelayParent,
+	return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
+	metrics: Metrics,
+) -> Result<(), Error> {
+	let leaf = per_relay_parent.leaf.clone();
+	let signed_bitfields = per_relay_parent.signed_bitfields.clone();
+	let backed_candidates = per_relay_parent.backed_candidates.clone();
+	let span = per_relay_parent.span.child("req-inherent-data");
+
+	let mut sender = ctx.sender().clone();
+
+	let bg = async move {
+		let _span = span;
+		let _timer = metrics.time_request_inherent_data();
+
+		gum::trace!(
+			target: LOG_TARGET,
+			relay_parent = ?leaf.hash,
+			"Sending inherent data in background."
+		);
+
+		let send_result = send_inherent_data(
+			&leaf,
+			&signed_bitfields,
+			&backed_candidates,
 			return_senders,
-			sender,
-			&self.metrics,
-		)
-		.await
-		{
-			gum::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
-			self.metrics.on_inherent_data_request(Err(()));
-		} else {
-			self.metrics.on_inherent_data_request(Ok(()));
-			gum::debug!(
-				target: LOG_TARGET,
-				signed_bitfield_count = self.signed_bitfields.len(),
-				backed_candidates_count = self.backed_candidates.len(),
-				leaf_hash = ?self.leaf.hash,
-				"inherent data sent successfully"
-			);
-		}
-	}
+			&mut sender,
+			&metrics,
+		) // Make sure call is not taking forever:
+		.timeout(SEND_INHERENT_DATA_TIMEOUT)
+		.map(|v| match v {
+			Some(r) => r,
+			None => Err(Error::SendInherentDataTimeout),
+		});
 
-	fn note_provisionable_data(
-		&mut self,
-		span: &jaeger::Span,
-		provisionable_data: ProvisionableData,
-	) {
-		match provisionable_data {
-			ProvisionableData::Bitfield(_, signed_bitfield) =>
-				self.signed_bitfields.push(signed_bitfield),
-			ProvisionableData::BackedCandidate(backed_candidate) => {
-				let candidate_hash = backed_candidate.hash();
-				gum::trace!(
-					target: LOG_TARGET,
-					?candidate_hash,
-					para = ?backed_candidate.descriptor().para_id,
-					"noted backed candidate",
-				);
-				let _span = span
-					.child("provisionable-backed")
-					.with_candidate(candidate_hash)
-					.with_para_id(backed_candidate.descriptor().para_id);
-				self.backed_candidates.push(backed_candidate)
+		match send_result.await {
+			Err(err) => {
+				gum::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
+				metrics.on_inherent_data_request(Err(()));
 			},
-			_ => {},
+			Ok(()) => {
+				metrics.on_inherent_data_request(Ok(()));
+				gum::debug!(
+					target: LOG_TARGET,
+					signed_bitfield_count = signed_bitfields.len(),
+					backed_candidates_count = backed_candidates.len(),
+					leaf_hash = ?leaf.hash,
+					"inherent data sent successfully"
+				);
+				metrics.observe_inherent_data_bitfields_count(signed_bitfields.len());
+			},
 		}
+	};
+
+	ctx.spawn("send-inherent-data", bg.boxed())
+		.map_err(|_| Error::FailedToSpawnBackgroundTask)?;
+
+	Ok(())
+}
+
+fn note_provisionable_data(
+	per_relay_parent: &mut PerRelayParent,
+	span: &jaeger::Span,
+	provisionable_data: ProvisionableData,
+) {
+	match provisionable_data {
+		ProvisionableData::Bitfield(_, signed_bitfield) =>
+			per_relay_parent.signed_bitfields.push(signed_bitfield),
+		ProvisionableData::BackedCandidate(backed_candidate) => {
+			let candidate_hash = backed_candidate.hash();
+			gum::trace!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				para = ?backed_candidate.descriptor().para_id,
+				"noted backed candidate",
+			);
+			let _span = span
+				.child("provisionable-backed")
+				.with_candidate(candidate_hash)
+				.with_para_id(backed_candidate.descriptor().para_id);
+			per_relay_parent.backed_candidates.push(backed_candidate)
+		},
+		_ => {},
 	}
 }
 
@@ -284,12 +346,27 @@ async fn send_inherent_data(
 	from_job: &mut impl overseer::ProvisionerSenderTrait,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Requesting availability cores"
+	);
 	let availability_cores = request_availability_cores(leaf.hash, from_job)
 		.await
 		.await
 		.map_err(|err| Error::CanceledAvailabilityCores(err))??;
 
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Selecting disputes"
+	);
 	let disputes = select_disputes(from_job, metrics, leaf).await?;
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Selected disputes"
+	);
 
 	// Only include bitfields on fresh leaves. On chain reversions, we want to make sure that
 	// there will be at least one block, which cannot get disputed, so the chain can make progress.
@@ -298,8 +375,20 @@ async fn send_inherent_data(
 			select_availability_bitfields(&availability_cores, bitfields, &leaf.hash),
 		LeafStatus::Stale => Vec::new(),
 	};
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Selected bitfields"
+	);
 	let candidates =
 		select_candidates(&availability_cores, &bitfields, candidates, leaf.hash, from_job).await?;
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Selected candidates"
+	);
 
 	gum::debug!(
 		target: LOG_TARGET,
@@ -313,6 +402,12 @@ async fn send_inherent_data(
 
 	let inherent_data =
 		ProvisionerInherentData { bitfields, backed_candidates: candidates, disputes };
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Sending back inherent data to requesters."
+	);
 
 	for return_sender in return_senders {
 		return_sender
@@ -477,13 +572,11 @@ async fn select_candidates(
 
 	// now get the backed candidates corresponding to these candidate receipts
 	let (tx, rx) = oneshot::channel();
-	sender
-		.send_message(CandidateBackingMessage::GetBackedCandidates(
-			relay_parent,
-			selected_candidates.clone(),
-			tx,
-		))
-		.await;
+	sender.send_unbounded_message(CandidateBackingMessage::GetBackedCandidates(
+		relay_parent,
+		selected_candidates.clone(),
+		tx,
+	));
 	let mut candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
 
 	// `selected_candidates` is generated in ascending order by core index, and `GetBackedCandidates`
@@ -620,6 +713,12 @@ async fn request_votes(
 	sender: &mut impl overseer::ProvisionerSenderTrait,
 	disputes_to_query: Vec<(SessionIndex, CandidateHash)>,
 ) -> Vec<(SessionIndex, CandidateHash, CandidateVotes)> {
+	// No need to send dummy request, if nothing to request:
+	if disputes_to_query.is_empty() {
+		gum::trace!(target: LOG_TARGET, "No disputes, nothing to request - returning empty `Vec`.");
+
+		return Vec::new()
+	}
 	let (tx, rx) = oneshot::channel();
 	// Bounded by block production - `ProvisionerMessage::RequestInherentData`.
 	sender.send_unbounded_message(DisputeCoordinatorMessage::QueryCandidateVotes(
@@ -739,6 +838,12 @@ async fn select_disputes(
 			active
 		};
 
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?_leaf.hash,
+		"Request recent disputes"
+	);
+
 	// We use `RecentDisputes` instead of `ActiveDisputes` because redundancy is fine.
 	// It's heavier than `ActiveDisputes` but ensures that everything from the dispute
 	// window gets on-chain, unlike `ActiveDisputes`.
@@ -746,6 +851,18 @@ async fn select_disputes(
 	// upper bound of disputes to pass to wasm `fn create_inherent_data`.
 	// If the active ones are already exceeding the bounds, randomly select a subset.
 	let recent = request_disputes(sender, RequestType::Recent).await;
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_paent = ?_leaf.hash,
+		"Received recent disputes"
+	);
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_paent = ?_leaf.hash,
+		"Request on chain disputes"
+	);
 
 	// On chain disputes are fetched from the runtime. We want to prioritise the inclusion of unknown
 	// disputes in the inherent data. The call relies on staging Runtime API. If the staging API is not
@@ -761,6 +878,18 @@ async fn select_disputes(
 			HashMap::new()
 		},
 	};
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_paent = ?_leaf.hash,
+		"Received on chain disputes"
+	);
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_paent = ?_leaf.hash,
+		"Filtering disputes"
+	);
 
 	let disputes = if recent.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
 		gum::warn!(
@@ -779,20 +908,34 @@ async fn select_disputes(
 		recent
 	};
 
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_paent = ?_leaf.hash,
+		"Calling `request_votes`"
+	);
+
 	// Load all votes for all disputes from the coordinator.
 	let dispute_candidate_votes = request_votes(sender, disputes).await;
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_paent = ?_leaf.hash,
+		"Finished `request_votes`"
+	);
 
 	// Transform all `CandidateVotes` into `MultiDisputeStatementSet`.
 	Ok(dispute_candidate_votes
 		.into_iter()
 		.map(|(session_index, candidate_hash, votes)| {
-			let valid_statements =
-				votes.valid.into_iter().map(|(s, i, sig)| (DisputeStatement::Valid(s), i, sig));
+			let valid_statements = votes
+				.valid
+				.into_iter()
+				.map(|(i, (s, sig))| (DisputeStatement::Valid(s), i, sig));
 
 			let invalid_statements = votes
 				.invalid
 				.into_iter()
-				.map(|(s, i, sig)| (DisputeStatement::Invalid(s), i, sig));
+				.map(|(i, (s, sig))| (DisputeStatement::Invalid(s), i, sig));
 
 			metrics.inc_valid_statements_by(valid_statements.len());
 			metrics.inc_invalid_statements_by(invalid_statements.len());
@@ -806,6 +949,3 @@ async fn select_disputes(
 		})
 		.collect())
 }
-
-/// The provisioner subsystem.
-pub type ProvisionerSubsystem<Spawner, Sender> = JobSubsystem<ProvisionerJob<Sender>, Spawner>;

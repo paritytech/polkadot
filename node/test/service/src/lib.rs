@@ -41,9 +41,13 @@ use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
 	multiaddr,
 };
+use sc_network_common::service::NetworkStateInfo;
 use sc_service::{
-	config::{DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
-	BasePath, Configuration, KeepBlocks, Role, RpcHandlers, TaskManager,
+	config::{
+		DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod,
+		WasmtimeInstantiationStrategy,
+	},
+	BasePath, BlocksPruning, Configuration, Role, RpcHandlers, TaskManager,
 };
 use sp_arithmetic::traits::SaturatedConversion;
 use sp_blockchain::HeaderBackend;
@@ -97,6 +101,7 @@ pub fn new_full(
 		worker_program_path,
 		false,
 		polkadot_service::RealOverseerGen,
+		None,
 		None,
 		None,
 	)
@@ -171,12 +176,13 @@ pub fn node_config(
 		keystore: KeystoreConfig::InMemory,
 		keystore_remote: Default::default(),
 		database: DatabaseSource::RocksDb { path: root.join("db"), cache_size: 128 },
-		state_cache_size: 16777216,
-		state_cache_child_ratio: None,
+		trie_cache_maximum_size: Some(64 * 1024 * 1024),
 		state_pruning: Default::default(),
-		keep_blocks: KeepBlocks::All,
+		blocks_pruning: BlocksPruning::All,
 		chain_spec: Box::new(spec),
-		wasm_method: WasmExecutionMethod::Compiled,
+		wasm_method: WasmExecutionMethod::Compiled {
+			instantiation_strategy: WasmtimeInstantiationStrategy::PoolingCopyOnWrite,
+		},
 		wasm_runtime_overrides: Default::default(),
 		// NOTE: we enforce the use of the native runtime to make the errors more debuggable
 		execution_strategies: ExecutionStrategies {

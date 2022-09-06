@@ -38,7 +38,7 @@ use sc_client_api::AuxStore;
 use sp_blockchain::HeaderBackend;
 
 use polkadot_node_subsystem::{
-	messages::ChainApiMessage, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	messages::ChainApiMessage, overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem,
 	SubsystemError, SubsystemResult,
 };
 use polkadot_primitives::v2::{Block, BlockId};
@@ -87,10 +87,10 @@ where
 {
 	loop {
 		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
-			FromOverseer::Communication { msg } => match msg {
+			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(_)) => {},
+			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
+			FromOrchestra::Communication { msg } => match msg {
 				ChainApiMessage::BlockNumber(hash, response_channel) => {
 					let _timer = subsystem.metrics.time_block_number();
 					let result = subsystem.client.number(hash).map_err(|e| e.to_string().into());

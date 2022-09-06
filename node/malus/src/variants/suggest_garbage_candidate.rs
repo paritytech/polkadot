@@ -27,7 +27,7 @@ use polkadot_cli::{
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
 		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
-		ProvideRuntimeApi, SpawnNamed,
+		ProvideRuntimeApi,
 	},
 };
 use polkadot_node_core_candidate_validation::find_validation_data;
@@ -35,6 +35,7 @@ use polkadot_node_primitives::{AvailableData, BlockData, PoV};
 use polkadot_primitives::v2::{CandidateDescriptor, CandidateHash};
 
 use polkadot_node_subsystem_util::request_validators;
+use sp_core::traits::SpawnNamed;
 
 // Filter wrapping related types.
 use crate::{
@@ -48,7 +49,10 @@ use crate::{
 
 // Import extra types relevant to the particular
 // subsystem.
-use polkadot_node_subsystem::messages::{CandidateBackingMessage, CollatorProtocolMessage};
+use polkadot_node_subsystem::{
+	messages::{CandidateBackingMessage, CollatorProtocolMessage},
+	SpawnGlue,
+};
 use polkadot_primitives::v2::CandidateReceipt;
 
 use std::{
@@ -72,7 +76,7 @@ struct NoteCandidate<Spawner> {
 impl<Sender, Spawner> MessageInterceptor<Sender> for NoteCandidate<Spawner>
 where
 	Sender: overseer::CandidateBackingSenderTrait + Clone + Send + 'static,
-	Spawner: SpawnNamed + Clone + 'static,
+	Spawner: overseer::gen::Spawner + Clone + 'static,
 {
 	type Message = CandidateBackingMessage;
 
@@ -80,10 +84,10 @@ where
 	fn intercept_incoming(
 		&self,
 		subsystem_sender: &mut Sender,
-		msg: FromOverseer<Self::Message>,
-	) -> Option<FromOverseer<Self::Message>> {
+		msg: FromOrchestra<Self::Message>,
+	) -> Option<FromOrchestra<Self::Message>> {
 		match msg {
-			FromOverseer::Communication {
+			FromOrchestra::Communication {
 				msg: CandidateBackingMessage::Second(relay_parent, candidate, _pov),
 			} => {
 				gum::debug!(
@@ -204,14 +208,14 @@ where
 					.map
 					.insert(malicious_candidate_hash, candidate.hash());
 
-				let message = FromOverseer::Communication {
+				let message = FromOrchestra::Communication {
 					msg: CandidateBackingMessage::Second(relay_parent, malicious_candidate, pov),
 				};
 
 				Some(message)
 			},
-			FromOverseer::Communication { msg } => Some(FromOverseer::Communication { msg }),
-			FromOverseer::Signal(signal) => Some(FromOverseer::Signal(signal)),
+			FromOrchestra::Communication { msg } => Some(FromOrchestra::Communication { msg }),
+			FromOrchestra::Signal(signal) => Some(FromOrchestra::Signal(signal)),
 		}
 	}
 
@@ -245,7 +249,7 @@ impl OverseerGen for BackGarbageCandidateWrapper {
 		&self,
 		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
-	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
+	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
@@ -254,12 +258,12 @@ impl OverseerGen for BackGarbageCandidateWrapper {
 		let inner = Inner { map: std::collections::HashMap::new() };
 		let inner_mut = Arc::new(Mutex::new(inner));
 		let note_candidate =
-			NoteCandidate { inner: inner_mut.clone(), spawner: args.spawner.clone() };
+			NoteCandidate { inner: inner_mut.clone(), spawner: SpawnGlue(args.spawner.clone()) };
 
 		let validation_filter = ReplaceValidationResult::new(
 			FakeCandidateValidation::BackingAndApprovalValid,
 			FakeCandidateValidationError::InvalidOutputs,
-			args.spawner.clone(),
+			SpawnGlue(args.spawner.clone()),
 		);
 
 		prepared_overseer_builder(args)?

@@ -24,7 +24,7 @@
 #![deny(missing_docs)]
 #![deny(unused_imports)]
 
-pub use metered_channel as metered;
+pub use metered;
 
 /// Cyclic metric collection support.
 pub mod metronome;

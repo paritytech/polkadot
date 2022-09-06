@@ -50,8 +50,8 @@ use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem::{
 	errors::RecoveryError,
 	jaeger,
-	messages::{AvailabilityRecoveryMessage, AvailabilityStoreMessage, NetworkBridgeMessage},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemError,
+	messages::{AvailabilityRecoveryMessage, AvailabilityStoreMessage, NetworkBridgeTxMessage},
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 	SubsystemResult,
 };
 use polkadot_node_subsystem_util::request_session_info;
@@ -198,7 +198,7 @@ impl RequestFromBackers {
 			);
 
 			sender
-				.send_message(NetworkBridgeMessage::SendRequests(
+				.send_message(NetworkBridgeTxMessage::SendRequests(
 					vec![Requests::AvailableDataFetchingV1(req)],
 					IfDisconnected::ImmediateError,
 				))
@@ -356,7 +356,7 @@ impl RequestChunksFromValidators {
 		}
 
 		sender
-			.send_message(NetworkBridgeMessage::SendRequests(
+			.send_message(NetworkBridgeTxMessage::SendRequests(
 				requests,
 				IfDisconnected::ImmediateError,
 			))
@@ -988,13 +988,13 @@ impl AvailabilityRecoverySubsystem {
 			futures::select! {
 				v = ctx.recv().fuse() => {
 					match v? {
-						FromOverseer::Signal(signal) => if handle_signal(
+						FromOrchestra::Signal(signal) => if handle_signal(
 							&mut state,
 							signal,
 						).await? {
 							return Ok(());
 						}
-						FromOverseer::Communication { msg } => {
+						FromOrchestra::Communication { msg } => {
 							match msg {
 								AvailabilityRecoveryMessage::RecoverAvailableData(
 									receipt,

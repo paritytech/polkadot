@@ -27,7 +27,7 @@ use polkadot_node_subsystem::{
 		AllMessages, CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest,
 		ValidationFailed,
 	},
-	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
+	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::v2::{
@@ -64,12 +64,6 @@ struct TestState {
 	head_data: HashMap<ParaId, HeadData>,
 	signing_context: SigningContext,
 	relay_parent: Hash,
-}
-
-impl TestState {
-	fn session(&self) -> SessionIndex {
-		self.signing_context.session_index
-	}
 }
 
 impl Default for TestState {
@@ -169,7 +163,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	futures::executor::block_on(future::join(
 		async move {
 			let mut virtual_overseer = test_fut.await;
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 		},
 		subsystem,
 	));
@@ -222,7 +216,7 @@ impl TestCandidateBuilder {
 async fn test_startup(virtual_overseer: &mut VirtualOverseer, test_state: &TestState) {
 	// Start work on some new parent.
 	virtual_overseer
-		.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+		.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
 			ActivatedLeaf {
 				hash: test_state.relay_parent,
 				number: 1,
@@ -273,34 +267,6 @@ async fn test_startup(virtual_overseer: &mut VirtualOverseer, test_state: &TestS
 	);
 }
 
-async fn test_dispute_coordinator_notifications(
-	virtual_overseer: &mut VirtualOverseer,
-	candidate_hash: CandidateHash,
-	session: SessionIndex,
-	validator_indices: Vec<ValidatorIndex>,
-) {
-	for validator_index in validator_indices {
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::DisputeCoordinator(
-				DisputeCoordinatorMessage::ImportStatements {
-					candidate_hash: c_hash,
-					candidate_receipt: c_receipt,
-					session: s,
-					statements,
-					pending_confirmation: None,
-				}
-			) => {
-				assert_eq!(c_hash, candidate_hash);
-				assert_eq!(c_receipt.hash(), c_hash);
-				assert_eq!(s, session);
-				assert_eq!(statements.len(), 1);
-				assert_eq!(statements[0].1, validator_index);
-			}
-		)
-	}
-}
-
 // Test that a `CandidateBackingMessage::Second` issues validation work
 // and in case validation is successful issues a `StatementDistributionMessage`.
 #[test]
@@ -330,7 +296,7 @@ fn backing_second_works() {
 			pov.clone(),
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -364,14 +330,6 @@ fn backing_second_works() {
 			}
 		);
 
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate.hash(),
-			test_state.session(),
-			vec![ValidatorIndex(0)],
-		)
-		.await;
-
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
@@ -391,7 +349,7 @@ fn backing_second_works() {
 		);
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
 			)))
 			.await;
@@ -467,15 +425,7 @@ fn backing_works() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate_a_hash,
-			test_state.session(),
-			vec![ValidatorIndex(2)],
-		)
-		.await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		// Sending a `Statement::Seconded` for our assignment will start
 		// validation process. The first thing requested is the PoV.
@@ -526,14 +476,6 @@ fn backing_works() {
 			}
 		);
 
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate_a_hash,
-			test_state.session(),
-			vec![ValidatorIndex(0)],
-		)
-		.await;
-
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::Provisioner(
@@ -558,18 +500,10 @@ fn backing_works() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_b.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate_a_hash,
-			test_state.session(),
-			vec![ValidatorIndex(5)],
-		)
-		.await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
 			)))
 			.await;
@@ -662,15 +596,7 @@ fn backing_works_while_validation_ongoing() {
 
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate_a.hash(),
-			test_state.session(),
-			vec![ValidatorIndex(2)],
-		)
-		.await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		// Sending a `Statement::Seconded` for our assignment will start
 		// validation process. The first thing requested is PoV from the
@@ -709,15 +635,7 @@ fn backing_works_while_validation_ongoing() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_b.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate_a.hash(),
-			test_state.session(),
-			vec![ValidatorIndex(5)],
-		)
-		.await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		// Candidate gets backed entirely by other votes.
 		assert_matches!(
@@ -736,15 +654,7 @@ fn backing_works_while_validation_ongoing() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_c.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate_a.hash(),
-			test_state.session(),
-			vec![ValidatorIndex(3)],
-		)
-		.await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		let (tx, rx) = oneshot::channel();
 		let msg = CandidateBackingMessage::GetBackedCandidates(
@@ -753,7 +663,7 @@ fn backing_works_while_validation_ongoing() {
 			tx,
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg }).await;
 
 		let candidates = rx.await.unwrap();
 		assert_eq!(1, candidates.len());
@@ -774,7 +684,7 @@ fn backing_works_while_validation_ongoing() {
 		);
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
 			)))
 			.await;
@@ -843,15 +753,7 @@ fn backing_misbehavior_works() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, seconded_2.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate_a_hash,
-			test_state.session(),
-			vec![ValidatorIndex(2)],
-		)
-		.await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -898,14 +800,6 @@ fn backing_misbehavior_works() {
 				}
 		);
 
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate_a_hash,
-			test_state.session(),
-			vec![ValidatorIndex(0)],
-		)
-		.await;
-
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::Provisioner(
@@ -935,15 +829,7 @@ fn backing_misbehavior_works() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, valid_2.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate_a_hash,
-			test_state.session(),
-			vec![ValidatorIndex(2)],
-		)
-		.await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1024,7 +910,7 @@ fn backing_dont_second_invalid() {
 			pov_block_a.clone(),
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1053,7 +939,7 @@ fn backing_dont_second_invalid() {
 			pov_block_b.clone(),
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1087,14 +973,6 @@ fn backing_dont_second_invalid() {
 			}
 		);
 
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate_b.hash(),
-			test_state.session(),
-			vec![ValidatorIndex(0)],
-		)
-		.await;
-
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
@@ -1108,7 +986,7 @@ fn backing_dont_second_invalid() {
 		);
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
 			)))
 			.await;
@@ -1161,15 +1039,7 @@ fn backing_second_after_first_fails_works() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate.hash(),
-			test_state.session(),
-			vec![ValidatorIndex(2)],
-		)
-		.await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		// Subsystem requests PoV and requests validation.
 		assert_matches!(
@@ -1208,7 +1078,7 @@ fn backing_second_after_first_fails_works() {
 			pov.clone(),
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		let pov_to_second = PoV { block_data: BlockData(vec![3, 2, 1]) };
 
@@ -1232,7 +1102,7 @@ fn backing_second_after_first_fails_works() {
 		// In order to trigger _some_ actions from subsystem ask it to second another
 		// candidate. The only reason to do so is to make sure that no actions were
 		// triggered on the prev step.
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1295,15 +1165,7 @@ fn backing_works_after_failed_validation() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate.hash(),
-			test_state.session(),
-			vec![ValidatorIndex(2)],
-		)
-		.await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		// Subsystem requests PoV and requests validation.
 		assert_matches!(
@@ -1343,7 +1205,7 @@ fn backing_works_after_failed_validation() {
 			tx,
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg }).await;
 		assert_eq!(rx.await.unwrap().len(), 0);
 		virtual_overseer
 	});
@@ -1383,7 +1245,7 @@ fn backing_doesnt_second_wrong_collator() {
 			pov.clone(),
 		);
 
-		virtual_overseer.send(FromOverseer::Communication { msg: second }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1394,7 +1256,7 @@ fn backing_doesnt_second_wrong_collator() {
 		);
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
 			)))
 			.await;
@@ -1451,11 +1313,11 @@ fn validation_work_ignores_wrong_collator() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, seconding.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		// The statement will be ignored because it has the wrong collator.
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
 			)))
 			.await;
@@ -1613,15 +1475,7 @@ fn retry_works() {
 		// Send in a `Statement` with a candidate.
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate.hash(),
-			test_state.session(),
-			vec![ValidatorIndex(2)],
-		)
-		.await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		// Subsystem requests PoV and requests validation.
 		// We cancel - should mean retry on next backing statement.
@@ -1640,15 +1494,7 @@ fn retry_works() {
 
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_b.clone());
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate.hash(),
-			test_state.session(),
-			vec![ValidatorIndex(3)],
-		)
-		.await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		// Not deterministic which message comes first:
 		for _ in 0u32..2 {
@@ -1672,15 +1518,7 @@ fn retry_works() {
 
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_c.clone());
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate.hash(),
-			test_state.session(),
-			vec![ValidatorIndex(5)],
-		)
-		.await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1799,20 +1637,12 @@ fn observes_backing_even_if_not_validator() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_b.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate_a_hash,
-			test_state.session(),
-			vec![ValidatorIndex(0), ValidatorIndex(5)],
-		)
-		.await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1829,18 +1659,10 @@ fn observes_backing_even_if_not_validator() {
 		let statement =
 			CandidateBackingMessage::Statement(test_state.relay_parent, signed_c.clone());
 
-		virtual_overseer.send(FromOverseer::Communication { msg: statement }).await;
-
-		test_dispute_coordinator_notifications(
-			&mut virtual_overseer,
-			candidate_a_hash,
-			test_state.session(),
-			vec![ValidatorIndex(2)],
-		)
-		.await;
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
 
 		virtual_overseer
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(test_state.relay_parent),
 			)))
 			.await;

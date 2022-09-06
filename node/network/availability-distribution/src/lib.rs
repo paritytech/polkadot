@@ -20,7 +20,7 @@ use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::request_response::{v1, IncomingRequestReceiver};
 use polkadot_node_subsystem::{
-	messages::AvailabilityDistributionMessage, overseer, FromOverseer, OverseerSignal,
+	messages::AvailabilityDistributionMessage, overseer, FromOrchestra, OverseerSignal,
 	SpawnedSubsystem, SubsystemError,
 };
 
@@ -134,7 +134,7 @@ impl AvailabilityDistributionSubsystem {
 				},
 			};
 			match message {
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 					log_error(
 						requester
 							.get_mut()
@@ -143,9 +143,9 @@ impl AvailabilityDistributionSubsystem {
 						"Error in Requester::update_fetching_heads",
 					)?;
 				},
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
-				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-				FromOverseer::Communication {
+				FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
+				FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+				FromOrchestra::Communication {
 					msg:
 						AvailabilityDistributionMessage::FetchPoV {
 							relay_parent,

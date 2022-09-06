@@ -21,7 +21,7 @@
 //! messages on the overseer level.
 
 use polkadot_node_subsystem::*;
-pub use polkadot_node_subsystem::{messages, messages::*, overseer, FromOverseer};
+pub use polkadot_node_subsystem::{messages, messages::*, overseer, FromOrchestra};
 use std::{future::Future, pin::Pin};
 
 /// Filter incoming and outgoing messages.
@@ -42,8 +42,8 @@ where
 	fn intercept_incoming(
 		&self,
 		_sender: &mut Sender,
-		msg: FromOverseer<Self::Message>,
-	) -> Option<FromOverseer<Self::Message>> {
+		msg: FromOrchestra<Self::Message>,
+	) -> Option<FromOrchestra<Self::Message>> {
 		Some(msg)
 	}
 
@@ -174,7 +174,7 @@ where
 	type OutgoingMessages = <<Context as overseer::SubsystemContext>::Message as overseer::AssociateOutgoing>::OutgoingMessages;
 	type Signal = OverseerSignal;
 
-	async fn try_recv(&mut self) -> Result<Option<FromOverseer<Self::Message>>, ()> {
+	async fn try_recv(&mut self) -> Result<Option<FromOrchestra<Self::Message>>, ()> {
 		loop {
 			match self.inner.try_recv().await? {
 				None => return Ok(None),
@@ -188,7 +188,7 @@ where
 		}
 	}
 
-	async fn recv(&mut self) -> SubsystemResult<FromOverseer<Self::Message>> {
+	async fn recv(&mut self) -> SubsystemResult<FromOrchestra<Self::Message>> {
 		loop {
 			let msg = self.inner.recv().await?;
 			if let Some(msg) = self.message_filter.intercept_incoming(self.inner.sender(), msg) {
@@ -243,10 +243,6 @@ where
 			<Context as overseer::SubsystemContext>::Sender,
 			Message = <Context as overseer::SubsystemContext>::Message,
 		>,
-	// <Context as overseer::SubsystemContext>::Sender:
-	// 	overseer::SubsystemSender<
-	// 		<Interceptor as MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>>::Message,
-	// 	>,
 	<Context as overseer::SubsystemContext>::Message:
 		overseer::AssociateOutgoing,
 	<Context as overseer::SubsystemContext>::Sender:

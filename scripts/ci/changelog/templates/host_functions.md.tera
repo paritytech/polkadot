@@ -20,6 +20,7 @@
 {%- if host_fn_count == 0 %}
 ℹ️ This release does not contain any new host functions.
 {% elif host_fn_count == 1 -%}
+{# ---- #}
 ⚠️ The runtimes in this release contain one new **host function**.
 
 ⚠️ It is critical that you update your client before the chain switches to the new runtime.

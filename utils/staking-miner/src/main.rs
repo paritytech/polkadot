@@ -28,29 +28,37 @@
 //!   development. It is intended to run this bot with a `restart = true` way, so that it reports it
 //!   crash, but resumes work thereafter.
 
+// Silence erroneous warning about unsafe not being required whereas it is
+// see https://github.com/rust-lang/rust/issues/49112
+#![allow(unused_unsafe)]
+
 mod dry_run;
 mod emergency_solution;
 mod monitor;
+mod opts;
 mod prelude;
 mod rpc;
+mod runtime_versions;
 mod signer;
-
-use std::str::FromStr;
 
 pub(crate) use prelude::*;
 pub(crate) use signer::get_account_info;
 
+use crate::opts::*;
 use clap::Parser;
 use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
+use futures_util::StreamExt;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use rpc::{RpcApiClient, SharedRpcClient};
-use sp_npos_elections::ExtendedBalance;
-use sp_runtime::{traits::Block as BlockT, DeserializeOwned, Perbill};
-use tracing_subscriber::{fmt, EnvFilter};
-
+use runtime_versions::RuntimeVersions;
+use signal_hook::consts::signal::*;
+use signal_hook_tokio::Signals;
+use sp_npos_elections::BalancingConfig;
+use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 use std::{ops::Deref, sync::Arc};
+use tracing_subscriber::{fmt, EnvFilter};
 
 pub(crate) enum AnyRuntime {
 	Polkadot,
@@ -62,7 +70,6 @@ pub(crate) static mut RUNTIME: AnyRuntime = AnyRuntime::Polkadot;
 
 macro_rules! construct_runtime_prelude {
 	($runtime:ident) => { paste::paste! {
-		#[allow(unused_import)]
 		pub(crate) mod [<$runtime _runtime_exports>] {
 			pub(crate) use crate::prelude::EPM;
 			pub(crate) use [<$runtime _runtime>]::*;
@@ -246,6 +253,7 @@ enum Error<T: EPM::Config> {
 	AlreadySubmitted,
 	VersionMismatch,
 	StrategyNotSatisfied,
+	Other(String),
 }
 
 impl<T: EPM::Config> From<sp_core::crypto::SecretStringError> for Error<T> {
@@ -278,156 +286,11 @@ impl<T: EPM::Config> std::fmt::Display for Error<T> {
 	}
 }
 
-#[derive(Debug, Clone, Parser)]
-#[cfg_attr(test, derive(PartialEq))]
-enum Command {
-	/// Monitor for the phase being signed, then compute.
-	Monitor(MonitorConfig),
-	/// Just compute a solution now, and don't submit it.
-	DryRun(DryRunConfig),
-	/// Provide a solution that can be submitted to the chain as an emergency response.
-	EmergencySolution(EmergencySolutionConfig),
-}
-
-#[derive(Debug, Clone, Parser)]
-#[cfg_attr(test, derive(PartialEq))]
-enum Solver {
-	SeqPhragmen {
-		#[clap(long, default_value = "10")]
-		iterations: usize,
-	},
-	PhragMMS {
-		#[clap(long, default_value = "10")]
-		iterations: usize,
-	},
-}
-
-/// Submission strategy to use.
-#[derive(Debug, Copy, Clone)]
-#[cfg_attr(test, derive(PartialEq))]
-enum SubmissionStrategy {
-	// Only submit if at the time, we are the best.
-	IfLeading,
-	// Always submit.
-	Always,
-	// Submit if we are leading, or if the solution that's leading is more that the given `Perbill`
-	// better than us. This helps detect obviously fake solutions and still combat them.
-	ClaimBetterThan(Perbill),
-}
-
-/// Custom `impl` to parse `SubmissionStrategy` from CLI.
-///
-/// Possible options:
-/// * --submission-strategy if-leading: only submit if leading
-/// * --submission-strategy always: always submit
-/// * --submission-strategy "percent-better <percent>": submit if submission is `n` percent better.
-///
-impl FromStr for SubmissionStrategy {
-	type Err = String;
-
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		let s = s.trim();
-
-		let res = if s == "if-leading" {
-			Self::IfLeading
-		} else if s == "always" {
-			Self::Always
-		} else if s.starts_with("percent-better ") {
-			let percent: u32 = s[15..].parse().map_err(|e| format!("{:?}", e))?;
-			Self::ClaimBetterThan(Perbill::from_percent(percent))
-		} else {
-			return Err(s.into())
-		};
-		Ok(res)
-	}
-}
-
 frame_support::parameter_types! {
 	/// Number of balancing iterations for a solution algorithm. Set based on the [`Solvers`] CLI
 	/// config.
 	pub static BalanceIterations: usize = 10;
-	pub static Balancing: Option<(usize, ExtendedBalance)> = Some((BalanceIterations::get(), 0));
-}
-
-#[derive(Debug, Clone, Parser)]
-#[cfg_attr(test, derive(PartialEq))]
-struct MonitorConfig {
-	/// They type of event to listen to.
-	///
-	/// Typically, finalized is safer and there is no chance of anything going wrong, but it can be
-	/// slower. It is recommended to use finalized, if the duration of the signed phase is longer
-	/// than the the finality delay.
-	#[clap(long, default_value = "head", possible_values = &["head", "finalized"])]
-	listen: String,
-
-	/// The solver algorithm to use.
-	#[clap(subcommand)]
-	solver: Solver,
-
-	/// Submission strategy to use.
-	///
-	/// Possible options:
-	///
-	/// `--submission-strategy if-leading`: only submit if leading.
-	///
-	/// `--submission-strategy always`: always submit.
-	///
-	/// `--submission-strategy "percent-better <percent>"`: submit if the submission is `n` percent better.
-	#[clap(long, parse(try_from_str), default_value = "if-leading")]
-	submission_strategy: SubmissionStrategy,
-}
-
-#[derive(Debug, Clone, Parser)]
-#[cfg_attr(test, derive(PartialEq))]
-struct EmergencySolutionConfig {
-	/// The block hash at which scraping happens. If none is provided, the latest head is used.
-	#[clap(long)]
-	at: Option<Hash>,
-
-	/// The solver algorithm to use.
-	#[clap(subcommand)]
-	solver: Solver,
-
-	/// The number of top backed winners to take. All are taken, if not provided.
-	take: Option<usize>,
-}
-
-#[derive(Debug, Clone, Parser)]
-#[cfg_attr(test, derive(PartialEq))]
-struct DryRunConfig {
-	/// The block hash at which scraping happens. If none is provided, the latest head is used.
-	#[clap(long)]
-	at: Option<Hash>,
-
-	/// The solver algorithm to use.
-	#[clap(subcommand)]
-	solver: Solver,
-
-	/// Force create a new snapshot, else expect one to exist onchain.
-	#[clap(long)]
-	force_snapshot: bool,
-}
-
-#[derive(Debug, Clone, Parser)]
-#[cfg_attr(test, derive(PartialEq))]
-#[clap(author, version, about)]
-struct Opt {
-	/// The `ws` node to connect to.
-	#[clap(long, short, default_value = DEFAULT_URI, env = "URI")]
-	uri: String,
-
-	/// The path to a file containing the seed of the account. If the file is not found, the seed is
-	/// used as-is.
-	///
-	/// Can also be provided via the `SEED` environment variable.
-	///
-	/// WARNING: Don't use an account with a large stash for this. Based on how the bot is
-	/// configured, it might re-try and lose funds through transaction fees/deposits.
-	#[clap(long, short, env = "SEED")]
-	seed_or_path: String,
-
-	#[clap(subcommand)]
-	command: Command,
+	pub static Balancing: Option<BalancingConfig> = Some( BalancingConfig { iterations: BalanceIterations::get(), tolerance: 0 } );
 }
 
 /// Build the Ext at hash with all the data of `ElectionProviderMultiPhase` and any additional
@@ -578,12 +441,56 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 	}
 }
 
+/// Control how we exit the application
+fn controlled_exit(code: i32) {
+	log::info!(target: LOG_TARGET, "Exiting application");
+	std::process::exit(code);
+}
+
+/// Handles the various signal and exit the application
+/// when appropriate.
+async fn handle_signals(mut signals: Signals) {
+	let mut keyboard_sig_count: u8 = 0;
+	while let Some(signal) = signals.next().await {
+		match signal {
+			// Interrupts come from the keyboard
+			SIGQUIT | SIGINT => {
+				if keyboard_sig_count >= 1 {
+					log::info!(
+						target: LOG_TARGET,
+						"Received keyboard termination signal #{}/{}, quitting...",
+						keyboard_sig_count + 1,
+						2
+					);
+					controlled_exit(exitcode::OK);
+				}
+				keyboard_sig_count += 1;
+				log::warn!(
+					target: LOG_TARGET,
+					"Received keyboard termination signal #{}, if you keep doing that I will really quit",
+					keyboard_sig_count
+				);
+			},
+
+			SIGKILL | SIGTERM => {
+				log::info!(target: LOG_TARGET, "Received SIGKILL | SIGTERM, quitting...");
+				controlled_exit(exitcode::OK);
+			},
+			_ => unreachable!(),
+		}
+	}
+}
+
 #[tokio::main]
 async fn main() {
 	fmt().with_env_filter(EnvFilter::from_default_env()).init();
 
-	let Opt { uri, seed_or_path, command } = Opt::parse();
+	let Opt { uri, command } = Opt::parse();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
+
+	let signals = Signals::new(&[SIGTERM, SIGINT, SIGQUIT]).expect("Failed initializing Signals");
+	let handle = signals.handle();
+	let signals_task = tokio::spawn(handle_signals(signals));
 
 	let rpc = loop {
 		match SharedRpcClient::new(&uri).await {
@@ -648,29 +555,57 @@ async fn main() {
 		check_versions::<Runtime>(&rpc).await
 	};
 
-	let signer_account = any_runtime! {
-		signer::signer_uri_from_string::<Runtime>(&seed_or_path, &rpc)
-			.await
-			.expect("Provided account is invalid, terminating.")
-	};
-
 	let outcome = any_runtime! {
 		match command {
-			Command::Monitor(cmd) => monitor_cmd(rpc, cmd, signer_account).await
+			Command::Monitor(monitor_config) =>
+			{
+				let signer_account = any_runtime! {
+					signer::signer_uri_from_string::<Runtime>(&monitor_config.seed_or_path , &rpc)
+						.await
+						.expect("Provided account is invalid, terminating.")
+				};
+				monitor_cmd(rpc, monitor_config, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "Monitor error: {:?}", e);
-				}),
-			Command::DryRun(cmd) => dry_run_cmd(rpc, cmd, signer_account).await
+				})},
+			Command::DryRun(dryrun_config) => {
+				let signer_account = any_runtime! {
+					signer::signer_uri_from_string::<Runtime>(&dryrun_config.seed_or_path , &rpc)
+						.await
+						.expect("Provided account is invalid, terminating.")
+				};
+				dry_run_cmd(rpc, dryrun_config, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "DryRun error: {:?}", e);
-				}),
-			Command::EmergencySolution(cmd) => emergency_solution_cmd(rpc, cmd).await
+				})},
+			Command::EmergencySolution(emergency_solution_config) =>
+				emergency_solution_cmd(rpc, emergency_solution_config).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "EmergencySolution error: {:?}", e);
 				}),
+			Command::Info(info_opts) => {
+				let remote_runtime_version = rpc.runtime_version(None).await.expect("runtime_version infallible; qed.");
+
+				let builtin_version = any_runtime! {
+					Version::get()
+				};
+
+				let versions = RuntimeVersions::new(&remote_runtime_version, &builtin_version);
+
+				if !info_opts.json {
+					println!("{}", versions);
+				} else {
+					let versions = serde_json::to_string_pretty(&versions).expect("Failed serializing version info");
+					println!("{}", versions);
+				}
+				Ok(())
+			}
 		}
 	};
 	log::info!(target: LOG_TARGET, "round of execution finished. outcome = {:?}", outcome);
+
+	handle.close();
+	let _ = signals_task.await;
 }
 
 #[cfg(test)]
@@ -695,103 +630,5 @@ mod tests {
 
 		assert_eq!(polkadot_version.spec_name, "polkadot".into());
 		assert_eq!(kusama_version.spec_name, "kusama".into());
-	}
-
-	#[test]
-	fn cli_monitor_works() {
-		let opt = Opt::try_parse_from([
-			env!("CARGO_PKG_NAME"),
-			"--uri",
-			"hi",
-			"--seed-or-path",
-			"//Alice",
-			"monitor",
-			"--listen",
-			"head",
-			"seq-phragmen",
-		])
-		.unwrap();
-
-		assert_eq!(
-			opt,
-			Opt {
-				uri: "hi".to_string(),
-				seed_or_path: "//Alice".to_string(),
-				command: Command::Monitor(MonitorConfig {
-					listen: "head".to_string(),
-					solver: Solver::SeqPhragmen { iterations: 10 },
-					submission_strategy: SubmissionStrategy::IfLeading,
-				}),
-			}
-		);
-	}
-
-	#[test]
-	fn cli_dry_run_works() {
-		let opt = Opt::try_parse_from([
-			env!("CARGO_PKG_NAME"),
-			"--uri",
-			"hi",
-			"--seed-or-path",
-			"//Alice",
-			"dry-run",
-			"phrag-mms",
-		])
-		.unwrap();
-
-		assert_eq!(
-			opt,
-			Opt {
-				uri: "hi".to_string(),
-				seed_or_path: "//Alice".to_string(),
-				command: Command::DryRun(DryRunConfig {
-					at: None,
-					solver: Solver::PhragMMS { iterations: 10 },
-					force_snapshot: false,
-				}),
-			}
-		);
-	}
-
-	#[test]
-	fn cli_emergency_works() {
-		let opt = Opt::try_parse_from([
-			env!("CARGO_PKG_NAME"),
-			"--uri",
-			"hi",
-			"--seed-or-path",
-			"//Alice",
-			"emergency-solution",
-			"99",
-			"phrag-mms",
-			"--iterations",
-			"1337",
-		])
-		.unwrap();
-
-		assert_eq!(
-			opt,
-			Opt {
-				uri: "hi".to_string(),
-				seed_or_path: "//Alice".to_string(),
-				command: Command::EmergencySolution(EmergencySolutionConfig {
-					take: Some(99),
-					at: None,
-					solver: Solver::PhragMMS { iterations: 1337 }
-				}),
-			}
-		);
-	}
-
-	#[test]
-	fn submission_strategy_from_str_works() {
-		use std::str::FromStr;
-
-		assert_eq!(SubmissionStrategy::from_str("if-leading"), Ok(SubmissionStrategy::IfLeading));
-		assert_eq!(SubmissionStrategy::from_str("always"), Ok(SubmissionStrategy::Always));
-		assert_eq!(
-			SubmissionStrategy::from_str("  percent-better 99   "),
-			Ok(SubmissionStrategy::ClaimBetterThan(Perbill::from_percent(99)))
-		);
 	}
 }

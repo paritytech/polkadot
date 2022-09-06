@@ -38,6 +38,7 @@ use polkadot_primitives::v2::{
 use std::time::Duration;
 
 use assert_matches::assert_matches;
+use async_trait::async_trait;
 use parking_lot::Mutex;
 use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 use sp_keystore::CryptoStore;
@@ -79,7 +80,7 @@ impl TestSyncOracleHandle {
 }
 
 impl SyncOracle for TestSyncOracle {
-	fn is_major_syncing(&mut self) -> bool {
+	fn is_major_syncing(&self) -> bool {
 		let is_major_syncing = self.flag.load(Ordering::SeqCst);
 
 		if !is_major_syncing {
@@ -91,7 +92,7 @@ impl SyncOracle for TestSyncOracle {
 		is_major_syncing
 	}
 
-	fn is_offline(&mut self) -> bool {
+	fn is_offline(&self) -> bool {
 		unimplemented!("not used in network bridge")
 	}
 }
@@ -117,8 +118,9 @@ pub mod test_constants {
 
 struct MockSupportsParachains;
 
+#[async_trait]
 impl HeadSupportsParachains for MockSupportsParachains {
-	fn head_supports_parachains(&self, _head: &Hash) -> bool {
+	async fn head_supports_parachains(&self, _head: &Hash) -> bool {
 		true
 	}
 }
@@ -514,7 +516,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	.unwrap();
 }
 
-async fn overseer_send(overseer: &mut VirtualOverseer, msg: FromOverseer<ApprovalVotingMessage>) {
+async fn overseer_send(overseer: &mut VirtualOverseer, msg: FromOrchestra<ApprovalVotingMessage>) {
 	gum::trace!("Sending message:\n{:?}", &msg);
 	overseer
 		.send(msg)
@@ -544,7 +546,7 @@ async fn overseer_recv_with_timeout(
 const TIMEOUT: Duration = Duration::from_millis(2000);
 async fn overseer_signal(overseer: &mut VirtualOverseer, signal: OverseerSignal) {
 	overseer
-		.send(FromOverseer::Signal(signal))
+		.send(FromOrchestra::Signal(signal))
 		.timeout(TIMEOUT)
 		.await
 		.expect(&format!("{:?} is more than enough for sending signals.", TIMEOUT));
@@ -575,7 +577,6 @@ async fn check_and_import_approval(
 	candidate_hash: CandidateHash,
 	session_index: SessionIndex,
 	expect_chain_approved: bool,
-	expect_coordinator: bool,
 	signature_opt: Option<ValidatorSignature>,
 ) -> oneshot::Receiver<ApprovalCheckResult> {
 	let signature = signature_opt.unwrap_or(sign_approval(
@@ -586,7 +587,7 @@ async fn check_and_import_approval(
 	let (tx, rx) = oneshot::channel();
 	overseer_send(
 		overseer,
-		FromOverseer::Communication {
+		FromOrchestra::Communication {
 			msg: ApprovalVotingMessage::CheckAndImportApproval(
 				IndirectSignedApprovalVote { block_hash, candidate_index, validator, signature },
 				tx,
@@ -602,18 +603,6 @@ async fn check_and_import_approval(
 			}
 		);
 	}
-	if expect_coordinator {
-		assert_matches!(
-			overseer_recv(overseer).await,
-			AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ImportStatements {
-				candidate_hash: c_hash,
-				pending_confirmation: None,
-				..
-			}) => {
-				assert_eq!(c_hash, candidate_hash);
-			}
-		);
-	}
 	rx
 }
 
@@ -626,7 +615,7 @@ async fn check_and_import_assignment(
 	let (tx, rx) = oneshot::channel();
 	overseer_send(
 		overseer,
-		FromOverseer::Communication {
+		FromOrchestra::Communication {
 			msg: ApprovalVotingMessage::CheckAndImportAssignment(
 				IndirectAssignmentCert {
 					block_hash,
@@ -785,7 +774,7 @@ async fn import_block(
 
 	overseer_send(
 		overseer,
-		FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+		FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
 			ActivatedLeaf {
 				hash: *new_head,
 				number,
@@ -1078,7 +1067,7 @@ fn blank_subsystem_act_on_bad_block() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			FromOverseer::Communication {
+			FromOrchestra::Communication {
 				msg: ApprovalVotingMessage::CheckAndImportAssignment(
 					IndirectAssignmentCert {
 						block_hash: bad_block_hash.clone(),
@@ -1158,7 +1147,6 @@ fn subsystem_rejects_approval_if_no_candidate_entry() {
 			candidate_hash,
 			session_index,
 			false,
-			false,
 			None,
 		)
 		.await;
@@ -1199,7 +1187,6 @@ fn subsystem_rejects_approval_if_no_block_entry() {
 			validator,
 			candidate_hash,
 			session_index,
-			false,
 			false,
 			None,
 		)
@@ -1260,7 +1247,6 @@ fn subsystem_rejects_approval_before_assignment() {
 			validator,
 			candidate_hash,
 			session_index,
-			false,
 			false,
 			None,
 		)
@@ -1486,7 +1472,6 @@ fn subsystem_accepts_and_imports_approval_after_assignment() {
 			candidate_hash,
 			session_index,
 			true,
-			true,
 			None,
 		)
 		.await;
@@ -1580,7 +1565,6 @@ fn subsystem_second_approval_import_only_schedules_wakeups() {
 			candidate_hash,
 			session_index,
 			false,
-			true,
 			None,
 		)
 		.await;
@@ -1597,7 +1581,6 @@ fn subsystem_second_approval_import_only_schedules_wakeups() {
 			validator,
 			candidate_hash,
 			session_index,
-			false,
 			false,
 			None,
 		)
@@ -1752,7 +1735,7 @@ fn linear_import_act_on_leaf() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			FromOverseer::Communication {
+			FromOrchestra::Communication {
 				msg: ApprovalVotingMessage::CheckAndImportAssignment(
 					IndirectAssignmentCert {
 						block_hash: head,
@@ -1822,7 +1805,7 @@ fn forkful_import_at_same_height_act_on_leaf() {
 
 			overseer_send(
 				&mut virtual_overseer,
-				FromOverseer::Communication {
+				FromOrchestra::Communication {
 					msg: ApprovalVotingMessage::CheckAndImportAssignment(
 						IndirectAssignmentCert {
 							block_hash: head,
@@ -1934,7 +1917,6 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			candidate_hash,
 			session_index,
 			false,
-			true,
 			Some(sig_a),
 		)
 		.await;
@@ -1961,7 +1943,6 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			validator_index_b,
 			candidate_hash,
 			session_index,
-			true,
 			true,
 			Some(sig_b),
 		)
@@ -2102,7 +2083,6 @@ fn subsystem_import_checked_approval_sets_one_block_bit_at_a_time() {
 				*candidate_hash,
 				session_index,
 				expect_block_approved,
-				true,
 				Some(signature),
 			)
 			.await;
@@ -2206,7 +2186,6 @@ fn approved_ancestor_test(
 				candidate_hash,
 				i as u32 + 1,
 				true,
-				true,
 				None,
 			)
 			.await;
@@ -2219,7 +2198,7 @@ fn approved_ancestor_test(
 		let (tx, rx) = oneshot::channel();
 		overseer_send(
 			&mut virtual_overseer,
-			FromOverseer::Communication {
+			FromOrchestra::Communication {
 				msg: ApprovalVotingMessage::ApprovedAncestor(target, 0, tx),
 			},
 		)
@@ -2584,7 +2563,6 @@ where
 				candidate_hash,
 				1,
 				expect_chain_approved,
-				true,
 				Some(sign_approval(
 					validators[validator_index as usize].clone(),
 					candidate_hash,
@@ -2928,7 +2906,6 @@ fn pre_covers_dont_stall_approval() {
 			candidate_hash,
 			session_index,
 			false,
-			true,
 			Some(sig_b),
 		)
 		.await;
@@ -2944,7 +2921,6 @@ fn pre_covers_dont_stall_approval() {
 			candidate_hash,
 			session_index,
 			false,
-			true,
 			Some(sig_c),
 		)
 		.await;
@@ -3099,7 +3075,6 @@ fn waits_until_approving_assignments_are_old_enough() {
 			candidate_hash,
 			session_index,
 			false,
-			true,
 			Some(sig_a),
 		)
 		.await;
@@ -3116,7 +3091,6 @@ fn waits_until_approving_assignments_are_old_enough() {
 			candidate_hash,
 			session_index,
 			false,
-			true,
 			Some(sig_b),
 		)
 		.await;

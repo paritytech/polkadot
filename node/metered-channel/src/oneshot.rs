@@ -225,7 +225,7 @@ impl<T> Future for MeteredReceiver<T> {
 			.get_or_insert_with(move || Delay::new(soft_timeout).fuse());
 
 		if Pin::new(soft_timeout).poll(ctx).is_ready() {
-			gum::warn!("Oneshot `{name}` exceeded the soft threshold", name = &self.name);
+			tracing::warn!(target: "oneshot", "Oneshot `{name}` exceeded the soft threshold", name = &self.name);
 		}
 
 		let hard_timeout = self.hard_timeout.clone().into();

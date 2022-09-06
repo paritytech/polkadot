@@ -29,16 +29,14 @@ use futures::Future;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-pub use sp_consensus_babe::{
-	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
-};
-pub use sp_core::traits::SpawnNamed;
-
 use polkadot_primitives::v2::{
 	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
 	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
 	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
 	ValidatorIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
+};
+pub use sp_consensus_babe::{
+	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
 };
 
 pub use polkadot_parachain::primitives::BlockData;
@@ -74,7 +72,7 @@ pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
 /// ensure that in the absence of extremely large disparities between hardware,
 /// blocks that pass backing are considerd executable by approval checkers or
 /// dispute participants.
-pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(6);
+pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
 
 /// Linked to `MAX_FINALITY_LAG` in relay chain selection,
 /// `MAX_HEADS_LOOK_BACK` in `approval-voting` and

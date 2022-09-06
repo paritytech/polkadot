@@ -39,10 +39,10 @@ use polkadot_node_subsystem_util::{self as util, rand, MIN_GOSSIP_PEERS};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
-		CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeMessage,
+		CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeTxMessage,
 		StatementDistributionMessage,
 	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
 	SubsystemError,
 };
 use polkadot_primitives::v2::{
@@ -620,7 +620,7 @@ struct FetchingInfo {
 /// Messages to be handled in this subsystem.
 enum MuxedMessage {
 	/// Messages from other subsystems.
-	Subsystem(FatalResult<FromOverseer<StatementDistributionMessage>>),
+	Subsystem(FatalResult<FromOrchestra<StatementDistributionMessage>>),
 	/// Messages from spawned requester background tasks.
 	Requester(Option<RequesterMessage>),
 	/// Messages from spawned responder background task.
@@ -996,7 +996,7 @@ fn is_statement_large(statement: &SignedFullStatement) -> (bool, Option<usize>) 
 
 			// Half max size seems to be a good threshold to start not using notifications:
 			let threshold =
-				PeerSet::Validation.get_info(IsAuthority::Yes).max_notification_size as usize / 2;
+				PeerSet::Validation.get_max_notification_size(IsAuthority::Yes) as usize / 2;
 
 			(size >= threshold, Some(size))
 		},
@@ -1083,7 +1083,7 @@ async fn circulate_statement<'a, Context>(
 			statement = ?stored.statement,
 			"Sending statement",
 		);
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			peers_to_send.iter().map(|(p, _)| p.clone()).collect(),
 			payload,
 		))
@@ -1123,8 +1123,11 @@ async fn send_statements_about<Context>(
 			statement = ?statement.statement,
 			"Sending statement",
 		);
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload))
-			.await;
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+			vec![peer.clone()],
+			payload,
+		))
+		.await;
 
 		metrics.on_statement_distributed();
 	}
@@ -1155,8 +1158,11 @@ async fn send_statements<Context>(
 			statement = ?statement.statement,
 			"Sending statement"
 		);
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload))
-			.await;
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+			vec![peer.clone()],
+			payload,
+		))
+		.await;
 
 		metrics.on_statement_distributed();
 	}
@@ -1167,7 +1173,7 @@ async fn report_peer(
 	peer: PeerId,
 	rep: Rep,
 ) {
-	sender.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
+	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await
 }
 
 /// If message contains a statement, then retrieve it, otherwise fork task to fetch it.
@@ -1926,7 +1932,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				}
 			},
 			RequesterMessage::SendRequest(req) => {
-				ctx.send_message(NetworkBridgeMessage::SendRequests(
+				ctx.send_message(NetworkBridgeTxMessage::SendRequests(
 					vec![req],
 					IfDisconnected::ImmediateError,
 				))
@@ -1978,12 +1984,12 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		recent_outdated_heads: &mut RecentOutdatedHeads,
 		req_sender: &mpsc::Sender<RequesterMessage>,
-		message: FromOverseer<StatementDistributionMessage>,
+		message: FromOrchestra<StatementDistributionMessage>,
 	) -> Result<bool> {
 		let metrics = &self.metrics;
 
 		match message {
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				activated,
 				deactivated,
 			})) => {
@@ -2025,11 +2031,11 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					));
 				}
 			},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {
+			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {
 				// do nothing
 			},
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(true),
-			FromOverseer::Communication { msg } => match msg {
+			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(true),
+			FromOrchestra::Communication { msg } => match msg {
 				StatementDistributionMessage::Share(relay_parent, statement) => {
 					let _timer = metrics.time_share();
 

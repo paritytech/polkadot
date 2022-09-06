@@ -195,7 +195,7 @@ pub mod pallet {
 		/// We check that the account does not exist at this stage.
 		///
 		/// Origin must match the `ValidityOrigin`.
-		#[pallet::weight(200_000_000 + T::DbWeight::get().reads_writes(4, 1))]
+		#[pallet::weight(Weight::from_ref_time(200_000_000) + T::DbWeight::get().reads_writes(4, 1))]
 		pub fn create_account(
 			origin: OriginFor<T>,
 			who: T::AccountId,
@@ -451,10 +451,15 @@ pub fn remove_pallet<T>() -> frame_support::weights::Weight
 where
 	T: frame_system::Config,
 {
+	#[allow(deprecated)]
 	use frame_support::migration::remove_storage_prefix;
+	#[allow(deprecated)]
 	remove_storage_prefix(b"Purchase", b"Accounts", b"");
+	#[allow(deprecated)]
 	remove_storage_prefix(b"Purchase", b"PaymentAccount", b"");
+	#[allow(deprecated)]
 	remove_storage_prefix(b"Purchase", b"Statement", b"");
+	#[allow(deprecated)]
 	remove_storage_prefix(b"Purchase", b"UnlockBlock", b"");
 
 	<T as frame_system::Config>::BlockWeights::get().max_block

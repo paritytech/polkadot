@@ -28,6 +28,7 @@ use super::{
 	approval_db::v1::{OurAssignment, StoredBlockRange},
 	backend::{Backend, OverlayedBackend},
 	persisted_entries::{ApprovalEntry, BlockEntry, CandidateEntry},
+	LOG_TARGET,
 };
 
 /// Information about a new candidate necessary to instantiate the requisite
@@ -280,20 +281,31 @@ pub fn force_approve(
 	chain_head: Hash,
 	up_to: BlockNumber,
 ) -> SubsystemResult<Vec<Hash>> {
+	#[derive(PartialEq, Eq)]
 	enum State {
 		WalkTo,
 		Approving,
 	}
-
 	let mut approved_hashes = Vec::new();
 
 	let mut cur_hash = chain_head;
 	let mut state = State::WalkTo;
+	let mut cur_block_number: BlockNumber = 0;
 
 	// iterate back to the `up_to` block, and then iterate backwards until all blocks
 	// are updated.
 	while let Some(mut entry) = store.load_block_entry(&cur_hash)? {
-		if entry.block_number() <= up_to {
+		cur_block_number = entry.block_number();
+		if cur_block_number <= up_to {
+			if state == State::WalkTo {
+				gum::debug!(
+					target: LOG_TARGET,
+					block_hash = ?chain_head,
+					?cur_hash,
+					?cur_block_number,
+					"Start forced approval from block",
+				);
+			}
 			state = State::Approving;
 		}
 
@@ -307,6 +319,17 @@ pub fn force_approve(
 				store.write_block_entry(entry);
 			},
 		}
+	}
+
+	if state == State::WalkTo {
+		gum::warn!(
+			target: LOG_TARGET,
+			?chain_head,
+			?cur_hash,
+			?cur_block_number,
+			?up_to,
+			"Missing block in the chain, cannot start force approval"
+		);
 	}
 
 	Ok(approved_hashes)

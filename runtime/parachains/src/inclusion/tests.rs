@@ -535,6 +535,7 @@ fn bitfield_checks() {
 			);
 
 			// clean up
+			#[allow(deprecated)]
 			PendingAvailability::<Test>::remove_all(None);
 		}
 
@@ -593,6 +594,7 @@ fn bitfield_checks() {
 				0
 			);
 
+			#[allow(deprecated)]
 			PendingAvailability::<Test>::remove_all(None);
 		}
 
