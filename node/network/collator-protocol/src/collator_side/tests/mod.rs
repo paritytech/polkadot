@@ -529,50 +529,59 @@ async fn expect_advertise_collation_msg(
 	virtual_overseer: &mut VirtualOverseer,
 	peer: &PeerId,
 	expected_relay_parent: Hash,
-	expected_candidate_hash: Option<CandidateHash>,
+	expected_candidate_hashes: Option<Vec<CandidateHash>>,
 ) {
-	assert_matches!(
-		overseer_recv(virtual_overseer).await,
-		AllMessages::NetworkBridge(
-			NetworkBridgeMessage::SendCollationMessage(
-				to,
-				wire_message,
-			)
-		) => {
-			assert_eq!(to[0], *peer);
-			match (expected_candidate_hash, wire_message) {
-				(None, Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message))) => {
-					assert_matches!(
-						wire_message,
-						protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
-							relay_parent,
-						) => {
-							assert_eq!(relay_parent, expected_relay_parent);
-						}
-					);
-				},
-				(
-					Some(expected_candidate_hash),
-					Versioned::VStaging(protocol_vstaging::CollationProtocol::CollatorProtocol(
-						wire_message,
-					)),
-				) => {
-					assert_matches!(
-						wire_message,
-						protocol_vstaging::CollatorProtocolMessage::AdvertiseCollation {
-							relay_parent,
-							candidate_hash,
-							..
-						} => {
-							assert_eq!(relay_parent, expected_relay_parent);
-							assert_eq!(candidate_hash, expected_candidate_hash);
-						}
-					);
-				},
-				_ => panic!("Invalid advertisement"),
+	let mut candidate_hashes: Option<HashSet<_>> =
+		expected_candidate_hashes.map(|hashes| hashes.into_iter().collect());
+	let iter_num = candidate_hashes.as_ref().map(|hashes| hashes.len()).unwrap_or(1);
+
+	for _ in 0..iter_num {
+		assert_matches!(
+			overseer_recv(virtual_overseer).await,
+			AllMessages::NetworkBridge(
+				NetworkBridgeMessage::SendCollationMessage(
+					to,
+					wire_message,
+				)
+			) => {
+				assert_eq!(to[0], *peer);
+				match (candidate_hashes.as_mut(), wire_message) {
+					(None, Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message))) => {
+						assert_matches!(
+							wire_message,
+							protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
+								relay_parent,
+							) => {
+								assert_eq!(relay_parent, expected_relay_parent);
+							}
+						);
+					},
+					(
+						Some(candidate_hashes),
+						Versioned::VStaging(protocol_vstaging::CollationProtocol::CollatorProtocol(
+							wire_message,
+						)),
+					) => {
+						assert_matches!(
+							wire_message,
+							protocol_vstaging::CollatorProtocolMessage::AdvertiseCollation {
+								relay_parent,
+								candidate_hash,
+								..
+							} => {
+								assert_eq!(relay_parent, expected_relay_parent);
+								assert!(candidate_hashes.contains(&candidate_hash));
+
+								// Drop the hash we've already seen.
+								candidate_hashes.remove(&candidate_hash);
+							}
+						);
+					},
+					_ => panic!("Invalid advertisement"),
+				}
 			}
-		}
-	);
+		);
+	}
 }
 
 /// Send a message that the given peer's view changed.

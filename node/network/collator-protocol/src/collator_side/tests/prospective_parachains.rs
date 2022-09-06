@@ -133,19 +133,21 @@ async fn update_view(
 /// to correct validators group.
 #[test]
 fn distribute_collation_from_implicit_view() {
-	let head_c = Hash::from_low_u64_be(126);
-	let head_c_num: u32 = 66;
-	let head_a = Hash::from_low_u64_be(128);
-	let head_a_num: u32 = 64;
+	let head_a = Hash::from_low_u64_be(126);
+	let head_a_num: u32 = 66;
 
 	// Grandparent of head `a`.
-	let head_b = Hash::from_low_u64_be(130);
-	let head_b_num = 62;
+	let head_b = Hash::from_low_u64_be(128);
+	let head_b_num: u32 = 64;
+
+	// Grandparent of head `b`.
+	let head_c = Hash::from_low_u64_be(130);
+	let head_c_num = 62;
 
 	let group_rotation_info = GroupRotationInfo {
-		session_start_block: head_b_num - 2,
+		session_start_block: head_c_num - 2,
 		group_rotation_frequency: 3,
-		now: head_b_num,
+		now: head_c_num,
 	};
 
 	let mut test_state = TestState::default();
@@ -160,8 +162,8 @@ fn distribute_collation_from_implicit_view() {
 		// Set collating para id.
 		overseer_send(virtual_overseer, CollatorProtocolMessage::CollateOn(test_state.para_id))
 			.await;
-		// Activated leaf is `a`, but the collation will be based on `b`.
-		update_view(virtual_overseer, &test_state, vec![(head_a, head_a_num)], 1).await;
+		// Activated leaf is `b`, but the collation will be based on `c`.
+		update_view(virtual_overseer, &test_state, vec![(head_b, head_b_num)], 1).await;
 
 		let validator_peer_ids = test_state.current_group_validator_peer_ids();
 		for (val, peer) in test_state
@@ -181,7 +183,7 @@ fn distribute_collation_from_implicit_view() {
 		let parent_head_data_hash = Hash::repeat_byte(0xAA);
 		let candidate = TestCandidateBuilder {
 			para_id: test_state.para_id,
-			relay_parent: head_b,
+			relay_parent: head_c,
 			pov_hash: pov.hash(),
 			..Default::default()
 		}
@@ -189,7 +191,7 @@ fn distribute_collation_from_implicit_view() {
 		let DistributeCollation { candidate, pov_block: _ } = distribute_collation_with_receipt(
 			virtual_overseer,
 			&test_state,
-			head_b,
+			head_c,
 			&test_state.group_rotation_info,
 			false, // Check the group manually.
 			candidate,
@@ -208,23 +210,29 @@ fn distribute_collation_from_implicit_view() {
 			}
 		);
 
-		let candidate_hash = Some(candidate.hash());
+		let candidate_hash = candidate.hash();
 
 		// Update peer views.
 		for peed_id in &validator_peer_ids {
-			send_peer_view_change(virtual_overseer, peed_id, vec![head_a]).await;
-			expect_advertise_collation_msg(virtual_overseer, peed_id, head_b, candidate_hash).await;
+			send_peer_view_change(virtual_overseer, peed_id, vec![head_b]).await;
+			expect_advertise_collation_msg(
+				virtual_overseer,
+				peed_id,
+				head_c,
+				Some(vec![candidate_hash]),
+			)
+			.await;
 		}
 
-		// Head `b` goes out of view.
+		// Head `c` goes out of view.
 		// Build a different candidate for this relay parent and attempt to distribute it.
-		update_view(virtual_overseer, &test_state, vec![(head_c, head_c_num)], 1).await;
+		update_view(virtual_overseer, &test_state, vec![(head_a, head_a_num)], 1).await;
 
 		let pov = PoV { block_data: BlockData(vec![4, 5, 6]) };
 		let parent_head_data_hash = Hash::repeat_byte(0xBB);
 		let candidate = TestCandidateBuilder {
 			para_id: test_state.para_id,
-			relay_parent: head_b,
+			relay_parent: head_c,
 			pov_hash: pov.hash(),
 			..Default::default()
 		}
@@ -322,5 +330,110 @@ fn distribute_collation_up_to_limit() {
 			.is_none());
 
 		test_harness
+	})
+}
+
+/// Tests that collator correctly handles peer V2 requests.
+#[test]
+fn advertise_and_send_collation_by_hash() {
+	let test_state = TestState::default();
+
+	let local_peer_id = test_state.local_peer_id;
+	let collator_pair = test_state.collator_pair.clone();
+
+	test_harness(local_peer_id, collator_pair, |test_harness| async move {
+		let mut virtual_overseer = test_harness.virtual_overseer;
+		let req_v1_cfg = test_harness.req_v1_cfg;
+		let mut req_vstaging_cfg = test_harness.req_vstaging_cfg;
+
+		let head_a = Hash::from_low_u64_be(128);
+		let head_a_num: u32 = 64;
+
+		// Parent of head `a`.
+		let head_b = Hash::from_low_u64_be(129);
+		let head_b_num: u32 = 63;
+
+		// Set collating para id.
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::CollateOn(test_state.para_id),
+		)
+		.await;
+		update_view(&mut virtual_overseer, &test_state, vec![(head_b, head_b_num)], 1).await;
+		update_view(&mut virtual_overseer, &test_state, vec![(head_a, head_a_num)], 1).await;
+
+		let candidates: Vec<_> = (0..2)
+			.map(|i| {
+				let pov = PoV { block_data: BlockData(vec![i as u8]) };
+				let candidate = TestCandidateBuilder {
+					para_id: test_state.para_id,
+					relay_parent: head_b,
+					pov_hash: pov.hash(),
+					..Default::default()
+				}
+				.build();
+				(candidate, pov)
+			})
+			.collect();
+		for (candidate, pov) in &candidates {
+			distribute_collation_with_receipt(
+				&mut virtual_overseer,
+				&test_state,
+				head_b,
+				&test_state.group_rotation_info,
+				true,
+				candidate.clone(),
+				pov.clone(),
+				Hash::zero(),
+			)
+			.await;
+		}
+
+		let peer = test_state.validator_peer_id[0].clone();
+		let validator_id = test_state.current_group_validator_authority_ids()[0].clone();
+		connect_peer(&mut virtual_overseer, peer.clone(), Some(validator_id.clone())).await;
+		expect_declare_msg(&mut virtual_overseer, &test_state, &peer).await;
+
+		// Head `b` is not a leaf, but both advertisements are still relevant.
+		send_peer_view_change(&mut virtual_overseer, &peer, vec![head_b]).await;
+		let hashes: Vec<_> = candidates.iter().map(|(candidate, _)| candidate.hash()).collect();
+		expect_advertise_collation_msg(&mut virtual_overseer, &peer, head_b, Some(hashes)).await;
+
+		for (candidate, pov_block) in candidates {
+			let (pending_response, rx) = oneshot::channel();
+			req_vstaging_cfg
+				.inbound_queue
+				.as_mut()
+				.unwrap()
+				.send(RawIncomingRequest {
+					peer,
+					payload: request_vstaging::CollationFetchingRequest {
+						relay_parent: head_b,
+						para_id: test_state.para_id,
+						candidate_hash: candidate.hash(),
+					}
+					.encode(),
+					pending_response,
+				})
+				.await
+				.unwrap();
+
+			assert_matches!(
+				rx.await,
+				Ok(full_response) => {
+					// Response is the same for vstaging.
+					let request_v1::CollationFetchingResponse::Collation(receipt, pov): request_v1::CollationFetchingResponse
+						= request_v1::CollationFetchingResponse::decode(
+							&mut full_response.result
+							.expect("We should have a proper answer").as_ref()
+					)
+					.expect("Decoding should work");
+					assert_eq!(receipt, candidate);
+					assert_eq!(pov, pov_block);
+				}
+			);
+		}
+
+		TestHarness { virtual_overseer, req_v1_cfg, req_vstaging_cfg }
 	})
 }
