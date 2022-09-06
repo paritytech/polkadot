@@ -339,7 +339,7 @@ pub trait HandleReports<T: Config> {
 	/// (in blocks, not eras).
 	type ReportLongevity: Get<u64>;
 
-	/// Report a `for valid` offence.
+	/// Report an offence.
 	fn report_offence(
 		offence: SlashingOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError>;
