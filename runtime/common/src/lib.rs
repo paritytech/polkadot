@@ -261,3 +261,11 @@ macro_rules! prod_or_fast {
 		}
 	};
 }
+
+/// Allow for all calls to be dispatched.
+pub struct AllowAllCalls;
+impl Contains<Call> for AllowAllCalls {
+	fn contains(_c: &Call) -> bool {
+		true
+	}
+}

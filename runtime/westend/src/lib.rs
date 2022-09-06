@@ -129,21 +129,13 @@ pub fn native_version() -> NativeVersion {
 	NativeVersion { runtime_version: VERSION, can_author_with: Default::default() }
 }
 
-/// Allow everything.
-pub struct BaseFilter;
-impl Contains<Call> for BaseFilter {
-	fn contains(_: &Call) -> bool {
-		true
-	}
-}
-
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 	pub const SS58Prefix: u8 = 42;
 }
 
 impl frame_system::Config for Runtime {
-	type BaseCallFilter = BaseFilter;
+	type BaseCallFilter = runtime_common::AllowAllCalls;
 	type BlockWeights = BlockWeights;
 	type BlockLength = BlockLength;
 	type Origin = Origin;
