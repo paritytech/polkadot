@@ -512,6 +512,7 @@ pub struct Overseer<SupportsParachains> {
 		CandidateBackingMessage,
 		ChainApiMessage,
 		DisputeCoordinatorMessage,
+		ProspectiveParachainsMessage,
 	])]
 	provisioner: Provisioner,
 
