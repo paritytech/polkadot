@@ -17,9 +17,9 @@
 use fatality::Nested;
 use futures::channel::{mpsc, oneshot};
 
-use polkadot_node_subsystem::{messages::ValidationFailed, SubsystemError};
+use polkadot_node_subsystem::{messages::ValidationFailed, RuntimeApiError, SubsystemError};
 use polkadot_node_subsystem_util::Error as UtilError;
-use polkadot_primitives::v2::BackedCandidate;
+use polkadot_primitives::v2::{BackedCandidate, ValidationCodeHash};
 
 use crate::LOG_TARGET;
 
@@ -42,15 +42,30 @@ pub enum Error {
 	#[error("FetchPoV failed")]
 	FetchPoV,
 
+	#[error("Fetching validation code by hash failed {0:?}, {1:?}")]
+	FetchValidationCode(ValidationCodeHash, RuntimeApiError),
+
+	#[error("Fetching Runtime API version failed {0:?}")]
+	FetchRuntimeApiVersion(RuntimeApiError),
+
+	#[error("No validation code {0:?}")]
+	NoValidationCode(ValidationCodeHash),
+
+	#[error("Candidate rejected by prospective parachains subsystem")]
+	RejectedByProspectiveParachains,
+
 	#[fatal]
 	#[error("Failed to spawn background task")]
 	FailedToSpawnBackgroundTask,
 
-	#[error("ValidateFromChainState channel closed before receipt")]
-	ValidateFromChainState(#[source] oneshot::Canceled),
+	#[error("ValidateFromExhaustive channel closed before receipt")]
+	ValidateFromExhaustive(#[source] oneshot::Canceled),
 
 	#[error("StoreAvailableData channel closed before receipt")]
 	StoreAvailableData(#[source] oneshot::Canceled),
+
+	#[error("RuntimeAPISubsystem channel closed before receipt")]
+	RuntimeApiUnavailable(#[source] oneshot::Canceled),
 
 	#[error("a channel was closed before receipt in try_join!")]
 	JoinMultiple(#[source] oneshot::Canceled),

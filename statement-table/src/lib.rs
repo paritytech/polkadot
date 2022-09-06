@@ -16,7 +16,7 @@
 
 pub mod generic;
 
-pub use generic::{Context, Table};
+pub use generic::{Config, Context, Table};
 
 /// Concrete instantiations suitable for v2 primitives.
 pub mod v2 {

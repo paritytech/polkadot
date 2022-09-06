@@ -34,7 +34,8 @@ use futures::{channel::oneshot, prelude::*};
 use polkadot_node_subsystem::{
 	messages::{
 		ChainApiMessage, FragmentTreeMembership, HypotheticalDepthRequest,
-		ProspectiveParachainsMessage, RuntimeApiMessage, RuntimeApiRequest,
+		ProspectiveParachainsMessage, ProspectiveValidationDataRequest, RuntimeApiMessage,
+		RuntimeApiRequest,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -137,8 +138,10 @@ async fn run_iteration<Context>(ctx: &mut Context, view: &mut View) -> Result<()
 					answer_hypothetical_depths_request(&view, request, tx),
 				ProspectiveParachainsMessage::GetTreeMembership(para, candidate, tx) =>
 					answer_tree_membership_request(&view, para, candidate, tx),
-				ProspectiveParachainsMessage::GetMinimumRelayParent(para, relay_parent, tx) =>
-					answer_minimum_relay_parent_request(&view, para, relay_parent, tx),
+				ProspectiveParachainsMessage::GetMinimumRelayParents(relay_parent, tx) =>
+					answer_minimum_relay_parents_request(&view, relay_parent, tx),
+				ProspectiveParachainsMessage::GetProspectiveValidationData(request, tx) =>
+					answer_prospective_validation_data_request(&view, request, tx),
 			},
 		}
 	}
@@ -160,6 +163,9 @@ async fn handle_active_leaves_update<Context>(
 	}
 
 	for activated in update.activated.into_iter() {
+		// TODO [now]: skip leaves which don't have prospective parachains
+		// enabled. This should be a runtime API version check.
+
 		let hash = activated.hash;
 		let scheduled_paras = fetch_upcoming_paras(&mut *ctx, hash).await?;
 
@@ -331,7 +337,7 @@ async fn handle_candidate_backed<Context>(
 				target: LOG_TARGET,
 				para_id = ?para,
 				?candidate_hash,
-				"Received instructio to back candidate",
+				"Received instruction to back candidate",
 			);
 
 			return Ok(())
@@ -461,19 +467,75 @@ fn answer_tree_membership_request(
 	let _ = tx.send(membership);
 }
 
-fn answer_minimum_relay_parent_request(
+fn answer_minimum_relay_parents_request(
 	view: &View,
-	para: ParaId,
 	relay_parent: Hash,
-	tx: oneshot::Sender<Option<BlockNumber>>,
+	tx: oneshot::Sender<Vec<(ParaId, BlockNumber)>>,
 ) {
-	let res = view
-		.active_leaves
-		.get(&relay_parent)
-		.and_then(|data| data.fragment_trees.get(&para))
-		.map(|tree| tree.scope().earliest_relay_parent().number);
+	let mut v = Vec::new();
+	if let Some(leaf_data) = view.active_leaves.get(&relay_parent) {
+		for (para_id, fragment_tree) in &leaf_data.fragment_trees {
+			v.push((*para_id, fragment_tree.scope().earliest_relay_parent().number));
+		}
+	}
 
-	let _ = tx.send(res);
+	let _ = tx.send(v);
+}
+
+fn answer_prospective_validation_data_request(
+	view: &View,
+	request: ProspectiveValidationDataRequest,
+	tx: oneshot::Sender<Option<PersistedValidationData>>,
+) {
+	// 1. Try to get the head-data from the candidate store if known.
+	// 2. Otherwise, it might exist as the base in some relay-parent and we can find it by
+	//    iterating fragment trees.
+	// 3. Otherwise, it is unknown.
+	// 4. Also try to find the relay parent block info by scanning
+	//    fragment trees.
+	// 5. If head data and relay parent block info are found - success. Otherwise, failure.
+
+	let storage = match view.candidate_storage.get(&request.para_id) {
+		None => {
+			let _ = tx.send(None);
+			return
+		},
+		Some(s) => s,
+	};
+
+	let mut head_data =
+		storage.head_data_by_hash(&request.parent_head_data_hash).map(|x| x.clone());
+	let mut relay_parent_info = None;
+
+	for fragment_tree in view
+		.active_leaves
+		.values()
+		.filter_map(|x| x.fragment_trees.get(&request.para_id))
+	{
+		if head_data.is_some() && relay_parent_info.is_some() {
+			break
+		}
+		if relay_parent_info.is_none() {
+			relay_parent_info =
+				fragment_tree.scope().ancestor_by_hash(&request.candidate_relay_parent);
+		}
+		if head_data.is_none() {
+			let required_parent = &fragment_tree.scope().base_constraints().required_parent;
+			if required_parent.hash() == request.parent_head_data_hash {
+				head_data = Some(required_parent.clone());
+			}
+		}
+	}
+
+	let _ = tx.send(match (head_data, relay_parent_info) {
+		(Some(h), Some(i)) => Some(PersistedValidationData {
+			parent_head: h,
+			relay_parent_number: i.number,
+			relay_parent_storage_root: i.storage_root,
+			max_pov_size: request.max_pov_size,
+		}),
+		_ => None,
+	});
 }
 
 #[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]

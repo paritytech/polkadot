@@ -30,7 +30,6 @@ use polkadot_cli::{
 		ProvideRuntimeApi,
 	},
 };
-use polkadot_node_core_candidate_validation::find_validation_data;
 use polkadot_node_primitives::{AvailableData, BlockData, PoV};
 use polkadot_primitives::v2::{CandidateDescriptor, CandidateHash};
 
@@ -88,7 +87,13 @@ where
 	) -> Option<FromOrchestra<Self::Message>> {
 		match msg {
 			FromOrchestra::Communication {
-				msg: CandidateBackingMessage::Second(relay_parent, candidate, _pov),
+				msg:
+					CandidateBackingMessage::Second(
+						relay_parent,
+						candidate,
+						persisted_validation_data,
+						_pov,
+					),
 			} => {
 				gum::debug!(
 					target: MALUS,
@@ -103,7 +108,7 @@ where
 				let mut new_sender = subsystem_sender.clone();
 				let _candidate = candidate.clone();
 				self.spawner.spawn_blocking(
-					"malus-get-validation-data",
+					"malus-get-n-validators",
 					Some("malus"),
 					Box::pin(async move {
 						gum::trace!(target: MALUS, "Requesting validators");
@@ -114,25 +119,16 @@ where
 							.unwrap()
 							.len();
 						gum::trace!(target: MALUS, "Validators {}", n_validators);
-						match find_validation_data(&mut new_sender, &_candidate.descriptor()).await
-						{
-							Ok(Some((validation_data, validation_code))) => {
-								sender
-									.send((validation_data, validation_code, n_validators))
-									.expect("channel is still open");
-							},
-							_ => {
-								panic!("Unable to fetch validation data");
-							},
-						}
+						sender.send(n_validators).expect("channel is still open");
 					}),
 				);
 
-				let (validation_data, validation_code, n_validators) = receiver.recv().unwrap();
+				let n_validators = receiver.recv().unwrap();
 
-				let validation_data_hash = validation_data.hash();
-				let validation_code_hash = validation_code.hash();
-				let validation_data_relay_parent_number = validation_data.relay_parent_number;
+				let validation_data_hash = persisted_validation_data.hash();
+				let validation_code_hash = candidate.descriptor.validation_code_hash;
+				let validation_data_relay_parent_number =
+					persisted_validation_data.relay_parent_number;
 
 				gum::trace!(
 					target: MALUS,
@@ -142,11 +138,13 @@ where
 					?validation_data_hash,
 					?validation_code_hash,
 					?validation_data_relay_parent_number,
-					"Fetched validation data."
+					"Fetched current validators set"
 				);
 
-				let malicious_available_data =
-					AvailableData { pov: Arc::new(pov.clone()), validation_data };
+				let malicious_available_data = AvailableData {
+					pov: Arc::new(pov.clone()),
+					validation_data: persisted_validation_data.clone(),
+				};
 
 				let pov_hash = pov.hash();
 				let erasure_root = {
@@ -209,7 +207,12 @@ where
 					.insert(malicious_candidate_hash, candidate.hash());
 
 				let message = FromOrchestra::Communication {
-					msg: CandidateBackingMessage::Second(relay_parent, malicious_candidate, pov),
+					msg: CandidateBackingMessage::Second(
+						relay_parent,
+						malicious_candidate,
+						persisted_validation_data,
+						pov,
+					),
 				};
 
 				Some(message)
