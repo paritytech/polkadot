@@ -25,7 +25,7 @@ fn make_participation_request(hash: Hash) -> ParticipationRequest {
 	let mut receipt = dummy_candidate_receipt(dummy_hash());
 	// make it differ:
 	receipt.commitments_hash = hash;
-	ParticipationRequest::new(receipt, 1, 100)
+	ParticipationRequest::new(receipt, 1)
 }
 
 /// Make dummy comparator for request, based on the given block number.

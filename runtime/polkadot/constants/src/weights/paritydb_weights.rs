@@ -57,7 +57,7 @@ pub mod constants {
 			///   99th: 14_451
 			///   95th: 12_588
 			///   75th: 11_200
-			read: 11_826 * constants::WEIGHT_PER_NANOS,
+			read: 11_826 * constants::WEIGHT_PER_NANOS.ref_time(),
 
 			/// Time to write one storage item.
 			/// Calculated by multiplying the *Average* of all values with `1.1` and adding `0`.
@@ -72,7 +72,7 @@ pub mod constants {
 			///   99th: 69_379
 			///   95th: 47_168
 			///   75th: 35_252
-			write: 38_052 * constants::WEIGHT_PER_NANOS,
+			write: 38_052 * constants::WEIGHT_PER_NANOS.ref_time(),
 		};
 	}
 

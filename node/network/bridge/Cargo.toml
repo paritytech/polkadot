@@ -1,12 +1,12 @@
 [package]
 name = "polkadot-network-bridge"
-version = "0.9.27"
+version = "0.9.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
 always-assert = "0.1"
-async-trait = "0.1.53"
+async-trait = "0.1.57"
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
 polkadot-primitives = { path = "../../../primitives" }

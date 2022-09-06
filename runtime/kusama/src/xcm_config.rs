@@ -20,7 +20,7 @@ use super::{
 	parachains_origin, AccountId, Balances, Call, CouncilCollective, Event, Origin, ParaId,
 	Runtime, WeightToFee, XcmPallet,
 };
-use frame_support::{match_types, parameter_types, traits::Everything, weights::Weight};
+use frame_support::{match_types, parameter_types, traits::Everything};
 use runtime_common::{xcm_sender, ToAuthor};
 use xcm::latest::prelude::*;
 use xcm_builder::{
@@ -86,7 +86,7 @@ type LocalOriginConverter = (
 
 parameter_types! {
 	/// The amount of weight an XCM operation takes. This is a safe overestimate.
-	pub const BaseXcmWeight: Weight = 1_000_000_000;
+	pub const BaseXcmWeight: u64 = 1_000_000_000;
 	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
 	/// calculations getting too crazy.
 	pub const MaxInstructions: u32 = 100;

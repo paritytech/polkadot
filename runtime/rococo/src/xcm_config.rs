@@ -86,11 +86,15 @@ type LocalOriginConverter = (
 );
 
 parameter_types! {
+<<<<<<< HEAD
 	/// The amount of weight an XCM operation takes. This is a safe overestimate.
 	pub const BaseXcmWeight: Weight = 1_000_000_000;
 	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
 	/// calculations getting too crazy.
 	pub const MaxInstructions: u32 = 100;
+=======
+	pub const BaseXcmWeight: u64 = 1_000_000_000;
+>>>>>>> b2ff4c05ab3b299c1601952c1b1233ef62f0a7fd
 }
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
 /// individual routers.

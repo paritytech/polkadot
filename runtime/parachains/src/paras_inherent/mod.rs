@@ -339,7 +339,8 @@ impl<T: Config> Pallet<T> {
 
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 
-		METRICS.on_before_filter(candidates_weight + bitfields_weight + disputes_weight);
+		METRICS
+			.on_before_filter((candidates_weight + bitfields_weight + disputes_weight).ref_time());
 
 		T::DisputesHandler::assure_deduplicated_and_sorted(&mut disputes)
 			.map_err(|_e| Error::<T>::DisputeStatementsUnsortedOrDuplicates)?;
@@ -377,9 +378,9 @@ impl<T: Config> Pallet<T> {
 			{
 				log::warn!("Overweight para inherent data reached the runtime {:?}", parent_hash);
 				backed_candidates.clear();
-				candidates_weight = 0;
+				candidates_weight = Weight::zero();
 				signed_bitfields.clear();
-				bitfields_weight = 0;
+				bitfields_weight = Weight::zero();
 			}
 
 			let entropy = compute_entropy::<T>(parent_hash);
@@ -537,7 +538,7 @@ impl<T: Config> Pallet<T> {
 		// this is max config.ump_service_total_weight
 		let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
 
-		METRICS.on_after_filter(total_consumed_weight);
+		METRICS.on_after_filter(total_consumed_weight.ref_time());
 
 		Ok(Some(total_consumed_weight).into())
 	}
@@ -803,7 +804,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 	weight_limit: Weight,
 ) -> (Weight, Vec<usize>) {
 	if selectables.is_empty() {
-		return (0 as Weight, Vec::new())
+		return (Weight::zero(), Vec::new())
 	}
 	// all indices that are not part of the preferred set
 	let mut indices = (0..selectables.len())
@@ -812,7 +813,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 		.collect::<Vec<_>>();
 	let mut picked_indices = Vec::with_capacity(selectables.len().saturating_sub(1));
 
-	let mut weight_acc = 0 as Weight;
+	let mut weight_acc = Weight::zero();
 
 	preferred_indices.shuffle(rng);
 	for preferred_idx in preferred_indices {
@@ -893,7 +894,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	// There is weight remaining to be consumed by a subset of candidates
 	// which are going to be picked now.
 	if let Some(max_consumable_by_candidates) =
-		max_consumable_weight.checked_sub(total_bitfields_weight)
+		max_consumable_weight.checked_sub(&total_bitfields_weight)
 	{
 		let (acc_candidate_weight, indices) =
 			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
@@ -1265,7 +1266,7 @@ fn limit_and_sanitize_disputes<
 		let remote_disputes = disputes.split_off(idx);
 
 		// Accumualated weight of all disputes picked, that passed the checks.
-		let mut weight_acc = 0 as Weight;
+		let mut weight_acc = Weight::zero();
 
 		// Select disputes in-order until the remaining weight is attained
 		disputes.iter().for_each(|dss| {

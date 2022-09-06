@@ -86,7 +86,7 @@ async fn main() {
 		(Runtime::Kusama, Command::SanityCheck) => {
 			use kusama_runtime::{Block, Runtime};
 			use kusama_runtime_constants::currency::UNITS;
-			sanity_check::execute::<Runtime, Block>(UNITS as u64, "KSM", options.uri.clone()).await;
+			try_state::execute::<Runtime, Block>(UNITS as u64, "KSM", options.uri.clone()).await;
 		},
 		(Runtime::Kusama, Command::Snapshot) => {
 			use kusama_runtime::{Block, Runtime};
@@ -107,7 +107,7 @@ async fn main() {
 		(Runtime::Westend, Command::SanityCheck) => {
 			use westend_runtime::{Block, Runtime};
 			use westend_runtime_constants::currency::UNITS;
-			sanity_check::execute::<Runtime, Block>(UNITS as u64, "WND", options.uri.clone()).await;
+			try_state::execute::<Runtime, Block>(UNITS as u64, "WND", options.uri.clone()).await;
 		},
 		(Runtime::Westend, Command::Snapshot) => {
 			use westend_runtime::{Block, Runtime};
@@ -128,7 +128,7 @@ async fn main() {
 		(Runtime::Polkadot, Command::SanityCheck) => {
 			use polkadot_runtime::{Block, Runtime};
 			use polkadot_runtime_constants::currency::UNITS;
-			sanity_check::execute::<Runtime, Block>(UNITS as u64, "DOT", options.uri.clone()).await;
+			try_state::execute::<Runtime, Block>(UNITS as u64, "DOT", options.uri.clone()).await;
 		},
 		(Runtime::Polkadot, Command::Snapshot) => {
 			use polkadot_runtime::{Block, Runtime};
