@@ -6,8 +6,6 @@ alice: is up
 bob: is up
 charlie: is up
 dave: is up
-ferdie: is up
-eve: is up
 
 alice: reports block height is at least 10 within 200 seconds
 alice: parachain 2000 block height is at least 10 within 200 seconds
