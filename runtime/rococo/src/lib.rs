@@ -833,6 +833,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 					RuntimeCall::Crowdloan { .. } |
 					RuntimeCall::Registrar { .. } |
 					RuntimeCall::Multisig(..) |
+					RuntimeCall::Slots { .. }
 			),
 		}
 	}

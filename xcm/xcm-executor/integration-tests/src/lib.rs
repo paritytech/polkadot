@@ -89,7 +89,9 @@ fn query_response_fires() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::RuntimeCall::TestNotifier(pallet_test_notifier::Call::prepare_new_query {}),
+		polkadot_test_runtime::RuntimeCall::TestNotifier(
+			pallet_test_notifier::Call::prepare_new_query {},
+		),
 		sp_keyring::Sr25519Keyring::Alice,
 		0,
 	);
