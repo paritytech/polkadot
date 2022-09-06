@@ -27,7 +27,7 @@ use futures_timer::Delay;
 
 use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
 use polkadot_node_subsystem::{
-	messages::{AvailabilityRecoveryMessage, AvailabilityStoreMessage, CandidateValidationMessage},
+	messages::{AvailabilityRecoveryMessage, CandidateValidationMessage},
 	overseer, ActiveLeavesUpdate, RecoveryError,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
@@ -318,38 +318,6 @@ async fn participate(
 			return
 		},
 	};
-
-	// we dispatch a request to store the available data for the candidate. We
-	// want to maximize data availability for other potential checkers involved
-	// in the dispute
-	let (store_available_data_tx, store_available_data_rx) = oneshot::channel();
-	sender
-		.send_message(AvailabilityStoreMessage::StoreAvailableData {
-			candidate_hash: *req.candidate_hash(),
-			n_validators: req.n_validators() as u32,
-			available_data: available_data.clone(),
-			tx: store_available_data_tx,
-		})
-		.await;
-
-	match store_available_data_rx.await {
-		Err(oneshot::Canceled) => {
-			gum::warn!(
-				target: LOG_TARGET,
-				"`Oneshot` got cancelled when storing available data {:?}",
-				req.candidate_hash(),
-			);
-		},
-		Ok(Err(err)) => {
-			gum::warn!(
-				target: LOG_TARGET,
-				?err,
-				"Failed to store available data for candidate {:?}",
-				req.candidate_hash(),
-			);
-		},
-		Ok(Ok(())) => {},
-	}
 
 	// Issue a request to validate the candidate with the provided exhaustive
 	// parameters

@@ -1216,7 +1216,7 @@ impl parachains_paras::Config for Runtime {
 }
 
 parameter_types! {
-	pub const FirstMessageFactorPercent: Weight = Weight::from_ref_time(100);
+	pub const FirstMessageFactorPercent: u64 = 100;
 }
 
 impl parachains_ump::Config for Runtime {
@@ -1839,19 +1839,15 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl babe_primitives::BabeApi<Block> for Runtime {
-		fn configuration() -> babe_primitives::BabeGenesisConfiguration {
-			// The choice of `c` parameter (where `1 - c` represents the
-			// probability of a slot being empty), is done in accordance to the
-			// slot duration and expected target block time, for safely
-			// resisting network delays of maximum two seconds.
-			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
-			babe_primitives::BabeGenesisConfiguration {
+		fn configuration() -> babe_primitives::BabeConfiguration {
+			let epoch_config = Babe::epoch_config().unwrap_or(BABE_GENESIS_EPOCH_CONFIG);
+			babe_primitives::BabeConfiguration {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDuration::get(),
-				c: BABE_GENESIS_EPOCH_CONFIG.c,
-				genesis_authorities: Babe::authorities().to_vec(),
+				c: epoch_config.c,
+				authorities: Babe::authorities().to_vec(),
 				randomness: Babe::randomness(),
-				allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
+				allowed_slots: epoch_config.allowed_slots,
 			}
 		}
 
@@ -1946,8 +1942,15 @@ sp_api::impl_runtime_apis! {
 			(weight, BlockWeights::get().max_block)
 		}
 
-		fn execute_block_no_check(block: Block) -> Weight {
-			Executive::execute_block_no_check(block)
+		fn execute_block(block: Block, state_root_check: bool, select: frame_try_runtime::TryStateSelect) -> Weight {
+			log::info!(
+				target: "runtime::polkadot", "try-runtime: executing block #{} ({:?}) / root checks: {:?} / sanity-checks: {:?}",
+				block.header.number,
+				block.header.hash(),
+				state_root_check,
+				select,
+			);
+			Executive::try_execute_block(block, state_root_check, select).expect("try_execute_block failed")
 		}
 	}
 
