@@ -18,8 +18,10 @@
 
 use derive_more::Display;
 use polkadot_primitives::v2::Hash;
-use sc_network::ProtocolName;
-use sc_network_common::config::{NonDefaultSetConfig, SetConfig};
+use sc_network_common::{
+	config::{NonDefaultSetConfig, SetConfig},
+	protocol::ProtocolName,
+};
 use std::{
 	collections::{hash_map::Entry, HashMap},
 	ops::{Index, IndexMut},
