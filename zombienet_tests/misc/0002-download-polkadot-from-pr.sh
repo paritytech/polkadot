@@ -9,7 +9,9 @@ mkdir -p $TEMP_DIR
 export PATH=$TEMP_DIR:$PATH
 
 cd $TEMP_DIR
-#curl -L -O https://gitlab.parity.io/parity/mirrors/polkadot/-/jobs/1810914/artifacts/file/artifacts/polkadot
+# For testing using native provider you should set this env var
+# POLKADOT_PR_BIN_URL=https://gitlab.parity.io/parity/mirrors/polkadot/-/jobs/1810914/artifacts/file/artifacts/polkadot
+# with the version of polkadot you want to download.
 curl -L -O $POLKADOT_PR_BIN_URL
 chmod +x $TEMP_DIR/polkadot
 echo $(polkadot --version)

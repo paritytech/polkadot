@@ -17,3 +17,5 @@ alice: run ./0002-upgrade.sh within 200 seconds
 bob: run ./0002-upgrade.sh within 200 seconds
 alice: reports block height is at least 40 within 200 seconds
 bob: reports block height is at least 40 within 200 seconds
+alice: parachain 2000 block height is at least 30 within 240 seconds
+bob: parachain 2001 block height is at least 30 within 240 seconds

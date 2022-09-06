@@ -12,15 +12,15 @@ chain = "rococo-local"
 
   [[relaychain.nodes]]
   name = "bob"
-  args = [ "-lparachain=debug,runtime=debug", "--db rocksdb"]
+  args = [ "-lparachain=debug,runtime=debug", "--db rocksdb" ]
 
   [[relaychain.nodes]]
   name = "charlie"
-  args = [ "-lparachain=debug,runtime=debug" ]
+  args = [ "-lparachain=debug,runtime=debug", "--db paritydb" ]
 
   [[relaychain.nodes]]
   name = "dave"
-  args = [ "-lparachain=debug,runtime=debug" ]
+  args = [ "-lparachain=debug,runtime=debug", "--db rocksdb" ]
 
 
 [[parachains]]
