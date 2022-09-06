@@ -440,6 +440,7 @@ dependencies = [
  "sc-finality-grandpa",
  "sc-keystore",
  "sc-network",
+ "sc-network-common",
  "sc-network-gossip",
  "sc-utils",
  "sp-api",
@@ -6710,6 +6711,7 @@ dependencies = [
  "rand_chacha 0.3.1",
  "sc-authority-discovery",
  "sc-network",
+ "sc-network-common",
  "strum",
  "thiserror",
  "tracing-gum",
@@ -8580,6 +8582,7 @@ dependencies = [
  "sc-client-db",
  "sc-keystore",
  "sc-network",
+ "sc-network-common",
  "sc-service",
  "sc-telemetry",
  "sc-tracing",
@@ -8982,6 +8985,7 @@ dependencies = [
  "sc-client-api",
  "sc-consensus",
  "sc-network-common",
+ "sc-network-transactions",
  "sc-peerset",
  "sc-utils",
  "serde",
@@ -9002,13 +9006,14 @@ dependencies = [
 [[package]]
 name = "sc-network-common"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#12b0d8e9957c6159d433cd4601d5f297b9bf4313"
 dependencies = [
  "async-trait",
  "bitflags",
  "bytes",
  "futures",
+ "futures-timer",
  "libp2p",
+ "linked_hash_set",
  "parity-scale-codec",
  "prost-build",
  "sc-consensus",
@@ -9019,6 +9024,7 @@ dependencies = [
  "sp-consensus",
  "sp-finality-grandpa",
  "sp-runtime",
+ "substrate-prometheus-endpoint",
  "thiserror",
 ]
 
@@ -9087,6 +9093,22 @@ dependencies = [
  "sp-finality-grandpa",
  "sp-runtime",
  "thiserror",
+]
+
+[[package]]
+name = "sc-network-transactions"
+version = "0.10.0-dev"
+dependencies = [
+ "futures",
+ "hex",
+ "libp2p",
+ "log",
+ "parity-scale-codec",
+ "pin-project",
+ "sc-network-common",
+ "sc-peerset",
+ "sp-runtime",
+ "substrate-prometheus-endpoint",
 ]
 
 [[package]]
@@ -9237,6 +9259,7 @@ dependencies = [
  "sc-network-common",
  "sc-network-light",
  "sc-network-sync",
+ "sc-network-transactions",
  "sc-offchain",
  "sc-rpc",
  "sc-rpc-server",
