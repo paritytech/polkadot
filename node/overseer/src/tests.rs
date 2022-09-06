@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use async_trait::async_trait;
 use futures::{executor, pending, pin_mut, poll, select, stream, FutureExt};
 use std::{collections::HashMap, sync::atomic, task::Poll};
 
@@ -29,7 +30,7 @@ use polkadot_node_subsystem_types::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_primitives::v2::{
-	CandidateHash, CandidateReceipt, CollatorPair, InvalidDisputeStatementKind,
+	CandidateHash, CandidateReceipt, CollatorPair, InvalidDisputeStatementKind, SessionIndex,
 	ValidDisputeStatementKind, ValidatorIndex,
 };
 
@@ -154,8 +155,9 @@ where
 
 struct MockSupportsParachains;
 
+#[async_trait]
 impl HeadSupportsParachains for MockSupportsParachains {
-	fn head_supports_parachains(&self, _head: &Hash) -> bool {
+	async fn head_supports_parachains(&self, _head: &Hash) -> bool {
 		true
 	}
 }
@@ -864,8 +866,16 @@ fn test_availability_store_msg() -> AvailabilityStoreMessage {
 	AvailabilityStoreMessage::QueryAvailableData(CandidateHash(Default::default()), sender)
 }
 
-fn test_network_bridge_msg() -> NetworkBridgeMessage {
-	NetworkBridgeMessage::ReportPeer(PeerId::random(), UnifiedReputationChange::BenefitMinor(""))
+fn test_network_bridge_tx_msg() -> NetworkBridgeTxMessage {
+	NetworkBridgeTxMessage::ReportPeer(PeerId::random(), UnifiedReputationChange::BenefitMinor(""))
+}
+
+fn test_network_bridge_rx_msg() -> NetworkBridgeRxMessage {
+	NetworkBridgeRxMessage::NewGossipTopology {
+		session: SessionIndex::from(0_u32),
+		our_neighbors_x: HashMap::new(),
+		our_neighbors_y: HashMap::new(),
+	}
 }
 
 fn test_approval_distribution_msg() -> ApprovalDistributionMessage {
@@ -913,7 +923,7 @@ fn test_chain_selection_msg() -> ChainSelectionMessage {
 // Checks that `stop`, `broadcast_signal` and `broadcast_message` are implemented correctly.
 #[test]
 fn overseer_all_subsystems_receive_signals_and_messages() {
-	const NUM_SUBSYSTEMS: usize = 21;
+	const NUM_SUBSYSTEMS: usize = 22;
 	// -4 for BitfieldSigning, GossipSupport, AvailabilityDistribution and PvfCheckerSubsystem.
 	const NUM_SUBSYSTEMS_MESSAGED: usize = NUM_SUBSYSTEMS - 4;
 
@@ -980,7 +990,10 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 			.send_msg_anon(AllMessages::AvailabilityStore(test_availability_store_msg()))
 			.await;
 		handle
-			.send_msg_anon(AllMessages::NetworkBridge(test_network_bridge_msg()))
+			.send_msg_anon(AllMessages::NetworkBridgeTx(test_network_bridge_tx_msg()))
+			.await;
+		handle
+			.send_msg_anon(AllMessages::NetworkBridgeRx(test_network_bridge_rx_msg()))
 			.await;
 		handle.send_msg_anon(AllMessages::ChainApi(test_chain_api_msg())).await;
 		handle
@@ -1042,7 +1055,8 @@ fn context_holds_onto_message_until_enough_signals_received() {
 	let (provisioner_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (runtime_api_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (availability_store_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
-	let (network_bridge_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+	let (network_bridge_rx_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
+	let (network_bridge_tx_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (chain_api_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (collator_protocol_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (collation_generation_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
@@ -1064,7 +1078,8 @@ fn context_holds_onto_message_until_enough_signals_received() {
 	let (provisioner_unbounded_tx, _) = metered::unbounded();
 	let (runtime_api_unbounded_tx, _) = metered::unbounded();
 	let (availability_store_unbounded_tx, _) = metered::unbounded();
-	let (network_bridge_unbounded_tx, _) = metered::unbounded();
+	let (network_bridge_tx_unbounded_tx, _) = metered::unbounded();
+	let (network_bridge_rx_unbounded_tx, _) = metered::unbounded();
 	let (chain_api_unbounded_tx, _) = metered::unbounded();
 	let (collator_protocol_unbounded_tx, _) = metered::unbounded();
 	let (collation_generation_unbounded_tx, _) = metered::unbounded();
@@ -1087,7 +1102,8 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		provisioner: provisioner_bounded_tx.clone(),
 		runtime_api: runtime_api_bounded_tx.clone(),
 		availability_store: availability_store_bounded_tx.clone(),
-		network_bridge: network_bridge_bounded_tx.clone(),
+		network_bridge_tx: network_bridge_tx_bounded_tx.clone(),
+		network_bridge_rx: network_bridge_rx_bounded_tx.clone(),
 		chain_api: chain_api_bounded_tx.clone(),
 		collator_protocol: collator_protocol_bounded_tx.clone(),
 		collation_generation: collation_generation_bounded_tx.clone(),
@@ -1109,7 +1125,8 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		provisioner_unbounded: provisioner_unbounded_tx.clone(),
 		runtime_api_unbounded: runtime_api_unbounded_tx.clone(),
 		availability_store_unbounded: availability_store_unbounded_tx.clone(),
-		network_bridge_unbounded: network_bridge_unbounded_tx.clone(),
+		network_bridge_tx_unbounded: network_bridge_tx_unbounded_tx.clone(),
+		network_bridge_rx_unbounded: network_bridge_rx_unbounded_tx.clone(),
 		chain_api_unbounded: chain_api_unbounded_tx.clone(),
 		collator_protocol_unbounded: collator_protocol_unbounded_tx.clone(),
 		collation_generation_unbounded: collation_generation_unbounded_tx.clone(),

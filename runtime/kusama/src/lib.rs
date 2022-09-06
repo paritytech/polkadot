@@ -31,7 +31,8 @@ use primitives::v2::{
 };
 use runtime_common::{
 	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
-	prod_or_fast, slots, BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
+	prod_or_fast, slots, BalanceToU256, BlockHashCount, BlockLength, CurrencyToVote,
+	SlowAdjustingFeeUpdate, U256ToBalance,
 };
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
@@ -72,7 +73,7 @@ use sp_runtime::{
 		OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, KeyTypeId, Perbill, Percent, Permill,
+	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill, Percent, Permill,
 };
 use sp_staking::SessionIndex;
 #[cfg(any(feature = "std", test))]
@@ -101,6 +102,10 @@ mod bag_thresholds;
 // XCM configurations.
 pub mod xcm_config;
 
+// Governance configurations.
+pub mod governance;
+use governance::old::CouncilCollective;
+
 #[cfg(test)]
 mod tests;
 
@@ -116,12 +121,12 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9250,
+	spec_version: 9280,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
-	apis: version::create_apis_vec![[]],
+	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 12,
 	state_version: 0,
 };
@@ -481,6 +486,9 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
+	#[cfg(feature = "fast-runtime")]
+	type Fallback = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	#[cfg(not(feature = "fast-runtime"))]
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
 	type GovernanceFallback = onchain::UnboundedExecution<OnChainSeqPhragmen>;
 	type Solver = SequentialPhragmen<
@@ -574,7 +582,7 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 
 parameter_types! {
 	// Six sessions in an era (6 hours).
-	pub const SessionsPerEra: SessionIndex = 6;
+	pub const SessionsPerEra: SessionIndex = prod_or_fast!(6, 1);
 	// 28 eras for unbonding (7 days).
 	pub const BondingDuration: sp_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
@@ -620,6 +628,7 @@ impl pallet_staking::Config for Runtime {
 }
 
 parameter_types! {
+<<<<<<< HEAD
 	pub LaunchPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1, "KSM_LAUNCH_PERIOD");
 	pub VotingPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1 * MINUTES, "KSM_VOTING_PERIOD");
 	pub FastTrackVotingPeriod: BlockNumber = prod_or_fast!(3 * HOURS, 1 * MINUTES, "KSM_FAST_TRACK_VOTING_PERIOD");
@@ -768,6 +777,8 @@ impl pallet_membership::Config<pallet_membership::Instance1> for Runtime {
 }
 
 parameter_types! {
+=======
+>>>>>>> origin/master
 	pub const ProposalBond: Permill = Permill::from_percent(5);
 	pub const ProposalBondMinimum: Balance = 2000 * CENTS;
 	pub const ProposalBondMaximum: Balance = 1 * GRAND;
@@ -1193,7 +1204,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
 				Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
-				Call::VoterList(..)
+				Call::VoterList(..) |
+				Call::NominationPools(..)
 			),
 			ProxyType::Governance => matches!(
 				c,
@@ -1420,29 +1432,17 @@ impl pallet_gilt::Config for Runtime {
 	type WeightInfo = weights::pallet_gilt::WeightInfo<Runtime>;
 }
 
-pub struct BalanceToU256;
-impl sp_runtime::traits::Convert<Balance, sp_core::U256> for BalanceToU256 {
-	fn convert(n: Balance) -> sp_core::U256 {
-		n.into()
-	}
-}
-pub struct U256ToBalance;
-impl sp_runtime::traits::Convert<sp_core::U256, Balance> for U256ToBalance {
-	fn convert(n: sp_core::U256) -> Balance {
-		use frame_support::traits::Defensive;
-		n.try_into().defensive_unwrap_or(Balance::MAX)
-	}
-}
-
 parameter_types! {
 	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
-	pub const MinPointsToBalance: u32 = 10;
+	pub const MaxPointsToBalance: u8 = 10;
 }
 
 impl pallet_nomination_pools::Config for Runtime {
 	type Event = Event;
 	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
 	type Currency = Balances;
+	type CurrencyBalance = Balance;
+	type RewardCounter = FixedU128;
 	type BalanceToU256 = BalanceToU256;
 	type U256ToBalance = U256ToBalance;
 	type StakingInterface = Staking;
@@ -1451,7 +1451,7 @@ impl pallet_nomination_pools::Config for Runtime {
 	// we use the same number of allowed unlocking chunks as with staking.
 	type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
 	type PalletId = PoolsPalletId;
-	type MinPointsToBalance = MinPointsToBalance;
+	type MaxPointsToBalance = MaxPointsToBalance;
 }
 
 construct_runtime! {
@@ -1914,19 +1914,15 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl babe_primitives::BabeApi<Block> for Runtime {
-		fn configuration() -> babe_primitives::BabeGenesisConfiguration {
-			// The choice of `c` parameter (where `1 - c` represents the
-			// probability of a slot being empty), is done in accordance to the
-			// slot duration and expected target block time, for safely
-			// resisting network delays of maximum two seconds.
-			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
-			babe_primitives::BabeGenesisConfiguration {
+		fn configuration() -> babe_primitives::BabeConfiguration {
+			let epoch_config = Babe::epoch_config().unwrap_or(BABE_GENESIS_EPOCH_CONFIG);
+			babe_primitives::BabeConfiguration {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDuration::get(),
-				c: BABE_GENESIS_EPOCH_CONFIG.c,
-				genesis_authorities: Babe::authorities().to_vec(),
+				c: epoch_config.c,
+				authorities: Babe::authorities().to_vec(),
 				randomness: Babe::randomness(),
-				allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
+				allowed_slots: epoch_config.allowed_slots,
 			}
 		}
 
@@ -2002,6 +1998,27 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentCallApi<Block, Balance, Call>
+		for Runtime
+	{
+		fn query_call_info(call: Call, len: u32) -> RuntimeDispatchInfo<Balance> {
+			TransactionPayment::query_call_info(call, len)
+		}
+		fn query_call_fee_details(call: Call, len: u32) -> FeeDetails<Balance> {
+			TransactionPayment::query_call_fee_details(call, len)
+		}
+	}
+
+	impl pallet_nomination_pools_runtime_api::NominationPoolsApi<
+		Block,
+		AccountId,
+		Balance,
+	> for Runtime {
+		fn pending_rewards(member: AccountId) -> Balance {
+			NominationPools::pending_rewards(member).unwrap_or_default()
+		}
+	}
+
 	#[cfg(feature = "try-runtime")]
 	impl frame_try_runtime::TryRuntime<Block> for Runtime {
 		fn on_runtime_upgrade() -> (Weight, Weight) {
@@ -2009,8 +2026,16 @@ sp_api::impl_runtime_apis! {
 			let weight = Executive::try_runtime_upgrade().unwrap();
 			(weight, BlockWeights::get().max_block)
 		}
-		fn execute_block_no_check(block: Block) -> Weight {
-			Executive::execute_block_no_check(block)
+
+		fn execute_block(block: Block, state_root_check: bool, select: frame_try_runtime::TryStateSelect) -> Weight {
+			log::info!(
+				target: "runtime::kusama", "try-runtime: executing block #{} ({:?}) / root checks: {:?} / sanity-checks: {:?}",
+				block.header.number,
+				block.header.hash(),
+				state_root_check,
+				select,
+			);
+			Executive::try_execute_block(block, state_root_check, select).expect("try_execute_block failed")
 		}
 	}
 
@@ -2166,5 +2191,165 @@ mod tests_fess {
 		// a 1 MB solution should need around 0.16 KSM deposit
 		let deposit = SignedDepositBase::get() + (SignedDepositByte::get() * 1024 * 1024);
 		assert_eq_error_rate!(deposit, UNITS * 16 / 100, UNITS / 100);
+	}
+}
+
+#[cfg(test)]
+mod multiplier_tests {
+	use super::*;
+	use frame_support::{dispatch::GetDispatchInfo, traits::OnFinalize};
+	use runtime_common::{MinimumMultiplier, TargetBlockFullness};
+	use separator::Separatable;
+	use sp_runtime::traits::Convert;
+
+	fn run_with_system_weight<F>(w: Weight, mut assertions: F)
+	where
+		F: FnMut() -> (),
+	{
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
+			.build_storage::<Runtime>()
+			.unwrap()
+			.into();
+		t.execute_with(|| {
+			System::set_block_consumed_resources(w, 0);
+			assertions()
+		});
+	}
+
+	#[test]
+	fn multiplier_can_grow_from_zero() {
+		let minimum_multiplier = MinimumMultiplier::get();
+		let target = TargetBlockFullness::get() *
+			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
+		// if the min is too small, then this will not change, and we are doomed forever.
+		// the weight is 1/100th bigger than target.
+		run_with_system_weight(target * 101 / 100, || {
+			let next = SlowAdjustingFeeUpdate::<Runtime>::convert(minimum_multiplier);
+			assert!(next > minimum_multiplier, "{:?} !>= {:?}", next, minimum_multiplier);
+		})
+	}
+
+	#[test]
+	#[ignore]
+	fn multiplier_growth_simulator() {
+		// assume the multiplier is initially set to its minimum. We update it with values twice the
+		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
+		let mut multiplier = MinimumMultiplier::get();
+		let block_weight = BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
+		let mut blocks = 0;
+		let mut fees_paid = 0;
+
+		let call = frame_system::Call::<Runtime>::fill_block {
+			ratio: Perbill::from_rational(
+				block_weight.ref_time(),
+				BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap().ref_time(),
+			),
+		};
+		println!("calling {:?}", call);
+		let info = call.get_dispatch_info();
+		// convert to outer call.
+		let call = Call::System(call);
+		let len = call.using_encoded(|e| e.len()) as u32;
+
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
+			.build_storage::<Runtime>()
+			.unwrap()
+			.into();
+		// set the minimum
+		t.execute_with(|| {
+			pallet_transaction_payment::NextFeeMultiplier::<Runtime>::set(MinimumMultiplier::get());
+		});
+
+		while multiplier <= Multiplier::from_u32(1) {
+			t.execute_with(|| {
+				// imagine this tx was called.
+				let fee = TransactionPayment::compute_fee(len, &info, 0);
+				fees_paid += fee;
+
+				// this will update the multiplier.
+				System::set_block_consumed_resources(block_weight, 0);
+				TransactionPayment::on_finalize(1);
+				let next = TransactionPayment::next_fee_multiplier();
+
+				assert!(next > multiplier, "{:?} !>= {:?}", next, multiplier);
+				multiplier = next;
+
+				println!(
+					"block = {} / multiplier {:?} / fee = {:?} / fess so far {:?}",
+					blocks,
+					multiplier,
+					fee.separated_string(),
+					fees_paid.separated_string()
+				);
+			});
+			blocks += 1;
+		}
+	}
+
+	#[test]
+	#[ignore]
+	fn multiplier_cool_down_simulator() {
+		// assume the multiplier is initially set to its minimum. We update it with values twice the
+		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
+		let mut multiplier = Multiplier::from_u32(2);
+		let mut blocks = 0;
+
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
+			.build_storage::<Runtime>()
+			.unwrap()
+			.into();
+		// set the minimum
+		t.execute_with(|| {
+			pallet_transaction_payment::NextFeeMultiplier::<Runtime>::set(multiplier);
+		});
+
+		while multiplier > Multiplier::from_u32(0) {
+			t.execute_with(|| {
+				// this will update the multiplier.
+				TransactionPayment::on_finalize(1);
+				let next = TransactionPayment::next_fee_multiplier();
+
+				assert!(next < multiplier, "{:?} !>= {:?}", next, multiplier);
+				multiplier = next;
+
+				println!("block = {} / multiplier {:?}", blocks, multiplier);
+			});
+			blocks += 1;
+		}
+	}
+}
+
+#[cfg(all(test, feature = "try-runtime"))]
+mod remote_tests {
+	use super::*;
+	use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
+	use remote_externalities::{
+		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
+	};
+	use std::env::var;
+
+	#[tokio::test]
+	async fn run_migrations() {
+		sp_tracing::try_init_simple();
+		let transport: Transport =
+			var("WS").unwrap_or("wss://kusama-rpc.polkadot.io:443".to_string()).into();
+		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
+		let mut ext = Builder::<Block>::default()
+			.mode(if let Some(state_snapshot) = maybe_state_snapshot {
+				Mode::OfflineOrElseOnline(
+					OfflineConfig { state_snapshot: state_snapshot.clone() },
+					OnlineConfig {
+						transport,
+						state_snapshot: Some(state_snapshot),
+						..Default::default()
+					},
+				)
+			} else {
+				Mode::Online(OnlineConfig { transport, ..Default::default() })
+			})
+			.build()
+			.await
+			.unwrap();
+		ext.execute_with(|| Runtime::on_runtime_upgrade());
 	}
 }

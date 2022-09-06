@@ -36,4 +36,4 @@ export TRYBUILD=overwrite
 # Run all the relevant UI tests
 #
 # Any new UI tests in different crates need to be added here as well.
-rustup run $RUST_VERSION cargo test -p polkadot-overseer-gen ui
+rustup run $RUST_VERSION cargo test -p orchestra ui

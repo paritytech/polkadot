@@ -21,20 +21,25 @@ use {
 #[cfg(feature = "full-node")]
 mod upgrade;
 
+const LOG_TARGET: &str = "parachain::db";
+
 #[cfg(any(test, feature = "full-node"))]
 pub(crate) mod columns {
 	pub mod v0 {
 		pub const NUM_COLUMNS: u32 = 3;
 	}
-	pub const NUM_COLUMNS: u32 = 5;
 
-	pub const COL_AVAILABILITY_DATA: u32 = 0;
-	pub const COL_AVAILABILITY_META: u32 = 1;
-	pub const COL_APPROVAL_DATA: u32 = 2;
-	pub const COL_CHAIN_SELECTION_DATA: u32 = 3;
-	pub const COL_DISPUTE_COORDINATOR_DATA: u32 = 4;
-	pub const ORDERED_COL: &[u32] =
-		&[COL_AVAILABILITY_META, COL_CHAIN_SELECTION_DATA, COL_DISPUTE_COORDINATOR_DATA];
+	pub mod v1 {
+		pub const NUM_COLUMNS: u32 = 5;
+
+		pub const COL_AVAILABILITY_DATA: u32 = 0;
+		pub const COL_AVAILABILITY_META: u32 = 1;
+		pub const COL_APPROVAL_DATA: u32 = 2;
+		pub const COL_CHAIN_SELECTION_DATA: u32 = 3;
+		pub const COL_DISPUTE_COORDINATOR_DATA: u32 = 4;
+		pub const ORDERED_COL: &[u32] =
+			&[COL_AVAILABILITY_META, COL_CHAIN_SELECTION_DATA, COL_DISPUTE_COORDINATOR_DATA];
+	}
 }
 
 /// Columns used by different subsystems.
@@ -56,12 +61,18 @@ pub struct ColumnsConfig {
 /// The real columns used by the parachains DB.
 #[cfg(any(test, feature = "full-node"))]
 pub const REAL_COLUMNS: ColumnsConfig = ColumnsConfig {
-	col_availability_data: columns::COL_AVAILABILITY_DATA,
-	col_availability_meta: columns::COL_AVAILABILITY_META,
-	col_approval_data: columns::COL_APPROVAL_DATA,
-	col_chain_selection_data: columns::COL_CHAIN_SELECTION_DATA,
-	col_dispute_coordinator_data: columns::COL_DISPUTE_COORDINATOR_DATA,
+	col_availability_data: columns::v1::COL_AVAILABILITY_DATA,
+	col_availability_meta: columns::v1::COL_AVAILABILITY_META,
+	col_approval_data: columns::v1::COL_APPROVAL_DATA,
+	col_chain_selection_data: columns::v1::COL_CHAIN_SELECTION_DATA,
+	col_dispute_coordinator_data: columns::v1::COL_DISPUTE_COORDINATOR_DATA,
 };
+
+#[derive(PartialEq)]
+pub(crate) enum DatabaseKind {
+	ParityDB,
+	RocksDB,
+}
 
 /// The cache size for each column, in megabytes.
 #[derive(Debug, Clone)]
@@ -95,27 +106,29 @@ pub fn open_creating_rocksdb(
 
 	let path = root.join("parachains").join("db");
 
-	let mut db_config = DatabaseConfig::with_columns(columns::NUM_COLUMNS);
+	let mut db_config = DatabaseConfig::with_columns(columns::v1::NUM_COLUMNS);
 
 	let _ = db_config
 		.memory_budget
-		.insert(columns::COL_AVAILABILITY_DATA, cache_sizes.availability_data);
+		.insert(columns::v1::COL_AVAILABILITY_DATA, cache_sizes.availability_data);
 	let _ = db_config
 		.memory_budget
-		.insert(columns::COL_AVAILABILITY_META, cache_sizes.availability_meta);
+		.insert(columns::v1::COL_AVAILABILITY_META, cache_sizes.availability_meta);
 	let _ = db_config
 		.memory_budget
-		.insert(columns::COL_APPROVAL_DATA, cache_sizes.approval_data);
+		.insert(columns::v1::COL_APPROVAL_DATA, cache_sizes.approval_data);
 
 	let path_str = path
 		.to_str()
 		.ok_or_else(|| other_io_error(format!("Bad database path: {:?}", path)))?;
 
 	std::fs::create_dir_all(&path_str)?;
-	upgrade::try_upgrade_db(&path)?;
+	upgrade::try_upgrade_db(&path, DatabaseKind::RocksDB)?;
 	let db = Database::open(&db_config, &path_str)?;
-	let db =
-		polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, columns::ORDERED_COL);
+	let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(
+		db,
+		columns::v1::ORDERED_COL,
+	);
 
 	Ok(Arc::new(db))
 }
@@ -132,18 +145,14 @@ pub fn open_creating_paritydb(
 		.ok_or_else(|| other_io_error(format!("Bad database path: {:?}", path)))?;
 
 	std::fs::create_dir_all(&path_str)?;
+	upgrade::try_upgrade_db(&path, DatabaseKind::ParityDB)?;
 
-	let mut options = parity_db::Options::with_columns(&path, columns::NUM_COLUMNS as u8);
-	for i in columns::ORDERED_COL {
-		options.columns[*i as usize].btree_index = true;
-	}
-
-	let db = parity_db::Db::open_or_create(&options)
+	let db = parity_db::Db::open_or_create(&upgrade::paritydb_version_1_config(&path))
 		.map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{:?}", err)))?;
 
 	let db = polkadot_node_subsystem_util::database::paritydb_impl::DbAdapter::new(
 		db,
-		columns::ORDERED_COL,
+		columns::v1::ORDERED_COL,
 	);
 	Ok(Arc::new(db))
 }

@@ -197,7 +197,11 @@ fn verify_dmq_mqc_head_is_externally_accessible() {
 		let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head(a));
 		assert_eq!(
 			head,
-			Some(hex!["434f8579a2297dfea851bf6be33093c83a78b655a53ae141a7894494c0010589"].to_vec())
+			Some(
+				hex!["434f8579a2297dfea851bf6be33093c83a78b655a53ae141a7894494c0010589"]
+					.to_vec()
+					.into()
+			)
 		);
 	});
 }

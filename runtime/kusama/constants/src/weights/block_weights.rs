@@ -16,8 +16,8 @@
 // limitations under the License.
 
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2022-06-20 (Y/M/D)
-//! HOSTNAME: `bm6`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
+//! DATE: 2022-08-19 (Y/M/D)
+//! HOSTNAME: `bm4`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
 //!
 //! SHORT-NAME: `block`, LONG-NAME: `BlockExecution`, RUNTIME: `Development`
 //! WARMUPS: `10`, REPEAT: `100`
@@ -45,16 +45,16 @@ parameter_types! {
 	/// Calculated by multiplying the *Average* with `1` and adding `0`.
 	///
 	/// Stats nanoseconds:
-	///   Min, Max: 6_068_614, 6_421_324
-	///   Average:  6_138_570
-	///   Median:   6_122_267
-	///   Std-Dev:  58179.19
+	///   Min, Max: 6_094_385, 6_351_993
+	///   Average:  6_192_341
+	///   Median:   6_193_838
+	///   Std-Dev:  63893.84
 	///
 	/// Percentiles nanoseconds:
-	///   99th: 6_291_906
-	///   95th: 6_244_806
-	///   75th: 6_161_967
-	pub const BlockExecutionWeight: Weight = 6_138_570 * WEIGHT_PER_NANOS;
+	///   99th: 6_332_047
+	///   95th: 6_308_225
+	///   75th: 6_236_204
+	pub const BlockExecutionWeight: Weight = WEIGHT_PER_NANOS.saturating_mul(6_192_341);
 }
 
 #[cfg(test)]
@@ -69,8 +69,8 @@ mod test_weights {
 		let w = super::BlockExecutionWeight::get();
 
 		// At least 100 µs.
-		assert!(w >= 100 * constants::WEIGHT_PER_MICROS, "Weight should be at least 100 µs.");
+		assert!(w >= 100u64 * constants::WEIGHT_PER_MICROS, "Weight should be at least 100 µs.");
 		// At most 50 ms.
-		assert!(w <= 50 * constants::WEIGHT_PER_MILLIS, "Weight should be at most 50 ms.");
+		assert!(w <= 50u64 * constants::WEIGHT_PER_MILLIS, "Weight should be at most 50 ms.");
 	}
 }

@@ -32,7 +32,7 @@ use polkadot_node_primitives::approval::{
 use polkadot_node_subsystem::{
 	messages::{
 		ApprovalCheckResult, ApprovalDistributionMessage, ApprovalVotingMessage,
-		AssignmentCheckResult, NetworkBridgeEvent, NetworkBridgeMessage,
+		AssignmentCheckResult, NetworkBridgeEvent, NetworkBridgeTxMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -938,7 +938,7 @@ impl State {
 				"Sending an assignment to peers",
 			);
 
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 				peers,
 				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments),
@@ -1200,7 +1200,7 @@ impl State {
 				"Sending an approval to peers",
 			);
 
-			ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 				peers,
 				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(approvals),
@@ -1208,6 +1208,49 @@ impl State {
 			))
 			.await;
 		}
+	}
+
+	/// Retrieve approval signatures from state for the given relay block/indices:
+	fn get_approval_signatures(
+		&mut self,
+		indices: HashSet<(Hash, CandidateIndex)>,
+	) -> HashMap<ValidatorIndex, ValidatorSignature> {
+		let mut all_sigs = HashMap::new();
+		for (hash, index) in indices {
+			let block_entry = match self.blocks.get(&hash) {
+				None => {
+					gum::debug!(
+						target: LOG_TARGET,
+						?hash,
+						"`get_approval_signatures`: could not find block entry for given hash!"
+					);
+					continue
+				},
+				Some(e) => e,
+			};
+
+			let candidate_entry = match block_entry.candidates.get(index as usize) {
+				None => {
+					gum::debug!(
+						target: LOG_TARGET,
+						?hash,
+						?index,
+						"`get_approval_signatures`: could not find candidate entry for given hash and index!"
+						);
+					continue
+				},
+				Some(e) => e,
+			};
+			let sigs =
+				candidate_entry.messages.iter().filter_map(|(validator_index, message_state)| {
+					match &message_state.approval_state {
+						ApprovalState::Approved(_, sig) => Some((*validator_index, sig.clone())),
+						ApprovalState::Assigned(_) => None,
+					}
+				});
+			all_sigs.extend(sigs);
+		}
+		all_sigs
 	}
 
 	async fn unify_with_peer(
@@ -1328,7 +1371,7 @@ impl State {
 			);
 
 			sender
-				.send_message(NetworkBridgeMessage::SendValidationMessage(
+				.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 					vec![peer_id.clone()],
 					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 						protocol_v1::ApprovalDistributionMessage::Assignments(assignments_to_send),
@@ -1346,7 +1389,7 @@ impl State {
 			);
 
 			sender
-				.send_message(NetworkBridgeMessage::SendValidationMessage(
+				.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 					vec![peer_id],
 					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 						protocol_v1::ApprovalDistributionMessage::Approvals(approvals_to_send),
@@ -1549,7 +1592,7 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 	// Send messages in accumulated packets, assignments preceding approvals.
 
 	for (peer, assignments_packet) in peer_assignments {
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			vec![peer],
 			Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 				protocol_v1::ApprovalDistributionMessage::Assignments(assignments_packet),
@@ -1559,7 +1602,7 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 	}
 
 	for (peer, approvals_packet) in peer_approvals {
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			vec![peer],
 			Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 				protocol_v1::ApprovalDistributionMessage::Approvals(approvals_packet),
@@ -1582,7 +1625,7 @@ async fn modify_reputation(
 		"Reputation change for peer",
 	);
 
-	sender.send_message(NetworkBridgeMessage::ReportPeer(peer_id, rep)).await;
+	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer_id, rep)).await;
 }
 
 #[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]
@@ -1680,6 +1723,15 @@ impl ApprovalDistribution {
 				state
 					.import_and_circulate_approval(ctx, metrics, MessageSource::Local, vote)
 					.await;
+			},
+			ApprovalDistributionMessage::GetApprovalSignatures(indices, tx) => {
+				let sigs = state.get_approval_signatures(indices);
+				if let Err(_) = tx.send(sigs) {
+					gum::debug!(
+						target: LOG_TARGET,
+						"Sending back approval signatures failed, oneshot got closed"
+					);
+				}
 			},
 		}
 	}

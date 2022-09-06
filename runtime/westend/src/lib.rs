@@ -44,8 +44,8 @@ use primitives::v2::{
 };
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, elections::OnChainAccuracy, impl_runtime_weights,
-	impls::ToAuthor, paras_registrar, paras_sudo_wrapper, prod_or_fast, slots, BlockHashCount,
-	BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
+	impls::ToAuthor, paras_registrar, paras_sudo_wrapper, prod_or_fast, slots, BalanceToU256,
+	BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate, U256ToBalance,
 };
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
@@ -67,7 +67,7 @@ use sp_runtime::{
 		OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, KeyTypeId, Perbill,
+	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill,
 };
 use sp_staking::SessionIndex;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -76,6 +76,7 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
 pub use frame_system::Call as SystemCall;
+pub use pallet_balances::Call as BalancesCall;
 pub use pallet_election_provider_multi_phase::Call as EPMCall;
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -105,12 +106,12 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9250,
+	spec_version: 9280,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
-	apis: version::create_apis_vec![[]],
+	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 11,
 	state_version: 0,
 };
@@ -434,6 +435,9 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
+	#[cfg(feature = "fast-runtime")]
+	type Fallback = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	#[cfg(not(feature = "fast-runtime"))]
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
 	type GovernanceFallback = onchain::UnboundedExecution<OnChainSeqPhragmen>;
 	type Solver = SequentialPhragmen<
@@ -473,7 +477,7 @@ pallet_staking_reward_curve::build! {
 
 parameter_types! {
 	// Six sessions in an era (6 hours).
-	pub const SessionsPerEra: SessionIndex = 6;
+	pub const SessionsPerEra: SessionIndex = prod_or_fast!(6, 1);
 	// 2 eras for unbonding (12 hours).
 	pub const BondingDuration: sp_staking::EraIndex = 2;
 	// 1 era in which slashes can be cancelled (6 hours).
@@ -1012,29 +1016,17 @@ impl auctions::Config for Runtime {
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
-pub struct BalanceToU256;
-impl sp_runtime::traits::Convert<Balance, sp_core::U256> for BalanceToU256 {
-	fn convert(n: Balance) -> sp_core::U256 {
-		n.into()
-	}
-}
-pub struct U256ToBalance;
-impl sp_runtime::traits::Convert<sp_core::U256, Balance> for U256ToBalance {
-	fn convert(n: sp_core::U256) -> Balance {
-		use frame_support::traits::Defensive;
-		n.try_into().defensive_unwrap_or(Balance::MAX)
-	}
-}
-
 parameter_types! {
 	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
-	pub const MinPointsToBalance: u32 = 10;
+	pub const MaxPointsToBalance: u8 = 10;
 }
 
 impl pallet_nomination_pools::Config for Runtime {
 	type Event = Event;
 	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
 	type Currency = Balances;
+	type CurrencyBalance = Balance;
+	type RewardCounter = FixedU128;
 	type BalanceToU256 = BalanceToU256;
 	type U256ToBalance = U256ToBalance;
 	type StakingInterface = Staking;
@@ -1043,7 +1035,7 @@ impl pallet_nomination_pools::Config for Runtime {
 	// we use the same number of allowed unlocking chunks as with staking.
 	type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
 	type PalletId = PoolsPalletId;
-	type MinPointsToBalance = MinPointsToBalance;
+	type MaxPointsToBalance = MaxPointsToBalance;
 }
 
 construct_runtime! {
@@ -1482,19 +1474,15 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl babe_primitives::BabeApi<Block> for Runtime {
-		fn configuration() -> babe_primitives::BabeGenesisConfiguration {
-			// The choice of `c` parameter (where `1 - c` represents the
-			// probability of a slot being empty), is done in accordance to the
-			// slot duration and expected target block time, for safely
-			// resisting network delays of maximum two seconds.
-			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
-			babe_primitives::BabeGenesisConfiguration {
+		fn configuration() -> babe_primitives::BabeConfiguration {
+			let epoch_config = Babe::epoch_config().unwrap_or(BABE_GENESIS_EPOCH_CONFIG);
+			babe_primitives::BabeConfiguration {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDuration::get(),
-				c: BABE_GENESIS_EPOCH_CONFIG.c,
-				genesis_authorities: Babe::authorities().to_vec(),
+				c: epoch_config.c,
+				authorities: Babe::authorities().to_vec(),
 				randomness: Babe::randomness(),
-				allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
+				allowed_slots: epoch_config.allowed_slots,
 			}
 		}
 
@@ -1570,15 +1558,44 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentCallApi<Block, Balance, Call>
+		for Runtime
+	{
+		fn query_call_info(call: Call, len: u32) -> RuntimeDispatchInfo<Balance> {
+			TransactionPayment::query_call_info(call, len)
+		}
+		fn query_call_fee_details(call: Call, len: u32) -> FeeDetails<Balance> {
+			TransactionPayment::query_call_fee_details(call, len)
+		}
+	}
+
+	impl pallet_nomination_pools_runtime_api::NominationPoolsApi<
+		Block,
+		AccountId,
+		Balance,
+	> for Runtime {
+		fn pending_rewards(member: AccountId) -> Balance {
+			NominationPools::pending_rewards(member).unwrap_or_default()
+		}
+	}
+
 	#[cfg(feature = "try-runtime")]
 	impl frame_try_runtime::TryRuntime<Block> for Runtime {
-		fn on_runtime_upgrade() -> (frame_support::weights::Weight, frame_support::weights::Weight) {
+		fn on_runtime_upgrade() -> (Weight, Weight) {
 			log::info!("try-runtime::on_runtime_upgrade westend.");
 			let weight = Executive::try_runtime_upgrade().unwrap();
 			(weight, BlockWeights::get().max_block)
 		}
-		fn execute_block_no_check(block: Block) -> frame_support::weights::Weight {
-			Executive::execute_block_no_check(block)
+
+		fn execute_block(block: Block, state_root_check: bool, select: frame_try_runtime::TryStateSelect) -> Weight {
+			log::info!(
+				target: "runtime::westend", "try-runtime: executing block #{} ({:?}) / root checks: {:?} / sanity-checks: {:?}",
+				block.header.number,
+				block.header.hash(),
+				state_root_check,
+				select,
+			);
+			Executive::try_execute_block(block, state_root_check, select).expect("try_execute_block failed")
 		}
 	}
 
@@ -1731,5 +1748,40 @@ sp_api::impl_runtime_apis! {
 
 			Ok(batches)
 		}
+	}
+}
+
+#[cfg(all(test, feature = "try-runtime"))]
+mod remote_tests {
+	use super::*;
+	use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
+	use remote_externalities::{
+		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
+	};
+	use std::env::var;
+
+	#[tokio::test]
+	async fn run_migrations() {
+		sp_tracing::try_init_simple();
+		let transport: Transport =
+			var("WS").unwrap_or("wss://westend-rpc.polkadot.io:443".to_string()).into();
+		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
+		let mut ext = Builder::<Block>::default()
+			.mode(if let Some(state_snapshot) = maybe_state_snapshot {
+				Mode::OfflineOrElseOnline(
+					OfflineConfig { state_snapshot: state_snapshot.clone() },
+					OnlineConfig {
+						transport,
+						state_snapshot: Some(state_snapshot),
+						..Default::default()
+					},
+				)
+			} else {
+				Mode::Online(OnlineConfig { transport, ..Default::default() })
+			})
+			.build()
+			.await
+			.unwrap();
+		ext.execute_with(|| Runtime::on_runtime_upgrade());
 	}
 }

@@ -42,7 +42,7 @@ use polkadot_node_primitives::ErasureChunk;
 use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
-		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
+		NetworkBridgeTxMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
 };
@@ -214,7 +214,7 @@ impl TestState {
 			gum::trace!(target: LOG_TARGET, remaining_stores, "Stores left to go");
 			let msg = overseer_recv(&mut rx).await;
 			match msg {
-				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(
 					reqs,
 					IfDisconnected::ImmediateError,
 				)) => {

@@ -12,7 +12,7 @@
             {%- endif -%}
         {% endif -%}
     {% endif -%}
-{% endfor %}
+{% endfor -%}
 
 ### Misc
 
