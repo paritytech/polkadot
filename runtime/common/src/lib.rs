@@ -264,8 +264,8 @@ macro_rules! prod_or_fast {
 
 /// Allow for all calls to be dispatched.
 pub struct AllowAllCalls;
-impl frame_support::traits::Contains<Call> for AllowAllCalls {
-	fn contains(_c: &Call) -> bool {
+impl<C> frame_support::traits::Contains<C> for AllowAllCalls {
+	fn contains(_c: &C) -> bool {
 		true
 	}
 }
