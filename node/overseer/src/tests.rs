@@ -30,8 +30,8 @@ use polkadot_node_subsystem_types::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_primitives::v2::{
-	CandidateHash, CandidateReceipt, CollatorPair, Id as ParaId, InvalidDisputeStatementKind, SessionIndex,
-	ValidDisputeStatementKind, ValidatorIndex,
+	CandidateHash, CandidateReceipt, CollatorPair, Id as ParaId, InvalidDisputeStatementKind,
+	SessionIndex, ValidDisputeStatementKind, ValidatorIndex,
 };
 
 use crate::{

@@ -36,7 +36,7 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
-use polkadot_primitives::v2::{Hash, Id as ParaId, HeadData, SessionInfo, ValidationCode};
+use polkadot_primitives::v2::{Hash, HeadData, Id as ParaId, SessionInfo, ValidationCode};
 use polkadot_primitives_test_helpers::{
 	dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
 };
