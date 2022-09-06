@@ -42,39 +42,8 @@
 use frame_support::{traits::Get, weights::{Weight, constants::RocksDbWeight}};
 use sp_std::marker::PhantomData;
 
-/// Weight functions needed for pallet_scheduler.
-pub trait WeightInfo {
-	fn service_agendas() -> Weight;
-	fn service_agenda(_i: u32, ) -> Weight;
-	fn service_task_base() -> Weight;
-	fn service_task_periodic() -> Weight;
-	fn service_task_named() -> Weight;
-	fn service_task_fetched(_s: u32, ) -> Weight;
-	fn execute_dispatch_signed() -> Weight;
-	fn execute_dispatch_unsigned() -> Weight;
-	fn schedule(_s: u32, ) -> Weight;
-	fn cancel(_s: u32, ) -> Weight;
-	fn schedule_named(_s: u32, ) -> Weight;
-	fn cancel_named(_s: u32, ) -> Weight;
-}
-
-pub struct SubstrateWeight<T>(PhantomData<T>);
-impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
-	fn service_agendas() -> Weight { Weight::zero() }
-	fn service_agenda(_i: u32, ) -> Weight { Weight::zero() }
-	fn service_task_base() -> Weight { Weight::zero() }
-	fn service_task_periodic() -> Weight { Weight::zero() }
-	fn service_task_named() -> Weight { Weight::zero() }
-	fn service_task_fetched(_s: u32, ) -> Weight { Weight::zero() }
-	fn execute_dispatch_signed() -> Weight { Weight::zero() }
-	fn execute_dispatch_unsigned() -> Weight { Weight::zero() }
-	fn schedule(_s: u32, ) -> Weight { Weight::zero() }
-	fn cancel(_s: u32, ) -> Weight { Weight::zero() }
-	fn schedule_named(_s: u32, ) -> Weight { Weight::zero() }
-	fn cancel_named(_s: u32, ) -> Weight { Weight::zero() }
-}
-
-impl WeightInfo for () {
+pub struct WeightInfo<T>(PhantomData<T>);
+impl<T: frame_system::Config> pallet_scheduler::WeightInfo for WeightInfo<T> {
 	fn service_agendas() -> Weight { Weight::zero() }
 	fn service_agenda(_i: u32, ) -> Weight { Weight::zero() }
 	fn service_task_base() -> Weight { Weight::zero() }

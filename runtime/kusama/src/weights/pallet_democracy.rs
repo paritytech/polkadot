@@ -42,61 +42,8 @@
 use frame_support::{traits::Get, weights::{Weight, constants::RocksDbWeight}};
 use sp_std::marker::PhantomData;
 
-/// Weight functions needed for pallet_democracy.
-pub trait WeightInfo {
-	fn propose() -> Weight;
-	fn second() -> Weight;
-	fn vote_new() -> Weight;
-	fn vote_existing() -> Weight;
-	fn emergency_cancel() -> Weight;
-	fn blacklist() -> Weight;
-	fn external_propose() -> Weight;
-	fn external_propose_majority() -> Weight;
-	fn external_propose_default() -> Weight;
-	fn fast_track() -> Weight;
-	fn veto_external() -> Weight;
-	fn cancel_proposal() -> Weight;
-	fn cancel_referendum() -> Weight;
-	fn cancel_queued() -> Weight;
-	fn on_initialize_base(_r: u32,) -> Weight;
-	fn on_initialize_base_with_launch_period(_r: u32,) -> Weight;
-	fn delegate(_v: u32) -> Weight;
-	fn undelegate(_v: u32) -> Weight;
-	fn clear_public_proposals() -> Weight;
-	fn unlock_remove() -> Weight;
-	fn unlock_set() -> Weight;
-	fn remove_vote() -> Weight;
-	fn remove_other_vote() -> Weight;
-}
-
-pub struct SubstrateWeight<T>(PhantomData<T>);
-impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
-	fn propose() -> Weight { Weight::zero() }
-	fn second() -> Weight { Weight::zero() }
-	fn vote_new() -> Weight { Weight::zero() }
-	fn vote_existing() -> Weight { Weight::zero() }
-	fn emergency_cancel() -> Weight { Weight::zero() }
-	fn blacklist() -> Weight { Weight::zero() }
-	fn external_propose() -> Weight { Weight::zero() }
-	fn external_propose_majority() -> Weight { Weight::zero() }
-	fn external_propose_default() -> Weight { Weight::zero() }
-	fn fast_track() -> Weight { Weight::zero() }
-	fn veto_external() -> Weight { Weight::zero() }
-	fn cancel_proposal() -> Weight { Weight::zero() }
-	fn cancel_referendum() -> Weight { Weight::zero() }
-	fn cancel_queued() -> Weight { Weight::zero() }
-	fn on_initialize_base(_r: u32,) -> Weight { Weight::zero() }
-	fn on_initialize_base_with_launch_period(_r: u32,) -> Weight { Weight::zero() }
-	fn delegate(_v: u32) -> Weight { Weight::zero() }
-	fn undelegate(_v: u32) -> Weight { Weight::zero() }
-	fn clear_public_proposals() -> Weight { Weight::zero() }
-	fn unlock_remove() -> Weight { Weight::zero() }
-	fn unlock_set() -> Weight { Weight::zero() }
-	fn remove_vote() -> Weight { Weight::zero() }
-	fn remove_other_vote() -> Weight { Weight::zero() }
-}
-
-impl WeightInfo for () {
+pub struct WeightInfo<T>(PhantomData<T>);
+impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 	fn propose() -> Weight { Weight::zero() }
 	fn second() -> Weight { Weight::zero() }
 	fn vote_new() -> Weight { Weight::zero() }
