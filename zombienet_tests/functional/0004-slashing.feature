@@ -33,8 +33,8 @@ honest-validator-79: system event contains "There is an offence reported" within
 # Allow more time for malicious validator activity.
 sleep 120 seconds
 
-honest-validator-0: reports parachain_candidate_disputes_total is at least 10 within 15 seconds
+honest-validator-0: reports parachain_candidate_disputes_total is at least 5 within 15 seconds
 
 # Disputes should always end as "valid"
-honest-validator-0: reports parachain_candidate_dispute_concluded{validity="valid"} is at least 10 within 15 seconds
+honest-validator-0: reports parachain_candidate_dispute_concluded{validity="valid"} is at least 5 within 15 seconds
 honest-validator-0: reports parachain_candidate_dispute_concluded{validity="invalid"} is 0 within 15 seconds
