@@ -491,6 +491,62 @@ fn unlimited_reserve_transfer_assets_works() {
 	});
 }
 
+/// Test `reserve_withdraw_assets`
+///
+/// Asserts that the sender's balance is decreased and the beneficiary's balance
+/// is increased. Verifies the correct message is sent and event is emitted.
+#[test]
+fn reserve_withdraw_assets_works() {
+	let balances = vec![
+		(ALICE, INITIAL_BALANCE),
+		(
+			ParaId::from(PARA_ID).into_account_truncating(),
+			INITIAL_BALANCE,
+		),
+	];
+	new_test_ext_with_balances(balances).execute_with(|| {
+		let weight = BaseXcmWeight::get();
+		let dest: MultiLocation = Junction::AccountId32 {
+			network: NetworkId::Any,
+			id: ALICE.into(),
+		}
+		.into();
+		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
+		assert_ok!(XcmPallet::reserve_withdraw_assets(
+			Origin::signed(ALICE),
+			Box::new(Parachain(PARA_ID).into().into()),
+			Box::new(dest.clone().into()),
+			Box::new((Here, SEND_AMOUNT).into()),
+			0,
+		));
+		// Alice spent amount
+		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - SEND_AMOUNT);
+		// Check destination XCM program
+		assert_eq!(
+			sent_xcm(),
+			vec![(
+				Parachain(PARA_ID).into(),
+				Xcm(vec![
+					WithdrawAsset((Parent, SEND_AMOUNT).into()),
+					ClearOrigin,
+					buy_limited_execution((Parent, SEND_AMOUNT), 4000),
+					DepositAsset {
+						assets: All.into(),
+						max_assets: 1,
+						beneficiary: dest
+					},
+				]),
+			)]
+		);
+		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
+		let _check_v2_ok: xcm::v2::Xcm<()> = versioned_sent.try_into().unwrap();
+		assert_eq!(
+			last_event(),
+			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(2 * weight)))
+		);
+	});
+}
+
 /// Test local execution of XCM
 ///
 /// Asserts that the sender's balance is decreased and the beneficiary's balance
