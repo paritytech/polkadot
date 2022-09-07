@@ -877,7 +877,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	let total = total_bitfields_weight.saturating_add(total_candidates_weight);
 
 	// candidates + bitfields fit into the block
-	if max_consumable_weight.any_gte(total) {
+	if max_consumable_weight.all_gte(total) {
 		return total
 	}
 
