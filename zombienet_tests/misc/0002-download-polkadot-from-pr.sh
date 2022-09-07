@@ -9,9 +9,7 @@ mkdir -p $TEMP_DIR
 export PATH=$TEMP_DIR:$PATH
 
 cd $TEMP_DIR
-# For testing using native provider you should set this env var
-# POLKADOT_PR_BIN_URL=https://gitlab.parity.io/parity/mirrors/polkadot/-/jobs/1810914/artifacts/file/artifacts/polkadot
-# with the version of polkadot you want to download.
-curl -L -O $POLKADOT_PR_BIN_URL
+# see 0002-upgrade-node.feature to view the args.
+curl -L -O $1
 chmod +x $TEMP_DIR/polkadot
 echo $(polkadot --version)
