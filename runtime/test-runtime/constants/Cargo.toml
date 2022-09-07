@@ -1,6 +1,6 @@
 [package]
 name = "test-runtime-constants"
-version = "0.9.28"
+version = "0.9.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
