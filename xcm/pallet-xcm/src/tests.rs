@@ -90,7 +90,11 @@ fn report_outcome_notify_works() {
 					0,
 					Response::ExecutionResult(None),
 				)),
-				Event::XcmPallet(crate::Event::Notified(0, 4, 2)),
+				Event::XcmPallet(crate::Event::Notified {
+					query_id: 0,
+					pallet_index: 4,
+					call_index: 2
+				}),
 			]
 		);
 		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![]);
@@ -140,7 +144,10 @@ fn report_outcome_works() {
 		assert_eq!(r, Outcome::Complete(1_000));
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::ResponseReady(0, Response::ExecutionResult(None),))
+			Event::XcmPallet(crate::Event::ResponseReady {
+				query_id: 0,
+				response: Response::ExecutionResult(None)
+			})
 		);
 
 		let response = Some((Response::ExecutionResult(None), 1));
@@ -181,7 +188,11 @@ fn send_works() {
 		);
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Sent(sender, RelayLocation::get(), message))
+			Event::XcmPallet(crate::Event::Sent {
+				origin: sender,
+				destination: RelayLocation::get(),
+				message
+			})
 		);
 	});
 }
@@ -253,7 +264,7 @@ fn teleport_assets_works() {
 		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			Event::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -297,7 +308,7 @@ fn limmited_teleport_assets_works() {
 		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			Event::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -339,7 +350,7 @@ fn unlimmited_teleport_assets_works() {
 		);
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			Event::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -387,7 +398,7 @@ fn reserve_transfer_assets_works() {
 		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			Event::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -436,7 +447,7 @@ fn limited_reserve_transfer_assets_works() {
 		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			Event::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -483,7 +494,7 @@ fn unlimited_reserve_transfer_assets_works() {
 		);
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			Event::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -516,7 +527,7 @@ fn execute_withdraw_to_deposit_works() {
 		assert_eq!(Balances::total_balance(&BOB), SEND_AMOUNT);
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			Event::XcmPallet(crate::Event::Attempted { outcome: Outcome::Complete(weight) })
 		);
 	});
 }
@@ -552,10 +563,14 @@ fn trapped_assets_can_be_claimed() {
 		assert_eq!(
 			last_events(2),
 			vec![
-				Event::XcmPallet(crate::Event::AssetsTrapped(hash.clone(), source, vma)),
-				Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(
-					5 * BaseXcmWeight::get()
-				)))
+				Event::XcmPallet(crate::Event::AssetsTrapped {
+					hash: hash.clone(),
+					origin: source,
+					assets: vma
+				}),
+				Event::XcmPallet(crate::Event::Attempted {
+					outcome: Outcome::Complete(5 * BaseXcmWeight::get())
+				})
 			]
 		);
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
@@ -591,10 +606,9 @@ fn trapped_assets_can_be_claimed() {
 		));
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Incomplete(
-				BaseXcmWeight::get(),
-				XcmError::UnknownClaim
-			)))
+			Event::XcmPallet(crate::Event::Attempted {
+				outcome: Outcome::Incomplete(BaseXcmWeight::get(), XcmError::UnknownClaim)
+			})
 		);
 	});
 }
