@@ -878,16 +878,11 @@ pub mod pallet {
 		/// Includes a statement for a PVF pre-checking vote. Potentially, finalizes the vote and
 		/// enacts the results if that was the last vote before achieving the supermajority.
 		#[pallet::weight(
-			sp_std::cmp::max(
-				sp_std::cmp::max(
-					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_accept(),
-					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_reject(),
-				),
-				sp_std::cmp::max(
-					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_accept(),
-					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_reject(),
+			<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_accept()
+				.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_reject())
+				.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_accept()
+					.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_reject())
 				)
-			)
 		)]
 		pub fn include_pvf_check_statement(
 			origin: OriginFor<T>,
