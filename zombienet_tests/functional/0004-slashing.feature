@@ -1,5 +1,5 @@
 Description: Test dispute finality lag when 1/3 of parachain validators always attempt to include an invalid block
-Network: ./0003-parachains-garbage-candidate.toml
+Network: ./0004-slashing.toml
 Creds: config
 
 honest-validator-0: is up
