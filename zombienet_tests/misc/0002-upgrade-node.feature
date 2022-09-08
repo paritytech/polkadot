@@ -17,8 +17,10 @@ charlie: reports block height is at least 20 within 320 seconds
 # For testing using native provider you should set this env var
 # POLKADOT_PR_BIN_URL=https://gitlab.parity.io/parity/mirrors/polkadot/-/jobs/1810914/artifacts/file/artifacts/polkadot
 # with the version of polkadot you want to download.
-alice: run ./0002-download-polkadot-from-pr.sh with ["{{POLKADOT_PR_BIN_URL}}"] within 200 seconds
-bob: run ./0002-download-polkadot-from-pr.sh with ["{{POLKADOT_PR_BIN_URL}}"] within 200 seconds
+alice: run ./0002-download-polkadot-from-pr.sh with "{{POLKADOT_PR_BIN_URL}}" within 200 seconds
+alice: restart after 10 seconds
+bob: run ./0002-download-polkadot-from-pr.sh with "{{POLKADOT_PR_BIN_URL}}" within 200 seconds
+bob: restart after 10 seconds
 
 alice: reports block height is at least 40 within 200 seconds
 bob: reports block height is at least 40 within 200 seconds
