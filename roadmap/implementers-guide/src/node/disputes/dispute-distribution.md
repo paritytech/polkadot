@@ -142,7 +142,7 @@ except that if the local node deemed the candidate valid, the `SendDispute`
 message will contain a valid vote signed by our node and will contain the
 initially received `Invalid` vote.
 
-Note, that we rely on the coordinator to check validity of a dispute for spam
+Note, that we rely on `dispute-coordinator` to check validity of a dispute for spam
 protection (see below).
 
 ## Sending of messages
