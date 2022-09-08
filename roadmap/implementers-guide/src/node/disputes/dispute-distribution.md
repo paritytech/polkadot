@@ -297,7 +297,7 @@ is `500ms` and above `RATE_LIMIT` is `100ms`. 1/3 of validators are malicious,
 so for 1000 this means around 330 malicious actors worst case.
 
 All those actors can send a message every `100ms`, that is 10 per second. This
-means at the begin of an attack they can open up around 3300 batches. Each
+means at the begining of an attack they can open up around 3300 batches. Each
 containing two votes. So memory usage is still negligible. In reality it is even
 less, as we also demand 10 new votes to trickle in per batch in order to keep it
 alive, every `500ms`. Hence for the first second, each batch requires 20 votes
