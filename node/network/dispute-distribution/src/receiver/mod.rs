@@ -245,7 +245,7 @@ where
 
 			let rate_limited = self.peer_queues.pop_reqs();
 			pin_mut!(rate_limited);
-			// We poll rate_limit before batches, so we don't unecessarily delay importing to
+			// We poll rate_limit before batches, so we don't unnecessarily delay importing to
 			// batches.
 			if let Poll::Ready(reqs) = rate_limited.poll(ctx) {
 				return Poll::Ready(Ok(MuxedMessage::WakePeerQueuesPopReqs(reqs)))
