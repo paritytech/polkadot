@@ -512,7 +512,7 @@ impl<T: Config> Pallet<T> {
 		let mut queue_cache = QueueCache::new();
 
 		while let Some(dispatchee) = cursor.peek() {
-			if weight_used >= config.ump_service_total_weight {
+			if weight_used.any_gte(config.ump_service_total_weight) {
 				// Then check whether we've reached or overshoot the
 				// preferred weight for the dispatching stage.
 				//
@@ -537,7 +537,7 @@ impl<T: Config> Pallet<T> {
 						let _ = queue_cache.consume_front::<T>(dispatchee);
 					},
 					Err((id, required)) => {
-						if required > config.ump_max_individual_weight {
+						if required.any_gt(config.ump_max_individual_weight) {
 							// overweight - add to overweight queue and continue with message
 							// execution consuming the message.
 							let upward_message = queue_cache.consume_front::<T>(dispatchee).expect(
