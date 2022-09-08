@@ -425,6 +425,8 @@ parameter_types! {
 	/// ... and all of the validators as electable targets. Whilst this is the case, we cannot and
 	/// shall not increase the size of the validator intentions.
 	pub const MaxElectableTargets: u16 = u16::MAX;
+	// Conservative value, unbounded to keep backward compatibility.
+	pub const MaxWinnersPerPage: u32 = u32::max_value();
 }
 
 generate_solution_type!(
@@ -443,6 +445,9 @@ impl onchain::Config for OnChainSeqPhragmen {
 	type Solver = SequentialPhragmen<AccountId, runtime_common::elections::OnChainAccuracy>;
 	type DataProvider = Staking;
 	type WeightInfo = weights::frame_election_provider_support::WeightInfo<Runtime>;
+	// This is being defensive by defining the maximum bound possible.
+	type MaxBackersPerWinner = MaxElectingVoters;
+	type MaxWinnersPerPage = MaxWinnersPerPage;
 }
 
 impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
@@ -497,7 +502,6 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Solver = SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
-		(),
 	>;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EitherOfDiverse<
@@ -507,6 +511,9 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
 	type MaxElectingVoters = MaxElectingVoters;
 	type MaxElectableTargets = MaxElectableTargets;
+	// This is being defensive by defining the maximum bound possible.
+	type MaxBackersPerWinner = MaxElectingVoters;
+	type MaxWinnersPerPage = MaxWinnersPerPage;
 }
 
 parameter_types! {

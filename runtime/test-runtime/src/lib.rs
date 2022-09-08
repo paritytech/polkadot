@@ -320,6 +320,10 @@ parameter_types! {
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
 	pub storage OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	pub const MaxAuthorities: u32 = 100_000;
+	// Conservative value, unbounded to keep backward compatibility.
+	pub const MaxWinnersPerPage: u32 = u32::max_value();
+	/// We take the top 12500 nominators as electing voters..
+	pub const MaxElectingVoters: u32 = 12_500;
 }
 
 pub struct OnChainSeqPhragmen;
@@ -328,6 +332,9 @@ impl onchain::Config for OnChainSeqPhragmen {
 	type Solver = SequentialPhragmen<AccountId, runtime_common::elections::OnChainAccuracy>;
 	type DataProvider = Staking;
 	type WeightInfo = ();
+	// This is being defensive by defining the maximum bound possible.
+	type MaxBackersPerWinner = MaxElectingVoters;
+	type MaxWinnersPerPage = MaxWinnersPerPage;
 }
 
 impl pallet_staking::Config for Runtime {
