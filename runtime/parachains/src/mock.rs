@@ -395,7 +395,7 @@ impl UmpSink for TestUmpSink {
 			Ok(w) => Weight::from_ref_time(w as u64),
 			Err(_) => return Ok(Weight::zero()), // same as the real `UmpSink`
 		};
-		if weight > max_weight {
+		if weight.any_gt(max_weight) {
 			let id = sp_io::hashing::blake2_256(actual_msg);
 			return Err((id, weight))
 		}

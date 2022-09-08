@@ -373,8 +373,8 @@ impl<T: Config> Pallet<T> {
 			// the block. It's still reasonable to protect against a massive amount of disputes.
 			if candidates_weight
 				.saturating_add(bitfields_weight)
-				.saturating_add(disputes_weight) >
-				max_block_weight
+				.saturating_add(disputes_weight)
+				.any_gt(max_block_weight)
 			{
 				log::warn!("Overweight para inherent data reached the runtime {:?}", parent_hash);
 				backed_candidates.clear();
@@ -753,7 +753,7 @@ impl<T: Config> Pallet<T> {
 			&mut rng,
 		);
 
-		if actual_weight > max_block_weight {
+		if actual_weight.any_gt(max_block_weight) {
 			log::warn!(target: LOG_TARGET, "Post weight limiting weight is still too large.");
 		}
 
@@ -820,7 +820,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 		// preferred indices originate from outside
 		if let Some(item) = selectables.get(preferred_idx) {
 			let updated = weight_acc.saturating_add(weight_fn(item));
-			if updated > weight_limit {
+			if updated.any_gt(weight_limit) {
 				continue
 			}
 			weight_acc = updated;
@@ -833,7 +833,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 		let item = &selectables[idx];
 		let updated = weight_acc.saturating_add(weight_fn(item));
 
-		if updated > weight_limit {
+		if updated.any_gt(weight_limit) {
 			continue
 		}
 		weight_acc = updated;
@@ -877,7 +877,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	let total = total_bitfields_weight.saturating_add(total_candidates_weight);
 
 	// candidates + bitfields fit into the block
-	if max_consumable_weight >= total {
+	if max_consumable_weight.all_gte(total) {
 		return total
 	}
 
@@ -1243,7 +1243,7 @@ fn limit_and_sanitize_disputes<
 	// The total weight if all disputes would be included
 	let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
 
-	if disputes_weight > max_consumable_weight {
+	if disputes_weight.any_gt(max_consumable_weight) {
 		let mut checked_acc = Vec::<CheckedDisputeStatementSet>::with_capacity(disputes.len());
 
 		// Since the disputes array is sorted, we may use binary search to find the beginning of
@@ -1274,7 +1274,7 @@ fn limit_and_sanitize_disputes<
 				dss.statements.len() as u32,
 			);
 			let updated = weight_acc.saturating_add(dispute_weight);
-			if max_consumable_weight >= updated {
+			if max_consumable_weight.all_gte(updated) {
 				// only apply the weight if the validity check passes
 				if let Some(checked) = dispute_statement_set_valid(dss.clone()) {
 					checked_acc.push(checked);

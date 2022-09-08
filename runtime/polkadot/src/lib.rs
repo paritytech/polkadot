@@ -2203,7 +2203,7 @@ mod test_fees {
 			)
 		};
 
-		while weight_with(voters) <= BlockWeights::get().max_block {
+		while weight_with(voters).all_lte(BlockWeights::get().max_block) {
 			voters += 1;
 		}
 
@@ -2237,7 +2237,9 @@ mod test_fees {
 		};
 
 		let mut active = target_voters;
-		while weight_with(active) <= OffchainSolutionWeightLimit::get() || active == target_voters {
+		while weight_with(active).all_lte(OffchainSolutionWeightLimit::get()) ||
+			active == target_voters
+		{
 			active += 1;
 		}
 
