@@ -3,6 +3,7 @@ name = "polkadot-service"
 version = "0.9.28"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
+rust-version = "1.60"
 
 [dependencies]
 # Substrate Client
@@ -174,31 +175,31 @@ westend-native = [ "westend-runtime", "westend-runtime-constants", "polkadot-cli
 rococo-native = [ "rococo-runtime", "rococo-runtime-constants", "polkadot-client/rococo" ]
 
 runtime-benchmarks = [
-	"polkadot-runtime/runtime-benchmarks",
-	"kusama-runtime/runtime-benchmarks",
-	"westend-runtime/runtime-benchmarks",
-	"rococo-runtime/runtime-benchmarks"
+	"polkadot-runtime?/runtime-benchmarks",
+	"kusama-runtime?/runtime-benchmarks",
+	"westend-runtime?/runtime-benchmarks",
+	"rococo-runtime?/runtime-benchmarks"
 ]
 try-runtime = [
-	"polkadot-runtime/try-runtime",
-	"kusama-runtime/try-runtime",
-	"westend-runtime/try-runtime",
-	"rococo-runtime/try-runtime",
+	"polkadot-runtime?/try-runtime",
+	"kusama-runtime?/try-runtime",
+	"westend-runtime?/try-runtime",
+	"rococo-runtime?/try-runtime",
 ]
 fast-runtime = [
-	"polkadot-runtime/fast-runtime",
-	"kusama-runtime/fast-runtime",
-	"westend-runtime/fast-runtime",
-	"rococo-runtime/fast-runtime",
+	"polkadot-runtime?/fast-runtime",
+	"kusama-runtime?/fast-runtime",
+	"westend-runtime?/fast-runtime",
+	"rococo-runtime?/fast-runtime",
 ]
 
 malus = ["full-node"]
 runtime-metrics = [
 	"polkadot-client/runtime-metrics",
-	"rococo-runtime/runtime-metrics",
-	"westend-runtime/runtime-metrics",
-	"kusama-runtime/runtime-metrics",
-	"polkadot-runtime/runtime-metrics",
+	"rococo-runtime?/runtime-metrics",
+	"westend-runtime?/runtime-metrics",
+	"kusama-runtime?/runtime-metrics",
+	"polkadot-runtime?/runtime-metrics",
 	"polkadot-runtime-parachains/runtime-metrics"
 ]
 
