@@ -77,6 +77,7 @@ use polkadot_node_subsystem_types::messages::{
 	ApprovalDistributionMessage, ApprovalVotingMessage, AvailabilityDistributionMessage,
 	AvailabilityRecoveryMessage, AvailabilityStoreMessage, BitfieldDistributionMessage,
 	BitfieldSigningMessage, CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage,
+	NodeEventsMessage,
 	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
 	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
 	NetworkBridgeRxMessage, NetworkBridgeTxMessage, ProvisionerMessage, PvfCheckerMessage,
@@ -540,6 +541,9 @@ pub struct Overseer<SupportsParachains> {
 
 	#[subsystem(blocking, ChainApiMessage, sends: [])]
 	chain_api: ChainApi,
+
+	#[subsystem(blocking, NodeEventsMessage, sends: [])]
+	node_events: NodeEvents,
 
 	#[subsystem(CollationGenerationMessage, sends: [
 		RuntimeApiMessage,

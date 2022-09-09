@@ -88,6 +88,7 @@ polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
+polkadot-node-events = { path = "../events" }
 
 # Polkadot Runtime Constants
 polkadot-runtime-constants = { path = "../../runtime/polkadot/constants", optional = true }

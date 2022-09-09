@@ -1,0 +1,20 @@
+[package]
+name = "polkadot-node-events"
+version = "0.9.28"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2021"
+
+[dependencies]
+futures = "0.3.21"
+gum = { package = "tracing-gum", path = "../gum" }
+polkadot-node-subsystem = {path = "../subsystem" }
+# polkadot-node-subsystem-util = { path = "../subsystem-util" }
+# sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+[dev-dependencies]
+futures = { version = "0.3.21", features = ["thread-pool"] }
+maplit = "1.0.2"
+parity-scale-codec = "3.1.5"
+polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

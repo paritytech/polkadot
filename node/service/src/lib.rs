@@ -595,11 +595,9 @@ where
 				beefy: polkadot_rpc::BeefyDeps {
 					beefy_finality_proof_stream: beefy_rpc_links.from_voter_justif_stream.clone(),
 					beefy_best_block_stream: beefy_rpc_links.from_voter_best_beefy_stream.clone(),
-					subscription_executor: subscription_executor.clone()
+					subscription_executor: subscription_executor.clone(),
 				},
-				node_events: polkadot_rpc::NodeEventsDeps {
-					subscription_executor
-				}
+				node_events: polkadot_rpc::NodeEventsDeps { subscription_executor },
 			};
 
 			polkadot_rpc::create_full(deps, backend.clone()).map_err(Into::into)

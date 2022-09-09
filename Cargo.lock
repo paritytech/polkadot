@@ -6631,6 +6631,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-events"
+version = "0.9.28"
+dependencies = [
+ "futures",
+ "maplit",
+ "parity-scale-codec",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
+ "sc-utils",
+ "sp-core",
+ "tracing-gum",
+]
+
+[[package]]
 name = "polkadot-node-jaeger"
 version = "0.9.28"
 dependencies = [
@@ -7200,6 +7214,7 @@ dependencies = [
  "polkadot-node-core-provisioner",
  "polkadot-node-core-pvf-checker",
  "polkadot-node-core-runtime-api",
+ "polkadot-node-events",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",

@@ -597,6 +597,13 @@ impl ChainApiMessage {
 	}
 }
 
+/// Chain API request subsystem message.
+#[derive(Debug)]
+pub enum NodeEventsMessage {
+	/// Dummy test message.
+	Dummy(String),
+}
+
 /// Chain selection subsystem messages
 #[derive(Debug)]
 pub enum ChainSelectionMessage {
