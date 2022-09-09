@@ -59,7 +59,6 @@ parameter_types! {
 
 #[cfg(test)]
 mod test_weights {
-	use super::*;
 	use frame_support::weights::constants;
 
 	/// Checks that the weight exists and is sane.
