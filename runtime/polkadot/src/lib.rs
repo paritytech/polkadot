@@ -109,13 +109,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9280,
+	spec_version: 9290,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 13,
+	transaction_version: 14,
 	state_version: 0,
 };
 
@@ -1515,7 +1515,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	InitiateNominationPools,
+	(InitiateNominationPools, pallet_nomination_pools::migration::v3::MigrateToV3<Runtime>),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -2144,7 +2144,7 @@ mod test_fees {
 			)
 		};
 
-		while weight_with(voters) <= BlockWeights::get().max_block {
+		while weight_with(voters).all_lte(BlockWeights::get().max_block) {
 			voters += 1;
 		}
 
@@ -2178,7 +2178,9 @@ mod test_fees {
 		};
 
 		let mut active = target_voters;
-		while weight_with(active) <= OffchainSolutionWeightLimit::get() || active == target_voters {
+		while weight_with(active).all_lte(OffchainSolutionWeightLimit::get()) ||
+			active == target_voters
+		{
 			active += 1;
 		}
 

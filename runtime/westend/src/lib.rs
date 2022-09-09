@@ -106,13 +106,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9280,
+	spec_version: 9290,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 11,
+	transaction_version: 12,
 	state_version: 0,
 };
 
@@ -936,7 +936,7 @@ impl assigned_slots::Config for Runtime {
 
 impl parachains_disputes::Config for Runtime {
 	type Event = Event;
-	type RewardValidators = ();
+	type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
 	type PunishValidators = ();
 	type WeightInfo = weights::runtime_parachains_disputes::WeightInfo<Runtime>;
 }
@@ -1155,7 +1155,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(),
+	pallet_nomination_pools::migration::v3::MigrateToV3<Runtime>,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;

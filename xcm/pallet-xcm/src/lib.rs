@@ -908,7 +908,7 @@ pub mod pallet {
 							SupportedVersion::<T>::insert(XCM_VERSION, new_key, value);
 						}
 						weight_used.saturating_accrue(todo_sv_migrate_weight);
-						if weight_used >= weight_cutoff {
+						if weight_used.any_gte(weight_cutoff) {
 							return (weight_used, Some(stage))
 						}
 					}
@@ -922,7 +922,7 @@ pub mod pallet {
 							VersionNotifiers::<T>::insert(XCM_VERSION, new_key, value);
 						}
 						weight_used.saturating_accrue(todo_vn_migrate_weight);
-						if weight_used >= weight_cutoff {
+						if weight_used.any_gte(weight_cutoff) {
 							return (weight_used, Some(stage))
 						}
 					}
@@ -963,7 +963,7 @@ pub mod pallet {
 					};
 					Self::deposit_event(event);
 					weight_used.saturating_accrue(todo_vnt_notify_weight);
-					if weight_used >= weight_cutoff {
+					if weight_used.any_gte(weight_cutoff) {
 						let last = Some(iter.last_raw_key().into());
 						return (weight_used, Some(NotifyCurrentTargets(last)))
 					}
@@ -981,7 +981,7 @@ pub mod pallet {
 									old_key, value.0,
 								));
 								weight_used.saturating_accrue(todo_vnt_migrate_fail_weight);
-								if weight_used >= weight_cutoff {
+								if weight_used.any_gte(weight_cutoff) {
 									return (weight_used, Some(stage))
 								}
 								continue
@@ -1011,7 +1011,7 @@ pub mod pallet {
 							Self::deposit_event(event);
 							weight_used.saturating_accrue(todo_vnt_notify_migrate_weight);
 						}
-						if weight_used >= weight_cutoff {
+						if weight_used.any_gte(weight_cutoff) {
 							return (weight_used, Some(stage))
 						}
 					}
@@ -1405,7 +1405,7 @@ pub mod pallet {
 								Queries::<T>::remove(query_id);
 								let weight = call.get_dispatch_info().weight;
 								let max_weight = Weight::from_ref_time(max_weight);
-								if weight > max_weight {
+								if weight.any_gt(max_weight) {
 									let e = Event::NotifyOverweight(
 										query_id,
 										pallet_index,
