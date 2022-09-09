@@ -233,7 +233,6 @@ pub enum CollationVersion {
 	VStaging = 2,
 }
 
-
 /// Marker indicating the version is unknown.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnknownVersion;
@@ -243,7 +242,9 @@ impl TryFrom<ProtocolVersion> for ValidationVersion {
 
 	fn try_from(p: ProtocolVersion) -> Result<Self, UnknownVersion> {
 		for v in Self::iter() {
-			if v as u32 == p.0 { return Ok(v) }
+			if v as u32 == p.0 {
+				return Ok(v)
+			}
 		}
 
 		Err(UnknownVersion)
@@ -255,7 +256,9 @@ impl TryFrom<ProtocolVersion> for CollationVersion {
 
 	fn try_from(p: ProtocolVersion) -> Result<Self, UnknownVersion> {
 		for v in Self::iter() {
-			if v as u32 == p.0 { return Ok(v) }
+			if v as u32 == p.0 {
+				return Ok(v)
+			}
 		}
 
 		Err(UnknownVersion)

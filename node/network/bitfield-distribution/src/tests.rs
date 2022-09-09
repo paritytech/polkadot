@@ -52,10 +52,7 @@ fn dummy_rng() -> ChaCha12Rng {
 }
 
 fn peer_data_v1(view: View) -> PeerData {
-	PeerData {
-		view,
-		version: ValidationVersion::V1.into(),
-	}
+	PeerData { view, version: ValidationVersion::V1.into() }
 }
 
 /// A very limited state, only interested in the relay parent of the
@@ -222,7 +219,10 @@ fn receive_invalid_signature() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), invalid_msg.into_network_message(ValidationVersion::V1.into())),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b.clone(),
+				invalid_msg.into_network_message(ValidationVersion::V1.into())
+			),
 			&mut rng,
 		));
 
@@ -233,7 +233,10 @@ fn receive_invalid_signature() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), invalid_msg_2.into_network_message(ValidationVersion::V1.into())),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b.clone(),
+				invalid_msg_2.into_network_message(ValidationVersion::V1.into())
+			),
 			&mut rng,
 		));
 		// reputation change due to invalid signature
@@ -293,7 +296,10 @@ fn receive_invalid_validator_index() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.into_network_message(ValidationVersion::V1.into())),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b.clone(),
+				msg.into_network_message(ValidationVersion::V1.into())
+			),
 			&mut rng,
 		));
 
@@ -356,7 +362,10 @@ fn receive_duplicate_messages() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.clone().into_network_message(ValidationVersion::V1.into()),),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b.clone(),
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 
@@ -389,7 +398,10 @@ fn receive_duplicate_messages() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_a.clone(), msg.clone().into_network_message(ValidationVersion::V1.into()),),
+			NetworkBridgeEvent::PeerMessage(
+				peer_a.clone(),
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 
@@ -408,7 +420,10 @@ fn receive_duplicate_messages() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.clone().into_network_message(ValidationVersion::V1.into()),),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b.clone(),
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 
@@ -605,7 +620,10 @@ fn changing_view() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.clone().into_network_message(ValidationVersion::V1.into()),),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b.clone(),
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 
@@ -641,7 +659,10 @@ fn changing_view() {
 		));
 
 		assert!(state.peer_data.contains_key(&peer_b));
-		assert_eq!(&state.peer_data.get(&peer_b).expect("Must contain value for peer B").view, &view![]);
+		assert_eq!(
+			&state.peer_data.get(&peer_b).expect("Must contain value for peer B").view,
+			&view![]
+		);
 
 		// on rx of the same message, since we are not interested,
 		// should give penalty
@@ -649,7 +670,10 @@ fn changing_view() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.clone().into_network_message(ValidationVersion::V1.into()),),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b.clone(),
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 
@@ -681,7 +705,10 @@ fn changing_view() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_a.clone(), msg.clone().into_network_message(ValidationVersion::V1.into()),),
+			NetworkBridgeEvent::PeerMessage(
+				peer_a.clone(),
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 
@@ -745,7 +772,10 @@ fn do_not_send_message_back_to_origin() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.clone().into_network_message(ValidationVersion::V1.into()),),
+			NetworkBridgeEvent::PeerMessage(
+				peer_b.clone(),
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 
@@ -851,7 +881,10 @@ fn topology_test() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerMessage(peers_x[0].clone(), msg.clone().into_network_message(ValidationVersion::V1.into()),),
+			NetworkBridgeEvent::PeerMessage(
+				peers_x[0].clone(),
+				msg.clone().into_network_message(ValidationVersion::V1.into()),
+			),
 			&mut rng,
 		));
 

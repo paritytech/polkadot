@@ -31,8 +31,8 @@ use polkadot_node_network_protocol::{
 	peer_set::{IsAuthority, PeerSet},
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	v1::{self as protocol_v1, StatementMetadata},
-	vstaging as protocol_vstaging,
-	IfDisconnected, PeerId, UnifiedReputationChange as Rep, Versioned, View,
+	vstaging as protocol_vstaging, IfDisconnected, PeerId, UnifiedReputationChange as Rep,
+	Versioned, View,
 };
 use polkadot_node_primitives::{
 	SignedFullStatement, Statement, StatementWithPVD, UncheckedSignedFullStatement,
@@ -1332,7 +1332,10 @@ async fn launch_request<Context>(
 	}
 	let available_peers = {
 		let mut m = IndexMap::new();
-		m.insert(peer, vec![Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(meta))]);
+		m.insert(
+			peer,
+			vec![Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(meta))],
+		);
 		m
 	};
 	Some(LargeStatementStatus::Fetching(FetchingInfo {
