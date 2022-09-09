@@ -133,7 +133,7 @@ impl Batches {
 		// Wait for at least one batch to become ready:
 		self.waiting_queue.wait_ready(now).await;
 
-		// Process all ready waits:
+		// Process all ready entries:
 		while let Some(wake) = self.waiting_queue.pop_ready(now) {
 			let batch = self.batches.remove(&wake.payload);
 			debug_assert!(

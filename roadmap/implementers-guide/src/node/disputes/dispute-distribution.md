@@ -161,7 +161,7 @@ statements so they can include them in blocks.
 
 We only consider a message transmitted, once we received a confirmation message.
 If not, we will keep retrying getting that message out as long as the dispute is
-deemed alive. To determine whether a dispute is still alive we will the
+deemed alive. To determine whether a dispute is still alive we will ask the
 `dispute-coordinator` for a list of all still active disputes via a
 `DisputeCoordinatorMessage::ActiveDisputes` message before each retry run. Once
 a dispute is no longer live, we will clean up the state accordingly.
@@ -217,7 +217,7 @@ not send messages at a high rate. We can therefore enforce conservative rate
 limits and thus minimize harm spamming malicious nodes can have.
 
 Before we dive into how rate limiting solves all spam issues elegantly, let's
-further discuss that honest behaviour further:
+discuss that honest behaviour further:
 
 What about session changes? Here we might have to inform a new validator set of
 lots of already existing disputes at once.
