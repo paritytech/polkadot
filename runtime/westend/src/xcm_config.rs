@@ -82,10 +82,8 @@ parameter_types! {
 		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Collectives::get());
 	pub const MaxInstructions: u32 = 100;
 }
-pub type TrustedTeleporters = (
-	xcm_builder::Case<WestendForWestmint>,
-	xcm_builder::Case<WestendForCollectives>,
-);
+pub type TrustedTeleporters =
+	(xcm_builder::Case<WestendForWestmint>, xcm_builder::Case<WestendForCollectives>);
 
 /// The barriers one of which must be passed for an XCM message to be executed.
 pub type Barrier = (
