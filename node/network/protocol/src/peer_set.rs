@@ -75,8 +75,6 @@ impl PeerSet {
 		let fallback_names = PeerSetProtocolNames::get_fallback_names(self);
 		let max_notification_size = self.get_max_notification_size(is_authority);
 
-		// TODO [now] if a feature flag is set, use the vstaging
-		// protocol version as default.
 		match self {
 			PeerSet::Validation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
@@ -117,9 +115,16 @@ impl PeerSet {
 	/// Networking layer relies on `get_main_version()` being the version
 	/// of the main protocol name reported by [`PeerSetProtocolNames::get_main_name()`].
 	pub fn get_main_version(self) -> ProtocolVersion {
+		#[cfg(not(feature = "network-protocol-staging"))]
 		match self {
 			PeerSet::Validation => ValidationVersion::V1.into(),
 			PeerSet::Collation => CollationVersion::V1.into(),
+		}
+
+		#[cfg(feature = "network-protocol-staging")]
+		match self {
+			PeerSet::Validation => ValidationVersion::VStaging.into(),
+			PeerSet::Collation => CollationVersion::VStaging.into(),
 		}
 	}
 
