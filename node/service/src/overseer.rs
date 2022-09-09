@@ -71,6 +71,7 @@ pub use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
 pub use polkadot_node_core_provisioner::ProvisionerSubsystem;
 pub use polkadot_node_core_pvf_checker::PvfCheckerSubsystem;
 pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
+pub use polkadot_node_events::{NodeEventsSender, NodeEventsSubsystem};
 use polkadot_node_subsystem_util::rand::{self, SeedableRng};
 pub use polkadot_statement_distribution::StatementDistributionSubsystem;
 
@@ -125,6 +126,8 @@ where
 	pub req_protocol_names: ReqProtocolNames,
 	/// [`PeerSet`] protocol names to protocols mapping.
 	pub peerset_protocol_names: PeerSetProtocolNames,
+	/// Node events notification sender
+	pub node_events_notification_sender: NodeEventsSender,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -155,6 +158,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		overseer_message_channel_capacity_override,
 		req_protocol_names,
 		peerset_protocol_names,
+		node_events_notification_sender,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
@@ -180,6 +184,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 			AuthorityDiscoveryService,
 		>,
 		ChainApiSubsystem<RuntimeClient>,
+		NodeEventsSubsystem,
 		CollationGenerationSubsystem,
 		CollatorProtocolSubsystem,
 		ApprovalDistributionSubsystem,
@@ -253,6 +258,7 @@ where
 			Metrics::register(registry)?,
 		))
 		.chain_api(ChainApiSubsystem::new(runtime_client.clone(), Metrics::register(registry)?))
+		.node_events(NodeEventsSubsystem::new(node_events_notification_sender))
 		.collation_generation(CollationGenerationSubsystem::new(Metrics::register(registry)?))
 		.collator_protocol({
 			let side = match is_collator {

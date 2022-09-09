@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 jsonrpsee = { version = "0.15.1", features = ["server"] }
 polkadot-primitives = { path = "../primitives" }
+polkadot-node-events = { path = "../node/events" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }

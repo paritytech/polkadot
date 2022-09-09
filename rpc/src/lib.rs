@@ -76,6 +76,8 @@ pub struct BeefyDeps {
 pub struct NodeEventsDeps {
 	/// The Executor we use for subscription manager in the Node Events RPC handler.
 	pub subscription_executor: sc_rpc::SubscriptionTaskExecutor,
+	/// The node events stream,
+	pub node_events_stream: polkadot_node_events::NodeEventsStream,
 }
 /// Full client dependencies
 pub struct FullDeps<C, P, SC, B> {
@@ -189,6 +191,8 @@ where
 		)?
 		.into_rpc(),
 	)?;
+
+	io.merge()
 
 	Ok(io)
 }

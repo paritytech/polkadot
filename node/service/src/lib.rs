@@ -563,6 +563,9 @@ where
 	let import_setup = (block_import, grandpa_link, babe_link, beefy_voter_links);
 	let rpc_setup = shared_voter_state.clone();
 
+	let (to_rpc_node_event_sender, node_events_stream) =
+		polkadot_node_events::NodeEventsStream::channel();
+
 	let rpc_extensions_builder = {
 		let client = client.clone();
 		let keystore = keystore_container.sync_keystore();
@@ -597,7 +600,10 @@ where
 					beefy_best_block_stream: beefy_rpc_links.from_voter_best_beefy_stream.clone(),
 					subscription_executor: subscription_executor.clone(),
 				},
-				node_events: polkadot_rpc::NodeEventsDeps { subscription_executor },
+				node_events: polkadot_rpc::NodeEventsDeps {
+					subscription_executor,
+					node_events_stream: node_events_stream.clone(),
+				},
 			};
 
 			polkadot_rpc::create_full(deps, backend.clone()).map_err(Into::into)
@@ -1073,6 +1079,7 @@ where
 					overseer_message_channel_capacity_override,
 					req_protocol_names,
 					peerset_protocol_names,
+					node_events_notification_sender: to_rpc_node_event_sender,
 				},
 			)
 			.map_err(|e| {

@@ -6927,6 +6927,7 @@ dependencies = [
  "jsonrpsee",
  "pallet-mmr-rpc",
  "pallet-transaction-payment-rpc",
+ "polkadot-node-events",
  "polkadot-primitives",
  "sc-chain-spec",
  "sc-client-api",
