@@ -130,6 +130,7 @@ pub mod pallet {
 		Registered { para_id: ParaId, manager: T::AccountId },
 		Deregistered { para_id: ParaId },
 		Reserved { para_id: ParaId, who: T::AccountId },
+		Swapped { para_id: ParaId, other_id: ParaId },
 	}
 
 	#[pallet::error]
@@ -304,6 +305,7 @@ pub mod pallet {
 					// need to do for their lifecycle management, just swap the underlying
 					// data.
 					T::OnSwap::on_swap(id, other);
+					Self::deposit_event(Event::<T>::Swapped { para_id: id, other_id: other });
 				} else {
 					return Err(Error::<T>::CannotSwap.into())
 				}
@@ -584,6 +586,7 @@ impl<T: Config> Pallet<T> {
 		let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(to_upgrade);
 		debug_assert!(res2.is_ok());
 		T::OnSwap::on_swap(to_upgrade, to_downgrade);
+		Self::deposit_event(Event::<T>::Swapped { para_id: to_downgrade, other_id: to_upgrade });
 	}
 }
 
