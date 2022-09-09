@@ -72,6 +72,11 @@ pub struct BeefyDeps {
 	pub subscription_executor: sc_rpc::SubscriptionTaskExecutor,
 }
 
+/// Node events dependencies
+pub struct NodeEventsDeps {
+	/// The Executor we use for subscription manager in the Node Events RPC handler.
+	pub subscription_executor: sc_rpc::SubscriptionTaskExecutor,
+}
 /// Full client dependencies
 pub struct FullDeps<C, P, SC, B> {
 	/// The client instance to use.
@@ -90,6 +95,8 @@ pub struct FullDeps<C, P, SC, B> {
 	pub grandpa: GrandpaDeps<B>,
 	/// BEEFY specific dependencies.
 	pub beefy: BeefyDeps,
+	/// Node events dependencies.
+	pub node_events: NodeEventsDeps,
 }
 
 /// Instantiate all RPC extensions.
@@ -125,7 +132,7 @@ where
 	use substrate_state_trie_migration_rpc::{StateMigration, StateMigrationApiServer};
 
 	let mut io = RpcModule::new(());
-	let FullDeps { client, pool, select_chain, chain_spec, deny_unsafe, babe, grandpa, beefy } =
+	let FullDeps { client, pool, select_chain, chain_spec, deny_unsafe, babe, grandpa, beefy, node_events } =
 		deps;
 	let BabeDeps { keystore, babe_config, shared_epoch_changes } = babe;
 	let GrandpaDeps {
