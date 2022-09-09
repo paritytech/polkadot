@@ -321,3 +321,5 @@ fn send_messages_to_peers() {
 		virtual_overseer
 	});
 }
+
+// TODO [now]: check that `send_validation_message_vstaging` and `send_collation_message_vstaging` work correctly.
