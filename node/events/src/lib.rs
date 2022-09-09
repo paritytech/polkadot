@@ -19,7 +19,6 @@
 #![deny(unused_crate_dependencies, unused_results)]
 #![warn(missing_docs)]
 
-
 use futures::prelude::*;
 
 use polkadot_node_subsystem::{
@@ -30,6 +29,7 @@ use polkadot_node_subsystem::{
 use sc_utils::notification::{NotificationSender, NotificationStream, TracingKeyStr};
 
 /// Supported node events.
+#[derive(Clone)]
 pub enum NodeEvents {
 	/// A dummy event for testing.
 	Dummy(String),
@@ -50,7 +50,6 @@ pub type NodeEventsSender = NotificationSender<NodeEvents>;
 /// Used to receive notifications about events generated during parachain consensus.
 pub type NodeEventsStream = NotificationStream<NodeEvents, NodeEventsTracingKey>;
 
-
 const LOG_TARGET: &str = "parachain::node-events";
 
 /// The node events Subsystem implementation.
@@ -66,8 +65,7 @@ impl NodeEventsSubsystem {
 }
 
 #[overseer::subsystem(NodeEvents, error = SubsystemError, prefix = self::overseer)]
-impl<Context> NodeEventsSubsystem
-{
+impl<Context> NodeEventsSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run::<Context>(ctx, self)
 			.map_err(|e| SubsystemError::with_origin("node-events", e))
@@ -77,11 +75,7 @@ impl<Context> NodeEventsSubsystem
 }
 
 #[overseer::contextbounds(NodeEvents, prefix = self::overseer)]
-async fn run<Context>(
-	mut ctx: Context,
-	_subsystem: NodeEventsSubsystem,
-) -> SubsystemResult<()>
-{
+async fn run<Context>(mut ctx: Context, subsystem: NodeEventsSubsystem) -> SubsystemResult<()> {
 	loop {
 		match ctx.recv().await? {
 			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
@@ -90,7 +84,10 @@ async fn run<Context>(
 			FromOrchestra::Communication { msg } => match msg {
 				NodeEventsMessage::Dummy(text) => {
 					gum::info!(target: LOG_TARGET, ?text, "it works");
-					
+					subsystem
+						.event_sender
+						.notify(|| Ok::<NodeEvents, ()>(NodeEvents::Dummy(text)))
+						.unwrap();
 				},
 			},
 		}
