@@ -80,7 +80,7 @@ type WinnersData<T> =
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::{pallet_prelude::*, traits::EnsureOrigin, weights::DispatchClass};
+	use frame_support::{dispatch::DispatchClass, pallet_prelude::*, traits::EnsureOrigin};
 	use frame_system::{ensure_root, ensure_signed, pallet_prelude::*};
 
 	#[pallet::pallet]

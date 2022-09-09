@@ -61,9 +61,10 @@ where
 mod tests {
 	use super::*;
 	use frame_support::{
+		dispatch::DispatchClass,
 		parameter_types,
 		traits::FindAuthor,
-		weights::{DispatchClass, Weight},
+		weights::Weight,
 		PalletId,
 	};
 	use frame_system::limits;
