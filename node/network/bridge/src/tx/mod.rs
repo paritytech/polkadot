@@ -24,8 +24,9 @@ use polkadot_node_network_protocol::{
 };
 
 use polkadot_node_subsystem::{
-	errors::SubsystemError, messages::NetworkBridgeTxMessage, overseer, FromOrchestra,
-	OverseerSignal, SpawnedSubsystem,
+	errors::SubsystemError,
+	messages::{NetworkBridgeTxMessage, NodeEventsMessage},
+	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem,
 };
 
 /// Peer set info for network initialization.
@@ -134,7 +135,7 @@ where
 
 #[overseer::contextbounds(NetworkBridgeTx, prefix = self::overseer)]
 async fn handle_incoming_subsystem_communication<Context, N, AD>(
-	_ctx: &mut Context,
+	ctx: &mut Context,
 	mut network_service: N,
 	validator_discovery: &mut validator_discovery::Service<N, AD>,
 	mut authority_discovery_service: AD,
@@ -147,6 +148,7 @@ where
 	N: Network,
 	AD: validator_discovery::AuthorityDiscovery + Clone,
 {
+	ctx.send_message(NodeEventsMessage::Dummy("tx pending".to_string())).await;
 	match msg {
 		NetworkBridgeTxMessage::ReportPeer(peer, rep) => {
 			if !rep.is_benefit() {
