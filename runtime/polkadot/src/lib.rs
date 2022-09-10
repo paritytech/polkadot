@@ -40,10 +40,7 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_election_provider_support::{generate_solution_type, onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{
-		Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		PrivilegeCmp,
-	},
+	traits::{EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, PrivilegeCmp},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
 };
@@ -135,62 +132,6 @@ pub fn native_version() -> NativeVersion {
 	NativeVersion { runtime_version: VERSION, can_author_with: Default::default() }
 }
 
-pub struct BaseFilter;
-impl Contains<RuntimeCall> for BaseFilter {
-	fn contains(call: &RuntimeCall) -> bool {
-		match call {
-			// These modules are all allowed to be called by transactions:
-			RuntimeCall::Democracy(_) |
-			RuntimeCall::Council(_) |
-			RuntimeCall::TechnicalCommittee(_) |
-			RuntimeCall::TechnicalMembership(_) |
-			RuntimeCall::Treasury(_) |
-			RuntimeCall::PhragmenElection(_) |
-			RuntimeCall::System(_) |
-			RuntimeCall::Scheduler(_) |
-			RuntimeCall::Preimage(_) |
-			RuntimeCall::Indices(_) |
-			RuntimeCall::Babe(_) |
-			RuntimeCall::Timestamp(_) |
-			RuntimeCall::Balances(_) |
-			RuntimeCall::Authorship(_) |
-			RuntimeCall::Staking(_) |
-			RuntimeCall::Session(_) |
-			RuntimeCall::Grandpa(_) |
-			RuntimeCall::ImOnline(_) |
-			RuntimeCall::Utility(_) |
-			RuntimeCall::Claims(_) |
-			RuntimeCall::Vesting(_) |
-			RuntimeCall::Identity(_) |
-			RuntimeCall::Proxy(_) |
-			RuntimeCall::Multisig(_) |
-			RuntimeCall::Bounties(_) |
-			RuntimeCall::ChildBounties(_) |
-			RuntimeCall::Tips(_) |
-			RuntimeCall::ElectionProviderMultiPhase(_) |
-			RuntimeCall::Configuration(_) |
-			RuntimeCall::ParasShared(_) |
-			RuntimeCall::ParaInclusion(_) |
-			RuntimeCall::Paras(_) |
-			RuntimeCall::Initializer(_) |
-			RuntimeCall::ParaInherent(_) |
-			RuntimeCall::ParasDisputes(_) |
-			RuntimeCall::Dmp(_) |
-			RuntimeCall::Ump(_) |
-			RuntimeCall::Hrmp(_) |
-			RuntimeCall::Slots(_) |
-			RuntimeCall::Registrar(_) |
-			RuntimeCall::Auctions(_) |
-			RuntimeCall::Crowdloan(_) |
-			RuntimeCall::VoterList(_) |
-			RuntimeCall::XcmPallet(_) |
-			RuntimeCall::NominationPools(_) => true,
-			// All pallets are allowed, but exhaustive match is defensive
-			// in the case of adding new pallets.
-		}
-	}
-}
-
 type MoreThanHalfCouncil = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
@@ -202,7 +143,7 @@ parameter_types! {
 }
 
 impl frame_system::Config for Runtime {
-	type BaseCallFilter = BaseFilter;
+	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = BlockWeights;
 	type BlockLength = BlockLength;
 	type Origin = Origin;
