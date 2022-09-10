@@ -550,7 +550,7 @@ async fn declare_v1<Context>(ctx: &mut Context, state: &mut State, peer: PeerId)
 }
 
 /// Issue a `Declare` collation message to the given `peer` on protocol version
-/// vstaging
+/// `staging`.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn declare_vstaging<Context>(ctx: &mut Context, state: &mut State, peer: PeerId) {
 	let declare_signature_payload =
