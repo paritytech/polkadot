@@ -26,7 +26,7 @@ use polkadot_node_network_protocol::{
 	grid_topology::{RandomRouting, RequiredRouting, SessionGridTopologies, SessionGridTopology},
 	peer_set::ValidationVersion,
 	v1 as protocol_v1, vstaging as protocol_vstaging, PeerId, UnifiedReputationChange as Rep,
-	Versioned, View, VersionedValidationProtocol,
+	Versioned, VersionedValidationProtocol, View,
 };
 use polkadot_node_primitives::approval::{
 	AssignmentCert, BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote,
@@ -449,7 +449,8 @@ impl State {
 			let sender = ctx.sender();
 			for (peer_id, data) in self.peer_data.iter() {
 				let intersection = data.view.iter().filter(|h| new_hashes.contains(h));
-				let view_intersection = View::new(intersection.cloned(), data.view.finalized_number);
+				let view_intersection =
+					View::new(intersection.cloned(), data.view.finalized_number);
 				Self::unify_with_peer(
 					sender,
 					metrics,

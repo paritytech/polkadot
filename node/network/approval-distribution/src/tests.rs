@@ -800,7 +800,7 @@ fn update_peer_view() {
 		virtual_overseer
 	});
 
-	assert_eq!(state.peer_views.get(peer).map(|v| v.finalized_number), Some(0));
+	assert_eq!(state.peer_data.get(peer).map(|data| data.view.finalized_number), Some(0));
 	assert_eq!(
 		state
 			.blocks
@@ -852,7 +852,7 @@ fn update_peer_view() {
 		virtual_overseer
 	});
 
-	assert_eq!(state.peer_views.get(peer).map(|v| v.finalized_number), Some(2));
+	assert_eq!(state.peer_data.get(peer).map(|data| data.view.finalized_number), Some(2));
 	assert_eq!(
 		state
 			.blocks
@@ -882,7 +882,10 @@ fn update_peer_view() {
 		virtual_overseer
 	});
 
-	assert_eq!(state.peer_views.get(peer).map(|v| v.finalized_number), Some(finalized_number));
+	assert_eq!(
+		state.peer_data.get(peer).map(|data| data.view.finalized_number),
+		Some(finalized_number)
+	);
 	assert!(state.blocks.get(&hash_c).unwrap().known_by.get(peer).is_none());
 }
 
@@ -2228,3 +2231,6 @@ fn resends_messages_periodically() {
 		virtual_overseer
 	});
 }
+
+// TODO [now]: some tests for vstaging peers: receiving and sending from peers with
+// different protocol versions.
