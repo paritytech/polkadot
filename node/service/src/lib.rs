@@ -473,6 +473,7 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
 				babe::BabeLink<Block>,
 				beefy_gadget::BeefyVoterLinks<Block>,
+				polkadot_node_events::NodeEventsSender,
 			),
 			grandpa::SharedVoterState,
 			sp_consensus_babe::SlotDuration,
@@ -559,12 +560,12 @@ where
 
 	let shared_epoch_changes = babe_link.epoch_changes().clone();
 	let slot_duration = babe_config.slot_duration();
-
-	let import_setup = (block_import, grandpa_link, babe_link, beefy_voter_links);
-	let rpc_setup = shared_voter_state.clone();
-
 	let (to_rpc_node_event_sender, node_events_stream) =
 		polkadot_node_events::NodeEventsStream::channel();
+
+	let import_setup =
+		(block_import, grandpa_link, babe_link, beefy_voter_links, to_rpc_node_event_sender);
+	let rpc_setup = shared_voter_state.clone();
 
 	let rpc_extensions_builder = {
 		let client = client.clone();
@@ -992,7 +993,7 @@ where
 		}
 	}
 
-	let (block_import, link_half, babe_link, beefy_links) = import_setup;
+	let (block_import, link_half, babe_link, beefy_links, to_rpc_node_event_sender) = import_setup;
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();

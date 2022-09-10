@@ -21,6 +21,7 @@
 use std::sync::Arc;
 
 use jsonrpsee::RpcModule;
+use polkadot_node_events::{NodeEvents, rpc::{NodeEventsApiServer, NodeEventsBackend}};
 use polkadot_primitives::v2::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
 use sc_client_api::AuxStore;
 use sc_consensus_babe::{BabeConfiguration, Epoch};
@@ -192,7 +193,14 @@ where
 		.into_rpc(),
 	)?;
 
-	io.merge()
+	io.merge(
+		<NodeEventsBackend as NodeEventsApiServer<NodeEvents>>::into_rpc(
+			polkadot_node_events::rpc::NodeEventsBackend::new(
+				node_events.node_events_stream,
+				node_events.subscription_executor,
+			)?,
+		),
+	)?;
 
 	Ok(io)
 }

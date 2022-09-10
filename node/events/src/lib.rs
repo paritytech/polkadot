@@ -27,9 +27,12 @@ use polkadot_node_subsystem::{
 };
 
 use sc_utils::notification::{NotificationSender, NotificationStream, TracingKeyStr};
+use serde::{Deserialize, Serialize};
+
+pub mod rpc;
 
 /// Supported node events.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum NodeEvents {
 	/// A dummy event for testing.
 	Dummy(String),

@@ -6635,12 +6635,16 @@ name = "polkadot-node-events"
 version = "0.9.28"
 dependencies = [
  "futures",
+ "jsonrpsee",
  "maplit",
  "parity-scale-codec",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "sc-rpc",
  "sc-utils",
+ "serde",
  "sp-core",
+ "thiserror",
  "tracing-gum",
 ]
 

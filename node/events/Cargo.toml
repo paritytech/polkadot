@@ -8,9 +8,11 @@ edition = "2021"
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../gum" }
 polkadot-node-subsystem = {path = "../subsystem" }
-# polkadot-node-subsystem-util = { path = "../subsystem-util" }
-# sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+jsonrpsee = { version = "0.15.1", features = ["server"] }
+thiserror = "1.0.31"
+serde = { version = "1.0.137", features = ["derive"] }
 
 [dev-dependencies]
 futures = { version = "0.3.21", features = ["thread-pool"] }
