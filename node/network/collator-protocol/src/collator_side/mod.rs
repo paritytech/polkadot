@@ -56,6 +56,7 @@ use super::LOG_TARGET;
 use crate::error::{log_error, Error, FatalError, Result};
 use fatality::Split;
 
+mod connection;
 mod metrics;
 pub use metrics::Metrics;
 
