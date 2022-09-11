@@ -34,15 +34,14 @@ use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
-	peer_set::{CollationVersion, PeerSet, ProtocolVersion},
+	peer_set::PeerSet,
 	request_response as req_res,
 	request_response::{
 		outgoing::{Recipient, RequestError},
 		v1::{CollationFetchingRequest, CollationFetchingResponse},
 		OutgoingRequest, Requests,
 	},
-	v1 as protocol_v1, vstaging as protocol_vstaging, OurView, PeerId,
-	UnifiedReputationChange as Rep, Versioned, View,
+	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_primitives::{PoV, SignedFullStatement};
 use polkadot_node_subsystem::{
@@ -248,12 +247,11 @@ enum AdvertisementError {
 struct PeerData {
 	view: View,
 	state: PeerState,
-	version: ProtocolVersion,
 }
 
 impl PeerData {
-	fn new(view: View, version: ProtocolVersion) -> Self {
-		PeerData { view, state: PeerState::Connected(Instant::now()), version }
+	fn new(view: View) -> Self {
+		PeerData { view, state: PeerState::Connected(Instant::now()) }
 	}
 
 	/// Update the view, clearing all advertisements that are no longer in the
@@ -345,6 +343,12 @@ impl PeerData {
 			PeerState::Collating(ref state) =>
 				state.last_active.elapsed() >= policy.inactive_collator,
 		}
+	}
+}
+
+impl Default for PeerData {
+	fn default() -> Self {
+		PeerData::new(Default::default())
 	}
 }
 
@@ -705,33 +709,17 @@ async fn note_good_collation(
 async fn notify_collation_seconded(
 	sender: &mut impl overseer::CollatorProtocolSenderTrait,
 	peer_id: PeerId,
-	peer_version: ProtocolVersion,
 	relay_parent: Hash,
 	statement: SignedFullStatement,
 ) {
-	if peer_version == CollationVersion::V1.into() {
-		let wire_message =
-			protocol_v1::CollatorProtocolMessage::CollationSeconded(relay_parent, statement.into());
-		sender
-			.send_message(NetworkBridgeTxMessage::SendCollationMessage(
-				vec![peer_id],
-				Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
-			))
-			.await;
-	} else if peer_version == CollationVersion::VStaging.into() {
-		let wire_message = protocol_vstaging::CollatorProtocolMessage::CollationSeconded(
-			relay_parent,
-			statement.into(),
-		);
-		sender
-			.send_message(NetworkBridgeTxMessage::SendCollationMessage(
-				vec![peer_id],
-				Versioned::VStaging(protocol_vstaging::CollationProtocol::CollatorProtocol(
-					wire_message,
-				)),
-			))
-			.await;
-	}
+	let wire_message =
+		protocol_v1::CollatorProtocolMessage::CollationSeconded(relay_parent, statement.into());
+	sender
+		.send_message(NetworkBridgeTxMessage::SendCollationMessage(
+			vec![peer_id],
+			Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
+		))
+		.await;
 
 	modify_reputation(sender, peer_id, BENEFIT_NOTIFY_GOOD).await;
 }
@@ -739,13 +727,8 @@ async fn notify_collation_seconded(
 /// A peer's view has changed. A number of things should be done:
 ///  - Ongoing collation requests have to be canceled.
 ///  - Advertisements by this peer that are no longer relevant have to be removed.
-///
-/// This requires that the peer has an entry in the peer-data map.
 async fn handle_peer_view_change(state: &mut State, peer_id: PeerId, view: View) -> Result<()> {
-	let peer_data = match state.peer_data.get_mut(&peer_id) {
-		None => return Ok(()),
-		Some(pd) => pd,
-	};
+	let peer_data = state.peer_data.entry(peer_id.clone()).or_default();
 
 	peer_data.update_view(view);
 	state
@@ -833,20 +816,12 @@ async fn process_incoming_peer_message<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	origin: PeerId,
-	msg: net_protocol::CollatorProtocolMessage,
+	msg: protocol_v1::CollatorProtocolMessage,
 ) {
+	use protocol_v1::CollatorProtocolMessage::*;
 	use sp_runtime::traits::AppVerify;
 	match msg {
-		Versioned::V1(protocol_v1::CollatorProtocolMessage::Declare(
-			collator_id,
-			para_id,
-			signature,
-		)) |
-		Versioned::VStaging(protocol_vstaging::CollatorProtocolMessage::Declare(
-			collator_id,
-			para_id,
-			signature,
-		)) => {
+		Declare(collator_id, para_id, signature) => {
 			if collator_peer_id(&state.peer_data, &collator_id).is_some() {
 				modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
 				return
@@ -912,10 +887,7 @@ async fn process_incoming_peer_message<Context>(
 				disconnect_peer(ctx.sender(), origin).await;
 			}
 		},
-		Versioned::V1(protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent)) |
-		Versioned::VStaging(protocol_vstaging::CollatorProtocolMessage::AdvertiseCollation(
-			relay_parent,
-		)) => {
+		AdvertiseCollation(relay_parent) => {
 			let _span = state
 				.span_per_relay_parent
 				.get(&relay_parent)
@@ -1003,11 +975,7 @@ async fn process_incoming_peer_message<Context>(
 				},
 			}
 		},
-		Versioned::V1(protocol_v1::CollatorProtocolMessage::CollationSeconded(_, _)) |
-		Versioned::VStaging(protocol_vstaging::CollatorProtocolMessage::CollationSeconded(
-			_,
-			_,
-		)) => {
+		CollationSeconded(_, _) => {
 			gum::warn!(
 				target: LOG_TARGET,
 				peer_id = ?origin,
@@ -1096,11 +1064,8 @@ async fn handle_network_msg<Context>(
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
-		PeerConnected(peer_id, _role, version, _) => {
-			state
-				.peer_data
-				.entry(peer_id)
-				.or_insert_with(|| PeerData::new(View::default(), version));
+		PeerConnected(peer_id, _role, _version, _) => {
+			state.peer_data.entry(peer_id).or_default();
 			state.metrics.note_collator_peer_count(state.peer_data.len());
 		},
 		PeerDisconnected(peer_id) => {
@@ -1116,8 +1081,11 @@ async fn handle_network_msg<Context>(
 		OurViewChange(view) => {
 			handle_our_view_change(ctx, state, keystore, view).await?;
 		},
-		PeerMessage(remote, msg) => {
+		PeerMessage(remote, Versioned::V1(msg)) => {
 			process_incoming_peer_message(ctx, state, remote, msg).await;
+		},
+		PeerMessage(_, Versioned::VStaging(msg)) => {
+			
 		},
 	}
 
@@ -1167,16 +1135,7 @@ async fn process_msg<Context>(
 				let (collator_id, pending_collation) = collation_event;
 				let PendingCollation { relay_parent, peer_id, .. } = pending_collation;
 				note_good_collation(ctx.sender(), &state.peer_data, collator_id).await;
-				if let Some(pd) = state.peer_data.get(&peer_id) {
-					notify_collation_seconded(
-						ctx.sender(),
-						peer_id,
-						pd.version,
-						relay_parent,
-						stmt,
-					)
-					.await;
-				}
+				notify_collation_seconded(ctx.sender(), peer_id, relay_parent, stmt).await;
 
 				if let Some(collations) = state.collations_per_relay_parent.get_mut(&parent) {
 					collations.status = CollationStatus::Seconded;

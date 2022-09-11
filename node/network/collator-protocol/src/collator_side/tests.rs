@@ -987,5 +987,3 @@ where
 		test_harness
 	});
 }
-
-// TODO [now]: vstaging tests
