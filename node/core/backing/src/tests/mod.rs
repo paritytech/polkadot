@@ -33,6 +33,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::v2::{
 	CandidateDescriptor, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore,
+	SessionIndex,
 };
 use sp_application_crypto::AppKey;
 use sp_keyring::Sr25519Keyring;

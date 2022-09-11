@@ -468,17 +468,19 @@ async fn relay_message<Context>(
 		);
 	} else {
 		let _span = span.child("gossip");
-		let v1_interested_peers = interested_peers
-			.iter()
-			.filter(|(_, v)| v == &ValidationVersion::V1.into())
-			.map(|(p, _)| p.clone())
-			.collect::<Vec<_>>();
 
-		let vstaging_interested_peers = interested_peers
-			.iter()
-			.filter(|(_, v)| v == &ValidationVersion::VStaging.into())
-			.map(|(p, _)| p.clone())
-			.collect::<Vec<_>>();
+		let filter_by_version = |peers: &[(PeerId, ProtocolVersion)],
+		                         version: ValidationVersion| {
+			peers
+				.iter()
+				.filter(|(_, v)| v == &version.into())
+				.map(|(peer_id, _)| *peer_id)
+				.collect::<Vec<_>>()
+		};
+
+		let v1_interested_peers = filter_by_version(&interested_peers, ValidationVersion::V1);
+		let vstaging_interested_peers =
+			filter_by_version(&interested_peers, ValidationVersion::VStaging);
 
 		if !v1_interested_peers.is_empty() {
 			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(

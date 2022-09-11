@@ -268,11 +268,10 @@ where
 						)
 						.await;
 
-						match ValidationVersion::try_from(version).ok() {
-							None => unreachable!(
-								"try_get_protocol has already checked version is known; qed"
-							),
-							Some(ValidationVersion::V1) => send_message(
+						match ValidationVersion::try_from(version)
+							.expect("try_get_protocol has already checked version is known; qed")
+						{
+							ValidationVersion::V1 => send_message(
 								&mut network_service,
 								vec![peer],
 								PeerSet::Validation,
@@ -283,7 +282,7 @@ where
 								),
 								&metrics,
 							),
-							Some(ValidationVersion::VStaging) => send_message(
+							ValidationVersion::VStaging => send_message(
 								&mut network_service,
 								vec![peer],
 								PeerSet::Validation,
@@ -311,11 +310,10 @@ where
 						)
 						.await;
 
-						match CollationVersion::try_from(version).ok() {
-							None => unreachable!(
-								"try_get_protocol has already checked version is known; qed"
-							),
-							Some(CollationVersion::V1) => send_message(
+						match CollationVersion::try_from(version)
+							.expect("try_get_protocol has already checked version is known; qed")
+						{
+							CollationVersion::V1 => send_message(
 								&mut network_service,
 								vec![peer],
 								PeerSet::Collation,
@@ -326,7 +324,7 @@ where
 								),
 								&metrics,
 							),
-							Some(CollationVersion::VStaging) => send_message(
+							CollationVersion::VStaging => send_message(
 								&mut network_service,
 								vec![peer],
 								PeerSet::Collation,

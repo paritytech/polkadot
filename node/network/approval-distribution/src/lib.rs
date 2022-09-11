@@ -348,7 +348,7 @@ impl State {
 					Some(v) => v,
 					None => {
 						// sanity: network bridge is supposed to detect this already.
-						gum::trace!(
+						gum::error!(
 							target: LOG_TARGET,
 							?peer_id,
 							?version,
@@ -965,9 +965,9 @@ impl State {
 			let peers = entry
 				.known_by
 				.keys()
-				.filter_map(|p| peer_data.get(&p).map(|pd| (p, pd.version)))
+				.filter_map(|p| peer_data.get_key_value(p))
 				.filter(|(p, _)| peer_filter(p))
-				.map(|(p, v)| (p.clone(), v))
+				.map(|(p, peer_data)| (*p, peer_data.version))
 				.collect::<Vec<_>>();
 
 			// Add the metadata of the assignment to the knowledge of each peer.
@@ -989,17 +989,8 @@ impl State {
 				);
 			}
 
-			let v1_peers = peers
-				.iter()
-				.filter(|(_, v)| v == &ValidationVersion::V1)
-				.map(|p| p.0.clone())
-				.collect::<Vec<_>>();
-
-			let vstaging_peers = peers
-				.iter()
-				.filter(|(_, v)| v == &ValidationVersion::VStaging)
-				.map(|p| p.0.clone())
-				.collect::<Vec<_>>();
+			let v1_peers = filter_peers_by_version(&peers, ValidationVersion::V1);
+			let vstaging_peers = filter_peers_by_version(&peers, ValidationVersion::VStaging);
 
 			(v1_peers, vstaging_peers)
 		};
@@ -1275,17 +1266,8 @@ impl State {
 				);
 			}
 
-			let v1_peers = peers
-				.iter()
-				.filter(|(_, v)| v == &ValidationVersion::V1)
-				.map(|p| p.0.clone())
-				.collect::<Vec<_>>();
-
-			let vstaging_peers = peers
-				.iter()
-				.filter(|(_, v)| v == &ValidationVersion::VStaging)
-				.map(|p| p.0.clone())
-				.collect::<Vec<_>>();
+			let v1_peers = filter_peers_by_version(&peers, ValidationVersion::V1);
+			let vstaging_peers = filter_peers_by_version(&peers, ValidationVersion::VStaging);
 
 			(v1_peers, vstaging_peers)
 		};
@@ -1872,6 +1854,17 @@ fn versioned_assignments_packet(
 				protocol_vstaging::ApprovalDistributionMessage::Assignments(assignments),
 			)),
 	}
+}
+
+fn filter_peers_by_version(
+	peers: &[(PeerId, ValidationVersion)],
+	version: ValidationVersion,
+) -> Vec<PeerId> {
+	peers
+		.iter()
+		.filter(|(_, v)| v == &version)
+		.map(|(peer_id, _)| *peer_id)
+		.collect()
 }
 
 #[overseer::subsystem(ApprovalDistribution, error=SubsystemError, prefix=self::overseer)]
