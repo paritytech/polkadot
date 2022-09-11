@@ -987,9 +987,127 @@ fn need_message_works() {
 	assert!(false == pretend_send(&mut state, peer_b, &validator_set[1]));
 }
 
-// TODO [now]: vstaging peers are accepted.
+#[test]
+fn network_protocol_versioning() {
+	let hash_a: Hash = [0; 32].into();
+	let hash_b: Hash = [1; 32].into();
 
-// TODO [now]: vstaging messages are accepted.
+	let peer_a = PeerId::random();
+	let peer_b = PeerId::random();
+	let peer_c = PeerId::random();
 
-// TODO [now]: always sends v1 messages to v1 peers.
-// TODO [now]: always sends vstaging messages to vstaging peers.
+	let peers = [
+		(peer_a, ValidationVersion::VStaging),
+		(peer_b, ValidationVersion::V1),
+		(peer_c, ValidationVersion::VStaging),
+	];
+
+	// validator 0 key pair
+	let (mut state, signing_context, keystore, validator) =
+		state_with_view(our_view![hash_a, hash_b], hash_a);
+
+	let pool = sp_core::testing::TaskExecutor::new();
+	let (mut ctx, mut handle) = make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+	let mut rng = dummy_rng();
+
+	executor::block_on(async move {
+		// create a signed message by validator 0
+		let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
+		let signed_bitfield = Signed::<AvailabilityBitfield>::sign(
+			&keystore,
+			payload,
+			&signing_context,
+			ValidatorIndex(0),
+			&validator,
+		)
+		.await
+		.ok()
+		.flatten()
+		.expect("should be signed");
+		let msg = BitfieldGossipMessage {
+			relay_parent: hash_a,
+			signed_availability: signed_bitfield.clone(),
+		};
+
+		for (peer, protocol_version) in peers {
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut state,
+				&Default::default(),
+				NetworkBridgeEvent::PeerConnected(
+					peer,
+					ObservedRole::Full,
+					protocol_version.into(),
+					None
+				),
+				&mut rng,
+			));
+
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut state,
+				&Default::default(),
+				NetworkBridgeEvent::PeerViewChange(peer, view![hash_a, hash_b]),
+				&mut rng,
+			));
+
+			assert!(state.peer_data.contains_key(&peer));
+		}
+
+		launch!(handle_network_msg(
+			&mut ctx,
+			&mut state,
+			&Default::default(),
+			NetworkBridgeEvent::PeerMessage(
+				peer_a,
+				msg.clone().into_network_message(ValidationVersion::VStaging.into()),
+			),
+			&mut rng,
+		));
+
+		// gossip to the overseer
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(
+				_,
+				ProvisionableData::Bitfield(hash, signed)
+			)) => {
+				assert_eq!(hash, hash_a);
+				assert_eq!(signed, signed_bitfield)
+			}
+		);
+
+		// v1 gossip
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendValidationMessage(peers, send_msg),
+			) => {
+				assert_eq!(peers, vec![peer_b]);
+				assert_eq!(send_msg, msg.clone().into_validation_protocol(ValidationVersion::V1.into()));
+			}
+		);
+
+		// vstaging gossip
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendValidationMessage(peers, send_msg),
+			) => {
+				assert_eq!(peers, vec![peer_c]);
+				assert_eq!(send_msg, msg.clone().into_validation_protocol(ValidationVersion::VStaging.into()));
+			}
+		);
+
+		// reputation change
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(peer, rep)
+			) => {
+				assert_eq!(peer, peer_a);
+				assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
+			}
+		);
+	});
+}
