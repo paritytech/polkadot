@@ -28,7 +28,7 @@ use parity_scale_codec::Encode;
 use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology},
-	peer_set::{IsAuthority, PeerSet},
+	peer_set::{IsAuthority, PeerSet, ValidationVersion},
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	v1::{self as protocol_v1, StatementMetadata},
 	vstaging as protocol_vstaging, IfDisconnected, PeerId, UnifiedReputationChange as Rep,
@@ -444,6 +444,7 @@ impl PeerRelayParentKnowledge {
 
 struct PeerData {
 	view: View,
+	protocol_version: ValidationVersion,
 	view_knowledge: HashMap<Hash, PeerRelayParentKnowledge>,
 	/// Peer might be known as authority with the given ids.
 	maybe_authority: Option<HashSet<AuthorityDiscoveryId>>,
@@ -995,17 +996,17 @@ async fn circulate_statement_and_dependents<Context>(
 }
 
 /// Create a network message from a given statement.
-fn statement_message(
+fn v1_statement_message(
 	relay_parent: Hash,
 	statement: SignedFullStatement,
 	metrics: &Metrics,
-) -> net_protocol::VersionedValidationProtocol {
+) -> protocol_v1::StatementDistributionMessage {
 	let (is_large, size) = is_statement_large(&statement);
 	if let Some(size) = size {
 		metrics.on_created_message(size);
 	}
 
-	let msg = if is_large {
+	if is_large {
 		protocol_v1::StatementDistributionMessage::LargeStatement(StatementMetadata {
 			relay_parent,
 			candidate_hash: statement.payload().candidate_hash(),
@@ -1014,9 +1015,7 @@ fn statement_message(
 		})
 	} else {
 		protocol_v1::StatementDistributionMessage::Statement(relay_parent, statement.into())
-	};
-
-	protocol_v1::ValidationProtocol::StatementDistribution(msg).into()
+	}
 }
 
 /// Check whether a statement should be treated as large statement.
@@ -1099,6 +1098,8 @@ async fn circulate_statement<'a, Context>(
 		peers_to_send.len() == peers_to_send.clone().into_iter().collect::<HashSet<_>>().len(),
 		"We filter out duplicates above. qed.",
 	);
+
+	// TODO [now]: send peers a message according to protocol version.
 	let peers_to_send: Vec<(PeerId, bool)> = peers_to_send
 		.into_iter()
 		.map(|peer_id| {
@@ -1111,8 +1112,9 @@ async fn circulate_statement<'a, Context>(
 		.collect();
 
 	// Send all these peers the initial statement.
+	// TODO [now]: send peers message according to protocol version.
 	if !peers_to_send.is_empty() {
-		let payload = statement_message(relay_parent, stored.statement.clone(), metrics);
+		let payload = v1_statement_message(relay_parent, stored.statement.clone(), metrics);
 		gum::trace!(
 			target: LOG_TARGET,
 			?peers_to_send,
@@ -1122,7 +1124,7 @@ async fn circulate_statement<'a, Context>(
 		);
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			peers_to_send.iter().map(|(p, _)| p.clone()).collect(),
-			payload,
+			Versioned::V1(payload).into(),
 		))
 		.await;
 	}
@@ -1150,7 +1152,7 @@ async fn send_statements_about<Context>(
 			continue
 		}
 		peer_data.send(&relay_parent, &fingerprint);
-		let payload = statement_message(relay_parent, statement.statement.clone(), metrics);
+		let payload = v1_statement_message(relay_parent, statement.statement.clone(), metrics);
 
 		gum::trace!(
 			target: LOG_TARGET,
@@ -1162,7 +1164,7 @@ async fn send_statements_about<Context>(
 		);
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			vec![peer.clone()],
-			payload,
+			compatible_v1_message(peer_data.protocol_version, payload).into(),
 		))
 		.await;
 
@@ -1186,7 +1188,7 @@ async fn send_statements<Context>(
 			continue
 		}
 		peer_data.send(&relay_parent, &fingerprint);
-		let payload = statement_message(relay_parent, statement.statement.clone(), metrics);
+		let payload = v1_statement_message(relay_parent, statement.statement.clone(), metrics);
 
 		gum::trace!(
 			target: LOG_TARGET,
@@ -1197,7 +1199,7 @@ async fn send_statements<Context>(
 		);
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			vec![peer.clone()],
-			payload,
+			compatible_v1_message(peer_data.protocol_version, payload).into(),
 		))
 		.await;
 
@@ -1223,6 +1225,7 @@ async fn report_peer(
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn retrieve_statement_from_message<'a, Context>(
 	peer: PeerId,
+	peer_version: ValidationVersion,
 	message: protocol_v1::StatementDistributionMessage,
 	active_head: &'a mut ActiveHeadData,
 	ctx: &mut Context,
@@ -1250,11 +1253,11 @@ async fn retrieve_statement_from_message<'a, Context>(
 
 					let is_new_peer = match info.available_peers.entry(peer) {
 						IEntry::Occupied(mut occupied) => {
-							occupied.get_mut().push(Versioned::V1(message));
+							occupied.get_mut().push(compatible_v1_message(peer_version, message));
 							false
 						},
 						IEntry::Vacant(vacant) => {
-							vacant.insert(vec![Versioned::V1(message)]);
+							vacant.insert(vec![compatible_v1_message(peer_version, message)]);
 							true
 						},
 					};
@@ -1292,8 +1295,15 @@ async fn retrieve_statement_from_message<'a, Context>(
 		Entry::Vacant(vacant) => {
 			match message {
 				protocol_v1::StatementDistributionMessage::LargeStatement(metadata) => {
-					if let Some(new_status) =
-						launch_request(metadata, peer, req_sender.clone(), ctx, metrics).await
+					if let Some(new_status) = launch_request(
+						metadata,
+						peer,
+						peer_version,
+						req_sender.clone(),
+						ctx,
+						metrics,
+					)
+					.await
 					{
 						vacant.insert(new_status);
 					}
@@ -1317,6 +1327,7 @@ async fn retrieve_statement_from_message<'a, Context>(
 async fn launch_request<Context>(
 	meta: StatementMetadata,
 	peer: PeerId,
+	peer_version: ValidationVersion,
 	req_sender: mpsc::Sender<RequesterMessage>,
 	ctx: &mut Context,
 	metrics: &Metrics,
@@ -1334,7 +1345,10 @@ async fn launch_request<Context>(
 		let mut m = IndexMap::new();
 		m.insert(
 			peer,
-			vec![Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(meta))],
+			vec![compatible_v1_message(
+				peer_version,
+				protocol_v1::StatementDistributionMessage::LargeStatement(meta),
+			)],
 		);
 		m
 	};
@@ -1443,6 +1457,9 @@ async fn handle_incoming_message<'a, Context>(
 	// TODO [now] handle vstaging messages
 	let message = match message {
 		Versioned::V1(m) => m,
+		Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::V1Compatibility(
+			m,
+		)) => m,
 		Versioned::VStaging(_) => unimplemented!(),
 	};
 
@@ -1558,9 +1575,16 @@ async fn handle_incoming_message<'a, Context>(
 
 	// Fetch from the network only after signature and usefulness checks are completed.
 	let is_large_statement = message.is_large_statement();
-	let statement =
-		retrieve_statement_from_message(peer, message, active_head, ctx, req_sender, metrics)
-			.await?;
+	let statement = retrieve_statement_from_message(
+		peer,
+		peer_data.protocol_version,
+		message,
+		active_head,
+		ctx,
+		req_sender,
+		metrics,
+	)
+	.await?;
 
 	let payload = statement.unchecked_into_payload();
 
@@ -1731,12 +1755,27 @@ async fn handle_network_update<Context, R>(
 	R: rand::Rng,
 {
 	match update {
-		NetworkBridgeEvent::PeerConnected(peer, role, _, maybe_authority) => {
-			gum::trace!(target: LOG_TARGET, ?peer, ?role, "Peer connected");
+		NetworkBridgeEvent::PeerConnected(peer, role, protocol_version, maybe_authority) => {
+			gum::trace!(target: LOG_TARGET, ?peer, ?role, ?protocol_version, "Peer connected");
+
+			let protocol_version = match ValidationVersion::try_from(protocol_version).ok() {
+				Some(v) => v,
+				None => {
+					gum::trace!(
+						target: LOG_TARGET,
+						?peer,
+						?protocol_version,
+						"unknown protocol version, ignoring"
+					);
+					return
+				},
+			};
+
 			peers.insert(
 				peer,
 				PeerData {
 					view: Default::default(),
+					protocol_version,
 					view_knowledge: Default::default(),
 					maybe_authority: maybe_authority.clone(),
 				},
@@ -2216,4 +2255,16 @@ fn requesting_peer_knows_about_candidate(
 		.get(relay_parent)
 		.ok_or_else(|| JfyiError::NoSuchHead(*relay_parent))?;
 	Ok(knowledge.sent_candidates.get(&candidate_hash).is_some())
+}
+
+fn compatible_v1_message(
+	version: ValidationVersion,
+	message: protocol_v1::StatementDistributionMessage,
+) -> net_protocol::StatementDistributionMessage {
+	match version {
+		ValidationVersion::V1 => Versioned::V1(message),
+		ValidationVersion::VStaging => Versioned::VStaging(
+			protocol_vstaging::StatementDistributionMessage::V1Compatibility(message),
+		),
+	}
 }
