@@ -2390,3 +2390,8 @@ fn derive_metadata_assuming_seconded(
 		signature: statement.unchecked_signature().clone(),
 	}
 }
+
+// TODO [now]: adapt most tests to v2 messages.
+// TODO [now]: test that v2 peers send v1 messages to v1 peers
+// TODO [now]: test that v2 peers handle v1 messages from v1 peers.
+// TODO [now]: test that v2 peers send v2 messages to v2 peers.

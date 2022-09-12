@@ -1102,39 +1102,58 @@ async fn circulate_statement<'a, Context>(
 		"We filter out duplicates above. qed.",
 	);
 
-	// TODO [now]: send peers a message according to protocol version.
-	let peers_to_send: Vec<(PeerId, bool)> = peers_to_send
+	let (v1_peers_to_send, vstaging_peers_to_send) = peers_to_send
 		.into_iter()
-		.map(|peer_id| {
-			let new = peers
+		.filter_map(|peer_id| {
+			let peer_data = peers
 				.get_mut(&peer_id)
-				.expect("a subset is taken above, so it exists; qed")
-				.send(&relay_parent, &fingerprint);
-			(peer_id, new)
+				.expect("a subset is taken above, so it exists; qed");
+
+			let new = peer_data.send(&relay_parent, &fingerprint);
+
+			Some((peer_id, new, peer_data.protocol_version))
 		})
-		.collect();
+		.partition::<Vec<_>, _>(|(_, _, version)| match version {
+			ValidationVersion::V1 => true,
+			ValidationVersion::VStaging => false,
+		}); // partition is handy here but not if we add more protocol versions
+
+	let payload = v1_statement_message(relay_parent, stored.statement.clone(), metrics);
 
 	// Send all these peers the initial statement.
-	// TODO [now]: send peers message according to protocol version.
-	if !peers_to_send.is_empty() {
-		let payload = v1_statement_message(relay_parent, stored.statement.clone(), metrics);
+	if !v1_peers_to_send.is_empty() {
 		gum::trace!(
 			target: LOG_TARGET,
-			?peers_to_send,
+			?v1_peers_to_send,
 			?relay_parent,
 			statement = ?stored.statement,
-			"Sending statement",
+			"Sending statement to v1 peers",
 		);
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			peers_to_send.iter().map(|(p, _)| p.clone()).collect(),
-			Versioned::V1(payload).into(),
+			v1_peers_to_send.iter().map(|(p, _, _)| p.clone()).collect(),
+			compatible_v1_message(ValidationVersion::V1, payload.clone()).into(),
+		))
+		.await;
+	}
+	if !vstaging_peers_to_send.is_empty() {
+		gum::trace!(
+			target: LOG_TARGET,
+			?vstaging_peers_to_send,
+			?relay_parent,
+			statement = ?stored.statement,
+			"Sending statement to vstaging peers",
+		);
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+			vstaging_peers_to_send.iter().map(|(p, _, _)| p.clone()).collect(),
+			compatible_v1_message(ValidationVersion::VStaging, payload.clone()).into(),
 		))
 		.await;
 	}
 
-	peers_to_send
+	v1_peers_to_send
 		.into_iter()
-		.filter_map(|(peer, needs_dependent)| if needs_dependent { Some(peer) } else { None })
+		.chain(vstaging_peers_to_send)
+		.filter_map(|(peer, needs_dependent, _)| if needs_dependent { Some(peer) } else { None })
 		.collect()
 }
 
