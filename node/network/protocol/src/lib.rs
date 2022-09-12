@@ -592,8 +592,8 @@ pub mod vstaging {
 	use parity_scale_codec::{Decode, Encode};
 
 	use polkadot_primitives::vstaging::{
-		CandidateHash, CandidateIndex, CollatorId, CollatorSignature, CompactStatement, Hash,
-		Id as ParaId, UncheckedSignedAvailabilityBitfield, ValidatorIndex, ValidatorSignature,
+		CandidateIndex, CollatorId, CollatorSignature, Hash, Id as ParaId,
+		UncheckedSignedAvailabilityBitfield,
 	};
 
 	use polkadot_node_primitives::{
@@ -613,9 +613,13 @@ pub mod vstaging {
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum StatementDistributionMessage {
 		// TODO [now]: notifications for v2
-
 		/// All messages for V1 for compatibility with the statement distribution
 		/// protocol, for relay-parents that don't support asynchronous backing.
+		///
+		/// These are illegal to send to V1 peers, and illegal to send concerning relay-parents
+		/// which support asynchronous backing. This backwards compatibility should be
+		/// considered immediately deprecated and can be removed once the node software
+		/// is not required to support asynchronous backing anymore.
 		#[codec(index = 255)]
 		V1Compatibility(crate::v1::StatementDistributionMessage),
 	}
