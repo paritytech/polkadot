@@ -27,8 +27,8 @@ use sp_core::{storage::StorageKey, Bytes};
 use sp_version::RuntimeVersion;
 use std::{future::Future, time::Duration};
 
-const MAX_CONNECTION_DURATION: Duration = Duration::from_secs(20);
-const MAX_REQUEST_DURATION: Duration = Duration::from_secs(60);
+const MAX_CONNECTION_DURATION: Duration = Duration::from_secs(60);
+const MAX_REQUEST_DURATION: Duration = Duration::from_secs(10 * 60);
 
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
 pub(crate) enum RpcHelperError {
