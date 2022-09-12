@@ -24,18 +24,16 @@ use sp_std::marker::PhantomData;
 
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_scheduler::WeightInfo for WeightInfo<T> {
-	fn on_initialize_periodic_named_resolved(s: u32, ) -> Weight;
-	fn on_initialize_named_resolved(s: u32, ) -> Weight;
-	fn on_initialize_periodic_resolved(s: u32, ) -> Weight;
-	fn on_initialize_resolved(s: u32, ) -> Weight;
-	fn on_initialize_named_aborted(s: u32, ) -> Weight;
-	fn on_initialize_aborted(s: u32, ) -> Weight;
-	fn on_initialize_periodic_named(s: u32, ) -> Weight;
-	fn on_initialize_periodic(s: u32, ) -> Weight;
-	fn on_initialize_named(s: u32, ) -> Weight;
-	fn on_initialize(s: u32, ) -> Weight;
-	fn schedule(s: u32, ) -> Weight;
-	fn cancel(s: u32, ) -> Weight;
-	fn schedule_named(s: u32, ) -> Weight;
-	fn cancel_named(s: u32, ) -> Weight;
+	fn service_agendas_base() -> Weight { Weight::zero() }
+	fn service_agenda_base(_s: u32, ) -> Weight { Weight::zero() }
+	fn service_task_base() -> Weight { Weight::zero() }
+	fn service_task_fetched(_s: u32, ) -> Weight { Weight::zero() }
+	fn service_task_named() -> Weight { Weight::zero() }
+	fn service_task_periodic() -> Weight { Weight::zero() }
+	fn execute_dispatch_signed() -> Weight { Weight::zero() }
+	fn execute_dispatch_unsigned() -> Weight { Weight::zero() }
+	fn schedule(_s: u32, ) -> Weight { Weight::zero() }
+	fn cancel(_s: u32, ) -> Weight { Weight::zero() }
+	fn schedule_named(_s: u32, ) -> Weight { Weight::zero() }
+	fn cancel_named(_s: u32, ) -> Weight { Weight::zero() }
 }

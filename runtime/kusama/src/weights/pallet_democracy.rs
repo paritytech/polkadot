@@ -37,14 +37,13 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 	fn veto_external() -> Weight { Weight::zero() }
 	fn cancel_proposal() -> Weight { Weight::zero() }
 	fn cancel_referendum() -> Weight { Weight::zero() }
-	fn cancel_queued() -> Weight { Weight::zero() }
-	fn on_initialize_base(_r: u32,) -> Weight { Weight::zero() }
-	fn on_initialize_base_with_launch_period(_r: u32,) -> Weight { Weight::zero() }
-	fn delegate(_v: u32) -> Weight { Weight::zero() }
-	fn undelegate(_v: u32) -> Weight { Weight::zero() }
+	fn on_initialize_base(_r: u32, ) -> Weight { Weight::zero() }
+	fn on_initialize_base_with_launch_period(_r: u32, ) -> Weight { Weight::zero() }
+	fn delegate(_r: u32, ) -> Weight { Weight::zero() }
+	fn undelegate(_r: u32, ) -> Weight { Weight::zero() }
 	fn clear_public_proposals() -> Weight { Weight::zero() }
-	fn unlock_remove() -> Weight { Weight::zero() }
-	fn unlock_set() -> Weight { Weight::zero() }
-	fn remove_vote() -> Weight { Weight::zero() }
-	fn remove_other_vote() -> Weight { Weight::zero() }
+	fn unlock_remove(_r: u32, ) -> Weight { Weight::zero() }
+	fn unlock_set(_r: u32, ) -> Weight { Weight::zero() }
+	fn remove_vote(_r: u32, ) -> Weight { Weight::zero() }
+	fn remove_other_vote(_r: u32, ) -> Weight { Weight::zero() }
 }
