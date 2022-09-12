@@ -817,8 +817,8 @@ pub mod pallet {
 		/// with all fees taken as needed from the asset.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
-		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
-		///   from parachain to parachain, or `X1(Parachain(..))` to send from relay to parachain.
+		/// - `dest`: Destination context for the assets. Will typically be `(Parent, Parachain(..))` to claim
+		///   reserve assets from a sibling parachain, or `(Parent,)` to claim the reserve assets from the Relay chain.
 		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will generally be
 		///   an `AccountId32` value.
 		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the fee on the
