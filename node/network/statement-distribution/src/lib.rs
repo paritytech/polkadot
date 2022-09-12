@@ -698,6 +698,9 @@ impl ActiveHeadData {
 		}
 	}
 
+	/// Fetches the `PersistedValidationData` from the runtime, assuming
+	/// that the core is free. The relay parent must match that of the active
+	/// head.
 	async fn fetch_persisted_validation_data<Sender>(
 		&mut self,
 		sender: &mut Sender,
@@ -1638,16 +1641,20 @@ async fn handle_incoming_message<'a, Context>(
 	//
 	// In case of `Valid` we should have it cached prior, therefore this performs
 	// no Runtime API calls and always returns `Ok(Some(_))`.
-	if let Statement::Seconded(receipt) = statement.payload() {
+	let pvd = if let Statement::Seconded(receipt) = statement.payload() {
 		let para_id = receipt.descriptor.para_id;
 		// Either call the Runtime API or check that validation data is cached.
 		let result = active_head
 			.fetch_persisted_validation_data(ctx.sender(), relay_parent, para_id)
 			.await;
-		if !matches!(result, Ok(Some(_))) {
-			return None
+
+		match result {
+			Ok(Some(pvd)) => Some(pvd.clone()),
+			Ok(None) | Err(_) => return None,
 		}
-	}
+	} else {
+		None
+	};
 
 	// Extend the payload with persisted validation data required by the backing
 	// subsystem.
@@ -1656,14 +1663,10 @@ async fn handle_incoming_message<'a, Context>(
 	// head mutable and use the cache.
 	let statement_with_pvd = statement
 		.clone()
-		.convert_to_superpayload_with(|statement| match statement {
+		.convert_to_superpayload_with(move |statement| match statement {
 			Statement::Seconded(receipt) => {
-				let para_id = &receipt.descriptor.para_id;
-				let persisted_validation_data = active_head
-					.cached_validation_data
-					.get(para_id)
-					.cloned()
-					.expect("pvd is ensured to be cached above; qed");
+				let persisted_validation_data = pvd
+					.expect("PVD is ensured to be `Some` for all `Seconded` messages above; qed");
 				StatementWithPVD::Seconded(receipt, persisted_validation_data)
 			},
 			Statement::Valid(candidate_hash) => StatementWithPVD::Valid(candidate_hash),
@@ -1685,7 +1688,7 @@ async fn handle_incoming_message<'a, Context>(
 			// candidate backing subsystem.
 			ctx.send_message(CandidateBackingMessage::Statement(
 				relay_parent,
-				unimplemented!(), // TODO [now]: fixme
+				statement_with_pvd,
 			))
 			.await;
 
