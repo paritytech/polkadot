@@ -946,6 +946,7 @@ async fn handle_network_msg<Context>(
 		PeerMessage(remote, Versioned::V1(msg)) => {
 			handle_incoming_peer_message(ctx, runtime, state, remote, msg).await?;
 		},
+		PeerMessage(_, Versioned::VStaging(msg)) => {},
 		NewGossipTopology { .. } => {
 			// impossible!
 		},

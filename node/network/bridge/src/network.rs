@@ -59,6 +59,9 @@ pub(crate) fn send_message<M>(
 ) where
 	M: Encode + Clone,
 {
+	if peers.is_empty() {
+		return
+	}
 	let message = {
 		let encoded = message.encode();
 		metrics.on_notification_sent(peer_set, version, encoded.len(), peers.len());

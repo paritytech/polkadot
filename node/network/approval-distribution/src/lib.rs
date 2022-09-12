@@ -24,7 +24,9 @@ use futures::{channel::oneshot, FutureExt as _};
 use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{RandomRouting, RequiredRouting, SessionGridTopologies, SessionGridTopology},
-	v1 as protocol_v1, PeerId, UnifiedReputationChange as Rep, Versioned, View,
+	peer_set::ValidationVersion,
+	v1 as protocol_v1, vstaging as protocol_vstaging, PeerId, UnifiedReputationChange as Rep,
+	Versioned, VersionedValidationProtocol, View,
 };
 use polkadot_node_primitives::approval::{
 	AssignmentCert, BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote,
@@ -150,6 +152,15 @@ enum Resend {
 	No,
 }
 
+/// Data stored on a per-peer basis.
+#[derive(Debug)]
+struct PeerData {
+	/// The peer's view.
+	view: View,
+	/// The peer's protocol version.
+	version: ValidationVersion,
+}
+
 /// The [`State`] struct is responsible for tracking the overall state of the subsystem.
 ///
 /// It tracks metadata about our view of the unfinalized chain,
@@ -169,7 +180,7 @@ struct State {
 	pending_known: HashMap<Hash, Vec<(PeerId, PendingMessage)>>,
 
 	/// Peer data is partially stored here, and partially inline within the [`BlockEntry`]s
-	peer_views: HashMap<PeerId, View>,
+	peer_data: HashMap<PeerId, PeerData>,
 
 	/// Keeps a topology for various different sessions.
 	topologies: SessionGridTopologies,
@@ -330,14 +341,30 @@ impl State {
 		rng: &mut (impl CryptoRng + Rng),
 	) {
 		match event {
-			NetworkBridgeEvent::PeerConnected(peer_id, role, _, _) => {
+			NetworkBridgeEvent::PeerConnected(peer_id, role, version, _) => {
 				// insert a blank view if none already present
 				gum::trace!(target: LOG_TARGET, ?peer_id, ?role, "Peer connected");
-				self.peer_views.entry(peer_id).or_default();
+				let version = match ValidationVersion::try_from(version).ok() {
+					Some(v) => v,
+					None => {
+						// sanity: network bridge is supposed to detect this already.
+						gum::error!(
+							target: LOG_TARGET,
+							?peer_id,
+							?version,
+							"Unsupported protocol version"
+						);
+						return
+					},
+				};
+
+				self.peer_data
+					.entry(peer_id)
+					.or_insert_with(|| PeerData { version, view: Default::default() });
 			},
 			NetworkBridgeEvent::PeerDisconnected(peer_id) => {
 				gum::trace!(target: LOG_TARGET, ?peer_id, "Peer disconnected");
-				self.peer_views.remove(&peer_id);
+				self.peer_data.remove(&peer_id);
 				self.blocks.iter_mut().for_each(|(_hash, entry)| {
 					entry.known_by.remove(&peer_id);
 				})
@@ -370,7 +397,7 @@ impl State {
 					live
 				});
 			},
-			NetworkBridgeEvent::PeerMessage(peer_id, Versioned::V1(msg)) => {
+			NetworkBridgeEvent::PeerMessage(peer_id, msg) => {
 				self.process_incoming_peer_message(ctx, metrics, peer_id, msg, rng).await;
 			},
 		}
@@ -420,16 +447,18 @@ impl State {
 
 		{
 			let sender = ctx.sender();
-			for (peer_id, view) in self.peer_views.iter() {
-				let intersection = view.iter().filter(|h| new_hashes.contains(h));
-				let view_intersection = View::new(intersection.cloned(), view.finalized_number);
+			for (peer_id, data) in self.peer_data.iter() {
+				let intersection = data.view.iter().filter(|h| new_hashes.contains(h));
+				let view_intersection =
+					View::new(intersection.cloned(), data.view.finalized_number);
 				Self::unify_with_peer(
 					sender,
 					metrics,
 					&mut self.blocks,
 					&self.topologies,
-					self.peer_views.len(),
+					self.peer_data.len(),
 					peer_id.clone(),
+					data.version,
 					view_intersection,
 					rng,
 				)
@@ -506,6 +535,7 @@ impl State {
 
 		adjust_required_routing_and_propagate(
 			ctx,
+			&self.peer_data,
 			&mut self.blocks,
 			&self.topologies,
 			|block_entry| block_entry.session == session,
@@ -523,13 +553,16 @@ impl State {
 		ctx: &mut Context,
 		metrics: &Metrics,
 		peer_id: PeerId,
-		msg: protocol_v1::ApprovalDistributionMessage,
+		msg: net_protocol::ApprovalDistributionMessage,
 		rng: &mut R,
 	) where
 		R: CryptoRng + Rng,
 	{
 		match msg {
-			protocol_v1::ApprovalDistributionMessage::Assignments(assignments) => {
+			Versioned::V1(protocol_v1::ApprovalDistributionMessage::Assignments(assignments)) |
+			Versioned::VStaging(protocol_vstaging::ApprovalDistributionMessage::Assignments(
+				assignments,
+			)) => {
 				gum::trace!(
 					target: LOG_TARGET,
 					peer_id = %peer_id,
@@ -570,7 +603,10 @@ impl State {
 					.await;
 				}
 			},
-			protocol_v1::ApprovalDistributionMessage::Approvals(approvals) => {
+			Versioned::V1(protocol_v1::ApprovalDistributionMessage::Approvals(approvals)) |
+			Versioned::VStaging(protocol_vstaging::ApprovalDistributionMessage::Approvals(
+				approvals,
+			)) => {
 				gum::trace!(
 					target: LOG_TARGET,
 					peer_id = %peer_id,
@@ -623,9 +659,14 @@ impl State {
 	{
 		gum::trace!(target: LOG_TARGET, ?view, "Peer view change");
 		let finalized_number = view.finalized_number;
-		let old_view =
-			self.peer_views.get_mut(&peer_id).map(|d| std::mem::replace(d, view.clone()));
-		let old_finalized_number = old_view.map(|v| v.finalized_number).unwrap_or(0);
+		let (peer_protocol_version, old_finalized_number) = match self
+			.peer_data
+			.get_mut(&peer_id)
+			.map(|d| (d.version, std::mem::replace(&mut d.view, view.clone())))
+		{
+			Some((v, view)) => (v, view.finalized_number),
+			None => return, // unknown peer
+		};
 
 		// we want to prune every block known_by peer up to (including) view.finalized_number
 		let blocks = &mut self.blocks;
@@ -650,8 +691,9 @@ impl State {
 			metrics,
 			&mut self.blocks,
 			&self.topologies,
-			self.peer_views.len(),
+			self.peer_data.len(),
 			peer_id.clone(),
+			peer_protocol_version,
 			view,
 			rng,
 		)
@@ -894,7 +936,7 @@ impl State {
 		// then messages will be sent when we get it.
 
 		let assignments = vec![(assignment, claimed_candidate_index)];
-		let n_peers_total = self.peer_views.len();
+		let n_peers_total = self.peer_data.len();
 		let source_peer = source.peer_id();
 
 		let mut peer_filter = move |peer| {
@@ -918,31 +960,53 @@ impl State {
 			route_random
 		};
 
-		let peers = entry.known_by.keys().filter(|p| peer_filter(p)).cloned().collect::<Vec<_>>();
+		let (v1_peers, vstaging_peers) = {
+			let peer_data = &self.peer_data;
+			let peers = entry
+				.known_by
+				.keys()
+				.filter_map(|p| peer_data.get_key_value(p))
+				.filter(|(p, _)| peer_filter(p))
+				.map(|(p, peer_data)| (*p, peer_data.version))
+				.collect::<Vec<_>>();
 
-		// Add the metadata of the assignment to the knowledge of each peer.
-		for peer in peers.iter() {
-			// we already filtered peers above, so this should always be Some
-			if let Some(peer_knowledge) = entry.known_by.get_mut(peer) {
-				peer_knowledge.sent.insert(message_subject.clone(), message_kind);
+			// Add the metadata of the assignment to the knowledge of each peer.
+			for (peer, _) in peers.iter() {
+				// we already filtered peers above, so this should always be Some
+				if let Some(peer_knowledge) = entry.known_by.get_mut(peer) {
+					peer_knowledge.sent.insert(message_subject.clone(), message_kind);
+				}
 			}
+
+			if !peers.is_empty() {
+				gum::trace!(
+					target: LOG_TARGET,
+					?block_hash,
+					?claimed_candidate_index,
+					local = source.peer_id().is_none(),
+					num_peers = peers.len(),
+					"Sending an assignment to peers",
+				);
+			}
+
+			let v1_peers = filter_peers_by_version(&peers, ValidationVersion::V1);
+			let vstaging_peers = filter_peers_by_version(&peers, ValidationVersion::VStaging);
+
+			(v1_peers, vstaging_peers)
+		};
+
+		if !v1_peers.is_empty() {
+			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+				v1_peers,
+				versioned_assignments_packet(ValidationVersion::V1, assignments.clone()),
+			))
+			.await;
 		}
 
-		if !peers.is_empty() {
-			gum::trace!(
-				target: LOG_TARGET,
-				?block_hash,
-				?claimed_candidate_index,
-				local = source.peer_id().is_none(),
-				num_peers = peers.len(),
-				"Sending an assignment to peers",
-			);
-
+		if !vstaging_peers.is_empty() {
 			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-				peers,
-				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Assignments(assignments),
-				)),
+				vstaging_peers,
+				versioned_assignments_packet(ValidationVersion::VStaging, assignments.clone()),
 			))
 			.await;
 		}
@@ -1173,38 +1237,55 @@ impl State {
 			in_topology || knowledge.sent.contains(message_subject, MessageKind::Assignment)
 		};
 
-		let peers = entry
-			.known_by
-			.iter()
-			.filter(|(p, k)| peer_filter(p, k))
-			.map(|(p, _)| p)
-			.cloned()
-			.collect::<Vec<_>>();
+		let (v1_peers, vstaging_peers) = {
+			let peer_data = &self.peer_data;
+			let peers = entry
+				.known_by
+				.iter()
+				.filter_map(|(p, k)| peer_data.get(&p).map(|pd| (p, k, pd.version)))
+				.filter(|(p, k, _)| peer_filter(p, k))
+				.map(|(p, _, v)| (p.clone(), v))
+				.collect::<Vec<_>>();
 
-		// Add the metadata of the assignment to the knowledge of each peer.
-		for peer in peers.iter() {
-			// we already filtered peers above, so this should always be Some
-			if let Some(entry) = entry.known_by.get_mut(peer) {
-				entry.sent.insert(message_subject.clone(), message_kind);
+			// Add the metadata of the assignment to the knowledge of each peer.
+			for (peer, _) in peers.iter() {
+				// we already filtered peers above, so this should always be Some
+				if let Some(peer_knowledge) = entry.known_by.get_mut(peer) {
+					peer_knowledge.sent.insert(message_subject.clone(), message_kind);
+				}
 			}
+
+			if !peers.is_empty() {
+				gum::trace!(
+					target: LOG_TARGET,
+					?block_hash,
+					?candidate_index,
+					local = source.peer_id().is_none(),
+					num_peers = peers.len(),
+					"Sending an approval to peers",
+				);
+			}
+
+			let v1_peers = filter_peers_by_version(&peers, ValidationVersion::V1);
+			let vstaging_peers = filter_peers_by_version(&peers, ValidationVersion::VStaging);
+
+			(v1_peers, vstaging_peers)
+		};
+
+		let approvals = vec![vote];
+
+		if !v1_peers.is_empty() {
+			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+				v1_peers,
+				versioned_approvals_packet(ValidationVersion::V1, approvals.clone()),
+			))
+			.await;
 		}
 
-		if !peers.is_empty() {
-			let approvals = vec![vote];
-			gum::trace!(
-				target: LOG_TARGET,
-				?block_hash,
-				?candidate_index,
-				local = source.peer_id().is_none(),
-				num_peers = peers.len(),
-				"Sending an approval to peers",
-			);
-
+		if !vstaging_peers.is_empty() {
 			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-				peers,
-				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Approvals(approvals),
-				)),
+				vstaging_peers,
+				versioned_approvals_packet(ValidationVersion::VStaging, approvals),
 			))
 			.await;
 		}
@@ -1260,6 +1341,7 @@ impl State {
 		topologies: &SessionGridTopologies,
 		total_peers: usize,
 		peer_id: PeerId,
+		peer_protocol_version: ValidationVersion,
 		view: View,
 		rng: &mut (impl CryptoRng + Rng),
 	) {
@@ -1373,9 +1455,7 @@ impl State {
 			sender
 				.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 					vec![peer_id.clone()],
-					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-						protocol_v1::ApprovalDistributionMessage::Assignments(assignments_to_send),
-					)),
+					versioned_assignments_packet(peer_protocol_version, assignments_to_send),
 				))
 				.await;
 		}
@@ -1391,9 +1471,7 @@ impl State {
 			sender
 				.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 					vec![peer_id],
-					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-						protocol_v1::ApprovalDistributionMessage::Approvals(approvals_to_send),
-					)),
+					versioned_approvals_packet(peer_protocol_version, approvals_to_send),
 				))
 				.await;
 		}
@@ -1421,6 +1499,7 @@ impl State {
 
 		adjust_required_routing_and_propagate(
 			ctx,
+			&self.peer_data,
 			&mut self.blocks,
 			&self.topologies,
 			|block_entry| {
@@ -1448,6 +1527,7 @@ impl State {
 
 		adjust_required_routing_and_propagate(
 			ctx,
+			&self.peer_data,
 			&mut self.blocks,
 			&self.topologies,
 			|block_entry| {
@@ -1505,6 +1585,7 @@ impl State {
 #[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]
 async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModifier>(
 	ctx: &mut Context,
+	peer_data: &HashMap<PeerId, PeerData>,
 	blocks: &mut HashMap<Hash, BlockEntry>,
 	topologies: &SessionGridTopologies,
 	block_filter: BlockFilter,
@@ -1592,21 +1673,27 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 	// Send messages in accumulated packets, assignments preceding approvals.
 
 	for (peer, assignments_packet) in peer_assignments {
+		let versioned_packet = match peer_data.get(&peer).map(|pd| pd.version) {
+			None => continue,
+			Some(v) => versioned_assignments_packet(v, assignments_packet),
+		};
+
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			vec![peer],
-			Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-				protocol_v1::ApprovalDistributionMessage::Assignments(assignments_packet),
-			)),
+			versioned_packet,
 		))
 		.await;
 	}
 
 	for (peer, approvals_packet) in peer_approvals {
+		let versioned_packet = match peer_data.get(&peer).map(|pd| pd.version) {
+			None => continue,
+			Some(v) => versioned_approvals_packet(v, approvals_packet),
+		};
+
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			vec![peer],
-			Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-				protocol_v1::ApprovalDistributionMessage::Approvals(approvals_packet),
-			)),
+			versioned_packet,
 		))
 		.await;
 	}
@@ -1735,6 +1822,49 @@ impl ApprovalDistribution {
 			},
 		}
 	}
+}
+
+fn versioned_approvals_packet(
+	version: ValidationVersion,
+	approvals: Vec<IndirectSignedApprovalVote>,
+) -> VersionedValidationProtocol {
+	match version {
+		ValidationVersion::V1 =>
+			Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
+				protocol_v1::ApprovalDistributionMessage::Approvals(approvals),
+			)),
+		ValidationVersion::VStaging =>
+			Versioned::VStaging(protocol_vstaging::ValidationProtocol::ApprovalDistribution(
+				protocol_vstaging::ApprovalDistributionMessage::Approvals(approvals),
+			)),
+	}
+}
+
+fn versioned_assignments_packet(
+	version: ValidationVersion,
+	assignments: Vec<(IndirectAssignmentCert, CandidateIndex)>,
+) -> VersionedValidationProtocol {
+	match version {
+		ValidationVersion::V1 =>
+			Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
+				protocol_v1::ApprovalDistributionMessage::Assignments(assignments),
+			)),
+		ValidationVersion::VStaging =>
+			Versioned::VStaging(protocol_vstaging::ValidationProtocol::ApprovalDistribution(
+				protocol_vstaging::ApprovalDistributionMessage::Assignments(assignments),
+			)),
+	}
+}
+
+fn filter_peers_by_version(
+	peers: &[(PeerId, ValidationVersion)],
+	version: ValidationVersion,
+) -> Vec<PeerId> {
+	peers
+		.iter()
+		.filter(|(_, v)| v == &version)
+		.map(|(peer_id, _)| *peer_id)
+		.collect()
 }
 
 #[overseer::subsystem(ApprovalDistribution, error=SubsystemError, prefix=self::overseer)]
