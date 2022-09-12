@@ -612,67 +612,12 @@ pub mod vstaging {
 	/// Network messages used by the statement distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum StatementDistributionMessage {
-		/// A signed full statement under a given relay-parent.
-		#[codec(index = 0)]
-		Statement(Hash, UncheckedSignedFullStatement),
-		/// Seconded statement with large payload (e.g. containing a runtime upgrade).
-		///
-		/// We only gossip the hash in that case, actual payloads can be fetched from sending node
-		/// via request/response.
-		#[codec(index = 1)]
-		LargeStatement(StatementMetadata),
-	}
+		// TODO [now]: notifications for v2
 
-	/// Data that makes a statement unique.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
-	pub struct StatementMetadata {
-		/// Relay parent this statement is relevant under.
-		pub relay_parent: Hash,
-		/// Hash of the candidate that got validated.
-		pub candidate_hash: CandidateHash,
-		/// Validator that attested the validity.
-		pub signed_by: ValidatorIndex,
-		/// Signature of seconding validator.
-		pub signature: ValidatorSignature,
-	}
-
-	impl StatementDistributionMessage {
-		/// Get fingerprint describing the contained statement uniquely.
-		pub fn get_fingerprint(&self) -> (CompactStatement, ValidatorIndex) {
-			match self {
-				Self::Statement(_, statement) => (
-					statement.unchecked_payload().to_compact(),
-					statement.unchecked_validator_index(),
-				),
-				Self::LargeStatement(meta) =>
-					(CompactStatement::Seconded(meta.candidate_hash), meta.signed_by),
-			}
-		}
-
-		/// Get the signature from the statement.
-		pub fn get_signature(&self) -> ValidatorSignature {
-			match self {
-				Self::Statement(_, statement) => statement.unchecked_signature().clone(),
-				Self::LargeStatement(metadata) => metadata.signature.clone(),
-			}
-		}
-
-		/// Get contained relay parent.
-		pub fn get_relay_parent(&self) -> Hash {
-			match self {
-				Self::Statement(r, _) => *r,
-				Self::LargeStatement(meta) => meta.relay_parent,
-			}
-		}
-
-		/// Whether this message contains a large statement.
-		pub fn is_large_statement(&self) -> bool {
-			if let Self::LargeStatement(_) = self {
-				true
-			} else {
-				false
-			}
-		}
+		/// All messages for V1 for compatibility with the statement distribution
+		/// protocol, for relay-parents that don't support asynchronous backing.
+		#[codec(index = 255)]
+		V1Compatibility(crate::v1::StatementDistributionMessage),
 	}
 
 	/// Network messages used by the approval distribution subsystem.
