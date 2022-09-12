@@ -49,9 +49,9 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for RemarkBuilder {
 	fn build(&self, nonce: u32) -> std::result::Result<OpaqueExtrinsic, &'static str> {
 		with_client! {
 			self.client.as_ref(), client, {
-				use runtime::{Call, SystemCall};
+				use runtime::{RuntimeCall, SystemCall};
 
-				let call = Call::System(SystemCall::remark { remark: vec![] });
+				let call = RuntimeCall::System(SystemCall::remark { remark: vec![] });
 				let signer = Sr25519Keyring::Bob.pair();
 
 				let period = polkadot_runtime_common::BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
@@ -92,9 +92,9 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for TransferKeepAliveBuilder {
 	fn build(&self, nonce: u32) -> std::result::Result<OpaqueExtrinsic, &'static str> {
 		with_client! {
 			self.client.as_ref(), client, {
-				use runtime::{Call, BalancesCall};
+				use runtime::{RuntimeCall, BalancesCall};
 
-				let call = Call::Balances(BalancesCall::transfer_keep_alive {
+				let call = RuntimeCall::Balances(BalancesCall::transfer_keep_alive {
 					dest: self.dest.clone().into(),
 					value: self.value.into(),
 				});
@@ -113,14 +113,14 @@ impl frame_benchmarking_cli::ExtrinsicBuilder for TransferKeepAliveBuilder {
 ///
 /// Should only be used for benchmarking since it makes strong assumptions
 /// about the chain state that these calls will be valid for.
-trait BenchmarkCallSigner<Call: Encode + Clone, Signer: Pair> {
+trait BenchmarkCallSigner<RuntimeCall: Encode + Clone, Signer: Pair> {
 	/// Signs a call together with the signed extensions of the specific runtime.
 	///
 	/// Only works if the current block is the genesis block since the
 	/// `CheckMortality` check is mocked by using the genesis block.
 	fn sign_call(
 		&self,
-		call: Call,
+		call: RuntimeCall,
 		nonce: u32,
 		current_block: u64,
 		period: u64,
@@ -130,12 +130,12 @@ trait BenchmarkCallSigner<Call: Encode + Clone, Signer: Pair> {
 }
 
 #[cfg(feature = "polkadot")]
-impl BenchmarkCallSigner<polkadot_runtime::Call, sp_core::sr25519::Pair>
+impl BenchmarkCallSigner<polkadot_runtime::RuntimeCall, sp_core::sr25519::Pair>
 	for FullClient<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>
 {
 	fn sign_call(
 		&self,
-		call: polkadot_runtime::Call,
+		call: polkadot_runtime::RuntimeCall,
 		nonce: u32,
 		current_block: u64,
 		period: u64,
@@ -186,12 +186,12 @@ impl BenchmarkCallSigner<polkadot_runtime::Call, sp_core::sr25519::Pair>
 }
 
 #[cfg(feature = "westend")]
-impl BenchmarkCallSigner<westend_runtime::Call, sp_core::sr25519::Pair>
+impl BenchmarkCallSigner<westend_runtime::RuntimeCall, sp_core::sr25519::Pair>
 	for FullClient<westend_runtime::RuntimeApi, WestendExecutorDispatch>
 {
 	fn sign_call(
 		&self,
-		call: westend_runtime::Call,
+		call: westend_runtime::RuntimeCall,
 		nonce: u32,
 		current_block: u64,
 		period: u64,
@@ -240,12 +240,12 @@ impl BenchmarkCallSigner<westend_runtime::Call, sp_core::sr25519::Pair>
 }
 
 #[cfg(feature = "kusama")]
-impl BenchmarkCallSigner<kusama_runtime::Call, sp_core::sr25519::Pair>
+impl BenchmarkCallSigner<kusama_runtime::RuntimeCall, sp_core::sr25519::Pair>
 	for FullClient<kusama_runtime::RuntimeApi, KusamaExecutorDispatch>
 {
 	fn sign_call(
 		&self,
-		call: kusama_runtime::Call,
+		call: kusama_runtime::RuntimeCall,
 		nonce: u32,
 		current_block: u64,
 		period: u64,
@@ -294,12 +294,12 @@ impl BenchmarkCallSigner<kusama_runtime::Call, sp_core::sr25519::Pair>
 }
 
 #[cfg(feature = "rococo")]
-impl BenchmarkCallSigner<rococo_runtime::Call, sp_core::sr25519::Pair>
+impl BenchmarkCallSigner<rococo_runtime::RuntimeCall, sp_core::sr25519::Pair>
 	for FullClient<rococo_runtime::RuntimeApi, RococoExecutorDispatch>
 {
 	fn sign_call(
 		&self,
-		call: rococo_runtime::Call,
+		call: rococo_runtime::RuntimeCall,
 		nonce: u32,
 		current_block: u64,
 		period: u64,
