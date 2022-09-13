@@ -239,7 +239,7 @@ pub mod pallet {
 		frame_system::Config + configuration::Config + paras::Config + dmp::Config
 	{
 		/// The outer event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		type Origin: From<crate::Origin>
 			+ From<<Self as frame_system::Config>::Origin>
