@@ -1434,7 +1434,16 @@ async fn handle_incoming_message<'a, Context>(
 		Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::V1Compatibility(
 			m,
 		)) => m,
-		Versioned::VStaging(_) => unimplemented!(),
+		Versioned::VStaging(_) => {
+			// The higher-level subsystem code is supposed to filter out
+			// all non v1 messages.
+			gum::debug!(
+				target: LOG_TARGET,
+				"Legacy statement-distribution code received unintended v2 message"
+			);
+
+			return None;
+		}
 	};
 
 	let relay_parent = message.get_relay_parent();
