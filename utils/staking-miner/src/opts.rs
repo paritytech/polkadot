@@ -327,8 +327,9 @@ mod test_super {
 			"10",
 			"--connection-timeout",
 			"9",
-			"info"
-		]).unwrap();
+			"info",
+		])
+		.unwrap();
 
 		assert_eq!(
 			opt,
