@@ -20,7 +20,8 @@ use bitvec::bitvec;
 use futures::executor;
 use maplit::hashmap;
 use polkadot_node_network_protocol::{
-	grid_topology::SessionBoundGridTopologyStorage, our_view, view, ObservedRole,
+	grid_topology::SessionBoundGridTopologyStorage, our_view, peer_set::ValidationVersion, view,
+	ObservedRole,
 };
 use polkadot_node_subsystem::{
 	jaeger,
@@ -568,7 +569,12 @@ fn changing_view() {
 			&mut ctx,
 			&mut state,
 			&Default::default(),
-			NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, 1, None),
+			NetworkBridgeEvent::PeerConnected(
+				peer_b.clone(),
+				ObservedRole::Full,
+				ValidationVersion::V1.into(),
+				None
+			),
 			&mut rng,
 		));
 

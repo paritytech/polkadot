@@ -323,7 +323,7 @@ pub fn candidate_pending_availability<T: initializer::Config>(
 pub fn candidate_events<T, F>(extract_event: F) -> Vec<CandidateEvent<T::Hash>>
 where
 	T: initializer::Config,
-	F: Fn(<T as frame_system::Config>::Event) -> Option<inclusion::Event<T>>,
+	F: Fn(<T as frame_system::Config>::RuntimeEvent) -> Option<inclusion::Event<T>>,
 {
 	use inclusion::Event as RawEvent;
 

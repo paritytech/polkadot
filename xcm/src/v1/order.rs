@@ -29,8 +29,8 @@ use scale_info::TypeInfo;
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
-#[scale_info(bounds(), skip_type_params(Call))]
-pub enum Order<Call> {
+#[scale_info(bounds(), skip_type_params(RuntimeCall))]
+pub enum Order<RuntimeCall> {
 	/// Do nothing. Not generally used.
 	#[codec(index = 0)]
 	Noop,
@@ -148,7 +148,7 @@ pub enum Order<Call> {
 		weight: u64,
 		debt: u64,
 		halt_on_error: bool,
-		instructions: Vec<Xcm<Call>>,
+		instructions: Vec<Xcm<RuntimeCall>>,
 	},
 }
 
@@ -156,7 +156,7 @@ pub mod opaque {
 	pub type Order = super::Order<()>;
 }
 
-impl<Call> Order<Call> {
+impl<RuntimeCall> Order<RuntimeCall> {
 	pub fn into<C>(self) -> Order<C> {
 		Order::from(self)
 	}
@@ -182,9 +182,9 @@ impl<Call> Order<Call> {
 	}
 }
 
-impl<Call> TryFrom<OldOrder<Call>> for Order<Call> {
+impl<RuntimeCall> TryFrom<OldOrder<RuntimeCall>> for Order<RuntimeCall> {
 	type Error = ();
-	fn try_from(old: OldOrder<Call>) -> result::Result<Order<Call>, ()> {
+	fn try_from(old: OldOrder<RuntimeCall>) -> result::Result<Order<RuntimeCall>, ()> {
 		use Order::*;
 		Ok(match old {
 			OldOrder::Null => Noop,
@@ -224,17 +224,19 @@ impl<Call> TryFrom<OldOrder<Call>> for Order<Call> {
 			OldOrder::QueryHolding { query_id, dest, assets } =>
 				QueryHolding { query_id, dest: dest.try_into()?, assets: assets.try_into()? },
 			OldOrder::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
-				let instructions =
-					xcm.into_iter().map(Xcm::<Call>::try_from).collect::<result::Result<_, _>>()?;
+				let instructions = xcm
+					.into_iter()
+					.map(Xcm::<RuntimeCall>::try_from)
+					.collect::<result::Result<_, _>>()?;
 				BuyExecution { fees: fees.try_into()?, weight, debt, halt_on_error, instructions }
 			},
 		})
 	}
 }
 
-impl<Call> TryFrom<Instruction<Call>> for Order<Call> {
+impl<RuntimeCall> TryFrom<Instruction<RuntimeCall>> for Order<RuntimeCall> {
 	type Error = ();
-	fn try_from(old: Instruction<Call>) -> result::Result<Order<Call>, ()> {
+	fn try_from(old: Instruction<RuntimeCall>) -> result::Result<Order<RuntimeCall>, ()> {
 		use Order::*;
 		Ok(match old {
 			Instruction::DepositAsset { assets, max_assets, beneficiary } =>

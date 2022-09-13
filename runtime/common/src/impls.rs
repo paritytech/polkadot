@@ -60,7 +60,12 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use frame_support::{parameter_types, traits::FindAuthor, weights::DispatchClass, PalletId};
+	use frame_support::{
+		parameter_types,
+		traits::FindAuthor,
+		weights::{DispatchClass, Weight},
+		PalletId,
+	};
 	use frame_system::limits;
 	use primitives::v2::AccountId;
 	use sp_core::H256;
@@ -90,12 +95,12 @@ mod tests {
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
 		pub BlockWeights: limits::BlockWeights = limits::BlockWeights::builder()
-			.base_block(10)
+			.base_block(Weight::from_ref_time(10))
 			.for_class(DispatchClass::all(), |weight| {
-				weight.base_extrinsic = 100;
+				weight.base_extrinsic = Weight::from_ref_time(100);
 			})
 			.for_class(DispatchClass::non_mandatory(), |weight| {
-				weight.max_total = Some(1024);
+				weight.max_total = Some(Weight::from_ref_time(1024));
 			})
 			.build_or_panic();
 		pub BlockLength: limits::BlockLength = limits::BlockLength::max(2 * 1024);
@@ -107,13 +112,13 @@ mod tests {
 		type Origin = Origin;
 		type Index = u64;
 		type BlockNumber = u64;
-		type Call = Call;
+		type RuntimeCall = RuntimeCall;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = AccountId;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type BlockLength = BlockLength;
 		type BlockWeights = BlockWeights;
@@ -131,7 +136,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type DustRemoval = ();
 		type ExistentialDeposit = ();
 		type AccountStore = System;
@@ -150,7 +155,7 @@ mod tests {
 		type Currency = pallet_balances::Pallet<Test>;
 		type ApproveOrigin = frame_system::EnsureRoot<AccountId>;
 		type RejectOrigin = frame_system::EnsureRoot<AccountId>;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type OnSlash = ();
 		type ProposalBond = ();
 		type ProposalBondMinimum = ();
