@@ -122,16 +122,9 @@ impl PeerSet {
 		}
 
 		#[cfg(feature = "network-protocol-staging")]
-		#[cfg(not(feature = "network-protocol-staging"))]
 		match self {
 			PeerSet::Validation => ValidationVersion::VStaging.into(),
 			PeerSet::Collation => CollationVersion::VStaging.into(),
-		}
-
-		#[cfg(feature = "network-protocol-staging")]
-		match self {
-			PeerSet::Validation => VALIDATION_PROTOCOL_VSTAGING,
-			PeerSet::Collation => COLLATION_PROTOCOL_VSTAGING,
 		}
 	}
 

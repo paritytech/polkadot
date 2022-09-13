@@ -19,8 +19,7 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-#[doc(hidden)]
-pub use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v2::{BlockNumber, Hash};
 use std::{collections::HashMap, fmt};
 
