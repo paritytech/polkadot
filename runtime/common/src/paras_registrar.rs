@@ -586,7 +586,7 @@ impl<T: Config> Pallet<T> {
 		let res2 = runtime_parachains::schedule_parathread_upgrade::<T>(to_upgrade);
 		debug_assert!(res2.is_ok());
 		T::OnSwap::on_swap(to_upgrade, to_downgrade);
-		Self::deposit_event(Event::<T>::Swapped { para_id: to_downgrade, other_id: to_upgrade });
+		Self::deposit_event(Event::<T>::Swapped { para_id: to_upgrade, other_id: to_downgrade });
 	}
 }
 
@@ -600,7 +600,7 @@ mod tests {
 		parameter_types,
 		traits::{GenesisBuild, OnFinalize, OnInitialize},
 	};
-	use frame_system::limits;
+	use frame_system::{limits, EventRecord, Phase};
 	use pallet_balances::Error as BalancesError;
 	use primitives::v2::{Balance, BlockNumber, Header};
 	use runtime_parachains::{configuration, origin, shared};
@@ -1055,9 +1055,21 @@ mod tests {
 			assert!(!Parachains::is_parachain(para_2));
 			assert!(Parachains::is_parathread(para_2));
 
-			// Both paras initiate a swap
-			assert_ok!(Registrar::swap(para_origin(para_1), para_1, para_2,));
-			assert_ok!(Registrar::swap(para_origin(para_2), para_2, para_1,));
+            // Both paras initiate a swap
+            // Swap between parachain and parathread
+            assert_ok!(Registrar::swap(para_origin(para_1), para_1, para_2,));
+            assert_ok!(Registrar::swap(para_origin(para_2), para_2, para_1,));
+            assert_eq!(
+                System::events(),
+                vec![EventRecord {
+                    phase: Phase::Initialization,
+                    event: Event::Registrar(paras_registrar::Event::Swapped {
+                        para_id: para_2,
+                        other_id: para_1
+                    }),
+                    topics: vec![],
+                }]
+            );
 
 			run_to_session(6);
 
@@ -1070,6 +1082,28 @@ mod tests {
 			// Data is swapped
 			assert_eq!(SwapData::get().get(&para_1).unwrap(), &1337);
 			assert_eq!(SwapData::get().get(&para_2).unwrap(), &69);
+
+			// Both paras initiate a swap
+            // Swap between parathread and parachain
+            assert_ok!(Registrar::swap(para_origin(para_1), para_1, para_2,));
+            assert_ok!(Registrar::swap(para_origin(para_2), para_2, para_1,));
+            assert_eq!(
+                System::events().last().unwrap(),
+                vec![EventRecord {
+                    phase: Phase::Initialization,
+                    event: Event::Registrar(paras_registrar::Event::Swapped {
+                        para_id: para_1,
+                        other_id: para_2
+                    }),
+                    topics: vec![],
+                }]
+                .last()
+                .unwrap()
+            );
+
+            // Data is swapped
+            assert_eq!(SwapData::get().get(&para_1).unwrap(), &69);
+            assert_eq!(SwapData::get().get(&para_2).unwrap(), &1337);
 		});
 	}
 
@@ -1182,6 +1216,10 @@ mod tests {
 			// Swap works here.
 			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
 			assert_ok!(Registrar::swap(Origin::root(), para_2, para_1));
+			assert!(System::events().iter().any(|r| matches!(
+                r.event,
+                Event::Registrar(paras_registrar::Event::Swapped { .. })
+            )));
 
 			run_to_session(5);
 
@@ -1197,6 +1235,10 @@ mod tests {
 			// Swap worked!
 			assert!(Parachains::is_parachain(para_2));
 			assert!(Parachains::is_parathread(para_1));
+			assert!(System::events().iter().any(|r| matches!(
+                r.event,
+                Event::Registrar(paras_registrar::Event::Swapped { .. })
+            )));
 
 			// Something starts to downgrade a para
 			assert_ok!(Registrar::make_parathread(para_2));
