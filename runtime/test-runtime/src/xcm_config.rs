@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::{parameter_types, traits::Everything, weights::Weight};
-use xcm::latest::prelude::*;
+use frame_support::{parameter_types, traits::Everything};
+use xcm::latest::{prelude::*, Weight as XCMWeight};
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
 use xcm_executor::{
 	traits::{InvertLocation, TransactAsset, WeightTrader},
@@ -61,7 +61,7 @@ impl WeightTrader for DummyWeightTrader {
 		DummyWeightTrader
 	}
 
-	fn buy_weight(&mut self, _weight: Weight, _payment: Assets) -> Result<Assets, XcmError> {
+	fn buy_weight(&mut self, _weight: XCMWeight, _payment: Assets) -> Result<Assets, XcmError> {
 		Ok(Assets::default())
 	}
 }
@@ -78,7 +78,7 @@ impl InvertLocation for InvertNothing {
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
-	type Call = super::Call;
+	type RuntimeCall = super::RuntimeCall;
 	type XcmSender = DoNothingRouter;
 	type AssetTransactor = DummyAssetTransactor;
 	type OriginConverter = pallet_xcm::XcmPassthrough<super::Origin>;
@@ -86,7 +86,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = ();
 	type LocationInverter = InvertNothing;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::Call, MaxInstructions>;
+	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::RuntimeCall, MaxInstructions>;
 	type Trader = DummyWeightTrader;
 	type ResponseHandler = super::Xcm;
 	type AssetTrap = super::Xcm;

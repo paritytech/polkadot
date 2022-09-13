@@ -676,8 +676,8 @@ fn weight_trader_tuple_should_work() {
 	pub const PARA_2: MultiLocation = X1(Parachain(2)).into();
 
 	parameter_types! {
-		pub static HereWeightPrice: (AssetId, u128) = (Here.into().into(), WEIGHT_PER_SECOND.into());
-		pub static PARA1WeightPrice: (AssetId, u128) = (PARA_1.into(), WEIGHT_PER_SECOND.into());
+		pub static HereWeightPrice: (AssetId, u128) = (Here.into().into(), WEIGHT_PER_SECOND.ref_time().into());
+		pub static PARA1WeightPrice: (AssetId, u128) = (PARA_1.into(), WEIGHT_PER_SECOND.ref_time().into());
 	}
 
 	type Traders = (

@@ -12,7 +12,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config<I: 'static = ()>: frame_system::Config + crate::Config {
-		type Call: Dispatchable<Origin = Self::Origin>
+		type RuntimeCall: Dispatchable<Origin = Self::Origin>
 			+ GetDispatchInfo
 			+ From<frame_system::Call<Self>>
 			+ Encode;
