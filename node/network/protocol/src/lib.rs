@@ -621,7 +621,7 @@ pub mod vstaging {
 		/// sending node, for the purpose of being requested by the receiving node
 		/// if needed.
 		#[codec(index = 1)]
-		BackedCandidateInv {
+		BackedCandidateInventory {
 			/// The relay-parent of the candidate.
 			relay_parent: Hash,
 			/// The hash of the candidate.
@@ -639,7 +639,7 @@ pub mod vstaging {
 			seconded_in_group: BitVec<u8, bitvec::order::Lsb0>,
 		},
 
-		/// A notification of a backed candidate being known by the sending known,
+		/// A notification of a backed candidate being known by the sending node,
 		/// for the purpose of informing a receiving node which already has the candidate.
 		#[codec(index = 2)]
 		BackedCandidateKnown(Hash, CandidateHash),
@@ -650,7 +650,7 @@ pub mod vstaging {
 		/// These are illegal to send to V1 peers, and illegal to send concerning relay-parents
 		/// which support asynchronous backing. This backwards compatibility should be
 		/// considered immediately deprecated and can be removed once the node software
-		/// is not required to support asynchronous backing anymore.
+		/// is not required to support logic from before asynchronous backing anymore.
 		#[codec(index = 255)]
 		V1Compatibility(crate::v1::StatementDistributionMessage),
 	}
