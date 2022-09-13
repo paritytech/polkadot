@@ -83,12 +83,12 @@ use static_assertions::const_assert;
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_election_provider_multi_phase::Call as EPMCall;
-use pallet_staking::UseValidatorsMap;
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
+use pallet_staking::UseValidatorsMap;
+use sp_runtime::traits::Get;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
-use sp_runtime::traits::Get;
 
 /// Constant values used within the runtime.
 use kusama_runtime_constants::{currency::*, fee::*, time::*};
@@ -620,8 +620,6 @@ impl pallet_staking::Config for Runtime {
 	type OnStakerSlash = NominationPools;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
-
-
 
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
@@ -1458,8 +1456,12 @@ pub type Executive = frame_executive::Executive<
 	AllPalletsWithSystem,
 	(
 		pallet_nomination_pools::migration::v3::MigrateToV3<Runtime>,
-		pallet_staking::migrations::v11::MigrateToV11<Runtime, VoterList, StakingMigrationV11OldPallet>,
-	)
+		pallet_staking::migrations::v11::MigrateToV11<
+			Runtime,
+			VoterList,
+			StakingMigrationV11OldPallet,
+		>,
+	),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;

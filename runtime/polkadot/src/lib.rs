@@ -80,13 +80,13 @@ use static_assertions::const_assert;
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_election_provider_multi_phase::Call as EPMCall;
-use pallet_staking::UseValidatorsMap;
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
+use pallet_staking::UseValidatorsMap;
 pub use pallet_timestamp::Call as TimestampCall;
+use sp_runtime::traits::Get;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
-use sp_runtime::traits::Get;
 
 /// Constant values used within the runtime.
 use polkadot_runtime_constants::{currency::*, fee::*, time::*};
@@ -1537,8 +1537,13 @@ pub type Executive = frame_executive::Executive<
 	Runtime,
 	AllPalletsWithSystem,
 	(
-		InitiateNominationPools, pallet_nomination_pools::migration::v3::MigrateToV3<Runtime>,
-		pallet_staking::migrations::v11::MigrateToV11<Runtime, VoterList, StakingMigrationV11OldPallet>,
+		InitiateNominationPools,
+		pallet_nomination_pools::migration::v3::MigrateToV3<Runtime>,
+		pallet_staking::migrations::v11::MigrateToV11<
+			Runtime,
+			VoterList,
+			StakingMigrationV11OldPallet,
+		>,
 	),
 >;
 
