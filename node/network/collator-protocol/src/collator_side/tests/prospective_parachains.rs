@@ -201,8 +201,8 @@ fn distribute_collation_from_implicit_view() {
 		.await;
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ConnectToValidators { validator_ids, .. }
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ConnectToValidators { validator_ids, .. }
 			) => {
 				let expected_validators = test_state.current_group_validator_authority_ids();
 

@@ -44,8 +44,6 @@ pub mod authority_discovery;
 /// Grid topology support module
 pub mod grid_topology;
 
-/// A version of the protocol.
-pub type ProtocolVersion = u32;
 /// The minimum amount of peers to send gossip messages to.
 pub const MIN_GOSSIP_PEERS: usize = 25;
 
@@ -446,11 +444,6 @@ pub mod v1 {
 		UncheckedSignedFullStatement,
 	};
 
-	use super::ProtocolVersion;
-
-	/// The version of the v1 network protocol.
-	pub const VERSION: ProtocolVersion = 1;
-
 	/// Network messages used by the bitfield distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum BitfieldDistributionMessage {
@@ -608,11 +601,6 @@ pub mod vstaging {
 		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
 		UncheckedSignedFullStatement,
 	};
-
-	use super::ProtocolVersion;
-
-	/// The version of the vstaging network protocol.
-	pub const VERSION: ProtocolVersion = 2;
 
 	/// Network messages used by the bitfield distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]

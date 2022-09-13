@@ -35,7 +35,7 @@ use polkadot_primitives::v2::{CollatorPair, Hash};
 
 use polkadot_node_subsystem::{
 	errors::SubsystemError,
-	messages::{NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest},
+	messages::{NetworkBridgeTxMessage, RuntimeApiMessage, RuntimeApiRequest},
 	overseer, SpawnedSubsystem,
 };
 
@@ -164,7 +164,7 @@ async fn modify_reputation(
 		"reputation change for peer",
 	);
 
-	sender.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await;
+	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

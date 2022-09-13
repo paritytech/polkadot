@@ -25,7 +25,7 @@ pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 /// Call this during the next runtime upgrade for this module.
 pub fn on_runtime_upgrade<T: Config>() -> Weight {
-	let mut weight: Weight = 0;
+	let mut weight: Weight = Weight::zero();
 
 	if StorageVersion::get::<Pallet<T>>() == 0 {
 		weight = weight

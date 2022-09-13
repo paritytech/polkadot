@@ -29,11 +29,7 @@ use sp_core::crypto::Pair;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::traits::AppVerify;
 
-use polkadot_node_network_protocol::{
-	our_view,
-	request_response::{v1 as request_v1, IncomingRequest},
-	view,
-};
+use polkadot_node_network_protocol::{our_view, request_response::{IncomingRequest, ReqProtocolNames}, view, peer_set::CollationVersion};
 use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem::{
 	jaeger,
@@ -222,9 +218,13 @@ fn test_harness<T: Future<Output = TestHarness>>(
 
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-	let (collation_req_receiver, req_v1_cfg) = IncomingRequest::get_config_receiver();
+	let genesis_hash = Hash::repeat_byte(0xff);
+	let req_protocol_names = ReqProtocolNames::new(&genesis_hash, None);
+
+	let (collation_req_receiver, req_v1_cfg) =
+		IncomingRequest::get_config_receiver(&req_protocol_names);
 	let (collation_req_vstaging_receiver, req_vstaging_cfg) =
-		IncomingRequest::get_config_receiver();
+		IncomingRequest::get_config_receiver(&req_protocol_names);
 	let subsystem = async {
 		run(
 			context,
@@ -405,8 +405,8 @@ async fn distribute_collation_with_receipt(
 	if should_connect {
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ConnectToValidators {
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ConnectToValidators {
 					..
 				}
 			) => {}
@@ -463,7 +463,7 @@ async fn connect_peer(
 		CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 			peer.clone(),
 			polkadot_node_network_protocol::ObservedRole::Authority,
-			1,
+			CollationVersion::V1.into(),
 			authority_id.map(|v| HashSet::from([v])),
 		)),
 	)
@@ -496,8 +496,8 @@ async fn expect_declare_msg(
 ) {
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
-		AllMessages::NetworkBridge(
-			NetworkBridgeMessage::SendCollationMessage(
+		AllMessages::NetworkBridgeTx(
+			NetworkBridgeTxMessage::SendCollationMessage(
 				to,
 				Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 			)
@@ -538,8 +538,8 @@ async fn expect_advertise_collation_msg(
 	for _ in 0..iter_num {
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendCollationMessage(
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendCollationMessage(
 					to,
 					wire_message,
 				)
@@ -685,7 +685,7 @@ fn advertise_and_send_collation() {
 				.unwrap();
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(bad_peer, _)) => {
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(bad_peer, _)) => {
 					assert_eq!(bad_peer, peer);
 				}
 			);
@@ -993,7 +993,7 @@ fn collators_reject_declare_messages() {
 
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::DisconnectPeer(
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::DisconnectPeer(
 				p,
 				PeerSet::Collation,
 			)) if p == peer

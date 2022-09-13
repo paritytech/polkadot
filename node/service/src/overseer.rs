@@ -24,8 +24,9 @@ use polkadot_node_core_av_store::Config as AvailabilityConfig;
 use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig;
 use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
-use polkadot_node_network_protocol::request_response::{
-	v1 as request_v1, vstaging as request_vstaging, IncomingRequestReceiver,
+use polkadot_node_network_protocol::{
+	peer_set::PeerSetProtocolNames,
+	request_response::{v1 as request_v1, IncomingRequestReceiver, ReqProtocolNames, vstaging as request_vstaging},
 };
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::{
@@ -41,6 +42,7 @@ use polkadot_primitives::runtime_api::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::AuxStore;
 use sc_keystore::LocalKeystore;
+use sc_network_common::service::NetworkStateInfo;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_consensus_babe::BabeApi;
@@ -53,7 +55,10 @@ pub use polkadot_availability_recovery::AvailabilityRecoverySubsystem;
 pub use polkadot_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
 pub use polkadot_dispute_distribution::DisputeDistributionSubsystem;
 pub use polkadot_gossip_support::GossipSupport as GossipSupportSubsystem;
-pub use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
+pub use polkadot_network_bridge::{
+	Metrics as NetworkBridgeMetrics, NetworkBridgeRx as NetworkBridgeRxSubsystem,
+	NetworkBridgeTx as NetworkBridgeTxSubsystem,
+};
 pub use polkadot_node_collation_generation::CollationGenerationSubsystem;
 pub use polkadot_node_core_approval_voting::ApprovalVotingSubsystem;
 pub use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
@@ -118,6 +123,10 @@ where
 	pub pvf_checker_enabled: bool,
 	/// Overseer channel capacity override.
 	pub overseer_message_channel_capacity_override: Option<usize>,
+	/// Request-response protocol names source.
+	pub req_protocol_names: ReqProtocolNames,
+	/// [`PeerSet`] protocol names to protocols mapping.
+	pub peerset_protocol_names: PeerSetProtocolNames,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -147,6 +156,8 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		dispute_coordinator_config,
 		pvf_checker_enabled,
 		overseer_message_channel_capacity_override,
+		req_protocol_names,
+		peerset_protocol_names,
 	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
@@ -163,7 +174,11 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		ProvisionerSubsystem,
 		RuntimeApiSubsystem<RuntimeClient>,
 		AvailabilityStoreSubsystem,
-		NetworkBridgeSubsystem<
+		NetworkBridgeRxSubsystem<
+			Arc<sc_network::NetworkService<Block, Hash>>,
+			AuthorityDiscoveryService,
+		>,
+		NetworkBridgeTxSubsystem<
 			Arc<sc_network::NetworkService<Block, Hash>>,
 			AuthorityDiscoveryService,
 		>,
@@ -191,7 +206,23 @@ where
 
 	let spawner = SpawnGlue(spawner);
 
+	let network_bridge_metrics: NetworkBridgeMetrics = Metrics::register(registry)?;
+
 	let builder = Overseer::builder()
+		.network_bridge_tx(NetworkBridgeTxSubsystem::new(
+			network_service.clone(),
+			authority_discovery_service.clone(),
+			network_bridge_metrics.clone(),
+			req_protocol_names,
+			peerset_protocol_names.clone(),
+		))
+		.network_bridge_rx(NetworkBridgeRxSubsystem::new(
+			network_service.clone(),
+			authority_discovery_service.clone(),
+			Box::new(network_service.clone()),
+			network_bridge_metrics,
+			peerset_protocol_names,
+		))
 		.availability_distribution(AvailabilityDistributionSubsystem::new(
 			keystore.clone(),
 			IncomingRequestReceivers { pov_req_receiver, chunk_req_receiver },
@@ -244,12 +275,6 @@ where
 			};
 			CollatorProtocolSubsystem::new(side)
 		})
-		.network_bridge(NetworkBridgeSubsystem::new(
-			network_service.clone(),
-			authority_discovery_service.clone(),
-			Box::new(network_service.clone()),
-			Metrics::register(registry)?,
-		))
 		.provisioner(ProvisionerSubsystem::new(Metrics::register(registry)?))
 		.runtime_api(RuntimeApiSubsystem::new(
 			runtime_client.clone(),

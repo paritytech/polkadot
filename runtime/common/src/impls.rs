@@ -26,7 +26,6 @@ where
 	R: pallet_balances::Config + pallet_authorship::Config,
 	<R as frame_system::Config>::AccountId: From<primitives::v2::AccountId>,
 	<R as frame_system::Config>::AccountId: Into<primitives::v2::AccountId>,
-	<R as frame_system::Config>::Event: From<pallet_balances::Event<R>>,
 {
 	fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
 		if let Some(author) = <pallet_authorship::Pallet<R>>::author() {
@@ -42,7 +41,6 @@ where
 	pallet_treasury::Pallet<R>: OnUnbalanced<NegativeImbalance<R>>,
 	<R as frame_system::Config>::AccountId: From<primitives::v2::AccountId>,
 	<R as frame_system::Config>::AccountId: Into<primitives::v2::AccountId>,
-	<R as frame_system::Config>::Event: From<pallet_balances::Event<R>>,
 {
 	fn on_unbalanceds<B>(mut fees_then_tips: impl Iterator<Item = NegativeImbalance<R>>) {
 		if let Some(fees) = fees_then_tips.next() {
@@ -62,7 +60,12 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use frame_support::{parameter_types, traits::FindAuthor, weights::DispatchClass, PalletId};
+	use frame_support::{
+		parameter_types,
+		traits::FindAuthor,
+		weights::{DispatchClass, Weight},
+		PalletId,
+	};
 	use frame_system::limits;
 	use primitives::v2::AccountId;
 	use sp_core::H256;
@@ -92,12 +95,12 @@ mod tests {
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
 		pub BlockWeights: limits::BlockWeights = limits::BlockWeights::builder()
-			.base_block(10)
+			.base_block(Weight::from_ref_time(10))
 			.for_class(DispatchClass::all(), |weight| {
-				weight.base_extrinsic = 100;
+				weight.base_extrinsic = Weight::from_ref_time(100);
 			})
 			.for_class(DispatchClass::non_mandatory(), |weight| {
-				weight.max_total = Some(1024);
+				weight.max_total = Some(Weight::from_ref_time(1024));
 			})
 			.build_or_panic();
 		pub BlockLength: limits::BlockLength = limits::BlockLength::max(2 * 1024);

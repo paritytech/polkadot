@@ -20,6 +20,7 @@
 
 use futures::{channel::oneshot, pending, pin_mut, select, stream, FutureExt, StreamExt};
 use futures_timer::Delay;
+use orchestra::async_trait;
 use std::time::Duration;
 
 use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
@@ -34,8 +35,10 @@ use polkadot_overseer::{
 use polkadot_primitives::v2::{CandidateReceipt, Hash};
 
 struct AlwaysSupportsParachains;
+
+#[async_trait]
 impl HeadSupportsParachains for AlwaysSupportsParachains {
-	fn head_supports_parachains(&self, _head: &Hash) -> bool {
+	async fn head_supports_parachains(&self, _head: &Hash) -> bool {
 		true
 	}
 }

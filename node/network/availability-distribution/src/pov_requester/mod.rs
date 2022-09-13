@@ -26,7 +26,7 @@ use polkadot_node_network_protocol::request_response::{
 use polkadot_node_primitives::PoV;
 use polkadot_node_subsystem::{
 	jaeger,
-	messages::{IfDisconnected, NetworkBridgeMessage},
+	messages::{IfDisconnected, NetworkBridgeTxMessage},
 	overseer,
 };
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
@@ -62,7 +62,7 @@ pub async fn fetch_pov<Context>(
 	);
 	let full_req = Requests::PoVFetchingV1(req);
 
-	ctx.send_message(NetworkBridgeMessage::SendRequests(
+	ctx.send_message(NetworkBridgeTxMessage::SendRequests(
 		vec![full_req],
 		IfDisconnected::ImmediateError,
 	))
@@ -195,7 +195,10 @@ mod tests {
 					)) => {
 						tx.send(Ok(Some(make_session_info()))).unwrap();
 					},
-					AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(mut reqs, _)) => {
+					AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(
+						mut reqs,
+						_,
+					)) => {
 						let req = assert_matches!(
 							reqs.pop(),
 							Some(Requests::PoVFetchingV1(outgoing)) => {outgoing}

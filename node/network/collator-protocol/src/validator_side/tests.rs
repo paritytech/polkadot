@@ -24,6 +24,7 @@ use std::{iter, sync::Arc, time::Duration};
 
 use polkadot_node_network_protocol::{
 	our_view,
+	peer_set::CollationVersion,
 	request_response::{Requests, ResponseSender},
 	ObservedRole,
 };
@@ -292,7 +293,7 @@ async fn assert_candidate_backing_second(
 async fn assert_collator_disconnect(virtual_overseer: &mut VirtualOverseer, expected_peer: PeerId) {
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
-		AllMessages::NetworkBridge(NetworkBridgeMessage::DisconnectPeer(
+		AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::DisconnectPeer(
 			peer,
 			peer_set,
 		)) => {
@@ -310,7 +311,7 @@ async fn assert_fetch_collation_request(
 ) -> ResponseSender {
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
-		AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
+		AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(reqs, IfDisconnected::ImmediateError)
 	) => {
 		let req = reqs.into_iter().next()
 			.expect("There should be exactly one request");
@@ -338,7 +339,7 @@ async fn connect_and_declare_collator(
 		CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 			peer.clone(),
 			ObservedRole::Full,
-			1,
+			CollationVersion::V1.into(),
 			None,
 		)),
 	)
@@ -479,8 +480,8 @@ fn collator_reporting_works() {
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(peer, rep),
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(peer, rep),
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep, COST_REPORT_BAD);
@@ -506,7 +507,7 @@ fn collator_authentication_verification_works() {
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 				peer_b,
 				ObservedRole::Full,
-				1,
+				CollationVersion::V1.into(),
 				None,
 			)),
 		)
@@ -529,8 +530,8 @@ fn collator_authentication_verification_works() {
 		// it should be reported for sending a message with an invalid signature
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(peer, rep),
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(peer, rep),
 			) => {
 				assert_eq!(peer, peer_b);
 				assert_eq!(rep, COST_INVALID_SIGNATURE);
@@ -757,7 +758,7 @@ fn reject_connection_to_next_group() {
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
 				peer,
 				rep,
 			)) => {
@@ -856,7 +857,7 @@ fn fetch_next_collation_on_invalid_collation() {
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
 				peer,
 				rep,
 			)) => {
@@ -1016,7 +1017,7 @@ fn disconnect_if_no_declare() {
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 				peer_b.clone(),
 				ObservedRole::Full,
-				1,
+				CollationVersion::V1.into(),
 				None,
 			)),
 		)
@@ -1055,7 +1056,7 @@ fn disconnect_if_wrong_declare() {
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 				peer_b.clone(),
 				ObservedRole::Full,
-				1,
+				CollationVersion::V1.into(),
 				None,
 			)),
 		)
@@ -1076,7 +1077,7 @@ fn disconnect_if_wrong_declare() {
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
 				peer,
 				rep,
 			)) => {

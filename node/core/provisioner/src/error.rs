@@ -46,6 +46,12 @@ pub enum Error {
 	#[error("failed to get votes on dispute")]
 	CanceledCandidateVotes(#[source] oneshot::Canceled),
 
+	#[error("failed to get backable candidate from prospective parachains")]
+	CanceledBackableCandidate(#[source] oneshot::Canceled),
+
+	#[error("failed to get Runtime API version")]
+	CanceledRuntimeApiVersion(#[source] oneshot::Canceled),
+
 	#[error(transparent)]
 	ChainApi(#[from] ChainApiError),
 
@@ -57,6 +63,9 @@ pub enum Error {
 
 	#[error("failed to send message to CandidateBacking to get backed candidates")]
 	GetBackedCandidatesSend(#[source] mpsc::SendError),
+
+	#[error("Send inherent data timeout.")]
+	SendInherentDataTimeout,
 
 	#[error("failed to send return message with Inherents")]
 	InherentDataReturnChannel,

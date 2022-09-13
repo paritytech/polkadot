@@ -28,16 +28,18 @@ use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
 	overseer,
 };
-use thiserror::Error;
 
 /// Sessions unavailable in state to cache.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum SessionsUnavailableReason {
 	/// Runtime API subsystem was unavailable.
-	RuntimeApiUnavailable(oneshot::Canceled),
+	#[error(transparent)]
+	RuntimeApiUnavailable(#[from] oneshot::Canceled),
 	/// The runtime API itself returned an error.
-	RuntimeApi(RuntimeApiError),
+	#[error(transparent)]
+	RuntimeApi(#[from] RuntimeApiError),
 	/// Missing session info from runtime API for given `SessionIndex`.
+	#[error("Missing session index {0:?}")]
 	Missing(SessionIndex),
 }
 
@@ -53,18 +55,14 @@ pub struct SessionsUnavailableInfo {
 }
 
 /// Sessions were unavailable to fetch from the state for some reason.
-#[derive(Debug, Error, Clone)]
+#[derive(Debug, thiserror::Error, Clone)]
+#[error("Sessions unavailable: {kind:?}, info: {info:?}")]
 pub struct SessionsUnavailable {
 	/// The error kind.
+	#[source]
 	kind: SessionsUnavailableReason,
 	/// The info about the session window, if any.
 	info: Option<SessionsUnavailableInfo>,
-}
-
-impl core::fmt::Display for SessionsUnavailable {
-	fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
-		write!(f, "Sessions unavailable: {:?}, info: {:?}", self.kind, self.info)
-	}
 }
 
 /// An indicated update of the rolling session window.

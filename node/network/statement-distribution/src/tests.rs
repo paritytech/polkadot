@@ -20,9 +20,10 @@ use futures::executor::{self, block_on};
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_network_protocol::{
+	peer_set::ValidationVersion,
 	request_response::{
 		v1::{StatementFetchingRequest, StatementFetchingResponse},
-		IncomingRequest, Recipient, Requests,
+		IncomingRequest, Recipient, ReqProtocolNames, Requests,
 	},
 	view, ObservedRole,
 };
@@ -35,7 +36,7 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
-use polkadot_primitives::v2::{Hash, HeadData, SessionInfo, ValidationCode};
+use polkadot_primitives::v2::{Hash, HeadData, Id as ParaId, SessionInfo, ValidationCode};
 use polkadot_primitives_test_helpers::{
 	dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
 };
@@ -46,6 +47,8 @@ use sp_keyring::Sr25519Keyring;
 use sp_keystore::{CryptoStore, SyncCryptoStore, SyncCryptoStorePtr};
 use std::{iter::FromIterator as _, sync::Arc, time::Duration};
 
+// Some deterministic genesis hash for protocol names
+const GENESIS_HASH: Hash = Hash::repeat_byte(0xff);
 fn dummy_pvd() -> PersistedValidationData {
 	PersistedValidationData {
 		parent_head: HeadData(vec![7, 8, 9]),
@@ -406,7 +409,7 @@ fn peer_view_update_sends_messages() {
 	let candidate = {
 		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_c;
-		c.descriptor.para_id = 1.into();
+		c.descriptor.para_id = ParaId::from(1_u32);
 		c
 	};
 	let candidate_hash = candidate.hash();
@@ -572,7 +575,7 @@ fn peer_view_update_sends_messages() {
 
 			assert_matches!(
 				message,
-				AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
 					to,
 					payload,
 				)) => {
@@ -593,7 +596,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 	let candidate = {
 		let mut c = dummy_committed_candidate_receipt(dummy_hash());
 		c.descriptor.relay_parent = hash_b;
-		c.descriptor.para_id = 1.into();
+		c.descriptor.para_id = ParaId::from(1_u32);
 		c
 	};
 
@@ -703,7 +706,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 		let message = handle.recv().await;
 		assert_matches!(
 			message,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
 				to,
 				payload,
 			)) => {
@@ -749,7 +752,8 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
-	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
+	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
+	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let bg = async move {
 		let s = StatementDistributionSubsystem::new(
@@ -800,7 +804,12 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full, 1, None),
+					NetworkBridgeEvent::PeerConnected(
+						peer_a.clone(),
+						ObservedRole::Full,
+						ValidationVersion::V1.into(),
+						None,
+					),
 				),
 			})
 			.await;
@@ -808,7 +817,12 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, 1, None),
+					NetworkBridgeEvent::PeerConnected(
+						peer_b.clone(),
+						ObservedRole::Full,
+						ValidationVersion::V1.into(),
+						None,
+					),
 				),
 			})
 			.await;
@@ -887,8 +901,8 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => {}
 		);
 		assert_matches!(
@@ -900,8 +914,8 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendValidationMessage(
 					recipients,
 					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::Statement(r, s)
@@ -959,7 +973,9 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
-	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
+	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
+	let (statement_req_receiver, mut req_cfg) =
+		IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let bg = async move {
 		let s = StatementDistributionSubsystem::new(
@@ -1013,7 +1029,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
 					),
 				),
@@ -1026,7 +1042,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Bob.public().into()])),
 					),
 				),
@@ -1038,7 +1054,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					NetworkBridgeEvent::PeerConnected(
 						peer_c.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Charlie.public().into()])),
 					),
 				),
@@ -1050,7 +1066,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					NetworkBridgeEvent::PeerConnected(
 						peer_bad.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						None,
 					),
 				),
@@ -1132,8 +1148,8 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
 					mut reqs, IfDisconnected::ImmediateError
 				)
 			) => {
@@ -1185,8 +1201,8 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		// Let c fail once too:
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
 					mut reqs, IfDisconnected::ImmediateError
 				)
 			) => {
@@ -1205,8 +1221,8 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		// a fails again:
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
 					mut reqs, IfDisconnected::ImmediateError
 				)
 			) => {
@@ -1226,8 +1242,8 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		// Send invalid response (all other peers have been tried now):
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
 					mut reqs, IfDisconnected::ImmediateError
 				)
 			) => {
@@ -1253,16 +1269,16 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		// Should get punished and never tried again:
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) if p == peer_bad && r == COST_WRONG_HASH => {}
 		);
 
 		// a is tried again (retried in reverse order):
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
 					mut reqs, IfDisconnected::ImmediateError
 				)
 			) => {
@@ -1282,8 +1298,8 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		// c succeeds now:
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendRequests(
 					mut reqs, IfDisconnected::ImmediateError
 				)
 			) => {
@@ -1304,15 +1320,15 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) if p == peer_a && r == COST_FETCH_FAIL => {}
 		);
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) if p == peer_c && r == BENEFIT_VALID_RESPONSE => {}
 		);
 
@@ -1332,8 +1348,8 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		);
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => {}
 		);
 
@@ -1347,8 +1363,8 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		// Now messages should go out:
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendValidationMessage(
 					mut recipients,
 					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::LargeStatement(meta)
@@ -1485,7 +1501,9 @@ fn share_prioritizes_backing_group() {
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
-	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
+	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
+	let (statement_req_receiver, mut req_cfg) =
+		IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let bg = async move {
 		let s = StatementDistributionSubsystem::new(
@@ -1540,7 +1558,7 @@ fn share_prioritizes_backing_group() {
 						NetworkBridgeEvent::PeerConnected(
 							peer,
 							ObservedRole::Full,
-							1,
+							ValidationVersion::V1.into(),
 							Some(HashSet::from([pair.public().into()])),
 						),
 					),
@@ -1563,7 +1581,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
 					),
 				),
@@ -1575,7 +1593,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Bob.public().into()])),
 					),
 				),
@@ -1587,7 +1605,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_c.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Charlie.public().into()])),
 					),
 				),
@@ -1599,7 +1617,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_bad.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						None,
 					),
 				),
@@ -1611,7 +1629,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_other_group.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Dave.public().into()])),
 					),
 				),
@@ -1694,8 +1712,8 @@ fn share_prioritizes_backing_group() {
 		// Messages should go out:
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendValidationMessage(
 					mut recipients,
 					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::LargeStatement(meta)
@@ -1780,7 +1798,8 @@ fn peer_cant_flood_with_large_statements() {
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
-	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
+	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
+	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	let bg = async move {
 		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
@@ -1833,7 +1852,7 @@ fn peer_cant_flood_with_large_statements() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
 					),
 				),
@@ -1899,7 +1918,7 @@ fn peer_cant_flood_with_large_statements() {
 		let mut punished = false;
 		for _ in 0..2 {
 			match handle.recv().await {
-				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(
 					mut reqs,
 					IfDisconnected::ImmediateError,
 				)) => {
@@ -1916,7 +1935,7 @@ fn peer_cant_flood_with_large_statements() {
 					requested = true;
 				},
 
-				AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(p, r))
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
 					if p == peer_a && r == COST_APPARENT_FLOOD =>
 				{
 					punished = true;
@@ -1985,7 +2004,8 @@ fn handle_multiple_seconded_statements() {
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
-	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
+	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
+	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let virtual_overseer_fut = async move {
 		let s = StatementDistributionSubsystem::new(
@@ -2040,7 +2060,7 @@ fn handle_multiple_seconded_statements() {
 						NetworkBridgeEvent::PeerConnected(
 							peer.clone(),
 							ObservedRole::Full,
-							1,
+							ValidationVersion::V1.into(),
 							None,
 						),
 					),
@@ -2157,8 +2177,8 @@ fn handle_multiple_seconded_statements() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) => {
 				assert_eq!(p, peer_a);
 				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST);
@@ -2178,8 +2198,8 @@ fn handle_multiple_seconded_statements() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendValidationMessage(
 					recipients,
 					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::Statement(r, s)
@@ -2209,8 +2229,8 @@ fn handle_multiple_seconded_statements() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) => {
 				assert_eq!(p, peer_b);
 				assert_eq!(r, BENEFIT_VALID_STATEMENT);
@@ -2264,8 +2284,8 @@ fn handle_multiple_seconded_statements() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) => {
 				assert_eq!(p, peer_a);
 				assert_eq!(r, BENEFIT_VALID_STATEMENT_FIRST);
@@ -2284,8 +2304,8 @@ fn handle_multiple_seconded_statements() {
 
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendValidationMessage(
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::SendValidationMessage(
 					recipients,
 					Versioned::V1(protocol_v1::ValidationProtocol::StatementDistribution(
 						protocol_v1::StatementDistributionMessage::Statement(r, s)
@@ -2317,8 +2337,8 @@ fn handle_multiple_seconded_statements() {
 		// the first when sending `Seconded`
 		assert_matches!(
 			handle.recv().await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(p, r)
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(p, r)
 			) => {
 				assert_eq!(p, peer_b);
 				assert_eq!(r, BENEFIT_VALID_STATEMENT);

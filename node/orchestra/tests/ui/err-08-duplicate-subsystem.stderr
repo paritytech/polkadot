@@ -2,7 +2,7 @@ error[E0599]: no method named `sub0` found for struct `OrchestraBuilder<Missing<
   --> tests/ui/err-08-duplicate-subsystem.rs:57:4
    |
 22 | #[orchestra(signal=SigSigSig, error=OrchestraError, event=Event, gen=AllMessages)]
-   | -------------------------------------------------------------------------------- method `sub0` not found for this
+   | ---------------------------------------------------------------------------------- method `sub0` not found for this struct
 ...
 57 |         .sub0(AwesomeSubSys::default()) // Duplicate subsystem
    |          ^^^^-------------------------- help: remove the arguments

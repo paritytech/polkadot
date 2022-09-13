@@ -72,7 +72,7 @@ pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
 /// ensure that in the absence of extremely large disparities between hardware,
 /// blocks that pass backing are considerd executable by approval checkers or
 /// dispute participants.
-pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(6);
+pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
 
 /// Linked to `MAX_FINALITY_LAG` in relay chain selection,
 /// `MAX_HEADS_LOOK_BACK` in `approval-voting` and

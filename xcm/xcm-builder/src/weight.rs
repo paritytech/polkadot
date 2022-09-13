@@ -16,12 +16,12 @@
 
 use frame_support::{
 	traits::{tokens::currency::Currency as CurrencyT, Get, OnUnbalanced as OnUnbalancedT},
-	weights::{constants::WEIGHT_PER_SECOND, GetDispatchInfo, Weight, WeightToFee as WeightToFeeT},
+	weights::{constants::WEIGHT_PER_SECOND, GetDispatchInfo, WeightToFee as WeightToFeeT},
 };
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
 use sp_std::{marker::PhantomData, result::Result};
-use xcm::latest::prelude::*;
+use xcm::latest::{prelude::*, Weight};
 use xcm_executor::{
 	traits::{WeightBounds, WeightTrader},
 	Assets,
@@ -152,7 +152,7 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader
 			weight, payment,
 		);
 		let (id, units_per_second) = T::get();
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
+		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
 		let unused =
 			payment.checked_sub((id, amount).into()).map_err(|_| XcmError::TooExpensive)?;
 		self.0 = self.0.saturating_add(weight);
@@ -164,7 +164,7 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader
 		log::trace!(target: "xcm::weight", "FixedRateOfConcreteFungible::refund_weight weight: {:?}", weight);
 		let (id, units_per_second) = T::get();
 		let weight = weight.min(self.0);
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
+		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		if amount > 0 {
@@ -204,7 +204,7 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 			weight, payment,
 		);
 		let (id, units_per_second) = T::get();
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
+		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
 		if amount == 0 {
 			return Ok(payment)
 		}
@@ -219,7 +219,7 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 		log::trace!(target: "xcm::weight", "FixedRateOfFungible::refund_weight weight: {:?}", weight);
 		let (id, units_per_second) = T::get();
 		let weight = weight.min(self.0);
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
+		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		if amount > 0 {
@@ -265,7 +265,8 @@ impl<
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
 		log::trace!(target: "xcm::weight", "UsingComponents::buy_weight weight: {:?}, payment: {:?}", weight, payment);
-		let amount = WeightToFee::weight_to_fee(&weight);
+		let amount =
+			WeightToFee::weight_to_fee(&frame_support::weights::Weight::from_ref_time(weight));
 		let u128_amount: u128 = amount.try_into().map_err(|_| XcmError::Overflow)?;
 		let required = (Concrete(AssetId::get()), u128_amount).into();
 		let unused = payment.checked_sub(required).map_err(|_| XcmError::TooExpensive)?;
@@ -277,7 +278,8 @@ impl<
 	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
 		log::trace!(target: "xcm::weight", "UsingComponents::refund_weight weight: {:?}", weight);
 		let weight = weight.min(self.0);
-		let amount = WeightToFee::weight_to_fee(&weight);
+		let amount =
+			WeightToFee::weight_to_fee(&frame_support::weights::Weight::from_ref_time(weight));
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		let amount: u128 = amount.saturated_into();

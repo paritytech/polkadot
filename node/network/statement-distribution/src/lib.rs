@@ -31,7 +31,8 @@ use polkadot_node_network_protocol::{
 	peer_set::{IsAuthority, PeerSet},
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	v1::{self as protocol_v1, StatementMetadata},
-	IfDisconnected, PeerId, UnifiedReputationChange as Rep, Versioned, View,
+	vstaging as protocol_vstaging, IfDisconnected, PeerId, UnifiedReputationChange as Rep,
+	Versioned, View,
 };
 use polkadot_node_primitives::{
 	SignedFullStatement, Statement, StatementWithPVD, UncheckedSignedFullStatement,
@@ -41,7 +42,7 @@ use polkadot_node_subsystem_util::{self as util, rand, MIN_GOSSIP_PEERS};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
-		CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeMessage,
+		CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeTxMessage,
 		StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
@@ -607,7 +608,7 @@ struct FetchingInfo {
 	///
 	/// We use an `IndexMap` here to preserve the ordering of peers sending us messages. This is
 	/// desirable because we reward first sending peers with reputation.
-	available_peers: IndexMap<PeerId, Vec<protocol_v1::StatementDistributionMessage>>,
+	available_peers: IndexMap<PeerId, Vec<net_protocol::StatementDistributionMessage>>,
 	/// Peers left to try in case the background task needs it.
 	peers_to_try: Vec<PeerId>,
 	/// Sender for sending fresh peers to the fetching task in case of failure.
@@ -1032,7 +1033,7 @@ fn is_statement_large(statement: &SignedFullStatement) -> (bool, Option<usize>) 
 
 			// Half max size seems to be a good threshold to start not using notifications:
 			let threshold =
-				PeerSet::Validation.get_info(IsAuthority::Yes).max_notification_size as usize / 2;
+				PeerSet::Validation.get_max_notification_size(IsAuthority::Yes) as usize / 2;
 
 			(size >= threshold, Some(size))
 		},
@@ -1119,7 +1120,7 @@ async fn circulate_statement<'a, Context>(
 			statement = ?stored.statement,
 			"Sending statement",
 		);
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			peers_to_send.iter().map(|(p, _)| p.clone()).collect(),
 			payload,
 		))
@@ -1159,8 +1160,11 @@ async fn send_statements_about<Context>(
 			statement = ?statement.statement,
 			"Sending statement",
 		);
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload))
-			.await;
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+			vec![peer.clone()],
+			payload,
+		))
+		.await;
 
 		metrics.on_statement_distributed();
 	}
@@ -1191,8 +1195,11 @@ async fn send_statements<Context>(
 			statement = ?statement.statement,
 			"Sending statement"
 		);
-		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload))
-			.await;
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+			vec![peer.clone()],
+			payload,
+		))
+		.await;
 
 		metrics.on_statement_distributed();
 	}
@@ -1203,7 +1210,7 @@ async fn report_peer(
 	peer: PeerId,
 	rep: Rep,
 ) {
-	sender.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
+	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await
 }
 
 /// If message contains a statement, then retrieve it, otherwise fork task to fetch it.
@@ -1243,11 +1250,11 @@ async fn retrieve_statement_from_message<'a, Context>(
 
 					let is_new_peer = match info.available_peers.entry(peer) {
 						IEntry::Occupied(mut occupied) => {
-							occupied.get_mut().push(message);
+							occupied.get_mut().push(Versioned::V1(message));
 							false
 						},
 						IEntry::Vacant(vacant) => {
-							vacant.insert(vec![message]);
+							vacant.insert(vec![Versioned::V1(message)]);
 							true
 						},
 					};
@@ -1325,7 +1332,10 @@ async fn launch_request<Context>(
 	}
 	let available_peers = {
 		let mut m = IndexMap::new();
-		m.insert(peer, vec![protocol_v1::StatementDistributionMessage::LargeStatement(meta)]);
+		m.insert(
+			peer,
+			vec![Versioned::V1(protocol_v1::StatementDistributionMessage::LargeStatement(meta))],
+		);
 		m
 	};
 	Some(LargeStatementStatus::Fetching(FetchingInfo {
@@ -1345,7 +1355,7 @@ async fn handle_incoming_message_and_circulate<'a, Context, R>(
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	recent_outdated_heads: &RecentOutdatedHeads,
 	ctx: &mut Context,
-	message: protocol_v1::StatementDistributionMessage,
+	message: net_protocol::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 	runtime: &mut RuntimeInfo,
@@ -1378,7 +1388,7 @@ async fn handle_incoming_message_and_circulate<'a, Context, R>(
 		// statement before a `Seconded` statement. `Seconded` statements are the only ones
 		// that require dependents. Thus, if this is a `Seconded` statement for a candidate we
 		// were not aware of before, we cannot have any dependent statements from the candidate.
-		let _ = metrics.time_network_bridge_update_v1("circulate_statement");
+		let _ = metrics.time_network_bridge_update("circulate_statement");
 
 		let session_index = runtime.get_session_index_for_child(ctx.sender(), relay_parent).await;
 		let topology = match session_index {
@@ -1424,12 +1434,19 @@ async fn handle_incoming_message<'a, Context>(
 	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
 	recent_outdated_heads: &RecentOutdatedHeads,
 	ctx: &mut Context,
-	message: protocol_v1::StatementDistributionMessage,
+	message: net_protocol::StatementDistributionMessage,
 	req_sender: &mpsc::Sender<RequesterMessage>,
 	metrics: &Metrics,
 ) -> Option<(Hash, StoredStatement<'a>)> {
+	let _ = metrics.time_network_bridge_update("handle_incoming_message");
+
+	// TODO [now] handle vstaging messages
+	let message = match message {
+		Versioned::V1(m) => m,
+		Versioned::VStaging(_) => unimplemented!(),
+	};
+
 	let relay_parent = message.get_relay_parent();
-	let _ = metrics.time_network_bridge_update_v1("handle_incoming_message");
 
 	let active_head = match active_heads.get_mut(&relay_parent) {
 		Some(h) => h,
@@ -1642,8 +1659,11 @@ async fn handle_incoming_message<'a, Context>(
 
 			// When we receive a new message from a peer, we forward it to the
 			// candidate backing subsystem.
-			ctx.send_message(CandidateBackingMessage::Statement(relay_parent, statement_with_pvd))
-				.await;
+			ctx.send_message(CandidateBackingMessage::Statement(
+				relay_parent,
+				unimplemented!(), // TODO [now]: fixme
+			))
+			.await;
 
 			Some((relay_parent, statement))
 		},
@@ -1736,7 +1756,7 @@ async fn handle_network_update<Context, R>(
 			}
 		},
 		NetworkBridgeEvent::NewGossipTopology(topology) => {
-			let _ = metrics.time_network_bridge_update_v1("new_gossip_topology");
+			let _ = metrics.time_network_bridge_update("new_gossip_topology");
 
 			let new_session_index = topology.session;
 			let new_topology: SessionGridTopology = topology.into();
@@ -1760,7 +1780,7 @@ async fn handle_network_update<Context, R>(
 				}
 			}
 		},
-		NetworkBridgeEvent::PeerMessage(peer, Versioned::V1(message)) => {
+		NetworkBridgeEvent::PeerMessage(peer, message) => {
 			handle_incoming_message_and_circulate(
 				peer,
 				topology_storage,
@@ -1777,7 +1797,7 @@ async fn handle_network_update<Context, R>(
 			.await;
 		},
 		NetworkBridgeEvent::PeerViewChange(peer, view) => {
-			let _ = metrics.time_network_bridge_update_v1("peer_view_change");
+			let _ = metrics.time_network_bridge_update("peer_view_change");
 			gum::trace!(target: LOG_TARGET, ?peer, ?view, "Peer view change");
 			match peers.get_mut(&peer) {
 				Some(data) =>
@@ -1998,7 +2018,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				}
 			},
 			RequesterMessage::SendRequest(req) => {
-				ctx.send_message(NetworkBridgeMessage::SendRequests(
+				ctx.send_message(NetworkBridgeTxMessage::SendRequests(
 					vec![req],
 					IfDisconnected::ImmediateError,
 				))

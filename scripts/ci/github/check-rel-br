@@ -9,7 +9,7 @@
 
 grv=$(git remote --verbose | grep push)
 export RUST_LOG=none
-REPO=$(echo "$grv" | cut -d ' ' -f1 | cut -d$'\t' -f2 | cut -d '/' -f2 | cut -d '.' -f1 | sort | uniq)
+REPO=$(echo "$grv" | cut -d ' ' -f1 | cut -d$'\t' -f2 | sed 's/.*github.com\/\(.*\)/\1/g' | cut -d '/' -f2 | cut -d '.' -f1 | sort | uniq)
 echo "[+] Detected repo: $REPO"
 
 BRANCH=$(git branch --show-current)

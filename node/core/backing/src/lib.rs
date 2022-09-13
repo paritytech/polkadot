@@ -80,15 +80,15 @@ use futures::{
 
 use error::{Error, FatalResult};
 use polkadot_node_primitives::{
-	AvailableData, InvalidCandidate, PoV, SignedDisputeStatement, SignedFullStatementWithPVD,
-	StatementWithPVD, ValidationResult, BACKING_EXECUTION_TIMEOUT,
+	AvailableData, InvalidCandidate, PoV, SignedFullStatementWithPVD, StatementWithPVD,
+	ValidationResult, BACKING_EXECUTION_TIMEOUT,
 };
 use polkadot_node_subsystem::{
 	messages::{
 		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
-		CandidateValidationMessage, CollatorProtocolMessage, DisputeCoordinatorMessage,
-		HypotheticalDepthRequest, ProspectiveParachainsMessage, ProvisionableData,
-		ProvisionerMessage, RuntimeApiMessage, RuntimeApiRequest, StatementDistributionMessage,
+		CandidateValidationMessage, CollatorProtocolMessage, HypotheticalDepthRequest,
+		ProspectiveParachainsMessage, ProvisionableData, ProvisionerMessage, RuntimeApiMessage,
+		RuntimeApiRequest, StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -101,7 +101,7 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v2::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt,
 	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, PersistedValidationData,
-	SessionIndex, SigningContext, ValidationCode, ValidatorId, ValidatorIndex, ValidatorSignature,
+	SigningContext, ValidationCode, ValidatorId, ValidatorIndex, ValidatorSignature,
 	ValidityAttestation,
 };
 use sp_keystore::SyncCryptoStorePtr;
@@ -202,8 +202,6 @@ struct PerRelayParentState {
 	prospective_parachains_mode: ProspectiveParachainsMode,
 	/// The hash of the relay parent on top of which this job is doing it's work.
 	parent: Hash,
-	/// The session index this corresponds to.
-	session_index: SessionIndex,
 	/// The `ParaId` assigned to the local validator at this relay parent.
 	assignment: Option<ParaId>,
 	/// The candidates that are backed by enough validators in their group, by hash.
@@ -244,12 +242,13 @@ impl ProspectiveParachainsMode {
 struct ActiveLeafState {
 	prospective_parachains_mode: ProspectiveParachainsMode,
 	/// The candidates seconded at various depths under this active
-	/// leaf. A candidate can only be seconded when its hypothetical
-	/// depth under every active leaf has an empty entry in this map.
+	/// leaf with respect to parachain id. A candidate can only be
+	/// seconded when its hypothetical depth under every active leaf
+	/// has an empty entry in this map.
 	///
 	/// When prospective parachains are disabled, the only depth
 	/// which is allowed is 0.
-	seconded_at_depth: BTreeMap<usize, CandidateHash>,
+	seconded_at_depth: HashMap<ParaId, BTreeMap<usize, CandidateHash>>,
 }
 
 /// The state of the subsystem.
@@ -738,8 +737,6 @@ async fn validate_and_make_available(
 	tx_command.send((relay_parent, make_command(res))).await.map_err(Into::into)
 }
 
-struct ValidatorIndexOutOfBounds;
-
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn handle_communication<Context>(
 	ctx: &mut Context,
@@ -869,7 +866,7 @@ async fn handle_active_leaves_update<Context>(
 					// when prospective parachains are disabled is the leaf hash and 0,
 					// respectively. We've just learned about the leaf hash, so we cannot
 					// have any candidates seconded with it as a relay-parent yet.
-					seconded_at_depth: BTreeMap::new(),
+					seconded_at_depth: HashMap::new(),
 				},
 			);
 
@@ -895,7 +892,8 @@ async fn handle_active_leaves_update<Context>(
 
 			for (candidate_hash, para_id) in remaining_seconded {
 				let (tx, rx) = oneshot::channel();
-				membership_answers.push(rx.map_ok(move |membership| (candidate_hash, membership)));
+				membership_answers
+					.push_back(rx.map_ok(move |membership| (para_id, candidate_hash, membership)));
 
 				ctx.send_message(ProspectiveParachainsMessage::GetTreeMembership(
 					para_id,
@@ -905,7 +903,7 @@ async fn handle_active_leaves_update<Context>(
 				.await;
 			}
 
-			let mut seconded_at_depth = BTreeMap::new();
+			let mut seconded_at_depth = HashMap::new();
 			for response in membership_answers.next().await {
 				match response {
 					Err(oneshot::Canceled) => {
@@ -916,15 +914,17 @@ async fn handle_active_leaves_update<Context>(
 
 						continue
 					},
-					Ok((candidate_hash, membership)) => {
+					Ok((para_id, candidate_hash, membership)) => {
 						// This request gives membership in all fragment trees. We have some
 						// wasted data here, and it can be optimized if it proves
 						// relevant to performance.
 						if let Some((_, depths)) =
 							membership.into_iter().find(|(leaf_hash, _)| leaf_hash == &leaf.hash)
 						{
+							let para_entry: &mut BTreeMap<usize, CandidateHash> =
+								seconded_at_depth.entry(para_id).or_default();
 							for depth in depths {
-								seconded_at_depth.insert(depth, candidate_hash);
+								para_entry.insert(depth, candidate_hash);
 							}
 						}
 					},
@@ -1092,7 +1092,6 @@ async fn construct_per_relay_parent_state<Context>(
 	Ok(Some(PerRelayParentState {
 		prospective_parachains_mode: mode,
 		parent,
-		session_index,
 		assignment,
 		backed: HashSet::new(),
 		table: Table::new(table_config),
@@ -1160,14 +1159,18 @@ async fn seconding_sanity_check<Context>(
 				tx,
 			))
 			.await;
-			responses.push(rx.map_ok(move |depths| (depths, head, leaf_state)).boxed());
+			responses.push_back(rx.map_ok(move |depths| (depths, head, leaf_state)).boxed());
 		} else {
 			if head == &candidate_relay_parent {
-				if leaf_state.seconded_at_depth.contains_key(&0) {
+				if leaf_state
+					.seconded_at_depth
+					.get(&candidate_para)
+					.map_or(false, |occupied| occupied.contains_key(&0))
+				{
 					// The leaf is already occupied.
 					return SecondingAllowed::No
 				}
-				responses.push(futures::future::ok((vec![0], head, leaf_state)).boxed());
+				responses.push_back(futures::future::ok((vec![0], head, leaf_state)).boxed());
 			}
 		}
 	}
@@ -1188,7 +1191,11 @@ async fn seconding_sanity_check<Context>(
 			},
 			Ok((depths, head, leaf_state)) => {
 				for depth in &depths {
-					if leaf_state.seconded_at_depth.contains_key(&depth) {
+					if leaf_state
+						.seconded_at_depth
+						.get(&candidate_para)
+						.map_or(false, |occupied| occupied.contains_key(&depth))
+					{
 						gum::debug!(
 							target: LOG_TARGET,
 							?candidate_hash,
@@ -1323,8 +1330,13 @@ async fn handle_validated_candidate_command<Context>(
 									Some(d) => d,
 								};
 
+								let seconded_at_depth = leaf_data
+									.seconded_at_depth
+									.entry(candidate.descriptor().para_id)
+									.or_default();
+
 								for depth in depths {
-									leaf_data.seconded_at_depth.insert(depth, candidate_hash);
+									seconded_at_depth.insert(depth, candidate_hash);
 								}
 							}
 
@@ -1430,67 +1442,6 @@ async fn sign_statement(
 	Some(signed)
 }
 
-/// The dispute coordinator keeps track of all statements by validators about every recent
-/// candidate.
-///
-/// When importing a statement, this should be called access the candidate receipt either
-/// from the statement itself or from the underlying statement table in order to craft
-/// and dispatch the notification to the dispute coordinator.
-///
-/// This also does bounds-checking on the validator index and will return an error if the
-/// validator index is out of bounds for the current validator set. It's expected that
-/// this should never happen due to the interface of the candidate backing subsystem -
-/// the networking component responsible for feeding statements to the backing subsystem
-/// is meant to check the signature and provenance of all statements before submission.
-#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn dispatch_new_statement_to_dispute_coordinator<Context>(
-	ctx: &mut Context,
-	rp_state: &PerRelayParentState,
-	candidate_hash: CandidateHash,
-	statement: &SignedFullStatementWithPVD,
-) -> Result<(), ValidatorIndexOutOfBounds> {
-	// Dispatch the statement to the dispute coordinator.
-	let validator_index = statement.validator_index();
-	let signing_context =
-		SigningContext { parent_hash: rp_state.parent, session_index: rp_state.session_index };
-
-	let validator_public = match rp_state.table_context.validators.get(validator_index.0 as usize) {
-		None => return Err(ValidatorIndexOutOfBounds),
-		Some(v) => v,
-	};
-
-	let maybe_candidate_receipt = match statement.payload() {
-		StatementWithPVD::Seconded(receipt, _) => Some(receipt.to_plain()),
-		StatementWithPVD::Valid(candidate_hash) => {
-			// Valid statements are only supposed to be imported
-			// once we've seen at least one `Seconded` statement.
-			rp_state.table.get_candidate(&candidate_hash).map(|c| c.to_plain())
-		},
-	};
-
-	let maybe_signed_dispute_statement = SignedDisputeStatement::from_backing_statement(
-		statement.as_unchecked(),
-		signing_context,
-		validator_public.clone(),
-	)
-	.ok();
-
-	if let (Some(candidate_receipt), Some(dispute_statement)) =
-		(maybe_candidate_receipt, maybe_signed_dispute_statement)
-	{
-		ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
-			candidate_hash,
-			candidate_receipt,
-			session: rp_state.session_index,
-			statements: vec![(dispute_statement, validator_index)],
-			pending_confirmation: None,
-		})
-		.await;
-	}
-
-	Ok(())
-}
-
 /// Import a statement into the statement table and return the summary of the import.
 ///
 /// This will fail with `Error::RejectedByProspectiveParachains` if the message type
@@ -1569,21 +1520,6 @@ async fn import_statement<Context>(
 				},
 			);
 		}
-	}
-
-	if let Err(ValidatorIndexOutOfBounds) =
-		dispatch_new_statement_to_dispute_coordinator(ctx, rp_state, candidate_hash, statement)
-			.await
-	{
-		gum::warn!(
-			target: LOG_TARGET,
-			session_index = ?rp_state.session_index,
-			relay_parent = ?rp_state.parent,
-			validator_index = statement.validator_index().0,
-			"Supposedly 'Signed' statement has validator index out of bounds."
-		);
-
-		return Ok(None)
 	}
 
 	let stmt = primitive_statement_to_table(statement);

@@ -1,4 +1,4 @@
-{%- import "change.md.tera" as m_c %}
+{% import "change.md.tera" as m_c %}
 {%- set_global db_migration_count = 0 -%}
 {%- for pr in changes -%}
     {%- if pr.meta.B and pr.meta.B.value == 0 %}
@@ -6,7 +6,7 @@
     {%- elif pr.meta.E and pr.meta.E.value == 2 -%}
         {%- set_global db_migration_count = db_migration_count + 1 -%}
     {%- endif -%}
-{%- endfor -%}
+{%- endfor %}
 
 ## Database Migrations
 
