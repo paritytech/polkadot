@@ -22,6 +22,7 @@ use frame_support::{
 	storage::migration::clear_storage_prefix,
 	storage_alias,
 	traits::{Get, PalletInfoAccess, StorageVersion},
+	weights::Weight,
 	Twox64Concat,
 };
 
@@ -76,7 +77,7 @@ pub mod v1 {
 	}
 
 	/// This migration converts the storage to a new representation which enables pagination.
-	pub fn migrate<T: Config>() -> frame_support::weights::Weight {
+	pub fn migrate<T: Config>() -> Weight {
 		let config = <configuration::Pallet<T>>::config();
 		let version = StorageVersion::get::<dmp::Pallet<T>>();
 
@@ -87,20 +88,23 @@ pub mod v1 {
 		);
 
 		if version < STORAGE_VERSION {
-			let weight = v0::DownwardMessageQueues::<T>::iter()
+			let weights = v0::DownwardMessageQueues::<T>::iter()
 				.map(|(para_id, messages)| {
-					let mut weight = 0u64;
+					let mut weight = Weight::zero();
 					for message in messages {
 						let queue_weight =
 							<dmp::Pallet<T>>::queue_downward_message(&config, para_id, message.msg)
 								.expect("Failed to queue a message");
-						weight = weight.saturating_add(
-							queue_weight.saturating_add(T::DbWeight::get().reads(1)),
-						);
+						weight += queue_weight.saturating_add(T::DbWeight::get().reads(1));
 					}
 					weight
 				})
-				.sum::<u64>();
+				.collect::<Vec<Weight>>();
+
+			let mut weight = Weight::zero();
+			for weight_entry in weights {
+				weight = weight.saturating_add(weight_entry);
+			}
 
 			// Update current storage version to latest.
 			STORAGE_VERSION.put::<dmp::Pallet<T>>();
@@ -116,7 +120,7 @@ pub mod v1 {
 
 			weight.saturating_add(T::DbWeight::get().writes(results.unique as u64))
 		} else {
-			0
+			Weight::zero()
 		}
 	}
 

@@ -46,7 +46,7 @@ use crate::{
 	initializer,
 };
 
-use frame_support::pallet_prelude::*;
+use frame_support::{pallet_prelude::*, weights::Weight};
 use primitives::v2::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
 use sp_std::{fmt, prelude::*};
@@ -244,22 +244,15 @@ impl<T: Config> Pallet<T> {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 
-		let mut weight = 0u64;
+		let mut weight = Weight::zero();
 		let QueueState { ring_buffer_state, message_window_state } = Self::dmp_queue_state(para);
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 0));
 
 		let mut ring_buf = RingBuffer::with_state(ring_buffer_state, para);
 		let mut message_window = MessageWindow::with_state(message_window_state, para);
 
-		// Check if we need a new page.
-		let mut page_idx = if ring_buf.size() == 0 {
-			// Get a fresh page.
-			ring_buf.extend()
-		} else {
-			// We've checked the queue is not empty, so `last_used` is guaranteed `Some`.
-			// This page might be full but we check that later.
-			ring_buf.last_used().unwrap()
-		};
+		// Get a new page.
+		let mut page_idx = ring_buf.last_used().unwrap_or_else(|| ring_buf.extend());
 
 		let last_used_len = <Self as Store>::DownwardMessageQueuePages::decode_len(page_idx)
 			.unwrap_or(0)
@@ -301,7 +294,10 @@ impl<T: Config> Pallet<T> {
 
 		let ring_buffer_state = ring_buf.into_inner();
 		let message_window_state = message_window.into_inner();
-		Self::update_state(&para, QueueState { ring_buffer_state, message_window_state });
+		weight = weight.saturating_add(Self::update_state(
+			&para,
+			QueueState { ring_buffer_state, message_window_state },
+		));
 
 		Ok(weight)
 	}
@@ -351,7 +347,7 @@ impl<T: Config> Pallet<T> {
 		if processed_downward_messages == 0 {
 			// This should never happen in practice, because of the advancement rule - parachains must
 			// process one message at least per para block.
-			return 0
+			return Weight::zero()
 		}
 
 		let QueueState { ring_buffer_state, message_window_state } = Self::dmp_queue_state(para);
@@ -418,7 +414,10 @@ impl<T: Config> Pallet<T> {
 
 		let ring_buffer_state = ring_buf.into_inner();
 		let message_window_state = message_window.into_inner();
-		Self::update_state(&para, QueueState { ring_buffer_state, message_window_state });
+		total_weight = total_weight.saturating_add(Self::update_state(
+			&para,
+			QueueState { ring_buffer_state, message_window_state },
+		));
 		total_weight += T::DbWeight::get().reads_writes(0, 1);
 
 		total_weight
