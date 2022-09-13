@@ -16,16 +16,17 @@
 
 use std::{
 	collections::{HashMap, HashSet},
+	convert::TryInto,
 	time::Duration,
 };
 
-use bitvec::prelude::*;
+use bitvec::{bitvec, vec::BitVec};
 use futures::{channel::oneshot, pin_mut, select, FutureExt, StreamExt};
 use sp_core::Pair;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
-	peer_set::PeerSet,
+	peer_set::{CollationVersion, PeerSet},
 	request_response::{
 		incoming::{self, OutgoingResponse},
 		v1 as request_v1, vstaging as request_vstaging, IncomingRequestReceiver,
@@ -92,7 +93,7 @@ struct ValidatorGroup {
 
 	/// Bits indicating which validators have already seen the announcement
 	/// per candidate.
-	advertised_to: HashMap<CandidateHash, BitVec<u8, Lsb0>>,
+	advertised_to: HashMap<CandidateHash, BitVec>,
 }
 
 impl ValidatorGroup {
@@ -146,11 +147,19 @@ impl ValidatorGroup {
 				};
 				self.advertised_to
 					.entry(*candidate_hash)
-					.or_insert_with(|| bitvec![u8, Lsb0; 0; self.validators.len()])
+					.or_insert_with(|| bitvec![0; self.validators.len()])
 					.set(validator_index, true);
 			}
 		}
 	}
+}
+
+#[derive(Debug)]
+struct PeerData {
+	/// Peer's view.
+	view: View,
+	/// Network protocol version.
+	version: CollationVersion,
 }
 
 struct PerRelayParent {
@@ -185,7 +194,7 @@ struct State {
 
 	/// Track all active peers and their views
 	/// to determine what is relevant to them.
-	peer_views: HashMap<PeerId, View>,
+	peer_data: HashMap<PeerId, PeerData>,
 
 	/// Leaves that do support asynchronous backing along with
 	/// implicit ancestry. Leaves from the implicit view are present in
@@ -241,7 +250,7 @@ impl State {
 			collator_pair,
 			metrics,
 			collating_on: Default::default(),
-			peer_views: Default::default(),
+			peer_data: Default::default(),
 			implicit_view: Default::default(),
 			active_leaves: Default::default(),
 			per_relay_parent: Default::default(),
@@ -384,29 +393,29 @@ async fn distribute_collation<Context>(
 
 	// It's collation-producer responsibility to verify that there exists
 	// a hypothetical membership in a fragment tree for candidate.
-	let interested: Vec<PeerId> = state
-		.peer_views
-		.iter()
-		.filter(|(_, v)| match relay_parent_mode {
-			ProspectiveParachainsMode::Disabled => v.contains(&candidate_relay_parent),
-			ProspectiveParachainsMode::Enabled => v.iter().any(|block_hash| {
-				state
-					.implicit_view
-					.known_allowed_relay_parents_under(block_hash, Some(id))
-					.unwrap_or_default()
-					.contains(&candidate_relay_parent)
-			}),
-		})
-		.map(|(peer, _)| *peer)
-		.collect();
+	let interested =
+		state
+			.peer_data
+			.iter()
+			.filter(|(_, PeerData { view: v, .. })| match relay_parent_mode {
+				ProspectiveParachainsMode::Disabled => v.contains(&candidate_relay_parent),
+				ProspectiveParachainsMode::Enabled => v.iter().any(|block_hash| {
+					state
+						.implicit_view
+						.known_allowed_relay_parents_under(block_hash, Some(id))
+						.unwrap_or_default()
+						.contains(&candidate_relay_parent)
+				}),
+			});
 
 	// Make sure already connected peers get collations:
-	for peer_id in interested {
+	for (peer_id, peer_data) in interested {
 		advertise_collation(
 			ctx,
 			candidate_relay_parent,
 			per_relay_parent,
-			&peer_id,
+			peer_id,
+			peer_data.version,
 			&state.peer_ids,
 			&state.metrics,
 		)
@@ -491,23 +500,48 @@ async fn determine_our_validators<Context>(
 	Ok(current_validators)
 }
 
+fn declare_message(
+	state: &mut State,
+	version: CollationVersion,
+) -> Option<Versioned<protocol_v1::CollationProtocol, protocol_vstaging::CollationProtocol>> {
+	let para_id = state.collating_on?;
+	Some(match version {
+		CollationVersion::V1 => {
+			let declare_signature_payload =
+				protocol_v1::declare_signature_payload(&state.local_peer_id);
+			let wire_message = protocol_v1::CollatorProtocolMessage::Declare(
+				state.collator_pair.public(),
+				para_id,
+				state.collator_pair.sign(&declare_signature_payload),
+			);
+			Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message))
+		},
+		CollationVersion::VStaging => {
+			let declare_signature_payload =
+				protocol_vstaging::declare_signature_payload(&state.local_peer_id);
+			let wire_message = protocol_vstaging::CollatorProtocolMessage::Declare(
+				state.collator_pair.public(),
+				para_id,
+				state.collator_pair.sign(&declare_signature_payload),
+			);
+			Versioned::VStaging(protocol_vstaging::CollationProtocol::CollatorProtocol(
+				wire_message,
+			))
+		},
+	})
+}
+
 /// Issue a `Declare` collation message to the given `peer`.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
-async fn declare<Context>(ctx: &mut Context, state: &mut State, peer: PeerId) {
-	let declare_signature_payload = protocol_v1::declare_signature_payload(&state.local_peer_id);
-
-	if let Some(para_id) = state.collating_on {
-		let wire_message = protocol_v1::CollatorProtocolMessage::Declare(
-			state.collator_pair.public(),
-			para_id,
-			state.collator_pair.sign(&declare_signature_payload),
-		);
-
-		ctx.send_message(NetworkBridgeTxMessage::SendCollationMessage(
-			vec![peer],
-			Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
-		))
-		.await;
+async fn declare<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	peer: &PeerId,
+	version: CollationVersion,
+) {
+	if let Some(wire_message) = declare_message(state, version) {
+		ctx.send_message(NetworkBridgeTxMessage::SendCollationMessage(vec![*peer], wire_message))
+			.await;
 	}
 }
 
@@ -539,6 +573,7 @@ async fn advertise_collation<Context>(
 	relay_parent: Hash,
 	per_relay_parent: &mut PerRelayParent,
 	peer: &PeerId,
+	protocol_version: CollationVersion,
 	peer_ids: &HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 	metrics: &Metrics,
 ) {
@@ -566,8 +601,8 @@ async fn advertise_collation<Context>(
 		);
 		collation.status.advance_to_advertised();
 
-		let collation_message = match per_relay_parent.prospective_parachains_mode {
-			ProspectiveParachainsMode::Enabled => {
+		let collation_message = match protocol_version {
+			CollationVersion::VStaging => {
 				let wire_message = protocol_vstaging::CollatorProtocolMessage::AdvertiseCollation {
 					relay_parent,
 					candidate_hash: *candidate_hash,
@@ -577,7 +612,16 @@ async fn advertise_collation<Context>(
 					wire_message,
 				))
 			},
-			ProspectiveParachainsMode::Disabled => {
+			CollationVersion::V1 => {
+				if per_relay_parent.prospective_parachains_mode.is_enabled() {
+					gum::warn!(
+						target: LOG_TARGET,
+						?relay_parent,
+						peer_id = %peer,
+						"Skipping advertisement to validator, incorrect network protocol version",
+					);
+					return
+				}
 				let wire_message =
 					protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent);
 				Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message))
@@ -594,7 +638,7 @@ async fn advertise_collation<Context>(
 			.validator_group
 			.advertised_to_peer(candidate_hash, &peer_ids, peer);
 
-		metrics.on_advertisment_made();
+		metrics.on_advertisement_made();
 	}
 }
 
@@ -879,7 +923,7 @@ async fn handle_incoming_request<Context>(
 			}
 
 			if waiting.collation_fetch_active {
-				waiting.waiting.push_back(req);
+				waiting.req_queue.push_back(req);
 			} else {
 				waiting.collation_fetch_active = true;
 				// Obtain a timer for sending collation
@@ -914,7 +958,10 @@ async fn handle_peer_view_change<Context>(
 	peer_id: PeerId,
 	view: View,
 ) {
-	let current = state.peer_views.entry(peer_id.clone()).or_default();
+	let PeerData { view: current, version } = match state.peer_data.get_mut(&peer_id) {
+		Some(peer_data) => peer_data,
+		None => return,
+	};
 
 	let added: Vec<Hash> = view.difference(&*current).cloned().collect();
 
@@ -952,6 +999,7 @@ async fn handle_peer_view_change<Context>(
 				*block_hash,
 				per_relay_parent,
 				&peer_id,
+				*version,
 				&state.peer_ids,
 				&state.metrics,
 			)
@@ -971,10 +1019,30 @@ async fn handle_network_msg<Context>(
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
-		PeerConnected(peer_id, observed_role, _, maybe_authority) => {
+		PeerConnected(peer_id, observed_role, protocol_version, maybe_authority) => {
 			// If it is possible that a disconnected validator would attempt a reconnect
 			// it should be handled here.
 			gum::trace!(target: LOG_TARGET, ?peer_id, ?observed_role, "Peer connected");
+
+			let version = match protocol_version.try_into() {
+				Ok(version) => version,
+				Err(err) => {
+					// Network bridge is expected to handle this.
+					gum::error!(
+						target: LOG_TARGET,
+						?peer_id,
+						?observed_role,
+						?err,
+						"Unsupported protocol version"
+					);
+					return Ok(())
+				},
+			};
+			state
+				.peer_data
+				.entry(peer_id)
+				.or_insert_with(|| PeerData { view: View::default(), version });
+
 			if let Some(authority_ids) = maybe_authority {
 				gum::trace!(
 					target: LOG_TARGET,
@@ -984,7 +1052,7 @@ async fn handle_network_msg<Context>(
 				);
 				state.peer_ids.insert(peer_id, authority_ids);
 
-				declare(ctx, state, peer_id).await;
+				declare(ctx, state, &peer_id, version).await;
 			}
 		},
 		PeerViewChange(peer_id, view) => {
@@ -993,7 +1061,7 @@ async fn handle_network_msg<Context>(
 		},
 		PeerDisconnected(peer_id) => {
 			gum::trace!(target: LOG_TARGET, ?peer_id, "Peer disconnected");
-			state.peer_views.remove(&peer_id);
+			state.peer_data.remove(&peer_id);
 			state.peer_ids.remove(&peer_id);
 		},
 		OurViewChange(view) => {
@@ -1151,13 +1219,12 @@ pub(crate) async fn run<Context>(
 							"Sending collation to validator timed out, carrying on with next validator."
 						);
 						// Drop all requests from slow peer.
-						waiting.waiting_peers.retain(|(waiting_peer_id, ..)|  *waiting_peer_id != peer_id);
-						waiting.waiting.retain(|req| req.peer_id() != peer_id);
+						waiting.req_queue.retain(|req| req.peer_id() != peer_id);
 					} else {
 						waiting.waiting_peers.remove(&(peer_id, candidate_hash));
 					}
 
-					if let Some(next) = waiting.waiting.pop_front() {
+					if let Some(next) = waiting.req_queue.pop_front() {
 						next
 					} else {
 						waiting.collation_fetch_active = false;

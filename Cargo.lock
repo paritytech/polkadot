@@ -553,9 +553,9 @@ dependencies = [
 
 [[package]]
 name = "bitvec"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1489fcb93a5bb47da0462ca93ad252ad6af2145cce58d10d46a83931ba9f016b"
+checksum = "1bc2832c24239b0141d5674bb9174f9d68a8b5b3f2753311927c172ca46f7e9c"
 dependencies = [
  "funty 2.0.0",
  "radium 0.7.0",
@@ -3220,7 +3220,7 @@ name = "kusama-runtime"
 version = "0.9.28"
 dependencies = [
  "beefy-primitives",
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -5755,7 +5755,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9182e4a71cae089267ab03e67c99368db7cd877baf50f931e5d6d4b71e195ac0"
 dependencies = [
  "arrayvec 0.7.2",
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "byte-slice-cast",
  "bytes",
  "impl-trait-for-tuples",
@@ -6062,7 +6062,7 @@ version = "0.9.28"
 dependencies = [
  "always-assert",
  "assert_matches",
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "env_logger 0.9.0",
  "futures",
  "log",
@@ -6213,7 +6213,7 @@ version = "0.9.28"
 dependencies = [
  "always-assert",
  "assert_matches",
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "env_logger 0.9.0",
  "fatality",
  "futures",
@@ -6373,7 +6373,7 @@ version = "0.9.28"
 dependencies = [
  "assert_matches",
  "async-trait",
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "derive_more",
  "futures",
  "futures-timer",
@@ -6411,7 +6411,7 @@ name = "polkadot-node-core-av-store"
 version = "0.9.28"
 dependencies = [
  "assert_matches",
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "env_logger 0.9.0",
  "futures",
  "futures-timer",
@@ -6439,7 +6439,7 @@ name = "polkadot-node-core-backing"
 version = "0.9.28"
 dependencies = [
  "assert_matches",
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "fatality",
  "futures",
  "polkadot-erasure-coding",
@@ -6586,7 +6586,7 @@ name = "polkadot-node-core-prospective-parachains"
 version = "0.9.16"
 dependencies = [
  "assert_matches",
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "fatality",
  "futures",
  "parity-scale-codec 2.3.1",
@@ -6603,7 +6603,7 @@ dependencies = [
 name = "polkadot-node-core-provisioner"
 version = "0.9.28"
 dependencies = [
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "fatality",
  "futures",
  "futures-timer",
@@ -6937,7 +6937,7 @@ dependencies = [
 name = "polkadot-primitives"
 version = "0.9.28"
 dependencies = [
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "frame-system",
  "hex-literal",
  "parity-scale-codec 3.1.5",
@@ -7009,7 +7009,7 @@ name = "polkadot-runtime"
 version = "0.9.28"
 dependencies = [
  "beefy-primitives",
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -7104,7 +7104,7 @@ name = "polkadot-runtime-common"
 version = "0.9.28"
 dependencies = [
  "beefy-primitives",
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-support",
@@ -7178,7 +7178,7 @@ version = "0.9.28"
 dependencies = [
  "assert_matches",
  "bitflags",
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "derive_more",
  "frame-benchmarking",
  "frame-support",
@@ -7434,7 +7434,7 @@ name = "polkadot-test-runtime"
 version = "0.9.28"
 dependencies = [
  "beefy-primitives",
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "frame-election-provider-support",
  "frame-executive",
  "frame-support",
@@ -9501,7 +9501,7 @@ version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c46be926081c9f4dd5dd9b6f1d3e3229f2360bc6502dd8836f84a93b7c75e99a"
 dependencies = [
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "cfg-if 1.0.0",
  "derive_more",
  "parity-scale-codec 3.1.5",
@@ -12287,7 +12287,7 @@ name = "westend-runtime"
 version = "0.9.28"
 dependencies = [
  "beefy-primitives",
- "bitvec 1.0.0",
+ "bitvec 1.0.1",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",

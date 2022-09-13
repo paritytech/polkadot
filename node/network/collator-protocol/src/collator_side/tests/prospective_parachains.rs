@@ -129,6 +129,40 @@ async fn update_view(
 	}
 }
 
+/// Check that the next received message is a `Declare` message.
+pub(super) async fn expect_declare_msg_vstaging(
+	virtual_overseer: &mut VirtualOverseer,
+	test_state: &TestState,
+	peer: &PeerId,
+) {
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendCollationMessage(
+			to,
+			Versioned::VStaging(protocol_vstaging::CollationProtocol::CollatorProtocol(
+				wire_message,
+			)),
+		)) => {
+			assert_eq!(to[0], *peer);
+			assert_matches!(
+				wire_message,
+				protocol_vstaging::CollatorProtocolMessage::Declare(
+					collator_id,
+					para_id,
+					signature,
+				) => {
+					assert!(signature.verify(
+						&*protocol_vstaging::declare_signature_payload(&test_state.local_peer_id),
+						&collator_id),
+					);
+					assert_eq!(collator_id, test_state.collator_pair.public());
+					assert_eq!(para_id, test_state.para_id);
+				}
+			);
+		}
+	);
+}
+
 /// Test that a collator distributes a collation from the allowed ancestry
 /// to correct validators group.
 #[test]
@@ -171,12 +205,18 @@ fn distribute_collation_from_implicit_view() {
 			.into_iter()
 			.zip(validator_peer_ids.clone())
 		{
-			connect_peer(virtual_overseer, peer.clone(), Some(val.clone())).await;
+			connect_peer(
+				virtual_overseer,
+				peer.clone(),
+				CollationVersion::VStaging,
+				Some(val.clone()),
+			)
+			.await;
 		}
 
 		// Collator declared itself to each peer.
 		for peer_id in &validator_peer_ids {
-			expect_declare_msg(virtual_overseer, &test_state, peer_id).await;
+			expect_declare_msg_vstaging(virtual_overseer, &test_state, peer_id).await;
 		}
 
 		let pov = PoV { block_data: BlockData(vec![1, 2, 3]) };
@@ -391,8 +431,14 @@ fn advertise_and_send_collation_by_hash() {
 
 		let peer = test_state.validator_peer_id[0].clone();
 		let validator_id = test_state.current_group_validator_authority_ids()[0].clone();
-		connect_peer(&mut virtual_overseer, peer.clone(), Some(validator_id.clone())).await;
-		expect_declare_msg(&mut virtual_overseer, &test_state, &peer).await;
+		connect_peer(
+			&mut virtual_overseer,
+			peer.clone(),
+			CollationVersion::VStaging,
+			Some(validator_id.clone()),
+		)
+		.await;
+		expect_declare_msg_vstaging(&mut virtual_overseer, &test_state, &peer).await;
 
 		// Head `b` is not a leaf, but both advertisements are still relevant.
 		send_peer_view_change(&mut virtual_overseer, &peer, vec![head_b]).await;

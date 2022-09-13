@@ -74,7 +74,7 @@ pub struct WaitingCollationFetches {
 	/// If set to `true`, any new request will be queued.
 	pub collation_fetch_active: bool,
 	/// The collation fetches waiting to be fulfilled.
-	pub waiting: VecDeque<VersionedCollationRequest>,
+	pub req_queue: VecDeque<VersionedCollationRequest>,
 	/// All peers that are waiting or actively uploading.
 	///
 	/// We will not accept multiple requests from the same peer, otherwise our DoS protection of

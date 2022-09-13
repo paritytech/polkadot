@@ -20,7 +20,7 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
-	pub fn on_advertisment_made(&self) {
+	pub fn on_advertisement_made(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.advertisements_made.inc();
 		}
