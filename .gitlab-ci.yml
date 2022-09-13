@@ -217,7 +217,7 @@ build-linux-stable:
     # Ensure we run the UI tests.
     RUN_UI_TESTS: 1
   script:
-    - time cargo build --profile testnet --features pyroscope --verbose --bin polkadot
+    - time cargo build --profile testnet --features pyroscope,fast-runtime --verbose --bin polkadot
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
