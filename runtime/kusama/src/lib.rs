@@ -1442,7 +1442,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(pallet_nomination_pools::migration::v3::MigrateToV3<Runtime>, DmpStorageMigration)
+	(pallet_nomination_pools::migration::v3::MigrateToV3<Runtime>, DmpStorageMigration),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
