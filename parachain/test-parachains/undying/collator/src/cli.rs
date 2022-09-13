@@ -120,6 +120,10 @@ impl SubstrateCli for Cli {
 			"rococo-local" =>
 				Box::new(polkadot_service::chain_spec::rococo_local_testnet_config()?),
 			"rococo" => Box::new(polkadot_service::chain_spec::rococo_config()?),
+			"polkadot-local" =>
+				Box::new(polkadot_service::chain_spec::polkadot_local_testnet_config()?),
+			"kusama-local" =>
+				Box::new(polkadot_service::chain_spec::kusama_local_testnet_config()?),
 			path => {
 				let path = std::path::PathBuf::from(path);
 				Box::new(polkadot_service::RococoChainSpec::from_json_file(path)?)
