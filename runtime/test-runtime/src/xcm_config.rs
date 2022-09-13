@@ -78,7 +78,7 @@ impl InvertLocation for InvertNothing {
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
-	type Call = super::Call;
+	type RuntimeCall = super::RuntimeCall;
 	type XcmSender = DoNothingRouter;
 	type AssetTransactor = DummyAssetTransactor;
 	type OriginConverter = pallet_xcm::XcmPassthrough<super::Origin>;
@@ -86,7 +86,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = ();
 	type LocationInverter = InvertNothing;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::Call, MaxInstructions>;
+	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::RuntimeCall, MaxInstructions>;
 	type Trader = DummyWeightTrader;
 	type ResponseHandler = super::Xcm;
 	type AssetTrap = super::Xcm;

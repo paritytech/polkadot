@@ -51,9 +51,9 @@ pub struct XcmExecutor<Config: config::Config> {
 	/// the weight of dynamically determined instructions such as `Transact`).
 	pub total_surplus: u64,
 	pub total_refunded: u64,
-	pub error_handler: Xcm<Config::Call>,
+	pub error_handler: Xcm<Config::RuntimeCall>,
 	pub error_handler_weight: u64,
-	pub appendix: Xcm<Config::Call>,
+	pub appendix: Xcm<Config::RuntimeCall>,
 	pub appendix_weight: u64,
 	_config: PhantomData<Config>,
 }
@@ -61,10 +61,10 @@ pub struct XcmExecutor<Config: config::Config> {
 /// The maximum recursion limit for `execute_xcm` and `execute_effects`.
 pub const MAX_RECURSION_LIMIT: u32 = 8;
 
-impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
+impl<Config: config::Config> ExecuteXcm<Config::RuntimeCall> for XcmExecutor<Config> {
 	fn execute_xcm_in_credit(
 		origin: impl Into<MultiLocation>,
-		mut message: Xcm<Config::Call>,
+		mut message: Xcm<Config::RuntimeCall>,
 		weight_limit: Weight,
 		mut weight_credit: Weight,
 	) -> Outcome {
@@ -180,7 +180,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 	/// Execute the XCM program fragment and report back the error and which instruction caused it,
 	/// or `Ok` if there was no error.
-	pub fn execute(&mut self, xcm: Xcm<Config::Call>) -> Result<(), ExecutorError> {
+	pub fn execute(&mut self, xcm: Xcm<Config::RuntimeCall>) -> Result<(), ExecutorError> {
 		log::trace!(
 			target: "xcm::execute",
 			"origin: {:?}, total_surplus/refunded: {:?}/{:?}, error_handler_weight: {:?}",
@@ -231,8 +231,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	}
 
 	/// Remove the registered error handler and return it. Do not refund its weight.
-	fn take_error_handler(&mut self) -> Xcm<Config::Call> {
-		let mut r = Xcm::<Config::Call>(vec![]);
+	fn take_error_handler(&mut self) -> Xcm<Config::RuntimeCall> {
+		let mut r = Xcm::<Config::RuntimeCall>(vec![]);
 		sp_std::mem::swap(&mut self.error_handler, &mut r);
 		self.error_handler_weight = 0;
 		r
@@ -240,14 +240,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 	/// Drop the registered error handler and refund its weight.
 	fn drop_error_handler(&mut self) {
-		self.error_handler = Xcm::<Config::Call>(vec![]);
+		self.error_handler = Xcm::<Config::RuntimeCall>(vec![]);
 		self.total_surplus.saturating_accrue(self.error_handler_weight);
 		self.error_handler_weight = 0;
 	}
 
 	/// Remove the registered appendix and return it.
-	fn take_appendix(&mut self) -> Xcm<Config::Call> {
-		let mut r = Xcm::<Config::Call>(vec![]);
+	fn take_appendix(&mut self) -> Xcm<Config::RuntimeCall> {
+		let mut r = Xcm::<Config::RuntimeCall>(vec![]);
 		sp_std::mem::swap(&mut self.appendix, &mut r);
 		self.appendix_weight = 0;
 		r
@@ -265,7 +265,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	}
 
 	/// Process a single XCM instruction, mutating the state of the XCM virtual machine.
-	fn process_instruction(&mut self, instr: Instruction<Config::Call>) -> Result<(), XcmError> {
+	fn process_instruction(
+		&mut self,
+		instr: Instruction<Config::RuntimeCall>,
+	) -> Result<(), XcmError> {
 		match instr {
 			WithdrawAsset(assets) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
