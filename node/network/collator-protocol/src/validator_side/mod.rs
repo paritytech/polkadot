@@ -151,7 +151,7 @@ enum PeerState {
 }
 
 #[derive(Debug)]
-enum AdvertisementError {
+enum InsertAdvertisementError {
 	/// Advertisement is already known.
 	Duplicate,
 	/// Collation relay parent is out of our view.
@@ -159,7 +159,7 @@ enum AdvertisementError {
 	/// No prior declare message received.
 	UndeclaredCollator,
 	/// A limit for announcements per peer is reached.
-	LimitReached,
+	PeerLimitReached,
 	/// Mismatch of relay parent mode and advertisement arguments.
 	/// An internal error that should not happen.
 	InvalidArguments,
@@ -246,9 +246,9 @@ impl PeerData {
 		candidate_hash: Option<CandidateHash>,
 		implicit_view: &ImplicitView,
 		active_leaves: &HashMap<Hash, ProspectiveParachainsMode>,
-	) -> std::result::Result<(CollatorId, ParaId), AdvertisementError> {
+	) -> std::result::Result<(CollatorId, ParaId), InsertAdvertisementError> {
 		match self.state {
-			PeerState::Connected(_) => Err(AdvertisementError::UndeclaredCollator),
+			PeerState::Connected(_) => Err(InsertAdvertisementError::UndeclaredCollator),
 			PeerState::Collating(ref mut state) => {
 				if !is_relay_parent_in_implicit_view(
 					&on_relay_parent,
@@ -257,13 +257,13 @@ impl PeerData {
 					active_leaves,
 					state.para_id,
 				) {
-					return Err(AdvertisementError::OutOfOurView)
+					return Err(InsertAdvertisementError::OutOfOurView)
 				}
 
 				match (relay_parent_mode, candidate_hash) {
 					(ProspectiveParachainsMode::Disabled, None) => {
 						if state.advertisements.contains_key(&on_relay_parent) {
-							return Err(AdvertisementError::Duplicate)
+							return Err(InsertAdvertisementError::Duplicate)
 						}
 						state.advertisements.insert(on_relay_parent, HashSet::new());
 					},
@@ -273,16 +273,16 @@ impl PeerData {
 							.get(&on_relay_parent)
 							.map_or(false, |candidates| candidates.contains(&candidate_hash))
 						{
-							return Err(AdvertisementError::Duplicate)
+							return Err(InsertAdvertisementError::Duplicate)
 						}
 						let candidates = state.advertisements.entry(on_relay_parent).or_default();
 
 						if candidates.len() >= MAX_CANDIDATE_DEPTH + 1 {
-							return Err(AdvertisementError::LimitReached)
+							return Err(InsertAdvertisementError::PeerLimitReached)
 						}
 						candidates.insert(candidate_hash);
 					},
-					_ => return Err(AdvertisementError::InvalidArguments),
+					_ => return Err(InsertAdvertisementError::InvalidArguments),
 				}
 
 				state.last_active = Instant::now();
@@ -893,20 +893,48 @@ async fn process_incoming_peer_message<Context>(
 			}
 		},
 		Versioned::V1(V1::AdvertiseCollation(relay_parent)) =>
-			handle_advertisement(ctx.sender(), state, relay_parent, &origin, None).await,
+			if let Err(err) =
+				handle_advertisement(ctx.sender(), state, relay_parent, &origin, None).await
+			{
+				gum::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					?relay_parent,
+					error = ?err,
+					"Rejected v1 advertisement",
+				);
+
+				if let Some(rep) = err.reputation_changes() {
+					modify_reputation(ctx.sender(), origin.clone(), rep).await;
+				}
+			},
 		Versioned::VStaging(VStaging::AdvertiseCollation {
 			relay_parent,
 			candidate_hash,
 			parent_head_data_hash,
 		}) =>
-			handle_advertisement(
+			if let Err(err) = handle_advertisement(
 				ctx.sender(),
 				state,
 				relay_parent,
 				&origin,
 				Some((candidate_hash, parent_head_data_hash)),
 			)
-			.await,
+			.await
+			{
+				gum::debug!(
+					target: LOG_TARGET,
+					peer_id = ?origin,
+					?relay_parent,
+					?candidate_hash,
+					error = ?err,
+					"Rejected vstaging advertisement",
+				);
+
+				if let Some(rep) = err.reputation_changes() {
+					modify_reputation(ctx.sender(), origin.clone(), rep).await;
+				}
+			},
 		Versioned::V1(V1::CollationSeconded(..)) |
 		Versioned::VStaging(VStaging::CollationSeconded(..)) => {
 			gum::warn!(
@@ -927,7 +955,7 @@ async fn is_seconding_allowed<Sender>(
 	parent_head_data_hash: Hash,
 	para_id: ParaId,
 	active_leaves: impl IntoIterator<Item = Hash>,
-) -> Result<bool>
+) -> Option<bool>
 where
 	Sender: CollatorProtocolSenderTrait,
 {
@@ -946,14 +974,51 @@ where
 			.send_message(ProspectiveParachainsMessage::GetHypotheticalDepth(request, tx))
 			.await;
 
-		let response = rx.await.map_err(Error::CancelledGetHypotheticalDepth)?;
+		let response = rx.await.ok()?;
 
 		if !response.is_empty() {
-			return Ok(true)
+			return Some(true)
 		}
 	}
 
-	Ok(false)
+	Some(false)
+}
+
+#[derive(Debug)]
+enum AdvertisementError {
+	/// Relay parent is unknown.
+	RelayParentOutOfView,
+	/// Peer is not present in the subsystem state.
+	UnknownPeer,
+	/// Peer has not declared its para id.
+	UndeclaredCollator,
+	/// We're assigned to a different para at the given relay parent.
+	InvalidAssignment,
+	/// Collator is trying to build on top of occupied core.
+	CoreOccupied,
+	/// An advertisement format doesn't match the relay parent.
+	ProtocolMismatch,
+	/// Para reached a limit of seconded candidates for this relay parent.
+	SecondedLimitReached,
+	/// Failed to insert an advertisement.
+	FailedToInsert(InsertAdvertisementError),
+	/// Failed to query prospective parachains subsystem.
+	ProspectiveParachainsUnavailable,
+}
+
+impl AdvertisementError {
+	fn reputation_changes(&self) -> Option<Rep> {
+		use AdvertisementError::*;
+		match self {
+			InvalidAssignment => Some(COST_WRONG_PARA),
+			RelayParentOutOfView | UndeclaredCollator | CoreOccupied | FailedToInsert(_) =>
+				Some(COST_UNEXPECTED_MESSAGE),
+			UnknownPeer |
+			ProtocolMismatch |
+			SecondedLimitReached |
+			ProspectiveParachainsUnavailable => None,
+		}
+	}
 }
 
 async fn handle_advertisement<Sender>(
@@ -962,7 +1027,8 @@ async fn handle_advertisement<Sender>(
 	relay_parent: Hash,
 	peer_id: &PeerId,
 	prospective_candidate: Option<(CandidateHash, Hash)>,
-) where
+) -> std::result::Result<(), AdvertisementError>
+where
 	Sender: CollatorProtocolSenderTrait,
 {
 	let _span = state
@@ -970,81 +1036,24 @@ async fn handle_advertisement<Sender>(
 		.get(&relay_parent)
 		.map(|s| s.child("advertise-collation"));
 
-	// First, perform validity checks:
-	// - Relay parent is known
-	// - Peer is declared
-	// - Para id is indeed the one we're assigned to at the given relay parent
-	// - Collator is not trying to build on top of occupied core (unless async
-	// backing is enabled)
+	let per_relay_parent = state
+		.per_relay_parent
+		.get_mut(&relay_parent)
+		.ok_or(AdvertisementError::RelayParentOutOfView)?;
 
-	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
-		Some(state) => state,
-		None => {
-			gum::debug!(
-				target: LOG_TARGET,
-				peer_id = ?peer_id,
-				?relay_parent,
-				"Advertise collation out of view",
-			);
-
-			modify_reputation(sender, *peer_id, COST_UNEXPECTED_MESSAGE).await;
-			return
-		},
-	};
 	let relay_parent_mode = per_relay_parent.prospective_parachains_mode;
 	let assignment = per_relay_parent.assignment;
 
-	let peer_data = match state.peer_data.get_mut(&peer_id) {
-		None => {
-			gum::debug!(
-				target: LOG_TARGET,
-				peer_id = ?peer_id,
-				?relay_parent,
-				"Advertise collation message has been received from an unknown peer",
-			);
-			modify_reputation(sender, *peer_id, COST_UNEXPECTED_MESSAGE).await;
-			return
-		},
-		Some(p) => p,
-	};
-
-	let para_id = if let Some(id) = peer_data.collating_para() {
-		id
-	} else {
-		gum::debug!(
-			target: LOG_TARGET,
-			peer_id = ?peer_id,
-			?relay_parent,
-			"Advertise collation message received from undeclared peer",
-		);
-		modify_reputation(sender, *peer_id, COST_UNEXPECTED_MESSAGE).await;
-		return
-	};
+	let peer_data = state.peer_data.get_mut(&peer_id).ok_or(AdvertisementError::UnknownPeer)?;
+	let para_id = peer_data.collating_para().ok_or(AdvertisementError::UndeclaredCollator)?;
 
 	let core_state = match assignment.current {
 		Some((id, core_state)) if id == para_id => core_state,
-		_ => {
-			gum::debug!(
-				target: LOG_TARGET,
-				peer_id = ?peer_id,
-				para_id = ?para_id,
-				?relay_parent,
-				"Advertise collation message for para we're no assigned to",
-			);
-			modify_reputation(sender, *peer_id, COST_UNEXPECTED_MESSAGE).await;
-			return
-		},
+		_ => return Err(AdvertisementError::InvalidAssignment),
 	};
 
 	if !relay_parent_mode.is_enabled() && core_state.is_occupied() {
-		gum::debug!(
-			target: LOG_TARGET,
-			peer_id = ?peer_id,
-			?relay_parent,
-			"Advertise collation message for an occupied core (async backing disabled)",
-		);
-		modify_reputation(sender, *peer_id, COST_UNEXPECTED_MESSAGE).await;
-		return
+		return Err(AdvertisementError::CoreOccupied)
 	}
 
 	// TODO: only fetch a collation if it's built on top of backed nodes in fragment tree.
@@ -1062,33 +1071,14 @@ async fn handle_advertisement<Sender>(
 				active_leaves,
 			)
 			.await
-			.unwrap_or_else(|err| {
-				gum::warn!(
-					target: LOG_TARGET,
-					?relay_parent,
-					?para_id,
-					?candidate_hash,
-					?relay_parent_mode,
-					error = %err,
-					"Failed to query prospective parachains subsystem",
-				);
-				false
-			})
+			.ok_or(AdvertisementError::ProspectiveParachainsUnavailable)?
 		},
-		_ => {
-			gum::error!(
-				target: LOG_TARGET,
-				peer_id = ?peer_id,
-				?relay_parent,
-				relay_parent_mode = ?relay_parent_mode,
-				"Invalid arguments for advertisement",
-			);
-			return
-		},
+		_ => return Err(AdvertisementError::ProtocolMismatch),
 	};
 
 	if !is_seconding_allowed {
-		return
+		// TODO
+		return Ok(())
 	}
 
 	let candidate_hash = prospective_candidate.map(|(hash, ..)| hash);
@@ -1114,20 +1104,13 @@ async fn handle_advertisement<Sender>(
 					ProspectiveCandidate { candidate_hash, parent_head_data_hash }
 				});
 
-			let pending_collation =
-				PendingCollation::new(relay_parent, para_id, peer_id, prospective_candidate);
-
 			let collations = &mut per_relay_parent.collations;
 			if !collations.is_seconded_limit_reached(relay_parent_mode) {
-				gum::debug!(
-					target: LOG_TARGET,
-					peer_id = ?peer_id,
-					para_id = ?para_id,
-					?relay_parent,
-					"Seconded collations limit reached",
-				);
-				return
+				return Err(AdvertisementError::SecondedLimitReached)
 			}
+
+			let pending_collation =
+				PendingCollation::new(relay_parent, para_id, peer_id, prospective_candidate);
 
 			match collations.status {
 				CollationStatus::Fetching | CollationStatus::WaitingOnValidation => {
@@ -1159,27 +1142,14 @@ async fn handle_advertisement<Sender>(
 				},
 			}
 		},
-		Err(AdvertisementError::InvalidArguments) => {
-			gum::warn!(
-				target: LOG_TARGET,
-				peer_id = ?peer_id,
-				?relay_parent,
-				relay_parent_mode = ?relay_parent_mode,
-				"Relay parent mode mismatch",
-			);
+		Err(InsertAdvertisementError::InvalidArguments) => {
+			// Checked above.
+			return Err(AdvertisementError::ProtocolMismatch)
 		},
-		Err(error) => {
-			gum::debug!(
-				target: LOG_TARGET,
-				peer_id = ?peer_id,
-				?relay_parent,
-				?error,
-				"Invalid advertisement",
-			);
-
-			modify_reputation(sender, *peer_id, COST_UNEXPECTED_MESSAGE).await;
-		},
+		Err(error) => return Err(AdvertisementError::FailedToInsert(error)),
 	}
+
+	Ok(())
 }
 
 /// Our view has changed.
