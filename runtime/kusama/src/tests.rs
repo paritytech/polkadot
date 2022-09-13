@@ -87,7 +87,7 @@ fn transfer_cost_min_multiplier() {
 	};
 	let info = call.get_dispatch_info();
 	// convert to outer call.
-	let call = Call::Balances(call);
+	let call = RuntimeCall::Balances(call);
 	let len = call.using_encoded(|e| e.len()) as u32;
 
 	let mut ext = sp_io::TestExternalities::new_empty();
@@ -173,5 +173,5 @@ fn era_payout_should_give_sensible_results() {
 
 #[test]
 fn call_size() {
-	Call::assert_size_under(230);
+	RuntimeCall::assert_size_under(230);
 }

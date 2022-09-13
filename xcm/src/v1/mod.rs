@@ -136,8 +136,8 @@ pub enum Response {
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
-#[scale_info(bounds(), skip_type_params(Call))]
-pub enum Xcm<Call> {
+#[scale_info(bounds(), skip_type_params(RuntimeCall))]
+pub enum Xcm<RuntimeCall> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into `holding`. Execute the
 	/// orders (`effects`).
 	///
@@ -148,7 +148,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 0)]
-	WithdrawAsset { assets: MultiAssets, effects: Vec<Order<Call>> },
+	WithdrawAsset { assets: MultiAssets, effects: Vec<Order<RuntimeCall>> },
 
 	/// Asset(s) (`assets`) have been received into the ownership of this system on the `origin` system.
 	///
@@ -165,7 +165,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 1)]
-	ReserveAssetDeposited { assets: MultiAssets, effects: Vec<Order<Call>> },
+	ReserveAssetDeposited { assets: MultiAssets, effects: Vec<Order<RuntimeCall>> },
 
 	/// Asset(s) (`assets`) have been destroyed on the `origin` system and equivalent assets should be
 	/// created on this system.
@@ -183,7 +183,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 2)]
-	ReceiveTeleportedAsset { assets: MultiAssets, effects: Vec<Order<Call>> },
+	ReceiveTeleportedAsset { assets: MultiAssets, effects: Vec<Order<RuntimeCall>> },
 
 	/// Indication of the contents of the holding register corresponding to the `QueryHolding` order of `query_id`.
 	///
@@ -249,7 +249,11 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 6)]
-	Transact { origin_type: OriginKind, require_weight_at_most: u64, call: DoubleEncoded<Call> },
+	Transact {
+		origin_type: OriginKind,
+		require_weight_at_most: u64,
+		call: DoubleEncoded<RuntimeCall>,
+	},
 
 	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
 	/// relay-chain to a para.
@@ -313,7 +317,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 10)]
-	RelayedFrom { who: InteriorMultiLocation, message: alloc::boxed::Box<Xcm<Call>> },
+	RelayedFrom { who: InteriorMultiLocation, message: alloc::boxed::Box<Xcm<RuntimeCall>> },
 
 	/// Ask the destination system to respond with the most recent version of XCM that they
 	/// support in a `QueryResponse` instruction. Any changes to this should also elicit similar
@@ -335,7 +339,7 @@ pub enum Xcm<Call> {
 	UnsubscribeVersion,
 }
 
-impl<Call> Xcm<Call> {
+impl<RuntimeCall> Xcm<RuntimeCall> {
 	pub fn into<C>(self) -> Xcm<C> {
 		Xcm::from(self)
 	}
@@ -390,9 +394,9 @@ impl TryFrom<OldResponse> for Response {
 	}
 }
 
-impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
+impl<RuntimeCall> TryFrom<OldXcm<RuntimeCall>> for Xcm<RuntimeCall> {
 	type Error = ();
-	fn try_from(old: OldXcm<Call>) -> result::Result<Xcm<Call>, ()> {
+	fn try_from(old: OldXcm<RuntimeCall>) -> result::Result<Xcm<RuntimeCall>, ()> {
 		use Xcm::*;
 		Ok(match old {
 			OldXcm::WithdrawAsset { assets, effects } => WithdrawAsset {
@@ -443,9 +447,9 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 	}
 }
 
-impl<Call> TryFrom<NewXcm<Call>> for Xcm<Call> {
+impl<RuntimeCall> TryFrom<NewXcm<RuntimeCall>> for Xcm<RuntimeCall> {
 	type Error = ();
-	fn try_from(old: NewXcm<Call>) -> result::Result<Xcm<Call>, ()> {
+	fn try_from(old: NewXcm<RuntimeCall>) -> result::Result<Xcm<RuntimeCall>, ()> {
 		use Xcm::*;
 		let mut iter = old.0.into_iter();
 		let instruction = iter.next().ok_or(())?;
