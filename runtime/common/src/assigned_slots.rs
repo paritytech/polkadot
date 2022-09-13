@@ -85,7 +85,7 @@ pub mod pallet {
 	#[pallet::disable_frame_system_supertrait_check]
 	pub trait Config: configuration::Config + paras::Config + slots::Config {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// Origin for assigning slots.
 		type AssignSlotOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
@@ -579,10 +579,10 @@ mod tests {
 
 	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
 	where
-		Call: From<C>,
+		RuntimeCall: From<C>,
 	{
 		type Extrinsic = UncheckedExtrinsic;
-		type OverarchingCall = Call;
+		type OverarchingCall = RuntimeCall;
 	}
 
 	parameter_types! {
@@ -593,7 +593,7 @@ mod tests {
 		type BlockWeights = ();
 		type BlockLength = ();
 		type Origin = Origin;
-		type Call = Call;
+		type RuntimeCall = RuntimeCall;
 		type Index = u64;
 		type BlockNumber = BlockNumber;
 		type Hash = H256;
@@ -601,7 +601,7 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type DbWeight = ();
 		type Version = ();
@@ -621,7 +621,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
@@ -640,7 +640,7 @@ mod tests {
 	}
 
 	impl parachains_paras::Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type WeightInfo = parachains_paras::TestWeightInfo;
 		type UnsignedPriority = ParasUnsignedPriority;
 		type NextSessionRotation = crate::mock::TestNextSessionRotation;
@@ -655,7 +655,7 @@ mod tests {
 	}
 
 	impl slots::Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type Currency = Balances;
 		type Registrar = TestRegistrar<Test>;
 		type LeasePeriod = LeasePeriod;
@@ -673,7 +673,7 @@ mod tests {
 	}
 
 	impl assigned_slots::Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type AssignSlotOrigin = EnsureRoot<Self::AccountId>;
 		type Leaser = Slots;
 		type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;

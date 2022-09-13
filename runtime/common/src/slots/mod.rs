@@ -74,7 +74,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The currency type used for bidding.
 		type Currency: ReservableCurrency<Self::AccountId>;
@@ -530,7 +530,7 @@ mod tests {
 		type BlockWeights = ();
 		type BlockLength = ();
 		type Origin = Origin;
-		type Call = Call;
+		type RuntimeCall = RuntimeCall;
 		type Index = u64;
 		type BlockNumber = BlockNumber;
 		type Hash = H256;
@@ -538,7 +538,7 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type DbWeight = ();
 		type Version = ();
@@ -558,7 +558,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
@@ -575,7 +575,7 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type Currency = Balances;
 		type Registrar = TestRegistrar<Test>;
 		type LeasePeriod = LeasePeriod;
@@ -988,9 +988,9 @@ mod benchmarking {
 
 	use crate::slots::Pallet as Slots;
 
-	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 		let events = frame_system::Pallet::<T>::events();
-		let system_event: <T as frame_system::Config>::Event = generic_event.into();
+		let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 		assert_eq!(event, &system_event);

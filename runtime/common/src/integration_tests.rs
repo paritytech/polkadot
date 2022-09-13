@@ -93,10 +93,10 @@ frame_support::construct_runtime!(
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
 where
-	Call: From<C>,
+	RuntimeCall: From<C>,
 {
 	type Extrinsic = UncheckedExtrinsic;
-	type OverarchingCall = Call;
+	type OverarchingCall = RuntimeCall;
 }
 
 use crate::{auctions::Error as AuctionsError, crowdloan::Error as CrowdloanError};
@@ -113,7 +113,7 @@ impl frame_system::Config for Test {
 	type BlockLength = ();
 	type DbWeight = ();
 	type Origin = Origin;
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = BlockNumber;
 	type Hash = H256;
@@ -121,7 +121,7 @@ impl frame_system::Config for Test {
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<AccountId>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
 	type PalletInfo = PalletInfo;
@@ -179,7 +179,7 @@ parameter_types! {
 impl pallet_balances::Config for Test {
 	type MaxLocks = ();
 	type Balance = Balance;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
@@ -201,7 +201,7 @@ parameter_types! {
 }
 
 impl paras::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = paras::TestWeightInfo;
 	type UnsignedPriority = ParasUnsignedPriority;
 	type NextSessionRotation = crate::mock::TestNextSessionRotation;
@@ -213,7 +213,7 @@ parameter_types! {
 }
 
 impl paras_registrar::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type OnSwap = (Crowdloan, Slots);
 	type ParaDeposit = ParaDeposit;
 	type DataDepositPerByte = DataDepositPerByte;
@@ -228,7 +228,7 @@ parameter_types! {
 }
 
 impl auctions::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Leaser = Slots;
 	type Registrar = Registrar;
 	type EndingPeriod = EndingPeriod;
@@ -244,7 +244,7 @@ parameter_types! {
 }
 
 impl slots::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
@@ -262,7 +262,7 @@ parameter_types! {
 }
 
 impl crowdloan::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type PalletId = CrowdloanId;
 	type SubmissionDeposit = SubmissionDeposit;
 	type MinContribution = MinContribution;
@@ -343,11 +343,11 @@ fn run_to_session(n: u32) {
 	run_to_block(block_number);
 }
 
-fn last_event() -> Event {
-	System::events().pop().expect("Event expected").event
+fn last_event() -> RuntimeEvent {
+	System::events().pop().expect("RuntimeEvent expected").event
 }
 
-fn contains_event(event: Event) -> bool {
+fn contains_event(event: RuntimeEvent) -> bool {
 	System::events().iter().any(|x| x.event == event)
 }
 

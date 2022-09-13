@@ -118,10 +118,9 @@ mod tests {
 	fn dmp() {
 		MockNet::reset();
 
-		let remark =
-			parachain::Call::System(frame_system::Call::<parachain::Runtime>::remark_with_event {
-				remark: vec![1, 2, 3],
-			});
+		let remark = parachain::RuntimeCall::System(
+			frame_system::Call::<parachain::Runtime>::remark_with_event { remark: vec![1, 2, 3] },
+		);
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::send_xcm(
 				Here,
@@ -135,10 +134,11 @@ mod tests {
 		});
 
 		ParaA::execute_with(|| {
-			use parachain::{Event, System};
-			assert!(System::events()
-				.iter()
-				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
+			use parachain::{RuntimeEvent, System};
+			assert!(System::events().iter().any(|r| matches!(
+				r.event,
+				RuntimeEvent::System(frame_system::Event::Remarked { .. })
+			)));
 		});
 	}
 
@@ -146,7 +146,7 @@ mod tests {
 	fn ump() {
 		MockNet::reset();
 
-		let remark = relay_chain::Call::System(
+		let remark = relay_chain::RuntimeCall::System(
 			frame_system::Call::<relay_chain::Runtime>::remark_with_event { remark: vec![1, 2, 3] },
 		);
 		ParaA::execute_with(|| {
@@ -162,10 +162,11 @@ mod tests {
 		});
 
 		Relay::execute_with(|| {
-			use relay_chain::{Event, System};
-			assert!(System::events()
-				.iter()
-				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
+			use relay_chain::{RuntimeEvent, System};
+			assert!(System::events().iter().any(|r| matches!(
+				r.event,
+				RuntimeEvent::System(frame_system::Event::Remarked { .. })
+			)));
 		});
 	}
 
@@ -173,10 +174,9 @@ mod tests {
 	fn xcmp() {
 		MockNet::reset();
 
-		let remark =
-			parachain::Call::System(frame_system::Call::<parachain::Runtime>::remark_with_event {
-				remark: vec![1, 2, 3],
-			});
+		let remark = parachain::RuntimeCall::System(
+			frame_system::Call::<parachain::Runtime>::remark_with_event { remark: vec![1, 2, 3] },
+		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
 				Here,
@@ -190,10 +190,11 @@ mod tests {
 		});
 
 		ParaB::execute_with(|| {
-			use parachain::{Event, System};
-			assert!(System::events()
-				.iter()
-				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
+			use parachain::{RuntimeEvent, System};
+			assert!(System::events().iter().any(|r| matches!(
+				r.event,
+				RuntimeEvent::System(frame_system::Event::Remarked { .. })
+			)));
 		});
 	}
 

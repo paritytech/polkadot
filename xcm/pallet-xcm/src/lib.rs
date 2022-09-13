@@ -71,7 +71,7 @@ pub mod pallet {
 	/// The module configuration trait.
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// Required origin for sending XCM messages. If successful, it resolves to `MultiLocation`
 		/// which exists as an interior location within this chain's XCM context.
@@ -86,10 +86,10 @@ pub mod pallet {
 		type ExecuteXcmOrigin: EnsureOrigin<<Self as SysConfig>::Origin, Success = MultiLocation>;
 
 		/// Our XCM filter which messages to be executed using `XcmExecutor` must pass.
-		type XcmExecuteFilter: Contains<(MultiLocation, Xcm<<Self as SysConfig>::Call>)>;
+		type XcmExecuteFilter: Contains<(MultiLocation, Xcm<<Self as SysConfig>::RuntimeCall>)>;
 
 		/// Something to execute an XCM message.
-		type XcmExecutor: ExecuteXcm<<Self as SysConfig>::Call>;
+		type XcmExecutor: ExecuteXcm<<Self as SysConfig>::RuntimeCall>;
 
 		/// Our XCM filter which messages to be teleported using the dedicated extrinsic must pass.
 		type XcmTeleportFilter: Contains<(MultiLocation, Vec<MultiAsset>)>;
@@ -98,7 +98,7 @@ pub mod pallet {
 		type XcmReserveTransferFilter: Contains<(MultiLocation, Vec<MultiAsset>)>;
 
 		/// Means of measuring the weight consumed by an XCM message locally.
-		type Weigher: WeightBounds<<Self as SysConfig>::Call>;
+		type Weigher: WeightBounds<<Self as SysConfig>::RuntimeCall>;
 
 		/// Means of inverting a location.
 		type LocationInverter: InvertLocation;
@@ -107,9 +107,9 @@ pub mod pallet {
 		type Origin: From<Origin> + From<<Self as SysConfig>::Origin>;
 
 		/// The outer `Call` type.
-		type Call: Parameter
+		type RuntimeCall: Parameter
 			+ GetDispatchInfo
-			+ IsType<<Self as frame_system::Config>::Call>
+			+ IsType<<Self as frame_system::Config>::RuntimeCall>
 			+ Dispatchable<Origin = <Self as Config>::Origin, PostInfo = PostDispatchInfo>;
 
 		const VERSION_DISCOVERY_QUEUE_SIZE: u32;
@@ -564,7 +564,7 @@ pub mod pallet {
 		#[pallet::weight(max_weight.saturating_add(Weight::from_ref_time(100_000_000u64)))]
 		pub fn execute(
 			origin: OriginFor<T>,
-			message: Box<VersionedXcm<<T as SysConfig>::Call>>,
+			message: Box<VersionedXcm<<T as SysConfig>::RuntimeCall>>,
 			max_weight: Weight,
 		) -> DispatchResultWithPostInfo {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
@@ -1142,13 +1142,13 @@ pub mod pallet {
 		pub fn report_outcome_notify(
 			message: &mut Xcm<()>,
 			responder: impl Into<MultiLocation>,
-			notify: impl Into<<T as Config>::Call>,
+			notify: impl Into<<T as Config>::RuntimeCall>,
 			timeout: T::BlockNumber,
 		) -> Result<(), XcmError> {
 			let responder = responder.into();
 			let dest = T::LocationInverter::invert_location(&responder)
 				.map_err(|()| XcmError::MultiLocationNotInvertible)?;
-			let notify: <T as Config>::Call = notify.into();
+			let notify: <T as Config>::RuntimeCall = notify.into();
 			let max_response_weight = notify.get_dispatch_info().weight;
 			let query_id = Self::new_notify_query(responder, notify, timeout);
 			let report_error = Xcm(vec![ReportError {
@@ -1169,7 +1169,7 @@ pub mod pallet {
 		/// which will call a dispatchable when a response happens.
 		pub fn new_notify_query(
 			responder: impl Into<MultiLocation>,
-			notify: impl Into<<T as Config>::Call>,
+			notify: impl Into<<T as Config>::RuntimeCall>,
 			timeout: T::BlockNumber,
 		) -> u64 {
 			let notify =
@@ -1214,10 +1214,10 @@ pub mod pallet {
 	}
 
 	impl<T: Config> WrapVersion for Pallet<T> {
-		fn wrap_version<Call>(
+		fn wrap_version<RuntimeCall>(
 			dest: &MultiLocation,
-			xcm: impl Into<VersionedXcm<Call>>,
-		) -> Result<VersionedXcm<Call>, ()> {
+			xcm: impl Into<VersionedXcm<RuntimeCall>>,
+		) -> Result<VersionedXcm<RuntimeCall>, ()> {
 			SupportedVersion::<T>::get(XCM_VERSION, LatestVersionedMultiLocation(dest))
 				.or_else(|| {
 					Self::note_unknown_version(dest);
@@ -1399,9 +1399,9 @@ pub mod pallet {
 							// be built by `(pallet_index: u8, call_index: u8, QueryId, Response)`.
 							// So we just encode that and then re-encode to a real Call.
 							let bare = (pallet_index, call_index, query_id, response);
-							if let Ok(call) = bare
-								.using_encoded(|mut bytes| <T as Config>::Call::decode(&mut bytes))
-							{
+							if let Ok(call) = bare.using_encoded(|mut bytes| {
+								<T as Config>::RuntimeCall::decode(&mut bytes)
+							}) {
 								Queries::<T>::remove(query_id);
 								let weight = call.get_dispatch_info().weight;
 								let max_weight = Weight::from_ref_time(max_weight);
