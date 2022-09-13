@@ -48,7 +48,7 @@ pub(crate) mod metrics;
 use metrics::Metrics;
 
 mod legacy_v1;
-use legacy_v1::{respond, RequesterMessage, ResponderMessage};
+use legacy_v1::{respond as v1_respond_task, RequesterMessage as V1RequesterMessage, ResponderMessage as V1ResponderMessage};
 
 const LOG_TARGET: &str = "parachain::statement-distribution";
 
@@ -83,29 +83,29 @@ impl<Context, R: rand::Rng + Send + Sync + 'static> StatementDistributionSubsyst
 enum MuxedMessage {
 	/// Messages from other subsystems.
 	Subsystem(FatalResult<FromOrchestra<StatementDistributionMessage>>),
-	/// Messages from spawned requester background tasks.
-	Requester(Option<RequesterMessage>),
-	/// Messages from spawned responder background task.
-	Responder(Option<ResponderMessage>),
+	/// Messages from spawned v1 (legacy) requester background tasks.
+	V1Requester(Option<V1RequesterMessage>),
+	/// Messages from spawned v1 (legacy) responder background task.
+	V1Responder(Option<V1ResponderMessage>),
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
 impl MuxedMessage {
 	async fn receive<Context>(
 		ctx: &mut Context,
-		from_requester: &mut mpsc::Receiver<RequesterMessage>,
-		from_responder: &mut mpsc::Receiver<ResponderMessage>,
+		from_v1_requester: &mut mpsc::Receiver<V1RequesterMessage>,
+		from_v1_responder: &mut mpsc::Receiver<V1ResponderMessage>,
 	) -> MuxedMessage {
 		// We are only fusing here to make `select` happy, in reality we will quit if one of those
 		// streams end:
-		let from_overseer = ctx.recv().fuse();
-		let from_requester = from_requester.next();
-		let from_responder = from_responder.next();
-		futures::pin_mut!(from_overseer, from_requester, from_responder);
+		let from_orchestra = ctx.recv().fuse();
+		let from_v1_requester = from_v1_requester.next();
+		let from_v1_responder = from_v1_responder.next();
+		futures::pin_mut!(from_orchestra, from_v1_requester, from_v1_responder);
 		futures::select! {
-			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
-			msg = from_requester => MuxedMessage::Requester(msg),
-			msg = from_responder => MuxedMessage::Responder(msg),
+			msg = from_orchestra => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
+			msg = from_v1_requester => MuxedMessage::V1Requester(msg),
+			msg = from_v1_responder => MuxedMessage::V1Responder(msg),
 		}
 	}
 }
@@ -126,15 +126,15 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		let mut legacy_v1_state = crate::legacy_v1::State::new(self.keystore.clone());
 
 		// Sender/Receiver for getting news from our statement fetching tasks.
-		let (req_sender, mut req_receiver) = mpsc::channel(1);
+		let (v1_req_sender, mut v1_req_receiver) = mpsc::channel(1);
 		// Sender/Receiver for getting news from our responder task.
-		let (res_sender, mut res_receiver) = mpsc::channel(1);
+		let (v1_res_sender, mut v1_res_receiver) = mpsc::channel(1);
 
 		ctx.spawn(
 			"large-statement-responder",
-			respond(
+			v1_respond_task(
 				self.v1_req_receiver.take().expect("Mandatory argument to new. qed"),
-				res_sender.clone(),
+				v1_res_sender.clone(),
 			)
 			.boxed(),
 		)
@@ -142,14 +142,14 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 
 		loop {
 			let message =
-				MuxedMessage::receive(&mut ctx, &mut req_receiver, &mut res_receiver).await;
+				MuxedMessage::receive(&mut ctx, &mut v1_req_receiver, &mut v1_res_receiver).await;
 			match message {
 				MuxedMessage::Subsystem(result) => {
 					let result = self
 						.handle_subsystem_message(
 							&mut ctx,
 							&mut legacy_v1_state,
-							&req_sender,
+							&v1_req_sender,
 							result?,
 						)
 						.await;
@@ -159,11 +159,11 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						Err(jfyi) => gum::debug!(target: LOG_TARGET, error = ?jfyi),
 					}
 				},
-				MuxedMessage::Requester(result) => {
+				MuxedMessage::V1Requester(result) => {
 					let result = crate::legacy_v1::handle_requester_message(
 						&mut ctx,
 						&mut legacy_v1_state,
-						&req_sender,
+						&v1_req_sender,
 						&mut self.rng,
 						result.ok_or(FatalError::RequesterReceiverFinished)?,
 						&self.metrics,
@@ -171,7 +171,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					.await;
 					log_error(result.map_err(From::from), "handle_requester_message")?;
 				},
-				MuxedMessage::Responder(result) => {
+				MuxedMessage::V1Responder(result) => {
 					let result = crate::legacy_v1::handle_responder_message(
 						&mut legacy_v1_state,
 						result.ok_or(FatalError::ResponderReceiverFinished)?,
@@ -188,7 +188,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		&mut self,
 		ctx: &mut Context,
 		legacy_v1_state: &mut legacy_v1::State,
-		req_sender: &mpsc::Sender<RequesterMessage>,
+		v1_req_sender: &mpsc::Sender<V1RequesterMessage>,
 		message: FromOrchestra<StatementDistributionMessage>,
 	) -> Result<bool> {
 		let metrics = &self.metrics;
@@ -248,7 +248,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 							crate::legacy_v1::handle_network_update(
 								ctx,
 								legacy_v1_state,
-								req_sender,
+								v1_req_sender,
 								event,
 								&mut self.rng,
 								metrics,
