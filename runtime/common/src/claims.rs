@@ -715,10 +715,9 @@ mod tests {
 	use claims::Call as ClaimsCall;
 	use frame_support::{
 		assert_err, assert_noop, assert_ok,
-		dispatch::DispatchError::BadOrigin,
+		dispatch::{DispatchError::BadOrigin, GetDispatchInfo, Pays},
 		ord_parameter_types, parameter_types,
 		traits::{ExistenceRequirement, GenesisBuild},
-		weights::{GetDispatchInfo, Pays},
 	};
 	use pallet_balances;
 	use sp_runtime::{
