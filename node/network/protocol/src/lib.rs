@@ -589,11 +589,12 @@ pub mod v1 {
 
 /// vstaging network protocol types.
 pub mod vstaging {
+	use bitvec::vec::BitVec;
 	use parity_scale_codec::{Decode, Encode};
 
 	use polkadot_primitives::vstaging::{
-		CandidateIndex, CollatorId, CollatorSignature, Hash, Id as ParaId,
-		UncheckedSignedAvailabilityBitfield,
+		CandidateIndex, CandidateHash, CollatorId, CollatorSignature, Hash, Id as ParaId,
+		UncheckedSignedAvailabilityBitfield, UncheckedSignedStatement,
 	};
 
 	use polkadot_node_primitives::{
@@ -612,7 +613,37 @@ pub mod vstaging {
 	/// Network messages used by the statement distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum StatementDistributionMessage {
-		// TODO [now]: notifications for v2
+		/// A notification of a signed statement in compact form.
+		#[codec(index = 0)]
+		Statement(Hash, UncheckedSignedStatement),
+
+		/// A notification of a backed candidate being known by the
+		/// sending node, for the purpose of being requested by the receiving node
+		/// if needed.
+		#[codec(index = 1)]
+		BackedCandidateInv {
+			/// The relay-parent of the candidate.
+			relay_parent: Hash,
+			/// The hash of the candidate.
+			candidate_hash: CandidateHash,
+			/// The para that the candidate is assigned to.
+			para_id: ParaId,
+			/// The head-data corresponding to the candidate.
+			parent_head_data_hash: Hash,
+			/// A bitfield which indicates which validators in the para's
+			/// group at the relay-parent have seconded this candidate.
+			///
+			/// This MUST have the minimum amount of bytes
+			/// necessary to represent the number of validators in the
+			/// assigned backing group as-of the relay-parent.
+			seconded_in_group: BitVec<u8, bitvec::order::Lsb0>,
+		},
+
+		/// A notification of a backed candidate being known by the sending known,
+		/// for the purpose of informing a receiving node which already has the candidate.
+		#[codec(index = 2)]
+		BackedCandidateKnown(Hash, CandidateHash),
+
 		/// All messages for V1 for compatibility with the statement distribution
 		/// protocol, for relay-parents that don't support asynchronous backing.
 		///

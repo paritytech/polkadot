@@ -242,7 +242,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						&NetworkBridgeEvent::PeerMessage(_, ref message) => match message {
 							Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::V1Compatibility(_)) => true,
 							Versioned::V1(_) => true,
-							// TODO [now]: _ => false,
+							Versioned::VStaging(_) => false,
 						},
 						_ => true,
 					};
