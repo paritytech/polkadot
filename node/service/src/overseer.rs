@@ -26,7 +26,9 @@ use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
 use polkadot_node_network_protocol::{
 	peer_set::PeerSetProtocolNames,
-	request_response::{v1 as request_v1, IncomingRequestReceiver, ReqProtocolNames, vstaging as request_vstaging},
+	request_response::{
+		v1 as request_v1, vstaging as request_vstaging, IncomingRequestReceiver, ReqProtocolNames,
+	},
 };
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::{

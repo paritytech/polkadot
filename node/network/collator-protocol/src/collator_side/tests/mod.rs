@@ -29,7 +29,12 @@ use sp_core::crypto::Pair;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::traits::AppVerify;
 
-use polkadot_node_network_protocol::{our_view, request_response::{IncomingRequest, ReqProtocolNames}, view, peer_set::CollationVersion};
+use polkadot_node_network_protocol::{
+	our_view,
+	peer_set::CollationVersion,
+	request_response::{IncomingRequest, ReqProtocolNames},
+	view,
+};
 use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem::{
 	jaeger,

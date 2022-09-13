@@ -872,9 +872,11 @@ where
 	config.network.request_response_protocols.push(cfg);
 	let (chunk_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
-	let (collation_req_v1_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (collation_req_v1_receiver, cfg) =
+		IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
-	let (collation_req_vstaging_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (collation_req_vstaging_receiver, cfg) =
+		IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
 	let (available_data_req_receiver, cfg) =
 		IncomingRequest::get_config_receiver(&req_protocol_names);
