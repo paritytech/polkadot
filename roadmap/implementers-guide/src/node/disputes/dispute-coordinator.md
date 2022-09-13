@@ -1,7 +1,7 @@
 # Dispute Coordinator
 
 The coordinator is the central subsystem of the node-side components which
-participate in disputes. It wraps a database, which used to track statements
+participate in disputes. It wraps a database, which is used to track statements
 observed by _all_ validators over some window of sessions. Votes older than this
 session window are pruned.
 
@@ -318,12 +318,12 @@ at some stage in the pipeline).
 To ensure to only spend significant work on genuine disputes, we only trigger
 participation at all on any _vote import_ if any of the following holds true:
 
-- We saw the disputed candidate included on at least one fork of the chain
-- We have "our" availability chunk available for that candidate as this suggests
-  that either availability was at least run, although it might not have
-  succeeded or we have been a backing node of the candidate. In both cases the
-  candidate is at least not completely made up and there has been some effort
-  already flown into that candidate.
+- We saw the disputed candidate included in some not yet finalized block on at
+  least one fork of the chain.
+- We have seen the disputed candidate backed in some not yet finalized block on
+  at least one fork of the chain. This ensures the candidate is at least not
+  completely made up and there has been some effort already flown into that
+  candidate.
 - The dispute is already confirmed: Meaning that 1/3+1 nodes already
   participated, as this suggests in our threat model that there was at least one
   honest node that already voted, so the dispute must be genuine.
@@ -332,7 +332,7 @@ Note: A node might be out of sync with the chain and we might only learn about a
 block including a candidate, after we learned about the dispute. This means, we
 have to re-evaluate participation decisions on block import!
 
-With this nodes won't waste significant resources on completely made up
+With this, nodes won't waste significant resources on completely made up
 candidates. The next step is to process dispute participation in a (globally)
 ordered fashion. Meaning a majority of validators should arrive at at least
 roughly at the same ordering of participation, for disputes to get resolved one
@@ -360,6 +360,39 @@ we have not seen the candidate included, but the dispute is valid, other nodes
 will have seen it included - so the more votes there are, the more likely it is
 a valid dispute and we should implicitly arrive at a similar ordering as the
 nodes that are able to sort based on the relay parent block height.
+
+Note that by above rules, we will not participate in disputes concerning a
+candidate in an already finalized block. This is because, disputing an already
+finalized block is simply too late and therefore of little value. Once
+finalized, bridges have already processed the block for example, so we have to
+assume the damage is already done. Governance has to step in and fix what can be
+fixed.
+
+Making disputes for already finalized blocks possible would only provide two
+features:
+
+1. We can at least still slash attackers.
+2. We can freeze the chain to some governance only mode, in an attempt to
+   minimize potential harm done.
+
+Both seem kind of worthwhile, although as argued above, it is likely that there
+is not too much that can be done in 2 and we would likely only ending up DoSing
+the whole system without much we can do. 1 can also be achieved via governance
+mechanisms.
+
+In any case, our focus should be to making as sure as reasonably possible that
+any potentially invalid block does not get finalized in the first place. Not
+allowing disputing already finalized blocks actually helps a great deal with
+this goal as it greatly reduces the amount of candidates that can be disputed.
+
+This makes attempts to overwhelm the system with disputes significantly harder
+and counter measures way easier. We can limit inclusion for example (as
+suggested [here](https://github.com/paritytech/polkadot/issues/5898) in case of
+high dispute load. Another measure we have at our disposal is that on finality
+lag block production will slow down, implicitely reducing the rate of new
+candidates that can be disputed. Hence cutting off the unlimited candidate
+supply of already finalized blocks, guarantees the necessary DoS protection and
+ensures we can have measures in place to keep up with processing of disputes.
 
 #### Import
 
