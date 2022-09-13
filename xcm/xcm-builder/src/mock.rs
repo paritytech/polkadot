@@ -277,7 +277,7 @@ pub type TestBarrier = (
 
 pub struct TestConfig;
 impl Config for TestConfig {
-	type Call = TestCall;
+	type RuntimeCall = TestCall;
 	type XcmSender = TestSendXcm;
 	type AssetTransactor = TestAssetTransactor;
 	type OriginConverter = TestOriginConverter;
