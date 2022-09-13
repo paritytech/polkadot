@@ -361,39 +361,6 @@ will have seen it included - so the more votes there are, the more likely it is
 a valid dispute and we should implicitly arrive at a similar ordering as the
 nodes that are able to sort based on the relay parent block height.
 
-Note that by above rules, we will not participate in disputes concerning a
-candidate in an already finalized block. This is because, disputing an already
-finalized block is simply too late and therefore of little value. Once
-finalized, bridges have already processed the block for example, so we have to
-assume the damage is already done. Governance has to step in and fix what can be
-fixed.
-
-Making disputes for already finalized blocks possible would only provide two
-features:
-
-1. We can at least still slash attackers.
-2. We can freeze the chain to some governance only mode, in an attempt to
-   minimize potential harm done.
-
-Both seem kind of worthwhile, although as argued above, it is likely that there
-is not too much that can be done in 2 and we would likely only ending up DoSing
-the whole system without much we can do. 1 can also be achieved via governance
-mechanisms.
-
-In any case, our focus should be to making as sure as reasonably possible that
-any potentially invalid block does not get finalized in the first place. Not
-allowing disputing already finalized blocks actually helps a great deal with
-this goal as it greatly reduces the amount of candidates that can be disputed.
-
-This makes attempts to overwhelm the system with disputes significantly harder
-and counter measures way easier. We can limit inclusion for example (as
-suggested [here](https://github.com/paritytech/polkadot/issues/5898) in case of
-high dispute load. Another measure we have at our disposal is that on finality
-lag block production will slow down, implicitely reducing the rate of new
-candidates that can be disputed. Hence cutting off the unlimited candidate
-supply of already finalized blocks, guarantees the necessary DoS protection and
-ensures we can have measures in place to keep up with processing of disputes.
-
 #### Import
 
 In the last section we looked at how to treat queuing participations to handle
@@ -413,13 +380,108 @@ candidates for approval votes a similar argument holds (if they come from
 approval-voting), but we also don't import them until a dispute already
 concluded. For actual dispute votes, we need two opposing votes, so there must be
 an explicit `invalid` vote in the import. Only a third of the validators can be
-malicious, so spam disk usage is limited to ```2*vote_size*n/3*NUM_SPAM_SLOTS```, with
-n being the number of validators.
+malicious, so spam disk usage is limited to `2*vote_size*n/3*NUM_SPAM_SLOTS`, with
+`n` being the number of validators.
 -
 More reasoning behind spam considerations can be found on
 this sr-lab ticket: https://github.com/paritytech/srlabs_findings/issues/179
 
-## Disputes for Non Included Candidates
+## Attacks & Considerations
+
+The following attacks on the priority queue and best-effort queues are
+considered in above design.
+
+### Priority Queue
+
+On the priority queue, we will only queue participations for candidates we have
+seen included on any chain. Any attack attempt would start with a candidate
+included on some chain, but an attacker could try to only reveal the including
+relay chain blocks to just some honest validators and stop as soon as it learns
+that some honest validator would have a relevant approval assignment.
+
+Without revealing the including block to any honest validator, we don't really
+have an attack yet. Once the block is revealed though, the above is actually
+very hard. Each honest validator will re-distribute the block it just learned
+about. This means an attacker would need to pull of a targeted DoS attack, which
+allows the validator to send its assignment, but prevents it from forwarding and
+sharing the relay chain block.
+
+This sounds already hard enough, provided that we also start participation if
+we learned about an including block after the dispute has been raised already
+(we need to update participation queues on new leaves), but to be even safer
+we choose to have an additional best-effort queue.
+
+### Best-Effort Queue
+
+While attacking the priority queue is already pretty hard, attacking the
+best-effort queue is even harder. For a candidate to be a threat, it has to be
+included on some chain. For it to be included, it has to have been backed before
+and at least n/3 honest nodes must have seen that block, so availability
+(inclusion) can be reached. Making a full third of the nodes not further
+propagate a block, while at the same time allowing them to fetch chunks, sign
+and distribute bitfields seems almost infeasible and even if accomplished, those
+nodes would be enough to confirm a dispute and we have not even touched the
+above fact that in addition, for an attack, the following including block must
+be shared with honest validators as well.
+
+It is worth mentioning that a successful attack on the priority queue as
+outlined above is already outside of our threat model, as it assumes n/3
+malicious nodes + additionally malfunctioning/DoSed nodes. Even more so for
+attacks on the best-effort queue, as our threat model only allows for n/3
+malicious _or_ malfunctioning nodes in total. It would therefore be a valid
+decision to ditch the best-effort queue, if it proves to become a burden or
+creates other issues.
+
+One issue we should not be worried about though is spam. For abusing best-effort
+for spam, the following scenario would be necessary:
+
+An attacker controls a backing group: The attacker can then have candidates
+backed and choose to not provide chunks. This should come at a cost to miss out
+on rewards for backing, so is not free. At the same time it is rate limited, as
+a backing group can only back so many candidates legitimately. (~ 1 per slot):
+
+1. They have to wait until a malicious actor becomes block producer (for causing
+  additional forks via equivocation for example).
+2. Forks are possible, but if caused by equivocation also not free.
+3. For each fork the attacker has to wait until the candidate times out, for
+  backing another one.
+
+Assuming there can only be a handful of forks, 2) together with 3) the candidate
+timeout restriction, frequency should indeed be in the ballpark of once per
+slot. Scaling linearly in the number of controlled backing groups, so two groups
+would mean 2 backings per slot, ...
+
+So by this reasoning an attacker could only do very limited harm and at the same
+time will have to pay some price for it (it will miss out on rewards). Overall
+the work done by the network might even be in the same ballpark as if actors
+just behaved honestly:
+
+1. Validators would have fetched chunks
+2. Approval checkers would have done approval checks
+
+While because of the attack (backing, not providing chunks and afterwards
+disputing the candidate), the work for 1000 validators would be:
+
+All validators sending out ~ 1000 tiny requests over already established
+connections, with also tiny (byte) responses.
+
+This means around a million requests, while in the honest case it would be ~
+10000 (30 approval checkers x330) - where each request triggers a response in
+the range of kilobytes. Hence network load alone will likely be higher in the
+honest case than in the DoS attempt case, which would mean the DoS attempt
+actually reduces load, while also costing rewards.
+
+In the worst case this can happen multiple times, as we would retry that on
+every vote import. The effect would still be in the same ballpark as honest
+behavior though and can also be mitigated by chilling repeated availability
+recovery requests for example.
+
+More reasoning as mentioned above, in the following sr-lab ticket:
+https://github.com/paritytech/srlabs_findings/issues/179
+
+## Out of Scope
+
+### No Disputes for Non Included Candidates
 
 We only ever care about disputes for candidates that have been included on at
 least some chain (became available). This is because the availability system was
@@ -453,6 +515,46 @@ disputes before does not meaningfully contribute to the systems security/might
 even weaken it as attackers are warned before availability is reached, while at
 the same time adding signficant amount of complexity. We therefore punt on such
 disputes and concentrate on disputes the system was designed to handle.
+
+### No Disputes for Already Finalized Blocks
+
+Note that by above rules in the `Participation` section, we will not participate
+in disputes concerning a candidate in an already finalized block. This is
+because, disputing an already finalized block is simply too late and therefore
+of little value. Once finalized, bridges have already processed the block for
+example, so we have to assume the damage is already done. Governance has to step
+in and fix what can be fixed.
+
+Making disputes for already finalized blocks possible would only provide two
+features:
+
+1. We can at least still slash attackers.
+2. We can freeze the chain to some governance only mode, in an attempt to
+   minimize potential harm done.
+
+Both seem kind of worthwhile, although as argued above, it is likely that there
+is not too much that can be done in 2 and we would likely only ending up DoSing
+the whole system without much we can do. 1 can also be achieved via governance
+mechanisms.
+
+In any case, our focus should be making as sure as reasonably possible that any
+potentially invalid block does not get finalized in the first place. Not
+allowing disputing already finalized blocks actually helps a great deal with
+this goal as it massively reduces the amount of candidates that can be disputed.
+
+This makes attempts to overwhelm the system with disputes significantly harder
+and counter measures way easier. We can limit inclusion for example (as
+suggested [here](https://github.com/paritytech/polkadot/issues/5898) in case of
+high dispute load. Another measure we have at our disposal is that on finality
+lag block production will slow down, implicitly reducing the rate of new
+candidates that can be disputed. Hence, the cutting-off of the unlimited
+candidate supply of already finalized blocks, guarantees the necessary DoS
+protection and ensures we can have measures in place to keep up with processing
+of disputes.
+
+If we allowed participation for disputes for already finalized candidates, the
+above spam protection mechanisms would be insufficient/relying 100% on full and
+quick disabling of spamming validators.
 
 ## Database Schema
 
