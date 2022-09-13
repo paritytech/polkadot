@@ -1428,7 +1428,6 @@ async fn handle_incoming_message<'a, Context>(
 ) -> Option<(Hash, StoredStatement<'a>)> {
 	let _ = metrics.time_network_bridge_update("handle_incoming_message");
 
-	// TODO [now] handle vstaging messages
 	let message = match message {
 		Versioned::V1(m) => m,
 		Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::V1Compatibility(
@@ -1614,8 +1613,6 @@ async fn handle_incoming_message<'a, Context>(
 		Ok(false) => {},
 	}
 
-	// TODO [https://github.com/paritytech/polkadot/issues/5055]
-	//
 	// For `Seconded` statements `None` or `Err` means we couldn't fetch the PVD, which
 	// means the statement shouldn't be accepted.
 	//
