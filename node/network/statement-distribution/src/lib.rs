@@ -53,6 +53,8 @@ use legacy_v1::{
 	ResponderMessage as V1ResponderMessage,
 };
 
+mod vstaging;
+
 const LOG_TARGET: &str = "parachain::statement-distribution";
 
 /// The statement distribution subsystem.
