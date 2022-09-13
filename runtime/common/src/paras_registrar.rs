@@ -1055,21 +1055,21 @@ mod tests {
 			assert!(!Parachains::is_parachain(para_2));
 			assert!(Parachains::is_parathread(para_2));
 
-            // Both paras initiate a swap
-            // Swap between parachain and parathread
-            assert_ok!(Registrar::swap(para_origin(para_1), para_1, para_2,));
-            assert_ok!(Registrar::swap(para_origin(para_2), para_2, para_1,));
-            assert_eq!(
-                System::events(),
-                vec![EventRecord {
-                    phase: Phase::Initialization,
-                    event: Event::Registrar(paras_registrar::Event::Swapped {
-                        para_id: para_2,
-                        other_id: para_1
-                    }),
-                    topics: vec![],
-                }]
-            );
+			// Both paras initiate a swap
+			// Swap between parachain and parathread
+			assert_ok!(Registrar::swap(para_origin(para_1), para_1, para_2,));
+			assert_ok!(Registrar::swap(para_origin(para_2), para_2, para_1,));
+			assert_eq!(
+				System::events(),
+				vec![EventRecord {
+					phase: Phase::Initialization,
+					event: Event::Registrar(paras_registrar::Event::Swapped {
+						para_id: para_2,
+						other_id: para_1
+					}),
+					topics: vec![],
+				}]
+			);
 
 			run_to_session(6);
 
@@ -1084,26 +1084,26 @@ mod tests {
 			assert_eq!(SwapData::get().get(&para_2).unwrap(), &69);
 
 			// Both paras initiate a swap
-            // Swap between parathread and parachain
-            assert_ok!(Registrar::swap(para_origin(para_1), para_1, para_2,));
-            assert_ok!(Registrar::swap(para_origin(para_2), para_2, para_1,));
-            assert_eq!(
-                System::events().last().unwrap(),
-                vec![EventRecord {
-                    phase: Phase::Initialization,
-                    event: Event::Registrar(paras_registrar::Event::Swapped {
-                        para_id: para_1,
-                        other_id: para_2
-                    }),
-                    topics: vec![],
-                }]
-                .last()
-                .unwrap()
-            );
+			// Swap between parathread and parachain
+			assert_ok!(Registrar::swap(para_origin(para_1), para_1, para_2,));
+			assert_ok!(Registrar::swap(para_origin(para_2), para_2, para_1,));
+			assert_eq!(
+				System::events().last().unwrap(),
+				vec![EventRecord {
+					phase: Phase::Initialization,
+					event: Event::Registrar(paras_registrar::Event::Swapped {
+						para_id: para_1,
+						other_id: para_2
+					}),
+					topics: vec![],
+				}]
+				.last()
+				.unwrap()
+			);
 
-            // Data is swapped
-            assert_eq!(SwapData::get().get(&para_1).unwrap(), &69);
-            assert_eq!(SwapData::get().get(&para_2).unwrap(), &1337);
+			// Data is swapped
+			assert_eq!(SwapData::get().get(&para_1).unwrap(), &69);
+			assert_eq!(SwapData::get().get(&para_2).unwrap(), &1337);
 		});
 	}
 
@@ -1217,9 +1217,9 @@ mod tests {
 			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
 			assert_ok!(Registrar::swap(Origin::root(), para_2, para_1));
 			assert!(System::events().iter().any(|r| matches!(
-                r.event,
-                Event::Registrar(paras_registrar::Event::Swapped { .. })
-            )));
+				r.event,
+				Event::Registrar(paras_registrar::Event::Swapped { .. })
+			)));
 
 			run_to_session(5);
 
@@ -1236,9 +1236,9 @@ mod tests {
 			assert!(Parachains::is_parachain(para_2));
 			assert!(Parachains::is_parathread(para_1));
 			assert!(System::events().iter().any(|r| matches!(
-                r.event,
-                Event::Registrar(paras_registrar::Event::Swapped { .. })
-            )));
+				r.event,
+				Event::Registrar(paras_registrar::Event::Swapped { .. })
+			)));
 
 			// Something starts to downgrade a para
 			assert_ok!(Registrar::make_parathread(para_2));
