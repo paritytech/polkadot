@@ -26,14 +26,14 @@ honest-validator-1: reports polkadot_parachain_disputes_finality_lag is lower th
 honest-validator-79: reports polkadot_parachain_disputes_finality_lag is lower than 2
 
 # Check there is an offence report
-honest-validator-0: system event contains "There is an offence reported" within 60 seconds
-honest-validator-1: system event contains "There is an offence reported" within 60 seconds
-honest-validator-79: system event contains "There is an offence reported" within 60 seconds
+honest-validator-0: system event contains "There is an offence reported" within 180 seconds
+honest-validator-1: system event contains "There is an offence reported" within 180 seconds
+honest-validator-79: system event contains "There is an offence reported" within 180 seconds
 
 # Allow more time for malicious validator activity.
 sleep 120 seconds
 
-honest-validator-0: reports parachain_candidate_disputes_total is at least 5 within 15 seconds
+honest-validator-0: reports parachain_candidate_disputes_total is at least 5 within 180 seconds
 
 # Disputes should always end as "valid"
 honest-validator-0: reports parachain_candidate_dispute_concluded{validity="valid"} is at least 5 within 15 seconds
