@@ -52,8 +52,11 @@ pub use outgoing::{OutgoingRequest, OutgoingResult, Recipient, Requests, Respons
 ///// Multiplexer for incoming requests.
 // pub mod multiplexer;
 
-/// Actual versioned requests and responses, that are sent over the wire.
+/// Actual versioned requests and responses that are sent over the wire.
 pub mod v1;
+
+/// Actual versioned requests and responses that are sent over the wire.
+pub mod vstaging;
 
 /// A protocol per subsystem seems to make the most sense, this way we don't need any dispatching
 /// within protocols.
@@ -71,6 +74,10 @@ pub enum Protocol {
 	StatementFetchingV1,
 	/// Sending of dispute statements with application level confirmations.
 	DisputeSendingV1,
+
+	/// Protocol for requesting backed candidate packets in statement distribution
+	/// in v2.
+	BackedCandidatePacketV2,
 }
 
 /// Minimum bandwidth we expect for validators - 500Mbit/s is the recommendation, so approximately
@@ -102,11 +109,29 @@ const POV_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_millis(1200);
 /// fit statement distribution within a block of 6 seconds.)
 const STATEMENTS_TIMEOUT: Duration = Duration::from_secs(1);
 
+/// We want to time out backed candidate requests to time out relatively fast,
+/// because slow requests will bottleneck the backing system. Ideally, we'd have
+/// an adaptive timeout based on the candidate size, because there will be a lot of variance
+/// in candidate sizes: candidates with no code and no messages vs candidates with code
+/// and messages.
+///
+/// We supply leniency because there are often large candidates and asynchronous
+/// backing allows them to be included over a longer window of time. Exponential back-off
+/// up to a maximum of 10 seconds would be ideal, but isn't supported by the
+/// infrastructure here yet: see https://github.com/paritytech/polkadot/issues/6009
+const BACKED_CANDIDATE_PACKET_TIMEOUT: Duration = Duration::from_millis(2500);
+
 /// We don't want a slow peer to slow down all the others, at the same time we want to get out the
 /// data quickly in full to at least some peers (as this will reduce load on us as they then can
 /// start serving the data). So this value is a tradeoff. 3 seems to be sensible. So we would need
 /// to have 3 slow nodes connected, to delay transfer for others by `STATEMENTS_TIMEOUT`.
 pub const MAX_PARALLEL_STATEMENT_REQUESTS: u32 = 3;
+
+/// We don't want a slow peer to slow down all the others, at the same time we want to get out the
+/// data quickly in full to at least some peers (as this will reduce load on us as they then can
+/// start serving the data). So this value is a tradeoff. 3 seems to be sensible. So we would need
+/// to have 3 slow nodes connected, to delay transfer for others by `STATEMENTS_TIMEOUT`.
+pub const MAX_PARALLEL_BACKED_CANDIDATE_PACKET_REQUESTS: u32 = 5;
 
 /// Response size limit for responses of POV like data.
 ///
@@ -120,6 +145,12 @@ const POV_RESPONSE_SIZE: u64 = MAX_POV_SIZE as u64 + 10_000;
 ///
 /// This is `MAX_CODE_SIZE` plus some additional space for protocol overhead.
 const STATEMENT_RESPONSE_SIZE: u64 = MAX_CODE_SIZE as u64 + 10_000;
+
+/// Maximum response sizes for `BackedCandidatePacketV2`.
+///
+/// This is `MAX_CODE_SIZE` plus some additional space for protocol overhead and
+/// additional backing statements.
+const BACKED_CANDIDATE_PACKET_RESPONSE_SIZE: u64 = MAX_CODE_SIZE as u64 + 100_000;
 
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.
@@ -199,6 +230,15 @@ impl Protocol {
 				request_timeout: Duration::from_secs(12),
 				inbound_queue: Some(tx),
 			},
+
+			Protocol::BackedCandidatePacketV2 => RequestResponseConfig {
+				name,
+				fallback_names,
+				max_request_size: 1_000,
+				max_response_size: BACKED_CANDIDATE_PACKET_RESPONSE_SIZE,
+				request_timeout: BACKED_CANDIDATE_PACKET_TIMEOUT,
+				inbound_queue: Some(tx),
+			},
 		};
 		(rx, cfg)
 	}
@@ -244,23 +284,45 @@ impl Protocol {
 			// average, so something in the ballpark of 100 should be fine. Nodes will retry on
 			// failure, so having a good value here is mostly about performance tuning.
 			Protocol::DisputeSendingV1 => 100,
+
+			Protocol::BackedCandidatePacketV2 => {
+				// We assume we can utilize up to 70% of the available bandwidth for statements.
+				// This is just a guess/estimate, with the following considerations: If we are
+				// faster than that, queue size will stay low anyway, even if not - requesters will
+				// get an immediate error, but if we are slower, requesters will run in a timeout -
+				// wasting precious time.
+				let available_bandwidth = 7 * MIN_BANDWIDTH_BYTES / 10;
+				let size = u64::saturating_sub(
+					BACKED_CANDIDATE_PACKET_TIMEOUT.as_millis() as u64 * available_bandwidth /
+						(1000 * MAX_CODE_SIZE as u64),
+					MAX_PARALLEL_BACKED_CANDIDATE_PACKET_REQUESTS as u64,
+				);
+				debug_assert!(
+					size > 0,
+					"We should have a channel size greater zero, otherwise we won't accept any requests."
+				);
+				size as usize
+			},
 		}
 	}
 
 	/// Fallback protocol names of this protocol, as understood by substrate networking.
 	fn get_fallback_names(self) -> Vec<ProtocolName> {
-		std::iter::once(self.get_legacy_name().into()).collect()
+		self.get_legacy_name().into_iter().map(Into::into).collect()
 	}
 
-	/// Legacy protocol name associated with each peer set.
-	const fn get_legacy_name(self) -> &'static str {
+	/// Legacy protocol name associated with each peer set, if any.
+	const fn get_legacy_name(self) -> Option<&'static str> {
 		match self {
-			Protocol::ChunkFetchingV1 => "/polkadot/req_chunk/1",
-			Protocol::CollationFetchingV1 => "/polkadot/req_collation/1",
-			Protocol::PoVFetchingV1 => "/polkadot/req_pov/1",
-			Protocol::AvailableDataFetchingV1 => "/polkadot/req_available_data/1",
-			Protocol::StatementFetchingV1 => "/polkadot/req_statement/1",
-			Protocol::DisputeSendingV1 => "/polkadot/send_dispute/1",
+			Protocol::ChunkFetchingV1 => Some("/polkadot/req_chunk/1"),
+			Protocol::CollationFetchingV1 => Some("/polkadot/req_collation/1"),
+			Protocol::PoVFetchingV1 => Some("/polkadot/req_pov/1"),
+			Protocol::AvailableDataFetchingV1 => Some("/polkadot/req_available_data/1"),
+			Protocol::StatementFetchingV1 => Some("/polkadot/req_statement/1"),
+			Protocol::DisputeSendingV1 => Some("/polkadot/send_dispute/1"),
+
+			// Introduced after legacy names became legacy.
+			Protocol::BackedCandidatePacketV2 => None,
 		}
 	}
 }
@@ -316,6 +378,8 @@ impl ReqProtocolNames {
 			Protocol::AvailableDataFetchingV1 => "/req_available_data/1",
 			Protocol::StatementFetchingV1 => "/req_statement/1",
 			Protocol::DisputeSendingV1 => "/send_dispute/1",
+
+			Protocol::BackedCandidatePacketV2 => "/req_backed_candidate_packet/2",
 		};
 
 		format!("{}{}", prefix, short_name).into()

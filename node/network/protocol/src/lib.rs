@@ -593,7 +593,7 @@ pub mod vstaging {
 	use parity_scale_codec::{Decode, Encode};
 
 	use polkadot_primitives::vstaging::{
-		CandidateIndex, CandidateHash, CollatorId, CollatorSignature, Hash, Id as ParaId,
+		CandidateHash, CandidateIndex, CollatorId, CollatorSignature, Hash, Id as ParaId,
 		UncheckedSignedAvailabilityBitfield, UncheckedSignedStatement,
 	};
 
