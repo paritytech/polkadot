@@ -47,7 +47,7 @@ use polkadot_node_primitives::{PoV, SignedFullStatement, Statement};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
-		CandidateBackingMessage, CollatorProtocolMessage, HypotheticalDepthRequest, IfDisconnected,
+		CandidateBackingMessage, CollatorProtocolMessage, IfDisconnected,
 		NetworkBridgeEvent, NetworkBridgeTxMessage, ProspectiveParachainsMessage,
 		ProspectiveValidationDataRequest,
 	},
@@ -951,39 +951,18 @@ async fn process_incoming_peer_message<Context>(
 }
 
 async fn is_seconding_allowed<Sender>(
-	sender: &mut Sender,
-	relay_parent: Hash,
-	candidate_hash: CandidateHash,
-	parent_head_data_hash: Hash,
-	para_id: ParaId,
-	active_leaves: impl IntoIterator<Item = Hash>,
+	_sender: &mut Sender,
+	_relay_parent: Hash,
+	_candidate_hash: CandidateHash,
+	_parent_head_data_hash: Hash,
+	_para_id: ParaId,
+	_active_leaves: impl IntoIterator<Item = Hash>,
 ) -> Option<bool>
 where
 	Sender: CollatorProtocolSenderTrait,
 {
-	for leaf in active_leaves {
-		let (tx, rx) = oneshot::channel();
-
-		let request = HypotheticalDepthRequest {
-			candidate_hash,
-			candidate_para: para_id,
-			parent_head_data_hash,
-			candidate_relay_parent: relay_parent,
-			fragment_tree_relay_parent: leaf,
-		};
-
-		sender
-			.send_message(ProspectiveParachainsMessage::GetHypotheticalDepth(request, tx))
-			.await;
-
-		let response = rx.await.ok()?;
-
-		if !response.is_empty() {
-			return Some(true)
-		}
-	}
-
-	Some(false)
+	// TODO https://github.com/paritytech/polkadot/issues/5923
+	Some(true)
 }
 
 #[derive(Debug)]
