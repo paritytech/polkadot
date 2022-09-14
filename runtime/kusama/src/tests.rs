@@ -17,7 +17,7 @@
 //! Tests for the Kusama Runtime Configuration
 
 use crate::*;
-use frame_support::weights::{GetDispatchInfo, WeightToFee as WeightToFeeT};
+use frame_support::{dispatch::GetDispatchInfo, weights::WeightToFee as WeightToFeeT};
 use keyring::Sr25519Keyring::Charlie;
 use pallet_transaction_payment::Multiplier;
 use parity_scale_codec::Encode;

@@ -7,7 +7,10 @@ mod mock;
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_benchmarking::BenchmarkError;
-	use frame_support::{dispatch::Dispatchable, pallet_prelude::Encode, weights::GetDispatchInfo};
+	use frame_support::{
+		dispatch::{Dispatchable, GetDispatchInfo},
+		pallet_prelude::Encode,
+	};
 	use xcm::latest::{MultiAssets, MultiLocation, Response};
 
 	#[pallet::config]
