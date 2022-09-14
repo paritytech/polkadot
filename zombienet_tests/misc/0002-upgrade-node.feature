@@ -7,22 +7,20 @@ bob: is up
 charlie: is up
 dave: is up
 
-alice: reports block height is at least 10 within 200 seconds
 alice: parachain 2000 block height is at least 10 within 200 seconds
-bob: reports block height is at least 15 within 240 seconds
 bob: parachain 2001 block height is at least 10 within 200 seconds
-charlie: reports block height is at least 20 within 320 seconds
 
 # upgrade both nodes
 # For testing using native provider you should set this env var
-# POLKADOT_PR_BIN_URL=https://gitlab.parity.io/parity/mirrors/polkadot/-/jobs/1810914/artifacts/file/artifacts/polkadot
+# POLKADOT_PR_BIN_URL=https://gitlab.parity.io/parity/mirrors/polkadot/-/jobs/1842869/artifacts/raw/artifacts/polkadot
 # with the version of polkadot you want to download.
-alice: run ./0002-download-polkadot-from-pr.sh with "{{POLKADOT_PR_BIN_URL}}" within 200 seconds
-alice: restart after 10 seconds
-bob: run ./0002-download-polkadot-from-pr.sh with "{{POLKADOT_PR_BIN_URL}}" within 200 seconds
-bob: restart after 10 seconds
 
-alice: reports block height is at least 40 within 200 seconds
-bob: reports block height is at least 40 within 200 seconds
+# avg 30s in our infra
+alice: run ./0002-download-polkadot-from-pr.sh with "{{POLKADOT_PR_BIN_URL}}" within 40 seconds
+bob: run ./0002-download-polkadot-from-pr.sh with "{{POLKADOT_PR_BIN_URL}}" within 40 seconds
+alice: restart after 5 seconds
+bob: restart after 5 seconds
+
 alice: parachain 2000 block height is at least 30 within 240 seconds
 bob: parachain 2001 block height is at least 30 within 240 seconds
+

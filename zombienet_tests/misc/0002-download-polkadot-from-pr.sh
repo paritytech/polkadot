@@ -2,6 +2,8 @@
 
 set -euxo pipefail
 
+echo $@
+
 CFG_DIR=/cfg
 
 # add CFG_DIR as first `looking dir` to allow to overrides commands.
