@@ -16,7 +16,7 @@ DownwardMessageQueuePages: map (ParaId, PageIdx)  => Vec<InboundDownwardMessage>
 /// - `prev_head`: is the previous head hash or zero if none.
 /// - `B`: is the relay-chain block number in which a message was appended.
 /// - `H(M)`: is the hash of the message being appended.
-DownwardMessageQueueHeadsById: map (ParaId, MessageIdx) => Hash;
+DownwardMessageQueueHeadsById: map (ParaId, MessageIndex) => Hash;
 ```
 
 ## Initialization

@@ -81,17 +81,17 @@ fn clean_dmp_works() {
 		let outgoing_paras = vec![a, b];
 		Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 
-		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIndex {
 			para_id: a,
 			page_idx: 0.into()
 		})
 		.is_empty());
-		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIndex {
 			para_id: b,
 			page_idx: 0.into()
 		})
 		.is_empty());
-		assert!(!<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
+		assert!(!<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIndex {
 			para_id: c,
 			page_idx: 0.into()
 		})
@@ -125,17 +125,17 @@ fn clean_dmp_works_when_wrapping_around() {
 
 		Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 
-		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIndex {
 			para_id: a,
 			page_idx: 0.into()
 		})
 		.is_empty());
-		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIndex {
 			para_id: b,
 			page_idx: 0.into()
 		})
 		.is_empty());
-		assert!(!<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIdx {
+		assert!(!<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIndex {
 			para_id: c,
 			page_idx: u64::MAX.into()
 		})
@@ -217,6 +217,30 @@ fn check_processed_downward_messages() {
 }
 
 #[test]
+#[should_panic]
+fn dmq_pruning_for_no_messages() {
+	let a = ParaId::from(1312);
+
+	new_test_ext(default_genesis_config()).execute_with(|| {
+		Dmp::assert_storage_consistency_exhaustive(None);
+		assert_eq!(Dmp::dmq_length(a), 0);
+
+		queue_downward_message(a, vec![1, 2, 3]).unwrap();
+		Dmp::assert_storage_consistency_exhaustive(None);
+		assert_eq!(Dmp::dmq_length(a), 1);
+
+		// This should return zero after pruning.
+		assert_eq!(
+			Dmp::dmq_mqc_head_for_message(a, 0.into()),
+			hex!["434f8579a2297dfea851bf6be33093c83a78b655a53ae141a7894494c0010589"].into(),
+		);
+
+		// This should trigger debug assert.
+		Dmp::prune_dmq(a, 0);
+	});
+}
+
+#[test]
 fn dmq_pruning() {
 	let a = ParaId::from(1312);
 
@@ -237,11 +261,6 @@ fn dmq_pruning() {
 			Dmp::dmq_mqc_head_for_message(a, 0.into()),
 			hex!["434f8579a2297dfea851bf6be33093c83a78b655a53ae141a7894494c0010589"].into(),
 		);
-
-		// pruning 0 elements shouldn't change anything.
-		Dmp::prune_dmq(a, 0);
-		Dmp::assert_storage_consistency_exhaustive(None);
-		assert_eq!(Dmp::dmq_length(a), 3);
 
 		let message_1_mqc = Dmp::dmq_mqc_head_for_message(a, 1.into());
 		Dmp::prune_dmq(a, 2);
@@ -299,10 +318,10 @@ fn dmq_contents_is_bounded() {
 		let messages = Dmp::dmq_contents_bounded(a, 0, 15);
 		assert_eq!(messages.len(), 15 * QUEUE_PAGE_CAPACITY as usize);
 
-		// Get `MAX_PAGES_PER_QUERY` pages.
+		// Exepect to return all messages.
 		let messages = Dmp::dmq_contents(a);
-		let max_response_len: usize =
-			(MAX_PAGES_PER_QUERY * QUEUE_PAGE_CAPACITY).try_into().unwrap();
+		let max_response_len = Dmp::dmq_length(a) as usize;
+
 		assert_eq!(messages.len(), max_response_len);
 	});
 }
@@ -322,7 +341,7 @@ fn queue_downward_message_page_ordering() {
 			ring_buffer_state: RingBufferState::new(init_head_tail, init_head_tail),
 			..Default::default()
 		};
-		// Make page indexes wrap around.
+		// Make page indices wrap around.
 		Dmp::update_state(&a, state);
 
 		// Fill queue.
@@ -443,7 +462,7 @@ fn verify_dmq_message_idx_is_externally_accessible() {
 		Dmp::prune_dmq(a, 100);
 		assert_eq!(Dmp::dmq_length(a), 0);
 
-		// Queue should look empty by the message indexes.
+		// Queue should look empty by the message indices.
 		let state = QueueState::decode(
 			&mut &sp_io::storage::get(&well_known_keys::dmp_queue_state(a)).unwrap()[..],
 		)

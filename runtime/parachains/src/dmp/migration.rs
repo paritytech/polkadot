@@ -125,10 +125,10 @@ pub mod v1 {
 	}
 
 	pub fn post_migrate<T: Config>() -> Result<(), &'static str> {
-		let old_storage_clean =
+		let old_storage_not_empty =
 			v0::DownwardMessageQueues::<T>::iter().any(|(_, messages)| messages.len() > 0);
 
-		ensure!(!old_storage_clean, "Upgrade did not cleanup old storage");
+		ensure!(!old_storage_not_empty, "Upgrade did not cleanup old storage");
 		Ok(())
 	}
 }

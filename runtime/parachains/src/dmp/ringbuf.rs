@@ -24,7 +24,7 @@ use sp_std::prelude::*;
 /// Unique identifier of an inbound downward message.
 #[derive(Encode, Decode, Clone, Default, Copy, sp_runtime::RuntimeDebug, PartialEq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct MessageIdx {
+pub struct ParaMessageIndex {
 	/// The recipient parachain.
 	pub para_id: ParaId,
 	/// A message index in the recipient parachain queue.
@@ -33,7 +33,7 @@ pub struct MessageIdx {
 
 /// The key for a queue page of a parachain.
 #[derive(Encode, Decode, Clone, Copy, PartialEq, Eq, RuntimeDebug, TypeInfo)]
-pub struct QueuePageIdx {
+pub struct QueuePageIndex {
 	/// The recipient parachain.
 	pub para_id: ParaId,
 	/// The page index.
@@ -93,7 +93,7 @@ pub struct RingBuffer {
 pub struct RingBufferIterator(RingBuffer);
 
 impl IntoIterator for RingBuffer {
-	type Item = QueuePageIdx;
+	type Item = QueuePageIndex;
 	type IntoIter = RingBufferIterator;
 
 	fn into_iter(self) -> Self::IntoIter {
@@ -102,7 +102,7 @@ impl IntoIterator for RingBuffer {
 }
 
 impl Iterator for RingBufferIterator {
-	type Item = QueuePageIdx;
+	type Item = QueuePageIndex;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		self.0.pop_front()
@@ -116,16 +116,16 @@ impl RingBuffer {
 
 	/// Allocates a new page and returns the page index.
 	/// Panics if there are no free pages.
-	pub fn extend(&mut self) -> QueuePageIdx {
+	pub fn extend(&mut self) -> QueuePageIndex {
 		// In practice this is always bounded economically - sending a message requires paying fee/deposit.
 		if self.state.tail_page_idx.wrapping_inc() == self.state.head_page_idx {
-			unimplemented!("The end of the world is upon us");
+			panic!("The end of the world is upon us");
 		}
 
 		// Advance tail to the next unused page.
 		self.state.tail_page_idx = self.state.tail_page_idx.wrapping_inc();
 		// Return last used page.
-		QueuePageIdx { para_id: self.para_id, page_idx: self.state.tail_page_idx.wrapping_dec() }
+		QueuePageIndex { para_id: self.para_id, page_idx: self.state.tail_page_idx.wrapping_dec() }
 	}
 
 	/// Frees up to count `pages` by advacing the head page index. If count is larger than
@@ -141,7 +141,7 @@ impl RingBuffer {
 
 	/// Frees the first used page and returns it's index while advacing the head of the ring buffer.
 	/// If the queue is empty it does nothing and returns `None`.
-	pub fn pop_front(&mut self) -> Option<QueuePageIdx> {
+	pub fn pop_front(&mut self) -> Option<QueuePageIndex> {
 		let page = self.front();
 
 		if page.is_some() {
@@ -152,20 +152,20 @@ impl RingBuffer {
 	}
 
 	/// Returns the first page or `None` if ring buffer empty.
-	pub fn front(&self) -> Option<QueuePageIdx> {
+	pub fn front(&self) -> Option<QueuePageIndex> {
 		if self.state.tail_page_idx == self.state.head_page_idx {
 			None
 		} else {
-			Some(QueuePageIdx { para_id: self.para_id, page_idx: self.state.head_page_idx })
+			Some(QueuePageIndex { para_id: self.para_id, page_idx: self.state.head_page_idx })
 		}
 	}
 
 	/// Returns the last used page or `None` if ring buffer empty.
-	pub fn last_used(&self) -> Option<QueuePageIdx> {
+	pub fn last_used(&self) -> Option<QueuePageIndex> {
 		if self.state.tail_page_idx == self.state.head_page_idx {
 			None
 		} else {
-			Some(QueuePageIdx {
+			Some(QueuePageIndex {
 				para_id: self.para_id,
 				page_idx: self.state.tail_page_idx.wrapping_dec(),
 			})
@@ -173,8 +173,8 @@ impl RingBuffer {
 	}
 
 	#[cfg(test)]
-	pub fn first_unused(&self) -> QueuePageIdx {
-		QueuePageIdx { para_id: self.para_id, page_idx: self.state.tail_page_idx }
+	pub fn first_unused(&self) -> QueuePageIndex {
+		QueuePageIndex { para_id: self.para_id, page_idx: self.state.tail_page_idx }
 	}
 
 	/// Returns the size in pages.
@@ -196,18 +196,18 @@ impl MessageWindow {
 
 	/// Extend the message index window by `count`. Returns the latest used message index.
 	/// Panics if extending over capacity, similarly to `RingBuffer`.
-	pub fn extend(&mut self, count: u64) -> MessageIdx {
+	pub fn extend(&mut self, count: u64) -> ParaMessageIndex {
 		if self.size() > 0 {
 			let free_count =
 				self.state.first_message_idx.wrapping_sub(self.state.free_message_idx).0;
 
 			if free_count < count {
-				unimplemented!("The end of the world is upon us");
+				panic!("The end of the world is upon us");
 			}
 		}
 
 		self.state.free_message_idx = self.state.free_message_idx.wrapping_add(count.into());
-		MessageIdx {
+		ParaMessageIndex {
 			para_id: self.para_id,
 			message_idx: self.state.free_message_idx.wrapping_dec(),
 		}
@@ -215,13 +215,13 @@ impl MessageWindow {
 
 	/// Advanced the window start by `count` elements.  Returns the index of the first element in queue
 	/// or `None` if the queue is empty after the operation.
-	pub fn prune(&mut self, count: u64) -> Option<MessageIdx> {
+	pub fn prune(&mut self, count: u64) -> Option<ParaMessageIndex> {
 		let to_prune = sp_std::cmp::min(self.size(), count);
 		self.state.first_message_idx = self.state.first_message_idx.wrapping_add(to_prune.into());
 		if self.state.first_message_idx == self.state.free_message_idx {
 			None
 		} else {
-			Some(MessageIdx { para_id: self.para_id, message_idx: self.state.first_message_idx })
+			Some(ParaMessageIndex { para_id: self.para_id, message_idx: self.state.first_message_idx })
 		}
 	}
 
@@ -231,17 +231,17 @@ impl MessageWindow {
 	}
 
 	/// Returns the first message index, `None` if window is empty.
-	pub fn first(&self) -> Option<MessageIdx> {
+	pub fn first(&self) -> Option<ParaMessageIndex> {
 		if self.size() > 0 {
-			Some(MessageIdx { para_id: self.para_id, message_idx: self.state.first_message_idx })
+			Some(ParaMessageIndex { para_id: self.para_id, message_idx: self.state.first_message_idx })
 		} else {
 			None
 		}
 	}
 
 	/// Returns the first free message index.
-	pub fn first_free(&self) -> MessageIdx {
-		MessageIdx { para_id: self.para_id, message_idx: self.state.free_message_idx }
+	pub fn first_free(&self) -> ParaMessageIndex {
+		ParaMessageIndex { para_id: self.para_id, message_idx: self.state.free_message_idx }
 	}
 
 	/// Returns the wrapped state.
