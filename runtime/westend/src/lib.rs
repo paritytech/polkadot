@@ -1182,6 +1182,7 @@ pub type Executive = frame_executive::Executive<
 			StakingMigrationV11OldPallet,
 		>,
 		pallet_nomination_pools::migration::v3::MigrateToV3<Runtime>,
+		pallet_staking::migrations::v11::MigrateToV11<Runtime>,
 	),
 >;
 /// The payload being signed in transactions.
