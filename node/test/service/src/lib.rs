@@ -139,7 +139,7 @@ pub fn node_config(
 	is_validator: bool,
 ) -> Configuration {
 	let base_path = BasePath::new_temp_dir().expect("could not create temporary directory");
-	let root = base_path.path();
+	let root = base_path.path().join(key.to_string());
 	let role = if is_validator { Role::Authority } else { Role::Full };
 	let key_seed = key.to_seed();
 	let mut spec = polkadot_local_testnet_config();
