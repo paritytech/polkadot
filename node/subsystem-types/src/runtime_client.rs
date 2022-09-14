@@ -19,8 +19,8 @@ use polkadot_primitives::{
 	runtime_api::ParachainHost,
 	v2::{
 		Block, BlockId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
-		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id,
-		InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
+		CommittedCandidateReceipt, CoreState, DisputeState, DmqContentsBounds, GroupRotationInfo,
+		Hash, Id, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
 		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
 		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
@@ -113,7 +113,7 @@ pub trait RuntimeApiSubsystemClient {
 	/// Get a vector of events concerning candidates that occurred within a block.
 	async fn candidate_events(&self, at: Hash) -> Result<Vec<CandidateEvent<Hash>>, ApiError>;
 
-	/// Returns up to `MAX_PAGES_PER_QUERY`*`QUEUE_PAGE_CAPACITY` messages from the queue. See `dmp` pallet.
+	/// Returns all messages from the queue. See `dmp` pallet.
 	/// Deprecated API. Please use `dmq_contents_bounded`.
 	async fn dmq_contents(
 		&self,
@@ -209,22 +209,21 @@ pub trait RuntimeApiSubsystemClient {
 
 	/// Get a subset of inbound messages from the downward message queue of a parachain.
 	///
-	/// Returns a `vec` containing the messages from the first `count` pages, starting from a `0` based
-	/// page index specified by `start_page` with `0` being the first used page of the queue. A page
+	/// Returns a `vec` containing the messages from the first `bounds.page_count` pages, starting from a `0` based
+	/// page index specified by `bounds.start_page_index` with `0` being the first used page of the queue. A page
 	/// can hold up to `QUEUE_PAGE_CAPACITY` messages. (please see the runtime `dmp` implementation).
 	///
 	/// Only the outer pages of the queue can have less than maximum messages because insertion and
 	/// pruning work with individual messages.
 	///
-	/// The result will be an empty vector if `count` is 0, the para doesn't exist, it's queue is empty
-	/// or `start` is greater than the last used page in the queue. If the queue is not empty, the method
-	/// is guaranteed to return at least 1 message and up to `count`*`QUEUE_PAGE_CAPACITY` messages.
+	/// The result will be an empty vector if `bounds.page_count` is 0, the para doesn't exist, it's queue is empty
+	/// or `bounds.start_page_index` is greater than the last used page in the queue. If the queue is not empty, the method
+	/// is guaranteed to return at least 1 message and up to `bounds.page_count`*`QUEUE_PAGE_CAPACITY` messages.
 	async fn dmq_contents_bounded(
 		&self,
 		at: Hash,
 		recipient: Id,
-		start_page: u32,
-		page_count: u32,
+		bounds: DmqContentsBounds,
 	) -> Result<Vec<InboundDownwardMessage<BlockNumber>>, ApiError>;
 }
 
@@ -323,15 +322,9 @@ where
 		&self,
 		at: Hash,
 		recipient: Id,
-		start_page: u32,
-		page_count: u32,
+		bounds: DmqContentsBounds,
 	) -> Result<Vec<InboundDownwardMessage<BlockNumber>>, ApiError> {
-		self.runtime_api().dmq_contents_bounded(
-			&BlockId::Hash(at),
-			recipient,
-			start_page,
-			page_count,
-		)
+		self.runtime_api().dmq_contents_bounded(&BlockId::Hash(at), recipient, bounds)
 	}
 
 	async fn inbound_hrmp_channels_contents(

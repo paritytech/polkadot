@@ -25,7 +25,7 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_election_provider_support::{onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{ConstU32, Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
+	traits::{ConstU32, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
 	weights::ConstantMultiplier,
 	PalletId,
 };
@@ -37,10 +37,11 @@ use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInf
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v2::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionInfo, Signature,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	CommittedCandidateReceipt, CoreState, DisputeState, DmqContentsBounds, GroupRotationInfo, Hash,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
+	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, elections::OnChainAccuracy, impl_runtime_weights,
@@ -898,7 +899,9 @@ impl parachains_ump::Config for Runtime {
 	type WeightInfo = weights::runtime_parachains_ump::WeightInfo<Runtime>;
 }
 
-impl parachains_dmp::Config for Runtime {}
+impl parachains_dmp::Config for Runtime {
+	type DmpPageCapacity = ConstU32<{ runtime_parachains::dmp::QUEUE_PAGE_CAPACITY }>;
+}
 
 impl parachains_hrmp::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
@@ -1343,8 +1346,8 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::dmq_contents::<Runtime>(recipient)
 		}
 
-		fn dmq_contents_bounded(recipient: ParaId, start_page: u32, count: u32) -> Vec<InboundDownwardMessage<BlockNumber>> {
-			parachains_runtime_api_impl::dmq_contents_bounded::<Runtime>(recipient, start_page, count)
+		fn dmq_contents_bounded(recipient: ParaId, bounds: DmqContentsBounds) -> Vec<InboundDownwardMessage<BlockNumber>> {
+			parachains_runtime_api_impl::dmq_contents_bounded::<Runtime>(recipient, bounds)
 		}
 
 		fn inbound_hrmp_channels_contents(

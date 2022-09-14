@@ -198,8 +198,8 @@ impl MessageWindow {
 	/// Panics if extending over capacity, similarly to `RingBuffer`.
 	pub fn extend(&mut self, count: u64) -> ParaMessageIndex {
 		if self.size() > 0 {
-			let free_count =
-				self.state.first_message_idx.wrapping_sub(self.state.free_message_idx).0;
+			let free_count: u64 =
+				self.state.first_message_idx.wrapping_sub(self.state.free_message_idx).into();
 
 			if free_count < count {
 				panic!("The end of the world is upon us");
@@ -221,7 +221,10 @@ impl MessageWindow {
 		if self.state.first_message_idx == self.state.free_message_idx {
 			None
 		} else {
-			Some(ParaMessageIndex { para_id: self.para_id, message_idx: self.state.first_message_idx })
+			Some(ParaMessageIndex {
+				para_id: self.para_id,
+				message_idx: self.state.first_message_idx,
+			})
 		}
 	}
 
@@ -233,7 +236,10 @@ impl MessageWindow {
 	/// Returns the first message index, `None` if window is empty.
 	pub fn first(&self) -> Option<ParaMessageIndex> {
 		if self.size() > 0 {
-			Some(ParaMessageIndex { para_id: self.para_id, message_idx: self.state.first_message_idx })
+			Some(ParaMessageIndex {
+				para_id: self.para_id,
+				message_idx: self.state.first_message_idx,
+			})
 		} else {
 			None
 		}

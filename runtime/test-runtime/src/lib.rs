@@ -46,8 +46,8 @@ use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
 use primitives::v2::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash as HashT,
-	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
+	CommittedCandidateReceipt, CoreState, DisputeState, DmqContentsBounds, GroupRotationInfo,
+	Hash as HashT, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
 	OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
 	SessionInfo as SessionInfoData, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
 	ValidatorIndex,
@@ -875,8 +875,8 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::dmq_contents::<Runtime>(recipient)
 		}
 
-		fn dmq_contents_bounded(recipient: ParaId, start_page: u32, count: u32) -> Vec<InboundDownwardMessage<BlockNumber>> {
-			runtime_impl::dmq_contents_bounded::<Runtime>(recipient, start_page, count)
+		fn dmq_contents_bounded(recipient: ParaId, bounds: DmqContentsBounds) -> Vec<InboundDownwardMessage<BlockNumber>> {
+			runtime_impl::dmq_contents_bounded::<Runtime>(recipient, bounds)
 		}
 
 		fn inbound_hrmp_channels_contents(

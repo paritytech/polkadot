@@ -22,10 +22,10 @@ use sp_consensus_babe::Epoch;
 
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
-	PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	CommittedCandidateReceipt, CoreState, DisputeState, DmqContentsBounds, GroupRotationInfo, Hash,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
+	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 
 const AUTHORITIES_CACHE_SIZE: usize = 128 * 1024;
@@ -105,7 +105,7 @@ pub(crate) struct RequestResultCache {
 	dmq_contents:
 		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Vec<InboundDownwardMessage<BlockNumber>>>>,
 	dmq_contents_bounded: MemoryLruCache<
-		(Hash, ParaId, u32, u32),
+		(Hash, ParaId, DmqContentsBounds),
 		ResidentSizeOf<Vec<InboundDownwardMessage<BlockNumber>>>,
 	>,
 	inbound_hrmp_channels_contents: MemoryLruCache<
@@ -337,7 +337,7 @@ impl RequestResultCache {
 
 	pub(crate) fn dmq_contents_bounded(
 		&mut self,
-		key: (Hash, ParaId, u32, u32),
+		key: (Hash, ParaId, DmqContentsBounds),
 	) -> Option<&Vec<InboundDownwardMessage<BlockNumber>>> {
 		self.dmq_contents_bounded.get(&key).map(|v| &v.0)
 	}
@@ -352,7 +352,7 @@ impl RequestResultCache {
 
 	pub(crate) fn cache_dmq_contents_bounded(
 		&mut self,
-		key: (Hash, ParaId, u32, u32),
+		key: (Hash, ParaId, DmqContentsBounds),
 		value: Vec<InboundDownwardMessage<BlockNumber>>,
 	) {
 		self.dmq_contents_bounded.insert(key, ResidentSizeOf(value));
@@ -470,7 +470,7 @@ pub(crate) enum RequestResult {
 	CandidateEvents(Hash, Vec<CandidateEvent>),
 	SessionInfo(Hash, SessionIndex, Option<SessionInfo>),
 	DmqContents(Hash, ParaId, Vec<InboundDownwardMessage<BlockNumber>>),
-	DmqContentsBounded(Hash, ParaId, u32, u32, Vec<InboundDownwardMessage<BlockNumber>>),
+	DmqContentsBounded(Hash, ParaId, DmqContentsBounds, Vec<InboundDownwardMessage<BlockNumber>>),
 	InboundHrmpChannelsContents(
 		Hash,
 		ParaId,

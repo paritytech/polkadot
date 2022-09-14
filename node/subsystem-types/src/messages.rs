@@ -41,9 +41,9 @@ use polkadot_node_primitives::{
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
 	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
-	DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
+	DisputeState, DmqContentsBounds, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
 	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
 	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
@@ -683,8 +683,7 @@ pub enum RuntimeApiRequest {
 	/// Get a subset of the pending inbound messages in the downward message queue for a para.
 	DmqContentsBounded(
 		ParaId,
-		u32,
-		u32,
+		DmqContentsBounds,
 		RuntimeApiSender<Vec<InboundDownwardMessage<BlockNumber>>>,
 	),
 	/// Get the contents of all channels addressed to the given recipient. Channels that have no

@@ -305,7 +305,7 @@ pub type UpwardMessage = Vec<u8>;
 	Encode, Decode, Default, Clone, Copy, sp_runtime::RuntimeDebug, Eq, PartialEq, TypeInfo,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct WrappingIndex<IndexType>(pub u64, PhantomData<IndexType>);
+pub struct WrappingIndex<IndexType>(u64, PhantomData<IndexType>);
 
 #[derive(
 	Encode, Decode, Default, Clone, Copy, sp_runtime::RuntimeDebug, Eq, PartialEq, TypeInfo,
@@ -344,9 +344,9 @@ impl<IndexType> From<u64> for WrappingIndex<IndexType> {
 	}
 }
 
-impl<IndexType> Into<u64> for WrappingIndex<IndexType> {
-	fn into(self) -> u64 {
-		self.0
+impl<IndexType> From<WrappingIndex<IndexType>> for u64 {
+	fn from(idx: WrappingIndex<IndexType>) -> Self {
+		idx.0
 	}
 }
 

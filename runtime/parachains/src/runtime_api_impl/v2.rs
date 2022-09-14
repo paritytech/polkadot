@@ -23,10 +23,11 @@ use crate::{
 };
 use primitives::v2::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
-	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
-	PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	CoreState, DmqContentsBounds, GroupIndex, GroupRotationInfo, Hash, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption,
+	PersistedValidationData, PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex,
+	SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -403,8 +404,7 @@ where
 /// Implementation for the `dmq_contents_bounded` function of the runtime API.
 pub fn dmq_contents_bounded<T: dmp::Config>(
 	parachain_id: ParaId,
-	start_page: u32,
-	page_count: u32,
+	bounds: DmqContentsBounds,
 ) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-	<dmp::Pallet<T>>::dmq_contents_bounded(parachain_id, start_page, page_count)
+	<dmp::Pallet<T>>::dmq_contents_bounded(parachain_id, bounds)
 }

@@ -25,7 +25,9 @@ use crate::{
 
 use frame_support::{
 	parameter_types,
-	traits::{GenesisBuild, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
+	traits::{
+		ConstU32, GenesisBuild, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification,
+	},
 	weights::Weight,
 };
 use frame_support_test::TestRandomness;
@@ -219,7 +221,9 @@ impl crate::paras::Config for Test {
 	type NextSessionRotation = TestNextSessionRotation;
 }
 
-impl crate::dmp::Config for Test {}
+impl crate::dmp::Config for Test {
+	type DmpPageCapacity = ConstU32<{ dmp::QUEUE_PAGE_CAPACITY }>;
+}
 
 parameter_types! {
 	pub const FirstMessageFactorPercent: u64 = 100;

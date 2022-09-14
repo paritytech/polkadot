@@ -18,7 +18,7 @@ use super::*;
 use crate::mock::{new_test_ext, Configuration, Dmp, MockGenesisConfig, Paras, System};
 use hex_literal::hex;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::BlockNumber;
+use primitives::v2::{BlockNumber, DmqContentsBounds};
 
 pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 	while System::block_number() < to {
@@ -59,10 +59,9 @@ fn queue_downward_message(
 
 fn dmq_contents_bounded(
 	para_id: ParaId,
-	start_page: u32,
-	page_count: u32,
+	bounds: DmqContentsBounds,
 ) -> Vec<InboundDownwardMessage<BlockNumber>> {
-	Dmp::dmq_contents_bounded(para_id, start_page, page_count)
+	Dmp::dmq_contents_bounded(para_id, bounds)
 }
 
 #[test]
@@ -315,7 +314,8 @@ fn dmq_contents_is_bounded() {
 		}
 
 		// Get 15 pages with messages.
-		let messages = Dmp::dmq_contents_bounded(a, 0, 15);
+		let messages =
+			Dmp::dmq_contents_bounded(a, DmqContentsBounds { start_page_index: 0, page_count: 15 });
 		assert_eq!(messages.len(), 15 * QUEUE_PAGE_CAPACITY as usize);
 
 		// Exepect to return all messages.
@@ -354,7 +354,10 @@ fn queue_downward_message_page_ordering() {
 		let mut start = 0;
 
 		loop {
-			let messages = dmq_contents_bounded(a, start, 1);
+			let messages = dmq_contents_bounded(
+				a,
+				DmqContentsBounds { start_page_index: start, page_count: 1 },
+			);
 			if messages.len() == 0 {
 				break
 			}
@@ -391,15 +394,16 @@ fn queue_downward_message_consumption() {
 		// Now lets fetch all messages using different chunk sizes (0 to 4 * QUEUE_PAGE_SIZE - 1).
 		let mut sum = 0;
 		let mut count = 0;
-		let mut start_index = 0;
+		let mut start_page_index = 0;
 		let mut loops = 0;
 
 		loop {
-			let pages_to_fetch = loops & 0x3;
+			let page_count = loops & 0x3;
 
-			let mut messages = dmq_contents_bounded(a, start_index, pages_to_fetch);
+			let mut messages =
+				dmq_contents_bounded(a, DmqContentsBounds { start_page_index, page_count });
 
-			if pages_to_fetch > 0 && messages.len() == 0 {
+			if page_count > 0 && messages.len() == 0 {
 				break
 			}
 
@@ -407,7 +411,7 @@ fn queue_downward_message_consumption() {
 			loops += 1;
 
 			// Update dmq contents window start.
-			start_index += pages_to_fetch;
+			start_page_index += page_count;
 
 			sum += messages
 				.iter_mut()

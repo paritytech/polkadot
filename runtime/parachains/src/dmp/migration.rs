@@ -138,7 +138,7 @@ mod tests {
 	use super::*;
 	use crate::mock::{new_test_ext, MockGenesisConfig, Test};
 	use parity_scale_codec::Encode;
-	use primitives::v2::{Id as ParaId, MessageQueueChain};
+	use primitives::v2::{DmqContentsBounds, Id as ParaId, MessageQueueChain};
 	use sp_runtime::traits::{BlakeTwo256, Hash};
 
 	fn default_genesis_config() -> MockGenesisConfig {
@@ -183,8 +183,10 @@ mod tests {
 			// Iterate all paras after migration and check mqc of all messages.
 			for para_id in 0..40 {
 				// Get the first 100 pages of messages.
-				let all_messages =
-					<crate::dmp::Pallet<Test>>::dmq_contents_bounded(ParaId::from(para_id), 0, 100);
+				let all_messages = <crate::dmp::Pallet<Test>>::dmq_contents_bounded(
+					ParaId::from(para_id),
+					DmqContentsBounds { start_page_index: 0, page_count: 100 },
+				);
 
 				let mut migrated_mqc = MessageQueueChain::default();
 

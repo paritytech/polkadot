@@ -135,6 +135,18 @@ pub struct InboundDownwardMessage<BlockNumber = crate::BlockNumber> {
 	pub msg: DownwardMessage,
 }
 
+#[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, TypeInfo, Hash, Eq)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
+/// Describes the page bounds for retrieving messages from the `DMQ` when using
+/// the `dmq_contents_bounded` API.
+pub struct DmqContentsBounds {
+	/// The start page index in the DMP queue. Earliest messages in the queue are in the first page with
+	/// index 0.
+	pub start_page_index: u32,
+	/// The amount of pages to be retrieved from the DMP queue starting with `page_index`.
+	pub page_count: u32,
+}
+
 /// An HRMP message seen from the perspective of a recipient.
 #[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]

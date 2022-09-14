@@ -138,9 +138,9 @@ where
 				},
 			DmqContents(relay_parent, para_id, messages) =>
 				self.requests_cache.cache_dmq_contents((relay_parent, para_id), messages),
-			DmqContentsBounded(relay_parent, para_id, start_page, count, messages) => self
+			DmqContentsBounded(relay_parent, para_id, bounds, messages) => self
 				.requests_cache
-				.cache_dmq_contents_bounded((relay_parent, para_id, start_page, count), messages),
+				.cache_dmq_contents_bounded((relay_parent, para_id, bounds), messages),
 			InboundHrmpChannelsContents(relay_parent, para_id, contents) => self
 				.requests_cache
 				.cache_inbound_hrmp_channel_contents((relay_parent, para_id), contents),
@@ -243,9 +243,9 @@ where
 			},
 			Request::DmqContents(id, sender) =>
 				query!(dmq_contents(id), sender).map(|sender| Request::DmqContents(id, sender)),
-			Request::DmqContentsBounded(id, start_page, count, sender) =>
-				query!(dmq_contents_bounded(id, start_page, count), sender)
-					.map(|sender| Request::DmqContentsBounded(id, start_page, count, sender)),
+			Request::DmqContentsBounded(id, bounds, sender) =>
+				query!(dmq_contents_bounded(id, bounds), sender)
+					.map(|sender| Request::DmqContentsBounded(id, bounds, sender)),
 			Request::InboundHrmpChannelsContents(id, sender) =>
 				query!(inbound_hrmp_channels_contents(id), sender)
 					.map(|sender| Request::InboundHrmpChannelsContents(id, sender)),
@@ -486,8 +486,8 @@ where
 			res.ok().map(|res| RequestResult::SessionInfo(relay_parent, index, res))
 		},
 		Request::DmqContents(id, sender) => query!(DmqContents, dmq_contents(id), ver = 1, sender),
-		Request::DmqContentsBounded(id, start, count, sender) =>
-			query!(DmqContentsBounded, dmq_contents_bounded(id, start, count), ver = 1, sender),
+		Request::DmqContentsBounded(id, bounds, sender) =>
+			query!(DmqContentsBounded, dmq_contents_bounded(id, bounds), ver = 1, sender),
 		Request::InboundHrmpChannelsContents(id, sender) =>
 			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), ver = 1, sender),
 		Request::CurrentBabeEpoch(sender) =>

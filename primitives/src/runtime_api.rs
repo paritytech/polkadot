@@ -105,7 +105,7 @@ sp_api::decl_runtime_apis! {
 		/// Get a vector of events concerning candidates that occurred within a block.
 		fn candidate_events() -> Vec<v2::CandidateEvent<H>>;
 
-		/// Returns up to `MAX_PAGES_PER_QUERY`*`QUEUE_PAGE_CAPACITY` messages from the queue. See `dmp` pallet.
+		/// Returns all messages from the queue. See `dmp` pallet.
 		/// Deprecated API. Please use `dmq_contents_bounded`.
 		fn dmq_contents(
 			recipient: ppp::Id,
@@ -146,20 +146,19 @@ sp_api::decl_runtime_apis! {
 
 		/// Get a subset of inbound messages from the downward message queue of a parachain.
 		///
-		/// Returns a `vec` containing the messages from the first `count` pages, starting from a `0` based
-		/// page index specified by `start_page` with `0` being the first used page of the queue. A page
+		/// Returns a `vec` containing the messages from the first `bounds.page_count` pages, starting from a `0` based
+		/// page index specified by `bounds.start_page_index` with `0` being the first used page of the queue. A page
 		/// can hold up to `QUEUE_PAGE_CAPACITY` messages. (please see the runtime `dmp` implementation).
 		///
 		/// Only the outer pages of the queue can have less than maximum messages because insertion and
 		/// pruning work with individual messages.
 		///
-		/// The result will be an empty vector if `count` is 0, the para doesn't exist, it's queue is empty
-		/// or `start` is greater than the last used page in the queue. If the queue is not empty, the method
-		/// is guaranteed to return at least 1 message and up to `count`*`QUEUE_PAGE_CAPACITY` messages.
+		/// The result will be an empty vector if `bounds.page_count` is 0, the para doesn't exist, it's queue is empty
+		/// or `bounds.start_page_index` is greater than the last used page in the queue. If the queue is not empty, the method
+		/// is guaranteed to return at least 1 message and up to `bounds.page_count`*`QUEUE_PAGE_CAPACITY` messages.
 		fn dmq_contents_bounded(
 			recipient: ppp::Id,
-			start_page: u32,
-			count: u32,
+			bounds: pcp::DmqContentsBounds
 		) -> Vec<pcp::v2::InboundDownwardMessage<N>>;
 
 		/***** Replaced in v2 *****/

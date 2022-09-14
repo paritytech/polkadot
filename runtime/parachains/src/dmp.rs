@@ -45,8 +45,10 @@ use crate::{
 };
 
 use frame_support::{pallet_prelude::*, weights::Weight};
-use primitives::v2::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
-use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
+use primitives::v2::{
+	DmqContentsBounds, DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage,
+};
+use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 use sp_std::{fmt, prelude::*};
 use xcm::latest::SendError;
 
@@ -133,7 +135,10 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + configuration::Config {}
+	pub trait Config: frame_system::Config + configuration::Config {
+		/// Maximum number of messages per page.
+		type DmpPageCapacity: Get<u32>;
+	}
 
 	/// A mapping between parachains and their message queue state.
 	#[pallet::storage]
@@ -150,7 +155,7 @@ pub mod pallet {
 		_,
 		Twox64Concat,
 		QueuePageIndex,
-		Vec<InboundDownwardMessage<T::BlockNumber>>,
+		BoundedVec<InboundDownwardMessage<T::BlockNumber>, T::DmpPageCapacity>,
 		ValueQuery,
 	>;
 
@@ -248,25 +253,8 @@ impl<T: Config> Pallet<T> {
 		let mut ring_buf = RingBuffer::with_state(ring_buffer_state, para);
 		let mut message_window = MessageWindow::with_state(message_window_state, para);
 
-		// Get a new page.
-		let mut page_idx = ring_buf.last_used().unwrap_or_else(|| ring_buf.extend());
-
-		// We do not use `defensive_unwrap_or` here, since this would always fail for the initial empty state.
-		let last_used_len = <Self as Store>::DownwardMessageQueuePages::decode_len(page_idx)
-			.unwrap_or(0)
-			.saturated_into::<u32>();
-
-		weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 0));
-
-		// Check if the page is full.
-		if last_used_len >= QUEUE_PAGE_CAPACITY {
-			// Get a fresh page.
-			page_idx = ring_buf.extend()
-		}
-
 		let inbound =
 			InboundDownwardMessage { msg, sent_at: <frame_system::Pallet<T>>::block_number() };
-
 		// Obtain the new link in the MQC and update the head.
 		<Self as Store>::DownwardMessageQueueHeads::mutate(para, |head| {
 			let new_head =
@@ -282,10 +270,20 @@ impl<T: Config> Pallet<T> {
 			});
 		});
 
+		// Get a new page.
+		let mut page_idx = ring_buf.last_used().unwrap_or_else(|| ring_buf.extend());
+		let mut page = <Self as Store>::DownwardMessageQueuePages::get(&page_idx);
+		weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 0));
+
 		// Insert message in the tail queue page.
-		<Self as Store>::DownwardMessageQueuePages::mutate(page_idx, |v| {
-			v.push(inbound);
-		});
+		if page.try_push(inbound.clone()).is_ok() {
+			<Self as Store>::DownwardMessageQueuePages::insert(&page_idx, &page);
+		} else {
+			page_idx = ring_buf.extend();
+			let page = BoundedVec::<_, T::DmpPageCapacity>::try_from(vec![inbound])
+				.expect("one message always fits");
+			<Self as Store>::DownwardMessageQueuePages::insert(&page_idx, page);
+		}
 
 		// For the above mutate.
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(3, 3));
@@ -369,36 +367,42 @@ impl<T: Config> Pallet<T> {
 		let mut ring_buf = RingBuffer::with_state(ring_buffer_state, para);
 		let mut messages_to_prune = processed_downward_messages as u64;
 
-		let mut queue_pages_to_remove = Vec::new();
 		let first_mqc_key_to_remove =
 			message_window.first().expect("queue is not empty").message_idx;
 		let mut pruned_message_count = 0;
 
 		while messages_to_prune > 0 {
 			if let Some(first_used_page) = ring_buf.front() {
-				<Self as Store>::DownwardMessageQueuePages::mutate(first_used_page, |q| {
-					let messages_in_page = q.len() as u64;
+				let mut page = <Self as Store>::DownwardMessageQueuePages::get(&first_used_page);
+				let messages_in_page = page.len() as u64;
 
-					if messages_to_prune >= messages_in_page {
-						messages_to_prune = messages_to_prune.saturating_sub(messages_in_page);
+				if messages_to_prune >= messages_in_page {
+					messages_to_prune = messages_to_prune.saturating_sub(messages_in_page);
+					message_window.prune(messages_in_page);
+					// Update storage - remove page.
+					<Self as Store>::DownwardMessageQueuePages::remove(&first_used_page);
+					total_weight += T::DbWeight::get().reads_writes(0, 1);
 
-						message_window.prune(messages_in_page);
-						// Queue this page for deletion from storage.
-						queue_pages_to_remove.push(first_used_page);
-						// Free the ring buffer page.
-						ring_buf.pop_front();
+					// Free the ring buffer page.
+					ring_buf.pop_front();
 
-						pruned_message_count += messages_in_page;
-					} else {
-						message_window.prune(messages_to_prune);
-						*q = q.split_off(messages_to_prune as usize);
+					pruned_message_count += messages_in_page;
+				} else {
+					message_window.prune(messages_to_prune);
+					let mut dumb_vec: Vec<_> = page.into();
+					page = BoundedVec::<_, T::DmpPageCapacity>::try_from(
+						dumb_vec.split_off(messages_to_prune as usize),
+					)
+					.expect("a subset is always bounded; qed");
 
-						pruned_message_count += messages_to_prune;
+					pruned_message_count += messages_to_prune;
 
-						// Break loop.
-						messages_to_prune = 0;
-					}
-				});
+					// Update storage - write back remaining messages.
+					<Self as Store>::DownwardMessageQueuePages::insert(&first_used_page, page);
+
+					// Break loop.
+					messages_to_prune = 0;
+				}
 
 				// Add mutate weight. Removal happens later.
 				total_weight += T::DbWeight::get().reads_writes(1, 1);
@@ -408,13 +412,7 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		total_weight += T::DbWeight::get()
-			.reads_writes(0, queue_pages_to_remove.len() as u64 + pruned_message_count);
-
-		// Actually do cleanup.
-		for key in queue_pages_to_remove {
-			<Self as Store>::DownwardMessageQueuePages::remove(key);
-		}
+		total_weight += T::DbWeight::get().reads_writes(0, pruned_message_count);
 
 		let mut message_idx = first_mqc_key_to_remove;
 		while message_idx != first_mqc_key_to_remove.wrapping_add(pruned_message_count.into()) {
@@ -445,7 +443,10 @@ impl<T: Config> Pallet<T> {
 
 	#[cfg(test)]
 	fn dmq_mqc_head_for_message(para_id: ParaId, message_idx: WrappingIndex<MessageIndex>) -> Hash {
-		<Self as Store>::DownwardMessageQueueHeadsById::get(&ParaMessageIndex { para_id, message_idx })
+		<Self as Store>::DownwardMessageQueueHeadsById::get(&ParaMessageIndex {
+			para_id,
+			message_idx,
+		})
 	}
 
 	/// Returns the number of pending downward messages addressed to the given para.
@@ -462,40 +463,43 @@ impl<T: Config> Pallet<T> {
 		let state = Self::dmp_queue_state(recipient);
 		Self::dmq_contents_bounded(
 			recipient,
-			0,
-			RingBuffer::with_state(state.ring_buffer_state, recipient).size() as u32,
+			DmqContentsBounds {
+				start_page_index: 0,
+				page_count: RingBuffer::with_state(state.ring_buffer_state, recipient).size()
+					as u32,
+			},
 		)
 	}
 
 	/// Get a subset of inbound messages from the downward message queue of a parachain.
 	///
-	/// Returns a `vec` containing the messages from the first `page_count` pages, starting from a `0` based
-	/// page index specified by `start_page` with `0` being the first used page of the queue. A page
-	/// can hold up to `QUEUE_PAGE_CAPACITY` messages.
+	/// Returns a `vec` containing the messages from the first `bounds.page_count` pages, starting from a `0` based
+	/// page index specified by `bounds.start_page_index` with `0` being the first used page of the queue. A page
+	/// can hold up to `QUEUE_PAGE_CAPACITY` messages. (please see the runtime `dmp` implementation).
 	///
-	/// Only the first and last pages of the queue can have less than maximum messages because insertion and
+	/// Only the outer pages of the queue can have less than maximum messages because insertion and
 	/// pruning work with individual messages.
 	///
-	/// The result will be an empty vector if `page_count` is 0, the para doesn't exist, it's queue is empty
-	/// or `start` is greater than the last used page in the queue. If the queue is not empty, the method
-	/// is guaranteed to return at least 1 message and up to `page_count`*`QUEUE_PAGE_CAPACITY` messages.
+	/// The result will be an empty vector if `bounds.page_count` is 0, the para doesn't exist, it's queue is empty
+	/// or `bounds.start_page_index` is greater than the last used page in the queue. If the queue is not empty, the method
+	/// is guaranteed to return at least 1 message and up to `bounds.page_count`*`QUEUE_PAGE_CAPACITY` messages.
 	pub(crate) fn dmq_contents_bounded(
 		recipient: ParaId,
-		start_page: u32,
-		page_count: u32,
+		bounds: DmqContentsBounds,
 	) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
 		let state = Self::dmp_queue_state(recipient);
 		let mut ring_buf = RingBuffer::with_state(state.ring_buffer_state, recipient);
 
-		// Skip first `start` pages.
-		ring_buf.prune(start_page);
+		// Skip first `bounds.start_page_index` pages.
+		ring_buf.prune(bounds.start_page_index);
 
 		let mut result =
-			Vec::with_capacity((page_count.saturating_mul(QUEUE_PAGE_CAPACITY)) as usize);
+			Vec::with_capacity((bounds.page_count.saturating_mul(QUEUE_PAGE_CAPACITY)) as usize);
+
 		let mut pages_fetched = 0;
 
 		for page_idx in ring_buf {
-			if page_count == pages_fetched {
+			if bounds.page_count == pages_fetched {
 				break
 			}
 			result.extend(<Self as Store>::DownwardMessageQueuePages::get(page_idx));

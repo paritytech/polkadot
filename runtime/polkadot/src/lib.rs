@@ -41,7 +41,7 @@ use frame_election_provider_support::{generate_solution_type, onchain, Sequentia
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		ConstU32, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		OnRuntimeUpgrade, PrivilegeCmp,
 	},
 	weights::ConstantMultiplier,
@@ -55,10 +55,10 @@ use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v2::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+	CommittedCandidateReceipt, CoreState, DisputeState, DmqContentsBounds, GroupRotationInfo, Hash,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
+	OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use sp_core::OpaqueMetadata;
 use sp_mmr_primitives as mmr;
@@ -1236,7 +1236,9 @@ impl parachains_ump::Config for Runtime {
 	type WeightInfo = parachains_ump::TestWeightInfo;
 }
 
-impl parachains_dmp::Config for Runtime {}
+impl parachains_dmp::Config for Runtime {
+	type DmpPageCapacity = ConstU32<{ runtime_parachains::dmp::QUEUE_PAGE_CAPACITY }>;
+}
 
 impl parachains_hrmp::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
@@ -1397,6 +1399,23 @@ impl frame_support::traits::OnRuntimeUpgrade for InitiateNominationPools {
 	}
 }
 
+pub struct DmpStorageMigration;
+impl OnRuntimeUpgrade for DmpStorageMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		runtime_parachains::dmp::migration::v1::migrate::<Runtime>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		runtime_parachains::dmp::migration::v1::pre_migrate::<Runtime>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		runtime_parachains::dmp::migration::v1::post_migrate::<Runtime>()
+	}
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1534,7 +1553,7 @@ pub type Executive = frame_executive::Executive<
 	),
 >;
 /// The payload being signed in transactions.
-pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
@@ -1726,8 +1745,8 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::dmq_contents::<Runtime>(recipient)
 		}
 
-		fn dmq_contents_bounded(recipient: ParaId, start_page: u32, count: u32) -> Vec<InboundDownwardMessage<BlockNumber>> {
-			parachains_runtime_api_impl::dmq_contents_bounded::<Runtime>(recipient, start_page, count)
+		fn dmq_contents_bounded(recipient: ParaId, bounds: DmqContentsBounds) -> Vec<InboundDownwardMessage<BlockNumber>> {
+			parachains_runtime_api_impl::dmq_contents_bounded::<Runtime>(recipient, bounds)
 		}
 
 		fn inbound_hrmp_channels_contents(
