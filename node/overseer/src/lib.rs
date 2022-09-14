@@ -476,6 +476,8 @@ pub struct Overseer<SupportsParachains> {
 		NetworkBridgeTxMessage,
 		CandidateBackingMessage,
 		RuntimeApiMessage,
+		ProspectiveParachainsMessage,
+		ChainApiMessage,
 	])]
 	statement_distribution: StatementDistribution,
 

@@ -610,6 +610,26 @@ pub mod vstaging {
 		Bitfield(Hash, UncheckedSignedAvailabilityBitfield),
 	}
 
+	/// An inventory of a backed candidate, which can be requested.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct BackedCandidateInventory {
+		/// The relay-parent of the candidate.
+		pub relay_parent: Hash,
+		/// The hash of the candidate.
+		pub candidate_hash: CandidateHash,
+		/// The para that the candidate is assigned to.
+		pub para_id: ParaId,
+		/// The head-data corresponding to the candidate.
+		pub parent_head_data_hash: Hash,
+		/// A bitfield which indicates which validators in the para's
+		/// group at the relay-parent have seconded this candidate.
+		///
+		/// This MUST have the minimum amount of bytes
+		/// necessary to represent the number of validators in the
+		/// assigned backing group as-of the relay-parent.
+		pub seconded_in_group: BitVec<u8, bitvec::order::Lsb0>,
+	}
+
 	/// Network messages used by the statement distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum StatementDistributionMessage {
@@ -621,23 +641,7 @@ pub mod vstaging {
 		/// sending node, for the purpose of being requested by the receiving node
 		/// if needed.
 		#[codec(index = 1)]
-		BackedCandidateInventory {
-			/// The relay-parent of the candidate.
-			relay_parent: Hash,
-			/// The hash of the candidate.
-			candidate_hash: CandidateHash,
-			/// The para that the candidate is assigned to.
-			para_id: ParaId,
-			/// The head-data corresponding to the candidate.
-			parent_head_data_hash: Hash,
-			/// A bitfield which indicates which validators in the para's
-			/// group at the relay-parent have seconded this candidate.
-			///
-			/// This MUST have the minimum amount of bytes
-			/// necessary to represent the number of validators in the
-			/// assigned backing group as-of the relay-parent.
-			seconded_in_group: BitVec<u8, bitvec::order::Lsb0>,
-		},
+		BackedCandidateInventory(BackedCandidateInventory),
 
 		/// A notification of a backed candidate being known by the sending node,
 		/// for the purpose of informing a receiving node which already has the candidate.

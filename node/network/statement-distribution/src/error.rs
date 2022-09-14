@@ -21,6 +21,7 @@ use polkadot_node_network_protocol::PeerId;
 use polkadot_node_subsystem::{RuntimeApiError, SubsystemError};
 use polkadot_node_subsystem_util::runtime;
 use polkadot_primitives::v2::{CandidateHash, Hash, Id as ParaId};
+use polkadot_node_subsystem_util::backing_implicit_view::{FetchError as ImplicitViewFetchError};
 
 use futures::channel::oneshot;
 
@@ -84,6 +85,11 @@ pub enum Error {
 	// Responder no longer waits for our data. (Should not happen right now.)
 	#[error("Oneshot `GetData` channel closed")]
 	ResponderGetDataCanceled,
+
+	// Failed to activate leaf due to a fetch error.
+	#[error("Implicit view failure while activating leaf")]
+	ActivateLeafFailure(ImplicitViewFetchError,)
+
 }
 
 /// Utility for eating top level errors and log them.
