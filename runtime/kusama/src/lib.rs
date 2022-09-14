@@ -1441,7 +1441,10 @@ pub type Executive = frame_executive::Executive<
 	AllPalletsWithSystem,
 	(
 		pallet_nomination_pools::migration::v3::MigrateToV3<Runtime>,
+		// "Bound uses of call" <https://github.com/paritytech/polkadot/pull/5729>
 		pallet_preimage::migration::v1::Migration<Runtime>,
+		pallet_scheduler::migration::v3::MigrateToV4<Runtime>,
+		pallet_democracy::migrations::v1::Migration<Runtime>,
 	),
 >;
 /// The payload being signed in the transactions.
