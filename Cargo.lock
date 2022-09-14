@@ -6589,7 +6589,7 @@ dependencies = [
  "parity-scale-codec",
  "pin-project",
  "polkadot-core-primitives",
- "polkadot-node-subsystem-util",
+ "polkadot-node-metrics",
  "polkadot-parachain",
  "rand 0.8.5",
  "rayon",
