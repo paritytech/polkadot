@@ -121,6 +121,10 @@ const POV_RESPONSE_SIZE: u64 = MAX_POV_SIZE as u64 + 10_000;
 /// This is `MAX_CODE_SIZE` plus some additional space for protocol overhead.
 const STATEMENT_RESPONSE_SIZE: u64 = MAX_CODE_SIZE as u64 + 10_000;
 
+/// We can have relative large timeouts here, there is no value of hitting a
+/// timeout as we want to get statements through to each node in any case.
+pub const DISPUTE_REQUEST_TIMEOUT: Duration = Duration::from_secs(12);
+
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.
 	///
@@ -194,9 +198,7 @@ impl Protocol {
 				/// Responses are just confirmation, in essence not even a bit. So 100 seems
 				/// plenty.
 				max_response_size: 100,
-				/// We can have relative large timeouts here, there is no value of hitting a
-				/// timeout as we want to get statements through to each node in any case.
-				request_timeout: Duration::from_secs(12),
+				request_timeout: DISPUTE_REQUEST_TIMEOUT,
 				inbound_queue: Some(tx),
 			},
 		};

@@ -17,12 +17,17 @@
 
 //! Subsystem unit tests
 
-use std::{collections::HashSet, sync::Arc, task::Poll, time::Duration};
+use std::{
+	collections::HashSet,
+	sync::Arc,
+	task::Poll,
+	time::{Duration, Instant},
+};
 
 use assert_matches::assert_matches;
 use futures::{
 	channel::{mpsc, oneshot},
-	future::poll_fn,
+	future::{poll_fn, ready},
 	pin_mut, Future, SinkExt,
 };
 use futures_timer::Delay;
@@ -52,7 +57,7 @@ use polkadot_node_subsystem_test_helpers::{
 	mock::make_ferdie_keystore, subsystem_test_harness, TestSubsystemContextHandle,
 };
 use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, SessionInfo,
+	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, Hash, SessionIndex, SessionInfo,
 };
 
 use self::mock::{
@@ -60,7 +65,11 @@ use self::mock::{
 	MOCK_AUTHORITY_DISCOVERY, MOCK_NEXT_SESSION_INDEX, MOCK_NEXT_SESSION_INFO, MOCK_SESSION_INDEX,
 	MOCK_SESSION_INFO,
 };
-use crate::{DisputeDistributionSubsystem, Metrics, LOG_TARGET};
+use crate::{
+	receiver::BATCH_COLLECTING_INTERVAL,
+	tests::mock::{BOB_INDEX, CHARLIE_INDEX},
+	DisputeDistributionSubsystem, Metrics, LOG_TARGET, SEND_RATE_LIMIT,
+};
 
 /// Useful mock providers.
 pub mod mock;
@@ -72,49 +81,108 @@ fn send_dispute_sends_dispute() {
 
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
-		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
-		handle
-			.send(FromOrchestra::Communication {
-				msg: DisputeDistributionMessage::SendDispute(message.clone()),
-			})
-			.await;
-		// Requests needed session info:
-		assert_matches!(
-			handle.recv().await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(
-					hash,
-					RuntimeApiRequest::SessionInfo(session_index, tx)
-				)
-			) => {
-				assert_eq!(session_index, MOCK_SESSION_INDEX);
-				assert_eq!(
-					hash,
-					message.candidate_receipt().descriptor.relay_parent
-				);
-				tx.send(Ok(Some(MOCK_SESSION_INFO.clone()))).expect("Receiver should stay alive.");
-			}
-		);
-
-		let expected_receivers = {
-			let info = &MOCK_SESSION_INFO;
-			info.discovery_keys
-				.clone()
-				.into_iter()
-				.filter(|a| a != &Sr25519Keyring::Ferdie.public().into())
-				.collect()
-			// All validators are also authorities in the first session, so we are
-			// done here.
-		};
-		check_sent_requests(&mut handle, expected_receivers, true).await;
-
+		send_dispute(&mut handle, candidate, true).await;
 		conclude(&mut handle).await;
 	};
 	test_harness(test);
 }
 
 #[test]
-fn received_request_triggers_import() {
+fn send_honors_rate_limit() {
+	sp_tracing::try_init_simple();
+	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>, _req_cfg| async move {
+		let _ = handle_subsystem_startup(&mut handle, None).await;
+
+		let relay_parent = Hash::random();
+		let candidate = make_candidate_receipt(relay_parent);
+		let before_request = Instant::now();
+		send_dispute(&mut handle, candidate, true).await;
+		// First send should not be rate limited:
+		gum::trace!("Passed time: {:#?}", Instant::now().saturating_duration_since(before_request));
+		// This test would likely be flaky on CI:
+		//assert!(Instant::now().saturating_duration_since(before_request) < SEND_RATE_LIMIT);
+
+		let relay_parent = Hash::random();
+		let candidate = make_candidate_receipt(relay_parent);
+		send_dispute(&mut handle, candidate, false).await;
+		// Second send should be rate limited:
+		gum::trace!(
+			"Passed time for send_dispute: {:#?}",
+			Instant::now().saturating_duration_since(before_request)
+		);
+		assert!(Instant::now() - before_request >= SEND_RATE_LIMIT);
+		conclude(&mut handle).await;
+	};
+	test_harness(test);
+}
+
+/// Helper for sending a new dispute to dispute-distribution sender and handling resulting messages.
+async fn send_dispute(
+	handle: &mut TestSubsystemContextHandle<DisputeDistributionMessage>,
+	candidate: CandidateReceipt,
+	needs_session_info: bool,
+) {
+	let before_request = Instant::now();
+	let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
+	gum::trace!(
+		"Passed time for making message: {:#?}",
+		Instant::now().saturating_duration_since(before_request)
+	);
+	let before_request = Instant::now();
+	handle
+		.send(FromOrchestra::Communication {
+			msg: DisputeDistributionMessage::SendDispute(message.clone()),
+		})
+		.await;
+	gum::trace!(
+		"Passed time for sending message: {:#?}",
+		Instant::now().saturating_duration_since(before_request)
+	);
+	if needs_session_info {
+		// Requests needed session info:
+		assert_matches!(
+		handle.recv().await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(
+				hash,
+				RuntimeApiRequest::SessionInfo(session_index, tx)
+				)
+			) => {
+			assert_eq!(session_index, MOCK_SESSION_INDEX);
+			assert_eq!(
+				hash,
+				message.candidate_receipt().descriptor.relay_parent
+				);
+			tx.send(Ok(Some(MOCK_SESSION_INFO.clone()))).expect("Receiver should stay alive.");
+		}
+		);
+	}
+
+	let expected_receivers = {
+		let info = &MOCK_SESSION_INFO;
+		info.discovery_keys
+			.clone()
+			.into_iter()
+			.filter(|a| a != &Sr25519Keyring::Ferdie.public().into())
+			.collect()
+		// All validators are also authorities in the first session, so we are
+		// done here.
+	};
+	check_sent_requests(handle, expected_receivers, true).await;
+}
+
+// Things to test:
+// x Request triggers import
+// x Subsequent imports get batched
+// x Batch gets flushed.
+// x Batch gets renewed.
+// x Non authority requests get dropped.
+// x Sending rate limit is honored.
+// x Receiving rate limit is honored.
+// x Duplicate requests on batch are dropped
+
+#[test]
+fn received_non_authorities_are_dropped() {
 	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>,
 	            mut req_cfg: RequestResponseConfig| async move {
 		let req_tx = req_cfg.inbound_queue.as_mut().unwrap();
@@ -140,109 +208,270 @@ fn received_request_triggers_import() {
 				assert_eq!(reputation_changes.len(), 1);
 			}
 		);
+		conclude(&mut handle).await;
+	};
+	test_harness(test);
+}
 
-		// Nested valid and invalid import.
-		//
-		// Nested requests from same peer should get dropped. For the invalid request even
-		// subsequent requests should get dropped.
+#[test]
+fn received_request_triggers_import() {
+	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>,
+	            mut req_cfg: RequestResponseConfig| async move {
+		let req_tx = req_cfg.inbound_queue.as_mut().unwrap();
+		let _ = handle_subsystem_startup(&mut handle, None).await;
+
+		let relay_parent = Hash::random();
+		let candidate = make_candidate_receipt(relay_parent);
+		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
+
 		nested_network_dispute_request(
 			&mut handle,
 			req_tx,
 			MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
 			message.clone().into(),
-			ImportStatementsResult::InvalidImport,
+			ImportStatementsResult::ValidImport,
 			true,
-			move |handle, req_tx, message| {
-				nested_network_dispute_request(
-					handle,
-					req_tx,
-					MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob),
-					message.clone().into(),
-					ImportStatementsResult::ValidImport,
-					false,
-					move |_, req_tx, message| async move {
-						// Another request from Alice should get dropped (request already in
-						// flight):
-						{
-							let rx_response = send_network_dispute_request(
-								req_tx,
-								MOCK_AUTHORITY_DISCOVERY
-									.get_peer_id_by_authority(Sr25519Keyring::Alice),
-								message.clone(),
-							)
-							.await;
-
-							assert_matches!(
-								rx_response.await,
-								Err(err) => {
-									gum::trace!(
-										target: LOG_TARGET,
-										?err,
-										"Request got dropped - other request already in flight"
-									);
-								}
-							);
-						}
-						// Another request from Bob should get dropped (request already in
-						// flight):
-						{
-							let rx_response = send_network_dispute_request(
-								req_tx,
-								MOCK_AUTHORITY_DISCOVERY
-									.get_peer_id_by_authority(Sr25519Keyring::Bob),
-								message.clone(),
-							)
-							.await;
-
-							assert_matches!(
-								rx_response.await,
-								Err(err) => {
-									gum::trace!(
-										target: LOG_TARGET,
-										?err,
-										"Request got dropped - other request already in flight"
-									);
-								}
-							);
-						}
-					},
-				)
-			},
+			move |_handle, _req_tx, _message| ready(()),
 		)
 		.await;
 
-		// Subsequent sends from Alice should fail (peer is banned):
-		{
-			let rx_response = send_network_dispute_request(
-				req_tx,
-				MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
-				message.clone().into(),
-			)
-			.await;
+		gum::trace!(target: LOG_TARGET, "Concluding.");
+		conclude(&mut handle).await;
+	};
+	test_harness(test);
+}
 
+#[test]
+fn batching_works() {
+	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>,
+	            mut req_cfg: RequestResponseConfig| async move {
+		let req_tx = req_cfg.inbound_queue.as_mut().unwrap();
+		let _ = handle_subsystem_startup(&mut handle, None).await;
+
+		let relay_parent = Hash::random();
+		let candidate = make_candidate_receipt(relay_parent);
+		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
+
+		// Initial request should get forwarded immediately:
+		nested_network_dispute_request(
+			&mut handle,
+			req_tx,
+			MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
+			message.clone().into(),
+			ImportStatementsResult::ValidImport,
+			true,
+			move |_handle, _req_tx, _message| ready(()),
+		)
+		.await;
+
+		let mut rx_responses = Vec::new();
+
+		let message = make_dispute_message(candidate.clone(), BOB_INDEX, FERDIE_INDEX).await;
+		let peer = MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob);
+		rx_responses.push(send_network_dispute_request(req_tx, peer, message.clone().into()).await);
+
+		let message = make_dispute_message(candidate.clone(), CHARLIE_INDEX, FERDIE_INDEX).await;
+		let peer = MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Charlie);
+		rx_responses.push(send_network_dispute_request(req_tx, peer, message.clone().into()).await);
+		gum::trace!("Imported 3 votes into batch");
+
+		Delay::new(BATCH_COLLECTING_INTERVAL).await;
+		gum::trace!("Batch should still be alive");
+		// Batch should still be alive (2 new votes):
+		// Let's import two more votes, but fully duplicates - should not extend batch live.
+		gum::trace!("Importing duplicate votes");
+		let mut rx_responses_duplicate = Vec::new();
+		let message = make_dispute_message(candidate.clone(), BOB_INDEX, FERDIE_INDEX).await;
+		let peer = MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob);
+		rx_responses_duplicate
+			.push(send_network_dispute_request(req_tx, peer, message.clone().into()).await);
+
+		let message = make_dispute_message(candidate.clone(), CHARLIE_INDEX, FERDIE_INDEX).await;
+		let peer = MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Charlie);
+		rx_responses_duplicate
+			.push(send_network_dispute_request(req_tx, peer, message.clone().into()).await);
+
+		for rx_response in rx_responses_duplicate {
 			assert_matches!(
 				rx_response.await,
-				Err(err) => {
+				Ok(resp) => {
+					let sc_network::config::OutgoingResponse {
+						result,
+						reputation_changes,
+						sent_feedback: _,
+					} = resp;
 					gum::trace!(
 						target: LOG_TARGET,
-						?err,
-						"Request got dropped - peer is banned."
-						);
+						?reputation_changes,
+						"Received reputation changes."
+					);
+					// We don't punish on that.
+					assert_eq!(reputation_changes.len(), 0);
+
+					assert_matches!(result, Err(()));
 				}
 			);
 		}
 
-		// But should work fine for Bob:
+		Delay::new(BATCH_COLLECTING_INTERVAL).await;
+		gum::trace!("Batch should be ready now (only duplicates have been added)");
+
+		let pending_confirmation = assert_matches!(
+			handle.recv().await,
+			AllMessages::DisputeCoordinator(
+				DisputeCoordinatorMessage::ImportStatements {
+					candidate_receipt: _,
+					session,
+					statements,
+					pending_confirmation: Some(pending_confirmation),
+				}
+			) => {
+				assert_eq!(session, MOCK_SESSION_INDEX);
+				assert_eq!(statements.len(), 3);
+				pending_confirmation
+			}
+		);
+		pending_confirmation.send(ImportStatementsResult::ValidImport).unwrap();
+
+		for rx_response in rx_responses {
+			assert_matches!(
+				rx_response.await,
+				Ok(resp) => {
+					let sc_network::config::OutgoingResponse {
+						result,
+						reputation_changes: _,
+						sent_feedback,
+					} = resp;
+
+					let result = result.unwrap();
+					let decoded =
+						<DisputeResponse as Decode>::decode(&mut result.as_slice()).unwrap();
+
+					assert!(decoded == DisputeResponse::Confirmed);
+					if let Some(sent_feedback) = sent_feedback {
+						sent_feedback.send(()).unwrap();
+					}
+					gum::trace!(
+						target: LOG_TARGET,
+						"Valid import happened."
+						);
+
+				}
+			);
+		}
+
+		gum::trace!(target: LOG_TARGET, "Concluding.");
+		conclude(&mut handle).await;
+	};
+	test_harness(test);
+}
+
+#[test]
+fn receive_rate_limit_is_enforced() {
+	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>,
+	            mut req_cfg: RequestResponseConfig| async move {
+		let req_tx = req_cfg.inbound_queue.as_mut().unwrap();
+		let _ = handle_subsystem_startup(&mut handle, None).await;
+
+		let relay_parent = Hash::random();
+		let candidate = make_candidate_receipt(relay_parent);
+		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
+
+		// Initial request should get forwarded immediately:
 		nested_network_dispute_request(
 			&mut handle,
 			req_tx,
-			MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob),
+			MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
 			message.clone().into(),
 			ImportStatementsResult::ValidImport,
-			false,
-			|_, _, _| async {},
+			true,
+			move |_handle, _req_tx, _message| ready(()),
 		)
 		.await;
+
+		let mut rx_responses = Vec::new();
+
+		let peer = MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob);
+
+		let message = make_dispute_message(candidate.clone(), BOB_INDEX, FERDIE_INDEX).await;
+		rx_responses.push(send_network_dispute_request(req_tx, peer, message.clone().into()).await);
+
+		let message = make_dispute_message(candidate.clone(), CHARLIE_INDEX, FERDIE_INDEX).await;
+		rx_responses.push(send_network_dispute_request(req_tx, peer, message.clone().into()).await);
+
+		gum::trace!("Import one too much:");
+
+		let message = make_dispute_message(candidate.clone(), CHARLIE_INDEX, ALICE_INDEX).await;
+		let rx_response_flood =
+			send_network_dispute_request(req_tx, peer, message.clone().into()).await;
+
+		assert_matches!(
+			rx_response_flood.await,
+			Ok(resp) => {
+				let sc_network::config::OutgoingResponse {
+					result: _,
+					reputation_changes,
+					sent_feedback: _,
+				} = resp;
+				gum::trace!(
+					target: LOG_TARGET,
+					?reputation_changes,
+					"Received reputation changes."
+				);
+				// Received punishment for flood:
+				assert_eq!(reputation_changes.len(), 1);
+			}
+		);
+		gum::trace!("Need to wait 2 patch intervals:");
+		Delay::new(BATCH_COLLECTING_INTERVAL).await;
+		Delay::new(BATCH_COLLECTING_INTERVAL).await;
+
+		gum::trace!("Batch should be ready now");
+
+		let pending_confirmation = assert_matches!(
+			handle.recv().await,
+			AllMessages::DisputeCoordinator(
+				DisputeCoordinatorMessage::ImportStatements {
+					candidate_receipt: _,
+					session,
+					statements,
+					pending_confirmation: Some(pending_confirmation),
+				}
+			) => {
+				assert_eq!(session, MOCK_SESSION_INDEX);
+				// Only 3 as fourth was flood:
+				assert_eq!(statements.len(), 3);
+				pending_confirmation
+			}
+		);
+		pending_confirmation.send(ImportStatementsResult::ValidImport).unwrap();
+
+		for rx_response in rx_responses {
+			assert_matches!(
+				rx_response.await,
+				Ok(resp) => {
+					let sc_network::config::OutgoingResponse {
+						result,
+						reputation_changes: _,
+						sent_feedback,
+					} = resp;
+
+					let result = result.unwrap();
+					let decoded =
+						<DisputeResponse as Decode>::decode(&mut result.as_slice()).unwrap();
+
+					assert!(decoded == DisputeResponse::Confirmed);
+					if let Some(sent_feedback) = sent_feedback {
+						sent_feedback.send(()).unwrap();
+					}
+					gum::trace!(
+						target: LOG_TARGET,
+						"Valid import happened."
+						);
+
+				}
+			);
+		}
 
 		gum::trace!(target: LOG_TARGET, "Concluding.");
 		conclude(&mut handle).await;
