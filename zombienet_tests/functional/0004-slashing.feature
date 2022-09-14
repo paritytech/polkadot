@@ -20,10 +20,10 @@ honest-validator-0: parachain 2000 block height is at least 2 within 300 seconds
 honest-validator-1: parachain 2001 block height is at least 2 within 300 seconds
 honest-validator-79: parachain 2002 block height is at least 2 within 300 seconds
 
-# Check if disputes are concluded in less than 2 blocks.
-honest-validator-0: reports polkadot_parachain_disputes_finality_lag is lower than 2
-honest-validator-1: reports polkadot_parachain_disputes_finality_lag is lower than 2
-honest-validator-79: reports polkadot_parachain_disputes_finality_lag is lower than 2
+# Check if disputes are concluded in less than 10 blocks.
+honest-validator-0: reports polkadot_parachain_disputes_finality_lag is lower than 10
+honest-validator-1: reports polkadot_parachain_disputes_finality_lag is lower than 10
+honest-validator-79: reports polkadot_parachain_disputes_finality_lag is lower than 10
 
 # Check there is an offence report
 honest-validator-0: system event contains "There is an offence reported" within 180 seconds
