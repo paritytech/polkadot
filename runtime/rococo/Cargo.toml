@@ -209,7 +209,7 @@ runtime-benchmarks = [
 	"hex-literal",
 	"xcm-builder/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
-	"pallet-xcm-benchmarks",
+	"pallet-xcm-benchmarks/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",

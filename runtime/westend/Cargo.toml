@@ -218,7 +218,7 @@ runtime-benchmarks = [
 	"frame-system-benchmarking/runtime-benchmarks",
 	"hex-literal",
 	"xcm-builder/runtime-benchmarks",
-	"pallet-xcm-benchmarks",
+	"pallet-xcm-benchmarks/runtime-benchmarks",
 	"frame-election-provider-support/runtime-benchmarks",
 	"pallet-bags-list/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
