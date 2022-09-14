@@ -527,7 +527,10 @@ fn answer_prospective_validation_data_request(
 			}
 		}
 		if max_pov_size.is_none() {
-			let contains_ancestor = fragment_tree.scope().ancestor_by_hash(&request.candidate_relay_parent).is_some();
+			let contains_ancestor = fragment_tree
+				.scope()
+				.ancestor_by_hash(&request.candidate_relay_parent)
+				.is_some();
 			if contains_ancestor {
 				// We are leaning hard on two assumptions here.
 				// 1. That the fragment tree never contains allowed relay-parents whose session for children
