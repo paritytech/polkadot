@@ -47,9 +47,8 @@ use polkadot_node_primitives::{PoV, SignedFullStatement, Statement};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
-		CandidateBackingMessage, CollatorProtocolMessage, IfDisconnected,
-		NetworkBridgeEvent, NetworkBridgeTxMessage, ProspectiveParachainsMessage,
-		ProspectiveValidationDataRequest,
+		CandidateBackingMessage, CollatorProtocolMessage, IfDisconnected, NetworkBridgeEvent,
+		NetworkBridgeTxMessage, ProspectiveParachainsMessage, ProspectiveValidationDataRequest,
 	},
 	overseer, CollatorProtocolSenderTrait, FromOrchestra, OverseerSignal, PerLeafSpan,
 };
@@ -1576,15 +1575,8 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 
-	let request = ProspectiveValidationDataRequest {
-		para_id,
-		candidate_relay_parent,
-		parent_head_data_hash,
-		// TODO [now]: max pov size should be from runtime
-		// configuration at candidate relay parent.
-		// Where do we fetch it from?
-		max_pov_size: todo!(),
-	};
+	let request =
+		ProspectiveValidationDataRequest { para_id, candidate_relay_parent, parent_head_data_hash };
 
 	sender
 		.send_message(ProspectiveParachainsMessage::GetProspectiveValidationData(request, tx))
