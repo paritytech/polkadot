@@ -57,7 +57,7 @@ impl From<&CandidateReceipt<Hash>> for FetchedCollation {
 	}
 }
 
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct PendingCollation {
 	pub relay_parent: Hash,
 	pub para_id: ParaId,

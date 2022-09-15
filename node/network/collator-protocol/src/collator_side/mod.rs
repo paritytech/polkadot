@@ -55,7 +55,10 @@ use polkadot_primitives::v2::{
 use super::{
 	prospective_parachains_mode, ProspectiveParachainsMode, LOG_TARGET, MAX_CANDIDATE_DEPTH,
 };
-use crate::error::{log_error, Error, FatalError, Result};
+use crate::{
+	error::{log_error, Error, FatalError, Result},
+	modify_reputation,
+};
 
 mod collation;
 mod metrics;
@@ -792,11 +795,7 @@ async fn handle_incoming_peer_message<Context>(
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
 			);
 
-			ctx.send_message(NetworkBridgeTxMessage::ReportPeer(
-				origin.clone(),
-				COST_UNEXPECTED_MESSAGE,
-			))
-			.await;
+			modify_reputation(ctx.sender(), origin, COST_UNEXPECTED_MESSAGE).await;
 
 			// If we are advertised to, this is another collator, and we should disconnect.
 			ctx.send_message(NetworkBridgeTxMessage::DisconnectPeer(origin, PeerSet::Collation))
@@ -874,17 +873,18 @@ async fn handle_incoming_request<Context>(
 					return Ok(())
 				},
 			};
+			let mode = per_relay_parent.prospective_parachains_mode;
 
-			let collation = match (per_relay_parent.prospective_parachains_mode, &req) {
-				(ProspectiveParachainsMode::Disabled, VersionedCollationRequest::V1(_)) =>
+			let collation = match &req {
+				VersionedCollationRequest::V1(_) if !mode.is_enabled() =>
 					per_relay_parent.collations.values_mut().next(),
-				(ProspectiveParachainsMode::Enabled, VersionedCollationRequest::VStaging(req)) =>
+				VersionedCollationRequest::VStaging(req) =>
 					per_relay_parent.collations.get_mut(&req.payload.candidate_hash),
 				_ => {
 					gum::warn!(
 						target: LOG_TARGET,
 						relay_parent = %relay_parent,
-						mode = ?per_relay_parent.prospective_parachains_mode,
+						prospective_parachains_mode = ?mode,
 						?peer_id,
 						"Collation request version is invalid",
 					);
@@ -917,8 +917,7 @@ async fn handle_incoming_request<Context>(
 					target: LOG_TARGET,
 					"Dropping incoming request as peer has a request in flight already."
 				);
-				ctx.send_message(NetworkBridgeTxMessage::ReportPeer(peer_id, COST_APPARENT_FLOOD))
-					.await;
+				modify_reputation(ctx.sender(), peer_id, COST_APPARENT_FLOOD).await;
 				return Ok(())
 			}
 

@@ -26,6 +26,7 @@ use futures_timer::Delay;
 use std::{
 	collections::{hash_map::Entry, HashMap, HashSet},
 	convert::TryInto,
+	iter::FromIterator,
 	task::Poll,
 	time::{Duration, Instant},
 };
@@ -258,11 +259,13 @@ impl PeerData {
 				}
 
 				match (relay_parent_mode, candidate_hash) {
-					(ProspectiveParachainsMode::Disabled, None) => {
+					(ProspectiveParachainsMode::Disabled, candidate_hash) => {
 						if state.advertisements.contains_key(&on_relay_parent) {
 							return Err(InsertAdvertisementError::Duplicate)
 						}
-						state.advertisements.insert(on_relay_parent, HashSet::new());
+						state
+							.advertisements
+							.insert(on_relay_parent, HashSet::from_iter(candidate_hash));
 					},
 					(ProspectiveParachainsMode::Enabled, Some(candidate_hash)) => {
 						if state
@@ -589,27 +592,15 @@ async fn fetch_collation(
 	let candidate_hash = prospective_candidate.as_ref().map(ProspectiveCandidate::candidate_hash);
 
 	if let Some(peer_data) = state.peer_data.get(&peer_id) {
-		// If candidate hash is `Some` then relay parent supports prospective
-		// parachains.
 		if peer_data.has_advertised(&relay_parent, candidate_hash) {
-			let timeout = |collator_id, relay_parent| async move {
-				Delay::new(MAX_UNSHARED_DOWNLOAD_TIME).await;
-				(collator_id, relay_parent)
-			};
-			state.collation_fetch_timeouts.push(timeout(id.clone(), relay_parent).boxed());
-			request_collation(
-				sender,
-				state,
-				relay_parent,
-				para_id,
-				prospective_candidate,
-				peer_id,
-				id.clone(),
-				tx,
-			)
-			.await;
-
-			state.collation_fetches.push(rx.map(|r| ((id, pc), r)).boxed());
+			if request_collation(sender, state, pc, id.clone(), peer_data.version, tx).await {
+				let timeout = |collator_id, relay_parent| async move {
+					Delay::new(MAX_UNSHARED_DOWNLOAD_TIME).await;
+					(collator_id, relay_parent)
+				};
+				state.collation_fetch_timeouts.push(timeout(id.clone(), relay_parent).boxed());
+				state.collation_fetches.push(rx.map(move |r| ((id, pc), r)).boxed());
+			}
 		} else {
 			gum::debug!(
 				target: LOG_TARGET,
@@ -709,13 +700,24 @@ fn handle_peer_view_change(state: &mut State, peer_id: PeerId, view: View) {
 async fn request_collation(
 	sender: &mut impl overseer::CollatorProtocolSenderTrait,
 	state: &mut State,
-	relay_parent: Hash,
-	para_id: ParaId,
-	prospective_candidate: Option<ProspectiveCandidate>,
-	peer_id: PeerId,
+	pending_collation: PendingCollation,
 	collator_id: CollatorId,
+	peer_protocol_version: CollationVersion,
 	result: oneshot::Sender<(CandidateReceipt, PoV)>,
-) {
+) -> bool {
+	if state.requested_collations.contains_key(&pending_collation) {
+		gum::warn!(
+			target: LOG_TARGET,
+			peer_id = %pending_collation.peer_id,
+			%pending_collation.para_id,
+			?pending_collation.relay_parent,
+			"collation has already been requested",
+		);
+		return false
+	}
+
+	let PendingCollation { relay_parent, para_id, peer_id, prospective_candidate, .. } =
+		pending_collation;
 	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
 		Some(state) => state,
 		None => {
@@ -726,25 +728,13 @@ async fn request_collation(
 				relay_parent = %relay_parent,
 				"Collation relay parent is out of view",
 			);
-			return
+			return false
 		},
 	};
-	let relay_parent_mode = per_relay_parent.prospective_parachains_mode;
-	let pending_collation =
-		PendingCollation::new(relay_parent, para_id, &peer_id, prospective_candidate);
-	if state.requested_collations.contains_key(&pending_collation) {
-		gum::warn!(
-			target: LOG_TARGET,
-			peer_id = %pending_collation.peer_id,
-			%pending_collation.para_id,
-			?pending_collation.relay_parent,
-			"collation has already been requested",
-		);
-		return
-	}
 
-	let (requests, response_recv) = match (relay_parent_mode, prospective_candidate) {
-		(ProspectiveParachainsMode::Disabled, None) => {
+	// Relay parent mode is checked in `handle_advertisement`.
+	let (requests, response_recv) = match (peer_protocol_version, prospective_candidate) {
+		(CollationVersion::V1, _) => {
 			let (req, response_recv) = OutgoingRequest::new(
 				Recipient::Peer(peer_id),
 				request_v1::CollationFetchingRequest { relay_parent, para_id },
@@ -752,7 +742,7 @@ async fn request_collation(
 			let requests = Requests::CollationFetchingV1(req);
 			(requests, response_recv.boxed())
 		},
-		(ProspectiveParachainsMode::Enabled, Some(ProspectiveCandidate { candidate_hash, .. })) => {
+		(CollationVersion::VStaging, Some(ProspectiveCandidate { candidate_hash, .. })) => {
 			let (req, response_recv) = OutgoingRequest::new(
 				Recipient::Peer(peer_id),
 				request_vstaging::CollationFetchingRequest {
@@ -765,14 +755,15 @@ async fn request_collation(
 			(requests, response_recv.boxed())
 		},
 		_ => {
-			gum::error!(
+			gum::warn!(
 				target: LOG_TARGET,
 				peer_id = %peer_id,
 				%para_id,
 				?relay_parent,
-				"Invalid arguments for collation request",
+				?peer_protocol_version,
+				"Peer's protocol doesn't match the advertisement",
 			);
-			return
+			return false
 		},
 	};
 
@@ -786,10 +777,7 @@ async fn request_collation(
 		_lifetime_timer: state.metrics.time_collation_request_duration(),
 	};
 
-	state.requested_collations.insert(
-		PendingCollation::new(relay_parent, para_id, &peer_id, prospective_candidate),
-		per_request,
-	);
+	state.requested_collations.insert(pending_collation, per_request);
 
 	gum::debug!(
 		target: LOG_TARGET,
@@ -808,6 +796,7 @@ async fn request_collation(
 			IfDisconnected::ImmediateError,
 		))
 		.await;
+	true
 }
 
 /// Networking message has been received.
@@ -1104,12 +1093,12 @@ where
 					collations.waiting_queue.push_back((pending_collation, id));
 				},
 				CollationStatus::Waiting => {
-					fetch_collation(sender, state, pending_collation.clone(), id).await;
+					fetch_collation(sender, state, pending_collation, id).await;
 				},
 				CollationStatus::Seconded if relay_parent_mode.is_enabled() => {
 					// Limit is not reached, it's allowed to second another
 					// collation.
-					fetch_collation(sender, state, pending_collation.clone(), id).await;
+					fetch_collation(sender, state, pending_collation, id).await;
 				},
 				CollationStatus::Seconded => {
 					gum::trace!(
