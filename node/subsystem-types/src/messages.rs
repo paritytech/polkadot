@@ -993,9 +993,6 @@ pub struct ProspectiveValidationDataRequest {
 	pub candidate_relay_parent: Hash,
 	/// The parent head-data hash.
 	pub parent_head_data_hash: Hash,
-	/// The maximum POV size expected of this candidate. This should be
-	/// the maximum as configured during the session.
-	pub max_pov_size: u32,
 }
 
 /// Indicates the relay-parents whose fragment tree a candidate

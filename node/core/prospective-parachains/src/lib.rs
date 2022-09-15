@@ -506,13 +506,14 @@ fn answer_prospective_validation_data_request(
 	let mut head_data =
 		storage.head_data_by_hash(&request.parent_head_data_hash).map(|x| x.clone());
 	let mut relay_parent_info = None;
+	let mut max_pov_size = None;
 
 	for fragment_tree in view
 		.active_leaves
 		.values()
 		.filter_map(|x| x.fragment_trees.get(&request.para_id))
 	{
-		if head_data.is_some() && relay_parent_info.is_some() {
+		if head_data.is_some() && relay_parent_info.is_some() && max_pov_size.is_some() {
 			break
 		}
 		if relay_parent_info.is_none() {
@@ -525,14 +526,27 @@ fn answer_prospective_validation_data_request(
 				head_data = Some(required_parent.clone());
 			}
 		}
+		if max_pov_size.is_none() {
+			let contains_ancestor = fragment_tree
+				.scope()
+				.ancestor_by_hash(&request.candidate_relay_parent)
+				.is_some();
+			if contains_ancestor {
+				// We are leaning hard on two assumptions here.
+				// 1. That the fragment tree never contains allowed relay-parents whose session for children
+				//    is different from that of the base block's.
+				// 2. That the max_pov_size is only configurable per session.
+				max_pov_size = Some(fragment_tree.scope().base_constraints().max_pov_size);
+			}
+		}
 	}
 
-	let _ = tx.send(match (head_data, relay_parent_info) {
-		(Some(h), Some(i)) => Some(PersistedValidationData {
+	let _ = tx.send(match (head_data, relay_parent_info, max_pov_size) {
+		(Some(h), Some(i), Some(m)) => Some(PersistedValidationData {
 			parent_head: h,
 			relay_parent_number: i.number,
 			relay_parent_storage_root: i.storage_root,
-			max_pov_size: request.max_pov_size,
+			max_pov_size: m as _,
 		}),
 		_ => None,
 	});
