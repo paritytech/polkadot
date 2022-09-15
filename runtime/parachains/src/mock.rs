@@ -92,7 +92,7 @@ impl frame_system::Config for Test {
 	type BlockWeights = BlockWeights;
 	type BlockLength = ();
 	type DbWeight = ();
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type Call = Call;
 	type Index = u64;
 	type BlockNumber = BlockNumber;
@@ -235,7 +235,7 @@ impl crate::ump::Config for Test {
 
 impl crate::hrmp::Config for Test {
 	type Event = Event;
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type Currency = pallet_balances::Pallet<Test>;
 	type WeightInfo = crate::hrmp::TestWeightInfo;
 }

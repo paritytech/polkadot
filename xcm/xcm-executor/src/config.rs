@@ -36,7 +36,7 @@ pub trait Config {
 	type AssetTransactor: TransactAsset;
 
 	/// How to get a call origin from a `OriginKind` value.
-	type OriginConverter: ConvertOrigin<<Self::Call as Dispatchable>::Origin>;
+	type OriginConverter: ConvertOrigin<<Self::Call as Dispatchable>::RuntimeOrigin>;
 
 	/// Combinations of (Location, Asset) pairs which we trust as reserves.
 	type IsReserve: FilterAssetLocation;

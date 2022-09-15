@@ -146,7 +146,7 @@ impl frame_system::Config for Runtime {
 	type BaseCallFilter = BaseFilter;
 	type BlockWeights = BlockWeights;
 	type BlockLength = BlockLength;
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type Call = Call;
 	type Index = Nonce;
 	type BlockNumber = BlockNumber;
@@ -178,7 +178,7 @@ parameter_types! {
 
 impl pallet_scheduler::Config for Runtime {
 	type Event = Event;
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type PalletsOrigin = OriginCaller;
 	type Call = Call;
 	type MaximumWeight = MaximumSchedulerWeight;
@@ -904,7 +904,7 @@ impl parachains_dmp::Config for Runtime {}
 
 impl parachains_hrmp::Config for Runtime {
 	type Event = Event;
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type Currency = Balances;
 	type WeightInfo = weights::runtime_parachains_hrmp::WeightInfo<Self>;
 }
@@ -956,7 +956,7 @@ parameter_types! {
 
 impl paras_registrar::Config for Runtime {
 	type Event = Event;
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type Currency = Balances;
 	type OnSwap = (Crowdloan, Slots);
 	type ParaDeposit = ParaDeposit;

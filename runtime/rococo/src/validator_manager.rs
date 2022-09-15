@@ -40,7 +40,7 @@ pub mod pallet {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
 		/// Privileged origin that can add or remove validators.
-		type PrivilegedOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
+		type PrivilegedOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
 	}
 
 	#[pallet::event]

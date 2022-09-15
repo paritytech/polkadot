@@ -81,7 +81,7 @@ impl xcm_executor::Config for XcmConfig {
 	type Call = super::Call;
 	type XcmSender = DoNothingRouter;
 	type AssetTransactor = DummyAssetTransactor;
-	type OriginConverter = pallet_xcm::XcmPassthrough<super::Origin>;
+	type OriginConverter = pallet_xcm::XcmPassthrough<super::RuntimeOrigin>;
 	type IsReserve = ();
 	type IsTeleporter = ();
 	type LocationInverter = InvertNothing;

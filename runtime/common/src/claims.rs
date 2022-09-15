@@ -176,7 +176,7 @@ pub mod pallet {
 		type VestingSchedule: VestingSchedule<Self::AccountId, Moment = Self::BlockNumber>;
 		#[pallet::constant]
 		type Prefix: Get<&'static [u8]>;
-		type MoveClaimOrigin: EnsureOrigin<Self::Origin>;
+		type MoveClaimOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 		type WeightInfo: WeightInfo;
 	}
 
@@ -751,7 +751,7 @@ mod tests {
 		type BlockWeights = ();
 		type BlockLength = ();
 		type DbWeight = ();
-		type Origin = Origin;
+		type RuntimeOrigin = RuntimeOrigin;
 		type Call = Call;
 		type Index = u64;
 		type BlockNumber = u64;
@@ -886,7 +886,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_ok!(Claims::claim(
-				Origin::none(),
+				RuntimeOrigin::none(),
 				42,
 				sig::<Test>(&alice(), &42u64.encode(), &[][..])
 			));
@@ -901,16 +901,16 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
-				Claims::move_claim(Origin::signed(1), eth(&alice()), eth(&bob()), None),
+				Claims::move_claim(RuntimeOrigin::signed(1), eth(&alice()), eth(&bob()), None),
 				BadOrigin
 			);
-			assert_ok!(Claims::move_claim(Origin::signed(6), eth(&alice()), eth(&bob()), None));
+			assert_ok!(Claims::move_claim(RuntimeOrigin::signed(6), eth(&alice()), eth(&bob()), None));
 			assert_noop!(
-				Claims::claim(Origin::none(), 42, sig::<Test>(&alice(), &42u64.encode(), &[][..])),
+				Claims::claim(RuntimeOrigin::none(), 42, sig::<Test>(&alice(), &42u64.encode(), &[][..])),
 				Error::<Test>::SignerHasNoClaim
 			);
 			assert_ok!(Claims::claim(
-				Origin::none(),
+				RuntimeOrigin::none(),
 				42,
 				sig::<Test>(&bob(), &42u64.encode(), &[][..])
 			));
@@ -923,10 +923,10 @@ mod tests {
 	#[test]
 	fn claim_attest_moving_works() {
 		new_test_ext().execute_with(|| {
-			assert_ok!(Claims::move_claim(Origin::signed(6), eth(&dave()), eth(&bob()), None));
+			assert_ok!(Claims::move_claim(RuntimeOrigin::signed(6), eth(&dave()), eth(&bob()), None));
 			let s = sig::<Test>(&bob(), &42u64.encode(), StatementKind::Regular.to_text());
 			assert_ok!(Claims::claim_attest(
-				Origin::none(),
+				RuntimeOrigin::none(),
 				42,
 				s,
 				StatementKind::Regular.to_text().to_vec()
@@ -938,8 +938,8 @@ mod tests {
 	#[test]
 	fn attest_moving_works() {
 		new_test_ext().execute_with(|| {
-			assert_ok!(Claims::move_claim(Origin::signed(6), eth(&eve()), eth(&bob()), Some(42)));
-			assert_ok!(Claims::attest(Origin::signed(42), StatementKind::Saft.to_text().to_vec()));
+			assert_ok!(Claims::move_claim(RuntimeOrigin::signed(6), eth(&eve()), eth(&bob()), Some(42)));
+			assert_ok!(Claims::attest(RuntimeOrigin::signed(42), StatementKind::Saft.to_text().to_vec()));
 			assert_eq!(Balances::free_balance(&42), 300);
 		});
 	}
@@ -948,20 +948,20 @@ mod tests {
 	fn claiming_does_not_bypass_signing() {
 		new_test_ext().execute_with(|| {
 			assert_ok!(Claims::claim(
-				Origin::none(),
+				RuntimeOrigin::none(),
 				42,
 				sig::<Test>(&alice(), &42u64.encode(), &[][..])
 			));
 			assert_noop!(
-				Claims::claim(Origin::none(), 42, sig::<Test>(&dave(), &42u64.encode(), &[][..])),
+				Claims::claim(RuntimeOrigin::none(), 42, sig::<Test>(&dave(), &42u64.encode(), &[][..])),
 				Error::<Test>::InvalidStatement,
 			);
 			assert_noop!(
-				Claims::claim(Origin::none(), 42, sig::<Test>(&eve(), &42u64.encode(), &[][..])),
+				Claims::claim(RuntimeOrigin::none(), 42, sig::<Test>(&eve(), &42u64.encode(), &[][..])),
 				Error::<Test>::InvalidStatement,
 			);
 			assert_ok!(Claims::claim(
-				Origin::none(),
+				RuntimeOrigin::none(),
 				42,
 				sig::<Test>(&frank(), &42u64.encode(), &[][..])
 			));
@@ -974,7 +974,7 @@ mod tests {
 			assert_eq!(Balances::free_balance(42), 0);
 			let s = sig::<Test>(&dave(), &42u64.encode(), StatementKind::Saft.to_text());
 			let r = Claims::claim_attest(
-				Origin::none(),
+				RuntimeOrigin::none(),
 				42,
 				s.clone(),
 				StatementKind::Saft.to_text().to_vec(),
@@ -982,7 +982,7 @@ mod tests {
 			assert_noop!(r, Error::<Test>::InvalidStatement);
 
 			let r = Claims::claim_attest(
-				Origin::none(),
+				RuntimeOrigin::none(),
 				42,
 				s,
 				StatementKind::Regular.to_text().to_vec(),
@@ -993,7 +993,7 @@ mod tests {
 
 			let s = sig::<Test>(&dave(), &42u64.encode(), StatementKind::Regular.to_text());
 			assert_ok!(Claims::claim_attest(
-				Origin::none(),
+				RuntimeOrigin::none(),
 				42,
 				s,
 				StatementKind::Regular.to_text().to_vec()
@@ -1003,7 +1003,7 @@ mod tests {
 
 			let s = sig::<Test>(&dave(), &42u64.encode(), StatementKind::Regular.to_text());
 			let r = Claims::claim_attest(
-				Origin::none(),
+				RuntimeOrigin::none(),
 				42,
 				s,
 				StatementKind::Regular.to_text().to_vec(),
@@ -1017,14 +1017,14 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
-				Claims::attest(Origin::signed(69), StatementKind::Saft.to_text().to_vec()),
+				Claims::attest(RuntimeOrigin::signed(69), StatementKind::Saft.to_text().to_vec()),
 				Error::<Test>::SenderHasNoClaim
 			);
 			assert_noop!(
-				Claims::attest(Origin::signed(42), StatementKind::Regular.to_text().to_vec()),
+				Claims::attest(RuntimeOrigin::signed(42), StatementKind::Regular.to_text().to_vec()),
 				Error::<Test>::InvalidStatement
 			);
-			assert_ok!(Claims::attest(Origin::signed(42), StatementKind::Saft.to_text().to_vec()));
+			assert_ok!(Claims::attest(RuntimeOrigin::signed(42), StatementKind::Saft.to_text().to_vec()));
 			assert_eq!(Balances::free_balance(&42), 300);
 			assert_eq!(Claims::total(), total_claims() - 300);
 		});
@@ -1036,13 +1036,13 @@ mod tests {
 			assert_eq!(Balances::free_balance(42), 0);
 			// Alice's claim is 100
 			assert_ok!(Claims::claim(
-				Origin::none(),
+				RuntimeOrigin::none(),
 				42,
 				sig::<Test>(&alice(), &42u64.encode(), &[][..])
 			));
 			assert_eq!(Balances::free_balance(&42), 100);
 			// Eve's claim is 300 through Account 42
-			assert_ok!(Claims::attest(Origin::signed(42), StatementKind::Saft.to_text().to_vec()));
+			assert_ok!(Claims::attest(RuntimeOrigin::signed(42), StatementKind::Saft.to_text().to_vec()));
 			assert_eq!(Balances::free_balance(&42), 100 + 300);
 			assert_eq!(Claims::total(), total_claims() - 400);
 		});
@@ -1086,7 +1086,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
 			let s = sig::<Test>(&dave(), &42u64.encode(), &[]);
-			let r = Claims::claim(Origin::none(), 42, s.clone());
+			let r = Claims::claim(RuntimeOrigin::none(), 42, s.clone());
 			assert_noop!(r, Error::<Test>::InvalidStatement);
 		});
 	}
@@ -1095,18 +1095,18 @@ mod tests {
 	fn add_claim_works() {
 		new_test_ext().execute_with(|| {
 			assert_noop!(
-				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, None, None),
+				Claims::mint_claim(RuntimeOrigin::signed(42), eth(&bob()), 200, None, None),
 				sp_runtime::traits::BadOrigin,
 			);
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
-				Claims::claim(Origin::none(), 69, sig::<Test>(&bob(), &69u64.encode(), &[][..])),
+				Claims::claim(RuntimeOrigin::none(), 69, sig::<Test>(&bob(), &69u64.encode(), &[][..])),
 				Error::<Test>::SignerHasNoClaim,
 			);
-			assert_ok!(Claims::mint_claim(Origin::root(), eth(&bob()), 200, None, None));
+			assert_ok!(Claims::mint_claim(RuntimeOrigin::root(), eth(&bob()), 200, None, None));
 			assert_eq!(Claims::total(), total_claims() + 200);
 			assert_ok!(Claims::claim(
-				Origin::none(),
+				RuntimeOrigin::none(),
 				69,
 				sig::<Test>(&bob(), &69u64.encode(), &[][..])
 			));
@@ -1120,23 +1120,23 @@ mod tests {
 	fn add_claim_with_vesting_works() {
 		new_test_ext().execute_with(|| {
 			assert_noop!(
-				Claims::mint_claim(Origin::signed(42), eth(&bob()), 200, Some((50, 10, 1)), None),
+				Claims::mint_claim(RuntimeOrigin::signed(42), eth(&bob()), 200, Some((50, 10, 1)), None),
 				sp_runtime::traits::BadOrigin,
 			);
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
-				Claims::claim(Origin::none(), 69, sig::<Test>(&bob(), &69u64.encode(), &[][..])),
+				Claims::claim(RuntimeOrigin::none(), 69, sig::<Test>(&bob(), &69u64.encode(), &[][..])),
 				Error::<Test>::SignerHasNoClaim,
 			);
 			assert_ok!(Claims::mint_claim(
-				Origin::root(),
+				RuntimeOrigin::root(),
 				eth(&bob()),
 				200,
 				Some((50, 10, 1)),
 				None
 			));
 			assert_ok!(Claims::claim(
-				Origin::none(),
+				RuntimeOrigin::none(),
 				69,
 				sig::<Test>(&bob(), &69u64.encode(), &[][..])
 			));
@@ -1161,7 +1161,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_noop!(
 				Claims::mint_claim(
-					Origin::signed(42),
+					RuntimeOrigin::signed(42),
 					eth(&bob()),
 					200,
 					None,
@@ -1173,7 +1173,7 @@ mod tests {
 			let signature = sig::<Test>(&bob(), &69u64.encode(), StatementKind::Regular.to_text());
 			assert_noop!(
 				Claims::claim_attest(
-					Origin::none(),
+					RuntimeOrigin::none(),
 					69,
 					signature.clone(),
 					StatementKind::Regular.to_text().to_vec()
@@ -1181,18 +1181,18 @@ mod tests {
 				Error::<Test>::SignerHasNoClaim
 			);
 			assert_ok!(Claims::mint_claim(
-				Origin::root(),
+				RuntimeOrigin::root(),
 				eth(&bob()),
 				200,
 				None,
 				Some(StatementKind::Regular)
 			));
 			assert_noop!(
-				Claims::claim_attest(Origin::none(), 69, signature.clone(), vec![],),
+				Claims::claim_attest(RuntimeOrigin::none(), 69, signature.clone(), vec![],),
 				Error::<Test>::SignerHasNoClaim
 			);
 			assert_ok!(Claims::claim_attest(
-				Origin::none(),
+				RuntimeOrigin::none(),
 				69,
 				signature.clone(),
 				StatementKind::Regular.to_text().to_vec()
@@ -1207,7 +1207,7 @@ mod tests {
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_err!(
 				Claims::claim(
-					Origin::signed(42),
+					RuntimeOrigin::signed(42),
 					42,
 					sig::<Test>(&alice(), &42u64.encode(), &[][..])
 				),
@@ -1221,12 +1221,12 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_ok!(Claims::claim(
-				Origin::none(),
+				RuntimeOrigin::none(),
 				42,
 				sig::<Test>(&alice(), &42u64.encode(), &[][..])
 			));
 			assert_noop!(
-				Claims::claim(Origin::none(), 42, sig::<Test>(&alice(), &42u64.encode(), &[][..])),
+				Claims::claim(RuntimeOrigin::none(), 42, sig::<Test>(&alice(), &42u64.encode(), &[][..])),
 				Error::<Test>::SignerHasNoClaim
 			);
 		});
@@ -1245,7 +1245,7 @@ mod tests {
 			CurrencyOf::<Test>::make_free_balance_be(&69, total_claims());
 			assert_eq!(Balances::free_balance(69), total_claims());
 			assert_ok!(Claims::mint_claim(
-				Origin::root(),
+				RuntimeOrigin::root(),
 				eth(&bob()),
 				200,
 				Some((50, 10, 1)),
@@ -1256,7 +1256,7 @@ mod tests {
 
 			// They should not be able to claim
 			assert_noop!(
-				Claims::claim(Origin::none(), 69, sig::<Test>(&bob(), &69u64.encode(), &[][..])),
+				Claims::claim(RuntimeOrigin::none(), 69, sig::<Test>(&bob(), &69u64.encode(), &[][..])),
 				Error::<Test>::VestedBalanceExists,
 			);
 		});
@@ -1267,7 +1267,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
-				Claims::claim(Origin::none(), 42, sig::<Test>(&alice(), &69u64.encode(), &[][..])),
+				Claims::claim(RuntimeOrigin::none(), 42, sig::<Test>(&alice(), &69u64.encode(), &[][..])),
 				Error::<Test>::SignerHasNoClaim
 			);
 		});
@@ -1278,7 +1278,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
-				Claims::claim(Origin::none(), 42, sig::<Test>(&bob(), &69u64.encode(), &[][..])),
+				Claims::claim(RuntimeOrigin::none(), 42, sig::<Test>(&bob(), &69u64.encode(), &[][..])),
 				Error::<Test>::SignerHasNoClaim
 			);
 		});

@@ -173,12 +173,12 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// );
 /// # }
 /// ```
-pub trait ConvertOrigin<Origin> {
+pub trait ConvertOrigin<RuntimeOrigin> {
 	/// Attempt to convert `origin` to the generic `Origin` whilst consuming it.
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<Origin, MultiLocation>;
+	) -> Result<RuntimeOrigin, MultiLocation>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
