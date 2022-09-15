@@ -667,8 +667,6 @@ async fn notify_collation_seconded(
 	sender
 		.send_message(NetworkBridgeTxMessage::SendCollationMessage(vec![peer_id], wire_message))
 		.await;
-
-	modify_reputation(sender, peer_id, BENEFIT_NOTIFY_GOOD).await;
 }
 
 /// A peer's view has changed. A number of things should be done:

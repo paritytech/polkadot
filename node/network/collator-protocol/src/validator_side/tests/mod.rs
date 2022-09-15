@@ -121,6 +121,7 @@ type VirtualOverseer = test_helpers::TestSubsystemContextHandle<CollatorProtocol
 
 struct TestHarness {
 	virtual_overseer: VirtualOverseer,
+	keystore: SyncCryptoStorePtr,
 }
 
 fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarness) -> T) {
@@ -142,9 +143,10 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarne
 		)
 		.unwrap();
 
+	let keystore: SyncCryptoStorePtr = Arc::new(keystore);
 	let subsystem = run(
 		context,
-		Arc::new(keystore),
+		keystore.clone(),
 		crate::CollatorEvictionPolicy {
 			inactive_collator: ACTIVITY_TIMEOUT,
 			undeclared: DECLARE_TIMEOUT,
@@ -152,7 +154,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarne
 		Metrics::default(),
 	);
 
-	let test_fut = test(TestHarness { virtual_overseer });
+	let test_fut = test(TestHarness { virtual_overseer, keystore });
 
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(subsystem);
@@ -260,9 +262,10 @@ async fn assert_candidate_backing_second(
 
 	// Depending on relay parent mode pvd will be either requested
 	// from the Runtime API or Prospective Parachains.
+	let msg = overseer_recv(virtual_overseer).await;
 	match mode {
 		ProspectiveParachainsMode::Disabled => assert_matches!(
-			overseer_recv(virtual_overseer).await,
+			msg,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				hash,
 				RuntimeApiRequest::PersistedValidationData(para_id, assumption, tx),
@@ -274,7 +277,7 @@ async fn assert_candidate_backing_second(
 			}
 		),
 		ProspectiveParachainsMode::Enabled => assert_matches!(
-			overseer_recv(virtual_overseer).await,
+			msg,
 			AllMessages::ProspectiveParachains(
 				ProspectiveParachainsMessage::GetProspectiveValidationData(request, tx),
 			) => {
@@ -442,7 +445,7 @@ fn act_on_advertisement() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let pair = CollatorPair::generate().0;
 		gum::trace!("activating");
@@ -491,7 +494,7 @@ fn act_on_advertisement_vstaging() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let pair = CollatorPair::generate().0;
 		gum::trace!("activating");
@@ -547,7 +550,7 @@ fn collator_reporting_works() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		overseer_send(
 			&mut virtual_overseer,
@@ -608,7 +611,7 @@ fn collator_authentication_verification_works() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let peer_b = PeerId::random();
 
@@ -665,7 +668,7 @@ fn fetch_collations_works() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let second = Hash::random();
 
@@ -866,7 +869,7 @@ fn reject_connection_to_next_group() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		overseer_send(
 			&mut virtual_overseer,
@@ -913,7 +916,7 @@ fn fetch_next_collation_on_invalid_collation() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let second = Hash::random();
 
@@ -1024,7 +1027,7 @@ fn inactive_disconnected() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let pair = CollatorPair::generate().0;
 
@@ -1074,7 +1077,7 @@ fn activity_extends_life() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let pair = CollatorPair::generate().0;
 
@@ -1157,7 +1160,7 @@ fn disconnect_if_no_declare() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		overseer_send(
 			&mut virtual_overseer,
@@ -1194,7 +1197,7 @@ fn disconnect_if_wrong_declare() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let pair = CollatorPair::generate().0;
 
@@ -1257,7 +1260,7 @@ fn view_change_clears_old_collators() {
 	let mut test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let pair = CollatorPair::generate().0;
 

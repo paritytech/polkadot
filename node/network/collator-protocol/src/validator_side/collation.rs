@@ -144,7 +144,7 @@ impl Collations {
 		self.seconded_count += 1
 	}
 
-	/// Returns the next collation to fetch from the `unfetched_collations`.
+	/// Returns the next collation to fetch from the `waiting_queue`.
 	///
 	/// This will reset the status back to `Waiting` using [`CollationStatus::back_to_waiting`].
 	///

@@ -19,6 +19,9 @@ use polkadot_primitives::v2::{CandidateHash, Hash, Id as ParaId};
 
 use super::{IsRequest, Protocol};
 
+/// Responses as sent by collators.
+pub type CollationFetchingResponse = super::v1::CollationFetchingResponse;
+
 /// Request the advertised collation at that relay-parent.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct CollationFetchingRequest {
@@ -32,6 +35,6 @@ pub struct CollationFetchingRequest {
 
 impl IsRequest for CollationFetchingRequest {
 	// The response is the same as for V1.
-	type Response = super::v1::CollationFetchingResponse;
+	type Response = CollationFetchingResponse;
 	const PROTOCOL: Protocol = Protocol::CollationFetchingVStaging;
 }
