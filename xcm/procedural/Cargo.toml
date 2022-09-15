@@ -1,7 +1,7 @@
 [package]
 authors = ["Parity Technologies <admin@parity.io>"]
 name = "xcm-procedural"
-version = "0.9.28"
+version = "0.9.29"
 edition = "2021"
 
 [lib]

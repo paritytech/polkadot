@@ -112,8 +112,12 @@ fn check_code_is_not_stored(validation_code: &ValidationCode) {
 
 /// An utility for checking that certain events were deposited.
 struct EventValidator {
-	events:
-		Vec<frame_system::EventRecord<<Test as frame_system::Config>::Event, primitives::v2::Hash>>,
+	events: Vec<
+		frame_system::EventRecord<
+			<Test as frame_system::Config>::RuntimeEvent,
+			primitives::v2::Hash,
+		>,
+	>,
 }
 
 impl EventValidator {

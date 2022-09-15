@@ -20,11 +20,13 @@ pub use crate::{
 	FixedRateOfFungible, FixedWeightBounds, LocationInverter, TakeWeightCredit,
 };
 pub use frame_support::{
-	dispatch::{DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, Parameter},
+	dispatch::{
+		DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, GetDispatchInfo,
+		Parameter, PostDispatchInfo,
+	},
 	ensure, parameter_types,
 	sp_runtime::DispatchErrorWithPostInfo,
 	traits::{Contains, Get, IsInVec},
-	weights::{GetDispatchInfo, PostDispatchInfo},
 };
 pub use parity_scale_codec::{Decode, Encode};
 pub use sp_std::{
@@ -277,7 +279,7 @@ pub type TestBarrier = (
 
 pub struct TestConfig;
 impl Config for TestConfig {
-	type Call = TestCall;
+	type RuntimeCall = TestCall;
 	type XcmSender = TestSendXcm;
 	type AssetTransactor = TestAssetTransactor;
 	type OriginConverter = TestOriginConverter;
