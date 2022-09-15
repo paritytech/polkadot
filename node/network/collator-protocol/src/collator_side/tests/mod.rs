@@ -778,7 +778,7 @@ fn advertise_and_send_collation() {
 /// Tests that collator side works with vstaging network protocol
 /// before async backing is enabled.
 #[test]
-fn advertise_and_send_collation_vstaging_protocol() {
+fn advertise_collation_vstaging_protocol() {
 	let test_state = TestState::default();
 	let local_peer_id = test_state.local_peer_id.clone();
 	let collator_pair = test_state.collator_pair.clone();
