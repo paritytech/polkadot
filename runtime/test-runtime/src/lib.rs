@@ -535,7 +535,8 @@ parameter_types! {
 	pub const MaxInstructions: u32 = 100;
 }
 
-pub type LocalOriginToLocation = xcm_builder::SignedToAccountId32<RuntimeOrigin, AccountId, AnyNetwork>;
+pub type LocalOriginToLocation =
+	xcm_builder::SignedToAccountId32<RuntimeOrigin, AccountId, AnyNetwork>;
 
 impl pallet_xcm::Config for Runtime {
 	// The config types here are entirely configurable, since the only one that is sorely needed

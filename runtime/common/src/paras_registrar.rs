@@ -469,7 +469,8 @@ impl<T: Config> Pallet<T> {
 			})
 			.or_else(|_| -> DispatchResult {
 				// Else check if para origin...
-				let caller_id = ensure_parachain(<T as Config>::RuntimeOrigin::from(origin.clone()))?;
+				let caller_id =
+					ensure_parachain(<T as Config>::RuntimeOrigin::from(origin.clone()))?;
 				ensure!(caller_id == id, Error::<T>::NotOwner);
 				Ok(())
 			})
@@ -1095,7 +1096,10 @@ mod tests {
 			assert_ok!(Registrar::make_parachain(para_id));
 
 			// Owner cannot call swap anymore
-			assert_noop!(Registrar::swap(RuntimeOrigin::signed(1), para_id, para_id + 2), BadOrigin);
+			assert_noop!(
+				Registrar::swap(RuntimeOrigin::signed(1), para_id, para_id + 2),
+				BadOrigin
+			);
 		});
 	}
 

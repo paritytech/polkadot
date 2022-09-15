@@ -168,7 +168,11 @@ fn send_works() {
 		]);
 		let versioned_dest = Box::new(RelayLocation::get().into());
 		let versioned_message = Box::new(VersionedXcm::from(message.clone()));
-		assert_ok!(XcmPallet::send(RuntimeOrigin::signed(ALICE), versioned_dest, versioned_message));
+		assert_ok!(XcmPallet::send(
+			RuntimeOrigin::signed(ALICE),
+			versioned_dest,
+			versioned_message
+		));
 		assert_eq!(
 			sent_xcm(),
 			vec![(

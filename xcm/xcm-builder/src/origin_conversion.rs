@@ -111,7 +111,9 @@ impl<ParaId: IsSystem + From<u32>, RuntimeOrigin: OriginTrait> ConvertOrigin<Run
 	}
 }
 
-pub struct ChildParachainAsNative<ParachainOrigin, RuntimeOrigin>(PhantomData<(ParachainOrigin, Origin)>);
+pub struct ChildParachainAsNative<ParachainOrigin, RuntimeOrigin>(
+	PhantomData<(ParachainOrigin, Origin)>,
+);
 impl<ParachainOrigin: From<u32>, RuntimeOrigin: From<ParachainOrigin>> ConvertOrigin<RuntimeOrigin>
 	for ChildParachainAsNative<ParachainOrigin, RuntimeOrigin>
 {
@@ -232,8 +234,8 @@ where
 
 /// `EnsureOrigin` barrier to convert from dispatch origin to XCM origin, if one exists.
 pub struct EnsureXcmOrigin<RuntimeOrigin, Conversion>(PhantomData<(Origin, Conversion)>);
-impl<RuntimeOrigin: OriginTrait + Clone, Conversion: Convert<RuntimeOrigin, MultiLocation>> EnsureOrigin<RuntimeOrigin>
-	for EnsureXcmOrigin<RuntimeOrigin, Conversion>
+impl<RuntimeOrigin: OriginTrait + Clone, Conversion: Convert<RuntimeOrigin, MultiLocation>>
+	EnsureOrigin<RuntimeOrigin> for EnsureXcmOrigin<RuntimeOrigin, Conversion>
 where
 	Origin::PalletsOrigin: PartialEq,
 {

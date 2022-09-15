@@ -75,7 +75,10 @@ pub mod pallet {
 
 		/// Required origin for sending XCM messages. If successful, it resolves to `MultiLocation`
 		/// which exists as an interior location within this chain's XCM context.
-		type SendXcmOrigin: EnsureOrigin<<Self as SysConfig>::RuntimeOrigin, Success = MultiLocation>;
+		type SendXcmOrigin: EnsureOrigin<
+			<Self as SysConfig>::RuntimeOrigin,
+			Success = MultiLocation,
+		>;
 
 		/// The type used to actually dispatch an XCM to its destination.
 		type XcmRouter: SendXcm;
@@ -83,7 +86,10 @@ pub mod pallet {
 		/// Required origin for executing XCM messages, including the teleport functionality. If successful,
 		/// then it resolves to `MultiLocation` which exists as an interior location within this chain's XCM
 		/// context.
-		type ExecuteXcmOrigin: EnsureOrigin<<Self as SysConfig>::RuntimeOrigin, Success = MultiLocation>;
+		type ExecuteXcmOrigin: EnsureOrigin<
+			<Self as SysConfig>::RuntimeOrigin,
+			Success = MultiLocation,
+		>;
 
 		/// Our XCM filter which messages to be executed using `XcmExecutor` must pass.
 		type XcmExecuteFilter: Contains<(MultiLocation, Xcm<<Self as SysConfig>::Call>)>;
@@ -110,7 +116,10 @@ pub mod pallet {
 		type Call: Parameter
 			+ GetDispatchInfo
 			+ IsType<<Self as frame_system::Config>::Call>
-			+ Dispatchable<RuntimeOrigin = <Self as Config>::RuntimeOrigin, PostInfo = PostDispatchInfo>;
+			+ Dispatchable<
+				RuntimeOrigin = <Self as Config>::RuntimeOrigin,
+				PostInfo = PostDispatchInfo,
+			>;
 
 		const VERSION_DISCOVERY_QUEUE_SIZE: u32;
 
@@ -1506,7 +1515,8 @@ impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Contains<MultiLocation>
 /// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognize and filter the
 /// `Origin::Xcm` item.
 pub struct EnsureXcm<F>(PhantomData<F>);
-impl<O: OriginTrait + From<RuntimeOrigin>, F: Contains<MultiLocation>> EnsureOrigin<O> for EnsureXcm<F>
+impl<O: OriginTrait + From<RuntimeOrigin>, F: Contains<MultiLocation>> EnsureOrigin<O>
+	for EnsureXcm<F>
 where
 	O::PalletsOrigin: From<RuntimeOrigin> + TryInto<RuntimeOrigin, Error = O::PalletsOrigin>,
 {
@@ -1556,7 +1566,9 @@ where
 /// A simple passthrough where we reuse the `MultiLocation`-typed XCM origin as the inner value of
 /// this crate's `Origin::Xcm` value.
 pub struct XcmPassthrough<RuntimeOrigin>(PhantomData<RuntimeOrigin>);
-impl<RuntimeOrigin: From<crate::RuntimeOrigin>> ConvertOrigin<RuntimeOrigin> for XcmPassthrough<RuntimeOrigin> {
+impl<RuntimeOrigin: From<crate::RuntimeOrigin>> ConvertOrigin<RuntimeOrigin>
+	for XcmPassthrough<RuntimeOrigin>
+{
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,

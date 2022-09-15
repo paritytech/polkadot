@@ -348,13 +348,17 @@ fn setting_pending_config_members() {
 			new_config.validation_upgrade_delay,
 		)
 		.unwrap();
-		Configuration::set_code_retention_period(RuntimeOrigin::root(), new_config.code_retention_period)
-			.unwrap();
+		Configuration::set_code_retention_period(
+			RuntimeOrigin::root(),
+			new_config.code_retention_period,
+		)
+		.unwrap();
 		Configuration::set_max_code_size(RuntimeOrigin::root(), new_config.max_code_size).unwrap();
 		Configuration::set_max_pov_size(RuntimeOrigin::root(), new_config.max_pov_size).unwrap();
 		Configuration::set_max_head_data_size(RuntimeOrigin::root(), new_config.max_head_data_size)
 			.unwrap();
-		Configuration::set_parathread_cores(RuntimeOrigin::root(), new_config.parathread_cores).unwrap();
+		Configuration::set_parathread_cores(RuntimeOrigin::root(), new_config.parathread_cores)
+			.unwrap();
 		Configuration::set_parathread_retries(RuntimeOrigin::root(), new_config.parathread_retries)
 			.unwrap();
 		Configuration::set_group_rotation_frequency(
@@ -379,15 +383,20 @@ fn setting_pending_config_members() {
 			new_config.thread_availability_period,
 		)
 		.unwrap();
-		Configuration::set_scheduling_lookahead(RuntimeOrigin::root(), new_config.scheduling_lookahead)
-			.unwrap();
+		Configuration::set_scheduling_lookahead(
+			RuntimeOrigin::root(),
+			new_config.scheduling_lookahead,
+		)
+		.unwrap();
 		Configuration::set_max_validators_per_core(
 			RuntimeOrigin::root(),
 			new_config.max_validators_per_core,
 		)
 		.unwrap();
-		Configuration::set_max_validators(RuntimeOrigin::root(), new_config.max_validators).unwrap();
-		Configuration::set_dispute_period(RuntimeOrigin::root(), new_config.dispute_period).unwrap();
+		Configuration::set_max_validators(RuntimeOrigin::root(), new_config.max_validators)
+			.unwrap();
+		Configuration::set_dispute_period(RuntimeOrigin::root(), new_config.dispute_period)
+			.unwrap();
 		Configuration::set_dispute_post_conclusion_acceptance_period(
 			RuntimeOrigin::root(),
 			new_config.dispute_post_conclusion_acceptance_period,
@@ -404,13 +413,15 @@ fn setting_pending_config_members() {
 		)
 		.unwrap();
 		Configuration::set_no_show_slots(RuntimeOrigin::root(), new_config.no_show_slots).unwrap();
-		Configuration::set_n_delay_tranches(RuntimeOrigin::root(), new_config.n_delay_tranches).unwrap();
+		Configuration::set_n_delay_tranches(RuntimeOrigin::root(), new_config.n_delay_tranches)
+			.unwrap();
 		Configuration::set_zeroth_delay_tranche_width(
 			RuntimeOrigin::root(),
 			new_config.zeroth_delay_tranche_width,
 		)
 		.unwrap();
-		Configuration::set_needed_approvals(RuntimeOrigin::root(), new_config.needed_approvals).unwrap();
+		Configuration::set_needed_approvals(RuntimeOrigin::root(), new_config.needed_approvals)
+			.unwrap();
 		Configuration::set_relay_vrf_modulo_samples(
 			RuntimeOrigin::root(),
 			new_config.relay_vrf_modulo_samples,
@@ -421,8 +432,11 @@ fn setting_pending_config_members() {
 			new_config.max_upward_queue_count,
 		)
 		.unwrap();
-		Configuration::set_max_upward_queue_size(RuntimeOrigin::root(), new_config.max_upward_queue_size)
-			.unwrap();
+		Configuration::set_max_upward_queue_size(
+			RuntimeOrigin::root(),
+			new_config.max_upward_queue_size,
+		)
+		.unwrap();
 		Configuration::set_max_downward_message_size(
 			RuntimeOrigin::root(),
 			new_config.max_downward_message_size,
@@ -443,8 +457,11 @@ fn setting_pending_config_members() {
 			new_config.max_upward_message_num_per_candidate,
 		)
 		.unwrap();
-		Configuration::set_hrmp_sender_deposit(RuntimeOrigin::root(), new_config.hrmp_sender_deposit)
-			.unwrap();
+		Configuration::set_hrmp_sender_deposit(
+			RuntimeOrigin::root(),
+			new_config.hrmp_sender_deposit,
+		)
+		.unwrap();
 		Configuration::set_hrmp_recipient_deposit(
 			RuntimeOrigin::root(),
 			new_config.hrmp_recipient_deposit,
@@ -495,9 +512,13 @@ fn setting_pending_config_members() {
 			new_config.ump_max_individual_weight,
 		)
 		.unwrap();
-		Configuration::set_pvf_checking_enabled(RuntimeOrigin::root(), new_config.pvf_checking_enabled)
+		Configuration::set_pvf_checking_enabled(
+			RuntimeOrigin::root(),
+			new_config.pvf_checking_enabled,
+		)
+		.unwrap();
+		Configuration::set_pvf_voting_ttl(RuntimeOrigin::root(), new_config.pvf_voting_ttl)
 			.unwrap();
-		Configuration::set_pvf_voting_ttl(RuntimeOrigin::root(), new_config.pvf_voting_ttl).unwrap();
 
 		assert_eq!(
 			<Configuration as Store>::PendingConfigs::get(),

@@ -597,9 +597,13 @@ mod tests {
 		let statement = b"Hello, World".to_vec();
 		let unlock_block = 100;
 		Purchase::set_statement(RuntimeOrigin::signed(configuration_origin()), statement).unwrap();
-		Purchase::set_unlock_block(RuntimeOrigin::signed(configuration_origin()), unlock_block).unwrap();
-		Purchase::set_payment_account(RuntimeOrigin::signed(configuration_origin()), payment_account())
+		Purchase::set_unlock_block(RuntimeOrigin::signed(configuration_origin()), unlock_block)
 			.unwrap();
+		Purchase::set_payment_account(
+			RuntimeOrigin::signed(configuration_origin()),
+			payment_account(),
+		)
+		.unwrap();
 		Balances::make_free_balance_be(&payment_account(), 100_000);
 	}
 
@@ -671,7 +675,10 @@ mod tests {
 			// Too Long
 			let long_statement = [0u8; 10_000].to_vec();
 			assert_noop!(
-				Purchase::set_statement(RuntimeOrigin::signed(configuration_origin()), long_statement),
+				Purchase::set_statement(
+					RuntimeOrigin::signed(configuration_origin()),
+					long_statement
+				),
 				Error::<Test>::InvalidStatement,
 			);
 			// Just right...
@@ -717,7 +724,10 @@ mod tests {
 			let payment_account: AccountId = [69u8; 32].into();
 			// Invalid Origin
 			assert_noop!(
-				Purchase::set_payment_account(RuntimeOrigin::signed(alice()), payment_account.clone()),
+				Purchase::set_payment_account(
+					RuntimeOrigin::signed(alice()),
+					payment_account.clone()
+				),
 				BadOrigin,
 			);
 			// Just right...
@@ -978,7 +988,13 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			// Wrong Origin
 			assert_noop!(
-				Purchase::update_balance(RuntimeOrigin::signed(alice()), alice(), 50, 50, Permill::zero(),),
+				Purchase::update_balance(
+					RuntimeOrigin::signed(alice()),
+					alice(),
+					50,
+					50,
+					Permill::zero(),
+				),
 				BadOrigin
 			);
 			// Inactive Account

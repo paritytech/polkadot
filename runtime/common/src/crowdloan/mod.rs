@@ -1241,7 +1241,10 @@ mod tests {
 			let para = new_para();
 
 			let e = Error::<Test>::InvalidParaId;
-			assert_noop!(Crowdloan::create(RuntimeOrigin::signed(1), 1.into(), 1000, 1, 4, 9, None), e);
+			assert_noop!(
+				Crowdloan::create(RuntimeOrigin::signed(1), 1.into(), 1000, 1, 4, 9, None),
+				e
+			);
 			// Cannot create a crowdloan with bad lease periods
 			let e = Error::<Test>::LastPeriodBeforeFirstPeriod;
 			assert_noop!(Crowdloan::create(RuntimeOrigin::signed(1), para, 1000, 4, 1, 9, None), e);
@@ -1257,7 +1260,15 @@ mod tests {
 			));
 			let e = BalancesError::<Test, _>::InsufficientBalance;
 			assert_noop!(
-				Crowdloan::create(RuntimeOrigin::signed(1337), ParaId::from(1234), 1000, 1, 3, 9, None),
+				Crowdloan::create(
+					RuntimeOrigin::signed(1337),
+					ParaId::from(1234),
+					1000,
+					1,
+					3,
+					9,
+					None
+				),
 				e
 			);
 
@@ -1341,11 +1352,21 @@ mod tests {
 
 			// Valid signature wrong parameter
 			assert_noop!(
-				Crowdloan::contribute(RuntimeOrigin::signed(1), para, 50, Some(valid_signature.clone())),
+				Crowdloan::contribute(
+					RuntimeOrigin::signed(1),
+					para,
+					50,
+					Some(valid_signature.clone())
+				),
 				Error::<Test>::InvalidSignature
 			);
 			assert_noop!(
-				Crowdloan::contribute(RuntimeOrigin::signed(2), para, 49, Some(valid_signature.clone())),
+				Crowdloan::contribute(
+					RuntimeOrigin::signed(2),
+					para,
+					49,
+					Some(valid_signature.clone())
+				),
 				Error::<Test>::InvalidSignature
 			);
 
@@ -1367,7 +1388,12 @@ mod tests {
 			let valid_signature_2 = crypto::create_ed25519_signature(&payload_2.encode(), pubkey);
 
 			// New valid signature
-			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(1), para, 10, Some(valid_signature_2)));
+			assert_ok!(Crowdloan::contribute(
+				RuntimeOrigin::signed(1),
+				para,
+				10,
+				Some(valid_signature_2)
+			));
 
 			// Contributions appear in free balance of crowdloan
 			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(index)), 59);
@@ -1863,7 +1889,11 @@ mod tests {
 				Error::<Test>::MemoTooLarge,
 			);
 			// Adding a memo to an existing contribution works
-			assert_ok!(Crowdloan::add_memo(RuntimeOrigin::signed(1), para_1, b"hello, world".to_vec()));
+			assert_ok!(Crowdloan::add_memo(
+				RuntimeOrigin::signed(1),
+				para_1,
+				b"hello, world".to_vec()
+			));
 			assert_eq!(Crowdloan::contribution_get(0u32, &1), (100, b"hello, world".to_vec()));
 			// Can contribute again and data persists
 			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(1), para_1, 100, None));
