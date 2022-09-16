@@ -17,29 +17,30 @@
 //! Implementation of the v2 statement distribution protocol,
 //! designed for asynchronous backing.
 
-use polkadot_primitives::vstaging::{
-	Hash, CandidateHash, CommittedCandidateReceipt, ValidatorId, SignedStatement, UncheckedSignedStatement,
-	GroupIndex, PersistedValidationData, ValidatorIndex, CoreState, Id as ParaId,
-};
 use polkadot_node_network_protocol::{
-	self as net_protocol,
-	peer_set::ValidationVersion,
-	vstaging as protocol_vstaging, View, PeerId,
+	self as net_protocol, peer_set::ValidationVersion, vstaging as protocol_vstaging, PeerId, View,
 };
+use polkadot_node_primitives::{SignedFullStatement, Statement as FullStatement};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeTxMessage},
 	overseer, ActivatedLeaf, PerLeafSpan, StatementDistributionSenderTrait,
 };
-use polkadot_node_primitives::{SignedFullStatement, Statement as FullStatement};
 use polkadot_node_subsystem_util::backing_implicit_view::{FetchError, View as ImplicitView};
+use polkadot_primitives::vstaging::{
+	CandidateHash, CommittedCandidateReceipt, CoreState, GroupIndex, Hash, Id as ParaId,
+	PersistedValidationData, SignedStatement, UncheckedSignedStatement, ValidatorId,
+	ValidatorIndex,
+};
 
 use sp_keystore::SyncCryptoStorePtr;
 
 use std::collections::{HashMap, HashSet};
 
-use crate::error::{JfyiError, JfyiErrorResult};
-use crate::LOG_TARGET;
+use crate::{
+	error::{JfyiError, JfyiErrorResult},
+	LOG_TARGET,
+};
 
 struct PerRelayParentState {
 	validators: Vec<ValidatorId>,
@@ -121,41 +122,47 @@ pub(crate) async fn handle_network_update<Context>(
 				return
 			}
 
-			state.peers.insert(peer_id, PeerState {
-				view: View::default(),
-			});
+			state.peers.insert(peer_id, PeerState { view: View::default() });
 
 			// TODO [now]: update some authorities map.
-		}
+		},
 		NetworkBridgeEvent::PeerDisconnected(peer_id) => {
 			state.peers.remove(&peer_id);
-		}
+		},
 		NetworkBridgeEvent::NewGossipTopology(new_topology) => {
 			// TODO [now]
-		}
+		},
 		NetworkBridgeEvent::PeerMessage(peer_id, message) => {
 			match message {
 				net_protocol::StatementDistributionMessage::V1(_) => return,
 				net_protocol::StatementDistributionMessage::VStaging(
-					protocol_vstaging::StatementDistributionMessage::V1Compatibility(_)
+					protocol_vstaging::StatementDistributionMessage::V1Compatibility(_),
 				) => return,
 				net_protocol::StatementDistributionMessage::VStaging(
-					protocol_vstaging::StatementDistributionMessage::Statement(relay_parent, statement)
-				) => {} // TODO [now]
+					protocol_vstaging::StatementDistributionMessage::Statement(
+						relay_parent,
+						statement,
+					),
+				) => {}, // TODO [now]
 				net_protocol::StatementDistributionMessage::VStaging(
-					protocol_vstaging::StatementDistributionMessage::BackedCandidateInventory(inner)
-				) => {} // TODO [now]
+					protocol_vstaging::StatementDistributionMessage::BackedCandidateInventory(
+						inner,
+					),
+				) => {}, // TODO [now]
 				net_protocol::StatementDistributionMessage::VStaging(
-					protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(relay_parent, candidate_hash)
-				) => {} // TODO [now]
+					protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(
+						relay_parent,
+						candidate_hash,
+					),
+				) => {}, // TODO [now]
 			}
-		}
+		},
 		NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 			// TODO [now]
-		}
+		},
 		NetworkBridgeEvent::OurViewChange(_view) => {
 			// handled by `handle_activated_leaf`
-		}
+		},
 	}
 }
 
@@ -166,30 +173,32 @@ pub(crate) async fn handle_activated_leaf<Context>(
 	state: &mut State,
 	leaf: ActivatedLeaf,
 ) -> JfyiErrorResult<()> {
-
-	state.implicit_view.activate_leaf(ctx.sender(), leaf.hash)
+	state
+		.implicit_view
+		.activate_leaf(ctx.sender(), leaf.hash)
 		.await
 		.map_err(JfyiError::ActivateLeafFailure)?;
 
 	for leaf in state.implicit_view.all_allowed_relay_parents() {
-		if state.per_relay_parent.contains_key(leaf) { continue }
+		if state.per_relay_parent.contains_key(leaf) {
+			continue
+		}
 
 		// New leaf: fetch info from runtime API and initialize
 		// `per_relay_parent`.
-		let session_index = polkadot_node_subsystem_util::request_session_index_for_child(
-			*leaf,
-			ctx.sender(),
-		).await.await
-			.map_err(JfyiError::RuntimeApiUnavailable)?
-			.map_err(JfyiError::FetchSessionIndex)?;
+		let session_index =
+			polkadot_node_subsystem_util::request_session_index_for_child(*leaf, ctx.sender())
+				.await
+				.await
+				.map_err(JfyiError::RuntimeApiUnavailable)?
+				.map_err(JfyiError::FetchSessionIndex)?;
 
-		let session_info = polkadot_node_subsystem_util::request_session_info(
-			*leaf,
-			session_index,
-			ctx.sender(),
-		).await.await
-			.map_err(JfyiError::RuntimeApiUnavailable)?
-			.map_err(JfyiError::FetchSessionInfo)?;
+		let session_info =
+			polkadot_node_subsystem_util::request_session_info(*leaf, session_index, ctx.sender())
+				.await
+				.await
+				.map_err(JfyiError::RuntimeApiUnavailable)?
+				.map_err(JfyiError::FetchSessionInfo)?;
 
 		let session_info = match session_info {
 			None => {
@@ -199,24 +208,25 @@ pub(crate) async fn handle_activated_leaf<Context>(
 					"No session info available for current session"
 				);
 
-				continue;
-			}
+				continue
+			},
 			Some(s) => s,
 		};
 
-		let availability_cores = polkadot_node_subsystem_util::request_availability_cores(
-			*leaf,
-			ctx.sender(),
-		).await.await
-			.map_err(JfyiError::RuntimeApiUnavailable)?
-			.map_err(JfyiError::FetchAvailabilityCores)?;
+		let availability_cores =
+			polkadot_node_subsystem_util::request_availability_cores(*leaf, ctx.sender())
+				.await
+				.await
+				.map_err(JfyiError::RuntimeApiUnavailable)?
+				.map_err(JfyiError::FetchAvailabilityCores)?;
 
 		let local_validator = find_local_validator_state(
 			&session_info.validators,
 			&state.keystore,
 			&session_info.validator_groups,
 			&availability_cores,
-		).await;
+		)
+		.await;
 
 		state.per_relay_parent.insert(
 			*leaf,
@@ -227,7 +237,7 @@ pub(crate) async fn handle_activated_leaf<Context>(
 				candidates: HashMap::new(),
 				known_by: HashSet::new(),
 				local_validator,
-			}
+			},
 		);
 	}
 
@@ -240,31 +250,24 @@ async fn find_local_validator_state(
 	groups: &[Vec<ValidatorIndex>],
 	availability_cores: &[CoreState],
 ) -> Option<LocalValidatorState> {
-	if groups.is_empty() { return None }
+	if groups.is_empty() {
+		return None
+	}
 
-	let (validator_id, validator_index) = polkadot_node_subsystem_util::signing_key_and_index(
-		validators,
-		keystore,
-	).await?;
+	let (validator_id, validator_index) =
+		polkadot_node_subsystem_util::signing_key_and_index(validators, keystore).await?;
 
-	let our_group = polkadot_node_subsystem_util::find_validator_group(
-		groups,
-		validator_index,
-	)?;
+	let our_group = polkadot_node_subsystem_util::find_validator_group(groups, validator_index)?;
 
 	// note: this won't work well for parathreads because it only works
 	// when core assignments to paras are static throughout the session.
 
 	let next_group = GroupIndex((our_group.0 + 1) % groups.len() as u32);
-	let prev_group = GroupIndex(if our_group.0 == 0 {
-		our_group.0 - 1
-	} else {
-		groups.len() as u32 - 1
-	});
+	let prev_group =
+		GroupIndex(if our_group.0 == 0 { our_group.0 - 1 } else { groups.len() as u32 - 1 });
 
-	let para_for_group = |g: GroupIndex| {
-		availability_cores.get(g.0 as usize).and_then(|c| c.para_id())
-	};
+	let para_for_group =
+		|g: GroupIndex| availability_cores.get(g.0 as usize).and_then(|c| c.para_id());
 
 	Some(LocalValidatorState {
 		group: our_group,
@@ -274,16 +277,15 @@ async fn find_local_validator_state(
 	})
 }
 
-pub(crate) fn handle_deactivate_leaf(
-	state: &mut State,
-	leaf_hash: Hash,
-) {
+pub(crate) fn handle_deactivate_leaf(state: &mut State, leaf_hash: Hash) {
 	// deactivate the leaf in the implicit view.
 	state.implicit_view.deactivate_leaf(leaf_hash);
 	let relay_parents = state.implicit_view.all_allowed_relay_parents().collect::<HashSet<_>>();
 
 	// fast exit for no-op.
-	if relay_parents.len() == state.per_relay_parent.len() { return }
+	if relay_parents.len() == state.per_relay_parent.len() {
+		return
+	}
 
 	// clean up per-relay-parent data based on everything removed.
 	state.per_relay_parent.retain(|r, _| relay_parents.contains(r));
@@ -310,12 +312,11 @@ pub(crate) async fn share_local_statement<Context>(
 	// have the candidate. Sanity: check the para-id is valid.
 	let expected_para = match statement.payload() {
 		FullStatement::Seconded(ref s) => Some(s.descriptor().para_id),
-		FullStatement::Valid(hash) => {
-			per_relay_parent.candidates
-				.get(&hash)
-				.and_then(|c| c.state.receipt())
-				.map(|c| c.descriptor().para_id)
-		}
+		FullStatement::Valid(hash) => per_relay_parent
+			.candidates
+			.get(&hash)
+			.and_then(|c| c.state.receipt())
+			.map(|c| c.descriptor().para_id),
 	};
 
 	if expected_para.is_none() || local_validator.assignment != expected_para {
