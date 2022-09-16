@@ -61,7 +61,7 @@ fn account_id(i: u32) -> AccountId32 {
 	array.into()
 }
 
-fn signed(i: u32) -> RuntimeOrigin {
+fn signed(i: u32) -> Origin {
 	let account_id = account_id(i);
 	RuntimeOrigin::signed(account_id)
 }

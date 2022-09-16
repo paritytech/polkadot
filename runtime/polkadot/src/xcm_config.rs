@@ -17,7 +17,7 @@
 //! XCM configuration for Polkadot.
 
 use super::{
-	parachains_origin, AccountId, Balances, CouncilCollective, Origin, ParaId, Runtime,
+	parachains_origin, AccountId, Balances, CouncilCollective, RuntimeOrigin, ParaId, Runtime,
 	RuntimeCall, RuntimeEvent, WeightToFee, XcmPallet,
 };
 use frame_support::{
@@ -158,7 +158,7 @@ parameter_types! {
 
 /// Type to convert a council origin to a Plurality `MultiLocation` value.
 pub type CouncilToPlurality = BackingToPlurality<
-	Origin,
+	RuntimeOrigin,
 	pallet_collective::Origin<Runtime, CouncilCollective>,
 	CouncilBodyId,
 >;

@@ -37,7 +37,7 @@ where
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
+	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(
 			target: "xcm::origin_conversion",
@@ -58,7 +58,7 @@ impl<RuntimeOrigin: OriginTrait> ConvertOrigin<RuntimeOrigin> for ParentAsSuperu
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
+	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(target: "xcm::origin_conversion", "ParentAsSuperuser origin: {:?}, kind: {:?}", origin, kind);
 		if kind == OriginKind::Superuser && origin.contains_parents_only(1) {
@@ -78,7 +78,7 @@ impl<ParaId: IsSystem + From<u32>, RuntimeOrigin: OriginTrait> ConvertOrigin<Run
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
+	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(target: "xcm::origin_conversion", "ChildSystemParachainAsSuperuser origin: {:?}, kind: {:?}", origin, kind);
 		match (kind, origin) {
@@ -100,7 +100,7 @@ impl<ParaId: IsSystem + From<u32>, RuntimeOrigin: OriginTrait> ConvertOrigin<Run
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
+	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(
 			target: "xcm::origin_conversion",
@@ -126,7 +126,7 @@ impl<ParachainOrigin: From<u32>, RuntimeOrigin: From<ParachainOrigin>> ConvertOr
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
+	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(target: "xcm::origin_conversion", "ChildParachainAsNative origin: {:?}, kind: {:?}", origin, kind);
 		match (kind, origin) {
@@ -148,7 +148,7 @@ impl<ParachainOrigin: From<u32>, RuntimeOrigin: From<ParachainOrigin>> ConvertOr
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
+	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(
 			target: "xcm::origin_conversion",
@@ -175,7 +175,7 @@ impl<RelayOrigin: Get<RuntimeOrigin>, RuntimeOrigin> ConvertOrigin<RuntimeOrigin
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
+	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(target: "xcm::origin_conversion", "RelayChainAsNative origin: {:?}, kind: {:?}", origin, kind);
 		if kind == OriginKind::Native && origin.contains_parents_only(1) {
@@ -195,7 +195,7 @@ where
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
+	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(
 			target: "xcm::origin_conversion",
@@ -224,7 +224,7 @@ where
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
+	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
 		log::trace!(
 			target: "xcm::origin_conversion",
@@ -265,7 +265,7 @@ where
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn try_successful_origin() -> Result<Origin, ()> {
+	fn try_successful_origin() -> Result<RuntimeOrigin, ()> {
 		Ok(RuntimeOrigin::root())
 	}
 }

@@ -19,7 +19,7 @@ use crate::{
 	configuration::HostConfiguration,
 	initializer::SessionChangeNotification,
 	mock::{
-		new_test_ext, Configuration, MockGenesisConfig, Origin, ParasShared, SessionInfo, System,
+		new_test_ext, Configuration, MockGenesisConfig, RuntimeOrigin, ParasShared, SessionInfo, System,
 		Test,
 	},
 	util::take_active_subset,

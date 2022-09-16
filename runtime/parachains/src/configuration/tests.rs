@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::mock::{new_test_ext, Configuration, Origin, ParasShared, Test};
+use crate::mock::{new_test_ext, Configuration, RuntimeOrigin, ParasShared, Test};
 use frame_support::{assert_err, assert_ok};
 
 fn on_new_session(session_index: SessionIndex) -> (HostConfiguration<u32>, HostConfiguration<u32>) {

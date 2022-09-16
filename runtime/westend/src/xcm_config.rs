@@ -17,7 +17,7 @@
 //! XCM configurations for Westend.
 
 use super::{
-	parachains_origin, weights, AccountId, Balances, Origin, ParaId, Runtime, RuntimeCall,
+	parachains_origin, weights, AccountId, Balances, RuntimeOrigin, ParaId, Runtime, RuntimeCall,
 	RuntimeEvent, WeightToFee, XcmPallet,
 };
 use frame_support::{

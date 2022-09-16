@@ -26,7 +26,7 @@ use test_helpers::{dummy_head_data, dummy_validation_code};
 use crate::{
 	configuration::HostConfiguration,
 	mock::{
-		new_test_ext, Configuration, MockGenesisConfig, Origin, Paras, ParasShared, System, Test,
+		new_test_ext, Configuration, MockGenesisConfig, RuntimeOrigin, Paras, ParasShared, System, Test,
 	},
 };
 

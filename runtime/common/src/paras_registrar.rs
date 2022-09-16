@@ -801,7 +801,7 @@ mod tests {
 		ValidationCode(validation_code)
 	}
 
-	fn para_origin(id: ParaId) -> RuntimeOrigin {
+	fn para_origin(id: ParaId) -> Origin {
 		runtime_parachains::Origin::Parachain(id).into()
 	}
 

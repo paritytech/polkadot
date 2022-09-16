@@ -229,7 +229,7 @@ pub mod pallet {
 		Response(MultiLocation),
 	}
 	impl From<MultiLocation> for Origin {
-		fn from(location: MultiLocation) -> RuntimeOrigin {
+		fn from(location: MultiLocation) -> Origin {
 			Origin::Xcm(location)
 		}
 	}
@@ -1480,7 +1480,7 @@ where
 	OuterOrigin: Into<Result<Origin, OuterOrigin>>,
 {
 	match o.into() {
-		Ok(RuntimeOrigin::Xcm(location)) => Ok(location),
+		Ok(Origin::Xcm(location)) => Ok(location),
 		_ => Err(BadOrigin),
 	}
 }
@@ -1493,7 +1493,7 @@ where
 	OuterOrigin: Into<Result<Origin, OuterOrigin>>,
 {
 	match o.into() {
-		Ok(RuntimeOrigin::Response(location)) => Ok(location),
+		Ok(Origin::Response(location)) => Ok(location),
 		_ => Err(BadOrigin),
 	}
 }
@@ -1525,7 +1525,7 @@ where
 		outer.try_with_caller(|caller| {
 			caller.try_into().and_then(|o| match o {
 				Origin::Xcm(location) if F::contains(&location) => Ok(location),
-				Origin::Xcm(location) => Err(RuntimeOrigin::Xcm(location).into()),
+				Origin::Xcm(location) => Err(Origin::Xcm(location).into()),
 				o => Err(o.into()),
 			})
 		})
@@ -1533,7 +1533,7 @@ where
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn try_successful_origin() -> Result<O, ()> {
-		Ok(O::from(RuntimeOrigin::Xcm(Here.into())))
+		Ok(O::from(Origin::Xcm(Here.into())))
 	}
 }
 
@@ -1558,20 +1558,20 @@ where
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn try_successful_origin() -> Result<O, ()> {
-		Ok(O::from(RuntimeOrigin::Response(Here.into())))
+		Ok(O::from(Origin::Response(Here.into())))
 	}
 }
 
 /// A simple passthrough where we reuse the `MultiLocation`-typed XCM origin as the inner value of
 /// this crate's `Origin::Xcm` value.
 pub struct XcmPassthrough<RuntimeOrigin>(PhantomData<RuntimeOrigin>);
-impl<RuntimeOrigin: From<crate::RuntimeOrigin>> ConvertOrigin<RuntimeOrigin>
+impl<RuntimeOrigin: From<crate::Origin>> ConvertOrigin<RuntimeOrigin>
 	for XcmPassthrough<RuntimeOrigin>
 {
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
+	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
 		match kind {
 			OriginKind::Xcm => Ok(crate::Origin::Xcm(origin).into()),

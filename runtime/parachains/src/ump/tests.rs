@@ -16,7 +16,7 @@
 
 use super::*;
 use crate::mock::{
-	assert_last_event, new_test_ext, take_processed, Configuration, MockGenesisConfig, Origin,
+	assert_last_event, new_test_ext, take_processed, Configuration, MockGenesisConfig, RuntimeOrigin,
 	System, Test, Ump,
 };
 use frame_support::{assert_noop, assert_ok, weights::Weight};

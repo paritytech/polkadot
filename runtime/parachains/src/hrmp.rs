@@ -241,7 +241,7 @@ pub mod pallet {
 		/// The outer event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
-		type RuntimeOrigin: From<crate::RuntimeOrigin>
+		type RuntimeOrigin: From<crate::Origin>
 			+ From<<Self as frame_system::Config>::RuntimeOrigin>
 			+ Into<Result<crate::Origin, <Self as Config>::RuntimeOrigin>>;
 

@@ -29,7 +29,7 @@ where
 	OuterOrigin: Into<result::Result<Origin, OuterOrigin>>,
 {
 	match o.into() {
-		Ok(RuntimeOrigin::Parachain(id)) => Ok(id),
+		Ok(Origin::Parachain(id)) => Ok(id),
 		_ => Err(BadOrigin),
 	}
 }
@@ -71,7 +71,7 @@ pub mod pallet {
 }
 
 impl From<u32> for Origin {
-	fn from(id: u32) -> RuntimeOrigin {
+	fn from(id: u32) -> Origin {
 		Origin::Parachain(id.into())
 	}
 }
