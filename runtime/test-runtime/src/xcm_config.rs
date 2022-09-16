@@ -31,7 +31,7 @@ parameter_types! {
 /// of this chain.
 pub type LocalOriginToLocation = (
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<crate::Origin, crate::AccountId, OurNetwork>,
+	SignedToAccountId32<crate::RuntimeOrigin, crate::AccountId, OurNetwork>,
 );
 
 pub struct DoNothingRouter;
