@@ -176,11 +176,13 @@ where
 	let mut disputes = partitioned.into_iter().collect::<Vec<_>>();
 	let mut total_votes_len = 0;
 	let mut result = BTreeMap::new();
+	let mut request_votes_counter = 0;
 	while !disputes.is_empty() {
 		let batch_size = std::cmp::min(VOTES_SELECTION_BATCH_SIZE, disputes.len());
 		let batch = Vec::from_iter(disputes.drain(0..batch_size));
 
 		// Filter votes which are already onchain
+		request_votes_counter += 1;
 		let votes = super::request_votes(sender, batch)
 			.await
 			.into_iter()
@@ -222,6 +224,12 @@ where
 			total_votes_len += votes_len
 		}
 	}
+
+	gum::trace!(
+		target: LOG_TARGET,
+		?request_votes_counter,
+		"vote_selection DisputeCoordinatorMessage::QueryCandidateVotes counter",
+	);
 
 	result
 }
