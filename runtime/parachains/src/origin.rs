@@ -26,10 +26,10 @@ pub use pallet::*;
 /// Returns `Ok` with the parachain ID that effected the extrinsic or an `Err` otherwise.
 pub fn ensure_parachain<OuterOrigin>(o: OuterOrigin) -> result::Result<ParaId, BadOrigin>
 where
-	OuterOrigin: Into<result::Result<RuntimeOrigin, OuterOrigin>>,
+	OuterOrigin: Into<result::Result<Origin, OuterOrigin>>,
 {
 	match o.into() {
-		Ok(Origin::Parachain(id)) => Ok(id),
+		Ok(RuntimeOrigin::Parachain(id)) => Ok(id),
 		_ => Err(BadOrigin),
 	}
 }

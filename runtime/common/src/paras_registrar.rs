@@ -103,7 +103,7 @@ pub mod pallet {
 		/// same type, we just can't express that to the Rust type system without writing a `where`
 		/// clause everywhere.
 		type RuntimeOrigin: From<<Self as frame_system::Config>::RuntimeOrigin>
-			+ Into<result::Result<RuntimeOrigin, <Self as Config>::RuntimeOrigin>>;
+			+ Into<result::Result<Origin, <Self as Config>::RuntimeOrigin>>;
 
 		/// The system's currency for parathread payment.
 		type Currency: ReservableCurrency<Self::AccountId>;

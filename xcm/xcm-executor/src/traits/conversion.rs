@@ -178,7 +178,7 @@ pub trait ConvertOrigin<RuntimeOrigin> {
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<RuntimeOrigin, MultiLocation>;
+	) -> Result<Origin, MultiLocation>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]

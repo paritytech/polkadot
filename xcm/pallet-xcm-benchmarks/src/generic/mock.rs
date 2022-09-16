@@ -168,7 +168,7 @@ where
 	fn convert_origin(
 		_origin: impl Into<MultiLocation>,
 		_kind: OriginKind,
-	) -> Result<RuntimeOrigin, MultiLocation> {
+	) -> Result<Origin, MultiLocation> {
 		Ok(RuntimeOrigin::signed(
 			<RuntimeOrigin as OriginTrait>::AccountId::decode(&mut TrailingZeroInput::zeroes())
 				.expect("infinite length input; no invalid inputs for type; qed"),

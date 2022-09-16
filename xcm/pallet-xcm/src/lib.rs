@@ -110,7 +110,7 @@ pub mod pallet {
 		type LocationInverter: InvertLocation;
 
 		/// The outer `Origin` type.
-		type RuntimeOrigin: From<RuntimeOrigin> + From<<Self as SysConfig>::RuntimeOrigin>;
+		type RuntimeOrigin: From<Origin> + From<<Self as SysConfig>::RuntimeOrigin>;
 
 		/// The outer `Call` type.
 		type RuntimeCall: Parameter
@@ -1477,10 +1477,10 @@ pub mod pallet {
 /// Returns `Ok` with the location of the XCM sender or an `Err` otherwise.
 pub fn ensure_xcm<OuterOrigin>(o: OuterOrigin) -> Result<MultiLocation, BadOrigin>
 where
-	OuterOrigin: Into<Result<RuntimeOrigin, OuterOrigin>>,
+	OuterOrigin: Into<Result<Origin, OuterOrigin>>,
 {
 	match o.into() {
-		Ok(Origin::Xcm(location)) => Ok(location),
+		Ok(RuntimeOrigin::Xcm(location)) => Ok(location),
 		_ => Err(BadOrigin),
 	}
 }
@@ -1490,10 +1490,10 @@ where
 /// Returns `Ok` with the location of the responder or an `Err` otherwise.
 pub fn ensure_response<OuterOrigin>(o: OuterOrigin) -> Result<MultiLocation, BadOrigin>
 where
-	OuterOrigin: Into<Result<RuntimeOrigin, OuterOrigin>>,
+	OuterOrigin: Into<Result<Origin, OuterOrigin>>,
 {
 	match o.into() {
-		Ok(Origin::Response(location)) => Ok(location),
+		Ok(RuntimeOrigin::Response(location)) => Ok(location),
 		_ => Err(BadOrigin),
 	}
 }
@@ -1515,10 +1515,9 @@ impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Contains<MultiLocation>
 /// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognize and filter the
 /// `Origin::Xcm` item.
 pub struct EnsureXcm<F>(PhantomData<F>);
-impl<O: OriginTrait + From<RuntimeOrigin>, F: Contains<MultiLocation>> EnsureOrigin<O>
-	for EnsureXcm<F>
+impl<O: OriginTrait + From<Origin>, F: Contains<MultiLocation>> EnsureOrigin<O> for EnsureXcm<F>
 where
-	O::PalletsOrigin: From<RuntimeOrigin> + TryInto<RuntimeOrigin, Error = O::PalletsOrigin>,
+	O::PalletsOrigin: From<Origin> + TryInto<Origin, Error = O::PalletsOrigin>,
 {
 	type Success = MultiLocation;
 
@@ -1526,7 +1525,7 @@ where
 		outer.try_with_caller(|caller| {
 			caller.try_into().and_then(|o| match o {
 				Origin::Xcm(location) if F::contains(&location) => Ok(location),
-				Origin::Xcm(location) => Err(Origin::Xcm(location).into()),
+				Origin::Xcm(location) => Err(RuntimeOrigin::Xcm(location).into()),
 				o => Err(o.into()),
 			})
 		})
@@ -1534,17 +1533,17 @@ where
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn try_successful_origin() -> Result<O, ()> {
-		Ok(O::from(Origin::Xcm(Here.into())))
+		Ok(O::from(RuntimeOrigin::Xcm(Here.into())))
 	}
 }
 
 /// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognize and filter
 /// the `Origin::Response` item.
 pub struct EnsureResponse<F>(PhantomData<F>);
-impl<O: OriginTrait + From<RuntimeOrigin>, F: Contains<MultiLocation>> EnsureOrigin<O>
+impl<O: OriginTrait + From<Origin>, F: Contains<MultiLocation>> EnsureOrigin<O>
 	for EnsureResponse<F>
 where
-	O::PalletsOrigin: From<RuntimeOrigin> + TryInto<RuntimeOrigin, Error = O::PalletsOrigin>,
+	O::PalletsOrigin: From<Origin> + TryInto<Origin, Error = O::PalletsOrigin>,
 {
 	type Success = MultiLocation;
 
@@ -1559,7 +1558,7 @@ where
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn try_successful_origin() -> Result<O, ()> {
-		Ok(O::from(Origin::Response(Here.into())))
+		Ok(O::from(RuntimeOrigin::Response(Here.into())))
 	}
 }
 
@@ -1572,7 +1571,7 @@ impl<RuntimeOrigin: From<crate::RuntimeOrigin>> ConvertOrigin<RuntimeOrigin>
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<RuntimeOrigin, MultiLocation> {
+	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		match kind {
 			OriginKind::Xcm => Ok(crate::Origin::Xcm(origin).into()),

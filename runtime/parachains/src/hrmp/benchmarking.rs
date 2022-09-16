@@ -64,7 +64,7 @@ fn establish_para_connection<T: Config>(
 	from: u32,
 	to: u32,
 	until: ParachainSetupStep,
-) -> [(ParaId, crate::Origin); 2]
+) -> [(ParaId, crate::RuntimeOrigin); 2]
 where
 	<T as frame_system::Config>::RuntimeOrigin: From<crate::RuntimeOrigin>,
 {
