@@ -65,6 +65,15 @@ pub enum Error {
 	#[error("Fetching persisted validation data for para {0:?}, {1:?}")]
 	FetchPersistedValidationData(ParaId, RuntimeApiError),
 
+	#[error("Fetching session index failed {0:?}")]
+	FetchSessionIndex(RuntimeApiError),
+
+	#[error("Fetching session info failed {0:?}")]
+	FetchSessionInfo(RuntimeApiError),
+
+	#[error("Fetching availability cores failed {0:?}")]
+	FetchAvailabilityCores(RuntimeApiError),
+
 	#[error("Relay parent could not be found in active heads")]
 	NoSuchHead(Hash),
 

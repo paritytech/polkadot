@@ -19,7 +19,7 @@
 
 use polkadot_primitives::vstaging::{
 	Hash, CandidateHash, CommittedCandidateReceipt, ValidatorId, SignedStatement, UncheckedSignedStatement,
-	GroupIndex, PersistedValidationData,
+	GroupIndex, PersistedValidationData, ValidatorIndex, CoreState, Id as ParaId,
 };
 use polkadot_node_network_protocol::{
 	self as net_protocol,
@@ -31,6 +31,7 @@ use polkadot_node_subsystem::{
 	messages::{CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeTxMessage},
 	overseer, ActivatedLeaf, PerLeafSpan, StatementDistributionSenderTrait,
 };
+use polkadot_node_primitives::SignedFullStatement;
 use polkadot_node_subsystem_util::backing_implicit_view::{FetchError, View as ImplicitView};
 
 use sp_keystore::SyncCryptoStorePtr;
@@ -38,17 +39,26 @@ use sp_keystore::SyncCryptoStorePtr;
 use std::collections::{HashMap, HashSet};
 
 use crate::error::{JfyiError, JfyiErrorResult};
+use crate::LOG_TARGET;
 
 struct PerRelayParentState {
-	max_seconded_count: usize,
-	seconded_count: HashMap<ValidatorId, usize>,
+	validators: Vec<ValidatorId>,
+	groups: Vec<Vec<ValidatorIndex>>,
+	validator_state: HashMap<ValidatorIndex, PerRelayParentValidatorState>,
 	candidates: HashMap<CandidateHash, CandidateData>,
 	known_by: HashSet<PeerId>,
+	local_validator: Option<LocalValidatorState>,
+}
+
+struct PerRelayParentValidatorState {
+	seconded_count: usize,
+	group_id: GroupIndex,
 }
 
 struct CandidateData {
 	state: CandidateState,
 	statements: Vec<SignedStatement>,
+	known_by: HashSet<ValidatorIndex>,
 }
 
 enum CandidateState {
@@ -60,6 +70,19 @@ enum CandidateState {
 	ConfirmedWithoutPVD(CommittedCandidateReceipt),
 	/// The candidate is confirmed and we have the `PersistedValidationData`.
 	Confirmed(CommittedCandidateReceipt, PersistedValidationData),
+}
+
+// per-relay-parent local validator state.
+struct LocalValidatorState {
+	// our validator group
+	group: GroupIndex,
+	// the assignment of our validator group, if any.
+	assignment: Option<ParaId>,
+	// the next group assigned to this para.
+	next_group: GroupIndex,
+	// the previous group assigned to this para, stored only
+	// if they are currently assigned to a para.
+	prev_group: Option<(GroupIndex, ParaId)>,
 }
 
 pub(crate) struct State {
@@ -128,7 +151,7 @@ pub(crate) async fn handle_network_update<Context>(
 
 /// This should only be invoked for leaves that implement prospective parachains.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-pub(crate) async fn activate_leaf<Context>(
+pub(crate) async fn handle_activated_leaf<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	leaf: ActivatedLeaf,
@@ -141,17 +164,59 @@ pub(crate) async fn activate_leaf<Context>(
 	for leaf in state.implicit_view.all_allowed_relay_parents() {
 		if state.per_relay_parent.contains_key(leaf) { continue }
 
-		// TODO [now]:
-		//   1. fetch info about validators, groups, and assignments
-		//   2. initialize PerRelayParentState
-		//   3. try to find new commonalities with peers and send data to them.
+		// New leaf: fetch info from runtime API and initialize
+		// `per_relay_parent`.
+		let session_index = polkadot_node_subsystem_util::request_session_index_for_child(
+			*leaf,
+			ctx.sender(),
+		).await.await
+			.map_err(JfyiError::RuntimeApiUnavailable)?
+			.map_err(JfyiError::FetchSessionIndex)?;
+
+		let session_info = polkadot_node_subsystem_util::request_session_info(
+			*leaf,
+			session_index,
+			ctx.sender(),
+		).await.await
+			.map_err(JfyiError::RuntimeApiUnavailable)?
+			.map_err(JfyiError::FetchSessionInfo)?;
+
+		let session_info = match session_info {
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					relay_parent = ?leaf,
+					"No session info available for current session"
+				);
+
+				continue;
+			}
+			Some(s) => s,
+		};
+
+		let availability_cores = polkadot_node_subsystem_util::request_availability_cores(
+			*leaf,
+			ctx.sender(),
+		).await.await
+			.map_err(JfyiError::RuntimeApiUnavailable)?
+			.map_err(JfyiError::FetchAvailabilityCores)?;
+
+		let local_validator = find_local_validator_state(
+			&session_info.validators,
+			&state.keystore,
+			&session_info.validator_groups,
+			&availability_cores,
+		).await;
+
 		state.per_relay_parent.insert(
 			*leaf,
 			PerRelayParentState {
-				max_seconded_count: unimplemented!(),
-				seconded_count: HashMap::new(),
+				validators: session_info.validators,
+				groups: session_info.validator_groups,
+				validator_state: HashMap::new(),
 				candidates: HashMap::new(),
 				known_by: HashSet::new(),
+				local_validator,
 			}
 		);
 	}
@@ -159,7 +224,47 @@ pub(crate) async fn activate_leaf<Context>(
 	Ok(())
 }
 
-pub(crate) fn deactivate_leaf(
+async fn find_local_validator_state(
+	validators: &[ValidatorId],
+	keystore: &SyncCryptoStorePtr,
+	groups: &[Vec<ValidatorIndex>],
+	availability_cores: &[CoreState],
+) -> Option<LocalValidatorState> {
+	if groups.is_empty() { return None }
+
+	let (validator_id, validator_index) = polkadot_node_subsystem_util::signing_key_and_index(
+		validators,
+		keystore,
+	).await?;
+
+	let our_group = polkadot_node_subsystem_util::find_validator_group(
+		groups,
+		validator_index,
+	)?;
+
+	// note: this won't work well for parathreads because it only works
+	// when core assignments to paras are static throughout the session.
+
+	let next_group = GroupIndex((our_group.0 + 1) % groups.len() as u32);
+	let prev_group = GroupIndex(if our_group.0 == 0 {
+		our_group.0 - 1
+	} else {
+		groups.len() as u32 - 1
+	});
+
+	let para_for_group = |g: GroupIndex| {
+		availability_cores.get(g.0 as usize).and_then(|c| c.para_id())
+	};
+
+	Some(LocalValidatorState {
+		group: our_group,
+		assignment: para_for_group(our_group),
+		next_group,
+		prev_group: para_for_group(prev_group).map(|p| (prev_group, p)),
+	})
+}
+
+pub(crate) fn handle_deactivate_leaf(
 	state: &mut State,
 	leaf_hash: Hash,
 ) {
@@ -172,4 +277,31 @@ pub(crate) fn deactivate_leaf(
 
 	// clean up per-relay-parent data based on everything removed.
 	state.per_relay_parent.retain(|r, _| relay_parents.contains(r));
+}
+
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+pub(crate) async fn share_local_statement<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	relay_parent: Hash,
+	statement: SignedFullStatement,
+) {
+	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
+		None => {
+			gum::warn!(
+				target: LOG_TARGET,
+				?relay_parent,
+				"Attempted to share statement for unknown relay-parent"
+			);
+
+			return;
+		}
+		Some(x) => x,
+	};
+
+	// TODO [now]:
+	// 1. check that we are in the required group for the parachain at that block
+	// 2. insert candidate if unknown
+	// 3. send to nodes in current group and next-up the statement. If not a `Seconded` statement,
+	//   send a `Seconded` statement as well.
 }
