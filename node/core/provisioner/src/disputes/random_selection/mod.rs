@@ -29,6 +29,10 @@ use polkadot_primitives::v2::{
 };
 use std::collections::HashSet;
 
+/// The maximum number of disputes Provisioner will include in the inherent data.
+/// Serves as a protection not to flood the Runtime with excessive data.
+const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 1_000;
+
 #[derive(Debug)]
 enum RequestType {
 	/// Query recent disputes, could be an excessive amount.
@@ -121,10 +125,6 @@ where
 	Sender: overseer::ProvisionerSenderTrait,
 {
 	gum::trace!(target: LOG_TARGET, "Selecting disputes for inherent data using random selection");
-
-	/// The maximum number of disputes Provisioner will include in the inherent data.
-	/// Serves as a protection not to flood the Runtime with excessive data.
-	const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 1_000;
 
 	// We use `RecentDisputes` instead of `ActiveDisputes` because redundancy is fine.
 	// It's heavier than `ActiveDisputes` but ensures that everything from the dispute

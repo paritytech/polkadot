@@ -45,6 +45,24 @@ pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200_000;
 #[cfg(test)]
 pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200;
 
+/// Controls how much dispute votes to be fetched from the runtime per iteration in `fn vote_selection`.
+/// The purpose is to fetch the votes in batches until `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME` is
+/// reached. This value should definitely be less than `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME`.
+///
+/// The ratio `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME` / `VOTES_SELECTION_BATCH_SIZE` gives an
+/// approximation about how many runtime requests will be issued to fetch votes from the runtime in
+/// a single `select_disputes` call. Ideally we don't want to make more than 2-3 calls. In practice
+/// it's hard to predict this number because we can't guess how many new votes (for the runtime) a
+/// batch will contain.
+///
+/// The value below is reached by: `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME` / 2 + 10%
+/// The 10% makes approximately means '10% new votes'. Tweak this if provisioner makes excessive
+/// number of runtime calls.
+#[cfg(not(test))]
+const VOTES_SELECTION_BATCH_SIZE: usize = 1_100;
+#[cfg(test)]
+const VOTES_SELECTION_BATCH_SIZE: usize = 11; // Just a small value for tests. Doesn't follow the rules above
+
 /// Implements the `select_disputes` function which selects dispute votes which should
 /// be sent to the Runtime.
 ///
@@ -140,7 +158,7 @@ where
 	}
 	let result = vote_selection(sender, partitioned, &onchain).await;
 
-	into_multi_dispute_statement_set(metrics, result)
+	make_multi_dispute_statement_set(metrics, result)
 }
 
 /// Selects dispute votes from `PartitionedDisputes` which should be sent to the runtime. Votes which
@@ -154,17 +172,12 @@ async fn vote_selection<Sender>(
 where
 	Sender: overseer::ProvisionerSenderTrait,
 {
-	#[cfg(not(test))]
-	const BATCH_SIZE: usize = 1_100;
-	#[cfg(test)]
-	const BATCH_SIZE: usize = 11;
-
 	// fetch in batches until there are enough votes
 	let mut disputes = partitioned.into_iter().collect::<Vec<_>>();
 	let mut total_votes_len = 0;
 	let mut result = BTreeMap::new();
 	while !disputes.is_empty() {
-		let batch_size = std::cmp::min(BATCH_SIZE, disputes.len());
+		let batch_size = std::cmp::min(VOTES_SELECTION_BATCH_SIZE, disputes.len());
 		let batch = Vec::from_iter(disputes.drain(0..batch_size));
 
 		// Filter votes which are already onchain
@@ -390,7 +403,7 @@ async fn request_disputes(
 }
 
 // This function produces the return value for `pub fn select_disputes()`
-fn into_multi_dispute_statement_set(
+fn make_multi_dispute_statement_set(
 	metrics: &metrics::Metrics,
 	dispute_candidate_votes: BTreeMap<(SessionIndex, CandidateHash), CandidateVotes>,
 ) -> MultiDisputeStatementSet {
