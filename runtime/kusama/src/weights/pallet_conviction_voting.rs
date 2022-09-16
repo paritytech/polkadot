@@ -51,9 +51,7 @@ impl<T: frame_system::Config> pallet_conviction_voting::WeightInfo for WeightInf
 	// Storage: Balances Locks (r:1 w:1)
 	// Storage: Scheduler Agenda (r:2 w:2)
 	fn vote_new() -> Weight {
-		(5_609_855_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(6 as Weight))
-			.saturating_add(T::DbWeight::get().writes(6 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: Referenda ReferendumInfoFor (r:1 w:1)
 	// Storage: ConvictionVoting VotingFor (r:1 w:1)
@@ -61,24 +59,18 @@ impl<T: frame_system::Config> pallet_conviction_voting::WeightInfo for WeightInf
 	// Storage: Balances Locks (r:1 w:1)
 	// Storage: Scheduler Agenda (r:2 w:2)
 	fn vote_existing() -> Weight {
-		(476_889_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(6 as Weight))
-			.saturating_add(T::DbWeight::get().writes(6 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: ConvictionVoting VotingFor (r:1 w:1)
 	// Storage: Referenda ReferendumInfoFor (r:1 w:1)
 	// Storage: Scheduler Agenda (r:2 w:2)
 	fn remove_vote() -> Weight {
-		(458_825_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(4 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: ConvictionVoting VotingFor (r:1 w:1)
 	// Storage: Referenda ReferendumInfoFor (r:1 w:0)
 	fn remove_other_vote() -> Weight {
-		(59_383_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: ConvictionVoting VotingFor (r:2 w:2)
 	// Storage: ConvictionVoting ClassLocksFor (r:1 w:1)
@@ -86,34 +78,20 @@ impl<T: frame_system::Config> pallet_conviction_voting::WeightInfo for WeightInf
 	// Storage: Referenda ReferendumInfoFor (r:10 w:10)
 	// Storage: Scheduler Agenda (r:2 w:2)
 	/// The range of component `r` is `[0, 512]`.
-	fn delegate(r: u32, ) -> Weight {
-		(0 as Weight)
-			// Standard Error: 2_965_000
-			.saturating_add((281_205_000 as Weight).saturating_mul(r as Weight))
-			.saturating_add(T::DbWeight::get().reads(6 as Weight))
-			.saturating_add(T::DbWeight::get().reads((1 as Weight).saturating_mul(r as Weight)))
-			.saturating_add(T::DbWeight::get().writes(6 as Weight))
-			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(r as Weight)))
+	fn delegate(_: u32, ) -> Weight {
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: ConvictionVoting VotingFor (r:2 w:2)
 	// Storage: Referenda ReferendumInfoFor (r:10 w:10)
 	// Storage: Scheduler Agenda (r:2 w:2)
 	/// The range of component `r` is `[0, 512]`.
-	fn undelegate(r: u32, ) -> Weight {
-		(0 as Weight)
-			// Standard Error: 2_957_000
-			.saturating_add((280_474_000 as Weight).saturating_mul(r as Weight))
-			.saturating_add(T::DbWeight::get().reads(4 as Weight))
-			.saturating_add(T::DbWeight::get().reads((1 as Weight).saturating_mul(r as Weight)))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
-			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(r as Weight)))
+	fn undelegate(_: u32, ) -> Weight {
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: ConvictionVoting VotingFor (r:1 w:1)
 	// Storage: ConvictionVoting ClassLocksFor (r:1 w:1)
 	// Storage: Balances Locks (r:1 w:1)
 	fn unlock() -> Weight {
-		(74_422_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 }

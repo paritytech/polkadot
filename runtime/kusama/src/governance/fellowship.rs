@@ -292,13 +292,14 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 		}
 	}
 }
+pallet_referenda::impl_tracksinfo_get!(TracksInfo, Balance, BlockNumber);
 
 pub type FellowshipReferendaInstance = pallet_referenda::Instance2;
 
 impl pallet_referenda::Config<FellowshipReferendaInstance> for Runtime {
 	type WeightInfo = weights::pallet_referenda_fellowship_referenda::WeightInfo<Self>;
-	type Call = Call;
-	type Event = Event;
+	type RuntimeCall = RuntimeCall;
+	type RuntimeEvent = RuntimeEvent;
 	type Scheduler = Scheduler;
 	type Currency = Balances;
 	type SubmitOrigin =
@@ -327,7 +328,7 @@ morph_types! {
 
 impl pallet_ranked_collective::Config<FellowshipCollectiveInstance> for Runtime {
 	type WeightInfo = weights::pallet_ranked_collective::WeightInfo<Self>;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	// Promotion is by any of:
 	// - Root can demote arbitrarily.
 	// - the FellowshipAdmin origin (i.e. token holder referendum);

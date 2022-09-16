@@ -50,66 +50,44 @@ impl<T: frame_system::Config> pallet_ranked_collective::WeightInfo for WeightInf
 	// Storage: FellowshipCollective IndexToId (r:0 w:1)
 	// Storage: FellowshipCollective IdToIndex (r:0 w:1)
 	fn add_member() -> Weight {
-		(19_554_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipCollective Members (r:1 w:1)
 	// Storage: FellowshipCollective MemberCount (r:1 w:1)
 	// Storage: FellowshipCollective IdToIndex (r:1 w:1)
 	// Storage: FellowshipCollective IndexToId (r:1 w:1)
 	/// The range of component `r` is `[0, 10]`.
-	fn remove_member(r: u32, ) -> Weight {
-		(31_629_000 as Weight)
-			// Standard Error: 15_000
-			.saturating_add((9_639_000 as Weight).saturating_mul(r as Weight))
-			.saturating_add(T::DbWeight::get().reads(4 as Weight))
-			.saturating_add(T::DbWeight::get().reads((3 as Weight).saturating_mul(r as Weight)))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
-			.saturating_add(T::DbWeight::get().writes((3 as Weight).saturating_mul(r as Weight)))
+	fn remove_member(_: u32, ) -> Weight {
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipCollective Members (r:1 w:1)
 	// Storage: FellowshipCollective MemberCount (r:1 w:1)
 	// Storage: FellowshipCollective IndexToId (r:0 w:1)
 	// Storage: FellowshipCollective IdToIndex (r:0 w:1)
 	/// The range of component `r` is `[0, 10]`.
-	fn promote_member(r: u32, ) -> Weight {
-		(22_258_000 as Weight)
-			// Standard Error: 6_000
-			.saturating_add((424_000 as Weight).saturating_mul(r as Weight))
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+	fn promote_member(_: u32, ) -> Weight {
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipCollective Members (r:1 w:1)
 	// Storage: FellowshipCollective MemberCount (r:1 w:1)
 	// Storage: FellowshipCollective IdToIndex (r:1 w:1)
 	// Storage: FellowshipCollective IndexToId (r:1 w:1)
 	/// The range of component `r` is `[0, 10]`.
-	fn demote_member(r: u32, ) -> Weight {
-		(31_925_000 as Weight)
-			// Standard Error: 15_000
-			.saturating_add((641_000 as Weight).saturating_mul(r as Weight))
-			.saturating_add(T::DbWeight::get().reads(4 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+	fn demote_member(_: u32, ) -> Weight {
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipCollective Members (r:1 w:0)
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipCollective Voting (r:1 w:1)
 	// Storage: Scheduler Agenda (r:2 w:2)
 	fn vote() -> Weight {
-		(45_985_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(5 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:0)
 	// Storage: FellowshipCollective VotingCleanup (r:1 w:0)
 	// Storage: FellowshipCollective Voting (r:0 w:1)
 	/// The range of component `n` is `[1, 100]`.
-	fn cleanup_poll(n: u32, ) -> Weight {
-		(18_649_000 as Weight)
-			// Standard Error: 1_000
-			.saturating_add((879_000 as Weight).saturating_mul(n as Weight))
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(n as Weight)))
+	fn cleanup_poll(_: u32, ) -> Weight {
+		Weight::from_ref_time(0 as u64)
 	}
 }

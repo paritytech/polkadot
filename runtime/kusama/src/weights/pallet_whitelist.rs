@@ -48,35 +48,25 @@ impl<T: frame_system::Config> pallet_whitelist::weights::WeightInfo for WeightIn
 	// Storage: Whitelist WhitelistedCall (r:1 w:1)
 	// Storage: Preimage StatusFor (r:1 w:1)
 	fn whitelist_call() -> Weight {
-		(20_670_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: Whitelist WhitelistedCall (r:1 w:1)
 	// Storage: Preimage StatusFor (r:1 w:1)
 	// Storage: Preimage PreimageFor (r:0 w:1)
 	fn remove_whitelisted_call() -> Weight {
-		(23_080_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: Whitelist WhitelistedCall (r:1 w:1)
 	// Storage: Preimage PreimageFor (r:1 w:1)
 	// Storage: Preimage StatusFor (r:1 w:1)
 	fn dispatch_whitelisted_call() -> Weight {
-		(5_652_664_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: Whitelist WhitelistedCall (r:1 w:1)
 	// Storage: Preimage StatusFor (r:1 w:1)
 	// Storage: Preimage PreimageFor (r:0 w:1)
 	/// The range of component `n` is `[1, 10000]`.
 	fn dispatch_whitelisted_call_with_preimage(n: u32, ) -> Weight {
-		(26_983_000 as Weight)
-			// Standard Error: 0
-			.saturating_add((2_000 as Weight).saturating_mul(n as Weight))
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(n as u64)
 	}
 }

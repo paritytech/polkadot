@@ -50,198 +50,148 @@ impl<T: frame_system::Config> pallet_referenda::WeightInfo for WeightInfo<T> {
 	// Storage: Scheduler Agenda (r:1 w:1)
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:0 w:1)
 	fn submit() -> Weight {
-		(31_780_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: Scheduler Agenda (r:2 w:2)
 	fn place_decision_deposit_preparing() -> Weight {
-		(48_130_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipReferenda DecidingCount (r:1 w:0)
 	// Storage: FellowshipReferenda TrackQueue (r:1 w:1)
 	fn place_decision_deposit_queued() -> Weight {
-		(93_825_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipReferenda DecidingCount (r:1 w:0)
 	// Storage: FellowshipReferenda TrackQueue (r:1 w:1)
 	fn place_decision_deposit_not_queued() -> Weight {
-		(92_421_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipReferenda DecidingCount (r:1 w:1)
 	// Storage: FellowshipCollective MemberCount (r:1 w:0)
 	// Storage: Scheduler Agenda (r:2 w:2)
 	fn place_decision_deposit_passing() -> Weight {
-		(201_288_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(5 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipReferenda DecidingCount (r:1 w:1)
 	// Storage: FellowshipCollective MemberCount (r:1 w:0)
 	fn place_decision_deposit_failing() -> Weight {
-		(42_237_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	fn refund_decision_deposit() -> Weight {
-		(30_400_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: Scheduler Agenda (r:2 w:2)
 	fn cancel() -> Weight {
-		(37_874_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: Scheduler Agenda (r:2 w:2)
 	fn kill() -> Weight {
-		(57_613_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda TrackQueue (r:1 w:0)
 	// Storage: FellowshipReferenda DecidingCount (r:1 w:1)
 	fn one_fewer_deciding_queue_empty() -> Weight {
-		(10_930_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda TrackQueue (r:1 w:1)
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipCollective MemberCount (r:1 w:0)
 	// Storage: Scheduler Agenda (r:2 w:2)
 	fn one_fewer_deciding_failing() -> Weight {
-		(223_867_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(5 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda TrackQueue (r:1 w:1)
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipCollective MemberCount (r:1 w:0)
 	// Storage: Scheduler Agenda (r:2 w:2)
 	fn one_fewer_deciding_passing() -> Weight {
-		(225_788_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(5 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipReferenda TrackQueue (r:1 w:1)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn nudge_referendum_requeued_insertion() -> Weight {
-		(90_681_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipReferenda TrackQueue (r:1 w:1)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn nudge_referendum_requeued_slide() -> Weight {
-		(91_007_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipReferenda DecidingCount (r:1 w:0)
 	// Storage: FellowshipReferenda TrackQueue (r:1 w:1)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn nudge_referendum_queued() -> Weight {
-		(93_793_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(4 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipReferenda DecidingCount (r:1 w:0)
 	// Storage: FellowshipReferenda TrackQueue (r:1 w:1)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn nudge_referendum_not_queued() -> Weight {
-		(93_080_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(4 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn nudge_referendum_no_deposit() -> Weight {
-		(28_284_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn nudge_referendum_preparing() -> Weight {
-		(28_813_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	fn nudge_referendum_timed_out() -> Weight {
-		(21_492_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipReferenda DecidingCount (r:1 w:1)
 	// Storage: FellowshipCollective MemberCount (r:1 w:0)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn nudge_referendum_begin_deciding_failing() -> Weight {
-		(40_134_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(4 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipReferenda DecidingCount (r:1 w:1)
 	// Storage: FellowshipCollective MemberCount (r:1 w:0)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn nudge_referendum_begin_deciding_passing() -> Weight {
-		(91_948_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(4 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipCollective MemberCount (r:1 w:0)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn nudge_referendum_begin_confirming() -> Weight {
-		(171_369_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipCollective MemberCount (r:1 w:0)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn nudge_referendum_end_confirming() -> Weight {
-		(170_194_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipCollective MemberCount (r:1 w:0)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn nudge_referendum_continue_not_confirming() -> Weight {
-		(166_649_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipCollective MemberCount (r:1 w:0)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn nudge_referendum_continue_confirming() -> Weight {
-		(88_021_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipCollective MemberCount (r:1 w:0)
@@ -249,16 +199,12 @@ impl<T: frame_system::Config> pallet_referenda::WeightInfo for WeightInfo<T> {
 	// Storage: Scheduler Lookup (r:1 w:1)
 	// Storage: Preimage StatusFor (r:1 w:1)
 	fn nudge_referendum_approved() -> Weight {
-		(184_874_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(6 as Weight))
-			.saturating_add(T::DbWeight::get().writes(5 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 	// Storage: FellowshipReferenda ReferendumInfoFor (r:1 w:1)
 	// Storage: FellowshipCollective MemberCount (r:1 w:0)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn nudge_referendum_rejected() -> Weight {
-		(169_747_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(0 as u64)
 	}
 }
