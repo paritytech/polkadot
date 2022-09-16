@@ -49,8 +49,8 @@ mod staging_impl {
 	};
 
 	/// Gets the on-chain disputes at a given block number and returns them as a `HashSet` so that searching in them is cheap.
-	pub async fn get_onchain_disputes<Sender>(
-		sender: &mut Sender,
+	pub async fn get_onchain_disputes(
+		sender: &mut impl SubsystemSender<RuntimeApiMessage>,
 		relay_parent: Hash,
 	) -> Result<HashMap<(SessionIndex, CandidateHash), DisputeState>, GetOnchainDisputesError> {
 		gum::trace!(target: LOG_TARGET, ?relay_parent, "Fetching on-chain disputes");

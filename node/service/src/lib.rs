@@ -46,9 +46,11 @@ use {
 		self as chain_selection_subsystem, Config as ChainSelectionConfig,
 	},
 	polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig,
-	polkadot_node_network_protocol::request_response::ReqProtocolNames,
+	polkadot_node_network_protocol::{
+		peer_set::PeerSetProtocolNames, request_response::ReqProtocolNames,
+	},
 	polkadot_overseer::BlockInfo,
-	sc_client_api::{BlockBackend, ExecutorProvider},
+	sc_client_api::BlockBackend,
 	sp_core::traits::SpawnNamed,
 	sp_trie::PrefixedMemoryDB,
 };
@@ -519,7 +521,7 @@ where
 			client.clone(),
 		);
 
-	let babe_config = babe::Config::get(&*client)?;
+	let babe_config = babe::configuration(&*client)?;
 	let (block_import, babe_link) =
 		babe::block_import(babe_config.clone(), beefy_block_import, client.clone())?;
 
@@ -543,7 +545,6 @@ where
 		},
 		&task_manager.spawn_essential_handle(),
 		config.prometheus_registry(),
-		consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone()),
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
@@ -799,7 +800,7 @@ where
 	let auth_or_collator = role.is_authority() || is_collator.is_collator();
 	let requires_overseer_for_chain_sel = local_keystore.is_some() && auth_or_collator;
 
-	let pvf_checker_enabled = !is_collator.is_collator() && chain_spec.is_versi();
+	let pvf_checker_enabled = role.is_authority() && !is_collator.is_collator();
 
 	let select_chain = if requires_overseer_for_chain_sel {
 		let metrics =
@@ -852,10 +853,16 @@ where
 			.push(beefy_gadget::beefy_peers_set_config(beefy_protocol_name.clone()));
 	}
 
+	let peerset_protocol_names =
+		PeerSetProtocolNames::new(genesis_hash, config.chain_spec.fork_id());
+
 	{
 		use polkadot_network_bridge::{peer_sets_info, IsAuthority};
 		let is_authority = if role.is_authority() { IsAuthority::Yes } else { IsAuthority::No };
-		config.network.extra_sets.extend(peer_sets_info(is_authority));
+		config
+			.network
+			.extra_sets
+			.extend(peer_sets_info(is_authority, &peerset_protocol_names));
 	}
 
 	let req_protocol_names = ReqProtocolNames::new(&genesis_hash, config.chain_spec.fork_id());
@@ -1063,6 +1070,7 @@ where
 					pvf_checker_enabled,
 					overseer_message_channel_capacity_override,
 					req_protocol_names,
+					peerset_protocol_names,
 				},
 			)
 			.map_err(|e| {
@@ -1105,9 +1113,6 @@ where
 	};
 
 	if role.is_authority() {
-		let can_author_with =
-			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
-
 		let proposer = sc_basic_authorship::ProposerFactory::new(
 			task_manager.spawn_handle(),
 			client.clone(),
@@ -1153,7 +1158,6 @@ where
 			force_authoring,
 			backoff_authoring_blocks,
 			babe_link,
-			can_author_with,
 			block_proposal_slot_portion: babe::SlotProportion::new(2f32 / 3f32),
 			max_block_proposal_slot_portion: None,
 			telemetry: telemetry.as_ref().map(|x| x.handle()),

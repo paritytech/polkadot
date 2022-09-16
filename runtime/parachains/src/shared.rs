@@ -75,7 +75,7 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the configuration pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	/// Called by the initializer to finalize the configuration pallet.

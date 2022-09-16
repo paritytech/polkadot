@@ -21,12 +21,12 @@ pub use crate::{
 };
 pub use frame_support::{
 	dispatch::{
-		DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, Parameter, Weight,
+		DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, GetDispatchInfo,
+		Parameter, PostDispatchInfo,
 	},
 	ensure, parameter_types,
 	sp_runtime::DispatchErrorWithPostInfo,
 	traits::{Contains, Get, IsInVec},
-	weights::{GetDispatchInfo, PostDispatchInfo},
 };
 pub use parity_scale_codec::{Decode, Encode};
 pub use sp_std::{
@@ -35,7 +35,7 @@ pub use sp_std::{
 	fmt::Debug,
 	marker::PhantomData,
 };
-pub use xcm::latest::prelude::*;
+pub use xcm::latest::{prelude::*, Weight};
 pub use xcm_executor::{
 	traits::{ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset},
 	Assets, Config,
@@ -66,12 +66,14 @@ impl Dispatchable for TestCall {
 	type PostInfo = PostDispatchInfo;
 	fn dispatch(self, origin: Self::Origin) -> DispatchResultWithPostInfo {
 		let mut post_info = PostDispatchInfo::default();
-		post_info.actual_weight = match self {
+		let maybe_actual = match self {
 			TestCall::OnlyRoot(_, maybe_actual) |
 			TestCall::OnlySigned(_, maybe_actual, _) |
 			TestCall::OnlyParachain(_, maybe_actual, _) |
 			TestCall::Any(_, maybe_actual) => maybe_actual,
 		};
+		post_info.actual_weight =
+			maybe_actual.map(|x| frame_support::weights::Weight::from_ref_time(x));
 		if match (&origin, &self) {
 			(TestOrigin::Parachain(i), TestCall::OnlyParachain(_, _, Some(j))) => i == j,
 			(TestOrigin::Signed(i), TestCall::OnlySigned(_, _, Some(j))) => i == j,
@@ -96,7 +98,10 @@ impl GetDispatchInfo for TestCall {
 			TestCall::OnlySigned(estimate, ..) |
 			TestCall::Any(estimate, ..) => estimate,
 		};
-		DispatchInfo { weight, ..Default::default() }
+		DispatchInfo {
+			weight: frame_support::weights::Weight::from_ref_time(weight),
+			..Default::default()
+		}
 	}
 }
 
@@ -252,7 +257,7 @@ pub fn response(query_id: u64) -> Option<Response> {
 
 parameter_types! {
 	pub TestAncestry: MultiLocation = X1(Parachain(42)).into();
-	pub UnitWeightCost: Weight = 10;
+	pub UnitWeightCost: u64 = 10;
 }
 parameter_types! {
 	// Nothing is allowed to be paid/unpaid by default.
@@ -274,7 +279,7 @@ pub type TestBarrier = (
 
 pub struct TestConfig;
 impl Config for TestConfig {
-	type Call = TestCall;
+	type RuntimeCall = TestCall;
 	type XcmSender = TestSendXcm;
 	type AssetTransactor = TestAssetTransactor;
 	type OriginConverter = TestOriginConverter;
