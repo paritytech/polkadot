@@ -21,7 +21,7 @@
 //! If the ACTIVE disputes are also above `MAX_DISPUTES_FORWARDED_TO_RUNTIME` limit - a random selection
 //! of them is generated.
 
-use crate::{error::Error, metrics, LOG_TARGET};
+use crate::{metrics, LOG_TARGET};
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{messages::DisputeCoordinatorMessage, overseer};
 use polkadot_primitives::v2::{
@@ -116,7 +116,7 @@ fn extend_by_random_subset_without_repetition(
 pub async fn select_disputes<Sender>(
 	sender: &mut Sender,
 	metrics: &metrics::Metrics,
-) -> Result<MultiDisputeStatementSet, Error>
+) -> MultiDisputeStatementSet
 where
 	Sender: overseer::ProvisionerSenderTrait,
 {
@@ -167,7 +167,7 @@ where
 	let dispute_candidate_votes = super::request_votes(sender, disputes).await;
 
 	// Transform all `CandidateVotes` into `MultiDisputeStatementSet`.
-	Ok(dispute_candidate_votes
+	dispute_candidate_votes
 		.into_iter()
 		.map(|(session_index, candidate_hash, votes)| {
 			let valid_statements = votes
@@ -190,5 +190,5 @@ where
 				statements: valid_statements.chain(invalid_statements).collect(),
 			}
 		})
-		.collect())
+		.collect()
 }

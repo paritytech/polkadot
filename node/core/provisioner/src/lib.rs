@@ -370,8 +370,8 @@ async fn send_inherent_data(
 	)
 	.await
 	{
-		true => disputes::prioritized_selection::select_disputes(from_job, metrics, leaf).await?,
-		false => disputes::random_selection::select_disputes(from_job, metrics).await?,
+		true => disputes::prioritized_selection::select_disputes(from_job, metrics, leaf).await,
+		false => disputes::random_selection::select_disputes(from_job, metrics).await,
 	};
 
 	gum::trace!(

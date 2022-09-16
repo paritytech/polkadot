@@ -18,10 +18,7 @@
 //! about the votes already known onchain and tries to select only relevant votes. Refer to
 //! the documentation of `select_disputes` for more details about the actual implementation.
 
-use crate::{
-	error::{Error, GetOnchainDisputesError},
-	metrics, LOG_TARGET,
-};
+use crate::{error::GetOnchainDisputesError, metrics, LOG_TARGET};
 use futures::channel::oneshot;
 use polkadot_node_primitives::{dispute_is_inactive, CandidateVotes, DisputeStatus, Timestamp};
 use polkadot_node_subsystem::{
@@ -80,7 +77,7 @@ pub async fn select_disputes<Sender>(
 	sender: &mut Sender,
 	metrics: &metrics::Metrics,
 	leaf: &ActivatedLeaf,
-) -> Result<MultiDisputeStatementSet, Error>
+) -> MultiDisputeStatementSet
 where
 	Sender: overseer::ProvisionerSenderTrait,
 {
@@ -404,9 +401,9 @@ async fn request_disputes(
 fn into_multi_dispute_statement_set(
 	metrics: &metrics::Metrics,
 	dispute_candidate_votes: BTreeMap<(SessionIndex, CandidateHash), CandidateVotes>,
-) -> Result<MultiDisputeStatementSet, Error> {
+) -> MultiDisputeStatementSet {
 	// Transform all `CandidateVotes` into `MultiDisputeStatementSet`.
-	Ok(dispute_candidate_votes
+	dispute_candidate_votes
 		.into_iter()
 		.map(|((session_index, candidate_hash), votes)| {
 			let valid_statements = votes
@@ -429,7 +426,7 @@ fn into_multi_dispute_statement_set(
 				statements: valid_statements.chain(invalid_statements).collect(),
 			}
 		})
-		.collect())
+		.collect()
 }
 
 /// Gets the on-chain disputes at a given block number and returns them as a `HashMap` so that searching in them is cheap.

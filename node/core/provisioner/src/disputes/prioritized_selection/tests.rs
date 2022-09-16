@@ -548,7 +548,7 @@ fn normal_flow() {
 		|r| mock_overseer(r, &mut input, &mut vote_queries),
 		|mut tx: TestSubsystemSender| async move {
 			let lf = leaf();
-			let result = select_disputes(&mut tx, &metrics, &lf).await.unwrap();
+			let result = select_disputes(&mut tx, &metrics, &lf).await;
 
 			assert!(!result.is_empty());
 
@@ -628,7 +628,7 @@ fn many_batches() {
 		|r| mock_overseer(r, &mut input, &mut vote_queries),
 		|mut tx: TestSubsystemSender| async move {
 			let lf = leaf();
-			let result = select_disputes(&mut tx, &metrics, &lf).await.unwrap();
+			let result = select_disputes(&mut tx, &metrics, &lf).await;
 
 			assert!(!result.is_empty());
 
@@ -682,7 +682,7 @@ fn votes_above_limit() {
 		|r| mock_overseer(r, &mut input, &mut vote_queries),
 		|mut tx: TestSubsystemSender| async move {
 			let lf = leaf();
-			let result = select_disputes(&mut tx, &metrics, &lf).await.unwrap();
+			let result = select_disputes(&mut tx, &metrics, &lf).await;
 
 			assert!(!result.is_empty());
 
