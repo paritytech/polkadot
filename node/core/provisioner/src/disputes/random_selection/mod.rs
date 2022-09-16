@@ -52,7 +52,7 @@ async fn request_disputes(
 				Err(oneshot::Canceled) => {
 					gum::warn!(
 						target: LOG_TARGET,
-						"Unable to gather {:?} disputes",
+						"Channel closed: unable to gather {:?} disputes",
 						active_or_recent
 					);
 					Vec::new()

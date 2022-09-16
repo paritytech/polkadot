@@ -62,7 +62,7 @@ pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200;
 ///
 /// Provisioner fetches all disputes from `dispute-coordinator` and separates them in multiple partitions.
 /// Please refer to `struct PartitionedDisputes` for details about the actual partitions.
-/// Each partition has got a priority implicitly assigned to it and the disputes are selected based on thus
+/// Each partition has got a priority implicitly assigned to it and the disputes are selected based on this
 /// priority (e.g. disputes in partition 1, then if there is space - disputes from partition 2 and so on).
 ///
 /// # Votes selection
@@ -99,7 +99,7 @@ where
 				target: LOG_TARGET,
 				?runtime_api_err,
 				?relay_parent,
-				"Can't fetch onchain disputes, because runtime version is not recent enough. Will continue with empty onchain disputes set.",
+				"Can't fetch onchain disputes, because ParachainHost runtime api version is old. Will continue with empty onchain disputes set.",
 			);
 			HashMap::new()
 		},
