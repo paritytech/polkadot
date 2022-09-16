@@ -550,8 +550,7 @@ pub mod pallet {
 			)
 		}
 
-		/// Transfer some assets from sovereign account to reserve holder chain and
-		/// forward a notification XCM.
+		/// Transfer some assets from sovereign account to reserve holder chain.
 		///
 		/// Fee payment on the destination side is made from the asset in the `assets` vector of
 		/// index `fee_asset_item`. The weight limit for fees is not provided and thus is unlimited,
@@ -809,8 +808,7 @@ pub mod pallet {
 			)
 		}
 
-		/// Transfer some assets from sovereign account to reserve holder chain and
-		/// forward a notification XCM.
+		/// Transfer some assets from sovereign account to reserve holder chain.
 		///
 		/// Fee payment on the destination side is made from the asset in the `assets` vector of
 		/// index `fee_asset_item`. The weight limit for fees is not provided and thus is unlimited,
