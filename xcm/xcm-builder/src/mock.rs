@@ -60,7 +60,7 @@ pub enum TestCall {
 	Any(Weight, Option<Weight>),
 }
 impl Dispatchable for TestCall {
-	type Origin = TestOrigin;
+	type RuntimeOrigin = TestOrigin;
 	type Config = ();
 	type Info = ();
 	type PostInfo = PostDispatchInfo;
