@@ -28,8 +28,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_primitives::v2::{
 	supermajority_threshold, CandidateHash, DisputeState, DisputeStatement, DisputeStatementSet,
-	Hash, InvalidDisputeStatementKind, MultiDisputeStatementSet, SessionIndex,
-	ValidDisputeStatementKind, ValidatorIndex,
+	Hash, MultiDisputeStatementSet, SessionIndex, ValidatorIndex,
 };
 use std::{
 	collections::{BTreeMap, HashMap},
@@ -182,10 +181,18 @@ where
 					};
 
 				votes.valid.retain(|validator_idx, (statement_kind, _)| {
-					is_vote_worth_to_keep(validator_idx, statement_kind, &onchain_state)
+					is_vote_worth_to_keep(
+						validator_idx,
+						DisputeStatement::Valid(*statement_kind),
+						&onchain_state,
+					)
 				});
 				votes.invalid.retain(|validator_idx, (statement_kind, _)| {
-					is_vote_worth_to_keep(validator_idx, statement_kind, &onchain_state)
+					is_vote_worth_to_keep(
+						validator_idx,
+						DisputeStatement::Invalid(*statement_kind),
+						&onchain_state,
+					)
 				});
 				(session_index, candidate_hash, votes)
 			})
@@ -327,31 +334,16 @@ fn partition_recent_disputes(
 	partitioned
 }
 
-// Helper trait to obtain the value of vote for `InvalidDisputeStatementKind` and `ValidDisputeStatementKind`.
-// The alternative was to pass a bool to `fn is_vote_worth_to_keep` explicitly but it's pointless as the value is already 'encoded' in the type.
-trait VoteType {
-	fn is_valid() -> bool;
-}
-
-impl VoteType for InvalidDisputeStatementKind {
-	fn is_valid() -> bool {
-		false
-	}
-}
-
-impl VoteType for ValidDisputeStatementKind {
-	fn is_valid() -> bool {
-		true
-	}
-}
-
 /// Determines if a vote is worth to be kept, based on the onchain disputes
-fn is_vote_worth_to_keep<T: VoteType>(
+fn is_vote_worth_to_keep(
 	validator_index: &ValidatorIndex,
-	_: &T,
+	dispute_statement: DisputeStatement,
 	onchain_state: &DisputeState,
 ) -> bool {
-	let offchain_vote = T::is_valid();
+	let offchain_vote = match dispute_statement {
+		DisputeStatement::Valid(_) => true,
+		DisputeStatement::Invalid(_) => false,
+	};
 	let in_validators_for = onchain_state
 		.validators_for
 		.get(validator_index.0 as usize)

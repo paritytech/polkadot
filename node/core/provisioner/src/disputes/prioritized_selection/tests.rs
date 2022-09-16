@@ -51,19 +51,35 @@ fn should_keep_vote_behaves() {
 	let local_invalid_unknown = (ValidatorIndex(3), InvalidDisputeStatementKind::Explicit);
 
 	assert_eq!(
-		is_vote_worth_to_keep(&local_valid_known.0, &local_valid_known.1, &onchain_state),
+		is_vote_worth_to_keep(
+			&local_valid_known.0,
+			DisputeStatement::Valid(local_valid_known.1),
+			&onchain_state
+		),
 		false
 	);
 	assert_eq!(
-		is_vote_worth_to_keep(&local_valid_unknown.0, &local_valid_unknown.1, &onchain_state),
+		is_vote_worth_to_keep(
+			&local_valid_unknown.0,
+			DisputeStatement::Valid(local_valid_unknown.1),
+			&onchain_state
+		),
 		true
 	);
 	assert_eq!(
-		is_vote_worth_to_keep(&local_invalid_known.0, &local_invalid_known.1, &onchain_state),
+		is_vote_worth_to_keep(
+			&local_invalid_known.0,
+			DisputeStatement::Invalid(local_invalid_known.1),
+			&onchain_state
+		),
 		false
 	);
 	assert_eq!(
-		is_vote_worth_to_keep(&local_invalid_unknown.0, &local_invalid_unknown.1, &onchain_state),
+		is_vote_worth_to_keep(
+			&local_invalid_unknown.0,
+			DisputeStatement::Invalid(local_invalid_unknown.1),
+			&onchain_state
+		),
 		true
 	);
 
@@ -73,7 +89,7 @@ fn should_keep_vote_behaves() {
 	assert_eq!(
 		is_vote_worth_to_keep(
 			&local_double_vote_onchain_knows.0,
-			&local_double_vote_onchain_knows.1,
+			DisputeStatement::Invalid(local_double_vote_onchain_knows.1),
 			&onchain_state
 		),
 		false
@@ -85,7 +101,7 @@ fn should_keep_vote_behaves() {
 	assert_eq!(
 		is_vote_worth_to_keep(
 			&local_double_vote_onchain_doesnt_knows.0,
-			&local_double_vote_onchain_doesnt_knows.1,
+			DisputeStatement::Invalid(local_double_vote_onchain_doesnt_knows.1),
 			&onchain_state
 		),
 		true
@@ -101,7 +117,7 @@ fn should_keep_vote_behaves() {
 	assert_eq!(
 		is_vote_worth_to_keep(
 			&local_double_vote_onchain_doesnt_knows.0,
-			&local_double_vote_onchain_doesnt_knows.1,
+			DisputeStatement::Invalid(local_double_vote_onchain_doesnt_knows.1),
 			&empty_onchain_state
 		),
 		true
