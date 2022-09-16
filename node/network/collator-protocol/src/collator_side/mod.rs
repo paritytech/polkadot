@@ -49,15 +49,20 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState,
-	Hash, Id as ParaId,
+	GroupIndex, Hash, Id as ParaId, SessionIndex,
 };
+
+use self::validators_buffer::ResetBitDelay;
 
 use super::LOG_TARGET;
 use crate::error::{log_error, Error, FatalError, Result};
 use fatality::Split;
 
-mod connection;
 mod metrics;
+mod validators_buffer;
+
+use validators_buffer::{ValidatorGroupsBuffer, RESET_BIT_DELAY, VALIDATORS_BUFFER_CAPACITY};
+
 pub use metrics::Metrics;
 
 #[cfg(test)]
@@ -205,6 +210,17 @@ struct State {
 	/// by `PeerConnected` events.
 	peer_ids: HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 
+	/// Tracks which validators we want to stay connected to.
+	validator_groups_buf: ValidatorGroupsBuffer<VALIDATORS_BUFFER_CAPACITY>,
+
+	/// A set of futures that notify the subsystem to reset validator's bit in
+	/// a buffer with respect to advertisement.
+	///
+	/// This doesn't necessarily mean that a validator will be disconnected
+	/// as there may exist several collations in our view this validator is interested
+	/// in.
+	reset_bit_delays: FuturesUnordered<ResetBitDelay>,
+
 	/// Metrics.
 	metrics: Metrics,
 
@@ -236,6 +252,8 @@ impl State {
 			collation_result_senders: Default::default(),
 			our_validators_groups: Default::default(),
 			peer_ids: Default::default(),
+			validator_groups_buf: ValidatorGroupsBuffer::new(),
+			reset_bit_delays: Default::default(),
 			waiting_collation_fetches: Default::default(),
 			active_collation_fetches: Default::default(),
 		}
@@ -270,6 +288,7 @@ async fn distribute_collation<Context>(
 	result_sender: Option<oneshot::Sender<CollationSecondedSignal>>,
 ) -> Result<()> {
 	let relay_parent = receipt.descriptor.relay_parent;
+	let candidate_hash = receipt.hash();
 
 	// This collation is not in the active-leaves set.
 	if !state.view.contains(&relay_parent) {
@@ -309,10 +328,10 @@ async fn distribute_collation<Context>(
 	};
 
 	// Determine the group on that core.
-	let current_validators =
+	let GroupValidators { validators, session_index, group_index } =
 		determine_our_validators(ctx, runtime, our_core, num_cores, relay_parent).await?;
 
-	if current_validators.validators.is_empty() {
+	if validators.is_empty() {
 		gum::warn!(
 			target: LOG_TARGET,
 			core = ?our_core,
@@ -322,24 +341,31 @@ async fn distribute_collation<Context>(
 		return Ok(())
 	}
 
+	state.validator_groups_buf.note_collation_distributed(
+		relay_parent,
+		session_index,
+		group_index,
+		&validators,
+	);
+
 	gum::debug!(
 		target: LOG_TARGET,
 		para_id = %id,
 		relay_parent = %relay_parent,
-		candidate_hash = ?receipt.hash(),
+		?candidate_hash,
 		pov_hash = ?pov.hash(),
 		core = ?our_core,
-		?current_validators,
+		current_validators = ?validators,
 		"Accepted collation, connecting to validators."
 	);
 
-	// Issue a discovery request for the validators of the current group:
-	connect_to_validators(ctx, current_validators.validators.into_iter().collect()).await;
+	// Update a set of connected validators if necessary.
+	reconnect_to_validators(ctx, &state.validator_groups_buf).await;
 
 	state.our_validators_groups.insert(relay_parent, ValidatorGroup::new());
 
 	if let Some(result_sender) = result_sender {
-		state.collation_result_senders.insert(receipt.hash(), result_sender);
+		state.collation_result_senders.insert(candidate_hash, result_sender);
 	}
 
 	state
@@ -380,6 +406,9 @@ async fn determine_core(
 struct GroupValidators {
 	/// The validators of above group (their discovery keys).
 	validators: Vec<AuthorityDiscoveryId>,
+
+	session_index: SessionIndex,
+	group_index: GroupIndex,
 }
 
 /// Figure out current group of validators assigned to the para being collated on.
@@ -413,7 +442,11 @@ async fn determine_our_validators<Context>(
 	let current_validators =
 		current_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
 
-	let current_validators = GroupValidators { validators: current_validators };
+	let current_validators = GroupValidators {
+		validators: current_validators,
+		session_index,
+		group_index: current_group_index,
+	};
 
 	Ok(current_validators)
 }
@@ -438,13 +471,16 @@ async fn declare<Context>(ctx: &mut Context, state: &mut State, peer: PeerId) {
 	}
 }
 
-/// Issue a connection request to a set of validators and
-/// revoke the previous connection request.
+/// Updates a set of connected validators based on their advertisement-bits
+/// in a buffer.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
-async fn connect_to_validators<Context>(
+async fn reconnect_to_validators<Context>(
 	ctx: &mut Context,
-	validator_ids: Vec<AuthorityDiscoveryId>,
+	validator_groups_buf: &ValidatorGroupsBuffer<VALIDATORS_BUFFER_CAPACITY>,
 ) {
+	// Validators not present in this vec are disconnected.
+	let validator_ids = validator_groups_buf.validators_to_connect();
+
 	// ignore address resolution failure
 	// will reissue a new request on new collation
 	let (failed, _) = oneshot::channel();
@@ -510,6 +546,16 @@ async fn advertise_collation<Context>(
 		Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 	))
 	.await;
+
+	// If a validator doesn't fetch a collation within a timeout,
+	// reset its bit anyway.
+	if let Some(authority_ids) = state.peer_ids.get(&peer) {
+		state.reset_bit_delays.push(ResetBitDelay::new(
+			relay_parent,
+			authority_ids.clone(),
+			RESET_BIT_DELAY,
+		));
+	}
 
 	if let Some(validators) = state.our_validators_groups.get_mut(&relay_parent) {
 		validators.advertised_to_peer(&state.peer_ids, &peer);
@@ -883,6 +929,7 @@ async fn handle_our_view_change(state: &mut State, view: OurView) -> Result<()> 
 		state.our_validators_groups.remove(removed);
 		state.span_per_relay_parent.remove(removed);
 		state.waiting_collation_fetches.remove(removed);
+		state.validator_groups_buf.remove_relay_parent(removed);
 	}
 
 	state.view = view;
@@ -920,6 +967,13 @@ pub(crate) async fn run<Context>(
 				FromOrchestra::Signal(Conclude) => return Ok(()),
 			},
 			(relay_parent, peer_id) = state.active_collation_fetches.select_next_some() => {
+				// Schedule a bit reset for this peer.
+				if let Some(authority_ids) = state.peer_ids.get(&peer_id) {
+					state.reset_bit_delays.push(ResetBitDelay::new(
+						relay_parent, authority_ids.clone(), RESET_BIT_DELAY
+					));
+				}
+
 				let next = if let Some(waiting) = state.waiting_collation_fetches.get_mut(&relay_parent) {
 					waiting.waiting_peers.remove(&peer_id);
 					if let Some(next) = waiting.waiting.pop_front() {
@@ -939,6 +993,12 @@ pub(crate) async fn run<Context>(
 
 					send_collation(&mut state, next, receipt, pov).await;
 				}
+			},
+			(relay_parent, authority_ids) = state.reset_bit_delays.select_next_some() => {
+				for authority_id in authority_ids {
+					state.validator_groups_buf.reset_validator_bit(relay_parent, &authority_id);
+				}
+				reconnect_to_validators(&mut ctx, &state.validator_groups_buf).await;
 			}
 			in_req = recv_req => {
 				match in_req {
