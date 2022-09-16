@@ -45,7 +45,7 @@ fn basic_buy_fees_message_executes() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute {
+		polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
 			message: Box::new(VersionedXcm::from(msg)),
 			max_weight: Weight::from_ref_time(1_000_000_000),
 		}),
@@ -67,9 +67,9 @@ fn basic_buy_fees_message_executes() {
 		.inspect_state(|| {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 				r.event,
-				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::Attempted(Outcome::Complete(
-					_
-				))),
+				polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::Attempted(
+					Outcome::Complete(_)
+				)),
 			)));
 		});
 }
@@ -78,7 +78,7 @@ fn basic_buy_fees_message_executes() {
 fn query_response_fires() {
 	use pallet_test_notifier::Event::*;
 	use pallet_xcm::QueryStatus;
-	use polkadot_test_runtime::Event::TestNotifier;
+	use polkadot_test_runtime::RuntimeEvent::TestNotifier;
 
 	sp_tracing::try_init_simple();
 	let mut client = TestClientBuilder::new()
@@ -89,7 +89,9 @@ fn query_response_fires() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::TestNotifier(pallet_test_notifier::Call::prepare_new_query {}),
+		polkadot_test_runtime::RuntimeCall::TestNotifier(
+			pallet_test_notifier::Call::prepare_new_query {},
+		),
 		sp_keyring::Sr25519Keyring::Alice,
 		0,
 	);
@@ -125,7 +127,7 @@ fn query_response_fires() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute {
+		polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
 			message: msg,
 			max_weight: Weight::from_ref_time(1_000_000_000),
 		}),
@@ -147,7 +149,7 @@ fn query_response_fires() {
 		.inspect_state(|| {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 				r.event,
-				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::ResponseReady(
+				polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::ResponseReady(
 					q,
 					Response::ExecutionResult(None),
 				)) if q == query_id,
@@ -165,7 +167,7 @@ fn query_response_fires() {
 #[test]
 fn query_response_elicits_handler() {
 	use pallet_test_notifier::Event::*;
-	use polkadot_test_runtime::Event::TestNotifier;
+	use polkadot_test_runtime::RuntimeEvent::TestNotifier;
 
 	sp_tracing::try_init_simple();
 	let mut client = TestClientBuilder::new()
@@ -176,7 +178,7 @@ fn query_response_elicits_handler() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::TestNotifier(
+		polkadot_test_runtime::RuntimeCall::TestNotifier(
 			pallet_test_notifier::Call::prepare_new_notify_query {},
 		),
 		sp_keyring::Sr25519Keyring::Alice,
@@ -213,7 +215,7 @@ fn query_response_elicits_handler() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute {
+		polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
 			message: Box::new(VersionedXcm::from(msg)),
 			max_weight: Weight::from_ref_time(1_000_000_000),
 		}),

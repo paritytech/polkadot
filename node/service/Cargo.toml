@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.9.28"
+version = "0.9.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 rust-version = "1.60"
@@ -178,7 +178,9 @@ runtime-benchmarks = [
 	"polkadot-runtime?/runtime-benchmarks",
 	"kusama-runtime?/runtime-benchmarks",
 	"westend-runtime?/runtime-benchmarks",
-	"rococo-runtime?/runtime-benchmarks"
+	"rococo-runtime?/runtime-benchmarks",
+
+	"service/runtime-benchmarks",
 ]
 try-runtime = [
 	"polkadot-runtime?/try-runtime",
