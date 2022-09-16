@@ -74,6 +74,9 @@ pub enum Error {
 	#[error("Fetching availability cores failed {0:?}")]
 	FetchAvailabilityCores(RuntimeApiError),
 
+	#[error("Attempted to share statement when not a validator or not assigned")]
+	InvalidShare,
+
 	#[error("Relay parent could not be found in active heads")]
 	NoSuchHead(Hash),
 

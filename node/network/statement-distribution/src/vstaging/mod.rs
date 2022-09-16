@@ -31,7 +31,7 @@ use polkadot_node_subsystem::{
 	messages::{CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeTxMessage},
 	overseer, ActivatedLeaf, PerLeafSpan, StatementDistributionSenderTrait,
 };
-use polkadot_node_primitives::SignedFullStatement;
+use polkadot_node_primitives::{SignedFullStatement, Statement as FullStatement};
 use polkadot_node_subsystem_util::backing_implicit_view::{FetchError, View as ImplicitView};
 
 use sp_keystore::SyncCryptoStorePtr;
@@ -70,6 +70,16 @@ enum CandidateState {
 	ConfirmedWithoutPVD(CommittedCandidateReceipt),
 	/// The candidate is confirmed and we have the `PersistedValidationData`.
 	Confirmed(CommittedCandidateReceipt, PersistedValidationData),
+}
+
+impl CandidateState {
+	fn receipt(&self) -> Option<&CommittedCandidateReceipt> {
+		match *self {
+			CandidateState::Unconfirmed => None,
+			CandidateState::ConfirmedWithoutPVD(ref c) => Some(c),
+			CandidateState::Confirmed(ref c, _) => Some(c),
+		}
+	}
 }
 
 // per-relay-parent local validator state.
@@ -285,23 +295,37 @@ pub(crate) async fn share_local_statement<Context>(
 	state: &mut State,
 	relay_parent: Hash,
 	statement: SignedFullStatement,
-) {
+) -> JfyiErrorResult<()> {
 	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
-		None => {
-			gum::warn!(
-				target: LOG_TARGET,
-				?relay_parent,
-				"Attempted to share statement for unknown relay-parent"
-			);
-
-			return;
-		}
+		None => return Err(JfyiError::InvalidShare),
 		Some(x) => x,
 	};
 
+	let local_validator = match per_relay_parent.local_validator.as_ref() {
+		None => return Err(JfyiError::InvalidShare),
+		Some(l) => l,
+	};
+
+	// Two possibilities: either the statement is `Seconded` or we already
+	// have the candidate. Sanity: check the para-id is valid.
+	let expected_para = match statement.payload() {
+		FullStatement::Seconded(ref s) => Some(s.descriptor().para_id),
+		FullStatement::Valid(hash) => {
+			per_relay_parent.candidates
+				.get(&hash)
+				.and_then(|c| c.state.receipt())
+				.map(|c| c.descriptor().para_id)
+		}
+	};
+
+	if expected_para.is_none() || local_validator.assignment != expected_para {
+		return Err(JfyiError::InvalidShare)
+	}
+
 	// TODO [now]:
-	// 1. check that we are in the required group for the parachain at that block
 	// 2. insert candidate if unknown
-	// 3. send to nodes in current group and next-up the statement. If not a `Seconded` statement,
+	// 3. send the compact version of the statement to nodes in current group and next-up. If not a `Seconded` statement,
 	//   send a `Seconded` statement as well.
+
+	Ok(())
 }
