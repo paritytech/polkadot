@@ -53,7 +53,8 @@ pub use pallet_staking::StakerStatus;
 pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 #[cfg(any(feature = "std", test))]
-pub use sp_runtime::{BuildStorage, traits::Bounded};
+pub use sp_runtime::BuildStorage;
+pub use sp_runtime::traits::Bounded;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub use impls::ToAuthor;
