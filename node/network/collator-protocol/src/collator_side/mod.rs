@@ -969,7 +969,7 @@ pub(crate) async fn run<Context>(
 
 					send_collation(&mut state, next, receipt, pov).await;
 				}
-			},
+			}
 			in_req = recv_req => {
 				match in_req {
 					Ok(req) => {
