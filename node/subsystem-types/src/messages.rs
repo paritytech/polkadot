@@ -732,7 +732,7 @@ impl RuntimeApiMessage {
 pub enum StatementDistributionMessage {
 	/// We have originated a signed statement in the context of
 	/// given relay-parent hash and it should be distributed to other validators.
-	Share(Hash, SignedFullStatement),
+	Share(Hash, SignedFullStatementWithPVD),
 	/// Event from the network bridge.
 	#[from]
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::StatementDistributionMessage>),

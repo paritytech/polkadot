@@ -1276,7 +1276,7 @@ fn concurrent_dependent_candidates() {
 					let payload = statement.payload();
 					assert_matches!(
 						payload.clone(),
-						Statement::Valid(hash)
+						StatementWithPVD::Valid(hash)
 							if hash == candidate_a_hash || hash == candidate_b_hash =>
 						{
 							assert!(valid_statements.insert(hash));

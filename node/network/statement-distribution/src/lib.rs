@@ -28,12 +28,12 @@ use polkadot_node_network_protocol::{
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	vstaging as protocol_vstaging, Versioned,
 };
-use polkadot_node_subsystem_util::rand;
-
+use polkadot_node_primitives::StatementWithPVD;
 use polkadot_node_subsystem::{
 	messages::{NetworkBridgeEvent, StatementDistributionMessage},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
+use polkadot_node_subsystem_util::rand;
 
 use futures::{channel::mpsc, prelude::*};
 use sp_keystore::SyncCryptoStorePtr;
@@ -225,7 +225,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 								ctx,
 								legacy_v1_state,
 								relay_parent,
-								statement,
+								StatementWithPVD::drop_pvd_from_signed(statement),
 								&mut self.rng,
 								metrics,
 							)

@@ -1693,9 +1693,17 @@ fn share_prioritizes_backing_group() {
 			.await
 			.unwrap();
 
-			SignedFullStatement::sign(
+			// note: this is ignored by legacy-v1 code.
+			let pvd = PersistedValidationData {
+				parent_head: HeadData::from(vec![1, 2, 3]),
+				relay_parent_number: 0,
+				relay_parent_storage_root: Hash::repeat_byte(42),
+				max_pov_size: 100,
+			};
+
+			SignedFullStatementWithPVD::sign(
 				&keystore,
-				Statement::Seconded(candidate.clone()),
+				Statement::Seconded(candidate.clone()).supply_pvd(pvd),
 				&signing_context,
 				ValidatorIndex(4),
 				&ferdie_public.into(),
@@ -1706,13 +1714,14 @@ fn share_prioritizes_backing_group() {
 			.expect("should be signed")
 		};
 
-		let metadata = derive_metadata_assuming_seconded(hash_a, statement.clone().into());
-
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::Share(hash_a, statement.clone()),
 			})
 			.await;
+
+		let statement = StatementWithPVD::drop_pvd_from_signed(statement);
+		let metadata = derive_metadata_assuming_seconded(hash_a, statement.clone().into());
 
 		// Messages should go out:
 		assert_matches!(

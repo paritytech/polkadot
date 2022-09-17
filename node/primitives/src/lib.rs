@@ -180,6 +180,14 @@ impl Statement {
 			Statement::Valid(hash) => CompactStatement::Valid(hash),
 		}
 	}
+
+	/// Add the [`PersistedValidationData`] to the statement, if seconded.
+	pub fn supply_pvd(self, pvd: PersistedValidationData) -> StatementWithPVD {
+		match self {
+			Statement::Seconded(c) => StatementWithPVD::Seconded(c, pvd),
+			Statement::Valid(hash) => StatementWithPVD::Valid(hash),
+		}
+	}
 }
 
 impl From<&'_ Statement> for CompactStatement {
