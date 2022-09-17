@@ -56,7 +56,7 @@ struct TestState {
 	group_rotation_info: GroupRotationInfo,
 	validator_peer_id: Vec<PeerId>,
 	relay_parent: Hash,
-	availability_core: CoreState,
+	availability_cores: Vec<CoreState>,
 	local_peer_id: PeerId,
 	collator_pair: CollatorPair,
 	session_index: SessionIndex,
@@ -88,14 +88,15 @@ impl Default for TestState {
 		let validator_peer_id =
 			std::iter::repeat_with(|| PeerId::random()).take(discovery_keys.len()).collect();
 
-		let validator_groups = vec![vec![2, 0, 4], vec![3, 2, 4]]
+		let validator_groups = vec![vec![2, 0, 4], vec![1, 3]]
 			.into_iter()
 			.map(|g| g.into_iter().map(ValidatorIndex).collect())
 			.collect();
 		let group_rotation_info =
 			GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 100, now: 1 };
 
-		let availability_core = CoreState::Scheduled(ScheduledCore { para_id, collator: None });
+		let availability_cores =
+			vec![CoreState::Scheduled(ScheduledCore { para_id, collator: None }), CoreState::Free];
 
 		let relay_parent = Hash::random();
 
@@ -122,7 +123,7 @@ impl Default for TestState {
 			group_rotation_info,
 			validator_peer_id,
 			relay_parent,
-			availability_core,
+			availability_cores,
 			local_peer_id,
 			collator_pair,
 			session_index: 1,
@@ -132,7 +133,9 @@ impl Default for TestState {
 
 impl TestState {
 	fn current_group_validator_indices(&self) -> &[ValidatorIndex] {
-		&self.session_info.validator_groups[0]
+		let core_num = self.availability_cores.len();
+		let GroupIndex(group_idx) = self.group_rotation_info.group_for_core(CoreIndex(0), core_num);
+		&self.session_info.validator_groups[group_idx as usize]
 	}
 
 	fn current_session_index(&self) -> SessionIndex {
@@ -333,7 +336,7 @@ async fn distribute_collation(
 			RuntimeApiRequest::AvailabilityCores(tx)
 		)) => {
 			assert_eq!(relay_parent, test_state.relay_parent);
-			tx.send(Ok(vec![test_state.availability_core.clone()])).unwrap();
+			tx.send(Ok(test_state.availability_cores.clone())).unwrap();
 		}
 	);
 
@@ -985,5 +988,106 @@ where
 		);
 
 		test_harness
+	});
+}
+
+#[test]
+fn connect_to_buffered_groups() {
+	let mut test_state = TestState::default();
+	let local_peer_id = test_state.local_peer_id.clone();
+	let collator_pair = test_state.collator_pair.clone();
+
+	test_harness(local_peer_id, collator_pair, |test_harness| async move {
+		let mut virtual_overseer = test_harness.virtual_overseer;
+		let mut req_cfg = test_harness.req_cfg;
+
+		setup_system(&mut virtual_overseer, &test_state).await;
+
+		let group_a = test_state.current_group_validator_authority_ids();
+		let peers_a = test_state.current_group_validator_peer_ids();
+		assert!(group_a.len() > 1);
+
+		distribute_collation(&mut virtual_overseer, &test_state, false).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ConnectToValidators { validator_ids, .. }
+			) => {
+				assert_eq!(group_a, validator_ids);
+			}
+		);
+
+		let head_a = test_state.relay_parent;
+
+		for (val, peer) in group_a.iter().zip(&peers_a) {
+			connect_peer(&mut virtual_overseer, peer.clone(), Some(val.clone())).await;
+		}
+
+		for peer_id in &peers_a {
+			expect_declare_msg(&mut virtual_overseer, &test_state, peer_id).await;
+		}
+
+		// Update views.
+		for peed_id in &peers_a {
+			send_peer_view_change(&mut virtual_overseer, peed_id, vec![head_a]).await;
+			expect_advertise_collation_msg(&mut virtual_overseer, peed_id, head_a).await;
+		}
+
+		let peer = peers_a[0];
+		// Peer from the group fetches the collation.
+		let (pending_response, rx) = oneshot::channel();
+		req_cfg
+			.inbound_queue
+			.as_mut()
+			.unwrap()
+			.send(RawIncomingRequest {
+				peer,
+				payload: CollationFetchingRequest {
+					relay_parent: head_a,
+					para_id: test_state.para_id,
+				}
+				.encode(),
+				pending_response,
+			})
+			.await
+			.unwrap();
+		assert_matches!(
+			rx.await,
+			Ok(full_response) => {
+				let CollationFetchingResponse::Collation(..): CollationFetchingResponse =
+					CollationFetchingResponse::decode(
+						&mut full_response.result.expect("We should have a proper answer").as_ref(),
+					)
+					.expect("Decoding should work");
+			}
+		);
+
+		test_state.advance_to_new_round(&mut virtual_overseer, true).await;
+		test_state.group_rotation_info = test_state.group_rotation_info.bump_rotation();
+
+		let head_b = test_state.relay_parent;
+		let group_b = test_state.current_group_validator_authority_ids();
+		assert_ne!(head_a, head_b);
+		assert_ne!(group_a, group_b);
+
+		distribute_collation(&mut virtual_overseer, &test_state, false).await;
+
+		// Should be connected to both groups except for the validator that fetched advertised
+		// collation.
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ConnectToValidators { validator_ids, .. }
+			) => {
+				assert!(!validator_ids.contains(&group_a[0]));
+
+				for validator in group_a[1..].iter().chain(&group_b) {
+					assert!(validator_ids.contains(validator));
+				}
+			}
+		);
+
+		TestHarness { virtual_overseer, req_cfg }
 	});
 }
