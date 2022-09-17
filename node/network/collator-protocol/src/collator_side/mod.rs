@@ -52,8 +52,6 @@ use polkadot_primitives::v2::{
 	GroupIndex, Hash, Id as ParaId, SessionIndex,
 };
 
-use self::validators_buffer::ResetBitDelay;
-
 use super::LOG_TARGET;
 use crate::error::{log_error, Error, FatalError, Result};
 use fatality::Split;
@@ -61,7 +59,7 @@ use fatality::Split;
 mod metrics;
 mod validators_buffer;
 
-use validators_buffer::{ValidatorGroupsBuffer, RESET_BIT_DELAY, VALIDATORS_BUFFER_CAPACITY};
+use validators_buffer::{ValidatorGroupsBuffer, VALIDATORS_BUFFER_CAPACITY};
 
 pub use metrics::Metrics;
 
@@ -213,14 +211,6 @@ struct State {
 	/// Tracks which validators we want to stay connected to.
 	validator_groups_buf: ValidatorGroupsBuffer<VALIDATORS_BUFFER_CAPACITY>,
 
-	/// A set of futures that notify the subsystem to reset validator's bit in
-	/// a buffer with respect to advertisement.
-	///
-	/// This doesn't necessarily mean that a validator will be disconnected
-	/// as there may exist several collations in our view this validator is interested
-	/// in.
-	reset_bit_delays: FuturesUnordered<ResetBitDelay>,
-
 	/// Metrics.
 	metrics: Metrics,
 
@@ -253,7 +243,6 @@ impl State {
 			our_validators_groups: Default::default(),
 			peer_ids: Default::default(),
 			validator_groups_buf: ValidatorGroupsBuffer::new(),
-			reset_bit_delays: Default::default(),
 			waiting_collation_fetches: Default::default(),
 			active_collation_fetches: Default::default(),
 		}
@@ -360,7 +349,7 @@ async fn distribute_collation<Context>(
 	);
 
 	// Update a set of connected validators if necessary.
-	reconnect_to_validators(ctx, &state.validator_groups_buf).await;
+	connect_to_validators(ctx, &state.validator_groups_buf).await;
 
 	state.our_validators_groups.insert(relay_parent, ValidatorGroup::new());
 
@@ -472,13 +461,12 @@ async fn declare<Context>(ctx: &mut Context, state: &mut State, peer: PeerId) {
 }
 
 /// Updates a set of connected validators based on their advertisement-bits
-/// in a buffer.
+/// in a validators buffer.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
-async fn reconnect_to_validators<Context>(
+async fn connect_to_validators<Context>(
 	ctx: &mut Context,
 	validator_groups_buf: &ValidatorGroupsBuffer<VALIDATORS_BUFFER_CAPACITY>,
 ) {
-	// Validators not present in this vec are disconnected.
 	let validator_ids = validator_groups_buf.validators_to_connect();
 
 	// ignore address resolution failure
@@ -546,16 +534,6 @@ async fn advertise_collation<Context>(
 		Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 	))
 	.await;
-
-	// If a validator doesn't fetch a collation within a timeout,
-	// reset its bit anyway.
-	if let Some(authority_ids) = state.peer_ids.get(&peer) {
-		state.reset_bit_delays.push(ResetBitDelay::new(
-			relay_parent,
-			authority_ids.clone(),
-			RESET_BIT_DELAY,
-		));
-	}
 
 	if let Some(validators) = state.our_validators_groups.get_mut(&relay_parent) {
 		validators.advertised_to_peer(&state.peer_ids, &peer);
@@ -967,11 +945,9 @@ pub(crate) async fn run<Context>(
 				FromOrchestra::Signal(Conclude) => return Ok(()),
 			},
 			(relay_parent, peer_id) = state.active_collation_fetches.select_next_some() => {
-				// Schedule a bit reset for this peer.
-				if let Some(authority_ids) = state.peer_ids.get(&peer_id) {
-					state.reset_bit_delays.push(ResetBitDelay::new(
-						relay_parent, authority_ids.clone(), RESET_BIT_DELAY
-					));
+				for authority_id in state.peer_ids.get(&peer_id).into_iter().flatten() {
+					// This peer is no longer interested in this relay parent.
+					state.validator_groups_buf.reset_validator_bit(relay_parent, authority_id);
 				}
 
 				let next = if let Some(waiting) = state.waiting_collation_fetches.get_mut(&relay_parent) {
@@ -994,12 +970,6 @@ pub(crate) async fn run<Context>(
 					send_collation(&mut state, next, receipt, pov).await;
 				}
 			},
-			(relay_parent, authority_ids) = state.reset_bit_delays.select_next_some() => {
-				for authority_id in authority_ids {
-					state.validator_groups_buf.reset_validator_bit(relay_parent, &authority_id);
-				}
-				reconnect_to_validators(&mut ctx, &state.validator_groups_buf).await;
-			}
 			in_req = recv_req => {
 				match in_req {
 					Ok(req) => {

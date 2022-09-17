@@ -24,29 +24,20 @@
 //! 1 indicating we want to be connected to i-th validator in a buffer, 0 otherwise.
 //!
 //! The bit is set to 1 on new advertisements, and back to 0 when a collation is fetched
-//! by a validator or the timeout has been hit.
+//! by a validator.
 //!
 //! The bitwise OR over known advertisements gives us validators indices for connection request.
 
 use std::{
-	collections::{HashMap, HashSet, VecDeque},
-	future::Future,
+	collections::{HashMap, VecDeque},
 	ops::Range,
-	pin::Pin,
-	task::{Context, Poll},
-	time::Duration,
 };
 
 use bitvec::{bitvec, vec::BitVec};
-use futures::FutureExt;
 
 use polkadot_primitives::v2::{AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex};
 
 pub const VALIDATORS_BUFFER_CAPACITY: usize = 3;
-
-/// Validators bits are only reset after a delay, to mitigate
-/// the risk of disconnecting from the same group throughout rotation.
-pub const RESET_BIT_DELAY: Duration = Duration::from_secs(12);
 
 /// Unique identifier of a validators group.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -173,32 +164,6 @@ impl<const N: usize> ValidatorGroupsBuffer<N> {
 
 	fn validators_num_iter<'a>(&'a self) -> impl Iterator<Item = usize> + 'a {
 		self.buf.iter().map(|group| group.len)
-	}
-}
-
-pub struct ResetBitDelay {
-	fut: futures_timer::Delay,
-	relay_parent: Hash,
-	authority_ids: HashSet<AuthorityDiscoveryId>,
-}
-
-impl ResetBitDelay {
-	pub fn new(
-		relay_parent: Hash,
-		authority_ids: HashSet<AuthorityDiscoveryId>,
-		delay: Duration,
-	) -> Self {
-		Self { fut: futures_timer::Delay::new(delay), relay_parent, authority_ids }
-	}
-}
-
-impl Future for ResetBitDelay {
-	type Output = (Hash, HashSet<AuthorityDiscoveryId>);
-
-	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-		self.fut
-			.poll_unpin(cx)
-			.map(|_| (self.relay_parent, std::mem::take(&mut self.authority_ids)))
 	}
 }
 
