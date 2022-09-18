@@ -30,6 +30,7 @@
 
 use std::{
 	collections::{HashMap, VecDeque},
+	num::NonZeroUsize,
 	ops::Range,
 };
 
@@ -37,7 +38,14 @@ use bitvec::{bitvec, vec::BitVec};
 
 use polkadot_primitives::v2::{AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex};
 
-pub const VALIDATORS_BUFFER_CAPACITY: usize = 3;
+/// The ring buffer stores at most this many unique validator groups.
+/// 
+/// This value should be chosen in way that all groups assigned to our para
+/// in the view can fit into the buffer.
+pub const VALIDATORS_BUFFER_CAPACITY: NonZeroUsize = match NonZeroUsize::new(3) {
+	Some(cap) => cap,
+	None => panic!("buffer capacity must be non-zero"),
+};
 
 /// Unique identifier of a validators group.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -48,20 +56,22 @@ struct ValidatorsGroupInfo {
 }
 
 #[derive(Debug)]
-pub struct ValidatorGroupsBuffer<const N: usize> {
+pub struct ValidatorGroupsBuffer {
 	buf: VecDeque<ValidatorsGroupInfo>,
 	validators: VecDeque<AuthorityDiscoveryId>,
 	should_be_connected: HashMap<Hash, BitVec>,
+
+	cap: NonZeroUsize,
 }
 
-impl<const N: usize> ValidatorGroupsBuffer<N> {
-	pub fn new() -> Self {
-		assert!(N > 0);
-
+impl ValidatorGroupsBuffer {
+	/// Creates a new buffer with a non-zero capacity.
+	pub fn with_capacity(cap: NonZeroUsize) -> Self {
 		Self {
-			buf: VecDeque::with_capacity(N),
+			buf: VecDeque::new(),
 			validators: VecDeque::new(),
 			should_be_connected: HashMap::new(),
+			cap,
 		}
 	}
 
@@ -131,8 +141,9 @@ impl<const N: usize> ValidatorGroupsBuffer<N> {
 			ValidatorsGroupInfo { len: validators.len(), session_index, group_index };
 
 		let buf = &mut self.buf;
+		let cap = self.cap.get();
 
-		if buf.len() >= N {
+		if buf.len() >= cap {
 			let pruned_group = buf.pop_front().expect("buf is not empty; qed");
 			self.validators.drain(..pruned_group.len);
 
@@ -174,7 +185,8 @@ mod tests {
 
 	#[test]
 	fn one_capacity_buffer() {
-		let mut buf = ValidatorGroupsBuffer::<1>::new();
+		let cap = NonZeroUsize::new(1).unwrap();
+		let mut buf = ValidatorGroupsBuffer::with_capacity(cap);
 
 		let hash_a = Hash::repeat_byte(0x1);
 		let hash_b = Hash::repeat_byte(0x2);
@@ -209,7 +221,8 @@ mod tests {
 
 	#[test]
 	fn buffer_works() {
-		let mut buf = ValidatorGroupsBuffer::<3>::new();
+		let cap = NonZeroUsize::new(3).unwrap();
+		let mut buf = ValidatorGroupsBuffer::with_capacity(cap);
 
 		let hashes: Vec<_> = (0..5).map(Hash::repeat_byte).collect();
 

@@ -209,7 +209,7 @@ struct State {
 	peer_ids: HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 
 	/// Tracks which validators we want to stay connected to.
-	validator_groups_buf: ValidatorGroupsBuffer<VALIDATORS_BUFFER_CAPACITY>,
+	validator_groups_buf: ValidatorGroupsBuffer,
 
 	/// Metrics.
 	metrics: Metrics,
@@ -242,7 +242,7 @@ impl State {
 			collation_result_senders: Default::default(),
 			our_validators_groups: Default::default(),
 			peer_ids: Default::default(),
-			validator_groups_buf: ValidatorGroupsBuffer::new(),
+			validator_groups_buf: ValidatorGroupsBuffer::with_capacity(VALIDATORS_BUFFER_CAPACITY),
 			waiting_collation_fetches: Default::default(),
 			active_collation_fetches: Default::default(),
 		}
@@ -470,7 +470,7 @@ async fn declare<Context>(ctx: &mut Context, state: &mut State, peer: PeerId) {
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn connect_to_validators<Context>(
 	ctx: &mut Context,
-	validator_groups_buf: &ValidatorGroupsBuffer<VALIDATORS_BUFFER_CAPACITY>,
+	validator_groups_buf: &ValidatorGroupsBuffer,
 ) {
 	let validator_ids = validator_groups_buf.validators_to_connect();
 
