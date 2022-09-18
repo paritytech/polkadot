@@ -1676,9 +1676,9 @@ dependencies = [
 
 [[package]]
 name = "enumn"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "052bc8773a98bd051ff37db74a8a25f00e6bfa2cbd03373390c72e9f7afbf344"
+checksum = "038b1afa59052df211f9efd58f8b1d84c242935ede1c3dbaed26b018a9e06ae2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2656,15 +2656,6 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
-dependencies = [
- "ahash",
-]
-
-[[package]]
-name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
@@ -2940,7 +2931,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10a35a97730320ffe8e2d410b5d3b69279b98d2c14bdb8b70ea89ecf7888d41e"
 dependencies = [
  "autocfg",
- "hashbrown 0.12.3",
+ "hashbrown",
  "serde",
 ]
 
@@ -4066,20 +4057,20 @@ dependencies = [
 
 [[package]]
 name = "lru"
-version = "0.6.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ea2d928b485416e8908cff2d97d621db22b27f7b3b6729e438bcf42c671ba91"
-dependencies = [
- "hashbrown 0.11.2",
-]
-
-[[package]]
-name = "lru"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e999beba7b6e8345721bd280141ed958096a2e4abdf74f67ff4ce49b4b54e47a"
 dependencies = [
- "hashbrown 0.12.3",
+ "hashbrown",
+]
+
+[[package]]
+name = "lru"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "936d98d2ddd79c18641c6709e7bb09981449694e402d1a0f0f657ea8d61f4a51"
+dependencies = [
+ "hashbrown",
 ]
 
 [[package]]
@@ -4224,17 +4215,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6566c70c1016f525ced45d7b7f97730a2bafb037c788211d0c186ef5b2189f0a"
 dependencies = [
  "hash-db",
- "hashbrown 0.12.3",
+ "hashbrown",
  "parity-util-mem",
 ]
 
 [[package]]
 name = "memory-lru"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "beeb98b3d1ed2c0054bd81b5ba949a0243c3ccad751d45ea898fa8059fa2860a"
+checksum = "ce95ae042940bad7e312857b929ee3d11b8f799a80cb7b9c7ec5125516906395"
 dependencies = [
- "lru 0.6.6",
+ "lru 0.8.0",
 ]
 
 [[package]]
@@ -4699,7 +4690,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21158b2c33aa6d4561f1c0a6ea283ca92bc54802a93b263e910746d679a7eb53"
 dependencies = [
  "crc32fast",
- "hashbrown 0.12.3",
+ "hashbrown",
  "indexmap",
  "memchr",
 ]
@@ -5761,7 +5752,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c32561d248d352148124f036cac253a644685a21dc9fea383eb4907d7bd35a8f"
 dependencies = [
  "cfg-if 1.0.0",
- "hashbrown 0.12.3",
+ "hashbrown",
  "impl-trait-for-tuples",
  "parity-util-mem-derive",
  "parking_lot 0.12.1",
@@ -6598,7 +6589,7 @@ dependencies = [
  "parity-scale-codec",
  "pin-project",
  "polkadot-core-primitives",
- "polkadot-node-subsystem-util",
+ "polkadot-node-metrics",
  "polkadot-parachain",
  "rand 0.8.5",
  "rayon",
@@ -10634,7 +10625,7 @@ source = "git+https://github.com/paritytech/substrate?branch=master#03eb807e4e8e
 dependencies = [
  "ahash",
  "hash-db",
- "hashbrown 0.12.3",
+ "hashbrown",
  "lazy_static",
  "lru 0.7.8",
  "memory-db",
@@ -11666,7 +11657,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "004e1e8f92535694b4cb1444dc5a8073ecf0815e3357f729638b9f8fc4062908"
 dependencies = [
  "hash-db",
- "hashbrown 0.12.3",
+ "hashbrown",
  "log",
  "rustc-hex",
  "smallvec",
