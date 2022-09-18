@@ -39,7 +39,7 @@ use bitvec::{bitvec, vec::BitVec};
 use polkadot_primitives::v2::{AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex};
 
 /// The ring buffer stores at most this many unique validator groups.
-/// 
+///
 /// This value should be chosen in way that all groups assigned to our para
 /// in the view can fit into the buffer.
 pub const VALIDATORS_BUFFER_CAPACITY: NonZeroUsize = match NonZeroUsize::new(3) {
@@ -55,6 +55,9 @@ struct ValidatorsGroupInfo {
 	group_index: GroupIndex,
 }
 
+/// Ring buffer of validator groups.
+///
+/// Tracks which peers we want to be connected to with respect to advertised collations.
 #[derive(Debug)]
 pub struct ValidatorGroupsBuffer {
 	buf: VecDeque<ValidatorsGroupInfo>,
@@ -75,6 +78,8 @@ impl ValidatorGroupsBuffer {
 		}
 	}
 
+	/// Returns discovery ids of validators we have at least one advertised-but-not-fetched
+	/// collation for.
 	pub fn validators_to_connect(&self) -> Vec<AuthorityDiscoveryId> {
 		let validators_num = self.validators.len();
 		let bits = self
@@ -91,6 +96,10 @@ impl ValidatorGroupsBuffer {
 			.collect()
 	}
 
+	/// Note a new collation distributed, setting this group validators bits to 1.
+	///
+	/// If the buffer is full and doesn't contain the group, it will drop one from the
+	/// back of the buffer.
 	pub fn note_collation_distributed(
 		&mut self,
 		relay_parent: Hash,
@@ -113,6 +122,7 @@ impl ValidatorGroupsBuffer {
 		}
 	}
 
+	/// Note that a validator is no longer interested in a given relay parent.
 	pub fn reset_validator_bit(&mut self, relay_parent: Hash, authority_id: &AuthorityDiscoveryId) {
 		let bits = match self.should_be_connected.get_mut(&relay_parent) {
 			Some(bits) => bits,
@@ -126,6 +136,7 @@ impl ValidatorGroupsBuffer {
 		}
 	}
 
+	/// Remove relay parent from the buffer.
 	pub fn remove_relay_parent(&mut self, relay_parent: &Hash) {
 		self.should_be_connected.remove(relay_parent);
 	}
