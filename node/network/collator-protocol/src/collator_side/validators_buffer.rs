@@ -48,7 +48,7 @@ pub const VALIDATORS_BUFFER_CAPACITY: NonZeroUsize = match NonZeroUsize::new(3) 
 };
 
 /// Unique identifier of a validators group.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 struct ValidatorsGroupInfo {
 	len: usize,
 	session_index: SessionIndex,
