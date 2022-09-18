@@ -90,16 +90,14 @@ impl ValidatorGroupsBuffer {
 		self.validators
 			.iter()
 			.enumerate()
-			.filter_map(
-				|(idx, authority_id)| if bits[idx] { Some(authority_id.clone()) } else { None },
-			)
+			.filter_map(|(idx, authority_id)| bits[idx].then_some(authority_id.clone()))
 			.collect()
 	}
 
 	/// Note a new collation distributed, setting this group validators bits to 1.
 	///
-	/// If the buffer is full and doesn't contain the group, it will drop one from the
-	/// back of the buffer.
+	/// If max capacity is reached and the group is new, drops validators from the back
+	/// of the buffer.
 	pub fn note_collation_distributed(
 		&mut self,
 		relay_parent: Hash,
