@@ -103,7 +103,7 @@ pub type SlowAdjustingFeeUpdate<R> =
 #[macro_export]
 macro_rules! impl_runtime_weights {
 	($runtime:ident) => {
-		use frame_support::weights::{DispatchClass, Weight};
+		use frame_support::{dispatch::DispatchClass, weights::Weight};
 		use frame_system::limits;
 		use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 		pub use runtime_common::{
