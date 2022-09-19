@@ -17,7 +17,7 @@
 //! Tests for the Kusama Runtime Configuration
 
 use crate::*;
-use frame_support::weights::{GetDispatchInfo, WeightToFee as WeightToFeeT};
+use frame_support::{dispatch::GetDispatchInfo, weights::WeightToFee as WeightToFeeT};
 use keyring::Sr25519Keyring::Charlie;
 use pallet_transaction_payment::Multiplier;
 use parity_scale_codec::Encode;
@@ -30,7 +30,7 @@ fn remove_keys_weight_is_sensible() {
 	use runtime_common::crowdloan::WeightInfo;
 	let max_weight = <Runtime as crowdloan::Config>::WeightInfo::refund(RemoveKeysLimit::get());
 	// Max remove keys limit should be no more than half the total block weight.
-	assert!(max_weight * 2 < BlockWeights::get().max_block);
+	assert!((max_weight * 2).all_lt(BlockWeights::get().max_block));
 }
 
 #[test]
@@ -40,11 +40,9 @@ fn sample_size_is_sensible() {
 	let samples: BlockNumber = EndingPeriod::get() / SampleLength::get();
 	let max_weight: Weight = RocksDbWeight::get().reads_writes(samples.into(), samples.into());
 	// Max sample cleanup should be no more than half the total block weight.
-	assert!(max_weight * 2 < BlockWeights::get().max_block);
-	assert!(
-		<Runtime as auctions::Config>::WeightInfo::on_initialize() * 2 <
-			BlockWeights::get().max_block
-	);
+	assert!((max_weight * 2).all_lt(BlockWeights::get().max_block));
+	assert!((<Runtime as auctions::Config>::WeightInfo::on_initialize() * 2)
+		.all_lt(BlockWeights::get().max_block));
 }
 
 #[test]
@@ -89,7 +87,7 @@ fn transfer_cost_min_multiplier() {
 	};
 	let info = call.get_dispatch_info();
 	// convert to outer call.
-	let call = Call::Balances(call);
+	let call = RuntimeCall::Balances(call);
 	let len = call.using_encoded(|e| e.len()) as u32;
 
 	let mut ext = sp_io::TestExternalities::new_empty();
@@ -132,7 +130,7 @@ fn nominator_limit() {
 	};
 
 	let mut active = 1;
-	while weight_with(active) <= OffchainSolutionWeightLimit::get() || active == all_voters {
+	while weight_with(active).all_lte(OffchainSolutionWeightLimit::get()) || active == all_voters {
 		active += 1;
 	}
 
@@ -175,5 +173,5 @@ fn era_payout_should_give_sensible_results() {
 
 #[test]
 fn call_size() {
-	Call::assert_size_under(230);
+	RuntimeCall::assert_size_under(230);
 }
