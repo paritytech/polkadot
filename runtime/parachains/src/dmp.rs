@@ -151,10 +151,12 @@ pub mod pallet {
 	/// Invariants:
 	/// - Downward message count equals message window size.
 	#[pallet::storage]
-	pub(crate) type DownwardMessageQueuePages<T: Config> = StorageMap<
+	pub(crate) type DownwardMessageQueuePages<T: Config> = StorageDoubleMap<
 		_,
 		Twox64Concat,
-		QueuePageIndex,
+		ParaId,
+		Blake2_128Concat,
+		WrappingIndex<PageIndex>,
 		BoundedVec<InboundDownwardMessage<T::BlockNumber>, T::DmpPageCapacity>,
 		ValueQuery,
 	>;
@@ -175,8 +177,15 @@ pub mod pallet {
 	/// Invariants:
 	/// - the storage value is valid for any `MessageIndex` in the current message window
 	#[pallet::storage]
-	pub(crate) type DownwardMessageQueueHeadsById<T: Config> =
-		StorageMap<_, Twox64Concat, ParaMessageIndex, Hash, ValueQuery>;
+	pub(crate) type DownwardMessageQueueHeadsById<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		ParaId,
+		Blake2_128Concat,
+		WrappingIndex<MessageIndex>,
+		Hash,
+		ValueQuery,
+	>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {}
@@ -218,13 +227,34 @@ impl<T: Config> Pallet<T> {
 
 	/// Remove all relevant storage items for an outgoing parachain.
 	fn clean_dmp_after_outgoing(outgoing_para: &ParaId) {
-		let state = Self::dmp_queue_state(outgoing_para);
+		<Self as Store>::DownwardMessageQueueState::remove(outgoing_para);
 
-		for page_idx in RingBuffer::with_state(state.ring_buffer_state, *outgoing_para) {
-			<Self as Store>::DownwardMessageQueuePages::remove(page_idx);
-		}
+		let mut clear_result = <Self as Store>::DownwardMessageQueuePages::clear_prefix(
+			outgoing_para,
+			u32::max_value(),
+			None,
+		);
+
+		log::debug!(
+			target: "runtime::dmp",
+			"Cleared {} queue pages from storage, done {} iterations",
+			clear_result.unique,
+			clear_result.loops
+		);
 
 		<Self as Store>::DownwardMessageQueueHeads::remove(outgoing_para);
+		clear_result = <Self as Store>::DownwardMessageQueueHeadsById::clear_prefix(
+			outgoing_para,
+			u32::max_value(),
+			None,
+		);
+
+		log::debug!(
+			target: "runtime::dmp",
+			"Cleared {} queue head entries from storage, done {} iterations",
+			clear_result.unique,
+			clear_result.loops
+		);
 	}
 
 	/// Enqueue a downward message to a specific recipient para.
@@ -265,24 +295,35 @@ impl<T: Config> Pallet<T> {
 			let new_message_idx = message_window.extend(1);
 
 			// Update the head for the current message.
-			<Self as Store>::DownwardMessageQueueHeadsById::mutate(new_message_idx, |head| {
-				*head = new_head
-			});
+			<Self as Store>::DownwardMessageQueueHeadsById::mutate(
+				new_message_idx.para_id,
+				new_message_idx.message_idx,
+				|head| *head = new_head,
+			);
 		});
 
 		// Get a new page.
 		let mut page_idx = ring_buf.last_used().unwrap_or_else(|| ring_buf.extend());
-		let mut page = <Self as Store>::DownwardMessageQueuePages::get(&page_idx);
+		let mut page =
+			<Self as Store>::DownwardMessageQueuePages::get(page_idx.para_id, page_idx.page_idx);
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 0));
 
 		// Insert message in the tail queue page.
 		if page.try_push(inbound.clone()).is_ok() {
-			<Self as Store>::DownwardMessageQueuePages::insert(&page_idx, &page);
+			<Self as Store>::DownwardMessageQueuePages::insert(
+				page_idx.para_id,
+				page_idx.page_idx,
+				&page,
+			);
 		} else {
 			page_idx = ring_buf.extend();
 			let page = BoundedVec::<_, T::DmpPageCapacity>::try_from(vec![inbound])
 				.expect("one message always fits");
-			<Self as Store>::DownwardMessageQueuePages::insert(&page_idx, page);
+			<Self as Store>::DownwardMessageQueuePages::insert(
+				page_idx.para_id,
+				page_idx.page_idx,
+				page,
+			);
 		}
 
 		// For the above mutate.
@@ -373,14 +414,20 @@ impl<T: Config> Pallet<T> {
 
 		while messages_to_prune > 0 {
 			if let Some(first_used_page) = ring_buf.front() {
-				let mut page = <Self as Store>::DownwardMessageQueuePages::get(&first_used_page);
+				let mut page = <Self as Store>::DownwardMessageQueuePages::get(
+					first_used_page.para_id,
+					first_used_page.page_idx,
+				);
 				let messages_in_page = page.len() as u64;
 
 				if messages_to_prune >= messages_in_page {
 					messages_to_prune = messages_to_prune.saturating_sub(messages_in_page);
 					message_window.prune(messages_in_page);
 					// Update storage - remove page.
-					<Self as Store>::DownwardMessageQueuePages::remove(&first_used_page);
+					<Self as Store>::DownwardMessageQueuePages::remove(
+						first_used_page.para_id,
+						first_used_page.page_idx,
+					);
 					total_weight += T::DbWeight::get().reads_writes(0, 1);
 
 					// Free the ring buffer page.
@@ -398,7 +445,11 @@ impl<T: Config> Pallet<T> {
 					pruned_message_count += messages_to_prune;
 
 					// Update storage - write back remaining messages.
-					<Self as Store>::DownwardMessageQueuePages::insert(&first_used_page, page);
+					<Self as Store>::DownwardMessageQueuePages::insert(
+						first_used_page.para_id,
+						first_used_page.page_idx,
+						page,
+					);
 
 					// Break loop.
 					messages_to_prune = 0;
@@ -416,10 +467,7 @@ impl<T: Config> Pallet<T> {
 
 		let mut message_idx = first_mqc_key_to_remove;
 		while message_idx != first_mqc_key_to_remove.wrapping_add(pruned_message_count.into()) {
-			<Self as Store>::DownwardMessageQueueHeadsById::remove(ParaMessageIndex {
-				para_id: para,
-				message_idx,
-			});
+			<Self as Store>::DownwardMessageQueueHeadsById::remove(para, message_idx);
 			message_idx = message_idx.wrapping_inc();
 		}
 
@@ -443,10 +491,7 @@ impl<T: Config> Pallet<T> {
 
 	#[cfg(test)]
 	fn dmq_mqc_head_for_message(para_id: ParaId, message_idx: WrappingIndex<MessageIndex>) -> Hash {
-		<Self as Store>::DownwardMessageQueueHeadsById::get(&ParaMessageIndex {
-			para_id,
-			message_idx,
-		})
+		<Self as Store>::DownwardMessageQueueHeadsById::get(para_id, message_idx)
 	}
 
 	/// Returns the number of pending downward messages addressed to the given para.
@@ -502,7 +547,10 @@ impl<T: Config> Pallet<T> {
 			if bounds.page_count == pages_fetched {
 				break
 			}
-			result.extend(<Self as Store>::DownwardMessageQueuePages::get(page_idx));
+			result.extend(<Self as Store>::DownwardMessageQueuePages::get(
+				page_idx.para_id,
+				page_idx.page_idx,
+			));
 			pages_fetched += 1;
 		}
 
@@ -540,7 +588,12 @@ impl<T: Config> Pallet<T> {
 			// Fetch all messages for this para.
 			let messages_in_pages = ring_buf
 				.into_iter()
-				.map(|page_idx| <Self as Store>::DownwardMessageQueuePages::get(page_idx))
+				.map(|page_idx| {
+					<Self as Store>::DownwardMessageQueuePages::get(
+						page_idx.para_id,
+						page_idx.page_idx,
+					)
+				})
 				.flatten()
 				.collect::<Vec<_>>();
 
@@ -572,7 +625,10 @@ impl<T: Config> Pallet<T> {
 				)
 				.into_iter()
 				.filter_map(|message_idx| {
-					match <Self as Store>::DownwardMessageQueueHeadsById::try_get(message_idx) {
+					match <Self as Store>::DownwardMessageQueueHeadsById::try_get(
+						message_idx.para_id,
+						message_idx.message_idx,
+					) {
 						Ok(value) => Some(value),
 						Err(()) => None,
 					}
@@ -603,7 +659,11 @@ impl<T: Config> Pallet<T> {
 			));
 
 			for message_idx in mqc_keys_to_check {
-				<Self as Store>::DownwardMessageQueueHeadsById::try_get(message_idx).unwrap_err();
+				<Self as Store>::DownwardMessageQueueHeadsById::try_get(
+					message_idx.para_id,
+					message_idx.message_idx,
+				)
+				.unwrap_err();
 			}
 
 			// Now check if we have dangling pages.
@@ -626,7 +686,11 @@ impl<T: Config> Pallet<T> {
 			));
 
 			for page_idx in page_keys_to_check {
-				<Self as Store>::DownwardMessageQueuePages::try_get(page_idx).unwrap_err();
+				<Self as Store>::DownwardMessageQueuePages::try_get(
+					page_idx.para_id,
+					page_idx.page_idx,
+				)
+				.unwrap_err();
 			}
 		}
 	}

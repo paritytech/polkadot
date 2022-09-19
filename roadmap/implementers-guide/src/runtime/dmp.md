@@ -8,7 +8,7 @@ Storage layout required for implementation of DMP.
 
 ```rust
 /// Messages are stored in a ring buffer of pages addressed for a certain para.
-DownwardMessageQueuePages: map (ParaId, PageIdx)  => Vec<InboundDownwardMessage>;
+DownwardMessageQueuePages: doublemap (ParaId, PageIndex)  => Vec<InboundDownwardMessage>;
 /// A mapping that stores the downward message queue MQC head for each message for a para.
 ///
 /// Each link in this chain has a form:
@@ -16,7 +16,7 @@ DownwardMessageQueuePages: map (ParaId, PageIdx)  => Vec<InboundDownwardMessage>
 /// - `prev_head`: is the previous head hash or zero if none.
 /// - `B`: is the relay-chain block number in which a message was appended.
 /// - `H(M)`: is the hash of the message being appended.
-DownwardMessageQueueHeadsById: map (ParaId, MessageIndex) => Hash;
+DownwardMessageQueueHeadsById: doublemap (ParaId, MessageIndex) => Hash;
 ```
 
 ## Initialization

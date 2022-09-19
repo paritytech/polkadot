@@ -302,7 +302,7 @@ pub type UpwardMessage = Vec<u8>;
 
 /// A type of index that wraps around. It is used for messages and pagination.
 #[derive(
-	Encode, Decode, Default, Clone, Copy, sp_runtime::RuntimeDebug, Eq, PartialEq, TypeInfo,
+	Encode, Decode, Default, Clone, Copy, sp_runtime::RuntimeDebug, Eq, PartialEq, TypeInfo, Hash,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct WrappingIndex<IndexType>(u64, PhantomData<IndexType>);

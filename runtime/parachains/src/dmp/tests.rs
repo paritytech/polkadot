@@ -80,21 +80,11 @@ fn clean_dmp_works() {
 		let outgoing_paras = vec![a, b];
 		Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 
-		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIndex {
-			para_id: a,
-			page_idx: 0.into()
-		})
-		.is_empty());
-		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIndex {
-			para_id: b,
-			page_idx: 0.into()
-		})
-		.is_empty());
-		assert!(!<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIndex {
-			para_id: c,
-			page_idx: 0.into()
-		})
-		.is_empty());
+		let page: WrappingIndex<_> = 0u64.into();
+
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(a, page).is_empty());
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(b, page).is_empty());
+		assert!(!<Dmp as Store>::DownwardMessageQueuePages::get(c, page).is_empty());
 	});
 }
 
@@ -124,21 +114,13 @@ fn clean_dmp_works_when_wrapping_around() {
 
 		Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 
-		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIndex {
-			para_id: a,
-			page_idx: 0.into()
-		})
-		.is_empty());
-		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIndex {
-			para_id: b,
-			page_idx: 0.into()
-		})
-		.is_empty());
-		assert!(!<Dmp as Store>::DownwardMessageQueuePages::get(QueuePageIndex {
-			para_id: c,
-			page_idx: u64::MAX.into()
-		})
-		.is_empty());
+		let page_a: WrappingIndex<_> = 0u64.into();
+		let page_b: WrappingIndex<_> = 0u64.into();
+		let page_c: WrappingIndex<_> = u64::MAX.into();
+
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(a, page_a).is_empty());
+		assert!(<Dmp as Store>::DownwardMessageQueuePages::get(b, page_b).is_empty());
+		assert!(!<Dmp as Store>::DownwardMessageQueuePages::get(c, page_c).is_empty());
 	});
 }
 

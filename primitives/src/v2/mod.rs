@@ -162,7 +162,7 @@ pub mod well_known_keys {
 	use super::{HrmpChannelId, Id};
 	use hex_literal::hex;
 	use parity_scale_codec::Encode as _;
-	use sp_io::hashing::twox_64;
+	use sp_io::hashing::{blake2_128, twox_64};
 	use sp_std::prelude::*;
 
 	// A note on generating these magic values below:
@@ -324,11 +324,22 @@ pub mod well_known_keys {
 	/// Value: `Hash`
 	pub fn dmq_mqc_head_for_message(para_id: Id, message_index: u64) -> Vec<u8> {
 		let prefix = hex!["63f78c98723ddc9073523ef3beefda0cd85820c922d6bcadc203149b7d4631a2"];
-		(para_id, message_index).using_encoded(|id: &[u8]| {
+
+		let prefix_with_para_id = para_id.using_encoded(|id: &[u8]| {
 			prefix
 				.as_ref()
 				.iter()
 				.chain(twox_64(id).iter())
+				.chain(id.iter())
+				.cloned()
+				.collect::<Vec<u8>>()
+		});
+
+		message_index.using_encoded(|id: &[u8]| {
+			prefix_with_para_id
+				.as_slice()
+				.iter()
+				.chain(blake2_128(id).iter())
 				.chain(id.iter())
 				.cloned()
 				.collect()
