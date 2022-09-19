@@ -66,8 +66,8 @@ pub struct ValidatorGroupsBuffer {
 	buf: VecDeque<ValidatorsGroupInfo>,
 	/// Continuous buffer of validators discovery keys.
 	validators: VecDeque<AuthorityDiscoveryId>,
-	/// Mapping from relay-parent to bitvecs with bits for all `validators`.
-	/// Invariants kept: All bitvecs are guaranteed to have the same size.
+	/// Mapping from relay-parent to bit-vectors with bits for all `validators`.
+	/// Invariants kept: All bit-vectors are guaranteed to have the same size.
 	should_be_connected: HashMap<Hash, BitVec>,
 	/// Buffer capacity, limits the number of **groups** tracked.
 	cap: NonZeroUsize,
