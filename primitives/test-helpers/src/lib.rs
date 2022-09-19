@@ -255,3 +255,7 @@ impl rand::RngCore for AlwaysZeroRng {
 		Ok(())
 	}
 }
+
+pub fn dummy_signature() -> polkadot_primitives::v2::ValidatorSignature {
+	sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64])
+}

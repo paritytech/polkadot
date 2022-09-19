@@ -16,6 +16,7 @@
 
 //! `V1` database for the dispute coordinator.
 
+use polkadot_node_primitives::DisputeStatus;
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use polkadot_primitives::v2::{
@@ -31,7 +32,6 @@ use crate::{
 	backend::{Backend, BackendWriteOp, OverlayedBackend},
 	error::{FatalError, FatalResult},
 	metrics::Metrics,
-	status::DisputeStatus,
 	DISPUTE_WINDOW, LOG_TARGET,
 };
 
