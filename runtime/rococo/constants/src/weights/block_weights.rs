@@ -1,28 +1,12 @@
-// This file is part of Substrate.
-
-// Copyright (C) 2022 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: Apache-2.0
-
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
 
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2022-08-19 (Y/M/D)
+//! DATE: 2022-09-19 (Y/M/D)
 //! HOSTNAME: `bm6`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
 //!
 //! SHORT-NAME: `block`, LONG-NAME: `BlockExecution`, RUNTIME: `Development`
 //! WARMUPS: `10`, REPEAT: `100`
 //! WEIGHT-PATH: `runtime/rococo/constants/src/weights/`
-//! WEIGHT-METRIC: `Average`, WEIGHT-MUL: `1`, WEIGHT-ADD: `0`
+//! WEIGHT-METRIC: `Average`, WEIGHT-MUL: `1.0`, WEIGHT-ADD: `0`
 
 // Executed Command:
 //   ./target/production/polkadot
@@ -35,31 +19,30 @@
 //   --warmup=10
 //   --repeat=100
 
-use frame_support::{
-	parameter_types,
-	weights::{constants::WEIGHT_PER_NANOS, Weight},
-};
+use sp_core::parameter_types;
+use sp_weights::{constants::WEIGHT_PER_NANOS, Weight};
 
 parameter_types! {
 	/// Time to execute an empty block.
-	/// Calculated by multiplying the *Average* with `1` and adding `0`.
+	/// Calculated by multiplying the *Average* with `1.0` and adding `0`.
 	///
 	/// Stats nanoseconds:
-	///   Min, Max: 4_039_227, 4_394_160
-	///   Average:  4_084_738
-	///   Median:   4_077_180
-	///   Std-Dev:  44325.29
+	///   Min, Max: 3_637_978, 4_123_562
+	///   Average:  3_685_373
+	///   Median:   3_675_050
+	///   Std-Dev:  56957.99
 	///
 	/// Percentiles nanoseconds:
-	///   99th: 4_189_094
-	///   95th: 4_152_261
-	///   75th: 4_098_529
-	pub const BlockExecutionWeight: Weight = WEIGHT_PER_NANOS.saturating_mul(4_084_738);
+	///   99th: 3_804_938
+	///   95th: 3_739_018
+	///   75th: 3_712_244
+	pub const BlockExecutionWeight: Weight = WEIGHT_PER_NANOS.saturating_mul(3_685_373);
 }
 
 #[cfg(test)]
 mod test_weights {
-	use frame_support::weights::constants;
+	use super::*;
+	use sp_weights::constants;
 
 	/// Checks that the weight exists and is sane.
 	// NOTE: If this test fails but you are sure that the generated values are fine,
@@ -69,14 +52,8 @@ mod test_weights {
 		let w = super::BlockExecutionWeight::get();
 
 		// At least 100 µs.
-		assert!(
-			w.ref_time() >= 100u64 * constants::WEIGHT_PER_MICROS.ref_time(),
-			"Weight should be at least 100 µs."
-		);
+		assert!(w.ref_time() >= 100u64 * constants::WEIGHT_PER_MICROS.ref_time(), "Weight should be at least 100 µs.");
 		// At most 50 ms.
-		assert!(
-			w.ref_time() <= 50u64 * constants::WEIGHT_PER_MILLIS.ref_time(),
-			"Weight should be at most 50 ms."
-		);
+		assert!(w.ref_time() <= 50u64 * constants::WEIGHT_PER_MILLIS.ref_time(), "Weight should be at most 50 ms.");
 	}
 }
