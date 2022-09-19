@@ -48,7 +48,10 @@ pub(crate) mod metrics;
 use metrics::Metrics;
 
 mod legacy_v1;
-use legacy_v1::{respond as v1_respond_task, RequesterMessage as V1RequesterMessage, ResponderMessage as V1ResponderMessage};
+use legacy_v1::{
+	respond as v1_respond_task, RequesterMessage as V1RequesterMessage,
+	ResponderMessage as V1ResponderMessage,
+};
 
 const LOG_TARGET: &str = "parachain::statement-distribution";
 

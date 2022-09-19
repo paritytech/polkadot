@@ -1441,8 +1441,8 @@ async fn handle_incoming_message<'a, Context>(
 				"Legacy statement-distribution code received unintended v2 message"
 			);
 
-			return None;
-		}
+			return None
+		},
 	};
 
 	let relay_parent = message.get_relay_parent();
