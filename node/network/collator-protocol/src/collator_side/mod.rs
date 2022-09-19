@@ -17,7 +17,7 @@
 use std::{
 	collections::{HashMap, HashSet, VecDeque},
 	pin::Pin,
-	time::Duration,
+	time::{Duration, Instant},
 };
 
 use futures::{
@@ -78,6 +78,17 @@ const COST_APPARENT_FLOOD: Rep =
 ///
 /// For considerations on this value, see: https://github.com/paritytech/polkadot/issues/4386
 const MAX_UNSHARED_UPLOAD_TIME: Duration = Duration::from_millis(150);
+
+/// Ensure that collator issues a connection request at least once every this many seconds.
+/// Usually it's done when advertising new collation. However, if the core stays occupied or
+/// it's not our turn to produce a candidate, it's important to disconnect from previous
+/// peers.
+///
+/// Validators are obtained from [`ValidatorGroupsBuffer::validators_to_connect`].
+const RECONNECT_TIMEOUT: Duration = Duration::from_secs(12);
+
+/// How often to check for reconnect timeout.
+const RECONNECT_POLL: Duration = Duration::from_secs(1);
 
 /// Info about validators we are currently connected to.
 ///
@@ -217,6 +228,10 @@ struct State {
 	/// Tracks which validators we want to stay connected to.
 	validator_groups_buf: ValidatorGroupsBuffer,
 
+	/// Timestamp of the last connection request to a non-empty list of validators,
+	/// `None` otherwise.
+	last_connected_at: Option<Instant>,
+
 	/// Metrics.
 	metrics: Metrics,
 
@@ -249,6 +264,7 @@ impl State {
 			our_validators_groups: Default::default(),
 			peer_ids: Default::default(),
 			validator_groups_buf: ValidatorGroupsBuffer::with_capacity(VALIDATORS_BUFFER_CAPACITY),
+			last_connected_at: None,
 			waiting_collation_fetches: Default::default(),
 			active_collation_fetches: Default::default(),
 		}
@@ -360,7 +376,7 @@ async fn distribute_collation<Context>(
 	);
 
 	// Update a set of connected validators if necessary.
-	connect_to_validators(ctx, &state.validator_groups_buf).await;
+	state.last_connected_at = connect_to_validators(ctx, &state.validator_groups_buf).await;
 
 	state.our_validators_groups.insert(relay_parent, ValidatorGroup::new());
 
@@ -473,12 +489,16 @@ async fn declare<Context>(ctx: &mut Context, state: &mut State, peer: PeerId) {
 
 /// Updates a set of connected validators based on their advertisement-bits
 /// in a validators buffer.
+///
+/// Returns current timestamp if the connection request was non-empty, `None`
+/// otherwise.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn connect_to_validators<Context>(
 	ctx: &mut Context,
 	validator_groups_buf: &ValidatorGroupsBuffer,
-) {
+) -> Option<Instant> {
 	let validator_ids = validator_groups_buf.validators_to_connect();
+	let is_disconnect = validator_ids.is_empty();
 
 	// ignore address resolution failure
 	// will reissue a new request on new collation
@@ -489,6 +509,8 @@ async fn connect_to_validators<Context>(
 		failed,
 	})
 	.await;
+
+	(!is_disconnect).then_some(Instant::now())
 }
 
 /// Advertise collation to the given `peer`.
@@ -934,6 +956,9 @@ pub(crate) async fn run<Context>(
 	let mut state = State::new(local_peer_id, collator_pair, metrics);
 	let mut runtime = RuntimeInfo::new(None);
 
+	let reconnect_stream = super::tick_stream(RECONNECT_POLL);
+	pin_mut!(reconnect_stream);
+
 	loop {
 		let recv_req = req_receiver.recv(|| vec![COST_INVALID_REQUEST]).fuse();
 		pin_mut!(recv_req);
@@ -987,7 +1012,17 @@ pub(crate) async fn run<Context>(
 
 					send_collation(&mut state, next, receipt, pov).await;
 				}
-			}
+			},
+			_ = reconnect_stream.next() => {
+				let now = Instant::now();
+				if state
+					.last_connected_at
+					.map_or(false, |timestamp| now - timestamp > RECONNECT_TIMEOUT)
+				{
+					state.last_connected_at =
+						connect_to_validators(&mut ctx, &state.validator_groups_buf).await;
+				}
+			},
 			in_req = recv_req => {
 				match in_req {
 					Ok(req) => {
