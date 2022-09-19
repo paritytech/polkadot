@@ -169,8 +169,14 @@ struct WaitingCollationFetches {
 	waiting_peers: HashSet<PeerId>,
 }
 
+struct CollationSendResult {
+	relay_parent: Hash,
+	peer_id: PeerId,
+	timed_out: bool,
+}
+
 type ActiveCollationFetches =
-	FuturesUnordered<Pin<Box<dyn Future<Output = (Hash, PeerId)> + Send + 'static>>>;
+	FuturesUnordered<Pin<Box<dyn Future<Output = CollationSendResult> + Send + 'static>>>;
 
 struct State {
 	/// Our network peer id.
@@ -641,15 +647,9 @@ async fn send_collation(
 	state.active_collation_fetches.push(
 		async move {
 			let r = rx.timeout(MAX_UNSHARED_UPLOAD_TIME).await;
-			if r.is_none() {
-				gum::debug!(
-					target: LOG_TARGET,
-					?relay_parent,
-					?peer_id,
-					"Sending collation to validator timed out, carrying on with next validator."
-				);
-			}
-			(relay_parent, peer_id)
+			let timed_out = r.is_none();
+
+			CollationSendResult { relay_parent, peer_id, timed_out }
 		}
 		.boxed(),
 	);
@@ -949,10 +949,23 @@ pub(crate) async fn run<Context>(
 				FromOrchestra::Signal(BlockFinalized(..)) => {}
 				FromOrchestra::Signal(Conclude) => return Ok(()),
 			},
-			(relay_parent, peer_id) = state.active_collation_fetches.select_next_some() => {
-				for authority_id in state.peer_ids.get(&peer_id).into_iter().flatten() {
-					// This peer is no longer interested in this relay parent.
-					state.validator_groups_buf.reset_validator_interest(relay_parent, authority_id);
+			CollationSendResult {
+				relay_parent,
+				peer_id,
+				timed_out,
+			} = state.active_collation_fetches.select_next_some() => {
+				if timed_out {
+					gum::debug!(
+						target: LOG_TARGET,
+						?relay_parent,
+						?peer_id,
+						"Sending collation to validator timed out, carrying on with next validator",
+					);
+				} else {
+					for authority_id in state.peer_ids.get(&peer_id).into_iter().flatten() {
+						// Timeout not hit, this peer is no longer interested in this relay parent.
+						state.validator_groups_buf.reset_validator_interest(relay_parent, authority_id);
+					}
 				}
 
 				let next = if let Some(waiting) = state.waiting_collation_fetches.get_mut(&relay_parent) {
