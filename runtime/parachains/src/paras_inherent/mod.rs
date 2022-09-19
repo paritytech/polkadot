@@ -1223,11 +1223,11 @@ fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 ///   1. Check validity of all dispute statements sequentially
 /// 2. If not exceeded:
 ///   1. Sort the disputes based on locality and age, locality first.
-///   1. Split the array
-///   1. Prefer local ones over remote disputes
-///   1. If weight is exceeded by locals, pick the older ones (lower indices)
+///   2. Split the array
+///   3. Prefer local ones over remote disputes
+///   4. If weight is exceeded by locals, pick the older ones (lower indices)
 ///      until the weight limit is reached.
-///   1. If weight is exceeded by locals and remotes, pick remotes
+///   5. If weight is exceeded by locals and remotes, pick remotes
 ///      randomly and check validity one by one.
 ///
 /// Returns the consumed weight amount, that is guaranteed to be less than the provided `max_consumable_weight`.
