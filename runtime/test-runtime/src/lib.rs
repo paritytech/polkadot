@@ -38,7 +38,7 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_election_provider_support::{onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Everything, KeyOwnerProofSystem},
+	traits::{ConstU32, Everything, KeyOwnerProofSystem},
 };
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_session::historical as session_historical;
@@ -515,7 +515,7 @@ impl parachains_paras::Config for Runtime {
 }
 
 impl parachains_dmp::Config for Runtime {
-	type DmpPageCapacity = ConstU32<{ runtime_parachains::dmp::QUEUE_PAGE_CAPACITY }>;
+	type DmpPageCapacity = ConstU32<32>;
 }
 
 parameter_types! {

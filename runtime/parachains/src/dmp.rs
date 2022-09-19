@@ -120,8 +120,8 @@ impl fmt::Debug for ProcessedDownwardMessagesAcceptanceErr {
 ///
 /// Defines the queue page capacity. Storage key count is inversely correlated to page capacity.
 /// When requesting pages of messages, we must make sure that this value is low enough so that all
-/// messages in the 1 page can fit in the runtime memory. This value was arbitrarly choosen wrt the
-/// Kusama configuraiton value of `maxDownwardMessageSize: 51,200 bytes`.
+/// messages in the 1 page can fit in the runtime memory. This value was arbitrarily chosen `wrt` the
+/// Kusama configuration value of `maxDownwardMessageSize: 51,200 bytes`.
 pub const QUEUE_PAGE_CAPACITY: u32 = 32;
 
 #[frame_support::pallet]
@@ -457,7 +457,7 @@ impl<T: Config> Pallet<T> {
 		MessageWindow::with_state(state.message_window_state, para).size() as u32
 	}
 
-	/// Returns all the messages from the dmp queue.
+	/// Returns all the messages from the DMP queue.
 	/// Deprecated API. Please use `dmq_contents_bounded`.
 	pub(crate) fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
 		let state = Self::dmp_queue_state(recipient);
