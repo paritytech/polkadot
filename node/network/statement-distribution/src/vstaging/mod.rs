@@ -20,7 +20,10 @@
 use polkadot_node_network_protocol::{
 	self as net_protocol, peer_set::ValidationVersion, vstaging as protocol_vstaging, PeerId, View,
 };
-use polkadot_node_primitives::{SignedFullStatement, Statement as FullStatement};
+use polkadot_node_primitives::{
+	SignedFullStatementWithPVD,
+	StatementWithPVD as FullStatementWithPVD,
+};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeTxMessage},
@@ -66,9 +69,6 @@ enum CandidateState {
 	/// The candidate is unconfirmed to exist, as it hasn't yet
 	/// been fetched.
 	Unconfirmed,
-	/// The candidate is confirmed but we don't have the `PersistedValidationData`
-	/// yet because we are missing some intermediate candidate.
-	ConfirmedWithoutPVD(CommittedCandidateReceipt),
 	/// The candidate is confirmed and we have the `PersistedValidationData`.
 	Confirmed(CommittedCandidateReceipt, PersistedValidationData),
 }
@@ -77,7 +77,6 @@ impl CandidateState {
 	fn receipt(&self) -> Option<&CommittedCandidateReceipt> {
 		match *self {
 			CandidateState::Unconfirmed => None,
-			CandidateState::ConfirmedWithoutPVD(ref c) => Some(c),
 			CandidateState::Confirmed(ref c, _) => Some(c),
 		}
 	}
@@ -296,7 +295,7 @@ pub(crate) async fn share_local_statement<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	relay_parent: Hash,
-	statement: SignedFullStatement,
+	statement: SignedFullStatementWithPVD,
 ) -> JfyiErrorResult<()> {
 	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
 		None => return Err(JfyiError::InvalidShare),
@@ -311,8 +310,8 @@ pub(crate) async fn share_local_statement<Context>(
 	// Two possibilities: either the statement is `Seconded` or we already
 	// have the candidate. Sanity: check the para-id is valid.
 	let expected_para = match statement.payload() {
-		FullStatement::Seconded(ref s) => Some(s.descriptor().para_id),
-		FullStatement::Valid(hash) => per_relay_parent
+		FullStatementWithPVD::Seconded(ref s, _) => Some(s.descriptor().para_id),
+		FullStatementWithPVD::Valid(hash) => per_relay_parent
 			.candidates
 			.get(&hash)
 			.and_then(|c| c.state.receipt())
