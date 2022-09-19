@@ -1513,6 +1513,13 @@ impl CompactStatement {
 	pub fn signing_payload(&self, context: &SigningContext) -> Vec<u8> {
 		(self, context).encode()
 	}
+
+	/// Get the underlying candidate hash this references.
+	pub fn candidate_hash(&self) -> &CandidateHash {
+		match *self {
+			CompactStatement::Seconded(ref h) | CompactStatement::Valid(ref h) => h,
+		}
+	}
 }
 
 // Inner helper for codec on `CompactStatement`.
@@ -1558,15 +1565,6 @@ impl parity_scale_codec::Decode for CompactStatement {
 			CompactStatementInner::Seconded(h) => CompactStatement::Seconded(h),
 			CompactStatementInner::Valid(h) => CompactStatement::Valid(h),
 		})
-	}
-}
-
-impl CompactStatement {
-	/// Get the underlying candidate hash this references.
-	pub fn candidate_hash(&self) -> &CandidateHash {
-		match *self {
-			CompactStatement::Seconded(ref h) | CompactStatement::Valid(ref h) => h,
-		}
 	}
 }
 
