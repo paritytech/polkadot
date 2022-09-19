@@ -28,6 +28,6 @@ alice: is up within 10 seconds
 bob: is up within 10 seconds
 
 
-alice: parachain 2000 block height is at least 30 within 240 seconds
-bob: parachain 2001 block height is at least 30 within 240 seconds
+alice: parachain 2000 block height is at least 30 within 300 seconds
+bob: parachain 2001 block height is at least 30 within 120 seconds
 
