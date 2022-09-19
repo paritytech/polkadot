@@ -100,12 +100,12 @@ impl ValidatorGroupsBuffer {
 			.collect()
 	}
 
-	/// Note a new collation distributed, marking that we want to be connected to validators
+	/// Note a new advertisement, marking that we want to be connected to validators
 	/// from this group.
 	///
 	/// If max capacity is reached and the group is new, drops validators from the back
 	/// of the buffer.
-	pub fn note_collation_distributed(
+	pub fn note_collation_advertised(
 		&mut self,
 		relay_parent: Hash,
 		session_index: SessionIndex,
@@ -238,13 +238,13 @@ mod tests {
 
 		assert!(buf.validators_to_connect().is_empty());
 
-		buf.note_collation_distributed(hash_a, 0, GroupIndex(0), &validators[..2]);
+		buf.note_collation_advertised(hash_a, 0, GroupIndex(0), &validators[..2]);
 		assert_eq!(buf.validators_to_connect(), validators[..2].to_vec());
 
 		buf.reset_validator_interest(hash_a, &validators[1]);
 		assert_eq!(buf.validators_to_connect(), vec![validators[0].clone()]);
 
-		buf.note_collation_distributed(hash_b, 0, GroupIndex(1), &validators[2..]);
+		buf.note_collation_advertised(hash_b, 0, GroupIndex(1), &validators[2..]);
 		assert_eq!(buf.validators_to_connect(), validators[2..].to_vec());
 
 		for validator in &validators[2..] {
@@ -271,10 +271,10 @@ mod tests {
 		.map(|key| AuthorityDiscoveryId::from(key.public()))
 		.collect();
 
-		buf.note_collation_distributed(hashes[0], 0, GroupIndex(0), &validators[..2]);
-		buf.note_collation_distributed(hashes[1], 0, GroupIndex(0), &validators[..2]);
-		buf.note_collation_distributed(hashes[2], 0, GroupIndex(1), &validators[2..4]);
-		buf.note_collation_distributed(hashes[2], 0, GroupIndex(1), &validators[2..4]);
+		buf.note_collation_advertised(hashes[0], 0, GroupIndex(0), &validators[..2]);
+		buf.note_collation_advertised(hashes[1], 0, GroupIndex(0), &validators[..2]);
+		buf.note_collation_advertised(hashes[2], 0, GroupIndex(1), &validators[2..4]);
+		buf.note_collation_advertised(hashes[2], 0, GroupIndex(1), &validators[2..4]);
 
 		assert_eq!(buf.validators_to_connect(), validators[..4].to_vec());
 
@@ -288,8 +288,8 @@ mod tests {
 		buf.reset_validator_interest(hashes[0], &validators[0]);
 		assert_eq!(buf.validators_to_connect(), vec![validators[1].clone()]);
 
-		buf.note_collation_distributed(hashes[3], 0, GroupIndex(1), &validators[2..4]);
-		buf.note_collation_distributed(
+		buf.note_collation_advertised(hashes[3], 0, GroupIndex(1), &validators[2..4]);
+		buf.note_collation_advertised(
 			hashes[4],
 			0,
 			GroupIndex(2),
@@ -297,7 +297,7 @@ mod tests {
 		);
 
 		buf.reset_validator_interest(hashes[3], &validators[2]);
-		buf.note_collation_distributed(
+		buf.note_collation_advertised(
 			hashes[4],
 			0,
 			GroupIndex(3),

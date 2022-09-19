@@ -335,7 +335,7 @@ async fn distribute_collation<Context>(
 	//
 	// If a validator managed to fetch all the relevant collations
 	// but still assigned to our core, we keep the connection alive.
-	state.validator_groups_buf.note_collation_distributed(
+	state.validator_groups_buf.note_collation_advertised(
 		relay_parent,
 		session_index,
 		group_index,
