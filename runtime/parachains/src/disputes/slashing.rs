@@ -45,9 +45,11 @@
 
 use crate::{disputes, initializer::ValidatorSetCount, session_info::IdentificationTuple};
 use frame_support::{
+	dispatch::Pays,
 	traits::{Defensive, Get, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
-	weights::{Pays, Weight},
+	weights::Weight,
 };
+
 use parity_scale_codec::{Decode, Encode};
 use primitives::v2::{CandidateHash, SessionIndex, ValidatorId, ValidatorIndex};
 use scale_info::TypeInfo;
