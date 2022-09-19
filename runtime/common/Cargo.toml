@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-common"
-version = "0.9.28"
+version = "0.9.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -108,6 +108,7 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
 	"pallet-babe/runtime-benchmarks",
+	"pallet-bags-list/runtime-benchmarks",
 ]
 try-runtime = [
 	"runtime-parachains/try-runtime",

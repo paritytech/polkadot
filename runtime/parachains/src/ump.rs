@@ -93,7 +93,9 @@ fn upward_message_id(data: &[u8]) -> MessageId {
 	sp_io::hashing::blake2_256(data)
 }
 
-impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<XcmExecutor, C> {
+impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink
+	for XcmSink<XcmExecutor, C>
+{
 	fn process_upward_message(
 		origin: ParaId,
 		mut data: &[u8],
@@ -106,13 +108,13 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 		};
 
 		let id = upward_message_id(&data[..]);
-		let maybe_msg_and_weight = VersionedXcm::<C::Call>::decode_all_with_depth_limit(
+		let maybe_msg_and_weight = VersionedXcm::<C::RuntimeCall>::decode_all_with_depth_limit(
 			xcm::MAX_XCM_DECODE_DEPTH,
 			&mut data,
 		)
 		.map(|xcm| {
 			(
-				Xcm::<C::Call>::try_from(xcm),
+				Xcm::<C::RuntimeCall>::try_from(xcm),
 				// NOTE: We are overestimating slightly here.
 				// The benchmark is timing this whole function with different message sizes and a NOOP extrinsic to
 				// measure the size-dependent weight. But as we use the weight funtion **in** the benchmarked funtion we
@@ -218,7 +220,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + configuration::Config {
 		/// The aggregate event.
-		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// A place where all received upward messages are funneled.
 		type UmpSink: UmpSink;
