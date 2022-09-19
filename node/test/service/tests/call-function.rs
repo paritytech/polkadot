@@ -24,7 +24,7 @@ async fn call_function_actually_work() {
 
 	let alice = run_validator_node(alice_config, None);
 
-	let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer {
+	let function = polkadot_test_runtime::RuntimeCall::Balances(pallet_balances::Call::transfer {
 		dest: Charlie.to_account_id().into(),
 		value: 1,
 	});
