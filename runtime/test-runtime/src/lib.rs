@@ -514,7 +514,9 @@ impl parachains_paras::Config for Runtime {
 	type NextSessionRotation = Babe;
 }
 
-impl parachains_dmp::Config for Runtime {}
+impl parachains_dmp::Config for Runtime {
+	type DmpPageCapacity = ConstU32<{ runtime_parachains::dmp::QUEUE_PAGE_CAPACITY }>;
+}
 
 parameter_types! {
 	pub const FirstMessageFactorPercent: u64 = 100;
