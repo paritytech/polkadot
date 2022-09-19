@@ -952,7 +952,7 @@ pub(crate) async fn run<Context>(
 			(relay_parent, peer_id) = state.active_collation_fetches.select_next_some() => {
 				for authority_id in state.peer_ids.get(&peer_id).into_iter().flatten() {
 					// This peer is no longer interested in this relay parent.
-					state.validator_groups_buf.reset_validator_bit(relay_parent, authority_id);
+					state.validator_groups_buf.reset_validator_interest(relay_parent, authority_id);
 				}
 
 				let next = if let Some(waiting) = state.waiting_collation_fetches.get_mut(&relay_parent) {

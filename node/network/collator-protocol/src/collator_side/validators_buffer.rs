@@ -23,8 +23,9 @@
 //! We keep a simple FIFO buffer of N validator groups and a bitvec for each advertisement,
 //! 1 indicating we want to be connected to i-th validator in a buffer, 0 otherwise.
 //!
-//! The bit is set to 1 on new advertisements, and back to 0 when a collation is fetched
-//! by a validator.
+//! The bit is set to 1 for the whole **group** whenever it's inserted into the buffer. Given a relay
+//! parent, one can reset a bit back to 0 for particular **validator**. For example, if a collation
+//! was fetched or some timeout has been hit.
 //!
 //! The bitwise OR over known advertisements gives us validators indices for connection request.
 
@@ -50,6 +51,7 @@ pub const VALIDATORS_BUFFER_CAPACITY: NonZeroUsize = match NonZeroUsize::new(3) 
 /// Unique identifier of a validators group.
 #[derive(Debug)]
 struct ValidatorsGroupInfo {
+	/// Number of validators in the group.
 	len: usize,
 	session_index: SessionIndex,
 	group_index: GroupIndex,
@@ -60,10 +62,14 @@ struct ValidatorsGroupInfo {
 /// Tracks which peers we want to be connected to with respect to advertised collations.
 #[derive(Debug)]
 pub struct ValidatorGroupsBuffer {
+	/// Validator groups identifiers we **had** advertisements for.
 	buf: VecDeque<ValidatorsGroupInfo>,
+	/// Continuous buffer of validators discovery keys.
 	validators: VecDeque<AuthorityDiscoveryId>,
+	/// Mapping from relay-parent to bitvecs with bits for all `validators`.
+	/// Invariants kept: All bitvecs are guaranteed to have the same size.
 	should_be_connected: HashMap<Hash, BitVec>,
-
+	/// Buffer capacity, limits the number of **groups** tracked.
 	cap: NonZeroUsize,
 }
 
@@ -94,7 +100,8 @@ impl ValidatorGroupsBuffer {
 			.collect()
 	}
 
-	/// Note a new collation distributed, setting this group validators bits to 1.
+	/// Note a new collation distributed, marking that we want to be connected to validators
+	/// from this group.
 	///
 	/// If max capacity is reached and the group is new, drops validators from the back
 	/// of the buffer.
@@ -113,7 +120,7 @@ impl ValidatorGroupsBuffer {
 			group.session_index == session_index && group.group_index == group_index
 		}) {
 			Some((idx, group)) => {
-				let group_start_idx = self.validators_num_iter().take(idx).sum();
+				let group_start_idx = self.group_lengths_iter().take(idx).sum();
 				self.set_bits(relay_parent, group_start_idx..(group_start_idx + group.len));
 			},
 			None => self.push(relay_parent, session_index, group_index, validators),
@@ -121,7 +128,11 @@ impl ValidatorGroupsBuffer {
 	}
 
 	/// Note that a validator is no longer interested in a given relay parent.
-	pub fn reset_validator_bit(&mut self, relay_parent: Hash, authority_id: &AuthorityDiscoveryId) {
+	pub fn reset_validator_interest(
+		&mut self,
+		relay_parent: Hash,
+		authority_id: &AuthorityDiscoveryId,
+	) {
 		let bits = match self.should_be_connected.get_mut(&relay_parent) {
 			Some(bits) => bits,
 			None => return,
@@ -135,10 +146,17 @@ impl ValidatorGroupsBuffer {
 	}
 
 	/// Remove relay parent from the buffer.
+	///
+	/// The buffer will no longer track which validators are interested in a corresponding
+	/// advertisement.
 	pub fn remove_relay_parent(&mut self, relay_parent: &Hash) {
 		self.should_be_connected.remove(relay_parent);
 	}
 
+	/// Pushes a new group to the buffer along with advertisement, setting all validators
+	/// bits to 1.
+	///
+	/// If the buffer is full, drops group from the tail.
 	fn push(
 		&mut self,
 		relay_parent: Hash,
@@ -164,7 +182,7 @@ impl ValidatorGroupsBuffer {
 		self.validators.extend(validators.iter().cloned());
 		buf.push_back(new_group_info);
 		let buf_len = buf.len();
-		let group_start_idx = self.validators_num_iter().take(buf_len - 1).sum();
+		let group_start_idx = self.group_lengths_iter().take(buf_len - 1).sum();
 
 		let new_len = self.validators.len();
 		self.should_be_connected
@@ -173,6 +191,10 @@ impl ValidatorGroupsBuffer {
 		self.set_bits(relay_parent, group_start_idx..(group_start_idx + validators.len()));
 	}
 
+	/// Sets advertisement bits to 1 in a given range (usually corresponding to some group).
+	/// If the relay parent is unknown, inserts 0-initialized bitvec first.
+	///
+	/// The range must be ensured to be within bounds.
 	fn set_bits(&mut self, relay_parent: Hash, range: Range<usize>) {
 		let bits = self
 			.should_be_connected
@@ -182,7 +204,10 @@ impl ValidatorGroupsBuffer {
 		bits[range].fill(true);
 	}
 
-	fn validators_num_iter<'a>(&'a self) -> impl Iterator<Item = usize> + 'a {
+	/// Returns iterator over numbers of validators in groups.
+	///
+	/// Useful for getting an index of the first validator in i-th group.
+	fn group_lengths_iter(&self) -> impl Iterator<Item = usize> + '_ {
 		self.buf.iter().map(|group| group.len)
 	}
 }
@@ -216,14 +241,14 @@ mod tests {
 		buf.note_collation_distributed(hash_a, 0, GroupIndex(0), &validators[..2]);
 		assert_eq!(buf.validators_to_connect(), validators[..2].to_vec());
 
-		buf.reset_validator_bit(hash_a, &validators[1]);
+		buf.reset_validator_interest(hash_a, &validators[1]);
 		assert_eq!(buf.validators_to_connect(), vec![validators[0].clone()]);
 
 		buf.note_collation_distributed(hash_b, 0, GroupIndex(1), &validators[2..]);
 		assert_eq!(buf.validators_to_connect(), validators[2..].to_vec());
 
 		for validator in &validators[2..] {
-			buf.reset_validator_bit(hash_b, validator);
+			buf.reset_validator_interest(hash_b, validator);
 		}
 		assert!(buf.validators_to_connect().is_empty());
 	}
@@ -254,13 +279,13 @@ mod tests {
 		assert_eq!(buf.validators_to_connect(), validators[..4].to_vec());
 
 		for validator in &validators[2..4] {
-			buf.reset_validator_bit(hashes[2], validator);
+			buf.reset_validator_interest(hashes[2], validator);
 		}
 
-		buf.reset_validator_bit(hashes[1], &validators[0]);
+		buf.reset_validator_interest(hashes[1], &validators[0]);
 		assert_eq!(buf.validators_to_connect(), validators[..2].to_vec());
 
-		buf.reset_validator_bit(hashes[0], &validators[0]);
+		buf.reset_validator_interest(hashes[0], &validators[0]);
 		assert_eq!(buf.validators_to_connect(), vec![validators[1].clone()]);
 
 		buf.note_collation_distributed(hashes[3], 0, GroupIndex(1), &validators[2..4]);
@@ -271,7 +296,7 @@ mod tests {
 			std::slice::from_ref(&validators[4]),
 		);
 
-		buf.reset_validator_bit(hashes[3], &validators[2]);
+		buf.reset_validator_interest(hashes[3], &validators[2]);
 		buf.note_collation_distributed(
 			hashes[4],
 			0,
