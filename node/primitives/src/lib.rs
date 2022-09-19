@@ -257,7 +257,15 @@ impl StatementWithPVD {
 	pub fn drop_pvd_from_signed(signed: SignedFullStatementWithPVD) -> SignedFullStatement {
 		signed
 			.convert_to_superpayload_with(|s| s.drop_pvd())
-			.expect("persisted_validation_data doesn't affect encoded_as; qed")
+			.expect("persisted_validation_data doesn't affect encode_as; qed")
+	}
+
+	/// Converts the statement to a compact signed statement by dropping the [`CommittedCandidateReceipt`]
+	/// and the [`PersistedValidationData`].
+	pub fn signed_to_compact(signed: SignedFullStatementWithPVD) -> Signed<CompactStatement> {
+		signed
+			.convert_to_superpayload_with(|s| s.to_compact())
+			.expect("doesn't affect encode_as; qed")
 	}
 }
 

@@ -65,6 +65,16 @@ struct CandidateData {
 	known_by: HashSet<ValidatorIndex>,
 }
 
+impl Default for CandidateData {
+	fn default() -> Self {
+		CandidateData {
+			state: CandidateState::Unconfirmed,
+			statements: Vec::new(),
+			known_by: HashSet::new(),
+		}
+	}
+}
+
 enum CandidateState {
 	/// The candidate is unconfirmed to exist, as it hasn't yet
 	/// been fetched.
@@ -74,6 +84,13 @@ enum CandidateState {
 }
 
 impl CandidateState {
+	fn is_confirmed(&self) -> bool {
+		match *self {
+			CandidateState::Unconfirmed => false,
+			CandidateState::Confirmed(_, _) => true,
+		}
+	}
+
 	fn receipt(&self) -> Option<&CommittedCandidateReceipt> {
 		match *self {
 			CandidateState::Unconfirmed => None,
@@ -84,6 +101,8 @@ impl CandidateState {
 
 // per-relay-parent local validator state.
 struct LocalValidatorState {
+	// The index of the validator.
+	index: ValidatorIndex,
 	// our validator group
 	group: GroupIndex,
 	// the assignment of our validator group, if any.
@@ -269,6 +288,7 @@ async fn find_local_validator_state(
 		|g: GroupIndex| availability_cores.get(g.0 as usize).and_then(|c| c.para_id());
 
 	Some(LocalValidatorState {
+		index: validator_index,
 		group: our_group,
 		assignment: para_for_group(our_group),
 		next_group,
@@ -310,7 +330,7 @@ pub(crate) async fn share_local_statement<Context>(
 	// Two possibilities: either the statement is `Seconded` or we already
 	// have the candidate. Sanity: check the para-id is valid.
 	let expected_para = match statement.payload() {
-		FullStatementWithPVD::Seconded(ref s, _) => Some(s.descriptor().para_id),
+		FullStatementWithPVD::Seconded(ref c, _) => Some(c.descriptor().para_id),
 		FullStatementWithPVD::Valid(hash) => per_relay_parent
 			.candidates
 			.get(&hash)
@@ -318,9 +338,47 @@ pub(crate) async fn share_local_statement<Context>(
 			.map(|c| c.descriptor().para_id),
 	};
 
+	if local_validator.index != statement.validator_index() {
+		return Err(JfyiError::InvalidShare)
+	}
+
+	// TODO [now]: ensure seconded_count isn't too high. Needs our definition
+	// of 'too high' i.e. max_depth, which isn't done yet.
+
 	if expected_para.is_none() || local_validator.assignment != expected_para {
 		return Err(JfyiError::InvalidShare)
 	}
+
+	let compact_statement = FullStatementWithPVD::signed_to_compact(statement.clone());
+	let candidate_hash = CandidateHash(*statement.payload().candidate_hash());
+
+	let candidate_entry = match statement.payload() {
+		FullStatementWithPVD::Seconded(ref c, ref pvd) => {
+			let candidate_entry = per_relay_parent.candidates.entry(candidate_hash).or_default();
+
+			if let CandidateState::Unconfirmed = candidate_entry.state {
+				candidate_entry.state = CandidateState::Confirmed(c.clone(), pvd.clone());
+			}
+
+			candidate_entry
+		}
+		FullStatementWithPVD::Valid(_) => {
+			match per_relay_parent.candidates.get_mut(&candidate_hash) {
+				None  => {
+					// Can't share a 'Valid' statement about a candidate we don't know about!
+					return Err(JfyiError::InvalidShare);
+				}
+				Some(ref c) if !c.state.is_confirmed() => {
+					// Can't share a 'Valid' statement about a candidate we don't know about!
+					return Err(JfyiError::InvalidShare);
+				}
+				Some(c) => c,
+			}
+		}
+	};
+
+	candidate_entry.statements.push(compact_statement);
+	candidate_entry.known_by.insert(local_validator.index);
 
 	// TODO [now]:
 	// 2. insert candidate if unknown
