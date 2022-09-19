@@ -249,13 +249,14 @@ where
 					let mut connections = authorities_past_present_future(sender, leaf).await?;
 
 					// Remove all of our locally controlled validator indices so we don't connect to ourself.
-					let connections = if remove_all_controlled(&self.keystore, &mut connections).await != 0 {
-						connections
-					} else {
-						// If we control none of them, issue an empty connection request
-						// to clean up all connections.
-						Vec::new()
-					};
+					let connections =
+						if remove_all_controlled(&self.keystore, &mut connections).await != 0 {
+							connections
+						} else {
+							// If we control none of them, issue an empty connection request
+							// to clean up all connections.
+							Vec::new()
+						};
 					self.issue_connection_request(sender, connections).await;
 				}
 
