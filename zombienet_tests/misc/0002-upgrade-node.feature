@@ -21,6 +21,13 @@ bob: run ./0002-download-polkadot-from-pr.sh with "{{POLKADOT_PR_BIN_URL}}" with
 alice: restart after 5 seconds
 bob: restart after 5 seconds
 
+# process bootstrap
+sleep 30 seconds
+
+alice: is up within 10 seconds
+bob: is up within 10 seconds
+
+
 alice: parachain 2000 block height is at least 30 within 240 seconds
 bob: parachain 2001 block height is at least 30 within 240 seconds
 
