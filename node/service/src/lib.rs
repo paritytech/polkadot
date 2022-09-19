@@ -1327,10 +1327,7 @@ pub fn new_chain_ops(
 	let telemetry_worker_handle = None;
 
 	#[cfg(feature = "rococo-native")]
-	if config.chain_spec.is_rococo() ||
-		config.chain_spec.is_wococo() ||
-		config.chain_spec.is_versi()
-	{
+	if config.chain_spec.is_rococo() || config.chain_spec.is_versi() {
 		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; rococo_runtime, RococoExecutorDispatch, Rococo)
 	}
 
@@ -1340,7 +1337,7 @@ pub fn new_chain_ops(
 	}
 
 	#[cfg(feature = "westend-native")]
-	if config.chain_spec.is_westend() {
+	if config.chain_spec.is_westend() || config.chain_spec.is_wococo() {
 		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; westend_runtime, WestendExecutorDispatch, Westend)
 	}
 
@@ -1375,10 +1372,7 @@ pub fn build_full(
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]
-	if config.chain_spec.is_rococo() ||
-		config.chain_spec.is_wococo() ||
-		config.chain_spec.is_versi()
-	{
+	if config.chain_spec.is_rococo() || config.chain_spec.is_versi() {
 		return new_full::<rococo_runtime::RuntimeApi, RococoExecutorDispatch, _>(
 			config,
 			is_collator,
@@ -1416,7 +1410,7 @@ pub fn build_full(
 	}
 
 	#[cfg(feature = "westend-native")]
-	if config.chain_spec.is_westend() {
+	if config.chain_spec.is_westend() || config.chain_spec.is_wococo() {
 		return new_full::<westend_runtime::RuntimeApi, WestendExecutorDispatch, _>(
 			config,
 			is_collator,

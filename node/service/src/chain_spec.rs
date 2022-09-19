@@ -1781,20 +1781,16 @@ pub fn versi_development_config() -> Result<RococoChainSpec, String> {
 }
 
 /// Wococo development config (single validator Alice)
-#[cfg(feature = "rococo-native")]
-pub fn wococo_development_config() -> Result<RococoChainSpec, String> {
+#[cfg(feature = "westend-native")]
+pub fn wococo_development_config() -> Result<WestendChainSpec, String> {
 	const WOCOCO_DEV_PROTOCOL_ID: &str = "woco";
-	let wasm_binary = rococo::WASM_BINARY.ok_or("Wococo development wasm not available")?;
+	let wasm_binary = westend::WASM_BINARY.ok_or("Wococo development wasm not available")?;
 
-	Ok(RococoChainSpec::from_genesis(
+	Ok(WestendChainSpec::from_genesis(
 		"Development",
 		"wococo_dev",
 		ChainType::Development,
-		move || RococoGenesisExt {
-			runtime_genesis_config: rococo_development_config_genesis(wasm_binary),
-			// Use 1 minute session length.
-			session_length_in_blocks: Some(10),
-		},
+		move || westend_development_config_genesis(wasm_binary),
 		vec![],
 		None,
 		Some(WOCOCO_DEV_PROTOCOL_ID),
@@ -1933,16 +1929,16 @@ pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 	))
 }
 
-/// Wococo is a temporary testnet that uses almost the same runtime as rococo.
-#[cfg(feature = "rococo-native")]
-fn wococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
-	rococo_testnet_genesis(
+/// Wococo is a temporary testnet that uses almost the same runtime as westend.
+#[cfg(feature = "westend-native")]
+fn wococo_local_testnet_genesis(wasm_binary: &[u8]) -> westend::GenesisConfig {
+	westend_testnet_genesis(
 		wasm_binary,
 		vec![
-			get_authority_keys_from_seed("Alice"),
-			get_authority_keys_from_seed("Bob"),
-			get_authority_keys_from_seed("Charlie"),
-			get_authority_keys_from_seed("Dave"),
+			get_authority_keys_from_seed_no_beefy("Alice"),
+			get_authority_keys_from_seed_no_beefy("Bob"),
+			get_authority_keys_from_seed_no_beefy("Charlie"),
+			get_authority_keys_from_seed_no_beefy("Dave"),
 		],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
@@ -1950,19 +1946,15 @@ fn wococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisCo
 }
 
 /// Wococo local testnet config (multivalidator Alice + Bob + Charlie + Dave)
-#[cfg(feature = "rococo-native")]
-pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
-	let wasm_binary = rococo::WASM_BINARY.ok_or("Wococo development wasm not available")?;
+#[cfg(feature = "westend-native")]
+pub fn wococo_local_testnet_config() -> Result<WestendChainSpec, String> {
+	let wasm_binary = westend::WASM_BINARY.ok_or("Wococo development wasm not available")?;
 
-	Ok(RococoChainSpec::from_genesis(
+	Ok(WestendChainSpec::from_genesis(
 		"Wococo Local Testnet",
 		"wococo_local_testnet",
 		ChainType::Local,
-		move || RococoGenesisExt {
-			runtime_genesis_config: wococo_local_testnet_genesis(wasm_binary),
-			// Use 1 minute session length.
-			session_length_in_blocks: Some(10),
-		},
+		move || wococo_local_testnet_genesis(wasm_binary),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),

@@ -128,9 +128,9 @@ impl SubstrateCli for Cli {
 			"wococo-dev" => Box::new(service::chain_spec::wococo_development_config()?),
 			#[cfg(feature = "rococo-native")]
 			"wococo-local" => Box::new(service::chain_spec::wococo_local_testnet_config()?),
-			#[cfg(not(feature = "rococo-native"))]
+			#[cfg(not(feature = "westend-native"))]
 			name if name.starts_with("wococo-") =>
-				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
+				Err(format!("`{}` only supported with `westend-native` feature enabled.", name))?,
 			#[cfg(feature = "rococo-native")]
 			"versi-dev" => Box::new(service::chain_spec::versi_development_config()?),
 			#[cfg(feature = "rococo-native")]
@@ -148,15 +148,14 @@ impl SubstrateCli for Cli {
 
 				// When `force_*` is given or the file name starts with the name of one of the known chains,
 				// we use the chain spec for the specific chain.
-				if self.run.force_rococo ||
-					chain_spec.is_rococo() ||
-					chain_spec.is_wococo() ||
-					chain_spec.is_versi()
-				{
+				if self.run.force_rococo || chain_spec.is_rococo() || chain_spec.is_versi() {
 					Box::new(service::RococoChainSpec::from_json_file(path)?)
 				} else if self.run.force_kusama || chain_spec.is_kusama() {
 					Box::new(service::KusamaChainSpec::from_json_file(path)?)
-				} else if self.run.force_westend || chain_spec.is_westend() {
+				} else if self.run.force_westend ||
+					chain_spec.is_westend() ||
+					chain_spec.is_wococo()
+				{
 					Box::new(service::WestendChainSpec::from_json_file(path)?)
 				} else {
 					chain_spec
@@ -172,12 +171,12 @@ impl SubstrateCli for Cli {
 		}
 
 		#[cfg(feature = "westend-native")]
-		if spec.is_westend() {
+		if spec.is_westend() || spec.is_wococo() {
 			return &service::westend_runtime::VERSION
 		}
 
 		#[cfg(feature = "rococo-native")]
-		if spec.is_rococo() || spec.is_wococo() || spec.is_versi() {
+		if spec.is_rococo() || spec.is_versi() {
 			return &service::rococo_runtime::VERSION
 		}
 
