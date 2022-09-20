@@ -16,8 +16,8 @@
 
 use super::*;
 use crate::mock::{
-	assert_last_event, new_test_ext, take_processed, Configuration, MockGenesisConfig, Origin,
-	System, Test, Ump,
+	assert_last_event, new_test_ext, take_processed, Configuration, MockGenesisConfig,
+	RuntimeOrigin, System, Test, Ump,
 };
 use frame_support::{assert_noop, assert_ok, weights::Weight};
 use std::collections::HashSet;
@@ -296,7 +296,7 @@ fn service_overweight_unknown() {
 	// the next test.
 	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 		assert_noop!(
-			Ump::service_overweight(Origin::root(), 0, Weight::from_ref_time(1000)),
+			Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_ref_time(1000)),
 			Error::<Test>::UnknownMessageIndex
 		);
 	});
@@ -346,18 +346,18 @@ fn overweight_queue_works() {
 		// Now verify that if we wanted to service this overweight message with less than enough
 		// weight it will fail.
 		assert_noop!(
-			Ump::service_overweight(Origin::root(), 0, Weight::from_ref_time(499)),
+			Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_ref_time(499)),
 			Error::<Test>::WeightOverLimit
 		);
 
 		// ... and if we try to service it with just enough weight it will succeed as well.
-		assert_ok!(Ump::service_overweight(Origin::root(), 0, Weight::from_ref_time(500)));
+		assert_ok!(Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_ref_time(500)));
 		assert_last_event(Event::OverweightServiced(0, Weight::from_ref_time(500)).into());
 
 		// ... and if we try to service a message with index that doesn't exist it will error
 		// out.
 		assert_noop!(
-			Ump::service_overweight(Origin::root(), 1, Weight::from_ref_time(1000)),
+			Ump::service_overweight(RuntimeOrigin::root(), 1, Weight::from_ref_time(1000)),
 			Error::<Test>::UnknownMessageIndex
 		);
 	});
