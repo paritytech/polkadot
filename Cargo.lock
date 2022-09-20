@@ -6022,6 +6022,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "polkadot-primitives-test-helpers",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "rand_core 0.5.1",
@@ -6924,6 +6925,7 @@ dependencies = [
  "polkadot-primitives",
  "rand 0.8.5",
  "sp-application-crypto",
+ "sp-core",
  "sp-keyring",
  "sp-runtime",
 ]

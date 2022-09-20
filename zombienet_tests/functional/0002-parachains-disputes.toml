@@ -26,12 +26,10 @@ requests = { memory = "2G", cpu = "1" }
   name = "bob"
   command = "malus dispute-ancestor --fake-validation approval-invalid"
   args = [ "--bob", "-lparachain=debug,MALUS=trace"]
-  
+
   [[relaychain.nodes]]
-  image = "{{MALUS_IMAGE}}"
   name = "charlie"
-  command = "malus dispute-ancestor --fake-validation approval-invalid"
-  args = [ "--charlie", "-lparachain=debug,MALUS=trace" ]
+  args = [ "--charlie", "-lparachain=debug" ]
 
   [[relaychain.nodes]]
   name = "dave"
