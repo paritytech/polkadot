@@ -292,7 +292,7 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 }
 
 #[cfg(feature = "full-node")]
-fn open_database(db_source: &DatabaseSource) -> Result<Arc<dyn Database>, Error> {
+pub fn open_database(db_source: &DatabaseSource) -> Result<Arc<dyn Database>, Error> {
 	let parachains_db = match db_source {
 		DatabaseSource::RocksDb { path, .. } => parachains_db::open_creating_rocksdb(
 			path.clone(),
@@ -718,6 +718,13 @@ where
 	Ok(leaves.into_iter().rev().take(MAX_ACTIVE_LEAVES).collect())
 }
 
+pub fn create_availability_config() -> AvailabilityConfig {
+	AvailabilityConfig {
+		col_data: parachains_db::REAL_COLUMNS.col_availability_data,
+		col_meta: parachains_db::REAL_COLUMNS.col_availability_meta,
+	}
+}
+
 /// Create a new full node of arbitrary runtime and executor.
 ///
 /// This is an advanced feature and not recommended for general use. Generally, `build_full` is
@@ -926,10 +933,7 @@ where
 
 	let parachains_db = open_database(&config.database)?;
 
-	let availability_config = AvailabilityConfig {
-		col_data: parachains_db::REAL_COLUMNS.col_availability_data,
-		col_meta: parachains_db::REAL_COLUMNS.col_availability_meta,
-	};
+	let availability_config = create_availability_config();
 
 	let approval_voting_config = ApprovalVotingConfig {
 		col_data: parachains_db::REAL_COLUMNS.col_approval_data,
