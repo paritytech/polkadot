@@ -61,10 +61,7 @@ where
 mod tests {
 	use super::*;
 	use frame_support::{
-		parameter_types,
-		traits::FindAuthor,
-		weights::{DispatchClass, Weight},
-		PalletId,
+		dispatch::DispatchClass, parameter_types, traits::FindAuthor, weights::Weight, PalletId,
 	};
 	use frame_system::limits;
 	use primitives::v2::AccountId;

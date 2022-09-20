@@ -16,7 +16,10 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{dispatch::Dispatchable, ensure, weights::GetDispatchInfo};
+use frame_support::{
+	dispatch::{Dispatchable, GetDispatchInfo},
+	ensure,
+};
 use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
 use xcm::latest::{

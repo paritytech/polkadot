@@ -13,8 +13,8 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-futures-timer = "3.0.2"
 rand = "0.8.5"
+futures-timer = "3.0.2"
 fatality = "0.0.6"
 
 [dev-dependencies]
@@ -22,6 +22,3 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
-
-[features]
-staging-client = []
