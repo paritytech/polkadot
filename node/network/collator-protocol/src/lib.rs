@@ -152,7 +152,7 @@ async fn wait_until_next_tick(last_poll: Instant, period: Duration) -> Instant {
 
 /// Returns an infinite stream that yields with an interval of `period`.
 fn tick_stream(period: Duration) -> impl FusedStream<Item = ()> {
-	futures::stream::unfold(Instant::now() + period, move |next_check| async move {
+	futures::stream::unfold(Instant::now(), move |next_check| async move {
 		Some(((), wait_until_next_tick(next_check, period).await))
 	})
 	.fuse()
