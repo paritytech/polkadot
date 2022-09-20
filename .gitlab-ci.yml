@@ -20,7 +20,7 @@ stages:
   - stage3
   - stage4
   - zombienet
-  - short-benchmark
+  - short_benchmark
 
 workflow:
   rules:
