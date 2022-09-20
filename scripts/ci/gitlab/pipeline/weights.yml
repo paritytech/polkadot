@@ -1,0 +1,33 @@
+# This file is part of .gitlab-ci.yml
+# Here are all jobs that are executed during "weights" stage
+
+update_polkadot_weights:           &update-weights
+  stage:                           weights
+  timeout:                         1d
+  when:                            manual
+  variables:
+    RUNTIME:                       polkadot
+  artifacts:
+    paths:
+      - ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
+  script:
+    - ./scripts/ci/run_benches_for_runtime.sh $RUNTIME
+    - git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
+  # uses the "shell" executors
+  tags:
+    - weights
+
+update_kusama_weights:
+  <<:                              *update-weights
+  variables:
+    RUNTIME:                       kusama
+
+update_westend_weights:
+  <<:                              *update-weights
+  variables:
+    RUNTIME:                       westend
+
+update_rococo_weights:
+  <<:                              *update-weights
+  variables:
+    RUNTIME:                       rococo
