@@ -23,7 +23,7 @@
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v2::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, DmpStorageMigration, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
+	CoreState, DmqContentsBounds, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
 	ScrapedOnChainVotes, SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
 	ValidatorIndex,
