@@ -84,3 +84,12 @@ check-no-default-features:
     - pushd ./node/service && cargo check --no-default-features && popd
     - pushd ./cli && cargo check --no-default-features --features "service" && popd
     - exit 0
+
+# this is artificial job to run some build and tests using DAG
+job-starter:
+  stage:                           check
+  extends:
+    - .kubernetes-env
+    - .common-refs
+  script:
+    - echo ok
