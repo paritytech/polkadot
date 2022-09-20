@@ -24,10 +24,10 @@ use polkadot_primitives::{
 	runtime_api::ParachainHost,
 	v2::{
 		AuthorityDiscoveryId, Block, CandidateEvent, CommittedCandidateReceipt, CoreState,
-		GroupRotationInfo, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-		OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
-		SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-		ValidatorSignature,
+		DmqContentsBounds, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
+		InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
+		ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
+		ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
 };
 use sp_api::ProvideRuntimeApi;
