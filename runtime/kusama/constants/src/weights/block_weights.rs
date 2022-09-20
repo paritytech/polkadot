@@ -40,7 +40,6 @@ parameter_types! {
 
 #[cfg(test)]
 mod test_weights {
-	use super::*;
 	use sp_weights::constants;
 
 	/// Checks that the weight exists and is sane.
