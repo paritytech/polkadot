@@ -3298,7 +3298,9 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "smallvec",
+ "sp-core",
  "sp-runtime",
+ "sp-weights",
 ]
 
 [[package]]
@@ -7113,7 +7115,9 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "smallvec",
+ "sp-core",
  "sp-runtime",
+ "sp-weights",
 ]
 
 [[package]]
@@ -8364,7 +8368,9 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "smallvec",
+ "sp-core",
  "sp-runtime",
+ "sp-weights",
 ]
 
 [[package]]
@@ -11252,7 +11258,9 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "smallvec",
+ "sp-core",
  "sp-runtime",
+ "sp-weights",
 ]
 
 [[package]]
@@ -12466,7 +12474,9 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "smallvec",
+ "sp-core",
  "sp-runtime",
+ "sp-weights",
 ]
 
 [[package]]
