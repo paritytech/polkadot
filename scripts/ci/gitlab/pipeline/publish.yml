@@ -108,7 +108,7 @@ publish-staking-miner-image:
 
 
 publish-s3-release:
-  stage:                           stage3
+  stage:                           publish
   extends:
     - .kubernetes-env
   needs:
@@ -149,7 +149,7 @@ publish-s3-release:
         --recursive --human-readable --summarize
 
 publish-rustdoc:
-  stage:                           stage4
+  stage:                           publish
   extends:
     - .kubernetes-env
   image:                           paritytech/tools:latest
