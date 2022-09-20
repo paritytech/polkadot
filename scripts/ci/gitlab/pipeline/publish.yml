@@ -94,14 +94,14 @@ publish-staking-miner-image:
   stage:                           publish
   extends:
     - .build-push-image
-    - .zombienet-refs
+    - .publish-refs
   variables:
-    GIT_STRATEGY:                  none
-    DOCKER_USER:                   ${PARITYPR_USER}
-    DOCKER_PASS:                   ${PARITYPR_PASS}
     # scripts/ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
     DOCKERFILE:                    ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
     IMAGE_NAME:                    docker.io/paritytech/staking-miner
+    GIT_STRATEGY:                  none
+    DOCKER_USER:                   ${Docker_Hub_User_Parity}
+    DOCKER_PASS:                   ${Docker_Hub_Pass_Parity}
   needs:
     - job:                         build-staking-miner
       artifacts:                   true
