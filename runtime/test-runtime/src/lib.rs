@@ -45,12 +45,11 @@ use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
 use primitives::v2::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash as HashT,
-	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
-	OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
-	SessionInfo as SessionInfoData, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
-	ValidatorIndex,
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
+	ScrapedOnChainVotes, SessionInfo as SessionInfoData, Signature, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
 	claims, impl_runtime_weights, paras_sudo_wrapper, BlockHashCount, BlockLength,
@@ -905,10 +904,6 @@ sp_api::impl_runtime_apis! {
 			-> Option<ValidationCodeHash>
 		{
 			runtime_impl::validation_code_hash::<Runtime>(para_id, assumption)
-		}
-
-		fn staging_get_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
-			polkadot_runtime_parachains::runtime_api_impl::vstaging::get_session_disputes::<Runtime>()
 		}
 	}
 
