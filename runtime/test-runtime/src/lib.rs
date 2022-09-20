@@ -485,7 +485,7 @@ impl parachains_inclusion::Config for Runtime {
 impl parachains_disputes::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type RewardValidators = ();
-	type PunishValidators = ();
+	type SlashingHandler = ();
 	type WeightInfo = parachains_disputes::TestWeightInfo;
 }
 
