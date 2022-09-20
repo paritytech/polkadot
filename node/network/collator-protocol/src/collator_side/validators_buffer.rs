@@ -63,7 +63,7 @@ struct ValidatorsGroupInfo {
 #[derive(Debug)]
 pub struct ValidatorGroupsBuffer {
 	/// Validator groups identifiers we **had** advertisements for.
-	buf: VecDeque<ValidatorsGroupInfo>,
+	group_infos: VecDeque<ValidatorsGroupInfo>,
 	/// Continuous buffer of validators discovery keys.
 	validators: VecDeque<AuthorityDiscoveryId>,
 	/// Mapping from relay-parent to bit-vectors with bits for all `validators`.
@@ -77,7 +77,7 @@ impl ValidatorGroupsBuffer {
 	/// Creates a new buffer with a non-zero capacity.
 	pub fn with_capacity(cap: NonZeroUsize) -> Self {
 		Self {
-			buf: VecDeque::new(),
+			group_infos: VecDeque::new(),
 			validators: VecDeque::new(),
 			should_be_connected: HashMap::new(),
 			cap,
@@ -116,7 +116,7 @@ impl ValidatorGroupsBuffer {
 			return
 		}
 
-		match self.buf.iter().enumerate().find(|(_, group)| {
+		match self.group_infos.iter().enumerate().find(|(_, group)| {
 			group.session_index == session_index && group.group_index == group_index
 		}) {
 			Some((idx, group)) => {
@@ -167,7 +167,7 @@ impl ValidatorGroupsBuffer {
 		let new_group_info =
 			ValidatorsGroupInfo { len: validators.len(), session_index, group_index };
 
-		let buf = &mut self.buf;
+		let buf = &mut self.group_infos;
 		let cap = self.cap.get();
 
 		if buf.len() >= cap {
@@ -208,7 +208,7 @@ impl ValidatorGroupsBuffer {
 	///
 	/// Useful for getting an index of the first validator in i-th group.
 	fn group_lengths_iter(&self) -> impl Iterator<Item = usize> + '_ {
-		self.buf.iter().map(|group| group.len)
+		self.group_infos.iter().map(|group| group.len)
 	}
 }
 
