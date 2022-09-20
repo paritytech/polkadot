@@ -88,6 +88,7 @@ check-no-default-features:
 # this is artificial job to run some build and tests using DAG
 job-starter:
   stage:                           check
+  image:                           paritytech/tools:latest
   extends:
     - .kubernetes-env
     - .common-refs
