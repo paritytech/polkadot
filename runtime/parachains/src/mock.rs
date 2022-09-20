@@ -31,8 +31,8 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
 use primitives::v2::{
-	AuthorityDiscoveryId, Balance, BlockNumber, Header, Moment, SessionIndex, UpwardMessage,
-	ValidatorIndex,
+	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Header, Moment, SessionIndex,
+	UpwardMessage, ValidatorIndex,
 };
 use sp_core::H256;
 use sp_io::TestExternalities;
@@ -243,7 +243,7 @@ impl crate::hrmp::Config for Test {
 impl crate::disputes::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type RewardValidators = Self;
-	type PunishValidators = Self;
+	type SlashingHandler = Self;
 	type WeightInfo = crate::disputes::TestWeightInfo;
 }
 
@@ -251,7 +251,6 @@ thread_local! {
 	pub static REWARD_VALIDATORS: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_FOR: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_AGAINST: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
-	pub static PUNISH_VALIDATORS_INCONCLUSIVE: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 }
 
 impl crate::disputes::RewardValidators for Test {
@@ -263,30 +262,31 @@ impl crate::disputes::RewardValidators for Test {
 	}
 }
 
-impl crate::disputes::PunishValidators for Test {
+impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 	fn punish_for_invalid(
 		session: SessionIndex,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
+		_: CandidateHash,
+		losers: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		PUNISH_VALIDATORS_FOR
-			.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
+		PUNISH_VALIDATORS_FOR.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
 	}
 
 	fn punish_against_valid(
 		session: SessionIndex,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
+		_: CandidateHash,
+		losers: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_AGAINST
-			.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
+			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
 	}
 
-	fn punish_inconclusive(
-		session: SessionIndex,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
-	) {
-		PUNISH_VALIDATORS_INCONCLUSIVE
-			.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
+	fn initializer_initialize(_now: BlockNumber) -> Weight {
+		Weight::zero()
 	}
+
+	fn initializer_finalize() {}
+
+	fn initializer_on_new_session(_: SessionIndex) {}
 }
 
 impl crate::scheduler::Config for Test {}
