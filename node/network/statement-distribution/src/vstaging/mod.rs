@@ -33,10 +33,12 @@ use polkadot_node_subsystem_util::backing_implicit_view::{FetchError, View as Im
 use polkadot_primitives::vstaging::{
 	CandidateHash, CommittedCandidateReceipt, CoreState, GroupIndex, Hash, Id as ParaId,
 	PersistedValidationData, SignedStatement, UncheckedSignedStatement, ValidatorId,
-	ValidatorIndex,
+	ValidatorIndex, CompactStatement,
 };
 
 use sp_keystore::SyncCryptoStorePtr;
+
+use indexmap::IndexMap;
 
 use std::collections::{HashMap, HashSet};
 
@@ -59,9 +61,15 @@ struct PerRelayParentValidatorState {
 	group_id: GroupIndex,
 }
 
+// stores statements and the candidate receipt/persisted validation data if any.
 struct CandidateData {
 	state: CandidateState,
-	statements: Vec<SignedStatement>,
+	seconded_statements: Vec<SignedStatement>,
+	valid_statements: Vec<SignedStatement>,
+
+	// validators which have either produced a statement about the
+	// candidate or which have sent a signed statement or which we have
+	// sent statements to.
 	known_by: HashSet<ValidatorIndex>,
 }
 
@@ -69,9 +77,42 @@ impl Default for CandidateData {
 	fn default() -> Self {
 		CandidateData {
 			state: CandidateState::Unconfirmed,
-			statements: Vec::new(),
+			seconded_statements: Vec::new(),
+			valid_statements: Vec::new(),
 			known_by: HashSet::new(),
 		}
+	}
+}
+
+impl CandidateData {
+	fn has_issued_seconded(&self, validator: ValidatorIndex) -> bool {
+		self.seconded_statements.iter().find(|s| s.validator_index() == validator).is_some()
+	}
+
+	fn has_issued_valid(&self, validator: ValidatorIndex) -> bool {
+		self.valid_statements.iter().find(|s| s.validator_index() == validator).is_some()
+	}
+
+	// ignores duplicates or equivocations. returns 'false' if those are detected, 'true' otherwise.
+	fn insert_signed_statement(&mut self, statement: SignedStatement) -> bool {
+		let validator_index = statement.validator_index();
+
+		// only accept one statement by the validator.
+		let has_issued_statement = self.has_issued_seconded(validator_index) || self.has_issued_valid(validator_index);
+		if has_issued_statement { return false }
+
+		match statement.payload() {
+			CompactStatement::Seconded(_) => self.seconded_statements.push(statement),
+			CompactStatement::Valid(_) => self.valid_statements.push(statement),
+		}
+
+		self.known_by.insert(validator_index);
+
+		true
+	}
+
+	fn note_known_by(&mut self, validator: ValidatorIndex) {
+		self.known_by.insert(validator);
 	}
 }
 
@@ -310,6 +351,7 @@ pub(crate) fn handle_deactivate_leaf(state: &mut State, leaf_hash: Hash) {
 	state.per_relay_parent.retain(|r, _| relay_parents.contains(r));
 }
 
+// Imports a locally originating statement and distributes it to peers.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 pub(crate) async fn share_local_statement<Context>(
 	ctx: &mut Context,
@@ -322,9 +364,9 @@ pub(crate) async fn share_local_statement<Context>(
 		Some(x) => x,
 	};
 
-	let local_validator = match per_relay_parent.local_validator.as_ref() {
+	let (local_index, local_assignment) = match per_relay_parent.local_validator.as_ref() {
 		None => return Err(JfyiError::InvalidShare),
-		Some(l) => l,
+		Some(l) => (l.index, l.assignment)
 	};
 
 	// Two possibilities: either the statement is `Seconded` or we already
@@ -338,52 +380,77 @@ pub(crate) async fn share_local_statement<Context>(
 			.map(|c| c.descriptor().para_id),
 	};
 
-	if local_validator.index != statement.validator_index() {
+	if local_index != statement.validator_index() {
 		return Err(JfyiError::InvalidShare)
 	}
 
 	// TODO [now]: ensure seconded_count isn't too high. Needs our definition
 	// of 'too high' i.e. max_depth, which isn't done yet.
 
-	if expected_para.is_none() || local_validator.assignment != expected_para {
+	if expected_para.is_none() || local_assignment != expected_para {
 		return Err(JfyiError::InvalidShare)
 	}
 
-	let compact_statement = FullStatementWithPVD::signed_to_compact(statement.clone());
-	let candidate_hash = CandidateHash(*statement.payload().candidate_hash());
+	// Insert candidate if unknown + more sanity checks.
+	let (compact_statement, candidate_hash) = {
+		let compact_statement = FullStatementWithPVD::signed_to_compact(statement.clone());
+		let candidate_hash = CandidateHash(*statement.payload().candidate_hash());
 
-	let candidate_entry = match statement.payload() {
-		FullStatementWithPVD::Seconded(ref c, ref pvd) => {
-			let candidate_entry = per_relay_parent.candidates.entry(candidate_hash).or_default();
+		let candidate_entry = match statement.payload() {
+			FullStatementWithPVD::Seconded(ref c, ref pvd) => {
+				let candidate_entry = per_relay_parent.candidates.entry(candidate_hash).or_default();
 
-			if let CandidateState::Unconfirmed = candidate_entry.state {
-				candidate_entry.state = CandidateState::Confirmed(c.clone(), pvd.clone());
-			}
-
-			candidate_entry
-		}
-		FullStatementWithPVD::Valid(_) => {
-			match per_relay_parent.candidates.get_mut(&candidate_hash) {
-				None  => {
-					// Can't share a 'Valid' statement about a candidate we don't know about!
-					return Err(JfyiError::InvalidShare);
+				if let CandidateState::Unconfirmed = candidate_entry.state {
+					candidate_entry.state = CandidateState::Confirmed(c.clone(), pvd.clone());
 				}
-				Some(ref c) if !c.state.is_confirmed() => {
-					// Can't share a 'Valid' statement about a candidate we don't know about!
-					return Err(JfyiError::InvalidShare);
-				}
-				Some(c) => c,
+
+				candidate_entry
 			}
+			FullStatementWithPVD::Valid(_) => {
+				match per_relay_parent.candidates.get_mut(&candidate_hash) {
+					None  => {
+						// Can't share a 'Valid' statement about a candidate we don't know about!
+						return Err(JfyiError::InvalidShare);
+					}
+					Some(ref c) if !c.state.is_confirmed() => {
+						// Can't share a 'Valid' statement about a candidate we don't know about!
+						return Err(JfyiError::InvalidShare);
+					}
+					Some(c) => c,
+				}
+			}
+		};
+
+		if !candidate_entry.insert_signed_statement(compact_statement.clone()) {
+			gum::warn!(
+				target: LOG_TARGET,
+				statement = ?compact_statement.payload(),
+				"Candidate backing issued redundant statement?",
+			);
+
+			return Err(JfyiError::InvalidShare);
 		}
+
+		(compact_statement, candidate_hash)
 	};
 
-	candidate_entry.statements.push(compact_statement);
-	candidate_entry.known_by.insert(local_validator.index);
-
 	// TODO [now]:
-	// 2. insert candidate if unknown
 	// 3. send the compact version of the statement to nodes in current group and next-up. If not a `Seconded` statement,
 	//   send a `Seconded` statement as well.
+	// 4. If the candidate is now backed, trigger 'backed candidate announcement' logic.
 
 	Ok(())
+}
+
+// Circulates a compact statement to all peers who need it: those in the current group of the
+// local validator, those in the next group for the parachain, and grid peers which have already
+// indicated that they know the candidate as backed.
+//
+// If we're not sure whether the peer knows the candidate is `Seconded` already, we also send a `Seconded`
+// statement.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn circulate_statement_possibly_with_seconded<Context>(
+	context: &mut Context,
+) {
+
 }
