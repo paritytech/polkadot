@@ -20,7 +20,7 @@ stages:
   - stage3
   - stage4
   - zombienet
-  - short_benchmark
+  - short-benchmarks
 
 workflow:
   rules:
@@ -697,6 +697,8 @@ deploy-parity-testnet:
   trigger:                         "parity/infrastructure/parity-testnet"
 
 include:
+  # zombienet jobs
+  - scripts/ci/gitlab/pipeline/short-benchmarks.yml
   # zombienet jobs
   - scripts/ci/gitlab/pipeline/zombienet.yml
 

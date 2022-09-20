@@ -1,9 +1,9 @@
 # This file is part of .gitlab-ci.yml
-# Here are all jobs that are executed during "short_benchmark" stage
+# Here are all jobs that are executed during "short-benchmarks" stage
 
 # Run all pallet benchmarks only once to check if there are any errors
 short-benchmark-polkadot:          &short-bench
-  stage:                           short_benchmark
+  stage:                           short-benchmarks
   extends:
     - .test-pr-refs
     - .docker-env
