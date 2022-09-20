@@ -46,8 +46,9 @@ pub mod approval;
 /// Disputes related types.
 pub mod disputes;
 pub use disputes::{
-	CandidateVotes, DisputeMessage, DisputeMessageCheckError, InvalidDisputeVote,
-	SignedDisputeStatement, UncheckedDisputeMessage, ValidDisputeVote,
+	dispute_is_inactive, CandidateVotes, DisputeMessage, DisputeMessageCheckError, DisputeStatus,
+	InvalidDisputeVote, SignedDisputeStatement, Timestamp, UncheckedDisputeMessage,
+	ValidDisputeVote, ACTIVE_DURATION_SECS,
 };
 
 // For a 16-ary Merkle Prefix Trie, we can expect at most 16 32-byte hashes per node

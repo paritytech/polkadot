@@ -1054,8 +1054,6 @@ short-benchmark-westend:
     PR_NUM:                        "${PR_NUM}"
   trigger:
     project:                       "parity/infrastructure/ci_cd/pipeline-stopper"
-    # remove branch, when pipeline-stopper for polakdot is updated to the same branch
-    branch:                        "as-improve"
 
 cancel-pipeline-test-linux-stable:
   extends:                         .cancel-pipeline-template
