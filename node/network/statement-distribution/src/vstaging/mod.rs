@@ -18,7 +18,9 @@
 //! designed for asynchronous backing.
 
 use polkadot_node_network_protocol::{
-	self as net_protocol, peer_set::ValidationVersion, vstaging as protocol_vstaging, PeerId, View,
+	self as net_protocol, peer_set::ValidationVersion, vstaging as protocol_vstaging,
+	grid_topology::{RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology},
+	PeerId, View, Versioned,
 };
 use polkadot_node_primitives::{
 	SignedFullStatementWithPVD,
@@ -31,9 +33,9 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::backing_implicit_view::{FetchError, View as ImplicitView};
 use polkadot_primitives::vstaging::{
-	CandidateHash, CommittedCandidateReceipt, CoreState, GroupIndex, Hash, Id as ParaId,
+	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CoreState, GroupIndex, Hash, Id as ParaId,
 	PersistedValidationData, SignedStatement, UncheckedSignedStatement, ValidatorId,
-	ValidatorIndex, CompactStatement,
+	ValidatorIndex, CompactStatement, SessionIndex,
 };
 
 use sp_keystore::SyncCryptoStorePtr;
@@ -49,11 +51,13 @@ use crate::{
 
 struct PerRelayParentState {
 	validators: Vec<ValidatorId>,
+	discovery_keys: Vec<AuthorityDiscoveryId>,
 	groups: Vec<Vec<ValidatorIndex>>,
 	validator_state: HashMap<ValidatorIndex, PerRelayParentValidatorState>,
 	candidates: HashMap<CandidateHash, CandidateData>,
 	known_by: HashSet<PeerId>,
 	local_validator: Option<LocalValidatorState>,
+	session: SessionIndex,
 }
 
 struct PerRelayParentValidatorState {
@@ -163,6 +167,7 @@ pub(crate) struct State {
 	per_relay_parent: HashMap<Hash, PerRelayParentState>,
 	peers: HashMap<PeerId, PeerState>,
 	keystore: SyncCryptoStorePtr,
+	topology_storage: SessionBoundGridTopologyStorage,
 }
 
 struct PeerState {
@@ -291,11 +296,13 @@ pub(crate) async fn handle_activated_leaf<Context>(
 			*leaf,
 			PerRelayParentState {
 				validators: session_info.validators,
+				discovery_keys: session_info.discovery_keys,
 				groups: session_info.validator_groups,
 				validator_state: HashMap::new(),
 				candidates: HashMap::new(),
 				known_by: HashSet::new(),
 				local_validator,
+				session: session_index,
 			},
 		);
 	}
@@ -448,9 +455,93 @@ pub(crate) async fn share_local_statement<Context>(
 //
 // If we're not sure whether the peer knows the candidate is `Seconded` already, we also send a `Seconded`
 // statement.
+//
+// preconditions: the candidate entry exists in the state under the relay parent
+// and the statement has already been imported into the entry. If this is a `Valid`
+// statement, then there must be at least one `Seconded` statement.
+// TODO [now]: make this a more general `broadcast_statement` with an `BroadcastBehavior` that
+// affects targets: `Local` keeps current behavior while `Forward` only sends onwards via `BackedCandidate` knowers.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-async fn circulate_statement_possibly_with_seconded<Context>(
-	context: &mut Context,
+async fn broadcast_local_statement<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	relay_parent: Hash,
+	statement: SignedStatement,
 ) {
+	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
+		Some(x) => x,
+		None => return,
+	};
 
+	let candidate_hash = statement.payload().candidate_hash().clone();
+	let candidate_entry = match per_relay_parent.candidates.get_mut(&candidate_hash) {
+		Some(x) => x,
+		None => return,
+	};
+
+	let prior_seconded = match statement.payload() {
+		CompactStatement::Seconded(_) => None,
+		CompactStatement::Valid(_) => match candidate_entry.seconded_statements.first() {
+			Some(s) => Some(s.as_unchecked().clone()),
+			None => return,
+		}
+	};
+
+	let targets = {
+		let local_validator = match per_relay_parent.local_validator.as_ref() {
+			Some(v) => v,
+			None => return, // sanity: should be impossible to reach this.
+		};
+
+		let current_group = per_relay_parent.groups[local_validator.group.0 as usize].iter().cloned();
+		let next_group = per_relay_parent.groups[local_validator.next_group.0 as usize].iter().cloned();
+
+		// TODO [now]: extend targets with validators which
+		// 	a) we've sent `BackedCandidateInv` for this candidate to
+		//	b) have either requested the candidate _or_ have sent `BackedCandidateKnown` to us.
+
+		current_group.chain(next_group)
+			.filter_map(|v| per_relay_parent.discovery_keys.get(v.0 as usize).map(|a| (v, a.clone())))
+			.collect::<Vec<_>>()
+	};
+
+	let mut prior_to = Vec::new();
+	let mut statement_to = Vec::new();
+	for (validator_index, authority_id) in targets {
+		// TODO [now], also continue if not connected.
+		let peer_id: PeerId = unimplemented!();
+
+		// We guarantee that the receiving peer knows the candidate by
+		// sending them a `Seconded` statement first.
+		if candidate_entry.known_by.insert(validator_index) {
+			if let Some(_) = prior_seconded.as_ref() {
+				prior_to.push(peer_id.clone());
+			}
+		}
+
+		statement_to.push(peer_id);
+	}
+
+	// ship off the network messages to the network bridge.
+
+	if !prior_to.is_empty() {
+		let prior_seconded = prior_seconded.expect("prior_to is only non-empty when prior_seconded exists; qed");
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+			prior_to,
+			Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::Statement(
+				relay_parent,
+				prior_seconded.clone(),
+			)).into()
+		)).await;
+	}
+
+	if !statement_to.is_empty() {
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+			statement_to,
+			Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::Statement(
+				relay_parent,
+				statement.as_unchecked().clone(),
+			)).into()
+		)).await;
+	}
 }
