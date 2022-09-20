@@ -5,7 +5,7 @@
 # Release image is handled by the Github Action here:
 # .github/workflows/publish-docker-release.yml
 publish-polkadot-debug-image:
-  stage:                           stage2
+  stage:                           publish
   extends:
     - .build-push-image
   rules:
@@ -40,7 +40,7 @@ publish-polkadot-debug-image:
 
 publish-test-collators-image:
   # service image for Simnet
-  stage:                           stage2
+  stage:                           publish
   extends:
     - .build-push-image
     - .zombienet-refs
@@ -66,7 +66,7 @@ publish-test-collators-image:
 
 publish-malus-image:
   # service image for Simnet
-  stage:                           stage2
+  stage:                           publish
   extends:
     - .build-push-image
     - .zombienet-refs
@@ -91,7 +91,7 @@ publish-malus-image:
       dotenv: ./artifacts/malus.env
 
 publish-staking-miner-image:
-  stage:                           stage2
+  stage:                           publish
   extends:
     - .build-push-image
     - .zombienet-refs
