@@ -18,13 +18,13 @@
 //! designed for asynchronous backing.
 
 use polkadot_node_network_protocol::{
-	self as net_protocol, peer_set::ValidationVersion, vstaging as protocol_vstaging,
+	self as net_protocol,
 	grid_topology::{RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology},
-	PeerId, View, Versioned,
+	peer_set::ValidationVersion,
+	vstaging as protocol_vstaging, PeerId, Versioned, View,
 };
 use polkadot_node_primitives::{
-	SignedFullStatementWithPVD,
-	StatementWithPVD as FullStatementWithPVD,
+	SignedFullStatementWithPVD, StatementWithPVD as FullStatementWithPVD,
 };
 use polkadot_node_subsystem::{
 	jaeger,
@@ -33,9 +33,9 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::backing_implicit_view::{FetchError, View as ImplicitView};
 use polkadot_primitives::vstaging::{
-	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CoreState, GroupIndex, Hash, Id as ParaId,
-	PersistedValidationData, SignedStatement, UncheckedSignedStatement, ValidatorId,
-	ValidatorIndex, CompactStatement, SessionIndex,
+	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, CoreState,
+	GroupIndex, Hash, Id as ParaId, PersistedValidationData, SessionIndex, SignedStatement,
+	UncheckedSignedStatement, ValidatorId, ValidatorIndex,
 };
 
 use sp_keystore::SyncCryptoStorePtr;
@@ -90,11 +90,17 @@ impl Default for CandidateData {
 
 impl CandidateData {
 	fn has_issued_seconded(&self, validator: ValidatorIndex) -> bool {
-		self.seconded_statements.iter().find(|s| s.validator_index() == validator).is_some()
+		self.seconded_statements
+			.iter()
+			.find(|s| s.validator_index() == validator)
+			.is_some()
 	}
 
 	fn has_issued_valid(&self, validator: ValidatorIndex) -> bool {
-		self.valid_statements.iter().find(|s| s.validator_index() == validator).is_some()
+		self.valid_statements
+			.iter()
+			.find(|s| s.validator_index() == validator)
+			.is_some()
 	}
 
 	// ignores duplicates or equivocations. returns 'false' if those are detected, 'true' otherwise.
@@ -102,8 +108,11 @@ impl CandidateData {
 		let validator_index = statement.validator_index();
 
 		// only accept one statement by the validator.
-		let has_issued_statement = self.has_issued_seconded(validator_index) || self.has_issued_valid(validator_index);
-		if has_issued_statement { return false }
+		let has_issued_statement =
+			self.has_issued_seconded(validator_index) || self.has_issued_valid(validator_index);
+		if has_issued_statement {
+			return false
+		}
 
 		match statement.payload() {
 			CompactStatement::Seconded(_) => self.seconded_statements.push(statement),
@@ -373,7 +382,7 @@ pub(crate) async fn share_local_statement<Context>(
 
 	let (local_index, local_assignment) = match per_relay_parent.local_validator.as_ref() {
 		None => return Err(JfyiError::InvalidShare),
-		Some(l) => (l.index, l.assignment)
+		Some(l) => (l.index, l.assignment),
 	};
 
 	// Two possibilities: either the statement is `Seconded` or we already
@@ -405,27 +414,28 @@ pub(crate) async fn share_local_statement<Context>(
 
 		let candidate_entry = match statement.payload() {
 			FullStatementWithPVD::Seconded(ref c, ref pvd) => {
-				let candidate_entry = per_relay_parent.candidates.entry(candidate_hash).or_default();
+				let candidate_entry =
+					per_relay_parent.candidates.entry(candidate_hash).or_default();
 
 				if let CandidateState::Unconfirmed = candidate_entry.state {
 					candidate_entry.state = CandidateState::Confirmed(c.clone(), pvd.clone());
 				}
 
 				candidate_entry
-			}
+			},
 			FullStatementWithPVD::Valid(_) => {
 				match per_relay_parent.candidates.get_mut(&candidate_hash) {
-					None  => {
+					None => {
 						// Can't share a 'Valid' statement about a candidate we don't know about!
-						return Err(JfyiError::InvalidShare);
-					}
+						return Err(JfyiError::InvalidShare)
+					},
 					Some(ref c) if !c.state.is_confirmed() => {
 						// Can't share a 'Valid' statement about a candidate we don't know about!
-						return Err(JfyiError::InvalidShare);
-					}
+						return Err(JfyiError::InvalidShare)
+					},
 					Some(c) => c,
 				}
-			}
+			},
 		};
 
 		if !candidate_entry.insert_signed_statement(compact_statement.clone()) {
@@ -435,7 +445,7 @@ pub(crate) async fn share_local_statement<Context>(
 				"Candidate backing issued redundant statement?",
 			);
 
-			return Err(JfyiError::InvalidShare);
+			return Err(JfyiError::InvalidShare)
 		}
 
 		(compact_statement, candidate_hash)
@@ -484,7 +494,7 @@ async fn broadcast_local_statement<Context>(
 		CompactStatement::Valid(_) => match candidate_entry.seconded_statements.first() {
 			Some(s) => Some(s.as_unchecked().clone()),
 			None => return,
-		}
+		},
 	};
 
 	let targets = {
@@ -493,15 +503,20 @@ async fn broadcast_local_statement<Context>(
 			None => return, // sanity: should be impossible to reach this.
 		};
 
-		let current_group = per_relay_parent.groups[local_validator.group.0 as usize].iter().cloned();
-		let next_group = per_relay_parent.groups[local_validator.next_group.0 as usize].iter().cloned();
+		let current_group =
+			per_relay_parent.groups[local_validator.group.0 as usize].iter().cloned();
+		let next_group =
+			per_relay_parent.groups[local_validator.next_group.0 as usize].iter().cloned();
 
 		// TODO [now]: extend targets with validators which
 		// 	a) we've sent `BackedCandidateInv` for this candidate to
 		//	b) have either requested the candidate _or_ have sent `BackedCandidateKnown` to us.
 
-		current_group.chain(next_group)
-			.filter_map(|v| per_relay_parent.discovery_keys.get(v.0 as usize).map(|a| (v, a.clone())))
+		current_group
+			.chain(next_group)
+			.filter_map(|v| {
+				per_relay_parent.discovery_keys.get(v.0 as usize).map(|a| (v, a.clone()))
+			})
 			.collect::<Vec<_>>()
 	};
 
@@ -525,14 +540,17 @@ async fn broadcast_local_statement<Context>(
 	// ship off the network messages to the network bridge.
 
 	if !prior_to.is_empty() {
-		let prior_seconded = prior_seconded.expect("prior_to is only non-empty when prior_seconded exists; qed");
+		let prior_seconded =
+			prior_seconded.expect("prior_to is only non-empty when prior_seconded exists; qed");
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			prior_to,
 			Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::Statement(
 				relay_parent,
 				prior_seconded.clone(),
-			)).into()
-		)).await;
+			))
+			.into(),
+		))
+		.await;
 	}
 
 	if !statement_to.is_empty() {
@@ -541,7 +559,9 @@ async fn broadcast_local_statement<Context>(
 			Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::Statement(
 				relay_parent,
 				statement.as_unchecked().clone(),
-			)).into()
-		)).await;
+			))
+			.into(),
+		))
+		.await;
 	}
 }
