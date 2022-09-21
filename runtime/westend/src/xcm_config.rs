@@ -17,8 +17,8 @@
 //! XCM configurations for Westend.
 
 use super::{
-	parachains_origin, weights, AccountId, Balances, Origin, ParaId, Runtime, RuntimeCall,
-	RuntimeEvent, WeightToFee, XcmPallet,
+	parachains_origin, weights, AccountId, Balances, ParaId, Runtime, RuntimeCall, RuntimeEvent,
+	RuntimeOrigin, WeightToFee, XcmPallet,
 };
 use frame_support::{
 	parameter_types,
@@ -60,10 +60,10 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 >;
 
 type LocalOriginConverter = (
-	SovereignSignedViaLocation<LocationConverter, Origin>,
-	ChildParachainAsNative<parachains_origin::Origin, Origin>,
-	SignedAccountId32AsNative<WestendNetwork, Origin>,
-	ChildSystemParachainAsSuperuser<ParaId, Origin>,
+	SovereignSignedViaLocation<LocationConverter, RuntimeOrigin>,
+	ChildParachainAsNative<parachains_origin::Origin, RuntimeOrigin>,
+	SignedAccountId32AsNative<WestendNetwork, RuntimeOrigin>,
+	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
 );
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
@@ -122,15 +122,15 @@ impl xcm_executor::Config for XcmConfig {
 /// of this chain.
 pub type LocalOriginToLocation = (
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<Origin, AccountId, WestendNetwork>,
+	SignedToAccountId32<RuntimeOrigin, AccountId, WestendNetwork>,
 );
 
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	// ...but they must match our filter, which rejects everything.
 	type XcmExecuteFilter = Nothing;
 	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
@@ -139,7 +139,7 @@ impl pallet_xcm::Config for Runtime {
 	type Weigher =
 		WeightInfoBounds<weights::xcm::WestendXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;

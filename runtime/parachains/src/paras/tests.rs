@@ -26,7 +26,8 @@ use test_helpers::{dummy_head_data, dummy_validation_code};
 use crate::{
 	configuration::HostConfiguration,
 	mock::{
-		new_test_ext, Configuration, MockGenesisConfig, Origin, Paras, ParasShared, System, Test,
+		new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, RuntimeOrigin, System,
+		Test,
 	},
 };
 
@@ -1449,7 +1450,10 @@ fn add_trusted_validation_code_inserts_with_no_users() {
 	// with the reference count equal to 0.
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	new_test_ext(Default::default()).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
 		assert_eq!(<Paras as Store>::CodeByHashRefs::get(&validation_code.hash()), 0,);
 	});
 }
@@ -1460,9 +1464,15 @@ fn add_trusted_validation_code_idempotent() {
 	// parameters is a no-op.
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	new_test_ext(Default::default()).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
 		assert_storage_noop!({
-			assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+			assert_ok!(Paras::add_trusted_validation_code(
+				RuntimeOrigin::root(),
+				validation_code.clone()
+			));
 		});
 	});
 }
@@ -1473,8 +1483,14 @@ fn poke_unused_validation_code_removes_code_cleanly() {
 	// in the storage but has no users will remove it cleanly from the storage.
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	new_test_ext(Default::default()).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
-		assert_ok!(Paras::poke_unused_validation_code(Origin::root(), validation_code.hash()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
+		assert_ok!(Paras::poke_unused_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.hash()
+		));
 
 		assert_eq!(<Paras as Store>::CodeByHashRefs::get(&validation_code.hash()), 0);
 		assert!(!<Paras as Store>::CodeByHash::contains_key(&validation_code.hash()));
@@ -1487,7 +1503,10 @@ fn poke_unused_validation_code_doesnt_remove_code_with_users() {
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	new_test_ext(Default::default()).execute_with(|| {
 		// First we add the code to the storage.
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
 
 		// Then we add a user to the code, say by upgrading.
 		run_to_block(2, None);
@@ -1496,7 +1515,10 @@ fn poke_unused_validation_code_doesnt_remove_code_with_users() {
 
 		// Finally we poke the code, which should not remove it from the storage.
 		assert_storage_noop!({
-			assert_ok!(Paras::poke_unused_validation_code(Origin::root(), validation_code.hash()));
+			assert_ok!(Paras::poke_unused_validation_code(
+				RuntimeOrigin::root(),
+				validation_code.hash()
+			));
 		});
 		check_code_is_stored(&validation_code);
 	});
@@ -1511,7 +1533,7 @@ fn increase_code_ref_doesnt_have_allergy_on_add_trusted_validation_code() {
 	let code = ValidationCode(vec![1, 2, 3]);
 
 	new_test_ext(Default::default()).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), code.clone()));
 		Paras::increase_code_ref(&code.hash(), &code);
 		Paras::increase_code_ref(&code.hash(), &code);
 		assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
@@ -1519,7 +1541,7 @@ fn increase_code_ref_doesnt_have_allergy_on_add_trusted_validation_code() {
 	});
 
 	new_test_ext(Default::default()).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), code.clone()));
 		Paras::decrease_code_ref(&code.hash());
 		assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
 		assert_eq!(<Paras as Store>::CodeByHashRefs::get(code.hash()), 0);
@@ -1547,7 +1569,10 @@ fn add_trusted_validation_code_insta_approval() {
 		..Default::default()
 	};
 	new_test_ext(genesis_config).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
 
 		// Then some parachain upgrades it's code with the relay-parent 1.
 		run_to_block(2, None);
@@ -1602,7 +1627,10 @@ fn add_trusted_validation_code_enacts_existing_pvf_vote() {
 		assert!(<Paras as Store>::PvfActiveVoteMap::contains_key(&validation_code.hash()));
 
 		// Then we add a trusted validation code. That should conclude the vote.
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
 		assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_some());
 		assert!(!<Paras as Store>::PvfActiveVoteMap::contains_key(&validation_code.hash()));
 	});

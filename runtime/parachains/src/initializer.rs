@@ -120,7 +120,7 @@ pub mod pallet {
 		/// A randomness beacon.
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 		/// An origin which is allowed to force updates to parachains.
-		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
+		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
 	}
