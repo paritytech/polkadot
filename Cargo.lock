@@ -119,6 +119,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "510c76ecefdceada737ea728f4f9a84bd2e1ef29f1ba555e560940fe279954de"
 
 [[package]]
+name = "array-bytes"
+version = "4.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a913633b0c922e6b745072795f50d90ebea78ba31a57e2ac8c2fc7b50950949"
+
+[[package]]
 name = "arrayref"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -431,12 +437,12 @@ name = "beefy-gadget"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#4e53bdc85f240162e554bb2b22461822ef38af76"
 dependencies = [
+ "array-bytes",
  "async-trait",
  "beefy-primitives",
  "fnv",
  "futures",
  "futures-timer",
- "hex",
  "log",
  "parity-scale-codec",
  "parking_lot 0.12.1",
@@ -2033,6 +2039,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#4e53bdc85f240162e554bb2b22461822ef38af76"
 dependencies = [
  "Inflector",
+ "array-bytes",
  "chrono",
  "clap",
  "comfy-table",
@@ -2042,7 +2049,6 @@ dependencies = [
  "gethostname",
  "handlebars",
  "hash-db",
- "hex",
  "itertools",
  "kvdb",
  "lazy_static",
@@ -4963,11 +4969,11 @@ name = "pallet-beefy-mmr"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#4e53bdc85f240162e554bb2b22461822ef38af76"
 dependencies = [
+ "array-bytes",
  "beefy-merkle-tree",
  "beefy-primitives",
  "frame-support",
  "frame-system",
- "hex",
  "log",
  "pallet-beefy",
  "pallet-mmr",
@@ -8619,11 +8625,11 @@ name = "sc-cli"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#4e53bdc85f240162e554bb2b22461822ef38af76"
 dependencies = [
+ "array-bytes",
  "chrono",
  "clap",
  "fdlimit",
  "futures",
- "hex",
  "libp2p",
  "log",
  "names",
@@ -8916,13 +8922,13 @@ version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#4e53bdc85f240162e554bb2b22461822ef38af76"
 dependencies = [
  "ahash",
+ "array-bytes",
  "async-trait",
  "dyn-clone",
  "finality-grandpa",
  "fork-tree",
  "futures",
  "futures-timer",
- "hex",
  "log",
  "parity-scale-codec",
  "parking_lot 0.12.1",
@@ -8994,8 +9000,8 @@ name = "sc-keystore"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#4e53bdc85f240162e554bb2b22461822ef38af76"
 dependencies = [
+ "array-bytes",
  "async-trait",
- "hex",
  "parking_lot 0.12.1",
  "serde_json",
  "sp-application-crypto",
@@ -9009,6 +9015,7 @@ name = "sc-network"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#4e53bdc85f240162e554bb2b22461822ef38af76"
 dependencies = [
+ "array-bytes",
  "async-trait",
  "asynchronous-codec",
  "bitflags",
@@ -9019,7 +9026,6 @@ dependencies = [
  "fork-tree",
  "futures",
  "futures-timer",
- "hex",
  "ip_network",
  "libp2p",
  "linked-hash-map",
@@ -9117,8 +9123,8 @@ name = "sc-network-light"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#4e53bdc85f240162e554bb2b22461822ef38af76"
 dependencies = [
+ "array-bytes",
  "futures",
- "hex",
  "libp2p",
  "log",
  "parity-scale-codec",
@@ -9138,9 +9144,9 @@ name = "sc-network-sync"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#4e53bdc85f240162e554bb2b22461822ef38af76"
 dependencies = [
+ "array-bytes",
  "fork-tree",
  "futures",
- "hex",
  "libp2p",
  "log",
  "lru 0.7.8",
@@ -9166,11 +9172,11 @@ name = "sc-offchain"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#4e53bdc85f240162e554bb2b22461822ef38af76"
 dependencies = [
+ "array-bytes",
  "bytes",
  "fnv",
  "futures",
  "futures-timer",
- "hex",
  "hyper",
  "hyper-rustls",
  "libp2p",
@@ -10172,6 +10178,7 @@ name = "sp-core"
 version = "6.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=master#4e53bdc85f240162e554bb2b22461822ef38af76"
 dependencies = [
+ "array-bytes",
  "base58",
  "bitflags",
  "blake2",
@@ -10181,7 +10188,6 @@ dependencies = [
  "futures",
  "hash-db",
  "hash256-std-hasher",
- "hex",
  "impl-serde",
  "lazy_static",
  "libsecp256k1",
@@ -10967,9 +10973,9 @@ name = "substrate-test-client"
 version = "2.0.1"
 source = "git+https://github.com/paritytech/substrate?branch=master#4e53bdc85f240162e554bb2b22461822ef38af76"
 dependencies = [
+ "array-bytes",
  "async-trait",
  "futures",
- "hex",
  "parity-scale-codec",
  "sc-client-api",
  "sc-client-db",
