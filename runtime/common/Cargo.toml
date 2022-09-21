@@ -108,6 +108,7 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
 	"pallet-babe/runtime-benchmarks",
+	"pallet-bags-list/runtime-benchmarks",
 ]
 try-runtime = [
 	"runtime-parachains/try-runtime",
