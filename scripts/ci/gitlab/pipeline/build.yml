@@ -131,6 +131,11 @@ build-staking-miner:
 
 build-rustdoc:
   stage:                           build
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in test.yml
+  needs:
+    - job:                         test-deterministic-wasm
+      artifacts:                   false
   extends:
     - .docker-env
     - .test-refs
@@ -154,6 +159,11 @@ build-rustdoc:
 
 build-implementers-guide:
   stage:                           build
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in test.yml
+  needs:
+    - job:                         test-deterministic-wasm
+      artifacts:                   false
   extends:
     - .docker-env
     - .test-refs
