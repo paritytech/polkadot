@@ -17,8 +17,8 @@
 //! XCM configuration for Polkadot.
 
 use super::{
-	parachains_origin, AccountId, Balances, CouncilCollective, Origin, ParaId, Runtime,
-	RuntimeCall, RuntimeEvent, WeightToFee, XcmPallet,
+	parachains_origin, AccountId, Balances, CouncilCollective, ParaId, Runtime, RuntimeCall,
+	RuntimeEvent, RuntimeOrigin, WeightToFee, XcmPallet,
 };
 use frame_support::{
 	match_types, parameter_types,
@@ -80,13 +80,13 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 type LocalOriginConverter = (
 	// If the origin kind is `Sovereign`, then return a `Signed` origin with the account determined
 	// by the `SovereignAccountOf` converter.
-	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
+	SovereignSignedViaLocation<SovereignAccountOf, RuntimeOrigin>,
 	// If the origin kind is `Native` and the XCM origin is a child parachain, then we can express
 	// it with the special `parachains_origin::Origin` origin variant.
-	ChildParachainAsNative<parachains_origin::Origin, Origin>,
+	ChildParachainAsNative<parachains_origin::Origin, RuntimeOrigin>,
 	// If the origin kind is `Native` and the XCM origin is the `AccountId32` location, then it can
 	// be expressed using the `Signed` origin variant.
-	SignedAccountId32AsNative<PolkadotNetwork, Origin>,
+	SignedAccountId32AsNative<PolkadotNetwork, RuntimeOrigin>,
 );
 
 parameter_types! {
@@ -158,7 +158,7 @@ parameter_types! {
 
 /// Type to convert a council origin to a Plurality `MultiLocation` value.
 pub type CouncilToPlurality = BackingToPlurality<
-	Origin,
+	RuntimeOrigin,
 	pallet_collective::Origin<Runtime, CouncilCollective>,
 	CouncilBodyId,
 >;
@@ -170,16 +170,16 @@ pub type LocalOriginToLocation = (
 	// `Unit` body.
 	CouncilToPlurality,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<Origin, AccountId, PolkadotNetwork>,
+	SignedToAccountId32<RuntimeOrigin, AccountId, PolkadotNetwork>,
 );
 
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	// Only allow the council to send messages.
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, CouncilToPlurality>;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, CouncilToPlurality>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	// ...but they must match our filter, which rejects all.
 	type XcmExecuteFilter = Nothing; // == Deny All
 	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
@@ -187,7 +187,7 @@ impl pallet_xcm::Config for Runtime {
 	type XcmReserveTransferFilter = Everything; // == Allow All
 	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = AdvertisedXcmVersion;
