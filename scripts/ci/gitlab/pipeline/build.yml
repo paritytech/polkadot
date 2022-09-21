@@ -168,6 +168,11 @@ build-implementers-guide:
 
 build-short-benchmark:
   stage:                           build
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in check.yml
+  needs:
+    - job:                         job-starter
+      artifacts:                   false
   extends:
     - .docker-env
     - .test-refs
