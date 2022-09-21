@@ -277,8 +277,11 @@ where
 pub struct SignedToAccountId32<RuntimeOrigin, AccountId, Network>(
 	PhantomData<(RuntimeOrigin, AccountId, Network)>,
 );
-impl<RuntimeOrigin: OriginTrait + Clone, AccountId: Into<[u8; 32]>, Network: Get<Option<NetworkId>>>
-	Convert<RuntimeOrigin, MultiLocation> for SignedToAccountId32<RuntimeOrigin, AccountId, Network>
+impl<
+		RuntimeOrigin: OriginTrait + Clone,
+		AccountId: Into<[u8; 32]>,
+		Network: Get<Option<NetworkId>>,
+	> Convert<RuntimeOrigin, MultiLocation> for SignedToAccountId32<RuntimeOrigin, AccountId, Network>
 where
 	RuntimeOrigin::PalletsOrigin: From<SystemRawOrigin<AccountId>>
 		+ TryInto<SystemRawOrigin<AccountId>, Error = RuntimeOrigin::PalletsOrigin>,
