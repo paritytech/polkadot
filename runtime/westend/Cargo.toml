@@ -1,6 +1,6 @@
 [package]
 name = "westend-runtime"
-version = "0.9.27"
+version = "0.9.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 build = "build.rs"
@@ -87,7 +87,7 @@ hex-literal = { version = "0.3.4", optional = true }
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 polkadot-parachain = { path = "../../parachain", default-features = false }
-runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false, features = ["vstaging"] }
+runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
 
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
@@ -201,7 +201,7 @@ runtime-benchmarks = [
 	"pallet-im-online/runtime-benchmarks",
 	"pallet-indices/runtime-benchmarks",
 	"pallet-multisig/runtime-benchmarks",
-	"pallet-nomination-pools-benchmarking",
+	"pallet-nomination-pools-benchmarking/runtime-benchmarks",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
 	"pallet-recovery/runtime-benchmarks",
@@ -212,13 +212,13 @@ runtime-benchmarks = [
 	"pallet-treasury/runtime-benchmarks",
 	"pallet-utility/runtime-benchmarks",
 	"pallet-vesting/runtime-benchmarks",
-	"pallet-offences-benchmarking",
-	"pallet-session-benchmarking",
+	"pallet-offences-benchmarking/runtime-benchmarks",
+	"pallet-session-benchmarking/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
-	"frame-system-benchmarking",
+	"frame-system-benchmarking/runtime-benchmarks",
 	"hex-literal",
 	"xcm-builder/runtime-benchmarks",
-	"pallet-xcm-benchmarks",
+	"pallet-xcm-benchmarks/runtime-benchmarks",
 	"frame-election-provider-support/runtime-benchmarks",
 	"pallet-bags-list/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
@@ -227,10 +227,10 @@ try-runtime = [
 	"frame-executive/try-runtime",
 	"frame-system/try-runtime",
 	"frame-try-runtime",
-	"pallet-authorship/try-runtime",
+	"runtime-common/try-runtime",
 	"pallet-authority-discovery/try-runtime",
+	"pallet-authorship/try-runtime",
 	"pallet-balances/try-runtime",
-	"pallet-bags-list/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"pallet-collective/try-runtime",
 	"pallet-elections-phragmen/try-runtime",
@@ -256,8 +256,9 @@ try-runtime = [
 	"pallet-treasury/try-runtime",
 	"pallet-utility/try-runtime",
 	"pallet-vesting/try-runtime",
+	"pallet-xcm/try-runtime",
 	"pallet-babe/try-runtime",
-	"runtime-common/try-runtime",
+	"pallet-bags-list/try-runtime",
 ]
 # When enabled, the runtime API will not be build.
 #

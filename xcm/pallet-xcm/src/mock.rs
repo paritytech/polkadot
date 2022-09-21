@@ -18,7 +18,6 @@ use codec::Encode;
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Everything, Nothing},
-	weights::Weight,
 };
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::origin;
@@ -56,10 +55,10 @@ pub mod pallet_test_notifier {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + crate::Config {
-		type Event: IsType<<Self as frame_system::Config>::Event> + From<Event<Self>>;
-		type Origin: IsType<<Self as frame_system::Config>::Origin>
-			+ Into<Result<crate::Origin, <Self as Config>::Origin>>;
-		type Call: IsType<<Self as crate::Config>::Call> + From<Call<Self>>;
+		type RuntimeEvent: IsType<<Self as frame_system::Config>::RuntimeEvent> + From<Event<Self>>;
+		type RuntimeOrigin: IsType<<Self as frame_system::Config>::RuntimeOrigin>
+			+ Into<Result<crate::Origin, <Self as Config>::RuntimeOrigin>>;
+		type RuntimeCall: IsType<<Self as crate::Config>::RuntimeCall> + From<Call<Self>>;
 	}
 
 	#[pallet::event]
@@ -106,7 +105,7 @@ pub mod pallet_test_notifier {
 				Call::<T>::notification_received { query_id: 0, response: Default::default() };
 			let qid = crate::Pallet::<T>::new_notify_query(
 				Junction::AccountId32 { network: None, id },
-				<T as Config>::Call::from(call),
+				<T as Config>::RuntimeCall::from(call),
 				100u32.into(),
 				querier,
 			);
@@ -120,7 +119,7 @@ pub mod pallet_test_notifier {
 			query_id: QueryId,
 			response: Response,
 		) -> DispatchResult {
-			let responder = ensure_response(<T as Config>::Origin::from(origin))?;
+			let responder = ensure_response(<T as Config>::RuntimeOrigin::from(origin))?;
 			Self::deposit_event(Event::<T>::ResponseReceived(responder, query_id, response));
 			Ok(())
 		}
@@ -198,8 +197,8 @@ parameter_types! {
 }
 
 impl frame_system::Config for Test {
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = u64;
 	type Hash = H256;
@@ -207,7 +206,7 @@ impl frame_system::Config for Test {
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type BlockWeights = ();
 	type BlockLength = ();
@@ -233,7 +232,7 @@ parameter_types! {
 impl pallet_balances::Config for Test {
 	type MaxLocks = MaxLocks;
 	type Balance = Balance;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
@@ -246,7 +245,7 @@ parameter_types! {
 	pub const RelayLocation: MultiLocation = Here.into_location();
 	pub const AnyNetwork: Option<NetworkId> = None;
 	pub UniversalLocation: InteriorMultiLocation = Here;
-	pub UnitWeightCost: Weight = 1_000;
+	pub UnitWeightCost: u64 = 1_000;
 }
 
 pub type SovereignAccountOf =
@@ -256,14 +255,14 @@ pub type LocalAssetTransactor =
 	XcmCurrencyAdapter<Balances, IsConcrete<RelayLocation>, SovereignAccountOf, AccountId, ()>;
 
 type LocalOriginConverter = (
-	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
-	ChildParachainAsNative<origin::Origin, Origin>,
-	SignedAccountId32AsNative<AnyNetwork, Origin>,
-	ChildSystemParachainAsSuperuser<ParaId, Origin>,
+	SovereignSignedViaLocation<SovereignAccountOf, RuntimeOrigin>,
+	ChildParachainAsNative<origin::Origin, RuntimeOrigin>,
+	SignedAccountId32AsNative<AnyNetwork, RuntimeOrigin>,
+	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: Weight = 1_000;
+	pub const BaseXcmWeight: u64 = 1_000;
 	pub CurrencyPerSecond: (AssetId, u128) = (Concrete(RelayLocation::get()), 1);
 	pub TrustedAssets: (MultiAssetFilter, MultiLocation) = (All.into(), Here.into());
 	pub const MaxInstructions: u32 = 100;
@@ -279,7 +278,7 @@ pub type Barrier = (
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type XcmSender = TestSendXcm;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
@@ -287,7 +286,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = Case<TrustedAssets>;
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<CurrencyPerSecond, ()>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
@@ -300,28 +299,28 @@ impl xcm_executor::Config for XcmConfig {
 	type FeeManager = ();
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
-	type CallDispatcher = Call;
+	type CallDispatcher = RuntimeCall;
 }
 
-pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AnyNetwork>;
+pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, AnyNetwork>;
 
 parameter_types! {
 	pub static AdvertisedXcmVersion: pallet_xcm::XcmVersion = 3;
 }
 
 impl pallet_xcm::Config for Test {
-	type Event = Event;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type RuntimeEvent = RuntimeEvent;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type XcmRouter = (TestSendXcmErrX8, TestSendXcm);
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type XcmExecuteFilter = Everything;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	type UniversalLocation = UniversalLocation;
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = AdvertisedXcmVersion;
 	type TrustedLockers = ();
@@ -334,16 +333,16 @@ impl pallet_xcm::Config for Test {
 impl origin::Config for Test {}
 
 impl pallet_test_notifier::Config for Test {
-	type Event = Event;
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 }
 
-pub(crate) fn last_event() -> Event {
-	System::events().pop().expect("Event expected").event
+pub(crate) fn last_event() -> RuntimeEvent {
+	System::events().pop().expect("RuntimeEvent expected").event
 }
 
-pub(crate) fn last_events(n: usize) -> Vec<Event> {
+pub(crate) fn last_events(n: usize) -> Vec<RuntimeEvent> {
 	System::events().into_iter().map(|e| e.event).rev().take(n).rev().collect()
 }
 

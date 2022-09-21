@@ -82,7 +82,7 @@ pub mod pallet {
 	/// The module configuration trait.
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// A lockable currency.
 		// TODO: We should really use a trait which can handle multiple currencies.
@@ -93,7 +93,10 @@ pub mod pallet {
 
 		/// Required origin for sending XCM messages. If successful, it resolves to `MultiLocation`
 		/// which exists as an interior location within this chain's XCM context.
-		type SendXcmOrigin: EnsureOrigin<<Self as SysConfig>::Origin, Success = MultiLocation>;
+		type SendXcmOrigin: EnsureOrigin<
+			<Self as SysConfig>::RuntimeOrigin,
+			Success = MultiLocation,
+		>;
 
 		/// The type used to actually dispatch an XCM to its destination.
 		type XcmRouter: SendXcm;
@@ -101,13 +104,16 @@ pub mod pallet {
 		/// Required origin for executing XCM messages, including the teleport functionality. If successful,
 		/// then it resolves to `MultiLocation` which exists as an interior location within this chain's XCM
 		/// context.
-		type ExecuteXcmOrigin: EnsureOrigin<<Self as SysConfig>::Origin, Success = MultiLocation>;
+		type ExecuteXcmOrigin: EnsureOrigin<
+			<Self as SysConfig>::RuntimeOrigin,
+			Success = MultiLocation,
+		>;
 
 		/// Our XCM filter which messages to be executed using `XcmExecutor` must pass.
-		type XcmExecuteFilter: Contains<(MultiLocation, Xcm<<Self as SysConfig>::Call>)>;
+		type XcmExecuteFilter: Contains<(MultiLocation, Xcm<<Self as SysConfig>::RuntimeCall>)>;
 
 		/// Something to execute an XCM message.
-		type XcmExecutor: ExecuteXcm<<Self as SysConfig>::Call>;
+		type XcmExecutor: ExecuteXcm<<Self as SysConfig>::RuntimeCall>;
 
 		/// Our XCM filter which messages to be teleported using the dedicated extrinsic must pass.
 		type XcmTeleportFilter: Contains<(MultiLocation, Vec<MultiAsset>)>;
@@ -116,19 +122,22 @@ pub mod pallet {
 		type XcmReserveTransferFilter: Contains<(MultiLocation, Vec<MultiAsset>)>;
 
 		/// Means of measuring the weight consumed by an XCM message locally.
-		type Weigher: WeightBounds<<Self as SysConfig>::Call>;
+		type Weigher: WeightBounds<<Self as SysConfig>::RuntimeCall>;
 
 		/// This chain's Universal Location.
 		type UniversalLocation: Get<InteriorMultiLocation>;
 
-		/// The outer `Origin` type.
-		type Origin: From<Origin> + From<<Self as SysConfig>::Origin>;
+		/// The runtime `Origin` type.
+		type RuntimeOrigin: From<Origin> + From<<Self as SysConfig>::RuntimeOrigin>;
 
-		/// The outer `Call` type.
-		type Call: Parameter
+		/// The runtime `Call` type.
+		type RuntimeCall: Parameter
 			+ GetDispatchInfo
-			+ IsType<<Self as frame_system::Config>::Call>
-			+ Dispatchable<Origin = <Self as Config>::Origin, PostInfo = PostDispatchInfo>;
+			+ IsType<<Self as frame_system::Config>::RuntimeCall>
+			+ Dispatchable<
+				RuntimeOrigin = <Self as Config>::RuntimeOrigin,
+				PostInfo = PostDispatchInfo,
+			>;
 
 		const VERSION_DISCOVERY_QUEUE_SIZE: u32;
 
@@ -524,7 +533,7 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
-			let mut weight_used = 0;
+			let mut weight_used = Weight::zero();
 			if let Some(migration) = CurrentMigration::<T>::get() {
 				// Consume 10% of block at most
 				let max_weight = T::BlockWeights::get().max_block / 10;
@@ -559,7 +568,7 @@ pub mod pallet {
 			// Start a migration (this happens before on_initialize so it'll happen later in this
 			// block, which should be good enough)...
 			CurrentMigration::<T>::put(VersionMigrationStage::default());
-			T::DbWeight::get().write
+			T::DbWeight::get().writes(1)
 		}
 	}
 
@@ -622,7 +631,7 @@ pub mod pallet {
 					on_chain_storage_version,
 				);
 				// calculate and return migration weights
-				T::DbWeight::get().reads_writes(count as Weight + 1, count as Weight + 1)
+				T::DbWeight::get().reads_writes(count as u64 + 1, count as u64 + 1)
 			} else {
 				log::warn!(
 					target: "runtime::xcm",
@@ -683,9 +692,9 @@ pub mod pallet {
 							xcm: Xcm(vec![]),
 						},
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000.saturating_add(w))
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000.saturating_add(w)))
 				},
-				_ => Weight::max_value(),
+				_ => Weight::MAX,
 			}
 		})]
 		pub fn teleport_assets(
@@ -721,9 +730,9 @@ pub mod pallet {
 					let mut message = Xcm(vec![
 						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000.saturating_add(w))
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000.saturating_add(w)))
 				},
-				_ => Weight::max_value(),
+				_ => Weight::MAX,
 			}
 		})]
 		pub fn reserve_transfer_assets(
@@ -754,10 +763,10 @@ pub mod pallet {
 		///
 		/// NOTE: A successful return to this does *not* imply that the `msg` was executed successfully
 		/// to completion; only that *some* of it was executed.
-		#[pallet::weight(max_weight.saturating_add(100_000_000u64))]
+		#[pallet::weight(max_weight.saturating_add(Weight::from_ref_time(100_000_000u64)))]
 		pub fn execute(
 			origin: OriginFor<T>,
-			message: Box<VersionedXcm<<T as SysConfig>::Call>>,
+			message: Box<VersionedXcm<<T as SysConfig>::RuntimeCall>>,
 			max_weight: Weight,
 		) -> DispatchResultWithPostInfo {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
@@ -770,8 +779,8 @@ pub mod pallet {
 				origin_location,
 				message,
 				hash,
-				max_weight,
-				max_weight,
+				max_weight.ref_time(),
+				max_weight.ref_time(),
 			);
 			let result = Ok(Some(outcome.weight_used().saturating_add(100_000_000)).into());
 			Self::deposit_event(Event::Attempted(outcome));
@@ -885,9 +894,9 @@ pub mod pallet {
 					let mut message = Xcm(vec![
 						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000.saturating_add(w))
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000.saturating_add(w)))
 				},
-				_ => Weight::max_value(),
+				_ => Weight::MAX,
 			}
 		})]
 		pub fn limited_reserve_transfer_assets(
@@ -935,9 +944,9 @@ pub mod pallet {
 						WithdrawAsset(assets),
 						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000.saturating_add(w))
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000.saturating_add(w)))
 				},
-				_ => Weight::max_value(),
+				_ => Weight::MAX,
 			}
 		})]
 		pub fn limited_teleport_assets(
@@ -1087,12 +1096,12 @@ impl<T: Config> Pallet<T> {
 		mut stage: VersionMigrationStage,
 		weight_cutoff: Weight,
 	) -> (Weight, Option<VersionMigrationStage>) {
-		let mut weight_used = 0;
+		let mut weight_used = Weight::zero();
 
 		// TODO: Correct weights for the components of this:
 		let todo_sv_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
 		let todo_vn_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
-		let todo_vnt_already_notified_weight: Weight = T::DbWeight::get().read;
+		let todo_vnt_already_notified_weight: Weight = T::DbWeight::get().reads(1);
 		let todo_vnt_notify_weight: Weight = T::DbWeight::get().reads_writes(1, 3);
 		let todo_vnt_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
 		let todo_vnt_migrate_fail_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
@@ -1109,7 +1118,7 @@ impl<T: Config> Pallet<T> {
 						SupportedVersion::<T>::insert(XCM_VERSION, new_key, value);
 					}
 					weight_used.saturating_accrue(todo_sv_migrate_weight);
-					if weight_used >= weight_cutoff {
+					if weight_used.any_gte(weight_cutoff) {
 						return (weight_used, Some(stage))
 					}
 				}
@@ -1123,7 +1132,7 @@ impl<T: Config> Pallet<T> {
 						VersionNotifiers::<T>::insert(XCM_VERSION, new_key, value);
 					}
 					weight_used.saturating_accrue(todo_vn_migrate_weight);
-					if weight_used >= weight_cutoff {
+					if weight_used.any_gte(weight_cutoff) {
 						return (weight_used, Some(stage))
 					}
 				}
@@ -1165,7 +1174,7 @@ impl<T: Config> Pallet<T> {
 				};
 				Self::deposit_event(event);
 				weight_used.saturating_accrue(todo_vnt_notify_weight);
-				if weight_used >= weight_cutoff {
+				if weight_used.any_gte(weight_cutoff) {
 					let last = Some(iter.last_raw_key().into());
 					return (weight_used, Some(NotifyCurrentTargets(last)))
 				}
@@ -1181,7 +1190,7 @@ impl<T: Config> Pallet<T> {
 						Err(()) => {
 							Self::deposit_event(Event::NotifyTargetMigrationFail(old_key, value.0));
 							weight_used.saturating_accrue(todo_vnt_migrate_fail_weight);
-							if weight_used >= weight_cutoff {
+							if weight_used.any_gte(weight_cutoff) {
 								return (weight_used, Some(stage))
 							}
 							continue
@@ -1215,7 +1224,7 @@ impl<T: Config> Pallet<T> {
 						Self::deposit_event(event);
 						weight_used.saturating_accrue(todo_vnt_notify_migrate_weight);
 					}
-					if weight_used >= weight_cutoff {
+					if weight_used.any_gte(weight_cutoff) {
 						return (weight_used, Some(stage))
 					}
 				}
@@ -1365,15 +1374,15 @@ impl<T: Config> Pallet<T> {
 	pub fn report_outcome_notify(
 		message: &mut Xcm<()>,
 		responder: impl Into<MultiLocation>,
-		notify: impl Into<<T as Config>::Call>,
+		notify: impl Into<<T as Config>::RuntimeCall>,
 		timeout: T::BlockNumber,
 	) -> Result<(), XcmError> {
 		let responder = responder.into();
 		let destination = T::UniversalLocation::get()
 			.invert_target(&responder)
 			.map_err(|()| XcmError::MultiLocationNotInvertible)?;
-		let notify: <T as Config>::Call = notify.into();
-		let max_weight = notify.get_dispatch_info().weight;
+		let notify: <T as Config>::RuntimeCall = notify.into();
+		let max_weight = notify.get_dispatch_info().weight.ref_time();
 		let query_id = Self::new_notify_query(responder, notify, timeout, Here);
 		let response_info = QueryResponseInfo { destination, query_id, max_weight };
 		let report_error = Xcm(vec![ReportError(response_info)]);
@@ -1394,7 +1403,7 @@ impl<T: Config> Pallet<T> {
 	/// which will call a dispatchable when a response happens.
 	pub fn new_notify_query(
 		responder: impl Into<MultiLocation>,
-		notify: impl Into<<T as Config>::Call>,
+		notify: impl Into<<T as Config>::RuntimeCall>,
 		timeout: T::BlockNumber,
 		match_querier: impl Into<MultiLocation>,
 	) -> u64 {
@@ -1635,10 +1644,10 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 }
 
 impl<T: Config> WrapVersion for Pallet<T> {
-	fn wrap_version<Call>(
+	fn wrap_version<RuntimeCall>(
 		dest: &MultiLocation,
-		xcm: impl Into<VersionedXcm<Call>>,
-	) -> Result<VersionedXcm<Call>, ()> {
+		xcm: impl Into<VersionedXcm<RuntimeCall>>,
+	) -> Result<VersionedXcm<RuntimeCall>, ()> {
 		SupportedVersion::<T>::get(XCM_VERSION, LatestVersionedMultiLocation(dest))
 			.or_else(|| {
 				Self::note_unknown_version(dest);
@@ -1701,7 +1710,7 @@ impl<T: Config> VersionChangeNotifier for Pallet<T> {
 }
 
 impl<T: Config> DropAssets for Pallet<T> {
-	fn drop_assets(origin: &MultiLocation, assets: Assets, _context: &XcmContext) -> Weight {
+	fn drop_assets(origin: &MultiLocation, assets: Assets, _context: &XcmContext) -> u64 {
 		if assets.is_empty() {
 			return 0
 		}
@@ -1766,9 +1775,9 @@ impl<T: Config> OnResponse for Pallet<T> {
 		query_id: QueryId,
 		querier: Option<&MultiLocation>,
 		response: Response,
-		max_weight: Weight,
+		max_weight: u64,
 		_context: &XcmContext,
-	) -> Weight {
+	) -> u64 {
 		match (response, Queries::<T>::get(query_id)) {
 			(
 				Response::Version(v),
@@ -1862,18 +1871,18 @@ impl<T: Config> OnResponse for Pallet<T> {
 						// be built by `(pallet_index: u8, call_index: u8, QueryId, Response)`.
 						// So we just encode that and then re-encode to a real Call.
 						let bare = (pallet_index, call_index, query_id, response);
-						if let Ok(call) =
-							bare.using_encoded(|mut bytes| <T as Config>::Call::decode(&mut bytes))
-						{
+						if let Ok(call) = bare.using_encoded(|mut bytes| {
+							<T as Config>::RuntimeCall::decode(&mut bytes)
+						}) {
 							Queries::<T>::remove(query_id);
 							let weight = call.get_dispatch_info().weight;
-							if weight > max_weight {
+							if weight.ref_time() > max_weight {
 								let e = Event::NotifyOverweight(
 									query_id,
 									pallet_index,
 									call_index,
 									weight,
-									max_weight,
+									Weight::from_ref_time(max_weight),
 								);
 								Self::deposit_event(e);
 								return 0
@@ -1898,6 +1907,7 @@ impl<T: Config> OnResponse for Pallet<T> {
 								},
 							}
 							.unwrap_or(weight)
+							.ref_time()
 						} else {
 							let e = Event::NotifyDecodeFailed(query_id, pallet_index, call_index);
 							Self::deposit_event(e);

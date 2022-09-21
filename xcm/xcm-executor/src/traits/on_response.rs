@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::weights::Weight;
+use sp_runtime::traits::Zero;
 use xcm::latest::{
-	Error as XcmError, MultiLocation, QueryId, Response, Result as XcmResult, XcmContext,
+	Error as XcmError, MultiLocation, QueryId, Response, Result as XcmResult, Weight, XcmContext,
 };
 
 /// Define what needs to be done upon receiving a query response.
@@ -55,7 +55,7 @@ impl OnResponse for () {
 		_max_weight: Weight,
 		_context: &XcmContext,
 	) -> Weight {
-		0
+		Weight::zero()
 	}
 }
 

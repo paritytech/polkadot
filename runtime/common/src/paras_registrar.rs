@@ -65,19 +65,19 @@ pub trait WeightInfo {
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn reserve() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn register() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn force_register() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn deregister() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn swap() -> Weight {
-		0
+		Weight::zero()
 	}
 }
 
@@ -96,14 +96,14 @@ pub mod pallet {
 	#[pallet::disable_frame_system_supertrait_check]
 	pub trait Config: configuration::Config + paras::Config {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The aggregated origin type must support the `parachains` origin. We require that we can
 		/// infallibly convert between this origin and the system origin, but in reality, they're the
 		/// same type, we just can't express that to the Rust type system without writing a `where`
 		/// clause everywhere.
-		type Origin: From<<Self as frame_system::Config>::Origin>
-			+ Into<result::Result<Origin, <Self as Config>::Origin>>;
+		type RuntimeOrigin: From<<Self as frame_system::Config>::RuntimeOrigin>
+			+ Into<result::Result<Origin, <Self as Config>::RuntimeOrigin>>;
 
 		/// The system's currency for parathread payment.
 		type Currency: ReservableCurrency<Self::AccountId>;
@@ -456,7 +456,7 @@ impl<T: Config> Pallet<T> {
 	/// Ensure the origin is one of Root, the `para` owner, or the `para` itself.
 	/// If the origin is the `para` owner, the `para` must be unlocked.
 	fn ensure_root_para_or_owner(
-		origin: <T as frame_system::Config>::Origin,
+		origin: <T as frame_system::Config>::RuntimeOrigin,
 		id: ParaId,
 	) -> DispatchResult {
 		ensure_signed(origin.clone())
@@ -469,7 +469,8 @@ impl<T: Config> Pallet<T> {
 			})
 			.or_else(|_| -> DispatchResult {
 				// Else check if para origin...
-				let caller_id = ensure_parachain(<T as Config>::Origin::from(origin.clone()))?;
+				let caller_id =
+					ensure_parachain(<T as Config>::RuntimeOrigin::from(origin.clone()))?;
 				ensure!(caller_id == id, Error::<T>::NotOwner);
 				Ok(())
 			})
@@ -631,25 +632,25 @@ mod tests {
 
 	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
 	where
-		Call: From<C>,
+		RuntimeCall: From<C>,
 	{
 		type Extrinsic = UncheckedExtrinsic;
-		type OverarchingCall = Call;
+		type OverarchingCall = RuntimeCall;
 	}
 
 	const NORMAL_RATIO: Perbill = Perbill::from_percent(75);
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
 		pub BlockWeights: limits::BlockWeights =
-			frame_system::limits::BlockWeights::simple_max(1024);
+			frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(1024));
 		pub BlockLength: limits::BlockLength =
 			limits::BlockLength::max_with_normal_ratio(4 * 1024 * 1024, NORMAL_RATIO);
 	}
 
 	impl frame_system::Config for Test {
 		type BaseCallFilter = frame_support::traits::Everything;
-		type Origin = Origin;
-		type Call = Call;
+		type RuntimeOrigin = RuntimeOrigin;
+		type RuntimeCall = RuntimeCall;
 		type Index = u64;
 		type BlockNumber = BlockNumber;
 		type Hash = H256;
@@ -657,7 +658,7 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<u64>;
 		type Header = Header;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type DbWeight = ();
 		type BlockWeights = BlockWeights;
@@ -680,7 +681,7 @@ mod tests {
 	impl pallet_balances::Config for Test {
 		type Balance = u128;
 		type DustRemoval = ();
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
 		type MaxLocks = ();
@@ -698,7 +699,7 @@ mod tests {
 	}
 
 	impl paras::Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type WeightInfo = paras::TestWeightInfo;
 		type UnsignedPriority = ParasUnsignedPriority;
 		type NextSessionRotation = crate::mock::TestNextSessionRotation;
@@ -715,8 +716,8 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type Event = Event;
-		type Origin = Origin;
+		type RuntimeEvent = RuntimeEvent;
+		type RuntimeOrigin = RuntimeOrigin;
 		type Currency = Balances;
 		type OnSwap = MockSwap;
 		type ParaDeposit = ParaDeposit;
@@ -1226,9 +1227,9 @@ mod benchmarking {
 
 	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 
-	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 		let events = frame_system::Pallet::<T>::events();
-		let system_event: <T as frame_system::Config>::Event = generic_event.into();
+		let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 		assert_eq!(event, &system_event);

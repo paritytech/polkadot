@@ -240,10 +240,10 @@ pub type QueryId = u64;
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
-#[scale_info(bounds(), skip_type_params(Call))]
-pub struct Xcm<Call>(pub Vec<Instruction<Call>>);
+#[scale_info(bounds(), skip_type_params(RuntimeCall))]
+pub struct Xcm<RuntimeCall>(pub Vec<Instruction<RuntimeCall>>);
 
-impl<Call> Xcm<Call> {
+impl<RuntimeCall> Xcm<RuntimeCall> {
 	/// Create an empty instance.
 	pub fn new() -> Self {
 		Self(vec![])
@@ -270,17 +270,17 @@ impl<Call> Xcm<Call> {
 	}
 
 	/// Return the first instruction, if any.
-	pub fn first(&self) -> Option<&Instruction<Call>> {
+	pub fn first(&self) -> Option<&Instruction<RuntimeCall>> {
 		self.0.first()
 	}
 
 	/// Return the last instruction, if any.
-	pub fn last(&self) -> Option<&Instruction<Call>> {
+	pub fn last(&self) -> Option<&Instruction<RuntimeCall>> {
 		self.0.last()
 	}
 
 	/// Return the only instruction, contained in `Self`, iff only one exists (`None` otherwise).
-	pub fn only(&self) -> Option<&Instruction<Call>> {
+	pub fn only(&self) -> Option<&Instruction<RuntimeCall>> {
 		if self.0.len() == 1 {
 			self.0.first()
 		} else {
@@ -290,7 +290,7 @@ impl<Call> Xcm<Call> {
 
 	/// Return the only instruction, contained in `Self`, iff only one exists (returns `self`
 	/// otherwise).
-	pub fn into_only(mut self) -> core::result::Result<Instruction<Call>, Self> {
+	pub fn into_only(mut self) -> core::result::Result<Instruction<RuntimeCall>, Self> {
 		if self.0.len() == 1 {
 			self.0.pop().ok_or(self)
 		} else {
@@ -395,8 +395,8 @@ pub type Weight = u64;
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
-#[scale_info(bounds(), skip_type_params(Call))]
-pub enum Instruction<Call> {
+#[scale_info(bounds(), skip_type_params(RuntimeCall))]
+pub enum Instruction<RuntimeCall> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into the Holding
 	/// Register.
 	///
@@ -502,7 +502,7 @@ pub enum Instruction<Call> {
 		origin_type: OriginKind,
 		#[codec(compact)]
 		require_weight_at_most: u64,
-		call: DoubleEncoded<Call>,
+		call: DoubleEncoded<RuntimeCall>,
 	},
 
 	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
@@ -752,7 +752,7 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*
 	///
 	/// Errors: None.
-	SetErrorHandler(Xcm<Call>),
+	SetErrorHandler(Xcm<RuntimeCall>),
 
 	/// Set the Appendix Register. This is code that should be called after code execution
 	/// (including the error handler if any) is finished. This will be called regardless of whether
@@ -768,7 +768,7 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*
 	///
 	/// Errors: None.
-	SetAppendix(Xcm<Call>),
+	SetAppendix(Xcm<RuntimeCall>),
 
 	/// Clear the Error Register.
 	///
@@ -824,16 +824,16 @@ pub enum Instruction<Call> {
 	UnsubscribeVersion,
 }
 
-impl<Call> Xcm<Call> {
+impl<RuntimeCall> Xcm<RuntimeCall> {
 	pub fn into<C>(self) -> Xcm<C> {
 		Xcm::from(self)
 	}
 	pub fn from<C>(xcm: Xcm<C>) -> Self {
-		Self(xcm.0.into_iter().map(Instruction::<Call>::from).collect())
+		Self(xcm.0.into_iter().map(Instruction::<RuntimeCall>::from).collect())
 	}
 }
 
-impl<Call> Instruction<Call> {
+impl<RuntimeCall> Instruction<RuntimeCall> {
 	pub fn into<C>(self) -> Instruction<C> {
 		Instruction::from(self)
 	}
@@ -884,7 +884,7 @@ impl<Call> Instruction<Call> {
 }
 
 // TODO: Automate Generation
-impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
+impl<RuntimeCall, W: XcmWeightInfo<RuntimeCall>> GetWeight<W> for Instruction<RuntimeCall> {
 	fn weight(&self) -> Weight {
 		use Instruction::*;
 		match self {
@@ -959,17 +959,17 @@ impl TryFrom<NewResponse> for Response {
 }
 
 // Convert from a v3 XCM to a v2 XCM.
-impl<Call> TryFrom<NewXcm<Call>> for Xcm<Call> {
+impl<RuntimeCall> TryFrom<NewXcm<RuntimeCall>> for Xcm<RuntimeCall> {
 	type Error = ();
-	fn try_from(new_xcm: NewXcm<Call>) -> result::Result<Self, ()> {
+	fn try_from(new_xcm: NewXcm<RuntimeCall>) -> result::Result<Self, ()> {
 		Ok(Xcm(new_xcm.0.into_iter().map(TryInto::try_into).collect::<result::Result<_, _>>()?))
 	}
 }
 
 // Convert from a v3 instruction to a v2 instruction
-impl<Call> TryFrom<NewInstruction<Call>> for Instruction<Call> {
+impl<RuntimeCall> TryFrom<NewInstruction<RuntimeCall>> for Instruction<RuntimeCall> {
 	type Error = ();
-	fn try_from(instruction: NewInstruction<Call>) -> result::Result<Self, ()> {
+	fn try_from(instruction: NewInstruction<RuntimeCall>) -> result::Result<Self, ()> {
 		use NewInstruction::*;
 		Ok(match instruction {
 			WithdrawAsset(assets) => Self::WithdrawAsset(assets.try_into()?),

@@ -31,6 +31,7 @@ use sp_runtime::traits::AppVerify;
 
 use polkadot_node_network_protocol::{
 	our_view,
+	peer_set::CollationVersion,
 	request_response::{IncomingRequest, ReqProtocolNames},
 	view,
 };
@@ -399,7 +400,7 @@ async fn connect_peer(
 		CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
 			peer.clone(),
 			polkadot_node_network_protocol::ObservedRole::Authority,
-			1,
+			CollationVersion::V1.into(),
 			authority_id.map(|v| HashSet::from([v])),
 		)),
 	)

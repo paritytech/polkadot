@@ -32,13 +32,13 @@
 //!
 //!  Versioned (v1 module): The actual requests and responses as sent over the network.
 
-use std::{borrow::Cow, collections::HashMap, time::Duration, u64};
+use std::{collections::HashMap, time::Duration, u64};
 
 use futures::channel::mpsc;
 use polkadot_primitives::v2::{MAX_CODE_SIZE, MAX_POV_SIZE};
 use strum::{EnumIter, IntoEnumIterator};
 
-pub use sc_network::{config as network, config::RequestResponseConfig};
+pub use sc_network::{config as network, config::RequestResponseConfig, ProtocolName};
 
 /// Everything related to handling of incoming requests.
 pub mod incoming;
@@ -248,7 +248,7 @@ impl Protocol {
 	}
 
 	/// Fallback protocol names of this protocol, as understood by substrate networking.
-	fn get_fallback_names(self) -> Vec<Cow<'static, str>> {
+	fn get_fallback_names(self) -> Vec<ProtocolName> {
 		std::iter::once(self.get_legacy_name().into()).collect()
 	}
 
@@ -276,7 +276,7 @@ pub trait IsRequest {
 
 /// Type for getting on the wire [`Protocol`] names using genesis hash & fork id.
 pub struct ReqProtocolNames {
-	names: HashMap<Protocol, Cow<'static, str>>,
+	names: HashMap<Protocol, ProtocolName>,
 }
 
 impl ReqProtocolNames {
@@ -290,7 +290,7 @@ impl ReqProtocolNames {
 	}
 
 	/// Get on the wire [`Protocol`] name.
-	pub fn get_name(&self, protocol: Protocol) -> Cow<'static, str> {
+	pub fn get_name(&self, protocol: Protocol) -> ProtocolName {
 		self.names
 			.get(&protocol)
 			.expect("All `Protocol` enum variants are added above via `strum`; qed")
@@ -302,7 +302,7 @@ impl ReqProtocolNames {
 		protocol: Protocol,
 		genesis_hash: &Hash,
 		fork_id: Option<&str>,
-	) -> Cow<'static, str> {
+	) -> ProtocolName {
 		let prefix = if let Some(fork_id) = fork_id {
 			format!("/{}/{}", hex::encode(genesis_hash), fork_id)
 		} else {

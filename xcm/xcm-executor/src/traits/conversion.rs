@@ -211,7 +211,7 @@ impl<O> ConvertOrigin<O> for Tuple {
 pub trait CallDispatcher<Call: Dispatchable> {
 	fn dispatch(
 		call: Call,
-		origin: Call::Origin,
+		origin: Call::RuntimeOrigin,
 	) -> Result<Call::PostInfo, DispatchErrorWithPostInfo<Call::PostInfo>>;
 }
 
@@ -220,7 +220,7 @@ pub trait CallDispatcher<Call: Dispatchable> {
 impl<Call: Dispatchable> CallDispatcher<Call> for Call {
 	fn dispatch(
 		call: Call,
-		origin: Call::Origin,
+		origin: Call::RuntimeOrigin,
 	) -> Result<Call::PostInfo, DispatchErrorWithPostInfo<Call::PostInfo>> {
 		call.dispatch(origin)
 	}

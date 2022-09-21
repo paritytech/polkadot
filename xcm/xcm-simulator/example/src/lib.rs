@@ -107,7 +107,7 @@ pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
 }
 
 pub fn relay_ext() -> sp_io::TestExternalities {
-	use relay_chain::{Origin, Runtime, System, Uniques};
+	use relay_chain::{Runtime, RuntimeOrigin, System, Uniques};
 
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 
@@ -124,8 +124,8 @@ pub fn relay_ext() -> sp_io::TestExternalities {
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| {
 		System::set_block_number(1);
-		assert_eq!(Uniques::force_create(Origin::root(), 1, ALICE, true), Ok(()));
-		assert_eq!(Uniques::mint(Origin::signed(ALICE), 1, 42, child_account_id(1)), Ok(()));
+		assert_eq!(Uniques::force_create(RuntimeOrigin::root(), 1, ALICE, true), Ok(()));
+		assert_eq!(Uniques::mint(RuntimeOrigin::signed(ALICE), 1, 42, child_account_id(1)), Ok(()));
 	});
 	ext
 }
@@ -158,10 +158,9 @@ mod tests {
 	fn dmp() {
 		MockNet::reset();
 
-		let remark =
-			parachain::Call::System(frame_system::Call::<parachain::Runtime>::remark_with_event {
-				remark: vec![1, 2, 3],
-			});
+		let remark = parachain::RuntimeCall::System(
+			frame_system::Call::<parachain::Runtime>::remark_with_event { remark: vec![1, 2, 3] },
+		);
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::send_xcm(
 				Here,
@@ -175,10 +174,11 @@ mod tests {
 		});
 
 		ParaA::execute_with(|| {
-			use parachain::{Event, System};
-			assert!(System::events()
-				.iter()
-				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
+			use parachain::{RuntimeEvent, System};
+			assert!(System::events().iter().any(|r| matches!(
+				r.event,
+				RuntimeEvent::System(frame_system::Event::Remarked { .. })
+			)));
 		});
 	}
 
@@ -186,7 +186,7 @@ mod tests {
 	fn ump() {
 		MockNet::reset();
 
-		let remark = relay_chain::Call::System(
+		let remark = relay_chain::RuntimeCall::System(
 			frame_system::Call::<relay_chain::Runtime>::remark_with_event { remark: vec![1, 2, 3] },
 		);
 		ParaA::execute_with(|| {
@@ -202,10 +202,11 @@ mod tests {
 		});
 
 		Relay::execute_with(|| {
-			use relay_chain::{Event, System};
-			assert!(System::events()
-				.iter()
-				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
+			use relay_chain::{RuntimeEvent, System};
+			assert!(System::events().iter().any(|r| matches!(
+				r.event,
+				RuntimeEvent::System(frame_system::Event::Remarked { .. })
+			)));
 		});
 	}
 
@@ -213,10 +214,9 @@ mod tests {
 	fn xcmp() {
 		MockNet::reset();
 
-		let remark =
-			parachain::Call::System(frame_system::Call::<parachain::Runtime>::remark_with_event {
-				remark: vec![1, 2, 3],
-			});
+		let remark = parachain::RuntimeCall::System(
+			frame_system::Call::<parachain::Runtime>::remark_with_event { remark: vec![1, 2, 3] },
+		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
 				Here,
@@ -230,10 +230,11 @@ mod tests {
 		});
 
 		ParaB::execute_with(|| {
-			use parachain::{Event, System};
-			assert!(System::events()
-				.iter()
-				.any(|r| matches!(r.event, Event::System(frame_system::Event::Remarked { .. }))));
+			use parachain::{RuntimeEvent, System};
+			assert!(System::events().iter().any(|r| matches!(
+				r.event,
+				RuntimeEvent::System(frame_system::Event::Remarked { .. })
+			)));
 		});
 	}
 
@@ -245,7 +246,7 @@ mod tests {
 
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::reserve_transfer_assets(
-				relay_chain::Origin::signed(ALICE),
+				relay_chain::RuntimeOrigin::signed(ALICE),
 				Box::new(Parachain(1).into()),
 				Box::new(AccountId32 { network: None, id: ALICE.into() }.into()),
 				Box::new((Here, withdraw_amount).into()),
@@ -340,7 +341,7 @@ mod tests {
 		Relay::execute_with(|| {
 			// Mint the NFT (1, 69) and give it to our "parachain#1 alias".
 			assert_ok!(relay_chain::Uniques::mint(
-				relay_chain::Origin::signed(ALICE),
+				relay_chain::RuntimeOrigin::signed(ALICE),
 				1,
 				69,
 				child_account_account_id(1, ALICE),
@@ -354,7 +355,7 @@ mod tests {
 		});
 		ParaA::execute_with(|| {
 			assert_ok!(parachain::ForeignUniques::force_create(
-				parachain::Origin::root(),
+				parachain::RuntimeOrigin::root(),
 				(Parent, GeneralIndex(1)).into(),
 				ALICE,
 				false,
@@ -406,13 +407,13 @@ mod tests {
 
 		Relay::execute_with(|| {
 			assert_ok!(relay_chain::Uniques::force_create(
-				relay_chain::Origin::root(),
+				relay_chain::RuntimeOrigin::root(),
 				2,
 				ALICE,
 				false
 			));
 			assert_ok!(relay_chain::Uniques::mint(
-				relay_chain::Origin::signed(ALICE),
+				relay_chain::RuntimeOrigin::signed(ALICE),
 				2,
 				69,
 				child_account_account_id(1, ALICE)
@@ -424,7 +425,7 @@ mod tests {
 		});
 		ParaA::execute_with(|| {
 			assert_ok!(parachain::ForeignUniques::force_create(
-				parachain::Origin::root(),
+				parachain::RuntimeOrigin::root(),
 				(Parent, GeneralIndex(2)).into(),
 				ALICE,
 				false,
@@ -475,13 +476,13 @@ mod tests {
 
 		Relay::execute_with(|| {
 			assert_ok!(relay_chain::Uniques::force_create(
-				relay_chain::Origin::root(),
+				relay_chain::RuntimeOrigin::root(),
 				2,
 				ALICE,
 				false
 			));
 			assert_ok!(relay_chain::Uniques::mint(
-				relay_chain::Origin::signed(ALICE),
+				relay_chain::RuntimeOrigin::signed(ALICE),
 				2,
 				69,
 				child_account_account_id(1, ALICE)
@@ -494,10 +495,12 @@ mod tests {
 			let message = Xcm(vec![Transact {
 				origin_kind: OriginKind::Xcm,
 				require_weight_at_most: 1_000_000_000,
-				call: parachain::Call::from(pallet_uniques::Call::<parachain::Runtime>::create {
-					collection: (Parent, 2u64).into(),
-					admin: parent_account_id(),
-				})
+				call: parachain::RuntimeCall::from(
+					pallet_uniques::Call::<parachain::Runtime>::create {
+						collection: (Parent, 2u64).into(),
+						admin: parent_account_id(),
+					},
+				)
 				.encode()
 				.into(),
 			}]);

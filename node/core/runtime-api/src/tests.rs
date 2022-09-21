@@ -23,11 +23,11 @@ use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
 	v2::{
-		AuthorityDiscoveryId, Block, BlockNumber, CandidateEvent, CandidateHash,
-		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Id as ParaId,
-		InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+		AuthorityDiscoveryId, Block, CandidateEvent, CommittedCandidateReceipt, CoreState,
+		GroupRotationInfo, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+		OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
+		SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+		ValidatorSignature,
 	},
 };
 use sp_api::ProvideRuntimeApi;
@@ -196,14 +196,10 @@ sp_api::mock_impl_runtime_apis! {
 		) -> Option<ValidationCodeHash> {
 			self.validation_code_hash.get(&para).map(|c| c.clone())
 		}
-
-		fn staging_get_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
-			unimplemented!()
-		}
 	}
 
 	impl BabeApi<Block> for MockRuntimeApi {
-		fn configuration(&self) -> sp_consensus_babe::BabeGenesisConfiguration {
+		fn configuration(&self) -> sp_consensus_babe::BabeConfiguration {
 			unimplemented!()
 		}
 

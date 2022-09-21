@@ -512,6 +512,15 @@ pub fn run() -> Result<()> {
 			let chain_spec = &runner.config().chain_spec;
 
 			match cmd {
+				#[cfg(not(feature = "runtime-benchmarks"))]
+				BenchmarkCmd::Storage(_) =>
+					return Err(sc_cli::Error::Input(
+						"Compile with --features=runtime-benchmarks \
+						to enable storage benchmarks."
+							.into(),
+					)
+					.into()),
+				#[cfg(feature = "runtime-benchmarks")]
 				BenchmarkCmd::Storage(cmd) => runner.sync_run(|mut config| {
 					let (client, backend, _, _) = service::new_chain_ops(&mut config, None)?;
 					let db = backend.expose_db();
@@ -552,14 +561,25 @@ pub fn run() -> Result<()> {
 
 								unwrap_client!(
 									client,
-									cmd.run(client.clone(), inherent_data, &ext_factory)
-										.map_err(Error::SubstrateCli)
+									cmd.run(
+										client.clone(),
+										inherent_data,
+										Vec::new(),
+										&ext_factory
+									)
+									.map_err(Error::SubstrateCli)
 								)
 							},
 							BenchmarkCmd::Overhead(cmd) => unwrap_client!(
 								client,
-								cmd.run(config, client.clone(), inherent_data, &remark_builder)
-									.map_err(Error::SubstrateCli)
+								cmd.run(
+									config,
+									client.clone(),
+									inherent_data,
+									Vec::new(),
+									&remark_builder
+								)
+								.map_err(Error::SubstrateCli)
 							),
 							_ => unreachable!("Ensured by the outside match; qed"),
 						}

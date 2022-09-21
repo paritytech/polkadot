@@ -17,12 +17,11 @@
 // Shared test utilities and implementations for the XCM Builder.
 
 use frame_support::{
-	dispatch::Weight,
 	parameter_types,
 	traits::{Contains, CrateVersion, PalletInfoData, PalletsInfoAccess},
 };
 use sp_std::vec::Vec;
-pub use xcm::latest::prelude::*;
+pub use xcm::latest::{prelude::*, Weight};
 use xcm_executor::traits::{ClaimAssets, DropAssets, VersionChangeNotifier};
 pub use xcm_executor::{
 	traits::{

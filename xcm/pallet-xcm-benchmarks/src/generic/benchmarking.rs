@@ -19,10 +19,9 @@ use crate::{new_executor, XcmCallOf};
 use codec::Encode;
 use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
-use sp_io::hashing::blake2_256;
 use sp_std::vec;
 use xcm::{
-	latest::{prelude::*, MaybeErrorCode, MultiAssets},
+	latest::{prelude::*, MaybeErrorCode},
 	DoubleEncoded,
 };
 use xcm_executor::{ExecutorError, FeesMode};
@@ -74,26 +73,6 @@ benchmarks! {
 
 	}
 
-	// Worst case scenario for this benchmark is a large number of assets to
-	// filter through the reserve.
-	reserve_asset_deposited {
-		const MAX_ASSETS: u32 = 100; // TODO when executor has a built in limit, use it here. #4426
-		let mut executor = new_executor::<T>(Default::default());
-		let assets = (0..MAX_ASSETS).map(|i| MultiAsset {
-			id: Abstract(i.using_encoded(blake2_256)),
-			fun: Fungible(i as u128),
-
-		}).collect::<vec::Vec<_>>();
-		let multiassets: MultiAssets = assets.into();
-
-		let instruction = Instruction::ReserveAssetDeposited(multiassets.clone());
-		let xcm = Xcm(vec![instruction]);
-	}: {
-		executor.bench_process(xcm).map_err(|_| BenchmarkError::Skip)?;
-	} verify {
-		assert_eq!(executor.holding(), &multiassets.into());
-	}
-
 	query_response {
 		let mut executor = new_executor::<T>(Default::default());
 		let (query_id, response) = T::worst_case_response();
@@ -113,14 +92,14 @@ benchmarks! {
 	transact {
 		let origin = T::transact_origin()?;
 		let mut executor = new_executor::<T>(origin);
-		let noop_call: <T as Config>::Call = frame_system::Call::remark_with_event {
+		let noop_call: <T as Config>::RuntimeCall = frame_system::Call::remark_with_event {
 			remark: Default::default()
 		}.into();
 		let double_encoded_noop_call: DoubleEncoded<_> = noop_call.encode().into();
 
 		let instruction = Instruction::Transact {
 			origin_kind: OriginKind::SovereignAccount,
-			require_weight_at_most: noop_call.get_dispatch_info().weight,
+			require_weight_at_most: noop_call.get_dispatch_info().weight.ref_time(),
 			call: double_encoded_noop_call,
 		};
 		let xcm = Xcm(vec![instruction]);
