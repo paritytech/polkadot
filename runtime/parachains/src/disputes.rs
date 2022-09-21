@@ -39,6 +39,7 @@ use sp_std::{cmp::Ordering, prelude::*};
 #[allow(unused_imports)]
 pub(crate) use self::tests::run_to_block;
 
+pub mod slashing;
 #[cfg(test)]
 mod tests;
 
@@ -73,35 +74,55 @@ impl RewardValidators for () {
 }
 
 /// Punishment hooks for disputes.
-pub trait PunishValidators {
-	/// Punish a series of validators who were for an invalid parablock. This is expected to be a major
-	/// punishment.
+pub trait SlashingHandler<BlockNumber> {
+	/// Punish a series of validators who were for an invalid parablock. This is
+	/// expected to be a major punishment.
 	fn punish_for_invalid(
 		session: SessionIndex,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
+		candidate_hash: CandidateHash,
+		losers: impl IntoIterator<Item = ValidatorIndex>,
 	);
 
-	/// Punish a series of validators who were against a valid parablock. This is expected to be a minor
-	/// punishment.
+	/// Punish a series of validators who were against a valid parablock. This
+	/// is expected to be a minor punishment.
 	fn punish_against_valid(
 		session: SessionIndex,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
+		candidate_hash: CandidateHash,
+		losers: impl IntoIterator<Item = ValidatorIndex>,
 	);
 
-	/// Punish a series of validators who were part of a dispute which never concluded. This is expected
-	/// to be a minor punishment.
-	fn punish_inconclusive(
-		session: SessionIndex,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
-	);
+	/// Called by the initializer to initialize the slashing pallet.
+	fn initializer_initialize(now: BlockNumber) -> Weight;
+
+	/// Called by the initializer to finalize the slashing pallet.
+	fn initializer_finalize();
+
+	/// Called by the initializer to note that a new session has started.
+	fn initializer_on_new_session(session_index: SessionIndex);
 }
 
-impl PunishValidators for () {
-	fn punish_for_invalid(_: SessionIndex, _: impl IntoIterator<Item = ValidatorIndex>) {}
+impl<BlockNumber> SlashingHandler<BlockNumber> for () {
+	fn punish_for_invalid(
+		_: SessionIndex,
+		_: CandidateHash,
+		_: impl IntoIterator<Item = ValidatorIndex>,
+	) {
+	}
 
-	fn punish_against_valid(_: SessionIndex, _: impl IntoIterator<Item = ValidatorIndex>) {}
+	fn punish_against_valid(
+		_: SessionIndex,
+		_: CandidateHash,
+		_: impl IntoIterator<Item = ValidatorIndex>,
+	) {
+	}
 
-	fn punish_inconclusive(_: SessionIndex, _: impl IntoIterator<Item = ValidatorIndex>) {}
+	fn initializer_initialize(_now: BlockNumber) -> Weight {
+		Weight::zero()
+	}
+
+	fn initializer_finalize() {}
+
+	fn initializer_on_new_session(_: SessionIndex) {}
 }
 
 /// Binary discriminator to determine if the expensive signature
@@ -412,7 +433,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config + configuration::Config + session_info::Config {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type RewardValidators: RewardValidators;
-		type PunishValidators: PunishValidators;
+		type SlashingHandler: SlashingHandler<Self::BlockNumber>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -831,14 +852,7 @@ impl<T: Config> Pallet<T> {
 					// it would be unexpected for any change here to occur when the dispute has not concluded
 					// in time, as a dispute guaranteed to have at least one honest participant should
 					// conclude quickly.
-					let participating = decrement_spam(spam_slots, &dispute);
-
-					// Slight punishment as these validators have failed to make data available to
-					// others in a timely manner.
-					T::PunishValidators::punish_inconclusive(
-						session_index,
-						participating.iter_ones().map(|i| ValidatorIndex(i as _)),
-					);
+					let _participating = decrement_spam(spam_slots, &dispute);
 				});
 
 				weight += T::DbWeight::get().reads_writes(2, 2);
@@ -1187,7 +1201,9 @@ impl<T: Config> Pallet<T> {
 			Error::<T>::SingleSidedDispute,
 		);
 
-		let DisputeStatementSet { session, candidate_hash, .. } = set.clone();
+		let DisputeStatementSet { ref session, ref candidate_hash, .. } = set;
+		let session = *session;
+		let candidate_hash = *candidate_hash;
 
 		// we can omit spam slot checks, `fn filter_disputes_data` is
 		// always called before calling this `fn`.
@@ -1227,10 +1243,14 @@ impl<T: Config> Pallet<T> {
 		// Slash participants on a losing side.
 		{
 			// a valid candidate, according to 2/3. Punish those on the 'against' side.
-			T::PunishValidators::punish_against_valid(session, summary.slash_against);
+			T::SlashingHandler::punish_against_valid(
+				session,
+				candidate_hash,
+				summary.slash_against,
+			);
 
 			// an invalid candidate, according to 2/3. Punish those on the 'for' side.
-			T::PunishValidators::punish_for_invalid(session, summary.slash_for);
+			T::SlashingHandler::punish_for_invalid(session, candidate_hash, summary.slash_for);
 		}
 
 		<Disputes<T>>::insert(&session, &candidate_hash, &summary.state);

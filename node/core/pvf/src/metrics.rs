@@ -16,7 +16,7 @@
 
 //! Prometheus metrics related to the validation host.
 
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_metrics::metrics::{self, prometheus};
 
 /// Validation host metrics.
 #[derive(Default, Clone)]
