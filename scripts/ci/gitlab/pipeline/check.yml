@@ -71,6 +71,7 @@ check-runtime-migration:
       else
         echo "runtimemigration label not found. Skipping"
       fi
+  allow_failure:                   true
 
 # is broken, need to fix
 check-no-default-features:
