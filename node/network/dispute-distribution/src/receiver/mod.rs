@@ -356,6 +356,7 @@ where
 				gum::trace!(
 					target: LOG_TARGET,
 					?candidate_hash,
+					?peer,
 					"No batch yet - triggering immediate import"
 				);
 				let import = PreparedImport {
@@ -380,6 +381,7 @@ where
 					// resolution is unaffected.
 					gum::debug!(
 						target: LOG_TARGET,
+						?peer,
 						"Peer sent completely redundant votes within a single batch - that looks fishy!",
 					);
 					pending_response
