@@ -65,9 +65,13 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 
 /// The means that we convert an the XCM message origin location into a local dispatch origin.
 type LocalOriginConverter = (
+	// A `Signed` origin of the sovereign account that the original location controls.
 	SovereignSignedViaLocation<LocationConverter, RuntimeOrigin>,
+	// A child parachain, natively expressed, has the `Parachain` origin.
 	ChildParachainAsNative<parachains_origin::Origin, RuntimeOrigin>,
+	// The AccountId32 location type can be expressed natively as a `Signed` origin.
 	SignedAccountId32AsNative<ThisNetwork, RuntimeOrigin>,
+	// A system child parachain, expressed as a Superuser, converts to the `Root` origin.
 	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
 );
 

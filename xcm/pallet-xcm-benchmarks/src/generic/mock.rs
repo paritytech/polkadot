@@ -192,18 +192,18 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	t.into()
 }
 
-pub struct AlwaysSignedByDefault<Origin>(core::marker::PhantomData<Origin>);
-impl<Origin> ConvertOrigin<Origin> for AlwaysSignedByDefault<Origin>
+pub struct AlwaysSignedByDefault<RuntimeOrigin>(core::marker::PhantomData<RuntimeOrigin>);
+impl<RuntimeOrigin> ConvertOrigin<RuntimeOrigin> for AlwaysSignedByDefault<RuntimeOrigin>
 where
-	Origin: OriginTrait,
-	<Origin as OriginTrait>::AccountId: Decode,
+	RuntimeOrigin: OriginTrait,
+	<RuntimeOrigin as OriginTrait>::AccountId: Decode,
 {
 	fn convert_origin(
 		_origin: impl Into<MultiLocation>,
 		_kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
-		Ok(Origin::signed(
-			<Origin as OriginTrait>::AccountId::decode(&mut TrailingZeroInput::zeroes())
+	) -> Result<RuntimeOrigin, MultiLocation> {
+		Ok(RuntimeOrigin::signed(
+			<RuntimeOrigin as OriginTrait>::AccountId::decode(&mut TrailingZeroInput::zeroes())
 				.expect("infinite length input; no invalid inputs for type; qed"),
 		))
 	}

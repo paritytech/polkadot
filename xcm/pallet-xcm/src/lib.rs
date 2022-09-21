@@ -2024,12 +2024,14 @@ where
 
 /// A simple passthrough where we reuse the `MultiLocation`-typed XCM origin as the inner value of
 /// this crate's `Origin::Xcm` value.
-pub struct XcmPassthrough<Origin>(PhantomData<Origin>);
-impl<Origin: From<crate::Origin>> ConvertOrigin<Origin> for XcmPassthrough<Origin> {
+pub struct XcmPassthrough<RuntimeOrigin>(PhantomData<RuntimeOrigin>);
+impl<RuntimeOrigin: From<crate::Origin>> ConvertOrigin<RuntimeOrigin>
+	for XcmPassthrough<RuntimeOrigin>
+{
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
+	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
 		match kind {
 			OriginKind::Xcm => Ok(crate::Origin::Xcm(origin).into()),
