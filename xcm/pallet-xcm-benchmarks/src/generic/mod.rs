@@ -15,7 +15,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config<I: 'static = ()>: frame_system::Config + crate::Config {
-		type RuntimeCall: Dispatchable<Origin = Self::Origin>
+		type RuntimeCall: Dispatchable<RuntimeOrigin = Self::RuntimeOrigin>
 			+ GetDispatchInfo
 			+ From<frame_system::Call<Self>>
 			+ Encode;
