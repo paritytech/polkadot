@@ -718,12 +718,10 @@ where
 	Ok(leaves.into_iter().rev().take(MAX_ACTIVE_LEAVES).collect())
 }
 
-pub fn create_availability_config() -> AvailabilityConfig {
-	AvailabilityConfig {
-		col_data: parachains_db::REAL_COLUMNS.col_availability_data,
-		col_meta: parachains_db::REAL_COLUMNS.col_availability_meta,
-	}
-}
+pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
+	col_data: parachains_db::REAL_COLUMNS.col_availability_data,
+	col_meta: parachains_db::REAL_COLUMNS.col_availability_meta,
+};
 
 /// Create a new full node of arbitrary runtime and executor.
 ///
@@ -933,8 +931,6 @@ where
 
 	let parachains_db = open_database(&config.database)?;
 
-	let availability_config = create_availability_config();
-
 	let approval_voting_config = ApprovalVotingConfig {
 		col_data: parachains_db::REAL_COLUMNS.col_approval_data,
 		slot_duration_millis: slot_duration.as_millis() as u64,
@@ -1067,7 +1063,7 @@ where
 					spawner,
 					is_collator,
 					approval_voting_config,
-					availability_config,
+					availability_config: AVAILABILITY_CONFIG,
 					candidate_validation_config,
 					chain_selection_config,
 					dispute_coordinator_config,
