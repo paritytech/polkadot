@@ -96,6 +96,9 @@ use rococo_runtime_constants::{currency::*, fee::*, time::*};
 // Weights used in the runtime.
 mod weights;
 
+// Voter bag thresholds
+mod bag_thresholds; // copy pasted from Westend
+
 // XCM configurations.
 pub mod xcm_config;
 
