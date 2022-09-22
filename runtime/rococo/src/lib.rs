@@ -99,8 +99,6 @@ mod weights;
 // XCM configurations.
 pub mod xcm_config;
 
-mod validator_manager;
-
 impl_runtime_weights!(rococo_runtime_constants);
 
 // Make the WASM binary available.
@@ -368,22 +366,22 @@ impl pallet_session::Config for Runtime {
 	type ValidatorIdOf = ValidatorIdOf;
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
-	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, ValidatorManager>;
+	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type WeightInfo = weights::pallet_session::WeightInfo<Runtime>;
 }
 
-pub struct FullIdentificationOf;
-impl sp_runtime::traits::Convert<AccountId, Option<()>> for FullIdentificationOf {
-	fn convert(_: AccountId) -> Option<()> {
-		Some(Default::default())
-	}
-}
+// pub struct FullIdentificationOf;
+// impl sp_runtime::traits::Convert<AccountId, Option<()>> for FullIdentificationOf {
+// 	fn convert(_: AccountId) -> Option<()> {
+// 		Some(Default::default())
+// 	}
+// }
 
 impl pallet_session::historical::Config for Runtime {
-	type FullIdentification = ();
-	type FullIdentificationOf = FullIdentificationOf;
+	type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
+	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
 
 parameter_types! {
@@ -1399,11 +1397,6 @@ impl assigned_slots::Config for Runtime {
 	type MaxTemporarySlotPerLeasePeriod = MaxTemporarySlotPerLeasePeriod;
 }
 
-impl validator_manager::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type PrivilegedOrigin = EnsureRoot<AccountId>;
-}
-
 impl pallet_sudo::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type RuntimeCall = RuntimeCall;
@@ -1520,9 +1513,6 @@ construct_runtime! {
 
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call} = 250,
 		AssignedSlots: assigned_slots::{Pallet, Call, Storage, Event<T>} = 251,
-
-		// Validator Manager pallet.
-		ValidatorManager: validator_manager::{Pallet, Call, Storage, Event<T>} = 252,
 
 		// Sudo.
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>} = 255,
