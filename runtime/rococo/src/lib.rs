@@ -20,6 +20,8 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
+use frame_election_provider_support::{onchain, SequentialPhragmen};
+use pallet_staking::UseValidatorsMap;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v2::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
@@ -29,9 +31,9 @@ use primitives::v2::{
 	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	assigned_slots, auctions, claims, crowdloan, impl_runtime_weights, impls::ToAuthor,
-	paras_registrar, paras_sudo_wrapper, prod_or_fast, slots, BlockHashCount, BlockLength,
-	SlowAdjustingFeeUpdate,
+	assigned_slots, auctions, claims, crowdloan, elections::OnChainAccuracy, impl_runtime_weights,
+	impls::ToAuthor, paras_registrar, paras_sudo_wrapper, prod_or_fast, slots, BlockHashCount,
+	BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
 };
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
@@ -63,12 +65,14 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_session::historical as session_historical;
+use pallet_session::historical::{self as session_historical};
 use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
 use sp_core::{OpaqueMetadata, H256};
 use sp_mmr_primitives as mmr;
 use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys,
+	create_runtime_str,
+	curve::PiecewiseLinear,
+	generic, impl_opaque_keys,
 	traits::{
 		AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic as ExtrinsicT,
 		Keccak256, OpaqueKeys, SaturatedConversion, Verify,
@@ -84,6 +88,7 @@ use static_assertions::const_assert;
 
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
+pub use pallet_staking::StakerStatus;
 
 /// Constant values used within the runtime.
 use rococo_runtime_constants::{currency::*, fee::*, time::*};
@@ -684,6 +689,108 @@ impl pallet_grandpa::Config for Runtime {
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
 }
+
+// ----STAKING
+parameter_types! {
+	// phase durations. 1/4 of the last session for each.
+	// pub SignedPhase: u32 = prod_or_fast!(
+	// 	EPOCH_DURATION_IN_SLOTS / 4,
+	// 	(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2)
+	// );
+	// pub UnsignedPhase: u32 = prod_or_fast!(
+	// 	EPOCH_DURATION_IN_SLOTS / 4,
+	// 	(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2)
+	// );
+
+	// signed config
+	// pub const SignedMaxSubmissions: u32 = 128;
+	// pub const SignedMaxRefunds: u32 = 128 / 4;
+	// pub const SignedDepositBase: Balance = deposit(2, 0);
+	// pub const SignedDepositByte: Balance = deposit(0, 10) / 1024;
+	// Each good submission will get 1 WND as reward
+	// pub SignedRewardBase: Balance = 1 * UNITS;
+	// pub BetterUnsignedThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
+
+	// 1 hour session, 15 minutes unsigned phase, 4 offchain executions.
+	// pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 4;
+
+	/// We take the top 22500 nominators as electing voters..
+	pub const MaxElectingVoters: u32 = 22_500;
+	/// ... and all of the validators as electable targets. Whilst this is the case, we cannot and
+	/// shall not increase the size of the validator intentions.
+	pub const MaxElectableTargets: u16 = u16::MAX;
+}
+
+frame_election_provider_support::generate_solution_type!(
+	#[compact]
+	pub struct NposCompactSolution16::<
+		VoterIndex = u32,
+		TargetIndex = u16,
+		Accuracy = sp_runtime::PerU16,
+		MaxVoters = MaxElectingVoters,
+	>(16)
+);
+
+pallet_staking_reward_curve::build! {
+	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
+		min_inflation: 0_025_000,
+		max_inflation: 0_100_000,
+		ideal_stake: 0_500_000,
+		falloff: 0_050_000,
+		max_piece_count: 40,
+		test_precision: 0_005_000,
+	);
+}
+
+pub struct OnChainSeqPhragmen;
+impl onchain::Config for OnChainSeqPhragmen {
+	type System = Runtime;
+	type Solver = SequentialPhragmen<AccountId, OnChainAccuracy>;
+	type DataProvider = Staking; // todo: add this pallet
+	type WeightInfo = weights::frame_election_provider_support::WeightInfo<Runtime>;
+}
+
+parameter_types! {
+	// 1 era in which slashes can be cancelled (6 hours).
+	pub const SlashDeferDuration: sp_staking::EraIndex = 1;
+	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
+	pub const MaxNominatorRewardedPerValidator: u32 = 64;
+	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
+	pub const MaxNominations: u32 = <NposCompactSolution16 as frame_election_provider_support::NposSolution>::LIMIT as u32;
+}
+
+impl pallet_staking::Config for Runtime {
+	type MaxNominations = MaxNominations;
+	type Currency = Balances;
+	type CurrencyBalance = Balance;
+	type UnixTime = Timestamp;
+	type CurrencyToVote = CurrencyToVote;
+	type RewardRemainder = ();
+	type RuntimeEvent = RuntimeEvent;
+	type Slash = ();
+	type Reward = ();
+	type SessionsPerEra = SessionsPerEra;
+	type BondingDuration = BondingDuration;
+	type SlashDeferDuration = SlashDeferDuration;
+	// A majority of the council can cancel the slash.
+	type SlashCancelOrigin = EnsureRoot<AccountId>;
+	type SessionInterface = Self;
+	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
+	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
+	type NextNewSession = Session;
+	type ElectionProvider = ElectionProviderMultiPhase; //todo: add this pallet
+	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	type VoterList = VoterList; //todo: add this pallet
+	type TargetList = UseValidatorsMap<Self>;
+	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
+	type HistoryDepth = frame_support::traits::ConstU32<84>;
+	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
+	type OnStakerSlash = NominationPools;
+	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
+}
+
+// ----
 
 /// Submits a transaction with the node's public and signature type. Adheres to the signed extension
 /// format of the chain.
@@ -1323,6 +1430,7 @@ construct_runtime! {
 		// Authorship must be before session in order to note author in the correct session and era
 		// for im-online.
 		Authorship: pallet_authorship::{Pallet, Call, Storage} = 5,
+		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>} = 6,
 		Offences: pallet_offences::{Pallet, Storage, Event} = 7,
 		Historical: session_historical::{Pallet} = 34,
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 8,

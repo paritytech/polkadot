@@ -1077,6 +1077,19 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
+		nomination_pools: Default::default(),
+		staking: rococo::StakingConfig {
+			validator_count: 50,
+			minimum_validator_count: 4,
+			stakers: initial_authorities
+				.iter()
+				.map(|x| (x.0.clone(), x.1.clone(), STASH, rococo::StakerStatus::Validator))
+				.collect(),
+			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+			force_era: Forcing::ForceNone,
+			slash_reward_fraction: Perbill::from_percent(10),
+			..Default::default()
+		},
 	}
 }
 
@@ -1574,6 +1587,7 @@ pub fn rococo_testnet_genesis(
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
 
 	const ENDOWMENT: u128 = 1_000_000 * ROC;
+	const STASH: u128 = 100 * ROC;
 
 	rococo_runtime::GenesisConfig {
 		system: rococo_runtime::SystemConfig { code: wasm_binary.to_vec() },
@@ -1634,6 +1648,19 @@ pub fn rococo_testnet_genesis(
 			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
+		nomination_pools: Default::default(),
+		staking: rococo::StakingConfig {
+			validator_count: 50,
+			minimum_validator_count: 4,
+			stakers: initial_authorities
+				.iter()
+				.map(|x| (x.0.clone(), x.1.clone(), STASH, rococo::StakerStatus::Validator))
+				.collect(),
+			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+			force_era: Forcing::ForceNone,
+			slash_reward_fraction: Perbill::from_percent(10),
+			..Default::default()
+		},
 	}
 }
 
