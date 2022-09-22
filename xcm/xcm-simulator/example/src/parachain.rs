@@ -156,7 +156,7 @@ impl EnsureOriginWithArg<RuntimeOrigin, MultiLocation> for ForeignCreators {
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn successful_origin(a: &MultiLocation) -> Origin {
+	fn successful_origin(a: &MultiLocation) -> RuntimeOrigin {
 		pallet_xcm::Origin::Xcm(a.clone()).into()
 	}
 }
