@@ -177,10 +177,12 @@ pub(crate) struct State {
 	peers: HashMap<PeerId, PeerState>,
 	keystore: SyncCryptoStorePtr,
 	topology_storage: SessionBoundGridTopologyStorage,
+	authorities: HashMap<AuthorityDiscoveryId, PeerId>,
 }
 
 struct PeerState {
 	view: View,
+	maybe_authority: Option<HashSet<AuthorityDiscoveryId>>,
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
@@ -190,20 +192,44 @@ pub(crate) async fn handle_network_update<Context>(
 	update: NetworkBridgeEvent<net_protocol::StatementDistributionMessage>,
 ) {
 	match update {
-		NetworkBridgeEvent::PeerConnected(peer_id, _role, protocol_version, authority_ids) => {
+		NetworkBridgeEvent::PeerConnected(peer_id, role, protocol_version, authority_ids) => {
+			gum::trace!(target: LOG_TARGET, ?peer_id, ?role, ?protocol_version, "Peer connected");
+
 			if protocol_version != ValidationVersion::VStaging.into() {
 				return
 			}
 
-			state.peers.insert(peer_id, PeerState { view: View::default() });
+			state.peers.insert(
+				peer_id,
+				PeerState {
+					view: View::default(),
+					maybe_authority: authority_ids.clone(),
+				},
+			);
 
-			// TODO [now]: update some authorities map.
+			if let Some(authority_ids) = authority_ids {
+				authority_ids.into_iter().for_each(|a| {
+					state.authorities.insert(a, peer_id);
+				})
+			}
 		},
 		NetworkBridgeEvent::PeerDisconnected(peer_id) => {
 			state.peers.remove(&peer_id);
 		},
-		NetworkBridgeEvent::NewGossipTopology(new_topology) => {
-			// TODO [now]
+		NetworkBridgeEvent::NewGossipTopology(topology) => {
+			let new_session_index = topology.session;
+			let new_topology: SessionGridTopology = topology.into();
+			let old_topology = state.topology_storage.get_current_topology();
+			let newly_added = new_topology.peers_diff(old_topology);
+			state.topology_storage.update_topology(new_session_index, new_topology);
+			for peer in newly_added {
+				if let Some(data) = state.peers.get_mut(&peer) {
+					// TODO [now]: send the peer any topology-specific
+					// messages we need to send them. Like forwarding or sending backed-candidate
+					// messages. But in principle we shouldn't have accepted any such messages as we don't
+					// yet have the topology.
+				}
+			}
 		},
 		NetworkBridgeEvent::PeerMessage(peer_id, message) => {
 			match message {
@@ -523,8 +549,11 @@ async fn broadcast_local_statement<Context>(
 	let mut prior_to = Vec::new();
 	let mut statement_to = Vec::new();
 	for (validator_index, authority_id) in targets {
-		// TODO [now], also continue if not connected.
-		let peer_id: PeerId = unimplemented!();
+		// Find peer ID based on authority ID, and also filter to connected.
+		let peer_id: PeerId = match state.authorities.get(&authority_id) {
+			Some(p) if state.peers.contains_key(p) => p.clone(),
+			None | Some(_) => continue,
+		};
 
 		// We guarantee that the receiving peer knows the candidate by
 		// sending them a `Seconded` statement first.
