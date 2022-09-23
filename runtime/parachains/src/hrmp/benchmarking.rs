@@ -66,7 +66,7 @@ fn establish_para_connection<T: Config>(
 	until: ParachainSetupStep,
 ) -> [(ParaId, crate::Origin); 2]
 where
-	<T as frame_system::Config>::Origin: From<crate::Origin>,
+	<T as frame_system::Config>::RuntimeOrigin: From<crate::Origin>,
 {
 	let config = Configuration::<T>::config();
 	let deposit: BalanceOf<T> = config.hrmp_sender_deposit.unique_saturated_into();
@@ -138,7 +138,7 @@ static_assertions::const_assert!(HRMP_MAX_INBOUND_CHANNELS_BOUND < PREFIX_0);
 static_assertions::const_assert!(HRMP_MAX_OUTBOUND_CHANNELS_BOUND < PREFIX_0);
 
 frame_benchmarking::benchmarks! {
-	where_clause { where <T as frame_system::Config>::Origin: From<crate::Origin> }
+	where_clause { where <T as frame_system::Config>::RuntimeOrigin: From<crate::Origin> }
 
 	hrmp_init_open_channel {
 		let sender_id: ParaId = 1u32.into();

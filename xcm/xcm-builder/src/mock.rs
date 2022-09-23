@@ -60,11 +60,11 @@ pub enum TestCall {
 	Any(Weight, Option<Weight>),
 }
 impl Dispatchable for TestCall {
-	type Origin = TestOrigin;
+	type RuntimeOrigin = TestOrigin;
 	type Config = ();
 	type Info = ();
 	type PostInfo = PostDispatchInfo;
-	fn dispatch(self, origin: Self::Origin) -> DispatchResultWithPostInfo {
+	fn dispatch(self, origin: Self::RuntimeOrigin) -> DispatchResultWithPostInfo {
 		let mut post_info = PostDispatchInfo::default();
 		let maybe_actual = match self {
 			TestCall::OnlyRoot(_, maybe_actual) |
