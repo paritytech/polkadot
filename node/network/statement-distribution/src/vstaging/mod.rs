@@ -21,6 +21,7 @@ use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology},
 	peer_set::ValidationVersion,
+	UnifiedReputationChange as Rep,
 	vstaging as protocol_vstaging, PeerId, Versioned, View,
 };
 use polkadot_node_primitives::{
@@ -35,7 +36,7 @@ use polkadot_node_subsystem_util::backing_implicit_view::{FetchError, View as Im
 use polkadot_primitives::vstaging::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, CoreState,
 	GroupIndex, Hash, Id as ParaId, PersistedValidationData, SessionIndex, SignedStatement,
-	UncheckedSignedStatement, ValidatorId, ValidatorIndex,
+	UncheckedSignedStatement, ValidatorId, ValidatorIndex, SigningContext,
 };
 
 use sp_keystore::SyncCryptoStorePtr;
@@ -48,6 +49,17 @@ use crate::{
 	error::{JfyiError, JfyiErrorResult},
 	LOG_TARGET,
 };
+
+const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
+const COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE: Rep =
+	Rep::CostMinor("Unexpected Statement, missing knowlege for relay parent");
+const COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE: Rep =
+	Rep::CostMinor("Unexpected Statement, unknown candidate");
+const COST_UNEXPECTED_STATEMENT_REMOTE: Rep =
+	Rep::CostMinor("Unexpected Statement, remote not allowed");
+
+const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
+
 
 struct PerRelayParentState {
 	validators: Vec<ValidatorId>,
@@ -183,6 +195,13 @@ pub(crate) struct State {
 struct PeerState {
 	view: View,
 	maybe_authority: Option<HashSet<AuthorityDiscoveryId>>,
+}
+
+/// How many votes we need to consider a candidate backed.
+///
+/// WARNING: This has to be kept in sync with the runtime check in the inclusion module.
+fn minimum_votes(n_validators: usize) -> usize {
+	std::cmp::min(2, n_validators)
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
@@ -477,9 +496,16 @@ pub(crate) async fn share_local_statement<Context>(
 		(compact_statement, candidate_hash)
 	};
 
+	// send the compact version of the statement to nodes in current group and next-up. If not a `Seconded` statement,
+	// send a `Seconded` statement as well.
+	broadcast_local_statement(
+		ctx,
+		state,
+		relay_parent,
+		compact_statement,
+	).await;
+
 	// TODO [now]:
-	// 3. send the compact version of the statement to nodes in current group and next-up. If not a `Seconded` statement,
-	//   send a `Seconded` statement as well.
 	// 4. If the candidate is now backed, trigger 'backed candidate announcement' logic.
 
 	Ok(())
@@ -531,15 +557,17 @@ async fn broadcast_local_statement<Context>(
 
 		let current_group =
 			per_relay_parent.groups[local_validator.group.0 as usize].iter().cloned();
-		let next_group =
-			per_relay_parent.groups[local_validator.next_group.0 as usize].iter().cloned();
+
+		// TODO [now]: extend targets with validators in any current leaf which
+		// are assigned to the group
 
 		// TODO [now]: extend targets with validators which
 		// 	a) we've sent `BackedCandidateInv` for this candidate to
 		//	b) have either requested the candidate _or_ have sent `BackedCandidateKnown` to us.
 
+		// TODO [now]: dedup
+
 		current_group
-			.chain(next_group)
 			.filter_map(|v| {
 				per_relay_parent.discovery_keys.get(v.0 as usize).map(|a| (v, a.clone()))
 			})
@@ -592,5 +620,75 @@ async fn broadcast_local_statement<Context>(
 			.into(),
 		))
 		.await;
+	}
+}
+
+/// Check a statement signature under this parent hash.
+fn check_statement_signature(
+	session_index: SessionIndex,
+	validators: &[ValidatorId],
+	relay_parent: Hash,
+	statement: UncheckedSignedStatement,
+) -> std::result::Result<SignedStatement, UncheckedSignedStatement> {
+	let signing_context =
+		SigningContext { session_index, parent_hash: relay_parent };
+
+	validators
+		.get(statement.unchecked_validator_index().0 as usize)
+		.ok_or_else(|| statement.clone())
+		.and_then(|v| statement.try_into_checked(&signing_context, v))
+}
+
+async fn report_peer(
+	sender: &mut impl overseer::StatementDistributionSenderTrait,
+	peer: PeerId,
+	rep: Rep,
+) {
+	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await
+}
+
+
+/// Handle an incoming statement.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn handle_incoming_statement<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	peer: PeerId,
+	relay_parent: Hash,
+	statement: UncheckedSignedStatement,
+) {
+	if !state.peers.contains_key(&peer) {
+		// sanity: should be impossible.
+		return;
+	}
+
+	// Ensure we know the relay parent.
+	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
+		None => {
+			report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE).await;
+			return
+		}
+		Some(p) => p,
+	};
+
+	// Ensure the statement is correctly signed.
+	let checked_statement = match check_statement_signature(
+		per_relay_parent.session,
+		&per_relay_parent.validators[..],
+		relay_parent,
+		statement,
+	) {
+		Ok(s) => s,
+		Err(_) => {
+			report_peer(ctx.sender(), peer, COST_INVALID_SIGNATURE).await;
+			return;
+		}
+	};
+
+	let candidate_hash = checked_statement.payload().candidate_hash();
+
+	// Ensure that if the statement is kind 'Valid' that we know the candidate.
+	if let CompactStatement::Valid(_) = checked_statement.payload() {
+		// TODO [now]
 	}
 }
