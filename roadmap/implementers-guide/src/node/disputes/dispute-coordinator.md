@@ -382,9 +382,6 @@ concluded. For actual dispute votes, we need two opposing votes, so there must b
 an explicit `invalid` vote in the import. Only a third of the validators can be
 malicious, so spam disk usage is limited to `2*vote_size*n/3*NUM_SPAM_SLOTS`, with
 `n` being the number of validators.
--
-More reasoning behind spam considerations can be found on
-this sr-lab ticket: https://github.com/paritytech/srlabs_findings/issues/179
 
 ## Attacks & Considerations
 
@@ -475,9 +472,6 @@ In the worst case this can happen multiple times, as we would retry that on
 every vote import. The effect would still be in the same ballpark as honest
 behavior though and can also be mitigated by chilling repeated availability
 recovery requests for example.
-
-More reasoning as mentioned above, in the following sr-lab ticket:
-https://github.com/paritytech/srlabs_findings/issues/179
 
 ## Out of Scope
 
