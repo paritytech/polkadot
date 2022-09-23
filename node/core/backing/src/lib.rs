@@ -1606,10 +1606,7 @@ async fn sign_import_and_distribute_statement<Context>(
 	if let Some(signed_statement) = sign_statement(&*rp_state, statement, keystore, metrics).await {
 		import_statement(ctx, rp_state, per_candidate, &signed_statement).await?;
 
-		let smsg = StatementDistributionMessage::Share(
-			rp_state.parent,
-			StatementWithPVD::drop_pvd_from_signed(signed_statement.clone()),
-		);
+		let smsg = StatementDistributionMessage::Share(rp_state.parent, signed_statement.clone());
 		ctx.send_unbounded_message(smsg);
 
 		Ok(Some(signed_statement))
