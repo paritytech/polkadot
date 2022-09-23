@@ -38,7 +38,7 @@ parameter_types! {
 pub struct TracksInfo;
 impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 	type Id = u16;
-	type Origin = <Origin as frame_support::traits::OriginTrait>::PalletsOrigin;
+	type RuntimeOrigin = <RuntimeOrigin as frame_support::traits::OriginTrait>::PalletsOrigin;
 	fn tracks() -> &'static [(Self::Id, pallet_referenda::TrackInfo<Balance, BlockNumber>)] {
 		static DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 10] = [
 			(
@@ -264,14 +264,14 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 		];
 		&DATA[..]
 	}
-	fn track_for(id: &Self::Origin) -> Result<Self::Id, ()> {
+	fn track_for(id: &Self::RuntimeOrigin) -> Result<Self::Id, ()> {
 		use super::origins::Origin;
 
 		#[cfg(feature = "runtime-benchmarks")]
 		{
 			// For benchmarks, we enable a root origin.
 			// It is important that this is not available in production!
-			let root: Self::Origin = frame_system::RawOrigin::Root.into();
+			let root: Self::RuntimeOrigin = frame_system::RawOrigin::Root.into();
 			if &root == id {
 				return Ok(9)
 			}
