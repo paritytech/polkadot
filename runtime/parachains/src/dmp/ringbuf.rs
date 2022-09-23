@@ -77,6 +77,7 @@ impl RingBufferState {
 
 /// Manages the downward message indexing window. All downward messages are assigned
 /// an index when they are queued.
+#[derive(RuntimeDebug)]
 pub struct MessageWindow {
 	para_id: ParaId,
 	state: MessageWindowState,
