@@ -386,21 +386,7 @@ impl<T: Config> Pallet<T> {
 		let mut total_weight = T::DbWeight::get().reads_writes(1, 0);
 
 		// Bail out early if the queue is empty.
-		if queue_length == 0 {
-			return total_weight
-		}
-
-		// A call to [`check_processed_downward_messages`] will check if `processed_downward_messages`
-		// is greater than total messages in queue. so we don't need to check that again here.
-
-		if processed_downward_messages == 0 {
-			// This should never happen in practice, because of the advancement rule - parachains must
-			// process one message at least per para block.
-			log::warn!(
-				target: "runtime::dmp",
-				"Dmq pruning called with no processed messages",
-			);
-			debug_assert!(false);
+		if queue_length == 0 || processed_downward_messages == 0 {
 			return total_weight
 		}
 
