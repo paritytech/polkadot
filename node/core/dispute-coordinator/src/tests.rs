@@ -49,6 +49,7 @@ use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
 use ::test_helpers::{dummy_candidate_receipt_bad_sig, dummy_digest, dummy_hash};
+use polkadot_node_primitives::{Timestamp, ACTIVE_DURATION_SECS};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, BlockDescription, RuntimeApiMessage, RuntimeApiRequest},
@@ -66,7 +67,7 @@ use crate::{
 	backend::Backend,
 	metrics::Metrics,
 	participation::{participation_full_happy_path, participation_missing_availability},
-	status::{Clock, Timestamp, ACTIVE_DURATION_SECS},
+	status::Clock,
 	Config, DisputeCoordinatorSubsystem,
 };
 

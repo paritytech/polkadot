@@ -39,6 +39,7 @@ pub mod runtime_common_paras_registrar;
 pub mod runtime_common_slots;
 pub mod runtime_parachains_configuration;
 pub mod runtime_parachains_disputes;
+pub mod runtime_parachains_disputes_slashing;
 pub mod runtime_parachains_hrmp;
 pub mod runtime_parachains_initializer;
 pub mod runtime_parachains_paras;

@@ -18,16 +18,13 @@ use crate::traits::{
 	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
 	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
-use frame_support::{
-	dispatch::{Dispatchable, Parameter},
-	weights::{GetDispatchInfo, PostDispatchInfo},
-};
+use frame_support::dispatch::{Dispatchable, GetDispatchInfo, Parameter, PostDispatchInfo};
 use xcm::latest::SendXcm;
 
 /// The trait to parameterize the `XcmExecutor`.
 pub trait Config {
 	/// The outer call dispatch type.
-	type Call: Parameter + Dispatchable<PostInfo = PostDispatchInfo> + GetDispatchInfo;
+	type RuntimeCall: Parameter + Dispatchable<PostInfo = PostDispatchInfo> + GetDispatchInfo;
 
 	/// How to send an onward XCM message.
 	type XcmSender: SendXcm;
@@ -36,7 +33,7 @@ pub trait Config {
 	type AssetTransactor: TransactAsset;
 
 	/// How to get a call origin from a `OriginKind` value.
-	type OriginConverter: ConvertOrigin<<Self::Call as Dispatchable>::Origin>;
+	type OriginConverter: ConvertOrigin<<Self::RuntimeCall as Dispatchable>::RuntimeOrigin>;
 
 	/// Combinations of (Location, Asset) pairs which we trust as reserves.
 	type IsReserve: FilterAssetLocation;
@@ -51,7 +48,7 @@ pub trait Config {
 	type Barrier: ShouldExecute;
 
 	/// The means of determining an XCM message's weight.
-	type Weigher: WeightBounds<Self::Call>;
+	type Weigher: WeightBounds<Self::RuntimeCall>;
 
 	/// The means of purchasing weight credit for XCM execution.
 	type Trader: WeightTrader;

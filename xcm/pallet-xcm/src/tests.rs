@@ -50,7 +50,7 @@ fn report_outcome_notify_works() {
 		query_id: 0,
 		response: Default::default(),
 	};
-	let notify = Call::TestNotifier(call);
+	let notify = RuntimeCall::TestNotifier(call);
 	new_test_ext_with_balances(balances).execute_with(|| {
 		XcmPallet::report_outcome_notify(&mut message, Parachain(PARA_ID).into(), notify, 100)
 			.unwrap();
@@ -85,12 +85,12 @@ fn report_outcome_notify_works() {
 		assert_eq!(
 			last_events(2),
 			vec![
-				Event::TestNotifier(pallet_test_notifier::Event::ResponseReceived(
+				RuntimeEvent::TestNotifier(pallet_test_notifier::Event::ResponseReceived(
 					Parachain(PARA_ID).into(),
 					0,
 					Response::ExecutionResult(None),
 				)),
-				Event::XcmPallet(crate::Event::Notified(0, 4, 2)),
+				RuntimeEvent::XcmPallet(crate::Event::Notified(0, 4, 2)),
 			]
 		);
 		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![]);
@@ -140,7 +140,10 @@ fn report_outcome_works() {
 		assert_eq!(r, Outcome::Complete(1_000));
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::ResponseReady(0, Response::ExecutionResult(None),))
+			RuntimeEvent::XcmPallet(crate::Event::ResponseReady(
+				0,
+				Response::ExecutionResult(None),
+			))
 		);
 
 		let response = Some((Response::ExecutionResult(None), 1));
@@ -168,7 +171,11 @@ fn send_works() {
 		]);
 		let versioned_dest = Box::new(RelayLocation::get().into());
 		let versioned_message = Box::new(VersionedXcm::from(message.clone()));
-		assert_ok!(XcmPallet::send(Origin::signed(ALICE), versioned_dest, versioned_message));
+		assert_ok!(XcmPallet::send(
+			RuntimeOrigin::signed(ALICE),
+			versioned_dest,
+			versioned_message
+		));
 		assert_eq!(
 			sent_xcm(),
 			vec![(
@@ -181,7 +188,7 @@ fn send_works() {
 		);
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Sent(sender, RelayLocation::get(), message))
+			RuntimeEvent::XcmPallet(crate::Event::Sent(sender, RelayLocation::get(), message))
 		);
 	});
 }
@@ -206,7 +213,7 @@ fn send_fails_when_xcm_router_blocks() {
 		]);
 		assert_noop!(
 			XcmPallet::send(
-				Origin::signed(ALICE),
+				RuntimeOrigin::signed(ALICE),
 				Box::new(MultiLocation::ancestor(8).into()),
 				Box::new(VersionedXcm::from(message.clone())),
 			),
@@ -230,7 +237,7 @@ fn teleport_assets_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		let dest: MultiLocation = AccountId32 { network: Any, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::teleport_assets(
-			Origin::signed(ALICE),
+			RuntimeOrigin::signed(ALICE),
 			Box::new(RelayLocation::get().into()),
 			Box::new(dest.clone().into()),
 			Box::new((Here, SEND_AMOUNT).into()),
@@ -253,7 +260,7 @@ fn teleport_assets_works() {
 		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
 		);
 	});
 }
@@ -273,7 +280,7 @@ fn limmited_teleport_assets_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		let dest: MultiLocation = AccountId32 { network: Any, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::limited_teleport_assets(
-			Origin::signed(ALICE),
+			RuntimeOrigin::signed(ALICE),
 			Box::new(RelayLocation::get().into()),
 			Box::new(dest.clone().into()),
 			Box::new((Here, SEND_AMOUNT).into()),
@@ -297,7 +304,7 @@ fn limmited_teleport_assets_works() {
 		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
 		);
 	});
 }
@@ -317,7 +324,7 @@ fn unlimmited_teleport_assets_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		let dest: MultiLocation = AccountId32 { network: Any, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::limited_teleport_assets(
-			Origin::signed(ALICE),
+			RuntimeOrigin::signed(ALICE),
 			Box::new(RelayLocation::get().into()),
 			Box::new(dest.clone().into()),
 			Box::new((Here, SEND_AMOUNT).into()),
@@ -339,7 +346,7 @@ fn unlimmited_teleport_assets_works() {
 		);
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
 		);
 	});
 }
@@ -360,7 +367,7 @@ fn reserve_transfer_assets_works() {
 			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::reserve_transfer_assets(
-			Origin::signed(ALICE),
+			RuntimeOrigin::signed(ALICE),
 			Box::new(Parachain(PARA_ID).into().into()),
 			Box::new(dest.clone().into()),
 			Box::new((Here, SEND_AMOUNT).into()),
@@ -387,7 +394,7 @@ fn reserve_transfer_assets_works() {
 		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
 		);
 	});
 }
@@ -408,7 +415,7 @@ fn limited_reserve_transfer_assets_works() {
 			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
-			Origin::signed(ALICE),
+			RuntimeOrigin::signed(ALICE),
 			Box::new(Parachain(PARA_ID).into().into()),
 			Box::new(dest.clone().into()),
 			Box::new((Here, SEND_AMOUNT).into()),
@@ -436,7 +443,7 @@ fn limited_reserve_transfer_assets_works() {
 		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
 		);
 	});
 }
@@ -457,7 +464,7 @@ fn unlimited_reserve_transfer_assets_works() {
 			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
-			Origin::signed(ALICE),
+			RuntimeOrigin::signed(ALICE),
 			Box::new(Parachain(PARA_ID).into().into()),
 			Box::new(dest.clone().into()),
 			Box::new((Here, SEND_AMOUNT).into()),
@@ -483,7 +490,7 @@ fn unlimited_reserve_transfer_assets_works() {
 		);
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
 		);
 	});
 }
@@ -504,7 +511,7 @@ fn execute_withdraw_to_deposit_works() {
 			Junction::AccountId32 { network: NetworkId::Any, id: BOB.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::execute(
-			Origin::signed(ALICE),
+			RuntimeOrigin::signed(ALICE),
 			Box::new(VersionedXcm::from(Xcm(vec![
 				WithdrawAsset((Here, SEND_AMOUNT).into()),
 				buy_execution((Here, SEND_AMOUNT)),
@@ -516,7 +523,7 @@ fn execute_withdraw_to_deposit_works() {
 		assert_eq!(Balances::total_balance(&BOB), SEND_AMOUNT);
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
 		);
 	});
 }
@@ -531,7 +538,7 @@ fn trapped_assets_can_be_claimed() {
 			Junction::AccountId32 { network: NetworkId::Any, id: BOB.into() }.into();
 
 		assert_ok!(XcmPallet::execute(
-			Origin::signed(ALICE),
+			RuntimeOrigin::signed(ALICE),
 			Box::new(VersionedXcm::from(Xcm(vec![
 				WithdrawAsset((Here, SEND_AMOUNT).into()),
 				buy_execution((Here, SEND_AMOUNT)),
@@ -552,8 +559,8 @@ fn trapped_assets_can_be_claimed() {
 		assert_eq!(
 			last_events(2),
 			vec![
-				Event::XcmPallet(crate::Event::AssetsTrapped(hash.clone(), source, vma)),
-				Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(
+				RuntimeEvent::XcmPallet(crate::Event::AssetsTrapped(hash.clone(), source, vma)),
+				RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Complete(
 					5 * BaseXcmWeight::get()
 				)))
 			]
@@ -566,7 +573,7 @@ fn trapped_assets_can_be_claimed() {
 
 		let weight = 3 * BaseXcmWeight::get();
 		assert_ok!(XcmPallet::execute(
-			Origin::signed(ALICE),
+			RuntimeOrigin::signed(ALICE),
 			Box::new(VersionedXcm::from(Xcm(vec![
 				ClaimAsset { assets: (Here, SEND_AMOUNT).into(), ticket: Here.into() },
 				buy_execution((Here, SEND_AMOUNT)),
@@ -581,7 +588,7 @@ fn trapped_assets_can_be_claimed() {
 
 		let weight = 3 * BaseXcmWeight::get();
 		assert_ok!(XcmPallet::execute(
-			Origin::signed(ALICE),
+			RuntimeOrigin::signed(ALICE),
 			Box::new(VersionedXcm::from(Xcm(vec![
 				ClaimAsset { assets: (Here, SEND_AMOUNT).into(), ticket: Here.into() },
 				buy_execution((Here, SEND_AMOUNT)),
@@ -591,7 +598,7 @@ fn trapped_assets_can_be_claimed() {
 		));
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(Outcome::Incomplete(
+			RuntimeEvent::XcmPallet(crate::Event::Attempted(Outcome::Incomplete(
 				BaseXcmWeight::get(),
 				XcmError::UnknownClaim
 			)))
@@ -612,7 +619,7 @@ fn basic_subscription_works() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {
 		let remote = Parachain(1000).into();
 		assert_ok!(XcmPallet::force_subscribe_version_notify(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			Box::new(remote.clone().into()),
 		));
 
@@ -655,13 +662,13 @@ fn subscriptions_increment_id() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {
 		let remote = Parachain(1000).into();
 		assert_ok!(XcmPallet::force_subscribe_version_notify(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			Box::new(remote.clone().into()),
 		));
 
 		let remote2 = Parachain(1001).into();
 		assert_ok!(XcmPallet::force_subscribe_version_notify(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			Box::new(remote2.clone().into()),
 		));
 
@@ -686,12 +693,12 @@ fn double_subscription_fails() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {
 		let remote = Parachain(1000).into();
 		assert_ok!(XcmPallet::force_subscribe_version_notify(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			Box::new(remote.clone().into()),
 		));
 		assert_noop!(
 			XcmPallet::force_subscribe_version_notify(
-				Origin::root(),
+				RuntimeOrigin::root(),
 				Box::new(remote.clone().into())
 			),
 			Error::<Test>::AlreadySubscribed,
@@ -704,16 +711,16 @@ fn unsubscribe_works() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {
 		let remote = Parachain(1000).into();
 		assert_ok!(XcmPallet::force_subscribe_version_notify(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			Box::new(remote.clone().into()),
 		));
 		assert_ok!(XcmPallet::force_unsubscribe_version_notify(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			Box::new(remote.clone().into())
 		));
 		assert_noop!(
 			XcmPallet::force_unsubscribe_version_notify(
-				Origin::root(),
+				RuntimeOrigin::root(),
 				Box::new(remote.clone().into())
 			),
 			Error::<Test>::NoSubscription,
@@ -848,7 +855,7 @@ fn subscriber_side_subscription_works() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {
 		let remote = Parachain(1000).into();
 		assert_ok!(XcmPallet::force_subscribe_version_notify(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			Box::new(remote.clone().into()),
 		));
 		take_sent_xcm();
@@ -890,7 +897,7 @@ fn auto_subscription_works() {
 		let remote0 = Parachain(1000).into();
 		let remote1 = Parachain(1001).into();
 
-		assert_ok!(XcmPallet::force_default_xcm_version(Origin::root(), Some(1)));
+		assert_ok!(XcmPallet::force_default_xcm_version(RuntimeOrigin::root(), Some(1)));
 
 		// Wrapping a version for a destination we don't know elicits a subscription.
 		let v1_msg = xcm::v1::Xcm::<()>::QueryResponse {

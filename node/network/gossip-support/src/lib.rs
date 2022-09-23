@@ -249,11 +249,15 @@ where
 					let mut connections = authorities_past_present_future(sender, leaf).await?;
 
 					// Remove all of our locally controlled validator indices so we don't connect to ourself.
-					// If we control none of them, don't issue connection requests - we're outside
-					// of the 'clique' of recent validators.
-					if remove_all_controlled(&self.keystore, &mut connections).await != 0 {
-						self.issue_connection_request(sender, connections).await;
-					}
+					let connections =
+						if remove_all_controlled(&self.keystore, &mut connections).await != 0 {
+							connections
+						} else {
+							// If we control none of them, issue an empty connection request
+							// to clean up all connections.
+							Vec::new()
+						};
+					self.issue_connection_request(sender, connections).await;
 				}
 
 				if is_new_session {
@@ -353,7 +357,7 @@ where
 
 		// issue another request for the same session
 		// if at least a third of the authorities were not resolved.
-		if 3 * failures >= num {
+		if num != 0 && 3 * failures >= num {
 			let timestamp = Instant::now();
 			match self.failure_start {
 				None => self.failure_start = Some(timestamp),

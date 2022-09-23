@@ -607,11 +607,9 @@ mod enter {
 			let limit_inherent_data =
 				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
 			assert_ne!(limit_inherent_data, expected_para_inherent_data);
-			assert!(
-				inherent_data_weight(&limit_inherent_data) <=
-					inherent_data_weight(&expected_para_inherent_data)
-			);
-			assert!(inherent_data_weight(&limit_inherent_data) <= max_block_weight());
+			assert!(inherent_data_weight(&limit_inherent_data)
+				.all_lte(inherent_data_weight(&expected_para_inherent_data)));
+			assert!(inherent_data_weight(&limit_inherent_data).all_lte(max_block_weight()));
 
 			// Three disputes is over weight (see previous test), so we expect to only see 2 disputes
 			assert_eq!(limit_inherent_data.disputes.len(), 2);
@@ -760,7 +758,7 @@ mod enter {
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
-			assert!(max_block_weight() < inherent_data_weight(&expected_para_inherent_data));
+			assert!(max_block_weight().any_lt(inherent_data_weight(&expected_para_inherent_data)));
 
 			// Check the para inherent data is as expected:
 			// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 3 disputes => 5*5 = 25)
@@ -779,7 +777,7 @@ mod enter {
 			// Expect that inherent data is filtered to include only 1 backed candidate and 2 disputes
 			assert!(limit_inherent_data != expected_para_inherent_data);
 			assert!(
-				max_block_weight() >= inherent_data_weight(&limit_inherent_data),
+				max_block_weight().all_gte(inherent_data_weight(&limit_inherent_data)),
 				"Post limiting exceeded block weight: max={} vs. inherent={}",
 				max_block_weight(),
 				inherent_data_weight(&limit_inherent_data)
