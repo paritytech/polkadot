@@ -39,9 +39,9 @@ fn register_parachain_with_balance<T: Config>(id: ParaId, balance: BalanceOf<T>)
 	T::Currency::make_free_balance_be(&id.into_account_truncating(), balance);
 }
 
-fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 	let events = frame_system::Pallet::<T>::events();
-	let system_event: <T as frame_system::Config>::Event = generic_event.into();
+	let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
 	// compare to the last event record
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 	assert_eq!(event, &system_event);
@@ -66,7 +66,7 @@ fn establish_para_connection<T: Config>(
 	until: ParachainSetupStep,
 ) -> [(ParaId, crate::Origin); 2]
 where
-	<T as frame_system::Config>::Origin: From<crate::Origin>,
+	<T as frame_system::Config>::RuntimeOrigin: From<crate::Origin>,
 {
 	let config = Configuration::<T>::config();
 	let deposit: BalanceOf<T> = config.hrmp_sender_deposit.unique_saturated_into();
@@ -138,7 +138,7 @@ static_assertions::const_assert!(HRMP_MAX_INBOUND_CHANNELS_BOUND < PREFIX_0);
 static_assertions::const_assert!(HRMP_MAX_OUTBOUND_CHANNELS_BOUND < PREFIX_0);
 
 frame_benchmarking::benchmarks! {
-	where_clause { where <T as frame_system::Config>::Origin: From<crate::Origin> }
+	where_clause { where <T as frame_system::Config>::RuntimeOrigin: From<crate::Origin> }
 
 	hrmp_init_open_channel {
 		let sender_id: ParaId = 1u32.into();

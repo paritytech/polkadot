@@ -20,11 +20,13 @@ pub use crate::{
 	FixedRateOfFungible, FixedWeightBounds, LocationInverter, TakeWeightCredit,
 };
 pub use frame_support::{
-	dispatch::{DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, Parameter},
+	dispatch::{
+		DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, GetDispatchInfo,
+		Parameter, PostDispatchInfo,
+	},
 	ensure, parameter_types,
 	sp_runtime::DispatchErrorWithPostInfo,
 	traits::{Contains, Get, IsInVec},
-	weights::{GetDispatchInfo, PostDispatchInfo},
 };
 pub use parity_scale_codec::{Decode, Encode};
 pub use sp_std::{
@@ -58,11 +60,11 @@ pub enum TestCall {
 	Any(Weight, Option<Weight>),
 }
 impl Dispatchable for TestCall {
-	type Origin = TestOrigin;
+	type RuntimeOrigin = TestOrigin;
 	type Config = ();
 	type Info = ();
 	type PostInfo = PostDispatchInfo;
-	fn dispatch(self, origin: Self::Origin) -> DispatchResultWithPostInfo {
+	fn dispatch(self, origin: Self::RuntimeOrigin) -> DispatchResultWithPostInfo {
 		let mut post_info = PostDispatchInfo::default();
 		let maybe_actual = match self {
 			TestCall::OnlyRoot(_, maybe_actual) |
@@ -277,7 +279,7 @@ pub type TestBarrier = (
 
 pub struct TestConfig;
 impl Config for TestConfig {
-	type Call = TestCall;
+	type RuntimeCall = TestCall;
 	type XcmSender = TestSendXcm;
 	type AssetTransactor = TestAssetTransactor;
 	type OriginConverter = TestOriginConverter;

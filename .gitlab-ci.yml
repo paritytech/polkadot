@@ -32,7 +32,7 @@ variables:
   CI_IMAGE:                        "paritytech/ci-linux:production"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
-  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.2.56"
+  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.2.67"
   PIPELINE_SCRIPTS_TAG:            "v0.4"
 
 default:
@@ -231,6 +231,9 @@ build-linux-stable:
     - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
     - echo -n ${VERSION} > ./artifacts/VERSION
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
+    - echo -n ${CI_JOB_ID} > ./artifacts/BUILD_LINUX_JOB_ID
+    - RELEASE_VERSION=$(./artifacts/polkadot -V | awk '{print $2}'| awk -F "-" '{print $1}')
+    - echo -n "v${RELEASE_VERSION}" > ./artifacts/BUILD_RELEASE_VERSION
     - cp -r scripts/* ./artifacts
 
 test-linux-stable:
@@ -648,6 +651,7 @@ check-runtime-migration:
       else
         echo "runtimemigration label not found. Skipping"
       fi
+  allow_failure:                   true
 
 
 check-no-default-features:
@@ -868,6 +872,38 @@ zombienet-tests-misc-paritydb:
   tags:
     - zombienet-polkadot-integration-test
 
+zombienet-tests-misc-upgrade-node:
+  stage:                           stage3
+  image:                           "${ZOMBIENET_IMAGE}"
+  <<:                              *kubernetes-env
+  <<:                              *zombienet-refs
+  needs:
+    - job:                         publish-polkadot-debug-image
+    - job:                         publish-test-collators-image
+    - job:                         build-linux-stable
+      artifacts:                   true
+  variables:
+    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/misc"
+  before_script:
+    - echo "Zombie-net Tests Config"
+    - echo "${ZOMBIENET_IMAGE_NAME}"
+    - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
+    - echo "${GH_DIR}"
+    - export DEBUG=zombie,zombie::network-node
+    - BUILD_RELEASE_VERSION="$(cat ./artifacts/BUILD_RELEASE_VERSION)"
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE="docker.io/parity/polkadot:${BUILD_RELEASE_VERSION}"
+    - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
+    - BUILD_LINUX_JOB_ID="$(cat ./artifacts/BUILD_LINUX_JOB_ID)"
+    - export POLKADOT_PR_BIN_URL="https://gitlab.parity.io/parity/mirrors/polkadot/-/jobs/${BUILD_LINUX_JOB_ID}/artifacts/raw/artifacts/polkadot"
+  script:
+    - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
+        --github-remote-dir="${GH_DIR}"
+        --test="0002-upgrade-node.feature"
+  allow_failure:                   false
+  retry: 2
+  tags:
+    - zombienet-polkadot-integration-test
+
 zombienet-tests-malus-dispute-valid:
   stage:                           stage3
   image:                           "${ZOMBIENET_IMAGE}"
@@ -1054,8 +1090,6 @@ short-benchmark-westend:
     PR_NUM:                        "${PR_NUM}"
   trigger:
     project:                       "parity/infrastructure/ci_cd/pipeline-stopper"
-    # remove branch, when pipeline-stopper for polakdot is updated to the same branch
-    branch:                        "as-improve"
 
 cancel-pipeline-test-linux-stable:
   extends:                         .cancel-pipeline-template

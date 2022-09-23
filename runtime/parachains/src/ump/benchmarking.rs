@@ -18,9 +18,9 @@ use super::{Pallet as Ump, *};
 use frame_system::RawOrigin;
 use xcm::prelude::*;
 
-fn assert_last_event_type<T: Config>(generic_event: <T as Config>::Event) {
+fn assert_last_event_type<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 	let events = frame_system::Pallet::<T>::events();
-	let system_event: <T as frame_system::Config>::Event = generic_event.into();
+	let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
 	// compare to the last event record
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 	assert_eq!(sp_std::mem::discriminant(event), sp_std::mem::discriminant(&system_event));
