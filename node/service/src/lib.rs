@@ -541,7 +541,7 @@ where
 					slot_duration,
 				);
 
-			Ok((timestamp, slot))
+			Ok((slot, timestamp))
 		},
 		&task_manager.spawn_essential_handle(),
 		config.prometheus_registry(),
@@ -1152,7 +1152,7 @@ where
 							slot_duration,
 						);
 
-					Ok((timestamp, slot, parachain))
+					Ok((slot, timestamp, parachain))
 				}
 			},
 			force_authoring,
