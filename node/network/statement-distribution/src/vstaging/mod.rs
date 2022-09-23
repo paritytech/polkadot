@@ -36,7 +36,7 @@ use polkadot_node_subsystem_util::backing_implicit_view::{FetchError, View as Im
 use polkadot_primitives::vstaging::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, CoreState,
 	GroupIndex, Hash, Id as ParaId, PersistedValidationData, SessionIndex, SignedStatement,
-	UncheckedSignedStatement, ValidatorId, ValidatorIndex, SigningContext,
+	UncheckedSignedStatement, ValidatorId, ValidatorIndex, SigningContext, SessionInfo,
 };
 
 use sp_keystore::SyncCryptoStorePtr;
@@ -62,12 +62,8 @@ const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature"
 
 
 struct PerRelayParentState {
-	validators: Vec<ValidatorId>,
-	discovery_keys: Vec<AuthorityDiscoveryId>,
-	groups: Vec<Vec<ValidatorIndex>>,
 	validator_state: HashMap<ValidatorIndex, PerRelayParentValidatorState>,
 	candidates: HashMap<CandidateHash, CandidateData>,
-	known_by: HashSet<PeerId>,
 	local_validator: Option<LocalValidatorState>,
 	session: SessionIndex,
 }
@@ -186,6 +182,7 @@ pub(crate) struct State {
 	/// We only feed leaves which have prospective parachains enabled to this view.
 	implicit_view: ImplicitView,
 	per_relay_parent: HashMap<Hash, PerRelayParentState>,
+	per_session: HashMap<SessionIndex, SessionInfo>,
 	peers: HashMap<PeerId, PeerState>,
 	keystore: SyncCryptoStorePtr,
 	topology_storage: SessionBoundGridTopologyStorage,
@@ -311,32 +308,39 @@ pub(crate) async fn handle_activated_leaf<Context>(
 				.map_err(JfyiError::RuntimeApiUnavailable)?
 				.map_err(JfyiError::FetchSessionIndex)?;
 
-		let session_info =
-			polkadot_node_subsystem_util::request_session_info(*leaf, session_index, ctx.sender())
-				.await
-				.await
-				.map_err(JfyiError::RuntimeApiUnavailable)?
-				.map_err(JfyiError::FetchSessionInfo)?;
-
-		let session_info = match session_info {
-			None => {
-				gum::warn!(
-					target: LOG_TARGET,
-					relay_parent = ?leaf,
-					"No session info available for current session"
-				);
-
-				continue
-			},
-			Some(s) => s,
-		};
-
 		let availability_cores =
 			polkadot_node_subsystem_util::request_availability_cores(*leaf, ctx.sender())
 				.await
 				.await
 				.map_err(JfyiError::RuntimeApiUnavailable)?
 				.map_err(JfyiError::FetchAvailabilityCores)?;
+
+		if !state.per_session.contains_key(&session_index) {
+			let session_info =
+			polkadot_node_subsystem_util::request_session_info(*leaf, session_index, ctx.sender())
+				.await
+				.await
+				.map_err(JfyiError::RuntimeApiUnavailable)?
+				.map_err(JfyiError::FetchSessionInfo)?;
+
+			let session_info = match session_info {
+				None => {
+					gum::warn!(
+						target: LOG_TARGET,
+						relay_parent = ?leaf,
+						"No session info available for current session"
+					);
+
+					continue
+				},
+				Some(s) => s,
+			};
+
+			state.per_session.insert(session_index, session_info);
+		}
+
+		let session_info = state.per_session.get(&session_index)
+			.expect("either existed or just inserted; qed");
 
 		let local_validator = find_local_validator_state(
 			&session_info.validators,
@@ -349,12 +353,8 @@ pub(crate) async fn handle_activated_leaf<Context>(
 		state.per_relay_parent.insert(
 			*leaf,
 			PerRelayParentState {
-				validators: session_info.validators,
-				discovery_keys: session_info.discovery_keys,
-				groups: session_info.validator_groups,
 				validator_state: HashMap::new(),
 				candidates: HashMap::new(),
-				known_by: HashSet::new(),
 				local_validator,
 				session: session_index,
 			},
@@ -410,6 +410,10 @@ pub(crate) fn handle_deactivate_leaf(state: &mut State, leaf_hash: Hash) {
 
 	// clean up per-relay-parent data based on everything removed.
 	state.per_relay_parent.retain(|r, _| relay_parents.contains(r));
+
+	// clean up sessions based on everything remaining.
+	let sessions: HashSet<_> = state.per_relay_parent.values().map(|r| r.session).collect();
+	state.per_session.retain(|s, _| sessions.contains(s));
 }
 
 // Imports a locally originating statement and distributes it to peers.
@@ -535,6 +539,11 @@ async fn broadcast_local_statement<Context>(
 		None => return,
 	};
 
+	let session_info = match state.per_session.get(&per_relay_parent.session) {
+		Some(s) => s,
+		None => return,
+	};
+
 	let candidate_hash = statement.payload().candidate_hash().clone();
 	let candidate_entry = match per_relay_parent.candidates.get_mut(&candidate_hash) {
 		Some(x) => x,
@@ -556,7 +565,7 @@ async fn broadcast_local_statement<Context>(
 		};
 
 		let current_group =
-			per_relay_parent.groups[local_validator.group.0 as usize].iter().cloned();
+			session_info.validator_groups[local_validator.group.0 as usize].iter().cloned();
 
 		// TODO [now]: extend targets with validators in any current leaf which
 		// are assigned to the group
@@ -569,7 +578,7 @@ async fn broadcast_local_statement<Context>(
 
 		current_group
 			.filter_map(|v| {
-				per_relay_parent.discovery_keys.get(v.0 as usize).map(|a| (v, a.clone()))
+				session_info.discovery_keys.get(v.0 as usize).map(|a| (v, a.clone()))
 			})
 			.collect::<Vec<_>>()
 	};
@@ -671,10 +680,23 @@ async fn handle_incoming_statement<Context>(
 		Some(p) => p,
 	};
 
+	let session_info = match state.per_session.get(&per_relay_parent.session) {
+		None => {
+			gum::warn!(
+				target: LOG_TARGET,
+				session = ?per_relay_parent.session,
+				"Missing expected session info.",
+			);
+
+			return
+		}
+		Some(s) => s,
+	};
+
 	// Ensure the statement is correctly signed.
 	let checked_statement = match check_statement_signature(
 		per_relay_parent.session,
-		&per_relay_parent.validators[..],
+		&session_info.validators[..],
 		relay_parent,
 		statement,
 	) {
