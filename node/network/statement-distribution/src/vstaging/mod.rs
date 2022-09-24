@@ -50,6 +50,8 @@ use crate::{
 	LOG_TARGET,
 };
 
+mod direct;
+
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
 const COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE: Rep =
 	Rep::CostMinor("Unexpected Statement, missing knowlege for relay parent");
@@ -169,11 +171,6 @@ struct LocalValidatorState {
 	group: GroupIndex,
 	// the assignment of our validator group, if any.
 	assignment: Option<ParaId>,
-	// the next group assigned to this para.
-	next_group: GroupIndex,
-	// the previous group assigned to this para, stored only
-	// if they are currently assigned to a para.
-	prev_group: Option<(GroupIndex, ParaId)>,
 }
 
 pub(crate) struct State {
@@ -382,10 +379,6 @@ async fn find_local_validator_state(
 	// note: this won't work well for parathreads because it only works
 	// when core assignments to paras are static throughout the session.
 
-	let next_group = GroupIndex((our_group.0 + 1) % groups.len() as u32);
-	let prev_group =
-		GroupIndex(if our_group.0 == 0 { our_group.0 - 1 } else { groups.len() as u32 - 1 });
-
 	let para_for_group =
 		|g: GroupIndex| availability_cores.get(g.0 as usize).and_then(|c| c.para_id());
 
@@ -393,8 +386,6 @@ async fn find_local_validator_state(
 		index: validator_index,
 		group: our_group,
 		assignment: para_for_group(our_group),
-		next_group,
-		prev_group: para_for_group(prev_group).map(|p| (prev_group, p)),
 	})
 }
 
