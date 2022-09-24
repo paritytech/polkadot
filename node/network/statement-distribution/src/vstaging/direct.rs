@@ -41,6 +41,12 @@
 //! quite manageable, and the utility here lets us deal with it in only a few kilobytes
 //! of memory.
 //!
+//! It's also worth noting that any case where a validator issues more than the legal limit
+//! of `Seconded` statements at a relay parent is trivially slashable on-chain, which means
+//! the 'worst case' adversary that this code defends against is effectively lighting money
+//! on fire. Nevertheless, we handle the case here to ensure that the behavior of the
+//! system is well-defined even if an adversary is willing to be slashed.
+//!
 //! More concretely, this module exposes a "DirectInGroup" utility which allows us to determine
 //! whether to accept or reject messages from other validators in the same group as we
 //! are in, based on _the most charitable possible interpretation of our protocol rules_,
