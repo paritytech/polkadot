@@ -35,7 +35,9 @@
 //! these types of partitions will not exist, but in the worst case each validator in the
 //! group would see an entirely different set of X `Seconded` statements from some validator
 //! and each validator is in its own partition. After that partition resolves, we'd have to
-//! deal with up to `limit*group_size^2` `Seconded` statements.
+//! deal with up to `limit*group_size` `Seconded` statements from that validator. And then
+//! if every validator in the group does the same thing, we're dealing with something like
+//! `limit*group_size^2` `Seconded` statements in total.
 //!
 //! Given that both our group sizes and our limits per relay-parent are small, this is
 //! quite manageable, and the utility here lets us deal with it in only a few kilobytes
