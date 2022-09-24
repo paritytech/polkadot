@@ -21,8 +21,7 @@ use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology},
 	peer_set::ValidationVersion,
-	UnifiedReputationChange as Rep,
-	vstaging as protocol_vstaging, PeerId, Versioned, View,
+	vstaging as protocol_vstaging, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_primitives::{
 	SignedFullStatementWithPVD, StatementWithPVD as FullStatementWithPVD,
@@ -35,8 +34,8 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::backing_implicit_view::{FetchError, View as ImplicitView};
 use polkadot_primitives::vstaging::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, CoreState,
-	GroupIndex, Hash, Id as ParaId, PersistedValidationData, SessionIndex, SignedStatement,
-	UncheckedSignedStatement, ValidatorId, ValidatorIndex, SigningContext, SessionInfo,
+	GroupIndex, Hash, Id as ParaId, PersistedValidationData, SessionIndex, SessionInfo,
+	SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
 };
 
 use sp_keystore::SyncCryptoStorePtr;
@@ -61,7 +60,6 @@ const COST_UNEXPECTED_STATEMENT_REMOTE: Rep =
 	Rep::CostMinor("Unexpected Statement, remote not allowed");
 
 const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
-
 
 struct PerRelayParentState {
 	validator_state: HashMap<ValidatorIndex, PerRelayParentValidatorState>,
@@ -214,10 +212,7 @@ pub(crate) async fn handle_network_update<Context>(
 
 			state.peers.insert(
 				peer_id,
-				PeerState {
-					view: View::default(),
-					maybe_authority: authority_ids.clone(),
-				},
+				PeerState { view: View::default(), maybe_authority: authority_ids.clone() },
 			);
 
 			if let Some(authority_ids) = authority_ids {
@@ -313,12 +308,15 @@ pub(crate) async fn handle_activated_leaf<Context>(
 				.map_err(JfyiError::FetchAvailabilityCores)?;
 
 		if !state.per_session.contains_key(&session_index) {
-			let session_info =
-			polkadot_node_subsystem_util::request_session_info(*leaf, session_index, ctx.sender())
-				.await
-				.await
-				.map_err(JfyiError::RuntimeApiUnavailable)?
-				.map_err(JfyiError::FetchSessionInfo)?;
+			let session_info = polkadot_node_subsystem_util::request_session_info(
+				*leaf,
+				session_index,
+				ctx.sender(),
+			)
+			.await
+			.await
+			.map_err(JfyiError::RuntimeApiUnavailable)?
+			.map_err(JfyiError::FetchSessionInfo)?;
 
 			let session_info = match session_info {
 				None => {
@@ -336,7 +334,9 @@ pub(crate) async fn handle_activated_leaf<Context>(
 			state.per_session.insert(session_index, session_info);
 		}
 
-		let session_info = state.per_session.get(&session_index)
+		let session_info = state
+			.per_session
+			.get(&session_index)
 			.expect("either existed or just inserted; qed");
 
 		let local_validator = find_local_validator_state(
@@ -493,12 +493,7 @@ pub(crate) async fn share_local_statement<Context>(
 
 	// send the compact version of the statement to nodes in current group and next-up. If not a `Seconded` statement,
 	// send a `Seconded` statement as well.
-	broadcast_local_statement(
-		ctx,
-		state,
-		relay_parent,
-		compact_statement,
-	).await;
+	broadcast_local_statement(ctx, state, relay_parent, compact_statement).await;
 
 	// TODO [now]:
 	// 4. If the candidate is now backed, trigger 'backed candidate announcement' logic.
@@ -568,9 +563,7 @@ async fn broadcast_local_statement<Context>(
 		// TODO [now]: dedup
 
 		current_group
-			.filter_map(|v| {
-				session_info.discovery_keys.get(v.0 as usize).map(|a| (v, a.clone()))
-			})
+			.filter_map(|v| session_info.discovery_keys.get(v.0 as usize).map(|a| (v, a.clone())))
 			.collect::<Vec<_>>()
 	};
 
@@ -630,8 +623,7 @@ fn check_statement_signature(
 	relay_parent: Hash,
 	statement: UncheckedSignedStatement,
 ) -> std::result::Result<SignedStatement, UncheckedSignedStatement> {
-	let signing_context =
-		SigningContext { session_index, parent_hash: relay_parent };
+	let signing_context = SigningContext { session_index, parent_hash: relay_parent };
 
 	validators
 		.get(statement.unchecked_validator_index().0 as usize)
@@ -647,7 +639,6 @@ async fn report_peer(
 	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await
 }
 
-
 /// Handle an incoming statement.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn handle_incoming_statement<Context>(
@@ -659,7 +650,7 @@ async fn handle_incoming_statement<Context>(
 ) {
 	if !state.peers.contains_key(&peer) {
 		// sanity: should be impossible.
-		return;
+		return
 	}
 
 	// Ensure we know the relay parent.
@@ -667,7 +658,7 @@ async fn handle_incoming_statement<Context>(
 		None => {
 			report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE).await;
 			return
-		}
+		},
 		Some(p) => p,
 	};
 
@@ -680,7 +671,7 @@ async fn handle_incoming_statement<Context>(
 			);
 
 			return
-		}
+		},
 		Some(s) => s,
 	};
 
@@ -694,8 +685,8 @@ async fn handle_incoming_statement<Context>(
 		Ok(s) => s,
 		Err(_) => {
 			report_peer(ctx.sender(), peer, COST_INVALID_SIGNATURE).await;
-			return;
-		}
+			return
+		},
 	};
 
 	let candidate_hash = checked_statement.payload().candidate_hash();

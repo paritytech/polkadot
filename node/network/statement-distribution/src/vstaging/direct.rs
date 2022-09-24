@@ -35,7 +35,7 @@
 
 use std::ops::Range;
 
-use polkadot_primitives::vstaging::{ValidatorIndex, CandidateHash};
+use polkadot_primitives::vstaging::{CandidateHash, ValidatorIndex};
 
 /// Utility for keeping track of limits on direct statements within a group.
 ///
@@ -58,7 +58,6 @@ pub struct DirectInGroup {
 	// X: indicates the originating validator (size: group_size)
 	// Y: a seconded candidate we've accepted knowledge of locally (size: seconding_limit)
 	accepted: Vec<Option<CandidateHash>>,
-
 	// TODO [now]: outgoing sends
 }
 
@@ -70,8 +69,12 @@ impl DirectInGroup {
 		our_index: ValidatorIndex,
 		seconding_limit: usize,
 	) -> Option<Self> {
-		if group_validators.is_empty() { return None }
-		if our_index.0 as usize >= group_validators.len() { return None }
+		if group_validators.is_empty() {
+			return None
+		}
+		if our_index.0 as usize >= group_validators.len() {
+			return None
+		}
 
 		let our_index = index_in_group(&group_validators, our_index)?;
 
@@ -109,7 +112,7 @@ impl DirectInGroup {
 		};
 
 		if sender_index == self.our_index || originator_index == self.our_index {
-			return Err(RejectIncoming::NotInGroup);
+			return Err(RejectIncoming::NotInGroup)
 		}
 
 		let range = self.incoming_range(sender_index, originator_index);
@@ -122,10 +125,7 @@ impl DirectInGroup {
 			// ok, found an empty slot.
 			if self.incoming[i].is_none() {
 				self.incoming[i] = Some(candidate_hash);
-				return self.handle_accepted_incoming(
-					originator_index,
-					candidate_hash,
-				);
+				return self.handle_accepted_incoming(originator_index, candidate_hash)
 			}
 		}
 
@@ -142,12 +142,12 @@ impl DirectInGroup {
 		let range = self.accepted_range(originator);
 		for i in range {
 			if self.accepted[i] == Some(candidate_hash) {
-				return Ok(AcceptIncoming::YesKnown);
+				return Ok(AcceptIncoming::YesKnown)
 			}
 
 			if self.accepted[i].is_none() {
 				self.accepted[i] = Some(candidate_hash);
-				return Ok(AcceptIncoming::YesUnknown);
+				return Ok(AcceptIncoming::YesUnknown)
 			}
 		}
 
@@ -159,7 +159,11 @@ impl DirectInGroup {
 	}
 
 	fn adjust_for_skipped_self(&self, index: usize) -> usize {
-		if index > self.our_index { index - 1 } else { index }
+		if index > self.our_index {
+			index - 1
+		} else {
+			index
+		}
 	}
 
 	fn incoming_range(&self, sender: usize, originator: usize) -> Range<usize> {
@@ -167,12 +171,12 @@ impl DirectInGroup {
 		let sender = self.adjust_for_skipped_self(sender);
 		let base = (sender * (self.validators.len() - 1)) + originator * self.seconding_limit;
 
-		base .. base + self.seconding_limit
+		base..base + self.seconding_limit
 	}
 
 	fn accepted_range(&self, originator: usize) -> Range<usize> {
 		let base = originator * self.seconding_limit;
-		base .. base + self.seconding_limit
+		base..base + self.seconding_limit
 	}
 }
 
