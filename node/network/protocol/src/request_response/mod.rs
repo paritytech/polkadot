@@ -109,7 +109,7 @@ const POV_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_millis(1200);
 /// fit statement distribution within a block of 6 seconds.)
 const STATEMENTS_TIMEOUT: Duration = Duration::from_secs(1);
 
-/// We want to time out backed candidate requests to time out relatively fast,
+/// We want to backed candidate requests to time out relatively fast,
 /// because slow requests will bottleneck the backing system. Ideally, we'd have
 /// an adaptive timeout based on the candidate size, because there will be a lot of variance
 /// in candidate sizes: candidates with no code and no messages vs candidates with code
@@ -130,7 +130,7 @@ pub const MAX_PARALLEL_STATEMENT_REQUESTS: u32 = 3;
 /// We don't want a slow peer to slow down all the others, at the same time we want to get out the
 /// data quickly in full to at least some peers (as this will reduce load on us as they then can
 /// start serving the data). So this value is a tradeoff. 3 seems to be sensible. So we would need
-/// to have 3 slow nodes connected, to delay transfer for others by `STATEMENTS_TIMEOUT`.
+/// to have 3 slow nodes connected, to delay transfer for others by `BACKED_CANDIDATE_PACKET_TIMEOUT`.
 pub const MAX_PARALLEL_BACKED_CANDIDATE_PACKET_REQUESTS: u32 = 5;
 
 /// Response size limit for responses of POV like data.
