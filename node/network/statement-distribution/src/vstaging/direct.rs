@@ -20,16 +20,32 @@
 //! Members of a validation group assigned to a para at a given relay-parent
 //! always distribute statements directly to each other.
 //!
-//! Each validator in the group is permitted to send up to some limit of
-//! `Seconded` statements per validator in the group. These may differ per-validator,
-//! if an attacker is exploiting network partitions, so we have to track up to
-//! `limit*group_size^2` `Seconded` statements. The limits and group sizes are both
-//! relatively small, and this is an absolute worst case.
+//! The main way we limit the amount of candidates that have to be handled by
+//! the system is to limit the amount of `Seconded` messages that we allow
+//! each validator to issue at each relay-parent. Since the amount of relay-parents
+//! that we have to deal with at any time is itself bounded, this lets us bound
+//! the memory and work that we have here. Bounding `Seconded` statements is enough
+//! because they imply a bounded amount of `Valid` statements about the same candidate
+//! which may follow.
 //!
-//! This module exposes a "DirectInGroup" utility which allows us to determine
-//! whether to accept or reject messages, and to track which candidates we consider
-//! 'legitimate' based on the first `limit` `Seconded` statements we see signed by
-//! each validator.
+//! The motivation for this piece of code is that the statements that each validator
+//! sees may differ. i.e. even though a validator is allowed to issue X `Seconded`
+//! statements at a relay-parent, they may in fact issue X*2 and issue one set to
+//! one partition of the backing group and one set to another. Of course, in practice
+//! these types of partitions will not exist, but in the worst case each validator in the
+//! group would see an entirely different set of X `Seconded` statements from some validator
+//! and each validator is in its own partition. After that partition resolves, we'd have to
+//! deal with up to `limit*group_size^2` `Seconded` statements.
+//!
+//! Given that both our group sizes and our limits per relay-parent are small, this is
+//! quite manageable, and the utility here lets us deal with it in only a few kilobytes
+//! of memory.
+//!
+//! More concretely, this module exposes a "DirectInGroup" utility which allows us to determine
+//! whether to accept or reject messages from other validators in the same group as we
+//! are in, based on _the most charitable possible interpretation of our protocol rules_,
+//! and to keep track of what we have sent to other validators in the group and what we may
+//! continue to send them.
 // TODO [now]: decide if we want to also distribute statements to validators
 // that are assigned as-of an active leaf i.e. the next group.
 
