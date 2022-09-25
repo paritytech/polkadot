@@ -517,6 +517,14 @@ impl pallet_staking::Config for Runtime {
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
+impl pallet_fast_unstake::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	// slash by 1 WNDs per era, if they are proven to be wrong.
+	type SlashPerEra = frame_support::traits::ConstU128<{ UNITS }>;
+	type ControlOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = ();
+}
+
 parameter_types! {
 	pub const MaxAuthorities: u32 = 100_000;
 }
@@ -804,12 +812,13 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::Slots(..) |
 				RuntimeCall::Auctions(..) | // Specifically omitting the entire XCM Pallet
 				RuntimeCall::VoterList(..) |
-				RuntimeCall::NominationPools(..)
+				RuntimeCall::NominationPools(..) |
+				RuntimeCall::FastUnstake(..)
 			),
 			ProxyType::Staking => {
 				matches!(
 					c,
-					RuntimeCall::Staking(..) | RuntimeCall::Session(..) | RuntimeCall::Utility(..)
+					RuntimeCall::Staking(..) | RuntimeCall::Session(..) | RuntimeCall::Utility(..) | RuntimeCall::FastUnstake(..)
 				)
 			},
 			ProxyType::SudoBalances => match c {
@@ -1126,6 +1135,9 @@ construct_runtime! {
 		// Nomination pools for staking.
 		NominationPools: pallet_nomination_pools::{Pallet, Call, Storage, Event<T>, Config<T>} = 29,
 
+		// Fast unstake pallet: extension to staking.
+		FastUnstake: pallet_fast_unstake = 30,
+
 		// Parachains pallets. Start indices at 40 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 41,
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 42,
@@ -1234,6 +1246,7 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
 		[frame_election_provider_support, ElectionProviderBench::<Runtime>]
+		[pallet_fast_unstake, FastUnstake]
 		[pallet_identity, Identity]
 		[pallet_im_online, ImOnline]
 		[pallet_indices, Indices]
