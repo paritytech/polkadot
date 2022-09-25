@@ -1073,7 +1073,9 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 			ProxyType::Staking => {
 				matches!(
 					c,
-					RuntimeCall::Staking(..) | RuntimeCall::Session(..) | RuntimeCall::Utility(..) | RuntimeCall::FastUnstake(..)
+					RuntimeCall::Staking(..) |
+						RuntimeCall::Session(..) | RuntimeCall::Utility(..) |
+						RuntimeCall::FastUnstake(..)
 				)
 			},
 			ProxyType::IdentityJudgement => matches!(
