@@ -21,7 +21,7 @@ use polkadot_primitives::v2::{BlockNumber, Header};
 
 use super::*;
 
-const API_VERSION_PROSPECTIVE_ENABLED: u32 = 3;
+const API_VERSION_PROSPECTIVE_ENABLED: u32 = RuntimeApiRequest::VALIDITY_CONSTRAINTS;
 
 struct TestLeaf {
 	activated: ActivatedLeaf,
