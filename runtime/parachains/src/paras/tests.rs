@@ -772,9 +772,6 @@ fn full_parachain_cleanup_storage() {
 			expected_at
 		};
 
-		// Cannot offboard while an upgrade is pending.
-		assert_err!(Paras::schedule_para_cleanup(para_id), Error::<Test>::CannotOffboard);
-
 		// Enact the upgrade.
 		//
 		// For that run to block #7 and submit a new head.
@@ -817,6 +814,65 @@ fn full_parachain_cleanup_storage() {
 		assert!(<Paras as Store>::PastCodePruning::get().is_empty());
 		check_code_is_not_stored(&original_code);
 		check_code_is_not_stored(&new_code);
+	});
+}
+
+#[test]
+fn cannot_offboard_ongoing_pvf_check() {
+	let para_id = ParaId::from(0);
+
+	let existing_code: ValidationCode = vec![1, 2, 3].into();
+	let new_code: ValidationCode = vec![3, 2, 1].into();
+
+	let paras = vec![(
+		para_id,
+		ParaGenesisArgs {
+			parachain: true,
+			genesis_head: Default::default(),
+			validation_code: existing_code,
+		},
+	)];
+
+	let genesis_config = MockGenesisConfig {
+		paras: GenesisConfig { paras, ..Default::default() },
+		configuration: crate::configuration::GenesisConfig {
+			config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
+			..Default::default()
+		},
+		..Default::default()
+	};
+
+	new_test_ext(genesis_config).execute_with(|| {
+		run_to_block(2, Some(vec![1]));
+
+		// Relay parent of the block that schedules the upgrade.
+		const RELAY_PARENT: BlockNumber = 1;
+		// Expected current session index.
+		const EXPECTED_SESSION: SessionIndex = 1;
+
+		Paras::schedule_code_upgrade(
+			para_id,
+			new_code.clone(),
+			RELAY_PARENT,
+			&Configuration::config(),
+		);
+		assert!(!Paras::pvfs_require_precheck().is_empty());
+
+		// Cannot offboard when there's an ongoing pvf-check voting.
+		assert_err!(Paras::schedule_para_cleanup(para_id), Error::<Test>::CannotOffboard);
+
+		// Include votes for super-majority.
+		IntoIterator::into_iter([0, 1, 2, 3])
+			.map(|i| PvfCheckStatement {
+				accept: true,
+				subject: new_code.hash(),
+				session_index: EXPECTED_SESSION,
+				validator_index: i.into(),
+			})
+			.for_each(sign_and_include_pvf_check_statement);
+
+		// Voting concluded, can offboard even though an upgrade is in progress.
+		assert_ok!(Paras::schedule_para_cleanup(para_id));
 	});
 }
 
