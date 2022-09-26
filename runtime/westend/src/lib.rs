@@ -522,7 +522,7 @@ impl pallet_fast_unstake::Config for Runtime {
 	// slash by 1 WNDs per era, if they are proven to be wrong.
 	type SlashPerEra = frame_support::traits::ConstU128<{ UNITS }>;
 	type ControlOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_fast_unstake::WeightInfo<Runtime>;
 }
 
 parameter_types! {
