@@ -306,7 +306,7 @@ impl pallet_referenda::Config<FellowshipReferendaInstance> for Runtime {
 		pallet_ranked_collective::EnsureMember<Runtime, FellowshipCollectiveInstance, 1>;
 	type CancelOrigin = FellowshipExperts;
 	type KillOrigin = FellowshipMasters;
-	type Slash = ();
+	type Slash = Treasury;
 	type Votes = pallet_ranked_collective::Votes;
 	type Tally = pallet_ranked_collective::TallyOf<Runtime, FellowshipCollectiveInstance>;
 	type SubmissionDeposit = SubmissionDeposit;
