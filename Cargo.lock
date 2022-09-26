@@ -7379,6 +7379,7 @@ dependencies = [
  "polkadot-node-subsystem-types",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "rand 0.8.5",
  "sp-core",
  "sp-keystore",
  "tracing-gum",
