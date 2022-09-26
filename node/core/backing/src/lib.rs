@@ -777,7 +777,7 @@ async fn prospective_parachains_mode<Context>(
 		.map_err(Error::RuntimeApiUnavailable)?
 		.map_err(Error::FetchRuntimeApiVersion)?;
 
-	if version == 3 {
+	if version >= RuntimeApiRequest::VALIDITY_CONSTRAINTS {
 		Ok(ProspectiveParachainsMode::Enabled)
 	} else {
 		if version != 2 {

@@ -714,6 +714,11 @@ impl RuntimeApiRequest {
 
 	/// `Disputes`
 	pub const DISPUTES_RUNTIME_REQUIREMENT: u32 = 3;
+
+	/// Minimum version for valididty constraints, required for async backing.
+	///
+	/// 99 for now, should be adjusted to VSTAGING/actual runtime version once released.
+	pub const VALIDITY_CONSTRAINTS: u32 = 99;
 }
 
 /// A message to the Runtime API subsystem.

@@ -201,7 +201,7 @@ async fn prospective_parachains_mode(
 
 	let version = rx.await.map_err(Error::CanceledRuntimeApiVersion)?.map_err(Error::Runtime)?;
 
-	if version == 3 {
+	if version >= RuntimeApiRequest::VALIDITY_CONSTRAINTS {
 		Ok(ProspectiveParachainsMode::Enabled)
 	} else {
 		if version != 2 {
