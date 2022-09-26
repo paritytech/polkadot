@@ -60,7 +60,7 @@ async fn setup() {
 		.timeout(std::time::Duration::from_millis(300))
 		.fuse();
 
-	pin_mut!(orchestra_fut);
+	futures::pin_mut!(orchestra_fut);
 
 	orchestra_fut.await;
 }
@@ -68,9 +68,7 @@ async fn setup() {
 fn assert_t_impl_trait_send<T: Send>(_: &T) {}
 
 fn main() {
-	use futures::{executor, pin_mut};
-
 	let x = setup();
 	assert_t_impl_trait_send(&x);
-	executor::block_on(x);
+	futures::executor::block_on(x);
 }
