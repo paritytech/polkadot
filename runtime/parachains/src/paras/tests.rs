@@ -835,10 +835,7 @@ fn cannot_offboard_ongoing_pvf_check() {
 	let genesis_config = MockGenesisConfig {
 		paras: GenesisConfig { paras, ..Default::default() },
 		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration {
-				pvf_checking_enabled: true,
-				..Default::default()
-			},
+			config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
 			..Default::default()
 		},
 		..Default::default()
