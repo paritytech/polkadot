@@ -335,7 +335,15 @@ impl pallet_ranked_collective::Config<FellowshipCollectiveInstance> for Runtime 
 	// - a vote by the rank *above* the new rank.
 	type PromoteOrigin = EitherOf<
 		EitherOf<
-			MapSuccess<pallet_collective::EnsureProportionAtLeast<Self::AccountId, super::old::TechnicalCollective, 2, 3>, Replace<ConstU16<6>>>,
+			MapSuccess<
+				pallet_collective::EnsureProportionAtLeast<
+					Self::AccountId,
+					super::old::TechnicalCollective,
+					2,
+					3,
+				>,
+				Replace<ConstU16<6>>,
+			>,
 			frame_system::EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>,
 		>,
 		EitherOf<
