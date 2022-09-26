@@ -59,30 +59,46 @@
 
 use std::ops::Range;
 
-use polkadot_primitives::vstaging::{CandidateHash, ValidatorIndex};
+use polkadot_primitives::vstaging::{CandidateHash, CompactStatement, ValidatorIndex};
+
+use std::collections::{HashMap, HashSet};
+
+#[derive(Hash, PartialEq, Eq)]
+struct ValidStatementManifest {
+	remote: ValidatorIndex,
+	originator: ValidatorIndex,
+	candidate_hash: CandidateHash,
+}
+
+// A piece of knowledge about a candidate
+#[derive(Hash, Clone, PartialEq, Eq)]
+enum Knowledge {
+	// General knowledge.
+	General(CandidateHash),
+	// Specific knowledge of a given statement (with its originator)
+	Specific(CompactStatement, ValidatorIndex),
+}
+
+// Knowledge paired with its source.
+#[derive(Hash, Clone, PartialEq, Eq)]
+enum TaggedKnowledge {
+	// Knowledge we have received from the validator on the p2p layer.
+	IncomingP2P(Knowledge),
+	// Knowledge we have sent to the validator on the p2p layer.
+	OutgoingP2P(Knowledge),
+	// Knowledge of candidates the validator has seconded.
+	Seconded(CandidateHash),
+}
 
 /// Utility for keeping track of limits on direct statements within a group.
 ///
 /// See module docs for more details.
 pub struct DirectInGroup {
 	validators: Vec<ValidatorIndex>,
-	our_index: usize,
+	our_index: ValidatorIndex,
 	seconding_limit: usize,
 
-	// a 3D matrix where the dimensions have the following meaning
-	// X: indicates the sending validator (size: group_size - 1, omitting self)
-	// Y: indicates the originating validator who issued the statement (size: group_size)
-	// Z: the candidate hash of the statement (size: seconding_limit)
-	//
-	// preallocated to (group size - 1) * group_size * seconding_limit.
-	incoming: Vec<Option<CandidateHash>>,
-
-	// a 2D matrix of accepted incoming `Seconded` messages from validators
-	// in the group.
-	// X: indicates the originating validator (size: group_size)
-	// Y: a seconded candidate we've accepted knowledge of locally (size: seconding_limit)
-	accepted: Vec<Option<CandidateHash>>,
-	// TODO [now]: outgoing sends
+	knowledge: HashMap<ValidatorIndex, HashSet<TaggedKnowledge>>,
 }
 
 impl DirectInGroup {
@@ -100,128 +116,188 @@ impl DirectInGroup {
 			return None
 		}
 
-		let our_index = index_in_group(&group_validators, our_index)?;
-
-		let incoming_size = (group_validators.len() - 1) * group_validators.len() * seconding_limit;
-		let accepted_size = group_validators.len() * seconding_limit;
-
-		let incoming = vec![None; incoming_size];
-		let accepted = vec![None; accepted_size];
+		let _ = index_in_group(&group_validators, our_index)?;
 
 		Some(DirectInGroup {
 			validators: group_validators,
 			our_index,
 			seconding_limit,
-			incoming,
-			accepted,
+			knowledge: HashMap::new(),
 		})
 	}
 
-	/// Handle an incoming `Seconded` statement from the given validator.
-	/// If the outcome is `Reject` then no internal state is altered.
-	pub fn handle_incoming_seconded(
-		&mut self,
+	/// Query whether we can receive some statement from the given validator.
+	///
+	/// This does no deduplication of `Valid` statements.
+	pub fn can_receive(
+		&self,
 		sender: ValidatorIndex,
 		originator: ValidatorIndex,
+		statement: CompactStatement,
+	) -> Result<Accept, RejectIncoming> {
+		if self.they_sent(sender, Knowledge::Specific(statement.clone(), originator)) {
+			return Err(RejectIncoming::Duplicate)
+		}
+
+		match statement {
+			CompactStatement::Seconded(candidate_hash) => {
+				// check whether the sender has not sent too many seconded statements for the originator.
+				// we know by the duplicate check above that this iterator doesn't include the
+				// statement itself.
+				let other_seconded_for_orig_from_remote = self
+					.knowledge
+					.get(&sender)
+					.into_iter()
+					.flat_map(|v_knowledge| v_knowledge.iter())
+					.filter(|k| match k {
+						TaggedKnowledge::IncomingP2P(Knowledge::Specific(
+							CompactStatement::Seconded(_),
+							orig,
+						)) if orig == &originator => true,
+						_ => false,
+					})
+					.count();
+
+				if other_seconded_for_orig_from_remote == self.seconding_limit {
+					return Err(RejectIncoming::ExcessiveSeconded)
+				}
+
+				// at this point, it doesn't seem like the remote has done anything wrong.
+				if self.seconded_already_or_within_limit(originator, candidate_hash) {
+					Ok(Accept::Ok)
+				} else {
+					Ok(Accept::WithPrejudice)
+				}
+			},
+			CompactStatement::Valid(candidate_hash) => {
+				if !self.knows_candidate(sender, candidate_hash) {
+					return Err(RejectIncoming::CandidateUnknown)
+				}
+
+				Ok(Accept::Ok)
+			},
+		}
+	}
+
+	/// Query whether we can send a statement to a given validator.
+	pub fn can_send(
+		&self,
+		receiver: ValidatorIndex,
+		originator: ValidatorIndex,
+		statement: CompactStatement,
+	) -> Result<Accept, RejectOutgoing> {
+		if self.we_sent(receiver, Knowledge::Specific(statement.clone(), originator)) {
+			return Err(RejectOutgoing::Known)
+		}
+
+		if self.they_sent(receiver, Knowledge::Specific(statement.clone(), originator)) {
+			return Err(RejectOutgoing::Known)
+		}
+
+		match statement {
+			CompactStatement::Seconded(candidate_hash) => {
+				// we send the same `Seconded` statements to all our peers, and only the first `k` from
+				// each originator.
+				if !self.seconded_already_or_within_limit(originator, candidate_hash) {
+					return Err(RejectOutgoing::ExcessiveSeconded)
+				}
+
+				Ok(Accept::Ok)
+			},
+			CompactStatement::Valid(candidate_hash) => {
+				if !self.knows_candidate(receiver, candidate_hash) {
+					return Err(RejectOutgoing::CandidateUnknown)
+				}
+
+				Ok(Accept::Ok)
+			},
+		}
+	}
+
+	// returns true if it's legal to accept a new `Seconded` message from this validator.
+	// This is either
+	//   1. because we've already accepted it.
+	//   2. because there's space for more seconding.
+	fn seconded_already_or_within_limit(
+		&self,
+		validator: ValidatorIndex,
 		candidate_hash: CandidateHash,
-	) -> Result<AcceptIncoming, RejectIncoming> {
-		let sender_index = match self.index_in_group(sender) {
-			None => return Err(RejectIncoming::NotInGroup),
-			Some(i) => i,
-		};
+	) -> bool {
+		let seconded_other_candidates = self
+			.knowledge
+			.get(&validator)
+			.into_iter()
+			.flat_map(|v_knowledge| v_knowledge.iter())
+			.filter(|k| match k {
+				TaggedKnowledge::Seconded(c) if c != &candidate_hash => true,
+				_ => false,
+			})
+			.count();
 
-		let originator_index = match self.index_in_group(sender) {
-			None => return Err(RejectIncoming::NotInGroup),
-			Some(i) => i,
-		};
-
-		if sender_index == self.our_index || originator_index == self.our_index {
-			return Err(RejectIncoming::NotInGroup)
-		}
-
-		let range = self.incoming_range(sender_index, originator_index);
-		for i in range {
-			if self.incoming[i] == Some(candidate_hash) {
-				// duplicates get rejected.
-				return Err(RejectIncoming::PeerExcess)
-			}
-
-			// ok, found an empty slot.
-			if self.incoming[i].is_none() {
-				self.incoming[i] = Some(candidate_hash);
-				return self.handle_accepted_incoming(originator_index, candidate_hash)
-			}
-		}
-
-		Err(RejectIncoming::PeerExcess)
+		// This fulfills both properties by under-counting when the validator is at the limit
+		// but _has_ seconded the candidate already.
+		seconded_other_candidates < self.seconding_limit
 	}
 
-	// TODO [now]: some API analogues to can_send / can_receive.
-
-	fn handle_accepted_incoming(
-		&mut self,
-		originator: usize,
-		candidate_hash: CandidateHash,
-	) -> Result<AcceptIncoming, RejectIncoming> {
-		let range = self.accepted_range(originator);
-		for i in range {
-			if self.accepted[i] == Some(candidate_hash) {
-				return Ok(AcceptIncoming::YesKnown)
-			}
-
-			if self.accepted[i].is_none() {
-				self.accepted[i] = Some(candidate_hash);
-				return Ok(AcceptIncoming::YesUnknown)
-			}
-		}
-
-		Err(RejectIncoming::OriginatorExcess)
+	fn they_sent(&self, validator: ValidatorIndex, knowledge: Knowledge) -> bool {
+		self.knowledge
+			.get(&validator)
+			.map_or(false, |k| k.contains(&TaggedKnowledge::IncomingP2P(knowledge)))
 	}
 
-	fn index_in_group(&self, validator: ValidatorIndex) -> Option<usize> {
-		index_in_group(&self.validators, validator)
+	fn we_sent(&self, validator: ValidatorIndex, knowledge: Knowledge) -> bool {
+		self.knowledge
+			.get(&validator)
+			.map_or(false, |k| k.contains(&TaggedKnowledge::OutgoingP2P(knowledge)))
 	}
 
-	fn adjust_for_skipped_self(&self, index: usize) -> usize {
-		if index > self.our_index {
-			index - 1
-		} else {
-			index
-		}
+	fn knows_candidate(&self, validator: ValidatorIndex, candidate_hash: CandidateHash) -> bool {
+		self.we_sent_seconded(validator, candidate_hash) ||
+			self.they_sent_seconded(validator, candidate_hash)
 	}
 
-	fn incoming_range(&self, sender: usize, originator: usize) -> Range<usize> {
-		// adjust X dimension to account for the fact that our index is skipped.
-		let sender = self.adjust_for_skipped_self(sender);
-		let base = (sender * (self.validators.len() - 1)) + originator * self.seconding_limit;
-
-		base..base + self.seconding_limit
+	fn we_sent_seconded(&self, validator: ValidatorIndex, candidate_hash: CandidateHash) -> bool {
+		self.we_sent(validator, Knowledge::General(candidate_hash))
 	}
 
-	fn accepted_range(&self, originator: usize) -> Range<usize> {
-		let base = originator * self.seconding_limit;
-		base..base + self.seconding_limit
+	fn they_sent_seconded(&self, validator: ValidatorIndex, candidate_hash: CandidateHash) -> bool {
+		self.they_sent(validator, Knowledge::General(candidate_hash))
 	}
 }
 
-/// Incoming `Seconded` message was rejected.
+/// Incoming statement was accepted.
+#[derive(Debug, PartialEq)]
+pub enum Accept {
+	/// Neither the peer nor the originator have apparently exceeded limits.
+	/// Candidate or statement may already be known.
+	Ok,
+	/// Accept the message; the peer hasn't exceeded limits but the originator has.
+	WithPrejudice,
+}
+
+/// Incoming statement was rejected.
+#[derive(Debug, PartialEq)]
 pub enum RejectIncoming {
-	/// Peer sent excessive messages.
-	PeerExcess,
-	/// Originator sent excessive messages, peer seems innocent.
-	OriginatorExcess,
+	/// Peer sent excessive `Seconded` statements.
+	ExcessiveSeconded,
 	/// Sender or originator is not in the group.
 	NotInGroup,
+	/// Candidate is unknown to us. Only applies to `Valid` statements.
+	CandidateUnknown,
+	/// Statement is duplicate.
+	Duplicate,
 }
 
-/// Incoming `Seconded` message was accepted.
-pub enum AcceptIncoming {
-	/// The `Seconded` statement was within the peer's limits and unknown
-	/// for the originator.
-	YesUnknown,
-	/// The `Seconded` statement was within the peer's limits and already
-	/// known for the originator.
-	YesKnown,
+/// Outgoing statement was rejected.
+#[derive(Debug, PartialEq)]
+pub enum RejectOutgoing {
+	/// Candidate was unknown. ONly applies to `Valid` statements.
+	CandidateUnknown,
+	/// We attempted to send excessive `Seconded` statements.
+	/// indicates a bug on the local node's code.
+	ExcessiveSeconded,
+	/// The statement was already known to the peer.
+	Known,
 }
 
 fn index_in_group(validators: &[ValidatorIndex], index: ValidatorIndex) -> Option<usize> {
