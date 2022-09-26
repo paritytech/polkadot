@@ -75,7 +75,10 @@ pub mod pallet {
 
 		/// Required origin for sending XCM messages. If successful, it resolves to `MultiLocation`
 		/// which exists as an interior location within this chain's XCM context.
-		type SendXcmOrigin: EnsureOrigin<<Self as SysConfig>::Origin, Success = MultiLocation>;
+		type SendXcmOrigin: EnsureOrigin<
+			<Self as SysConfig>::RuntimeOrigin,
+			Success = MultiLocation,
+		>;
 
 		/// The type used to actually dispatch an XCM to its destination.
 		type XcmRouter: SendXcm;
@@ -83,7 +86,10 @@ pub mod pallet {
 		/// Required origin for executing XCM messages, including the teleport functionality. If successful,
 		/// then it resolves to `MultiLocation` which exists as an interior location within this chain's XCM
 		/// context.
-		type ExecuteXcmOrigin: EnsureOrigin<<Self as SysConfig>::Origin, Success = MultiLocation>;
+		type ExecuteXcmOrigin: EnsureOrigin<
+			<Self as SysConfig>::RuntimeOrigin,
+			Success = MultiLocation,
+		>;
 
 		/// Our XCM filter which messages to be executed using `XcmExecutor` must pass.
 		type XcmExecuteFilter: Contains<(MultiLocation, Xcm<<Self as SysConfig>::RuntimeCall>)>;
@@ -104,13 +110,16 @@ pub mod pallet {
 		type LocationInverter: InvertLocation;
 
 		/// The outer `Origin` type.
-		type Origin: From<Origin> + From<<Self as SysConfig>::Origin>;
+		type RuntimeOrigin: From<Origin> + From<<Self as SysConfig>::RuntimeOrigin>;
 
 		/// The outer `Call` type.
 		type RuntimeCall: Parameter
 			+ GetDispatchInfo
 			+ IsType<<Self as frame_system::Config>::RuntimeCall>
-			+ Dispatchable<Origin = <Self as Config>::Origin, PostInfo = PostDispatchInfo>;
+			+ Dispatchable<
+				RuntimeOrigin = <Self as Config>::RuntimeOrigin,
+				PostInfo = PostDispatchInfo,
+			>;
 
 		const VERSION_DISCOVERY_QUEUE_SIZE: u32;
 
@@ -1555,12 +1564,14 @@ where
 
 /// A simple passthrough where we reuse the `MultiLocation`-typed XCM origin as the inner value of
 /// this crate's `Origin::Xcm` value.
-pub struct XcmPassthrough<Origin>(PhantomData<Origin>);
-impl<Origin: From<crate::Origin>> ConvertOrigin<Origin> for XcmPassthrough<Origin> {
+pub struct XcmPassthrough<RuntimeOrigin>(PhantomData<RuntimeOrigin>);
+impl<RuntimeOrigin: From<crate::Origin>> ConvertOrigin<RuntimeOrigin>
+	for XcmPassthrough<RuntimeOrigin>
+{
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
+	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
 		match kind {
 			OriginKind::Xcm => Ok(crate::Origin::Xcm(origin).into()),

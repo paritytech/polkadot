@@ -119,11 +119,11 @@ impl<'a> ConnectionGraph<'a> {
 			}
 		}));
 		match sccs.len() {
-			0 => println!("✅ Found no strongly connected components, hence no cycles exist"),
-			1 => println!(
+			0 => eprintln!("✅ Found no strongly connected components, hence no cycles exist"),
+			1 => eprintln!(
 				"⚡ Found 1 strongly connected component which includes at least one cycle"
 			),
-			n => println!(
+			n => eprintln!(
 				"⚡ Found {n} strongly connected components which includes at least one cycle each"
 			),
 		}
@@ -169,7 +169,7 @@ impl<'a> ConnectionGraph<'a> {
 				}
 			}
 			let acc = String::from_iter(acc);
-			println!("cycle({print_idx:03}) ∈ {scc_tag}: {acc} *");
+			eprintln!("cycle({print_idx:03}) ∈ {scc_tag}: {acc} *");
 		}
 
 		sccs

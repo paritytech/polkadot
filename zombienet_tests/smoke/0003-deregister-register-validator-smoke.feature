@@ -2,10 +2,10 @@ Description: Deregister / Register Validator Smoke
 Network: ./0003-deregister-register-validator-smoke.toml
 Creds: config
 
-alice: is up
-bob: is up
-charlie: is up
-dave: is up
+alice: is up within 30 seconds
+bob: is up within 30 seconds
+charlie: is up within 30 seconds
+dave: is up within 30 seconds
 
 # ensure is in the validator set
 dave: reports polkadot_node_is_parachain_validator is 1 within 240 secs
