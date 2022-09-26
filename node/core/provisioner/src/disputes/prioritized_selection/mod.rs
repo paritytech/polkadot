@@ -55,8 +55,8 @@ pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200;
 /// it's hard to predict this number because we can't guess how many new votes (for the runtime) a
 /// batch will contain.
 ///
-/// The value below is reached by: `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME` / 2 + 10%
-/// The 10% makes approximately means '10% new votes'. Tweak this if provisioner makes excessive
+/// The value below is calculated by: `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME` / 2 * 1.1%
+/// The `* 1.1%` approximately means 1.1% new votes. Tweak this if provisioner makes excessive
 /// number of runtime calls.
 #[cfg(not(test))]
 const VOTES_SELECTION_BATCH_SIZE: usize = 1_100;
@@ -89,7 +89,7 @@ const VOTES_SELECTION_BATCH_SIZE: usize = 11; // Just a small value for tests. D
 ///
 /// The logic outlined above relies on `RuntimeApiRequest::Disputes` message from the Runtime. The user
 /// check the Runtime version before calling `select_disputes`. If the function is used with old runtime
-/// an error is logged and the logic will continue with empty onchain votes HashMap.
+/// an error is logged and the logic will continue with empty onchain votes `HashMap`.
 pub async fn select_disputes<Sender>(
 	sender: &mut Sender,
 	metrics: &metrics::Metrics,
