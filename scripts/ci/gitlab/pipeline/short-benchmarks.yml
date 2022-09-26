@@ -1,0 +1,27 @@
+# This file is part of .gitlab-ci.yml
+# Here are all jobs that are executed during "short-benchmarks" stage
+
+# Run all pallet benchmarks only once to check if there are any errors
+short-benchmark-polkadot:          &short-bench
+  stage:                           short-benchmarks
+  extends:
+    - .test-pr-refs
+    - .docker-env
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  needs:
+    - job:                         build-short-benchmark
+      artifacts:                   true
+  variables:
+    RUNTIME:                       polkadot
+  script:
+    - ./artifacts/polkadot benchmark pallet --execution wasm --wasm-execution compiled --chain $RUNTIME-dev --pallet "*" --extrinsic "*" --steps 2 --repeat 1
+
+short-benchmark-kusama:
+  <<:                              *short-bench
+  variables:
+    RUNTIME:                       kusama
+
+short-benchmark-westend:
+  <<:                              *short-bench
+  variables:
+    RUNTIME:                       westend
