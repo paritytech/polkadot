@@ -158,7 +158,7 @@ impl RollingSessionWindow {
 		self.earliest_session + (self.session_info.len() as SessionIndex).saturating_sub(1)
 	}
 
-	async fn last_finalized_block_session<Sender>(
+	async fn earliest_non_finalized_block_session<Sender>(
 		&self,
 		sender: &mut Sender,
 	) -> Result<u32, SessionsUnavailable>
@@ -193,10 +193,7 @@ impl RollingSessionWindow {
 		let (tx, rx) = oneshot::channel();
 		// We want to get the parent of the last finalized block.
 		sender
-			.send_message(ChainApiMessage::FinalizedBlockHash(
-				last_finalized_height.saturating_sub(1),
-				tx,
-			))
+			.send_message(ChainApiMessage::FinalizedBlockHash(last_finalized_height, tx))
 			.await;
 		let last_finalized_hash_parent = match rx.await {
 			Ok(Ok(maybe_hash)) => maybe_hash,
@@ -256,7 +253,8 @@ impl RollingSessionWindow {
 			+ overseer::SubsystemSender<ChainApiMessage>,
 	{
 		let session_index = get_session_index_for_child(sender, block_hash).await?;
-		let last_finalized_block_session = self.last_finalized_block_session(sender).await?;
+		let earliest_non_finalized_block_session =
+			self.earliest_non_finalized_block_session(sender).await?;
 
 		let old_window_start = self.earliest_session;
 
@@ -273,7 +271,7 @@ impl RollingSessionWindow {
 		// This will increase the session window to cover the full unfinalized chain.
 		let window_start = std::cmp::min(
 			session_index.saturating_sub(self.window_size.get() - 1),
-			last_finalized_block_session,
+			earliest_non_finalized_block_session,
 		);
 
 		// keep some of the old window, if applicable.
