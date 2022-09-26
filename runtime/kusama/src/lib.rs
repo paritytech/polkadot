@@ -623,8 +623,8 @@ impl pallet_staking::Config for Runtime {
 
 impl pallet_fast_unstake::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	// slash by 1 DOTs per era, if they are proven to be wrong.
-	type SlashPerEra = frame_support::traits::ConstU128<{ UNITS }>;
+	// slash by KSM/300 per era, if they are proven to be wrong.
+	type SlashPerEra = frame_support::traits::ConstU128<{ 100 * CENTS }>;
 	type ControlOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
