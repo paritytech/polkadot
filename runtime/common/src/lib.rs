@@ -75,7 +75,7 @@ const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO
 
 // Common constants used in all runtimes.
 parameter_types! {
-	pub const BlockHashCount: BlockNumber = 2400;
+	pub const BlockHashCount: BlockNumber = 4096;
 	/// The portion of the `NORMAL_DISPATCH_RATIO` that we adjust the fees with. Blocks filled less
 	/// than this will decrease the weight and more will increase.
 	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
@@ -103,7 +103,7 @@ pub type SlowAdjustingFeeUpdate<R> =
 #[macro_export]
 macro_rules! impl_runtime_weights {
 	($runtime:ident) => {
-		use frame_support::weights::{DispatchClass, Weight};
+		use frame_support::{dispatch::DispatchClass, weights::Weight};
 		use frame_system::limits;
 		use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 		pub use runtime_common::{

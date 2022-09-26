@@ -50,7 +50,7 @@ use {
 		peer_set::PeerSetProtocolNames, request_response::ReqProtocolNames,
 	},
 	polkadot_overseer::BlockInfo,
-	sc_client_api::{BlockBackend, ExecutorProvider},
+	sc_client_api::BlockBackend,
 	sp_core::traits::SpawnNamed,
 	sp_trie::PrefixedMemoryDB,
 };
@@ -292,7 +292,7 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 }
 
 #[cfg(feature = "full-node")]
-fn open_database(db_source: &DatabaseSource) -> Result<Arc<dyn Database>, Error> {
+pub fn open_database(db_source: &DatabaseSource) -> Result<Arc<dyn Database>, Error> {
 	let parachains_db = match db_source {
 		DatabaseSource::RocksDb { path, .. } => parachains_db::open_creating_rocksdb(
 			path.clone(),
@@ -541,11 +541,10 @@ where
 					slot_duration,
 				);
 
-			Ok((timestamp, slot))
+			Ok((slot, timestamp))
 		},
 		&task_manager.spawn_essential_handle(),
 		config.prometheus_registry(),
-		consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone()),
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
@@ -718,6 +717,11 @@ where
 
 	Ok(leaves.into_iter().rev().take(MAX_ACTIVE_LEAVES).collect())
 }
+
+pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
+	col_data: parachains_db::REAL_COLUMNS.col_availability_data,
+	col_meta: parachains_db::REAL_COLUMNS.col_availability_meta,
+};
 
 /// Create a new full node of arbitrary runtime and executor.
 ///
@@ -927,11 +931,6 @@ where
 
 	let parachains_db = open_database(&config.database)?;
 
-	let availability_config = AvailabilityConfig {
-		col_data: parachains_db::REAL_COLUMNS.col_availability_data,
-		col_meta: parachains_db::REAL_COLUMNS.col_availability_meta,
-	};
-
 	let approval_voting_config = ApprovalVotingConfig {
 		col_data: parachains_db::REAL_COLUMNS.col_approval_data,
 		slot_duration_millis: slot_duration.as_millis() as u64,
@@ -1064,7 +1063,7 @@ where
 					spawner,
 					is_collator,
 					approval_voting_config,
-					availability_config,
+					availability_config: AVAILABILITY_CONFIG,
 					candidate_validation_config,
 					chain_selection_config,
 					dispute_coordinator_config,
@@ -1114,9 +1113,6 @@ where
 	};
 
 	if role.is_authority() {
-		let can_author_with =
-			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
-
 		let proposer = sc_basic_authorship::ProposerFactory::new(
 			task_manager.spawn_handle(),
 			client.clone(),
@@ -1156,13 +1152,12 @@ where
 							slot_duration,
 						);
 
-					Ok((timestamp, slot, parachain))
+					Ok((slot, timestamp, parachain))
 				}
 			},
 			force_authoring,
 			backoff_authoring_blocks,
 			babe_link,
-			can_author_with,
 			block_proposal_slot_portion: babe::SlotProportion::new(2f32 / 3f32),
 			max_block_proposal_slot_portion: None,
 			telemetry: telemetry.as_ref().map(|x| x.handle()),

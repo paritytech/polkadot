@@ -16,8 +16,8 @@
 
 use super::*;
 use crate::mock::{
-	new_test_ext, Configuration, Event as MockEvent, Hrmp, MockGenesisConfig, Paras, ParasShared,
-	System, Test,
+	new_test_ext, Configuration, Hrmp, MockGenesisConfig, Paras, ParasShared,
+	RuntimeEvent as MockEvent, System, Test,
 };
 use frame_support::{assert_noop, assert_ok, traits::Currency as _};
 use primitives::v2::BlockNumber;

@@ -15,8 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::{
+	dispatch::GetDispatchInfo,
 	traits::{tokens::currency::Currency as CurrencyT, Get, OnUnbalanced as OnUnbalancedT},
-	weights::{constants::WEIGHT_PER_SECOND, GetDispatchInfo, WeightToFee as WeightToFeeT},
+	weights::{constants::WEIGHT_PER_SECOND, WeightToFee as WeightToFeeT},
 };
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};

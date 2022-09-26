@@ -17,8 +17,8 @@
 //! XCM configuration for Rococo.
 
 use super::{
-	parachains_origin, AccountId, Balances, Call, CouncilCollective, Event, Origin, ParaId,
-	Runtime, WeightToFee, XcmPallet,
+	parachains_origin, AccountId, Balances, CouncilCollective, ParaId, Runtime, RuntimeCall,
+	RuntimeEvent, RuntimeOrigin, WeightToFee, XcmPallet,
 };
 use frame_support::{match_types, parameter_types, traits::Everything};
 use runtime_common::{xcm_sender, ToAuthor};
@@ -76,13 +76,13 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 /// The means that we convert an the XCM message origin location into a local dispatch origin.
 type LocalOriginConverter = (
 	// A `Signed` origin of the sovereign account that the original location controls.
-	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
+	SovereignSignedViaLocation<SovereignAccountOf, RuntimeOrigin>,
 	// A child parachain, natively expressed, has the `Parachain` origin.
-	ChildParachainAsNative<parachains_origin::Origin, Origin>,
+	ChildParachainAsNative<parachains_origin::Origin, RuntimeOrigin>,
 	// The AccountId32 location type can be expressed natively as a `Signed` origin.
-	SignedAccountId32AsNative<RococoNetwork, Origin>,
+	SignedAccountId32AsNative<RococoNetwork, RuntimeOrigin>,
 	// A system child parachain, expressed as a Superuser, converts to the `Root` origin.
-	ChildSystemParachainAsSuperuser<ParaId, Origin>,
+	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
 );
 
 parameter_types! {
@@ -145,7 +145,7 @@ pub type Barrier = (
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type XcmSender = XcmRouter;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
@@ -153,8 +153,11 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher =
-		WeightInfoBounds<crate::weights::xcm::RococoXcmWeight<Call>, Call, MaxInstructions>;
+	type Weigher = WeightInfoBounds<
+		crate::weights::xcm::RococoXcmWeight<RuntimeCall>,
+		RuntimeCall,
+		MaxInstructions,
+	>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
 	type Trader = UsingComponents<WeightToFee, RocLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
@@ -173,7 +176,7 @@ parameter_types! {
 
 /// Type to convert the council origin to a Plurality `MultiLocation` value.
 pub type CouncilToPlurality = BackingToPlurality<
-	Origin,
+	RuntimeOrigin,
 	pallet_collective::Origin<Runtime, CouncilCollective>,
 	CouncilBodyId,
 >;
@@ -185,14 +188,14 @@ pub type LocalOriginToLocation = (
 	// `Unit` body.
 	CouncilToPlurality,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<Origin, AccountId, RococoNetwork>,
+	SignedToAccountId32<RuntimeOrigin, AccountId, RococoNetwork>,
 );
 impl pallet_xcm::Config for Runtime {
-	type Event = Event;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type RuntimeEvent = RuntimeEvent;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally.
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type XcmExecuteFilter = Everything;
 	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
 	// Anyone is able to use teleportation regardless of who they are and what they want to teleport.
@@ -200,10 +203,10 @@ impl pallet_xcm::Config for Runtime {
 	// Anyone is able to use reserve transfers regardless of who they are and what they want to
 	// transfer.
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
