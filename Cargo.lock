@@ -435,7 +435,7 @@ dependencies = [
 [[package]]
 name = "beefy-gadget"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#fbd7e5aa99e20b7019576ecf598bca2d7019cddd"
+source = "git+https://github.com/paritytech/substrate?branch=master#a0ec652e341f694f182a3c5fcc80d4c3fb280003"
 dependencies = [
  "array-bytes",
  "async-trait",
