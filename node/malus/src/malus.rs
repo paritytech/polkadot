@@ -33,7 +33,7 @@ use variants::*;
 #[clap(rename_all = "kebab-case")]
 enum NemesisVariant {
 	/// Suggest a candidate with an invalid proof of validity.
-	SuggestGarbageCandidate(RunCmd),
+	SuggestGarbageCandidate(SuggestGarbageCandidateOptions),
 	/// Back a candidate with a specifically crafted proof of validity.
 	BackGarbageCandidate(RunCmd),
 	/// Delayed disputing of ancestors that are perfectly fine.
@@ -68,8 +68,11 @@ impl MalusCli {
 		match self.variant {
 			NemesisVariant::BackGarbageCandidate(cmd) =>
 				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate, finality_delay)?,
-			NemesisVariant::SuggestGarbageCandidate(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidateWrapper, finality_delay)?,
+			NemesisVariant::SuggestGarbageCandidate(opts) => polkadot_cli::run_node(
+				run_cmd(opts.clone().cmd),
+				BackGarbageCandidateWrapper::new(opts),
+				finality_delay,
+			)?,
 			NemesisVariant::DisputeAncestor(opts) => polkadot_cli::run_node(
 				run_cmd(opts.clone().cmd),
 				DisputeValidCandidates::new(opts),

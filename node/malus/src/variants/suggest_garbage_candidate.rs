@@ -29,6 +29,7 @@ use polkadot_cli::{
 		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
 		ProvideRuntimeApi,
 	},
+	RunCmd,
 };
 use polkadot_node_core_candidate_validation::find_validation_data;
 use polkadot_node_primitives::{AvailableData, BlockData, PoV};
@@ -73,6 +74,7 @@ struct Inner {
 struct NoteCandidate<Spawner> {
 	inner: Arc<Mutex<Inner>>,
 	spawner: Spawner,
+	percentage: u8,
 }
 
 impl<Sender, Spawner> MessageInterceptor<Sender> for NoteCandidate<Spawner>
@@ -100,8 +102,8 @@ where
 				);
 
 				// Need to draw value from Bernoulli distribution with given probability of success defined by the Clap parameter.
-				// Note that clap parameter must be f64 since this is expected by the Bernoulli::new() function.
-				let distribution = Bernoulli::new(self.percentage_param).unwrap();
+				// Note that clap parameter must be f64 since this is expected by the Bernoulli::new() function, hence it is converted with into().
+				let distribution = Bernoulli::new(self.percentage.into()).unwrap();
 				
 				// Draw a random value from the distribution, where T: bool, using rng as the source of randomness.
 				let t_or_f = distribution.sample(&mut rand::thread_rng());
@@ -224,14 +226,7 @@ where
 					};
 
 					Some(message)
-				} else {
-					gum::debug!(
-						target: MALUS,
-						candidate_hash = ?candidate.hash(),
-						?relay_parent,
-						"Skipped creation of malicious candidate"
-					);
-				}
+				} else { None }
 			},
 			FromOrchestra::Communication { msg } => Some(FromOrchestra::Communication { msg }),
 			FromOrchestra::Signal(signal) => Some(FromOrchestra::Signal(signal)),
@@ -260,8 +255,30 @@ where
 	}
 }
 
+#[derive(Clone, Debug, clap::Parser)]
+#[clap(rename_all = "kebab-case")]
+#[allow(missing_docs)]
+pub struct SuggestGarbageCandidateOptions {
+	/// Determines the percentage of candidates that should be disputed. Allows for fine-tuning
+	/// the intensity of the behavior of the malicious node. 
+	#[clap(long, ignore_case = true, default_value_t = 0)]
+	pub percentage: u8,
+
+	#[clap(flatten)]
+	pub cmd: RunCmd,
+}
+
 /// Garbage candidate implementation wrapper which implements `OverseerGen` glue.
-pub(crate) struct BackGarbageCandidateWrapper;
+pub(crate) struct BackGarbageCandidateWrapper {
+	/// Pass in the options for the percentage to suggest
+	opts: SuggestGarbageCandidateOptions,
+}
+
+impl BackGarbageCandidateWrapper {
+	pub fn new(opts:  SuggestGarbageCandidateOptions) -> Self {
+		Self { opts }
+	}
+}
 
 impl OverseerGen for BackGarbageCandidateWrapper {
 	fn generate<'a, Spawner, RuntimeClient>(
@@ -277,7 +294,11 @@ impl OverseerGen for BackGarbageCandidateWrapper {
 		let inner = Inner { map: std::collections::HashMap::new() };
 		let inner_mut = Arc::new(Mutex::new(inner));
 		let note_candidate =
-			NoteCandidate { inner: inner_mut.clone(), spawner: SpawnGlue(args.spawner.clone()) };
+			NoteCandidate { 
+				inner: inner_mut.clone(), 
+				spawner: SpawnGlue(args.spawner.clone()),
+				percentage: self.opts.percentage
+			 };
 
 		let validation_filter = ReplaceValidationResult::new(
 			FakeCandidateValidation::BackingAndApprovalValid,
