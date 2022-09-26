@@ -95,32 +95,22 @@ enum TaggedKnowledge {
 /// See module docs for more details.
 pub struct DirectInGroup {
 	validators: Vec<ValidatorIndex>,
-	our_index: ValidatorIndex,
 	seconding_limit: usize,
 
 	knowledge: HashMap<ValidatorIndex, HashSet<TaggedKnowledge>>,
 }
 
 impl DirectInGroup {
-	/// Instantiate a new `DirectInGroup` tracker. Fails if `our_index` is out of bounds
-	/// or `group_validators` is empty or `our_index` is not in the group.
+	/// Instantiate a new `DirectInGroup` tracker. Fails if `group_validators` is empty
 	pub fn new(
 		group_validators: Vec<ValidatorIndex>,
-		our_index: ValidatorIndex,
 		seconding_limit: usize,
 	) -> Option<Self> {
 		if group_validators.is_empty() {
 			return None
 		}
-		if our_index.0 as usize >= group_validators.len() {
-			return None
-		}
-
-		let _ = index_in_group(&group_validators, our_index)?;
-
 		Some(DirectInGroup {
 			validators: group_validators,
-			our_index,
 			seconding_limit,
 			knowledge: HashMap::new(),
 		})
@@ -135,6 +125,10 @@ impl DirectInGroup {
 		originator: ValidatorIndex,
 		statement: CompactStatement,
 	) -> Result<Accept, RejectIncoming> {
+		if !self.is_in_group(sender) || !self.is_in_group(originator) {
+			return Err(RejectIncoming::NotInGroup)
+		}
+
 		if self.they_sent(sender, Knowledge::Specific(statement.clone(), originator)) {
 			return Err(RejectIncoming::Duplicate)
 		}
@@ -179,18 +173,49 @@ impl DirectInGroup {
 		}
 	}
 
+	/// Note that we accepted an incoming statement. This updates internal structures.
+	/// Should only be called after a successful `can_receive` call.
+	pub fn note_received(
+		&mut self,
+		sender: ValidatorIndex,
+		originator: ValidatorIndex,
+		statement: CompactStatement,
+	) {
+		{
+			let mut sender_knowledge = self.knowledge.entry(sender).or_default();
+			sender_knowledge.insert(TaggedKnowledge::IncomingP2P(
+				Knowledge::Specific(statement.clone(), originator)
+			));
+
+			if let CompactStatement::Seconded(candidate_hash) = statement.clone() {
+				sender_knowledge.insert(TaggedKnowledge::IncomingP2P(
+					Knowledge::General(candidate_hash)
+				));
+			}
+		}
+
+		if let CompactStatement::Seconded(candidate_hash) = statement {
+			let mut originator_knowledge = self.knowledge.entry(originator).or_default();
+			originator_knowledge.insert(TaggedKnowledge::Seconded(candidate_hash));
+		}
+	}
+
 	/// Query whether we can send a statement to a given validator.
 	pub fn can_send(
 		&self,
-		receiver: ValidatorIndex,
+		target: ValidatorIndex,
 		originator: ValidatorIndex,
 		statement: CompactStatement,
-	) -> Result<Accept, RejectOutgoing> {
-		if self.we_sent(receiver, Knowledge::Specific(statement.clone(), originator)) {
+	) -> Result<(), RejectOutgoing> {
+		if !self.is_in_group(target) || !self.is_in_group(originator) {
+			return Err(RejectOutgoing::NotInGroup)
+		}
+
+		if self.we_sent(target, Knowledge::Specific(statement.clone(), originator)) {
 			return Err(RejectOutgoing::Known)
 		}
 
-		if self.they_sent(receiver, Knowledge::Specific(statement.clone(), originator)) {
+		if self.they_sent(target, Knowledge::Specific(statement.clone(), originator)) {
 			return Err(RejectOutgoing::Known)
 		}
 
@@ -202,15 +227,42 @@ impl DirectInGroup {
 					return Err(RejectOutgoing::ExcessiveSeconded)
 				}
 
-				Ok(Accept::Ok)
+				Ok(())
 			},
 			CompactStatement::Valid(candidate_hash) => {
-				if !self.knows_candidate(receiver, candidate_hash) {
+				if !self.knows_candidate(target, candidate_hash) {
 					return Err(RejectOutgoing::CandidateUnknown)
 				}
 
-				Ok(Accept::Ok)
+				Ok(())
 			},
+		}
+	}
+
+	/// Note that we sent an outgoing statement to a peer in the group.
+	/// This must be preceded by a successful `can_send` call.
+	pub fn note_sent(
+		&mut self,
+		target: ValidatorIndex,
+		originator: ValidatorIndex,
+		statement: CompactStatement,
+	) {
+		{
+			let mut target_knowledge = self.knowledge.entry(target).or_default();
+			target_knowledge.insert(TaggedKnowledge::OutgoingP2P(
+				Knowledge::Specific(statement.clone(), originator)
+			));
+
+			if let CompactStatement::Seconded(candidate_hash) = statement.clone() {
+				target_knowledge.insert(TaggedKnowledge::OutgoingP2P(
+					Knowledge::General(candidate_hash)
+				));
+			}
+		}
+
+		if let CompactStatement::Seconded(candidate_hash) = statement {
+			let mut originator_knowledge = self.knowledge.entry(originator).or_default();
+			originator_knowledge.insert(TaggedKnowledge::Seconded(candidate_hash));
 		}
 	}
 
@@ -263,6 +315,10 @@ impl DirectInGroup {
 	fn they_sent_seconded(&self, validator: ValidatorIndex, candidate_hash: CandidateHash) -> bool {
 		self.they_sent(validator, Knowledge::General(candidate_hash))
 	}
+
+	fn is_in_group(&self, validator: ValidatorIndex) -> bool {
+		self.validators.contains(&validator)
+	}
 }
 
 /// Incoming statement was accepted.
@@ -298,8 +354,6 @@ pub enum RejectOutgoing {
 	ExcessiveSeconded,
 	/// The statement was already known to the peer.
 	Known,
-}
-
-fn index_in_group(validators: &[ValidatorIndex], index: ValidatorIndex) -> Option<usize> {
-	validators.iter().position(|v| v == &index)
+	/// Target or originator not in the group.
+	NotInGroup,
 }
