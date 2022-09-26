@@ -91,7 +91,7 @@ pub mod pallet {
 		type LeaseOffset: Get<Self::BlockNumber>;
 
 		/// The origin which may forcibly create or clear leases. Root can always do this.
-		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
+		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
 
 		/// Weight Information for the Extrinsics in the Pallet
 		type WeightInfo: WeightInfo;
@@ -529,7 +529,7 @@ mod tests {
 		type BaseCallFilter = frame_support::traits::Everything;
 		type BlockWeights = ();
 		type BlockLength = ();
-		type Origin = Origin;
+		type RuntimeOrigin = RuntimeOrigin;
 		type RuntimeCall = RuntimeCall;
 		type Index = u64;
 		type BlockNumber = BlockNumber;
@@ -847,7 +847,7 @@ mod tests {
 				assert_eq!(Balances::reserved_balance(j), j * 10);
 			}
 
-			assert_ok!(Slots::clear_all_leases(Origin::root(), 1.into()));
+			assert_ok!(Slots::clear_all_leases(RuntimeOrigin::root(), 1.into()));
 
 			// Balances cleaned up correctly
 			for i in 1u32..=max_num {
@@ -925,21 +925,21 @@ mod tests {
 
 			// Para 1 should fail cause they don't have any leases
 			assert_noop!(
-				Slots::trigger_onboard(Origin::signed(1), 1.into()),
+				Slots::trigger_onboard(RuntimeOrigin::signed(1), 1.into()),
 				Error::<Test>::ParaNotOnboarding
 			);
 
 			// Para 2 should succeed
-			assert_ok!(Slots::trigger_onboard(Origin::signed(1), 2.into()));
+			assert_ok!(Slots::trigger_onboard(RuntimeOrigin::signed(1), 2.into()));
 
 			// Para 3 should fail cause their lease is in the future
 			assert_noop!(
-				Slots::trigger_onboard(Origin::signed(1), 3.into()),
+				Slots::trigger_onboard(RuntimeOrigin::signed(1), 3.into()),
 				Error::<Test>::ParaNotOnboarding
 			);
 
 			// Trying Para 2 again should fail cause they are not currently a parathread
-			assert!(Slots::trigger_onboard(Origin::signed(1), 2.into()).is_err());
+			assert!(Slots::trigger_onboard(RuntimeOrigin::signed(1), 2.into()).is_err());
 
 			assert_eq!(TestRegistrar::<Test>::operations(), vec![(2.into(), 1, true),]);
 		});
@@ -1025,7 +1025,7 @@ mod benchmarking {
 			let period_begin = 69u32.into();
 			let period_count = 3u32.into();
 			let origin = T::ForceOrigin::successful_origin();
-		}: _<T::Origin>(origin, para, leaser.clone(), amount, period_begin, period_count)
+		}: _<T::RuntimeOrigin>(origin, para, leaser.clone(), amount, period_begin, period_count)
 		verify {
 			assert_last_event::<T>(Event::<T>::Leased {
 				para_id: para,
@@ -1119,7 +1119,7 @@ mod benchmarking {
 			}
 
 			let origin = T::ForceOrigin::successful_origin();
-		}: _<T::Origin>(origin, para)
+		}: _<T::RuntimeOrigin>(origin, para)
 		verify {
 			for i in 0 .. max_people {
 				let leaser = account("lease_deposit", i, 0);

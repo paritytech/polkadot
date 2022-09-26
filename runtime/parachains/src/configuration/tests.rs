@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::mock::{new_test_ext, Configuration, Origin, ParasShared, Test};
+use crate::mock::{new_test_ext, Configuration, ParasShared, RuntimeOrigin, Test};
 use frame_support::{assert_err, assert_ok};
 
 fn on_new_session(session_index: SessionIndex) -> (HostConfiguration<u32>, HostConfiguration<u32>) {
@@ -48,7 +48,7 @@ fn initializer_on_new_session() {
 	new_test_ext(Default::default()).execute_with(|| {
 		let (prev_config, new_config) = on_new_session(1);
 		assert_eq!(prev_config, new_config);
-		assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
+		assert_ok!(Configuration::set_validation_upgrade_delay(RuntimeOrigin::root(), 100));
 
 		let (prev_config, new_config) = on_new_session(2);
 		assert_eq!(prev_config, new_config);
@@ -67,7 +67,7 @@ fn config_changes_after_2_session_boundary() {
 		config.validation_upgrade_delay = 100;
 		assert!(old_config != config);
 
-		assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
+		assert_ok!(Configuration::set_validation_upgrade_delay(RuntimeOrigin::root(), 100));
 
 		// Verify that the current configuration has not changed and that there is a scheduled
 		// change for the SESSION_DELAY sessions in advance.
@@ -96,8 +96,8 @@ fn consecutive_changes_within_one_session() {
 		config.validation_upgrade_cooldown = 100;
 		assert!(old_config != config);
 
-		assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
-		assert_ok!(Configuration::set_validation_upgrade_cooldown(Origin::root(), 100));
+		assert_ok!(Configuration::set_validation_upgrade_delay(RuntimeOrigin::root(), 100));
+		assert_ok!(Configuration::set_validation_upgrade_cooldown(RuntimeOrigin::root(), 100));
 		assert_eq!(Configuration::config(), old_config);
 		assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![(2, config.clone())]);
 
@@ -125,7 +125,7 @@ fn pending_next_session_but_we_upgrade_once_more() {
 			..initial_config.clone()
 		};
 
-		assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
+		assert_ok!(Configuration::set_validation_upgrade_delay(RuntimeOrigin::root(), 100));
 		assert_eq!(Configuration::config(), initial_config);
 		assert_eq!(
 			<Configuration as Store>::PendingConfigs::get(),
@@ -136,7 +136,7 @@ fn pending_next_session_but_we_upgrade_once_more() {
 
 		// We are still waiting until the pending configuration is applied and we add another
 		// update.
-		assert_ok!(Configuration::set_validation_upgrade_cooldown(Origin::root(), 99));
+		assert_ok!(Configuration::set_validation_upgrade_cooldown(RuntimeOrigin::root(), 99));
 
 		// This should result in yet another configiguration change scheduled.
 		assert_eq!(Configuration::config(), initial_config);
@@ -173,7 +173,7 @@ fn scheduled_session_config_update_while_next_session_pending() {
 			..initial_config.clone()
 		};
 
-		assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
+		assert_ok!(Configuration::set_validation_upgrade_delay(RuntimeOrigin::root(), 100));
 		assert_eq!(Configuration::config(), initial_config);
 		assert_eq!(
 			<Configuration as Store>::PendingConfigs::get(),
@@ -184,8 +184,8 @@ fn scheduled_session_config_update_while_next_session_pending() {
 
 		// The second call should fall into the case where we already have a pending config
 		// update for the scheduled_session, but we want to update it once more.
-		assert_ok!(Configuration::set_validation_upgrade_cooldown(Origin::root(), 99));
-		assert_ok!(Configuration::set_code_retention_period(Origin::root(), 98));
+		assert_ok!(Configuration::set_validation_upgrade_cooldown(RuntimeOrigin::root(), 99));
+		assert_ok!(Configuration::set_code_retention_period(RuntimeOrigin::root(), 98));
 
 		// This should result in yet another configiguration change scheduled.
 		assert_eq!(Configuration::config(), initial_config);
@@ -213,30 +213,30 @@ fn scheduled_session_config_update_while_next_session_pending() {
 fn invariants() {
 	new_test_ext(Default::default()).execute_with(|| {
 		assert_err!(
-			Configuration::set_max_code_size(Origin::root(), MAX_CODE_SIZE + 1),
+			Configuration::set_max_code_size(RuntimeOrigin::root(), MAX_CODE_SIZE + 1),
 			Error::<Test>::InvalidNewValue
 		);
 
 		assert_err!(
-			Configuration::set_max_pov_size(Origin::root(), MAX_POV_SIZE + 1),
+			Configuration::set_max_pov_size(RuntimeOrigin::root(), MAX_POV_SIZE + 1),
 			Error::<Test>::InvalidNewValue
 		);
 
 		assert_err!(
-			Configuration::set_max_head_data_size(Origin::root(), MAX_HEAD_DATA_SIZE + 1),
+			Configuration::set_max_head_data_size(RuntimeOrigin::root(), MAX_HEAD_DATA_SIZE + 1),
 			Error::<Test>::InvalidNewValue
 		);
 
 		assert_err!(
-			Configuration::set_chain_availability_period(Origin::root(), 0),
+			Configuration::set_chain_availability_period(RuntimeOrigin::root(), 0),
 			Error::<Test>::InvalidNewValue
 		);
 		assert_err!(
-			Configuration::set_thread_availability_period(Origin::root(), 0),
+			Configuration::set_thread_availability_period(RuntimeOrigin::root(), 0),
 			Error::<Test>::InvalidNewValue
 		);
 		assert_err!(
-			Configuration::set_no_show_slots(Origin::root(), 0),
+			Configuration::set_no_show_slots(RuntimeOrigin::root(), 0),
 			Error::<Test>::InvalidNewValue
 		);
 
@@ -247,20 +247,20 @@ fn invariants() {
 			..Default::default()
 		});
 		assert_err!(
-			Configuration::set_chain_availability_period(Origin::root(), 12),
+			Configuration::set_chain_availability_period(RuntimeOrigin::root(), 12),
 			Error::<Test>::InvalidNewValue
 		);
 		assert_err!(
-			Configuration::set_thread_availability_period(Origin::root(), 12),
+			Configuration::set_thread_availability_period(RuntimeOrigin::root(), 12),
 			Error::<Test>::InvalidNewValue
 		);
 		assert_err!(
-			Configuration::set_minimum_validation_upgrade_delay(Origin::root(), 9),
+			Configuration::set_minimum_validation_upgrade_delay(RuntimeOrigin::root(), 9),
 			Error::<Test>::InvalidNewValue
 		);
 
 		assert_err!(
-			Configuration::set_validation_upgrade_delay(Origin::root(), 0),
+			Configuration::set_validation_upgrade_delay(RuntimeOrigin::root(), 0),
 			Error::<Test>::InvalidNewValue
 		);
 	});
@@ -270,12 +270,12 @@ fn invariants() {
 fn consistency_bypass_works() {
 	new_test_ext(Default::default()).execute_with(|| {
 		assert_err!(
-			Configuration::set_max_code_size(Origin::root(), MAX_CODE_SIZE + 1),
+			Configuration::set_max_code_size(RuntimeOrigin::root(), MAX_CODE_SIZE + 1),
 			Error::<Test>::InvalidNewValue
 		);
 
-		assert_ok!(Configuration::set_bypass_consistency_check(Origin::root(), true));
-		assert_ok!(Configuration::set_max_code_size(Origin::root(), MAX_CODE_SIZE + 1));
+		assert_ok!(Configuration::set_bypass_consistency_check(RuntimeOrigin::root(), true));
+		assert_ok!(Configuration::set_max_code_size(RuntimeOrigin::root(), MAX_CODE_SIZE + 1));
 
 		assert_eq!(
 			Configuration::config().max_code_size,
@@ -339,165 +339,186 @@ fn setting_pending_config_members() {
 		};
 
 		Configuration::set_validation_upgrade_cooldown(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.validation_upgrade_cooldown,
 		)
 		.unwrap();
 		Configuration::set_validation_upgrade_delay(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.validation_upgrade_delay,
 		)
 		.unwrap();
-		Configuration::set_code_retention_period(Origin::root(), new_config.code_retention_period)
+		Configuration::set_code_retention_period(
+			RuntimeOrigin::root(),
+			new_config.code_retention_period,
+		)
+		.unwrap();
+		Configuration::set_max_code_size(RuntimeOrigin::root(), new_config.max_code_size).unwrap();
+		Configuration::set_max_pov_size(RuntimeOrigin::root(), new_config.max_pov_size).unwrap();
+		Configuration::set_max_head_data_size(RuntimeOrigin::root(), new_config.max_head_data_size)
 			.unwrap();
-		Configuration::set_max_code_size(Origin::root(), new_config.max_code_size).unwrap();
-		Configuration::set_max_pov_size(Origin::root(), new_config.max_pov_size).unwrap();
-		Configuration::set_max_head_data_size(Origin::root(), new_config.max_head_data_size)
+		Configuration::set_parathread_cores(RuntimeOrigin::root(), new_config.parathread_cores)
 			.unwrap();
-		Configuration::set_parathread_cores(Origin::root(), new_config.parathread_cores).unwrap();
-		Configuration::set_parathread_retries(Origin::root(), new_config.parathread_retries)
+		Configuration::set_parathread_retries(RuntimeOrigin::root(), new_config.parathread_retries)
 			.unwrap();
 		Configuration::set_group_rotation_frequency(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.group_rotation_frequency,
 		)
 		.unwrap();
 		// This comes out of order to satisfy the validity criteria for the chain and thread
 		// availability periods.
 		Configuration::set_minimum_validation_upgrade_delay(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.minimum_validation_upgrade_delay,
 		)
 		.unwrap();
 		Configuration::set_chain_availability_period(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.chain_availability_period,
 		)
 		.unwrap();
 		Configuration::set_thread_availability_period(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.thread_availability_period,
 		)
 		.unwrap();
-		Configuration::set_scheduling_lookahead(Origin::root(), new_config.scheduling_lookahead)
-			.unwrap();
+		Configuration::set_scheduling_lookahead(
+			RuntimeOrigin::root(),
+			new_config.scheduling_lookahead,
+		)
+		.unwrap();
 		Configuration::set_max_validators_per_core(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.max_validators_per_core,
 		)
 		.unwrap();
-		Configuration::set_max_validators(Origin::root(), new_config.max_validators).unwrap();
-		Configuration::set_dispute_period(Origin::root(), new_config.dispute_period).unwrap();
+		Configuration::set_max_validators(RuntimeOrigin::root(), new_config.max_validators)
+			.unwrap();
+		Configuration::set_dispute_period(RuntimeOrigin::root(), new_config.dispute_period)
+			.unwrap();
 		Configuration::set_dispute_post_conclusion_acceptance_period(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.dispute_post_conclusion_acceptance_period,
 		)
 		.unwrap();
 		Configuration::set_dispute_max_spam_slots(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.dispute_max_spam_slots,
 		)
 		.unwrap();
 		Configuration::set_dispute_conclusion_by_time_out_period(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.dispute_conclusion_by_time_out_period,
 		)
 		.unwrap();
-		Configuration::set_no_show_slots(Origin::root(), new_config.no_show_slots).unwrap();
-		Configuration::set_n_delay_tranches(Origin::root(), new_config.n_delay_tranches).unwrap();
+		Configuration::set_no_show_slots(RuntimeOrigin::root(), new_config.no_show_slots).unwrap();
+		Configuration::set_n_delay_tranches(RuntimeOrigin::root(), new_config.n_delay_tranches)
+			.unwrap();
 		Configuration::set_zeroth_delay_tranche_width(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.zeroth_delay_tranche_width,
 		)
 		.unwrap();
-		Configuration::set_needed_approvals(Origin::root(), new_config.needed_approvals).unwrap();
+		Configuration::set_needed_approvals(RuntimeOrigin::root(), new_config.needed_approvals)
+			.unwrap();
 		Configuration::set_relay_vrf_modulo_samples(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.relay_vrf_modulo_samples,
 		)
 		.unwrap();
 		Configuration::set_max_upward_queue_count(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.max_upward_queue_count,
 		)
 		.unwrap();
-		Configuration::set_max_upward_queue_size(Origin::root(), new_config.max_upward_queue_size)
-			.unwrap();
+		Configuration::set_max_upward_queue_size(
+			RuntimeOrigin::root(),
+			new_config.max_upward_queue_size,
+		)
+		.unwrap();
 		Configuration::set_max_downward_message_size(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.max_downward_message_size,
 		)
 		.unwrap();
 		Configuration::set_ump_service_total_weight(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.ump_service_total_weight,
 		)
 		.unwrap();
 		Configuration::set_max_upward_message_size(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.max_upward_message_size,
 		)
 		.unwrap();
 		Configuration::set_max_upward_message_num_per_candidate(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.max_upward_message_num_per_candidate,
 		)
 		.unwrap();
-		Configuration::set_hrmp_sender_deposit(Origin::root(), new_config.hrmp_sender_deposit)
-			.unwrap();
+		Configuration::set_hrmp_sender_deposit(
+			RuntimeOrigin::root(),
+			new_config.hrmp_sender_deposit,
+		)
+		.unwrap();
 		Configuration::set_hrmp_recipient_deposit(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.hrmp_recipient_deposit,
 		)
 		.unwrap();
 		Configuration::set_hrmp_channel_max_capacity(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.hrmp_channel_max_capacity,
 		)
 		.unwrap();
 		Configuration::set_hrmp_channel_max_total_size(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.hrmp_channel_max_total_size,
 		)
 		.unwrap();
 		Configuration::set_hrmp_max_parachain_inbound_channels(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.hrmp_max_parachain_inbound_channels,
 		)
 		.unwrap();
 		Configuration::set_hrmp_max_parathread_inbound_channels(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.hrmp_max_parathread_inbound_channels,
 		)
 		.unwrap();
 		Configuration::set_hrmp_channel_max_message_size(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.hrmp_channel_max_message_size,
 		)
 		.unwrap();
 		Configuration::set_hrmp_max_parachain_outbound_channels(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.hrmp_max_parachain_outbound_channels,
 		)
 		.unwrap();
 		Configuration::set_hrmp_max_parathread_outbound_channels(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.hrmp_max_parathread_outbound_channels,
 		)
 		.unwrap();
 		Configuration::set_hrmp_max_message_num_per_candidate(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.hrmp_max_message_num_per_candidate,
 		)
 		.unwrap();
 		Configuration::set_ump_max_individual_weight(
-			Origin::root(),
+			RuntimeOrigin::root(),
 			new_config.ump_max_individual_weight,
 		)
 		.unwrap();
-		Configuration::set_pvf_checking_enabled(Origin::root(), new_config.pvf_checking_enabled)
+		Configuration::set_pvf_checking_enabled(
+			RuntimeOrigin::root(),
+			new_config.pvf_checking_enabled,
+		)
+		.unwrap();
+		Configuration::set_pvf_voting_ttl(RuntimeOrigin::root(), new_config.pvf_voting_ttl)
 			.unwrap();
-		Configuration::set_pvf_voting_ttl(Origin::root(), new_config.pvf_voting_ttl).unwrap();
 
 		assert_eq!(
 			<Configuration as Store>::PendingConfigs::get(),
@@ -509,7 +530,7 @@ fn setting_pending_config_members() {
 #[test]
 fn non_root_cannot_set_config() {
 	new_test_ext(Default::default()).execute_with(|| {
-		assert!(Configuration::set_validation_upgrade_delay(Origin::signed(1), 100).is_err());
+		assert!(Configuration::set_validation_upgrade_delay(RuntimeOrigin::signed(1), 100).is_err());
 	});
 }
 

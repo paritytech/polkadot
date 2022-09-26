@@ -35,8 +35,8 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
 	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig,
-	CollationSecondedSignal, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement,
-	SignedFullStatement, ValidationResult,
+	CollationSecondedSignal, DisputeMessage, DisputeStatus, ErasureChunk, PoV,
+	SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
@@ -271,7 +271,7 @@ pub enum DisputeCoordinatorMessage {
 	/// Fetch a list of all recent disputes the co-ordinator is aware of.
 	/// These are disputes which have occurred any time in recent sessions,
 	/// and which may have already concluded.
-	RecentDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
+	RecentDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash, DisputeStatus)>>),
 	/// Fetch a list of all active disputes that the coordinator is aware of.
 	/// These disputes are either not yet concluded or recently concluded.
 	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
@@ -699,10 +699,15 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCodeHash>>,
 	),
-	/// Returns all on-chain disputes at given block number.
-	StagingDisputes(
-		RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
-	),
+	/// Returns all on-chain disputes at given block number. Available in v3.
+	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
+}
+
+impl RuntimeApiRequest {
+	/// Runtime version requirements for each message
+
+	/// `Disputes`
+	pub const DISPUTES_RUNTIME_REQUIREMENT: u32 = 3;
 }
 
 /// A message to the Runtime API subsystem.
