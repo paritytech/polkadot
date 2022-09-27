@@ -132,4 +132,40 @@ mod tests {
 			assert!(run.cmd.base.bob);
 		});
 	}
+
+	#[test]
+	fn percentage_works_suggest_garbage() {
+		let cli = MalusCli::try_parse_from(IntoIterator::into_iter([
+			"malus",
+			"suggest-garbage-candidate",
+			"--percentage",
+			"100",
+			"--bob",
+		]))
+		.unwrap();
+		assert_matches::assert_matches!(cli, MalusCli {
+			variant: NemesisVariant::SuggestGarbageCandidate(run),
+			..
+		} => {
+			assert!(run.cmd.base.bob);
+		});
+	}
+
+	#[test]
+	fn percentage_works_dispute_ancestor() {
+		let cli = MalusCli::try_parse_from(IntoIterator::into_iter([
+			"malus",
+			"dispute-ancestor",
+			"--percentage",
+			"100",
+			"--bob",
+		]))
+		.unwrap();
+		assert_matches::assert_matches!(cli, MalusCli {
+			variant: NemesisVariant::DisputeAncestor(run),
+			..
+		} => {
+			assert!(run.cmd.base.bob);
+		});
+	}
 }
