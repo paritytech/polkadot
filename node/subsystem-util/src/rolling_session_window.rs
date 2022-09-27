@@ -113,8 +113,14 @@ impl RollingSessionWindow {
 			+ overseer::SubsystemSender<ChainApiMessage>,
 	{
 		let session_index = get_session_index_for_child(&mut sender, block_hash).await?;
+		let earliest_non_finalized_block_session =
+			Self::earliest_non_finalized_block_session(&mut sender).await?;
 
-		let window_start = session_index.saturating_sub(window_size.get() - 1);
+		// This will increase the session window to cover the full unfinalized chain.
+		let window_start = std::cmp::min(
+			session_index.saturating_sub(window_size.get() - 1),
+			earliest_non_finalized_block_session,
+		);
 
 		match load_all_sessions(&mut sender, block_hash, window_start, session_index).await {
 			Err(kind) => Err(SessionsUnavailable {
@@ -159,7 +165,6 @@ impl RollingSessionWindow {
 	}
 
 	async fn earliest_non_finalized_block_session<Sender>(
-		&self,
 		sender: &mut Sender,
 	) -> Result<u32, SessionsUnavailable>
 	where
@@ -254,7 +259,7 @@ impl RollingSessionWindow {
 	{
 		let session_index = get_session_index_for_child(sender, block_hash).await?;
 		let earliest_non_finalized_block_session =
-			self.earliest_non_finalized_block_session(sender).await?;
+			Self::earliest_non_finalized_block_session(sender).await?;
 
 		let old_window_start = self.earliest_session;
 
@@ -420,6 +425,14 @@ mod tests {
 			parent_hash: Default::default(),
 		};
 
+		let finalized_header = Header {
+			digest: Default::default(),
+			extrinsics_root: Default::default(),
+			number: 0,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
 		let pool = TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<AvailabilityRecoveryMessage, _>(pool.clone());
@@ -455,6 +468,37 @@ mod tests {
 					RuntimeApiRequest::SessionIndexForChild(s_tx),
 				)) => {
 					assert_eq!(h, hash);
+					let _ = s_tx.send(Ok(session));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
+					s_tx,
+				)) => {
+					let _ = s_tx.send(Ok(finalized_header.number));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
+					block_number,
+					s_tx,
+				)) => {
+					assert_eq!(block_number, finalized_header.number);
+					let _ = s_tx.send(Ok(Some(finalized_header.hash())));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, finalized_header.hash());
 					let _ = s_tx.send(Ok(session));
 				}
 			);
@@ -587,14 +631,23 @@ mod tests {
 	}
 
 	#[test]
-	fn any_session_unavailable_for_caching_means_no_change() {
-		let session: SessionIndex = 6;
-		let start_session = session.saturating_sub(TEST_WINDOW_SIZE.get() - 1);
+	fn any_session_stretch_for_unfinalized_chain() {
+		// Session index of the tip of our fake test chain.
+		let session: SessionIndex = 100;
+		let genesis_session: SessionIndex = 0;
 
 		let header = Header {
 			digest: Default::default(),
 			extrinsics_root: Default::default(),
 			number: 5,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let finalized_header = Header {
+			digest: Default::default(),
+			extrinsics_root: Default::default(),
+			number: 0,
 			state_root: Default::default(),
 			parent_hash: Default::default(),
 		};
@@ -620,6 +673,138 @@ mod tests {
 					RuntimeApiRequest::SessionIndexForChild(s_tx),
 				)) => {
 					assert_eq!(h, hash);
+					let _ = s_tx.send(Ok(session));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
+					s_tx,
+				)) => {
+					let _ = s_tx.send(Ok(finalized_header.number));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
+					block_number,
+					s_tx,
+				)) => {
+					assert_eq!(block_number, finalized_header.number);
+					let _ = s_tx.send(Ok(Some(finalized_header.hash())));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, finalized_header.hash());
+					let _ = s_tx.send(Ok(0));
+				}
+			);
+
+			// Unfinalized chain starts at geneisis block, so session 0 is how far we stretch.
+			for i in genesis_session..=session {
+				assert_matches!(
+					handle.recv().await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						h,
+						RuntimeApiRequest::SessionInfo(j, s_tx),
+					)) => {
+						assert_eq!(h, hash);
+						assert_eq!(i, j);
+
+						let _ = s_tx.send(Ok(if i == session {
+							None
+						} else {
+							Some(dummy_session_info(i))
+						}));
+					}
+				);
+			}
+		});
+
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
+	}
+
+	#[test]
+	fn any_session_unavailable_for_caching_means_no_change() {
+		let session: SessionIndex = 6;
+		let start_session = session.saturating_sub(TEST_WINDOW_SIZE.get() - 1);
+
+		let header = Header {
+			digest: Default::default(),
+			extrinsics_root: Default::default(),
+			number: 5,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let finalized_header = Header {
+			digest: Default::default(),
+			extrinsics_root: Default::default(),
+			number: 0,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let hash = header.hash();
+
+		let test_fut = {
+			let sender = ctx.sender().clone();
+			Box::pin(async move {
+				let res = RollingSessionWindow::new(sender, TEST_WINDOW_SIZE, hash).await;
+				assert!(res.is_err());
+			})
+		};
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, hash);
+					let _ = s_tx.send(Ok(session));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
+					s_tx,
+				)) => {
+					let _ = s_tx.send(Ok(finalized_header.number));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
+					block_number,
+					s_tx,
+				)) => {
+					assert_eq!(block_number, finalized_header.number);
+					let _ = s_tx.send(Ok(Some(finalized_header.hash())));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, finalized_header.hash());
 					let _ = s_tx.send(Ok(session));
 				}
 			);
@@ -683,6 +868,37 @@ mod tests {
 					RuntimeApiRequest::SessionIndexForChild(s_tx),
 				)) => {
 					assert_eq!(h, hash);
+					let _ = s_tx.send(Ok(session));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
+					s_tx,
+				)) => {
+					let _ = s_tx.send(Ok(header.number));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
+					block_number,
+					s_tx,
+				)) => {
+					assert_eq!(block_number, header.number);
+					let _ = s_tx.send(Ok(Some(header.hash())));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, header.hash());
 					let _ = s_tx.send(Ok(session));
 				}
 			);
