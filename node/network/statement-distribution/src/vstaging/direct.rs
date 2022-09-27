@@ -357,3 +357,416 @@ pub enum RejectOutgoing {
 	/// Target or originator not in the group.
 	NotInGroup,
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use polkadot_primitives::vstaging::Hash;
+
+	#[test]
+	fn rejects_incoming_outside_of_group() {
+		let group = vec![
+			ValidatorIndex(5),
+			ValidatorIndex(200),
+			ValidatorIndex(24),
+			ValidatorIndex(146),
+		];
+
+		let seconding_limit = 2;
+
+		let tracker = DirectInGroup::new(
+			group.clone(),
+			seconding_limit,
+		).expect("not empty");
+
+		assert_eq!(
+			tracker.can_receive(
+				ValidatorIndex(100),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(CandidateHash(Hash::repeat_byte(1))),
+			),
+			Err(RejectIncoming::NotInGroup),
+		);
+
+		assert_eq!(
+			tracker.can_receive(
+				ValidatorIndex(5),
+				ValidatorIndex(100),
+				CompactStatement::Seconded(CandidateHash(Hash::repeat_byte(1))),
+			),
+			Err(RejectIncoming::NotInGroup),
+		);
+	}
+
+	#[test]
+	fn begrudgingly_accepts_too_many_seconded_from_multiple_peers() {
+		let group = vec![
+			ValidatorIndex(5),
+			ValidatorIndex(200),
+			ValidatorIndex(24),
+			ValidatorIndex(146),
+		];
+
+		let seconding_limit = 2;
+		let hash_a = CandidateHash(Hash::repeat_byte(1));
+		let hash_b = CandidateHash(Hash::repeat_byte(2));
+		let hash_c = CandidateHash(Hash::repeat_byte(3));
+
+		let mut tracker = DirectInGroup::new(
+			group.clone(),
+			seconding_limit,
+		).expect("not empty");
+
+		assert_eq!(
+			tracker.can_receive(
+				ValidatorIndex(5),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_a),
+			),
+			Ok(Accept::Ok),
+		);
+		tracker.note_received(
+			ValidatorIndex(5),
+			ValidatorIndex(5),
+			CompactStatement::Seconded(hash_a),
+		);
+
+		assert_eq!(
+			tracker.can_receive(
+				ValidatorIndex(5),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_b),
+			),
+			Ok(Accept::Ok),
+		);
+		tracker.note_received(
+			ValidatorIndex(5),
+			ValidatorIndex(5),
+			CompactStatement::Seconded(hash_b),
+		);
+
+		assert_eq!(
+			tracker.can_receive(
+				ValidatorIndex(5),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_c),
+			),
+			Err(RejectIncoming::ExcessiveSeconded),
+		);
+	}
+
+	#[test]
+	fn rejects_too_many_seconded_from_sender() {
+		let group = vec![
+			ValidatorIndex(5),
+			ValidatorIndex(200),
+			ValidatorIndex(24),
+			ValidatorIndex(146),
+		];
+
+		let seconding_limit = 2;
+		let hash_a = CandidateHash(Hash::repeat_byte(1));
+		let hash_b = CandidateHash(Hash::repeat_byte(2));
+		let hash_c = CandidateHash(Hash::repeat_byte(3));
+
+		let mut tracker = DirectInGroup::new(
+			group.clone(),
+			seconding_limit,
+		).expect("not empty");
+
+		assert_eq!(
+			tracker.can_receive(
+				ValidatorIndex(5),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_a),
+			),
+			Ok(Accept::Ok),
+		);
+		tracker.note_received(
+			ValidatorIndex(5),
+			ValidatorIndex(5),
+			CompactStatement::Seconded(hash_a),
+		);
+
+		assert_eq!(
+			tracker.can_receive(
+				ValidatorIndex(5),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_b),
+			),
+			Ok(Accept::Ok),
+		);
+		tracker.note_received(
+			ValidatorIndex(5),
+			ValidatorIndex(5),
+			CompactStatement::Seconded(hash_b),
+		);
+
+		assert_eq!(
+			tracker.can_receive(
+				ValidatorIndex(200),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_c),
+			),
+			Ok(Accept::WithPrejudice),
+		);
+	}
+
+	#[test]
+	fn rejects_duplicates() {
+		let group = vec![
+			ValidatorIndex(5),
+			ValidatorIndex(200),
+			ValidatorIndex(24),
+			ValidatorIndex(146),
+		];
+
+		let seconding_limit = 2;
+		let hash_a = CandidateHash(Hash::repeat_byte(1));
+
+		let mut tracker = DirectInGroup::new(
+			group.clone(),
+			seconding_limit,
+		).expect("not empty");
+
+		tracker.note_received(
+			ValidatorIndex(5),
+			ValidatorIndex(5),
+			CompactStatement::Seconded(hash_a),
+		);
+
+		tracker.note_received(
+			ValidatorIndex(5),
+			ValidatorIndex(200),
+			CompactStatement::Valid(hash_a),
+		);
+
+		assert_eq!(
+			tracker.can_receive(
+				ValidatorIndex(5),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_a),
+			),
+			Err(RejectIncoming::Duplicate),
+		);
+
+		assert_eq!(
+			tracker.can_receive(
+				ValidatorIndex(5),
+				ValidatorIndex(200),
+				CompactStatement::Valid(hash_a),
+			),
+			Err(RejectIncoming::Duplicate),
+		);
+	}
+
+	#[test]
+	fn rejects_incoming_valid_without_seconded() {
+		let group = vec![
+			ValidatorIndex(5),
+			ValidatorIndex(200),
+			ValidatorIndex(24),
+			ValidatorIndex(146),
+		];
+
+		let seconding_limit = 2;
+
+		let tracker = DirectInGroup::new(
+			group.clone(),
+			seconding_limit,
+		).expect("not empty");
+
+		let hash_a = CandidateHash(Hash::repeat_byte(1));
+
+		assert_eq!(
+			tracker.can_receive(
+				ValidatorIndex(5),
+				ValidatorIndex(5),
+				CompactStatement::Valid(hash_a),
+			),
+			Err(RejectIncoming::CandidateUnknown),
+		);
+	}
+
+	#[test]
+	fn accepts_incoming_valid_after_receiving_seconded() {
+		let group = vec![
+			ValidatorIndex(5),
+			ValidatorIndex(200),
+			ValidatorIndex(24),
+			ValidatorIndex(146),
+		];
+
+		let seconding_limit = 2;
+
+		let mut tracker = DirectInGroup::new(
+			group.clone(),
+			seconding_limit,
+		).expect("not empty");
+		let hash_a = CandidateHash(Hash::repeat_byte(1));
+
+		tracker.note_received(
+			ValidatorIndex(5),
+			ValidatorIndex(200),
+			CompactStatement::Seconded(hash_a),
+		);
+
+		assert_eq!(
+			tracker.can_receive(
+				ValidatorIndex(5),
+				ValidatorIndex(5),
+				CompactStatement::Valid(hash_a),
+			),
+			Ok(Accept::Ok)
+		);
+	}
+
+	#[test]
+	fn accepts_incoming_valid_after_outgoing_seconded() {
+		let group = vec![
+			ValidatorIndex(5),
+			ValidatorIndex(200),
+			ValidatorIndex(24),
+			ValidatorIndex(146),
+		];
+
+		let seconding_limit = 2;
+
+		let mut tracker = DirectInGroup::new(
+			group.clone(),
+			seconding_limit,
+		).expect("not empty");
+		let hash_a = CandidateHash(Hash::repeat_byte(1));
+
+		tracker.note_sent(
+			ValidatorIndex(5),
+			ValidatorIndex(200),
+			CompactStatement::Seconded(hash_a),
+		);
+
+		assert_eq!(
+			tracker.can_receive(
+				ValidatorIndex(5),
+				ValidatorIndex(5),
+				CompactStatement::Valid(hash_a),
+			),
+			Ok(Accept::Ok)
+		);
+	}
+
+	#[test]
+	fn cannot_send_too_many_seconded_even_to_multiple_peers() {
+		let group = vec![
+			ValidatorIndex(5),
+			ValidatorIndex(200),
+			ValidatorIndex(24),
+			ValidatorIndex(146),
+		];
+
+		let seconding_limit = 2;
+
+		let mut tracker = DirectInGroup::new(
+			group.clone(),
+			seconding_limit,
+		).expect("not empty");
+		let hash_a = CandidateHash(Hash::repeat_byte(1));
+		let hash_b = CandidateHash(Hash::repeat_byte(2));
+		let hash_c = CandidateHash(Hash::repeat_byte(3));
+
+		tracker.note_sent(
+			ValidatorIndex(200),
+			ValidatorIndex(5),
+			CompactStatement::Seconded(hash_a),
+		);
+
+		tracker.note_sent(
+			ValidatorIndex(200),
+			ValidatorIndex(5),
+			CompactStatement::Seconded(hash_b),
+		);
+
+		assert_eq!(
+			tracker.can_send(
+				ValidatorIndex(200),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_c),
+			),
+			Err(RejectOutgoing::ExcessiveSeconded),
+		);
+
+		assert_eq!(
+			tracker.can_send(
+				ValidatorIndex(24),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_c),
+			),
+			Err(RejectOutgoing::ExcessiveSeconded),
+		);
+	}
+
+	#[test]
+	fn cannot_send_duplicate() {
+		let group = vec![
+			ValidatorIndex(5),
+			ValidatorIndex(200),
+			ValidatorIndex(24),
+			ValidatorIndex(146),
+		];
+
+		let seconding_limit = 2;
+
+		let mut tracker = DirectInGroup::new(
+			group.clone(),
+			seconding_limit,
+		).expect("not empty");
+		let hash_a = CandidateHash(Hash::repeat_byte(1));
+
+		tracker.note_sent(
+			ValidatorIndex(200),
+			ValidatorIndex(5),
+			CompactStatement::Seconded(hash_a),
+		);
+
+		assert_eq!(
+			tracker.can_send(
+				ValidatorIndex(200),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_a),
+			),
+			Err(RejectOutgoing::Known),
+		);
+	}
+
+	#[test]
+	fn cannot_send_what_was_received() {
+		let group = vec![
+			ValidatorIndex(5),
+			ValidatorIndex(200),
+			ValidatorIndex(24),
+			ValidatorIndex(146),
+		];
+
+		let seconding_limit = 2;
+
+		let mut tracker = DirectInGroup::new(
+			group.clone(),
+			seconding_limit,
+		).expect("not empty");
+		let hash_a = CandidateHash(Hash::repeat_byte(1));
+
+		tracker.note_received(
+			ValidatorIndex(200),
+			ValidatorIndex(5),
+			CompactStatement::Seconded(hash_a),
+		);
+
+		assert_eq!(
+			tracker.can_send(
+				ValidatorIndex(200),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_a),
+			),
+			Err(RejectOutgoing::Known),
+		);
+	}
+}
