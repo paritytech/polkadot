@@ -186,7 +186,9 @@ where
 		.activation_external_listeners(Default::default())
 		.span_per_active_leaf(Default::default())
 		.active_leaves(Default::default())
-		.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
+		.known_leaves(LruCache::new(
+			KNOWN_LEAVES_CACHE_SIZE.expect("Known leaves cache size should not be 0."),
+		))
 		.leaves(Default::default())
 		.spawner(SpawnGlue(spawner))
 		.metrics(metrics)

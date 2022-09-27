@@ -16,6 +16,7 @@
 
 use std::{
 	collections::HashSet,
+	num::NonZeroUsize,
 	pin::Pin,
 	task::{Context, Poll},
 };
@@ -156,7 +157,10 @@ where
 			pending_imports: PendingImports::new(),
 			// Size of MAX_PARALLEL_IMPORTS ensures we are going to immediately get rid of any
 			// malicious requests still pending in the incoming queue.
-			banned_peers: LruCache::new(MAX_PARALLEL_IMPORTS),
+			banned_peers: LruCache::new(
+				NonZeroUsize::new(MAX_PARALLEL_IMPORTS)
+					.expect("Banned peer cache size should not be 0."),
+			),
 			metrics,
 		}
 	}
@@ -222,7 +226,7 @@ where
 		}
 
 		// Wait for a free slot:
-		if self.pending_imports.len() >= MAX_PARALLEL_IMPORTS as usize {
+		if self.pending_imports.len() >= MAX_PARALLEL_IMPORTS {
 			// Wait for one to finish:
 			let r = self.pending_imports.next().await;
 			self.ban_bad_peer(r.expect("pending_imports.len() is greater 0. qed."))?;

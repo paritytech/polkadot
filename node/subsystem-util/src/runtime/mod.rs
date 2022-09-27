@@ -16,7 +16,7 @@
 
 //! Convenient interface to runtime information.
 
-use std::cmp::max;
+use std::{cmp::max, num::NonZeroUsize};
 
 use lru::LruCache;
 
@@ -109,8 +109,14 @@ impl RuntimeInfo {
 	/// Create with more elaborate configuration options.
 	pub fn new_with_config(cfg: Config) -> Self {
 		Self {
-			session_index_cache: LruCache::new(max(10, cfg.session_cache_lru_size)),
-			session_info_cache: LruCache::new(cfg.session_cache_lru_size),
+			session_index_cache: LruCache::new(
+				NonZeroUsize::new(max(10, cfg.session_cache_lru_size))
+					.expect("Session index cache size should not be 0."),
+			),
+			session_info_cache: LruCache::new(
+				NonZeroUsize::new(cfg.session_cache_lru_size)
+					.expect("Session info cache size should not be 0."),
+			),
 			keystore: cfg.keystore,
 		}
 	}
