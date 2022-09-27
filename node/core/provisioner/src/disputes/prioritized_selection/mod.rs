@@ -55,13 +55,11 @@ pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200;
 /// it's hard to predict this number because we can't guess how many new votes (for the runtime) a
 /// batch will contain.
 ///
-/// The value below is calculated by: `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME` / 2 * 1.1%
-/// The `* 1.1%` approximately means 1.1% new votes. Tweak this if provisioner makes excessive
-/// number of runtime calls.
+/// Tweak the value below if provisioner makes excessive number of runtime calls.
 #[cfg(not(test))]
 const VOTES_SELECTION_BATCH_SIZE: usize = 1_100;
 #[cfg(test)]
-const VOTES_SELECTION_BATCH_SIZE: usize = 11; // Just a small value for tests. Doesn't follow the rules above
+const VOTES_SELECTION_BATCH_SIZE: usize = 11;
 
 /// Implements the `select_disputes` function which selects dispute votes which should
 /// be sent to the Runtime.
