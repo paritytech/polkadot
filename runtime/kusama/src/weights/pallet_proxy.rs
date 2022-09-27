@@ -136,19 +136,19 @@ impl<T: frame_system::Config> pallet_proxy::WeightInfo for WeightInfo<T> {
 	// Storage: unknown [0x3a65787472696e7369635f696e646578] (r:1 w:0)
 	// Storage: Proxy Proxies (r:1 w:1)
 	/// The range of component `p` is `[1, 31]`.
-	fn anonymous(p: u32, ) -> Weight {
-		Weight::from_ref_time(30_595_000 as u64)
-			// Standard Error: 1_718
-			.saturating_add(Weight::from_ref_time(77_062 as u64).saturating_mul(p as u64))
+	fn create_pure(p: u32, ) -> Weight {
+		Weight::from_ref_time(31_637_000 as u64)
+			// Standard Error: 1_000
+			.saturating_add(Weight::from_ref_time(36_000 as u64).saturating_mul(p as u64))
 			.saturating_add(T::DbWeight::get().reads(2 as u64))
 			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Proxy Proxies (r:1 w:1)
 	/// The range of component `p` is `[0, 30]`.
-	fn kill_anonymous(p: u32, ) -> Weight {
-		Weight::from_ref_time(25_208_000 as u64)
-			// Standard Error: 1_719
-			.saturating_add(Weight::from_ref_time(102_273 as u64).saturating_mul(p as u64))
+	fn kill_pure(p: u32, ) -> Weight {
+		Weight::from_ref_time(26_228_000 as u64)
+			// Standard Error: 1_000
+			.saturating_add(Weight::from_ref_time(43_000 as u64).saturating_mul(p as u64))
 			.saturating_add(T::DbWeight::get().reads(1 as u64))
 			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
