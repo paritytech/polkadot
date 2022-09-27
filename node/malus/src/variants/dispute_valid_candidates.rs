@@ -56,7 +56,7 @@ pub struct DisputeAncestorOptions {
 	pub fake_validation_error: FakeCandidateValidationError,
 
 	/// Determines the percentage of candidates that should be disputed. Allows for fine-tuning
-	/// the intensity of the behavior of the malicious node. 
+	/// the intensity of the behavior of the malicious node.
 	#[clap(long, ignore_case = true, default_value_t = 0)]
 	pub percentage: u8,
 

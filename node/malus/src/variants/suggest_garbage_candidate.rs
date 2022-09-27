@@ -109,8 +109,8 @@ where
 
 				// Need to draw value from Bernoulli distribution with given probability of success defined by the Clap parameter.
 				// Note that clap parameter must be f64 since this is expected by the Bernoulli::new() function, hence it must be converted.
-				let distribution = Bernoulli::new(self.percentage/100.0).unwrap();
-				
+				let distribution = Bernoulli::new(self.percentage / 100.0).unwrap();
+
 				// Draw a random value from the distribution, where T: bool, and probability of drawing a 'true' value is = to percentage parameter,
 				// using thread_rng as the source of randomness.
 				let t_or_f = distribution.sample(&mut rand::thread_rng());
@@ -122,11 +122,8 @@ where
 				);
 
 				// Manipulate the message if sampled value is true
-				if t_or_f == true  {
-					gum::info!(
-						target: MALUS,
-						"😈 Manipulating CandidateBackingMessage",
-					);
+				if t_or_f == true {
+					gum::info!(target: MALUS, "😈 Manipulating CandidateBackingMessage",);
 
 					let pov = PoV { block_data: BlockData(MALICIOUS_POV.into()) };
 
@@ -145,7 +142,8 @@ where
 								.unwrap()
 								.len();
 							gum::trace!(target: MALUS, "Validators {}", n_validators);
-							match find_validation_data(&mut new_sender, &_candidate.descriptor()).await
+							match find_validation_data(&mut new_sender, &_candidate.descriptor())
+								.await
 							{
 								Ok(Some((validation_data, validation_code))) => {
 									sender
@@ -181,9 +179,11 @@ where
 
 					let pov_hash = pov.hash();
 					let erasure_root = {
-						let chunks =
-							erasure::obtain_chunks_v1(n_validators as usize, &malicious_available_data)
-								.unwrap();
+						let chunks = erasure::obtain_chunks_v1(
+							n_validators as usize,
+							&malicious_available_data,
+						)
+						.unwrap();
 
 						let branches = erasure::branches(chunks.as_ref());
 						branches.root()
@@ -204,9 +204,10 @@ where
 
 						(collator_pair.public(), collator_pair.sign(&signature_payload))
 					};
-									
-					let malicious_commitments =
-						create_fake_candidate_commitments(&malicious_available_data.validation_data);
+
+					let malicious_commitments = create_fake_candidate_commitments(
+						&malicious_available_data.validation_data,
+					);
 
 					let malicious_candidate = CandidateReceipt {
 						descriptor: CandidateDescriptor {
@@ -240,7 +241,11 @@ where
 						.insert(malicious_candidate_hash, candidate.hash());
 
 					let message = FromOrchestra::Communication {
-						msg: CandidateBackingMessage::Second(relay_parent, malicious_candidate, pov),
+						msg: CandidateBackingMessage::Second(
+							relay_parent,
+							malicious_candidate,
+							pov,
+						),
 					};
 
 					Some(message)
@@ -295,7 +300,7 @@ pub(crate) struct BackGarbageCandidateWrapper {
 }
 
 impl BackGarbageCandidateWrapper {
-	pub fn new(opts:  SuggestGarbageCandidateOptions) -> Self {
+	pub fn new(opts: SuggestGarbageCandidateOptions) -> Self {
 		Self { opts }
 	}
 }
@@ -313,8 +318,8 @@ impl OverseerGen for BackGarbageCandidateWrapper {
 	{
 		let inner = Inner { map: std::collections::HashMap::new() };
 		let inner_mut = Arc::new(Mutex::new(inner));
-		let note_candidate = NoteCandidate { 
-			inner: inner_mut.clone(), 
+		let note_candidate = NoteCandidate {
+			inner: inner_mut.clone(),
 			spawner: SpawnGlue(args.spawner.clone()),
 			percentage: f64::from(self.opts.percentage),
 		};
