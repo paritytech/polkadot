@@ -92,24 +92,42 @@ where
 	) -> Option<FromOrchestra<Self::Message>> {
 		match msg {
 			FromOrchestra::Communication {
-				msg: CandidateBackingMessage::Second(relay_parent, candidate, _pov),
+				msg: CandidateBackingMessage::Second(relay_parent, ref candidate, ref _pov),
 			} => {
 				gum::debug!(
 					target: MALUS,
 					candidate_hash = ?candidate.hash(),
 					?relay_parent,
-					"Received request to second candidate"
+					"Received request to second candidate",
+				);
+
+				gum::info!(
+					target: MALUS,
+					"😈 Started Malus node with '--percentage' set to: {:?}",
+					&self.percentage,
 				);
 
 				// Need to draw value from Bernoulli distribution with given probability of success defined by the Clap parameter.
 				// Note that clap parameter must be f64 since this is expected by the Bernoulli::new() function, hence it must be converted.
-				let distribution = Bernoulli::new(self.percentage).unwrap();
+				let distribution = Bernoulli::new(self.percentage/100.0).unwrap();
 				
-				// Draw a random value from the distribution, where T: bool, using rng as the source of randomness.
+				// Draw a random value from the distribution, where T: bool, and probability of drawing a 'true' value is = to percentage parameter,
+				// using thread_rng as the source of randomness.
 				let t_or_f = distribution.sample(&mut rand::thread_rng());
+
+				gum::info!(
+					target: MALUS,
+					"😈 Sampled value from Bernoulli distribution is: {:?}",
+					&t_or_f,
+				);
 
 				// Manipulate the message if sampled value is true
 				if t_or_f == true  {
+					gum::info!(
+						target: MALUS,
+						"😈 Manipulating CandidateBackingMessage",
+					);
+
 					let pov = PoV { block_data: BlockData(MALICIOUS_POV.into()) };
 
 					let (sender, receiver) = std::sync::mpsc::channel();
@@ -226,7 +244,9 @@ where
 					};
 
 					Some(message)
-				} else { None }
+				} else {
+					Some(msg)
+				}
 			},
 			FromOrchestra::Communication { msg } => Some(FromOrchestra::Communication { msg }),
 			FromOrchestra::Signal(signal) => Some(FromOrchestra::Signal(signal)),
@@ -260,8 +280,8 @@ where
 #[allow(missing_docs)]
 pub struct SuggestGarbageCandidateOptions {
 	/// Determines the percentage of candidates that should be disputed. Allows for fine-tuning
-	/// the intensity of the behavior of the malicious node. 
-	#[clap(long, ignore_case = true, default_value_t = 0)]
+	/// the intensity of the behavior of the malicious node. Value must be betweeen 0-100.
+	#[clap(short, long, ignore_case = true, default_value_t = 100)]
 	pub percentage: u8,
 
 	#[clap(flatten)]
@@ -293,13 +313,11 @@ impl OverseerGen for BackGarbageCandidateWrapper {
 	{
 		let inner = Inner { map: std::collections::HashMap::new() };
 		let inner_mut = Arc::new(Mutex::new(inner));
-		let note_candidate =
-			NoteCandidate { 
-				inner: inner_mut.clone(), 
-				spawner: SpawnGlue(args.spawner.clone()),
-				percentage: f64::from(self.opts.percentage),
-			 };
-
+		let note_candidate = NoteCandidate { 
+			inner: inner_mut.clone(), 
+			spawner: SpawnGlue(args.spawner.clone()),
+			percentage: f64::from(self.opts.percentage),
+		};
 		let validation_filter = ReplaceValidationResult::new(
 			FakeCandidateValidation::BackingAndApprovalValid,
 			FakeCandidateValidationError::InvalidOutputs,
