@@ -31,7 +31,6 @@ pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/su
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-fast-unstake = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 core-primitives = { package = "polkadot-core-primitives", path = "../../core-primitives" }
 

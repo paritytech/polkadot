@@ -944,7 +944,6 @@ where
 			frame_system::CheckWeight::<Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 			claims::PrevalidateAttests::<Runtime>::new(),
-			pallet_fast_unstake::PreventStakingOpsIfUnbonding::<Runtime>::new(),
 		);
 		let raw_payload = SignedPayload::new(call, extra)
 			.map_err(|e| {
@@ -1535,7 +1534,6 @@ pub type SignedExtra = (
 	frame_system::CheckWeight<Runtime>,
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 	claims::PrevalidateAttests<Runtime>,
-	pallet_fast_unstake::PreventStakingOpsIfUnbonding<Runtime>,
 );
 
 pub struct StakingMigrationV11OldPallet;
@@ -2138,7 +2136,6 @@ mod test_fees {
 			frame_system::CheckWeight::<Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
 			claims::PrevalidateAttests::<Runtime>::new(),
-			pallet_fast_unstake::PreventStakingOpsIfUnbonding::<Runtime>::new(),
 		);
 		let uxt = UncheckedExtrinsic {
 			function: call,

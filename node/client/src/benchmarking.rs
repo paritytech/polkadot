@@ -156,7 +156,6 @@ impl BenchmarkCallSigner<polkadot_runtime::RuntimeCall, sp_core::sr25519::Pair>
 			frame_system::CheckWeight::<runtime::Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<runtime::Runtime>::from(0),
 			polkadot_runtime_common::claims::PrevalidateAttests::<runtime::Runtime>::new(),
-			pallet_fast_unstake::PreventStakingOpsIfUnbonding::<runtime::Runtime>::new(),
 		);
 
 		let payload = runtime::SignedPayload::from_raw(
@@ -168,7 +167,6 @@ impl BenchmarkCallSigner<polkadot_runtime::RuntimeCall, sp_core::sr25519::Pair>
 				runtime::VERSION.transaction_version,
 				genesis.clone(),
 				genesis,
-				(),
 				(),
 				(),
 				(),
@@ -213,7 +211,6 @@ impl BenchmarkCallSigner<westend_runtime::RuntimeCall, sp_core::sr25519::Pair>
 			frame_system::CheckNonce::<runtime::Runtime>::from(nonce),
 			frame_system::CheckWeight::<runtime::Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<runtime::Runtime>::from(0),
-			pallet_fast_unstake::PreventStakingOpsIfUnbonding::<runtime::Runtime>::new(),
 		);
 
 		let payload = runtime::SignedPayload::from_raw(
@@ -225,7 +222,6 @@ impl BenchmarkCallSigner<westend_runtime::RuntimeCall, sp_core::sr25519::Pair>
 				runtime::VERSION.transaction_version,
 				genesis.clone(),
 				genesis,
-				(),
 				(),
 				(),
 				(),
@@ -269,7 +265,6 @@ impl BenchmarkCallSigner<kusama_runtime::RuntimeCall, sp_core::sr25519::Pair>
 			frame_system::CheckNonce::<runtime::Runtime>::from(nonce),
 			frame_system::CheckWeight::<runtime::Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<runtime::Runtime>::from(0),
-			pallet_fast_unstake::PreventStakingOpsIfUnbonding::<runtime::Runtime>::new(),
 		);
 
 		let payload = runtime::SignedPayload::from_raw(
@@ -281,7 +276,6 @@ impl BenchmarkCallSigner<kusama_runtime::RuntimeCall, sp_core::sr25519::Pair>
 				runtime::VERSION.transaction_version,
 				genesis.clone(),
 				genesis,
-				(),
 				(),
 				(),
 				(),

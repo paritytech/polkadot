@@ -136,7 +136,6 @@ fn signed_ext_builder_polkadot(
 		frame_system::CheckWeight::<Runtime>::new(),
 		pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 		runtime_common::claims::PrevalidateAttests::<Runtime>::new(),
-		pallet_fast_unstake::PreventStakingOpsIfUnbonding::<Runtime>::new()
 	)
 }
 
@@ -155,7 +154,6 @@ fn signed_ext_builder_kusama(
 		frame_system::CheckNonce::<Runtime>::from(nonce),
 		frame_system::CheckWeight::<Runtime>::new(),
 		pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
-		pallet_fast_unstake::PreventStakingOpsIfUnbonding::<Runtime>::new()
 	)
 }
 
@@ -174,7 +172,6 @@ fn signed_ext_builder_westend(
 		frame_system::CheckNonce::<Runtime>::from(nonce),
 		frame_system::CheckWeight::<Runtime>::new(),
 		pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
-		pallet_fast_unstake::PreventStakingOpsIfUnbonding::<Runtime>::new()
 	)
 }
 
