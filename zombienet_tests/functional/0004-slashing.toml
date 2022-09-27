@@ -11,6 +11,7 @@ default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "kusama-local"
 chain_spec_command = "polkadot build-spec --chain kusama-local --disable-default-bootnode"
 default_command = "polkadot"
+random_nominators_count = 25000
 
 [relaychain.default_resources]
 limits = { memory = "8G", cpu = "4" }

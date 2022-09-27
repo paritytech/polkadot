@@ -32,7 +32,7 @@ variables:
   CI_IMAGE:                        "paritytech/ci-linux:production"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
-  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.2.68"
+  ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.2.71"
   PIPELINE_SCRIPTS_TAG:            "v0.4"
 
 default:
@@ -835,7 +835,7 @@ zombienet-tests-slashing:
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
-        --concurrency=25
+        --concurrency=30
         --test="0004-slashing.feature"
   allow_failure:                   false
   retry: 2
