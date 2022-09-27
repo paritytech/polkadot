@@ -409,7 +409,7 @@ parameter_types! {
 	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 8;
 
 	/// We take the top 12500/22500 nominators as electing voters..
-	pub const MaxElectingVoters: u32 = prod_or_fast!(12_500, 22_500);
+	pub const MaxElectingVoters: u32 = prod_or_fast!(12_500, 25_000);
 	/// ... and all of the validators as electable targets. Whilst this is the case, we cannot and
 	/// shall not increase the size of the validator intentions.
 	pub const MaxElectableTargets: u16 = u16::MAX;
