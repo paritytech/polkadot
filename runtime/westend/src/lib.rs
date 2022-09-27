@@ -1198,7 +1198,6 @@ pub type Executive = frame_executive::Executive<
 			VoterList,
 			StakingMigrationV11OldPallet,
 		>,
-		pallet_nomination_pools::migration::v3::MigrateToV3<Runtime>,
 		pallet_staking::migrations::v12::MigrateToV12<Runtime>,
 		// "Bound uses of call" <https://github.com/paritytech/polkadot/pull/5729>
 		pallet_preimage::migration::v1::Migration<Runtime>,
