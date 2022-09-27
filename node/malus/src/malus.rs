@@ -67,7 +67,11 @@ impl MalusCli {
 		let finality_delay = self.finality_delay;
 		match self.variant {
 			NemesisVariant::BackGarbageCandidate(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate, finality_delay)?,
+				polkadot_cli::run_node(
+					run_cmd(cmd),
+					BackGarbageCandidate,
+					finality_delay
+				)?,
 			NemesisVariant::SuggestGarbageCandidate(opts) => polkadot_cli::run_node(
 				run_cmd(opts.clone().cmd),
 				BackGarbageCandidateWrapper::new(opts),
