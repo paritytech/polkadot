@@ -20,7 +20,7 @@
 //! care about the state of particular blocks.
 
 pub use polkadot_node_primitives::{new_session_window_size, SessionWindowSize};
-use polkadot_primitives::v2::{Hash, SessionIndex, SessionInfo};
+use polkadot_primitives::v2::{BlockNumber, Hash, SessionIndex, SessionInfo};
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{
@@ -51,7 +51,7 @@ pub enum SessionsUnavailableReason {
 	MissingLastFinalizedBlock,
 	/// Missing last finalized block hash.
 	#[error("Missing last finalized block hash")]
-	MissingLastFinalizedBlockHash,
+	MissingLastFinalizedBlockHash(BlockNumber),
 }
 
 /// Information about the sessions being fetched.
@@ -196,7 +196,7 @@ impl RollingSessionWindow {
 		};
 
 		let (tx, rx) = oneshot::channel();
-		// We want to get the parent of the last finalized block.
+		// We want to get the session index for the child of the last finalized block.
 		sender
 			.send_message(ChainApiMessage::FinalizedBlockHash(last_finalized_height, tx))
 			.await;
@@ -210,7 +210,9 @@ impl RollingSessionWindow {
 			Err(err) => {
 				gum::warn!(target: LOG_TARGET, ?err, "Failed fetching last finalized block hash");
 				return Err(SessionsUnavailable {
-					kind: SessionsUnavailableReason::MissingLastFinalizedBlockHash,
+					kind: SessionsUnavailableReason::MissingLastFinalizedBlockHash(
+						last_finalized_height,
+					),
 					info: None,
 				})
 			},
@@ -235,7 +237,9 @@ impl RollingSessionWindow {
 			Ok(session)
 		} else {
 			return Err(SessionsUnavailable {
-				kind: SessionsUnavailableReason::MissingLastFinalizedBlockHash,
+				kind: SessionsUnavailableReason::MissingLastFinalizedBlockHash(
+					last_finalized_height,
+				),
 				info: None,
 			})
 		}
