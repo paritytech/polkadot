@@ -228,7 +228,7 @@ deploy-parity-testnet:
   trigger:
     project:                       "parity/infrastructure/ci_cd/pipeline-stopper"
 
-cancel-pipeline-test-linux-stable:
+.cancel-pipeline-test-linux-stable:
   extends:                         .cancel-pipeline-template
   needs:
     - job:                         test-linux-stable

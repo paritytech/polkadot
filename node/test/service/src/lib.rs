@@ -37,11 +37,8 @@ use polkadot_test_runtime::{
 };
 use sc_chain_spec::ChainSpec;
 use sc_client_api::execution_extensions::ExecutionStrategies;
-use sc_network::{
-	config::{NetworkConfiguration, TransportConfig},
-	multiaddr,
-};
-use sc_network_common::service::NetworkStateInfo;
+use sc_network::{config::NetworkConfiguration, multiaddr};
+use sc_network_common::{config::TransportConfig, service::NetworkStateInfo};
 use sc_service::{
 	config::{
 		DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod,
