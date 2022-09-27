@@ -74,7 +74,7 @@ struct Inner {
 struct NoteCandidate<Spawner> {
 	inner: Arc<Mutex<Inner>>,
 	spawner: Spawner,
-	percentage: u8,
+	percentage: f64,
 }
 
 impl<Sender, Spawner> MessageInterceptor<Sender> for NoteCandidate<Spawner>
@@ -102,8 +102,8 @@ where
 				);
 
 				// Need to draw value from Bernoulli distribution with given probability of success defined by the Clap parameter.
-				// Note that clap parameter must be f64 since this is expected by the Bernoulli::new() function, hence it is converted with into().
-				let distribution = Bernoulli::new(self.percentage.into()).unwrap();
+				// Note that clap parameter must be f64 since this is expected by the Bernoulli::new() function, hence it must be converted.
+				let distribution = Bernoulli::new(self.percentage).unwrap();
 				
 				// Draw a random value from the distribution, where T: bool, using rng as the source of randomness.
 				let t_or_f = distribution.sample(&mut rand::thread_rng());
@@ -297,7 +297,7 @@ impl OverseerGen for BackGarbageCandidateWrapper {
 			NoteCandidate { 
 				inner: inner_mut.clone(), 
 				spawner: SpawnGlue(args.spawner.clone()),
-				percentage: self.opts.percentage
+				percentage: f64::from(self.opts.percentage),
 			 };
 
 		let validation_filter = ReplaceValidationResult::new(
