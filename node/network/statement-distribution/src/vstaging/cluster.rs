@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Direct distribution of statements, even those concerning candidates which
-//! are not yet backed.
+//! Direct distribution of statements within a cluster,
+//! even those concerning candidates which are not yet backed.
 //!
 //! Members of a validation group assigned to a para at a given relay-parent
 //! always distribute statements directly to each other.
@@ -49,7 +49,7 @@
 //! on fire. Nevertheless, we handle the case here to ensure that the behavior of the
 //! system is well-defined even if an adversary is willing to be slashed.
 //!
-//! More concretely, this module exposes a "DirectInGroup" utility which allows us to determine
+//! More concretely, this module exposes a "ClusterTracker" utility which allows us to determine
 //! whether to accept or reject messages from other validators in the same group as we
 //! are in, based on _the most charitable possible interpretation of our protocol rules_,
 //! and to keep track of what we have sent to other validators in the group and what we may
@@ -93,24 +93,21 @@ enum TaggedKnowledge {
 /// Utility for keeping track of limits on direct statements within a group.
 ///
 /// See module docs for more details.
-pub struct DirectInGroup {
+pub struct ClusterTracker {
 	validators: Vec<ValidatorIndex>,
 	seconding_limit: usize,
 
 	knowledge: HashMap<ValidatorIndex, HashSet<TaggedKnowledge>>,
 }
 
-impl DirectInGroup {
-	/// Instantiate a new `DirectInGroup` tracker. Fails if `group_validators` is empty
-	pub fn new(
-		group_validators: Vec<ValidatorIndex>,
-		seconding_limit: usize,
-	) -> Option<Self> {
-		if group_validators.is_empty() {
+impl ClusterTracker {
+	/// Instantiate a new `ClusterTracker` tracker. Fails if `cluster_validators` is empty
+	pub fn new(cluster_validators: Vec<ValidatorIndex>, seconding_limit: usize) -> Option<Self> {
+		if cluster_validators.is_empty() {
 			return None
 		}
-		Some(DirectInGroup {
-			validators: group_validators,
+		Some(ClusterTracker {
+			validators: cluster_validators,
 			seconding_limit,
 			knowledge: HashMap::new(),
 		})
@@ -183,14 +180,14 @@ impl DirectInGroup {
 	) {
 		{
 			let mut sender_knowledge = self.knowledge.entry(sender).or_default();
-			sender_knowledge.insert(TaggedKnowledge::IncomingP2P(
-				Knowledge::Specific(statement.clone(), originator)
-			));
+			sender_knowledge.insert(TaggedKnowledge::IncomingP2P(Knowledge::Specific(
+				statement.clone(),
+				originator,
+			)));
 
 			if let CompactStatement::Seconded(candidate_hash) = statement.clone() {
-				sender_knowledge.insert(TaggedKnowledge::IncomingP2P(
-					Knowledge::General(candidate_hash)
-				));
+				sender_knowledge
+					.insert(TaggedKnowledge::IncomingP2P(Knowledge::General(candidate_hash)));
 			}
 		}
 
@@ -249,14 +246,14 @@ impl DirectInGroup {
 	) {
 		{
 			let mut target_knowledge = self.knowledge.entry(target).or_default();
-			target_knowledge.insert(TaggedKnowledge::OutgoingP2P(
-				Knowledge::Specific(statement.clone(), originator)
-			));
+			target_knowledge.insert(TaggedKnowledge::OutgoingP2P(Knowledge::Specific(
+				statement.clone(),
+				originator,
+			)));
 
 			if let CompactStatement::Seconded(candidate_hash) = statement.clone() {
-				target_knowledge.insert(TaggedKnowledge::OutgoingP2P(
-					Knowledge::General(candidate_hash)
-				));
+				target_knowledge
+					.insert(TaggedKnowledge::OutgoingP2P(Knowledge::General(candidate_hash)));
 			}
 		}
 
@@ -264,6 +261,25 @@ impl DirectInGroup {
 			let mut originator_knowledge = self.knowledge.entry(originator).or_default();
 			originator_knowledge.insert(TaggedKnowledge::Seconded(candidate_hash));
 		}
+	}
+
+	/// Get all targets as validator-indices. This doesn't attempt to filter
+	/// out the local validator index.
+	pub fn targets(&self) -> &[ValidatorIndex] {
+		&self.validators
+	}
+
+	/// Whether a validator knows the candidate is `Seconded`.
+	pub fn knows_candidate(
+		&self,
+		validator: ValidatorIndex,
+		candidate_hash: CandidateHash,
+	) -> bool {
+		// we sent, they sent, or they signed and we received from someone else.
+
+		self.we_sent_seconded(validator, candidate_hash) ||
+			self.they_sent_seconded(validator, candidate_hash) ||
+			self.validator_seconded(validator, candidate_hash)
 	}
 
 	// returns true if it's legal to accept a new `Seconded` message from this validator.
@@ -303,17 +319,18 @@ impl DirectInGroup {
 			.map_or(false, |k| k.contains(&TaggedKnowledge::OutgoingP2P(knowledge)))
 	}
 
-	fn knows_candidate(&self, validator: ValidatorIndex, candidate_hash: CandidateHash) -> bool {
-		self.we_sent_seconded(validator, candidate_hash) ||
-			self.they_sent_seconded(validator, candidate_hash)
-	}
-
 	fn we_sent_seconded(&self, validator: ValidatorIndex, candidate_hash: CandidateHash) -> bool {
 		self.we_sent(validator, Knowledge::General(candidate_hash))
 	}
 
 	fn they_sent_seconded(&self, validator: ValidatorIndex, candidate_hash: CandidateHash) -> bool {
 		self.they_sent(validator, Knowledge::General(candidate_hash))
+	}
+
+	fn validator_seconded(&self, validator: ValidatorIndex, candidate_hash: CandidateHash) -> bool {
+		self.knowledge
+			.get(&validator)
+			.map_or(false, |k| k.contains(&TaggedKnowledge::Seconded(candidate_hash)))
 	}
 
 	fn is_in_group(&self, validator: ValidatorIndex) -> bool {
@@ -347,7 +364,7 @@ pub enum RejectIncoming {
 /// Outgoing statement was rejected.
 #[derive(Debug, PartialEq)]
 pub enum RejectOutgoing {
-	/// Candidate was unknown. ONly applies to `Valid` statements.
+	/// Candidate was unknown. Only applies to `Valid` statements.
 	CandidateUnknown,
 	/// We attempted to send excessive `Seconded` statements.
 	/// indicates a bug on the local node's code.
@@ -365,19 +382,12 @@ mod tests {
 
 	#[test]
 	fn rejects_incoming_outside_of_group() {
-		let group = vec![
-			ValidatorIndex(5),
-			ValidatorIndex(200),
-			ValidatorIndex(24),
-			ValidatorIndex(146),
-		];
+		let group =
+			vec![ValidatorIndex(5), ValidatorIndex(200), ValidatorIndex(24), ValidatorIndex(146)];
 
 		let seconding_limit = 2;
 
-		let tracker = DirectInGroup::new(
-			group.clone(),
-			seconding_limit,
-		).expect("not empty");
+		let tracker = ClusterTracker::new(group.clone(), seconding_limit).expect("not empty");
 
 		assert_eq!(
 			tracker.can_receive(
@@ -400,22 +410,15 @@ mod tests {
 
 	#[test]
 	fn begrudgingly_accepts_too_many_seconded_from_multiple_peers() {
-		let group = vec![
-			ValidatorIndex(5),
-			ValidatorIndex(200),
-			ValidatorIndex(24),
-			ValidatorIndex(146),
-		];
+		let group =
+			vec![ValidatorIndex(5), ValidatorIndex(200), ValidatorIndex(24), ValidatorIndex(146)];
 
 		let seconding_limit = 2;
 		let hash_a = CandidateHash(Hash::repeat_byte(1));
 		let hash_b = CandidateHash(Hash::repeat_byte(2));
 		let hash_c = CandidateHash(Hash::repeat_byte(3));
 
-		let mut tracker = DirectInGroup::new(
-			group.clone(),
-			seconding_limit,
-		).expect("not empty");
+		let mut tracker = ClusterTracker::new(group.clone(), seconding_limit).expect("not empty");
 
 		assert_eq!(
 			tracker.can_receive(
@@ -457,22 +460,15 @@ mod tests {
 
 	#[test]
 	fn rejects_too_many_seconded_from_sender() {
-		let group = vec![
-			ValidatorIndex(5),
-			ValidatorIndex(200),
-			ValidatorIndex(24),
-			ValidatorIndex(146),
-		];
+		let group =
+			vec![ValidatorIndex(5), ValidatorIndex(200), ValidatorIndex(24), ValidatorIndex(146)];
 
 		let seconding_limit = 2;
 		let hash_a = CandidateHash(Hash::repeat_byte(1));
 		let hash_b = CandidateHash(Hash::repeat_byte(2));
 		let hash_c = CandidateHash(Hash::repeat_byte(3));
 
-		let mut tracker = DirectInGroup::new(
-			group.clone(),
-			seconding_limit,
-		).expect("not empty");
+		let mut tracker = ClusterTracker::new(group.clone(), seconding_limit).expect("not empty");
 
 		assert_eq!(
 			tracker.can_receive(
@@ -514,20 +510,13 @@ mod tests {
 
 	#[test]
 	fn rejects_duplicates() {
-		let group = vec![
-			ValidatorIndex(5),
-			ValidatorIndex(200),
-			ValidatorIndex(24),
-			ValidatorIndex(146),
-		];
+		let group =
+			vec![ValidatorIndex(5), ValidatorIndex(200), ValidatorIndex(24), ValidatorIndex(146)];
 
 		let seconding_limit = 2;
 		let hash_a = CandidateHash(Hash::repeat_byte(1));
 
-		let mut tracker = DirectInGroup::new(
-			group.clone(),
-			seconding_limit,
-		).expect("not empty");
+		let mut tracker = ClusterTracker::new(group.clone(), seconding_limit).expect("not empty");
 
 		tracker.note_received(
 			ValidatorIndex(5),
@@ -562,19 +551,12 @@ mod tests {
 
 	#[test]
 	fn rejects_incoming_valid_without_seconded() {
-		let group = vec![
-			ValidatorIndex(5),
-			ValidatorIndex(200),
-			ValidatorIndex(24),
-			ValidatorIndex(146),
-		];
+		let group =
+			vec![ValidatorIndex(5), ValidatorIndex(200), ValidatorIndex(24), ValidatorIndex(146)];
 
 		let seconding_limit = 2;
 
-		let tracker = DirectInGroup::new(
-			group.clone(),
-			seconding_limit,
-		).expect("not empty");
+		let tracker = ClusterTracker::new(group.clone(), seconding_limit).expect("not empty");
 
 		let hash_a = CandidateHash(Hash::repeat_byte(1));
 
@@ -590,19 +572,12 @@ mod tests {
 
 	#[test]
 	fn accepts_incoming_valid_after_receiving_seconded() {
-		let group = vec![
-			ValidatorIndex(5),
-			ValidatorIndex(200),
-			ValidatorIndex(24),
-			ValidatorIndex(146),
-		];
+		let group =
+			vec![ValidatorIndex(5), ValidatorIndex(200), ValidatorIndex(24), ValidatorIndex(146)];
 
 		let seconding_limit = 2;
 
-		let mut tracker = DirectInGroup::new(
-			group.clone(),
-			seconding_limit,
-		).expect("not empty");
+		let mut tracker = ClusterTracker::new(group.clone(), seconding_limit).expect("not empty");
 		let hash_a = CandidateHash(Hash::repeat_byte(1));
 
 		tracker.note_received(
@@ -623,19 +598,12 @@ mod tests {
 
 	#[test]
 	fn accepts_incoming_valid_after_outgoing_seconded() {
-		let group = vec![
-			ValidatorIndex(5),
-			ValidatorIndex(200),
-			ValidatorIndex(24),
-			ValidatorIndex(146),
-		];
+		let group =
+			vec![ValidatorIndex(5), ValidatorIndex(200), ValidatorIndex(24), ValidatorIndex(146)];
 
 		let seconding_limit = 2;
 
-		let mut tracker = DirectInGroup::new(
-			group.clone(),
-			seconding_limit,
-		).expect("not empty");
+		let mut tracker = ClusterTracker::new(group.clone(), seconding_limit).expect("not empty");
 		let hash_a = CandidateHash(Hash::repeat_byte(1));
 
 		tracker.note_sent(
@@ -656,19 +624,12 @@ mod tests {
 
 	#[test]
 	fn cannot_send_too_many_seconded_even_to_multiple_peers() {
-		let group = vec![
-			ValidatorIndex(5),
-			ValidatorIndex(200),
-			ValidatorIndex(24),
-			ValidatorIndex(146),
-		];
+		let group =
+			vec![ValidatorIndex(5), ValidatorIndex(200), ValidatorIndex(24), ValidatorIndex(146)];
 
 		let seconding_limit = 2;
 
-		let mut tracker = DirectInGroup::new(
-			group.clone(),
-			seconding_limit,
-		).expect("not empty");
+		let mut tracker = ClusterTracker::new(group.clone(), seconding_limit).expect("not empty");
 		let hash_a = CandidateHash(Hash::repeat_byte(1));
 		let hash_b = CandidateHash(Hash::repeat_byte(2));
 		let hash_c = CandidateHash(Hash::repeat_byte(3));
@@ -706,19 +667,12 @@ mod tests {
 
 	#[test]
 	fn cannot_send_duplicate() {
-		let group = vec![
-			ValidatorIndex(5),
-			ValidatorIndex(200),
-			ValidatorIndex(24),
-			ValidatorIndex(146),
-		];
+		let group =
+			vec![ValidatorIndex(5), ValidatorIndex(200), ValidatorIndex(24), ValidatorIndex(146)];
 
 		let seconding_limit = 2;
 
-		let mut tracker = DirectInGroup::new(
-			group.clone(),
-			seconding_limit,
-		).expect("not empty");
+		let mut tracker = ClusterTracker::new(group.clone(), seconding_limit).expect("not empty");
 		let hash_a = CandidateHash(Hash::repeat_byte(1));
 
 		tracker.note_sent(
@@ -739,19 +693,12 @@ mod tests {
 
 	#[test]
 	fn cannot_send_what_was_received() {
-		let group = vec![
-			ValidatorIndex(5),
-			ValidatorIndex(200),
-			ValidatorIndex(24),
-			ValidatorIndex(146),
-		];
+		let group =
+			vec![ValidatorIndex(5), ValidatorIndex(200), ValidatorIndex(24), ValidatorIndex(146)];
 
 		let seconding_limit = 2;
 
-		let mut tracker = DirectInGroup::new(
-			group.clone(),
-			seconding_limit,
-		).expect("not empty");
+		let mut tracker = ClusterTracker::new(group.clone(), seconding_limit).expect("not empty");
 		let hash_a = CandidateHash(Hash::repeat_byte(1));
 
 		tracker.note_received(

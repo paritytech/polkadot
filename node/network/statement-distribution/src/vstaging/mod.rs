@@ -48,8 +48,11 @@ use crate::{
 	error::{JfyiError, JfyiErrorResult},
 	LOG_TARGET,
 };
+use candidate_entry::CandidateEntry;
+use cluster::ClusterTracker;
 
-mod direct;
+mod candidate_entry;
+mod cluster;
 
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
 const COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE: Rep =
@@ -63,7 +66,7 @@ const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature"
 
 struct PerRelayParentState {
 	validator_state: HashMap<ValidatorIndex, PerRelayParentValidatorState>,
-	candidates: HashMap<CandidateHash, CandidateData>,
+	candidates: HashMap<CandidateHash, CandidateEntry>,
 	local_validator: Option<LocalValidatorState>,
 	session: SessionIndex,
 }
@@ -71,94 +74,6 @@ struct PerRelayParentState {
 struct PerRelayParentValidatorState {
 	seconded_count: usize,
 	group_id: GroupIndex,
-}
-
-// stores statements and the candidate receipt/persisted validation data if any.
-struct CandidateData {
-	state: CandidateState,
-	seconded_statements: Vec<SignedStatement>,
-	valid_statements: Vec<SignedStatement>,
-
-	// validators which have either produced a statement about the
-	// candidate or which have sent a signed statement or which we have
-	// sent statements to.
-	known_by: HashSet<ValidatorIndex>,
-}
-
-impl Default for CandidateData {
-	fn default() -> Self {
-		CandidateData {
-			state: CandidateState::Unconfirmed,
-			seconded_statements: Vec::new(),
-			valid_statements: Vec::new(),
-			known_by: HashSet::new(),
-		}
-	}
-}
-
-impl CandidateData {
-	fn has_issued_seconded(&self, validator: ValidatorIndex) -> bool {
-		self.seconded_statements
-			.iter()
-			.find(|s| s.validator_index() == validator)
-			.is_some()
-	}
-
-	fn has_issued_valid(&self, validator: ValidatorIndex) -> bool {
-		self.valid_statements
-			.iter()
-			.find(|s| s.validator_index() == validator)
-			.is_some()
-	}
-
-	// ignores duplicates or equivocations. returns 'false' if those are detected, 'true' otherwise.
-	fn insert_signed_statement(&mut self, statement: SignedStatement) -> bool {
-		let validator_index = statement.validator_index();
-
-		// only accept one statement by the validator.
-		let has_issued_statement =
-			self.has_issued_seconded(validator_index) || self.has_issued_valid(validator_index);
-		if has_issued_statement {
-			return false
-		}
-
-		match statement.payload() {
-			CompactStatement::Seconded(_) => self.seconded_statements.push(statement),
-			CompactStatement::Valid(_) => self.valid_statements.push(statement),
-		}
-
-		self.known_by.insert(validator_index);
-
-		true
-	}
-
-	fn note_known_by(&mut self, validator: ValidatorIndex) {
-		self.known_by.insert(validator);
-	}
-}
-
-enum CandidateState {
-	/// The candidate is unconfirmed to exist, as it hasn't yet
-	/// been fetched.
-	Unconfirmed,
-	/// The candidate is confirmed and we have the `PersistedValidationData`.
-	Confirmed(CommittedCandidateReceipt, PersistedValidationData),
-}
-
-impl CandidateState {
-	fn is_confirmed(&self) -> bool {
-		match *self {
-			CandidateState::Unconfirmed => false,
-			CandidateState::Confirmed(_, _) => true,
-		}
-	}
-
-	fn receipt(&self) -> Option<&CommittedCandidateReceipt> {
-		match *self {
-			CandidateState::Unconfirmed => None,
-			CandidateState::Confirmed(ref c, _) => Some(c),
-		}
-	}
 }
 
 // per-relay-parent local validator state.
@@ -169,6 +84,8 @@ struct LocalValidatorState {
 	group: GroupIndex,
 	// the assignment of our validator group, if any.
 	assignment: Option<ParaId>,
+	// the 'direct-in-group' communication at this relay-parent.
+	cluster_tracker: ClusterTracker,
 }
 
 pub(crate) struct State {
@@ -382,10 +299,16 @@ async fn find_local_validator_state(
 	let para_for_group =
 		|g: GroupIndex| availability_cores.get(g.0 as usize).and_then(|c| c.para_id());
 
+	let group_validators = groups[our_group.0 as usize].clone();
 	Some(LocalValidatorState {
 		index: validator_index,
 		group: our_group,
 		assignment: para_for_group(our_group),
+		cluster_tracker: ClusterTracker::new(
+			group_validators,
+			todo!(), // TODO [now]: seconding limit?
+		)
+		.expect("group is non-empty because we are in it; qed"),
 	})
 }
 
@@ -420,10 +343,11 @@ pub(crate) async fn share_local_statement<Context>(
 		Some(x) => x,
 	};
 
-	let (local_index, local_assignment) = match per_relay_parent.local_validator.as_ref() {
-		None => return Err(JfyiError::InvalidShare),
-		Some(l) => (l.index, l.assignment),
-	};
+	let (local_index, local_assignment, local_group) =
+		match per_relay_parent.local_validator.as_ref() {
+			None => return Err(JfyiError::InvalidShare),
+			Some(l) => (l.index, l.assignment, l.group),
+		};
 
 	// Two possibilities: either the statement is `Seconded` or we already
 	// have the candidate. Sanity: check the para-id is valid.
@@ -432,7 +356,7 @@ pub(crate) async fn share_local_statement<Context>(
 		FullStatementWithPVD::Valid(hash) => per_relay_parent
 			.candidates
 			.get(&hash)
-			.and_then(|c| c.state.receipt())
+			.and_then(|c| c.receipt())
 			.map(|c| c.descriptor().para_id),
 	};
 
@@ -454,11 +378,13 @@ pub(crate) async fn share_local_statement<Context>(
 
 		let candidate_entry = match statement.payload() {
 			FullStatementWithPVD::Seconded(ref c, ref pvd) => {
-				let candidate_entry =
-					per_relay_parent.candidates.entry(candidate_hash).or_default();
+				let candidate_entry = per_relay_parent
+					.candidates
+					.entry(candidate_hash)
+					.or_insert_with(|| CandidateEntry::new(candidate_hash));
 
-				if let CandidateState::Unconfirmed = candidate_entry.state {
-					candidate_entry.state = CandidateState::Confirmed(c.clone(), pvd.clone());
+				if !candidate_entry.is_confirmed() {
+					candidate_entry.confirm(c.clone(), pvd.clone(), local_group);
 				}
 
 				candidate_entry
@@ -469,7 +395,7 @@ pub(crate) async fn share_local_statement<Context>(
 						// Can't share a 'Valid' statement about a candidate we don't know about!
 						return Err(JfyiError::InvalidShare)
 					},
-					Some(ref c) if !c.state.is_confirmed() => {
+					Some(ref c) if !c.is_confirmed() => {
 						// Can't share a 'Valid' statement about a candidate we don't know about!
 						return Err(JfyiError::InvalidShare)
 					},
@@ -478,22 +404,23 @@ pub(crate) async fn share_local_statement<Context>(
 			},
 		};
 
-		if !candidate_entry.insert_signed_statement(compact_statement.clone()) {
-			gum::warn!(
-				target: LOG_TARGET,
-				statement = ?compact_statement.payload(),
-				"Candidate backing issued redundant statement?",
-			);
+		// TODO [now]: note seconded.
+		// if !candidate_entry.insert_signed_statement(compact_statement.clone()) {
+		// 	gum::warn!(
+		// 		target: LOG_TARGET,
+		// 		statement = ?compact_statement.payload(),
+		// 		"Candidate backing issued redundant statement?",
+		// 	);
 
-			return Err(JfyiError::InvalidShare)
-		}
+		// 	return Err(JfyiError::InvalidShare)
+		// }
 
 		(compact_statement, candidate_hash)
 	};
 
 	// send the compact version of the statement to nodes in current group and next-up. If not a `Seconded` statement,
 	// send a `Seconded` statement as well.
-	broadcast_local_statement(ctx, state, relay_parent, compact_statement).await;
+	send_statement_direct(ctx, state, relay_parent, compact_statement).await;
 
 	// TODO [now]:
 	// 4. If the candidate is now backed, trigger 'backed candidate announcement' logic.
@@ -514,7 +441,7 @@ pub(crate) async fn share_local_statement<Context>(
 // TODO [now]: make this a more general `broadcast_statement` with an `BroadcastBehavior` that
 // affects targets: `Local` keeps current behavior while `Forward` only sends onwards via `BackedCandidate` knowers.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-async fn broadcast_local_statement<Context>(
+async fn send_statement_direct<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	relay_parent: Hash,
@@ -536,55 +463,64 @@ async fn broadcast_local_statement<Context>(
 		None => return,
 	};
 
-	let prior_seconded = match statement.payload() {
-		CompactStatement::Seconded(_) => None,
-		CompactStatement::Valid(_) => match candidate_entry.seconded_statements.first() {
-			Some(s) => Some(s.as_unchecked().clone()),
-			None => return,
-		},
-	};
+	// TODO [now]: get a seconding statement from the 'statement store', TBD
+	let prior_seconded: Option<UncheckedSignedStatement> = unimplemented!();
+	// TODO [now]: clean up this junk below
+	// let prior_seconded = match statement.payload() {
+	// 	CompactStatement::Seconded(_) => None,
+	// 	CompactStatement::Valid(_) => match candidate_entry.seconded_statements.first() {
+	// 		Some(s) => Some(s.as_unchecked().clone()),
+	// 		None => return,
+	// 	},
+	// };
 
-	let targets = {
+	// two kinds of targets: those in our 'cluster' (currently just those in the same group),
+	// and those we are propagating to through the grid.
+	enum TargetKind {
+		Cluster,
+		Grid,
+	}
+
+	let targets: Vec<(ValidatorIndex, AuthorityDiscoveryId, TargetKind)> = {
 		let local_validator = match per_relay_parent.local_validator.as_ref() {
 			Some(v) => v,
 			None => return, // sanity: should be impossible to reach this.
 		};
 
-		let current_group =
-			session_info.validator_groups[local_validator.group.0 as usize].iter().cloned();
+		let current_group = local_validator
+			.cluster_tracker
+			.targets()
+			.iter()
+			.filter(|&v| v != &local_validator.index)
+			.map(|v| (*v, TargetKind::Cluster));
 
-		// TODO [now]: extend targets with validators in any current leaf which
-		// are assigned to the group
-
-		// TODO [now]: extend targets with validators which
-		// 	a) we've sent `BackedCandidateInv` for this candidate to
-		//	b) have either requested the candidate _or_ have sent `BackedCandidateKnown` to us.
-
-		// TODO [now]: dedup
+		// TODO [now]: extend with grid targets, dedup
 
 		current_group
-			.filter_map(|v| session_info.discovery_keys.get(v.0 as usize).map(|a| (v, a.clone())))
+			.filter_map(|(v, k)| {
+				session_info.discovery_keys.get(v.0 as usize).map(|a| (v, a.clone(), k))
+			})
 			.collect::<Vec<_>>()
 	};
 
 	let mut prior_to = Vec::new();
 	let mut statement_to = Vec::new();
-	for (validator_index, authority_id) in targets {
+	for (validator_index, authority_id, kind) in targets {
 		// Find peer ID based on authority ID, and also filter to connected.
 		let peer_id: PeerId = match state.authorities.get(&authority_id) {
 			Some(p) if state.peers.contains_key(p) => p.clone(),
 			None | Some(_) => continue,
 		};
 
-		// We guarantee that the receiving peer knows the candidate by
-		// sending them a `Seconded` statement first.
-		if candidate_entry.known_by.insert(validator_index) {
-			if let Some(_) = prior_seconded.as_ref() {
-				prior_to.push(peer_id.clone());
-			}
+		match kind {
+			TargetKind::Cluster => {
+				// TODO [now]: use cluster mechanics to determine whether to sent
+				// 'prior_to' and 'statement_to'.
+			},
+			TargetKind::Grid => {
+				// TODO [now]
+			},
 		}
-
-		statement_to.push(peer_id);
 	}
 
 	// ship off the network messages to the network bridge.
