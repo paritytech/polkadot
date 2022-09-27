@@ -1455,7 +1455,6 @@ pub type Executive = frame_executive::Executive<
 	Runtime,
 	AllPalletsWithSystem,
 	(
-		pallet_nomination_pools::migration::v3::MigrateToV3<Runtime>,
 		pallet_staking::migrations::v11::MigrateToV11<
 			Runtime,
 			VoterList,
