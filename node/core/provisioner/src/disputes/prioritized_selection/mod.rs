@@ -45,17 +45,13 @@ pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200_000;
 #[cfg(test)]
 pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200;
 
-/// Controls how much dispute votes to be fetched from the runtime per iteration in `fn vote_selection`.
-/// The purpose is to fetch the votes in batches until `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME` is
-/// reached. This value should definitely be less than `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME`.
+/// Controls how much dispute votes to be fetched from the `dispute-coordinator` per iteration in
+/// `fn vote_selection`. The purpose is to fetch the votes in batches until
+/// `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME` is reached. If all votes are fetched in single call
+/// we might fetch votes which we never use. This will create unnecessary load on `dispute-coordinator`.
 ///
-/// The ratio `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME` / `VOTES_SELECTION_BATCH_SIZE` gives an
-/// approximation about how many runtime requests will be issued to fetch votes from the runtime in
-/// a single `select_disputes` call. Ideally we don't want to make more than 2-3 calls. In practice
-/// it's hard to predict this number because we can't guess how many new votes (for the runtime) a
-/// batch will contain.
-///
-/// Tweak the value below if provisioner makes excessive number of runtime calls.
+/// This value should be less than `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME`. Increase it in case
+/// `provisioner` sends too many `QueryCandidateVotes` messages to `dispite-coordinator`.
 #[cfg(not(test))]
 const VOTES_SELECTION_BATCH_SIZE: usize = 1_100;
 #[cfg(test)]
