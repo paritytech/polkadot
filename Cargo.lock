@@ -740,9 +740,9 @@ checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 
 [[package]]
 name = "bytes"
-version = "1.1.0"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4872d67bab6358e59559027aa3b9157c53d9358c51423c17554809a8858e0f8"
+checksum = "ec8a7b6a70fde80372154c65702f00a0f56f3e1c36abbc6c440484be248856db"
 
 [[package]]
 name = "bzip2-sys"
@@ -6074,7 +6074,7 @@ dependencies = [
  "fatality",
  "futures",
  "futures-timer",
- "lru 0.7.8",
+ "lru 0.8.0",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -6104,7 +6104,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "log",
- "lru 0.7.8",
+ "lru 0.8.0",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -6242,7 +6242,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "lazy_static",
- "lru 0.7.8",
+ "lru 0.8.0",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -6362,7 +6362,7 @@ dependencies = [
  "futures-timer",
  "kvdb",
  "kvdb-memorydb",
- "lru 0.7.8",
+ "lru 0.8.0",
  "merlin",
  "parity-scale-codec",
  "parking_lot 0.12.1",
@@ -6531,7 +6531,7 @@ dependencies = [
  "futures-timer",
  "kvdb",
  "kvdb-memorydb",
- "lru 0.7.8",
+ "lru 0.8.0",
  "parity-scale-codec",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -6818,7 +6818,7 @@ dependencies = [
  "kvdb-shared-tests",
  "lazy_static",
  "log",
- "lru 0.7.8",
+ "lru 0.8.0",
  "parity-db",
  "parity-scale-codec",
  "parity-util-mem",
@@ -6852,7 +6852,7 @@ dependencies = [
  "femme",
  "futures",
  "futures-timer",
- "lru 0.7.8",
+ "lru 0.8.0",
  "orchestra",
  "parity-util-mem",
  "parking_lot 0.12.1",
@@ -7208,7 +7208,7 @@ dependencies = [
  "kvdb",
  "kvdb-rocksdb",
  "log",
- "lru 0.7.8",
+ "lru 0.8.0",
  "pallet-babe",
  "pallet-im-online",
  "pallet-staking",
@@ -11829,7 +11829,7 @@ version = "1.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if 0.1.10",
  "digest 0.10.3",
  "rand 0.8.5",
  "static_assertions",
