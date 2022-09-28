@@ -1019,8 +1019,16 @@ pub(crate) async fn run<Context>(
 					.last_connected_at
 					.map_or(false, |timestamp| now - timestamp > RECONNECT_TIMEOUT)
 				{
+					// Returns `None` if connection request is empty.
 					state.last_connected_at =
 						connect_to_validators(&mut ctx, &state.validator_groups_buf).await;
+
+					gum::debug!(
+						target: LOG_TARGET,
+						timeout = ?RECONNECT_TIMEOUT,
+						"Timeout hit, sent a connection request. Disconnected from all validators = {}",
+						state.last_connected_at.is_none(),
+					);
 				}
 			},
 			in_req = recv_req => {
