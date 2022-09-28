@@ -50,13 +50,13 @@ pub struct PeerQueues {
 	queues: HashMap<AuthorityDiscoveryId, VecDeque<IncomingRequest<DisputeRequest>>>,
 
 	/// Delay timer for establishing the rate limit.
-	rate_limit_waker: Option<Delay>,
+	rate_limit_timer: Option<Delay>,
 }
 
 impl PeerQueues {
 	/// New empty `PeerQueues`.
 	pub fn new() -> Self {
-		Self { queues: HashMap::new(), rate_limit_waker: None }
+		Self { queues: HashMap::new(), rate_limit_timer: None }
 	}
 
 	/// Push an incoming request for a given authority.
@@ -78,8 +78,8 @@ impl PeerQueues {
 		};
 		queue.push_back(req);
 
-		// We have at least one element to process - rate limit `waker` needs to exist now:
-		self.ensure_waker();
+		// We have at least one element to process - rate limit `timer` needs to exist now:
+		self.ensure_timer();
 		Ok(())
 	}
 
@@ -92,7 +92,7 @@ impl PeerQueues {
 	///
 	/// NOTE: If empty this function will not return `Ready` at all, but will always be `Pending`.
 	pub async fn pop_reqs(&mut self) -> Vec<IncomingRequest<DisputeRequest>> {
-		self.wait_for_waker().await;
+		self.wait_for_timer().await;
 
 		let mut heads = Vec::with_capacity(self.queues.len());
 		let old_queues = std::mem::replace(&mut self.queues, HashMap::new());
@@ -110,7 +110,7 @@ impl PeerQueues {
 
 		if !self.is_empty() {
 			// Still not empty - we should get woken at some point.
-			self.ensure_waker();
+			self.ensure_timer();
 		}
 
 		heads
@@ -121,21 +121,21 @@ impl PeerQueues {
 		self.queues.is_empty()
 	}
 
-	/// Ensure there is an active `waker`.
+	/// Ensure there is an active `timer`.
 	///
 	/// Checks whether one exists and if not creates one.
-	fn ensure_waker(&mut self) -> &mut Delay {
-		self.rate_limit_waker.get_or_insert(Delay::new(RECEIVE_RATE_LIMIT))
+	fn ensure_timer(&mut self) -> &mut Delay {
+		self.rate_limit_timer.get_or_insert(Delay::new(RECEIVE_RATE_LIMIT))
 	}
 
-	/// Wait for `waker` if it exists, or be `Pending` forever.
+	/// Wait for `timer` if it exists, or be `Pending` forever.
 	///
 	/// Afterwards it gets set back to `None`.
-	async fn wait_for_waker(&mut self) {
-		match self.rate_limit_waker.as_mut() {
+	async fn wait_for_timer(&mut self) {
+		match self.rate_limit_timer.as_mut() {
 			None => pending().await,
-			Some(waker) => waker.await,
+			Some(timer) => timer.await,
 		}
-		self.rate_limit_waker = None;
+		self.rate_limit_timer = None;
 	}
 }
