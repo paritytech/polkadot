@@ -29,7 +29,7 @@ requests = { memory = "2G", cpu = "1" }
 
   [[relaychain.nodes]]
   name = "charlie"
-  args = [ "--charlie", "-lparachain=debug" ]
+  args = [ "--charlie", "-lparachain=trace", "-loverseer=trace", "-lbabe=trace" ]
 
   [[relaychain.nodes]]
   name = "dave"

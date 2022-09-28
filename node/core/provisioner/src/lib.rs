@@ -166,13 +166,18 @@ async fn run_iteration<Context>(
 				}
 			},
 			hash = inherent_delays.select_next_some() => {
+				gum::trace!(
+					target: LOG_TARGET,
+					relay_parent = ?hash,
+					"Inherent delay triggered for leaf"
+				);
 				if let Some(state) = per_relay_parent.get_mut(&hash) {
 					state.is_inherent_ready = true;
 
 					gum::trace!(
 						target: LOG_TARGET,
 						relay_parent = ?hash,
-						"Inherent Data became ready"
+						"Inherent data became ready"
 					);
 
 					let return_senders = std::mem::take(&mut state.awaiting_inherent);
@@ -222,11 +227,28 @@ async fn handle_active_leaves_update(
 	inherent_delays: &mut InherentDelays,
 ) -> Result<(), Error> {
 	for deactivated in &update.deactivated {
+		gum::trace!(
+			target: LOG_TARGET,
+			relay_parent = ?deactivated,
+			"Leaf deactivated"
+		);
 		per_relay_parent.remove(deactivated);
 	}
 
 	for leaf in update.activated {
+		gum::trace!(
+			target: LOG_TARGET,
+			relay_parent = ?leaf.hash,
+			relay_number = ?leaf.number,
+			"Leaf activated"
+		);
 		let prospective_parachains_mode = prospective_parachains_mode(sender, leaf.hash).await?;
+		gum::trace!(
+			target: LOG_TARGET,
+			relay_parent = ?leaf.hash,
+			relay_number = ?leaf.number,
+			"Requested prospective parachains mode for leaf"
+		);
 
 		let delay_fut = Delay::new(PRE_PROPOSE_TIMEOUT).map(move |_| leaf.hash).boxed();
 		per_relay_parent.insert(leaf.hash, PerRelayParent::new(leaf, prospective_parachains_mode));
