@@ -343,11 +343,10 @@ pub(crate) async fn share_local_statement<Context>(
 		Some(x) => x,
 	};
 
-	let (local_index, local_assignment, local_group) =
-		match per_relay_parent.local_validator.as_ref() {
-			None => return Err(JfyiError::InvalidShare),
-			Some(l) => (l.index, l.assignment, l.group),
-		};
+	let (local_index, local_assignment) = match per_relay_parent.local_validator.as_ref() {
+		None => return Err(JfyiError::InvalidShare),
+		Some(l) => (l.index, l.assignment),
+	};
 
 	// Two possibilities: either the statement is `Seconded` or we already
 	// have the candidate. Sanity: check the para-id is valid.
@@ -378,14 +377,10 @@ pub(crate) async fn share_local_statement<Context>(
 
 		let candidate_entry = match statement.payload() {
 			FullStatementWithPVD::Seconded(ref c, ref pvd) => {
-				let candidate_entry = per_relay_parent
-					.candidates
-					.entry(candidate_hash)
-					.or_insert_with(|| CandidateEntry::new(candidate_hash));
-
-				if !candidate_entry.is_confirmed() {
-					candidate_entry.confirm(c.clone(), pvd.clone(), local_group);
-				}
+				let candidate_entry =
+					per_relay_parent.candidates.entry(candidate_hash).or_insert_with(|| {
+						CandidateEntry::confirmed(candidate_hash, c.clone(), pvd.clone())
+					});
 
 				candidate_entry
 			},

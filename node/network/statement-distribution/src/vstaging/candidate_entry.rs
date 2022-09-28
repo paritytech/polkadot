@@ -33,8 +33,6 @@ use polkadot_primitives::vstaging::{
 	CandidateHash, CommittedCandidateReceipt, GroupIndex, PersistedValidationData,
 };
 
-use std::collections::HashMap;
-
 /// A tracker for all validators which have seconded or validated a particular
 /// candidate. See module docs for more details.
 pub struct CandidateEntry {
@@ -43,53 +41,65 @@ pub struct CandidateEntry {
 }
 
 impl CandidateEntry {
-	/// Create a blank [`CandidateEntry`]
-	pub fn new(candidate_hash: CandidateHash) -> Self {
-		CandidateEntry { candidate_hash, state: CandidateState::Unconfirmed(HashMap::new()) }
+	/// Create an unconfirmed [`CandidateEntry`]
+	pub fn unconfirmed(candidate_hash: CandidateHash) -> Self {
+		CandidateEntry { candidate_hash, state: CandidateState::Unconfirmed }
+	}
+
+	/// Create a confirmed [`CandidateEntry`]
+	pub fn confirmed(
+		candidate_hash: CandidateHash,
+		receipt: CommittedCandidateReceipt,
+		persisted_validation_data: PersistedValidationData,
+	) -> Self {
+		CandidateEntry {
+			candidate_hash,
+			state: CandidateState::Confirmed(receipt, persisted_validation_data),
+		}
 	}
 
 	/// Supply the [`CommittedCandidateReceipt`] and [`PersistedValidationData`].
 	/// This does not check that the receipt matches the candidate hash nor that the PVD
-	/// matches the commitment in the candidate's descriptor. Also, supply
-	/// the intended [`GroupIndex`] assigned to the para at the relay-parent
-	/// of the candidate-receipt.
+	/// matches the commitment in the candidate's descriptor.
 	///
 	/// No-op if already provided.
-	pub fn confirm(
-		&mut self,
-		candidate: CommittedCandidateReceipt,
-		pvd: PersistedValidationData,
-		group_index: GroupIndex,
-	) {
+	pub fn confirm(&mut self, candidate: CommittedCandidateReceipt, pvd: PersistedValidationData) {
+		if let CandidateState::Confirmed(_, _) = self.state {
+			return
+		}
+		self.state = CandidateState::Confirmed(candidate, pvd);
 	}
 
 	/// Whether the candidate is confirmed to actually exist.
 	pub fn is_confirmed(&self) -> bool {
 		match self.state {
-			CandidateState::Unconfirmed(_) => false,
-			CandidateState::Confirmed { .. } => true,
+			CandidateState::Confirmed(_, _) => true,
+			CandidateState::Unconfirmed => false,
 		}
 	}
 
-	/// The receipt of the candidate descriptor. Only exists if confirmed.
-	pub fn receipt(&self) -> Option<&CommittedCandidateReceipt> {
+	/// The internals of a confirmed candidate. Exists iff confirmed.
+	pub fn confirmed_internals(
+		&self,
+	) -> Option<(&CommittedCandidateReceipt, &PersistedValidationData)> {
 		match self.state {
-			CandidateState::Confirmed { ref candidate, .. } => Some(candidate),
-			CandidateState::Unconfirmed(_) => None,
+			CandidateState::Confirmed(ref c, ref pvd) => Some((c, pvd)),
+			CandidateState::Unconfirmed => None,
 		}
+	}
+
+	/// The receipt of the candidate. Exists iff confirmed.
+	pub fn receipt(&self) -> Option<&CommittedCandidateReceipt> {
+		self.confirmed_internals().map(|(c, _)| c)
+	}
+
+	/// The persisted-validation-data of the candidate. Exists iff confirmed.
+	pub fn persisted_validation_data(&self) -> Option<&PersistedValidationData> {
+		self.confirmed_internals().map(|(_, p)| p)
 	}
 }
 
 enum CandidateState {
-	Unconfirmed(HashMap<GroupIndex, GroupAttestationRecord>),
-	Confirmed {
-		candidate: CommittedCandidateReceipt,
-		persisted_validation_data: PersistedValidationData,
-		group_index: GroupIndex,
-		attestations: GroupAttestationRecord,
-	},
-}
-
-struct GroupAttestationRecord {
-	// TODO [now]
+	Unconfirmed,
+	Confirmed(CommittedCandidateReceipt, PersistedValidationData),
 }
