@@ -122,7 +122,7 @@ where
 				);
 
 				// Manipulate the message if sampled value is true
-				if t_or_f == true {
+				if true_or_false == true {
 					gum::info!(target: MALUS, "😈 Manipulating CandidateBackingMessage",);
 
 					let pov = PoV { block_data: BlockData(MALICIOUS_POV.into()) };
