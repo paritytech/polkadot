@@ -33,7 +33,7 @@ use variants::*;
 #[clap(rename_all = "kebab-case")]
 enum NemesisVariant {
 	/// Suggest a candidate with an invalid proof of validity.
-	SuggestGarbageCandidate(RunCmd),
+	SuggestGarbageCandidate(SuggestGarbageCandidateOptions),
 	/// Back a candidate with a specifically crafted proof of validity.
 	BackGarbageCandidate(RunCmd),
 	/// Delayed disputing of ancestors that are perfectly fine.
@@ -66,10 +66,14 @@ impl MalusCli {
 	fn launch(self) -> eyre::Result<()> {
 		let finality_delay = self.finality_delay;
 		match self.variant {
-			NemesisVariant::BackGarbageCandidate(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate, finality_delay)?,
-			NemesisVariant::SuggestGarbageCandidate(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidateWrapper, finality_delay)?,
+			NemesisVariant::BackGarbageCandidate(cmd) => {
+				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate, finality_delay)?
+			},
+			NemesisVariant::SuggestGarbageCandidate(opts) => polkadot_cli::run_node(
+				run_cmd(opts.clone().cmd),
+				BackGarbageCandidateWrapper::new(opts),
+				finality_delay,
+			)?,
 			NemesisVariant::DisputeAncestor(opts) => polkadot_cli::run_node(
 				run_cmd(opts.clone().cmd),
 				DisputeValidCandidates::new(opts),
@@ -79,7 +83,7 @@ impl MalusCli {
 				#[cfg(target_os = "android")]
 				{
 					return Err("PVF preparation workers are not supported under this platform")
-						.into()
+						.into();
 				}
 
 				#[cfg(not(target_os = "android"))]
@@ -90,7 +94,8 @@ impl MalusCli {
 			NemesisVariant::PvfExecuteWorker(cmd) => {
 				#[cfg(target_os = "android")]
 				{
-					return Err("PVF execution workers are not supported under this platform").into()
+					return Err("PVF execution workers are not supported under this platform")
+						.into();
 				}
 
 				#[cfg(not(target_os = "android"))]
@@ -119,6 +124,42 @@ mod tests {
 		let cli = MalusCli::try_parse_from(IntoIterator::into_iter([
 			"malus",
 			"dispute-ancestor",
+			"--bob",
+		]))
+		.unwrap();
+		assert_matches::assert_matches!(cli, MalusCli {
+			variant: NemesisVariant::DisputeAncestor(run),
+			..
+		} => {
+			assert!(run.cmd.base.bob);
+		});
+	}
+
+	#[test]
+	fn percentage_works_suggest_garbage() {
+		let cli = MalusCli::try_parse_from(IntoIterator::into_iter([
+			"malus",
+			"suggest-garbage-candidate",
+			"--percentage",
+			"100",
+			"--bob",
+		]))
+		.unwrap();
+		assert_matches::assert_matches!(cli, MalusCli {
+			variant: NemesisVariant::SuggestGarbageCandidate(run),
+			..
+		} => {
+			assert!(run.cmd.base.bob);
+		});
+	}
+
+	#[test]
+	fn percentage_works_dispute_ancestor() {
+		let cli = MalusCli::try_parse_from(IntoIterator::into_iter([
+			"malus",
+			"dispute-ancestor",
+			"--percentage",
+			"100",
 			"--bob",
 		]))
 		.unwrap();

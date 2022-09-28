@@ -82,22 +82,26 @@ pub enum FakeCandidateValidationError {
 impl Into<InvalidCandidate> for FakeCandidateValidationError {
 	fn into(self) -> InvalidCandidate {
 		match self {
-			FakeCandidateValidationError::ExecutionError =>
-				InvalidCandidate::ExecutionError("Malus".into()),
+			FakeCandidateValidationError::ExecutionError => {
+				InvalidCandidate::ExecutionError("Malus".into())
+			},
 			FakeCandidateValidationError::InvalidOutputs => InvalidCandidate::InvalidOutputs,
 			FakeCandidateValidationError::Timeout => InvalidCandidate::Timeout,
 			FakeCandidateValidationError::ParamsTooLarge => InvalidCandidate::ParamsTooLarge(666),
 			FakeCandidateValidationError::CodeTooLarge => InvalidCandidate::CodeTooLarge(666),
-			FakeCandidateValidationError::CodeDecompressionFailure =>
-				InvalidCandidate::CodeDecompressionFailure,
-			FakeCandidateValidationError::POVDecompressionFailure =>
-				InvalidCandidate::PoVDecompressionFailure,
+			FakeCandidateValidationError::CodeDecompressionFailure => {
+				InvalidCandidate::CodeDecompressionFailure
+			},
+			FakeCandidateValidationError::POVDecompressionFailure => {
+				InvalidCandidate::PoVDecompressionFailure
+			},
 			FakeCandidateValidationError::BadReturn => InvalidCandidate::BadReturn,
 			FakeCandidateValidationError::BadParent => InvalidCandidate::BadParent,
 			FakeCandidateValidationError::POVHashMismatch => InvalidCandidate::PoVHashMismatch,
 			FakeCandidateValidationError::BadSignature => InvalidCandidate::BadSignature,
-			FakeCandidateValidationError::ParaHeadHashMismatch =>
-				InvalidCandidate::ParaHeadHashMismatch,
+			FakeCandidateValidationError::ParaHeadHashMismatch => {
+				InvalidCandidate::ParaHeadHashMismatch
+			},
 			FakeCandidateValidationError::CodeHashMismatch => InvalidCandidate::CodeHashMismatch,
 		}
 	}
@@ -221,8 +225,8 @@ where
 					),
 			} => {
 				match self.fake_validation {
-					FakeCandidateValidation::ApprovalValid |
-					FakeCandidateValidation::BackingAndApprovalValid => {
+					FakeCandidateValidation::ApprovalValid
+					| FakeCandidateValidation::BackingAndApprovalValid => {
 						// Behave normally if the `PoV` is not known to be malicious.
 						if pov.block_data.0.as_slice() != MALICIOUS_POV {
 							return Some(FromOrchestra::Communication {
@@ -234,7 +238,7 @@ where
 									timeout,
 									sender,
 								),
-							})
+							});
 						}
 						create_validation_response(
 							validation_data,
@@ -243,8 +247,8 @@ where
 						);
 						None
 					},
-					FakeCandidateValidation::ApprovalInvalid |
-					FakeCandidateValidation::BackingAndApprovalInvalid => {
+					FakeCandidateValidation::ApprovalInvalid
+					| FakeCandidateValidation::BackingAndApprovalInvalid => {
 						let validation_result =
 							ValidationResult::Invalid(InvalidCandidate::InvalidOutputs);
 
@@ -280,8 +284,8 @@ where
 					),
 			} => {
 				match self.fake_validation {
-					FakeCandidateValidation::BackingValid |
-					FakeCandidateValidation::BackingAndApprovalValid => {
+					FakeCandidateValidation::BackingValid
+					| FakeCandidateValidation::BackingAndApprovalValid => {
 						// Behave normally if the `PoV` is not known to be malicious.
 						if pov.block_data.0.as_slice() != MALICIOUS_POV {
 							return Some(FromOrchestra::Communication {
@@ -291,7 +295,7 @@ where
 									timeout,
 									response_sender,
 								),
-							})
+							});
 						}
 						self.send_validation_response(
 							candidate_receipt.descriptor,
@@ -300,8 +304,8 @@ where
 						);
 						None
 					},
-					FakeCandidateValidation::BackingInvalid |
-					FakeCandidateValidation::BackingAndApprovalInvalid => {
+					FakeCandidateValidation::BackingInvalid
+					| FakeCandidateValidation::BackingAndApprovalInvalid => {
 						let validation_result =
 							ValidationResult::Invalid(self.fake_validation_error.clone().into());
 						gum::debug!(
