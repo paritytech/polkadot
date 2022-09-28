@@ -173,10 +173,29 @@ mod tests {
 
 	#[test]
 	#[should_panic]
-	fn validate_range_for_percnetage() {
+	fn validate_range_for_percentage_suggest() {
 		let cli = MalusCli::try_parse_from(IntoIterator::into_iter([
 			"malus",
 			"suggest-garbage-candidate",
+			"--percentage",
+			"101",
+			"--bob",
+		]))
+		.unwrap();
+		assert_matches::assert_matches!(cli, MalusCli {
+			variant: NemesisVariant::DisputeAncestor(run),
+			..
+		} => {
+			assert!(run.cmd.base.bob);
+		});
+	}
+	
+	#[test]
+	#[should_panic]
+	fn validate_range_for_percentage_dispute() {
+		let cli = MalusCli::try_parse_from(IntoIterator::into_iter([
+			"malus",
+			"dispute-ancestor",
 			"--percentage",
 			"101",
 			"--bob",
