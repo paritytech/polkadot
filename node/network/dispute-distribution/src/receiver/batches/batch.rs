@@ -207,9 +207,3 @@ impl Batch {
 		}
 	}
 }
-
-// Test tick behaviour:
-//	- If less than `MIN_KEEP_BATCH_ALIVE_VOTES` trickled in since last tick - batch should become
-//	done.
-//  - If batch surpassed its `best_before` it should become done.
-//  - Batch does not count duplicate votes.
