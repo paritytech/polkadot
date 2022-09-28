@@ -624,7 +624,7 @@ impl pallet_staking::Config for Runtime {
 impl pallet_fast_unstake::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type DepositCurrency = Balances;
-	type Deposit = frame_support::traits::ConstU128::<{CENTS * 100}>;
+	type Deposit = frame_support::traits::ConstU128<{ CENTS * 100 }>;
 	type ControlOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
