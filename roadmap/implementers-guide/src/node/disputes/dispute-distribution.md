@@ -282,7 +282,7 @@ well, we will do the following:
    to assume this is concerning a new dispute.
 2. We open a batch and start collecting incoming messages for that candidate,
    instead of immediately forwarding.
-4. We keep collecting votes in the batch until we received less than
+4. We keep collecting votes in the batch until we receive less than
    `MIN_KEEP_BATCH_ALIVE_VOTES` unique votes in the last `BATCH_COLLECTING_INTERVAL`. This is
    important to accommodate for goal 5 and also 3.
 5. We send the whole batch to the dispute-coordinator.
