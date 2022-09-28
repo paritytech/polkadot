@@ -416,9 +416,9 @@ where
 		let (session_index, candidate_hash) = match statements.iter().next() {
 			None => {
 				gum::debug!(
-				target: LOG_TARGET,
-				candidate_hash = ?candidate_receipt.hash(),
-				"Not importing empty batch"
+					target: LOG_TARGET,
+					candidate_hash = ?candidate_receipt.hash(),
+					"Not importing empty batch"
 				);
 				return
 			},
