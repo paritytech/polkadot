@@ -87,6 +87,8 @@ enum TaggedKnowledge {
 	// Knowledge we have sent to the validator on the p2p layer.
 	OutgoingP2P(Knowledge),
 	// Knowledge of candidates the validator has seconded.
+	// This is limited only to `Seconded` statements we have accepted
+	// _without prejudice_.
 	Seconded(CandidateHash),
 }
 
@@ -192,8 +194,12 @@ impl ClusterTracker {
 		}
 
 		if let CompactStatement::Seconded(candidate_hash) = statement {
-			let mut originator_knowledge = self.knowledge.entry(originator).or_default();
-			originator_knowledge.insert(TaggedKnowledge::Seconded(candidate_hash));
+			// since we accept additional `Seconded` statements beyond the limits
+			// 'with prejudice', we must respect the limit here.
+			if self.seconded_already_or_within_limit(originator, candidate_hash) {
+				let mut originator_knowledge = self.knowledge.entry(originator).or_default();
+				originator_knowledge.insert(TaggedKnowledge::Seconded(candidate_hash));
+			}
 		}
 	}
 
@@ -280,6 +286,18 @@ impl ClusterTracker {
 		self.we_sent_seconded(validator, candidate_hash) ||
 			self.they_sent_seconded(validator, candidate_hash) ||
 			self.validator_seconded(validator, candidate_hash)
+	}
+
+	/// Returns the validator-index of the producer a `Seconded` statement
+	/// for the candidate which is legal for us to send to all nodes in the cluster.
+	pub fn sendable_seconder(&self, candidate_hash: CandidateHash) -> Option<ValidatorIndex> {
+		for (v, k) in &self.knowledge {
+			if k.contains(&TaggedKnowledge::Seconded(candidate_hash)) {
+				return Some(*v)
+			}
+		}
+
+		None
 	}
 
 	// returns true if it's legal to accept a new `Seconded` message from this validator.
@@ -716,4 +734,6 @@ mod tests {
 			Err(RejectOutgoing::Known),
 		);
 	}
+
+	// TODO [now] ensure statements received with prejudice don't prevent sending later
 }

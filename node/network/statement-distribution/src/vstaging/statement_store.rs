@@ -23,7 +23,7 @@
 //! views into this data: views based on the candidate, views based on the validator
 //! groups, and views based on the validators themselves.
 
-use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec, slice::BitSlice};
+use bitvec::{order::Lsb0 as BitOrderLsb0, slice::BitSlice, vec::BitVec};
 use polkadot_primitives::vstaging::{
 	CandidateHash, CompactStatement, GroupIndex, SignedStatement, ValidatorIndex,
 };
@@ -34,6 +34,10 @@ use std::collections::hash_map::{Entry as HEntry, HashMap};
 pub struct StatementStore {
 	groups: Vec<Vec<ValidatorIndex>>,
 	validator_meta: HashMap<ValidatorIndex, ValidatorMeta>,
+
+	// we keep statements per-group because even though only one group _should_ be
+	// producing statements about a candidate, until we have the candidate receipt
+	// itself, we can't tell which group that is.
 	group_statements: HashMap<(GroupIndex, CandidateHash), GroupStatements>,
 	known_statements: HashMap<Fingerprint, SignedStatement>,
 }
@@ -125,6 +129,7 @@ impl StatementStore {
 			})
 	}
 
+	// TODO [now]: this may not be useful.
 	/// Get an iterator over signed statements of the given form by the given group.
 	pub fn group_statements<'a>(
 		&'a self,
@@ -134,10 +139,20 @@ impl StatementStore {
 		let bitslice = self.group_statement_bitslice(group_index, statement.clone());
 		let group_validators = self.groups.get(group_index.0 as usize);
 
-		bitslice.into_iter()
+		bitslice
+			.into_iter()
 			.flat_map(|v| v.iter_ones())
 			.filter_map(move |i| group_validators.as_ref().and_then(|g| g.get(i)))
 			.filter_map(move |v| self.known_statements.get(&(*v, statement.clone())))
+	}
+
+	/// Get the full statement of this kind issued by this validator, if it is known.
+	pub fn validator_statement(
+		&self,
+		validator_index: ValidatorIndex,
+		statement: CompactStatement,
+	) -> Option<&SignedStatement> {
+		self.known_statements.get(&(validator_index, statement))
 	}
 }
 

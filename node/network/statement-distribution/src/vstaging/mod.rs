@@ -50,6 +50,7 @@ use crate::{
 };
 use candidate_entry::CandidateEntry;
 use cluster::ClusterTracker;
+use statement_store::StatementStore;
 
 mod candidate_entry;
 mod cluster;
@@ -69,6 +70,7 @@ struct PerRelayParentState {
 	validator_state: HashMap<ValidatorIndex, PerRelayParentValidatorState>,
 	candidates: HashMap<CandidateHash, CandidateEntry>,
 	local_validator: Option<LocalValidatorState>,
+	statement_store: StatementStore,
 	session: SessionIndex,
 }
 
@@ -271,6 +273,7 @@ pub(crate) async fn handle_activated_leaf<Context>(
 				validator_state: HashMap::new(),
 				candidates: HashMap::new(),
 				local_validator,
+				statement_store: StatementStore::new(session_info.validator_groups.clone()),
 				session: session_index,
 			},
 		);
@@ -344,10 +347,11 @@ pub(crate) async fn share_local_statement<Context>(
 		Some(x) => x,
 	};
 
-	let (local_index, local_assignment) = match per_relay_parent.local_validator.as_ref() {
-		None => return Err(JfyiError::InvalidShare),
-		Some(l) => (l.index, l.assignment),
-	};
+	let (local_index, local_assignment, local_group) =
+		match per_relay_parent.local_validator.as_ref() {
+			None => return Err(JfyiError::InvalidShare),
+			Some(l) => (l.index, l.assignment, l.group),
+		};
 
 	// Two possibilities: either the statement is `Seconded` or we already
 	// have the candidate. Sanity: check the para-id is valid.
@@ -400,23 +404,21 @@ pub(crate) async fn share_local_statement<Context>(
 			},
 		};
 
-		// TODO [now]: note seconded.
-		// if !candidate_entry.insert_signed_statement(compact_statement.clone()) {
-		// 	gum::warn!(
-		// 		target: LOG_TARGET,
-		// 		statement = ?compact_statement.payload(),
-		// 		"Candidate backing issued redundant statement?",
-		// 	);
-
-		// 	return Err(JfyiError::InvalidShare)
-		// }
+		if !per_relay_parent.statement_store.insert(compact_statement.clone()) {
+			gum::warn!(
+				target: LOG_TARGET,
+				statement = ?compact_statement.payload(),
+				"Candidate backing issued redundant statement?",
+			);
+			return Err(JfyiError::InvalidShare)
+		}
 
 		(compact_statement, candidate_hash)
 	};
 
 	// send the compact version of the statement to nodes in current group and next-up. If not a `Seconded` statement,
 	// send a `Seconded` statement as well.
-	send_statement_direct(ctx, state, relay_parent, compact_statement).await;
+	send_statement_direct(ctx, state, relay_parent, local_group, compact_statement).await;
 
 	// TODO [now]:
 	// 4. If the candidate is now backed, trigger 'backed candidate announcement' logic.
@@ -431,6 +433,10 @@ pub(crate) async fn share_local_statement<Context>(
 // If we're not sure whether the peer knows the candidate is `Seconded` already, we also send a `Seconded`
 // statement.
 //
+// The group index which is _canonically assigned_ to this parachain must be
+// specified already. This function should not be used when the candidate receipt and
+// therefore the canonical group for the parachain is unknown.
+//
 // preconditions: the candidate entry exists in the state under the relay parent
 // and the statement has already been imported into the entry. If this is a `Valid`
 // statement, then there must be at least one `Seconded` statement.
@@ -441,6 +447,7 @@ async fn send_statement_direct<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	relay_parent: Hash,
+	group_index: GroupIndex,
 	statement: SignedStatement,
 ) {
 	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
@@ -454,21 +461,13 @@ async fn send_statement_direct<Context>(
 	};
 
 	let candidate_hash = statement.payload().candidate_hash().clone();
-	let candidate_entry = match per_relay_parent.candidates.get_mut(&candidate_hash) {
-		Some(x) => x,
-		None => return,
-	};
 
-	// TODO [now]: get a seconding statement from the 'statement store', TBD
-	let prior_seconded: Option<UncheckedSignedStatement> = unimplemented!();
-	// TODO [now]: clean up this junk below
-	// let prior_seconded = match statement.payload() {
-	// 	CompactStatement::Seconded(_) => None,
-	// 	CompactStatement::Valid(_) => match candidate_entry.seconded_statements.first() {
-	// 		Some(s) => Some(s.as_unchecked().clone()),
-	// 		None => return,
-	// 	},
-	// };
+	let mut prior_seconded = None;
+	let compact_statement = statement.payload().clone();
+	let is_seconded = match compact_statement {
+		CompactStatement::Seconded(_) => true,
+		CompactStatement::Valid(_) => false,
+	};
 
 	// two kinds of targets: those in our 'cluster' (currently just those in the same group),
 	// and those we are propagating to through the grid.
@@ -477,8 +476,8 @@ async fn send_statement_direct<Context>(
 		Grid,
 	}
 
-	let targets: Vec<(ValidatorIndex, AuthorityDiscoveryId, TargetKind)> = {
-		let local_validator = match per_relay_parent.local_validator.as_ref() {
+	let (local_validator, targets) = {
+		let local_validator = match per_relay_parent.local_validator.as_mut() {
 			Some(v) => v,
 			None => return, // sanity: should be impossible to reach this.
 		};
@@ -492,16 +491,20 @@ async fn send_statement_direct<Context>(
 
 		// TODO [now]: extend with grid targets, dedup
 
-		current_group
+		let targets = current_group
 			.filter_map(|(v, k)| {
 				session_info.discovery_keys.get(v.0 as usize).map(|a| (v, a.clone(), k))
 			})
-			.collect::<Vec<_>>()
+			.collect::<Vec<_>>();
+
+		(local_validator, targets)
 	};
+
+	let originator = statement.validator_index();
 
 	let mut prior_to = Vec::new();
 	let mut statement_to = Vec::new();
-	for (validator_index, authority_id, kind) in targets {
+	for (target, authority_id, kind) in targets {
 		// Find peer ID based on authority ID, and also filter to connected.
 		let peer_id: PeerId = match state.authorities.get(&authority_id) {
 			Some(p) if state.peers.contains_key(p) => p.clone(),
@@ -510,8 +513,65 @@ async fn send_statement_direct<Context>(
 
 		match kind {
 			TargetKind::Cluster => {
-				// TODO [now]: use cluster mechanics to determine whether to sent
-				// 'prior_to' and 'statement_to'.
+				if !local_validator.cluster_tracker.knows_candidate(target, candidate_hash) &&
+					!is_seconded
+				{
+					// lazily initialize this.
+					let prior_seconded = if let Some(ref p) = prior_seconded.as_ref() {
+						p
+					} else {
+						// This should always succeed because:
+						// 1. If this is not a `Seconded` statement we must have
+						//    received at least one `Seconded` statement from other validators
+						//    in our cluster.
+						// 2. We should have deposited all statements we've received into the statement store.
+
+						match cluster_sendable_seconded_statement(
+							&local_validator.cluster_tracker,
+							&per_relay_parent.statement_store,
+							candidate_hash,
+						) {
+							None => {
+								gum::warn!(
+									target: LOG_TARGET,
+									?candidate_hash,
+									?relay_parent,
+									"degenerate state: we authored a `Valid` statement without \
+									knowing any `Seconded` statements."
+								);
+
+								return
+							},
+							Some(s) => &*prior_seconded.get_or_insert(s.as_unchecked().clone()),
+						}
+					};
+
+					// One of the properties of the 'cluster sendable seconded statement'
+					// is that we `can_send` it to all nodes in the cluster which don't have the candidate already. And
+					// we're already in a branch that's gated off from cluster nodes
+					// which have knowledge of the candidate.
+					local_validator.cluster_tracker.note_sent(
+						target,
+						prior_seconded.unchecked_validator_index(),
+						CompactStatement::Seconded(candidate_hash),
+					);
+					prior_to.push(peer_id);
+				}
+
+				// At this point, all peers in the cluster should 'know'
+				// the candidate, so we don't expect for this to fail.
+				if let Ok(()) = local_validator.cluster_tracker.can_send(
+					target,
+					originator,
+					compact_statement.clone(),
+				) {
+					local_validator.cluster_tracker.note_sent(
+						target,
+						originator,
+						compact_statement.clone(),
+					);
+					statement_to.push(peer_id);
+				}
 			},
 			TargetKind::Grid => {
 				// TODO [now]
@@ -546,6 +606,16 @@ async fn send_statement_direct<Context>(
 		))
 		.await;
 	}
+}
+
+fn cluster_sendable_seconded_statement<'a>(
+	cluster_tracker: &ClusterTracker,
+	statement_store: &'a StatementStore,
+	candidate_hash: CandidateHash,
+) -> Option<&'a SignedStatement> {
+	cluster_tracker.sendable_seconder(candidate_hash).and_then(|v| {
+		statement_store.validator_statement(v, CompactStatement::Seconded(candidate_hash))
+	})
 }
 
 /// Check a statement signature under this parent hash.
