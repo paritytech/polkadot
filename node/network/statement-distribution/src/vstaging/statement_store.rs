@@ -23,7 +23,7 @@
 //! views into this data: views based on the candidate, views based on the validator
 //! groups, and views based on the validators themselves.
 
-use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
+use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec, slice::BitSlice};
 use polkadot_primitives::vstaging::{
 	CandidateHash, CompactStatement, GroupIndex, SignedStatement, ValidatorIndex,
 };
@@ -108,6 +108,37 @@ impl StatementStore {
 
 		true
 	}
+
+	/// Get a bit-slice of validators in the group which have issued statements of the
+	/// given form about the candidate. If unavailable, returns `None`.
+	pub fn group_statement_bitslice(
+		&self,
+		group_index: GroupIndex,
+		statement: CompactStatement,
+	) -> Option<&BitSlice<usize, BitOrderLsb0>> {
+		let candidate_hash = *statement.candidate_hash();
+		self.group_statements
+			.get(&(group_index, candidate_hash))
+			.map(|g| match statement {
+				CompactStatement::Seconded(_) => &*g.seconded,
+				CompactStatement::Valid(_) => &*g.valid,
+			})
+	}
+
+	/// Get an iterator over signed statements of the given form by the given group.
+	pub fn group_statements<'a>(
+		&'a self,
+		group_index: GroupIndex,
+		statement: CompactStatement,
+	) -> impl Iterator<Item = &'a SignedStatement> + 'a {
+		let bitslice = self.group_statement_bitslice(group_index, statement.clone());
+		let group_validators = self.groups.get(group_index.0 as usize);
+
+		bitslice.into_iter()
+			.flat_map(|v| v.iter_ones())
+			.filter_map(move |i| group_validators.as_ref().and_then(|g| g.get(i)))
+			.filter_map(move |v| self.known_statements.get(&(*v, statement.clone())))
+	}
 }
 
 type Fingerprint = (ValidatorIndex, CompactStatement);
@@ -119,23 +150,23 @@ struct ValidatorMeta {
 }
 
 struct GroupStatements {
-	seconded_statements: BitVec<u8, BitOrderLsb0>,
-	valid_statements: BitVec<u8, BitOrderLsb0>,
+	seconded: BitVec<usize, BitOrderLsb0>,
+	valid: BitVec<usize, BitOrderLsb0>,
 }
 
 impl GroupStatements {
 	fn with_group_size(group_size: usize) -> Self {
 		GroupStatements {
-			seconded_statements: BitVec::repeat(false, group_size),
-			valid_statements: BitVec::repeat(false, group_size),
+			seconded: BitVec::repeat(false, group_size),
+			valid: BitVec::repeat(false, group_size),
 		}
 	}
 
 	fn note_seconded(&mut self, within_group_index: usize) {
-		self.seconded_statements.set(within_group_index, true);
+		self.seconded.set(within_group_index, true);
 	}
 
 	fn note_validated(&mut self, within_group_index: usize) {
-		self.valid_statements.set(within_group_index, true);
+		self.valid.set(within_group_index, true);
 	}
 }
