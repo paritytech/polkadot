@@ -7357,6 +7357,7 @@ version = "0.9.29"
 dependencies = [
  "arrayvec 0.5.2",
  "assert_matches",
+ "bitvec 1.0.0",
  "fatality",
  "futures",
  "futures-timer",

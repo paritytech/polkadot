@@ -53,6 +53,7 @@ use cluster::ClusterTracker;
 
 mod candidate_entry;
 mod cluster;
+mod statement_store;
 
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
 const COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE: Rep =
