@@ -56,6 +56,8 @@ pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 pub use sp_consensus_slots::Slot;
 pub use sp_staking::SessionIndex;
 
+use crate::vstaging::ExecutorParams;
+
 /// Signed data.
 mod signed;
 pub use signed::{EncodeAs, Signed, UncheckedSigned};
@@ -1681,6 +1683,12 @@ pub fn supermajority_threshold(n: usize) -> usize {
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct SessionInfo {
+	/****** New in v3 *******/
+	/// Execution environment version
+	pub ee_version: u32,
+	/// Execution environment parameters
+	pub ee_parameters: ExecutorParams,
+
 	/****** New in v2 *******/
 	/// All the validators actively participating in parachain consensus.
 	/// Indices are into the broader validator set.
@@ -1816,6 +1824,9 @@ pub struct OldV1SessionInfo {
 impl From<OldV1SessionInfo> for SessionInfo {
 	fn from(old: OldV1SessionInfo) -> SessionInfo {
 		SessionInfo {
+			ee_version: 0,
+			ee_parameters: ExecutorParams::default(),
+
 			// new fields
 			active_validator_indices: Vec::new(),
 			random_seed: [0u8; 32],

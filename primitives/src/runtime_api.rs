@@ -210,6 +210,9 @@ sp_api::decl_runtime_apis! {
 			-> Option<ppp::ValidationCodeHash>;
 
 
+		// FIXME: Docs; move to v3
+		fn session_index_by_parent_hash(parent_hash: pcp::v2::Hash) -> Option<sp_staking::SessionIndex>;
+
 		/***** Replaced in v2 *****/
 
 		/// Old method to fetch v1 session info.

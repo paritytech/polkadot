@@ -30,8 +30,9 @@ use async_std::{
 };
 use futures::FutureExt;
 use futures_timer::Delay;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{alloc::collections::BTreeMap, Decode, Encode};
 use polkadot_parachain::primitives::ValidationResult;
+use polkadot_primitives::vstaging::ExecutorParams;
 use std::time::{Duration, Instant};
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
@@ -69,6 +70,7 @@ pub async fn start_work(
 	artifact: ArtifactPathId,
 	execution_timeout: Duration,
 	validation_params: Vec<u8>,
+	ee_params: ExecutorParams,
 ) -> Outcome {
 	let IdleWorker { mut stream, pid } = worker;
 
@@ -80,7 +82,9 @@ pub async fn start_work(
 		artifact.path.display(),
 	);
 
-	if let Err(error) = send_request(&mut stream, &artifact.path, &validation_params).await {
+	if let Err(error) =
+		send_request(&mut stream, &artifact.path, &validation_params, &ee_params).await
+	{
 		gum::warn!(
 			target: LOG_TARGET,
 			worker_pid = %pid,
@@ -132,12 +136,14 @@ async fn send_request(
 	stream: &mut UnixStream,
 	artifact_path: &Path,
 	validation_params: &[u8],
+	ee_params: &ExecutorParams,
 ) -> io::Result<()> {
 	framed_send(stream, path_to_bytes(artifact_path)).await?;
-	framed_send(stream, validation_params).await
+	framed_send(stream, validation_params).await?;
+	framed_send(stream, &ee_params.encode()).await
 }
 
-async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>)> {
+async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>, ExecutorParams)> {
 	let artifact_path = framed_recv(stream).await?;
 	let artifact_path = bytes_to_path(&artifact_path).ok_or_else(|| {
 		io::Error::new(
@@ -146,7 +152,14 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>)>
 		)
 	})?;
 	let params = framed_recv(stream).await?;
-	Ok((artifact_path, params))
+	let ee_params_enc = framed_recv(stream).await?;
+	let ee_params = ExecutorParams::decode(&mut &ee_params_enc[..]).map_err(|_| {
+		io::Error::new(
+			io::ErrorKind::Other,
+			"execute pvf recv_request: failed to decode ExecutorParams".to_string(),
+		)
+	})?;
+	Ok((artifact_path, params, ee_params))
 }
 
 async fn send_response(stream: &mut UnixStream, response: Response) -> io::Result<()> {
@@ -184,11 +197,25 @@ impl Response {
 /// the path to the socket used to communicate with the host.
 pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("execute", socket_path, |mut stream| async move {
-		let executor = Executor::new().map_err(|e| {
-			io::Error::new(io::ErrorKind::Other, format!("cannot create executor: {}", e))
-		})?;
+		let mut executors: BTreeMap<[u8; 32], Executor> = BTreeMap::new();
 		loop {
-			let (artifact_path, params) = recv_request(&mut stream).await?;
+			let (artifact_path, params, ee_params) = recv_request(&mut stream).await?;
+			let ee_hash = sp_io::hashing::blake2_256(&ee_params.encode()); // FIXME: Any better/more efficent/idiomatic way?
+
+			let executor = match executors.get(&ee_hash) {
+				Some(exc) => exc,
+				None => {
+					let exc = Executor::new(ee_params).map_err(|e| {
+						io::Error::new(
+							io::ErrorKind::Other,
+							format!("cannot create executor: {}", e),
+						)
+					})?;
+					executors.insert(ee_hash, exc);
+					executors.get(&ee_hash).unwrap()
+				},
+			};
+
 			gum::debug!(
 				target: LOG_TARGET,
 				worker_pid = %std::process::id(),

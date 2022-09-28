@@ -39,9 +39,12 @@ use polkadot_node_subsystem::{
 	SubsystemSender,
 };
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
-use polkadot_primitives::v2::{
-	CandidateCommitments, CandidateDescriptor, CandidateReceipt, Hash, OccupiedCoreAssumption,
-	PersistedValidationData, ValidationCode, ValidationCodeHash,
+use polkadot_primitives::{
+	v2::{
+		CandidateCommitments, CandidateDescriptor, CandidateReceipt, Hash, OccupiedCoreAssumption,
+		PersistedValidationData, ValidationCode, ValidationCodeHash,
+	},
+	vstaging::ExecutorParams,
 };
 
 use parity_scale_codec::Encode;
@@ -132,6 +135,7 @@ async fn run<Context>(
 				CandidateValidationMessage::ValidateFromChainState(
 					candidate_receipt,
 					pov,
+					ee_params,
 					timeout,
 					response_sender,
 				) => {
@@ -147,6 +151,7 @@ async fn run<Context>(
 								validation_host,
 								candidate_receipt,
 								pov,
+								ee_params,
 								timeout,
 								&metrics,
 							)
@@ -164,6 +169,7 @@ async fn run<Context>(
 					validation_code,
 					candidate_receipt,
 					pov,
+					ee_params,
 					timeout,
 					response_sender,
 				) => {
@@ -179,6 +185,7 @@ async fn run<Context>(
 								validation_code,
 								candidate_receipt,
 								pov,
+								ee_params,
 								timeout,
 								&metrics,
 							)
@@ -436,6 +443,7 @@ async fn validate_from_chain_state<Sender>(
 	validation_host: ValidationHost,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
+	ee_params: ExecutorParams,
 	timeout: Duration,
 	metrics: &Metrics,
 ) -> Result<ValidationResult, ValidationFailed>
@@ -455,6 +463,7 @@ where
 		validation_code,
 		candidate_receipt.clone(),
 		pov,
+		ee_params,
 		timeout,
 		metrics,
 	)
@@ -495,6 +504,7 @@ async fn validate_candidate_exhaustive(
 	validation_code: ValidationCode,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
+	ee_params: ExecutorParams,
 	timeout: Duration,
 	metrics: &Metrics,
 ) -> Result<ValidationResult, ValidationFailed> {
@@ -551,7 +561,7 @@ async fn validate_candidate_exhaustive(
 	};
 
 	let result = validation_backend
-		.validate_candidate(raw_validation_code.to_vec(), timeout, params)
+		.validate_candidate(raw_validation_code.to_vec(), timeout, params, ee_params)
 		.await;
 
 	if let Err(ref error) = result {
@@ -608,6 +618,7 @@ trait ValidationBackend {
 		raw_validation_code: Vec<u8>,
 		timeout: Duration,
 		params: ValidationParams,
+		ee_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError>;
 
 	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError>;
@@ -620,6 +631,7 @@ impl ValidationBackend for ValidationHost {
 		raw_validation_code: Vec<u8>,
 		timeout: Duration,
 		params: ValidationParams,
+		ee_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		let (tx, rx) = oneshot::channel();
 		if let Err(err) = self
@@ -627,6 +639,7 @@ impl ValidationBackend for ValidationHost {
 				Pvf::from_code(raw_validation_code),
 				timeout,
 				params.encode(),
+				ee_params,
 				polkadot_node_core_pvf::Priority::Normal,
 				tx,
 			)

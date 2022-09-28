@@ -38,14 +38,17 @@ use polkadot_node_primitives::{
 	CollationSecondedSignal, DisputeMessage, DisputeStatus, ErasureChunk, PoV,
 	SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
-use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
-	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
-	DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
-	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+use polkadot_primitives::{
+	v2::{
+		AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
+		CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
+		DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
+		InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
+		OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, SessionIndex,
+		SessionInfo, SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode,
+		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	vstaging::ExecutorParams,
 };
 use polkadot_statement_table::v2::Misbehavior;
 use std::{
@@ -135,6 +138,7 @@ pub enum CandidateValidationMessage {
 	ValidateFromChainState(
 		CandidateReceipt,
 		Arc<PoV>,
+		ExecutorParams,
 		/// Execution timeout
 		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
@@ -153,6 +157,7 @@ pub enum CandidateValidationMessage {
 		ValidationCode,
 		CandidateReceipt,
 		Arc<PoV>,
+		ExecutorParams,
 		/// Execution timeout
 		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
@@ -174,8 +179,8 @@ impl CandidateValidationMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::ValidateFromChainState(_, _, _, _) => None,
-			Self::ValidateFromExhaustive(_, _, _, _, _, _) => None,
+			Self::ValidateFromChainState(_, _, _, _, _) => None,
+			Self::ValidateFromExhaustive(_, _, _, _, _, _, _) => None,
 			Self::PreCheck(relay_parent, _, _) => Some(*relay_parent),
 		}
 	}
@@ -673,6 +678,8 @@ pub enum RuntimeApiRequest {
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
 	/// the block in whose state this request is executed.
 	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
+	/// Get the session index by parent hash
+	SessionIndexByParentHash(Hash, RuntimeApiSender<Option<SessionIndex>>),
 	/// Get the session info for the given session, if stored.
 	SessionInfo(SessionIndex, RuntimeApiSender<Option<SessionInfo>>),
 	/// Get all the pending inbound messages in the downward message queue for a para.
@@ -698,7 +705,7 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCodeHash>>,
 	),
-	/// Returns all on-chain disputes at given block number. Available in `v3`.
+	/// Returns all on-chain disputes at given block number. Available in v3.
 	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
 }
 

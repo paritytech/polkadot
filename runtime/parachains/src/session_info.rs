@@ -27,7 +27,10 @@ use frame_support::{
 	pallet_prelude::*,
 	traits::{OneSessionHandler, ValidatorSet, ValidatorSetWithIdentification},
 };
-use primitives::v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
+use primitives::{
+	v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo},
+	vstaging::ExecutorParams,
+};
 use sp_std::vec::Vec;
 
 pub use pallet::*;
@@ -102,6 +105,11 @@ pub mod pallet {
 	#[pallet::getter(fn account_keys)]
 	pub(crate) type AccountKeys<T: Config> =
 		StorageMap<_, Identity, SessionIndex, Vec<AccountId<T>>>;
+
+	/// Cache mapping a parent block hash to the session index
+	#[pallet::storage]
+	#[pallet::getter(fn session_index_by_parent_hash)]
+	pub(crate) type SessionIndexCache<T: Config> = StorageMap<_, Identity, T::Hash, SessionIndex>;
 }
 
 /// An abstraction for the authority discovery pallet
@@ -169,6 +177,8 @@ impl<T: Config> Pallet<T> {
 
 		// create a new entry in `Sessions` with information about the current session
 		let new_session_info = SessionInfo {
+			ee_version: 0,
+			ee_parameters: ExecutorParams::default(),
 			validators, // these are from the notification and are thus already correct.
 			discovery_keys: take_active_subset_and_inactive(&active_set, &discovery_keys),
 			assignment_keys: take_active_subset(&active_set, &assignment_keys),
@@ -188,6 +198,11 @@ impl<T: Config> Pallet<T> {
 
 	/// Called by the initializer to initialize the session info pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+		// TODO: Cache pruning
+		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
+		let session_index = <shared::Pallet<T>>::session_index();
+		SessionIndexCache::<T>::insert(&parent_hash, &session_index);
+		// FIXME: Weight?
 		Weight::zero()
 	}
 

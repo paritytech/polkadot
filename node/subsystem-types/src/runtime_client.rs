@@ -141,6 +141,13 @@ pub trait RuntimeApiSubsystemClient {
 
 	/***** Added in v2 *****/
 
+	/// Get the session index by parent hash, if stored
+	async fn session_index_by_parent_hash(
+		&self,
+		at: Hash,
+		parent_hash: Hash,
+	) -> Result<Option<SessionIndex>, ApiError>;
+
 	/// Get the session info for the given session, if stored.
 	///
 	/// NOTE: This function is only available since parachain host version 2.
@@ -317,6 +324,14 @@ where
 		at: Hash,
 	) -> Result<Option<ScrapedOnChainVotes<Hash>>, ApiError> {
 		self.runtime_api().on_chain_votes(&BlockId::Hash(at))
+	}
+
+	async fn session_index_by_parent_hash(
+		&self,
+		at: Hash,
+		parent_hash: Hash,
+	) -> Result<Option<SessionIndex>, ApiError> {
+		self.runtime_api().session_index_by_parent_hash(&BlockId::Hash(at), parent_hash)
 	}
 
 	async fn session_info(

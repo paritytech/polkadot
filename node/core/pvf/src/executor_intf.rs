@@ -16,11 +16,12 @@
 
 //! Interface to the Substrate Executor
 
+use polkadot_primitives::vstaging::ExecutorParams;
 use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{InvokeMethod, WasmModule as _},
 };
-use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
+use sc_executor_wasmtime::{Config, DeterministicStackLimit, InstantiationStrategy, Semantics};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
 use sp_externalities::MultiRemovalResults;
 use std::{
@@ -101,13 +102,70 @@ pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::
 	sc_executor_wasmtime::prepare_runtime_artifact(blob, &CONFIG.semantics)
 }
 
+const EEPAR_EXTRA_HEAP_PAGES: u8 = 1;
+const EEPAR_MAX_MEMORY_SIZE: u8 = 2;
+const EEPAR_INSTANTIATION_STRATEGY: u8 = 3;
+const EEPAR_STACK_LIMIT: u8 = 4;
+const EEPAR_FLAGS: u8 = 5;
+
+const EEPAR_LEN: usize = 5;
+
+const EEPAR_FLAG_CANONICAL_NANS: u8 = 0;
+const EEPAR_FLAG_PARALLEL_COMPILATION: u8 = 1;
+
+const EEINST_POOLING_COW: u8 = 1;
+const EEINST_RECREATE_COW: u8 = 2;
+const EEINST_POOLING: u8 = 3;
+const EEINST_RECREATE: u8 = 4;
+const EEINST_LEGACY: u8 = 5;
+
+fn params_to_semantics(par: ExecutorParams) -> Semantics {
+	// FIXME: Implement `Default` for `Semantics`?
+	let mut sem = CONFIG.semantics.clone();
+	for (key, value) in par.iter() {
+		match *key {
+			EEPAR_EXTRA_HEAP_PAGES => sem.extra_heap_pages = *value,
+			EEPAR_MAX_MEMORY_SIZE if *value <= std::u32::MAX as u64 =>
+				sem.max_memory_size = (*value).try_into().ok(),
+			EEPAR_INSTANTIATION_STRATEGY => match *value as u8 {
+				// FIXME: Probably pack it in 3 bits inside EEPAR_FLAGS
+				EEINST_POOLING_COW =>
+					sem.instantiation_strategy = InstantiationStrategy::PoolingCopyOnWrite,
+				EEINST_RECREATE_COW =>
+					sem.instantiation_strategy = InstantiationStrategy::RecreateInstanceCopyOnWrite,
+				EEINST_POOLING => sem.instantiation_strategy = InstantiationStrategy::Pooling,
+				EEINST_RECREATE =>
+					sem.instantiation_strategy = InstantiationStrategy::RecreateInstance,
+				EEINST_LEGACY =>
+					sem.instantiation_strategy = InstantiationStrategy::LegacyInstanceReuse,
+				_ => (),
+			},
+			EEPAR_STACK_LIMIT =>
+				sem.deterministic_stack_limit = Some(DeterministicStackLimit {
+					logical_max: (value & 0xFFFFFFFFu64) as u32,
+					native_stack_max: (value >> 32) as u32,
+				}),
+			EEPAR_FLAGS => {
+				sem.canonicalize_nans =
+					if value & (1 << EEPAR_FLAG_CANONICAL_NANS) == 0 { false } else { true };
+				sem.parallel_compilation =
+					if value & (1 << EEPAR_FLAG_PARALLEL_COMPILATION) == 0 { false } else { true };
+			},
+			_ => (),
+		}
+	}
+
+	sem
+}
+
 pub struct Executor {
 	thread_pool: rayon::ThreadPool,
 	spawner: TaskSpawner,
+	config: Config,
 }
 
 impl Executor {
-	pub fn new() -> Result<Self, String> {
+	pub fn new(params: ExecutorParams) -> Result<Self, String> {
 		// Wasmtime powers the Substrate Executor. It compiles the wasm bytecode into native code.
 		// That native code does not create any stacks and just reuses the stack of the thread that
 		// wasmtime was invoked from.
@@ -154,7 +212,14 @@ impl Executor {
 		let spawner =
 			TaskSpawner::new().map_err(|e| format!("cannot create task spawner: {}", e))?;
 
-		Ok(Self { thread_pool, spawner })
+		// FIXME: Implement `Clone` (or `Default`) for `sc_executor_wasmtime::Config`
+		let config = Config {
+			allow_missing_func_imports: true,
+			cache_path: None,
+			semantics: params_to_semantics(params),
+		};
+
+		Ok(Self { thread_pool, spawner, config })
 	}
 
 	/// Executes the given PVF in the form of a compiled artifact and returns the result of execution
@@ -181,9 +246,30 @@ impl Executor {
 			let result = &mut result;
 			move |s| {
 				s.spawn(move |_| {
+					// FIXME: Derive `Clone` for `Config` to get rid of this!
+					let config = Config {
+						allow_missing_func_imports: self.config.allow_missing_func_imports,
+						cache_path: self.config.cache_path.clone(),
+						semantics: Semantics {
+							instantiation_strategy: self
+								.config
+								.semantics
+								.instantiation_strategy
+								.clone(),
+							deterministic_stack_limit: self
+								.config
+								.semantics
+								.deterministic_stack_limit
+								.clone(),
+							canonicalize_nans: self.config.semantics.canonicalize_nans,
+							parallel_compilation: self.config.semantics.parallel_compilation,
+							extra_heap_pages: self.config.semantics.extra_heap_pages,
+							max_memory_size: self.config.semantics.max_memory_size.clone(),
+						},
+					};
 					// spawn does not return a value, so we need to use a variable to pass the result.
 					*result = Some(
-						do_execute(compiled_artifact_path, params, spawner)
+						do_execute(compiled_artifact_path, config, params, spawner)
 							.map_err(|err| format!("execute error: {:?}", err)),
 					);
 				});
@@ -195,6 +281,7 @@ impl Executor {
 
 unsafe fn do_execute(
 	compiled_artifact_path: &Path,
+	config: Config,
 	params: &[u8],
 	spawner: impl sp_core::traits::SpawnNamed + 'static,
 ) -> Result<Vec<u8>, sc_executor_common::error::Error> {
@@ -208,7 +295,7 @@ unsafe fn do_execute(
 	sc_executor::with_externalities_safe(&mut ext, || {
 		let runtime = sc_executor_wasmtime::create_runtime_from_artifact::<HostFunctions>(
 			compiled_artifact_path,
-			CONFIG,
+			config,
 		)?;
 		runtime.new_instance()?.call(InvokeMethod::Export("validate_block"), params)
 	})?

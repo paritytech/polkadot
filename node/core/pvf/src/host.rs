@@ -33,6 +33,7 @@ use futures::{
 	Future, FutureExt, SinkExt, StreamExt,
 };
 use polkadot_parachain::primitives::ValidationResult;
+use polkadot_primitives::vstaging::ExecutorParams;
 use std::{
 	collections::HashMap,
 	time::{Duration, SystemTime},
@@ -93,11 +94,19 @@ impl ValidationHost {
 		pvf: Pvf,
 		execution_timeout: Duration,
 		params: Vec<u8>,
+		ee_params: ExecutorParams,
 		priority: Priority,
 		result_tx: ResultSender,
 	) -> Result<(), String> {
 		self.to_host_tx
-			.send(ToHost::ExecutePvf { pvf, execution_timeout, params, priority, result_tx })
+			.send(ToHost::ExecutePvf {
+				pvf,
+				execution_timeout,
+				params,
+				ee_params,
+				priority,
+				result_tx,
+			})
 			.await
 			.map_err(|_| "the inner loop hung up".to_string())
 	}
@@ -125,6 +134,7 @@ enum ToHost {
 		pvf: Pvf,
 		execution_timeout: Duration,
 		params: Vec<u8>,
+		ee_params: ExecutorParams,
 		priority: Priority,
 		result_tx: ResultSender,
 	},
@@ -251,6 +261,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 struct PendingExecutionRequest {
 	execution_timeout: Duration,
 	params: Vec<u8>,
+	ee_params: ExecutorParams,
 	result_tx: ResultSender,
 }
 
@@ -265,11 +276,13 @@ impl AwaitingPrepare {
 		artifact_id: ArtifactId,
 		execution_timeout: Duration,
 		params: Vec<u8>,
+		ee_params: ExecutorParams,
 		result_tx: ResultSender,
 	) {
 		self.0.entry(artifact_id).or_default().push(PendingExecutionRequest {
 			execution_timeout,
 			params,
+			ee_params,
 			result_tx,
 		});
 	}
@@ -407,7 +420,7 @@ async fn handle_to_host(
 		ToHost::PrecheckPvf { pvf, result_tx } => {
 			handle_precheck_pvf(artifacts, prepare_queue, pvf, result_tx).await?;
 		},
-		ToHost::ExecutePvf { pvf, execution_timeout, params, priority, result_tx } => {
+		ToHost::ExecutePvf { pvf, execution_timeout, params, ee_params, priority, result_tx } => {
 			handle_execute_pvf(
 				cache_path,
 				artifacts,
@@ -417,6 +430,7 @@ async fn handle_to_host(
 				pvf,
 				execution_timeout,
 				params,
+				ee_params,
 				priority,
 				result_tx,
 			)
@@ -484,6 +498,7 @@ async fn handle_execute_pvf(
 	pvf: Pvf,
 	execution_timeout: Duration,
 	params: Vec<u8>,
+	ee_params: ExecutorParams,
 	priority: Priority,
 	result_tx: ResultSender,
 ) -> Result<(), Fatal> {
@@ -500,13 +515,14 @@ async fn handle_execute_pvf(
 						artifact: ArtifactPathId::new(artifact_id, cache_path),
 						execution_timeout,
 						params,
+						ee_params,
 						result_tx,
 					},
 				)
 				.await?;
 			},
 			ArtifactState::Preparing { waiting_for_response: _ } => {
-				awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
+				awaiting_prepare.add(artifact_id, execution_timeout, params, ee_params, result_tx);
 			},
 			ArtifactState::FailedToProcess(error) => {
 				let _ = result_tx.send(Err(ValidationError::from(error.clone())));
@@ -526,7 +542,7 @@ async fn handle_execute_pvf(
 		)
 		.await?;
 
-		awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
+		awaiting_prepare.add(artifact_id, execution_timeout, params, ee_params, result_tx);
 	}
 
 	return Ok(())
@@ -617,7 +633,9 @@ async fn handle_prepare_done(
 	// It's finally time to dispatch all the execution requests that were waiting for this artifact
 	// to be prepared.
 	let pending_requests = awaiting_prepare.take(&artifact_id);
-	for PendingExecutionRequest { execution_timeout, params, result_tx } in pending_requests {
+	for PendingExecutionRequest { execution_timeout, params, ee_params, result_tx } in
+		pending_requests
+	{
 		if result_tx.is_canceled() {
 			// Preparation could've taken quite a bit of time and the requester may be not interested
 			// in execution anymore, in which case we just skip the request.
@@ -636,6 +654,7 @@ async fn handle_prepare_done(
 				artifact: ArtifactPathId::new(artifact_id.clone(), cache_path),
 				execution_timeout,
 				params,
+				ee_params,
 				result_tx,
 			},
 		)
@@ -950,6 +969,7 @@ mod tests {
 			Pvf::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
+			ExecutorParams::default(),
 			Priority::Normal,
 			result_tx,
 		)
@@ -961,6 +981,7 @@ mod tests {
 			Pvf::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
+			ExecutorParams::default(),
 			Priority::Critical,
 			result_tx,
 		)
@@ -972,6 +993,7 @@ mod tests {
 			Pvf::from_discriminator(2),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf2".to_vec(),
+			ExecutorParams::default(),
 			Priority::Normal,
 			result_tx,
 		)
@@ -1100,6 +1122,7 @@ mod tests {
 			Pvf::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf2".to_vec(),
+			ExecutorParams::default(),
 			Priority::Critical,
 			result_tx,
 		)
@@ -1143,6 +1166,7 @@ mod tests {
 			Pvf::from_discriminator(2),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf2".to_vec(),
+			ExecutorParams::default(),
 			Priority::Critical,
 			result_tx,
 		)
@@ -1178,6 +1202,7 @@ mod tests {
 			Pvf::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
+			ExecutorParams::default(),
 			Priority::Normal,
 			result_tx,
 		)

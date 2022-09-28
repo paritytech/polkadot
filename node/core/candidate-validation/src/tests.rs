@@ -361,6 +361,7 @@ impl ValidationBackend for MockValidateCandidateBackend {
 		_raw_validation_code: Vec<u8>,
 		_timeout: Duration,
 		_params: ValidationParams,
+		_ee_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		self.result.clone()
 	}
@@ -423,6 +424,7 @@ fn candidate_validation_ok_is_ok() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
+		polkadot_primitives::vstaging::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	))
@@ -474,6 +476,7 @@ fn candidate_validation_bad_return_is_invalid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
+		polkadot_primitives::vstaging::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	))
@@ -518,6 +521,7 @@ fn candidate_validation_timeout_is_internal_error() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
+		polkadot_primitives::vstaging::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	));
@@ -562,6 +566,7 @@ fn candidate_validation_commitment_hash_mismatch_is_invalid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
+		polkadot_primitives::vstaging::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	))
@@ -607,6 +612,7 @@ fn candidate_validation_code_mismatch_is_invalid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
+		polkadot_primitives::vstaging::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	))
@@ -663,6 +669,7 @@ fn compressed_code_works() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
+		polkadot_primitives::vstaging::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	));
@@ -710,6 +717,7 @@ fn code_decompression_failure_is_invalid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
+		polkadot_primitives::vstaging::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	));
@@ -758,6 +766,7 @@ fn pov_decompression_failure_is_invalid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
+		polkadot_primitives::vstaging::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	));
@@ -782,6 +791,7 @@ impl ValidationBackend for MockPreCheckBackend {
 		_raw_validation_code: Vec<u8>,
 		_timeout: Duration,
 		_params: ValidationParams,
+		_ee_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		unreachable!()
 	}

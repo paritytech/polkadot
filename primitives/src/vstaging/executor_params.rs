@@ -1,4 +1,4 @@
-// Copyright 2017-2021 Parity Technologies (UK) Ltd.
+// Copyright 2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,9 +14,27 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Staging Primitives.
+use sp_std::{ops::Deref, vec::Vec};
+// use sp_core::Hash;
+use parity_scale_codec::{Decode, Encode};
+use parity_util_mem::MallocSizeOf;
+use scale_info::TypeInfo;
 
-// Put any primitives used by staging APIs functions here
+/// Deterministically serialized execution environment semantics
+/// to include into `SessionInfo`
+#[derive(Clone, Debug, Encode, Decode, PartialEq, MallocSizeOf, TypeInfo)]
+pub struct ExecutorParams(Vec<(u8, u64)>);
 
-mod executor_params;
-pub use executor_params::ExecutorParams;
+impl Deref for ExecutorParams {
+	type Target = Vec<(u8, u64)>;
+
+	fn deref(&self) -> &Self::Target {
+		&self.0
+	}
+}
+
+impl Default for ExecutorParams {
+	fn default() -> Self {
+		ExecutorParams(Vec::new())
+	}
+}

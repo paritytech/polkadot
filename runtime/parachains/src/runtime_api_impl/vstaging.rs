@@ -16,7 +16,7 @@
 
 //! Put implementations of functions from staging APIs here.
 
-use crate::disputes;
+use crate::{disputes, session_info};
 use primitives::v2::{CandidateHash, DisputeState, SessionIndex};
 use sp_std::prelude::*;
 
@@ -24,4 +24,11 @@ use sp_std::prelude::*;
 pub fn get_session_disputes<T: disputes::Config>(
 ) -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
 	<disputes::Pallet<T>>::disputes()
+}
+
+/// Get session index by parent hash
+pub fn session_index_by_parent_hash<T: session_info::Config>(
+	parent_hash: T::Hash,
+) -> Option<SessionIndex> {
+	<session_info::Pallet<T>>::session_index_by_parent_hash(parent_hash)
 }
