@@ -147,7 +147,7 @@ where
 	) -> Self {
 		let runtime = RuntimeInfo::new_with_config(runtime::Config {
 			keystore: None,
-			session_cache_lru_size: DISPUTE_WINDOW.get() as usize,
+			session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize).unwrap(),
 		});
 		Self {
 			runtime,

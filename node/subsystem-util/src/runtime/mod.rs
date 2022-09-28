@@ -16,7 +16,7 @@
 
 //! Convenient interface to runtime information.
 
-use std::{cmp::max, num::NonZeroUsize};
+use std::num::NonZeroUsize;
 
 use lru::LruCache;
 
@@ -52,7 +52,7 @@ pub struct Config {
 	pub keystore: Option<SyncCryptoStorePtr>,
 
 	/// How many sessions should we keep in the cache?
-	pub session_cache_lru_size: usize,
+	pub session_cache_lru_size: NonZeroUsize,
 }
 
 /// Caching of session info.
@@ -95,7 +95,7 @@ impl Default for Config {
 		Self {
 			keystore: None,
 			// Usually we need to cache the current and the last session.
-			session_cache_lru_size: 2,
+			session_cache_lru_size: NonZeroUsize::new(2).unwrap(),
 		}
 	}
 }
@@ -110,13 +110,9 @@ impl RuntimeInfo {
 	pub fn new_with_config(cfg: Config) -> Self {
 		Self {
 			session_index_cache: LruCache::new(
-				NonZeroUsize::new(max(10, cfg.session_cache_lru_size))
-					.expect("Session index cache size should not be 0."),
+				cfg.session_cache_lru_size.max(NonZeroUsize::new(10).unwrap()),
 			),
-			session_info_cache: LruCache::new(
-				NonZeroUsize::new(cfg.session_cache_lru_size)
-					.expect("Session info cache size should not be 0."),
-			),
+			session_info_cache: LruCache::new(cfg.session_cache_lru_size),
 			keystore: cfg.keystore,
 		}
 	}
