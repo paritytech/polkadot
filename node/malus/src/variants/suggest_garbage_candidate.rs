@@ -94,17 +94,17 @@ where
 			FromOrchestra::Communication {
 				msg: CandidateBackingMessage::Second(relay_parent, ref candidate, ref _pov),
 			} => {
+				gum::info!(
+					target: MALUS,
+					"😈 Started Malus node with '--percentage' set to: {:?}",
+					&self.percentage,
+				);
+
 				gum::debug!(
 					target: MALUS,
 					candidate_hash = ?candidate.hash(),
 					?relay_parent,
 					"Received request to second candidate",
-				);
-
-				gum::info!(
-					target: MALUS,
-					"😈 Started Malus node with '--percentage' set to: {:?}",
-					&self.percentage,
 				);
 
 				// Need to draw value from Bernoulli distribution with given probability of success defined by the Clap parameter.
@@ -113,12 +113,12 @@ where
 
 				// Draw a random value from the distribution, where T: bool, and probability of drawing a 'true' value is = to percentage parameter,
 				// using thread_rng as the source of randomness.
-				let t_or_f = distribution.sample(&mut rand::thread_rng());
+				let true_or_false = distribution.sample(&mut rand::thread_rng());
 
-				gum::info!(
+				gum::debug!(
 					target: MALUS,
 					"😈 Sampled value from Bernoulli distribution is: {:?}",
-					&t_or_f,
+					&true_or_false,
 				);
 
 				// Manipulate the message if sampled value is true
@@ -295,7 +295,7 @@ pub struct SuggestGarbageCandidateOptions {
 
 /// Garbage candidate implementation wrapper which implements `OverseerGen` glue.
 pub(crate) struct BackGarbageCandidateWrapper {
-	/// Pass in the options for the percentage to suggest
+	/// Options from CLI.
 	opts: SuggestGarbageCandidateOptions,
 }
 
