@@ -57,7 +57,7 @@ pub struct DisputeAncestorOptions {
 
 	/// Determines the percentage of candidates that should be disputed. Allows for fine-tuning
 	/// the intensity of the behavior of the malicious node.
-	#[clap(long, ignore_case = true, default_value_t = 0)]
+	#[clap(long, ignore_case = true, default_value_t = 0, value_parser = clap::value_parser!(u8).range(0..=100))]
 	pub percentage: u8,
 
 	#[clap(flatten)]
