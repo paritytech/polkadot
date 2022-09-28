@@ -843,6 +843,11 @@ where
 
 		self.metrics.on_head_activated();
 		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
+			gum::trace!(
+				target: LOG_TARGET,
+				relay_parent = ?hash,
+				"Leaf got activated, notifying exterinal listeners"
+			);
 			for listener in listeners {
 				// it's fine if the listener is no longer interested
 				let _ = listener.send(Ok(()));
