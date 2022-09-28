@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-collation-generation"
-version = "0.9.29"
+version = "0.9.30"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
