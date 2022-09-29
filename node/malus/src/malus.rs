@@ -66,9 +66,8 @@ impl MalusCli {
 	fn launch(self) -> eyre::Result<()> {
 		let finality_delay = self.finality_delay;
 		match self.variant {
-			NemesisVariant::BackGarbageCandidate(cmd) => {
-				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate, finality_delay)?
-			},
+			NemesisVariant::BackGarbageCandidate(cmd) =>
+				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate, finality_delay)?,
 			NemesisVariant::SuggestGarbageCandidate(opts) => polkadot_cli::run_node(
 				run_cmd(opts.clone().cmd),
 				BackGarbageCandidateWrapper::new(opts),
@@ -83,7 +82,7 @@ impl MalusCli {
 				#[cfg(target_os = "android")]
 				{
 					return Err("PVF preparation workers are not supported under this platform")
-						.into();
+						.into()
 				}
 
 				#[cfg(not(target_os = "android"))]
@@ -94,8 +93,7 @@ impl MalusCli {
 			NemesisVariant::PvfExecuteWorker(cmd) => {
 				#[cfg(target_os = "android")]
 				{
-					return Err("PVF execution workers are not supported under this platform")
-						.into();
+					return Err("PVF execution workers are not supported under this platform").into()
 				}
 
 				#[cfg(not(target_os = "android"))]
@@ -189,7 +187,7 @@ mod tests {
 			assert!(run.cmd.base.bob);
 		});
 	}
-	
+
 	#[test]
 	#[should_panic]
 	fn validate_range_for_percentage_dispute() {
