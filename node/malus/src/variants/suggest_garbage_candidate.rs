@@ -285,7 +285,7 @@ where
 #[allow(missing_docs)]
 pub struct SuggestGarbageCandidateOptions {
 	/// Determines the percentage of candidates that should be disputed. Allows for fine-tuning
-	/// the intensity of the behavior of the malicious node. Value must be betweeen 0-100.
+	/// the intensity of the behavior of the malicious node. Value must be in the range 0..=100.
 	#[clap(short, long, ignore_case = true, default_value_t = 100, value_parser = clap::value_parser!(u8).range(0..=100))]
 	pub percentage: u8,
 
