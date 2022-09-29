@@ -479,6 +479,12 @@ impl RequestChunksFromValidators {
 
 					for chunk in chunks {
 						if is_chunk_valid(params, &chunk) {
+							gum::trace!(
+								target: LOG_TARGET,
+								candidate_hash = ?params.candidate_hash,
+								validator_index = ?chunk.index,
+								"Found valid chunk on disk"
+							);
 							self.received_chunks.insert(chunk.index, chunk);
 						} else {
 							gum::error!(
