@@ -35,8 +35,8 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
 	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig,
-	CollationSecondedSignal, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement,
-	SignedFullStatement, ValidationResult,
+	CollationSecondedSignal, DisputeMessage, DisputeStatus, ErasureChunk, PoV,
+	SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
@@ -243,8 +243,6 @@ pub enum DisputeCoordinatorMessage {
 	///
 	/// This does not do any checking of the message signature.
 	ImportStatements {
-		/// The hash of the candidate.
-		candidate_hash: CandidateHash,
 		/// The candidate receipt itself.
 		candidate_receipt: CandidateReceipt,
 		/// The session the candidate appears in.
@@ -273,9 +271,9 @@ pub enum DisputeCoordinatorMessage {
 	/// Fetch a list of all recent disputes the co-ordinator is aware of.
 	/// These are disputes which have occurred any time in recent sessions,
 	/// and which may have already concluded.
-	RecentDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
+	RecentDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash, DisputeStatus)>>),
 	/// Fetch a list of all active disputes that the coordinator is aware of.
-	/// These disputes are either unconcluded or recently concluded.
+	/// These disputes are either not yet concluded or recently concluded.
 	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
 	/// Get candidate votes for a candidate.
 	QueryCandidateVotes(
@@ -701,10 +699,15 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCodeHash>>,
 	),
-	/// Returns all on-chain disputes at given block number.
-	StagingDisputes(
-		RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
-	),
+	/// Returns all on-chain disputes at given block number. Available in `v3`.
+	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
+}
+
+impl RuntimeApiRequest {
+	/// Runtime version requirements for each message
+
+	/// `Disputes`
+	pub const DISPUTES_RUNTIME_REQUIREMENT: u32 = 3;
 }
 
 /// A message to the Runtime API subsystem.
@@ -908,6 +911,15 @@ pub enum ApprovalVotingMessage {
 	/// It can also return the same block hash, if that is acceptable to vote upon.
 	/// Return `None` if the input hash is unrecognized.
 	ApprovedAncestor(Hash, BlockNumber, oneshot::Sender<Option<HighestApprovedAncestorBlock>>),
+
+	/// Retrieve all available approval signatures for a candidate from approval-voting.
+	///
+	/// This message involves a linear search for candidates on each relay chain fork and also
+	/// requires calling into `approval-distribution`: Calls should be infrequent and bounded.
+	GetApprovalSignaturesForCandidate(
+		CandidateHash,
+		oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
+	),
 }
 
 /// Message to the Approval Distribution subsystem.
@@ -926,6 +938,12 @@ pub enum ApprovalDistributionMessage {
 	/// An update from the network bridge.
 	#[from]
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::ApprovalDistributionMessage>),
+
+	/// Get all approval signatures for all chains a candidate appeared in.
+	GetApprovalSignatures(
+		HashSet<(Hash, CandidateIndex)>,
+		oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
+	),
 }
 
 /// Message to the Gossip Support subsystem.

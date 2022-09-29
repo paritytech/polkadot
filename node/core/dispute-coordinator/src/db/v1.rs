@@ -16,6 +16,7 @@
 
 //! `V1` database for the dispute coordinator.
 
+use polkadot_node_primitives::DisputeStatus;
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use polkadot_primitives::v2::{
@@ -31,7 +32,6 @@ use crate::{
 	backend::{Backend, BackendWriteOp, OverlayedBackend},
 	error::{FatalError, FatalResult},
 	metrics::Metrics,
-	status::DisputeStatus,
 	DISPUTE_WINDOW, LOG_TARGET,
 };
 
@@ -213,8 +213,8 @@ impl From<CandidateVotes> for polkadot_node_primitives::CandidateVotes {
 	fn from(db_votes: CandidateVotes) -> polkadot_node_primitives::CandidateVotes {
 		polkadot_node_primitives::CandidateVotes {
 			candidate_receipt: db_votes.candidate_receipt,
-			valid: db_votes.valid,
-			invalid: db_votes.invalid,
+			valid: db_votes.valid.into_iter().map(|(kind, i, sig)| (i, (kind, sig))).collect(),
+			invalid: db_votes.invalid.into_iter().map(|(kind, i, sig)| (i, (kind, sig))).collect(),
 		}
 	}
 }
@@ -223,8 +223,12 @@ impl From<polkadot_node_primitives::CandidateVotes> for CandidateVotes {
 	fn from(primitive_votes: polkadot_node_primitives::CandidateVotes) -> CandidateVotes {
 		CandidateVotes {
 			candidate_receipt: primitive_votes.candidate_receipt,
-			valid: primitive_votes.valid,
-			invalid: primitive_votes.invalid,
+			valid: primitive_votes
+				.valid
+				.into_iter()
+				.map(|(i, (kind, sig))| (kind, i, sig))
+				.collect(),
+			invalid: primitive_votes.invalid.into_iter().map(|(i, (k, sig))| (k, i, sig)).collect(),
 		}
 	}
 }

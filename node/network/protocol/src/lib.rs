@@ -43,8 +43,6 @@ pub mod authority_discovery;
 /// Grid topology support module
 pub mod grid_topology;
 
-/// A version of the protocol.
-pub type ProtocolVersion = u32;
 /// The minimum amount of peers to send gossip messages to.
 pub const MIN_GOSSIP_PEERS: usize = 25;
 
