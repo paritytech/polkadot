@@ -15,7 +15,7 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-node-metrics = { path = "../metrics" }
 polkadot-primitives = { path = "../../primitives" }
-orchestra = { git = "https://github.com/paritytech/orchestra", rev = "4ed886b0e48a0d9b27a658abd72a0bb00fe5f076" }
+orchestra = "0.0.2"
 gum = { package = "tracing-gum", path = "../gum" }
 lru = "0.7"
 parity-util-mem = { version = "0.11.0", default-features = false }
