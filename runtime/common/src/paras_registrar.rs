@@ -642,7 +642,9 @@ mod tests {
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
 		pub BlockWeights: limits::BlockWeights =
-			frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(1024));
+			frame_system::limits::BlockWeights::simple_max(
+				Weight::from_ref_time(1024).set_proof_size(u64::MAX),
+			);
 		pub BlockLength: limits::BlockLength =
 			limits::BlockLength::max_with_normal_ratio(4 * 1024 * 1024, NORMAL_RATIO);
 	}

@@ -68,8 +68,9 @@ pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(1);
 /// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used
 /// by  Operational  extrinsics.
 pub const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
-/// We allow for 2 seconds of compute with a 6 second average block time.
-pub const MAXIMUM_BLOCK_WEIGHT: Weight = WEIGHT_PER_SECOND.saturating_mul(2);
+/// The storage proof size is not limited so far.
+pub const MAXIMUM_BLOCK_WEIGHT: Weight =
+	WEIGHT_PER_SECOND.saturating_mul(2).set_proof_size(u64::MAX);
 
 const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO.deconstruct());
 
@@ -128,14 +129,14 @@ macro_rules! impl_runtime_weights {
 					weights.base_extrinsic = $runtime::weights::ExtrinsicBaseWeight::get();
 				})
 				.for_class(DispatchClass::Normal, |weights| {
-					weights.max_total = Some(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT);
+					weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT.set_ref_time(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT.ref_time()));
 				})
 				.for_class(DispatchClass::Operational, |weights| {
 					weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT);
 					// Operational transactions have an extra reserved space, so that they
 					// are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
 					weights.reserved = Some(
-						MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT,
+						MAXIMUM_BLOCK_WEIGHT - Weight::from_ref_time(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT.ref_time()),
 					);
 				})
 				.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
