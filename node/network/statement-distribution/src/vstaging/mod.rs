@@ -106,7 +106,19 @@ pub(crate) struct State {
 
 struct PeerState {
 	view: View,
+	implicit_view: HashSet<Hash>,
 	maybe_authority: Option<HashSet<AuthorityDiscoveryId>>,
+}
+
+impl PeerState {
+	// Whether we know that a peer knows a relay-parent.
+	// The peer knows the relay-parent if it is either implicit or explicit
+	// in their view. However, if it is implicit via an active-leaf we don't
+	// recognize, we will not accurately be able to recognize them as 'knowing'
+	// the relay-parent.
+	fn knows_relay_parent(&self, relay_parent: &Hash) -> bool {
+		self.implicit_view.contains(relay_parent)
+	}
 }
 
 /// How many votes we need to consider a candidate backed.
@@ -132,7 +144,11 @@ pub(crate) async fn handle_network_update<Context>(
 
 			state.peers.insert(
 				peer_id,
-				PeerState { view: View::default(), maybe_authority: authority_ids.clone() },
+				PeerState {
+					view: View::default(),
+					implicit_view: HashSet::new(),
+					maybe_authority: authority_ids.clone(),
+				},
 			);
 
 			if let Some(authority_ids) = authority_ids {
@@ -185,7 +201,7 @@ pub(crate) async fn handle_network_update<Context>(
 			}
 		},
 		NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
-			// TODO [now]
+			// TODO [now] update explicit and implicit views
 		},
 		NetworkBridgeEvent::OurViewChange(_view) => {
 			// handled by `handle_activated_leaf`
@@ -277,6 +293,9 @@ pub(crate) async fn handle_activated_leaf<Context>(
 				session: session_index,
 			},
 		);
+
+		// TODO [now]: update peers which have the leaf in their view.
+		// update their implicit view. send any messages accordingly.
 	}
 
 	Ok(())
@@ -507,7 +526,9 @@ async fn send_statement_direct<Context>(
 	for (target, authority_id, kind) in targets {
 		// Find peer ID based on authority ID, and also filter to connected.
 		let peer_id: PeerId = match state.authorities.get(&authority_id) {
-			Some(p) if state.peers.contains_key(p) => p.clone(),
+			Some(p)
+				if state.peers.get(p).map_or(false, |p| p.knows_relay_parent(&relay_parent)) =>
+				p.clone(),
 			None | Some(_) => continue,
 		};
 
@@ -675,6 +696,16 @@ async fn handle_incoming_statement<Context>(
 			return
 		},
 		Some(s) => s,
+	};
+
+	let local_validator = match per_relay_parent.local_validator {
+		None => {
+			// we shouldn't be receiving statements unless we're a validator
+			// this session.
+			report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
+			return
+		},
+		Some(ref l) => l,
 	};
 
 	// Ensure the statement is correctly signed.
