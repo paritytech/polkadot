@@ -612,7 +612,7 @@ pub mod vstaging {
 
 	/// An inventory of a backed candidate, which can be requested.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-	pub struct BackedCandidateInventory {
+	pub struct BackedCandidateManifest {
 		/// The relay-parent of the candidate.
 		pub relay_parent: Hash,
 		/// The hash of the candidate.
@@ -650,7 +650,7 @@ pub mod vstaging {
 		/// sending node, for the purpose of being requested by the receiving node
 		/// if needed.
 		#[codec(index = 1)]
-		BackedCandidateInventory(BackedCandidateInventory),
+		BackedCandidateManifest(BackedCandidateManifest),
 
 		/// A notification of a backed candidate being known by the sending node,
 		/// for the purpose of informing a receiving node which already has the candidate.
