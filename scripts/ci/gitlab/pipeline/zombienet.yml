@@ -26,7 +26,7 @@ zombienet-tests-parachains-smoke-test:
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
-        --test="0001-parachains-smoke-test.feature"
+        --test="0001-parachains-smoke-test.zndsl"
   allow_failure:                   false
   retry: 2
   tags:
@@ -56,7 +56,7 @@ zombienet-tests-parachains-pvf:
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
-        --test="0001-parachains-pvf.feature"
+        --test="0001-parachains-pvf.zndsl"
   allow_failure:                   false
   retry: 2
   tags:
@@ -87,7 +87,7 @@ zombienet-tests-parachains-disputes:
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
-        --test="0002-parachains-disputes.feature"
+        --test="0002-parachains-disputes.zndsl"
   allow_failure:                   false
   retry: 2
   tags:
@@ -118,7 +118,7 @@ zombienet-tests-parachains-disputes-garbage-candidate:
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
-        --test="0003-parachains-garbage-candidate.feature"
+        --test="0003-parachains-garbage-candidate.zndsl"
   allow_failure:                   false
   retry: 2
   tags:
@@ -148,7 +148,7 @@ zombienet-test-parachains-upgrade-smoke-test:
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
-        --test="0002-parachains-upgrade-smoke-test.feature"
+        --test="0002-parachains-upgrade-smoke-test.zndsl"
   allow_failure:                   true
   retry: 2
   tags:
@@ -177,7 +177,7 @@ zombienet-tests-misc-paritydb:
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
-        --test="0001-paritydb.feature"
+        --test="0001-paritydb.zndsl"
   allow_failure:                   false
   retry: 2
   tags:
@@ -210,7 +210,7 @@ zombienet-tests-misc-upgrade-node:
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
-        --test="0002-upgrade-node.feature"
+        --test="0002-upgrade-node.zndsl"
   allow_failure:                   false
   retry: 2
   tags:
@@ -241,7 +241,7 @@ zombienet-tests-malus-dispute-valid:
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
-        --test="0001-dispute-valid-block.feature"
+        --test="0001-dispute-valid-block.zndsl"
   allow_failure:                   false
   retry: 2
   tags:
@@ -269,7 +269,7 @@ zombienet-tests-deregister-register-validator:
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
-        --test="0003-deregister-register-validator-smoke.feature"
+        --test="0003-deregister-register-validator-smoke.zndsl"
   allow_failure:                   false
   retry: 2
   tags:
@@ -295,7 +295,7 @@ zombienet-tests-beefy-and-mmr:
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
       --github-remote-dir="${GH_DIR}"
-      --test="0003-beefy-and-mmr.feature"
+      --test="0003-beefy-and-mmr.zndsl"
   allow_failure:                   true
   retry: 2
   tags:

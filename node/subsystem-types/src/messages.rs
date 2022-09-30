@@ -430,6 +430,10 @@ pub enum AvailabilityDistributionMessage {
 		relay_parent: Hash,
 		/// Validator to fetch the PoV from.
 		from_validator: ValidatorIndex,
+		/// The id of the parachain that produced this PoV.
+		/// This field is only used to provide more context when logging errors
+		/// from the `AvailabilityDistribution` subsystem.
+		para_id: ParaId,
 		/// Candidate hash to fetch the PoV for.
 		candidate_hash: CandidateHash,
 		/// Expected hash of the PoV, a PoV not matching this hash will be rejected.
@@ -699,7 +703,7 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCodeHash>>,
 	),
-	/// Returns all on-chain disputes at given block number. Available in v3.
+	/// Returns all on-chain disputes at given block number. Available in `v3`.
 	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
 }
 

@@ -46,24 +46,29 @@ impl<Context> Fortified {
 	}
 }
 
+async fn setup() {
+	let builder = Solo::builder();
+
+	let builder = builder.goblin_tower(Fortified::default());
+
+	let builder = builder.spawner(DummySpawner);
+	let (orchestra, _handle): (Solo<_>, _) = builder.build().unwrap();
+
+	let orchestra_fut = orchestra
+		.running_subsystems
+		.into_future()
+		.timeout(std::time::Duration::from_millis(300))
+		.fuse();
+
+	futures::pin_mut!(orchestra_fut);
+
+	orchestra_fut.await;
+}
+
+fn assert_t_impl_trait_send<T: Send>(_: &T) {}
+
 fn main() {
-	use futures::{executor, pin_mut};
-
-	executor::block_on(async move {
-		let (orchestra, _handle): (Solo<_>, _) = Solo::builder()
-			.goblin_tower(Fortified::default())
-			.spawner(DummySpawner)
-			.build()
-			.unwrap();
-
-		let orchestra_fut = orchestra
-			.running_subsystems
-			.into_future()
-			.timeout(std::time::Duration::from_millis(300))
-			.fuse();
-
-		pin_mut!(orchestra_fut);
-
-		orchestra_fut.await
-	});
+	let x = setup();
+	assert_t_impl_trait_send(&x);
+	futures::executor::block_on(x);
 }

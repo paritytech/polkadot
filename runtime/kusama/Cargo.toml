@@ -51,6 +51,7 @@ pallet-conviction-voting = { git = "https://github.com/paritytech/substrate", br
 pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-fast-unstake = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-gilt = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -148,6 +149,7 @@ std = [
 	"pallet-conviction-voting/std",
 	"pallet-elections-phragmen/std",
 	"pallet-election-provider-multi-phase/std",
+	"pallet-fast-unstake/std",
 	"pallet-democracy/std",
 	"pallet-gilt/std",
 	"pallet-grandpa/std",
@@ -215,6 +217,7 @@ runtime-benchmarks = [
 	"pallet-elections-phragmen/runtime-benchmarks",
 	"pallet-election-provider-multi-phase/runtime-benchmarks",
 	"pallet-election-provider-support-benchmarking/runtime-benchmarks",
+	"pallet-fast-unstake/runtime-benchmarks",
 	"pallet-gilt/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
 	"pallet-identity/runtime-benchmarks",
@@ -264,6 +267,7 @@ try-runtime = [
 	"pallet-conviction-voting/try-runtime",
 	"pallet-elections-phragmen/try-runtime",
 	"pallet-election-provider-multi-phase/try-runtime",
+	"pallet-fast-unstake/try-runtime",
 	"pallet-democracy/try-runtime",
 	"pallet-gilt/try-runtime",
 	"pallet-grandpa/try-runtime",
