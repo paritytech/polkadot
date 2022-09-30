@@ -75,9 +75,9 @@ pub enum Protocol {
 	/// Sending of dispute statements with application level confirmations.
 	DisputeSendingV1,
 
-	/// Protocol for requesting backed candidate packets in statement distribution
+	/// Protocol for requesting candidates with attestations in statement distribution
 	/// in v2.
-	BackedCandidatePacketV2,
+	AttestedCandidateV2,
 }
 
 /// Minimum bandwidth we expect for validators - 500Mbit/s is the recommendation, so approximately
@@ -109,7 +109,7 @@ const POV_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_millis(1200);
 /// fit statement distribution within a block of 6 seconds.)
 const STATEMENTS_TIMEOUT: Duration = Duration::from_secs(1);
 
-/// We want to backed candidate requests to time out relatively fast,
+/// We want to attested candidate requests to time out relatively fast,
 /// because slow requests will bottleneck the backing system. Ideally, we'd have
 /// an adaptive timeout based on the candidate size, because there will be a lot of variance
 /// in candidate sizes: candidates with no code and no messages vs candidates with code
@@ -119,7 +119,7 @@ const STATEMENTS_TIMEOUT: Duration = Duration::from_secs(1);
 /// backing allows them to be included over a longer window of time. Exponential back-off
 /// up to a maximum of 10 seconds would be ideal, but isn't supported by the
 /// infrastructure here yet: see https://github.com/paritytech/polkadot/issues/6009
-const BACKED_CANDIDATE_PACKET_TIMEOUT: Duration = Duration::from_millis(2500);
+const ATTESTED_CANDIDATE_TIMEOUT: Duration = Duration::from_millis(2500);
 
 /// We don't want a slow peer to slow down all the others, at the same time we want to get out the
 /// data quickly in full to at least some peers (as this will reduce load on us as they then can
@@ -130,8 +130,8 @@ pub const MAX_PARALLEL_STATEMENT_REQUESTS: u32 = 3;
 /// We don't want a slow peer to slow down all the others, at the same time we want to get out the
 /// data quickly in full to at least some peers (as this will reduce load on us as they then can
 /// start serving the data). So this value is a tradeoff. 3 seems to be sensible. So we would need
-/// to have 5 slow nodes connected, to delay transfer for others by `BACKED_CANDIDATE_PACKET_TIMEOUT`.
-pub const MAX_PARALLEL_BACKED_CANDIDATE_PACKET_REQUESTS: u32 = 5;
+/// to have 5 slow nodes connected, to delay transfer for others by `ATTESTED_CANDIDATE_TIMEOUT`.
+pub const MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS: u32 = 5;
 
 /// Response size limit for responses of POV like data.
 ///
@@ -146,11 +146,11 @@ const POV_RESPONSE_SIZE: u64 = MAX_POV_SIZE as u64 + 10_000;
 /// This is `MAX_CODE_SIZE` plus some additional space for protocol overhead.
 const STATEMENT_RESPONSE_SIZE: u64 = MAX_CODE_SIZE as u64 + 10_000;
 
-/// Maximum response sizes for `BackedCandidatePacketV2`.
+/// Maximum response sizes for `AttestedCandidateV2`.
 ///
 /// This is `MAX_CODE_SIZE` plus some additional space for protocol overhead and
 /// additional backing statements.
-const BACKED_CANDIDATE_PACKET_RESPONSE_SIZE: u64 = MAX_CODE_SIZE as u64 + 100_000;
+const ATTESTED_CANDIDATE_RESPONSE_SIZE: u64 = MAX_CODE_SIZE as u64 + 100_000;
 
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.
@@ -231,12 +231,12 @@ impl Protocol {
 				inbound_queue: Some(tx),
 			},
 
-			Protocol::BackedCandidatePacketV2 => RequestResponseConfig {
+			Protocol::AttestedCandidateV2 => RequestResponseConfig {
 				name,
 				fallback_names,
 				max_request_size: 1_000,
-				max_response_size: BACKED_CANDIDATE_PACKET_RESPONSE_SIZE,
-				request_timeout: BACKED_CANDIDATE_PACKET_TIMEOUT,
+				max_response_size: ATTESTED_CANDIDATE_RESPONSE_SIZE,
+				request_timeout: ATTESTED_CANDIDATE_TIMEOUT,
 				inbound_queue: Some(tx),
 			},
 		};
@@ -285,7 +285,7 @@ impl Protocol {
 			// failure, so having a good value here is mostly about performance tuning.
 			Protocol::DisputeSendingV1 => 100,
 
-			Protocol::BackedCandidatePacketV2 => {
+			Protocol::AttestedCandidateV2 => {
 				// We assume we can utilize up to 70% of the available bandwidth for statements.
 				// This is just a guess/estimate, with the following considerations: If we are
 				// faster than that, queue size will stay low anyway, even if not - requesters will
@@ -293,9 +293,9 @@ impl Protocol {
 				// wasting precious time.
 				let available_bandwidth = 7 * MIN_BANDWIDTH_BYTES / 10;
 				let size = u64::saturating_sub(
-					BACKED_CANDIDATE_PACKET_TIMEOUT.as_millis() as u64 * available_bandwidth /
+					ATTESTED_CANDIDATE_TIMEOUT.as_millis() as u64 * available_bandwidth /
 						(1000 * MAX_CODE_SIZE as u64),
-					MAX_PARALLEL_BACKED_CANDIDATE_PACKET_REQUESTS as u64,
+					MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS as u64,
 				);
 				debug_assert!(
 					size > 0,
@@ -322,7 +322,7 @@ impl Protocol {
 			Protocol::DisputeSendingV1 => Some("/polkadot/send_dispute/1"),
 
 			// Introduced after legacy names became legacy.
-			Protocol::BackedCandidatePacketV2 => None,
+			Protocol::AttestedCandidateV2 => None,
 		}
 	}
 }
@@ -379,7 +379,7 @@ impl ReqProtocolNames {
 			Protocol::StatementFetchingV1 => "/req_statement/1",
 			Protocol::DisputeSendingV1 => "/send_dispute/1",
 
-			Protocol::BackedCandidatePacketV2 => "/req_backed_candidate_packet/2",
+			Protocol::AttestedCandidateV2 => "/req_attested_candidate/2",
 		};
 
 		format!("{}{}", prefix, short_name).into()

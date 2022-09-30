@@ -20,27 +20,42 @@ use parity_scale_codec::{Decode, Encode};
 
 use polkadot_primitives::vstaging::{
 	CandidateHash, CommittedCandidateReceipt, UncheckedSignedStatement,
+	PersistedValidationData,
 };
+use bitvec::{vec::BitVec, order::Lsb0};
 
 use super::{IsRequest, Protocol};
 
-/// Request a backed candidate packet.
-#[derive(Debug, Copy, Clone, Encode, Decode)]
-pub struct BackedCandidatePacketRequest {
+/// Request a candidate with statements.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct AttestedCandidateRequest {
 	/// Hash of the candidate we want to request.
 	pub candidate_hash: CandidateHash,
+	/// bitfield with 'AND' semantics, indicating which validators
+	/// to send `Seconded` statements for.
+	///
+	/// The mask must have exactly the minimum size required to
+	/// fit all validators from the backing group.
+	///
+	/// The response may not contain any `Seconded` statements outside
+	/// of this mask.
+	pub seconded_mask: BitVec<u8, Lsb0>,
 }
 
-/// Response to a backed candidate packet request.
+/// Response to an `AttestedCandidateRequest`.
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct BackedCandidatePacketResponse {
+pub struct AttestedCandidateResponse {
 	/// The candidate receipt, with commitments.
 	pub candidate_receipt: CommittedCandidateReceipt,
-	/// All known statements about the candidate, in compact form.
+	/// The [`PersistedValidationData`] corresponding to the candidate.
+	pub persisted_validation_data: PersistedValidationData,
+	/// All known statements about the candidate, in compact form,
+	/// omitting `Seconded` statements which were intended to be masked
+	/// out.
 	pub statements: Vec<UncheckedSignedStatement>,
 }
 
-impl IsRequest for BackedCandidatePacketRequest {
-	type Response = BackedCandidatePacketResponse;
-	const PROTOCOL: Protocol = Protocol::BackedCandidatePacketV2;
+impl IsRequest for AttestedCandidateRequest {
+	type Response = AttestedCandidateResponse;
+	const PROTOCOL: Protocol = Protocol::AttestedCandidateV2;
 }
