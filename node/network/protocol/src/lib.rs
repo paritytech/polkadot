@@ -622,12 +622,21 @@ pub mod vstaging {
 		/// The head-data corresponding to the candidate.
 		pub parent_head_data_hash: Hash,
 		/// A bitfield which indicates which validators in the para's
-		/// group at the relay-parent have seconded this candidate.
+		/// group at the relay-parent have validated this candidate
+		/// and issued `Seconded` statements about it.
 		///
-		/// This MUST have the minimum amount of bytes
+		/// This MUST have exactly the minimum amount of bytes
 		/// necessary to represent the number of validators in the
 		/// assigned backing group as-of the relay-parent.
 		pub seconded_in_group: BitVec<u8, bitvec::order::Lsb0>,
+		/// A bitfield which indicates which validators in the para's
+		/// group at the relay-parent have validated this candidate
+		/// and issued `Valid` statements about it.
+		///
+		/// This MUST have exactly the minimum amount of bytes
+		/// necessary to represent the number of validators in the
+		/// assigned backing group as-of the relay-parent.
+		pub validated_in_group: BitVec<u8, bitvec::order::Lsb0>,
 	}
 
 	/// Network messages used by the statement distribution subsystem.
