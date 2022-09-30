@@ -4758,8 +4758,9 @@ dependencies = [
 
 [[package]]
 name = "orchestra"
-version = "0.0.1"
-source = "git+https://github.com/paritytech/orchestra?rev=4ed886b0e48a0d9b27a658abd72a0bb00fe5f076#4ed886b0e48a0d9b27a658abd72a0bb00fe5f076"
+version = "0.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0aab54694ddaa8a9b703724c6ef04272b2d27bc32d2c855aae5cdd1857216b43"
 dependencies = [
  "async-trait",
  "dyn-clonable",
@@ -4774,8 +4775,9 @@ dependencies = [
 
 [[package]]
 name = "orchestra-proc-macro"
-version = "0.0.1"
-source = "git+https://github.com/paritytech/orchestra?rev=4ed886b0e48a0d9b27a658abd72a0bb00fe5f076#4ed886b0e48a0d9b27a658abd72a0bb00fe5f076"
+version = "0.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a702b2f6bf592b3eb06c00d80d05afaf7a8eff6b41bb361e397d799acc21b45a"
 dependencies = [
  "expander 0.0.6",
  "itertools",
@@ -7664,7 +7666,8 @@ dependencies = [
 [[package]]
 name = "prioritized-metered-channel"
 version = "0.2.0"
-source = "git+https://github.com/paritytech/orchestra?rev=4ed886b0e48a0d9b27a658abd72a0bb00fe5f076#4ed886b0e48a0d9b27a658abd72a0bb00fe5f076"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "382698e48a268c832d0b181ed438374a6bb708a82a8ca273bb0f61c74cf209c4"
 dependencies = [
  "coarsetime",
  "crossbeam-queue",
