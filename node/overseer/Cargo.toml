@@ -23,7 +23,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 async-trait = "0.1.57"
 
 [dev-dependencies]
-metered = { package = "prioritized-metered-channel", git = "https://github.com/paritytech/orchestra", rev = "4ed886b0e48a0d9b27a658abd72a0bb00fe5f076" }
+metered = { package = "prioritized-metered-channel", version = "0.2.0" }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
