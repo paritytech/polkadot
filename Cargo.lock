@@ -4759,6 +4759,7 @@ dependencies = [
 [[package]]
 name = "orchestra"
 version = "0.0.1"
+source = "git+https://github.com/paritytech/orchestra?rev=4ed886b0e48a0d9b27a658abd72a0bb00fe5f076#4ed886b0e48a0d9b27a658abd72a0bb00fe5f076"
 dependencies = [
  "async-trait",
  "dyn-clonable",
@@ -4767,27 +4768,22 @@ dependencies = [
  "orchestra-proc-macro",
  "pin-project",
  "prioritized-metered-channel",
- "rustversion",
  "thiserror",
  "tracing",
- "trybuild",
 ]
 
 [[package]]
 name = "orchestra-proc-macro"
 version = "0.0.1"
+source = "git+https://github.com/paritytech/orchestra?rev=4ed886b0e48a0d9b27a658abd72a0bb00fe5f076#4ed886b0e48a0d9b27a658abd72a0bb00fe5f076"
 dependencies = [
- "assert_matches",
  "expander 0.0.6",
  "itertools",
- "orchestra",
  "petgraph",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
  "syn",
- "thiserror",
- "tracing",
 ]
 
 [[package]]
@@ -7668,15 +7664,13 @@ dependencies = [
 [[package]]
 name = "prioritized-metered-channel"
 version = "0.2.0"
+source = "git+https://github.com/paritytech/orchestra?rev=4ed886b0e48a0d9b27a658abd72a0bb00fe5f076#4ed886b0e48a0d9b27a658abd72a0bb00fe5f076"
 dependencies = [
- "assert_matches",
  "coarsetime",
  "crossbeam-queue",
  "derive_more",
- "env_logger 0.9.0",
  "futures",
  "futures-timer",
- "log",
  "nanorand",
  "thiserror",
  "tracing",
@@ -11587,7 +11581,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a400e31aa60b9d44a52a8ee0343b5b18566b03a8321e0d321f695cf56e940160"
 dependencies = [
  "cfg-if 1.0.0",
- "log",
  "pin-project-lite 0.2.7",
  "tracing-attributes",
  "tracing-core",
