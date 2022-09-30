@@ -275,6 +275,20 @@ impl ClusterTracker {
 		&self.validators
 	}
 
+	/// Get all possible senders for the given originator.
+	/// Returns the empty slice in the case that the originator
+	/// is not part of the cluster.
+	// note: this API is future-proofing for a case where we may
+	// extend clusters beyond just the assigned group, for optimization
+	// purposes.
+	pub fn senders_for_originator(&self, originator: ValidatorIndex) -> &[ValidatorIndex] {
+		if self.validators.contains(&originator) {
+			&self.validators[..]
+		} else {
+			&[]
+		}
+	}
+
 	/// Whether a validator knows the candidate is `Seconded`.
 	pub fn knows_candidate(
 		&self,

@@ -19,7 +19,7 @@
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
-	grid_topology::{RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology},
+	grid_topology::{RequiredRouting, SessionGridTopologies, SessionGridTopology},
 	peer_set::ValidationVersion,
 	vstaging as protocol_vstaging, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
@@ -49,7 +49,7 @@ use crate::{
 	LOG_TARGET,
 };
 use candidate_entry::CandidateEntry;
-use cluster::ClusterTracker;
+use cluster::{Accept as ClusterAccept, ClusterTracker, RejectIncoming as ClusterRejectIncoming};
 use statement_store::StatementStore;
 
 mod candidate_entry;
@@ -63,6 +63,7 @@ const COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE: Rep =
 	Rep::CostMinor("Unexpected Statement, unknown candidate");
 const COST_UNEXPECTED_STATEMENT_REMOTE: Rep =
 	Rep::CostMinor("Unexpected Statement, remote not allowed");
+const COST_EXCESSIVE_SECONDED: Rep = Rep::CostMinor("Sent Excessive `Seconded` Statements");
 
 const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
 
@@ -100,7 +101,7 @@ pub(crate) struct State {
 	per_session: HashMap<SessionIndex, SessionInfo>,
 	peers: HashMap<PeerId, PeerState>,
 	keystore: SyncCryptoStorePtr,
-	topology_storage: SessionBoundGridTopologyStorage,
+	topology_storage: SessionGridTopologies,
 	authorities: HashMap<AuthorityDiscoveryId, PeerId>,
 }
 
@@ -118,6 +119,10 @@ impl PeerState {
 	// the relay-parent.
 	fn knows_relay_parent(&self, relay_parent: &Hash) -> bool {
 		self.implicit_view.contains(relay_parent)
+	}
+
+	fn is_authority(&self, authority_id: &AuthorityDiscoveryId) -> bool {
+		self.maybe_authority.as_ref().map_or(false, |x| x.contains(authority_id))
 	}
 }
 
@@ -163,17 +168,12 @@ pub(crate) async fn handle_network_update<Context>(
 		NetworkBridgeEvent::NewGossipTopology(topology) => {
 			let new_session_index = topology.session;
 			let new_topology: SessionGridTopology = topology.into();
-			let old_topology = state.topology_storage.get_current_topology();
-			let newly_added = new_topology.peers_diff(old_topology);
-			state.topology_storage.update_topology(new_session_index, new_topology);
-			for peer in newly_added {
-				if let Some(data) = state.peers.get_mut(&peer) {
-					// TODO [now]: send the peer any topology-specific
-					// messages we need to send them. Like forwarding or sending backed-candidate
-					// messages. But in principle we shouldn't have accepted any such messages as we don't
-					// yet have the topology.
-				}
-			}
+			state.topology_storage.insert_topology(new_session_index, new_topology);
+
+			// TODO [now]: can we not update authority IDs for peers?
+
+			// TODO [now] for all relay-parents with this session, send all grid peers
+			// any `BackedCandidateInv` messages they might need.
 		},
 		NetworkBridgeEvent::PeerMessage(peer_id, message) => {
 			match message {
@@ -294,6 +294,8 @@ pub(crate) async fn handle_activated_leaf<Context>(
 			},
 		);
 
+		state.topology_storage.inc_session_refs(session_index);
+
 		// TODO [now]: update peers which have the leaf in their view.
 		// update their implicit view. send any messages accordingly.
 	}
@@ -346,7 +348,17 @@ pub(crate) fn handle_deactivate_leaf(state: &mut State, leaf_hash: Hash) {
 	}
 
 	// clean up per-relay-parent data based on everything removed.
-	state.per_relay_parent.retain(|r, _| relay_parents.contains(r));
+	let topology_storage = &mut state.topology_storage;
+	state.per_relay_parent.retain(|r, x| {
+		if relay_parents.contains(r) {
+			true
+		} else {
+			// clean up topology storage.
+			topology_storage.dec_session_refs(x.session);
+
+			false
+		}
+	});
 
 	// clean up sessions based on everything remaining.
 	let sessions: HashSet<_> = state.per_relay_parent.values().map(|r| r.session).collect();
@@ -671,10 +683,13 @@ async fn handle_incoming_statement<Context>(
 	relay_parent: Hash,
 	statement: UncheckedSignedStatement,
 ) {
-	if !state.peers.contains_key(&peer) {
-		// sanity: should be impossible.
-		return
-	}
+	let peer_state = match state.peers.get(&peer) {
+		None => {
+			// sanity: should be impossible.
+			return
+		},
+		Some(p) => p,
+	};
 
 	// Ensure we know the relay parent.
 	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
@@ -698,15 +713,61 @@ async fn handle_incoming_statement<Context>(
 		Some(s) => s,
 	};
 
-	let local_validator = match per_relay_parent.local_validator {
+	let local_validator = match per_relay_parent.local_validator.as_mut() {
 		None => {
 			// we shouldn't be receiving statements unless we're a validator
 			// this session.
 			report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
 			return
 		},
-		Some(ref l) => l,
+		Some(l) => l,
 	};
+
+	let cluster_sender_index = {
+		let allowed_senders = local_validator
+			.cluster_tracker
+			.senders_for_originator(statement.unchecked_validator_index());
+
+		allowed_senders
+			.iter()
+			.filter_map(|i| session_info.discovery_keys.get(i.0 as usize).map(|ad| (*i, ad)))
+			.filter(|(_, ad)| peer_state.is_authority(ad))
+			.map(|(i, _)| i)
+			.next()
+	};
+
+	// TODO [now]: handle direct statements from grid peers
+	let cluster_sender_index = match cluster_sender_index {
+		None => {
+			report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
+			return
+		},
+		Some(c) => c,
+	};
+
+	// additional cluster checks.
+	{
+		match local_validator.cluster_tracker.can_receive(
+			cluster_sender_index,
+			statement.unchecked_validator_index(),
+			statement.unchecked_payload().clone(),
+		) {
+			Ok(ClusterAccept::Ok | ClusterAccept::WithPrejudice) => {},
+			Err(ClusterRejectIncoming::ExcessiveSeconded) => {
+				report_peer(ctx.sender(), peer, COST_EXCESSIVE_SECONDED).await;
+				return
+			},
+			Err(ClusterRejectIncoming::CandidateUnknown | ClusterRejectIncoming::Duplicate) => {
+				report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
+				return
+			},
+			Err(ClusterRejectIncoming::NotInGroup) => {
+				// sanity: shouldn't be possible; we already filtered this
+				// out above.
+				return
+			},
+		}
+	}
 
 	// Ensure the statement is correctly signed.
 	let checked_statement = match check_statement_signature(
@@ -722,10 +783,18 @@ async fn handle_incoming_statement<Context>(
 		},
 	};
 
-	let candidate_hash = checked_statement.payload().candidate_hash();
+	local_validator.cluster_tracker.note_received(
+		cluster_sender_index,
+		checked_statement.validator_index(),
+		checked_statement.payload().clone(),
+	);
 
-	// Ensure that if the statement is kind 'Valid' that we know the candidate.
-	if let CompactStatement::Valid(_) = checked_statement.payload() {
-		// TODO [now]
+	if !per_relay_parent.statement_store.insert(checked_statement) {
+		return
 	}
+
+	// TODO [now]:
+	// * add a candidate entry if we need to
+	// * issue requests for the candidate if we need to
+	// * import the statement into backing if we can.
 }
