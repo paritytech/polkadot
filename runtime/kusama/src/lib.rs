@@ -51,8 +51,8 @@ use frame_election_provider_support::{
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		ConstU32, Contains, EitherOf, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		PrivilegeCmp,
+		ConstU32, Contains, EitherOf, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem,
+		LockIdentifier, PrivilegeCmp,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -1345,7 +1345,7 @@ construct_runtime! {
 			Pallet, Call, Storage, Event<T>
 		} = 23,
 		Origins: pallet_custom_origins::{Origin} = 43,
-		Whitelist: pallet_whitelist::{Pallet, Call, Storage, Event<T>} = 42,
+		Whitelist: pallet_whitelist::{Pallet, Call, Storage, Event<T>} = 44,
 
 		// Claims. Usable initially.
 		Claims: claims::{Pallet, Call, Storage, Event<T>, Config<T>, ValidateUnsigned} = 19,
