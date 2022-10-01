@@ -95,6 +95,7 @@ runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
+	"pallet-staking/runtime-benchmarks",
 	"primitives/runtime-benchmarks",
 	"static_assertions",
 	"sp-application-crypto",
@@ -109,4 +110,3 @@ try-runtime = [
 	"pallet-vesting/try-runtime",
 ]
 runtime-metrics = ["sp-tracing/with-tracing", "polkadot-runtime-metrics/runtime-metrics"]
-vstaging = []

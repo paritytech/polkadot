@@ -241,9 +241,9 @@ pub mod pallet {
 		/// The outer event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
-		type Origin: From<crate::Origin>
-			+ From<<Self as frame_system::Config>::Origin>
-			+ Into<Result<crate::Origin, <Self as Config>::Origin>>;
+		type RuntimeOrigin: From<crate::Origin>
+			+ From<<Self as frame_system::Config>::RuntimeOrigin>
+			+ Into<Result<crate::Origin, <Self as Config>::RuntimeOrigin>>;
 
 		/// An interface for reserving deposits for opening channels.
 		///
@@ -465,7 +465,7 @@ pub mod pallet {
 			proposed_max_capacity: u32,
 			proposed_max_message_size: u32,
 		) -> DispatchResult {
-			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
+			let origin = ensure_parachain(<T as Config>::RuntimeOrigin::from(origin))?;
 			Self::init_open_channel(
 				origin,
 				recipient,
@@ -486,7 +486,7 @@ pub mod pallet {
 		/// The channel will be opened only on the next session boundary.
 		#[pallet::weight(<T as Config>::WeightInfo::hrmp_accept_open_channel())]
 		pub fn hrmp_accept_open_channel(origin: OriginFor<T>, sender: ParaId) -> DispatchResult {
-			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
+			let origin = ensure_parachain(<T as Config>::RuntimeOrigin::from(origin))?;
 			Self::accept_open_channel(origin, sender)?;
 			Self::deposit_event(Event::OpenChannelAccepted(sender, origin));
 			Ok(())
@@ -501,7 +501,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			channel_id: HrmpChannelId,
 		) -> DispatchResult {
-			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
+			let origin = ensure_parachain(<T as Config>::RuntimeOrigin::from(origin))?;
 			Self::close_channel(origin, channel_id.clone())?;
 			Self::deposit_event(Event::ChannelClosed(origin, channel_id));
 			Ok(())
@@ -567,7 +567,7 @@ pub mod pallet {
 			channel_id: HrmpChannelId,
 			open_requests: u32,
 		) -> DispatchResult {
-			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
+			let origin = ensure_parachain(<T as Config>::RuntimeOrigin::from(origin))?;
 			ensure!(
 				<Self as Store>::HrmpOpenChannelRequestsList::decode_len().unwrap_or_default()
 					as u32 <= open_requests,
