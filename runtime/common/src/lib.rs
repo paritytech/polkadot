@@ -136,8 +136,6 @@ macro_rules! impl_runtime_weights {
 					// Operational transactions have an extra reserved space, so that they
 					// are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
 					weights.reserved = Some(
-						// MAXIMUM_BLOCK_WEIGHT already has a max proof size, so we simply subtract
-						// a ratio of its time component instead
 						MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT,
 					);
 				})
