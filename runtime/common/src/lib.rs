@@ -129,6 +129,8 @@ macro_rules! impl_runtime_weights {
 					weights.base_extrinsic = $runtime::weights::ExtrinsicBaseWeight::get();
 				})
 				.for_class(DispatchClass::Normal, |weights| {
+					// proof size is already at max and cannot be multiplied further, so we only
+					// multiply the maximum's time component instead
 					weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT.set_ref_time(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT.ref_time()));
 				})
 				.for_class(DispatchClass::Operational, |weights| {
@@ -136,6 +138,8 @@ macro_rules! impl_runtime_weights {
 					// Operational transactions have an extra reserved space, so that they
 					// are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
 					weights.reserved = Some(
+						// MAXIMUM_BLOCK_WEIGHT already has a max proof size, so we simply subtract
+						// a ratio of its time component instead
 						MAXIMUM_BLOCK_WEIGHT - Weight::from_ref_time(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT.ref_time()),
 					);
 				})
