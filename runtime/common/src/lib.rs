@@ -43,7 +43,7 @@ use frame_support::{
 	weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use frame_system::limits;
-use primitives::v2::{AssignmentId, Balance, BlockNumber, ValidatorId};
+use primitives::v2::{AssignmentId, Balance, BlockNumber, ValidatorId, MAX_POV_SIZE};
 use sp_runtime::{FixedPointNumber, Perbill, Perquintill};
 use static_assertions::const_assert;
 
@@ -70,7 +70,7 @@ pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(1);
 pub const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 /// The storage proof size is not limited so far.
 pub const MAXIMUM_BLOCK_WEIGHT: Weight =
-	WEIGHT_PER_SECOND.saturating_mul(2).set_proof_size(u64::MAX);
+	WEIGHT_PER_SECOND.saturating_mul(2).set_proof_size(MAX_POV_SIZE);
 
 const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO.deconstruct());
 
@@ -129,9 +129,7 @@ macro_rules! impl_runtime_weights {
 					weights.base_extrinsic = $runtime::weights::ExtrinsicBaseWeight::get();
 				})
 				.for_class(DispatchClass::Normal, |weights| {
-					// proof size is already at max and cannot be multiplied further, so we only
-					// multiply the maximum's time component instead
-					weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT.set_ref_time(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT.ref_time()));
+					weights.max_total = Some(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT);
 				})
 				.for_class(DispatchClass::Operational, |weights| {
 					weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT);
@@ -140,7 +138,7 @@ macro_rules! impl_runtime_weights {
 					weights.reserved = Some(
 						// MAXIMUM_BLOCK_WEIGHT already has a max proof size, so we simply subtract
 						// a ratio of its time component instead
-						MAXIMUM_BLOCK_WEIGHT - Weight::from_ref_time(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT.ref_time()),
+						MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT,
 					);
 				})
 				.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
