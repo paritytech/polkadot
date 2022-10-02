@@ -28,6 +28,7 @@ use frame_system::pallet_prelude::BlockNumberFor;
 ///
 /// v0-v1: <https://github.com/paritytech/polkadot/pull/3575>
 /// v1-v2: <https://github.com/paritytech/polkadot/pull/4420>
+/// v2-v3: <https://github.com/paritytech/polkadot/pull/6091>
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
 /// Migrates the pallet storage to the most recent version, checking and setting the `StorageVersion`.
