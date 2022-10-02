@@ -54,6 +54,7 @@ use statement_store::StatementStore;
 
 mod candidate_entry;
 mod cluster;
+mod requester;
 mod statement_store;
 
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
@@ -188,9 +189,7 @@ pub(crate) async fn handle_network_update<Context>(
 					),
 				) => {}, // TODO [now]
 				net_protocol::StatementDistributionMessage::VStaging(
-					protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(
-						inner,
-					),
+					protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(inner),
 				) => {}, // TODO [now]
 				net_protocol::StatementDistributionMessage::VStaging(
 					protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(
