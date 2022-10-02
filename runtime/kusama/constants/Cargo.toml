@@ -1,6 +1,6 @@
 [package]
 name = "kusama-runtime-constants"
-version = "0.9.29"
+version.workspace = true
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
