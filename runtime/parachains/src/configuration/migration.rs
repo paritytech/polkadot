@@ -137,8 +137,8 @@ mod v2 {
 				hrmp_max_parathread_outbound_channels: Default::default(),
 				hrmp_max_message_num_per_candidate: Default::default(),
 				ump_max_individual_weight: OldWeight(
-                    frame_support::weights::constants::WEIGHT_PER_MILLIS.ref_time() * 20,
-                ),
+					frame_support::weights::constants::WEIGHT_PER_MILLIS.ref_time() * 20,
+				),
 				pvf_checking_enabled: false,
 				pvf_voting_ttl: 2u32.into(),
 				minimum_validation_upgrade_delay: 2.into(),
@@ -245,7 +245,7 @@ mod tests {
 		assert_eq!(v2.dispute_max_spam_slots, 2);
 		assert_eq!(v2.n_delay_tranches, 89);
 		assert_eq!(v2.ump_max_individual_weight, OldWeight(20_000_000_000));
-        assert_eq!(v2.minimum_validation_upgrade_delay, 20);
+		assert_eq!(v2.minimum_validation_upgrade_delay, 20);
 	}
 
 	#[test]
@@ -265,7 +265,7 @@ mod tests {
 			hrmp_recipient_deposit: 1337,
 			max_pov_size: 1111,
 			chain_availability_period: 33,
-            minimum_validation_upgrade_delay: 20,
+			minimum_validation_upgrade_delay: 20,
 			..Default::default()
 		};
 
