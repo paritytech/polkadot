@@ -271,7 +271,15 @@ async fn send_inherent_data_bg<Context>(
 
 		match send_result.await {
 			Err(err) => {
-				gum::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
+				if let Error::CanceledBackedCandidates(_) = err {
+					gum::debug!(
+						target: LOG_TARGET,
+						err = ?err,
+						"Failed to assemble or send inherent data - block got likely obsoleted already."
+					);
+				} else {
+					gum::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
+				}
 				metrics.on_inherent_data_request(Err(()));
 			},
 			Ok(()) => {
