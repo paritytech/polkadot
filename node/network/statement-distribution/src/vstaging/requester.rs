@@ -30,12 +30,9 @@ use polkadot_primitives::vstaging::{CandidateHash, GroupIndex, Hash, ParaId};
 use bitvec::{order::Lsb0, vec::BitVec};
 use futures::{channel::oneshot, prelude::*, stream::FuturesUnordered};
 
-use std::{
-	cmp::Reverse,
-	collections::{
-		hash_map::{Entry as HEntry, HashMap, VacantEntry},
-		BTreeSet, HashSet, VecDeque,
-	},
+use std::collections::{
+	hash_map::{Entry as HEntry, HashMap, VacantEntry},
+	BTreeSet, HashSet, VecDeque,
 };
 
 /// An identifier for a candidate.
@@ -59,6 +56,7 @@ pub struct CandidateIdentifier {
 struct TaggedResponse {
 	identifier: CandidateIdentifier,
 	requested_peer: PeerId,
+	seconded_mask: BitVec<u8, Lsb0>,
 	response: AttestedCandidateResponse,
 }
 
@@ -244,11 +242,12 @@ impl RequestManager {
 
 			entry.known_by.push_back(recipient.clone());
 
+			let seconded_mask = seconded_mask(&id);
 			let (request, response_fut) = OutgoingRequest::new(
 				RequestRecipient::Peer(recipient.clone()),
 				AttestedCandidateRequest {
 					candidate_hash: id.candidate_hash,
-					seconded_mask: seconded_mask(&id),
+					seconded_mask: seconded_mask.clone(),
 				},
 			);
 
@@ -257,6 +256,7 @@ impl RequestManager {
 				response_fut.await.map(|response| TaggedResponse {
 					identifier: stored_id,
 					requested_peer: recipient,
+					seconded_mask,
 					response,
 				})
 			}));
