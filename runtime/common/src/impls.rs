@@ -61,10 +61,7 @@ where
 mod tests {
 	use super::*;
 	use frame_support::{
-		parameter_types,
-		traits::FindAuthor,
-		weights::{DispatchClass, Weight},
-		PalletId,
+		dispatch::DispatchClass, parameter_types, traits::FindAuthor, weights::Weight, PalletId,
 	};
 	use frame_system::limits;
 	use primitives::v2::AccountId;
@@ -109,16 +106,16 @@ mod tests {
 
 	impl frame_system::Config for Test {
 		type BaseCallFilter = frame_support::traits::Everything;
-		type Origin = Origin;
+		type RuntimeOrigin = RuntimeOrigin;
 		type Index = u64;
 		type BlockNumber = u64;
-		type Call = Call;
+		type RuntimeCall = RuntimeCall;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = AccountId;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type BlockLength = BlockLength;
 		type BlockWeights = BlockWeights;
@@ -136,7 +133,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type DustRemoval = ();
 		type ExistentialDeposit = ();
 		type AccountStore = System;
@@ -155,7 +152,7 @@ mod tests {
 		type Currency = pallet_balances::Pallet<Test>;
 		type ApproveOrigin = frame_system::EnsureRoot<AccountId>;
 		type RejectOrigin = frame_system::EnsureRoot<AccountId>;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type OnSlash = ();
 		type ProposalBond = ();
 		type ProposalBondMinimum = ();

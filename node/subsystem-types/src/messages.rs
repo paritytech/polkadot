@@ -35,8 +35,8 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
 	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig,
-	CollationSecondedSignal, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement,
-	SignedFullStatement, SignedFullStatementWithPVD, ValidationResult,
+	CollationSecondedSignal, DisputeMessage, DisputeStatus, ErasureChunk, PoV,
+	SignedDisputeStatement, SignedFullStatement, SignedFullStatementWithPVD, ValidationResult,
 };
 use polkadot_primitives::{
 	v2::{
@@ -280,7 +280,7 @@ pub enum DisputeCoordinatorMessage {
 	/// Fetch a list of all recent disputes the co-ordinator is aware of.
 	/// These are disputes which have occurred any time in recent sessions,
 	/// and which may have already concluded.
-	RecentDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
+	RecentDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash, DisputeStatus)>>),
 	/// Fetch a list of all active disputes that the coordinator is aware of.
 	/// These disputes are either not yet concluded or recently concluded.
 	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
@@ -708,13 +708,23 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCodeHash>>,
 	),
-	/// Returns all on-chain disputes at given block number.
-	StagingDisputes(
-		RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
-	),
 	/// Get the validity constraints of the given para.
 	/// This is a staging API that will not be available on production runtimes.
 	StagingValidityConstraints(ParaId, RuntimeApiSender<Option<vstaging_primitives::Constraints>>),
+	/// Returns all on-chain disputes at given block number. Available in v3.
+	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
+}
+
+impl RuntimeApiRequest {
+	/// Runtime version requirements for each message
+
+	/// `Disputes`
+	pub const DISPUTES_RUNTIME_REQUIREMENT: u32 = 3;
+
+	/// Minimum version for valididty constraints, required for async backing.
+	///
+	/// 99 for now, should be adjusted to VSTAGING/actual runtime version once released.
+	pub const VALIDITY_CONSTRAINTS: u32 = 99;
 }
 
 /// A message to the Runtime API subsystem.
@@ -738,7 +748,7 @@ impl RuntimeApiMessage {
 pub enum StatementDistributionMessage {
 	/// We have originated a signed statement in the context of
 	/// given relay-parent hash and it should be distributed to other validators.
-	Share(Hash, SignedFullStatement),
+	Share(Hash, SignedFullStatementWithPVD),
 	/// Event from the network bridge.
 	#[from]
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::StatementDistributionMessage>),

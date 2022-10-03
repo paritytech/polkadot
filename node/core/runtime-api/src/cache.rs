@@ -495,5 +495,5 @@ pub(crate) enum RequestResult {
 	StagingValidityConstraints(Hash, ParaId, Option<vstaging_primitives::Constraints>),
 
 	Version(Hash, u32),
-	StagingDisputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
+	Disputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
 }

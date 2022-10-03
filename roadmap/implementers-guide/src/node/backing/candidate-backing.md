@@ -130,7 +130,7 @@ Dispatch a `CandidateValidationMessage::Validate(validation function, candidate,
 
 ### Distribute Signed Statement
 
-Dispatch a [`StatementDistributionMessage`][SDM]`::Share(relay_parent, SignedFullStatement)`.
+Dispatch a [`StatementDistributionMessage`][SDM]`::Share(relay_parent, SignedFullStatementWithPVD)`.
 
 [OverseerSignal]: ../../types/overseer-protocol.md#overseer-signal
 [Statement]: ../../types/backing.md#statement-type

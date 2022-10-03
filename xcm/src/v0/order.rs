@@ -27,8 +27,8 @@ use parity_scale_codec::{self, Decode, Encode};
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
-#[scale_info(bounds(), skip_type_params(Call))]
-pub enum Order<Call> {
+#[scale_info(bounds(), skip_type_params(RuntimeCall))]
+pub enum Order<RuntimeCall> {
 	/// Do nothing. Not generally used.
 	#[codec(index = 0)]
 	Null,
@@ -122,7 +122,7 @@ pub enum Order<Call> {
 		weight: u64,
 		debt: u64,
 		halt_on_error: bool,
-		xcm: Vec<Xcm<Call>>,
+		xcm: Vec<Xcm<RuntimeCall>>,
 	},
 }
 
@@ -130,7 +130,7 @@ pub mod opaque {
 	pub type Order = super::Order<()>;
 }
 
-impl<Call> Order<Call> {
+impl<RuntimeCall> Order<RuntimeCall> {
 	pub fn into<C>(self) -> Order<C> {
 		Order::from(self)
 	}
@@ -155,9 +155,9 @@ impl<Call> Order<Call> {
 	}
 }
 
-impl<Call> TryFrom<Order1<Call>> for Order<Call> {
+impl<RuntimeCall> TryFrom<Order1<RuntimeCall>> for Order<RuntimeCall> {
 	type Error = ();
-	fn try_from(old: Order1<Call>) -> result::Result<Order<Call>, ()> {
+	fn try_from(old: Order1<RuntimeCall>) -> result::Result<Order<RuntimeCall>, ()> {
 		use Order::*;
 		Ok(match old {
 			Order1::Noop => Null,
@@ -195,7 +195,7 @@ impl<Call> TryFrom<Order1<Call>> for Order<Call> {
 			Order1::BuyExecution { fees, weight, debt, halt_on_error, instructions } => {
 				let xcm = instructions
 					.into_iter()
-					.map(Xcm::<Call>::try_from)
+					.map(Xcm::<RuntimeCall>::try_from)
 					.collect::<result::Result<_, _>>()?;
 				BuyExecution { fees: fees.try_into()?, weight, debt, halt_on_error, xcm }
 			},

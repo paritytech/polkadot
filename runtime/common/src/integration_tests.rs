@@ -61,9 +61,9 @@ fn account_id(i: u32) -> AccountId32 {
 	array.into()
 }
 
-fn signed(i: u32) -> Origin {
+fn signed(i: u32) -> RuntimeOrigin {
 	let account_id = account_id(i);
-	Origin::signed(account_id)
+	RuntimeOrigin::signed(account_id)
 }
 
 frame_support::construct_runtime!(
@@ -93,10 +93,10 @@ frame_support::construct_runtime!(
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
 where
-	Call: From<C>,
+	RuntimeCall: From<C>,
 {
 	type Extrinsic = UncheckedExtrinsic;
-	type OverarchingCall = Call;
+	type OverarchingCall = RuntimeCall;
 }
 
 use crate::{auctions::Error as AuctionsError, crowdloan::Error as CrowdloanError};
@@ -112,8 +112,8 @@ impl frame_system::Config for Test {
 	type BlockWeights = BlockWeights;
 	type BlockLength = ();
 	type DbWeight = ();
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = BlockNumber;
 	type Hash = H256;
@@ -121,7 +121,7 @@ impl frame_system::Config for Test {
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<AccountId>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
 	type PalletInfo = PalletInfo;
@@ -179,7 +179,7 @@ parameter_types! {
 impl pallet_balances::Config for Test {
 	type MaxLocks = ();
 	type Balance = Balance;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
@@ -201,7 +201,7 @@ parameter_types! {
 }
 
 impl paras::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = paras::TestWeightInfo;
 	type UnsignedPriority = ParasUnsignedPriority;
 	type NextSessionRotation = crate::mock::TestNextSessionRotation;
@@ -213,12 +213,12 @@ parameter_types! {
 }
 
 impl paras_registrar::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type OnSwap = (Crowdloan, Slots);
 	type ParaDeposit = ParaDeposit;
 	type DataDepositPerByte = DataDepositPerByte;
 	type Currency = Balances;
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type WeightInfo = crate::paras_registrar::TestWeightInfo;
 }
 
@@ -228,7 +228,7 @@ parameter_types! {
 }
 
 impl auctions::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Leaser = Slots;
 	type Registrar = Registrar;
 	type EndingPeriod = EndingPeriod;
@@ -244,7 +244,7 @@ parameter_types! {
 }
 
 impl slots::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
@@ -262,7 +262,7 @@ parameter_types! {
 }
 
 impl crowdloan::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type PalletId = CrowdloanId;
 	type SubmissionDeposit = SubmissionDeposit;
 	type MinContribution = MinContribution;
@@ -343,11 +343,11 @@ fn run_to_session(n: u32) {
 	run_to_block(block_number);
 }
 
-fn last_event() -> Event {
-	System::events().pop().expect("Event expected").event
+fn last_event() -> RuntimeEvent {
+	System::events().pop().expect("RuntimeEvent expected").event
 }
 
-fn contains_event(event: Event) -> bool {
+fn contains_event(event: RuntimeEvent) -> bool {
 	System::events().iter().any(|x| x.event == event)
 }
 
@@ -389,7 +389,11 @@ fn basic_end_to_end_works() {
 			// Start a new auction in the future
 			let duration = 99u32 + offset;
 			let lease_period_index_start = 4u32;
-			assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+			assert_ok!(Auctions::new_auction(
+				RuntimeOrigin::root(),
+				duration,
+				lease_period_index_start
+			));
 
 			// 2 sessions later they are parathreads
 			run_to_session(2);
@@ -557,7 +561,11 @@ fn basic_errors_fail() {
 		// Start an auction
 		let duration = 99u32;
 		let lease_period_index_start = 4u32;
-		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+		assert_ok!(Auctions::new_auction(
+			RuntimeOrigin::root(),
+			duration,
+			lease_period_index_start
+		));
 
 		// Cannot create a crowdloan if you do not own the para
 		assert_noop!(
@@ -600,7 +608,11 @@ fn competing_slots() {
 		// Start a new auction in the future
 		let duration = 149u32;
 		let lease_period_index_start = 4u32;
-		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+		assert_ok!(Auctions::new_auction(
+			RuntimeOrigin::root(),
+			duration,
+			lease_period_index_start
+		));
 
 		// Paras should be onboarded
 		run_to_block(20); // session 2
@@ -697,7 +709,11 @@ fn competing_bids() {
 		let starting_block = System::block_number();
 		let duration = 99u32;
 		let lease_period_index_start = 4u32;
-		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+		assert_ok!(Auctions::new_auction(
+			RuntimeOrigin::root(),
+			duration,
+			lease_period_index_start
+		));
 
 		for n in 1..=3 {
 			// Create a crowdloan for each para
@@ -799,7 +815,11 @@ fn basic_swap_works() {
 		// Start a new auction in the future
 		let duration = 99u32;
 		let lease_period_index_start = 4u32;
-		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+		assert_ok!(Auctions::new_auction(
+			RuntimeOrigin::root(),
+			duration,
+			lease_period_index_start
+		));
 
 		// 2 sessions later they are parathreads
 		run_to_session(2);
@@ -955,7 +975,11 @@ fn parachain_swap_works() {
 			let unique_id = winner - 1999u32;
 			let starting_block = System::block_number();
 			let duration = 99u32;
-			assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+			assert_ok!(Auctions::new_auction(
+				RuntimeOrigin::root(),
+				duration,
+				lease_period_index_start
+			));
 
 			// 2 sessions later they are parathreads
 			run_to_block(starting_block + 20);
@@ -1106,7 +1130,11 @@ fn crowdloan_ending_period_bid() {
 		// Start a new auction in the future
 		let duration = 99u32;
 		let lease_period_index_start = 4u32;
-		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+		assert_ok!(Auctions::new_auction(
+			RuntimeOrigin::root(),
+			duration,
+			lease_period_index_start
+		));
 
 		// 2 sessions later they are parathreads
 		run_to_session(2);
@@ -1182,7 +1210,11 @@ fn auction_bid_requires_registered_para() {
 		// Start a new auction in the future
 		let duration = 99u32;
 		let lease_period_index_start = 4u32;
-		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+		assert_ok!(Auctions::new_auction(
+			RuntimeOrigin::root(),
+			duration,
+			lease_period_index_start
+		));
 
 		// Can't bid with non-registered paras
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
@@ -1244,7 +1276,11 @@ fn gap_bids_work() {
 		// Start a new auction in the future
 		let duration = 99u32;
 		let lease_period_index_start = 4u32;
-		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+		assert_ok!(Auctions::new_auction(
+			RuntimeOrigin::root(),
+			duration,
+			lease_period_index_start
+		));
 		Balances::make_free_balance_be(&account_id(1), 1_000_000_000);
 		Balances::make_free_balance_be(&account_id(2), 1_000_000_000);
 
@@ -1432,7 +1468,11 @@ fn cant_bid_on_existing_lease_periods() {
 		let starting_block = System::block_number();
 		let duration = 99u32;
 		let lease_period_index_start = 4u32;
-		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+		assert_ok!(Auctions::new_auction(
+			RuntimeOrigin::root(),
+			duration,
+			lease_period_index_start
+		));
 
 		// 2 sessions later they are parathreads
 		run_to_session(2);
@@ -1480,7 +1520,11 @@ fn cant_bid_on_existing_lease_periods() {
 		let starting_block = System::block_number();
 		let duration = 99u32;
 		let lease_period_index_start = 4u32;
-		assert_ok!(Auctions::new_auction(Origin::root(), duration, lease_period_index_start));
+		assert_ok!(Auctions::new_auction(
+			RuntimeOrigin::root(),
+			duration,
+			lease_period_index_start
+		));
 
 		// Poke the crowdloan into `NewRaise`
 		assert_ok!(Crowdloan::poke(signed(1), ParaId::from(2000)));
@@ -1492,7 +1536,7 @@ fn cant_bid_on_existing_lease_periods() {
 		// Bids cannot be made which intersect
 		assert_noop!(
 			Auctions::bid(
-				Origin::signed(crowdloan_account.clone()),
+				RuntimeOrigin::signed(crowdloan_account.clone()),
 				ParaId::from(2000),
 				2,
 				lease_period_index_start + 0,
@@ -1504,7 +1548,7 @@ fn cant_bid_on_existing_lease_periods() {
 
 		assert_noop!(
 			Auctions::bid(
-				Origin::signed(crowdloan_account.clone()),
+				RuntimeOrigin::signed(crowdloan_account.clone()),
 				ParaId::from(2000),
 				2,
 				lease_period_index_start + 1,
@@ -1516,7 +1560,7 @@ fn cant_bid_on_existing_lease_periods() {
 
 		assert_noop!(
 			Auctions::bid(
-				Origin::signed(crowdloan_account.clone()),
+				RuntimeOrigin::signed(crowdloan_account.clone()),
 				ParaId::from(2000),
 				2,
 				lease_period_index_start - 1,
@@ -1528,7 +1572,7 @@ fn cant_bid_on_existing_lease_periods() {
 
 		assert_noop!(
 			Auctions::bid(
-				Origin::signed(crowdloan_account.clone()),
+				RuntimeOrigin::signed(crowdloan_account.clone()),
 				ParaId::from(2000),
 				2,
 				lease_period_index_start + 0,
@@ -1540,7 +1584,7 @@ fn cant_bid_on_existing_lease_periods() {
 
 		assert_noop!(
 			Auctions::bid(
-				Origin::signed(crowdloan_account.clone()),
+				RuntimeOrigin::signed(crowdloan_account.clone()),
 				ParaId::from(2000),
 				2,
 				lease_period_index_start + 1,
@@ -1552,7 +1596,7 @@ fn cant_bid_on_existing_lease_periods() {
 
 		assert_noop!(
 			Auctions::bid(
-				Origin::signed(crowdloan_account.clone()),
+				RuntimeOrigin::signed(crowdloan_account.clone()),
 				ParaId::from(2000),
 				2,
 				lease_period_index_start - 1,
@@ -1564,7 +1608,7 @@ fn cant_bid_on_existing_lease_periods() {
 
 		// Will work when not overlapping
 		assert_ok!(Auctions::bid(
-			Origin::signed(crowdloan_account.clone()),
+			RuntimeOrigin::signed(crowdloan_account.clone()),
 			ParaId::from(2000),
 			2,
 			lease_period_index_start + 2,

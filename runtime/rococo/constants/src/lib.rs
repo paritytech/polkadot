@@ -22,13 +22,16 @@ pub mod weights;
 pub mod currency {
 	use primitives::v2::Balance;
 
+	/// The existential deposit.
+	pub const EXISTENTIAL_DEPOSIT: Balance = 1 * CENTS;
+
 	pub const UNITS: Balance = 1_000_000_000_000;
-	pub const DOLLARS: Balance = UNITS;
-	pub const CENTS: Balance = DOLLARS / 100;
+	pub const CENTS: Balance = UNITS / 30_000;
+	pub const GRAND: Balance = CENTS * 100_000;
 	pub const MILLICENTS: Balance = CENTS / 1_000;
 
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
-		items as Balance * 1 * DOLLARS + (bytes as Balance) * 5 * MILLICENTS
+		items as Balance * 2_000 * CENTS + (bytes as Balance) * 100 * MILLICENTS
 	}
 }
 
@@ -36,7 +39,6 @@ pub mod currency {
 pub mod time {
 	use primitives::v2::{BlockNumber, Moment};
 	use runtime_common::prod_or_fast;
-
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
 	pub const DEFAULT_EPOCH_DURATION: BlockNumber = prod_or_fast!(1 * HOURS, 1 * MINUTES);
@@ -48,6 +50,7 @@ pub mod time {
 	pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
 	pub const HOURS: BlockNumber = MINUTES * 60;
 	pub const DAYS: BlockNumber = HOURS * 24;
+	pub const WEEKS: BlockNumber = DAYS * 7;
 
 	// 1 in 4 blocks (on average, not counting collisions) will be primary babe blocks.
 	// The choice of is done in accordance to the slot duration and expected target
@@ -83,7 +86,7 @@ pub mod fee {
 	impl WeightToFeePolynomial for WeightToFee {
 		type Balance = Balance;
 		fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
-			// in Westend, extrinsic base weight (smallest non-zero weight) is mapped to 1/10 CENT:
+			// in Rococo, extrinsic base weight (smallest non-zero weight) is mapped to 1/10 CENT:
 			let p = super::currency::CENTS;
 			let q = 10 * Balance::from(ExtrinsicBaseWeight::get().ref_time());
 			smallvec![WeightToFeeCoefficient {
@@ -99,7 +102,7 @@ pub mod fee {
 #[cfg(test)]
 mod tests {
 	use super::{
-		currency::{CENTS, DOLLARS, MILLICENTS},
+		currency::{CENTS, MILLICENTS},
 		fee::WeightToFee,
 	};
 	use crate::weights::ExtrinsicBaseWeight;
@@ -109,10 +112,10 @@ mod tests {
 	#[test]
 	// Test that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight has sane bounds.
 	fn full_block_fee_is_correct() {
-		// A full block should cost between 10 and 100 DOLLARS.
+		// A full block should cost between 1,000 and 10,000 CENTS.
 		let full_block = WeightToFee::weight_to_fee(&MAXIMUM_BLOCK_WEIGHT);
-		assert!(full_block >= 10 * DOLLARS);
-		assert!(full_block <= 100 * DOLLARS);
+		assert!(full_block >= 1_000 * CENTS);
+		assert!(full_block <= 10_000 * CENTS);
 	}
 
 	#[test]

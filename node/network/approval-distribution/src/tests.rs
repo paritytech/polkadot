@@ -25,16 +25,13 @@ use polkadot_node_subsystem::messages::{network_bridge_event, AllMessages, Appro
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
 use polkadot_primitives::v2::{AuthorityDiscoveryId, BlakeTwo256, HashT};
+use polkadot_primitives_test_helpers::dummy_signature;
 use rand::SeedableRng;
 use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
 use sp_core::crypto::Pair as PairT;
 use std::time::Duration;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalDistributionMessage>;
-
-fn dummy_signature() -> polkadot_primitives::v2::ValidatorSignature {
-	sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64])
-}
 
 fn test_harness<T: Future<Output = VirtualOverseer>>(
 	mut state: State,

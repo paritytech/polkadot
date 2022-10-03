@@ -85,10 +85,10 @@ pub mod pallet {
 	#[pallet::disable_frame_system_supertrait_check]
 	pub trait Config: configuration::Config + paras::Config + slots::Config {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// Origin for assigning slots.
-		type AssignSlotOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
+		type AssignSlotOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
 
 		/// The type representing the leasing system.
 		type Leaser: Leaser<
@@ -579,10 +579,10 @@ mod tests {
 
 	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
 	where
-		Call: From<C>,
+		RuntimeCall: From<C>,
 	{
 		type Extrinsic = UncheckedExtrinsic;
-		type OverarchingCall = Call;
+		type OverarchingCall = RuntimeCall;
 	}
 
 	parameter_types! {
@@ -592,8 +592,8 @@ mod tests {
 		type BaseCallFilter = frame_support::traits::Everything;
 		type BlockWeights = ();
 		type BlockLength = ();
-		type Origin = Origin;
-		type Call = Call;
+		type RuntimeOrigin = RuntimeOrigin;
+		type RuntimeCall = RuntimeCall;
 		type Index = u64;
 		type BlockNumber = BlockNumber;
 		type Hash = H256;
@@ -601,7 +601,7 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type DbWeight = ();
 		type Version = ();
@@ -621,7 +621,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
@@ -640,7 +640,7 @@ mod tests {
 	}
 
 	impl parachains_paras::Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type WeightInfo = parachains_paras::TestWeightInfo;
 		type UnsignedPriority = ParasUnsignedPriority;
 		type NextSessionRotation = crate::mock::TestNextSessionRotation;
@@ -655,7 +655,7 @@ mod tests {
 	}
 
 	impl slots::Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type Currency = Balances;
 		type Registrar = TestRegistrar<Test>;
 		type LeasePeriod = LeasePeriod;
@@ -673,7 +673,7 @@ mod tests {
 	}
 
 	impl assigned_slots::Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type AssignSlotOrigin = EnsureRoot<Self::AccountId>;
 		type Leaser = Slots;
 		type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
@@ -738,7 +738,10 @@ mod tests {
 			run_to_block(1);
 
 			assert_noop!(
-				AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(1_u32),),
+				AssignedSlots::assign_perm_parachain_slot(
+					RuntimeOrigin::root(),
+					ParaId::from(1_u32),
+				),
 				Error::<Test>::ParaDoesntExist
 			);
 		});
@@ -750,7 +753,10 @@ mod tests {
 			run_to_block(1);
 
 			assert_noop!(
-				AssignedSlots::assign_perm_parachain_slot(Origin::signed(1), ParaId::from(1_u32),),
+				AssignedSlots::assign_perm_parachain_slot(
+					RuntimeOrigin::signed(1),
+					ParaId::from(1_u32),
+				),
 				BadOrigin
 			);
 		});
@@ -770,7 +776,10 @@ mod tests {
 			assert_ok!(TestRegistrar::<Test>::make_parachain(ParaId::from(1_u32)));
 
 			assert_noop!(
-				AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(1_u32),),
+				AssignedSlots::assign_perm_parachain_slot(
+					RuntimeOrigin::root(),
+					ParaId::from(1_u32),
+				),
 				Error::<Test>::NotParathread
 			);
 		});
@@ -792,18 +801,24 @@ mod tests {
 			assert_ok!(Slots::lease_out(ParaId::from(1_u32), &1, 1, 1, 1));
 			// Try to assign a perm slot in current period fails
 			assert_noop!(
-				AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(1_u32),),
+				AssignedSlots::assign_perm_parachain_slot(
+					RuntimeOrigin::root(),
+					ParaId::from(1_u32),
+				),
 				Error::<Test>::OngoingLeaseExists
 			);
 
 			// Cleanup
-			assert_ok!(Slots::clear_all_leases(Origin::root(), 1.into()));
+			assert_ok!(Slots::clear_all_leases(RuntimeOrigin::root(), 1.into()));
 
 			// Register lease for next lease period
 			assert_ok!(Slots::lease_out(ParaId::from(1_u32), &1, 1, 2, 1));
 			// Should be detected and also fail
 			assert_noop!(
-				AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(1_u32),),
+				AssignedSlots::assign_perm_parachain_slot(
+					RuntimeOrigin::root(),
+					ParaId::from(1_u32),
+				),
 				Error::<Test>::OngoingLeaseExists
 			);
 		});
@@ -836,17 +851,20 @@ mod tests {
 			));
 
 			assert_ok!(AssignedSlots::assign_perm_parachain_slot(
-				Origin::root(),
+				RuntimeOrigin::root(),
 				ParaId::from(1_u32),
 			));
 			assert_ok!(AssignedSlots::assign_perm_parachain_slot(
-				Origin::root(),
+				RuntimeOrigin::root(),
 				ParaId::from(2_u32),
 			));
 			assert_eq!(AssignedSlots::permanent_slot_count(), 2);
 
 			assert_noop!(
-				AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(3_u32),),
+				AssignedSlots::assign_perm_parachain_slot(
+					RuntimeOrigin::root(),
+					ParaId::from(3_u32),
+				),
 				Error::<Test>::MaxPermanentSlotsExceeded
 			);
 		});
@@ -868,7 +886,7 @@ mod tests {
 			assert_eq!(AssignedSlots::permanent_slots(ParaId::from(1_u32)), None);
 
 			assert_ok!(AssignedSlots::assign_perm_parachain_slot(
-				Origin::root(),
+				RuntimeOrigin::root(),
 				ParaId::from(1_u32),
 			));
 
@@ -901,7 +919,7 @@ mod tests {
 
 			assert_noop!(
 				AssignedSlots::assign_temp_parachain_slot(
-					Origin::root(),
+					RuntimeOrigin::root(),
 					ParaId::from(1_u32),
 					SlotLeasePeriodStart::Current
 				),
@@ -917,7 +935,7 @@ mod tests {
 
 			assert_noop!(
 				AssignedSlots::assign_temp_parachain_slot(
-					Origin::signed(1),
+					RuntimeOrigin::signed(1),
 					ParaId::from(1_u32),
 					SlotLeasePeriodStart::Current
 				),
@@ -941,7 +959,7 @@ mod tests {
 
 			assert_noop!(
 				AssignedSlots::assign_temp_parachain_slot(
-					Origin::root(),
+					RuntimeOrigin::root(),
 					ParaId::from(1_u32),
 					SlotLeasePeriodStart::Current
 				),
@@ -967,7 +985,7 @@ mod tests {
 			// Try to assign a perm slot in current period fails
 			assert_noop!(
 				AssignedSlots::assign_temp_parachain_slot(
-					Origin::root(),
+					RuntimeOrigin::root(),
 					ParaId::from(1_u32),
 					SlotLeasePeriodStart::Current
 				),
@@ -975,14 +993,14 @@ mod tests {
 			);
 
 			// Cleanup
-			assert_ok!(Slots::clear_all_leases(Origin::root(), 1.into()));
+			assert_ok!(Slots::clear_all_leases(RuntimeOrigin::root(), 1.into()));
 
 			// Register lease for next lease period
 			assert_ok!(Slots::lease_out(ParaId::from(1_u32), &1, 1, 2, 1));
 			// Should be detected and also fail
 			assert_noop!(
 				AssignedSlots::assign_temp_parachain_slot(
-					Origin::root(),
+					RuntimeOrigin::root(),
 					ParaId::from(1_u32),
 					SlotLeasePeriodStart::Current
 				),
@@ -1006,7 +1024,7 @@ mod tests {
 				));
 
 				assert_ok!(AssignedSlots::assign_temp_parachain_slot(
-					Origin::root(),
+					RuntimeOrigin::root(),
 					ParaId::from(n as u32),
 					SlotLeasePeriodStart::Current
 				));
@@ -1023,7 +1041,7 @@ mod tests {
 			));
 			assert_noop!(
 				AssignedSlots::assign_temp_parachain_slot(
-					Origin::root(),
+					RuntimeOrigin::root(),
 					ParaId::from(7_u32),
 					SlotLeasePeriodStart::Current
 				),
@@ -1047,7 +1065,7 @@ mod tests {
 			assert_eq!(AssignedSlots::temporary_slots(ParaId::from(1_u32)), None);
 
 			assert_ok!(AssignedSlots::assign_temp_parachain_slot(
-				Origin::root(),
+				RuntimeOrigin::root(),
 				ParaId::from(1_u32),
 				SlotLeasePeriodStart::Current
 			));
@@ -1122,7 +1140,7 @@ mod tests {
 				));
 
 				assert_ok!(AssignedSlots::assign_temp_parachain_slot(
-					Origin::root(),
+					RuntimeOrigin::root(),
 					ParaId::from(n as u32),
 					if (n % 2).is_zero() {
 						SlotLeasePeriodStart::Current
@@ -1214,7 +1232,7 @@ mod tests {
 			run_to_block(1);
 
 			assert_noop!(
-				AssignedSlots::unassign_parachain_slot(Origin::root(), ParaId::from(1_u32),),
+				AssignedSlots::unassign_parachain_slot(RuntimeOrigin::root(), ParaId::from(1_u32),),
 				Error::<Test>::SlotNotAssigned
 			);
 		});
@@ -1226,7 +1244,10 @@ mod tests {
 			run_to_block(1);
 
 			assert_noop!(
-				AssignedSlots::assign_perm_parachain_slot(Origin::signed(1), ParaId::from(1_u32),),
+				AssignedSlots::assign_perm_parachain_slot(
+					RuntimeOrigin::signed(1),
+					ParaId::from(1_u32),
+				),
 				BadOrigin
 			);
 		});
@@ -1245,15 +1266,16 @@ mod tests {
 			));
 
 			assert_ok!(AssignedSlots::assign_perm_parachain_slot(
-				Origin::root(),
+				RuntimeOrigin::root(),
 				ParaId::from(1_u32),
 			));
 
 			assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1_u32)), true);
 
-			assert_ok!(
-				AssignedSlots::unassign_parachain_slot(Origin::root(), ParaId::from(1_u32),)
-			);
+			assert_ok!(AssignedSlots::unassign_parachain_slot(
+				RuntimeOrigin::root(),
+				ParaId::from(1_u32),
+			));
 
 			assert_eq!(AssignedSlots::permanent_slot_count(), 0);
 			assert_eq!(AssignedSlots::has_permanent_slot(ParaId::from(1_u32)), false);
@@ -1276,16 +1298,17 @@ mod tests {
 			));
 
 			assert_ok!(AssignedSlots::assign_temp_parachain_slot(
-				Origin::root(),
+				RuntimeOrigin::root(),
 				ParaId::from(1_u32),
 				SlotLeasePeriodStart::Current
 			));
 
 			assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1_u32)), true);
 
-			assert_ok!(
-				AssignedSlots::unassign_parachain_slot(Origin::root(), ParaId::from(1_u32),)
-			);
+			assert_ok!(AssignedSlots::unassign_parachain_slot(
+				RuntimeOrigin::root(),
+				ParaId::from(1_u32),
+			));
 
 			assert_eq!(AssignedSlots::temporary_slot_count(), 0);
 			assert_eq!(AssignedSlots::active_temporary_slot_count(), 0);

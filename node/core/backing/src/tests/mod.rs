@@ -928,7 +928,7 @@ fn backing_misbehavior_works() {
 					signed_statement,
 				)
 			) if relay_parent == test_state.relay_parent => {
-				assert_eq!(*signed_statement.payload(), Statement::Valid(candidate_a_hash));
+				assert_eq!(*signed_statement.payload(), StatementWithPVD::Valid(candidate_a_hash));
 			}
 		);
 
@@ -1092,14 +1092,14 @@ fn backing_dont_second_invalid() {
 			virtual_overseer.recv().await,
 			AllMessages::CandidateValidation(
 				CandidateValidationMessage::ValidateFromExhaustive(
-					_pvd,
+					pvd,
 					_validation_code,
 					candidate_receipt,
 					_pov,
 					timeout,
 					tx,
 				),
-			) if _pvd == pvd_b &&
+			) if pvd == pvd_b &&
 				_validation_code == validation_code_b &&
 				*_pov == pov_block_b && &candidate_receipt.descriptor == candidate_b.descriptor() &&
 				timeout == BACKING_EXECUTION_TIMEOUT &&
@@ -1135,7 +1135,7 @@ fn backing_dont_second_invalid() {
 					signed_statement,
 				)
 			) if parent_hash == test_state.relay_parent => {
-				assert_eq!(*signed_statement.payload(), Statement::Seconded(candidate_b));
+				assert_eq!(*signed_statement.payload(), StatementWithPVD::Seconded(candidate_b, pvd_b.clone()));
 			}
 		);
 

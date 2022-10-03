@@ -14,7 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{metrics::Metrics, *};
+use super::*;
+use crate::{metrics::Metrics, *};
+
 use assert_matches::assert_matches;
 use futures::executor::{self, block_on};
 use futures_timer::Delay;
@@ -25,7 +27,7 @@ use polkadot_node_network_protocol::{
 		v1::{StatementFetchingRequest, StatementFetchingResponse},
 		IncomingRequest, Recipient, ReqProtocolNames, Requests,
 	},
-	view, ObservedRole,
+	view, ObservedRole, VersionedValidationProtocol,
 };
 use polkadot_node_primitives::{
 	SignedFullStatementWithPVD, Statement, UncheckedSignedFullStatement,
@@ -512,6 +514,7 @@ fn peer_view_update_sends_messages() {
 
 	let mut peer_data = PeerData {
 		view: old_view,
+		protocol_version: ValidationVersion::V1,
 		view_knowledge: {
 			let mut k = HashMap::new();
 
@@ -570,8 +573,9 @@ fn peer_view_update_sends_messages() {
 		for statement in active_head.statements_about(candidate_hash) {
 			let message = handle.recv().await;
 			let expected_to = vec![peer.clone()];
-			let expected_payload =
-				statement_message(hash_c, statement.statement.clone(), &Metrics::default());
+			let expected_payload = VersionedValidationProtocol::from(Versioned::V1(
+				v1_statement_message(hash_c, statement.statement.clone(), &Metrics::default()),
+			));
 
 			assert_matches!(
 				message,
@@ -612,6 +616,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 
 	let peer_data_from_view = |view: View| PeerData {
 		view: view.clone(),
+		protocol_version: ValidationVersion::V1,
 		view_knowledge: view.iter().map(|v| (v.clone(), Default::default())).collect(),
 		maybe_authority: None,
 	};
@@ -716,7 +721,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 
 				assert_eq!(
 					payload,
-					statement_message(hash_b, statement.statement.clone(), &Metrics::default()),
+					VersionedValidationProtocol::from(Versioned::V1(v1_statement_message(hash_b, statement.statement.clone(), &Metrics::default()))),
 				);
 			}
 		)
@@ -1688,9 +1693,17 @@ fn share_prioritizes_backing_group() {
 			.await
 			.unwrap();
 
-			SignedFullStatement::sign(
+			// note: this is ignored by legacy-v1 code.
+			let pvd = PersistedValidationData {
+				parent_head: HeadData::from(vec![1, 2, 3]),
+				relay_parent_number: 0,
+				relay_parent_storage_root: Hash::repeat_byte(42),
+				max_pov_size: 100,
+			};
+
+			SignedFullStatementWithPVD::sign(
 				&keystore,
-				Statement::Seconded(candidate.clone()),
+				Statement::Seconded(candidate.clone()).supply_pvd(pvd),
 				&signing_context,
 				ValidatorIndex(4),
 				&ferdie_public.into(),
@@ -1701,13 +1714,14 @@ fn share_prioritizes_backing_group() {
 			.expect("should be signed")
 		};
 
-		let metadata = derive_metadata_assuming_seconded(hash_a, statement.clone().into());
-
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::Share(hash_a, statement.clone()),
 			})
 			.await;
+
+		let statement = StatementWithPVD::drop_pvd_from_signed(statement);
+		let metadata = derive_metadata_assuming_seconded(hash_a, statement.clone().into());
 
 		// Messages should go out:
 		assert_matches!(
@@ -2390,3 +2404,8 @@ fn derive_metadata_assuming_seconded(
 		signature: statement.unchecked_signature().clone(),
 	}
 }
+
+// TODO [now]: adapt most tests to v2 messages.
+// TODO [now]: test that v2 peers send v1 messages to v1 peers
+// TODO [now]: test that v2 peers handle v1 messages from v1 peers.
+// TODO [now]: test that v2 peers send v2 messages to v2 peers.

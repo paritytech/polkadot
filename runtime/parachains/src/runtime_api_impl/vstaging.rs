@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-// Put implementations of functions from staging API here.
+//! Put implementations of functions from staging APIs here.
 
 use crate::disputes;
 use primitives::v2::{CandidateHash, DisputeState, SessionIndex};

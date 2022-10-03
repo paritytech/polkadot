@@ -21,7 +21,7 @@ use polkadot_primitives::v2::{BlockNumber, Header};
 
 use super::*;
 
-const API_VERSION_PROSPECTIVE_ENABLED: u32 = 3;
+const API_VERSION_PROSPECTIVE_ENABLED: u32 = RuntimeApiRequest::VALIDITY_CONSTRAINTS;
 
 struct TestLeaf {
 	activated: ActivatedLeaf,
@@ -1276,7 +1276,7 @@ fn concurrent_dependent_candidates() {
 					let payload = statement.payload();
 					assert_matches!(
 						payload.clone(),
-						Statement::Valid(hash)
+						StatementWithPVD::Valid(hash)
 							if hash == candidate_a_hash || hash == candidate_b_hash =>
 						{
 							assert!(valid_statements.insert(hash));

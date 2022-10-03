@@ -1414,14 +1414,16 @@ fn network_protocol_versioning_subsystem_msg() {
 			}
 		);
 
-		let metadata = protocol_vstaging::StatementMetadata {
+		let metadata = protocol_v1::StatementMetadata {
 			relay_parent: Hash::zero(),
 			candidate_hash: CandidateHash::default(),
 			signed_by: ValidatorIndex(0),
 			signature: sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64]),
 		};
 		let statement_distribution_message =
-			protocol_vstaging::StatementDistributionMessage::LargeStatement(metadata);
+			protocol_vstaging::StatementDistributionMessage::V1Compatibility(
+				protocol_v1::StatementDistributionMessage::LargeStatement(metadata),
+			);
 		let msg = protocol_vstaging::ValidationProtocol::StatementDistribution(
 			statement_distribution_message.clone(),
 		);

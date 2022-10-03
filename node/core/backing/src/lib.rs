@@ -754,6 +754,12 @@ async fn handle_communication<Context>(
 		CandidateBackingMessage::GetBackedCandidates(relay_parent, requested_candidates, tx) =>
 			if let Some(rp_state) = state.per_relay_parent.get(&relay_parent) {
 				handle_get_backed_candidates_message(rp_state, requested_candidates, tx, metrics)?;
+			} else {
+				gum::debug!(
+					target: LOG_TARGET,
+					?relay_parent,
+					"Received `GetBackedCandidates` for an unknown relay parent."
+				);
 			},
 	}
 
@@ -777,13 +783,13 @@ async fn prospective_parachains_mode<Context>(
 		.map_err(Error::RuntimeApiUnavailable)?
 		.map_err(Error::FetchRuntimeApiVersion)?;
 
-	if version == 3 {
+	if version >= RuntimeApiRequest::VALIDITY_CONSTRAINTS {
 		Ok(ProspectiveParachainsMode::Enabled)
 	} else {
-		if version != 2 {
+		if version < 2 {
 			gum::warn!(
 				target: LOG_TARGET,
-				"Runtime API version is {}, expected 2 or 3. Prospective parachains are disabled",
+				"Runtime API version is {}, it is expected to be at least 2. Prospective parachains are disabled",
 				version
 			);
 		}
@@ -1606,10 +1612,7 @@ async fn sign_import_and_distribute_statement<Context>(
 	if let Some(signed_statement) = sign_statement(&*rp_state, statement, keystore, metrics).await {
 		import_statement(ctx, rp_state, per_candidate, &signed_statement).await?;
 
-		let smsg = StatementDistributionMessage::Share(
-			rp_state.parent,
-			StatementWithPVD::drop_pvd_from_signed(signed_statement.clone()),
-		);
+		let smsg = StatementDistributionMessage::Share(rp_state.parent, signed_statement.clone());
 		ctx.send_unbounded_message(smsg);
 
 		Ok(Some(signed_statement))
