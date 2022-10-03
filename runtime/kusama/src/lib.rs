@@ -597,7 +597,7 @@ impl pallet_staking::Config for Runtime {
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
-	// A majority of the council or root can cancel the slash.
+	// The staking admin or root can cancel the slash.
 	type SlashCancelOrigin = EitherOf<EnsureRoot<Self::AccountId>, StakingAdmin>;
 	type SessionInterface = Self;
 	type EraPayout = EraPayout;
@@ -905,7 +905,7 @@ impl pallet_recovery::Config for Runtime {
 parameter_types! {
 	pub const CandidateDeposit: Balance = 10 * QUID;
 	pub const WrongSideDeduction: Balance = 2 * QUID;
-	pub const MaxStrikes: u32 = 2;
+	pub const MaxStrikes: u32 = 10;
 	pub const RotationPeriod: BlockNumber = 7 * DAYS;
 	pub const PeriodSpend: Balance = 500 * QUID;
 	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
