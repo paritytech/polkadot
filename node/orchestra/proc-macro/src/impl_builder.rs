@@ -172,7 +172,7 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 					pub fn #field_name_with<'a, F>(self, subsystem_init_fn: F ) ->
 						#builder <InitStateSpawner, #( #post_setter_state_generics, )* #( #baggage_passthrough_state_generics, )*>
 					where
-						F: 'static + FnOnce(#handle) ->
+						F: 'static + Send + FnOnce(#handle) ->
 							::std::result::Result<#field_type, #error_ty>,
 					{
 						let boxed_func = Init::<#field_type>::Fn(
@@ -206,7 +206,7 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 						-> #builder <InitStateSpawner, #( #post_replace_state_generics, )* #( #baggage_passthrough_state_generics, )*>
 					where
 						#field_type: 'static,
-						F: 'static + FnOnce(#field_type) -> NEW,
+						F: 'static + Send + FnOnce(#field_type) -> NEW,
 						NEW: #support_crate ::Subsystem<#subsystem_ctx_name< #subsystem_consumes >, #error_ty>,
 					{
 						let replacement: Init<NEW> = match self.#field_name {
@@ -333,7 +333,7 @@ pub(crate) fn impl_builder(info: &OrchestraInfo) -> proc_macro2::TokenStream {
 
 	let mut ts = quote! {
 		/// Convenience alias.
-		type SubsystemInitFn<T> = Box<dyn FnOnce(#handle) -> ::std::result::Result<T, #error_ty> >;
+		type SubsystemInitFn<T> = Box<dyn FnOnce(#handle) -> ::std::result::Result<T, #error_ty> + Send + 'static>;
 
 		/// Type for the initialized field of the orchestra builder
 		pub enum Init<T> {

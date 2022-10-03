@@ -292,7 +292,7 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 }
 
 #[cfg(feature = "full-node")]
-fn open_database(db_source: &DatabaseSource) -> Result<Arc<dyn Database>, Error> {
+pub fn open_database(db_source: &DatabaseSource) -> Result<Arc<dyn Database>, Error> {
 	let parachains_db = match db_source {
 		DatabaseSource::RocksDb { path, .. } => parachains_db::open_creating_rocksdb(
 			path.clone(),
@@ -541,7 +541,7 @@ where
 					slot_duration,
 				);
 
-			Ok((timestamp, slot))
+			Ok((slot, timestamp))
 		},
 		&task_manager.spawn_essential_handle(),
 		config.prometheus_registry(),
@@ -718,6 +718,11 @@ where
 	Ok(leaves.into_iter().rev().take(MAX_ACTIVE_LEAVES).collect())
 }
 
+pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
+	col_data: parachains_db::REAL_COLUMNS.col_availability_data,
+	col_meta: parachains_db::REAL_COLUMNS.col_availability_meta,
+};
+
 /// Create a new full node of arbitrary runtime and executor.
 ///
 /// This is an advanced feature and not recommended for general use. Generally, `build_full` is
@@ -893,7 +898,7 @@ where
 		grandpa_hard_forks,
 	));
 
-	let (network, system_rpc_tx, network_starter) =
+	let (network, system_rpc_tx, tx_handler_controller, network_starter) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -925,11 +930,6 @@ where
 	}
 
 	let parachains_db = open_database(&config.database)?;
-
-	let availability_config = AvailabilityConfig {
-		col_data: parachains_db::REAL_COLUMNS.col_availability_data,
-		col_meta: parachains_db::REAL_COLUMNS.col_availability_meta,
-	};
 
 	let approval_voting_config = ApprovalVotingConfig {
 		col_data: parachains_db::REAL_COLUMNS.col_approval_data,
@@ -968,6 +968,7 @@ where
 		transaction_pool: transaction_pool.clone(),
 		task_manager: &mut task_manager,
 		system_rpc_tx,
+		tx_handler_controller,
 		telemetry: telemetry.as_mut(),
 	})?;
 
@@ -1063,7 +1064,7 @@ where
 					spawner,
 					is_collator,
 					approval_voting_config,
-					availability_config,
+					availability_config: AVAILABILITY_CONFIG,
 					candidate_validation_config,
 					chain_selection_config,
 					dispute_coordinator_config,
@@ -1152,7 +1153,7 @@ where
 							slot_duration,
 						);
 
-					Ok((timestamp, slot, parachain))
+					Ok((slot, timestamp, parachain))
 				}
 			},
 			force_authoring,

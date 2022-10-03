@@ -26,8 +26,8 @@ use futures::{
 use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
-	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
-	DISPUTE_WINDOW,
+	CandidateVotes, DisputeMessage, DisputeMessageCheckError, DisputeStatus,
+	SignedDisputeStatement, Timestamp, DISPUTE_WINDOW,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -49,7 +49,7 @@ use crate::{
 	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	import::{CandidateEnvironment, CandidateVoteState},
 	metrics::Metrics,
-	status::{get_active_with_status, Clock, DisputeStatus, Timestamp},
+	status::{get_active_with_status, Clock},
 	DisputeCoordinatorSubsystem, LOG_TARGET,
 };
 
@@ -599,7 +599,9 @@ impl Initialized {
 				};
 				gum::trace!(target: LOG_TARGET, "Loaded recent disputes from db");
 
-				let _ = tx.send(recent_disputes.keys().cloned().collect());
+				let _ = tx.send(
+					recent_disputes.into_iter().map(|(k, v)| (k.0, k.1, v)).collect::<Vec<_>>(),
+				);
 			},
 			DisputeCoordinatorMessage::ActiveDisputes(tx) => {
 				// Return error if session information is missing.
