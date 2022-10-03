@@ -14,9 +14,9 @@ frame-support = { default-features = false, branch = "master", git = "https://gi
 frame-system = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-runtime = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-std = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
-xcm-executor = { path = "../xcm-executor", default-features = false, features = ["runtime-benchmarks"] }
+xcm-executor = { path = "../xcm-executor", default-features = false }
 frame-benchmarking = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
-xcm = { path = "..", default-features = false, features = ["runtime-benchmarks"] }
+xcm = { path = "..", default-features = false }
 log = "0.4.17"
 
 [dev-dependencies]
@@ -44,6 +44,8 @@ std = [
 	"sp-std/std"
 ]
 runtime-benchmarks = [
+	"xcm/runtime-benchmarks",
+	"xcm-executor/runtime-benchmarks",
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",

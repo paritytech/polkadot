@@ -51,8 +51,8 @@ use frame_election_provider_support::{
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		ConstU32, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		PrivilegeCmp,
+		ConstU32, Contains, EitherOf, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem,
+		LockIdentifier, PrivilegeCmp,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -103,7 +103,10 @@ pub mod xcm_config;
 
 // Governance configurations.
 pub mod governance;
-use governance::old::CouncilCollective;
+use governance::{
+	old::CouncilCollective, pallet_custom_origins, AuctionAdmin, GeneralAdmin, LeaseAdmin,
+	StakingAdmin, TreasurySpender,
+};
 
 #[cfg(test)]
 mod tests;
@@ -143,10 +146,13 @@ pub fn native_version() -> NativeVersion {
 	NativeVersion { runtime_version: VERSION, can_author_with: Default::default() }
 }
 
-type MoreThanHalfCouncil = EitherOfDiverse<
-	EnsureRoot<AccountId>,
-	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
->;
+/// We currently allow all calls.
+pub struct BaseFilter;
+impl Contains<RuntimeCall> for BaseFilter {
+	fn contains(_c: &RuntimeCall) -> bool {
+		true
+	}
+}
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
@@ -181,16 +187,10 @@ impl frame_system::Config for Runtime {
 }
 
 parameter_types! {
-	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
-		BlockWeights::get().max_block;
+	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) * BlockWeights::get().max_block;
 	pub const MaxScheduledPerBlock: u32 = 50;
 	pub const NoPreimagePostponement: Option<u32> = Some(10);
 }
-
-type ScheduleOrigin = EitherOfDiverse<
-	EnsureRoot<AccountId>,
-	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
->;
 
 /// Used the compare the privilege of an origin inside the scheduler.
 pub struct OriginPrivilegeCmp;
@@ -221,7 +221,7 @@ impl pallet_scheduler::Config for Runtime {
 	type PalletsOrigin = OriginCaller;
 	type RuntimeCall = RuntimeCall;
 	type MaximumWeight = MaximumSchedulerWeight;
-	type ScheduleOrigin = ScheduleOrigin;
+	type ScheduleOrigin = EnsureRoot<AccountId>;
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
 	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
 	type OriginPrivilegeCmp = OriginPrivilegeCmp;
@@ -239,7 +239,7 @@ impl pallet_preimage::Config for Runtime {
 	type WeightInfo = weights::pallet_preimage::WeightInfo<Runtime>;
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type ManagerOrigin = EnsureRoot<AccountId>;
+	type ManagerOrigin = EnsureRoot<AccountId>; // This might be too strong a requirenent?
 	type MaxSize = PreimageMaxSize;
 	type BaseDeposit = PreimageBaseDeposit;
 	type ByteDeposit = PreimageByteDeposit;
@@ -488,10 +488,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 		(),
 	>;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
-	type ForceOrigin = EitherOfDiverse<
-		EnsureRoot<AccountId>,
-		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
-	>;
+	type ForceOrigin = StakingAdmin;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
 	type MaxElectingVoters = MaxElectingVoters;
 	type MaxElectableTargets = MaxElectableTargets;
@@ -585,11 +582,6 @@ parameter_types! {
 	pub const MaxNominations: u32 = <NposCompactSolution24 as NposSolution>::LIMIT as u32;
 }
 
-type SlashCancelOrigin = EitherOfDiverse<
-	EnsureRoot<AccountId>,
-	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
->;
-
 impl pallet_staking::Config for Runtime {
 	type MaxNominations = MaxNominations;
 	type Currency = Balances;
@@ -605,8 +597,8 @@ impl pallet_staking::Config for Runtime {
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
-	// A majority of the council or root can cancel the slash.
-	type SlashCancelOrigin = SlashCancelOrigin;
+	// The staking admin or root can cancel the slash.
+	type SlashCancelOrigin = EitherOf<EnsureRoot<Self::AccountId>, StakingAdmin>;
 	type SessionInterface = Self;
 	type EraPayout = EraPayout;
 	type NextNewSession = Session;
@@ -651,16 +643,11 @@ parameter_types! {
 	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 }
 
-type ApproveOrigin = EitherOfDiverse<
-	EnsureRoot<AccountId>,
-	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 5>,
->;
-
 impl pallet_treasury::Config for Runtime {
 	type PalletId = TreasuryPalletId;
 	type Currency = Balances;
-	type ApproveOrigin = ApproveOrigin;
-	type RejectOrigin = MoreThanHalfCouncil;
+	type ApproveOrigin = EnsureRoot<AccountId>;
+	type RejectOrigin = EnsureRoot<AccountId>;
 	type RuntimeEvent = RuntimeEvent;
 	type OnSlash = Treasury;
 	type ProposalBond = ProposalBond;
@@ -672,7 +659,7 @@ impl pallet_treasury::Config for Runtime {
 	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
 	type SpendFunds = Bounties;
-	type SpendOrigin = frame_support::traits::NeverEnsureOrigin<Balance>;
+	type SpendOrigin = TreasurySpender;
 }
 
 parameter_types! {
@@ -843,8 +830,7 @@ impl claims::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
-	type MoveClaimOrigin =
-		pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>;
+	type MoveClaimOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::runtime_common_claims::WeightInfo<Runtime>;
 }
 
@@ -868,8 +854,8 @@ impl pallet_identity::Config for Runtime {
 	type MaxAdditionalFields = MaxAdditionalFields;
 	type MaxRegistrars = MaxRegistrars;
 	type Slashed = Treasury;
-	type ForceOrigin = MoreThanHalfCouncil;
-	type RegistrarOrigin = MoreThanHalfCouncil;
+	type ForceOrigin = GeneralAdmin;
+	type RegistrarOrigin = GeneralAdmin;
 	type WeightInfo = weights::pallet_identity::WeightInfo<Runtime>;
 }
 
@@ -917,11 +903,11 @@ impl pallet_recovery::Config for Runtime {
 }
 
 parameter_types! {
-	pub const CandidateDeposit: Balance = 1000 * CENTS;
-	pub const WrongSideDeduction: Balance = 200 * CENTS;
+	pub const CandidateDeposit: Balance = 10 * QUID;
+	pub const WrongSideDeduction: Balance = 2 * QUID;
 	pub const MaxStrikes: u32 = 10;
 	pub const RotationPeriod: BlockNumber = 7 * DAYS;
-	pub const PeriodSpend: Balance = 50000 * CENTS;
+	pub const PeriodSpend: Balance = 500 * QUID;
 	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
 	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
 	pub const MaxCandidateIntake: u32 = 1;
@@ -939,8 +925,7 @@ impl pallet_society::Config for Runtime {
 	type MembershipChanged = ();
 	type RotationPeriod = RotationPeriod;
 	type MaxLockDuration = MaxLockDuration;
-	type FounderSetOrigin =
-		pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>;
+	type FounderSetOrigin = EnsureRoot<AccountId>;
 	type SuspensionJudgementOrigin = pallet_society::EnsureFounder<Runtime>;
 	type ChallengePeriod = ChallengePeriod;
 	type MaxCandidateIntake = MaxCandidateIntake;
@@ -1217,13 +1202,13 @@ impl slots::Config for Runtime {
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type LeaseOffset = ();
-	type ForceOrigin = MoreThanHalfCouncil;
+	type ForceOrigin = LeaseAdmin;
 	type WeightInfo = weights::runtime_common_slots::WeightInfo<Runtime>;
 }
 
 parameter_types! {
 	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
-	pub const SubmissionDeposit: Balance = 3 * GRAND; // ~ 10 KSM
+	pub const OldSubmissionDeposit: Balance = 3 * GRAND; // ~ 10 KSM
 	pub const MinContribution: Balance = 3_000 * CENTS; // ~ .1 KSM
 	pub const RemoveKeysLimit: u32 = 1000;
 	// Allow 32 bytes for an additional memo to a crowdloan.
@@ -1233,7 +1218,7 @@ parameter_types! {
 impl crowdloan::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type PalletId = CrowdloanId;
-	type SubmissionDeposit = SubmissionDeposit;
+	type SubmissionDeposit = OldSubmissionDeposit;
 	type MinContribution = MinContribution;
 	type RemoveKeysLimit = RemoveKeysLimit;
 	type Registrar = Registrar;
@@ -1250,11 +1235,6 @@ parameter_types! {
 	pub const SampleLength: BlockNumber = 2 * MINUTES;
 }
 
-type AuctionInitiate = EitherOfDiverse<
-	EnsureRoot<AccountId>,
-	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
->;
-
 impl auctions::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Leaser = Slots;
@@ -1262,7 +1242,7 @@ impl auctions::Config for Runtime {
 	type EndingPeriod = EndingPeriod;
 	type SampleLength = SampleLength;
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
-	type InitiateOrigin = AuctionInitiate;
+	type InitiateOrigin = AuctionAdmin;
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
@@ -1281,7 +1261,7 @@ impl pallet_gilt::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;
-	type AdminOrigin = MoreThanHalfCouncil;
+	type AdminOrigin = EnsureRoot<AccountId>;
 	type Deficit = (); // Mint
 	type Surplus = (); // Burn
 	type IgnoredIssuance = IgnoredIssuance;
@@ -1346,13 +1326,26 @@ construct_runtime! {
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
 		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config} = 12,
 
-		// Governance stuff; uncallable initially.
+		// Governance stuff.
 		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 13,
 		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 14,
 		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
 		PhragmenElection: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 16,
 		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
 		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 18,
+
+		ConvictionVoting: pallet_conviction_voting::{Pallet, Call, Storage, Event<T>} = 20,
+		Referenda: pallet_referenda::{Pallet, Call, Storage, Event<T>} = 21,
+//		pub type FellowshipCollectiveInstance = pallet_ranked_collective::Instance1;
+		FellowshipCollective: pallet_ranked_collective::<Instance1>::{
+			Pallet, Call, Storage, Event<T>
+		} = 22,
+//		pub type FellowshipReferendaInstance = pallet_referenda::Instance2;
+		FellowshipReferenda: pallet_referenda::<Instance2>::{
+			Pallet, Call, Storage, Event<T>
+		} = 23,
+		Origins: pallet_custom_origins::{Origin} = 43,
+		Whitelist: pallet_whitelist::{Pallet, Call, Storage, Event<T>} = 44,
 
 		// Claims. Usable initially.
 		Claims: claims::{Pallet, Call, Storage, Event<T>, Config<T>, ValidateUnsigned} = 19,
@@ -1513,6 +1506,7 @@ mod benches {
 		[pallet_child_bounties, ChildBounties]
 		[pallet_collective, Council]
 		[pallet_collective, TechnicalCommittee]
+		[pallet_conviction_voting, ConvictionVoting]
 		[pallet_democracy, Democracy]
 		[pallet_elections_phragmen, PhragmenElection]
 		[pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
@@ -1528,7 +1522,10 @@ mod benches {
 		[pallet_offences, OffencesBench::<Runtime>]
 		[pallet_preimage, Preimage]
 		[pallet_proxy, Proxy]
+		[pallet_ranked_collective, FellowshipCollective]
 		[pallet_recovery, Recovery]
+		[pallet_referenda, Referenda]
+		[pallet_referenda, FellowshipReferenda]
 		[pallet_scheduler, Scheduler]
 		[pallet_session, SessionBench::<Runtime>]
 		[pallet_staking, Staking]
@@ -1538,6 +1535,7 @@ mod benches {
 		[pallet_treasury, Treasury]
 		[pallet_utility, Utility]
 		[pallet_vesting, Vesting]
+		[pallet_whitelist, Whitelist]
 		// XCM
 		[pallet_xcm_benchmarks::fungible, pallet_xcm_benchmarks::fungible::Pallet::<Runtime>]
 		[pallet_xcm_benchmarks::generic, pallet_xcm_benchmarks::generic::Pallet::<Runtime>]
