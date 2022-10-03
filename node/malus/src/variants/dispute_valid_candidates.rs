@@ -40,6 +40,8 @@ use crate::{interceptor::*, variants::ReplaceValidationResult};
 
 use std::sync::Arc;
 
+use rand::distributions::{Bernoulli, Distribution};
+
 #[derive(Clone, Debug, clap::Parser)]
 #[clap(rename_all = "kebab-case")]
 #[allow(missing_docs)]
@@ -90,6 +92,7 @@ impl OverseerGen for DisputeValidCandidates {
 		let validation_filter = ReplaceValidationResult::new(
 			self.opts.fake_validation,
 			self.opts.fake_validation_error,
+			f64::from(self.opts.percentage),
 			SpawnGlue(spawner.clone()),
 		);
 
