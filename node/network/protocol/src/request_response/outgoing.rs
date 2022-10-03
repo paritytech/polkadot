@@ -23,7 +23,7 @@ use sc_network::PeerId;
 
 use polkadot_primitives::v2::AuthorityDiscoveryId;
 
-use super::{v1, IsRequest, Protocol};
+use super::{v1, vstaging, IsRequest, Protocol};
 
 /// All requests that can be sent to the network bridge via `NetworkBridgeTxMessage::SendRequest`.
 #[derive(Debug)]
@@ -40,6 +40,8 @@ pub enum Requests {
 	StatementFetchingV1(OutgoingRequest<v1::StatementFetchingRequest>),
 	/// Requests for notifying about an ongoing dispute.
 	DisputeSendingV1(OutgoingRequest<v1::DisputeRequest>),
+	/// Request a candidate and attestations.
+	AttestedCandidateV2(OutgoingRequest<vstaging::AttestedCandidateRequest>),
 }
 
 impl Requests {
@@ -52,6 +54,7 @@ impl Requests {
 			Self::AvailableDataFetchingV1(_) => Protocol::AvailableDataFetchingV1,
 			Self::StatementFetchingV1(_) => Protocol::StatementFetchingV1,
 			Self::DisputeSendingV1(_) => Protocol::DisputeSendingV1,
+			Self::AttestedCandidateV2(_) => Protocol::AttestedCandidateV2,
 		}
 	}
 
@@ -70,6 +73,7 @@ impl Requests {
 			Self::AvailableDataFetchingV1(r) => r.encode_request(),
 			Self::StatementFetchingV1(r) => r.encode_request(),
 			Self::DisputeSendingV1(r) => r.encode_request(),
+			Self::AttestedCandidateV2(r) => r.encode_request(),
 		}
 	}
 }

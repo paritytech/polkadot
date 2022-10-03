@@ -151,6 +151,16 @@ impl RequestManager {
 		}
 	}
 
+	/// Yields the next request to dispatch, if there is any.
+	///
+	/// Provide a closure which informs us whether peers are still connected.
+	pub fn next_request(
+		&mut self,
+		peer_connected: impl Fn(&PeerId) -> bool,
+	) -> Option<Requests> {
+
+	}
+
 	// TODO [now]: `dispatch_next -> Option<Requests>`
 
 	// TODO [now]: `await_incoming -> IncomingPendingValidation`
