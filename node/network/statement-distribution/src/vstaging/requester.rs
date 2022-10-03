@@ -15,10 +15,13 @@
 //!
 // TODO [now]: some module docs.
 
+use crate::LOG_TARGET;
+
 use polkadot_node_network_protocol::{
 	request_response::{
+		outgoing::{Recipient as RequestRecipient, RequestError},
 		vstaging::{AttestedCandidateRequest, AttestedCandidateResponse},
-		OutgoingRequest, MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS,
+		OutgoingRequest, OutgoingResult, MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS,
 	},
 	PeerId,
 };
@@ -31,7 +34,7 @@ use std::{
 	cmp::Reverse,
 	collections::{
 		hash_map::{Entry as HEntry, HashMap, VacantEntry},
-		BTreeSet, HashSet,
+		BTreeSet, HashSet, VecDeque,
 	},
 };
 
@@ -63,7 +66,7 @@ struct TaggedResponse {
 pub struct RequestedCandidate {
 	priority: Priority,
 	expected_para: ParaId,
-	known_by: Vec<PeerId>,
+	known_by: VecDeque<PeerId>,
 	in_flight: bool,
 }
 
@@ -111,7 +114,7 @@ impl<'a> Drop for Entry<'a> {
 
 /// A manager for outgoing requests.
 pub struct RequestManager {
-	pending_responses: FuturesUnordered<Box<dyn Future<Output = TaggedResponse>>>,
+	pending_responses: FuturesUnordered<Box<dyn Future<Output = OutgoingResult<TaggedResponse>>>>,
 	requests: HashMap<CandidateIdentifier, RequestedCandidate>,
 	// sorted by priority.
 	by_priority: Vec<(Priority, CandidateIdentifier)>,
@@ -130,7 +133,8 @@ impl RequestManager {
 		}
 	}
 
-	/// Gets or inserts the `Entry` required
+	/// Gets an [`Entry`] for mutating a request and inserts it if the
+	/// manager doesn't store this request already.
 	pub fn get_or_insert(
 		&mut self,
 		relay_parent: Hash,
@@ -146,7 +150,7 @@ impl RequestManager {
 				e.insert(RequestedCandidate {
 					priority: Priority { attempts: 0, origin: Origin::Unspecified },
 					expected_para: group_assignment,
-					known_by: Vec::new(),
+					known_by: VecDeque::new(),
 					in_flight: false,
 				}),
 				true,
@@ -193,6 +197,8 @@ impl RequestManager {
 		}
 	}
 
+	// TODO [now]: removal based on relay-parent.
+
 	/// Yields the next request to dispatch, if there is any.
 	///
 	/// This function accepts two closures as an argument.
@@ -204,7 +210,62 @@ impl RequestManager {
 		peer_connected: impl Fn(&PeerId) -> bool,
 		seconded_mask: impl Fn(&CandidateIdentifier) -> BitVec<u8, Lsb0>,
 	) -> Option<OutgoingRequest<AttestedCandidateRequest>> {
-		// TODO [now]
+		if self.pending_responses.len() >= MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS as usize {
+			return None
+		}
+
+		// loop over all requests, in order of priority.
+		// do some active maintenance of the connected peers.
+		// dispatch the first request which is not in-flight already.
+		for (_priority, id) in &self.by_priority {
+			let entry = match self.requests.get_mut(&id) {
+				None => {
+					gum::error!(
+						target: LOG_TARGET,
+						identifier = ?id,
+						"Missing entry for priority queue member",
+					);
+
+					continue
+				},
+				Some(e) => e,
+			};
+
+			if entry.in_flight {
+				continue
+			}
+
+			entry.known_by.retain(&peer_connected);
+
+			let recipient = match entry.known_by.pop_front() {
+				None => continue, // no peers.
+				Some(r) => r,
+			};
+
+			entry.known_by.push_back(recipient.clone());
+
+			let (request, response_fut) = OutgoingRequest::new(
+				RequestRecipient::Peer(recipient.clone()),
+				AttestedCandidateRequest {
+					candidate_hash: id.candidate_hash,
+					seconded_mask: seconded_mask(&id),
+				},
+			);
+
+			let stored_id = id.clone();
+			self.pending_responses.push(Box::new(async move {
+				response_fut.await.map(|response| TaggedResponse {
+					identifier: stored_id,
+					requested_peer: recipient,
+					response,
+				})
+			}));
+
+			entry.in_flight = true;
+
+			return Some(request)
+		}
+
 		None
 	}
 
