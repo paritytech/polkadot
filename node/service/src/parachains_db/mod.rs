@@ -30,15 +30,20 @@ pub(crate) mod columns {
 	}
 
 	pub mod v1 {
-		pub const NUM_COLUMNS: u32 = 5;
+		pub const NUM_COLUMNS: u32 = 6;
 
 		pub const COL_AVAILABILITY_DATA: u32 = 0;
 		pub const COL_AVAILABILITY_META: u32 = 1;
 		pub const COL_APPROVAL_DATA: u32 = 2;
 		pub const COL_CHAIN_SELECTION_DATA: u32 = 3;
 		pub const COL_DISPUTE_COORDINATOR_DATA: u32 = 4;
-		pub const ORDERED_COL: &[u32] =
-			&[COL_AVAILABILITY_META, COL_CHAIN_SELECTION_DATA, COL_DISPUTE_COORDINATOR_DATA];
+		pub const ORDERED_COL: &[u32] = &[
+			COL_AVAILABILITY_META,
+			COL_CHAIN_SELECTION_DATA,
+			COL_DISPUTE_COORDINATOR_DATA,
+			COL_SESSION_WINDOW_DATA,
+		];
+		pub const COL_SESSION_WINDOW_DATA: u32 = 5;
 	}
 }
 
@@ -56,6 +61,8 @@ pub struct ColumnsConfig {
 	pub col_chain_selection_data: u32,
 	/// The column used by dispute coordinator for data.
 	pub col_dispute_coordinator_data: u32,
+	/// The column used for session window data.
+	pub col_session_window_data: u32,
 }
 
 /// The real columns used by the parachains DB.
@@ -66,6 +73,7 @@ pub const REAL_COLUMNS: ColumnsConfig = ColumnsConfig {
 	col_approval_data: columns::v1::COL_APPROVAL_DATA,
 	col_chain_selection_data: columns::v1::COL_CHAIN_SELECTION_DATA,
 	col_dispute_coordinator_data: columns::v1::COL_DISPUTE_COORDINATOR_DATA,
+	col_session_window_data: columns::v1::COL_SESSION_WINDOW_DATA,
 };
 
 #[derive(PartialEq)]
@@ -83,11 +91,18 @@ pub struct CacheSizes {
 	pub availability_meta: usize,
 	/// Cache used by approval data.
 	pub approval_data: usize,
+	/// Cache used by session window data
+	pub session_data: usize,
 }
 
 impl Default for CacheSizes {
 	fn default() -> Self {
-		CacheSizes { availability_data: 25, availability_meta: 1, approval_data: 5 }
+		CacheSizes {
+			availability_data: 25,
+			availability_meta: 1,
+			approval_data: 5,
+			session_data: 1,
+		}
 	}
 }
 
@@ -117,6 +132,9 @@ pub fn open_creating_rocksdb(
 	let _ = db_config
 		.memory_budget
 		.insert(columns::v1::COL_APPROVAL_DATA, cache_sizes.approval_data);
+	let _ = db_config
+		.memory_budget
+		.insert(columns::v1::COL_SESSION_WINDOW_DATA, cache_sizes.session_data);
 
 	let path_str = path
 		.to_str()
