@@ -14,6 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Primitives for tracking collations-related data.
+//!
+//! Usually a path of collations is as follows:
+//!    1. First, collation must be advertised by collator.
+//!    2. If the advertisement was accepted, it's queued for fetch (per relay parent).
+//!    3. Once it's requested, the collation is said to be Pending.
+//!    4. Pending collation becomes Fetched once received, we send it to backing for validation.
+//!    5. If it turns to be invalid or async backing allows seconding another candidate, carry on with
+//!       the next advertisement, otherwise we're done with this relay parent.
+//!
+//!    ┌──────────────────────────────────────────┐
+//!    └─▶Advertised ─▶ Pending ─▶ Fetched ─▶ Validated
+
 use futures::channel::oneshot;
 use std::collections::VecDeque;
 
@@ -57,6 +70,7 @@ impl From<&CandidateReceipt<Hash>> for FetchedCollation {
 	}
 }
 
+/// Identifier of a collation being requested.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct PendingCollation {
 	pub relay_parent: Hash,

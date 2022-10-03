@@ -24,8 +24,6 @@ use polkadot_primitives::v2::{
 	ValidatorId,
 };
 
-const API_VERSION_PROSPECTIVE_ENABLED: u32 = 3;
-
 const ALLOWED_ANCESTRY: u32 = 3;
 
 fn get_parent_hash(hash: Hash) -> Hash {
@@ -100,7 +98,7 @@ async fn update_view(
 				parent,
 				RuntimeApiRequest::Version(tx),
 			)) => {
-				tx.send(Ok(API_VERSION_PROSPECTIVE_ENABLED)).unwrap();
+				tx.send(Ok(RuntimeApiRequest::VALIDITY_CONSTRAINTS)).unwrap();
 				(parent, new_view.get(&parent).copied().expect("Unknown parent requested"))
 			}
 		);

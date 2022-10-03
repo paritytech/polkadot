@@ -135,6 +135,11 @@ impl VersionedCollationRequest {
 	}
 }
 
+/// Result of the finished background send-collation task.
+///
+/// Note that if the timeout was hit the request doesn't get
+/// aborted, it only indicates that we should start processing
+/// the next one from the queue.
 pub struct CollationSendResult {
 	pub relay_parent: Hash,
 	pub candidate_hash: CandidateHash,

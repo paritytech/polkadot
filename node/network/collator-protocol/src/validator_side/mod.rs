@@ -120,6 +120,9 @@ const CHECK_COLLATIONS_POLL: Duration = Duration::from_millis(5);
 
 struct PerRequest {
 	/// Responses from collator.
+	///
+	/// The response payload is the same for both versions of protocol
+	/// and doesn't have vstaging alias for simplicity.
 	from_collator:
 		Fuse<BoxFuture<'static, req_res::OutgoingResult<request_v1::CollationFetchingResponse>>>,
 	/// Sender to forward to initial requester.
@@ -134,11 +137,11 @@ struct PerRequest {
 struct CollatingPeerState {
 	collator_id: CollatorId,
 	para_id: ParaId,
-	// Collations advertised by peer per relay parent.
-	//
-	// V1 network protocol doesn't include candidate hash in
-	// advertisements, we store an empty set in this case to occupy
-	// a slot in map.
+	/// Collations advertised by peer per relay parent.
+	///
+	/// V1 network protocol doesn't include candidate hash in
+	/// advertisements, we store an empty set in this case to occupy
+	/// a slot in map.
 	advertisements: HashMap<Hash, HashSet<CandidateHash>>,
 	last_active: Instant,
 }
@@ -186,20 +189,20 @@ impl PeerData {
 		let old_view = std::mem::replace(&mut self.view, new_view);
 		if let PeerState::Collating(ref mut peer_state) = self.state {
 			for removed in old_view.difference(&self.view) {
-				// Only keep advertisements if prospective parachains
-				// are enabled and the relay parent is a part of allowed
-				// ancestry.
-				let relay_parent_mode_enabled = per_relay_parent
+				// Remove relay parent advertisements if it went out
+				// of our (implicit) view.
+				let keep = per_relay_parent
 					.get(removed)
-					.map_or(false, |s| s.prospective_parachains_mode.is_enabled());
-				let keep = relay_parent_mode_enabled &&
-					is_relay_parent_in_implicit_view(
-						removed,
-						ProspectiveParachainsMode::Enabled,
-						implicit_view,
-						active_leaves,
-						peer_state.para_id,
-					);
+					.map(|s| {
+						is_relay_parent_in_implicit_view(
+							removed,
+							s.prospective_parachains_mode,
+							implicit_view,
+							active_leaves,
+							peer_state.para_id,
+						)
+					})
+					.unwrap_or(false);
 
 				if !keep {
 					peer_state.advertisements.remove(&removed);
@@ -455,10 +458,7 @@ fn is_relay_parent_in_implicit_view(
 	para_id: ParaId,
 ) -> bool {
 	match relay_parent_mode {
-		ProspectiveParachainsMode::Disabled => {
-			// The head is known and async backing is disabled => it is an active leaf.
-			true
-		},
+		ProspectiveParachainsMode::Disabled => active_leaves.contains_key(relay_parent),
 		ProspectiveParachainsMode::Enabled => active_leaves.iter().any(|(hash, mode)| {
 			mode.is_enabled() &&
 				implicit_view
@@ -724,7 +724,7 @@ async fn request_collation(
 				peer_id = %peer_id,
 				para_id = %para_id,
 				relay_parent = %relay_parent,
-				"Collation relay parent is out of view",
+				"Collation relay parent is unknown",
 			);
 			return false
 		},
@@ -954,21 +954,22 @@ where
 #[derive(Debug)]
 enum AdvertisementError {
 	/// Relay parent is unknown.
-	RelayParentOutOfView,
+	RelayParentUnknown,
 	/// Peer is not present in the subsystem state.
 	UnknownPeer,
 	/// Peer has not declared its para id.
 	UndeclaredCollator,
 	/// We're assigned to a different para at the given relay parent.
 	InvalidAssignment,
-	/// Collator is trying to build on top of occupied core.
+	/// Collator is trying to build on top of occupied core
+	/// when async backing is disabled.
 	CoreOccupied,
 	/// An advertisement format doesn't match the relay parent.
 	ProtocolMismatch,
 	/// Para reached a limit of seconded candidates for this relay parent.
 	SecondedLimitReached,
-	/// Failed to insert an advertisement.
-	FailedToInsert(InsertAdvertisementError),
+	/// Advertisement is invalid.
+	Invalid(InsertAdvertisementError),
 	/// Failed to query prospective parachains subsystem.
 	ProspectiveParachainsUnavailable,
 }
@@ -978,7 +979,7 @@ impl AdvertisementError {
 		use AdvertisementError::*;
 		match self {
 			InvalidAssignment => Some(COST_WRONG_PARA),
-			RelayParentOutOfView | UndeclaredCollator | CoreOccupied | FailedToInsert(_) =>
+			RelayParentUnknown | UndeclaredCollator | CoreOccupied | Invalid(_) =>
 				Some(COST_UNEXPECTED_MESSAGE),
 			UnknownPeer |
 			ProtocolMismatch |
@@ -1006,7 +1007,7 @@ where
 	let per_relay_parent = state
 		.per_relay_parent
 		.get_mut(&relay_parent)
-		.ok_or(AdvertisementError::RelayParentOutOfView)?;
+		.ok_or(AdvertisementError::RelayParentUnknown)?;
 
 	let relay_parent_mode = per_relay_parent.prospective_parachains_mode;
 	let assignment = per_relay_parent.assignment;
@@ -1104,6 +1105,7 @@ where
 						peer_id = ?peer_id,
 						%para_id,
 						?relay_parent,
+						?relay_parent_mode,
 						"A collation has already been seconded",
 					);
 				},
@@ -1113,7 +1115,7 @@ where
 			// Checked above.
 			return Err(AdvertisementError::ProtocolMismatch)
 		},
-		Err(error) => return Err(AdvertisementError::FailedToInsert(error)),
+		Err(error) => return Err(AdvertisementError::Invalid(error)),
 	}
 
 	Ok(())
@@ -1330,7 +1332,12 @@ async fn process_msg<Context>(
 			let receipt = match stmt.payload() {
 				Statement::Seconded(receipt) => receipt,
 				Statement::Valid(_) => {
-					// Seconded statement expected.
+					gum::warn!(
+						target: LOG_TARGET,
+						?stmt,
+						relay_parent = %parent,
+						"Seconded message received with a `Valid` statement",
+					);
 					return
 				},
 			};

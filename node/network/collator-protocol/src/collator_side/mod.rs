@@ -324,7 +324,8 @@ async fn distribute_collation<Context>(
 		gum::debug!(
 			target: LOG_TARGET,
 			?candidate_relay_parent,
-			"Already seen collation for this relay parent",
+			?candidate_hash,
+			"Already seen this candidate",
 		);
 		return Ok(())
 	}
@@ -394,6 +395,9 @@ async fn distribute_collation<Context>(
 		Collation { receipt, parent_head_data_hash, pov, status: CollationStatus::Created },
 	);
 
+	// If prospective parachains are disabled, a leaf should be known to peer.
+	// Otherwise, it should be present in allowed ancestry of some leaf.
+	//
 	// It's collation-producer responsibility to verify that there exists
 	// a hypothetical membership in a fragment tree for candidate.
 	let interested =
@@ -503,6 +507,8 @@ async fn determine_our_validators<Context>(
 	Ok(current_validators)
 }
 
+/// Construct the declare message to be sent to validator depending on its
+/// network protocol version.
 fn declare_message(
 	state: &mut State,
 	version: CollationVersion,
@@ -534,7 +540,7 @@ fn declare_message(
 	})
 }
 
-/// Issue a `Declare` collation message to the given `peer`.
+/// Issue versioned `Declare` collation message to the given `peer`.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn declare<Context>(
 	ctx: &mut Context,
@@ -568,8 +574,10 @@ async fn connect_to_validators<Context>(
 
 /// Advertise collation to the given `peer`.
 ///
-/// This will only advertise a collation if there exists one for the given `relay_parent` and the given `peer` is
-/// set as validator for our para at the given `relay_parent`.
+/// This will only advertise a collation if there exists at least one for the given
+/// `relay_parent` and the given `peer` is set as validator for our para at the given `relay_parent`.
+///
+/// We also make sure not to advertise the same collation multiple times to the same validator.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn advertise_collation<Context>(
 	ctx: &mut Context,
@@ -581,6 +589,19 @@ async fn advertise_collation<Context>(
 	metrics: &Metrics,
 ) {
 	for (candidate_hash, collation) in per_relay_parent.collations.iter_mut() {
+		// Check that peer will be able to request the collation.
+		if let CollationVersion::V1 = protocol_version {
+			if per_relay_parent.prospective_parachains_mode.is_enabled() {
+				gum::debug!(
+					target: LOG_TARGET,
+					?relay_parent,
+					peer_id = %peer,
+					"Skipping advertisement to validator, incorrect network protocol version",
+				);
+				return
+			}
+		}
+
 		let should_advertise =
 			per_relay_parent
 				.validator_group
@@ -616,15 +637,6 @@ async fn advertise_collation<Context>(
 				))
 			},
 			CollationVersion::V1 => {
-				if per_relay_parent.prospective_parachains_mode.is_enabled() {
-					gum::warn!(
-						target: LOG_TARGET,
-						?relay_parent,
-						peer_id = %peer,
-						"Skipping advertisement to validator, incorrect network protocol version",
-					);
-					return
-				}
 				let wire_message =
 					protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent);
 				Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message))
@@ -737,6 +749,8 @@ async fn send_collation(
 	let peer_id = request.peer_id();
 	let candidate_hash = receipt.hash();
 
+	// The response payload is the same for both versions of protocol
+	// and doesn't have vstaging alias for simplicity.
 	let response = OutgoingResponse {
 		result: Ok(request_v1::CollationFetchingResponse::Collation(receipt, pov)),
 		reputation_changes: Vec::new(),
@@ -949,7 +963,8 @@ async fn handle_incoming_request<Context>(
 	Ok(())
 }
 
-/// Our view has changed.
+/// Peer's view has changed. Send advertisements for new relay parents
+/// if there're any.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
@@ -1207,7 +1222,8 @@ pub(crate) async fn run<Context>(
 				FromOrchestra::Signal(BlockFinalized(..)) => {}
 				FromOrchestra::Signal(Conclude) => return Ok(()),
 			},
-			CollationSendResult { relay_parent, candidate_hash, peer_id, timed_out } = state.active_collation_fetches.select_next_some() => {
+			CollationSendResult { relay_parent, candidate_hash, peer_id, timed_out } =
+				state.active_collation_fetches.select_next_some() => {
 				let next = if let Some(waiting) = state.waiting_collation_fetches.get_mut(&relay_parent) {
 					if timed_out {
 						gum::debug!(
@@ -1217,8 +1233,10 @@ pub(crate) async fn run<Context>(
 							?candidate_hash,
 							"Sending collation to validator timed out, carrying on with next validator."
 						);
-						// Drop all requests from slow peer.
-						waiting.req_queue.retain(|req| req.peer_id() != peer_id);
+						// We try to throttle requests per relay parent to give validators
+						// more bandwidth, but if the collation is not received within the
+						// timeout, we simply start processing next request.
+						// The request it still alive, it should be kept in a waiting queue.
 					} else {
 						waiting.waiting_peers.remove(&(peer_id, candidate_hash));
 					}
