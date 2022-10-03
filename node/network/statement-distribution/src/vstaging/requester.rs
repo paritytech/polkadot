@@ -18,20 +18,21 @@
 use polkadot_node_network_protocol::{
 	request_response::{
 		vstaging::{AttestedCandidateRequest, AttestedCandidateResponse},
-		MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS,
+		OutgoingRequest, MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS,
 	},
 	PeerId,
 };
-use polkadot_primitives::vstaging::{
-	AuthorityDiscoveryId, CandidateHash, GroupIndex, Hash, ParaId,
-};
+use polkadot_primitives::vstaging::{CandidateHash, GroupIndex, Hash, ParaId};
 
 use bitvec::{order::Lsb0, vec::BitVec};
 use futures::{channel::oneshot, prelude::*, stream::FuturesUnordered};
 
-use std::collections::{
-	hash_map::{Entry as HEntry, HashMap, VacantEntry},
-	HashSet,
+use std::{
+	cmp::Reverse,
+	collections::{
+		hash_map::{Entry as HEntry, HashMap, VacantEntry},
+		BTreeSet, HashSet,
+	},
 };
 
 /// An identifier for a candidate.
@@ -41,69 +42,79 @@ use std::collections::{
 /// by validators. It is possible for validators for multiple groups to abuse this lack of
 /// information: until we actually get the preimage of this candidate we cannot confirm
 /// anything other than the candidate hash.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct CandidateIdentifier {
-	relay_parent: Hash,
-	candidate_hash: CandidateHash,
-	group_index: GroupIndex,
+	/// The relay-parent this candidate is ostensibly under.
+	pub relay_parent: Hash,
+	/// The hash of the candidate.
+	pub candidate_hash: CandidateHash,
+	/// The index of the group claiming to be assigned to the candidate's
+	/// para.
+	pub group_index: GroupIndex,
 }
 
 struct TaggedResponse {
 	identifier: CandidateIdentifier,
-	authority_id: AuthorityDiscoveryId,
+	requested_peer: PeerId,
 	response: AttestedCandidateResponse,
 }
 
 /// A pending request.
-pub struct PendingRequest {
+pub struct RequestedCandidate {
+	priority: Priority,
 	expected_para: ParaId,
-	known_by: Vec<AuthorityDiscoveryId>,
+	known_by: Vec<PeerId>,
+	in_flight: bool,
 }
 
-/// A vacant pending request entry.
-pub struct VacantRequestEntry<'a> {
-	vacant_request_entry: VacantEntry<'a, CandidateIdentifier, PendingRequest>,
-	unique_identifiers: &'a mut HashMap<CandidateHash, HashSet<CandidateIdentifier>>,
+impl RequestedCandidate {
+	// TODO [now]: add peer to known set
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum Origin {
+	Cluster = 0,
+	Unspecified = 1,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct Priority {
+	origin: Origin,
+	attempts: usize,
+}
+
+/// An entry for manipulating a requested candidate.
+pub struct Entry<'a> {
+	prev_index: usize,
 	identifier: CandidateIdentifier,
+	by_priority: &'a mut Vec<(Priority, CandidateIdentifier)>,
+	requested: &'a mut RequestedCandidate,
 }
 
-/// An entry in the request manager.
-pub enum RequestEntry<'a> {
-	Occupied(&'a mut PendingRequest),
-	Vacant(VacantRequestEntry<'a>),
+impl<'a> Entry<'a> {
+	/// Access the underlying requested candidate.
+	pub fn get_mut(&mut self) -> &mut RequestedCandidate {
+		&mut self.requested
+	}
 }
 
-impl<'a> RequestEntry<'a> {
-	/// Yields the existing pending request or inserts it, with the given
-	/// metadata.
-	pub fn or_insert_with(
-		self,
-		group_assignments: impl FnOnce(GroupIndex) -> ParaId,
-	) -> &'a mut PendingRequest {
-		let mut vacant = match self {
-			RequestEntry::Occupied(o) => return o,
-			RequestEntry::Vacant(v) => v,
-		};
-
-		vacant
-			.unique_identifiers
-			.entry(vacant.identifier.candidate_hash)
-			.or_insert_with(HashSet::new)
-			.insert(vacant.identifier.clone());
-
-		let group_index = vacant.identifier.group_index;
-
-		vacant.vacant_request_entry.insert(PendingRequest {
-			expected_para: group_assignments(group_index),
-			known_by: Vec::new(),
-		})
+impl<'a> Drop for Entry<'a> {
+	fn drop(&mut self) {
+		insert_or_update_priority(
+			&mut *self.by_priority,
+			Some(self.prev_index),
+			self.identifier.clone(),
+			self.requested.priority.clone(),
+		);
 	}
 }
 
 /// A manager for outgoing requests.
 pub struct RequestManager {
 	pending_responses: FuturesUnordered<Box<dyn Future<Output = TaggedResponse>>>,
-	requests: HashMap<CandidateIdentifier, PendingRequest>,
+	requests: HashMap<CandidateIdentifier, RequestedCandidate>,
+	// sorted by priority.
+	by_priority: Vec<(Priority, CandidateIdentifier)>,
 	// all unique identifiers for the candidate.
 	unique_identifiers: HashMap<CandidateHash, HashSet<CandidateIdentifier>>,
 }
@@ -114,37 +125,68 @@ impl RequestManager {
 		RequestManager {
 			pending_responses: FuturesUnordered::new(),
 			requests: HashMap::new(),
+			by_priority: Vec::new(),
 			unique_identifiers: HashMap::new(),
 		}
 	}
 
-	/// Either yields the pending request data for the given parameters,
-	/// or yields a [`VacantRequestEntry`] which can be used to instantiate
-	/// it.
-	pub fn entry(
+	/// Gets or inserts the `Entry` required
+	pub fn get_or_insert(
 		&mut self,
 		relay_parent: Hash,
 		candidate_hash: CandidateHash,
 		group_index: GroupIndex,
-	) -> RequestEntry {
+		group_assignment: ParaId,
+	) -> Entry {
 		let identifier = CandidateIdentifier { relay_parent, candidate_hash, group_index };
 
-		let requests = &mut self.requests;
-		let unique_identifiers = &mut self.unique_identifiers;
+		let (candidate, fresh) = match self.requests.entry(identifier.clone()) {
+			HEntry::Occupied(e) => (e.into_mut(), false),
+			HEntry::Vacant(e) => (
+				e.insert(RequestedCandidate {
+					priority: Priority { attempts: 0, origin: Origin::Unspecified },
+					expected_para: group_assignment,
+					known_by: Vec::new(),
+					in_flight: false,
+				}),
+				true,
+			),
+		};
 
-		match requests.entry(identifier.clone()) {
-			HEntry::Vacant(v) => RequestEntry::Vacant(VacantRequestEntry {
-				vacant_request_entry: v,
-				unique_identifiers,
-				identifier,
-			}),
-			HEntry::Occupied(o) => RequestEntry::Occupied(o.into_mut()),
+		let priority_index = if fresh {
+			self.unique_identifiers
+				.entry(candidate_hash)
+				.or_default()
+				.insert(identifier.clone());
+
+			insert_or_update_priority(
+				&mut self.by_priority,
+				None,
+				identifier.clone(),
+				candidate.priority.clone(),
+			)
+		} else {
+			match self
+				.by_priority
+				.binary_search(&(candidate.priority.clone(), identifier.clone()))
+			{
+				Ok(i) => i,
+				Err(i) => unreachable!("requested candidates always have a priority entry; qed"),
+			}
+		};
+
+		Entry {
+			prev_index: priority_index,
+			identifier,
+			by_priority: &mut self.by_priority,
+			requested: candidate,
 		}
 	}
 
 	/// Remove all pending requests for the given candidate.
 	pub fn remove_for(&mut self, candidate: CandidateHash) {
 		if let Some(identifiers) = self.unique_identifiers.remove(&candidate) {
+			self.by_priority.retain(|(_priority, id)| !identifiers.contains(&id));
 			for id in identifiers {
 				self.requests.remove(&id);
 			}
@@ -153,15 +195,52 @@ impl RequestManager {
 
 	/// Yields the next request to dispatch, if there is any.
 	///
-	/// Provide a closure which informs us whether peers are still connected.
+	/// This function accepts two closures as an argument.
+	/// The first closure indicates whether a peer is still connected.
+	/// The second closure is used to construct a mask for limiting the
+	/// `Seconded` statements the response is allowed to contain.
 	pub fn next_request(
 		&mut self,
 		peer_connected: impl Fn(&PeerId) -> bool,
-	) -> Option<Requests> {
-
+		seconded_mask: impl Fn(&CandidateIdentifier) -> BitVec<u8, Lsb0>,
+	) -> Option<OutgoingRequest<AttestedCandidateRequest>> {
+		// TODO [now]
+		None
 	}
 
-	// TODO [now]: `dispatch_next -> Option<Requests>`
-
 	// TODO [now]: `await_incoming -> IncomingPendingValidation`
+}
+
+fn insert_or_update_priority(
+	priority_sorted: &mut Vec<(Priority, CandidateIdentifier)>,
+	prev_index: Option<usize>,
+	candidate_identifier: CandidateIdentifier,
+	new_priority: Priority,
+) -> usize {
+	if let Some(prev_index) = prev_index {
+		// GIGO: this behaves strangely if prev-index is not for the
+		// expected identifier.
+		if priority_sorted[prev_index].0 == new_priority {
+			// unchanged.
+			return prev_index
+		} else {
+			priority_sorted.remove(prev_index);
+		}
+	}
+
+	let item = (new_priority, candidate_identifier);
+	match priority_sorted.binary_search(&item) {
+		Ok(i) => i, // ignore if already present.
+		Err(i) => {
+			priority_sorted.insert(i, item);
+			i
+		},
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	// TODO [now]: test priority ordering.
 }
