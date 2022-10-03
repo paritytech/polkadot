@@ -116,7 +116,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 					prepare_period: 30 * MINUTES,
 					decision_period: 7 * DAYS,
 					confirm_period: 30 * MINUTES,
-					min_enactment_period: 4,
+					min_enactment_period: 1 * MINUTES,
 					min_approval: pallet_referenda::Curve::LinearDecreasing {
 						length: Perbill::from_percent(100),
 						floor: Perbill::from_percent(50),
@@ -335,6 +335,7 @@ impl pallet_ranked_collective::Config<FellowshipCollectiveInstance> for Runtime 
 	// - a vote by the rank *above* the new rank.
 	type PromoteOrigin = EitherOf<
 		EitherOf<
+			frame_system::EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>,
 			MapSuccess<
 				pallet_collective::EnsureProportionAtLeast<
 					Self::AccountId,
@@ -344,7 +345,6 @@ impl pallet_ranked_collective::Config<FellowshipCollectiveInstance> for Runtime 
 				>,
 				Replace<ConstU16<6>>,
 			>,
-			frame_system::EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>,
 		>,
 		EitherOf<
 			MapSuccess<FellowshipAdmin, Replace<ConstU16<9>>>,
