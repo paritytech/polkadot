@@ -40,8 +40,6 @@ use crate::{interceptor::*, variants::ReplaceValidationResult};
 
 use std::sync::Arc;
 
-use rand::distributions::{Bernoulli, Distribution};
-
 #[derive(Clone, Debug, clap::Parser)]
 #[clap(rename_all = "kebab-case")]
 #[allow(missing_docs)]
@@ -56,11 +54,6 @@ pub struct DisputeAncestorOptions {
 	/// to specify the exact error to return from the malicious candidate validation subsystem.
 	#[clap(long, arg_enum, ignore_case = true, default_value_t = FakeCandidateValidationError::InvalidOutputs)]
 	pub fake_validation_error: FakeCandidateValidationError,
-
-	/// Determines the percentage of candidates that should be disputed. Allows for fine-tuning
-	/// the intensity of the behavior of the malicious node.
-	#[clap(long, ignore_case = true, default_value_t = 0, value_parser = clap::value_parser!(u8).range(0..=100))]
-	pub percentage: u8,
 
 	#[clap(flatten)]
 	pub cmd: RunCmd,
@@ -92,7 +85,6 @@ impl OverseerGen for DisputeValidCandidates {
 		let validation_filter = ReplaceValidationResult::new(
 			self.opts.fake_validation,
 			self.opts.fake_validation_error,
-			f64::from(self.opts.percentage),
 			SpawnGlue(spawner.clone()),
 		);
 
