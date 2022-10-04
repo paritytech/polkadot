@@ -527,8 +527,9 @@ async fn validate_candidate_exhaustive(
 		Err(e) => {
 			gum::info!(target: LOG_TARGET, ?para_id, err=?e, "Invalid candidate (validation code)");
 
-			// If the validation code is invalid, the candidate certainly is.
-			return Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure))
+			// Code already passed pre-checking, if decompression fails now this most likley means
+			// some local corruption happened.
+			return Err(ValidationFailed("Code decompression failed".to_string()))
 		},
 	};
 
