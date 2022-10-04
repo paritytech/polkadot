@@ -27,7 +27,6 @@
 // --chain=kusama-dev
 // --steps=50
 // --repeat=20
-// --pallet=pallet_collective
 // --extrinsic=*
 // --execution=wasm
 // --wasm-execution=compiled
