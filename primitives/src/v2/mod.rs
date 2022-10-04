@@ -1684,8 +1684,6 @@ pub fn supermajority_threshold(n: usize) -> usize {
 #[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct SessionInfo {
 	/****** New in v3 *******/
-	/// Execution environment version
-	pub ee_version: u32,
 	/// Execution environment parameters
 	pub ee_parameters: ExecutorParams,
 
@@ -1824,7 +1822,6 @@ pub struct OldV1SessionInfo {
 impl From<OldV1SessionInfo> for SessionInfo {
 	fn from(old: OldV1SessionInfo) -> SessionInfo {
 		SessionInfo {
-			ee_version: 0,
 			ee_parameters: ExecutorParams::default(),
 
 			// new fields

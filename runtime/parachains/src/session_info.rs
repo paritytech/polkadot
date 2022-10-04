@@ -189,7 +189,6 @@ impl<T: Config> Pallet<T> {
 
 		// create a new entry in `Sessions` with information about the current session
 		let new_session_info = SessionInfo {
-			ee_version: 0,
 			ee_parameters: ExecutorParams::default(),
 			validators, // these are from the notification and are thus already correct.
 			discovery_keys: take_active_subset_and_inactive(&active_set, &discovery_keys),

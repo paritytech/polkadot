@@ -25,6 +25,17 @@ use scale_info::TypeInfo;
 #[derive(Clone, Debug, Encode, Decode, PartialEq, MallocSizeOf, TypeInfo)]
 pub struct ExecutorParams(Vec<(u8, u64)>);
 
+impl ExecutorParams {
+	pub fn version(&self) -> u64 {
+		if self.0.len() == 0 {
+			0
+		} else {
+			// EEPAR_VERSION must always be the first element of ExecutorParams
+			self.0[0].1
+		}
+	}
+}
+
 impl Deref for ExecutorParams {
 	type Target = Vec<(u8, u64)>;
 

@@ -102,6 +102,7 @@ pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::
 	sc_executor_wasmtime::prepare_runtime_artifact(blob, &CONFIG.semantics)
 }
 
+const EEPAR_VERSION: u8 = 0;
 const EEPAR_EXTRA_HEAP_PAGES: u8 = 1;
 const EEPAR_MAX_MEMORY_SIZE: u8 = 2;
 const EEPAR_STACK_LIMIT: u8 = 3;
