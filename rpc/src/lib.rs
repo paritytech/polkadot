@@ -61,7 +61,9 @@ pub struct GrandpaDeps<B> {
 	pub finality_provider: Arc<FinalityProofProvider<B, Block>>,
 }
 
-use beefy_gadget::notification::{BeefyBestBlockStream, BeefyVersionedFinalityProofStream};
+use beefy_gadget::communication::notification::{
+	BeefyBestBlockStream, BeefyVersionedFinalityProofStream,
+};
 /// Dependencies for BEEFY
 pub struct BeefyDeps {
 	/// Receives notifications about finality proof events from BEEFY.
