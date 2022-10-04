@@ -635,9 +635,11 @@ pub(crate) mod tests {
 	};
 
 	const DATA_COL: u32 = 0;
-	const NUM_COLUMNS: u32 = 1;
+	const SESSION_DATA_COL: u32 = 0;
 
-	const TEST_CONFIG: DatabaseConfig = DatabaseConfig { col_data: DATA_COL };
+	const NUM_COLUMNS: u32 = 2;
+
+	const TEST_CONFIG: DatabaseConfig = DatabaseConfig { col_data: DATA_COL, col_session_data: SESSION_DATA_COL };
 	#[derive(Default)]
 	struct MockClock;
 
@@ -652,12 +654,17 @@ pub(crate) mod tests {
 	}
 
 	fn blank_state() -> State {
+		let db = kvdb_memorydb::create(NUM_COLUMNS);
+		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
+		let db: Arc<dyn Database> = Arc::new(db);
 		State {
 			session_window: None,
 			keystore: Arc::new(LocalKeystore::in_memory()),
 			slot_duration_millis: 6_000,
 			clock: Box::new(MockClock::default()),
 			assignment_criteria: Box::new(MockAssignmentCriteria),
+			db,
+			db_config: TEST_CONFIG,
 		}
 	}
 

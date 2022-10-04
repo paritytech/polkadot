@@ -19,8 +19,13 @@
 //! This is useful for consensus components which need to stay up-to-date about recent sessions but don't
 //! care about the state of particular blocks.
 
+use super::database::{DBTransaction, Database};
+use kvdb::{DBKey, DBOp};
+
+use parity_scale_codec::{Decode, Encode};
 pub use polkadot_node_primitives::{new_session_window_size, SessionWindowSize};
 use polkadot_primitives::v2::{BlockNumber, Hash, SessionIndex, SessionInfo};
+use std::sync::Arc;
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{
@@ -30,6 +35,7 @@ use polkadot_node_subsystem::{
 };
 
 const LOG_TARGET: &str = "parachain::rolling-session-window";
+const STORED_ROLLING_SESSION_WINDOW: &[u8] = b"Rolling_session_window";
 
 /// Sessions unavailable in state to cache.
 #[derive(Debug, Clone, thiserror::Error)]
@@ -94,55 +100,174 @@ pub enum SessionWindowUpdate {
 	Unchanged,
 }
 
+/// A structure to store rolling session database parameters.
+#[derive(Clone)]
+pub struct DatabaseParams {
+	/// Databae reference.
+	pub db: Arc<dyn Database>,
+	/// The column which stores the rolling session info.
+	pub db_column: u32,
+}
 /// A rolling window of sessions and cached session info.
 pub struct RollingSessionWindow {
 	earliest_session: SessionIndex,
 	session_info: Vec<SessionInfo>,
 	window_size: SessionWindowSize,
+	// These params just to enable some approval-voting tests to force feed sessions
+	// in the window.
+	db_params: Option<DatabaseParams>,
+}
+
+/// The rolling session data we persist in the database.
+#[derive(Encode, Decode, Default)]
+struct StoredWindow {
+	earliest_session: SessionIndex,
+	session_info: Vec<SessionInfo>,
 }
 
 impl RollingSessionWindow {
 	/// Initialize a new session info cache with the given window size.
+	/// Invariant: The database always contains the earliest session. Then,
+	/// we can always extend the session info vector using chain state.
 	pub async fn new<Sender>(
 		mut sender: Sender,
 		window_size: SessionWindowSize,
 		block_hash: Hash,
+		db_params: DatabaseParams,
 	) -> Result<Self, SessionsUnavailable>
 	where
 		Sender: overseer::SubsystemSender<RuntimeApiMessage>
 			+ overseer::SubsystemSender<ChainApiMessage>,
 	{
+		let maybe_stored_window = Self::db_load(db_params.clone());
+
 		let session_index = get_session_index_for_child(&mut sender, block_hash).await?;
 		let earliest_non_finalized_block_session =
 			Self::earliest_non_finalized_block_session(&mut sender).await?;
 
-		// This will increase the session window to cover the full unfinalized chain.
-		let window_start = std::cmp::min(
-			session_index.saturating_sub(window_size.get() - 1),
-			earliest_non_finalized_block_session,
-		);
+		let (window_start, mut stored_sessions) =
+			if let Some(mut stored_window) = maybe_stored_window {
+				// Check if DB is ancient.
+				if earliest_non_finalized_block_session >
+					stored_window.earliest_session + stored_window.session_info.len() as u32
+				{
+					// If ancient, we scrap it and fetch from chain state.
+					stored_window.session_info.clear();
+				}
 
-		match load_all_sessions(&mut sender, block_hash, window_start, session_index).await {
-			Err(kind) => Err(SessionsUnavailable {
-				kind,
-				info: Some(SessionsUnavailableInfo {
-					window_start,
-					window_end: session_index,
-					block_hash,
+				// The session window might extend beyond the last finalized block, but that's fine as we'll prune it at
+				// next update.
+				let window_start = if stored_window.session_info.len() > 0 {
+					// If there is at least one entry in db, we always take the DB as source of truth.
+					stored_window.earliest_session
+				} else {
+					// This will increase the session window to cover the full unfinalized chain.
+					std::cmp::min(
+						session_index.saturating_sub(window_size.get() - 1),
+						earliest_non_finalized_block_session,
+					)
+				};
+
+				(window_start, stored_window.session_info)
+			} else {
+				(
+					std::cmp::min(
+						session_index.saturating_sub(window_size.get() - 1),
+						earliest_non_finalized_block_session,
+					),
+					Vec::new(),
+				)
+			};
+
+		// Try to load sessions from DB first and load more from chain state if needed.
+		let sessions_missing_count = session_index
+			.saturating_sub(window_start)
+			.saturating_add(1)
+			.saturating_sub(stored_sessions.len() as u32);
+
+		// Load remaining from chain state.
+		let mut chain_sessions = if sessions_missing_count > 0 {
+			match load_all_sessions_from_chain_state(
+				&mut sender,
+				block_hash,
+				window_start,
+				session_index,
+			)
+			.await
+			{
+				Err(kind) => Err(SessionsUnavailable {
+					kind,
+					info: Some(SessionsUnavailableInfo {
+						window_start,
+						window_end: session_index,
+						block_hash,
+					}),
 				}),
-			}),
-			Ok(s) => Ok(Self { earliest_session: window_start, session_info: s, window_size }),
+				Ok(sessions) => Ok(sessions),
+			}?
+		} else {
+			// There are no new sessions to be fetched from chain state.
+			Vec::new()
+		};
+
+		stored_sessions.append(&mut chain_sessions);
+
+		Ok(Self {
+			earliest_session: window_start,
+			session_info: stored_sessions,
+			window_size,
+			db_params: Some(db_params),
+		})
+	}
+
+	// Load session information from the parachains db.
+	fn db_load(db_params: DatabaseParams) -> Option<StoredWindow> {
+		match db_params.db.get(db_params.db_column, STORED_ROLLING_SESSION_WINDOW).ok()? {
+			None => None,
+			Some(raw) => {
+				let maybe_decoded = StoredWindow::decode(&mut &raw[..]).map(Some);
+				match maybe_decoded {
+					Ok(decoded) => decoded,
+					Err(err) => {
+						gum::warn!(
+							target: LOG_TARGET,
+							?err,
+							"Failed decoding db entry; will start with onchain session infos and self-heal DB entry on next update."
+						);
+						None
+					},
+				}
+			},
+		}
+	}
+
+	// Saves/Updates all sessions in the database.
+	fn db_save(&mut self, stored_window: StoredWindow) {
+		if let Some(db_params) = self.db_params.as_ref() {
+			match db_params.db.write(DBTransaction {
+				ops: vec![DBOp::Insert {
+					col: db_params.db_column,
+					key: DBKey::from_slice(STORED_ROLLING_SESSION_WINDOW),
+					value: stored_window.encode(),
+				}],
+			}) {
+				Ok(_) => {},
+				Err(err) => {
+					gum::warn!(target: LOG_TARGET, ?err, "Failed writing db entry");
+				},
+			}
 		}
 	}
 
 	/// Initialize a new session info cache with the given window size and
 	/// initial data.
+	/// This is only used in `approval voting` tests.
 	pub fn with_session_info(
 		window_size: SessionWindowSize,
 		earliest_session: SessionIndex,
 		session_info: Vec<SessionInfo>,
 	) -> Self {
-		RollingSessionWindow { earliest_session, session_info, window_size }
+		RollingSessionWindow { earliest_session, session_info, window_size, db_params: None }
 	}
 
 	/// Access the session info for the given session index, if stored within the window.
@@ -288,7 +413,9 @@ impl RollingSessionWindow {
 
 		let fresh_start = if latest < window_start { window_start } else { latest + 1 };
 
-		match load_all_sessions(sender, block_hash, fresh_start, session_index).await {
+		match load_all_sessions_from_chain_state(sender, block_hash, fresh_start, session_index)
+			.await
+		{
 			Err(kind) => Err(SessionsUnavailable {
 				kind,
 				info: Some(SessionsUnavailableInfo {
@@ -308,12 +435,17 @@ impl RollingSessionWindow {
 				let outdated = std::cmp::min(overlap_start as usize, self.session_info.len());
 				self.session_info.drain(..outdated);
 				self.session_info.extend(s);
+
 				// we need to account for this case:
 				// window_start ................................... session_index
 				//              old_window_start ........... latest
 				let new_earliest = std::cmp::max(window_start, old_window_start);
 				self.earliest_session = new_earliest;
 
+				self.db_save(StoredWindow {
+					earliest_session: self.earliest_session,
+					session_info: self.session_info.clone(),
+				});
 				Ok(update)
 			},
 		}
@@ -354,7 +486,7 @@ async fn get_session_index_for_child(
 	}
 }
 
-async fn load_all_sessions(
+async fn load_all_sessions_from_chain_state(
 	sender: &mut impl overseer::SubsystemSender<RuntimeApiMessage>,
 	block_hash: Hash,
 	start: SessionIndex,
