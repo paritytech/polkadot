@@ -67,6 +67,10 @@ const COST_UNEXPECTED_STATEMENT_REMOTE: Rep =
 const COST_EXCESSIVE_SECONDED: Rep = Rep::CostMinor("Sent Excessive `Seconded` Statements");
 
 const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
+const COST_IMPROPERLY_DECODED_RESPONSE: Rep =
+	Rep::CostMajor("Improperly Encoded Candidate Response");
+
+const BENEFIT_VALID_RESPONSE: Rep = Rep::BenefitMajor("Peer Answered Candidate Request");
 
 struct PerRelayParentState {
 	validator_state: HashMap<ValidatorIndex, PerRelayParentValidatorState>,

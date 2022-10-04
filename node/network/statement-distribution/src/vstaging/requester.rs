@@ -15,6 +15,7 @@
 //!
 // TODO [now]: some module docs.
 
+use super::{BENEFIT_VALID_RESPONSE, COST_IMPROPERLY_DECODED_RESPONSE};
 use crate::LOG_TARGET;
 
 use polkadot_node_network_protocol::{
@@ -23,16 +24,22 @@ use polkadot_node_network_protocol::{
 		vstaging::{AttestedCandidateRequest, AttestedCandidateResponse},
 		OutgoingRequest, OutgoingResult, MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS,
 	},
-	PeerId,
+	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::vstaging::{CandidateHash, GroupIndex, Hash, ParaId};
+use polkadot_primitives::vstaging::{
+	CandidateHash, CommittedCandidateReceipt, GroupIndex, Hash, ParaId, PersistedValidationData,
+	SignedStatement, ValidatorId, ValidatorIndex,
+};
 
 use bitvec::{order::Lsb0, vec::BitVec};
-use futures::{channel::oneshot, prelude::*, stream::FuturesUnordered};
+use futures::{channel::oneshot, future::BoxFuture, prelude::*, stream::FuturesUnordered};
 
-use std::collections::{
-	hash_map::{Entry as HEntry, HashMap, VacantEntry},
-	BTreeSet, HashSet, VecDeque,
+use std::{
+	collections::{
+		hash_map::{Entry as HEntry, HashMap, VacantEntry},
+		BTreeSet, HashSet, VecDeque,
+	},
+	pin::Pin,
 };
 
 /// An identifier for a candidate.
@@ -57,13 +64,12 @@ struct TaggedResponse {
 	identifier: CandidateIdentifier,
 	requested_peer: PeerId,
 	seconded_mask: BitVec<u8, Lsb0>,
-	response: AttestedCandidateResponse,
+	response: OutgoingResult<AttestedCandidateResponse>,
 }
 
 /// A pending request.
 pub struct RequestedCandidate {
 	priority: Priority,
-	expected_para: ParaId,
 	known_by: VecDeque<PeerId>,
 	in_flight: bool,
 }
@@ -112,7 +118,7 @@ impl<'a> Drop for Entry<'a> {
 
 /// A manager for outgoing requests.
 pub struct RequestManager {
-	pending_responses: FuturesUnordered<Box<dyn Future<Output = OutgoingResult<TaggedResponse>>>>,
+	pending_responses: FuturesUnordered<BoxFuture<'static, TaggedResponse>>,
 	requests: HashMap<CandidateIdentifier, RequestedCandidate>,
 	// sorted by priority.
 	by_priority: Vec<(Priority, CandidateIdentifier)>,
@@ -138,7 +144,6 @@ impl RequestManager {
 		relay_parent: Hash,
 		candidate_hash: CandidateHash,
 		group_index: GroupIndex,
-		group_assignment: ParaId,
 	) -> Entry {
 		let identifier = CandidateIdentifier { relay_parent, candidate_hash, group_index };
 
@@ -147,7 +152,6 @@ impl RequestManager {
 			HEntry::Vacant(e) => (
 				e.insert(RequestedCandidate {
 					priority: Priority { attempts: 0, origin: Origin::Unspecified },
-					expected_para: group_assignment,
 					known_by: VecDeque::new(),
 					in_flight: false,
 				}),
@@ -252,13 +256,13 @@ impl RequestManager {
 			);
 
 			let stored_id = id.clone();
-			self.pending_responses.push(Box::new(async move {
-				response_fut.await.map(|response| TaggedResponse {
+			self.pending_responses.push(Box::pin(async move {
+				TaggedResponse {
 					identifier: stored_id,
 					requested_peer: recipient,
 					seconded_mask,
-					response,
-				})
+					response: response_fut.await,
+				}
 			}));
 
 			entry.in_flight = true;
@@ -269,7 +273,181 @@ impl RequestManager {
 		None
 	}
 
-	// TODO [now]: `await_incoming -> IncomingPendingValidation`
+	/// Await the next incoming response to a sent request, or immediately
+	/// return `None` if there are no pending responses.
+	pub async fn await_incoming(&mut self) -> Option<UnhandledResponse> {
+		match self.pending_responses.next().await {
+			None => None,
+			Some(response) => Some(UnhandledResponse { manager: self, response }),
+		}
+	}
+}
+
+/// A response to a request, which has not yet been handled.
+pub struct UnhandledResponse<'a> {
+	manager: &'a mut RequestManager,
+	response: TaggedResponse,
+}
+
+impl<'a> UnhandledResponse<'a> {
+	/// Get the candidate identifier which the corresponding request
+	/// was classified under.
+	pub fn candidate_identifier(&self) -> &CandidateIdentifier {
+		&self.response.identifier
+	}
+
+	/// Validate the response. If the response is valid, this will yield the
+	/// candidate, the [`PersistedValidationData`] of the candidate, and requested
+	/// checked statements.
+	///
+	/// This will also produce a record of misbehaviors by peers:
+	///   * If the response is partially valid, misbehavior by the responding peer.
+	///   * If there are other peers which have advertised the same candidate for different
+	///     relay-parents or para-ids, misbehavior reports for those peers will also
+	///     be generated.
+	///
+	/// Finally, in the case that the response is either valid or partially valid,
+	/// this will clean up all remaining requests for the candidate in the manager.
+	///
+	/// As parameters, the user should supply the canonical group array as well
+	/// as a mapping from validator index to validator ID. Additionally, the user should
+	/// provide a lookup used to check whether the para is allowed for the group at that relay-parent.
+	/// The validator pubkey mapping will not be queried except for validator indices in the group.
+	/// The allowed-para mapping will be queried with the para committed to by the candidate
+	/// receipt.
+	pub fn validate_response(
+		self,
+		group: &[ValidatorIndex],
+		validator_key_lookup: impl Fn(ValidatorIndex) -> ValidatorId,
+		allowed_para_lookup: impl Fn(ParaId) -> bool,
+	) -> ResponseValidationOutput {
+		let UnhandledResponse {
+			manager,
+			response: TaggedResponse { identifier, requested_peer, response, seconded_mask },
+		} = self;
+
+		// handle races if the candidate is no longer known.
+		// this could happen if we requested the candidate under two
+		// different identifiers at the same time, and received a valid
+		// response on the other.
+		let entry = match manager.requests.get_mut(&identifier) {
+			None =>
+				return ResponseValidationOutput {
+					reputation_changes: Vec::new(),
+					request_status: CandidateRequestStatus::Outdated,
+				},
+			Some(e) => e,
+		};
+
+		let priority_index = match manager
+			.by_priority
+			.binary_search(&(entry.priority.clone(), identifier.clone()))
+		{
+			Ok(i) => i,
+			Err(i) => unreachable!("requested candidates always have a priority entry; qed"),
+		};
+
+		entry.in_flight = false;
+		entry.priority.attempts += 1;
+
+		// update the location in the priority queue.
+		insert_or_update_priority(
+			&mut manager.by_priority,
+			Some(priority_index),
+			identifier.clone(),
+			entry.priority.clone(),
+		);
+
+		let complete_response = match response {
+			Err(RequestError::InvalidResponse(e)) => {
+				gum::trace!(
+					target: LOG_TARGET,
+					err = ?e,
+					peer = ?requested_peer,
+					"Improperly encoded response"
+				);
+
+				return ResponseValidationOutput {
+					reputation_changes: vec![(requested_peer, COST_IMPROPERLY_DECODED_RESPONSE)],
+					request_status: CandidateRequestStatus::Incomplete,
+				}
+			},
+			Err(RequestError::NetworkError(_) | RequestError::Canceled(_)) =>
+				return ResponseValidationOutput {
+					reputation_changes: vec![],
+					request_status: CandidateRequestStatus::Incomplete,
+				},
+			Ok(response) => response,
+		};
+
+		let mut output = validate_complete_response(
+			&identifier,
+			complete_response,
+			requested_peer,
+			seconded_mask,
+			group,
+			validator_key_lookup,
+			allowed_para_lookup,
+		);
+
+		if let CandidateRequestStatus::Complete { .. } = output.request_status {
+			// TODO [now]: clean up everything else to do with the candidate.
+			// add reputation punishments for all peers advertising the candidate under
+			// different identifiers.
+		}
+
+		output
+	}
+}
+
+fn validate_complete_response(
+	identifier: &CandidateIdentifier,
+	response: AttestedCandidateResponse,
+	requested_peer: PeerId,
+	mut sent_seconded_bitmask: BitVec<u8, Lsb0>,
+	group: &[ValidatorIndex],
+	validator_key_lookup: impl Fn(ValidatorIndex) -> ValidatorId,
+	allowed_para_lookup: impl Fn(ParaId) -> bool,
+) -> ResponseValidationOutput {
+	// TODO [now]: sanity check bitmask size.
+	// TODO [now]: filter out stuff outside of group or bitmask.
+	// TODO [now]: filter out duplicates.
+	// TODO [now]: check statement signatures.
+
+	// sanity-check candidate response.
+	// note: roughly ascending cost of operations
+	// TODO [now]: check relay-parent
+	// TODO [now]: check expected para-id
+	// TODO [now]: check PVD against hash.
+	// TODO [now]: check candidate hash.
+
+	unimplemented!()
+}
+
+/// The status of the candidate request after the handling of a response.
+pub enum CandidateRequestStatus {
+	/// The request was outdated at the point of receiving the response.
+	Outdated,
+	/// The response either did not arrive or was invalid.
+	Incomplete,
+	/// The response completed the request. Statements sent beyond the
+	/// mask have been ignored. More statements which may have been
+	/// expected may not be present, and higher-level code should
+	/// evaluate whether the candidate is still worth storing and whether
+	/// the sender should be punished.
+	Complete {
+		candidate: CommittedCandidateReceipt,
+		persisted_validation_data: PersistedValidationData,
+		statements: Vec<SignedStatement>,
+	},
+}
+
+/// Output of the response validation.
+pub struct ResponseValidationOutput {
+	/// The status of the request.
+	pub request_status: CandidateRequestStatus,
+	/// Any reputation changes as a result of validating the response.
+	pub reputation_changes: Vec<(PeerId, Rep)>,
 }
 
 fn insert_or_update_priority(
