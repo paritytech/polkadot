@@ -843,6 +843,11 @@ where
 
 		self.metrics.on_head_activated();
 		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
+			gum::trace!(
+				target: LOG_TARGET,
+				relay_parent = ?hash,
+				"Leaf got activated, notifying exterinal listeners"
+			);
 			for listener in listeners {
 				// it's fine if the listener is no longer interested
 				let _ = listener.send(Ok(()));
@@ -884,14 +889,20 @@ where
 	fn handle_external_request(&mut self, request: ExternalRequest) {
 		match request {
 			ExternalRequest::WaitForActivation { hash, response_channel } => {
-				// We use known leaves here because the `WaitForActivation` message
-				// is primarily concerned about leaves which subsystems have simply
-				// not been made aware of yet. Anything in the known leaves set,
-				// even if stale, has been activated in the past.
-				if self.known_leaves.peek(&hash).is_some() {
+				if self.active_leaves.get(&hash).is_some() {
+					gum::trace!(
+						target: LOG_TARGET,
+						relay_parent = ?hash,
+						"Leaf was already ready - answering `WaitForActivation`"
+					);
 					// it's fine if the listener is no longer interested
 					let _ = response_channel.send(Ok(()));
 				} else {
+					gum::trace!(
+						target: LOG_TARGET,
+						relay_parent = ?hash,
+						"Leaf not yet ready - queuing `WaitForActivation` sender"
+					);
 					self.activation_external_listeners
 						.entry(hash)
 						.or_default()

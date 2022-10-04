@@ -1257,7 +1257,7 @@ impl BeefyDataProvider<H256> for ParasProvider {
 			.filter_map(|id| Paras::para_head(&id).map(|head| (id.into(), head.0)))
 			.collect();
 		para_heads.sort();
-		beefy_merkle_tree::merkle_root::<pallet_beefy_mmr::Pallet<Runtime>, _, _>(
+		beefy_merkle_tree::merkle_root::<<Runtime as pallet_mmr::Config>::Hashing, _>(
 			para_heads.into_iter().map(|pair| pair.encode()),
 		)
 		.into()
@@ -1721,6 +1721,23 @@ sp_api::impl_runtime_apis! {
 		{
 			Mmr::generate_batch_proof(block_numbers)
 				.map(|(leaves, proof)| (leaves.into_iter().map(|leaf| mmr::EncodableOpaqueLeaf::from_leaf(&leaf)).collect(), proof))
+		}
+
+		fn generate_historical_batch_proof(
+			leaf_indices: Vec<mmr::LeafIndex>,
+			leaves_count: mmr::LeafIndex,
+		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error> {
+			Mmr::generate_historical_batch_proof(leaf_indices, leaves_count).map(
+				|(leaves, proof)| {
+					(
+						leaves
+							.into_iter()
+							.map(|leaf| mmr::EncodableOpaqueLeaf::from_leaf(&leaf))
+							.collect(),
+						proof,
+					)
+				},
+			)
 		}
 
 		fn verify_batch_proof(leaves: Vec<mmr::EncodableOpaqueLeaf>, proof: mmr::BatchProof<Hash>)
