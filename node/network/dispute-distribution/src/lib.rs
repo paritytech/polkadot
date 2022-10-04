@@ -24,6 +24,8 @@
 //! The sender is responsible for getting our vote out, see [`sender`]. The receiver handles
 //! incoming [`DisputeRequest`]s and offers spam protection, see [`receiver`].
 
+use std::num::NonZeroUsize;
+
 use futures::{channel::mpsc, FutureExt, StreamExt, TryFutureExt};
 
 use polkadot_node_network_protocol::authority_discovery::AuthorityDiscovery;
@@ -145,7 +147,8 @@ where
 	) -> Self {
 		let runtime = RuntimeInfo::new_with_config(runtime::Config {
 			keystore: Some(keystore),
-			session_cache_lru_size: DISPUTE_WINDOW.get() as usize,
+			session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+				.expect("Dispute window can not be 0; qed"),
 		});
 		let (tx, sender_rx) = mpsc::channel(1);
 		let disputes_sender = DisputeSender::new(tx, metrics.clone());
