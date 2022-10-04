@@ -152,7 +152,8 @@ mod tests {
 	}
 
 	#[test]
-	fn percentage_works_dispute_ancestor() {
+	#[should_panic]
+	fn percentage_not_working_dispute_ancestor() {
 		let cli = MalusCli::try_parse_from(IntoIterator::into_iter([
 			"malus",
 			"dispute-ancestor",
@@ -171,29 +172,10 @@ mod tests {
 
 	#[test]
 	#[should_panic]
-	fn validate_range_for_percentage_suggest() {
+	fn validate_range_for_percentage() {
 		let cli = MalusCli::try_parse_from(IntoIterator::into_iter([
 			"malus",
 			"suggest-garbage-candidate",
-			"--percentage",
-			"101",
-			"--bob",
-		]))
-		.unwrap();
-		assert_matches::assert_matches!(cli, MalusCli {
-			variant: NemesisVariant::DisputeAncestor(run),
-			..
-		} => {
-			assert!(run.cmd.base.bob);
-		});
-	}
-
-	#[test]
-	#[should_panic]
-	fn validate_range_for_percentage_dispute() {
-		let cli = MalusCli::try_parse_from(IntoIterator::into_iter([
-			"malus",
-			"dispute-ancestor",
 			"--percentage",
 			"101",
 			"--bob",
