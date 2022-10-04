@@ -635,11 +635,12 @@ pub(crate) mod tests {
 	};
 
 	const DATA_COL: u32 = 0;
-	const SESSION_DATA_COL: u32 = 0;
+	const SESSION_DATA_COL: u32 = 1;
 
 	const NUM_COLUMNS: u32 = 2;
 
-	const TEST_CONFIG: DatabaseConfig = DatabaseConfig { col_data: DATA_COL, col_session_data: SESSION_DATA_COL };
+	const TEST_CONFIG: DatabaseConfig =
+		DatabaseConfig { col_data: DATA_COL, col_session_data: SESSION_DATA_COL };
 	#[derive(Default)]
 	struct MockClock;
 

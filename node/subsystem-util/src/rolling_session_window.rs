@@ -518,6 +518,7 @@ async fn load_all_sessions_from_chain_state(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::database::kvdb_impl::DbAdapter;
 	use assert_matches::assert_matches;
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, AvailabilityRecoveryMessage},
@@ -528,7 +529,16 @@ mod tests {
 	use sp_core::testing::TaskExecutor;
 
 	pub const TEST_WINDOW_SIZE: SessionWindowSize = new_session_window_size!(6);
+	const SESSION_DATA_COL: u32 = 0;
 
+	const NUM_COLUMNS: u32 = 1;
+
+	fn dummy_db_params() -> DatabaseParams {
+		let db = kvdb_memorydb::create(NUM_COLUMNS);
+		let db = DbAdapter::new(db, &[]);
+		let db: Arc<dyn Database> = Arc::new(db);
+		DatabaseParams { db, db_column: SESSION_DATA_COL }
+	}
 	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
 		SessionInfo {
 			validators: Vec::new(),
@@ -580,9 +590,14 @@ mod tests {
 		let test_fut = {
 			Box::pin(async move {
 				let window = match window {
-					None => RollingSessionWindow::new(sender.clone(), TEST_WINDOW_SIZE, hash)
-						.await
-						.unwrap(),
+					None => RollingSessionWindow::new(
+						sender.clone(),
+						TEST_WINDOW_SIZE,
+						hash,
+						dummy_db_params(),
+					)
+					.await
+					.unwrap(),
 					Some(mut window) => {
 						window.cache_session_info_for_head(sender, hash).await.unwrap();
 						window
@@ -668,6 +683,7 @@ mod tests {
 			earliest_session: 1,
 			session_info: vec![dummy_session_info(1)],
 			window_size: TEST_WINDOW_SIZE,
+			db_params: Some(dummy_db_params()),
 		};
 
 		cache_session_info_test(1, 2, Some(window), 2);
@@ -693,6 +709,7 @@ mod tests {
 				dummy_session_info(52),
 			],
 			window_size: TEST_WINDOW_SIZE,
+			db_params: Some(dummy_db_params()),
 		};
 
 		cache_session_info_test(
@@ -710,6 +727,7 @@ mod tests {
 			earliest_session: start,
 			session_info: (start..=99).map(dummy_session_info).collect(),
 			window_size: TEST_WINDOW_SIZE,
+			db_params: Some(dummy_db_params()),
 		};
 
 		cache_session_info_test(
@@ -727,6 +745,7 @@ mod tests {
 			earliest_session: start,
 			session_info: (start..=97).map(dummy_session_info).collect(),
 			window_size: TEST_WINDOW_SIZE,
+			db_params: Some(dummy_db_params()),
 		};
 
 		cache_session_info_test(
@@ -744,6 +763,7 @@ mod tests {
 			earliest_session: start,
 			session_info: (0..=1).map(dummy_session_info).collect(),
 			window_size: TEST_WINDOW_SIZE,
+			db_params: Some(dummy_db_params()),
 		};
 
 		cache_session_info_test(
@@ -761,6 +781,7 @@ mod tests {
 			earliest_session: start,
 			session_info: (0..=1).map(dummy_session_info).collect(),
 			window_size: TEST_WINDOW_SIZE,
+			db_params: Some(dummy_db_params()),
 		};
 
 		cache_session_info_test(0, 3, Some(window), 2);
@@ -796,7 +817,9 @@ mod tests {
 		let test_fut = {
 			let sender = ctx.sender().clone();
 			Box::pin(async move {
-				let res = RollingSessionWindow::new(sender, TEST_WINDOW_SIZE, hash).await;
+				let res =
+					RollingSessionWindow::new(sender, TEST_WINDOW_SIZE, hash, dummy_db_params())
+						.await;
 				assert!(res.is_err());
 			})
 		};
@@ -897,7 +920,9 @@ mod tests {
 		let test_fut = {
 			let sender = ctx.sender().clone();
 			Box::pin(async move {
-				let res = RollingSessionWindow::new(sender, TEST_WINDOW_SIZE, hash).await;
+				let res =
+					RollingSessionWindow::new(sender, TEST_WINDOW_SIZE, hash, dummy_db_params())
+						.await;
 				assert!(res.is_err());
 			})
 		};
@@ -989,7 +1014,9 @@ mod tests {
 			Box::pin(async move {
 				let sender = ctx.sender().clone();
 				let window =
-					RollingSessionWindow::new(sender, TEST_WINDOW_SIZE, hash).await.unwrap();
+					RollingSessionWindow::new(sender, TEST_WINDOW_SIZE, hash, dummy_db_params())
+						.await
+						.unwrap();
 
 				assert_eq!(window.earliest_session, session);
 				assert_eq!(window.session_info, vec![dummy_session_info(session)]);
