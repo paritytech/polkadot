@@ -27,7 +27,7 @@ pub struct WaitingQueue<Payload> {
 	/// All pending wakes we are supposed to wait on in order.
 	pending_wakes: BinaryHeap<PendingWake<Payload>>,
 	/// Wait for next `PendingWake`.
-	waker: Option<Delay>,
+	timer: Option<Delay>,
 }
 
 /// Represents some event waiting to be processed at `ready_at`.
@@ -45,7 +45,7 @@ impl<Payload: Eq + Ord> WaitingQueue<Payload> {
 	///
 	/// If you call `pop` on this queue immediately, it will always return `Poll::Pending`.
 	pub fn new() -> Self {
-		Self { pending_wakes: BinaryHeap::new(), waker: None }
+		Self { pending_wakes: BinaryHeap::new(), timer: None }
 	}
 
 	/// Push a `PendingWake`.
@@ -54,8 +54,8 @@ impl<Payload: Eq + Ord> WaitingQueue<Payload> {
 	/// timely manner.
 	pub fn push(&mut self, wake: PendingWake<Payload>) {
 		self.pending_wakes.push(wake);
-		// Reset waker as it is potentially obsolete now:
-		self.waker = None;
+		// Reset timer as it is potentially obsolete now:
+		self.timer = None;
 	}
 
 	/// Pop the next ready item.
@@ -82,9 +82,9 @@ impl<Payload: Eq + Ord> WaitingQueue<Payload> {
 	/// This function waits asynchronously for an item to become ready. If there is no more item,
 	/// this call will wait forever (return Poll::Pending without scheduling a wake).
 	pub async fn wait_ready(&mut self, now: Instant) {
-		if let Some(waker) = &mut self.waker {
+		if let Some(timer) = &mut self.timer {
 			// Previous timer was not done yet.
-			waker.await
+			timer.await
 		}
 
 		let next_waiting = self.pending_wakes.peek();
@@ -93,10 +93,10 @@ impl<Payload: Eq + Ord> WaitingQueue<Payload> {
 			return
 		}
 
-		self.waker = next_waiting.map(|p| Delay::new(p.ready_at.duration_since(now)));
-		match &mut self.waker {
+		self.timer = next_waiting.map(|p| Delay::new(p.ready_at.duration_since(now)));
+		match &mut self.timer {
 			None => return pending().await,
-			Some(waker) => waker.await,
+			Some(timer) => timer.await,
 		}
 	}
 }
