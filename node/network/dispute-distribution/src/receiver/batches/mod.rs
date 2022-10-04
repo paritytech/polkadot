@@ -68,7 +68,7 @@ pub struct Batches {
 	/// Waiting queue for waiting for batches to become ready for `tick`.
 	///
 	/// Kept invariants by `Batches`:
-	/// For each entry in the waiting_queue there exists a corresponding entry in `batches`.
+	/// For each entry in the `waiting_queue` there exists a corresponding entry in `batches`.
 	waiting_queue: WaitingQueue<CandidateHash>,
 }
 

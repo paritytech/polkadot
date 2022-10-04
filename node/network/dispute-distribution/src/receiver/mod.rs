@@ -134,7 +134,7 @@ enum MuxedMessage {
 
 	/// Rate limit timer hit - is is time to process one row of messages.
 	///
-	/// This is the result of calling self.peer_queues.pop_reqs().
+	/// This is the result of calling `self.peer_queues.pop_reqs()`.
 	WakePeerQueuesPopReqs(Vec<IncomingRequest<DisputeRequest>>),
 
 	/// It is time to check batches.
@@ -142,7 +142,7 @@ enum MuxedMessage {
 	/// Every `BATCH_COLLECTING_INTERVAL` we check whether less than `MIN_KEEP_BATCH_ALIVE_VOTES`
 	/// new votes arrived, if so the batch is ready for import.
 	///
-	/// This is the result of calling self.batches.check_batches().
+	/// This is the result of calling `self.batches.check_batches()`.
 	WakeCheckBatches(Vec<PreparedImport>),
 }
 
