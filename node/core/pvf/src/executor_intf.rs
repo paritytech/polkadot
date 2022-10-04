@@ -104,20 +104,19 @@ pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::
 
 const EEPAR_EXTRA_HEAP_PAGES: u8 = 1;
 const EEPAR_MAX_MEMORY_SIZE: u8 = 2;
-const EEPAR_INSTANTIATION_STRATEGY: u8 = 3;
-const EEPAR_STACK_LIMIT: u8 = 4;
-const EEPAR_FLAGS: u8 = 5;
+const EEPAR_STACK_LIMIT: u8 = 3;
+const EEPAR_BITS: u8 = 4;
 
 const EEPAR_LEN: usize = 5;
 
 const EEPAR_FLAG_CANONICAL_NANS: u8 = 0;
 const EEPAR_FLAG_PARALLEL_COMPILATION: u8 = 1;
 
-const EEINST_POOLING_COW: u8 = 1;
-const EEINST_RECREATE_COW: u8 = 2;
-const EEINST_POOLING: u8 = 3;
-const EEINST_RECREATE: u8 = 4;
-const EEINST_LEGACY: u8 = 5;
+const EEINST_POOLING_COW: u8 = 0b0001;
+const EEINST_RECREATE_COW: u8 = 0b0010;
+const EEINST_POOLING: u8 = 0b0011;
+const EEINST_RECREATE: u8 = 0b0100;
+const EEINST_LEGACY: u8 = 0b0101;
 
 fn params_to_semantics(par: ExecutorParams) -> Semantics {
 	// FIXME: Implement `Default` for `Semantics`?
@@ -127,29 +126,28 @@ fn params_to_semantics(par: ExecutorParams) -> Semantics {
 			EEPAR_EXTRA_HEAP_PAGES => sem.extra_heap_pages = *value,
 			EEPAR_MAX_MEMORY_SIZE if *value <= std::u32::MAX as u64 =>
 				sem.max_memory_size = (*value).try_into().ok(),
-			EEPAR_INSTANTIATION_STRATEGY => match *value as u8 {
-				// FIXME: Probably pack it in 3 bits inside EEPAR_FLAGS
-				EEINST_POOLING_COW =>
-					sem.instantiation_strategy = InstantiationStrategy::PoolingCopyOnWrite,
-				EEINST_RECREATE_COW =>
-					sem.instantiation_strategy = InstantiationStrategy::RecreateInstanceCopyOnWrite,
-				EEINST_POOLING => sem.instantiation_strategy = InstantiationStrategy::Pooling,
-				EEINST_RECREATE =>
-					sem.instantiation_strategy = InstantiationStrategy::RecreateInstance,
-				EEINST_LEGACY =>
-					sem.instantiation_strategy = InstantiationStrategy::LegacyInstanceReuse,
-				_ => (),
-			},
 			EEPAR_STACK_LIMIT =>
 				sem.deterministic_stack_limit = Some(DeterministicStackLimit {
 					logical_max: (value & 0xFFFFFFFFu64) as u32,
 					native_stack_max: (value >> 32) as u32,
 				}),
-			EEPAR_FLAGS => {
+			EEPAR_BITS => {
 				sem.canonicalize_nans =
 					if value & (1 << EEPAR_FLAG_CANONICAL_NANS) == 0 { false } else { true };
 				sem.parallel_compilation =
 					if value & (1 << EEPAR_FLAG_PARALLEL_COMPILATION) == 0 { false } else { true };
+				match ((value >> 2) & 0b111u64) as u8 {
+					EEINST_POOLING_COW =>
+						sem.instantiation_strategy = InstantiationStrategy::PoolingCopyOnWrite,
+					EEINST_RECREATE_COW =>
+						sem.instantiation_strategy = InstantiationStrategy::RecreateInstanceCopyOnWrite,
+					EEINST_POOLING => sem.instantiation_strategy = InstantiationStrategy::Pooling,
+					EEINST_RECREATE =>
+						sem.instantiation_strategy = InstantiationStrategy::RecreateInstance,
+					EEINST_LEGACY =>
+						sem.instantiation_strategy = InstantiationStrategy::LegacyInstanceReuse,
+					_ => (),
+				}
 			},
 			_ => (),
 		}
