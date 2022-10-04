@@ -6334,6 +6334,7 @@ dependencies = [
  "fatality",
  "futures",
  "futures-timer",
+ "indexmap",
  "lazy_static",
  "lru 0.8.0",
  "parity-scale-codec",
