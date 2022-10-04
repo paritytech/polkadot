@@ -109,7 +109,7 @@ where
 
 				// Need to draw value from Bernoulli distribution with given probability of success defined by the Clap parameter.
 				// Note that clap parameter must be f64 since this is expected by the Bernoulli::new() function, hence it must be converted.
-				let distribution = Bernoulli::new(self.percentage / 100.0).unwrap();
+				let distribution = Bernoulli::new(self.percentage / 100.0).expect("Invalid probability! Percentage cannot be < 0 or > 100.");
 
 				// Draw a random value from the distribution, where T: bool, and probability of drawing a 'true' value is = to percentage parameter,
 				// using thread_rng as the source of randomness.
@@ -123,7 +123,7 @@ where
 
 				// Manipulate the message if sampled value is true
 				if true_or_false == true {
-					gum::info!(target: MALUS, "😈 Manipulating CandidateBackingMessage",);
+					gum::info!(target: MALUS, "😈 Intercepted CandidateBackingMessage::Second; crafting a malicious candidate",);
 
 					let pov = PoV { block_data: BlockData(MALICIOUS_POV.into()) };
 
