@@ -31,24 +31,15 @@ use frame_system::pallet_prelude::BlockNumberFor;
 /// v2-v3: <https://github.com/paritytech/polkadot/pull/6091>
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
-/// Migrates the pallet storage to the most recent version, checking and setting the `StorageVersion`.
-pub fn migrate_to_latest<T: Config>() -> Weight {
-	let mut weight = T::DbWeight::get().reads(1);
-	if StorageVersion::get::<Pallet<T>>() == 2 {
-		weight += migrate_to_v3::<T>();
-		StorageVersion::new(3).put::<Pallet<T>>();
-	}
-	weight
-}
-
-mod v2 {
+mod v3 {
 	use super::*;
+	use frame_support::traits::OnRuntimeUpgrade;
 	use primitives::v2::{Balance, SessionIndex};
 
 	// Copied over from configuration.rs @ de9e147695b9f1be8bd44e07861a31e483c8343a and removed
 	// all the comments, and changed the Weight struct to OldWeight
 	#[derive(parity_scale_codec::Encode, parity_scale_codec::Decode, Debug)]
-	pub struct HostConfiguration<BlockNumber> {
+	pub struct OldHostConfiguration<BlockNumber> {
 		pub max_code_size: u32,
 		pub max_head_data_size: u32,
 		pub max_upward_queue_count: u32,
@@ -94,7 +85,7 @@ mod v2 {
 		pub minimum_validation_upgrade_delay: BlockNumber,
 	}
 
-	impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
+	impl<BlockNumber: Default + From<u32>> Default for OldHostConfiguration<BlockNumber> {
 		fn default() -> Self {
 			Self {
 				group_rotation_frequency: 1u32.into(),
@@ -145,16 +136,33 @@ mod v2 {
 			}
 		}
 	}
+
+	pub struct MigrateToV3<T>(sp_std::marker::PhantomData<T>);
+	impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
+		fn on_runtime_upgrade() -> Weight {
+			if StorageVersion::get::<Pallet<T>>() == 2 {
+				let weight_consumed = migrate_to_v3::<T>();
+
+				log::info!(target: configuration::LOG_TARGET, "MigrateToV10 executed successfully");
+				STORAGE_VERSION.put::<Pallet<T>>();
+
+				weight_consumed
+			} else {
+				log::warn!(target: configuration::LOG_TARGET, "MigrateToV3 should be removed.");
+				T::DbWeight::get().reads(1)
+			}
+		}
+	}
 }
 
-pub fn migrate_to_v3<T: Config>() -> Weight {
+fn migrate_to_v3<T: Config>() -> Weight {
 	// Unusual formatting is justified:
 	// - make it easier to verify that fields assign what they supposed to assign.
 	// - this code is transient and will be removed after all migrations are done.
 	// - this code is important enough to optimize for legibility sacrificing consistency.
 	#[rustfmt::skip]
 	let translate =
-		|pre: v2::HostConfiguration<BlockNumberFor<T>>| ->
+		|pre: v3::OldHostConfiguration<BlockNumberFor<T>>| ->
 configuration::HostConfiguration<BlockNumberFor<T>>
 	{
 		super::HostConfiguration {
@@ -233,7 +241,7 @@ mod tests {
 		// doesn't need to be read and also leaving it as one line allows to easily copy it.
 		let raw_config = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a000000100e0000580200000000500000c8000000e87648170000001e00000000000000005039278c0400000000000000000000005039278c0400000000000000000000e8030000009001001e00000000000000009001008070000000000000000000000a0000000a0000000a00000001000000010500000001c8000000060000005802000002000000580200000200000059000000000000001e0000002800000000c817a804000000000200000014000000"];
 
-		let v2 = v2::HostConfiguration::<primitives::v2::BlockNumber>::decode(&mut &raw_config[..])
+		let v2 = v3::OldHostConfiguration::<primitives::v2::BlockNumber>::decode(&mut &raw_config[..])
 			.unwrap();
 
 		// We check only a sample of the values here. If we missed any fields or messed up data types
@@ -258,7 +266,7 @@ mod tests {
 		// We specify only the picked fields and the rest should be provided by the `Default`
 		// implementation. That implementation is copied over between the two types and should work
 		// fine.
-		let v2 = v2::HostConfiguration::<primitives::v2::BlockNumber> {
+		let v2 = v3::OldHostConfiguration::<primitives::v2::BlockNumber> {
 			ump_max_individual_weight: OldWeight(0x71616e6f6e0au64),
 			needed_approvals: 69,
 			thread_availability_period: 55,
