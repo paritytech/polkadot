@@ -16,6 +16,7 @@
 
 use std::{
 	collections::HashSet,
+	num::NonZeroUsize,
 	pin::Pin,
 	task::{Context, Poll},
 };
@@ -60,6 +61,11 @@ const COST_NOT_A_VALIDATOR: Rep = Rep::CostMajor("Reporting peer was not a valid
 
 /// How many statement imports we want to issue in parallel:
 pub const MAX_PARALLEL_IMPORTS: usize = 10;
+
+const BANNED_PEERS_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(MAX_PARALLEL_IMPORTS) {
+	Some(cap) => cap,
+	None => panic!("Banned peers cache size should not be 0."),
+};
 
 /// State for handling incoming `DisputeRequest` messages.
 ///
@@ -146,7 +152,8 @@ where
 	) -> Self {
 		let runtime = RuntimeInfo::new_with_config(runtime::Config {
 			keystore: None,
-			session_cache_lru_size: DISPUTE_WINDOW.get() as usize,
+			session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+				.expect("Dispute window can not be 0; qed"),
 		});
 		Self {
 			runtime,
@@ -156,7 +163,7 @@ where
 			pending_imports: PendingImports::new(),
 			// Size of MAX_PARALLEL_IMPORTS ensures we are going to immediately get rid of any
 			// malicious requests still pending in the incoming queue.
-			banned_peers: LruCache::new(MAX_PARALLEL_IMPORTS),
+			banned_peers: LruCache::new(BANNED_PEERS_CACHE_SIZE),
 			metrics,
 		}
 	}
@@ -222,7 +229,7 @@ where
 		}
 
 		// Wait for a free slot:
-		if self.pending_imports.len() >= MAX_PARALLEL_IMPORTS as usize {
+		if self.pending_imports.len() >= MAX_PARALLEL_IMPORTS {
 			// Wait for one to finish:
 			let r = self.pending_imports.next().await;
 			self.ban_bad_peer(r.expect("pending_imports.len() is greater 0. qed."))?;
