@@ -139,12 +139,21 @@ impl RollingSessionWindow {
 		Sender: overseer::SubsystemSender<RuntimeApiMessage>
 			+ overseer::SubsystemSender<ChainApiMessage>,
 	{
-		let maybe_stored_window = Self::db_load(db_params.clone());
-
+		// At first, determine session window start using the chain state.
 		let session_index = get_session_index_for_child(&mut sender, block_hash).await?;
 		let earliest_non_finalized_block_session =
 			Self::earliest_non_finalized_block_session(&mut sender).await?;
 
+		// This will increase the session window to cover the full unfinalized chain.
+		let on_chain_window_start = std::cmp::min(
+			session_index.saturating_sub(window_size.get() - 1),
+			earliest_non_finalized_block_session,
+		);
+
+		// Fetch session information from DB.
+		let maybe_stored_window = Self::db_load(db_params.clone());
+
+		// Get the DB stored sessions and recompute window start based on DB data.
 		let (window_start, mut stored_sessions) =
 			if let Some(mut stored_window) = maybe_stored_window {
 				// Check if DB is ancient.
@@ -161,22 +170,12 @@ impl RollingSessionWindow {
 					// If there is at least one entry in db, we always take the DB as source of truth.
 					stored_window.earliest_session
 				} else {
-					// This will increase the session window to cover the full unfinalized chain.
-					std::cmp::min(
-						session_index.saturating_sub(window_size.get() - 1),
-						earliest_non_finalized_block_session,
-					)
+					on_chain_window_start
 				};
 
 				(window_start, stored_window.session_info)
 			} else {
-				(
-					std::cmp::min(
-						session_index.saturating_sub(window_size.get() - 1),
-						earliest_non_finalized_block_session,
-					),
-					Vec::new(),
-				)
+				(on_chain_window_start, Vec::new())
 			};
 
 		// Try to load sessions from DB first and load more from chain state if needed.
