@@ -29,11 +29,12 @@ assert_matches = "1.5"
 async-trait = "0.1.57"
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-clap = { version = "3.1", features = ["derive"] }
+clap = { version = "3.2.21", features = ["derive"] }
 futures = "0.3.21"
 futures-timer = "3.0.2"
 gum = { package = "tracing-gum", path = "../gum/" }
 erasure = { package = "polkadot-erasure-coding", path = "../../erasure-coding" }
+rand = "0.8.5"
 
 [features]
 default = []

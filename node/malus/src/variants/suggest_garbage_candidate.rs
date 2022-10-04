@@ -29,6 +29,7 @@ use polkadot_cli::{
 		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
 		ProvideRuntimeApi,
 	},
+	RunCmd,
 };
 use polkadot_node_core_candidate_validation::find_validation_data;
 use polkadot_node_primitives::{AvailableData, BlockData, PoV};
@@ -36,6 +37,8 @@ use polkadot_primitives::v2::{CandidateDescriptor, CandidateHash};
 
 use polkadot_node_subsystem_util::request_validators;
 use sp_core::traits::SpawnNamed;
+
+use rand::distributions::{Bernoulli, Distribution};
 
 // Filter wrapping related types.
 use crate::{
@@ -71,6 +74,7 @@ struct Inner {
 struct NoteCandidate<Spawner> {
 	inner: Arc<Mutex<Inner>>,
 	spawner: Spawner,
+	percentage: f64,
 }
 
 impl<Sender, Spawner> MessageInterceptor<Sender> for NoteCandidate<Spawner>
@@ -88,131 +92,166 @@ where
 	) -> Option<FromOrchestra<Self::Message>> {
 		match msg {
 			FromOrchestra::Communication {
-				msg: CandidateBackingMessage::Second(relay_parent, candidate, _pov),
+				msg: CandidateBackingMessage::Second(relay_parent, ref candidate, ref _pov),
 			} => {
+				gum::info!(
+					target: MALUS,
+					"😈 Started Malus node with '--percentage' set to: {:?}",
+					&self.percentage,
+				);
+
 				gum::debug!(
 					target: MALUS,
 					candidate_hash = ?candidate.hash(),
 					?relay_parent,
-					"Received request to second candidate"
+					"Received request to second candidate",
 				);
 
-				let pov = PoV { block_data: BlockData(MALICIOUS_POV.into()) };
+				// Need to draw value from Bernoulli distribution with given probability of success defined by the Clap parameter.
+				// Note that clap parameter must be f64 since this is expected by the Bernoulli::new() function, hence it must be converted.
+				let distribution = Bernoulli::new(self.percentage / 100.0).unwrap();
 
-				let (sender, receiver) = std::sync::mpsc::channel();
-				let mut new_sender = subsystem_sender.clone();
-				let _candidate = candidate.clone();
-				self.spawner.spawn_blocking(
-					"malus-get-validation-data",
-					Some("malus"),
-					Box::pin(async move {
-						gum::trace!(target: MALUS, "Requesting validators");
-						let n_validators = request_validators(relay_parent, &mut new_sender)
-							.await
-							.await
-							.unwrap()
-							.unwrap()
-							.len();
-						gum::trace!(target: MALUS, "Validators {}", n_validators);
-						match find_validation_data(&mut new_sender, &_candidate.descriptor()).await
-						{
-							Ok(Some((validation_data, validation_code))) => {
-								sender
-									.send((validation_data, validation_code, n_validators))
-									.expect("channel is still open");
-							},
-							_ => {
-								panic!("Unable to fetch validation data");
-							},
-						}
-					}),
-				);
+				// Draw a random value from the distribution, where T: bool, and probability of drawing a 'true' value is = to percentage parameter,
+				// using thread_rng as the source of randomness.
+				let true_or_false = distribution.sample(&mut rand::thread_rng());
 
-				let (validation_data, validation_code, n_validators) = receiver.recv().unwrap();
-
-				let validation_data_hash = validation_data.hash();
-				let validation_code_hash = validation_code.hash();
-				let validation_data_relay_parent_number = validation_data.relay_parent_number;
-
-				gum::trace!(
+				gum::debug!(
 					target: MALUS,
-					candidate_hash = ?candidate.hash(),
-					?relay_parent,
-					?n_validators,
-					?validation_data_hash,
-					?validation_code_hash,
-					?validation_data_relay_parent_number,
-					"Fetched validation data."
+					"😈 Sampled value from Bernoulli distribution is: {:?}",
+					&true_or_false,
 				);
 
-				let malicious_available_data =
-					AvailableData { pov: Arc::new(pov.clone()), validation_data };
+				// Manipulate the message if sampled value is true
+				if true_or_false == true {
+					gum::info!(target: MALUS, "😈 Manipulating CandidateBackingMessage",);
 
-				let pov_hash = pov.hash();
-				let erasure_root = {
-					let chunks =
-						erasure::obtain_chunks_v1(n_validators as usize, &malicious_available_data)
-							.unwrap();
+					let pov = PoV { block_data: BlockData(MALICIOUS_POV.into()) };
 
-					let branches = erasure::branches(chunks.as_ref());
-					branches.root()
-				};
-
-				let (collator_id, collator_signature) = {
-					use polkadot_primitives::v2::CollatorPair;
-					use sp_core::crypto::Pair;
-
-					let collator_pair = CollatorPair::generate().0;
-					let signature_payload = polkadot_primitives::v2::collator_signature_payload(
-						&relay_parent,
-						&candidate.descriptor().para_id,
-						&validation_data_hash,
-						&pov_hash,
-						&validation_code_hash,
+					let (sender, receiver) = std::sync::mpsc::channel();
+					let mut new_sender = subsystem_sender.clone();
+					let _candidate = candidate.clone();
+					self.spawner.spawn_blocking(
+						"malus-get-validation-data",
+						Some("malus"),
+						Box::pin(async move {
+							gum::trace!(target: MALUS, "Requesting validators");
+							let n_validators = request_validators(relay_parent, &mut new_sender)
+								.await
+								.await
+								.unwrap()
+								.unwrap()
+								.len();
+							gum::trace!(target: MALUS, "Validators {}", n_validators);
+							match find_validation_data(&mut new_sender, &_candidate.descriptor())
+								.await
+							{
+								Ok(Some((validation_data, validation_code))) => {
+									sender
+										.send((validation_data, validation_code, n_validators))
+										.expect("channel is still open");
+								},
+								_ => {
+									panic!("Unable to fetch validation data");
+								},
+							}
+						}),
 					);
 
-					(collator_pair.public(), collator_pair.sign(&signature_payload))
-				};
+					let (validation_data, validation_code, n_validators) = receiver.recv().unwrap();
 
-				let malicious_commitments =
-					create_fake_candidate_commitments(&malicious_available_data.validation_data);
+					let validation_data_hash = validation_data.hash();
+					let validation_code_hash = validation_code.hash();
+					let validation_data_relay_parent_number = validation_data.relay_parent_number;
 
-				let malicious_candidate = CandidateReceipt {
-					descriptor: CandidateDescriptor {
-						para_id: candidate.descriptor().para_id,
-						relay_parent,
-						collator: collator_id,
-						persisted_validation_data_hash: validation_data_hash,
-						pov_hash,
-						erasure_root,
-						signature: collator_signature,
-						para_head: malicious_commitments.head_data.hash(),
-						validation_code_hash,
-					},
-					commitments_hash: malicious_commitments.hash(),
-				};
-				let malicious_candidate_hash = malicious_candidate.hash();
+					gum::trace!(
+						target: MALUS,
+						candidate_hash = ?candidate.hash(),
+						?relay_parent,
+						?n_validators,
+						?validation_data_hash,
+						?validation_code_hash,
+						?validation_data_relay_parent_number,
+						"Fetched validation data."
+					);
 
-				gum::debug!(
-					target: MALUS,
-					candidate_hash = ?candidate.hash(),
-					?malicious_candidate_hash,
-					"Created malicious candidate"
-				);
+					let malicious_available_data =
+						AvailableData { pov: Arc::new(pov.clone()), validation_data };
 
-				// Map malicious candidate to the original one. We need this mapping to send back the correct seconded statement
-				// to the collators.
-				self.inner
-					.lock()
-					.expect("bad lock")
-					.map
-					.insert(malicious_candidate_hash, candidate.hash());
+					let pov_hash = pov.hash();
+					let erasure_root = {
+						let chunks = erasure::obtain_chunks_v1(
+							n_validators as usize,
+							&malicious_available_data,
+						)
+						.unwrap();
 
-				let message = FromOrchestra::Communication {
-					msg: CandidateBackingMessage::Second(relay_parent, malicious_candidate, pov),
-				};
+						let branches = erasure::branches(chunks.as_ref());
+						branches.root()
+					};
 
-				Some(message)
+					let (collator_id, collator_signature) = {
+						use polkadot_primitives::v2::CollatorPair;
+						use sp_core::crypto::Pair;
+
+						let collator_pair = CollatorPair::generate().0;
+						let signature_payload = polkadot_primitives::v2::collator_signature_payload(
+							&relay_parent,
+							&candidate.descriptor().para_id,
+							&validation_data_hash,
+							&pov_hash,
+							&validation_code_hash,
+						);
+
+						(collator_pair.public(), collator_pair.sign(&signature_payload))
+					};
+
+					let malicious_commitments = create_fake_candidate_commitments(
+						&malicious_available_data.validation_data,
+					);
+
+					let malicious_candidate = CandidateReceipt {
+						descriptor: CandidateDescriptor {
+							para_id: candidate.descriptor().para_id,
+							relay_parent,
+							collator: collator_id,
+							persisted_validation_data_hash: validation_data_hash,
+							pov_hash,
+							erasure_root,
+							signature: collator_signature,
+							para_head: malicious_commitments.head_data.hash(),
+							validation_code_hash,
+						},
+						commitments_hash: malicious_commitments.hash(),
+					};
+					let malicious_candidate_hash = malicious_candidate.hash();
+
+					gum::debug!(
+						target: MALUS,
+						candidate_hash = ?candidate.hash(),
+						?malicious_candidate_hash,
+						"Created malicious candidate"
+					);
+
+					// Map malicious candidate to the original one. We need this mapping to send back the correct seconded statement
+					// to the collators.
+					self.inner
+						.lock()
+						.expect("bad lock")
+						.map
+						.insert(malicious_candidate_hash, candidate.hash());
+
+					let message = FromOrchestra::Communication {
+						msg: CandidateBackingMessage::Second(
+							relay_parent,
+							malicious_candidate,
+							pov,
+						),
+					};
+
+					Some(message)
+				} else {
+					Some(msg)
+				}
 			},
 			FromOrchestra::Communication { msg } => Some(FromOrchestra::Communication { msg }),
 			FromOrchestra::Signal(signal) => Some(FromOrchestra::Signal(signal)),
@@ -241,8 +280,30 @@ where
 	}
 }
 
+#[derive(Clone, Debug, clap::Parser)]
+#[clap(rename_all = "kebab-case")]
+#[allow(missing_docs)]
+pub struct SuggestGarbageCandidateOptions {
+	/// Determines the percentage of candidates that should be disputed. Allows for fine-tuning
+	/// the intensity of the behavior of the malicious node. Value must be in the range 0..=100.
+	#[clap(short, long, ignore_case = true, default_value_t = 100, value_parser = clap::value_parser!(u8).range(0..=100))]
+	pub percentage: u8,
+
+	#[clap(flatten)]
+	pub cmd: RunCmd,
+}
+
 /// Garbage candidate implementation wrapper which implements `OverseerGen` glue.
-pub(crate) struct BackGarbageCandidateWrapper;
+pub(crate) struct BackGarbageCandidateWrapper {
+	/// Options from CLI.
+	opts: SuggestGarbageCandidateOptions,
+}
+
+impl BackGarbageCandidateWrapper {
+	pub fn new(opts: SuggestGarbageCandidateOptions) -> Self {
+		Self { opts }
+	}
+}
 
 impl OverseerGen for BackGarbageCandidateWrapper {
 	fn generate<'a, Spawner, RuntimeClient>(
@@ -257,9 +318,11 @@ impl OverseerGen for BackGarbageCandidateWrapper {
 	{
 		let inner = Inner { map: std::collections::HashMap::new() };
 		let inner_mut = Arc::new(Mutex::new(inner));
-		let note_candidate =
-			NoteCandidate { inner: inner_mut.clone(), spawner: SpawnGlue(args.spawner.clone()) };
-
+		let note_candidate = NoteCandidate {
+			inner: inner_mut.clone(),
+			spawner: SpawnGlue(args.spawner.clone()),
+			percentage: f64::from(self.opts.percentage),
+		};
 		let validation_filter = ReplaceValidationResult::new(
 			FakeCandidateValidation::BackingAndApprovalValid,
 			FakeCandidateValidationError::InvalidOutputs,
