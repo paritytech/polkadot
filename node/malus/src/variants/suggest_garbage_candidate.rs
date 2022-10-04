@@ -63,16 +63,9 @@ use std::{
 	sync::{Arc, Mutex},
 };
 
-struct Inner {
-	/// Maps malicious candidate hash to original candidate hash.
-	/// It is used to replace outgoing collator protocol seconded messages.
-	map: HashMap<CandidateHash, CandidateHash>,
-}
-
 /// Replace outgoing approval messages with disputes.
 #[derive(Clone)]
 struct NoteCandidate<Spawner> {
-	inner: Arc<Mutex<Inner>>,
 	spawner: Spawner,
 	percentage: f64,
 }
@@ -232,14 +225,6 @@ where
 						"Created malicious candidate"
 					);
 
-					// Map malicious candidate to the original one. We need this mapping to send back the correct seconded statement
-					// to the collators.
-					self.inner
-						.lock()
-						.expect("bad lock")
-						.map
-						.insert(malicious_candidate_hash, candidate.hash());
-
 					let message = FromOrchestra::Communication {
 						msg: CandidateBackingMessage::Second(
 							relay_parent,
@@ -247,7 +232,6 @@ where
 							pov,
 						),
 					};
-
 					Some(message)
 				} else {
 					Some(msg)
@@ -257,27 +241,11 @@ where
 			FromOrchestra::Signal(signal) => Some(FromOrchestra::Signal(signal)),
 		}
 	}
-
-	fn intercept_outgoing(
-		&self,
-		msg: overseer::CandidateBackingOutgoingMessages,
-	) -> Option<overseer::CandidateBackingOutgoingMessages> {
-		let msg = match msg {
-			overseer::CandidateBackingOutgoingMessages::CollatorProtocolMessage(
-				CollatorProtocolMessage::Seconded(relay_parent, statement),
-			) => {
-				// `parachain::collator-protocol: received an unexpected `CollationSeconded`: unknown statement statement=...`
-				// TODO: Fix this error. We get this on colaltors because `malicious backing` creates a candidate that gets backed/included.
-				// It is harmless for test parachain collators, but it will prevent cumulus based collators to make progress
-				// as they wait for the relay chain to confirm the seconding of the collation.
-				overseer::CandidateBackingOutgoingMessages::CollatorProtocolMessage(
-					CollatorProtocolMessage::Seconded(relay_parent, statement),
-				)
-			},
-			msg => msg,
-		};
-		Some(msg)
-	}
+	// Comments related to unexpected CollationSeconded:
+	// `parachain::collator-protocol: received an unexpected `CollationSeconded`: unknown statement statement=...`
+	// TODO: Fix this error. We get this on colaltors because `malicious backing` creates a candidate that gets backed/included.
+	// It is harmless for test parachain collators, but it will prevent cumulus based collators to make progress
+	// as they wait for the relay chain to confirm the seconding of the collation.
 }
 
 #[derive(Clone, Debug, clap::Parser)]
@@ -316,10 +284,7 @@ impl OverseerGen for BackGarbageCandidateWrapper {
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 		Spawner: 'static + SpawnNamed + Clone + Unpin,
 	{
-		let inner = Inner { map: std::collections::HashMap::new() };
-		let inner_mut = Arc::new(Mutex::new(inner));
 		let note_candidate = NoteCandidate {
-			inner: inner_mut.clone(),
 			spawner: SpawnGlue(args.spawner.clone()),
 			percentage: f64::from(self.opts.percentage),
 		};
