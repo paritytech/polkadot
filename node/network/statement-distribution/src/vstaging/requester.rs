@@ -15,7 +15,10 @@
 //!
 // TODO [now]: some module docs.
 
-use super::{BENEFIT_VALID_RESPONSE, COST_IMPROPERLY_DECODED_RESPONSE};
+use super::{
+	BENEFIT_VALID_RESPONSE, BENEFIT_VALID_STATEMENT, COST_IMPROPERLY_DECODED_RESPONSE,
+	COST_INVALID_RESPONSE, COST_INVALID_SIGNATURE, COST_UNREQUESTED_RESPONSE_STATEMENT,
+};
 use crate::LOG_TARGET;
 
 use polkadot_node_network_protocol::{
@@ -27,8 +30,9 @@ use polkadot_node_network_protocol::{
 	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::vstaging::{
-	CandidateHash, CommittedCandidateReceipt, GroupIndex, Hash, ParaId, PersistedValidationData,
-	SignedStatement, ValidatorId, ValidatorIndex,
+	CandidateHash, CommittedCandidateReceipt, CompactStatement, GroupIndex, Hash, ParaId,
+	PersistedValidationData, SessionIndex, SignedStatement, SigningContext, ValidatorId,
+	ValidatorIndex,
 };
 
 use bitvec::{order::Lsb0, vec::BitVec};
@@ -310,14 +314,12 @@ impl<'a> UnhandledResponse<'a> {
 	/// this will clean up all remaining requests for the candidate in the manager.
 	///
 	/// As parameters, the user should supply the canonical group array as well
-	/// as a mapping from validator index to validator ID. Additionally, the user should
-	/// provide a lookup used to check whether the para is allowed for the group at that relay-parent.
-	/// The validator pubkey mapping will not be queried except for validator indices in the group.
-	/// The allowed-para mapping will be queried with the para committed to by the candidate
-	/// receipt.
+	/// as a mapping from validator index to validator ID. The validator pubkey mapping
+	/// will not be queried except for validator indices in the group.
 	pub fn validate_response(
 		self,
 		group: &[ValidatorIndex],
+		session: SessionIndex,
 		validator_key_lookup: impl Fn(ValidatorIndex) -> ValidatorId,
 		allowed_para_lookup: impl Fn(ParaId) -> bool,
 	) -> ResponseValidationOutput {
@@ -386,8 +388,8 @@ impl<'a> UnhandledResponse<'a> {
 			requested_peer,
 			seconded_mask,
 			group,
+			session,
 			validator_key_lookup,
-			allowed_para_lookup,
 		);
 
 		if let CandidateRequestStatus::Complete { .. } = output.request_status {
@@ -406,22 +408,140 @@ fn validate_complete_response(
 	requested_peer: PeerId,
 	mut sent_seconded_bitmask: BitVec<u8, Lsb0>,
 	group: &[ValidatorIndex],
+	session: SessionIndex,
 	validator_key_lookup: impl Fn(ValidatorIndex) -> ValidatorId,
-	allowed_para_lookup: impl Fn(ParaId) -> bool,
 ) -> ResponseValidationOutput {
-	// TODO [now]: sanity check bitmask size.
-	// TODO [now]: filter out stuff outside of group or bitmask.
-	// TODO [now]: filter out duplicates.
-	// TODO [now]: check statement signatures.
+	// sanity check bitmask size. this is based entirely on
+	// local logic here.
+	if sent_seconded_bitmask.len() != group.len() {
+		gum::error!(
+			target: LOG_TARGET,
+			group_len = group.len(),
+			sent_bitmask_len = sent_seconded_bitmask.len(),
+			"Logic bug: group size != sent bitmask len"
+		);
+
+		// resize and attempt to continue.
+		sent_seconded_bitmask.resize(group.len(), true);
+	}
+
+	let invalid_candidate_output = || ResponseValidationOutput {
+		request_status: CandidateRequestStatus::Incomplete,
+		reputation_changes: vec![(requested_peer.clone(), COST_INVALID_RESPONSE)],
+	};
 
 	// sanity-check candidate response.
 	// note: roughly ascending cost of operations
-	// TODO [now]: check relay-parent
-	// TODO [now]: check expected para-id
-	// TODO [now]: check PVD against hash.
-	// TODO [now]: check candidate hash.
+	{
+		if response.candidate_receipt.descriptor.relay_parent != identifier.relay_parent {
+			return invalid_candidate_output()
+		}
 
-	unimplemented!()
+		if response.candidate_receipt.descriptor.persisted_validation_data_hash !=
+			response.persisted_validation_data.hash()
+		{
+			return invalid_candidate_output()
+		}
+
+		if response.candidate_receipt.hash() != identifier.candidate_hash {
+			return invalid_candidate_output()
+		}
+	}
+
+	// statement checks.
+	let mut rep_changes = Vec::new();
+	let statements = {
+		let mut statements =
+			Vec::with_capacity(std::cmp::min(response.statements.len(), group.len() * 2));
+
+		let mut received_seconded = BitVec::<usize, Lsb0>::repeat(false, group.len());
+		let mut received_valid = BitVec::<usize, Lsb0>::repeat(false, group.len());
+
+		let index_in_group = |v: ValidatorIndex| group.iter().position(|x| &v == x);
+
+		let signing_context =
+			SigningContext { parent_hash: identifier.relay_parent, session_index: session };
+
+		for unchecked_statement in response.statements.into_iter().take(group.len() * 2) {
+			// ensure statement is from a validator in the group.
+			let i = match index_in_group(unchecked_statement.unchecked_validator_index()) {
+				Some(i) => i,
+				None => {
+					rep_changes.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
+					continue
+				},
+			};
+
+			// ensure statement is on the correct candidate hash.
+			if unchecked_statement.unchecked_payload().candidate_hash() !=
+				&identifier.candidate_hash
+			{
+				rep_changes.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
+				continue
+			}
+
+			// filter out duplicates or statements outside the mask.
+			// note on indexing: we have ensured that the bitmask and the
+			// duplicate trackers have the correct size for the group.
+			match unchecked_statement.unchecked_payload() {
+				CompactStatement::Seconded(_) => {
+					if !sent_seconded_bitmask[i] {
+						rep_changes
+							.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
+						continue
+					}
+
+					if received_seconded[i] {
+						rep_changes
+							.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
+						continue
+					}
+				},
+				CompactStatement::Valid(_) =>
+					if received_valid[i] {
+						rep_changes
+							.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
+						continue
+					},
+			}
+
+			let validator_public =
+				validator_key_lookup(unchecked_statement.unchecked_validator_index());
+			let checked_statement =
+				match unchecked_statement.try_into_checked(&signing_context, &validator_public) {
+					Err(_) => {
+						rep_changes.push((requested_peer.clone(), COST_INVALID_SIGNATURE));
+						continue
+					},
+					Ok(checked) => checked,
+				};
+
+			match checked_statement.payload() {
+				CompactStatement::Seconded(_) => {
+					received_seconded.set(i, true);
+				},
+				CompactStatement::Valid(_) => {
+					received_valid.set(i, true);
+				},
+			}
+
+			statements.push(checked_statement);
+			rep_changes.push((requested_peer.clone(), BENEFIT_VALID_STATEMENT));
+		}
+
+		statements
+	};
+
+	rep_changes.push((requested_peer.clone(), BENEFIT_VALID_RESPONSE));
+
+	ResponseValidationOutput {
+		request_status: CandidateRequestStatus::Complete {
+			candidate: response.candidate_receipt,
+			persisted_validation_data: response.persisted_validation_data,
+			statements,
+		},
+		reputation_changes: rep_changes,
+	}
 }
 
 /// The status of the candidate request after the handling of a response.
@@ -435,6 +555,10 @@ pub enum CandidateRequestStatus {
 	/// expected may not be present, and higher-level code should
 	/// evaluate whether the candidate is still worth storing and whether
 	/// the sender should be punished.
+	///
+	/// This also does not indicate that the para has actually been checked
+	/// to be one that the group is assigned under. Higher-level code should
+	/// verify that this is the case and ignore the candidate accordingly if so.
 	Complete {
 		candidate: CommittedCandidateReceipt,
 		persisted_validation_data: PersistedValidationData,

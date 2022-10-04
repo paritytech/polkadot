@@ -69,8 +69,12 @@ const COST_EXCESSIVE_SECONDED: Rep = Rep::CostMinor("Sent Excessive `Seconded` S
 const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
 const COST_IMPROPERLY_DECODED_RESPONSE: Rep =
 	Rep::CostMajor("Improperly Encoded Candidate Response");
+const COST_INVALID_RESPONSE: Rep = Rep::CostMajor("Invalid Candidate Response");
+const COST_UNREQUESTED_RESPONSE_STATEMENT: Rep =
+	Rep::CostMajor("Un-requested Statement In Response");
 
 const BENEFIT_VALID_RESPONSE: Rep = Rep::BenefitMajor("Peer Answered Candidate Request");
+const BENEFIT_VALID_STATEMENT: Rep = Rep::BenefitMajor("Peer provided a valid statement");
 
 struct PerRelayParentState {
 	validator_state: HashMap<ValidatorIndex, PerRelayParentValidatorState>,
