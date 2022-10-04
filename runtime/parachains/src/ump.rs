@@ -524,7 +524,10 @@ impl<T: Config> Pallet<T> {
 			let max_weight = if weight_used == Weight::zero() {
 				// we increase the amount of weight that we're allowed to use on the first message to try to prevent
 				// the possibility of blockage of the queue.
-				config.ump_service_total_weight * T::FirstMessageFactorPercent::get() / 100
+				config
+					.ump_service_total_weight
+					.saturating_mul(T::FirstMessageFactorPercent::get()) /
+					100
 			} else {
 				config.ump_service_total_weight - weight_used
 			};

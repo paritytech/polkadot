@@ -1723,6 +1723,23 @@ sp_api::impl_runtime_apis! {
 				.map(|(leaves, proof)| (leaves.into_iter().map(|leaf| mmr::EncodableOpaqueLeaf::from_leaf(&leaf)).collect(), proof))
 		}
 
+		fn generate_historical_batch_proof(
+			leaf_indices: Vec<mmr::LeafIndex>,
+			leaves_count: mmr::LeafIndex,
+		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error> {
+			Mmr::generate_historical_batch_proof(leaf_indices, leaves_count).map(
+				|(leaves, proof)| {
+					(
+						leaves
+							.into_iter()
+							.map(|leaf| mmr::EncodableOpaqueLeaf::from_leaf(&leaf))
+							.collect(),
+						proof,
+					)
+				},
+			)
+		}
+
 		fn verify_batch_proof(leaves: Vec<mmr::EncodableOpaqueLeaf>, proof: mmr::BatchProof<Hash>)
 			-> Result<(), mmr::Error>
 		{

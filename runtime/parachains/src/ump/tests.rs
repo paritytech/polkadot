@@ -38,8 +38,8 @@ impl Default for GenesisConfigBuilder {
 			max_upward_message_num_per_candidate: 2,
 			max_upward_queue_count: 4,
 			max_upward_queue_size: 64,
-			ump_service_total_weight: Weight::from_ref_time(1000),
-			ump_max_individual_weight: Weight::from_ref_time(100),
+			ump_service_total_weight: Weight::from_ref_time(1000).set_proof_size(1000),
+			ump_max_individual_weight: Weight::from_ref_time(100).set_proof_size(100),
 		}
 	}
 }
@@ -156,7 +156,7 @@ fn dispatch_resume_after_exceeding_dispatch_stage_weight() {
 
 	new_test_ext(
 		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(500),
+			ump_service_total_weight: Weight::from_ref_time(500).set_proof_size(500),
 			..Default::default()
 		}
 		.build(),
@@ -203,8 +203,8 @@ fn dispatch_keeps_message_after_weight_exhausted() {
 
 	new_test_ext(
 		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(500),
-			ump_max_individual_weight: Weight::from_ref_time(300),
+			ump_service_total_weight: Weight::from_ref_time(500).set_proof_size(500),
+			ump_max_individual_weight: Weight::from_ref_time(300).set_proof_size(300),
 			..Default::default()
 		}
 		.build(),
@@ -243,7 +243,7 @@ fn dispatch_correctly_handle_remove_of_latest() {
 
 	new_test_ext(
 		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(900),
+			ump_service_total_weight: Weight::from_ref_time(900).set_proof_size(900),
 			..Default::default()
 		}
 		.build(),
@@ -312,8 +312,8 @@ fn overweight_queue_works() {
 
 	new_test_ext(
 		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(900),
-			ump_max_individual_weight: Weight::from_ref_time(300),
+			ump_service_total_weight: Weight::from_ref_time(900).set_proof_size(900),
+			ump_max_individual_weight: Weight::from_ref_time(300).set_proof_size(300),
 			..Default::default()
 		}
 		.build(),
