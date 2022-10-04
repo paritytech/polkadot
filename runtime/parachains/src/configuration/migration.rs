@@ -31,7 +31,7 @@ use frame_system::pallet_prelude::BlockNumberFor;
 /// v2-v3: <https://github.com/paritytech/polkadot/pull/6091>
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
-mod v3 {
+pub mod v3 {
 	use super::*;
 	use frame_support::traits::OnRuntimeUpgrade;
 	use primitives::v2::{Balance, SessionIndex};
@@ -241,8 +241,9 @@ mod tests {
 		// doesn't need to be read and also leaving it as one line allows to easily copy it.
 		let raw_config = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a000000100e0000580200000000500000c8000000e87648170000001e00000000000000005039278c0400000000000000000000005039278c0400000000000000000000e8030000009001001e00000000000000009001008070000000000000000000000a0000000a0000000a00000001000000010500000001c8000000060000005802000002000000580200000200000059000000000000001e0000002800000000c817a804000000000200000014000000"];
 
-		let v2 = v3::OldHostConfiguration::<primitives::v2::BlockNumber>::decode(&mut &raw_config[..])
-			.unwrap();
+		let v2 =
+			v3::OldHostConfiguration::<primitives::v2::BlockNumber>::decode(&mut &raw_config[..])
+				.unwrap();
 
 		// We check only a sample of the values here. If we missed any fields or messed up data types
 		// that would skew all the fields coming after.
