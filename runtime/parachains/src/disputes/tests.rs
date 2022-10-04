@@ -20,8 +20,7 @@ use crate::{
 	disputes::DisputesHandler,
 	mock::{
 		new_test_ext, AccountId, AllPalletsWithSystem, Initializer, MockGenesisConfig, System,
-		Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, PUNISH_VALIDATORS_INCONCLUSIVE,
-		REWARD_VALIDATORS,
+		Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, REWARD_VALIDATORS,
 	},
 };
 use assert_matches::assert_matches;
@@ -500,9 +499,9 @@ fn dispute_statement_becoming_onesided_due_to_spamslots_is_accepted() {
 	});
 }
 
-// Test that punish_inconclusive is correctly called.
+// Test that dispute timeout is handled correctly.
 #[test]
-fn test_initializer_initialize() {
+fn test_dispute_timeout() {
 	let dispute_conclusion_by_time_out_period = 3;
 	let start = 10;
 
@@ -602,10 +601,6 @@ fn test_initializer_initialize() {
 		// Run to timeout + 1 in order to executive on_finalize(timeout)
 		run_to_block(start + dispute_conclusion_by_time_out_period + 1, |_| None);
 		assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![0, 0, 0, 0, 0, 0, 0]));
-		assert_eq!(
-			PUNISH_VALIDATORS_INCONCLUSIVE.with(|r| r.borrow()[0].clone()),
-			(9, vec![ValidatorIndex(0), ValidatorIndex(6)]),
-		);
 	});
 }
 

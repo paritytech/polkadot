@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-dispute-distribution"
-version = "0.9.27"
+version = "0.9.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -25,7 +25,7 @@ lru = "0.7.7"
 indexmap = "1.9.1"
 
 [dev-dependencies]
-async-trait = "0.1.53"
+async-trait = "0.1.57"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }

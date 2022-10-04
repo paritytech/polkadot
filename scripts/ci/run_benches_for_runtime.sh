@@ -29,6 +29,12 @@ rm -f $ERR_FILE
 for PALLET in "${PALLETS[@]}"; do
   echo "[+] Benchmarking $PALLET for $runtime";
 
+  output_file=""
+  if [[ $PALLET == *"::"* ]]; then
+    # translates e.g. "pallet_foo::bar" to "pallet_foo_bar"
+    output_file="${PALLET//::/_}.rs"
+  fi
+
   OUTPUT=$(
     ./target/production/polkadot benchmark pallet \
     --chain="${runtime}-dev" \
@@ -39,7 +45,7 @@ for PALLET in "${PALLETS[@]}"; do
     --execution=wasm \
     --wasm-execution=compiled \
     --header=./file_header.txt \
-    --output="./runtime/${runtime}/src/weights/${PALLET/::/_}.rs" 2>&1
+    --output="./runtime/${runtime}/src/weights/${output_file}" 2>&1
   )
   if [ $? -ne 0 ]; then
     echo "$OUTPUT" >> "$ERR_FILE"
@@ -56,7 +62,8 @@ OUTPUT=$(
   --wasm-execution=compiled \
   --weight-path="runtime/${runtime}/constants/src/weights/" \
   --warmup=10 \
-  --repeat=100
+  --repeat=100 \
+  --header=./file_header.txt
 )
 if [ $? -ne 0 ]; then
   echo "$OUTPUT" >> "$ERR_FILE"

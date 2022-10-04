@@ -30,6 +30,8 @@ use polkadot_primitives::v2::{
 /// `DisputeMessage` and related types.
 mod message;
 pub use message::{DisputeMessage, Error as DisputeMessageCheckError, UncheckedDisputeMessage};
+mod status;
+pub use status::{dispute_is_inactive, DisputeStatus, Timestamp, ACTIVE_DURATION_SECS};
 
 /// A checked dispute statement from an associated validator.
 #[derive(Debug, Clone)]

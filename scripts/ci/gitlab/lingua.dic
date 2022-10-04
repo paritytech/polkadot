@@ -51,6 +51,7 @@ Debian/M
 decodable/MS
 decrement
 deduplicated
+deduplication
 deinitializing
 dequeue/SD
 dequeuing
@@ -225,6 +226,7 @@ reservable
 responder/SM
 retriability
 reverify
+ROC
 roundtrip/MS
 routable
 rpc
@@ -282,6 +284,7 @@ typesystem
 ubuntu/M
 UDP
 UI
+unapplied
 unassign
 unconcluded
 unfinalize/B

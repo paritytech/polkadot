@@ -376,49 +376,20 @@ impl RequestChunksFromValidators {
 			self.total_received_responses += 1;
 
 			match request_result {
-				Ok(Some(chunk)) => {
-					// Check merkle proofs of any received chunks.
-
-					let validator_index = chunk.index;
-
-					if let Ok(anticipated_hash) =
-						branch_hash(&params.erasure_root, chunk.proof(), chunk.index.0 as usize)
-					{
-						let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
-
-						if erasure_chunk_hash != anticipated_hash {
-							metrics.on_chunk_request_invalid();
-							self.error_count += 1;
-
-							gum::debug!(
-								target: LOG_TARGET,
-								candidate_hash = ?params.candidate_hash,
-								?validator_index,
-								"Merkle proof mismatch",
-							);
-						} else {
-							metrics.on_chunk_request_succeeded();
-
-							gum::trace!(
-								target: LOG_TARGET,
-								candidate_hash = ?params.candidate_hash,
-								?validator_index,
-								"Received valid chunk.",
-							);
-							self.received_chunks.insert(validator_index, chunk);
-						}
+				Ok(Some(chunk)) =>
+					if is_chunk_valid(params, &chunk) {
+						metrics.on_chunk_request_succeeded();
+						gum::trace!(
+							target: LOG_TARGET,
+							candidate_hash = ?params.candidate_hash,
+							validator_index = ?chunk.index,
+							"Received valid chunk",
+						);
+						self.received_chunks.insert(chunk.index, chunk);
 					} else {
 						metrics.on_chunk_request_invalid();
 						self.error_count += 1;
-
-						gum::debug!(
-							target: LOG_TARGET,
-							candidate_hash = ?params.candidate_hash,
-							?validator_index,
-							"Invalid Merkle proof",
-						);
-					}
-				},
+					},
 				Ok(None) => {
 					metrics.on_chunk_request_no_such_chunk();
 					self.error_count += 1;
@@ -507,7 +478,20 @@ impl RequestChunksFromValidators {
 					self.shuffling.retain(|i| !chunk_indices.contains(i));
 
 					for chunk in chunks {
-						self.received_chunks.insert(chunk.index, chunk);
+						if is_chunk_valid(params, &chunk) {
+							gum::trace!(
+								target: LOG_TARGET,
+								candidate_hash = ?params.candidate_hash,
+								validator_index = ?chunk.index,
+								"Found valid chunk on disk"
+							);
+							self.received_chunks.insert(chunk.index, chunk);
+						} else {
+							gum::error!(
+								target: LOG_TARGET,
+								"Loaded invalid chunk from disk! Disk/Db corruption _very_ likely - please fix ASAP!"
+							);
+						};
 					}
 				},
 				Err(oneshot::Canceled) => {
@@ -607,6 +591,35 @@ const fn is_unavailable(
 	threshold: usize,
 ) -> bool {
 	received_chunks + requesting_chunks + unrequested_validators < threshold
+}
+
+/// Check validity of a chunk.
+fn is_chunk_valid(params: &RecoveryParams, chunk: &ErasureChunk) -> bool {
+	let anticipated_hash =
+		match branch_hash(&params.erasure_root, chunk.proof(), chunk.index.0 as usize) {
+			Ok(hash) => hash,
+			Err(e) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					candidate_hash = ?params.candidate_hash,
+					validator_index = ?chunk.index,
+					error = ?e,
+					"Invalid Merkle proof",
+				);
+				return false
+			},
+		};
+	let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
+	if anticipated_hash != erasure_chunk_hash {
+		gum::debug!(
+			target: LOG_TARGET,
+			candidate_hash = ?params.candidate_hash,
+			validator_index = ?chunk.index,
+			"Merkle proof mismatch"
+		);
+		return false
+	}
+	true
 }
 
 /// Re-encode the data into erasure chunks in order to verify

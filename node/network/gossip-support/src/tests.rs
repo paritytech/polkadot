@@ -476,6 +476,64 @@ fn issues_connection_request_to_past_present_future() {
 }
 
 #[test]
+fn disconnect_when_not_in_past_present_future() {
+	sp_tracing::try_init_simple();
+	let hash = Hash::repeat_byte(0xAA);
+	test_harness(make_subsystem(), |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+		overseer_signal_active_leaves(overseer, hash).await;
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionIndexForChild(tx),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				tx.send(Ok(1)).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionInfo(s, tx),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				assert_eq!(s, 1);
+				let mut heute_leider_nicht = make_session_info();
+				heute_leider_nicht.discovery_keys = AUTHORITIES_WITHOUT_US.clone();
+				tx.send(Ok(Some(heute_leider_nicht))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::Authorities(tx),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				tx.send(Ok(AUTHORITIES_WITHOUT_US.clone())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ConnectToResolvedValidators {
+				validator_addrs,
+				peer_set,
+			}) => {
+				assert!(validator_addrs.is_empty());
+				assert_eq!(peer_set, PeerSet::Validation);
+			}
+		);
+
+		virtual_overseer
+	});
+}
+
+#[test]
 fn test_log_output() {
 	sp_tracing::try_init_simple();
 	let alice: AuthorityDiscoveryId = Sr25519Keyring::Alice.public().into();

@@ -97,8 +97,8 @@ pub enum Response {
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
-#[scale_info(bounds(), skip_type_params(Call))]
-pub enum Xcm<Call> {
+#[scale_info(bounds(), skip_type_params(RuntimeCall))]
+pub enum Xcm<RuntimeCall> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into `holding`. Execute the
 	/// orders (`effects`).
 	///
@@ -109,7 +109,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 0)]
-	WithdrawAsset { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
+	WithdrawAsset { assets: Vec<MultiAsset>, effects: Vec<Order<RuntimeCall>> },
 
 	/// Asset(s) (`assets`) have been received into the ownership of this system on the `origin` system.
 	///
@@ -126,7 +126,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 1)]
-	ReserveAssetDeposit { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
+	ReserveAssetDeposit { assets: Vec<MultiAsset>, effects: Vec<Order<RuntimeCall>> },
 
 	/// Asset(s) (`assets`) have been destroyed on the `origin` system and equivalent assets should be
 	/// created on this system.
@@ -144,7 +144,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 2)]
-	TeleportAsset { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
+	TeleportAsset { assets: Vec<MultiAsset>, effects: Vec<Order<RuntimeCall>> },
 
 	/// Indication of the contents of the holding account corresponding to the `QueryHolding` order of `query_id`.
 	///
@@ -209,7 +209,11 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 6)]
-	Transact { origin_type: OriginKind, require_weight_at_most: u64, call: DoubleEncoded<Call> },
+	Transact {
+		origin_type: OriginKind,
+		require_weight_at_most: u64,
+		call: DoubleEncoded<RuntimeCall>,
+	},
 
 	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
 	/// relay-chain to a para.
@@ -276,10 +280,10 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 10)]
-	RelayedFrom { who: MultiLocation, message: alloc::boxed::Box<Xcm<Call>> },
+	RelayedFrom { who: MultiLocation, message: alloc::boxed::Box<Xcm<RuntimeCall>> },
 }
 
-impl<Call> Xcm<Call> {
+impl<RuntimeCall> Xcm<RuntimeCall> {
 	pub fn into<C>(self) -> Xcm<C> {
 		Xcm::from(self)
 	}
@@ -330,9 +334,9 @@ impl TryFrom<Response1> for Response {
 	}
 }
 
-impl<Call> TryFrom<Xcm1<Call>> for Xcm<Call> {
+impl<RuntimeCall> TryFrom<Xcm1<RuntimeCall>> for Xcm<RuntimeCall> {
 	type Error = ();
-	fn try_from(x: Xcm1<Call>) -> result::Result<Xcm<Call>, ()> {
+	fn try_from(x: Xcm1<RuntimeCall>) -> result::Result<Xcm<RuntimeCall>, ()> {
 		use Xcm::*;
 		Ok(match x {
 			Xcm1::WithdrawAsset { assets, effects } => WithdrawAsset {

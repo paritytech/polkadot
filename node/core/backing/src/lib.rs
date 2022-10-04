@@ -621,6 +621,7 @@ async fn request_pov(
 	sender: &mut impl overseer::CandidateBackingSenderTrait,
 	relay_parent: Hash,
 	from_validator: ValidatorIndex,
+	para_id: ParaId,
 	candidate_hash: CandidateHash,
 	pov_hash: Hash,
 ) -> Result<Arc<PoV>, Error> {
@@ -629,6 +630,7 @@ async fn request_pov(
 		.send_message(AvailabilityDistributionMessage::FetchPoV {
 			relay_parent,
 			from_validator,
+			para_id,
 			candidate_hash,
 			pov_hash,
 			tx,
@@ -697,8 +699,15 @@ async fn validate_and_make_available(
 		PoVData::Ready(pov) => pov,
 		PoVData::FetchFromValidator { from_validator, candidate_hash, pov_hash } => {
 			let _span = span.as_ref().map(|s| s.child("request-pov"));
-			match request_pov(&mut sender, relay_parent, from_validator, candidate_hash, pov_hash)
-				.await
+			match request_pov(
+				&mut sender,
+				relay_parent,
+				from_validator,
+				candidate.descriptor.para_id,
+				candidate_hash,
+				pov_hash,
+			)
+			.await
 			{
 				Err(Error::FetchPoV) => {
 					tx_command
@@ -811,17 +820,22 @@ impl<Context> CandidateBackingJob<Context> {
 								.sign_import_and_distribute_statement(ctx, statement, root_span)
 								.await?
 							{
-								ctx.send_message(CollatorProtocolMessage::Seconded(
+								// Break cycle - bounded as there is only one candidate to
+								// second per block.
+								ctx.send_unbounded_message(CollatorProtocolMessage::Seconded(
 									self.parent,
 									stmt,
-								))
-								.await;
+								));
 							}
 						}
 					},
 					Err(candidate) => {
-						ctx.send_message(CollatorProtocolMessage::Invalid(self.parent, candidate))
-							.await;
+						// Break cycle - bounded as there is only one candidate to
+						// second per block.
+						ctx.send_unbounded_message(CollatorProtocolMessage::Invalid(
+							self.parent,
+							candidate,
+						));
 					},
 				}
 			},
@@ -911,8 +925,12 @@ impl<Context> CandidateBackingJob<Context> {
 			.as_ref()
 			.map_or(false, |c| c != &candidate.descriptor().collator)
 		{
-			ctx.send_message(CollatorProtocolMessage::Invalid(self.parent, candidate.clone()))
-				.await;
+			// Break cycle - bounded as there is only one candidate to
+			// second per block.
+			ctx.send_unbounded_message(CollatorProtocolMessage::Invalid(
+				self.parent,
+				candidate.clone(),
+			));
 			return Ok(())
 		}
 

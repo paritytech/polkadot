@@ -43,7 +43,7 @@ use frame_support::{
 	weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use frame_system::limits;
-use primitives::v2::{AssignmentId, Balance, BlockNumber, ValidatorId};
+use primitives::v2::{AssignmentId, Balance, BlockNumber, ValidatorId, MAX_POV_SIZE};
 use sp_runtime::{FixedPointNumber, Perbill, Perquintill};
 use static_assertions::const_assert;
 
@@ -68,14 +68,15 @@ pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(1);
 /// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used
 /// by  Operational  extrinsics.
 pub const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
-/// We allow for 2 seconds of compute with a 6 second average block time.
-pub const MAXIMUM_BLOCK_WEIGHT: Weight = 2 * WEIGHT_PER_SECOND;
+/// The storage proof size is not limited so far.
+pub const MAXIMUM_BLOCK_WEIGHT: Weight =
+	WEIGHT_PER_SECOND.saturating_mul(2).set_proof_size(MAX_POV_SIZE as u64);
 
 const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO.deconstruct());
 
 // Common constants used in all runtimes.
 parameter_types! {
-	pub const BlockHashCount: BlockNumber = 2400;
+	pub const BlockHashCount: BlockNumber = 4096;
 	/// The portion of the `NORMAL_DISPATCH_RATIO` that we adjust the fees with. Blocks filled less
 	/// than this will decrease the weight and more will increase.
 	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
@@ -103,7 +104,7 @@ pub type SlowAdjustingFeeUpdate<R> =
 #[macro_export]
 macro_rules! impl_runtime_weights {
 	($runtime:ident) => {
-		use frame_support::weights::{DispatchClass, Weight};
+		use frame_support::{dispatch::DispatchClass, weights::Weight};
 		use frame_system::limits;
 		use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 		pub use runtime_common::{
