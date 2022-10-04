@@ -117,7 +117,7 @@ frame_benchmarking::benchmarks! {
 		let msg = create_message_overweight::<T>();
 
 		// This just makes sure that 0 is not a valid index and we can use it later on.
-		let _ = Ump::<T>::service_overweight(RawOrigin::Root.into(), 0, Weight::from_ref_time(1000));
+		let _ = Ump::<T>::service_overweight(RawOrigin::Root.into(), 0, Weight::from_ref_time(1000).set_proof_size(u64::MAX));
 		// Start with the block number 1. This is needed because should an event be
 		// emitted during the genesis block they will be implicitly wiped.
 		frame_system::Pallet::<T>::set_block_number(1u32.into());

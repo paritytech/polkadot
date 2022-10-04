@@ -57,7 +57,7 @@ use signal_hook::consts::signal::*;
 use signal_hook_tokio::Signals;
 use sp_npos_elections::BalancingConfig;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
-use std::{ops::Deref, sync::Arc};
+use std::{ops::Deref, sync::Arc, time::Duration};
 use tracing_subscriber::{fmt, EnvFilter};
 
 pub(crate) enum AnyRuntime {
@@ -485,7 +485,7 @@ async fn handle_signals(mut signals: Signals) {
 async fn main() {
 	fmt().with_env_filter(EnvFilter::from_default_env()).init();
 
-	let Opt { uri, command } = Opt::parse();
+	let Opt { uri, command, connection_timeout, request_timeout } = Opt::parse();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
 
 	let signals = Signals::new(&[SIGTERM, SIGINT, SIGQUIT]).expect("Failed initializing Signals");
@@ -493,7 +493,13 @@ async fn main() {
 	let signals_task = tokio::spawn(handle_signals(signals));
 
 	let rpc = loop {
-		match SharedRpcClient::new(&uri).await {
+		match SharedRpcClient::new(
+			&uri,
+			Duration::from_secs(connection_timeout as u64),
+			Duration::from_secs(request_timeout as u64),
+		)
+		.await
+		{
 			Ok(client) => break client,
 			Err(why) => {
 				log::warn!(
