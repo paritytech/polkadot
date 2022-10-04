@@ -593,8 +593,8 @@ pub mod vstaging {
 	use parity_scale_codec::{Decode, Encode};
 
 	use polkadot_primitives::vstaging::{
-		CandidateHash, CandidateIndex, CollatorId, CollatorSignature, Hash, Id as ParaId,
-		UncheckedSignedAvailabilityBitfield, UncheckedSignedStatement,
+		CandidateHash, CandidateIndex, CollatorId, CollatorSignature, GroupIndex, Hash,
+		Id as ParaId, UncheckedSignedAvailabilityBitfield, UncheckedSignedStatement,
 	};
 
 	use polkadot_node_primitives::{
@@ -617,8 +617,8 @@ pub mod vstaging {
 		pub relay_parent: Hash,
 		/// The hash of the candidate.
 		pub candidate_hash: CandidateHash,
-		/// The para that the candidate is assigned to.
-		pub para_id: ParaId,
+		/// The group index backing the candidate at the relay-parent.
+		pub group_index: GroupIndex,
 		/// The head-data corresponding to the candidate.
 		pub parent_head_data_hash: Hash,
 		/// A bitfield which indicates which validators in the para's
