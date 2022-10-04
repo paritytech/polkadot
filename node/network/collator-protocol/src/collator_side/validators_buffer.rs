@@ -153,6 +153,11 @@ impl ValidatorGroupsBuffer {
 		self.should_be_connected.remove(relay_parent);
 	}
 
+	/// Removes all advertisements from the buffer.
+	pub fn clear_advertisements(&mut self) {
+		self.should_be_connected.clear();
+	}
+
 	/// Pushes a new group to the buffer along with advertisement, setting all validators
 	/// bits to 1.
 	///

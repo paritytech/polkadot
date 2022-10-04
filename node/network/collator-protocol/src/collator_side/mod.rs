@@ -1019,6 +1019,10 @@ pub(crate) async fn run<Context>(
 					.last_connected_at
 					.map_or(false, |timestamp| now - timestamp > RECONNECT_TIMEOUT)
 				{
+					// Remove all advertisements from the buffer if the timeout was hit.
+					// Usually, it shouldn't be necessary as leaves get deactivated, rather
+					// serves as a safeguard against finality lags.
+					state.validator_groups_buf.clear_advertisements();
 					// Returns `None` if connection request is empty.
 					state.last_connected_at =
 						connect_to_validators(&mut ctx, &state.validator_groups_buf).await;
