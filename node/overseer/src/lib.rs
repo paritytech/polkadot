@@ -113,7 +113,10 @@ pub use orchestra::{
 
 /// Store 2 days worth of blocks, not accounting for forks,
 /// in the LRU cache. Assumes a 6-second block time.
-pub const KNOWN_LEAVES_CACHE_SIZE: Option<NonZeroUsize> = NonZeroUsize::new(2 * 24 * 3600 / 6);
+pub const KNOWN_LEAVES_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(2 * 24 * 3600 / 6) {
+	Some(cap) => cap,
+	None => panic!("Known leaves cache size must be non-zero"),
+};
 
 #[cfg(test)]
 mod tests;

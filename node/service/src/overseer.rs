@@ -317,9 +317,7 @@ where
 		.span_per_active_leaf(Default::default())
 		.active_leaves(Default::default())
 		.supports_parachains(runtime_client)
-		.known_leaves(LruCache::new(
-			KNOWN_LEAVES_CACHE_SIZE.expect("Known leaves cache size should not be 0."),
-		))
+		.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
 		.metrics(metrics)
 		.spawner(spawner);
 

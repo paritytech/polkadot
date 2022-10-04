@@ -78,7 +78,10 @@ const LOG_TARGET: &str = "parachain::availability-recovery";
 const N_PARALLEL: usize = 50;
 
 // Size of the LRU cache where we keep recovered data.
-const LRU_SIZE: Option<NonZeroUsize> = NonZeroUsize::new(16);
+const LRU_SIZE: NonZeroUsize = match NonZeroUsize::new(16) {
+	Some(cap) => cap,
+	None => panic!("Availability-recovery cache size must be non-zero."),
+};
 
 const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request");
 
@@ -811,9 +814,7 @@ impl Default for State {
 		Self {
 			ongoing_recoveries: FuturesUnordered::new(),
 			live_block: (0, Hash::default()),
-			availability_lru: LruCache::new(
-				LRU_SIZE.expect("Availability Recovery cache size should not be 0."),
-			),
+			availability_lru: LruCache::new(LRU_SIZE),
 		}
 	}
 }

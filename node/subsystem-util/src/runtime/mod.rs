@@ -95,7 +95,7 @@ impl Default for Config {
 		Self {
 			keystore: None,
 			// Usually we need to cache the current and the last session.
-			session_cache_lru_size: NonZeroUsize::new(2).unwrap(),
+			session_cache_lru_size: NonZeroUsize::new(2).expect("2 is larger than 0; qed"),
 		}
 	}
 }
@@ -110,7 +110,8 @@ impl RuntimeInfo {
 	pub fn new_with_config(cfg: Config) -> Self {
 		Self {
 			session_index_cache: LruCache::new(
-				cfg.session_cache_lru_size.max(NonZeroUsize::new(10).unwrap()),
+				cfg.session_cache_lru_size
+					.max(NonZeroUsize::new(10).expect("10 is larger than 0; qed")),
 			),
 			session_info_cache: LruCache::new(cfg.session_cache_lru_size),
 			keystore: cfg.keystore,

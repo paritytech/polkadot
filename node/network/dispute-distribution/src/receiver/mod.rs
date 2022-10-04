@@ -62,6 +62,11 @@ const COST_NOT_A_VALIDATOR: Rep = Rep::CostMajor("Reporting peer was not a valid
 /// How many statement imports we want to issue in parallel:
 pub const MAX_PARALLEL_IMPORTS: usize = 10;
 
+const BANNED_PEERS_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(MAX_PARALLEL_IMPORTS) {
+	Some(cap) => cap,
+	None => panic!("Banned peers cache size should not be 0."),
+};
+
 /// State for handling incoming `DisputeRequest` messages.
 ///
 /// This is supposed to run as its own task in order to easily impose back pressure on the incoming
@@ -147,7 +152,8 @@ where
 	) -> Self {
 		let runtime = RuntimeInfo::new_with_config(runtime::Config {
 			keystore: None,
-			session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize).expect("`DISPUTE_WINDOW` should not be 0"),
+			session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+				.expect("Dispute window can not be 0; qed"),
 		});
 		Self {
 			runtime,
@@ -157,10 +163,7 @@ where
 			pending_imports: PendingImports::new(),
 			// Size of MAX_PARALLEL_IMPORTS ensures we are going to immediately get rid of any
 			// malicious requests still pending in the incoming queue.
-			banned_peers: LruCache::new(
-				NonZeroUsize::new(MAX_PARALLEL_IMPORTS)
-					.expect("Banned peer cache size should not be 0."),
-			),
+			banned_peers: LruCache::new(BANNED_PEERS_CACHE_SIZE),
 			metrics,
 		}
 	}
