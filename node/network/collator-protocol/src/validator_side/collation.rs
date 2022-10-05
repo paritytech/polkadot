@@ -39,7 +39,9 @@ use crate::{ProspectiveParachainsMode, LOG_TARGET, MAX_CANDIDATE_DEPTH};
 /// Candidate supplied with a para head it's built on top of.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct ProspectiveCandidate {
+	/// Candidate hash.
 	pub candidate_hash: CandidateHash,
+	/// Parent head-data hash as supplied in advertisement.
 	pub parent_head_data_hash: Hash,
 }
 
@@ -52,9 +54,13 @@ impl ProspectiveCandidate {
 /// Identifier of a fetched collation.
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct FetchedCollation {
+	/// Candidate's relay parent.
 	pub relay_parent: Hash,
+	/// Parachain id.
 	pub para_id: ParaId,
+	/// Candidate hash.
 	pub candidate_hash: CandidateHash,
+	/// Id of the collator the collation was fetched from.
 	pub collator_id: CollatorId,
 }
 
@@ -73,10 +79,16 @@ impl From<&CandidateReceipt<Hash>> for FetchedCollation {
 /// Identifier of a collation being requested.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct PendingCollation {
+	/// Candidate's relay parent.
 	pub relay_parent: Hash,
+	/// Parachain id.
 	pub para_id: ParaId,
+	/// Peer that advertised this collation.
 	pub peer_id: PeerId,
+	/// Optional candidate hash and parent head-data hash if were
+	/// supplied in advertisement.
 	pub prospective_candidate: Option<ProspectiveCandidate>,
+	/// Hash of the candidate's commitments.
 	pub commitments_hash: Option<Hash>,
 }
 

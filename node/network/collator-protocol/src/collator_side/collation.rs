@@ -58,9 +58,13 @@ impl CollationStatus {
 
 /// A collation built by the collator.
 pub struct Collation {
+	/// Candidate receipt.
 	pub receipt: CandidateReceipt,
+	/// Parent head-data hash.
 	pub parent_head_data_hash: Hash,
+	/// Proof to verify the state transition of the parachain.
 	pub pov: PoV,
+	/// Collation status.
 	pub status: CollationStatus,
 }
 
@@ -103,6 +107,7 @@ impl From<IncomingRequest<protocol_vstaging::CollationFetchingRequest>>
 }
 
 impl VersionedCollationRequest {
+	/// Returns parachain id from the request payload.
 	pub fn para_id(&self) -> ParaId {
 		match self {
 			VersionedCollationRequest::V1(req) => req.payload.para_id,
@@ -110,6 +115,7 @@ impl VersionedCollationRequest {
 		}
 	}
 
+	/// Returns relay parent from the request payload.
 	pub fn relay_parent(&self) -> Hash {
 		match self {
 			VersionedCollationRequest::V1(req) => req.payload.relay_parent,
@@ -117,6 +123,7 @@ impl VersionedCollationRequest {
 		}
 	}
 
+	/// Returns id of the peer the request was received from.
 	pub fn peer_id(&self) -> PeerId {
 		match self {
 			VersionedCollationRequest::V1(req) => req.peer,
@@ -124,6 +131,7 @@ impl VersionedCollationRequest {
 		}
 	}
 
+	/// Sends the response back to requester.
 	pub fn send_outgoing_response(
 		self,
 		response: OutgoingResponse<protocol_v1::CollationFetchingResponse>,
@@ -141,9 +149,13 @@ impl VersionedCollationRequest {
 /// aborted, it only indicates that we should start processing
 /// the next one from the queue.
 pub struct CollationSendResult {
+	/// Candidate's relay parent.
 	pub relay_parent: Hash,
+	/// Candidate hash.
 	pub candidate_hash: CandidateHash,
+	/// Peer id.
 	pub peer_id: PeerId,
+	/// Whether the max unshared timeout was hit.
 	pub timed_out: bool,
 }
 

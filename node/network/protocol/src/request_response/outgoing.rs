@@ -32,9 +32,6 @@ pub enum Requests {
 	ChunkFetchingV1(OutgoingRequest<v1::ChunkFetchingRequest>),
 	/// Fetch a collation from a collator which previously announced it.
 	CollationFetchingV1(OutgoingRequest<v1::CollationFetchingRequest>),
-	/// Fetch a collation from a collator which previously announced it.
-	/// Compared to V1 it requires specifying which candidate is requested by its hash.
-	CollationFetchingVStaging(OutgoingRequest<vstaging::CollationFetchingRequest>),
 	/// Fetch a PoV from a validator which previously sent out a seconded statement.
 	PoVFetchingV1(OutgoingRequest<v1::PoVFetchingRequest>),
 	/// Request full available data from a node.
@@ -43,6 +40,10 @@ pub enum Requests {
 	StatementFetchingV1(OutgoingRequest<v1::StatementFetchingRequest>),
 	/// Requests for notifying about an ongoing dispute.
 	DisputeSendingV1(OutgoingRequest<v1::DisputeRequest>),
+
+	/// Fetch a collation from a collator which previously announced it.
+	/// Compared to V1 it requires specifying which candidate is requested by its hash.
+	CollationFetchingVStaging(OutgoingRequest<vstaging::CollationFetchingRequest>),
 }
 
 impl Requests {

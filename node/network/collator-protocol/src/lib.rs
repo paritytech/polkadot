@@ -188,11 +188,6 @@ async fn prospective_parachains_mode<Sender>(
 where
 	Sender: polkadot_node_subsystem::CollatorProtocolSenderTrait,
 {
-	// TODO: call a Runtime API once staging version is available
-	// https://github.com/paritytech/substrate/discussions/11338
-	//
-	// Implementation should be shared with backing & provisioner.
-
 	let (tx, rx) = futures::channel::oneshot::channel();
 	sender
 		.send_message(RuntimeApiMessage::Request(leaf_hash, RuntimeApiRequest::Version(tx)))
