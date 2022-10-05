@@ -30,7 +30,7 @@ tempfile = "3.2.0"
 tokio = "1.24.1"
 substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-core-primitives = { path = "core-primitives" }
- 
+
 [workspace]
 members = [
 	"cli",
@@ -222,3 +222,15 @@ conf-files = [
 
 [package.metadata.spellcheck]
 config = "./scripts/ci/gitlab/spellcheck.toml"
+
+# x86_64-unknown-linux-gnu
+[target.x86_64-unknown-linux-gnu.dependencies]
+parity-util-mem = { version = "0.12", default-features = false, features = ["jemalloc-global"] }
+
+# Apple Silicon chips
+[target.aarch64-apple-darwin.dependencies]
+parity-util-mem = { version = "0.12", default-features = false, features = ["mimalloc-global"] }
+
+# linux/arm64
+[target.aarch64-unknown-linux-gnu.dependencies]
+parity-util-mem = { version = "0.12", default-features = false, features = ["mimalloc-global"] }
