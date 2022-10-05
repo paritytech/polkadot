@@ -92,14 +92,17 @@ async fn scrape_prometheus_metrics(metrics_uri: &str) -> HashMap<String, u64> {
 		.expect("Scraper failed to parse Prometheus metrics")
 		.samples
 		.into_iter()
-		.map(|sample| {
+		.map(|prometheus_parse::Sample { metric, value, labels, .. }| {
 			(
-				sample.metric.to_owned(),
-				match sample.value {
+				metric.to_owned(),
+				match value {
 					prometheus_parse::Value::Counter(value) => value as u64,
 					prometheus_parse::Value::Gauge(value) => value as u64,
 					prometheus_parse::Value::Untyped(value) => value as u64,
-					_ => unreachable!("unexpected metric type"),
+					value @ _ => unreachable!(
+						"unexpected metric type - metric: {:?}, value: {:?}, labels: {:?}",
+						metric, value, labels
+					),
 				},
 			)
 		})
