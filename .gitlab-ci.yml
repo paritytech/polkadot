@@ -185,15 +185,15 @@ include:
   # check jobs
   - scripts/ci/gitlab/pipeline/check.yml
   # test jobs
-  - scripts/ci/gitlab/pipeline/test.yml
-  # build jobs
-  - scripts/ci/gitlab/pipeline/build.yml
-  # short-benchmarks jobs
-  - scripts/ci/gitlab/pipeline/short-benchmarks.yml
-  # publish jobs
-  - scripts/ci/gitlab/pipeline/publish.yml
-  # zombienet jobs
-  - scripts/ci/gitlab/pipeline/zombienet.yml
+  # - scripts/ci/gitlab/pipeline/test.yml
+  # # build jobs
+  # - scripts/ci/gitlab/pipeline/build.yml
+  # # short-benchmarks jobs
+  # - scripts/ci/gitlab/pipeline/short-benchmarks.yml
+  # # publish jobs
+  # - scripts/ci/gitlab/pipeline/publish.yml
+  # # zombienet jobs
+  # - scripts/ci/gitlab/pipeline/zombienet.yml
 
 
 
