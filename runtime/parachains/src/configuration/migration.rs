@@ -143,7 +143,7 @@ pub mod v3 {
 			if StorageVersion::get::<Pallet<T>>() == 2 {
 				let weight_consumed = migrate_to_v3::<T>();
 
-				log::info!(target: configuration::LOG_TARGET, "MigrateToV10 executed successfully");
+				log::info!(target: configuration::LOG_TARGET, "MigrateToV3 executed successfully");
 				STORAGE_VERSION.put::<Pallet<T>>();
 
 				weight_consumed
