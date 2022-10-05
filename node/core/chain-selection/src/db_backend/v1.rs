@@ -260,7 +260,7 @@ impl Backend for DbBackend {
 
 		let val = blocks_at_height_iter
 			.filter_map(|r| match r {
-				Ok((k, _)) => decode_block_height_key(&k[..]).map(Result::Ok),
+				Ok((k, _)) => decode_block_height_key(&k[..]).map(Ok),
 				Err(e) => Some(Err(e)),
 			})
 			.next();
