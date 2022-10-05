@@ -62,6 +62,7 @@ check-runtime-migration:
     - .compiler-info
   # for test
   timeout:                         3h
+  image:                           "paritytech/ci-linux:production"
   variables:
     WS:                            ws://substrate-api-sidecar-benchmark-node.nodes:9944
   script:
