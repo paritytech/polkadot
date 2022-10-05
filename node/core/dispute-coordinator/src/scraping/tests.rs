@@ -145,13 +145,22 @@ fn get_block_number_hash(n: BlockNumber) -> Hash {
 }
 
 /// Get a dummy event that corresponds to candidate inclusion for the given block number.
-fn get_candidate_included_events(block_number: BlockNumber) -> Vec<CandidateEvent> {
-	vec![CandidateEvent::CandidateIncluded(
-		make_candidate_receipt(get_block_number_hash(block_number)),
-		HeadData::default(),
-		CoreIndex::from(0),
-		GroupIndex::from(0),
-	)]
+fn get_candidate_events(block_number: BlockNumber) -> Vec<CandidateEvent> {
+	let candidate_receipt = make_candidate_receipt(get_block_number_hash(block_number));
+	vec![
+		CandidateEvent::CandidateIncluded(
+			candidate_receipt.clone(),
+			HeadData::default(),
+			CoreIndex::from(0),
+			GroupIndex::from(0),
+		),
+		CandidateEvent::CandidateBacked(
+			candidate_receipt,
+			HeadData::default(),
+			CoreIndex::from(0),
+			GroupIndex::from(0),
+		),
+	]
 }
 
 async fn assert_candidate_events_request(virtual_overseer: &mut VirtualOverseer, chain: &[Hash]) {
@@ -163,7 +172,7 @@ async fn assert_candidate_events_request(virtual_overseer: &mut VirtualOverseer,
 		)) => {
 			let maybe_block_number = chain.iter().position(|h| *h == hash);
 			let response = maybe_block_number
-				.map(|num| get_candidate_included_events(num as u32))
+				.map(|num| get_candidate_events(num as u32))
 				.unwrap_or_default();
 			tx.send(Ok(response)).unwrap();
 		}
@@ -236,7 +245,9 @@ fn scraper_provides_included_state_when_initialized() {
 		let TestState { mut chain, mut scraper, mut ctx } = state;
 
 		assert!(!scraper.is_candidate_included(&candidate_2.hash()));
+		assert!(!scraper.is_candidate_backed(&candidate_2.hash()));
 		assert!(scraper.is_candidate_included(&candidate_1.hash()));
+		assert!(scraper.is_candidate_backed(&candidate_1.hash()));
 
 		// After next active leaves update we should see the candidate included.
 		let next_update = next_leaf(&mut chain);
@@ -253,6 +264,7 @@ fn scraper_provides_included_state_when_initialized() {
 			.await;
 
 		assert!(scraper.is_candidate_included(&candidate_2.hash()));
+		assert!(scraper.is_candidate_backed(&candidate_2.hash()));
 	});
 }
 
@@ -282,6 +294,7 @@ fn scraper_requests_candidates_of_leaf_ancestors() {
 		for block_number in 1..next_block_number {
 			let candidate = make_candidate_receipt(get_block_number_hash(block_number));
 			assert!(scraper.is_candidate_included(&candidate.hash()));
+			assert!(scraper.is_candidate_backed(&candidate.hash()));
 		}
 	});
 }

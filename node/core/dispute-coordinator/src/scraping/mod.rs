@@ -66,6 +66,8 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: NonZeroUsize = match NonZeroUsize::new(20) {
 pub struct ChainScraper {
 	/// All candidates we have seen included, which not yet have been finalized.
 	included_candidates: HashSet<CandidateHash>,
+	/// All candidates we have seen backed
+	backed_candidates: HashSet<CandidateHash>,
 	/// including block -> `CandidateHash`
 	///
 	/// We need this to clean up `included_candidates` on finalization.
@@ -97,6 +99,7 @@ impl ChainScraper {
 	{
 		let mut s = Self {
 			included_candidates: HashSet::new(),
+			backed_candidates: HashSet::new(),
 			candidates_by_block_number: BTreeMap::new(),
 			last_observed_blocks: LruCache::new(LRU_OBSERVED_BLOCKS_CAPACITY),
 		};
@@ -109,6 +112,11 @@ impl ChainScraper {
 	/// Check whether we have seen a candidate included on any chain.
 	pub fn is_candidate_included(&mut self, candidate_hash: &CandidateHash) -> bool {
 		self.included_candidates.contains(candidate_hash)
+	}
+
+	/// Check whether the candidate is backed
+	pub fn is_candidate_backed(&mut self, candidate_hash: &CandidateHash) -> bool {
+		self.backed_candidates.contains(candidate_hash)
 	}
 
 	/// Query active leaves for any candidate `CandidateEvent::CandidateIncluded` events.
@@ -182,28 +190,49 @@ impl ChainScraper {
 	where
 		Sender: overseer::DisputeCoordinatorSenderTrait,
 	{
-		// Get included events:
-		let included =
+		// Get included and backed events:
+		let events =
 			get_candidate_events(sender, block_hash)
 				.await?
 				.into_iter()
-				.filter_map(|ev| match ev {
-					CandidateEvent::CandidateIncluded(receipt, _, _, _) => Some(receipt),
-					_ => None,
+				.filter(|ev| match ev {
+					CandidateEvent::CandidateIncluded(_, _, _, _) => true,
+					CandidateEvent::CandidateBacked(_, _, _, _) => true,
+					_ => false,
 				});
-		for receipt in included {
-			let candidate_hash = receipt.hash();
-			gum::trace!(
-				target: LOG_TARGET,
-				?candidate_hash,
-				?block_number,
-				"Processing included event"
-			);
-			self.included_candidates.insert(candidate_hash);
-			self.candidates_by_block_number
-				.entry(block_number)
-				.or_default()
-				.insert(candidate_hash);
+		for ev in events {
+			match ev {
+				CandidateEvent::CandidateIncluded(receipt, _, _, _) => {
+					let candidate_hash = receipt.hash();
+					gum::trace!(
+						target: LOG_TARGET,
+						?candidate_hash,
+						?block_number,
+						"Processing included event"
+					);
+					self.included_candidates.insert(candidate_hash);
+					self.candidates_by_block_number
+						.entry(block_number)
+						.or_default()
+						.insert(candidate_hash);
+				},
+				CandidateEvent::CandidateBacked(receipt, _, _, _) => {
+					let candidate_hash = receipt.hash();
+					gum::trace!(
+						target: LOG_TARGET,
+						?candidate_hash,
+						?block_number,
+						"Processing backed event"
+					);
+					self.backed_candidates.insert(candidate_hash);
+				},
+				_ => {
+					debug_assert!(
+						false,
+						"Candidates are already filtered out. There should be nothing unexpected."
+					)
+				},
+			}
 		}
 		Ok(())
 	}
