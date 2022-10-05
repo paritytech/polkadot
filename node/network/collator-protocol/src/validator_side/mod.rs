@@ -72,8 +72,8 @@ mod collation;
 mod metrics;
 
 use collation::{
-	CollationEvent, CollationStatus, Collations, FetchedCollation, PendingCollation,
-	PendingCollationFetch, ProspectiveCandidate,
+	fetched_collation_sanity_check, CollationEvent, CollationStatus, Collations, FetchedCollation,
+	PendingCollation, PendingCollationFetch, ProspectiveCandidate,
 };
 
 #[cfg(test)]
@@ -1659,9 +1659,6 @@ async fn handle_collation_fetched_result<Context>(
 	};
 
 	let collations = &mut per_relay_parent.collations;
-	// There's always a single collation being fetched at any moment of time.
-	// In case of a failure, we reset the status back to waiting.
-	collations.status = CollationStatus::WaitingOnValidation;
 
 	let fetched_collation = FetchedCollation::from(&candidate_receipt);
 	if let Entry::Vacant(entry) = state.fetched_candidates.entry(fetched_collation) {
@@ -1706,11 +1703,26 @@ async fn handle_collation_fetched_result<Context>(
 					?relay_parent_mode,
 					candidate = ?candidate_receipt.hash(),
 					"Failed to fetch persisted validation data due to an error: {}",
-					err
+					err,
 				);
 				return
 			},
 		};
+
+		if let Err(err) =
+			fetched_collation_sanity_check(&collation_event.1, &candidate_receipt, &pvd)
+		{
+			gum::warn!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?para_id,
+				candidate = ?candidate_receipt.hash(),
+				"Collation sanity check failed with an error: {:?}",
+				err,
+			);
+			modify_reputation(ctx.sender(), collation_event.1.peer_id, COST_REPORT_BAD).await;
+			return
+		}
 
 		ctx.send_message(CandidateBackingMessage::Second(
 			relay_parent,
@@ -1719,6 +1731,9 @@ async fn handle_collation_fetched_result<Context>(
 			pov,
 		))
 		.await;
+		// There's always a single collation being fetched at any moment of time.
+		// In case of a failure, we reset the status back to waiting.
+		collations.status = CollationStatus::WaitingOnValidation;
 
 		entry.insert(collation_event);
 	} else {

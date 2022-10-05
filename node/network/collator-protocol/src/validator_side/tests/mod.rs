@@ -47,6 +47,15 @@ const DECLARE_TIMEOUT: Duration = Duration::from_millis(25);
 
 const API_VERSION_PROSPECTIVE_DISABLED: u32 = 2;
 
+fn dummy_pvd() -> PersistedValidationData {
+	PersistedValidationData {
+		parent_head: HeadData(vec![7, 8, 9]),
+		relay_parent_number: 5,
+		max_pov_size: 1024,
+		relay_parent_storage_root: Default::default(),
+	}
+}
+
 #[derive(Clone)]
 struct TestState {
 	chain_ids: Vec<ParaId>,
@@ -253,12 +262,7 @@ async fn assert_candidate_backing_second(
 	expected_pov: &PoV,
 	mode: ProspectiveParachainsMode,
 ) -> CandidateReceipt {
-	let pvd = PersistedValidationData {
-		parent_head: HeadData(vec![7, 8, 9]),
-		relay_parent_number: 5,
-		max_pov_size: 1024,
-		relay_parent_storage_root: Default::default(),
-	};
+	let pvd = dummy_pvd();
 
 	// Depending on relay parent mode pvd will be either requested
 	// from the Runtime API or Prospective Parachains.

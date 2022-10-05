@@ -32,7 +32,9 @@ use std::collections::{HashMap, VecDeque};
 
 use polkadot_node_network_protocol::PeerId;
 use polkadot_node_primitives::PoV;
-use polkadot_primitives::v2::{CandidateHash, CandidateReceipt, CollatorId, Hash, Id as ParaId};
+use polkadot_primitives::v2::{
+	CandidateHash, CandidateReceipt, CollatorId, Hash, Id as ParaId, PersistedValidationData,
+};
 
 use crate::{ProspectiveParachainsMode, LOG_TARGET, MAX_CANDIDATE_DEPTH};
 
@@ -106,6 +108,38 @@ impl PendingCollation {
 			prospective_candidate,
 			commitments_hash: None,
 		}
+	}
+}
+
+/// An error indicating a mismatch between an advertisement
+/// and the collation we've received.
+#[derive(Debug)]
+pub enum FetchedCollationMismatchError {
+	/// Persisted validation data hash doesn't match
+	/// the one in the candidate receipt.
+	PersistedValidationDataHash,
+	/// Candidate receipt hash mismatch.
+	CandidateHash,
+}
+
+/// Performs a sanity check between advertised and fetched collations.
+///
+/// Since the persisted validation data is constructed using the advertised
+/// parent head data hash, the latter doesn't require an additional check.
+pub fn fetched_collation_sanity_check(
+	advertised: &PendingCollation,
+	fetched: &CandidateReceipt,
+	persisted_validation_data: &PersistedValidationData,
+) -> Result<(), FetchedCollationMismatchError> {
+	if persisted_validation_data.hash() != fetched.descriptor().persisted_validation_data_hash {
+		Err(FetchedCollationMismatchError::PersistedValidationDataHash)
+	} else if advertised
+		.prospective_candidate
+		.map_or(false, |pc| pc.candidate_hash() != fetched.hash())
+	{
+		Err(FetchedCollationMismatchError::CandidateHash)
+	} else {
+		Ok(())
 	}
 }
 
