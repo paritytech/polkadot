@@ -51,13 +51,19 @@ check-try-runtime:
     - cargo check --features try-runtime --all
 
 # More info can be found here: https://github.com/paritytech/polkadot/pull/5865
-# Works only in PRs
+# Works only in PRs with E1 label
 check-runtime-migration:
   stage:                           check
   extends:
-    - .docker-env
+    # - .docker-env
+    # k8s runner for test
+    - .kubernetes-env
     - .test-pr-refs
     - .compiler-info
+  # for test
+  timeout:                         3h
+  variables:
+    WS:                            ws://substrate-api-sidecar-benchmark-node.nodes:9944
   script:
     - |
       export has_runtimemigration_label=$(curl -sS -H "Accept: application/vnd.github+json" \
