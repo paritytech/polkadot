@@ -592,11 +592,11 @@ async fn advertise_collation<Context>(
 		// Check that peer will be able to request the collation.
 		if let CollationVersion::V1 = protocol_version {
 			if per_relay_parent.prospective_parachains_mode.is_enabled() {
-				gum::debug!(
+				gum::trace!(
 					target: LOG_TARGET,
 					?relay_parent,
 					peer_id = %peer,
-					"Skipping advertisement to validator, incorrect network protocol version",
+					"Skipping advertising to validator, incorrect network protocol version",
 				);
 				return
 			}
