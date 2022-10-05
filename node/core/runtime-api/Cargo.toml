@@ -10,7 +10,7 @@ gum = { package = "tracing-gum", path = "../../gum" }
 memory-lru = "0.1.1"
 parity-util-mem = { version = "0.11.0", default-features = false }
 
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
@@ -18,10 +18,10 @@ polkadot-node-subsystem-types = { path = "../../subsystem-types" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [dev-dependencies]
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 polkadot-node-primitives = { path = "../../primitives" }

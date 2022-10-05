@@ -25,22 +25,22 @@ polkadot-client = { path = "../node/client", optional = true }
 polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.30" }
-try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.30" }
-sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.30" }
-sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.30" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "coderobe/revertrevert" }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "coderobe/revertrevert" }
+sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "coderobe/revertrevert" }
+sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "coderobe/revertrevert" }
 polkadot-node-metrics = { path = "../node/metrics" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.30" }
-sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "coderobe/revertrevert" }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.30" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "coderobe/revertrevert" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
 
 [features]
 default = ["wasmtime", "db", "cli", "hostperfcheck", "full-node", "trie-memory-tracker", "polkadot-native"]

@@ -15,9 +15,9 @@ polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-primitives = { path = "../../primitives" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
 thiserror = "1.0.31"
 fatality = "0.0.6"
 lru = "0.7.7"
@@ -25,9 +25,9 @@ lru = "0.7.7"
 [dev-dependencies]
 async-trait = "0.1.57"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
 futures-timer = "3.0.2"
 assert_matches = "1.4.0"
 lazy_static = "1.4.0"

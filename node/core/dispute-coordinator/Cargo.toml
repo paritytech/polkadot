@@ -18,19 +18,19 @@ polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
 
 
 [dev-dependencies]
 kvdb-memorydb = "0.11.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
 assert_matches = "1.4.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
 futures-timer = "3.0.2"
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
 
 [features]
 # If not enabled, the dispute coordinator will do nothing.

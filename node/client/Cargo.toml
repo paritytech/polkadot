@@ -5,37 +5,37 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
 
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.30" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "coderobe/revertrevert" }
 
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sc-service = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.30" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sc-service = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "coderobe/revertrevert" }
 
-beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
 
 # Polkadot Runtimes
 polkadot-runtime = { path = "../../runtime/polkadot", optional = true }

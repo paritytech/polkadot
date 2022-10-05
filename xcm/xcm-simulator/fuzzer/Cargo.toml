@@ -10,13 +10,13 @@ codec = { package = "parity-scale-codec", version = "3.0.0" }
 honggfuzz = "0.5.54"
 scale-info = { version = "2.1.2", features = ["derive"] }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "coderobe/revertrevert" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }

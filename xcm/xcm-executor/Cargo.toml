@@ -9,14 +9,14 @@ version = "0.9.30"
 impl-trait-for-tuples = "0.2.2"
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.30" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.30" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.30" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.30" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.30" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.30" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "coderobe/revertrevert" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "coderobe/revertrevert" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "coderobe/revertrevert" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "coderobe/revertrevert" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "coderobe/revertrevert" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "coderobe/revertrevert" }
 log = { version = "0.4.17", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.30" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "coderobe/revertrevert" }
 
 [features]
 default = ["std"]
