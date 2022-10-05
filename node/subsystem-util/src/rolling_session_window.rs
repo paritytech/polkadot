@@ -154,29 +154,28 @@ impl RollingSessionWindow {
 		let maybe_stored_window = Self::db_load(db_params.clone());
 
 		// Get the DB stored sessions and recompute window start based on DB data.
-		let (window_start, mut stored_sessions) =
-			if let Some(mut stored_window) = maybe_stored_window {
-				// Check if DB is ancient.
-				if earliest_non_finalized_block_session >
-					stored_window.earliest_session + stored_window.session_info.len() as u32
-				{
-					// If ancient, we scrap it and fetch from chain state.
-					stored_window.session_info.clear();
-				}
+		let (window_start, stored_sessions) = if let Some(mut stored_window) = maybe_stored_window {
+			// Check if DB is ancient.
+			if earliest_non_finalized_block_session >
+				stored_window.earliest_session + stored_window.session_info.len() as u32
+			{
+				// If ancient, we scrap it and fetch from chain state.
+				stored_window.session_info.clear();
+			}
 
-				// The session window might extend beyond the last finalized block, but that's fine as we'll prune it at
-				// next update.
-				let window_start = if stored_window.session_info.len() > 0 {
-					// If there is at least one entry in db, we always take the DB as source of truth.
-					stored_window.earliest_session
-				} else {
-					on_chain_window_start
-				};
-
-				(window_start, stored_window.session_info)
+			// The session window might extend beyond the last finalized block, but that's fine as we'll prune it at
+			// next update.
+			let window_start = if stored_window.session_info.len() > 0 {
+				// If there is at least one entry in db, we always take the DB as source of truth.
+				stored_window.earliest_session
 			} else {
-				(on_chain_window_start, Vec::new())
+				on_chain_window_start
 			};
+
+			(window_start, stored_window.session_info)
+		} else {
+			(on_chain_window_start, Vec::new())
+		};
 
 		// Try to load sessions from DB first and load more from chain state if needed.
 		let sessions_missing_count = session_index
@@ -184,9 +183,10 @@ impl RollingSessionWindow {
 			.saturating_add(1)
 			.saturating_sub(stored_sessions.len() as u32);
 
-		// Load remaining from chain state.
-		let mut chain_sessions = if sessions_missing_count > 0 {
-			match load_all_sessions_from_chain_state(
+		// Extend from chain state.
+		let sessions = if sessions_missing_count > 0 {
+			match extend_sessions_from_chain_state(
+				stored_sessions,
 				&mut sender,
 				block_hash,
 				window_start,
@@ -209,11 +209,9 @@ impl RollingSessionWindow {
 			Vec::new()
 		};
 
-		stored_sessions.append(&mut chain_sessions);
-
 		Ok(Self {
 			earliest_session: window_start,
-			session_info: stored_sessions,
+			session_info: sessions,
 			window_size,
 			db_params: Some(db_params),
 		})
@@ -386,11 +384,6 @@ impl RollingSessionWindow {
 			+ overseer::SubsystemSender<ChainApiMessage>,
 	{
 		let session_index = get_session_index_for_child(sender, block_hash).await?;
-		let earliest_non_finalized_block_session =
-			Self::earliest_non_finalized_block_session(sender).await?;
-
-		let old_window_start = self.earliest_session;
-
 		let latest = self.latest_session();
 
 		// Either cached or ancient.
@@ -398,6 +391,10 @@ impl RollingSessionWindow {
 			return Ok(SessionWindowUpdate::Unchanged)
 		}
 
+		let earliest_non_finalized_block_session =
+			Self::earliest_non_finalized_block_session(sender).await?;
+
+		let old_window_start = self.earliest_session;
 		let old_window_end = latest;
 
 		// Ensure we keep sessions up to last finalized block by adjusting the window start.
@@ -412,8 +409,14 @@ impl RollingSessionWindow {
 
 		let fresh_start = if latest < window_start { window_start } else { latest + 1 };
 
-		match load_all_sessions_from_chain_state(sender, block_hash, fresh_start, session_index)
-			.await
+		match extend_sessions_from_chain_state(
+			self.session_info.clone(),
+			sender,
+			block_hash,
+			fresh_start,
+			session_index,
+		)
+		.await
 		{
 			Err(kind) => Err(SessionsUnavailable {
 				kind,
@@ -441,6 +444,7 @@ impl RollingSessionWindow {
 				let new_earliest = std::cmp::max(window_start, old_window_start);
 				self.earliest_session = new_earliest;
 
+				// Update current window in DB.
 				self.db_save(StoredWindow {
 					earliest_session: self.earliest_session,
 					session_info: self.session_info.clone(),
@@ -485,13 +489,26 @@ async fn get_session_index_for_child(
 	}
 }
 
-async fn load_all_sessions_from_chain_state(
+/// Attempts to extend db stored sessions with sessions missing between `start` and up to `end_inclusive`.
+/// If `allow_failure` is true, fetching errors are ignored until we get a first session, then
+/// the function would return error. This allows us to be more relaxed wrt sessions no longer
+/// available in the runtime, but not for other types of errors.
+async fn extend_sessions_from_chain_state(
+	db_sessions: Vec<SessionInfo>,
 	sender: &mut impl overseer::SubsystemSender<RuntimeApiMessage>,
 	block_hash: Hash,
-	start: SessionIndex,
+	mut start: SessionIndex,
 	end_inclusive: SessionIndex,
 ) -> Result<Vec<SessionInfo>, SessionsUnavailableReason> {
-	let mut v = Vec::new();
+	println!("Extending {} sessions, start: {}, end: {}", db_sessions.len(), start, end_inclusive);
+
+	// Start from the db sessions.
+	let mut sessions = db_sessions;
+	// We allow session fetch failures only if we won't create a gap in the window by doing so.
+	let allow_failure = false;
+
+	start += sessions.len() as u32;
+
 	for i in start..=end_inclusive {
 		let (tx, rx) = oneshot::channel();
 		sender
@@ -501,17 +518,44 @@ async fn load_all_sessions_from_chain_state(
 			))
 			.await;
 
-		let session_info = match rx.await {
-			Ok(Ok(Some(s))) => s,
-			Ok(Ok(None)) => return Err(SessionsUnavailableReason::Missing(i)),
-			Ok(Err(e)) => return Err(SessionsUnavailableReason::RuntimeApi(e)),
-			Err(canceled) => return Err(SessionsUnavailableReason::RuntimeApiUnavailable(canceled)),
+		match rx.await {
+			Ok(Ok(Some(session_info))) => {
+				sessions.push(session_info);
+			},
+			Ok(Ok(None)) if !allow_failure => return Err(SessionsUnavailableReason::Missing(i)),
+			Ok(Ok(None)) => {
+				/* handle `allow_failure` true */
+				gum::debug!(
+					target: LOG_TARGET,
+					session = ?i,
+					"Session info missing from runtime."
+				);
+			},
+			Ok(Err(e)) if !allow_failure => return Err(SessionsUnavailableReason::RuntimeApi(e)),
+			Err(canceled) if !allow_failure =>
+				return Err(SessionsUnavailableReason::RuntimeApiUnavailable(canceled)),
+			Ok(Err(err)) => {
+				/* handle `allow_failure` true */
+				gum::debug!(
+					target: LOG_TARGET,
+					session = ?i,
+					?err,
+					"Error while fetching session information."
+				);
+			},
+			Err(err) => {
+				/* handle `allow_failure` true */
+				gum::debug!(
+					target: LOG_TARGET,
+					session = ?i,
+					?err,
+					"Channel error while fetching session information."
+				);
+			},
 		};
-
-		v.push(session_info);
 	}
 
-	Ok(v)
+	Ok(sessions)
 }
 
 #[cfg(test)]
@@ -711,11 +755,13 @@ mod tests {
 			db_params: Some(dummy_db_params()),
 		};
 
+		let actual_window_size = window.session_info.len() as u32;
+
 		cache_session_info_test(
 			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
 			100,
 			Some(window),
-			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1 - actual_window_size),
 		);
 	}
 
@@ -783,7 +829,9 @@ mod tests {
 			db_params: Some(dummy_db_params()),
 		};
 
-		cache_session_info_test(0, 3, Some(window), 2);
+		let actual_window_size = window.session_info.len() as u32;
+
+		cache_session_info_test(0, 3, Some(window), actual_window_size);
 	}
 
 	#[test]
