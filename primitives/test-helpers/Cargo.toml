@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-primitives-test-helpers"
 version.workspace = true
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -1,8 +1,8 @@
 [package]
 name = "staking-miner"
 version.workspace = true
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0" }

@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-overseer"
 version.workspace = true
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }

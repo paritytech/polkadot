@@ -3,8 +3,8 @@ name = "polkadot-test-malus"
 description = "Misbehaving nodes for local testnets, system and Simnet tests."
 license = "GPL-3.0-only"
 version.workspace = true
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 readme = "README.md"
 publish = false
 

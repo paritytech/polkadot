@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-runtime-parachains"
 version.workspace = true
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }

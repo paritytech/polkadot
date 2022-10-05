@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-runtime-metrics"
 version.workspace = true
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false}

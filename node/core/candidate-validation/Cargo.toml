@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-node-core-candidate-validation"
 version.workspace = true
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 async-trait = "0.1.57"

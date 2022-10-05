@@ -2,8 +2,8 @@
 name = "polkadot-node-core-chain-selection"
 description = "Chain Selection Subsystem"
 version.workspace = true
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 futures = "0.3.21"

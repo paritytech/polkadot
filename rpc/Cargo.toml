@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-rpc"
 version.workspace = true
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 jsonrpsee = { version = "0.15.1", features = ["server"] }

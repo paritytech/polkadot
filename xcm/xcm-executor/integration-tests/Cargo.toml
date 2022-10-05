@@ -1,8 +1,8 @@
 [package]
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
 name = "xcm-executor-integration-tests"
 description = "Integration tests for the XCM Executor"
+authors.workspace = true
+edition.workspace = true
 version.workspace = true
 
 [dependencies]

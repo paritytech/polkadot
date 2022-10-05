@@ -1,8 +1,8 @@
 [package]
 name = "remote-ext-tests-bags-list"
 version.workspace = true
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 polkadot-runtime = { path = "../../../runtime/polkadot" }

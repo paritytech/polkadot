@@ -1,11 +1,11 @@
 [package]
 name = "prioritized-metered-channel"
 version = "0.2.0"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
 description = "Channels with built-in observability and message priorizitazion (coming soon™)"
-repository = "https://github.com/paritytech/polkadot.git"
 license = "MIT OR Apache-2.0"
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
 
 [dependencies]
 futures = "0.3.21"
