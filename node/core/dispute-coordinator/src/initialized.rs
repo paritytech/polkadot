@@ -826,8 +826,28 @@ impl Initialized {
 		let new_state = import_result.new_state();
 
 		let is_included = self.scraper.is_candidate_included(&candidate_hash);
+		let is_backed = self.scraper.is_candidate_backed(&candidate_hash);
+		let is_confirmed = new_state.is_confirmed();
 
 		let potential_spam = !is_included && !new_state.is_confirmed() && !new_state.has_own_vote();
+
+		// Disputes should fall in one of the categories below, otherwise they will be ignored.
+		// `is_included` lands in prioritised queue
+		// `is_confirmed` | `is_backed` lands in best effort queue
+		// The actual prioritisation happens later. At this point irrelevant disputes are filtered out.
+		if !is_included && !is_confirmed && !is_backed {
+			gum::warn!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				?session,
+				?is_included,
+				?is_confirmed,
+				?is_backed,
+				"Dispute will be ignored"
+			);
+
+			return Ok(ImportStatementsResult::InvalidImport)
+		}
 
 		gum::trace!(
 			target: LOG_TARGET,
@@ -875,6 +895,9 @@ impl Initialized {
 			new_state.is_disputed() &&
 			!env.controlled_indices().is_empty()
 		{
+			// Included disputes go in priority queue. Everything else is best effort.
+			// Reminder: at this point the disputes are already filtered. A dispute which is not
+			// included is either backed or confirmed.
 			let priority = ParticipationPriority::with_priority_if(is_included);
 			gum::trace!(
 				target: LOG_TARGET,
