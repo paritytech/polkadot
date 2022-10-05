@@ -31,7 +31,7 @@ use sp_runtime::{
 	RuntimeDebug,
 };
 use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
-use xcm::prelude::*;
+use xcm::{latest::Weight as XcmWeight, prelude::*};
 use xcm_executor::traits::ConvertOrigin;
 
 use frame_support::PalletId;
@@ -570,11 +570,11 @@ pub mod pallet {
 		///
 		/// NOTE: A successful return to this does *not* imply that the `msg` was executed successfully
 		/// to completion; only that *some* of it was executed.
-		#[pallet::weight(max_weight.saturating_add(Weight::from_ref_time(100_000_000u64)))]
+		#[pallet::weight(Weight::from_ref_time(max_weight.saturating_add(100_000_000u64)))]
 		pub fn execute(
 			origin: OriginFor<T>,
 			message: Box<VersionedXcm<<T as SysConfig>::RuntimeCall>>,
-			max_weight: Weight,
+			max_weight: XcmWeight,
 		) -> DispatchResultWithPostInfo {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			let message = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
@@ -584,8 +584,8 @@ pub mod pallet {
 			let outcome = T::XcmExecutor::execute_xcm_in_credit(
 				origin_location,
 				message,
-				max_weight.ref_time(),
-				max_weight.ref_time(),
+				max_weight,
+				max_weight,
 			);
 			let result = Ok(Some(outcome.weight_used().saturating_add(100_000_000)).into());
 			Self::deposit_event(Event::Attempted(outcome));
