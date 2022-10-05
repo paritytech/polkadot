@@ -1725,10 +1725,10 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn generate_historical_batch_proof(
-			leaf_indices: Vec<mmr::LeafIndex>,
-			leaves_count: mmr::LeafIndex,
+			block_numbers: Vec<mmr::LeafIndex>,
+			best_known_block_number: mmr::LeafIndex,
 		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error> {
-			Mmr::generate_historical_batch_proof(leaf_indices, leaves_count).map(
+			Mmr::generate_historical_batch_proof(block_numbers, best_known_block_number).map(
 				|(leaves, proof)| {
 					(
 						leaves
