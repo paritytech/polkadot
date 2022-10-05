@@ -327,6 +327,32 @@ fn accept_advertisements_from_implicit_view() {
 		let parent_head_data_hash = Hash::zero();
 		advertise_collation(
 			&mut virtual_overseer,
+			peer_b,
+			head_c,
+			Some((candidate_hash, parent_head_data_hash)),
+		)
+		.await;
+
+		let response_channel = assert_fetch_collation_request(
+			&mut virtual_overseer,
+			head_c,
+			test_state.chain_ids[1],
+			Some(candidate_hash),
+		)
+		.await;
+
+		// Respond with an error to abort seconding.
+		response_channel
+			.send(Err(sc_network::RequestFailure::NotConnected))
+			.expect("Sending response should succeed");
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(..),)
+		);
+
+		// Advertise with different para.
+		advertise_collation(
+			&mut virtual_overseer,
 			peer_a,
 			head_c,
 			Some((candidate_hash, parent_head_data_hash)),
