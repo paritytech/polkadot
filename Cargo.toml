@@ -336,11 +336,11 @@ pallet-bounties ={path = "../substrate/frame/bounties" }
 pallet-treasury ={path = "../substrate/frame/treasury" }
 pallet-child-bounties ={path = "../substrate/frame/child-bounties" }
 pallet-contracts ={path = "../substrate/frame/contracts" }
-pallet-contracts-primitives ={path = "../substrate/frame/contracts/common" }
+pallet-contracts-primitives ={path = "../substrate/frame/contracts/primitives" }
 pallet-contracts-proc-macro ={path = "../substrate/frame/contracts/proc-macro" }
 pallet-randomness-collective-flip ={path = "../substrate/frame/randomness-collective-flip" }
 pallet-utility ={path = "../substrate/frame/utility" }
-pallet-contracts-rpc-runtime-api ={path = "../substrate/frame/contracts/rpc/runtime-api" }
+pallet-contracts-runtime-api ={path = "../substrate/frame/contracts/runtime-api" }
 pallet-conviction-voting ={path = "../substrate/frame/conviction-voting" }
 pallet-scheduler ={path = "../substrate/frame/scheduler" }
 pallet-preimage ={path = "../substrate/frame/preimage" }
@@ -428,7 +428,6 @@ node-executor ={path = "../substrate/bin/node/executor" }
 node-cli ={path = "../substrate/bin/node/cli" }
 node-inspect ={path = "../substrate/bin/node/inspect" }
 node-rpc ={path = "../substrate/bin/node/rpc" }
-pallet-contracts-rpc ={path = "../substrate/frame/contracts/rpc" }
 pallet-mmr-rpc ={path = "../substrate/frame/merkle-mountain-range/rpc" }
 sc-consensus-babe ={path = "../substrate/client/consensus/babe" }
 sc-consensus-epochs ={path = "../substrate/client/consensus/epochs" }
