@@ -404,16 +404,26 @@ impl RollingSessionWindow {
 			earliest_non_finalized_block_session,
 		);
 
-		// keep some of the old window, if applicable.
-		let overlap_start = window_start.saturating_sub(old_window_start);
+		// Never look back past earliest session, since if sessions beyond were not needed or available
+		// in the past remains valid for the future (window only advanced forward).
+		let window_start = std::cmp::max(window_start, self.earliest_session);
 
-		let fresh_start = if latest < window_start { window_start } else { latest + 1 };
+		let mut sessions = self.session_info.clone();
+		let sessions_out_of_window = window_start.saturating_sub(old_window_start) as usize;
+
+		let sessions = if sessions_out_of_window < sessions.len() {
+			// Drop sessions based on how much the window advanced.
+			sessions.split_off((window_start as usize).saturating_sub(old_window_start as usize))
+		} else {
+			// Window has jumped such that we need to fetch all sessions from on chain.
+			Vec::new()
+		};
 
 		match extend_sessions_from_chain_state(
-			self.session_info.clone(),
+			sessions,
 			sender,
 			block_hash,
-			fresh_start,
+			window_start,
 			session_index,
 		)
 		.await
@@ -421,7 +431,7 @@ impl RollingSessionWindow {
 			Err(kind) => Err(SessionsUnavailable {
 				kind,
 				info: Some(SessionsUnavailableInfo {
-					window_start: fresh_start,
+					window_start,
 					window_end: session_index,
 					block_hash,
 				}),
@@ -434,9 +444,7 @@ impl RollingSessionWindow {
 					new_window_end: session_index,
 				};
 
-				let outdated = std::cmp::min(overlap_start as usize, self.session_info.len());
-				self.session_info.drain(..outdated);
-				self.session_info.extend(s);
+				self.session_info = s;
 
 				// we need to account for this case:
 				// window_start ................................... session_index
@@ -755,13 +763,11 @@ mod tests {
 			db_params: Some(dummy_db_params()),
 		};
 
-		let actual_window_size = window.session_info.len() as u32;
-
 		cache_session_info_test(
 			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
 			100,
 			Some(window),
-			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1 - actual_window_size),
+			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
 		);
 	}
 
