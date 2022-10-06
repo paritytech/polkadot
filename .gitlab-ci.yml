@@ -986,6 +986,37 @@ zombienet-tests-beefy-and-mmr:
   tags:
     - zombienet-polkadot-integration-test
 
+zombienet-async-backing:
+  stage:                           stage3
+  image:                           "${ZOMBIENET_IMAGE}"
+  <<:                              *kubernetes-env
+  <<:                              *zombienet-refs
+  needs:
+    - job:                         publish-polkadot-debug-image
+    - job:                         publish-test-collators-image
+    - job:                         build-linux-stable
+      artifacts:                   true
+  variables:
+    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/async-backing"
+  before_script:
+    - echo "Zombie-net Tests Config"
+    - echo "${ZOMBIENET_IMAGE_NAME}"
+    - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
+    - echo "${GH_DIR}"
+    - export DEBUG=zombie,zombie::network-node
+    - BUILD_RELEASE_VERSION="$(cat ./artifacts/BUILD_RELEASE_VERSION)"
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
+    - export ZOMBIENET_INTEGRATION_TEST_SECONDARY_IMAGE="docker.io/parity/polkadot:${BUILD_RELEASE_VERSION}"
+    - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
+  script:
+    - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
+        --github-remote-dir="${GH_DIR}"
+        --test="async-backing-test.feature"
+  allow_failure:                   false
+  retry: 2
+  tags:
+    - zombienet-polkadot-integration-test
+
 #### stage:                        stage4
 
 publish-rustdoc:
