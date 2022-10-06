@@ -22,7 +22,7 @@ default_command = "polkadot"
   [[relaychain.nodes]]
   name = "bob"
   image = "{{ZOMBIENET_INTEGRATION_TEST_SECONDARY_IMAGE}}"
-  args = [ "--bob", "-lparachain=debu"]
+  args = [ "--bob", "-lparachain=debug"]
 
 [[parachains]]
 id = 100
