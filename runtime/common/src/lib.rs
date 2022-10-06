@@ -52,9 +52,9 @@ pub use pallet_balances::Call as BalancesCall;
 pub use pallet_staking::StakerStatus;
 pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
+pub use sp_runtime::traits::Bounded;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
-pub use sp_runtime::traits::Bounded;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub use impls::ToAuthor;
@@ -97,8 +97,13 @@ parameter_types! {
 
 /// Parameterized slow adjusting fee updated based on
 /// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#-2.-slow-adjusting-mechanism
-pub type SlowAdjustingFeeUpdate<R> =
-	TargetedFeeAdjustment<R, TargetBlockFullness, AdjustmentVariable, MinimumMultiplier, MaximumMultiplier>;
+pub type SlowAdjustingFeeUpdate<R> = TargetedFeeAdjustment<
+	R,
+	TargetBlockFullness,
+	AdjustmentVariable,
+	MinimumMultiplier,
+	MaximumMultiplier,
+>;
 
 /// Implements the weight types for a runtime.
 /// It expects the passed runtime constants to contain a `weights` module.
