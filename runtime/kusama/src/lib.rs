@@ -225,12 +225,10 @@ impl pallet_scheduler::Config for Runtime {
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
 	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
 	type OriginPrivilegeCmp = OriginPrivilegeCmp;
-	type PreimageProvider = Preimage;
-	type NoPreimagePostponement = NoPreimagePostponement;
+	type Preimages = Preimage;
 }
 
 parameter_types! {
-	pub const PreimageMaxSize: u32 = 4096 * 1024;
 	pub const PreimageBaseDeposit: Balance = deposit(2, 64);
 	pub const PreimageByteDeposit: Balance = deposit(0, 1);
 }
@@ -239,8 +237,7 @@ impl pallet_preimage::Config for Runtime {
 	type WeightInfo = weights::pallet_preimage::WeightInfo<Runtime>;
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type ManagerOrigin = EnsureRoot<AccountId>; // This might be too strong a requirenent?
-	type MaxSize = PreimageMaxSize;
+	type ManagerOrigin = EnsureRoot<AccountId>;
 	type BaseDeposit = PreimageBaseDeposit;
 	type ByteDeposit = PreimageByteDeposit;
 }
@@ -1471,6 +1468,12 @@ pub type Executive = frame_executive::Executive<
 			StakingMigrationV11OldPallet,
 		>,
 		pallet_staking::migrations::v12::MigrateToV12<Runtime>,
+		// "Bound uses of call" <https://github.com/paritytech/polkadot/pull/5729>
+		pallet_preimage::migration::v1::Migration<Runtime>,
+		pallet_scheduler::migration::v3::MigrateToV4<Runtime>,
+		pallet_democracy::migrations::v1::Migration<Runtime>,
+		pallet_multisig::migrations::v1::MigrateToV1<Runtime>,
+		// "Properly migrate weights to v2" <https://github.com/paritytech/polkadot/pull/6091>
 		parachains_configuration::migration::v3::MigrateToV3<Runtime>,
 	),
 >;
