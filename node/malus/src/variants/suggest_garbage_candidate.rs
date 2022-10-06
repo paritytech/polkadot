@@ -106,18 +106,16 @@ where
 
 				// Draw a random value from the distribution, where T: bool, and probability of drawing a 'true' value is = to percentage parameter,
 				// using thread_rng as the source of randomness.
-				let true_or_false = distribution.sample(&mut rand::thread_rng());
+				let generate_malicious_candidate = distribution.sample(&mut rand::thread_rng());
 
 				gum::debug!(
 					target: MALUS,
 					"😈 Sampled value from Bernoulli distribution is: {:?}",
-					&true_or_false,
+					&generate_malicious_candidate,
 				);
 
-				// Manipulate the message if sampled value is true
-				if true_or_false == true {
-					gum::info!(target: MALUS, "😈 Intercepted CandidateBackingMessage::Second; crafting a malicious candidate",);
-
+				if generate_malicious_candidate == true {
+					
 					let pov = PoV { block_data: BlockData(MALICIOUS_POV.into()) };
 
 					let (sender, receiver) = std::sync::mpsc::channel();
@@ -218,13 +216,6 @@ where
 					};
 					let malicious_candidate_hash = malicious_candidate.hash();
 
-					gum::debug!(
-						target: MALUS,
-						candidate_hash = ?candidate.hash(),
-						?malicious_candidate_hash,
-						"Created malicious candidate"
-					);
-
 					let message = FromOrchestra::Communication {
 						msg: CandidateBackingMessage::Second(
 							relay_parent,
@@ -232,6 +223,14 @@ where
 							pov,
 						),
 					};
+
+					gum::info!(
+						target: MALUS,
+						candidate_hash = ?candidate.hash(),
+						?malicious_candidate_hash,
+						"😈 Intercepted CandidateBackingMessage::Second and created malicious candidate with hash: {:?}",
+						&candidate_hash
+					);
 					Some(message)
 				} else {
 					Some(msg)
