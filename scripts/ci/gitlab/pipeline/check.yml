@@ -70,13 +70,13 @@ check-runtime-migration:
         echo "Found label runtimemigration. Running tests"
         export RUST_LOG=remote-ext=debug,runtime=debug
         echo "Running try-runtime for polkadot"
-        export WS="wss://polkadot-try-runtime-node.parity-chains.parity.io"
+        export WS="wss://polkadot-try-runtime-node.parity-chains.parity.io:443"
         time cargo test --release -p polkadot-runtime --features try-runtime
         echo "Running try-runtime for kusama"
-        export WS="wss://kusama-try-runtime-node.parity-chains.parity.io"
+        export WS="wss://kusama-try-runtime-node.parity-chains.parity.io:443"
         time cargo test --release -p kusama-runtime --features try-runtime
         echo "Running try-runtime for westend"
-        export WS="wss://westend-try-runtime-node.parity-chains.parity.io"
+        export WS="wss://westend-try-runtime-node.parity-chains.parity.io:443"
         time cargo test --release -p westend-runtime --features try-runtime
       else
         echo "runtimemigration label not found. Skipping"
