@@ -61,7 +61,7 @@ use polkadot_primitives::v2::{
 	OccupiedCoreAssumption, PersistedValidationData,
 };
 
-use crate::error::{Error, Result, SecondingError};
+use crate::error::{Error, FetchError, Result, SecondingError};
 
 use super::{
 	modify_reputation, prospective_parachains_mode, ProspectiveParachainsMode, LOG_TARGET,
@@ -595,39 +595,26 @@ async fn fetch_collation(
 	state: &mut State,
 	pc: PendingCollation,
 	id: CollatorId,
-) {
+) -> std::result::Result<(), FetchError> {
 	let (tx, rx) = oneshot::channel();
 
-	let PendingCollation { relay_parent, para_id, peer_id, prospective_candidate, .. } = pc;
+	let PendingCollation { relay_parent, peer_id, prospective_candidate, .. } = pc;
 	let candidate_hash = prospective_candidate.as_ref().map(ProspectiveCandidate::candidate_hash);
 
-	if let Some(peer_data) = state.peer_data.get(&peer_id) {
-		if peer_data.has_advertised(&relay_parent, candidate_hash) {
-			if request_collation(sender, state, pc, id.clone(), peer_data.version, tx).await {
-				let timeout = |collator_id, relay_parent| async move {
-					Delay::new(MAX_UNSHARED_DOWNLOAD_TIME).await;
-					(collator_id, relay_parent)
-				};
-				state.collation_fetch_timeouts.push(timeout(id.clone(), relay_parent).boxed());
-				state.collation_fetches.push(rx.map(move |r| ((id, pc), r)).boxed());
-			}
-		} else {
-			gum::debug!(
-				target: LOG_TARGET,
-				?peer_id,
-				?para_id,
-				?relay_parent,
-				"Collation is not advertised for the relay parent by the peer, do not request it",
-			);
-		}
+	let peer_data = state.peer_data.get(&peer_id).ok_or(FetchError::UnknownPeer)?;
+
+	if peer_data.has_advertised(&relay_parent, candidate_hash) {
+		request_collation(sender, state, pc, id.clone(), peer_data.version, tx).await?;
+		let timeout = |collator_id, relay_parent| async move {
+			Delay::new(MAX_UNSHARED_DOWNLOAD_TIME).await;
+			(collator_id, relay_parent)
+		};
+		state.collation_fetch_timeouts.push(timeout(id.clone(), relay_parent).boxed());
+		state.collation_fetches.push(rx.map(move |r| ((id, pc), r)).boxed());
+
+		Ok(())
 	} else {
-		gum::warn!(
-			target: LOG_TARGET,
-			?peer_id,
-			?para_id,
-			?relay_parent,
-			"Requested to fetch a collation from an unknown peer",
-		);
+		Err(FetchError::NotAdvertised)
 	}
 }
 
@@ -712,33 +699,17 @@ async fn request_collation(
 	collator_id: CollatorId,
 	peer_protocol_version: CollationVersion,
 	result: oneshot::Sender<(CandidateReceipt, PoV)>,
-) -> bool {
+) -> std::result::Result<(), FetchError> {
 	if state.requested_collations.contains_key(&pending_collation) {
-		gum::warn!(
-			target: LOG_TARGET,
-			peer_id = %pending_collation.peer_id,
-			%pending_collation.para_id,
-			?pending_collation.relay_parent,
-			"collation has already been requested",
-		);
-		return false
+		return Err(FetchError::AlreadyRequested)
 	}
 
 	let PendingCollation { relay_parent, para_id, peer_id, prospective_candidate, .. } =
 		pending_collation;
-	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
-		Some(state) => state,
-		None => {
-			gum::debug!(
-				target: LOG_TARGET,
-				peer_id = %peer_id,
-				para_id = %para_id,
-				relay_parent = %relay_parent,
-				"Collation relay parent is unknown",
-			);
-			return false
-		},
-	};
+	let per_relay_parent = state
+		.per_relay_parent
+		.get_mut(&relay_parent)
+		.ok_or(FetchError::RelayParentOutOfView)?;
 
 	// Relay parent mode is checked in `handle_advertisement`.
 	let (requests, response_recv) = match (peer_protocol_version, prospective_candidate) {
@@ -762,17 +733,7 @@ async fn request_collation(
 			let requests = Requests::CollationFetchingVStaging(req);
 			(requests, response_recv.boxed())
 		},
-		_ => {
-			gum::warn!(
-				target: LOG_TARGET,
-				peer_id = %peer_id,
-				%para_id,
-				?relay_parent,
-				?peer_protocol_version,
-				"Peer's protocol doesn't match the advertisement",
-			);
-			return false
-		},
+		_ => return Err(FetchError::ProtocolMismatch),
 	};
 
 	let per_request = PerRequest {
@@ -804,7 +765,7 @@ async fn request_collation(
 			IfDisconnected::ImmediateError,
 		))
 		.await;
-	true
+	Ok(())
 }
 
 /// Networking message has been received.
@@ -1109,12 +1070,12 @@ where
 					collations.waiting_queue.push_back((pending_collation, id));
 				},
 				CollationStatus::Waiting => {
-					fetch_collation(sender, state, pending_collation, id).await;
+					let _ = fetch_collation(sender, state, pending_collation, id).await;
 				},
 				CollationStatus::Seconded if relay_parent_mode.is_enabled() => {
 					// Limit is not reached, it's allowed to second another
 					// collation.
-					fetch_collation(sender, state, pending_collation, id).await;
+					let _ = fetch_collation(sender, state, pending_collation, id).await;
 				},
 				CollationStatus::Seconded => {
 					gum::trace!(
@@ -1569,7 +1530,7 @@ async fn dequeue_next_collation_and_fetch<Context>(
 	// The collator we tried to fetch from last.
 	previous_fetch: CollatorId,
 ) {
-	if let Some((next, id)) = state.per_relay_parent.get_mut(&relay_parent).and_then(|state| {
+	while let Some((next, id)) = state.per_relay_parent.get_mut(&relay_parent).and_then(|state| {
 		state
 			.collations
 			.get_next_collation_to_fetch(Some(&previous_fetch), state.prospective_parachains_mode)
@@ -1580,14 +1541,18 @@ async fn dequeue_next_collation_and_fetch<Context>(
 			?id,
 			"Successfully dequeued next advertisement - fetching ..."
 		);
-		fetch_collation(ctx.sender(), state, next, id).await;
-	} else {
-		gum::debug!(
-			target: LOG_TARGET,
-			?relay_parent,
-			previous_collator = ?previous_fetch,
-			"No collations are available to fetch"
-		);
+		if let Err(err) = fetch_collation(ctx.sender(), state, next, id).await {
+			gum::debug!(
+				target: LOG_TARGET,
+				relay_parent = ?next.relay_parent,
+				para_id = ?next.para_id,
+				peer_id = ?next.peer_id,
+				error = %err,
+				"Failed to request a collation, dequeueing next one",
+			);
+		} else {
+			break
+		}
 	}
 }
 

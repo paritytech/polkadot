@@ -105,6 +105,25 @@ impl SecondingError {
 	}
 }
 
+/// A validator failed to request a collation due to an error.
+#[derive(Debug, thiserror::Error)]
+pub enum FetchError {
+	#[error("Collation was not previously advertised")]
+	NotAdvertised,
+
+	#[error("Peer is unknown")]
+	UnknownPeer,
+
+	#[error("Collation was already requested")]
+	AlreadyRequested,
+
+	#[error("Relay parent went out of view")]
+	RelayParentOutOfView,
+
+	#[error("Peer's protocol doesn't match the advertisement")]
+	ProtocolMismatch,
+}
+
 /// Utility for eating top level errors and log them.
 ///
 /// We basically always want to try and continue on error. This utility function is meant to
