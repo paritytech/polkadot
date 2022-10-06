@@ -736,6 +736,7 @@ fn fetch_collations_works() {
 			dummy_candidate_receipt_bad_sig(dummy_hash(), Some(Default::default()));
 		candidate_a.descriptor.para_id = test_state.chain_ids[0];
 		candidate_a.descriptor.relay_parent = test_state.relay_parent;
+		candidate_a.descriptor.persisted_validation_data_hash = dummy_pvd().hash();
 		response_channel
 			.send(Ok(request_v1::CollationFetchingResponse::Collation(
 				candidate_a.clone(),
@@ -837,6 +838,7 @@ fn fetch_collations_works() {
 			dummy_candidate_receipt_bad_sig(dummy_hash(), Some(Default::default()));
 		candidate_a.descriptor.para_id = test_state.chain_ids[0];
 		candidate_a.descriptor.relay_parent = second;
+		candidate_a.descriptor.persisted_validation_data_hash = dummy_pvd().hash();
 
 		// First request finishes now:
 		response_channel_non_exclusive
@@ -978,6 +980,7 @@ fn fetch_next_collation_on_invalid_collation() {
 			dummy_candidate_receipt_bad_sig(dummy_hash(), Some(Default::default()));
 		candidate_a.descriptor.para_id = test_state.chain_ids[0];
 		candidate_a.descriptor.relay_parent = test_state.relay_parent;
+		candidate_a.descriptor.persisted_validation_data_hash = dummy_pvd().hash();
 		response_channel
 			.send(Ok(request_v1::CollationFetchingResponse::Collation(
 				candidate_a.clone(),
