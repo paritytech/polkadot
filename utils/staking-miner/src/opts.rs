@@ -157,12 +157,14 @@ pub(crate) struct InfoOpts {
 #[derive(Debug, Copy, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum SubmissionStrategy {
-	// Only submit if at the time, we are the best.
-	IfLeading,
-	// Always submit.
+	/// Always submit.
 	Always,
-	// Submit if we are leading, or if the solution that's leading is more that the given `Perbill`
-	// better than us. This helps detect obviously fake solutions and still combat them.
+	/// Only submit if at the time, we are the best (or equal to it).
+	IfLeading,
+	/// Submit if we are no worse than `Perbill` worse than the best.
+	ClaimNoWorseThan(Perbill),
+	/// Submit if we are leading, or if the solution that's leading is more that the given `Perbill`
+	/// better than us. This helps detect obviously fake solutions and still combat them.
 	ClaimBetterThan(Perbill),
 }
 
@@ -185,6 +187,7 @@ pub(crate) enum Solver {
 /// * --submission-strategy if-leading: only submit if leading
 /// * --submission-strategy always: always submit
 /// * --submission-strategy "percent-better <percent>": submit if submission is `n` percent better.
+/// * --submission-strategy "no-worse-than  <percent>": submit if submission is no more than `n` percent worse.
 ///
 impl FromStr for SubmissionStrategy {
 	type Err = String;
@@ -196,6 +199,9 @@ impl FromStr for SubmissionStrategy {
 			Self::IfLeading
 		} else if s == "always" {
 			Self::Always
+		} else if s.starts_with("no-worse-than ") {
+			let percent: u32 = s[14..].parse().map_err(|e| format!("{:?}", e))?;
+			Self::ClaimNoWorseThan(Perbill::from_percent(percent))
 		} else if s.starts_with("percent-better ") {
 			let percent: u32 = s[15..].parse().map_err(|e| format!("{:?}", e))?;
 			Self::ClaimBetterThan(Perbill::from_percent(percent))
