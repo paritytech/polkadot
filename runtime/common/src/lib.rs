@@ -88,7 +88,7 @@ parameter_types! {
 	/// that combined with `AdjustmentVariable`, we can recover from the minimum.
 	/// See `multiplier_can_grow_from_zero`.
 	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 10u128);
-	/// The maximum amouf of the multiplier.
+	/// The maximum amount of the multiplier.
 	pub MaximumMultiplier: Multiplier = Bounded::max_value();
 	/// Maximum length of block. Up to 5MB.
 	pub BlockLength: limits::BlockLength =
