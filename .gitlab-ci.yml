@@ -986,7 +986,7 @@ zombienet-tests-beefy-and-mmr:
   tags:
     - zombienet-polkadot-integration-test
 
-zombienet-async-backing:
+zombienet-tests-async-backing:
   stage:                           stage3
   image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
