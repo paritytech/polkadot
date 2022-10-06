@@ -36,7 +36,7 @@ use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, CollatorId, Hash, Id as ParaId, PersistedValidationData,
 };
 
-use crate::{ProspectiveParachainsMode, LOG_TARGET, MAX_CANDIDATE_DEPTH};
+use crate::{error::SecondingError, ProspectiveParachainsMode, LOG_TARGET, MAX_CANDIDATE_DEPTH};
 
 /// Candidate supplied with a para head it's built on top of.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -111,17 +111,6 @@ impl PendingCollation {
 	}
 }
 
-/// An error indicating a mismatch between an advertisement
-/// and the collation we've received.
-#[derive(Debug)]
-pub enum FetchedCollationMismatchError {
-	/// Persisted validation data hash doesn't match
-	/// the one in the candidate receipt.
-	PersistedValidationDataHash,
-	/// Candidate receipt hash mismatch.
-	CandidateHash,
-}
-
 /// Performs a sanity check between advertised and fetched collations.
 ///
 /// Since the persisted validation data is constructed using the advertised
@@ -130,14 +119,14 @@ pub fn fetched_collation_sanity_check(
 	advertised: &PendingCollation,
 	fetched: &CandidateReceipt,
 	persisted_validation_data: &PersistedValidationData,
-) -> Result<(), FetchedCollationMismatchError> {
+) -> Result<(), SecondingError> {
 	if persisted_validation_data.hash() != fetched.descriptor().persisted_validation_data_hash {
-		Err(FetchedCollationMismatchError::PersistedValidationDataHash)
+		Err(SecondingError::PersistedValidationDataMismatch)
 	} else if advertised
 		.prospective_candidate
 		.map_or(false, |pc| pc.candidate_hash() != fetched.hash())
 	{
-		Err(FetchedCollationMismatchError::CandidateHash)
+		Err(SecondingError::CandidateHashMismatch)
 	} else {
 		Ok(())
 	}

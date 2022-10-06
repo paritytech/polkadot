@@ -55,12 +55,6 @@ pub enum Error {
 	#[error("Response receiver for Runtime API version request cancelled")]
 	CancelledRuntimeApiVersion(oneshot::Canceled),
 
-	#[error("Response receiver for persisted validation data request cancelled")]
-	CancelledRuntimePersistedValidationData(oneshot::Canceled),
-
-	#[error("Response receiver for prospective validation data request cancelled")]
-	CancelledProspectiveValidationData(oneshot::Canceled),
-
 	#[error("Response receiver for active validators request cancelled")]
 	CancelledActiveValidators(oneshot::Canceled),
 
@@ -72,6 +66,43 @@ pub enum Error {
 
 	#[error("CollationSeconded contained statement with invalid signature")]
 	InvalidStatementSignature(UncheckedSignedFullStatement),
+}
+
+/// An error happened on the validator side of the protocol when attempting
+/// to start seconding a candidate.
+#[derive(Debug, thiserror::Error)]
+pub enum SecondingError {
+	#[error("Failed to fetch a collation")]
+	FailedToFetch(#[from] oneshot::Canceled),
+
+	#[error("Error while accessing Runtime API")]
+	RuntimeApi(#[from] RuntimeApiError),
+
+	#[error("Response receiver for persisted validation data request cancelled")]
+	CancelledRuntimePersistedValidationData(oneshot::Canceled),
+
+	#[error("Response receiver for prospective validation data request cancelled")]
+	CancelledProspectiveValidationData(oneshot::Canceled),
+
+	#[error("Persisted validation data is not available")]
+	PersistedValidationDataNotFound,
+
+	#[error("Persisted validation data hash doesn't match one in the candidate receipt.")]
+	PersistedValidationDataMismatch,
+
+	#[error("Candidate hash doesn't match the advertisement")]
+	CandidateHashMismatch,
+
+	#[error("Received duplicate collation from the peer")]
+	Duplicate,
+}
+
+impl SecondingError {
+	/// Returns true if an error indicates that a peer is malicious.
+	pub fn is_malicious(&self) -> bool {
+		use SecondingError::*;
+		matches!(self, PersistedValidationDataMismatch | CandidateHashMismatch | Duplicate)
+	}
 }
 
 /// Utility for eating top level errors and log them.

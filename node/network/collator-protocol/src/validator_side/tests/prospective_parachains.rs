@@ -332,6 +332,14 @@ fn accept_advertisements_from_implicit_view() {
 			Some((candidate_hash, parent_head_data_hash)),
 		)
 		.await;
+		// Advertise with different para.
+		advertise_collation(
+			&mut virtual_overseer,
+			peer_a,
+			head_c,
+			Some((candidate_hash, parent_head_data_hash)),
+		)
+		.await;
 
 		let response_channel = assert_fetch_collation_request(
 			&mut virtual_overseer,
@@ -349,15 +357,6 @@ fn accept_advertisements_from_implicit_view() {
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(..),)
 		);
-
-		// Advertise with different para.
-		advertise_collation(
-			&mut virtual_overseer,
-			peer_a,
-			head_c,
-			Some((candidate_hash, parent_head_data_hash)),
-		)
-		.await;
 
 		assert_fetch_collation_request(
 			&mut virtual_overseer,

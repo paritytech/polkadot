@@ -61,7 +61,7 @@ use polkadot_primitives::v2::{
 	OccupiedCoreAssumption, PersistedValidationData,
 };
 
-use crate::error::{Error, Result};
+use crate::error::{Error, Result, SecondingError};
 
 use super::{
 	modify_reputation, prospective_parachains_mode, ProspectiveParachainsMode, LOG_TARGET,
@@ -1491,7 +1491,23 @@ pub(crate) async fn run<Context>(
 				disconnect_inactive_peers(ctx.sender(), &eviction_policy, &state.peer_data).await;
 			}
 			res = state.collation_fetches.select_next_some() => {
-				handle_collation_fetched_result(&mut ctx, &mut state, res).await;
+				let (collator_id, pc) = res.0.clone();
+				if let Err(err) = kick_off_seconding(&mut ctx, &mut state, res).await {
+					gum::warn!(
+						target: LOG_TARGET,
+						relay_parent = ?pc.relay_parent,
+						para_id = ?pc.para_id,
+						peer_id = ?pc.peer_id,
+						error = %err,
+						"Seconding aborted due to an error",
+					);
+
+					if err.is_malicious() {
+						// Report malicious peer.
+						modify_reputation(ctx.sender(), pc.peer_id, COST_REPORT_BAD).await;
+					}
+					dequeue_next_collation_and_fetch(&mut ctx, &mut state, pc.relay_parent, collator_id).await;
+				}
 			}
 			res = state.collation_fetch_timeouts.select_next_some() => {
 				let (collator_id, relay_parent) = res;
@@ -1579,7 +1595,7 @@ async fn request_persisted_validation_data<Sender>(
 	sender: &mut Sender,
 	relay_parent: Hash,
 	para_id: ParaId,
-) -> Result<Option<PersistedValidationData>>
+) -> std::result::Result<Option<PersistedValidationData>, SecondingError>
 where
 	Sender: CollatorProtocolSenderTrait,
 {
@@ -1592,8 +1608,8 @@ where
 	)
 	.await
 	.await
-	.map_err(Error::CancelledRuntimePersistedValidationData)?
-	.map_err(Error::RuntimeApi)
+	.map_err(SecondingError::CancelledRuntimePersistedValidationData)?
+	.map_err(SecondingError::RuntimeApi)
 }
 
 async fn request_prospective_validation_data<Sender>(
@@ -1601,7 +1617,7 @@ async fn request_prospective_validation_data<Sender>(
 	candidate_relay_parent: Hash,
 	parent_head_data_hash: Hash,
 	para_id: ParaId,
-) -> Result<Option<PersistedValidationData>>
+) -> std::result::Result<Option<PersistedValidationData>, SecondingError>
 where
 	Sender: CollatorProtocolSenderTrait,
 {
@@ -1614,115 +1630,67 @@ where
 		.send_message(ProspectiveParachainsMessage::GetProspectiveValidationData(request, tx))
 		.await;
 
-	rx.await.map_err(Error::CancelledProspectiveValidationData)
+	rx.await.map_err(SecondingError::CancelledProspectiveValidationData)
 }
 
 /// Handle a fetched collation result.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
-async fn handle_collation_fetched_result<Context>(
+async fn kick_off_seconding<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	(mut collation_event, res): PendingCollationFetch,
-) {
+) -> std::result::Result<(), SecondingError> {
 	let relay_parent = collation_event.1.relay_parent;
 	let para_id = collation_event.1.para_id;
 
 	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
 		Some(state) => state,
 		None => {
+			// Relay parent went out of view, not an error.
 			gum::trace!(
 				target: LOG_TARGET,
 				relay_parent = ?relay_parent,
 				"Fetched collation for a parent out of view",
 			);
-			return
+			return Ok(())
 		},
 	};
+	let collations = &mut per_relay_parent.collations;
 	let relay_parent_mode = per_relay_parent.prospective_parachains_mode;
 
-	let (candidate_receipt, pov) = match res {
-		Ok(res) => res,
-		Err(e) => {
-			gum::debug!(
-				target: LOG_TARGET,
-				relay_parent = ?collation_event.1.relay_parent,
-				para_id = ?para_id,
-				peer_id = ?collation_event.1.peer_id,
-				collator_id = ?collation_event.0,
-				error = ?e,
-				"Failed to fetch collation.",
-			);
-
-			dequeue_next_collation_and_fetch(ctx, state, relay_parent, collation_event.0).await;
-			return
-		},
-	};
-
-	let collations = &mut per_relay_parent.collations;
+	let (candidate_receipt, pov) = res?;
 
 	let fetched_collation = FetchedCollation::from(&candidate_receipt);
 	if let Entry::Vacant(entry) = state.fetched_candidates.entry(fetched_collation) {
 		collation_event.1.commitments_hash = Some(candidate_receipt.commitments_hash);
 
-		let result = match collation_event.1.prospective_candidate {
-			Some(ProspectiveCandidate { parent_head_data_hash, .. }) =>
+		let pvd = match (relay_parent_mode, collation_event.1.prospective_candidate) {
+			(
+				ProspectiveParachainsMode::Enabled,
+				Some(ProspectiveCandidate { parent_head_data_hash, .. }),
+			) =>
 				request_prospective_validation_data(
 					ctx.sender(),
 					relay_parent,
 					parent_head_data_hash,
 					para_id,
 				)
-				.await,
-			None =>
+				.await?,
+			(ProspectiveParachainsMode::Disabled, _) =>
 				request_persisted_validation_data(
 					ctx.sender(),
 					candidate_receipt.descriptor().relay_parent,
 					candidate_receipt.descriptor().para_id,
 				)
-				.await,
-		};
-
-		let pvd = match result {
-			Ok(Some(pvd)) => pvd,
-			Ok(None) => {
-				gum::warn!(
-					target: LOG_TARGET,
-					?relay_parent,
-					?para_id,
-					?relay_parent_mode,
-					candidate = ?candidate_receipt.hash(),
-					"Persisted validation data isn't available",
-				);
-				return
+				.await?,
+			_ => {
+				// `handle_advertisement` checks for protocol mismatch.
+				return Ok(())
 			},
-			Err(err) => {
-				gum::warn!(
-					target: LOG_TARGET,
-					?relay_parent,
-					?para_id,
-					?relay_parent_mode,
-					candidate = ?candidate_receipt.hash(),
-					"Failed to fetch persisted validation data due to an error: {}",
-					err,
-				);
-				return
-			},
-		};
-
-		if let Err(err) =
-			fetched_collation_sanity_check(&collation_event.1, &candidate_receipt, &pvd)
-		{
-			gum::warn!(
-				target: LOG_TARGET,
-				?relay_parent,
-				?para_id,
-				candidate = ?candidate_receipt.hash(),
-				"Collation sanity check failed with an error: {:?}",
-				err,
-			);
-			modify_reputation(ctx.sender(), collation_event.1.peer_id, COST_REPORT_BAD).await;
-			return
 		}
+		.ok_or(SecondingError::PersistedValidationDataNotFound)?;
+
+		fetched_collation_sanity_check(&collation_event.1, &candidate_receipt, &pvd)?;
 
 		ctx.send_message(CandidateBackingMessage::Second(
 			relay_parent,
@@ -1736,13 +1704,9 @@ async fn handle_collation_fetched_result<Context>(
 		collations.status = CollationStatus::WaitingOnValidation;
 
 		entry.insert(collation_event);
+		Ok(())
 	} else {
-		gum::trace!(
-			target: LOG_TARGET,
-			?relay_parent,
-			candidate = ?candidate_receipt.hash(),
-			"Trying to insert a pending candidate failed, because there is already one.",
-		)
+		Err(SecondingError::Duplicate)
 	}
 }
 
