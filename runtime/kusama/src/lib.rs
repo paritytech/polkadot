@@ -1139,6 +1139,7 @@ parameter_types! {
 
 impl parachains_ump::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
+	type XcmTransaction = RuntimeCall;
 	type UmpSink =
 		crate::parachains_ump::XcmSink<xcm_executor::XcmExecutor<xcm_config::XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;

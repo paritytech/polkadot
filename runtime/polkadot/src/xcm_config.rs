@@ -178,6 +178,7 @@ impl pallet_xcm::Config for Runtime {
 	// Only allow the council to send messages.
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, CouncilToPlurality>;
 	type XcmRouter = XcmRouter;
+	type XcmTransaction = RuntimeCall;
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	// ...but they must match our filter, which rejects all.

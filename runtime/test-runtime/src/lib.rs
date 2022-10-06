@@ -523,6 +523,7 @@ parameter_types! {
 
 impl parachains_ump::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
+	type XcmTransaction = RuntimeCall;
 	type UmpSink = ();
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
