@@ -152,8 +152,7 @@ mod tests {
 	}
 
 	#[test]
-	#[should_panic]
-	fn percentage_not_working_dispute_ancestor() {
+	fn percentage_working_dispute_ancestor() {
 		let cli = MalusCli::try_parse_from(IntoIterator::into_iter([
 			"malus",
 			"dispute-ancestor",
