@@ -41,7 +41,7 @@ pub use pallet::*;
 pub mod pallet {
 	use super::*;
 	use frame_support::{
-		dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo},
+		dispatch::{Dispatchable, GetDispatchInfo, Parameter, PostDispatchInfo},
 		pallet_prelude::*,
 		parameter_types,
 	};
@@ -91,11 +91,16 @@ pub mod pallet {
 			Success = MultiLocation,
 		>;
 
+		/// The data structure used in XCM Transact calls.
+		type XcmTransaction: Parameter
+			+ Dispatchable<PostInfo = PostDispatchInfo>
+			+ GetDispatchInfo;
+
 		/// Our XCM filter which messages to be executed using `XcmExecutor` must pass.
-		type XcmExecuteFilter: Contains<(MultiLocation, Xcm<<Self as SysConfig>::RuntimeCall>)>;
+		type XcmExecuteFilter: Contains<(MultiLocation, Xcm<Self::XcmTransaction>)>;
 
 		/// Something to execute an XCM message.
-		type XcmExecutor: ExecuteXcm<<Self as SysConfig>::RuntimeCall>;
+		type XcmExecutor: ExecuteXcm<Self::XcmTransaction>;
 
 		/// Our XCM filter which messages to be teleported using the dedicated extrinsic must pass.
 		type XcmTeleportFilter: Contains<(MultiLocation, Vec<MultiAsset>)>;
@@ -104,7 +109,7 @@ pub mod pallet {
 		type XcmReserveTransferFilter: Contains<(MultiLocation, Vec<MultiAsset>)>;
 
 		/// Means of measuring the weight consumed by an XCM message locally.
-		type Weigher: WeightBounds<<Self as SysConfig>::RuntimeCall>;
+		type Weigher: WeightBounds<Self::XcmTransaction>;
 
 		/// Means of inverting a location.
 		type LocationInverter: InvertLocation;
@@ -573,7 +578,7 @@ pub mod pallet {
 		#[pallet::weight(Weight::from_ref_time(max_weight.saturating_add(100_000_000u64)))]
 		pub fn execute(
 			origin: OriginFor<T>,
-			message: Box<VersionedXcm<<T as SysConfig>::RuntimeCall>>,
+			message: Box<VersionedXcm<T::XcmTransaction>>,
 			max_weight: XcmWeight,
 		) -> DispatchResultWithPostInfo {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
@@ -1223,10 +1228,10 @@ pub mod pallet {
 	}
 
 	impl<T: Config> WrapVersion for Pallet<T> {
-		fn wrap_version<RuntimeCall>(
+		fn wrap_version<XcmTx>(
 			dest: &MultiLocation,
-			xcm: impl Into<VersionedXcm<RuntimeCall>>,
-		) -> Result<VersionedXcm<RuntimeCall>, ()> {
+			xcm: impl Into<VersionedXcm<XcmTx>>,
+		) -> Result<VersionedXcm<XcmTx>, ()> {
 			SupportedVersion::<T>::get(XCM_VERSION, LatestVersionedMultiLocation(dest))
 				.or_else(|| {
 					Self::note_unknown_version(dest);

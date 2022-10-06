@@ -93,7 +93,7 @@ fn upward_message_id(data: &[u8]) -> MessageId {
 	sp_io::hashing::blake2_256(data)
 }
 
-impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink
+impl<XcmExecutor: xcm::latest::ExecuteXcm<C::XcmTransaction>, C: Config> UmpSink
 	for XcmSink<XcmExecutor, C>
 {
 	fn process_upward_message(
@@ -108,13 +108,13 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink
 		};
 
 		let id = upward_message_id(&data[..]);
-		let maybe_msg_and_weight = VersionedXcm::<C::RuntimeCall>::decode_all_with_depth_limit(
+		let maybe_msg_and_weight = VersionedXcm::<C::XcmTransaction>::decode_all_with_depth_limit(
 			xcm::MAX_XCM_DECODE_DEPTH,
 			&mut data,
 		)
 		.map(|xcm| {
 			(
-				Xcm::<C::RuntimeCall>::try_from(xcm),
+				Xcm::<C::XcmTransaction>::try_from(xcm),
 				// NOTE: We are overestimating slightly here.
 				// The benchmark is timing this whole function with different message sizes and a NOOP extrinsic to
 				// measure the size-dependent weight. But as we use the weight funtion **in** the benchmarked funtion we
@@ -210,7 +210,9 @@ impl WeightInfo for TestWeightInfo {
 
 #[frame_support::pallet]
 pub mod pallet {
-	use super::*;
+	use frame_support::dispatch::{Dispatchable, GetDispatchInfo, Parameter, PostDispatchInfo};
+
+use super::*;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -221,6 +223,9 @@ pub mod pallet {
 	pub trait Config: frame_system::Config + configuration::Config {
 		/// The aggregate event.
 		type RuntimeEvent: From<Event> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+
+		/// The data structure used in XCM Transact calls.
+		type XcmTransaction: Parameter + Dispatchable<PostInfo = PostDispatchInfo> + GetDispatchInfo;
 
 		/// A place where all received upward messages are funneled.
 		type UmpSink: UmpSink;

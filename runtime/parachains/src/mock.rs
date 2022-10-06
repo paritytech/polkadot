@@ -229,6 +229,7 @@ parameter_types! {
 
 impl crate::ump::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
+	type XcmTransaction = RuntimeCall;
 	type UmpSink = TestUmpSink;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
