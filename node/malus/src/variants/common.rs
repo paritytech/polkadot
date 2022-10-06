@@ -34,8 +34,8 @@ use polkadot_primitives::v2::{
 
 use futures::channel::oneshot;
 
-#[derive(clap::ArgEnum, Clone, Copy, Debug, PartialEq)]
-#[clap(rename_all = "kebab-case")]
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq)]
+#[value(rename_all = "kebab-case")]
 #[non_exhaustive]
 pub enum FakeCandidateValidation {
 	Disabled,
@@ -48,8 +48,8 @@ pub enum FakeCandidateValidation {
 }
 
 /// Candidate invalidity details
-#[derive(clap::ArgEnum, Clone, Copy, Debug, PartialEq)]
-#[clap(rename_all = "kebab-case")]
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq)]
+#[value(rename_all = "kebab-case")]
 pub enum FakeCandidateValidationError {
 	/// Validation outputs check doesn't pass.
 	InvalidOutputs,

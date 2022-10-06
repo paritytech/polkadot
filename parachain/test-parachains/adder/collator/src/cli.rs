@@ -23,11 +23,11 @@ use sc_cli::{RuntimeVersion, SubstrateCli};
 #[derive(Debug, Parser)]
 pub enum Subcommand {
 	/// Export the genesis state of the parachain.
-	#[clap(name = "export-genesis-state")]
+	#[command(name = "export-genesis-state")]
 	ExportGenesisState(ExportGenesisStateCommand),
 
 	/// Export the genesis wasm of the parachain.
-	#[clap(name = "export-genesis-wasm")]
+	#[command(name = "export-genesis-wasm")]
 	ExportGenesisWasm(ExportGenesisWasmCommand),
 }
 
@@ -47,14 +47,14 @@ pub struct RunCmd {
 	pub base: sc_cli::RunCmd,
 
 	/// Id of the parachain this collator collates for.
-	#[clap(long)]
+	#[arg(long)]
 	pub parachain_id: Option<u32>,
 }
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
 pub struct Cli {
-	#[clap(subcommand)]
+	#[command(subcommand)]
 	pub subcommand: Option<Subcommand>,
 
 	#[clap(flatten)]
