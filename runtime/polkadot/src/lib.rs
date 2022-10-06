@@ -22,7 +22,7 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
-	auctions, claims, crowdloan, impl_runtime_weights, impls::{DealWithFees}, paras_registrar,
+	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
 	prod_or_fast, slots, BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
 };
 
@@ -543,9 +543,21 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 		_total_issuance: Balance,
 		era_duration_millis: u64,
 	) -> (Balance, Balance) {
-		// TODO: #3011 Update with proper auctioned slots tracking.
-		// This should be fine for the first year of parachains.
-		let auctioned_slots: u64 = auctions::Pallet::<Runtime>::auction_counter().into();
+		let auctioned_slots = {
+			// all para-ids that have been leased out.
+			let auctioned_winner_para_ids = Auctions::auctioned_winner_para_ids();
+			// and all para-ids that are not active.
+			let active_para_ids = Paras::parachains();
+			// the intersection of which is the number of parachain's which we should take into
+			// account for inflation.
+			auctioned_winner_para_ids
+				.into_iter()
+				.filter(|i| active_para_ids.contains(i))
+				.count() as u64
+			// note: we could speed up this block a bit with sorting and binary searching, but it
+			// does not seem worthwhile for a few hundred parachains at most.
+		};
+
 		const MAX_ANNUAL_INFLATION: Perquintill = Perquintill::from_percent(10);
 		const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
 

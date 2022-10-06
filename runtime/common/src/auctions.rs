@@ -178,6 +178,13 @@ pub mod pallet {
 	#[pallet::getter(fn auction_counter)]
 	pub type AuctionCounter<T> = StorageValue<_, AuctionIndex, ValueQuery>;
 
+	// TODO: needs a migration to seed the initial data.
+	// TODO: will this work with how para-ids are swapped/extended?
+	#[pallet::storage]
+	#[pallet::getter(fn auctioned_winner_para_ids)]
+	#[pallet::unbounded]
+	pub type AuctionedWinnerParaIds<T> = StorageValue<_, Vec<ParaId>, ValueQuery>;
+
 	/// Information relating to the current auction, if there is one.
 	///
 	/// The first item in the tuple is the lease period index that the first of the four
@@ -609,7 +616,10 @@ impl<T: Config> Pallet<T> {
 						});
 					}
 				},
-				Ok(()) => {}, // Nothing to report.
+				Ok(()) => {
+					// record the winner para-ids.
+					AuctionedWinnerParaIds::<T>::mutate(|a| a.push(para));
+				},
 			}
 		}
 
