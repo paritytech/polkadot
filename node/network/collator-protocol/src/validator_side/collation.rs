@@ -176,11 +176,11 @@ impl CollationStatus {
 pub struct Collations {
 	/// What is the current status in regards to a collation for this relay parent?
 	pub status: CollationStatus,
-	/// Collator we're fetching from.
+	/// Collator we're fetching from, optionally which candidate was requested.
 	///
 	/// This is the currently last started fetch, which did not exceed `MAX_UNSHARED_DOWNLOAD_TIME`
 	/// yet.
-	pub fetching_from: Option<CollatorId>,
+	pub fetching_from: Option<(CollatorId, Option<CandidateHash>)>,
 	/// Collation that were advertised to us, but we did not yet fetch.
 	pub waiting_queue: VecDeque<(PendingCollation, CollatorId)>,
 	/// How many collations have been seconded per parachain.
@@ -201,19 +201,24 @@ impl Collations {
 	/// the passed in `finished_one` is the currently `waiting_collation`.
 	pub(super) fn get_next_collation_to_fetch(
 		&mut self,
-		finished_one: Option<&CollatorId>,
+		finished_one: &(CollatorId, Option<CandidateHash>),
 		relay_parent_mode: ProspectiveParachainsMode,
 	) -> Option<(PendingCollation, CollatorId)> {
 		// If finished one does not match waiting_collation, then we already dequeued another fetch
 		// to replace it.
-		if self.fetching_from.as_ref() != finished_one {
-			gum::trace!(
-				target: LOG_TARGET,
-				waiting_collation = ?self.fetching_from,
-				?finished_one,
-				"Not proceeding to the next collation - has already been done."
-			);
-			return None
+		if let Some((collator_id, maybe_candidate_hash)) = self.fetching_from.as_ref() {
+			// If a candidate hash was saved previously, `finished_one` must include this too.
+			if collator_id != &finished_one.0 &&
+				maybe_candidate_hash.map_or(true, |hash| Some(&hash) != finished_one.1.as_ref())
+			{
+				gum::trace!(
+					target: LOG_TARGET,
+					waiting_collation = ?self.fetching_from,
+					?finished_one,
+					"Not proceeding to the next collation - has already been done."
+				);
+				return None
+			}
 		}
 		self.status.back_to_waiting(relay_parent_mode);
 

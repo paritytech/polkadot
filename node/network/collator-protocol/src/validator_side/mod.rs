@@ -453,7 +453,8 @@ struct State {
 	///
 	/// A triggering timer means that the fetching took too long for our taste and we should give
 	/// another collator the chance to be faster (dequeue next fetch request as well).
-	collation_fetch_timeouts: FuturesUnordered<BoxFuture<'static, (CollatorId, Hash)>>,
+	collation_fetch_timeouts:
+		FuturesUnordered<BoxFuture<'static, (CollatorId, Option<CandidateHash>, Hash)>>,
 
 	/// Collations that we have successfully requested from peers and waiting
 	/// on validation.
@@ -605,11 +606,13 @@ async fn fetch_collation(
 
 	if peer_data.has_advertised(&relay_parent, candidate_hash) {
 		request_collation(sender, state, pc, id.clone(), peer_data.version, tx).await?;
-		let timeout = |collator_id, relay_parent| async move {
+		let timeout = |collator_id, candidate_hash, relay_parent| async move {
 			Delay::new(MAX_UNSHARED_DOWNLOAD_TIME).await;
-			(collator_id, relay_parent)
+			(collator_id, candidate_hash, relay_parent)
 		};
-		state.collation_fetch_timeouts.push(timeout(id.clone(), relay_parent).boxed());
+		state
+			.collation_fetch_timeouts
+			.push(timeout(id.clone(), candidate_hash, relay_parent).boxed());
 		state.collation_fetches.push(rx.map(move |r| ((id, pc), r)).boxed());
 
 		Ok(())
@@ -756,8 +759,13 @@ async fn request_collation(
 		"Requesting collation",
 	);
 
+	let maybe_candidate_hash =
+		prospective_candidate.as_ref().map(ProspectiveCandidate::candidate_hash);
 	per_relay_parent.collations.status = CollationStatus::Fetching;
-	per_relay_parent.collations.fetching_from.replace(collator_id);
+	per_relay_parent
+		.collations
+		.fetching_from
+		.replace((collator_id, maybe_candidate_hash));
 
 	sender
 		.send_message(NetworkBridgeTxMessage::SendRequests(
@@ -1343,7 +1351,9 @@ async fn process_msg<Context>(
 			let fetched_collation = FetchedCollation::from(&receipt.to_plain());
 			if let Some(collation_event) = state.fetched_candidates.remove(&fetched_collation) {
 				let (collator_id, pending_collation) = collation_event;
-				let PendingCollation { relay_parent, peer_id, para_id, .. } = pending_collation;
+				let PendingCollation {
+					relay_parent, peer_id, para_id, prospective_candidate, ..
+				} = pending_collation;
 				note_good_collation(ctx.sender(), &state.peer_data, collator_id.clone()).await;
 				if let Some(peer_data) = state.peer_data.get(&peer_id) {
 					notify_collation_seconded(
@@ -1361,7 +1371,15 @@ async fn process_msg<Context>(
 					state.collations.note_seconded(para_id);
 				}
 				// If async backing is enabled, make an attempt to fetch next collation.
-				dequeue_next_collation_and_fetch(ctx, state, parent, collator_id).await;
+				let maybe_candidate_hash =
+					prospective_candidate.as_ref().map(ProspectiveCandidate::candidate_hash);
+				dequeue_next_collation_and_fetch(
+					ctx,
+					state,
+					parent,
+					(collator_id, maybe_candidate_hash),
+				)
+				.await;
 			} else {
 				gum::debug!(
 					target: LOG_TARGET,
@@ -1372,6 +1390,7 @@ async fn process_msg<Context>(
 		},
 		Invalid(parent, candidate_receipt) => {
 			let fetched_collation = FetchedCollation::from(&candidate_receipt);
+			let candidate_hash = fetched_collation.candidate_hash;
 			let id = match state.fetched_candidates.entry(fetched_collation) {
 				Entry::Occupied(entry)
 					if entry.get().1.commitments_hash ==
@@ -1391,7 +1410,7 @@ async fn process_msg<Context>(
 
 			report_collator(ctx.sender(), &state.peer_data, id.clone()).await;
 
-			dequeue_next_collation_and_fetch(ctx, state, parent, id).await;
+			dequeue_next_collation_and_fetch(ctx, state, parent, (id, Some(candidate_hash))).await;
 		},
 	}
 }
@@ -1467,18 +1486,32 @@ pub(crate) async fn run<Context>(
 						// Report malicious peer.
 						modify_reputation(ctx.sender(), pc.peer_id, COST_REPORT_BAD).await;
 					}
-					dequeue_next_collation_and_fetch(&mut ctx, &mut state, pc.relay_parent, collator_id).await;
+					let maybe_candidate_hash =
+						pc.prospective_candidate.as_ref().map(ProspectiveCandidate::candidate_hash);
+					dequeue_next_collation_and_fetch(
+						&mut ctx,
+						&mut state,
+						pc.relay_parent,
+						(collator_id, maybe_candidate_hash),
+					)
+					.await;
 				}
 			}
 			res = state.collation_fetch_timeouts.select_next_some() => {
-				let (collator_id, relay_parent) = res;
+				let (collator_id, maybe_candidate_hash, relay_parent) = res;
 				gum::debug!(
 					target: LOG_TARGET,
 					?relay_parent,
 					?collator_id,
 					"Timeout hit - already seconded?"
 				);
-				dequeue_next_collation_and_fetch(&mut ctx, &mut state, relay_parent, collator_id).await;
+				dequeue_next_collation_and_fetch(
+					&mut ctx,
+					&mut state,
+					relay_parent,
+					(collator_id, maybe_candidate_hash),
+				)
+				.await;
 			}
 			_ = check_collations_stream.next() => {
 				let reputation_changes = poll_requests(
@@ -1527,13 +1560,13 @@ async fn dequeue_next_collation_and_fetch<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	relay_parent: Hash,
-	// The collator we tried to fetch from last.
-	previous_fetch: CollatorId,
+	// The collator we tried to fetch from last, optionally which candidate.
+	previous_fetch: (CollatorId, Option<CandidateHash>),
 ) {
 	while let Some((next, id)) = state.per_relay_parent.get_mut(&relay_parent).and_then(|state| {
 		state
 			.collations
-			.get_next_collation_to_fetch(Some(&previous_fetch), state.prospective_parachains_mode)
+			.get_next_collation_to_fetch(&previous_fetch, state.prospective_parachains_mode)
 	}) {
 		gum::debug!(
 			target: LOG_TARGET,
