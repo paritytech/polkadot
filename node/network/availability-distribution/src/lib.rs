@@ -150,6 +150,7 @@ impl AvailabilityDistributionSubsystem {
 						AvailabilityDistributionMessage::FetchPoV {
 							relay_parent,
 							from_validator,
+							para_id,
 							candidate_hash,
 							pov_hash,
 							tx,
@@ -161,6 +162,7 @@ impl AvailabilityDistributionSubsystem {
 							&mut runtime,
 							relay_parent,
 							from_validator,
+							para_id,
 							candidate_hash,
 							pov_hash,
 							tx,

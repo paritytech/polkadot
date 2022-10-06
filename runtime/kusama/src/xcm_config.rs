@@ -17,8 +17,8 @@
 //! XCM configurations for the Kusama runtime.
 
 use super::{
-	parachains_origin, AccountId, Balances, CouncilCollective, Origin, ParaId, Runtime,
-	RuntimeCall, RuntimeEvent, WeightToFee, XcmPallet,
+	parachains_origin, AccountId, Balances, CouncilCollective, ParaId, Runtime, RuntimeCall,
+	RuntimeEvent, RuntimeOrigin, WeightToFee, XcmPallet,
 };
 use frame_support::{match_types, parameter_types, traits::Everything};
 use runtime_common::{xcm_sender, ToAuthor};
@@ -75,13 +75,13 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 /// The means that we convert an the XCM message origin location into a local dispatch origin.
 type LocalOriginConverter = (
 	// A `Signed` origin of the sovereign account that the original location controls.
-	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
+	SovereignSignedViaLocation<SovereignAccountOf, RuntimeOrigin>,
 	// A child parachain, natively expressed, has the `Parachain` origin.
-	ChildParachainAsNative<parachains_origin::Origin, Origin>,
+	ChildParachainAsNative<parachains_origin::Origin, RuntimeOrigin>,
 	// The AccountId32 location type can be expressed natively as a `Signed` origin.
-	SignedAccountId32AsNative<KusamaNetwork, Origin>,
+	SignedAccountId32AsNative<KusamaNetwork, RuntimeOrigin>,
 	// A system child parachain, expressed as a Superuser, converts to the `Root` origin.
-	ChildSystemParachainAsSuperuser<ParaId, Origin>,
+	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
 );
 
 parameter_types! {
@@ -158,7 +158,7 @@ parameter_types! {
 
 /// Type to convert the council origin to a Plurality `MultiLocation` value.
 pub type CouncilToPlurality = BackingToPlurality<
-	Origin,
+	RuntimeOrigin,
 	pallet_collective::Origin<Runtime, CouncilCollective>,
 	CouncilBodyId,
 >;
@@ -170,7 +170,7 @@ pub type LocalOriginToLocation = (
 	// `Unit` body.
 	CouncilToPlurality,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<Origin, AccountId, KusamaNetwork>,
+	SignedToAccountId32<RuntimeOrigin, AccountId, KusamaNetwork>,
 );
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
@@ -178,10 +178,10 @@ impl pallet_xcm::Config for Runtime {
 	// (safe the possibility of someone spamming the parachain if they're willing to pay the KSM to
 	// send from the Relay-chain), but it's useless until we bring in XCM v3 which will make
 	// `DescendOrigin` a bit more useful.
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, CouncilToPlurality>;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, CouncilToPlurality>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally.
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type XcmExecuteFilter = Everything;
 	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
 	// Anyone is able to use teleportation regardless of who they are and what they want to teleport.
@@ -191,7 +191,7 @@ impl pallet_xcm::Config for Runtime {
 	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;

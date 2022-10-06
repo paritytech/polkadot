@@ -19,3 +19,6 @@ kusama-runtime = { path = "../../../runtime/kusama" }
 [[bin]]
 name = "gen-ref-constants"
 path = "src/gen_ref_constants.rs"
+
+[features]
+runtime-benchmarks = ["kusama-runtime/runtime-benchmarks"]

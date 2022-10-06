@@ -30,7 +30,9 @@ use polkadot_node_subsystem::{
 	overseer,
 };
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, CandidateHash, Hash, ValidatorIndex};
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, CandidateHash, Hash, Id as ParaId, ValidatorIndex,
+};
 
 use crate::{
 	error::{Error, FatalError, JfyiError, Result},
@@ -45,6 +47,7 @@ pub async fn fetch_pov<Context>(
 	runtime: &mut RuntimeInfo,
 	parent: Hash,
 	from_validator: ValidatorIndex,
+	para_id: ParaId,
 	candidate_hash: CandidateHash,
 	pov_hash: Hash,
 	tx: oneshot::Sender<PoV>,
@@ -70,10 +73,12 @@ pub async fn fetch_pov<Context>(
 
 	let span = jaeger::Span::new(candidate_hash, "fetch-pov")
 		.with_validator_index(from_validator)
-		.with_relay_parent(parent);
+		.with_relay_parent(parent)
+		.with_para_id(para_id);
 	ctx.spawn(
 		"pov-fetcher",
-		fetch_pov_job(pov_hash, authority_id, pending_response.boxed(), span, tx, metrics).boxed(),
+		fetch_pov_job(para_id, pov_hash, authority_id, pending_response.boxed(), span, tx, metrics)
+			.boxed(),
 	)
 	.map_err(|e| FatalError::SpawnTask(e))?;
 	Ok(())
@@ -81,6 +86,7 @@ pub async fn fetch_pov<Context>(
 
 /// Future to be spawned for taking care of handling reception and sending of PoV.
 async fn fetch_pov_job(
+	para_id: ParaId,
 	pov_hash: Hash,
 	authority_id: AuthorityDiscoveryId,
 	pending_response: BoxFuture<'static, std::result::Result<PoVFetchingResponse, RequestError>>,
@@ -89,7 +95,7 @@ async fn fetch_pov_job(
 	metrics: Metrics,
 ) {
 	if let Err(err) = do_fetch_pov(pov_hash, pending_response, span, tx, metrics).await {
-		gum::warn!(target: LOG_TARGET, ?err, ?pov_hash, ?authority_id, "fetch_pov_job");
+		gum::warn!(target: LOG_TARGET, ?err, ?para_id, ?pov_hash, ?authority_id, "fetch_pov_job");
 	}
 }
 
@@ -171,6 +177,7 @@ mod tests {
 				&mut runtime,
 				Hash::default(),
 				ValidatorIndex(0),
+				ParaId::default(),
 				CandidateHash::default(),
 				pov_hash,
 				tx,
