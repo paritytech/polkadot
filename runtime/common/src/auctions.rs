@@ -178,8 +178,9 @@ pub mod pallet {
 	#[pallet::getter(fn auction_counter)]
 	pub type AuctionCounter<T> = StorageValue<_, AuctionIndex, ValueQuery>;
 
-	// TODO: needs a migration to seed the initial data.
-	// TODO: will this work with how para-ids are swapped/extended?
+	// TODO: Migration:
+	// We need to go over https://kusama.subscan.io/event?module=auctions&event=auctionclosed&page=1&address=&startDate=&endDate=&startBlock=&endBlock=&timeType=date&version=9291, and grab the paraId of the `slots::Leased` events emitted in the same block, if any.
+	// TODO: will this work with how para-ids are swapped/extended? Yes afaik. We should not care how stuff is swapped/extended. We only want to track: how many parachains got auctions, that are currently active.
 	#[pallet::storage]
 	#[pallet::getter(fn auctioned_winner_para_ids)]
 	#[pallet::unbounded]
