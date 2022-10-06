@@ -4,7 +4,6 @@ timeout = 1000
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "rococo-local"
-chain_spec_command = "polkadot build-spec --chain rococo-local --disable-default-bootnode"
 default_command = "polkadot"
 
   [relaychain.genesis.runtime.runtime_genesis_config.configuration.config]
@@ -16,13 +15,12 @@ default_command = "polkadot"
 
   [[relaychain.nodes]]
   name = "alice"
-  image = "{{default_image}}"
-  args = [ "--alice", "-lparachain=debug"]
+  args = [ "-lparachain=debug"]
 
   [[relaychain.nodes]]
   name = "bob"
   image = "{{ZOMBIENET_INTEGRATION_TEST_SECONDARY_IMAGE}}"
-  args = [ "--bob", "-lparachain=debug"]
+  args = [ "-lparachain=debug"]
 
 [[parachains]]
 id = 100
