@@ -1,0 +1,34 @@
+[settings]
+timeout = 1000
+
+[relaychain]
+default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
+chain = "rococo-local"
+chain_spec_command = "polkadot build-spec --chain rococo-local --disable-default-bootnode"
+default_command = "polkadot"
+
+  [relaychain.genesis.runtime.runtime_genesis_config.configuration.config]
+  max_validators_per_core = 2
+
+  [relaychain.default_resources]
+  limits = { memory = "4G", cpu = "2" }
+  requests = { memory = "2G", cpu = "1" }
+
+  [[relaychain.nodes]]
+  name = "alice"
+  image = "{{default_image}}"
+  args = [ "--alice", "-lparachain=debug"]
+
+  [[relaychain.nodes]]
+  name = "bob"
+  image = "{{ZOMBIENET_INTEGRATION_TEST_SECONDARY_IMAGE}}"
+  args = [ "--bob", "-lparachain=debu"]
+
+[[parachains]]
+id = 100
+cumulus_based = true
+
+  [parachains.collator]
+  name = "{{COL_IMAGE}}"
+  command = "undying-collator"
+  args = ["-lparachain=debug"]
