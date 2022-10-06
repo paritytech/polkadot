@@ -561,7 +561,6 @@ async fn validate_candidate_exhaustive(
 
 	match result {
 		Err(ValidationError::InternalError(e)) => Err(ValidationFailed(e)),
-
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WorkerReportedError(e))) =>
@@ -571,8 +570,7 @@ async fn validate_candidate_exhaustive(
 				"ambiguous worker death".to_string(),
 			))),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) =>
-			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
-
+			Err(ValidationFailed(e)),
 		Ok(res) =>
 			if res.head_data.hash() != candidate_receipt.descriptor.para_head {
 				gum::info!(target: LOG_TARGET, ?para_id, "Invalid candidate (para_head)");
