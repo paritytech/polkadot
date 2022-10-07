@@ -103,7 +103,7 @@ pub enum SessionWindowUpdate {
 /// A structure to store rolling session database parameters.
 #[derive(Clone)]
 pub struct DatabaseParams {
-	/// Databae reference.
+	/// Database reference.
 	pub db: Arc<dyn Database>,
 	/// The column which stores the rolling session info.
 	pub db_column: u32,
@@ -500,7 +500,7 @@ async fn get_session_index_for_child(
 
 /// Attempts to extend db stored sessions with sessions missing between `start` and up to `end_inclusive`.
 /// If `allow_failure` is true, fetching errors are ignored until we get a first session, then
-/// the function would return error. This allows us to be more relaxed wrt sessions no longer
+/// the function would return error. This allows us to be more relaxed `wrt` sessions no longer
 /// available in the runtime, but not for other types of errors.
 async fn extend_sessions_from_chain_state(
 	db_sessions: Vec<SessionInfo>,
