@@ -406,7 +406,7 @@ impl RollingSessionWindow {
 		);
 
 		// Never look back past earliest session, since if sessions beyond were not needed or available
-		// in the past remains valid for the future (window only advanced forward).
+		// in the past remains valid for the future (window only advances forward).
 		let mut window_start = std::cmp::max(window_start, self.earliest_session);
 
 		let mut sessions = self.session_info.clone();
