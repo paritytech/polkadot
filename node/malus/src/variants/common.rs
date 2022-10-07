@@ -248,6 +248,12 @@ where
 						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
 						match behave_maliciously {
 							true => {
+								gum::info!(
+									target: MALUS,
+									"😈 Malicious behaviour is sampled as: {:?}. Now outputting malicious ValidationResult::Valid message.",
+									&behave_maliciously,
+								);
+
 								create_validation_response(
 									validation_data,
 									candidate_receipt.descriptor,
@@ -255,9 +261,14 @@ where
 								);
 								None
 							},
-							//
 							false => {
 								// Behave normally with probability `(1-p)` for a malicious `PoV`.
+								gum::info!(
+									target: MALUS,
+									"😈 Malicious behaviour is sampled as: {:?}. Faking normal behaviour and outputting CandidateValidationMessage::ValidateFromExhaustive.",
+									&behave_maliciously,
+								);
+
 								Some(FromOrchestra::Communication {
 									msg: CandidateValidationMessage::ValidateFromExhaustive(
 										validation_data,
@@ -277,6 +288,12 @@ where
 						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
 						match behave_maliciously {
 							true => {
+								gum::info!(
+									target: MALUS,
+									"😈 Malicious behaviour is sampled as: {:?}. Now setting ValidationResult::Invalid.",
+									&behave_maliciously,
+								);
+
 								let validation_result =
 									ValidationResult::Invalid(InvalidCandidate::InvalidOutputs);
 
@@ -292,6 +309,12 @@ where
 							},
 							false => {
 								// Behave normally with probability `(1-p)`
+								gum::info!(
+									target: MALUS,
+									"😈 Malicious behaviour is sampled as: {:?}. Faking normal behaviour and outputting CandidateValidationMessage::ValidateFromExhaustive message.",
+									&behave_maliciously,
+								);
+								
 								Some(FromOrchestra::Communication {
 									msg: CandidateValidationMessage::ValidateFromExhaustive(
 										validation_data,
@@ -347,6 +370,12 @@ where
 						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
 						match behave_maliciously {
 							true => {
+								gum::info!(
+									target: MALUS,
+									"😈 Malicious behaviour is sampled as: {:?}. Backing candidate with malicious PoV.",
+									&behave_maliciously,
+								);
+
 								self.send_validation_response(
 									candidate_receipt.descriptor,
 									subsystem_sender.clone(),
@@ -372,6 +401,12 @@ where
 						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
 						match behave_maliciously {
 							true => {
+								gum::info!(
+									target: MALUS,
+									"😈 Malicious behaviour is sampled as: {:?}. Setting ValidationResult::Invalid for valid candidate.",
+									&behave_maliciously,
+								);
+
 								let validation_result = ValidationResult::Invalid(
 									self.fake_validation_error.clone().into(),
 								);
@@ -387,14 +422,22 @@ where
 								None
 							},
 							// With some probability `(1-p)` we behave normally
-							false => Some(FromOrchestra::Communication {
-								msg: CandidateValidationMessage::ValidateFromChainState(
-									candidate_receipt,
-									pov,
-									timeout,
-									response_sender,
-								),
-							}),
+							false => {
+								gum::info!(
+									target: MALUS,
+									"😈 Malicious behaviour is sampled as: {:?}. Faking normal behaviour and outputting CandidateValidationMessage::ValidateFromChainState message.",
+									&behave_maliciously,
+								);
+
+								Some(FromOrchestra::Communication {
+									msg: CandidateValidationMessage::ValidateFromChainState(
+										candidate_receipt,
+										pov,
+										timeout,
+										response_sender,
+									),
+								}),
+							}
 						}
 					},
 					_ => Some(FromOrchestra::Communication {
