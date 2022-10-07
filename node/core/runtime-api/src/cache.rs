@@ -27,6 +27,7 @@ use polkadot_primitives::v2::{
 	PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
 	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
+use polkadot_primitives::vstaging::ExecutorParams;
 
 const AUTHORITIES_CACHE_SIZE: usize = 128 * 1024;
 const VALIDATORS_CACHE_SIZE: usize = 64 * 1024;
@@ -39,7 +40,7 @@ const SESSION_INDEX_FOR_CHILD_CACHE_SIZE: usize = 64 * 1024;
 const VALIDATION_CODE_CACHE_SIZE: usize = 10 * 1024 * 1024;
 const CANDIDATE_PENDING_AVAILABILITY_CACHE_SIZE: usize = 64 * 1024;
 const CANDIDATE_EVENTS_CACHE_SIZE: usize = 64 * 1024;
-const SESSION_INDEX_BY_PARENT_HASH_CACHE_SIZE: usize = 64 * 1024;
+const SESSION_EE_PARAMS_BY_PARENT_HASH_CACHE_SIZE: usize = 64 * 1024;
 const SESSION_INFO_CACHE_SIZE: usize = 64 * 1024;
 const DMQ_CONTENTS_CACHE_SIZE: usize = 64 * 1024;
 const INBOUND_HRMP_CHANNELS_CACHE_SIZE: usize = 64 * 1024;
@@ -102,7 +103,7 @@ pub(crate) struct RequestResultCache {
 	candidate_pending_availability:
 		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Option<CommittedCandidateReceipt>>>,
 	candidate_events: MemoryLruCache<Hash, ResidentSizeOf<Vec<CandidateEvent>>>,
-	session_index_by_parent_hash: MemoryLruCache<Hash, ResidentSizeOf<Option<SessionIndex>>>,
+	session_ee_params_by_parent_hash: MemoryLruCache<Hash, ResidentSizeOf<Option<ExecutorParams>>>,
 	session_info: MemoryLruCache<SessionIndex, ResidentSizeOf<SessionInfo>>,
 	dmq_contents:
 		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Vec<InboundDownwardMessage<BlockNumber>>>>,
@@ -141,8 +142,8 @@ impl Default for RequestResultCache {
 				CANDIDATE_PENDING_AVAILABILITY_CACHE_SIZE,
 			),
 			candidate_events: MemoryLruCache::new(CANDIDATE_EVENTS_CACHE_SIZE),
-			session_index_by_parent_hash: MemoryLruCache::new(
-				SESSION_INDEX_BY_PARENT_HASH_CACHE_SIZE,
+			session_ee_params_by_parent_hash: MemoryLruCache::new(
+				SESSION_EE_PARAMS_BY_PARENT_HASH_CACHE_SIZE,
 			),
 			session_info: MemoryLruCache::new(SESSION_INFO_CACHE_SIZE),
 			dmq_contents: MemoryLruCache::new(DMQ_CONTENTS_CACHE_SIZE),
@@ -328,19 +329,19 @@ impl RequestResultCache {
 		self.session_info.insert(key, ResidentSizeOf(value));
 	}
 
-	pub(crate) fn session_index_by_parent_hash(
+	pub(crate) fn session_ee_params_by_parent_hash(
 		&mut self,
 		key: (Hash, Hash),
-	) -> Option<&Option<SessionIndex>> {
-		self.session_index_by_parent_hash.get(&key.1).map(|v| &v.0)
+	) -> Option<&Option<ExecutorParams>> {
+		self.session_ee_params_by_parent_hash.get(&key.1).map(|v| &v.0)
 	}
 
-	pub(crate) fn cache_session_index_by_parent_hash(
+	pub(crate) fn cache_session_ee_params_by_parent_hash(
 		&mut self,
 		key: Hash,
-		value: Option<SessionIndex>,
+		value: Option<ExecutorParams>,
 	) {
-		self.session_index_by_parent_hash.insert(key, ResidentSizeOf(value));
+		self.session_ee_params_by_parent_hash.insert(key, ResidentSizeOf(value));
 	}
 
 	pub(crate) fn dmq_contents(
@@ -469,7 +470,7 @@ pub(crate) enum RequestResult {
 	ValidationCodeByHash(Hash, ValidationCodeHash, Option<ValidationCode>),
 	CandidatePendingAvailability(Hash, ParaId, Option<CommittedCandidateReceipt>),
 	CandidateEvents(Hash, Vec<CandidateEvent>),
-	SessionIndexByParentHash(Hash, Hash, Option<SessionIndex>),
+	SessionEeParamsByParentHash(Hash, Hash, Option<ExecutorParams>),
 	SessionInfo(Hash, SessionIndex, Option<SessionInfo>),
 	DmqContents(Hash, ParaId, Vec<InboundDownwardMessage<BlockNumber>>),
 	InboundHrmpChannelsContents(

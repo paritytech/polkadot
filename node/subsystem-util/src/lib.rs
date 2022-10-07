@@ -24,6 +24,7 @@
 
 #![warn(missing_docs)]
 
+use polkadot_primitives::vstaging::ExecutorParams;
 use polkadot_node_subsystem::{
 	errors::{RuntimeApiError, SubsystemError},
 	messages::{RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
@@ -199,7 +200,7 @@ specialize_requests! {
 	fn request_validation_code_by_hash(validation_code_hash: ValidationCodeHash) -> Option<ValidationCode>; ValidationCodeByHash;
 	fn request_candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
 	fn request_candidate_events() -> Vec<CandidateEvent>; CandidateEvents;
-	fn request_session_index_by_parent_hash(hash: Hash) -> Option<SessionIndex>; SessionIndexByParentHash;
+	fn request_session_ee_params_by_parent_hash(hash: Hash) -> Option<ExecutorParams>; SessionEeParamsByParentHash;
 	fn request_session_info(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;
 	fn request_validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
 		-> Option<ValidationCodeHash>; ValidationCodeHash;

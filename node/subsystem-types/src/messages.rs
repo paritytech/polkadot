@@ -678,8 +678,8 @@ pub enum RuntimeApiRequest {
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
 	/// the block in whose state this request is executed.
 	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
-	/// Get the session index by parent hash
-	SessionIndexByParentHash(Hash, RuntimeApiSender<Option<SessionIndex>>),
+	/// Get the execution environment parameter set by parent hash
+	SessionEeParamsByParentHash(Hash, RuntimeApiSender<Option<ExecutorParams>>),
 	/// Get the session info for the given session, if stored.
 	SessionInfo(SessionIndex, RuntimeApiSender<Option<SessionInfo>>),
 	/// Get all the pending inbound messages in the downward message queue for a para.

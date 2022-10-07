@@ -28,6 +28,7 @@ use primitives::v2::{
 	PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature, ValidationCode,
 	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
+use primitives::vstaging::ExecutorParams;
 use runtime_common::{
 	assigned_slots, auctions, claims, crowdloan, impl_runtime_weights, impls::ToAuthor,
 	paras_registrar, paras_sudo_wrapper, prod_or_fast, slots, BlockHashCount, BlockLength,
@@ -1643,8 +1644,8 @@ sp_api::impl_runtime_apis! {
 			})
 		}
 
-		fn session_index_by_parent_hash(parent_hash: Hash) -> Option<SessionIndex> {
-			parachains_runtime_api_impl_staging::session_index_by_parent_hash::<Runtime>(parent_hash)
+		fn session_ee_params_by_parent_hash(parent_hash: Hash) -> Option<ExecutorParams> {
+			parachains_runtime_api_impl_staging::session_ee_params_by_parent_hash::<Runtime>(parent_hash)
 		}
 
 		fn session_info(index: SessionIndex) -> Option<SessionInfo> {

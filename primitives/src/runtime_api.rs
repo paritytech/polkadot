@@ -110,7 +110,7 @@
 //! All staging API functions should use primitives from `vstaging`. They should be clearly separated
 //! from the stable primitives.
 
-use crate::v2;
+use crate::{v2, vstaging};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives as pcp;
 use polkadot_parachain::primitives as ppp;
@@ -211,7 +211,7 @@ sp_api::decl_runtime_apis! {
 
 
 		// FIXME: Docs; move to v3
-		fn session_index_by_parent_hash(parent_hash: pcp::v2::Hash) -> Option<sp_staking::SessionIndex>;
+		fn session_ee_params_by_parent_hash(parent_hash: pcp::v2::Hash) -> Option<vstaging::ExecutorParams>;
 
 		/***** Replaced in v2 *****/
 

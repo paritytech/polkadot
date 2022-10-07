@@ -106,10 +106,15 @@ pub mod pallet {
 	pub(crate) type AccountKeys<T: Config> =
 		StorageMap<_, Identity, SessionIndex, Vec<AccountId<T>>>;
 
-	/// A cache mapping a parent block hash to the session index
+	/// A mapping from a parent block hash to the session index
 	#[pallet::storage]
 	#[pallet::getter(fn session_index_by_parent_hash)]
 	pub(crate) type SessionIndexCache<T: Config> = StorageMap<_, Identity, T::Hash, SessionIndex>;
+
+	/// Executor parameter set for a given session index
+	#[pallet::storage]
+	#[pallet::getter(fn session_ee_params)]
+	pub(crate) type SessionEeParams<T: Config> = StorageMap<_, Identity, SessionIndex, ExecutorParams>;
 }
 
 /// An abstraction for the authority discovery pallet
@@ -161,6 +166,7 @@ impl<T: Config> Pallet<T> {
 				// Idx will be missing for a few sessions after the runtime upgrade.
 				// But it shouldn'be be a problem.
 				AccountKeys::<T>::remove(&idx);
+				SessionEeParams::<T>::remove(&idx);
 			}
 			// update `EarliestStoredSession` based on `config.dispute_period`
 			EarliestStoredSession::<T>::set(new_earliest_stored_session);
@@ -189,7 +195,6 @@ impl<T: Config> Pallet<T> {
 
 		// create a new entry in `Sessions` with information about the current session
 		let new_session_info = SessionInfo {
-			ee_parameters: ExecutorParams::default(),
 			validators, // these are from the notification and are thus already correct.
 			discovery_keys: take_active_subset_and_inactive(&active_set, &discovery_keys),
 			assignment_keys: take_active_subset(&active_set, &assignment_keys),
@@ -205,6 +210,7 @@ impl<T: Config> Pallet<T> {
 			dispute_period,
 		};
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
+		SessionEeParams::<T>::insert(&new_session_index, &ExecutorParams::default());
 	}
 
 	/// Called by the initializer to initialize the session info pallet.

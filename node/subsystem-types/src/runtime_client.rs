@@ -24,6 +24,7 @@ use polkadot_primitives::{
 		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
 		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
+	vstaging::ExecutorParams,
 };
 use sp_api::{ApiError, ApiExt, ProvideRuntimeApi};
 use sp_authority_discovery::AuthorityDiscoveryApi;
@@ -141,12 +142,12 @@ pub trait RuntimeApiSubsystemClient {
 
 	/***** Added in v2 *****/
 
-	/// Get the session index by parent hash, if stored
-	async fn session_index_by_parent_hash(
+	/// Get the execution environment parameter set by parent hash, if stored
+	async fn session_ee_params_by_parent_hash(
 		&self,
 		at: Hash,
 		parent_hash: Hash,
-	) -> Result<Option<SessionIndex>, ApiError>;
+	) -> Result<Option<ExecutorParams>, ApiError>;
 
 	/// Get the session info for the given session, if stored.
 	///
@@ -326,12 +327,12 @@ where
 		self.runtime_api().on_chain_votes(&BlockId::Hash(at))
 	}
 
-	async fn session_index_by_parent_hash(
+	async fn session_ee_params_by_parent_hash(
 		&self,
 		at: Hash,
 		parent_hash: Hash,
-	) -> Result<Option<SessionIndex>, ApiError> {
-		self.runtime_api().session_index_by_parent_hash(&BlockId::Hash(at), parent_hash)
+	) -> Result<Option<ExecutorParams>, ApiError> {
+		self.runtime_api().session_ee_params_by_parent_hash(&BlockId::Hash(at), parent_hash)
 	}
 
 	async fn session_info(
