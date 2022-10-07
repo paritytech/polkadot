@@ -6532,6 +6532,7 @@ dependencies = [
  "polkadot-core-primitives",
  "polkadot-node-metrics",
  "polkadot-parachain",
+ "polkadot-primitives",
  "rand 0.8.5",
  "rayon",
  "sc-executor",
