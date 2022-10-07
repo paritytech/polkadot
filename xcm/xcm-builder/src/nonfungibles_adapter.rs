@@ -16,14 +16,14 @@
 
 //! Adapters to work with `frame_support::traits::tokens::fungibles` through XCM.
 
+use crate::{AssetChecking, MintLocation};
 use frame_support::{
 	ensure,
-	traits::{tokens::nonfungibles, Contains, Get},
+	traits::{tokens::nonfungibles, Get},
 };
 use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::{Convert, Error as MatchError, MatchesNonFungibles, TransactAsset};
-use crate::{AssetChecking, MintLocation};
 
 pub struct NonFungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
 	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>,
@@ -72,7 +72,8 @@ impl<
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,
-	> NonFungiblesMutateAdapter<
+	>
+	NonFungiblesMutateAdapter<
 		Assets,
 		Matcher,
 		AccountIdConverter,
@@ -81,11 +82,11 @@ impl<
 		CheckingAccount,
 	>
 {
-	fn can_accrue_checked(class: Assets::CollectionId, instance: Assets::InstanceId) -> XcmResult {
+	fn can_accrue_checked(class: Assets::CollectionId, instance: Assets::ItemId) -> XcmResult {
 		ensure!(Assets::owner(&class, &instance).is_none(), XcmError::NotDepositable);
 		Ok(())
 	}
-	fn can_reduce_checked(class: Assets::CollectionId, instance: Assets::InstanceId) -> XcmResult {
+	fn can_reduce_checked(class: Assets::CollectionId, instance: Assets::ItemId) -> XcmResult {
 		if let Some(checking_account) = CheckingAccount::get() {
 			// This is an asset whose teleports we track.
 			let owner = Assets::owner(&class, &instance);
@@ -94,24 +95,21 @@ impl<
 		}
 		Ok(())
 	}
-	fn accrue_checked(class: Assets::CollectionId, instance: Assets::InstanceId) {
+	fn accrue_checked(class: Assets::CollectionId, instance: Assets::ItemId) {
 		if let Some(checking_account) = CheckingAccount::get() {
 			let ok = Assets::mint_into(&class, &instance, &checking_account).is_ok();
 			debug_assert!(ok, "`mint_into` cannot generally fail; qed");
 		}
-}
-	fn reduce_checked(class: Assets::CollectionId, instance: Assets::InstanceId) {
+	}
+	fn reduce_checked(class: Assets::CollectionId, instance: Assets::ItemId) {
 		let ok = Assets::burn(&class, &instance, None).is_ok();
-		debug_assert!(
-			ok,
-			"`can_check_in` must have returned `true` immediately prior; qed"
-		);
+		debug_assert!(ok, "`can_check_in` must have returned `true` immediately prior; qed");
 	}
 }
 
 impl<
 		Assets: nonfungibles::Mutate<AccountId>,
-		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::InstanceId>,
+		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
 		AccountIdConverter: Convert<MultiLocation, AccountId>,
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
 		CheckAsset: AssetChecking<Assets::CollectionId>,

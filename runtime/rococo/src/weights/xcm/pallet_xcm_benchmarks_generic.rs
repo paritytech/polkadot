@@ -180,4 +180,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	pub(crate) fn set_fees_mode() -> Weight {
 		Weight::from_ref_time(3_721_000 as u64)
 	}
+	pub(crate) fn unpaid_execution() -> Weight {
+		Weight::from_ref_time(3_111_000 as u64)
+	}
 }

@@ -35,7 +35,10 @@ use sp_runtime::{
 	RuntimeDebug,
 };
 use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
-use xcm::{latest::{QueryResponseInfo, Weight as XcmWeight}, prelude::*};
+use xcm::{
+	latest::{QueryResponseInfo, Weight as XcmWeight},
+	prelude::*,
+};
 use xcm_executor::traits::{Convert, ConvertOrigin};
 
 use frame_support::{
@@ -779,8 +782,8 @@ pub mod pallet {
 				origin_location,
 				message,
 				hash,
-				max_weight.ref_time(),
-				max_weight.ref_time(),
+				max_weight, //.ref_time(),
+				max_weight, //.ref_time(),
 			);
 			let result = Ok(Some(outcome.weight_used().saturating_add(100_000_000)).into());
 			Self::deposit_event(Event::Attempted(outcome));
@@ -1479,7 +1482,7 @@ impl<T: Config> xcm_executor::traits::Enact for LockTicket<T> {
 			None => {
 				locks
 					.try_push((self.amount, self.unlocker.clone().into()))
-					.map_err(|()| UnexpectedState)?;
+					.map_err(|(_balance, _location)| UnexpectedState)?;
 			},
 		}
 		LockedFungibles::<T>::insert(&self.sovereign_account, locks);
