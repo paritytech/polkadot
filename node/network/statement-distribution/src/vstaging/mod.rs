@@ -55,6 +55,7 @@ use statement_store::StatementStore;
 
 mod candidate_entry;
 mod cluster;
+mod grid;
 mod requests;
 mod statement_store;
 
@@ -463,8 +464,7 @@ pub(crate) async fn share_local_statement<Context>(
 	// send a `Seconded` statement as well.
 	send_statement_direct(ctx, state, relay_parent, local_group, compact_statement).await;
 
-	// TODO [now]:
-	// 4. If the candidate is now backed, trigger 'backed candidate announcement' logic.
+	// TODO [now]: send along grid if backed, send statement to backing if we can
 
 	Ok(())
 }
@@ -801,6 +801,7 @@ async fn handle_incoming_statement<Context>(
 		checked_statement.payload().clone(),
 	);
 
+	let statement = checked_statement.payload().clone();
 	let sender_index = checked_statement.validator_index();
 	let candidate_hash = *checked_statement.payload().candidate_hash();
 	let was_fresh = match per_relay_parent.statement_store.insert(checked_statement) {
@@ -841,6 +842,7 @@ async fn handle_incoming_statement<Context>(
 	}
 
 	if was_fresh {
-		// TODO [now]: import to backing if pre-reqs are in place.
+		// both of the below probably in some shared function.
+		// TODO [now]: send along grid if backed, send statement to backing if we can
 	}
 }
