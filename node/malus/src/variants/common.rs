@@ -112,6 +112,7 @@ pub struct ReplaceValidationResult<Spawner> {
 	fake_validation: FakeCandidateValidation,
 	fake_validation_error: FakeCandidateValidationError,
 	percentage: f64,
+	distribution: Bernoulli,
 	spawner: Spawner,
 }
 
@@ -125,7 +126,9 @@ where
 		percentage: f64,
 		spawner: Spawner,
 	) -> Self {
-		Self { fake_validation, fake_validation_error, percentage, spawner }
+		let distribution = Bernoulli::new(percentage / 100.0)
+			.expect("Invalid probability! Percentage must be in range [0..=100].");
+		Self { fake_validation, fake_validation_error, percentage, distribution, spawner }
 	}
 
 	/// Creates and sends the validation response for a given candidate. Queries the runtime to obtain the validation data for the
@@ -242,10 +245,8 @@ where
 							})
 						}
 						// Create the fake response with probability `p` if the `PoV` is malicious.
-						let distribution = Bernoulli::new(self.percentage / 100.0)
-							.expect("Invalid probability! Percentage cannot be < 0 or > 100.");
-						let random_bool = distribution.sample(&mut rand::thread_rng());
-						match random_bool {
+						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
+						match behave_maliciously {
 							true => {
 								create_validation_response(
 									validation_data,
@@ -272,11 +273,9 @@ where
 					},
 					FakeCandidateValidation::ApprovalInvalid |
 					FakeCandidateValidation::BackingAndApprovalInvalid => {
-						// Set the validation result to invalid with probability `p`
-						let distribution = Bernoulli::new(self.percentage / 100.0)
-							.expect("Invalid probability! Percentage cannot be < 0 or > 100.");
-						let random_bool = distribution.sample(&mut rand::thread_rng());
-						match random_bool {
+						// Set the validation result to invalid with probability `p` and trigger a dispute
+						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
+						match behave_maliciously {
 							true => {
 								let validation_result =
 									ValidationResult::Invalid(InvalidCandidate::InvalidOutputs);
@@ -306,7 +305,7 @@ where
 							},
 						}
 					},
-					// `dispute-ancestor --fake-validation` disabled case
+					// Handle FakeCandidateValidation::Disabled
 					_ => Some(FromOrchestra::Communication {
 						msg: CandidateValidationMessage::ValidateFromExhaustive(
 							validation_data,
@@ -345,10 +344,8 @@ where
 						}
 						// If the `PoV` is malicious, back the candidate with some probability `p`,
 						// which defaults to 100% for suggest-garbage-candidate variant.
-						let distribution = Bernoulli::new(self.percentage / 100.0)
-							.expect("Invalid probability! Percentage cannot be < 0 or > 100.");
-						let random_bool = distribution.sample(&mut rand::thread_rng());
-						match random_bool {
+						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
+						match behave_maliciously {
 							true => {
 								self.send_validation_response(
 									candidate_receipt.descriptor,
@@ -372,10 +369,8 @@ where
 					FakeCandidateValidation::BackingAndApprovalInvalid => {
 						// We back a garbage candidate with some probability `p`,
 						// which defaults to 100% for suggest-garbage-candidate variant.
-						let distribution = Bernoulli::new(self.percentage / 100.0)
-							.expect("Invalid probability! Percentage cannot be < 0 or > 100.");
-						let random_bool = distribution.sample(&mut rand::thread_rng());
-						match random_bool {
+						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
+						match behave_maliciously {
 							true => {
 								let validation_result = ValidationResult::Invalid(
 									self.fake_validation_error.clone().into(),
