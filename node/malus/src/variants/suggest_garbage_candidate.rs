@@ -77,7 +77,7 @@ where
 {
 	type Message = CandidateBackingMessage;
 
-	/// Intercept incoming `Second` requests from the `collator-protocol` subsystem. We take
+	/// Intercept incoming `Second` requests from the `collator-protocol` subsystem.
 	fn intercept_incoming(
 		&self,
 		subsystem_sender: &mut Sender,
@@ -251,7 +251,7 @@ where
 #[clap(rename_all = "kebab-case")]
 #[allow(missing_docs)]
 pub struct SuggestGarbageCandidateOptions {
-	/// Determines the percentage of candidates that should be disputed. Allows for fine-tuning
+	/// Determines the percentage of malicious candidates that are suggested. Allows for fine-tuning
 	/// the intensity of the behavior of the malicious node. Value must be in the range 0..=100.
 	#[clap(short, long, ignore_case = true, default_value_t = 100, value_parser = clap::value_parser!(u8).range(0..=100))]
 	pub percentage: u8,
@@ -261,18 +261,18 @@ pub struct SuggestGarbageCandidateOptions {
 }
 
 /// Garbage candidate implementation wrapper which implements `OverseerGen` glue.
-pub(crate) struct BackGarbageCandidateWrapper {
+pub(crate) struct SuggestGarbageCandidateWrapper {
 	/// Options from CLI.
 	opts: SuggestGarbageCandidateOptions,
 }
 
-impl BackGarbageCandidateWrapper {
+impl SuggestGarbageCandidateWrapper {
 	pub fn new(opts: SuggestGarbageCandidateOptions) -> Self {
 		Self { opts }
 	}
 }
 
-impl OverseerGen for BackGarbageCandidateWrapper {
+impl OverseerGen for SuggestGarbageCandidateWrapper {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
@@ -287,9 +287,11 @@ impl OverseerGen for BackGarbageCandidateWrapper {
 			spawner: SpawnGlue(args.spawner.clone()),
 			percentage: f64::from(self.opts.percentage),
 		};
+		let validation_probability = 100.0;
 		let validation_filter = ReplaceValidationResult::new(
 			FakeCandidateValidation::BackingAndApprovalValid,
 			FakeCandidateValidationError::InvalidOutputs,
+			validation_probability,
 			SpawnGlue(args.spawner.clone()),
 		);
 
