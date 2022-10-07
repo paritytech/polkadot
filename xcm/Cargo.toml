@@ -12,20 +12,17 @@ log = { version = "0.4.17", default-features = false }
 parity-scale-codec = { version = "3.1.5", default-features = false, features = [ "derive", "max-encoded-len" ] }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 serde = { version = "1.0.136", optional = true, features = ["derive"] }
 xcm-procedural = { path = "procedural" }
 
 [features]
 default = ["std"]
 wasm-api = []
-runtime-benchmarks = [
-	"sp-runtime/runtime-benchmarks",
-]
 std = [
 	"parity-scale-codec/std",
 	"scale-info/std",
 	"serde",
 	"sp-io/std",
-	"sp-runtime/std",
+	"sp-core/std",
 ]
