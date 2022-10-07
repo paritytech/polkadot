@@ -154,28 +154,29 @@ impl RollingSessionWindow {
 		let maybe_stored_window = Self::db_load(db_params.clone());
 
 		// Get the DB stored sessions and recompute window start based on DB data.
-		let (window_start, stored_sessions) = if let Some(mut stored_window) = maybe_stored_window {
-			// Check if DB is ancient.
-			if earliest_non_finalized_block_session >
-				stored_window.earliest_session + stored_window.session_info.len() as u32
-			{
-				// If ancient, we scrap it and fetch from chain state.
-				stored_window.session_info.clear();
-			}
+		let (mut window_start, stored_sessions) =
+			if let Some(mut stored_window) = maybe_stored_window {
+				// Check if DB is ancient.
+				if earliest_non_finalized_block_session >
+					stored_window.earliest_session + stored_window.session_info.len() as u32
+				{
+					// If ancient, we scrap it and fetch from chain state.
+					stored_window.session_info.clear();
+				}
 
-			// The session window might extend beyond the last finalized block, but that's fine as we'll prune it at
-			// next update.
-			let window_start = if stored_window.session_info.len() > 0 {
-				// If there is at least one entry in db, we always take the DB as source of truth.
-				stored_window.earliest_session
+				// The session window might extend beyond the last finalized block, but that's fine as we'll prune it at
+				// next update.
+				let window_start = if stored_window.session_info.len() > 0 {
+					// If there is at least one entry in db, we always take the DB as source of truth.
+					stored_window.earliest_session
+				} else {
+					on_chain_window_start
+				};
+
+				(window_start, stored_window.session_info)
 			} else {
-				on_chain_window_start
+				(on_chain_window_start, Vec::new())
 			};
-
-			(window_start, stored_window.session_info)
-		} else {
-			(on_chain_window_start, Vec::new())
-		};
 
 		// Try to load sessions from DB first and load more from chain state if needed.
 		let sessions_missing_count = session_index
@@ -189,7 +190,7 @@ impl RollingSessionWindow {
 				stored_sessions,
 				&mut sender,
 				block_hash,
-				window_start,
+				&mut window_start,
 				session_index,
 			)
 			.await
@@ -406,7 +407,7 @@ impl RollingSessionWindow {
 
 		// Never look back past earliest session, since if sessions beyond were not needed or available
 		// in the past remains valid for the future (window only advanced forward).
-		let window_start = std::cmp::max(window_start, self.earliest_session);
+		let mut window_start = std::cmp::max(window_start, self.earliest_session);
 
 		let mut sessions = self.session_info.clone();
 		let sessions_out_of_window = window_start.saturating_sub(old_window_start) as usize;
@@ -423,7 +424,7 @@ impl RollingSessionWindow {
 			sessions,
 			sender,
 			block_hash,
-			window_start,
+			&mut window_start,
 			session_index,
 		)
 		.await
@@ -505,17 +506,15 @@ async fn extend_sessions_from_chain_state(
 	db_sessions: Vec<SessionInfo>,
 	sender: &mut impl overseer::SubsystemSender<RuntimeApiMessage>,
 	block_hash: Hash,
-	mut start: SessionIndex,
+	window_start: &mut SessionIndex,
 	end_inclusive: SessionIndex,
 ) -> Result<Vec<SessionInfo>, SessionsUnavailableReason> {
-	println!("Extending {} sessions, start: {}, end: {}", db_sessions.len(), start, end_inclusive);
-
 	// Start from the db sessions.
 	let mut sessions = db_sessions;
 	// We allow session fetch failures only if we won't create a gap in the window by doing so.
-	let allow_failure = false;
+	let mut allow_failure = sessions.is_empty();
 
-	start += sessions.len() as u32;
+	let start = *window_start + sessions.len() as u32;
 
 	for i in start..=end_inclusive {
 		let (tx, rx) = oneshot::channel();
@@ -528,11 +527,17 @@ async fn extend_sessions_from_chain_state(
 
 		match rx.await {
 			Ok(Ok(Some(session_info))) => {
+				// We do not allow failure anymore after having at least 1 session in window.
+				allow_failure = false;
 				sessions.push(session_info);
 			},
-			Ok(Ok(None)) if !allow_failure => return Err(SessionsUnavailableReason::Missing(i)),
+			Ok(Ok(None)) if !allow_failure => {
+				return Err(SessionsUnavailableReason::Missing(i))
+			},
 			Ok(Ok(None)) => {
 				/* handle `allow_failure` true */
+				// If we didn't get the session, we advance window start.
+				*window_start += 1;
 				gum::debug!(
 					target: LOG_TARGET,
 					session = ?i,
@@ -544,6 +549,8 @@ async fn extend_sessions_from_chain_state(
 				return Err(SessionsUnavailableReason::RuntimeApiUnavailable(canceled)),
 			Ok(Err(err)) => {
 				/* handle `allow_failure` true */
+				// If we didn't get the session, we advance window start.
+				*window_start += 1;
 				gum::debug!(
 					target: LOG_TARGET,
 					session = ?i,
@@ -553,6 +560,8 @@ async fn extend_sessions_from_chain_state(
 			},
 			Err(err) => {
 				/* handle `allow_failure` true */
+				// If we didn't get the session, we advance window start.
+				*window_start += 1;
 				gum::debug!(
 					target: LOG_TARGET,
 					session = ?i,
@@ -841,7 +850,7 @@ mod tests {
 	}
 
 	#[test]
-	fn any_session_stretch_for_unfinalized_chain() {
+	fn cache_session_fails_for_gap_in_window() {
 		// Session index of the tip of our fake test chain.
 		let session: SessionIndex = 100;
 		let genesis_session: SessionIndex = 0;
@@ -873,6 +882,7 @@ mod tests {
 				let res =
 					RollingSessionWindow::new(sender, TEST_WINDOW_SIZE, hash, dummy_db_params())
 						.await;
+
 				assert!(res.is_err());
 			})
 		};
@@ -921,6 +931,137 @@ mod tests {
 			);
 
 			// Unfinalized chain starts at geneisis block, so session 0 is how far we stretch.
+			// First 50 sessions are missing.
+			for i in genesis_session..=50 {
+				assert_matches!(
+					handle.recv().await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						h,
+						RuntimeApiRequest::SessionInfo(j, s_tx),
+					)) => {
+						assert_eq!(h, hash);
+						assert_eq!(i, j);
+						let _ = s_tx.send(Ok(None));
+					}
+				);
+			}
+			// next 10 sessions are present
+			for i in 51..=60 {
+				assert_matches!(
+					handle.recv().await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						h,
+						RuntimeApiRequest::SessionInfo(j, s_tx),
+					)) => {
+						assert_eq!(h, hash);
+						assert_eq!(i, j);
+						let _ = s_tx.send(Ok(Some(dummy_session_info(i))));
+					}
+				);
+			}
+			// gap of 1 session
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionInfo(j, s_tx),
+				)) => {
+					assert_eq!(h, hash);
+					assert_eq!(61, j);
+					let _ = s_tx.send(Ok(None));
+				}
+			);
+		});
+
+		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
+	}
+
+	#[test]
+	fn any_session_stretch_with_failure_allowed_for_unfinalized_chain() {
+		// Session index of the tip of our fake test chain.
+		let session: SessionIndex = 100;
+		let genesis_session: SessionIndex = 0;
+
+		let header = Header {
+			digest: Default::default(),
+			extrinsics_root: Default::default(),
+			number: 5,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let finalized_header = Header {
+			digest: Default::default(),
+			extrinsics_root: Default::default(),
+			number: 0,
+			state_root: Default::default(),
+			parent_hash: Default::default(),
+		};
+
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut handle) = make_subsystem_context::<(), _>(pool.clone());
+
+		let hash = header.hash();
+
+		let test_fut = {
+			let sender = ctx.sender().clone();
+			Box::pin(async move {
+				let res =
+					RollingSessionWindow::new(sender, TEST_WINDOW_SIZE, hash, dummy_db_params())
+						.await;
+				assert!(res.is_ok());
+				let rsw = res.unwrap();
+				// Since first 50 sessions are missing the earliest should be 50.
+				assert_eq!(rsw.earliest_session, 50);
+				assert_eq!(rsw.session_info.len(), 51);
+			})
+		};
+
+		let aux_fut = Box::pin(async move {
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, hash);
+					let _ = s_tx.send(Ok(session));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
+					s_tx,
+				)) => {
+					let _ = s_tx.send(Ok(finalized_header.number));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
+					block_number,
+					s_tx,
+				)) => {
+					assert_eq!(block_number, finalized_header.number);
+					let _ = s_tx.send(Ok(Some(finalized_header.hash())));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, finalized_header.hash());
+					let _ = s_tx.send(Ok(0));
+				}
+			);
+
+			// Unfinalized chain starts at geneisis block, so session 0 is how far we stretch.
+			// We also test if failure is allowed for 50 first missing sessions.
 			for i in genesis_session..=session {
 				assert_matches!(
 					handle.recv().await,
@@ -931,7 +1072,7 @@ mod tests {
 						assert_eq!(h, hash);
 						assert_eq!(i, j);
 
-						let _ = s_tx.send(Ok(if i == session {
+						let _ = s_tx.send(Ok(if i < 50 {
 							None
 						} else {
 							Some(dummy_session_info(i))
