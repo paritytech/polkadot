@@ -239,13 +239,8 @@ impl TestState {
 			)))
 			.await;
 
-		self.handle_sync_queries(
-			virtual_overseer,
-			block_hash,
-			block_number,
-			session,
-		)
-		.await;
+		self.handle_sync_queries(virtual_overseer, block_hash, block_number, session)
+			.await;
 	}
 
 	async fn handle_sync_queries(
@@ -406,13 +401,8 @@ impl TestState {
 				)))
 				.await;
 
-			self.handle_sync_queries(
-				virtual_overseer,
-				*leaf,
-				n as BlockNumber,
-				session,
-			)
-			.await;
+			self.handle_sync_queries(virtual_overseer, *leaf, n as BlockNumber, session)
+				.await;
 		}
 	}
 
@@ -597,9 +587,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 			let candidate_receipt2 = make_invalid_candidate_receipt();
 			let candidate_hash2 = candidate_receipt2.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote1 = test_state
 				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash1, session)
@@ -730,9 +718,7 @@ fn approval_vote_import_works() {
 			let candidate_receipt1 = make_valid_candidate_receipt();
 			let candidate_hash1 = candidate_receipt1.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote1 = test_state
 				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash1, session)
@@ -828,9 +814,7 @@ fn dispute_gets_confirmed_via_participation() {
 			let candidate_receipt2 = make_invalid_candidate_receipt();
 			let candidate_hash2 = candidate_receipt2.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote1 = test_state
 				.issue_explicit_statement_with_index(
@@ -979,9 +963,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 			let candidate_receipt2 = make_invalid_candidate_receipt();
 			let candidate_hash2 = candidate_receipt2.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote1 = test_state
 				.issue_explicit_statement_with_index(
@@ -1142,9 +1124,7 @@ fn backing_statements_import_works_and_no_spam() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote1 = test_state
 				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash, session)
@@ -1248,9 +1228,7 @@ fn conflicting_votes_lead_to_dispute_participation() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -1375,9 +1353,7 @@ fn positive_votes_dont_trigger_participation() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -1490,9 +1466,7 @@ fn wrong_validator_index_is_ignored() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -1570,9 +1544,7 @@ fn finality_votes_ignore_disputed_candidates() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -1682,9 +1654,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let supermajority_threshold =
 				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
@@ -1824,9 +1794,7 @@ fn concluded_supermajority_for_non_active_after_time() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let supermajority_threshold =
 				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
@@ -1944,9 +1912,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let supermajority_threshold =
 				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
@@ -2070,9 +2036,7 @@ fn resume_dispute_without_local_statement() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -2252,9 +2216,7 @@ fn resume_dispute_with_local_statement() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let local_valid_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -2353,9 +2315,7 @@ fn resume_dispute_without_local_statement_or_local_key() {
 				let candidate_receipt = make_valid_candidate_receipt();
 				let candidate_hash = candidate_receipt.hash();
 
-				test_state
-					.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-					.await;
+				test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 				let valid_vote = test_state
 					.issue_explicit_statement_with_index(
@@ -2448,9 +2408,7 @@ fn resume_dispute_with_local_statement_without_local_key() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let local_valid_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -2559,9 +2517,7 @@ fn issue_local_statement_does_cause_distribution_but_not_duplicate_participation
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let other_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -2634,9 +2590,7 @@ fn own_approval_vote_gets_distributed_on_dispute() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let statement = test_state.issue_approval_vote_with_index(
 				ValidatorIndex(0),
@@ -2727,9 +2681,7 @@ fn negative_issue_local_statement_only_triggers_import() {
 			let candidate_receipt = make_invalid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			virtual_overseer
 				.send(FromOrchestra::Communication {
@@ -2777,9 +2729,7 @@ fn redundant_votes_ignored() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1)
-				.await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote = test_state
 				.issue_backing_statement_with_index(ValidatorIndex(1), candidate_hash, session)
