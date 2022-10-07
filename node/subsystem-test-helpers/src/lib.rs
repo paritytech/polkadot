@@ -19,14 +19,14 @@
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem::{
-	messages::AllMessages, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemError, SubsystemResult,
+	messages::AllMessages, overseer, FromOrchestra, OverseerSignal, SpawnGlue, SpawnedSubsystem,
+	SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 
 use futures::{channel::mpsc, poll, prelude::*};
 use parking_lot::Mutex;
-use sp_core::{testing::TaskExecutor, traits::SpawnNamed};
+use sp_core::testing::TaskExecutor;
 
 use std::{
 	convert::Infallible,
@@ -150,24 +150,25 @@ pub fn sender_receiver() -> (TestSubsystemSender, mpsc::UnboundedReceiver<AllMes
 }
 
 #[async_trait::async_trait]
-impl<T> overseer::SubsystemSender<T> for TestSubsystemSender
+impl<OutgoingMessage> overseer::SubsystemSender<OutgoingMessage> for TestSubsystemSender
 where
-	T: Into<AllMessages> + Send + 'static,
+	AllMessages: From<OutgoingMessage>,
+	OutgoingMessage: Send + 'static,
 {
-	async fn send_message(&mut self, msg: T) {
+	async fn send_message(&mut self, msg: OutgoingMessage) {
 		self.tx.send(msg.into()).await.expect("test overseer no longer live");
 	}
 
-	async fn send_messages<X>(&mut self, msgs: X)
+	async fn send_messages<I>(&mut self, msgs: I)
 	where
-		X: IntoIterator<Item = T> + Send,
-		X::IntoIter: Send,
+		I: IntoIterator<Item = OutgoingMessage> + Send,
+		I::IntoIter: Send,
 	{
 		let mut iter = stream::iter(msgs.into_iter().map(|msg| Ok(msg.into())));
 		self.tx.send_all(&mut iter).await.expect("test overseer no longer live");
 	}
 
-	fn send_unbounded_message(&mut self, msg: T) {
+	fn send_unbounded_message(&mut self, msg: OutgoingMessage) {
 		self.tx.unbounded_send(msg.into()).expect("test overseer no longer live");
 	}
 }
@@ -175,24 +176,25 @@ where
 /// A test subsystem context.
 pub struct TestSubsystemContext<M, S> {
 	tx: TestSubsystemSender,
-	rx: SingleItemStream<FromOverseer<M>>,
+	rx: SingleItemStream<FromOrchestra<M>>,
 	spawn: S,
 }
 
 #[async_trait::async_trait]
-impl<M, S> overseer::SubsystemContext for TestSubsystemContext<M, S>
+impl<M, Spawner> overseer::SubsystemContext for TestSubsystemContext<M, Spawner>
 where
-	M: std::fmt::Debug + Send + 'static,
+	M: overseer::AssociateOutgoing + std::fmt::Debug + Send + 'static,
+	AllMessages: From<<M as overseer::AssociateOutgoing>::OutgoingMessages>,
 	AllMessages: From<M>,
-	S: SpawnNamed + Send + 'static,
+	Spawner: overseer::gen::Spawner + Send + 'static,
 {
 	type Message = M;
 	type Sender = TestSubsystemSender;
 	type Signal = OverseerSignal;
-	type AllMessages = AllMessages;
+	type OutgoingMessages = <M as overseer::AssociateOutgoing>::OutgoingMessages;
 	type Error = SubsystemError;
 
-	async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {
+	async fn try_recv(&mut self) -> Result<Option<FromOrchestra<M>>, ()> {
 		match poll!(self.rx.next()) {
 			Poll::Ready(Some(msg)) => Ok(Some(msg)),
 			Poll::Ready(None) => Err(()),
@@ -200,7 +202,7 @@ where
 		}
 	}
 
-	async fn recv(&mut self) -> SubsystemResult<FromOverseer<M>> {
+	async fn recv(&mut self) -> SubsystemResult<FromOrchestra<M>> {
 		self.rx
 			.next()
 			.await
@@ -236,34 +238,51 @@ pub struct TestSubsystemContextHandle<M> {
 	///
 	/// Useful for shared ownership situations (one can have multiple senders, but only one
 	/// receiver.
-	pub tx: SingleItemSink<FromOverseer<M>>,
+	pub tx: SingleItemSink<FromOrchestra<M>>,
 
 	/// Direct access to the receiver.
 	pub rx: mpsc::UnboundedReceiver<AllMessages>,
 }
 
 impl<M> TestSubsystemContextHandle<M> {
+	/// Fallback timeout value used to never block test execution
+	/// indefinitely.
+	pub const TIMEOUT: Duration = Duration::from_secs(120);
+
 	/// Send a message or signal to the subsystem. This resolves at the point in time when the
 	/// subsystem has _read_ the message.
-	pub async fn send(&mut self, from_overseer: FromOverseer<M>) {
-		self.tx.send(from_overseer).await.expect("Test subsystem no longer live");
+	pub async fn send(&mut self, from_overseer: FromOrchestra<M>) {
+		self.tx
+			.send(from_overseer)
+			.timeout(Self::TIMEOUT)
+			.await
+			.expect("`fn send` does not timeout")
+			.expect("Test subsystem no longer live");
 	}
 
 	/// Receive the next message from the subsystem.
 	pub async fn recv(&mut self) -> AllMessages {
-		self.try_recv().await.expect("Test subsystem no longer live")
+		self.try_recv()
+			.timeout(Self::TIMEOUT)
+			.await
+			.expect("`fn recv` does not timeout")
+			.expect("Test subsystem no longer live")
 	}
 
 	/// Receive the next message from the subsystem, or `None` if the channel has been closed.
 	pub async fn try_recv(&mut self) -> Option<AllMessages> {
-		self.rx.next().await
+		self.rx
+			.next()
+			.timeout(Self::TIMEOUT)
+			.await
+			.expect("`try_recv` does not timeout")
 	}
 }
 
 /// Make a test subsystem context.
 pub fn make_subsystem_context<M, S>(
-	spawn: S,
-) -> (TestSubsystemContext<M, S>, TestSubsystemContextHandle<M>) {
+	spawner: S,
+) -> (TestSubsystemContext<M, SpawnGlue<S>>, TestSubsystemContextHandle<M>) {
 	let (overseer_tx, overseer_rx) = single_item_sink();
 	let (all_messages_tx, all_messages_rx) = mpsc::unbounded();
 
@@ -271,7 +290,7 @@ pub fn make_subsystem_context<M, S>(
 		TestSubsystemContext {
 			tx: TestSubsystemSender { tx: all_messages_tx },
 			rx: overseer_rx,
-			spawn,
+			spawn: SpawnGlue(spawner),
 		},
 		TestSubsystemContextHandle { tx: overseer_tx, rx: all_messages_rx },
 	)
@@ -288,7 +307,7 @@ pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 ) where
 	OverseerFactory: FnOnce(TestSubsystemContextHandle<M>) -> Overseer,
 	Overseer: Future<Output = ()>,
-	TestFactory: FnOnce(TestSubsystemContext<M, TaskExecutor>) -> Test,
+	TestFactory: FnOnce(TestSubsystemContext<M, overseer::SpawnGlue<TaskExecutor>>) -> Test,
 	Test: Future<Output = ()>,
 {
 	let pool = TaskExecutor::new();
@@ -316,15 +335,20 @@ pub struct ForwardSubsystem<M>(pub mpsc::Sender<M>);
 
 impl<M, Context> overseer::Subsystem<Context, SubsystemError> for ForwardSubsystem<M>
 where
-	M: std::fmt::Debug + Send + 'static,
-	Context: SubsystemContext<Message = M> + overseer::SubsystemContext<Message = M>,
+	M: overseer::AssociateOutgoing + std::fmt::Debug + Send + 'static,
+	Context: overseer::SubsystemContext<
+		Message = M,
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+		OutgoingMessages = <M as overseer::AssociateOutgoing>::OutgoingMessages,
+	>,
 {
 	fn start(mut self, mut ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
-					Ok(FromOverseer::Communication { msg }) => {
+					Ok(FromOrchestra::Signal(OverseerSignal::Conclude)) => return Ok(()),
+					Ok(FromOrchestra::Communication { msg }) => {
 						let _ = self.0.send(msg).await;
 					},
 					Err(_) => return Ok(()),
@@ -374,10 +398,13 @@ mod tests {
 	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
 	use polkadot_overseer::{dummy::dummy_overseer_builder, Handle, HeadSupportsParachains};
 	use polkadot_primitives::v2::Hash;
+	use sp_core::traits::SpawnNamed;
 
 	struct AlwaysSupportsParachains;
+
+	#[async_trait::async_trait]
 	impl HeadSupportsParachains for AlwaysSupportsParachains {
-		fn head_supports_parachains(&self, _head: &Hash) -> bool {
+		async fn head_supports_parachains(&self, _head: &Hash) -> bool {
 			true
 		}
 	}

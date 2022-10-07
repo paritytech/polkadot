@@ -20,7 +20,8 @@ use crate::{generic, mock::*, *};
 use codec::Decode;
 use frame_support::{
 	parameter_types,
-	traits::{Everything, Nothing, OriginTrait},
+	traits::{Everything, OriginTrait},
+	weights::Weight,
 };
 use sp_core::H256;
 use sp_runtime::{
@@ -29,7 +30,10 @@ use sp_runtime::{
 	BuildStorage,
 };
 use xcm_builder::{
-	test_utils::{Assets, TestAssetExchanger, TestAssetTrap, TestSubscriptionService},
+	test_utils::{
+		Assets, TestAssetExchanger, TestAssetLocker, TestAssetTrap, TestSubscriptionService,
+		TestUniversalAliases,
+	},
 	AllowUnpaidExecutionFrom,
 };
 use xcm_executor::traits::ConvertOrigin;
@@ -51,7 +55,9 @@ frame_support::construct_runtime!(
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(1024);
+		frame_system::limits::BlockWeights::simple_max(
+			Weight::from_ref_time(1024).set_proof_size(u64::MAX),
+		);
 }
 
 impl frame_system::Config for Test {
@@ -59,16 +65,16 @@ impl frame_system::Config for Test {
 	type BlockWeights = ();
 	type BlockLength = ();
 	type DbWeight = ();
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type Index = u64;
 	type BlockNumber = u64;
 	type Hash = H256;
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type Hashing = BlakeTwo256;
 	type AccountId = u64;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
 	type PalletInfo = PalletInfo;
@@ -104,19 +110,19 @@ parameter_types! {
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type XcmSender = DevNull;
 	type AssetTransactor = NoAssetTransactor;
-	type OriginConverter = AlwaysSignedByDefault<Origin>;
+	type OriginConverter = AlwaysSignedByDefault<RuntimeOrigin>;
 	type IsReserve = AllAssetLocationsPass;
 	type IsTeleporter = ();
 	type UniversalLocation = UniversalLocation;
 	type Barrier = AllowUnpaidExecutionFrom<Everything>;
-	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
+	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
 	type AssetTrap = TestAssetTrap;
-	type AssetLocker = ();
+	type AssetLocker = TestAssetLocker;
 	type AssetExchanger = TestAssetExchanger;
 	type AssetClaims = TestAssetTrap;
 	type SubscriptionService = TestSubscriptionService;
@@ -125,7 +131,8 @@ impl xcm_executor::Config for XcmConfig {
 	type FeeManager = ();
 	// No bridges yet...
 	type MessageExporter = ();
-	type UniversalAliases = Nothing;
+	type UniversalAliases = TestUniversalAliases;
+	type CallDispatcher = RuntimeCall;
 }
 
 impl crate::Config for Test {
@@ -146,7 +153,7 @@ impl crate::Config for Test {
 }
 
 impl generic::Config for Test {
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 
 	fn worst_case_response() -> (u64, Response) {
 		let assets: MultiAssets = (Concrete(Here.into()), 100).into();
@@ -155,6 +162,10 @@ impl generic::Config for Test {
 
 	fn worst_case_asset_exchange() -> Result<(MultiAssets, MultiAssets), BenchmarkError> {
 		Ok(Default::default())
+	}
+
+	fn universal_alias() -> Result<Junction, BenchmarkError> {
+		Ok(GlobalConsensus(ByGenesis([0; 32])))
 	}
 
 	fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
@@ -170,6 +181,11 @@ impl generic::Config for Test {
 		let ticket = MultiLocation { parents: 0, interior: X1(GeneralIndex(0)) };
 		Ok((Default::default(), ticket, assets))
 	}
+
+	fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError> {
+		let assets: MultiAsset = (Concrete(Here.into()), 100).into();
+		Ok((Default::default(), Default::default(), assets))
+	}
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
@@ -178,18 +194,18 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	t.into()
 }
 
-pub struct AlwaysSignedByDefault<Origin>(core::marker::PhantomData<Origin>);
-impl<Origin> ConvertOrigin<Origin> for AlwaysSignedByDefault<Origin>
+pub struct AlwaysSignedByDefault<RuntimeOrigin>(core::marker::PhantomData<RuntimeOrigin>);
+impl<RuntimeOrigin> ConvertOrigin<RuntimeOrigin> for AlwaysSignedByDefault<RuntimeOrigin>
 where
-	Origin: OriginTrait,
-	<Origin as OriginTrait>::AccountId: Decode,
+	RuntimeOrigin: OriginTrait,
+	<RuntimeOrigin as OriginTrait>::AccountId: Decode,
 {
 	fn convert_origin(
 		_origin: impl Into<MultiLocation>,
 		_kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
-		Ok(Origin::signed(
-			<Origin as OriginTrait>::AccountId::decode(&mut TrailingZeroInput::zeroes())
+	) -> Result<RuntimeOrigin, MultiLocation> {
+		Ok(RuntimeOrigin::signed(
+			<RuntimeOrigin as OriginTrait>::AccountId::decode(&mut TrailingZeroInput::zeroes())
 				.expect("infinite length input; no invalid inputs for type; qed"),
 		))
 	}

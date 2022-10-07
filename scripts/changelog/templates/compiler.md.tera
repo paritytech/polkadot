@@ -1,6 +1,0 @@
-## Rust compiler versions
-
-This release was tested against the following versions of `rustc`. Other versions may work.
-
-- Rust Stable: `{{ env.RUSTC_STABLE }}`
-- Rust Nightly: `{{ env.RUSTC_NIGHTLY }}`

@@ -17,15 +17,12 @@
 use crate::{error::PrepareError, host::PrepareResultSender};
 use always_assert::always;
 use async_std::path::{Path, PathBuf};
-use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::ValidationCodeHash;
 use std::{
 	collections::HashMap,
 	time::{Duration, SystemTime},
 };
 
-/// A wrapper for the compiled PVF code.
-#[derive(Encode, Decode)]
 pub struct CompiledArtifact(Vec<u8>);
 
 impl CompiledArtifact {

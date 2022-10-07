@@ -26,11 +26,12 @@ command = "polkadot"
 [[parachains]]
 id = 100
 addToGenesis = true
+cumulus_based = true
 
   [parachains.collator]
   name = "collator01"
   image = "{{COL_IMAGE}}"
-  commandWithArgs = "polkadot-collator --collator --alice --force-authoring --tmp --parachain-id 100 --rpc-cors all --unsafe-rpc-external --rpc-methods unsafe --unsafe-ws-external -- --execution wasm --chain /cfg/rococo-local.json --bootnodes /dns/bootnode/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp"
+  command = "polkadot-collator"
 
   [[parachains.collator.env]]
   name = "RUST_LOG"

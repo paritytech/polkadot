@@ -19,13 +19,12 @@ use crate::{new_executor, XcmCallOf};
 use codec::Encode;
 use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
-use sp_io::hashing::blake2_256;
 use sp_std::vec;
 use xcm::{
-	latest::{prelude::*, MaybeErrorCode, MultiAssets},
+	latest::{prelude::*, MaybeErrorCode},
 	DoubleEncoded,
 };
-use xcm_executor::ExecutorError;
+use xcm_executor::{ExecutorError, FeesMode};
 
 benchmarks! {
 	report_holding {
@@ -74,26 +73,6 @@ benchmarks! {
 
 	}
 
-	// Worst case scenario for this benchmark is a large number of assets to
-	// filter through the reserve.
-	reserve_asset_deposited {
-		const MAX_ASSETS: u32 = 100; // TODO when executor has a built in limit, use it here. #4426
-		let mut executor = new_executor::<T>(Default::default());
-		let assets = (0..MAX_ASSETS).map(|i| MultiAsset {
-			id: Abstract(i.using_encoded(blake2_256)),
-			fun: Fungible(i as u128),
-
-		}).collect::<vec::Vec<_>>();
-		let multiassets: MultiAssets = assets.into();
-
-		let instruction = Instruction::ReserveAssetDeposited(multiassets.clone());
-		let xcm = Xcm(vec![instruction]);
-	}: {
-		executor.bench_process(xcm).map_err(|_| BenchmarkError::Skip)?;
-	} verify {
-		assert_eq!(executor.holding(), &multiassets.into());
-	}
-
 	query_response {
 		let mut executor = new_executor::<T>(Default::default());
 		let (query_id, response) = T::worst_case_response();
@@ -113,14 +92,14 @@ benchmarks! {
 	transact {
 		let origin = T::transact_origin()?;
 		let mut executor = new_executor::<T>(origin);
-		let noop_call: <T as Config>::Call = frame_system::Call::remark_with_event {
+		let noop_call: <T as Config>::RuntimeCall = frame_system::Call::remark_with_event {
 			remark: Default::default()
 		}.into();
 		let double_encoded_noop_call: DoubleEncoded<_> = noop_call.encode().into();
 
 		let instruction = Instruction::Transact {
 			origin_kind: OriginKind::SovereignAccount,
-			require_weight_at_most: noop_call.get_dispatch_info().weight,
+			require_weight_at_most: noop_call.get_dispatch_info().weight.ref_time(),
 			call: double_encoded_noop_call,
 		};
 		let xcm = Xcm(vec![instruction]);
@@ -491,6 +470,124 @@ benchmarks! {
 		executor.bench_process(xcm)?;
 	} verify {
 		assert_eq!(executor.holding(), &want.into());
+	}
+
+	universal_origin {
+		let alias = T::universal_alias().map_err(|_| BenchmarkError::Skip)?;
+
+		let mut executor = new_executor::<T>(Here.into_location());
+
+		let instruction = Instruction::UniversalOrigin(alias.clone());
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		use frame_support::traits::Get;
+		let universal_location = <T::XcmConfig as xcm_executor::Config>::UniversalLocation::get();
+		assert_eq!(executor.origin(), &Some(X1(alias).relative_to(&universal_location)));
+	}
+
+	set_fees_mode {
+		let mut executor = new_executor::<T>(Default::default());
+		executor.set_fees_mode(FeesMode { jit_withdraw: false });
+
+		let instruction = Instruction::SetFeesMode { jit_withdraw: true };
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		assert_eq!(executor.fees_mode(), &FeesMode { jit_withdraw: true });
+	}
+
+	lock_asset {
+		let (unlocker, owner, asset) = T::unlockable_asset()?;
+
+		let mut executor = new_executor::<T>(owner);
+		executor.set_holding(asset.clone().into());
+
+		let instruction = Instruction::LockAsset { asset, unlocker };
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
+	}
+
+	unlock_asset {
+		use xcm_executor::traits::{AssetLock, Enact};
+
+		let (unlocker, owner, asset) = T::unlockable_asset()?;
+
+		let mut executor = new_executor::<T>(unlocker.clone());
+
+		// We first place the asset in lock first...
+		<T::XcmConfig as xcm_executor::Config>::AssetLocker::prepare_lock(
+			unlocker,
+			asset.clone(),
+			owner.clone(),
+		)
+		.map_err(|_| BenchmarkError::Skip)?
+		.enact()
+		.map_err(|_| BenchmarkError::Skip)?;
+
+		// ... then unlock them with the UnlockAsset instruction.
+		let instruction = Instruction::UnlockAsset { asset, target: owner };
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+
+	}
+
+	note_unlockable {
+		use xcm_executor::traits::{AssetLock, Enact};
+
+		let (unlocker, owner, asset) = T::unlockable_asset()?;
+
+		let mut executor = new_executor::<T>(unlocker.clone());
+
+		// We first place the asset in lock first...
+		<T::XcmConfig as xcm_executor::Config>::AssetLocker::prepare_lock(
+			unlocker,
+			asset.clone(),
+			owner.clone(),
+		)
+		.map_err(|_| BenchmarkError::Skip)?
+		.enact()
+		.map_err(|_| BenchmarkError::Skip)?;
+
+		// ... then note them as unlockable with the NoteUnlockable instruction.
+		let instruction = Instruction::NoteUnlockable { asset, owner };
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+
+	}
+
+	request_unlock {
+		use xcm_executor::traits::{AssetLock, Enact};
+
+		let (locker, owner, asset) = T::unlockable_asset()?;
+
+		// We first place the asset in lock first...
+		<T::XcmConfig as xcm_executor::Config>::AssetLocker::prepare_lock(
+			locker.clone(),
+			asset.clone(),
+			owner.clone(),
+		)
+		.map_err(|_| BenchmarkError::Skip)?
+		.enact()
+		.map_err(|_| BenchmarkError::Skip)?;
+
+		// ... then request for an unlock with the RequestUnlock instruction.
+		let mut executor = new_executor::<T>(owner);
+		let instruction = Instruction::RequestUnlock { asset, locker };
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
 	}
 
 	impl_benchmark_test_suite!(

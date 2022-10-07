@@ -15,32 +15,68 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod constants {
-	use frame_support::{
-		parameter_types,
-		weights::{constants, Weight},
-	};
+//! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
+//! DATE: 2022-08-19 (Y/M/D)
+//! HOSTNAME: `bm6`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
+//!
+//! SHORT-NAME: `block`, LONG-NAME: `BlockExecution`, RUNTIME: `Development`
+//! WARMUPS: `10`, REPEAT: `100`
+//! WEIGHT-PATH: `runtime/westend/constants/src/weights/`
+//! WEIGHT-METRIC: `Average`, WEIGHT-MUL: `1`, WEIGHT-ADD: `0`
 
-	parameter_types! {
-		/// Importing a block with 0 Extrinsics.
-		pub const BlockExecutionWeight: Weight = 5_000_000 * constants::WEIGHT_PER_NANOS;
-	}
+// Executed Command:
+//   ./target/production/polkadot
+//   benchmark
+//   overhead
+//   --chain=westend-dev
+//   --execution=wasm
+//   --wasm-execution=compiled
+//   --weight-path=runtime/westend/constants/src/weights/
+//   --warmup=10
+//   --repeat=100
 
-	#[cfg(test)]
-	mod test_weights {
-		use frame_support::weights::constants;
+use frame_support::{
+	parameter_types,
+	weights::{constants::WEIGHT_PER_NANOS, Weight},
+};
 
-		/// Checks that the weight exists and is sane.
-		// NOTE: If this test fails but you are sure that the generated values are fine,
-		// you can delete it.
-		#[test]
-		fn sane() {
-			let w = super::constants::BlockExecutionWeight::get();
+parameter_types! {
+	/// Time to execute an empty block.
+	/// Calculated by multiplying the *Average* with `1` and adding `0`.
+	///
+	/// Stats nanoseconds:
+	///   Min, Max: 4_929_970, 5_140_248
+	///   Average:  4_970_728
+	///   Median:   4_964_665
+	///   Std-Dev:  37170.72
+	///
+	/// Percentiles nanoseconds:
+	///   99th: 5_084_427
+	///   95th: 5_039_369
+	///   75th: 4_991_020
+	pub const BlockExecutionWeight: Weight = WEIGHT_PER_NANOS.saturating_mul(4_970_728);
+}
 
-			// At least 100 µs.
-			assert!(w >= 100 * constants::WEIGHT_PER_MICROS, "Weight should be at least 100 µs.");
-			// At most 50 ms.
-			assert!(w <= 50 * constants::WEIGHT_PER_MILLIS, "Weight should be at most 50 ms.");
-		}
+#[cfg(test)]
+mod test_weights {
+	use frame_support::weights::constants;
+
+	/// Checks that the weight exists and is sane.
+	// NOTE: If this test fails but you are sure that the generated values are fine,
+	// you can delete it.
+	#[test]
+	fn sane() {
+		let w = super::BlockExecutionWeight::get();
+
+		// At least 100 µs.
+		assert!(
+			w.ref_time() >= 100u64 * constants::WEIGHT_PER_MICROS.ref_time(),
+			"Weight should be at least 100 µs."
+		);
+		// At most 50 ms.
+		assert!(
+			w.ref_time() <= 50u64 * constants::WEIGHT_PER_MILLIS.ref_time(),
+			"Weight should be at most 50 ms."
+		);
 	}
 }

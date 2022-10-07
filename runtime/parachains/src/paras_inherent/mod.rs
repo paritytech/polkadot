@@ -38,7 +38,7 @@ use frame_support::{
 	traits::Randomness,
 };
 use frame_system::pallet_prelude::*;
-use pallet_babe::{self, CurrentBlockRandomness};
+use pallet_babe::{self, ParentBlockRandomness};
 use primitives::v2::{
 	BackedCandidate, CandidateHash, CandidateReceipt, CheckedDisputeStatementSet,
 	CheckedMultiDisputeStatementSet, CoreIndex, DisputeStatementSet,
@@ -339,7 +339,8 @@ impl<T: Config> Pallet<T> {
 
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 
-		METRICS.on_before_filter(candidates_weight + bitfields_weight + disputes_weight);
+		METRICS
+			.on_before_filter((candidates_weight + bitfields_weight + disputes_weight).ref_time());
 
 		T::DisputesHandler::assure_deduplicated_and_sorted(&mut disputes)
 			.map_err(|_e| Error::<T>::DisputeStatementsUnsortedOrDuplicates)?;
@@ -372,14 +373,14 @@ impl<T: Config> Pallet<T> {
 			// the block. It's still reasonable to protect against a massive amount of disputes.
 			if candidates_weight
 				.saturating_add(bitfields_weight)
-				.saturating_add(disputes_weight) >
-				max_block_weight
+				.saturating_add(disputes_weight)
+				.any_gt(max_block_weight)
 			{
 				log::warn!("Overweight para inherent data reached the runtime {:?}", parent_hash);
 				backed_candidates.clear();
-				candidates_weight = 0;
+				candidates_weight = Weight::zero();
 				signed_bitfields.clear();
-				bitfields_weight = 0;
+				bitfields_weight = Weight::zero();
 			}
 
 			let entropy = compute_entropy::<T>(parent_hash);
@@ -537,7 +538,7 @@ impl<T: Config> Pallet<T> {
 		// this is max config.ump_service_total_weight
 		let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
 
-		METRICS.on_after_filter(total_consumed_weight);
+		METRICS.on_after_filter(total_consumed_weight.ref_time());
 
 		Ok(Some(total_consumed_weight).into())
 	}
@@ -596,12 +597,14 @@ impl<T: Config> Pallet<T> {
 		let max_spam_slots = config.dispute_max_spam_slots;
 		let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
+		// TODO: Better if we can convert this to `with_transactional` and handle an error if
+		// too many transactional layers are spawned.
 		let (
 			mut backed_candidates,
 			mut bitfields,
 			checked_disputes_sets,
 			checked_disputes_sets_consumed_weight,
-		) = frame_support::storage::with_transaction(|| {
+		) = frame_support::storage::with_transaction_unchecked(|| {
 			let dispute_statement_set_valid = move |set: DisputeStatementSet| {
 				T::DisputesHandler::filter_dispute_data(
 					set,
@@ -750,7 +753,7 @@ impl<T: Config> Pallet<T> {
 			&mut rng,
 		);
 
-		if actual_weight > max_block_weight {
+		if actual_weight.any_gt(max_block_weight) {
 			log::warn!(target: LOG_TARGET, "Post weight limiting weight is still too large.");
 		}
 
@@ -801,7 +804,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 	weight_limit: Weight,
 ) -> (Weight, Vec<usize>) {
 	if selectables.is_empty() {
-		return (0 as Weight, Vec::new())
+		return (Weight::zero(), Vec::new())
 	}
 	// all indices that are not part of the preferred set
 	let mut indices = (0..selectables.len())
@@ -810,14 +813,14 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 		.collect::<Vec<_>>();
 	let mut picked_indices = Vec::with_capacity(selectables.len().saturating_sub(1));
 
-	let mut weight_acc = 0 as Weight;
+	let mut weight_acc = Weight::zero();
 
 	preferred_indices.shuffle(rng);
 	for preferred_idx in preferred_indices {
 		// preferred indices originate from outside
 		if let Some(item) = selectables.get(preferred_idx) {
 			let updated = weight_acc.saturating_add(weight_fn(item));
-			if updated > weight_limit {
+			if updated.any_gt(weight_limit) {
 				continue
 			}
 			weight_acc = updated;
@@ -830,7 +833,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 		let item = &selectables[idx];
 		let updated = weight_acc.saturating_add(weight_fn(item));
 
-		if updated > weight_limit {
+		if updated.any_gt(weight_limit) {
 			continue
 		}
 		weight_acc = updated;
@@ -874,7 +877,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	let total = total_bitfields_weight.saturating_add(total_candidates_weight);
 
 	// candidates + bitfields fit into the block
-	if max_consumable_weight >= total {
+	if max_consumable_weight.all_gte(total) {
 		return total
 	}
 
@@ -891,7 +894,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	// There is weight remaining to be consumed by a subset of candidates
 	// which are going to be picked now.
 	if let Some(max_consumable_by_candidates) =
-		max_consumable_weight.checked_sub(total_bitfields_weight)
+		max_consumable_weight.checked_sub(&total_bitfields_weight)
 	{
 		let (acc_candidate_weight, indices) =
 			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
@@ -1193,14 +1196,18 @@ pub(crate) fn assure_sanity_backed_candidates<
 /// a const value, while emitting a warning.
 fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 	const CANDIDATE_SEED_SUBJECT: [u8; 32] = *b"candidate-seed-selection-subject";
-	let vrf_random = CurrentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
+	// NOTE: this is slightly gameable since this randomness was already public
+	// by the previous block, while for the block author this randomness was
+	// known 2 epochs ago. it is marginally better than using the parent block
+	// hash since it's harder to influence the VRF output than the block hash.
+	let vrf_random = ParentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
 	let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT.clone();
 	if let Some(vrf_random) = vrf_random {
 		entropy.as_mut().copy_from_slice(vrf_random.as_ref());
 	} else {
 		// in case there is no VRF randomness present, we utilize the relay parent
 		// as seed, it's better than a static value.
-		log::warn!(target: LOG_TARGET, "CurrentBlockRandomness did not provide entropy");
+		log::warn!(target: LOG_TARGET, "ParentBlockRandomness did not provide entropy");
 		entropy.as_mut().copy_from_slice(parent_hash.as_ref());
 	}
 	entropy
@@ -1236,7 +1243,7 @@ fn limit_and_sanitize_disputes<
 	// The total weight if all disputes would be included
 	let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
 
-	if disputes_weight > max_consumable_weight {
+	if disputes_weight.any_gt(max_consumable_weight) {
 		let mut checked_acc = Vec::<CheckedDisputeStatementSet>::with_capacity(disputes.len());
 
 		// Since the disputes array is sorted, we may use binary search to find the beginning of
@@ -1259,7 +1266,7 @@ fn limit_and_sanitize_disputes<
 		let remote_disputes = disputes.split_off(idx);
 
 		// Accumualated weight of all disputes picked, that passed the checks.
-		let mut weight_acc = 0 as Weight;
+		let mut weight_acc = Weight::zero();
 
 		// Select disputes in-order until the remaining weight is attained
 		disputes.iter().for_each(|dss| {
@@ -1267,7 +1274,7 @@ fn limit_and_sanitize_disputes<
 				dss.statements.len() as u32,
 			);
 			let updated = weight_acc.saturating_add(dispute_weight);
-			if max_consumable_weight >= updated {
+			if max_consumable_weight.all_gte(updated) {
 				// only apply the weight if the validity check passes
 				if let Some(checked) = dispute_statement_set_valid(dss.clone()) {
 					checked_acc.push(checked);

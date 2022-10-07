@@ -30,7 +30,7 @@ pub struct NonFungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, Acco
 );
 impl<
 		Assets: nonfungibles::Transfer<AccountId>,
-		Matcher: MatchesNonFungibles<Assets::ClassId, Assets::InstanceId>,
+		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
 		AccountIdConverter: Convert<MultiLocation, AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 	> TransactAsset for NonFungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>
@@ -67,10 +67,10 @@ pub struct NonFungiblesMutateAdapter<
 
 impl<
 		Assets: nonfungibles::Mutate<AccountId>,
-		Matcher: MatchesNonFungibles<Assets::ClassId, Assets::InstanceId>,
+		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
 		AccountIdConverter: Convert<MultiLocation, AccountId>,
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
-		CheckAsset: AssetChecking<Assets::ClassId>,
+		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,
 	> NonFungiblesMutateAdapter<
 		Assets,
@@ -81,11 +81,11 @@ impl<
 		CheckingAccount,
 	>
 {
-	fn can_accrue_checked(class: Assets::ClassId, instance: Assets::InstanceId) -> XcmResult {
+	fn can_accrue_checked(class: Assets::CollectionId, instance: Assets::InstanceId) -> XcmResult {
 		ensure!(Assets::owner(&class, &instance).is_none(), XcmError::NotDepositable);
 		Ok(())
 	}
-	fn can_reduce_checked(class: Assets::ClassId, instance: Assets::InstanceId) -> XcmResult {
+	fn can_reduce_checked(class: Assets::CollectionId, instance: Assets::InstanceId) -> XcmResult {
 		if let Some(checking_account) = CheckingAccount::get() {
 			// This is an asset whose teleports we track.
 			let owner = Assets::owner(&class, &instance);
@@ -94,13 +94,13 @@ impl<
 		}
 		Ok(())
 	}
-	fn accrue_checked(class: Assets::ClassId, instance: Assets::InstanceId) {
+	fn accrue_checked(class: Assets::CollectionId, instance: Assets::InstanceId) {
 		if let Some(checking_account) = CheckingAccount::get() {
 			let ok = Assets::mint_into(&class, &instance, &checking_account).is_ok();
 			debug_assert!(ok, "`mint_into` cannot generally fail; qed");
 		}
 }
-	fn reduce_checked(class: Assets::ClassId, instance: Assets::InstanceId) {
+	fn reduce_checked(class: Assets::CollectionId, instance: Assets::InstanceId) {
 		let ok = Assets::burn(&class, &instance, None).is_ok();
 		debug_assert!(
 			ok,
@@ -111,10 +111,10 @@ impl<
 
 impl<
 		Assets: nonfungibles::Mutate<AccountId>,
-		Matcher: MatchesNonFungibles<Assets::ClassId, Assets::InstanceId>,
+		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::InstanceId>,
 		AccountIdConverter: Convert<MultiLocation, AccountId>,
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
-		CheckAsset: AssetChecking<Assets::ClassId>,
+		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,
 	> TransactAsset
 	for NonFungiblesMutateAdapter<
@@ -238,10 +238,10 @@ pub struct NonFungiblesAdapter<
 >(PhantomData<(Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount)>);
 impl<
 		Assets: nonfungibles::Mutate<AccountId> + nonfungibles::Transfer<AccountId>,
-		Matcher: MatchesNonFungibles<Assets::ClassId, Assets::InstanceId>,
+		Matcher: MatchesNonFungibles<Assets::CollectionId, Assets::ItemId>,
 		AccountIdConverter: Convert<MultiLocation, AccountId>,
 		AccountId: Clone + Eq, // can't get away without it since Currency is generic over it.
-		CheckAsset: AssetChecking<Assets::ClassId>,
+		CheckAsset: AssetChecking<Assets::CollectionId>,
 		CheckingAccount: Get<Option<AccountId>>,
 	> TransactAsset
 	for NonFungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>

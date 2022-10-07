@@ -30,7 +30,7 @@ use async_std::{
 };
 use parity_scale_codec::{Decode, Encode};
 use sp_core::hexdisplay::HexDisplay;
-use std::{any::Any, panic, sync::Arc, time::Duration};
+use std::{panic, sync::Arc, time::Duration};
 
 /// The time period after which the preparation worker is considered unresponsive and will be killed.
 // NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
@@ -265,15 +265,13 @@ pub fn worker_entrypoint(socket_path: &str) {
 					// worker is only required to send an empty `Ok` to the pool
 					// to indicate the success.
 
-					let artifact_bytes = compiled_artifact.encode();
-
 					gum::debug!(
 						target: LOG_TARGET,
 						worker_pid = %std::process::id(),
 						"worker: writing artifact to {}",
 						dest.display(),
 					);
-					async_std::fs::write(&dest, &artifact_bytes).await?;
+					async_std::fs::write(&dest, &compiled_artifact).await?;
 
 					Ok(())
 				},
@@ -296,20 +294,8 @@ fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
 			Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
 		}
 	})
-	.map_err(|panic_payload| PrepareError::Panic(stringify_panic_payload(panic_payload)))
+	.map_err(|panic_payload| {
+		PrepareError::Panic(crate::error::stringify_panic_payload(panic_payload))
+	})
 	.and_then(|inner_result| inner_result)
-}
-
-/// Attempt to convert an opaque panic payload to a string.
-///
-/// This is a best effort, and is not guaranteed to provide the most accurate value.
-fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String {
-	match payload.downcast::<&'static str>() {
-		Ok(msg) => msg.to_string(),
-		Err(payload) => match payload.downcast::<String>() {
-			Ok(msg) => *msg,
-			// At least we tried...
-			Err(_) => "unkown panic payload".to_string(),
-		},
-	}
 }

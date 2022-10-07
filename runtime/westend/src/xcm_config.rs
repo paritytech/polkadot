@@ -17,8 +17,8 @@
 //! XCM configurations for Westend.
 
 use super::{
-	parachains_origin, weights, AccountId, AllPalletsWithSystem, Balances, Call, Event, Origin,
-	ParaId, Runtime, WeightToFee, XcmPallet,
+	parachains_origin, weights, AccountId, AllPalletsWithSystem, Balances, ParaId, Runtime,
+	RuntimeCall, RuntimeEvent, RuntimeOrigin, WeightToFee, XcmPallet,
 };
 use frame_support::{
 	parameter_types,
@@ -60,10 +60,10 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 >;
 
 type LocalOriginConverter = (
-	SovereignSignedViaLocation<LocationConverter, Origin>,
-	ChildParachainAsNative<parachains_origin::Origin, Origin>,
-	SignedAccountId32AsNative<ThisNetwork, Origin>,
-	ChildSystemParachainAsSuperuser<ParaId, Origin>,
+	SovereignSignedViaLocation<LocationConverter, RuntimeOrigin>,
+	ChildParachainAsNative<parachains_origin::Origin, RuntimeOrigin>,
+	SignedAccountId32AsNative<ThisNetwork, RuntimeOrigin>,
+	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
 );
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
@@ -75,15 +75,15 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Westmint: MultiLocation = Parachain(1000).into_location();
-	pub const Encointer: MultiLocation = Parachain(1001).into_location();
+	pub const Collectives: MultiLocation = Parachain(1001).into_location();
 	pub const Wnd: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
 	pub const WndForWestmint: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Westmint::get());
-	pub const WndForEncointer: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Encointer::get());
+	pub const WndForCollectives: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Collectives::get());
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 pub type TrustedTeleporters =
-	(xcm_builder::Case<WndForWestmint>, xcm_builder::Case<WndForEncointer>);
+	(xcm_builder::Case<WndForWestmint>, xcm_builder::Case<WndForCollectives>);
 
 /// The barriers one of which must be passed for an XCM message to be executed.
 pub type Barrier = (
@@ -101,7 +101,7 @@ pub type Barrier = (
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type XcmSender = XcmRouter;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
@@ -109,7 +109,8 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
-	type Weigher = WeightInfoBounds<weights::xcm::WestendXcmWeight<Call>, Call, MaxInstructions>;
+	type Weigher =
+		WeightInfoBounds<weights::xcm::WestendXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
 	type Trader =
 		UsingComponents<WeightToFee, TokenLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
@@ -123,30 +124,32 @@ impl xcm_executor::Config for XcmConfig {
 	type FeeManager = ();
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
+	type CallDispatcher = RuntimeCall;
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain.
 pub type LocalOriginToLocation = (
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<Origin, AccountId, ThisNetwork>,
+	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,
 );
 
 impl pallet_xcm::Config for Runtime {
-	type Event = Event;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type RuntimeEvent = RuntimeEvent;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	// ...but they must match our filter, which rejects everything.
 	type XcmExecuteFilter = Nothing;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = WeightInfoBounds<weights::xcm::WestendXcmWeight<Call>, Call, MaxInstructions>;
+	type Weigher =
+		WeightInfoBounds<weights::xcm::WestendXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
 	type UniversalLocation = UniversalLocation;
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 	type Currency = Balances;

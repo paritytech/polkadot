@@ -25,7 +25,7 @@ use parity_scale_codec::{Decode, Encode};
 
 use sc_network::{config as netconfig, config::RequestResponseConfig, PeerId};
 
-use super::IsRequest;
+use super::{IsRequest, ReqProtocolNames};
 use crate::UnifiedReputationChange;
 
 mod error;
@@ -55,8 +55,10 @@ where
 	///
 	/// This Register that config with substrate networking and receive incoming requests via the
 	/// returned `IncomingRequestReceiver`.
-	pub fn get_config_receiver() -> (IncomingRequestReceiver<Req>, RequestResponseConfig) {
-		let (raw, cfg) = Req::PROTOCOL.get_config();
+	pub fn get_config_receiver(
+		req_protocol_names: &ReqProtocolNames,
+	) -> (IncomingRequestReceiver<Req>, RequestResponseConfig) {
+		let (raw, cfg) = Req::PROTOCOL.get_config(req_protocol_names);
 		(IncomingRequestReceiver { raw, phantom: PhantomData {} }, cfg)
 	}
 

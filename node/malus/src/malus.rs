@@ -37,7 +37,7 @@ enum NemesisVariant {
 	/// Back a candidate with a specifically crafted proof of validity.
 	BackGarbageCandidate(RunCmd),
 	/// Delayed disputing of ancestors that are perfectly fine.
-	DisputeAncestor(RunCmd),
+	DisputeAncestor(DisputeAncestorOptions),
 
 	#[allow(missing_docs)]
 	#[clap(name = "prepare-worker", hide = true)]
@@ -53,6 +53,8 @@ enum NemesisVariant {
 struct MalusCli {
 	#[clap(subcommand)]
 	pub variant: NemesisVariant,
+	/// Sets the minimum delay between the best and finalized block.
+	pub finality_delay: Option<u32>,
 }
 
 fn run_cmd(run: RunCmd) -> Cli {
@@ -62,13 +64,17 @@ fn run_cmd(run: RunCmd) -> Cli {
 impl MalusCli {
 	/// Launch a malus node.
 	fn launch(self) -> eyre::Result<()> {
+		let finality_delay = self.finality_delay;
 		match self.variant {
 			NemesisVariant::BackGarbageCandidate(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate)?,
+				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate, finality_delay)?,
 			NemesisVariant::SuggestGarbageCandidate(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), SuggestGarbageCandidate)?,
-			NemesisVariant::DisputeAncestor(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), DisputeValidCandidates)?,
+				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidateWrapper, finality_delay)?,
+			NemesisVariant::DisputeAncestor(opts) => polkadot_cli::run_node(
+				run_cmd(opts.clone().cmd),
+				DisputeValidCandidates::new(opts),
+				finality_delay,
+			)?,
 			NemesisVariant::PvfPrepareWorker(cmd) => {
 				#[cfg(target_os = "android")]
 				{
@@ -120,7 +126,7 @@ mod tests {
 			variant: NemesisVariant::DisputeAncestor(run),
 			..
 		} => {
-			assert!(run.base.bob);
+			assert!(run.cmd.base.bob);
 		});
 	}
 }

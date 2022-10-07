@@ -26,7 +26,7 @@ use polkadot_primitives::v2::{
 };
 
 pub(crate) async fn session_index_for_child(
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender<RuntimeApiMessage>,
 	relay_parent: Hash,
 ) -> Result<SessionIndex, RuntimeRequestError> {
 	let (tx, rx) = oneshot::channel();
@@ -34,7 +34,7 @@ pub(crate) async fn session_index_for_child(
 }
 
 pub(crate) async fn validators(
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender<RuntimeApiMessage>,
 	relay_parent: Hash,
 ) -> Result<Vec<ValidatorId>, RuntimeRequestError> {
 	let (tx, rx) = oneshot::channel();
@@ -42,7 +42,7 @@ pub(crate) async fn validators(
 }
 
 pub(crate) async fn submit_pvf_check_statement(
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender<RuntimeApiMessage>,
 	relay_parent: Hash,
 	stmt: PvfCheckStatement,
 	signature: ValidatorSignature,
@@ -58,7 +58,7 @@ pub(crate) async fn submit_pvf_check_statement(
 }
 
 pub(crate) async fn pvfs_require_precheck(
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender<RuntimeApiMessage>,
 	relay_parent: Hash,
 ) -> Result<Vec<ValidationCodeHash>, RuntimeRequestError> {
 	let (tx, rx) = oneshot::channel();
@@ -73,7 +73,7 @@ pub(crate) enum RuntimeRequestError {
 }
 
 pub(crate) async fn runtime_api_request<T>(
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl SubsystemSender<RuntimeApiMessage>,
 	relay_parent: Hash,
 	request: RuntimeApiRequest,
 	receiver: oneshot::Receiver<Result<T, RuntimeApiSubsystemError>>,

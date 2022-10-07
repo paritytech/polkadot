@@ -95,6 +95,9 @@ impl Backend for DbBackend {
 						stored_block_range.encode(),
 					);
 				},
+				BackendWriteOp::DeleteStoredBlockRange => {
+					tx.delete(self.config.col_data, &STORED_BLOCKS_KEY);
+				},
 				BackendWriteOp::WriteBlocksAtHeight(h, blocks) => {
 					tx.put_vec(self.config.col_data, &blocks_at_height_key(h), blocks.encode());
 				},

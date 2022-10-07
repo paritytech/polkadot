@@ -18,8 +18,8 @@
 //! Error handling related code and Error/Result definitions.
 
 use polkadot_node_primitives::disputes::DisputeMessageCheckError;
+use polkadot_node_subsystem::SubsystemError;
 use polkadot_node_subsystem_util::runtime;
-use polkadot_subsystem::SubsystemError;
 
 #[allow(missing_docs)]
 #[fatality::fatality(splitable)]

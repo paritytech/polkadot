@@ -16,7 +16,7 @@
 
 //! Helper functions and tools to generate mock data useful for testing this subsystem.
 
-use std::{convert::TryFrom, sync::Arc};
+use std::sync::Arc;
 
 use sp_keyring::Sr25519Keyring;
 

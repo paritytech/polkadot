@@ -17,20 +17,20 @@
 use polkadot_test_service::*;
 use sp_keyring::Sr25519Keyring::{Alice, Bob, Charlie};
 
-#[substrate_test_utils::test]
+#[substrate_test_utils::test(flavor = "multi_thread")]
 async fn call_function_actually_work() {
 	let alice_config =
 		node_config(|| {}, tokio::runtime::Handle::current(), Alice, Vec::new(), true);
 
 	let alice = run_validator_node(alice_config, None);
 
-	let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer {
+	let function = polkadot_test_runtime::RuntimeCall::Balances(pallet_balances::Call::transfer {
 		dest: Charlie.to_account_id().into(),
 		value: 1,
 	});
 	let output = alice.send_extrinsic(function, Bob).await.unwrap();
 
-	let res = output.result.expect("return value expected");
+	let res = output.result;
 	let json = serde_json::from_str::<serde_json::Value>(res.as_str()).expect("valid JSON");
 	let object = json.as_object().expect("JSON is an object");
 	assert!(object.contains_key("jsonrpc"), "key jsonrpc exists");

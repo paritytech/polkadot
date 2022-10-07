@@ -45,6 +45,9 @@ pub enum Error {
 	#[error("URL did not resolve to anything")]
 	AddressResolutionMissing,
 
+	#[error("Command is not implemented")]
+	CommandNotImplemented,
+
 	#[error("Other: {0}")]
 	Other(String),
 }
