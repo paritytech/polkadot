@@ -314,7 +314,7 @@ where
 									"😈 Malicious behaviour is sampled as: {:?}. Faking normal behaviour and outputting CandidateValidationMessage::ValidateFromExhaustive message.",
 									&behave_maliciously,
 								);
-								
+
 								Some(FromOrchestra::Communication {
 									msg: CandidateValidationMessage::ValidateFromExhaustive(
 										validation_data,
@@ -436,8 +436,8 @@ where
 										timeout,
 										response_sender,
 									),
-								}),
-							}
+								})
+							},
 						}
 					},
 					_ => Some(FromOrchestra::Communication {
