@@ -87,7 +87,7 @@ impl RequestedCandidate {
 	}
 
 	/// Note that the candidate is required for the cluster.
-	pub fn note_required_by_cluster(&mut self) {
+	pub fn set_cluster_priority(&mut self) {
 		self.priority.origin = Origin::Cluster;
 	}
 }

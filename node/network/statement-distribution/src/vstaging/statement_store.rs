@@ -67,20 +67,26 @@ impl StatementStore {
 		}
 	}
 
+	/// Get the group index of a validator by index. If any statements by the validator
+	/// have been imported successfully, this is guaranteed to succeed.
+	pub fn validator_group_index(&self, validator: ValidatorIndex) -> Option<GroupIndex> {
+		self.validator_meta.get(&validator).map(|g| g.group)
+	}
+
 	/// Insert a statement. Returns `true` if was not known already, `false` if it was.
-	/// Ignores statements by unknown validators and returns `false`.
-	pub fn insert(&mut self, statement: SignedStatement) -> bool {
+	/// Ignores statements by unknown validators and returns an error.
+	pub fn insert(&mut self, statement: SignedStatement) -> Result<bool, ValidatorUnknown> {
 		let validator_index = statement.validator_index();
 
 		let validator_meta = match self.validator_meta.get_mut(&validator_index) {
-			None => return false,
+			None => return Err(ValidatorUnknown),
 			Some(m) => m,
 		};
 
 		let compact = statement.payload().clone();
 		let fingerprint = (validator_index, compact.clone());
 		match self.known_statements.entry(fingerprint) {
-			HEntry::Occupied(_) => return false,
+			HEntry::Occupied(_) => return Ok(false),
 			HEntry::Vacant(mut e) => {
 				e.insert(statement);
 			},
@@ -110,7 +116,7 @@ impl StatementStore {
 			}
 		}
 
-		true
+		Ok(true)
 	}
 
 	/// Get a bit-slice of validators in the group which have issued statements of the
@@ -155,6 +161,9 @@ impl StatementStore {
 		self.known_statements.get(&(validator_index, statement))
 	}
 }
+
+/// Error indicating that the validator was unknown.
+pub struct ValidatorUnknown;
 
 type Fingerprint = (ValidatorIndex, CompactStatement);
 

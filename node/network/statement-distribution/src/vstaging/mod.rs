@@ -50,6 +50,7 @@ use crate::{
 };
 use candidate_entry::CandidateEntry;
 use cluster::{Accept as ClusterAccept, ClusterTracker, RejectIncoming as ClusterRejectIncoming};
+use requests::RequestManager;
 use statement_store::StatementStore;
 
 mod candidate_entry;
@@ -112,6 +113,7 @@ pub(crate) struct State {
 	keystore: SyncCryptoStorePtr,
 	topology_storage: SessionGridTopologies,
 	authorities: HashMap<AuthorityDiscoveryId, PeerId>,
+	request_manager: RequestManager,
 }
 
 struct PeerState {
@@ -367,6 +369,8 @@ pub(crate) fn handle_deactivate_leaf(state: &mut State, leaf_hash: Hash) {
 		}
 	});
 
+	// TODO [now]: clean up requests
+
 	// clean up sessions based on everything remaining.
 	let sessions: HashSet<_> = state.per_relay_parent.values().map(|r| r.session).collect();
 	state.per_session.retain(|s, _| sessions.contains(s));
@@ -442,16 +446,17 @@ pub(crate) async fn share_local_statement<Context>(
 			},
 		};
 
-		if !per_relay_parent.statement_store.insert(compact_statement.clone()) {
-			gum::warn!(
-				target: LOG_TARGET,
-				statement = ?compact_statement.payload(),
-				"Candidate backing issued redundant statement?",
-			);
-			return Err(JfyiError::InvalidShare)
+		match per_relay_parent.statement_store.insert(compact_statement.clone()) {
+			Ok(false) | Err(_) => {
+				gum::warn!(
+					target: LOG_TARGET,
+					statement = ?compact_statement.payload(),
+					"Candidate backing issued redundant statement?",
+				);
+				return Err(JfyiError::InvalidShare)
+			},
+			Ok(true) => (compact_statement, candidate_hash),
 		}
-
-		(compact_statement, candidate_hash)
 	};
 
 	// send the compact version of the statement to nodes in current group and next-up. If not a `Seconded` statement,
@@ -796,12 +801,46 @@ async fn handle_incoming_statement<Context>(
 		checked_statement.payload().clone(),
 	);
 
-	if !per_relay_parent.statement_store.insert(checked_statement) {
-		return
+	let sender_index = checked_statement.validator_index();
+	let candidate_hash = *checked_statement.payload().candidate_hash();
+	let was_fresh = match per_relay_parent.statement_store.insert(checked_statement) {
+		Err(_) => {
+			// sanity: should never happen.
+			gum::warn!(
+				target: LOG_TARGET,
+				?relay_parent,
+				validator_index = ?sender_index,
+				"Error -Cluster accepted message from unknown validator."
+			);
+
+			return
+		},
+		Ok(known) => known,
+	};
+
+	let sender_group_index = per_relay_parent
+		.statement_store
+		.validator_group_index(sender_index)
+		.expect("validator confirmed to be known by statement_store.insert; qed");
+
+	// Insert an unconfirmed candidate entry if needed
+	let candidate_entry = per_relay_parent
+		.candidates
+		.entry(candidate_hash)
+		.or_insert_with(|| CandidateEntry::unconfirmed(candidate_hash));
+
+	// If the candidate is not confirmed, note that we should attempt
+	// to request it from the given peer.
+	if !candidate_entry.is_confirmed() {
+		let mut request_entry =
+			state
+				.request_manager
+				.get_or_insert(relay_parent, candidate_hash, sender_group_index);
+		request_entry.get_mut().add_peer(peer);
+		request_entry.get_mut().set_cluster_priority();
 	}
 
-	// TODO [now]:
-	// * add a candidate entry if we need to
-	// * issue requests for the candidate if we need to
-	// * import the statement into backing if we can.
+	if was_fresh {
+		// TODO [now]: import to backing if pre-reqs are in place.
+	}
 }
