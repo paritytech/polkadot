@@ -35,7 +35,7 @@ enum NemesisVariant {
 	/// Suggest a candidate with an invalid proof of validity.
 	SuggestGarbageCandidate(SuggestGarbageCandidateOptions),
 	/// Back a candidate with a specifically crafted proof of validity.
-	BackGarbageCandidate(RunCmd),
+	BackGarbageCandidate(BackGarbageCandidateOptions),
 	/// Delayed disputing of ancestors that are perfectly fine.
 	DisputeAncestor(DisputeAncestorOptions),
 
@@ -66,16 +66,19 @@ impl MalusCli {
 	fn launch(self) -> eyre::Result<()> {
 		let finality_delay = self.finality_delay;
 		match self.variant {
-			NemesisVariant::BackGarbageCandidate(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate, finality_delay)?,
-			NemesisVariant::SuggestGarbageCandidate(opts) => polkadot_cli::run_node(
+			NemesisVariant::BackGarbageCandidate(opts) => polkadot_cli::run_node(
 				run_cmd(opts.clone().cmd),
 				BackGarbageCandidateWrapper::new(opts),
 				finality_delay,
 			)?,
+			NemesisVariant::SuggestGarbageCandidate(opts) => polkadot_cli::run_node(
+				run_cmd(opts.clone().cmd),
+				SuggestGarbageCandidateWrapper::new(opts),
+				finality_delay,
+			)?,
 			NemesisVariant::DisputeAncestor(opts) => polkadot_cli::run_node(
 				run_cmd(opts.clone().cmd),
-				DisputeValidCandidates::new(opts),
+				DisputeValidCandidateWrapper::new(opts),
 				finality_delay,
 			)?,
 			NemesisVariant::PvfPrepareWorker(cmd) => {
@@ -152,7 +155,7 @@ mod tests {
 	}
 
 	#[test]
-	fn percentage_working_dispute_ancestor() {
+	fn percentage_works_dispute_ancestor() {
 		let cli = MalusCli::try_parse_from(IntoIterator::into_iter([
 			"malus",
 			"dispute-ancestor",
@@ -163,6 +166,24 @@ mod tests {
 		.unwrap();
 		assert_matches::assert_matches!(cli, MalusCli {
 			variant: NemesisVariant::DisputeAncestor(run),
+			..
+		} => {
+			assert!(run.cmd.base.bob);
+		});
+	}
+
+	#[test]
+	fn percentage_works_back_garbage() {
+		let cli = MalusCli::try_parse_from(IntoIterator::into_iter([
+			"malus",
+			"back-garbage-candidate",
+			"--percentage",
+			"100",
+			"--bob",
+		]))
+		.unwrap();
+		assert_matches::assert_matches!(cli, MalusCli {
+			variant: NemesisVariant::BackGarbageCandidate(run),
 			..
 		} => {
 			assert!(run.cmd.base.bob);
