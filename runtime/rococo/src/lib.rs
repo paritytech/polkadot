@@ -55,7 +55,7 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
 		Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		PrivilegeCmp,
+		PrivilegeCmp, SortedMembers,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -108,14 +108,14 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v2.0"),
 	authoring_version: 0,
-	spec_version: 9290,
+	spec_version: 9291,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 13,
-	state_version: 0,
+	state_version: 1,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -1375,6 +1375,9 @@ construct_runtime! {
 		// Gilts pallet.
 		Gilt: pallet_gilt::{Pallet, Call, Storage, Event<T>, Config} = 38,
 
+		// State trie migration pallet, only temporary.
+		StateTrieMigration: pallet_state_trie_migration = 41,
+
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 51,
@@ -1463,6 +1466,51 @@ pub type Executive = frame_executive::Executive<
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
 
+parameter_types! {
+	// The deposit configuration for the singed migration. Specially if you want to allow any signed account to do the migration (see `SignedFilter`, these deposits should be high)
+	pub const MigrationSignedDepositPerItem: Balance = 1 * CENTS;
+	pub const MigrationSignedDepositBase: Balance = 20 * CENTS * 100;
+	pub const MigrationMaxKeyLen: u32 = 512;
+}
+
+impl pallet_state_trie_migration::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type SignedDepositPerItem = MigrationSignedDepositPerItem;
+	type SignedDepositBase = MigrationSignedDepositBase;
+	// An origin that can control the whole pallet: should be Root, or a part of your council.
+	type ControlOrigin = EnsureRoot<AccountId>;
+	// specific account for the migration, can trigger the signed migrations.
+	type SignedFilter = frame_system::EnsureSignedBy<MigController, AccountId>;
+
+	// Use same weights as substrate ones.
+	type WeightInfo = pallet_state_trie_migration::weights::SubstrateWeight<Runtime>;
+	type MaxKeyLen = MigrationMaxKeyLen;
+}
+
+pub struct MigController;
+
+const KEY_MIG_CONTROLLER: [u8; 32] = [
+	82, 188, 113, 193, 236, 165, 53, 55, 73, 84, 45, 253, 240, 175, 151, 191, 118, 79, 156, 47, 68,
+	232, 96, 205, 72, 95, 28, 216, 100, 0, 246, 73,
+];
+impl SortedMembers<AccountId> for MigController {
+	fn sorted_members() -> Vec<AccountId> {
+		// hardcoded key of controller for manual migration
+		vec![KEY_MIG_CONTROLLER.into()]
+	}
+}
+
+#[test]
+fn ensure_key_ss58() {
+	use sp_core::crypto::Ss58Codec;
+	let acc =
+		AccountId::from_ss58check("5DwBmEFPXRESyEam5SsQF1zbWSCn2kCjyLW51hJHXe9vW4xs").unwrap();
+	let acc: &[u8] = acc.as_ref();
+	assert_eq!(acc, &KEY_MIG_CONTROLLER[..]);
+	//	panic!("{:?}", acc);
+}
+
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
 extern crate frame_benchmarking;
@@ -1470,50 +1518,51 @@ extern crate frame_benchmarking;
 #[cfg(feature = "runtime-benchmarks")]
 mod benches {
 	define_benchmarks!(
-		// Polkadot
-		// NOTE: Make sure to prefix these with `runtime_common::` so
-		// the that path resolves correctly in the generated file.
-		[runtime_common::auctions, Auctions]
-		[runtime_common::crowdloan, Crowdloan]
-		[runtime_common::claims, Claims]
-		[runtime_common::slots, Slots]
-		[runtime_common::paras_registrar, Registrar]
-		[runtime_parachains::configuration, Configuration]
-		[runtime_parachains::hrmp, Hrmp]
-		[runtime_parachains::disputes, ParasDisputes]
-		[runtime_parachains::initializer, Initializer]
-		[runtime_parachains::paras_inherent, ParaInherent]
-		[runtime_parachains::paras, Paras]
-		[runtime_parachains::ump, Ump]
-		// Substrate
-		[pallet_balances, Balances]
-		[frame_benchmarking::baseline, Baseline::<Runtime>]
-		[pallet_bounties, Bounties]
-		[pallet_child_bounties, ChildBounties]
-		[pallet_collective, Council]
-		[pallet_collective, TechnicalCommittee]
-		[pallet_democracy, Democracy]
-		[pallet_elections_phragmen, PhragmenElection]
-		[pallet_gilt, Gilt]
-		[pallet_identity, Identity]
-		[pallet_im_online, ImOnline]
-		[pallet_indices, Indices]
-		[pallet_membership, TechnicalMembership]
-		[pallet_multisig, Multisig]
-		[pallet_preimage, Preimage]
-		[pallet_proxy, Proxy]
-		[pallet_recovery, Recovery]
-		[pallet_scheduler, Scheduler]
-		[frame_system, SystemBench::<Runtime>]
-		[pallet_timestamp, Timestamp]
-		[pallet_tips, Tips]
-		[pallet_treasury, Treasury]
-		[pallet_utility, Utility]
-		[pallet_vesting, Vesting]
-		// XCM
-		[pallet_xcm_benchmarks::fungible, pallet_xcm_benchmarks::fungible::Pallet::<Runtime>]
-		[pallet_xcm_benchmarks::generic, pallet_xcm_benchmarks::generic::Pallet::<Runtime>]
-	);
+			// Polkadot
+			// NOTE: Make sure to prefix these with `runtime_common::` so
+			// the that path resolves correctly in the generated file.
+			[runtime_common::auctions, Auctions]
+			[runtime_common::crowdloan, Crowdloan]
+			[runtime_common::claims, Claims]
+			[runtime_common::slots, Slots]
+			[runtime_common::paras_registrar, Registrar]
+			[runtime_parachains::configuration, Configuration]
+			[runtime_parachains::hrmp, Hrmp]
+			[runtime_parachains::disputes, ParasDisputes]
+			[runtime_parachains::initializer, Initializer]
+			[runtime_parachains::paras_inherent, ParaInherent]
+			[runtime_parachains::paras, Paras]
+			[runtime_parachains::ump, Ump]
+			// Substrate
+			[pallet_balances, Balances]
+			[frame_benchmarking::baseline, Baseline::<Runtime>]
+			[pallet_bounties, Bounties]
+			[pallet_child_bounties, ChildBounties]
+			[pallet_collective, Council]
+			[pallet_collective, TechnicalCommittee]
+			[pallet_democracy, Democracy]
+			[pallet_elections_phragmen, PhragmenElection]
+			[pallet_gilt, Gilt]
+			[pallet_identity, Identity]
+			[pallet_im_online, ImOnline]
+			[pallet_indices, Indices]
+			[pallet_membership, TechnicalMembership]
+			[pallet_multisig, Multisig]
+			[pallet_preimage, Preimage]
+			[pallet_state_trie_migration, StateTrieMigration]
+			[pallet_proxy, Proxy]
+			[pallet_recovery, Recovery]
+			[pallet_scheduler, Scheduler]
+			[frame_system, SystemBench::<Runtime>]
+			[pallet_timestamp, Timestamp]
+			[pallet_tips, Tips]
+			[pallet_treasury, Treasury]
+			[pallet_utility, Utility]
+			[pallet_vesting, Vesting]
+			// XCM
+			[pallet_xcm_benchmarks::fungible, pallet_xcm_benchmarks::fungible::Pallet::<Runtime>]
+			[pallet_xcm_benchmarks::generic, pallet_xcm_benchmarks::generic::Pallet::<Runtime>]
+		);
 }
 
 pub type MmrHashing = <Runtime as pallet_mmr::Config>::Hashing;
