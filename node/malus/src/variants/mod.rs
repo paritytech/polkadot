@@ -22,8 +22,8 @@ mod dispute_valid_candidates;
 mod suggest_garbage_candidate;
 
 pub(crate) use self::{
-	back_garbage_candidate::{BackGarbageCandidateWrapper, BackGarbageCandidateOptions},
-	dispute_valid_candidates::{DisputeValidCandidateWrapper, DisputeAncestorOptions},
-	suggest_garbage_candidate::{SuggestGarbageCandidateWrapper, SuggestGarbageCandidateOptions},
+	back_garbage_candidate::{BackGarbageCandidateOptions, BackGarbageCandidateWrapper},
+	dispute_valid_candidates::{DisputeAncestorOptions, DisputeValidCandidateWrapper},
+	suggest_garbage_candidate::{SuggestGarbageCandidateOptions, SuggestGarbageCandidateWrapper},
 };
 pub(crate) use common::*;

@@ -242,7 +242,8 @@ where
 							})
 						}
 						// Create the fake response with probability `p` if the `PoV` is malicious.
-						let distribution = Bernoulli::new(self.percentage / 100.0).expect("Invalid probability! Percentage cannot be < 0 or > 100.");
+						let distribution = Bernoulli::new(self.percentage / 100.0)
+							.expect("Invalid probability! Percentage cannot be < 0 or > 100.");
 						let random_bool = distribution.sample(&mut rand::thread_rng());
 						match random_bool {
 							true => {
@@ -253,7 +254,7 @@ where
 								);
 								None
 							},
-							// 
+							//
 							false => {
 								// Behave normally with probability `(1-p)` for a malicious `PoV`.
 								Some(FromOrchestra::Communication {
@@ -266,13 +267,14 @@ where
 										sender,
 									),
 								})
-							}
+							},
 						}
 					},
 					FakeCandidateValidation::ApprovalInvalid |
 					FakeCandidateValidation::BackingAndApprovalInvalid => {
 						// Set the validation result to invalid with probability `p`
-						let distribution = Bernoulli::new(self.percentage / 100.0).expect("Invalid probability! Percentage cannot be < 0 or > 100.");
+						let distribution = Bernoulli::new(self.percentage / 100.0)
+							.expect("Invalid probability! Percentage cannot be < 0 or > 100.");
 						let random_bool = distribution.sample(&mut rand::thread_rng());
 						match random_bool {
 							true => {
@@ -288,7 +290,7 @@ where
 								// We're not even checking the candidate, this makes us appear faster than honest validators.
 								sender.send(Ok(validation_result)).unwrap();
 								None
-							}, 
+							},
 							false => {
 								// Behave normally with probability `(1-p)`
 								Some(FromOrchestra::Communication {
@@ -343,7 +345,8 @@ where
 						}
 						// If the `PoV` is malicious, back the candidate with some probability `p`,
 						// which defaults to 100% for suggest-garbage-candidate variant.
-						let distribution = Bernoulli::new(self.percentage / 100.0).expect("Invalid probability! Percentage cannot be < 0 or > 100.");
+						let distribution = Bernoulli::new(self.percentage / 100.0)
+							.expect("Invalid probability! Percentage cannot be < 0 or > 100.");
 						let random_bool = distribution.sample(&mut rand::thread_rng());
 						match random_bool {
 							true => {
@@ -354,29 +357,29 @@ where
 								);
 								None
 							},
-							// If the `PoV` is malicious, we behave normally with some probability `(1-p)` 
-							false => {
-								Some(FromOrchestra::Communication {
-									msg: CandidateValidationMessage::ValidateFromChainState(
-										candidate_receipt,
-										pov,
-										timeout,
-										response_sender,
-									),
-								})
-							}
+							// If the `PoV` is malicious, we behave normally with some probability `(1-p)`
+							false => Some(FromOrchestra::Communication {
+								msg: CandidateValidationMessage::ValidateFromChainState(
+									candidate_receipt,
+									pov,
+									timeout,
+									response_sender,
+								),
+							}),
 						}
 					},
 					FakeCandidateValidation::BackingInvalid |
 					FakeCandidateValidation::BackingAndApprovalInvalid => {
 						// We back a garbage candidate with some probability `p`,
 						// which defaults to 100% for suggest-garbage-candidate variant.
-						let distribution = Bernoulli::new(self.percentage / 100.0).expect("Invalid probability! Percentage cannot be < 0 or > 100.");
+						let distribution = Bernoulli::new(self.percentage / 100.0)
+							.expect("Invalid probability! Percentage cannot be < 0 or > 100.");
 						let random_bool = distribution.sample(&mut rand::thread_rng());
 						match random_bool {
 							true => {
-								let validation_result =
-									ValidationResult::Invalid(self.fake_validation_error.clone().into());
+								let validation_result = ValidationResult::Invalid(
+									self.fake_validation_error.clone().into(),
+								);
 								gum::debug!(
 									target: MALUS,
 									para_id = ?candidate_receipt.descriptor.para_id,
@@ -389,16 +392,14 @@ where
 								None
 							},
 							// With some probability `(1-p)` we behave normally
-							false => {
-								Some(FromOrchestra::Communication {
-									msg: CandidateValidationMessage::ValidateFromChainState(
-										candidate_receipt,
-										pov,
-										timeout,
-										response_sender,
-									),
-								})
-							},
+							false => Some(FromOrchestra::Communication {
+								msg: CandidateValidationMessage::ValidateFromChainState(
+									candidate_receipt,
+									pov,
+									timeout,
+									response_sender,
+								),
+							}),
 						}
 					},
 					_ => Some(FromOrchestra::Communication {

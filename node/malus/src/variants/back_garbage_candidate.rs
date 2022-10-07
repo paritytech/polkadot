@@ -41,7 +41,7 @@ use std::sync::Arc;
 #[clap(rename_all = "kebab-case")]
 #[allow(missing_docs)]
 pub struct BackGarbageCandidateOptions {
-	/// Determines the percentage of garbage candidates that should be backed. 
+	/// Determines the percentage of garbage candidates that should be backed.
 	/// Defaults to 100% of garbage candidates being backed.
 	#[clap(short, long, ignore_case = true, default_value_t = 100, value_parser = clap::value_parser!(u8).range(0..=100))]
 	pub percentage: u8,
@@ -54,7 +54,7 @@ pub struct BackGarbageCandidateOptions {
 /// variant.
 pub(crate) struct BackGarbageCandidateWrapper {
 	/// Options from CLI
-	opts: BackGarbageCandidateOptions
+	opts: BackGarbageCandidateOptions,
 }
 
 impl BackGarbageCandidateWrapper {
