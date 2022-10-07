@@ -46,7 +46,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
-	request_validators, Validator,
+	request_validators, Validator, runtime::get_session_ee_params_by_parent_hash
 };
 use polkadot_primitives::v2::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
@@ -646,12 +646,24 @@ async fn request_candidate_validation(
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 ) -> Result<ValidationResult, Error> {
+	let ee_params_req = get_session_ee_params_by_parent_hash(sender, candidate_receipt.descriptor.relay_parent, candidate_receipt.descriptor.relay_parent)
+		.await.map_err(|_| Error::SubsystemError(polkadot_node_subsystem::SubsystemError::Context("get execution environment parameters".to_string())))?; // FIXME: Not really sure what type of error would suit
+
+	let ee_params = match ee_params_req {
+		Some(eep) => eep,
+		None => {
+			// FIXME: Better logic, including migration? Use default parameters?
+			return Err(Error::SubsystemError(polkadot_node_subsystem::SubsystemError::Context("find execution environment parameters for the candidate".to_string())));
+		}
+	};
+
 	let (tx, rx) = oneshot::channel();
 
 	sender
 		.send_message(CandidateValidationMessage::ValidateFromChainState(
 			candidate_receipt,
 			pov,
+			ee_params,
 			BACKING_EXECUTION_TIMEOUT,
 			tx,
 		))
