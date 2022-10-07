@@ -54,7 +54,7 @@ use statement_store::StatementStore;
 
 mod candidate_entry;
 mod cluster;
-mod requester;
+mod requests;
 mod statement_store;
 
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
