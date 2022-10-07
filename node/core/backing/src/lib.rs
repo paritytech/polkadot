@@ -651,7 +651,7 @@ async fn validate_and_make_available(
 
 	let pov = match pov {
 		PoVData::Ready(pov) => pov,
-		PoVData::FetchFromValidator { from_validator, candidate_hash, pov_hash } => {
+		PoVData::FetchFromValidator { from_validator, candidate_hash, pov_hash } =>
 			match request_pov(
 				&mut sender,
 				relay_parent,
@@ -674,8 +674,7 @@ async fn validate_and_make_available(
 				},
 				Err(err) => return Err(err),
 				Ok(pov) => pov,
-			}
-		},
+			},
 	};
 
 	let v = {
