@@ -60,7 +60,7 @@ struct TestState {
 	group_rotation_info: GroupRotationInfo,
 	validator_peer_id: Vec<PeerId>,
 	relay_parent: Hash,
-	availability_core: CoreState,
+	availability_cores: Vec<CoreState>,
 	local_peer_id: PeerId,
 	collator_pair: CollatorPair,
 	session_index: SessionIndex,
@@ -99,7 +99,8 @@ impl Default for TestState {
 		let group_rotation_info =
 			GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 100, now: 1 };
 
-		let availability_core = CoreState::Scheduled(ScheduledCore { para_id, collator: None });
+		let availability_cores =
+			vec![CoreState::Scheduled(ScheduledCore { para_id, collator: None }), CoreState::Free];
 
 		let relay_parent = Hash::random();
 
@@ -126,7 +127,7 @@ impl Default for TestState {
 			group_rotation_info,
 			validator_peer_id,
 			relay_parent,
-			availability_core,
+			availability_cores,
 			local_peer_id,
 			collator_pair,
 			session_index: 1,
@@ -136,7 +137,8 @@ impl Default for TestState {
 
 impl TestState {
 	fn current_group_validator_indices(&self) -> &[ValidatorIndex] {
-		let GroupIndex(group_idx) = self.group_rotation_info.group_for_core(CoreIndex(0), 2);
+		let core_num = self.availability_cores.len();
+		let GroupIndex(group_idx) = self.group_rotation_info.group_for_core(CoreIndex(0), core_num);
 		&self.session_info.validator_groups[group_idx as usize]
 	}
 
@@ -340,7 +342,6 @@ async fn distribute_collation_with_receipt(
 	virtual_overseer: &mut VirtualOverseer,
 	test_state: &TestState,
 	relay_parent: Hash,
-	group_rotation_info: &GroupRotationInfo,
 	should_connect: bool,
 	candidate: CandidateReceipt,
 	pov: PoV,
@@ -361,11 +362,11 @@ async fn distribute_collation_with_receipt(
 	assert_matches!(
 		overseer_recv(virtual_overseer).await,
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			relay_parent,
+			_relay_parent,
 			RuntimeApiRequest::AvailabilityCores(tx)
 		)) => {
-			assert_eq!(relay_parent, relay_parent);
-			tx.send(Ok(vec![test_state.availability_core.clone()])).unwrap();
+			assert_eq!(relay_parent, _relay_parent);
+			tx.send(Ok(test_state.availability_cores.clone())).unwrap();
 		}
 	);
 
@@ -397,7 +398,7 @@ async fn distribute_collation_with_receipt(
 				assert_eq!(_relay_parent, relay_parent);
 				tx.send(Ok((
 					test_state.session_info.validator_groups.clone(),
-					group_rotation_info.clone(),
+					test_state.group_rotation_info.clone(),
 				)))
 				.unwrap();
 				// This call is mandatory - we are done:
@@ -426,7 +427,6 @@ async fn distribute_collation(
 	virtual_overseer: &mut VirtualOverseer,
 	test_state: &TestState,
 	relay_parent: Hash,
-	group_rotation_info: &GroupRotationInfo,
 	// whether or not we expect a connection request or not.
 	should_connect: bool,
 ) -> DistributeCollation {
@@ -448,7 +448,6 @@ async fn distribute_collation(
 		virtual_overseer,
 		test_state,
 		relay_parent,
-		group_rotation_info,
 		should_connect,
 		candidate,
 		pov_block,
@@ -619,14 +618,9 @@ fn advertise_and_send_collation() {
 
 		setup_system(&mut virtual_overseer, &test_state).await;
 
-		let DistributeCollation { candidate, pov_block } = distribute_collation(
-			&mut virtual_overseer,
-			&test_state,
-			test_state.relay_parent,
-			&test_state.group_rotation_info,
-			true,
-		)
-		.await;
+		let DistributeCollation { candidate, pov_block } =
+			distribute_collation(&mut virtual_overseer, &test_state, test_state.relay_parent, true)
+				.await;
 
 		for (val, peer) in test_state
 			.current_group_validator_authority_ids()
@@ -750,14 +744,8 @@ fn advertise_and_send_collation() {
 
 		assert!(overseer_recv_with_timeout(&mut virtual_overseer, TIMEOUT).await.is_none());
 
-		distribute_collation(
-			&mut virtual_overseer,
-			&test_state,
-			test_state.relay_parent,
-			&test_state.group_rotation_info,
-			true,
-		)
-		.await;
+		distribute_collation(&mut virtual_overseer, &test_state, test_state.relay_parent, true)
+			.await;
 
 		// Send info about peer's view.
 		overseer_send(
@@ -788,14 +776,9 @@ fn advertise_collation_vstaging_protocol() {
 
 		setup_system(virtual_overseer, &test_state).await;
 
-		let DistributeCollation { candidate, .. } = distribute_collation(
-			virtual_overseer,
-			&test_state,
-			test_state.relay_parent,
-			&test_state.group_rotation_info,
-			true,
-		)
-		.await;
+		let DistributeCollation { candidate, .. } =
+			distribute_collation(virtual_overseer, &test_state, test_state.relay_parent, true)
+				.await;
 
 		let validators = test_state.current_group_validator_authority_ids();
 		assert!(validators.len() >= 2);
@@ -937,14 +920,7 @@ fn collations_are_only_advertised_to_validators_with_correct_view() {
 		// And let it tell us that it is has the same view.
 		send_peer_view_change(virtual_overseer, &peer2, vec![test_state.relay_parent]).await;
 
-		distribute_collation(
-			virtual_overseer,
-			&test_state,
-			test_state.relay_parent,
-			&test_state.group_rotation_info,
-			true,
-		)
-		.await;
+		distribute_collation(virtual_overseer, &test_state, test_state.relay_parent, true).await;
 
 		expect_advertise_collation_msg(virtual_overseer, &peer2, test_state.relay_parent, None)
 			.await;
@@ -987,28 +963,14 @@ fn collate_on_two_different_relay_chain_blocks() {
 		expect_declare_msg(virtual_overseer, &test_state, &peer).await;
 		expect_declare_msg(virtual_overseer, &test_state, &peer2).await;
 
-		distribute_collation(
-			virtual_overseer,
-			&test_state,
-			test_state.relay_parent,
-			&test_state.group_rotation_info,
-			true,
-		)
-		.await;
+		distribute_collation(virtual_overseer, &test_state, test_state.relay_parent, true).await;
 
 		let old_relay_parent = test_state.relay_parent;
 
 		// Advance to a new round, while informing the subsystem that the old and the new relay parent are active.
 		test_state.advance_to_new_round(virtual_overseer, true).await;
 
-		distribute_collation(
-			virtual_overseer,
-			&test_state,
-			test_state.relay_parent,
-			&test_state.group_rotation_info,
-			true,
-		)
-		.await;
+		distribute_collation(virtual_overseer, &test_state, test_state.relay_parent, true).await;
 
 		send_peer_view_change(virtual_overseer, &peer, vec![old_relay_parent]).await;
 		expect_advertise_collation_msg(virtual_overseer, &peer, old_relay_parent, None).await;
@@ -1045,14 +1007,7 @@ fn validator_reconnect_does_not_advertise_a_second_time() {
 		.await;
 		expect_declare_msg(virtual_overseer, &test_state, &peer).await;
 
-		distribute_collation(
-			virtual_overseer,
-			&test_state,
-			test_state.relay_parent,
-			&test_state.group_rotation_info,
-			true,
-		)
-		.await;
+		distribute_collation(virtual_overseer, &test_state, test_state.relay_parent, true).await;
 
 		send_peer_view_change(virtual_overseer, &peer, vec![test_state.relay_parent]).await;
 		expect_advertise_collation_msg(virtual_overseer, &peer, test_state.relay_parent, None)
@@ -1139,14 +1094,9 @@ where
 
 		setup_system(virtual_overseer, &test_state).await;
 
-		let DistributeCollation { candidate, pov_block } = distribute_collation(
-			virtual_overseer,
-			&test_state,
-			test_state.relay_parent,
-			&test_state.group_rotation_info,
-			true,
-		)
-		.await;
+		let DistributeCollation { candidate, pov_block } =
+			distribute_collation(virtual_overseer, &test_state, test_state.relay_parent, true)
+				.await;
 
 		for (val, peer) in test_state
 			.current_group_validator_authority_ids()
@@ -1261,5 +1211,115 @@ where
 		);
 
 		test_harness
+	});
+}
+
+#[test]
+fn connect_to_buffered_groups() {
+	let mut test_state = TestState::default();
+	let local_peer_id = test_state.local_peer_id.clone();
+	let collator_pair = test_state.collator_pair.clone();
+
+	test_harness(local_peer_id, collator_pair, |test_harness| async move {
+		let mut virtual_overseer = test_harness.virtual_overseer;
+		let mut req_cfg = test_harness.req_v1_cfg;
+		let req_vstaging_cfg = test_harness.req_vstaging_cfg;
+
+		setup_system(&mut virtual_overseer, &test_state).await;
+
+		let group_a = test_state.current_group_validator_authority_ids();
+		let peers_a = test_state.current_group_validator_peer_ids();
+		assert!(group_a.len() > 1);
+
+		distribute_collation(&mut virtual_overseer, &test_state, test_state.relay_parent, false)
+			.await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ConnectToValidators { validator_ids, .. }
+			) => {
+				assert_eq!(group_a, validator_ids);
+			}
+		);
+
+		let head_a = test_state.relay_parent;
+
+		for (val, peer) in group_a.iter().zip(&peers_a) {
+			connect_peer(
+				&mut virtual_overseer,
+				peer.clone(),
+				CollationVersion::V1,
+				Some(val.clone()),
+			)
+			.await;
+		}
+
+		for peer_id in &peers_a {
+			expect_declare_msg(&mut virtual_overseer, &test_state, peer_id).await;
+		}
+
+		// Update views.
+		for peed_id in &peers_a {
+			send_peer_view_change(&mut virtual_overseer, peed_id, vec![head_a]).await;
+			expect_advertise_collation_msg(&mut virtual_overseer, peed_id, head_a, None).await;
+		}
+
+		let peer = peers_a[0];
+		// Peer from the group fetches the collation.
+		let (pending_response, rx) = oneshot::channel();
+		req_cfg
+			.inbound_queue
+			.as_mut()
+			.unwrap()
+			.send(RawIncomingRequest {
+				peer,
+				payload: request_v1::CollationFetchingRequest {
+					relay_parent: head_a,
+					para_id: test_state.para_id,
+				}
+				.encode(),
+				pending_response,
+			})
+			.await
+			.unwrap();
+		assert_matches!(
+			rx.await,
+			Ok(full_response) => {
+				let request_v1::CollationFetchingResponse::Collation(..) =
+					request_v1::CollationFetchingResponse::decode(
+						&mut full_response.result.expect("We should have a proper answer").as_ref(),
+					)
+					.expect("Decoding should work");
+			}
+		);
+
+		test_state.advance_to_new_round(&mut virtual_overseer, true).await;
+		test_state.group_rotation_info = test_state.group_rotation_info.bump_rotation();
+
+		let head_b = test_state.relay_parent;
+		let group_b = test_state.current_group_validator_authority_ids();
+		assert_ne!(head_a, head_b);
+		assert_ne!(group_a, group_b);
+
+		distribute_collation(&mut virtual_overseer, &test_state, test_state.relay_parent, false)
+			.await;
+
+		// Should be connected to both groups except for the validator that fetched advertised
+		// collation.
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ConnectToValidators { validator_ids, .. }
+			) => {
+				assert!(!validator_ids.contains(&group_a[0]));
+
+				for validator in group_a[1..].iter().chain(&group_b) {
+					assert!(validator_ids.contains(validator));
+				}
+			}
+		);
+
+		TestHarness { virtual_overseer, req_v1_cfg: req_cfg, req_vstaging_cfg }
 	});
 }

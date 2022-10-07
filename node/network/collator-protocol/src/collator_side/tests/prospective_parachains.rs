@@ -230,7 +230,6 @@ fn distribute_collation_from_implicit_view() {
 			virtual_overseer,
 			&test_state,
 			head_c,
-			&test_state.group_rotation_info,
 			false, // Check the group manually.
 			candidate,
 			pov,
@@ -333,7 +332,6 @@ fn distribute_collation_up_to_limit() {
 				virtual_overseer,
 				&test_state,
 				head_b,
-				&test_state.group_rotation_info,
 				true,
 				candidate,
 				pov,
@@ -418,7 +416,6 @@ fn advertise_and_send_collation_by_hash() {
 				&mut virtual_overseer,
 				&test_state,
 				head_b,
-				&test_state.group_rotation_info,
 				true,
 				candidate.clone(),
 				pov.clone(),
@@ -488,7 +485,7 @@ fn advertise_core_occupied() {
 	let mut test_state = TestState::default();
 	let candidate =
 		TestCandidateBuilder { para_id: test_state.para_id, ..Default::default() }.build();
-	test_state.availability_core = CoreState::Occupied(OccupiedCore {
+	test_state.availability_cores[0] = CoreState::Occupied(OccupiedCore {
 		next_up_on_available: None,
 		occupied_since: 0,
 		time_out_at: 0,
@@ -530,7 +527,6 @@ fn advertise_core_occupied() {
 			virtual_overseer,
 			&test_state,
 			head_b,
-			&test_state.group_rotation_info,
 			true,
 			candidate,
 			pov,

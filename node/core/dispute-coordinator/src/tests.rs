@@ -239,13 +239,15 @@ impl TestState {
 			)))
 			.await;
 
-		self.handle_sync_queries(virtual_overseer, block_hash, session).await;
+		self.handle_sync_queries(virtual_overseer, block_hash, block_number, session)
+			.await;
 	}
 
 	async fn handle_sync_queries(
 		&mut self,
 		virtual_overseer: &mut VirtualOverseer,
 		block_hash: Hash,
+		block_number: BlockNumber,
 		session: SessionIndex,
 	) {
 		// Order of messages is not fixed (different on initializing):
@@ -278,11 +280,45 @@ impl TestState {
 					finished_steps.got_session_information = true;
 					assert_eq!(h, block_hash);
 					let _ = tx.send(Ok(session));
+
+					// Queries for fetching earliest unfinalized block session. See `RollingSessionWindow`.
+					assert_matches!(
+						overseer_recv(virtual_overseer).await,
+						AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
+							s_tx,
+						)) => {
+							let _ = s_tx.send(Ok(block_number));
+						}
+					);
+
+					assert_matches!(
+						overseer_recv(virtual_overseer).await,
+						AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
+							number,
+							s_tx,
+						)) => {
+							assert_eq!(block_number, number);
+							let _ = s_tx.send(Ok(Some(block_hash)));
+						}
+					);
+
+					assert_matches!(
+						overseer_recv(virtual_overseer).await,
+						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+							h,
+							RuntimeApiRequest::SessionIndexForChild(s_tx),
+						)) => {
+							assert_eq!(h, block_hash);
+							let _ = s_tx.send(Ok(session));
+						}
+					);
+
 					// No queries, if subsystem knows about this session already.
 					if self.known_session == Some(session) {
 						continue
 					}
 					self.known_session = Some(session);
+
 					loop {
 						// answer session info queries until the current session is reached.
 						assert_matches!(
@@ -361,7 +397,8 @@ impl TestState {
 				)))
 				.await;
 
-			self.handle_sync_queries(virtual_overseer, *leaf, session).await;
+			self.handle_sync_queries(virtual_overseer, *leaf, n as BlockNumber, session)
+				.await;
 		}
 	}
 
