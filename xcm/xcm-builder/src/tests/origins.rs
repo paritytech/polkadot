@@ -71,5 +71,35 @@ fn export_message_should_work() {
 	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
 	assert_eq!(r, Outcome::Complete(10));
-	assert_eq!(exported_xcm(), vec![(Polkadot, 403611790, Here, expected_message, expected_hash)]);
+	let uni_src = (ByGenesis([0; 32]), Parachain(42), Parachain(1)).into();
+	assert_eq!(
+		exported_xcm(),
+		vec![(Polkadot, 403611790, uni_src, Here, expected_message, expected_hash)]
+	);
+}
+
+#[test]
+fn unpaid_execution_should_work() {
+	// Bridge chain (assumed to be Relay) lets Parachain #1 have message execution for free.
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	// Bridge chain (assumed to be Relay) lets Parachain #2 have message execution for free if it
+	// asks.
+	AllowExplicitUnpaidFrom::set(vec![X1(Parachain(2)).into()]);
+	// Asking for unpaid execution of up to 9 weight on the assumption it is origin of #2.
+	let message = Xcm(vec![UnpaidExecution {
+		weight_limit: Limited(9),
+		check_origin: Some(Parachain(2).into()),
+	}]);
+	let hash = fake_message_hash(&message);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message.clone(), hash, 50);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::BadOrigin));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(2), message.clone(), hash, 50);
+	assert_eq!(r, Outcome::Error(XcmError::Barrier));
+
+	let message = Xcm(vec![UnpaidExecution {
+		weight_limit: Limited(10),
+		check_origin: Some(Parachain(2).into()),
+	}]);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(2), message.clone(), hash, 50);
+	assert_eq!(r, Outcome::Complete(10));
 }

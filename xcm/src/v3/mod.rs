@@ -986,6 +986,18 @@ pub enum Instruction<Call> {
 	///
 	/// Errors: If the existing state would not allow such a change.
 	AliasOrigin(MultiLocation),
+
+	/// A directive to indicate that the origin expects free execution of the message.
+	///
+	/// At execution time, this instruction just does a check on the Origin register.
+	/// However, at the barrier stage messages starting with this instruction can be disregarded if
+	/// the origin is not acceptable for free execution or the `weight_limit` is `Limited` and
+	/// insufficient.
+	///
+	/// Kind: *Indication*
+	///
+	/// Errors: If the given origin is `Some` and not equal to the current Origin register.
+	UnpaidExecution { weight_limit: WeightLimit, check_origin: Option<MultiLocation> },
 }
 
 impl<Call> Xcm<Call> {
@@ -1060,6 +1072,8 @@ impl<Call> Instruction<Call> {
 			SetTopic(topic) => SetTopic(topic),
 			ClearTopic => ClearTopic,
 			AliasOrigin(location) => AliasOrigin(location),
+			UnpaidExecution { weight_limit, check_origin } =>
+				UnpaidExecution { weight_limit, check_origin },
 		}
 	}
 }
@@ -1126,6 +1140,8 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			SetTopic(topic) => W::set_topic(topic),
 			ClearTopic => W::clear_topic(),
 			AliasOrigin(location) => W::alias_origin(location),
+			UnpaidExecution { weight_limit, check_origin } =>
+				W::unpaid_execution(weight_limit, check_origin),
 		}
 	}
 }

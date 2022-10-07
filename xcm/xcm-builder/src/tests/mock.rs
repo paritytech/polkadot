@@ -16,8 +16,8 @@
 
 use crate::{barriers::AllowSubscriptionsFrom, test_utils::*};
 pub use crate::{
-	AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
-	FixedRateOfFungible, FixedWeightBounds, TakeWeightCredit,
+	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom,
+	AllowUnpaidExecutionFrom, FixedRateOfFungible, FixedWeightBounds, TakeWeightCredit,
 };
 use frame_support::traits::ContainsPair;
 pub use frame_support::{
@@ -112,10 +112,24 @@ impl GetDispatchInfo for TestCall {
 
 thread_local! {
 	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm<()>, XcmHash)>> = RefCell::new(Vec::new());
-	pub static EXPORTED_XCM: RefCell<Vec<(NetworkId, u32, InteriorMultiLocation, Xcm<()>, XcmHash)>> = RefCell::new(Vec::new());
+	pub static EXPORTED_XCM: RefCell<
+		Vec<(NetworkId, u32, InteriorMultiLocation, InteriorMultiLocation, Xcm<()>, XcmHash)>
+	> = RefCell::new(Vec::new());
 	pub static EXPORTER_OVERRIDE: RefCell<Option<(
-		fn(NetworkId, u32, &InteriorMultiLocation, &Xcm<()>) -> Result<MultiAssets, SendError>,
-		fn(NetworkId, u32, InteriorMultiLocation, Xcm<()>) -> Result<XcmHash, SendError>,
+		fn(
+			NetworkId,
+			u32,
+			&InteriorMultiLocation,
+			&InteriorMultiLocation,
+			&Xcm<()>,
+		) -> Result<MultiAssets, SendError>,
+		fn(
+			NetworkId,
+			u32,
+			InteriorMultiLocation,
+			InteriorMultiLocation,
+			Xcm<()>,
+		) -> Result<XcmHash, SendError>,
 	)>> = RefCell::new(None);
 	pub static SEND_PRICE: RefCell<MultiAssets> = RefCell::new(MultiAssets::new());
 }
@@ -125,12 +139,25 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm, XcmHash)> {
 pub fn set_send_price(p: impl Into<MultiAsset>) {
 	SEND_PRICE.with(|l| l.replace(p.into().into()));
 }
-pub fn exported_xcm() -> Vec<(NetworkId, u32, InteriorMultiLocation, opaque::Xcm, XcmHash)> {
+pub fn exported_xcm(
+) -> Vec<(NetworkId, u32, InteriorMultiLocation, InteriorMultiLocation, opaque::Xcm, XcmHash)> {
 	EXPORTED_XCM.with(|q| (*q.borrow()).clone())
 }
 pub fn set_exporter_override(
-	price: fn(NetworkId, u32, &InteriorMultiLocation, &Xcm<()>) -> Result<MultiAssets, SendError>,
-	deliver: fn(NetworkId, u32, InteriorMultiLocation, Xcm<()>) -> Result<XcmHash, SendError>,
+	price: fn(
+		NetworkId,
+		u32,
+		&InteriorMultiLocation,
+		&InteriorMultiLocation,
+		&Xcm<()>,
+	) -> Result<MultiAssets, SendError>,
+	deliver: fn(
+		NetworkId,
+		u32,
+		InteriorMultiLocation,
+		InteriorMultiLocation,
+		Xcm<()>,
+	) -> Result<XcmHash, SendError>,
 ) {
 	EXPORTER_OVERRIDE.with(|x| x.replace(Some((price, deliver))));
 }
@@ -158,25 +185,28 @@ impl SendXcm for TestMessageSender {
 }
 pub struct TestMessageExporter;
 impl ExportXcm for TestMessageExporter {
-	type Ticket = (NetworkId, u32, InteriorMultiLocation, Xcm<()>, XcmHash);
+	type Ticket = (NetworkId, u32, InteriorMultiLocation, InteriorMultiLocation, Xcm<()>, XcmHash);
 	fn validate(
 		network: NetworkId,
 		channel: u32,
+		uni_src: &mut Option<InteriorMultiLocation>,
 		dest: &mut Option<InteriorMultiLocation>,
 		msg: &mut Option<Xcm<()>>,
-	) -> SendResult<(NetworkId, u32, InteriorMultiLocation, Xcm<()>, XcmHash)> {
-		let (d, m) = (dest.take().unwrap(), msg.take().unwrap());
+	) -> SendResult<(NetworkId, u32, InteriorMultiLocation, InteriorMultiLocation, Xcm<()>, XcmHash)>
+	{
+		let (s, d, m) = (uni_src.take().unwrap(), dest.take().unwrap(), msg.take().unwrap());
 		let r: Result<MultiAssets, SendError> = EXPORTER_OVERRIDE.with(|e| {
 			if let Some((ref f, _)) = &*e.borrow() {
-				f(network, channel, &d, &m)
+				f(network, channel, &s, &d, &m)
 			} else {
 				Ok(MultiAssets::new())
 			}
 		});
 		let h = fake_message_hash(&m);
 		match r {
-			Ok(price) => Ok(((network, channel, d, m, h), price)),
+			Ok(price) => Ok(((network, channel, s, d, m, h), price)),
 			Err(e) => {
+				*uni_src = Some(s);
 				*dest = Some(d);
 				*msg = Some(m);
 				Err(e)
@@ -184,14 +214,14 @@ impl ExportXcm for TestMessageExporter {
 		}
 	}
 	fn deliver(
-		tuple: (NetworkId, u32, InteriorMultiLocation, Xcm<()>, XcmHash),
+		tuple: (NetworkId, u32, InteriorMultiLocation, InteriorMultiLocation, Xcm<()>, XcmHash),
 	) -> Result<XcmHash, SendError> {
 		EXPORTER_OVERRIDE.with(|e| {
 			if let Some((_, ref f)) = &*e.borrow() {
-				let (network, channel, dest, msg, _hash) = tuple;
-				f(network, channel, dest, msg)
+				let (network, channel, uni_src, dest, msg, _hash) = tuple;
+				f(network, channel, uni_src, dest, msg)
 			} else {
-				let hash = tuple.4;
+				let hash = tuple.5;
 				EXPORTED_XCM.with(|q| q.borrow_mut().push(tuple));
 				Ok(hash)
 			}
@@ -382,6 +412,7 @@ parameter_types! {
 }
 parameter_types! {
 	// Nothing is allowed to be paid/unpaid by default.
+	pub static AllowExplicitUnpaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowUnpaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowSubsFrom: Vec<MultiLocation> = vec![];
@@ -394,6 +425,7 @@ pub type TestBarrier = (
 	TakeWeightCredit,
 	AllowKnownQueryResponses<TestResponseHandler>,
 	AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
+	AllowExplicitUnpaidExecutionFrom<IsInVec<AllowExplicitUnpaidFrom>>,
 	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>,
 	AllowSubscriptionsFrom<IsInVec<AllowSubsFrom>>,
 );

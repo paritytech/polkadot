@@ -19,9 +19,9 @@ use xcm::latest::prelude::*;
 pub trait ExportXcm {
 	type Ticket;
 
-	/// Check whether the given `_message` is deliverable to the given `_destination` and if so
-	/// determine the cost which will be paid by this chain to do so, returning a `Validated` token
-	/// which can be used to enact delivery.
+	/// Check whether the given `message` is deliverable to the given `destination` spoofing
+	/// its source as `universal_source` and if so determine the cost which will be paid by this
+	/// chain to do so, returning a `Validated` token which can be used to enact delivery.
 	///
 	/// The `destination` and `message` must be `Some` (or else an error will be returned) and they
 	/// may only be consumed if the `Err` is not `NotApplicable`.
@@ -32,6 +32,7 @@ pub trait ExportXcm {
 	fn validate(
 		network: NetworkId,
 		channel: u32,
+		universal_source: &mut Option<InteriorMultiLocation>,
 		destination: &mut Option<InteriorMultiLocation>,
 		message: &mut Option<Xcm<()>>,
 	) -> SendResult<Self::Ticket>;
@@ -51,6 +52,7 @@ impl ExportXcm for Tuple {
 	fn validate(
 		network: NetworkId,
 		channel: u32,
+		universal_source: &mut Option<InteriorMultiLocation>,
 		destination: &mut Option<InteriorMultiLocation>,
 		message: &mut Option<Xcm<()>>,
 	) -> SendResult<Self::Ticket> {
@@ -59,7 +61,7 @@ impl ExportXcm for Tuple {
 			if maybe_cost.is_some() {
 				None
 			} else {
-				match Tuple::validate(network, channel, destination, message) {
+				match Tuple::validate(network, channel, universal_source, destination, message) {
 					Err(SendError::NotApplicable) => None,
 					Err(e) => { return Err(e) },
 					Ok((v, c)) => {
@@ -91,10 +93,11 @@ impl ExportXcm for Tuple {
 pub fn validate_export<T: ExportXcm>(
 	network: NetworkId,
 	channel: u32,
+	universal_source: InteriorMultiLocation,
 	dest: InteriorMultiLocation,
 	msg: Xcm<()>,
 ) -> SendResult<T::Ticket> {
-	T::validate(network, channel, &mut Some(dest), &mut Some(msg))
+	T::validate(network, channel, &mut Some(universal_source), &mut Some(dest), &mut Some(msg))
 }
 
 /// Convenience function for using a `SendXcm` implementation. Just interprets the `dest` and wraps
@@ -108,10 +111,17 @@ pub fn validate_export<T: ExportXcm>(
 pub fn export_xcm<T: ExportXcm>(
 	network: NetworkId,
 	channel: u32,
+	universal_source: InteriorMultiLocation,
 	dest: InteriorMultiLocation,
 	msg: Xcm<()>,
 ) -> Result<(XcmHash, MultiAssets), SendError> {
-	let (ticket, price) = T::validate(network, channel, &mut Some(dest), &mut Some(msg.clone()))?;
+	let (ticket, price) = T::validate(
+		network,
+		channel,
+		&mut Some(universal_source),
+		&mut Some(dest),
+		&mut Some(msg.clone()),
+	)?;
 	let hash = T::deliver(ticket)?;
 	Ok((hash, price))
 }

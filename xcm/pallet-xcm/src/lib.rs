@@ -35,7 +35,10 @@ use sp_runtime::{
 	RuntimeDebug,
 };
 use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
-use xcm::{latest::{QueryResponseInfo, Weight as XcmWeight}, prelude::*};
+use xcm::{
+	latest::{QueryResponseInfo, Weight as XcmWeight},
+	prelude::*,
+};
 use xcm_executor::traits::{Convert, ConvertOrigin};
 
 use frame_support::{
@@ -779,8 +782,8 @@ pub mod pallet {
 				origin_location,
 				message,
 				hash,
-				max_weight.ref_time(),
-				max_weight.ref_time(),
+				max_weight, //.ref_time(),
+				max_weight, //.ref_time(),
 			);
 			let result = Ok(Some(outcome.weight_used().saturating_add(100_000_000)).into());
 			Self::deposit_event(Event::Attempted(outcome));
@@ -1341,7 +1344,7 @@ impl<T: Config> Pallet<T> {
 		let responder = responder.into();
 		let destination = T::UniversalLocation::get()
 			.invert_target(&responder)
-			.map_err(|()| XcmError::MultiLocationNotInvertible)?;
+			.map_err(|()| XcmError::LocationNotInvertible)?;
 		let query_id = Self::new_query(responder, timeout, Here);
 		let response_info = QueryResponseInfo { destination, query_id, max_weight: 0 };
 		let report_error = Xcm(vec![ReportError(response_info)]);
@@ -1380,7 +1383,7 @@ impl<T: Config> Pallet<T> {
 		let responder = responder.into();
 		let destination = T::UniversalLocation::get()
 			.invert_target(&responder)
-			.map_err(|()| XcmError::MultiLocationNotInvertible)?;
+			.map_err(|()| XcmError::LocationNotInvertible)?;
 		let notify: <T as Config>::RuntimeCall = notify.into();
 		let max_weight = notify.get_dispatch_info().weight.ref_time();
 		let query_id = Self::new_notify_query(responder, notify, timeout, Here);
@@ -1479,7 +1482,7 @@ impl<T: Config> xcm_executor::traits::Enact for LockTicket<T> {
 			None => {
 				locks
 					.try_push((self.amount, self.unlocker.clone().into()))
-					.map_err(|()| UnexpectedState)?;
+					.map_err(|(_balance, _location)| UnexpectedState)?;
 			},
 		}
 		LockedFungibles::<T>::insert(&self.sovereign_account, locks);

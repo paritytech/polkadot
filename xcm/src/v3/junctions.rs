@@ -221,6 +221,36 @@ impl Junctions {
 		}
 	}
 
+	/// Extract the network ID and the interior consensus location, treating this value as a
+	/// universal location.
+	///
+	/// This will return an `Err` if the first item is not a `GlobalConsensus`, which would indicate
+	/// that this value is not a universal location.
+	pub fn split_global(self) -> Result<(NetworkId, Junctions), ()> {
+		match self.split_first() {
+			(location, Some(Junction::GlobalConsensus(network))) => Ok((network, location)),
+			_ => return Err(()),
+		}
+	}
+
+	/// Treat `self` as a universal location and the context of `relative`, returning the universal
+	/// location of relative.
+	///
+	/// This will return an error if `relative` has as many (or more) parents than there are
+	/// junctions in `self`, implying that relative refers into a different global consensus.
+	pub fn within_global(mut self, relative: MultiLocation) -> Result<Self, ()> {
+		if self.len() <= relative.parents as usize {
+			return Err(())
+		}
+		for _ in 0..relative.parents {
+			self.take_last();
+		}
+		for j in relative.interior {
+			self.push(j).map_err(|_| ())?;
+		}
+		Ok(self)
+	}
+
 	/// Consumes `self` and returns how `viewer` would address it locally.
 	pub fn relative_to(mut self, viewer: &Junctions) -> MultiLocation {
 		let mut i = 0;

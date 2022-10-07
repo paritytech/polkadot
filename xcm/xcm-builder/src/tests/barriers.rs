@@ -108,6 +108,56 @@ fn allow_unpaid_should_work() {
 }
 
 #[test]
+fn allow_explicit_unpaid_should_work() {
+	let mut bad_message1 =
+		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
+
+	let mut bad_message2 = Xcm::<()>(vec![
+		UnpaidExecution { weight_limit: Limited(10), check_origin: Some(Parent.into()) },
+		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+	]);
+
+	let mut good_message = Xcm::<()>(vec![
+		UnpaidExecution { weight_limit: Limited(20), check_origin: Some(Parent.into()) },
+		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+	]);
+
+	AllowExplicitUnpaidFrom::set(vec![Parent.into()]);
+
+	let r = AllowExplicitUnpaidExecutionFrom::<IsInVec<AllowExplicitUnpaidFrom>>::should_execute(
+		&Parachain(1).into(),
+		good_message.inner_mut(),
+		20,
+		&mut 0,
+	);
+	assert_eq!(r, Err(()));
+
+	let r = AllowExplicitUnpaidExecutionFrom::<IsInVec<AllowExplicitUnpaidFrom>>::should_execute(
+		&Parent.into(),
+		bad_message1.inner_mut(),
+		20,
+		&mut 0,
+	);
+	assert_eq!(r, Err(()));
+
+	let r = AllowExplicitUnpaidExecutionFrom::<IsInVec<AllowExplicitUnpaidFrom>>::should_execute(
+		&Parent.into(),
+		bad_message2.inner_mut(),
+		20,
+		&mut 0,
+	);
+	assert_eq!(r, Err(()));
+
+	let r = AllowExplicitUnpaidExecutionFrom::<IsInVec<AllowExplicitUnpaidFrom>>::should_execute(
+		&Parent.into(),
+		good_message.inner_mut(),
+		20,
+		&mut 0,
+	);
+	assert_eq!(r, Ok(()));
+}
+
+#[test]
 fn allow_paid_should_work() {
 	AllowPaidFrom::set(vec![Parent.into()]);
 
