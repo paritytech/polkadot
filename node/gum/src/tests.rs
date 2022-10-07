@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-#![allow(named_arguments_used_positionally)]
-
 use super::*;
 pub use polkadot_primitives::v2::{CandidateHash, Hash};
 
@@ -34,7 +32,7 @@ fn plain() {
 fn wo_alias() {
 	let a: i32 = 7;
 	error!(target: "foo",
-		"Something something {}, {:?}, or maybe {}",
+		"Something something {}, {b:?}, or maybe {c}",
 		a,
 		b = Y::default(),
 		c = a
