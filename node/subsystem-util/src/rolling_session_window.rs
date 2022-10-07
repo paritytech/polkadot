@@ -533,7 +533,7 @@ async fn extend_sessions_from_chain_state(
 			},
 			Ok(Ok(None)) if !allow_failure => return Err(SessionsUnavailableReason::Missing(i)),
 			Ok(Ok(None)) => {
-				/* handle `allow_failure` true */
+				// Handle `allow_failure` true.
 				// If we didn't get the session, we advance window start.
 				*window_start += 1;
 				gum::debug!(
@@ -546,7 +546,7 @@ async fn extend_sessions_from_chain_state(
 			Err(canceled) if !allow_failure =>
 				return Err(SessionsUnavailableReason::RuntimeApiUnavailable(canceled)),
 			Ok(Err(err)) => {
-				/* handle `allow_failure` true */
+				// Handle `allow_failure` true.
 				// If we didn't get the session, we advance window start.
 				*window_start += 1;
 				gum::debug!(
@@ -557,7 +557,7 @@ async fn extend_sessions_from_chain_state(
 				);
 			},
 			Err(err) => {
-				/* handle `allow_failure` true */
+				// Handle `allow_failure` true.
 				// If we didn't get the session, we advance window start.
 				*window_start += 1;
 				gum::debug!(
