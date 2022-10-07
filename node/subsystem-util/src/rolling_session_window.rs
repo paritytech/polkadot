@@ -113,8 +113,8 @@ pub struct RollingSessionWindow {
 	earliest_session: SessionIndex,
 	session_info: Vec<SessionInfo>,
 	window_size: SessionWindowSize,
-	// These params just to enable some approval-voting tests to force feed sessions
-	// in the window.
+	// The option is just to enable some approval-voting tests to force feed sessions
+	// in the window without dealing with the DB.
 	db_params: Option<DatabaseParams>,
 }
 
@@ -531,9 +531,7 @@ async fn extend_sessions_from_chain_state(
 				allow_failure = false;
 				sessions.push(session_info);
 			},
-			Ok(Ok(None)) if !allow_failure => {
-				return Err(SessionsUnavailableReason::Missing(i))
-			},
+			Ok(Ok(None)) if !allow_failure => return Err(SessionsUnavailableReason::Missing(i)),
 			Ok(Ok(None)) => {
 				/* handle `allow_failure` true */
 				// If we didn't get the session, we advance window start.
