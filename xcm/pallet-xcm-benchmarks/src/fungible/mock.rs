@@ -180,7 +180,6 @@ pub type TrustedTeleporters = (xcm_builder::Case<TeleportConcreteFungible>,);
 
 parameter_types! {
 	pub const CheckingAccount: Option<(u64, MintLocation)> = Some((100, MintLocation::Local));
-	pub const CheckedAccount: Option<u64> = Some(100);
 	pub const ChildTeleporter: MultiLocation = Parachain(1000).into_location();
 	pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
 		ChildTeleporter::get(),
@@ -194,7 +193,7 @@ parameter_types! {
 
 impl xcm_balances_benchmark::Config for Test {
 	type TransactAsset = Balances;
-	type CheckedAccount = CheckedAccount;
+	type CheckedAccount = CheckingAccount;
 	type TrustedTeleporter = TrustedTeleporter;
 
 	fn get_multi_asset() -> MultiAsset {

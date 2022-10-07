@@ -34,7 +34,7 @@ pub mod pallet {
 		type TransactAsset: frame_support::traits::fungible::Mutate<Self::AccountId>;
 
 		/// The account used to check assets being teleported.
-		type CheckedAccount: Get<Option<Self::AccountId>>;
+		type CheckedAccount: Get<Option<(Self::AccountId, xcm_builder::MintLocation)>>;
 
 		/// A trusted location which we allow teleports from, and the asset we allow to teleport.
 		type TrustedTeleporter: Get<Option<(xcm::latest::MultiLocation, xcm::latest::MultiAsset)>>;
