@@ -14,9 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#![allow(named_arguments_used_positionally)]
+
 use super::*;
 pub use polkadot_primitives::v2::{CandidateHash, Hash};
-#![allow(named_arguments_used_positionally)]
 
 #[derive(Default, Debug)]
 struct Y {
