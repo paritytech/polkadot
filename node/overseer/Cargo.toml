@@ -18,7 +18,7 @@ polkadot-primitives = { path = "../../primitives" }
 orchestra = "0.0.2"
 gum = { package = "tracing-gum", path = "../gum" }
 lru = "0.8"
-parity-util-mem = { version = "0.11.0", default-features = false }
+parity-util-mem = { version = "0.12.0", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 async-trait = "0.1.57"
 

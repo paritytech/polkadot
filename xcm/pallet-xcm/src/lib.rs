@@ -35,7 +35,7 @@ use sp_runtime::{
 	RuntimeDebug,
 };
 use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
-use xcm::{latest::QueryResponseInfo, prelude::*};
+use xcm::{latest::{QueryResponseInfo, Weight as XcmWeight}, prelude::*};
 use xcm_executor::traits::{Convert, ConvertOrigin};
 
 use frame_support::{
@@ -763,11 +763,11 @@ pub mod pallet {
 		///
 		/// NOTE: A successful return to this does *not* imply that the `msg` was executed successfully
 		/// to completion; only that *some* of it was executed.
-		#[pallet::weight(max_weight.saturating_add(Weight::from_ref_time(100_000_000u64)))]
+		#[pallet::weight(Weight::from_ref_time(max_weight.saturating_add(100_000_000u64)))]
 		pub fn execute(
 			origin: OriginFor<T>,
 			message: Box<VersionedXcm<<T as SysConfig>::RuntimeCall>>,
-			max_weight: Weight,
+			max_weight: XcmWeight,
 		) -> DispatchResultWithPostInfo {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			let hash = message.using_encoded(sp_io::hashing::blake2_256);
