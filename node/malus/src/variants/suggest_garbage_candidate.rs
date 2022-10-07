@@ -103,7 +103,7 @@ where
 				// Need to draw value from Bernoulli distribution with given probability of success defined by the Clap parameter.
 				// Note that clap parameter must be f64 since this is expected by the Bernoulli::new() function, hence it must be converted.
 				let distribution = Bernoulli::new(self.percentage / 100.0)
-					.expect("Invalid probability! Percentage cannot be < 0 or > 100.");
+					.expect("Invalid probability! Percentage must be in range [0..=100].");
 
 				// Draw a random value from the distribution, where T: bool, and probability of drawing a 'true' value is = to percentage parameter,
 				// using thread_rng as the source of randomness.
@@ -246,8 +246,9 @@ where
 #[clap(rename_all = "kebab-case")]
 #[allow(missing_docs)]
 pub struct SuggestGarbageCandidateOptions {
-	/// Determines the percentage of malicious candidates that are suggested. Allows for fine-tuning
-	/// the intensity of the behavior of the malicious node. Value must be in the range 0..=100.
+	/// Determines the percentage of malicious candidates that are suggested by malus,
+	/// based on the total number of intercepted CandidateBacking
+	/// Must be in the range [0..=100].
 	#[clap(short, long, ignore_case = true, default_value_t = 100, value_parser = clap::value_parser!(u8).range(0..=100))]
 	pub percentage: u8,
 
