@@ -55,7 +55,7 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
 		Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		PrivilegeCmp, SortedMembers,
+		PrivilegeCmp,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -1488,27 +1488,18 @@ impl pallet_state_trie_migration::Config for Runtime {
 	type MaxKeyLen = MigrationMaxKeyLen;
 }
 
-pub struct MigController;
-
-const KEY_MIG_CONTROLLER: [u8; 32] = [
-	82, 188, 113, 193, 236, 165, 53, 55, 73, 84, 45, 253, 240, 175, 151, 191, 118, 79, 156, 47, 68,
-	232, 96, 205, 72, 95, 28, 216, 100, 0, 246, 73,
-];
-impl SortedMembers<AccountId> for MigController {
-	fn sorted_members() -> Vec<AccountId> {
-		// hardcoded key of controller for manual migration
-		vec![KEY_MIG_CONTROLLER.into()]
-	}
+frame_support::ord_parameter_types! {
+	pub const MigController: AccountId = AccountId::from(hex_literal::hex!("52bc71c1eca5353749542dfdf0af97bf764f9c2f44e860cd485f1cd86400f649"));
 }
 
 #[test]
 fn ensure_key_ss58() {
+	use frame_support::traits::SortedMembers;
 	use sp_core::crypto::Ss58Codec;
 	let acc =
 		AccountId::from_ss58check("5DwBmEFPXRESyEam5SsQF1zbWSCn2kCjyLW51hJHXe9vW4xs").unwrap();
-	let acc: &[u8] = acc.as_ref();
-	assert_eq!(acc, &KEY_MIG_CONTROLLER[..]);
-	//	panic!("{:?}", acc);
+	//panic!("{:x?}", acc);
+	assert_eq!(acc, MigController::sorted_members()[0]);
 }
 
 #[cfg(feature = "runtime-benchmarks")]
