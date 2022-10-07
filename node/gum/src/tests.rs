@@ -16,6 +16,7 @@
 
 use super::*;
 pub use polkadot_primitives::v2::{CandidateHash, Hash};
+#![allow(named_arguments_used_positionally)]
 
 #[derive(Default, Debug)]
 struct Y {
