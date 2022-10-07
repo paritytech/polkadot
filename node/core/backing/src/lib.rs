@@ -548,6 +548,7 @@ async fn request_pov(
 	sender: &mut impl overseer::CandidateBackingSenderTrait,
 	relay_parent: Hash,
 	from_validator: ValidatorIndex,
+	para_id: ParaId,
 	candidate_hash: CandidateHash,
 	pov_hash: Hash,
 ) -> Result<Arc<PoV>, Error> {
@@ -556,6 +557,7 @@ async fn request_pov(
 		.send_message(AvailabilityDistributionMessage::FetchPoV {
 			relay_parent,
 			from_validator,
+			para_id,
 			candidate_hash,
 			pov_hash,
 			tx,
@@ -649,9 +651,16 @@ async fn validate_and_make_available(
 
 	let pov = match pov {
 		PoVData::Ready(pov) => pov,
-		PoVData::FetchFromValidator { from_validator, candidate_hash, pov_hash } =>
-			match request_pov(&mut sender, relay_parent, from_validator, candidate_hash, pov_hash)
-				.await
+		PoVData::FetchFromValidator { from_validator, candidate_hash, pov_hash } => {
+			match request_pov(
+				&mut sender,
+				relay_parent,
+				from_validator,
+				candidate.descriptor.para_id,
+				candidate_hash,
+				pov_hash,
+			)
+			.await
 			{
 				Err(Error::FetchPoV) => {
 					tx_command
@@ -665,7 +674,8 @@ async fn validate_and_make_available(
 				},
 				Err(err) => return Err(err),
 				Ok(pov) => pov,
-			},
+			}
+		},
 	};
 
 	let v = {

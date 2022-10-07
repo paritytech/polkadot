@@ -17,7 +17,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg(test)]
 
-use frame_support::weights::Weight;
 use polkadot_test_client::{
 	BlockBuilderExt, ClientBlockImportExt, DefaultTestClientBuilderExt, ExecutionStrategy,
 	InitPolkadotBlockBuilder, TestClientBuilder, TestClientBuilderExt,
@@ -47,7 +46,7 @@ fn basic_buy_fees_message_executes() {
 		&client,
 		polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
 			message: Box::new(VersionedXcm::from(msg)),
-			max_weight: Weight::from_ref_time(1_000_000_000),
+			max_weight: 1_000_000_000,
 		}),
 		sp_keyring::Sr25519Keyring::Alice,
 		0,
@@ -129,7 +128,7 @@ fn query_response_fires() {
 		&client,
 		polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
 			message: msg,
-			max_weight: Weight::from_ref_time(1_000_000_000),
+			max_weight: 1_000_000_000,
 		}),
 		sp_keyring::Sr25519Keyring::Alice,
 		1,
@@ -217,7 +216,7 @@ fn query_response_elicits_handler() {
 		&client,
 		polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
 			message: Box::new(VersionedXcm::from(msg)),
-			max_weight: Weight::from_ref_time(1_000_000_000),
+			max_weight: 1_000_000_000,
 		}),
 		sp_keyring::Sr25519Keyring::Alice,
 		1,
