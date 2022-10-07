@@ -196,6 +196,8 @@ fn candidate_votes_session_prefix(session: SessionIndex) -> [u8; 15 + 4] {
 pub struct ColumnConfiguration {
 	/// The column in the key-value DB where data is stored.
 	pub col_data: u32,
+	/// The column in the key-value DB where session data is stored.
+	pub col_session_data: u32,
 }
 
 /// Tracked votes on candidates, for the purposes of dispute resolution.
@@ -362,7 +364,7 @@ mod tests {
 		let db = kvdb_memorydb::create(1);
 		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[0]);
 		let store = Arc::new(db);
-		let config = ColumnConfiguration { col_data: 0 };
+		let config = ColumnConfiguration { col_data: 0, col_session_data: 1 };
 		DbBackend::new(store, config, Metrics::default())
 	}
 

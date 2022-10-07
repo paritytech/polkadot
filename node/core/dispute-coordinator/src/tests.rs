@@ -176,7 +176,7 @@ impl Default for TestState {
 		let db = kvdb_memorydb::create(1);
 		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
 		let db = Arc::new(db);
-		let config = Config { col_data: 0 };
+		let config = Config { col_data: 0, col_session_data: 1 };
 
 		let genesis_header = Header {
 			parent_hash: Hash::zero(),
@@ -212,6 +212,7 @@ impl TestState {
 		virtual_overseer: &mut VirtualOverseer,
 		session: SessionIndex,
 		block_number: BlockNumber,
+		got_session_information: bool,
 	) {
 		assert!(block_number > 0);
 
@@ -239,8 +240,14 @@ impl TestState {
 			)))
 			.await;
 
-		self.handle_sync_queries(virtual_overseer, block_hash, block_number, session)
-			.await;
+		self.handle_sync_queries(
+			virtual_overseer,
+			block_hash,
+			block_number,
+			session,
+			got_session_information,
+		)
+		.await;
 	}
 
 	async fn handle_sync_queries(
@@ -249,8 +256,10 @@ impl TestState {
 		block_hash: Hash,
 		block_number: BlockNumber,
 		session: SessionIndex,
+		got_session_information: bool,
 	) {
 		// Order of messages is not fixed (different on initializing):
+		#[derive(Debug)]
 		struct FinishedSteps {
 			got_session_information: bool,
 			got_scraping_information: bool,
@@ -268,7 +277,8 @@ impl TestState {
 		let mut finished_steps = FinishedSteps::new();
 
 		while !finished_steps.is_done() {
-			match overseer_recv(virtual_overseer).await {
+			let recv = overseer_recv(virtual_overseer).await;
+			match recv {
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					h,
 					RuntimeApiRequest::SessionIndexForChild(tx),
@@ -282,36 +292,38 @@ impl TestState {
 					let _ = tx.send(Ok(session));
 
 					// Queries for fetching earliest unfinalized block session. See `RollingSessionWindow`.
-					assert_matches!(
-						overseer_recv(virtual_overseer).await,
-						AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
-							s_tx,
-						)) => {
-							let _ = s_tx.send(Ok(block_number));
-						}
-					);
+					if self.known_session.is_none() {
+						assert_matches!(
+							overseer_recv(virtual_overseer).await,
+							AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
+								s_tx,
+							)) => {
+								let _ = s_tx.send(Ok(block_number));
+							}
+						);
 
-					assert_matches!(
-						overseer_recv(virtual_overseer).await,
-						AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
-							number,
-							s_tx,
-						)) => {
-							assert_eq!(block_number, number);
-							let _ = s_tx.send(Ok(Some(block_hash)));
-						}
-					);
+						assert_matches!(
+							overseer_recv(virtual_overseer).await,
+							AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
+								number,
+								s_tx,
+							)) => {
+								assert_eq!(block_number, number);
+								let _ = s_tx.send(Ok(Some(block_hash)));
+							}
+						);
 
-					assert_matches!(
-						overseer_recv(virtual_overseer).await,
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-							h,
-							RuntimeApiRequest::SessionIndexForChild(s_tx),
-						)) => {
-							assert_eq!(h, block_hash);
-							let _ = s_tx.send(Ok(session));
-						}
-					);
+						assert_matches!(
+							overseer_recv(virtual_overseer).await,
+							AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+								h,
+								RuntimeApiRequest::SessionIndexForChild(s_tx),
+							)) => {
+								assert_eq!(h, block_hash);
+								let _ = s_tx.send(Ok(session));
+							}
+						);
+					}
 
 					// No queries, if subsystem knows about this session already.
 					if self.known_session == Some(session) {
@@ -379,6 +391,7 @@ impl TestState {
 		&mut self,
 		virtual_overseer: &mut VirtualOverseer,
 		session: SessionIndex,
+		got_session_information: bool,
 	) {
 		let leaves: Vec<Hash> = self.headers.keys().cloned().collect();
 		for (n, leaf) in leaves.iter().enumerate() {
@@ -397,8 +410,14 @@ impl TestState {
 				)))
 				.await;
 
-			self.handle_sync_queries(virtual_overseer, *leaf, n as BlockNumber, session)
-				.await;
+			self.handle_sync_queries(
+				virtual_overseer,
+				*leaf,
+				n as BlockNumber,
+				session,
+				got_session_information,
+			)
+			.await;
 		}
 	}
 
@@ -576,14 +595,16 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt1 = make_valid_candidate_receipt();
 			let candidate_hash1 = candidate_receipt1.hash();
 			let candidate_receipt2 = make_invalid_candidate_receipt();
 			let candidate_hash2 = candidate_receipt2.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let valid_vote1 = test_state
 				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash1, session)
@@ -709,12 +730,14 @@ fn approval_vote_import_works() {
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt1 = make_valid_candidate_receipt();
 			let candidate_hash1 = candidate_receipt1.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let valid_vote1 = test_state
 				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash1, session)
@@ -754,6 +777,7 @@ fn approval_vote_import_works() {
 			let approval_votes = [(ValidatorIndex(4), approval_vote.into_validator_signature())]
 				.into_iter()
 				.collect();
+
 			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash1, approval_votes)
 				.await;
 
@@ -802,14 +826,16 @@ fn dispute_gets_confirmed_via_participation() {
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt1 = make_valid_candidate_receipt();
 			let candidate_hash1 = candidate_receipt1.hash();
 			let candidate_receipt2 = make_invalid_candidate_receipt();
 			let candidate_hash2 = candidate_receipt2.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let valid_vote1 = test_state
 				.issue_explicit_statement_with_index(
@@ -951,14 +977,16 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt1 = make_valid_candidate_receipt();
 			let candidate_hash1 = candidate_receipt1.hash();
 			let candidate_receipt2 = make_invalid_candidate_receipt();
 			let candidate_hash2 = candidate_receipt2.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let valid_vote1 = test_state
 				.issue_explicit_statement_with_index(
@@ -1114,12 +1142,14 @@ fn backing_statements_import_works_and_no_spam() {
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let valid_vote1 = test_state
 				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash, session)
@@ -1218,12 +1248,14 @@ fn conflicting_votes_lead_to_dispute_participation() {
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -1343,12 +1375,14 @@ fn positive_votes_dont_trigger_participation() {
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -1456,12 +1490,14 @@ fn wrong_validator_index_is_ignored() {
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -1534,12 +1570,14 @@ fn finality_votes_ignore_disputed_candidates() {
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -1644,12 +1682,14 @@ fn supermajority_valid_dispute_may_be_finalized() {
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let supermajority_threshold =
 				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
@@ -1784,12 +1824,14 @@ fn concluded_supermajority_for_non_active_after_time() {
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let supermajority_threshold =
 				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
@@ -1901,13 +1943,15 @@ fn concluded_supermajority_against_non_active_after_time() {
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_invalid_candidate_receipt();
 
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let supermajority_threshold =
 				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
@@ -2026,12 +2070,14 @@ fn resume_dispute_without_local_statement() {
 
 	test_harness(|mut test_state, mut virtual_overseer| {
 		Box::pin(async move {
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let valid_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -2095,7 +2141,7 @@ fn resume_dispute_without_local_statement() {
 	// local statement for the active dispute.
 	.resume(|mut test_state, mut virtual_overseer| {
 		Box::pin(async move {
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
@@ -2206,12 +2252,14 @@ fn resume_dispute_with_local_statement() {
 
 	test_harness(|mut test_state, mut virtual_overseer| {
 		Box::pin(async move {
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let local_valid_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -2255,6 +2303,7 @@ fn resume_dispute_with_local_statement() {
 					},
 				})
 				.await;
+
 			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
 				.await;
 
@@ -2282,7 +2331,7 @@ fn resume_dispute_with_local_statement() {
 	// local statement for the active dispute.
 	.resume(|mut test_state, mut virtual_overseer| {
 		Box::pin(async move {
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			// Assert that subsystem is not sending Participation messages because we issued a local statement
 			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
@@ -2304,12 +2353,14 @@ fn resume_dispute_without_local_statement_or_local_key() {
 	test_state
 		.resume(|mut test_state, mut virtual_overseer| {
 			Box::pin(async move {
-				test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+				test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 				let candidate_receipt = make_valid_candidate_receipt();
 				let candidate_hash = candidate_receipt.hash();
 
-				test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+				test_state
+					.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+					.await;
 
 				let valid_vote = test_state
 					.issue_explicit_statement_with_index(
@@ -2377,7 +2428,7 @@ fn resume_dispute_without_local_statement_or_local_key() {
 		// validator in that dispute.
 		.resume(|mut test_state, mut virtual_overseer| {
 			Box::pin(async move {
-				test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+				test_state.handle_resume_sync(&mut virtual_overseer, session, true).await;
 
 				// Assert that subsystem is not sending Participation messages because we issued a local statement
 				assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
@@ -2397,12 +2448,14 @@ fn resume_dispute_with_local_statement_without_local_key() {
 	let test_state = TestState::default();
 	let mut test_state = test_state.resume(|mut test_state, mut virtual_overseer| {
 		Box::pin(async move {
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let local_valid_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -2469,6 +2522,7 @@ fn resume_dispute_with_local_statement_without_local_key() {
 			test_state
 		})
 	});
+
 	// No keys:
 	test_state.subsystem_keystore =
 		make_keystore(vec![Sr25519Keyring::Two.to_seed()].into_iter()).into();
@@ -2476,7 +2530,7 @@ fn resume_dispute_with_local_statement_without_local_key() {
 	// her a non existing key.
 	test_state.resume(|mut test_state, mut virtual_overseer| {
 		Box::pin(async move {
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			// Assert that subsystem is not sending Participation messages because we don't
 			// have a key.
@@ -2505,12 +2559,14 @@ fn issue_local_statement_does_cause_distribution_but_not_duplicate_participation
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let other_vote = test_state
 				.issue_explicit_statement_with_index(
@@ -2578,12 +2634,14 @@ fn own_approval_vote_gets_distributed_on_dispute() {
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let statement = test_state.issue_approval_vote_with_index(
 				ValidatorIndex(0),
@@ -2669,12 +2727,14 @@ fn negative_issue_local_statement_only_triggers_import() {
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_invalid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			virtual_overseer
 				.send(FromOrchestra::Communication {
@@ -2717,12 +2777,14 @@ fn redundant_votes_ignored() {
 		Box::pin(async move {
 			let session = 1;
 
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			test_state.handle_resume_sync(&mut virtual_overseer, session, false).await;
 
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, true)
+				.await;
 
 			let valid_vote = test_state
 				.issue_backing_statement_with_index(ValidatorIndex(1), candidate_hash, session)
