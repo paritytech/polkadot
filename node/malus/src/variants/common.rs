@@ -341,7 +341,8 @@ where
 								),
 							})
 						}
-						// If the `PoV` is malicious, back the candidate with some probability `p` (default 100)
+						// If the `PoV` is malicious, back the candidate with some probability `p`,
+						// which defaults to 100% for suggest-garbage-candidate variant.
 						let distribution = Bernoulli::new(self.percentage / 100.0).expect("Invalid probability! Percentage cannot be < 0 or > 100.");
 						let random_bool = distribution.sample(&mut rand::thread_rng());
 						match random_bool {
@@ -353,7 +354,7 @@ where
 								);
 								None
 							},
-							// If the `PoV` is malicious, we behave normally with some probability `(1-p)` (default 0) 
+							// If the `PoV` is malicious, we behave normally with some probability `(1-p)` 
 							false => {
 								Some(FromOrchestra::Communication {
 									msg: CandidateValidationMessage::ValidateFromChainState(
@@ -368,7 +369,8 @@ where
 					},
 					FakeCandidateValidation::BackingInvalid |
 					FakeCandidateValidation::BackingAndApprovalInvalid => {
-						// We back a garbage candidate with some probability `p` (default 100)
+						// We back a garbage candidate with some probability `p`,
+						// which defaults to 100% for suggest-garbage-candidate variant.
 						let distribution = Bernoulli::new(self.percentage / 100.0).expect("Invalid probability! Percentage cannot be < 0 or > 100.");
 						let random_bool = distribution.sample(&mut rand::thread_rng());
 						match random_bool {
@@ -386,7 +388,7 @@ where
 								response_sender.send(Ok(validation_result)).unwrap();
 								None
 							},
-							// With some probability `(1-p)` (default 0) we behave normally
+							// With some probability `(1-p)` we behave normally
 							false => {
 								Some(FromOrchestra::Communication {
 									msg: CandidateValidationMessage::ValidateFromChainState(
