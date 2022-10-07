@@ -2959,3 +2959,78 @@ fn redundant_votes_ignored() {
 		})
 	});
 }
+
+#[test]
+fn disputes_on_not_backed_candidates_are_ignored() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = make_valid_candidate_receipt();
+			let candidate_hash = candidate_receipt.hash();
+
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
+				.await;
+
+			let valid_vote1 = test_state
+				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash, session)
+				.await;
+
+			let invalid_vote1 = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					false,
+				)
+				.await;
+
+			let approval_vote = test_state.issue_approval_vote_with_index(
+				ValidatorIndex(4),
+				candidate_hash,
+				session,
+			);
+
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(valid_vote1, ValidatorIndex(3)),
+							(invalid_vote1, ValidatorIndex(1)),
+						],
+						pending_confirmation: None,
+					},
+				})
+				.await;
+
+			let approval_votes = [(ValidatorIndex(4), approval_vote.into_validator_signature())]
+				.into_iter()
+				.collect();
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, approval_votes)
+				.await;
+
+			{
+				let (tx, rx) = oneshot::channel();
+				virtual_overseer
+					.send(FromOrchestra::Communication {
+						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
+					})
+					.await;
+
+				assert!(rx.await.unwrap().is_empty());
+			}
+
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+
+			// No more messages expected:
+			assert!(virtual_overseer.try_recv().await.is_none());
+
+			test_state
+		})
+	});
+}
