@@ -212,7 +212,7 @@ impl WeightInfo for TestWeightInfo {
 pub mod pallet {
 	use frame_support::dispatch::{Dispatchable, GetDispatchInfo, Parameter, PostDispatchInfo};
 
-use super::*;
+	use super::*;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]

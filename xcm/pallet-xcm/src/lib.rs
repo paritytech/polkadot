@@ -92,9 +92,7 @@ pub mod pallet {
 		>;
 
 		/// The data structure used in XCM Transact calls.
-		type XcmTransaction: Parameter
-			+ Dispatchable<PostInfo = PostDispatchInfo>
-			+ GetDispatchInfo;
+		type XcmTransaction: Parameter + Dispatchable<PostInfo = PostDispatchInfo> + GetDispatchInfo;
 
 		/// Our XCM filter which messages to be executed using `XcmExecutor` must pass.
 		type XcmExecuteFilter: Contains<(MultiLocation, Xcm<Self::XcmTransaction>)>;
