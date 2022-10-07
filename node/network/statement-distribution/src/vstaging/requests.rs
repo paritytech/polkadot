@@ -79,7 +79,17 @@ pub struct RequestedCandidate {
 }
 
 impl RequestedCandidate {
-	// TODO [now]: add peer to known set
+	/// Add a peer to the set of known peers.
+	pub fn add_peer(&mut self, peer: PeerId) {
+		if !self.known_by.contains(&peer) {
+			self.known_by.push_back(peer);
+		}
+	}
+
+	/// Note that the candidate is required for the cluster.
+	pub fn note_required_by_cluster(&mut self) {
+		self.priority.origin = Origin::Cluster;
+	}
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
