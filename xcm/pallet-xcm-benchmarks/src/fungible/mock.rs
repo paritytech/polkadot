@@ -30,7 +30,7 @@ use sp_runtime::{
 	BuildStorage,
 };
 use xcm::latest::prelude::*;
-use xcm_builder::AllowUnpaidExecutionFrom;
+use xcm_builder::{AllowUnpaidExecutionFrom, MintLocation};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -123,7 +123,7 @@ pub type AssetTransactor = xcm_builder::CurrencyAdapter<
 	MatchAnyFungible,
 	AccountIdConverter,
 	u64,
-	CheckedAccount,
+	CheckingAccount,
 >;
 
 parameter_types! {
@@ -179,6 +179,7 @@ impl crate::Config for Test {
 pub type TrustedTeleporters = (xcm_builder::Case<TeleportConcreteFungible>,);
 
 parameter_types! {
+	pub const CheckingAccount: Option<(u64, MintLocation)> = Some((100, MintLocation::Local));
 	pub const CheckedAccount: Option<u64> = Some(100);
 	pub const ChildTeleporter: MultiLocation = Parachain(1000).into_location();
 	pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
