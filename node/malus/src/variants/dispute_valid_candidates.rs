@@ -64,18 +64,18 @@ pub struct DisputeAncestorOptions {
 	pub cmd: RunCmd,
 }
 
-pub(crate) struct DisputeValidCandidates {
+pub(crate) struct DisputeValidCandidateWrapper {
 	/// Fake validation config (applies to disputes as well).
 	opts: DisputeAncestorOptions,
 }
 
-impl DisputeValidCandidates {
+impl DisputeValidCandidateWrapper {
 	pub fn new(opts: DisputeAncestorOptions) -> Self {
 		Self { opts }
 	}
 }
 
-impl OverseerGen for DisputeValidCandidates {
+impl OverseerGen for DisputeValidCandidateWrapper {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
@@ -90,6 +90,7 @@ impl OverseerGen for DisputeValidCandidates {
 		let validation_filter = ReplaceValidationResult::new(
 			self.opts.fake_validation,
 			self.opts.fake_validation_error,
+			f64::from(self.opts.percentage),
 			SpawnGlue(spawner.clone()),
 		);
 
