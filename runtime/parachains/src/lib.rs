@@ -80,6 +80,9 @@ pub fn schedule_parachain_downgrade<T: paras::Config>(id: ParaId) -> Result<(), 
 	paras::Pallet::<T>::schedule_parachain_downgrade(id).map_err(|_| ())
 }
 
+/// Schedules a validation code upgrade to a parachain with the given id.
+///
+/// This simply calls [`crate::paras::Pallet::schedule_code_upgrade_external`].
 pub fn schedule_code_upgrade<T: paras::Config>(
 	id: ParaId,
 	new_code: ValidationCode,
@@ -87,6 +90,9 @@ pub fn schedule_code_upgrade<T: paras::Config>(
 	paras::Pallet::<T>::schedule_code_upgrade_external(id, new_code)
 }
 
+/// Sets the current parachain head with the given id.
+///
+/// This simply calls [`crate::paras::Pallet::set_current_head`].
 pub fn set_current_head<T: paras::Config>(id: ParaId, new_head: HeadData) {
 	paras::Pallet::<T>::set_current_head(id, new_head)
 }

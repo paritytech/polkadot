@@ -498,7 +498,7 @@ impl<T: Config> Registrar for Pallet<T> {
 
 impl<T: Config> Pallet<T> {
 	/// Ensure the origin is one of Root, the `para` owner, or the `para` itself.
-	/// If the origin is the `para` owner, and `check_lock` is true, the `para` must be unlocked.
+	/// If the origin is the `para` owner, the `para` must be unlocked.
 	fn ensure_root_para_or_owner(
 		origin: <T as frame_system::Config>::RuntimeOrigin,
 		id: ParaId,
@@ -514,6 +514,7 @@ impl<T: Config> Pallet<T> {
 			.or_else(|_| -> DispatchResult { Self::ensure_root_or_para(origin, id) })
 	}
 
+	/// Ensure the origin is one of Root or the `para` itself.
 	fn ensure_root_or_para(
 		origin: <T as frame_system::Config>::RuntimeOrigin,
 		id: ParaId,
