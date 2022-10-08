@@ -114,17 +114,17 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Paras FutureCodeUpgrades (r:0 w:1)
 	// Storage: Paras UpgradeRestrictionSignal (r:0 w:1)
 	fn schedule_code_upgrade(b: u32, ) -> Weight {
-		(0 as Weight)
+		Weight::from_ref_time(0 as u64)
 			// Standard Error: 0
-			.saturating_add((3_000 as Weight).saturating_mul(b as Weight))
-			.saturating_add(T::DbWeight::get().reads(8 as Weight))
-			.saturating_add(T::DbWeight::get().writes(8 as Weight))
+			.saturating_add(Weight::from_ref_time(3_000 as u64).saturating_mul(b as u64))
+			.saturating_add(T::DbWeight::get().reads(8 as u64))
+			.saturating_add(T::DbWeight::get().writes(8 as u64))
 	}
 	// Storage: Paras Heads (r:0 w:1)
 	fn set_current_head(b: u32, ) -> Weight {
-		(5_494_000 as Weight)
+		Weight::from_ref_time(5_494_000 as u64)
 			// Standard Error: 0
-			.saturating_add((1_000 as Weight).saturating_mul(b as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+			.saturating_add(Weight::from_ref_time(1_000 as u64).saturating_mul(b as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 }
