@@ -31,12 +31,18 @@
 
 use std::{
 	collections::{HashMap, VecDeque},
+	future::Future,
 	num::NonZeroUsize,
 	ops::Range,
+	pin::Pin,
+	task::{Context, Poll},
+	time::Duration,
 };
 
 use bitvec::{bitvec, vec::BitVec};
+use futures::FutureExt;
 
+use polkadot_node_network_protocol::PeerId;
 use polkadot_primitives::v2::{AuthorityDiscoveryId, CandidateHash, GroupIndex, SessionIndex};
 
 /// The ring buffer stores at most this many unique validator groups.
@@ -209,6 +215,36 @@ impl ValidatorGroupsBuffer {
 	/// Useful for getting an index of the first validator in i-th group.
 	fn group_lengths_iter(&self) -> impl Iterator<Item = usize> + '_ {
 		self.group_infos.iter().map(|group| group.len)
+	}
+}
+
+/// A timeout for resetting validators' interests in collations.
+pub const RESET_INTEREST_TIMEOUT: Duration = Duration::from_secs(6);
+
+/// A future that returns a candidate hash along with validator discovery
+/// keys once a timeout hit.
+///
+/// If a validator doesn't manage to fetch a collation within this timeout
+/// we should reset its interest in this advertisement in a buffer. For example,
+/// when the PoV was already requested from another peer.
+pub struct ResetInterestTimeout {
+	fut: futures_timer::Delay,
+	candidate_hash: CandidateHash,
+	peer_id: PeerId,
+}
+
+impl ResetInterestTimeout {
+	/// Returns new `ResetInterestTimeout` that resolves after given timeout.
+	pub fn new(candidate_hash: CandidateHash, peer_id: PeerId, delay: Duration) -> Self {
+		Self { fut: futures_timer::Delay::new(delay), candidate_hash, peer_id }
+	}
+}
+
+impl Future for ResetInterestTimeout {
+	type Output = (CandidateHash, PeerId);
+
+	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+		self.fut.poll_unpin(cx).map(|_| (self.candidate_hash, self.peer_id))
 	}
 }
 

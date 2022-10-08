@@ -21,7 +21,9 @@ use std::{
 };
 
 use bitvec::{bitvec, vec::BitVec};
-use futures::{channel::oneshot, future::Fuse, pin_mut, select, FutureExt, StreamExt};
+use futures::{
+	channel::oneshot, future::Fuse, pin_mut, select, stream::FuturesUnordered, FutureExt, StreamExt,
+};
 use sp_core::Pair;
 
 use polkadot_node_network_protocol::{
@@ -70,7 +72,9 @@ use collation::{
 	ActiveCollationFetches, Collation, CollationSendResult, CollationStatus,
 	VersionedCollationRequest, WaitingCollationFetches,
 };
-use validators_buffer::{ValidatorGroupsBuffer, VALIDATORS_BUFFER_CAPACITY};
+use validators_buffer::{
+	ResetInterestTimeout, ValidatorGroupsBuffer, RESET_INTEREST_TIMEOUT, VALIDATORS_BUFFER_CAPACITY,
+};
 
 pub use metrics::Metrics;
 
@@ -266,6 +270,14 @@ struct State {
 	///
 	/// Each future returns the relay parent of the finished collation fetch.
 	active_collation_fetches: ActiveCollationFetches,
+
+	/// Time limits for validators to fetch the collation once the advertisement
+	/// was sent.
+	///
+	/// Given an implicit view a collation may stay in memory for significant amount
+	/// of time, if we don't timeout validators the node will keep attempting to connect
+	/// to unneeded peers.
+	advertisement_timeouts: FuturesUnordered<ResetInterestTimeout>,
 }
 
 impl State {
@@ -288,6 +300,7 @@ impl State {
 			reconnect_timeout: Fuse::terminated(),
 			waiting_collation_fetches: Default::default(),
 			active_collation_fetches: Default::default(),
+			advertisement_timeouts: Default::default(),
 		}
 	}
 }
@@ -459,6 +472,7 @@ async fn distribute_collation<Context>(
 			peer_id,
 			peer_data.version,
 			&state.peer_ids,
+			&mut state.advertisement_timeouts,
 			&state.metrics,
 		)
 		.await;
@@ -641,6 +655,7 @@ async fn advertise_collation<Context>(
 	peer: &PeerId,
 	protocol_version: CollationVersion,
 	peer_ids: &HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
+	advertisement_timeouts: &mut FuturesUnordered<ResetInterestTimeout>,
 	metrics: &Metrics,
 ) {
 	for (candidate_hash, collation) in per_relay_parent.collations.iter_mut() {
@@ -707,6 +722,12 @@ async fn advertise_collation<Context>(
 		per_relay_parent
 			.validator_group
 			.advertised_to_peer(candidate_hash, &peer_ids, peer);
+
+		advertisement_timeouts.push(ResetInterestTimeout::new(
+			*candidate_hash,
+			*peer,
+			RESET_INTEREST_TIMEOUT,
+		));
 
 		metrics.on_advertisement_made();
 	}
@@ -1070,6 +1091,7 @@ async fn handle_peer_view_change<Context>(
 				&peer_id,
 				*version,
 				&state.peer_ids,
+				&mut state.advertisement_timeouts,
 				&state.metrics,
 			)
 			.await;
@@ -1341,6 +1363,17 @@ pub(crate) async fn run<Context>(
 					send_collation(&mut state, next, receipt, pov).await;
 				}
 			},
+			(candidate_hash, peer_id) = state.advertisement_timeouts.select_next_some() => {
+				// NOTE: it doesn't necessarily mean that a validator gets disconnected,
+				// it only will if there're no other advertisements we want to send.
+				//
+				// No-op if the collation was already fetched or went out of view.
+				for authority_id in state.peer_ids.get(&peer_id).into_iter().flatten() {
+					state
+						.validator_groups_buf
+						.reset_validator_interest(candidate_hash, &authority_id);
+				}
+			}
 			_ = reconnect_timeout => {
 				state.reconnect_timeout =
 					connect_to_validators(&mut ctx, &state.validator_groups_buf).await;
