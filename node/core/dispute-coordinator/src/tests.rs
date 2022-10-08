@@ -576,6 +576,15 @@ fn make_candidate_backed_event(candidate_receipt: CandidateReceipt) -> Candidate
 	)
 }
 
+fn make_candidate_included_event(candidate_receipt: CandidateReceipt) -> CandidateEvent {
+	CandidateEvent::CandidateIncluded(
+		candidate_receipt,
+		HeadData(Vec::new()),
+		CoreIndex(0),
+		GroupIndex(0),
+	)
+}
+
 /// Handle request for approval votes:
 pub async fn handle_approval_vote_request(
 	ctx_handle: &mut VirtualOverseer,
@@ -736,8 +745,10 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 	});
 }
 
-#[test]
-fn approval_vote_import_works() {
+fn approval_vote_import_test<F>(generate_event_factory: F)
+where
+	F: FnOnce(CandidateReceipt) -> CandidateEvent + Send + 'static,
+{
 	test_harness(|mut test_state, mut virtual_overseer| {
 		Box::pin(async move {
 			let session = 1;
@@ -752,7 +763,7 @@ fn approval_vote_import_works() {
 					&mut virtual_overseer,
 					session,
 					1,
-					vec![make_candidate_backed_event(candidate_receipt1.clone())],
+					vec![generate_event_factory(candidate_receipt1.clone())],
 				)
 				.await;
 
@@ -822,6 +833,116 @@ fn approval_vote_import_works() {
 
 				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
 				assert_eq!(votes.valid.len(), 2);
+				assert!(votes.valid.get(&ValidatorIndex(4)).is_some(), "Approval vote is missing!");
+				assert_eq!(votes.invalid.len(), 1);
+			}
+
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+
+			// No more messages expected:
+			assert!(virtual_overseer.try_recv().await.is_none());
+
+			test_state
+		})
+	});
+}
+
+#[test]
+fn approval_vote_import_works_for_backed() {
+	approval_vote_import_test(make_candidate_backed_event)
+}
+
+#[test]
+fn approval_vote_import_works_for_included() {
+	approval_vote_import_test(make_candidate_included_event)
+}
+
+#[test]
+fn approval_vote_import_works_for_confirmed() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt1 = make_valid_candidate_receipt();
+			let candidate_hash1 = candidate_receipt1.hash();
+
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
+				.await;
+
+			let valid_vote1 = test_state
+				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash1, session)
+				.await;
+
+			let valid_vote1a = test_state
+				.issue_backing_statement_with_index(ValidatorIndex(2), candidate_hash1, session)
+				.await;
+
+			let invalid_vote1 = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash1,
+					session,
+					false,
+				)
+				.await;
+
+			let approval_vote = test_state.issue_approval_vote_with_index(
+				ValidatorIndex(4),
+				candidate_hash1,
+				session,
+			);
+
+			gum::trace!("Before sending `ImportStatements`");
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: candidate_receipt1.clone(),
+						session,
+						statements: vec![
+							(valid_vote1, ValidatorIndex(3)),
+							(valid_vote1a, ValidatorIndex(2)),
+							(invalid_vote1, ValidatorIndex(1)),
+						],
+						pending_confirmation: None,
+					},
+				})
+				.await;
+			gum::trace!("After sending `ImportStatements`");
+
+			let approval_votes = [(ValidatorIndex(4), approval_vote.into_validator_signature())]
+				.into_iter()
+				.collect();
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash1, approval_votes)
+				.await;
+
+			// Participation has to fail, otherwise the dispute will be confirmed.
+			participation_missing_availability(&mut virtual_overseer).await;
+
+			{
+				let (tx, rx) = oneshot::channel();
+				virtual_overseer
+					.send(FromOrchestra::Communication {
+						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
+					})
+					.await;
+
+				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash1)]);
+
+				let (tx, rx) = oneshot::channel();
+				virtual_overseer
+					.send(FromOrchestra::Communication {
+						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
+							vec![(session, candidate_hash1)],
+							tx,
+						),
+					})
+					.await;
+
+				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
+				assert_eq!(votes.valid.len(), 3);
 				assert!(votes.valid.get(&ValidatorIndex(4)).is_some(), "Approval vote is missing!");
 				assert_eq!(votes.invalid.len(), 1);
 			}
@@ -3025,6 +3146,106 @@ fn disputes_on_not_backed_candidates_are_ignored() {
 					.await;
 
 				assert!(rx.await.unwrap().is_empty());
+			}
+
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+
+			// No more messages expected:
+			assert!(virtual_overseer.try_recv().await.is_none());
+
+			test_state
+		})
+	});
+}
+
+#[test]
+fn my_test() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt1 = make_valid_candidate_receipt();
+			let candidate_hash1 = candidate_receipt1.hash();
+
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session,
+					1,
+					vec![make_candidate_included_event(candidate_receipt1.clone())],
+				)
+				.await;
+
+			let valid_vote1 = test_state
+				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash1, session)
+				.await;
+
+			let invalid_vote1 = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash1,
+					session,
+					false,
+				)
+				.await;
+
+			let approval_vote = test_state.issue_approval_vote_with_index(
+				ValidatorIndex(4),
+				candidate_hash1,
+				session,
+			);
+
+			gum::trace!("Before sending `ImportStatements`");
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: candidate_receipt1.clone(),
+						session,
+						statements: vec![
+							(valid_vote1, ValidatorIndex(3)),
+							(invalid_vote1, ValidatorIndex(1)),
+						],
+						pending_confirmation: None,
+					},
+				})
+				.await;
+			gum::trace!("After sending `ImportStatements`");
+
+			let approval_votes = [(ValidatorIndex(4), approval_vote.into_validator_signature())]
+				.into_iter()
+				.collect();
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash1, approval_votes)
+				.await;
+
+			// Participation has to fail, otherwise the dispute will be confirmed.
+			participation_missing_availability(&mut virtual_overseer).await;
+
+			{
+				let (tx, rx) = oneshot::channel();
+				virtual_overseer
+					.send(FromOrchestra::Communication {
+						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
+					})
+					.await;
+
+				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash1)]);
+
+				let (tx, rx) = oneshot::channel();
+				virtual_overseer
+					.send(FromOrchestra::Communication {
+						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
+							vec![(session, candidate_hash1)],
+							tx,
+						),
+					})
+					.await;
+
+				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
+				assert_eq!(votes.valid.len(), 2);
+				assert!(votes.valid.get(&ValidatorIndex(4)).is_some(), "Approval vote is missing!");
+				assert_eq!(votes.invalid.len(), 1);
 			}
 
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
