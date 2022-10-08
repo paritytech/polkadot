@@ -662,6 +662,8 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 				.await;
 
 			// Participation has to fail, otherwise the dispute will be confirmed.
+			// Confirmed here means that we would participate in it and issue a vote, not that
+			// f+1 votes in total will be issued.
 			participation_missing_availability(&mut virtual_overseer).await;
 
 			{
