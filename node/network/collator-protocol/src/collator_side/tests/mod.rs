@@ -1294,6 +1294,9 @@ fn connect_to_buffered_groups() {
 			}
 		);
 
+		// Let the subsystem process process the collation event.
+		test_helpers::Yield::new().await;
+
 		test_state.advance_to_new_round(&mut virtual_overseer, true).await;
 		test_state.group_rotation_info = test_state.group_rotation_info.bump_rotation();
 

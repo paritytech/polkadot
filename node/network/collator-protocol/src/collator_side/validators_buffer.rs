@@ -23,8 +23,8 @@
 //! We keep a simple FIFO buffer of N validator groups and a bitvec for each advertisement,
 //! 1 indicating we want to be connected to i-th validator in a buffer, 0 otherwise.
 //!
-//! The bit is set to 1 for the whole **group** whenever it's inserted into the buffer. Given a relay
-//! parent, one can reset a bit back to 0 for particular **validator**. For example, if a collation
+//! The bit is set to 1 for the whole **group** whenever it's inserted into the buffer. Given a candidate
+//! hash, one can reset a bit back to 0 for particular **validator**. For example, if a collation
 //! was fetched or some timeout has been hit.
 //!
 //! The bitwise OR over known advertisements gives us validators indices for connection request.
@@ -37,7 +37,7 @@ use std::{
 
 use bitvec::{bitvec, vec::BitVec};
 
-use polkadot_primitives::v2::{AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, CandidateHash, GroupIndex, SessionIndex};
 
 /// The ring buffer stores at most this many unique validator groups.
 ///
@@ -66,9 +66,9 @@ pub struct ValidatorGroupsBuffer {
 	group_infos: VecDeque<ValidatorsGroupInfo>,
 	/// Continuous buffer of validators discovery keys.
 	validators: VecDeque<AuthorityDiscoveryId>,
-	/// Mapping from relay-parent to bit-vectors with bits for all `validators`.
+	/// Mapping from candidate hashes to bit-vectors with bits for all `validators`.
 	/// Invariants kept: All bit-vectors are guaranteed to have the same size.
-	should_be_connected: HashMap<Hash, BitVec>,
+	should_be_connected: HashMap<CandidateHash, BitVec>,
 	/// Buffer capacity, limits the number of **groups** tracked.
 	cap: NonZeroUsize,
 }
@@ -107,7 +107,7 @@ impl ValidatorGroupsBuffer {
 	/// of the buffer.
 	pub fn note_collation_advertised(
 		&mut self,
-		relay_parent: Hash,
+		candidate_hash: CandidateHash,
 		session_index: SessionIndex,
 		group_index: GroupIndex,
 		validators: &[AuthorityDiscoveryId],
@@ -121,19 +121,19 @@ impl ValidatorGroupsBuffer {
 		}) {
 			Some((idx, group)) => {
 				let group_start_idx = self.group_lengths_iter().take(idx).sum();
-				self.set_bits(relay_parent, group_start_idx..(group_start_idx + group.len));
+				self.set_bits(candidate_hash, group_start_idx..(group_start_idx + group.len));
 			},
-			None => self.push(relay_parent, session_index, group_index, validators),
+			None => self.push(candidate_hash, session_index, group_index, validators),
 		}
 	}
 
 	/// Note that a validator is no longer interested in a given relay parent.
 	pub fn reset_validator_interest(
 		&mut self,
-		relay_parent: Hash,
+		candidate_hash: CandidateHash,
 		authority_id: &AuthorityDiscoveryId,
 	) {
-		let bits = match self.should_be_connected.get_mut(&relay_parent) {
+		let bits = match self.should_be_connected.get_mut(&candidate_hash) {
 			Some(bits) => bits,
 			None => return,
 		};
@@ -145,17 +145,12 @@ impl ValidatorGroupsBuffer {
 		}
 	}
 
-	/// Remove relay parent from the buffer.
+	/// Remove advertised candidate from the buffer.
 	///
 	/// The buffer will no longer track which validators are interested in a corresponding
 	/// advertisement.
-	pub fn remove_relay_parent(&mut self, relay_parent: &Hash) {
-		self.should_be_connected.remove(relay_parent);
-	}
-
-	/// Removes all advertisements from the buffer.
-	pub fn clear_advertisements(&mut self) {
-		self.should_be_connected.clear();
+	pub fn remove_candidate(&mut self, candidate_hash: &CandidateHash) {
+		self.should_be_connected.remove(candidate_hash);
 	}
 
 	/// Pushes a new group to the buffer along with advertisement, setting all validators
@@ -164,7 +159,7 @@ impl ValidatorGroupsBuffer {
 	/// If the buffer is full, drops group from the tail.
 	fn push(
 		&mut self,
-		relay_parent: Hash,
+		candidate_hash: CandidateHash,
 		session_index: SessionIndex,
 		group_index: GroupIndex,
 		validators: &[AuthorityDiscoveryId],
@@ -193,17 +188,17 @@ impl ValidatorGroupsBuffer {
 		self.should_be_connected
 			.values_mut()
 			.for_each(|bits| bits.resize(new_len, false));
-		self.set_bits(relay_parent, group_start_idx..(group_start_idx + validators.len()));
+		self.set_bits(candidate_hash, group_start_idx..(group_start_idx + validators.len()));
 	}
 
 	/// Sets advertisement bits to 1 in a given range (usually corresponding to some group).
 	/// If the relay parent is unknown, inserts 0-initialized bitvec first.
 	///
 	/// The range must be ensured to be within bounds.
-	fn set_bits(&mut self, relay_parent: Hash, range: Range<usize>) {
+	fn set_bits(&mut self, candidate_hash: CandidateHash, range: Range<usize>) {
 		let bits = self
 			.should_be_connected
-			.entry(relay_parent)
+			.entry(candidate_hash)
 			.or_insert_with(|| bitvec![0; self.validators.len()]);
 
 		bits[range].fill(true);
@@ -220,6 +215,7 @@ impl ValidatorGroupsBuffer {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use polkadot_primitives::v2::Hash;
 	use sp_keyring::Sr25519Keyring;
 
 	#[test]
@@ -227,8 +223,8 @@ mod tests {
 		let cap = NonZeroUsize::new(1).unwrap();
 		let mut buf = ValidatorGroupsBuffer::with_capacity(cap);
 
-		let hash_a = Hash::repeat_byte(0x1);
-		let hash_b = Hash::repeat_byte(0x2);
+		let hash_a = CandidateHash(Hash::repeat_byte(0x1));
+		let hash_b = CandidateHash(Hash::repeat_byte(0x2));
 
 		let validators: Vec<_> = [
 			Sr25519Keyring::Alice,
@@ -263,7 +259,7 @@ mod tests {
 		let cap = NonZeroUsize::new(3).unwrap();
 		let mut buf = ValidatorGroupsBuffer::with_capacity(cap);
 
-		let hashes: Vec<_> = (0..5).map(Hash::repeat_byte).collect();
+		let hashes: Vec<_> = (0..5).map(|i| CandidateHash(Hash::repeat_byte(i))).collect();
 
 		let validators: Vec<_> = [
 			Sr25519Keyring::Alice,
