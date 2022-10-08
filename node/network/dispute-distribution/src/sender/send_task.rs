@@ -42,13 +42,15 @@ use crate::{
 /// Delivery status for a particular dispute.
 ///
 /// Keeps track of all the validators that have to be reached for a dispute.
+///
+/// The unit of work for a `SendTask` is an authority/validator.
 pub struct SendTask {
-	/// The request we are supposed to get out to all parachain validators of the dispute's session
+	/// The request we are supposed to get out to all `parachain` validators of the dispute's session
 	/// and to all current authorities.
 	request: DisputeRequest,
 
 	/// The set of authorities we need to send our messages to. This set will change at session
-	/// boundaries. It will always be at least the parachain validators of the session where the
+	/// boundaries. It will always be at least the `parachain` validators of the session where the
 	/// dispute happened and the authorities of the current sessions as determined by active heads.
 	deliveries: HashMap<AuthorityDiscoveryId, DeliveryStatus>,
 
@@ -100,6 +102,10 @@ impl TaskResult {
 #[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
 impl SendTask {
 	/// Initiates sending a dispute message to peers.
+	///
+	/// Creation of new `SendTask`s is subject to rate limiting. As each `SendTask` will trigger
+	/// sending a message to each validator, hence for employing a per-peer rate limit, we need to
+	/// limit the construction of new `SendTask`s.
 	pub async fn new<Context>(
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
@@ -118,15 +124,22 @@ impl SendTask {
 	///
 	/// This function is called at construction and should also be called whenever a session change
 	/// happens and on a regular basis to ensure we are retrying failed attempts.
+	///
+	/// This might resend to validators and is thus subject to any rate limiting we might want.
+	/// Calls to this function for different instances should be rate limited according to
+	/// `SEND_RATE_LIMIT`.
+	///
+	/// Returns: `True` if this call resulted in new requests.
 	pub async fn refresh_sends<Context>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		active_sessions: &HashMap<SessionIndex, Hash>,
 		metrics: &Metrics,
-	) -> Result<()> {
+	) -> Result<bool> {
 		let new_authorities = self.get_relevant_validators(ctx, runtime, active_sessions).await?;
 
+		// Note this will also contain all authorities for which sending failed previously:
 		let add_authorities = new_authorities
 			.iter()
 			.filter(|a| !self.deliveries.contains_key(a))
@@ -141,12 +154,14 @@ impl SendTask {
 			send_requests(ctx, self.tx.clone(), add_authorities, self.request.clone(), metrics)
 				.await?;
 
+		let was_empty = new_statuses.is_empty();
+
 		self.has_failed_sends = false;
 		self.deliveries.extend(new_statuses.into_iter());
-		Ok(())
+		Ok(!was_empty)
 	}
 
-	/// Whether any sends have failed since the last refreshed.
+	/// Whether any sends have failed since the last refresh.
 	pub fn has_failed_sends(&self) -> bool {
 		self.has_failed_sends
 	}
@@ -193,9 +208,8 @@ impl SendTask {
 
 	/// Determine all validators that should receive the given dispute requests.
 	///
-	/// This is all parachain validators of the session the candidate occurred and all authorities
+	/// This is all `parachain` validators of the session the candidate occurred and all authorities
 	/// of all currently active sessions, determined by currently active heads.
-
 	async fn get_relevant_validators<Context>(
 		&self,
 		ctx: &mut Context,
@@ -293,7 +307,7 @@ async fn wait_response_task(
 		gum::debug!(
 			target: LOG_TARGET,
 			%err,
-			"Failed to notify susystem about dispute sending result."
+			"Failed to notify subsystem about dispute sending result."
 		);
 	}
 }

@@ -57,6 +57,11 @@ impl ParachainsInherentDataProvider {
 	) -> Result<Self, Error> {
 		let pid = async {
 			let (sender, receiver) = futures::channel::oneshot::channel();
+			gum::trace!(
+				target: LOG_TARGET,
+				relay_parent = ?parent,
+				"Inherent data requested by Babe"
+			);
 			overseer.wait_for_activation(parent, sender).await;
 			receiver
 				.await
@@ -64,6 +69,11 @@ impl ParachainsInherentDataProvider {
 				.map_err(|e| Error::Subsystem(e))?;
 
 			let (sender, receiver) = futures::channel::oneshot::channel();
+			gum::trace!(
+				target: LOG_TARGET,
+				relay_parent = ?parent,
+				"Requesting inherent data (after having waited for activation)"
+			);
 			overseer
 				.send_msg(
 					ProvisionerMessage::RequestInherentData(parent, sender),
@@ -97,7 +107,7 @@ impl ParachainsInherentDataProvider {
 			Err(err) => {
 				gum::debug!(
 					target: LOG_TARGET,
-					?err,
+					%err,
 					"Could not get provisioner inherent data; injecting default data",
 				);
 				ParachainsInherentData {

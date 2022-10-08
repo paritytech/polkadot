@@ -106,31 +106,31 @@ pub trait WeightInfo {
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn create() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn contribute() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn withdraw() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn refund(_k: u32) -> Weight {
-		0
+		Weight::zero()
 	}
 	fn dissolve() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn edit() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn add_memo() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn on_initialize(_n: u32) -> Weight {
-		0
+		Weight::zero()
 	}
 	fn poke() -> Weight {
-		0
+		Weight::zero()
 	}
 }
 
@@ -189,7 +189,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// `PalletId` for the crowdloan pallet. An appropriate value could be `PalletId(*b"py/cfund")`
 		#[pallet::constant]
@@ -890,8 +890,8 @@ mod tests {
 		type BlockWeights = ();
 		type BlockLength = ();
 		type DbWeight = ();
-		type Origin = Origin;
-		type Call = Call;
+		type RuntimeOrigin = RuntimeOrigin;
+		type RuntimeCall = RuntimeCall;
 		type Index = u64;
 		type BlockNumber = BlockNumber;
 		type Hash = H256;
@@ -899,7 +899,7 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
 		type PalletInfo = PalletInfo;
@@ -918,7 +918,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
@@ -1070,7 +1070,7 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type SubmissionDeposit = SubmissionDeposit;
 		type MinContribution = MinContribution;
 		type PalletId = CrowdloanPalletId;
@@ -1127,8 +1127,8 @@ mod tests {
 		}
 	}
 
-	fn last_event() -> Event {
-		System::events().pop().expect("Event expected").event
+	fn last_event() -> RuntimeEvent {
+		System::events().pop().expect("RuntimeEvent expected").event
 	}
 
 	#[test]
@@ -1166,7 +1166,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			let para = new_para();
 			// Now try to create a crowdloan campaign
-			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 4, 9, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para, 1000, 1, 4, 9, None));
 			// This is what the initial `fund_info` should look like
 			let fund_info = FundInfo {
 				depositor: 1,
@@ -1199,7 +1199,7 @@ mod tests {
 			let para = new_para();
 			// Now try to create a crowdloan campaign
 			assert_ok!(Crowdloan::create(
-				Origin::signed(1),
+				RuntimeOrigin::signed(1),
 				para,
 				1000,
 				1,
@@ -1239,12 +1239,15 @@ mod tests {
 			let para = new_para();
 
 			let e = Error::<Test>::InvalidParaId;
-			assert_noop!(Crowdloan::create(Origin::signed(1), 1.into(), 1000, 1, 4, 9, None), e);
+			assert_noop!(
+				Crowdloan::create(RuntimeOrigin::signed(1), 1.into(), 1000, 1, 4, 9, None),
+				e
+			);
 			// Cannot create a crowdloan with bad lease periods
 			let e = Error::<Test>::LastPeriodBeforeFirstPeriod;
-			assert_noop!(Crowdloan::create(Origin::signed(1), para, 1000, 4, 1, 9, None), e);
+			assert_noop!(Crowdloan::create(RuntimeOrigin::signed(1), para, 1000, 4, 1, 9, None), e);
 			let e = Error::<Test>::LastPeriodTooFarInFuture;
-			assert_noop!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 9, 9, None), e);
+			assert_noop!(Crowdloan::create(RuntimeOrigin::signed(1), para, 1000, 1, 9, 9, None), e);
 
 			// Cannot create a crowdloan without some deposit funds
 			assert_ok!(TestRegistrar::<Test>::register(
@@ -1255,14 +1258,22 @@ mod tests {
 			));
 			let e = BalancesError::<Test, _>::InsufficientBalance;
 			assert_noop!(
-				Crowdloan::create(Origin::signed(1337), ParaId::from(1234), 1000, 1, 3, 9, None),
+				Crowdloan::create(
+					RuntimeOrigin::signed(1337),
+					ParaId::from(1234),
+					1000,
+					1,
+					3,
+					9,
+					None
+				),
 				e
 			);
 
 			// Cannot create a crowdloan with nonsense end date
 			// This crowdloan would end in lease period 2, but is bidding for some slot that starts in lease period 1.
 			assert_noop!(
-				Crowdloan::create(Origin::signed(1), para, 1000, 1, 4, 41, None),
+				Crowdloan::create(RuntimeOrigin::signed(1), para, 1000, 1, 4, 41, None),
 				Error::<Test>::EndTooFarInFuture
 			);
 		});
@@ -1275,13 +1286,13 @@ mod tests {
 			let index = NextFundIndex::<Test>::get();
 
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 4, 9, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para, 1000, 1, 4, 9, None));
 
 			// No contributions yet
 			assert_eq!(Crowdloan::contribution_get(u32::from(para), &1).0, 0);
 
 			// User 1 contributes to their own crowdloan
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), para, 49, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(1), para, 49, None));
 			// User 1 has spent some funds to do this, transfer fees **are** taken
 			assert_eq!(Balances::free_balance(1), 950);
 			// Contributions are stored in the trie
@@ -1307,7 +1318,7 @@ mod tests {
 			let pubkey = crypto::create_ed25519_pubkey(b"//verifier".to_vec());
 			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(
-				Origin::signed(1),
+				RuntimeOrigin::signed(1),
 				para,
 				1000,
 				1,
@@ -1321,7 +1332,7 @@ mod tests {
 
 			// Missing signature
 			assert_noop!(
-				Crowdloan::contribute(Origin::signed(1), para, 49, None),
+				Crowdloan::contribute(RuntimeOrigin::signed(1), para, 49, None),
 				Error::<Test>::InvalidSignature
 			);
 
@@ -1333,23 +1344,33 @@ mod tests {
 
 			// Invalid signature
 			assert_noop!(
-				Crowdloan::contribute(Origin::signed(1), para, 49, Some(invalid_signature)),
+				Crowdloan::contribute(RuntimeOrigin::signed(1), para, 49, Some(invalid_signature)),
 				Error::<Test>::InvalidSignature
 			);
 
 			// Valid signature wrong parameter
 			assert_noop!(
-				Crowdloan::contribute(Origin::signed(1), para, 50, Some(valid_signature.clone())),
+				Crowdloan::contribute(
+					RuntimeOrigin::signed(1),
+					para,
+					50,
+					Some(valid_signature.clone())
+				),
 				Error::<Test>::InvalidSignature
 			);
 			assert_noop!(
-				Crowdloan::contribute(Origin::signed(2), para, 49, Some(valid_signature.clone())),
+				Crowdloan::contribute(
+					RuntimeOrigin::signed(2),
+					para,
+					49,
+					Some(valid_signature.clone())
+				),
 				Error::<Test>::InvalidSignature
 			);
 
 			// Valid signature
 			assert_ok!(Crowdloan::contribute(
-				Origin::signed(1),
+				RuntimeOrigin::signed(1),
 				para,
 				49,
 				Some(valid_signature.clone())
@@ -1357,7 +1378,7 @@ mod tests {
 
 			// Reuse valid signature
 			assert_noop!(
-				Crowdloan::contribute(Origin::signed(1), para, 49, Some(valid_signature)),
+				Crowdloan::contribute(RuntimeOrigin::signed(1), para, 49, Some(valid_signature)),
 				Error::<Test>::InvalidSignature
 			);
 
@@ -1365,7 +1386,12 @@ mod tests {
 			let valid_signature_2 = crypto::create_ed25519_signature(&payload_2.encode(), pubkey);
 
 			// New valid signature
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), para, 10, Some(valid_signature_2)));
+			assert_ok!(Crowdloan::contribute(
+				RuntimeOrigin::signed(1),
+				para,
+				10,
+				Some(valid_signature_2)
+			));
 
 			// Contributions appear in free balance of crowdloan
 			assert_eq!(Balances::free_balance(Crowdloan::fund_account_id(index)), 59);
@@ -1383,22 +1409,22 @@ mod tests {
 
 			// Cannot contribute to non-existing fund
 			assert_noop!(
-				Crowdloan::contribute(Origin::signed(1), para, 49, None),
+				Crowdloan::contribute(RuntimeOrigin::signed(1), para, 49, None),
 				Error::<Test>::InvalidParaId
 			);
 			// Cannot contribute below minimum contribution
 			assert_noop!(
-				Crowdloan::contribute(Origin::signed(1), para, 9, None),
+				Crowdloan::contribute(RuntimeOrigin::signed(1), para, 9, None),
 				Error::<Test>::ContributionTooSmall
 			);
 
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 4, 9, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), para, 101, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para, 1000, 1, 4, 9, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(1), para, 101, None));
 
 			// Cannot contribute past the limit
 			assert_noop!(
-				Crowdloan::contribute(Origin::signed(2), para, 900, None),
+				Crowdloan::contribute(RuntimeOrigin::signed(2), para, 900, None),
 				Error::<Test>::CapExceeded
 			);
 
@@ -1407,31 +1433,31 @@ mod tests {
 
 			// Cannot contribute to ended fund
 			assert_noop!(
-				Crowdloan::contribute(Origin::signed(1), para, 49, None),
+				Crowdloan::contribute(RuntimeOrigin::signed(1), para, 49, None),
 				Error::<Test>::ContributionPeriodOver
 			);
 
 			// If a crowdloan has already won, it should not allow contributions.
 			let para_2 = new_para();
 			let index = NextFundIndex::<Test>::get();
-			assert_ok!(Crowdloan::create(Origin::signed(1), para_2, 1000, 1, 4, 40, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para_2, 1000, 1, 4, 40, None));
 			// Emulate a win by leasing out and putting a deposit. Slots pallet would normally do this.
 			let crowdloan_account = Crowdloan::fund_account_id(index);
 			set_winner(para_2, crowdloan_account, true);
 			assert_noop!(
-				Crowdloan::contribute(Origin::signed(1), para_2, 49, None),
+				Crowdloan::contribute(RuntimeOrigin::signed(1), para_2, 49, None),
 				Error::<Test>::BidOrLeaseActive
 			);
 
 			// Move past lease period 1, should not be allowed to have further contributions with a crowdloan
 			// that has starting period 1.
 			let para_3 = new_para();
-			assert_ok!(Crowdloan::create(Origin::signed(1), para_3, 1000, 1, 4, 40, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para_3, 1000, 1, 4, 40, None));
 			run_to_block(40);
 			let now = System::block_number();
 			assert_eq!(TestAuctioneer::lease_period_index(now).unwrap().0, 2);
 			assert_noop!(
-				Crowdloan::contribute(Origin::signed(1), para_3, 49, None),
+				Crowdloan::contribute(RuntimeOrigin::signed(1), para_3, 49, None),
 				Error::<Test>::ContributionPeriodOver
 			);
 		});
@@ -1450,7 +1476,7 @@ mod tests {
 
 			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(
-				Origin::signed(1),
+				RuntimeOrigin::signed(1),
 				para,
 				1000,
 				first_period,
@@ -1462,20 +1488,20 @@ mod tests {
 			run_to_block(8);
 			// Can def contribute when auction is running.
 			assert!(TestAuctioneer::auction_status(System::block_number()).is_ending().is_some());
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 250, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(2), para, 250, None));
 
 			run_to_block(10);
 			// Can't contribute when auction is in the VRF delay period.
 			assert!(TestAuctioneer::auction_status(System::block_number()).is_vrf());
 			assert_noop!(
-				Crowdloan::contribute(Origin::signed(2), para, 250, None),
+				Crowdloan::contribute(RuntimeOrigin::signed(2), para, 250, None),
 				Error::<Test>::VrfDelayInProgress
 			);
 
 			run_to_block(15);
 			// Its fine to contribute when no auction is running.
 			assert!(!TestAuctioneer::auction_status(System::block_number()).is_in_progress());
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 250, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(2), para, 250, None));
 		})
 	}
 
@@ -1491,7 +1517,7 @@ mod tests {
 
 			// Set up a crowdloan
 			assert_ok!(Crowdloan::create(
-				Origin::signed(1),
+				RuntimeOrigin::signed(1),
 				para,
 				1000,
 				first_period,
@@ -1503,13 +1529,13 @@ mod tests {
 
 			// Fund crowdloan
 			run_to_block(1);
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(2), para, 100, None));
 			run_to_block(3);
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 150, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(3), para, 150, None));
 			run_to_block(5);
-			assert_ok!(Crowdloan::contribute(Origin::signed(4), para, 200, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(4), para, 200, None));
 			run_to_block(8);
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 250, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(2), para, 250, None));
 			run_to_block(10);
 
 			assert_eq!(
@@ -1533,9 +1559,9 @@ mod tests {
 			let index = NextFundIndex::<Test>::get();
 
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(2), para, 100, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(3), para, 50, None));
 
 			run_to_block(10);
 			let account_id = Crowdloan::fund_account_id(index);
@@ -1546,11 +1572,11 @@ mod tests {
 			assert_eq!(Balances::free_balance(2), 1900);
 			assert_eq!(Balances::free_balance(3), 2950);
 
-			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
+			assert_ok!(Crowdloan::withdraw(RuntimeOrigin::signed(2), 2, para));
 			assert_eq!(Balances::free_balance(&account_id), 50);
 			assert_eq!(Balances::free_balance(2), 2000);
 
-			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 3, para));
+			assert_ok!(Crowdloan::withdraw(RuntimeOrigin::signed(2), 3, para));
 			assert_eq!(Balances::free_balance(&account_id), 0);
 			assert_eq!(Balances::free_balance(3), 3000);
 		});
@@ -1563,26 +1589,26 @@ mod tests {
 			let index = NextFundIndex::<Test>::get();
 
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(2), para, 100, None));
 
 			run_to_block(10);
 			let account_id = Crowdloan::fund_account_id(index);
 
 			// user sends the crowdloan funds trying to make an accounting error
-			assert_ok!(Balances::transfer(Origin::signed(1), account_id, 10));
+			assert_ok!(Balances::transfer(RuntimeOrigin::signed(1), account_id, 10));
 
 			// overfunded now
 			assert_eq!(Balances::free_balance(&account_id), 110);
 			assert_eq!(Balances::free_balance(2), 1900);
 
-			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
+			assert_ok!(Crowdloan::withdraw(RuntimeOrigin::signed(2), 2, para));
 			assert_eq!(Balances::free_balance(2), 2000);
 
 			// Some funds are left over
 			assert_eq!(Balances::free_balance(&account_id), 10);
 			// They wil be left in the account at the end
-			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
+			assert_ok!(Crowdloan::dissolve(RuntimeOrigin::signed(1), para));
 			assert_eq!(Balances::free_balance(&account_id), 10);
 		});
 	}
@@ -1595,23 +1621,23 @@ mod tests {
 			let account_id = Crowdloan::fund_account_id(index);
 
 			// Set up a crowdloan ending on 9
-			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para, 1000, 1, 1, 9, None));
 			// Make some contributions
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), para, 100, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 200, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 300, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(1), para, 100, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(2), para, 200, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(3), para, 300, None));
 
 			assert_eq!(Balances::free_balance(account_id), 600);
 
 			// Can't refund before the crowdloan it has ended
 			assert_noop!(
-				Crowdloan::refund(Origin::signed(1337), para),
+				Crowdloan::refund(RuntimeOrigin::signed(1337), para),
 				Error::<Test>::FundNotEnded,
 			);
 
 			// Move to the end of the crowdloan
 			run_to_block(10);
-			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
+			assert_ok!(Crowdloan::refund(RuntimeOrigin::signed(1337), para));
 
 			// Funds are returned
 			assert_eq!(Balances::free_balance(account_id), 0);
@@ -1630,12 +1656,12 @@ mod tests {
 			let account_id = Crowdloan::fund_account_id(index);
 
 			// Set up a crowdloan ending on 9
-			assert_ok!(Crowdloan::create(Origin::signed(1), para, 100000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para, 100000, 1, 1, 9, None));
 			// Make more contributions than our limit
 			for i in 1..=RemoveKeysLimit::get() * 2 {
 				Balances::make_free_balance_be(&i.into(), (1000 * i).into());
 				assert_ok!(Crowdloan::contribute(
-					Origin::signed(i.into()),
+					RuntimeOrigin::signed(i.into()),
 					para,
 					(i * 100).into(),
 					None
@@ -1646,7 +1672,7 @@ mod tests {
 
 			// Move to the end of the crowdloan
 			run_to_block(10);
-			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
+			assert_ok!(Crowdloan::refund(RuntimeOrigin::signed(1337), para));
 			assert_eq!(
 				last_event(),
 				super::Event::<Test>::PartiallyRefunded { para_id: para }.into()
@@ -1656,7 +1682,7 @@ mod tests {
 			assert!(!Balances::free_balance(account_id).is_zero());
 
 			// Call again
-			assert_ok!(Crowdloan::refund(Origin::signed(1337), para));
+			assert_ok!(Crowdloan::refund(RuntimeOrigin::signed(1337), para));
 			assert_eq!(last_event(), super::Event::<Test>::AllRefunded { para_id: para }.into());
 
 			// Funds are returned
@@ -1675,16 +1701,16 @@ mod tests {
 			let issuance = Balances::total_issuance();
 
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(2), para, 100, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(3), para, 50, None));
 
 			run_to_block(10);
 			// All funds are refunded
-			assert_ok!(Crowdloan::refund(Origin::signed(2), para));
+			assert_ok!(Crowdloan::refund(RuntimeOrigin::signed(2), para));
 
 			// Now that `fund.raised` is zero, it can be dissolved.
-			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
+			assert_ok!(Crowdloan::dissolve(RuntimeOrigin::signed(1), para));
 			assert_eq!(Balances::free_balance(1), 1000);
 			assert_eq!(Balances::free_balance(2), 2000);
 			assert_eq!(Balances::free_balance(3), 3000);
@@ -1699,13 +1725,13 @@ mod tests {
 			let issuance = Balances::total_issuance();
 
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(2), para, 100, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(3), para, 50, None));
 
 			// Can't dissolve before it ends
 			assert_noop!(
-				Crowdloan::dissolve(Origin::signed(1), para),
+				Crowdloan::dissolve(RuntimeOrigin::signed(1), para),
 				Error::<Test>::NotReadyToDissolve
 			);
 
@@ -1713,22 +1739,22 @@ mod tests {
 			set_winner(para, 1, true);
 			// Can't dissolve when it won.
 			assert_noop!(
-				Crowdloan::dissolve(Origin::signed(1), para),
+				Crowdloan::dissolve(RuntimeOrigin::signed(1), para),
 				Error::<Test>::NotReadyToDissolve
 			);
 			set_winner(para, 1, false);
 
 			// Can't dissolve while it still has user funds
 			assert_noop!(
-				Crowdloan::dissolve(Origin::signed(1), para),
+				Crowdloan::dissolve(RuntimeOrigin::signed(1), para),
 				Error::<Test>::NotReadyToDissolve
 			);
 
 			// All funds are refunded
-			assert_ok!(Crowdloan::refund(Origin::signed(2), para));
+			assert_ok!(Crowdloan::refund(RuntimeOrigin::signed(2), para));
 
 			// Now that `fund.raised` is zero, it can be dissolved.
-			assert_ok!(Crowdloan::dissolve(Origin::signed(1), para));
+			assert_ok!(Crowdloan::dissolve(RuntimeOrigin::signed(1), para));
 			assert_eq!(Balances::free_balance(1), 1000);
 			assert_eq!(Balances::free_balance(2), 2000);
 			assert_eq!(Balances::free_balance(3), 3000);
@@ -1744,17 +1770,17 @@ mod tests {
 			let account_id = Crowdloan::fund_account_id(index);
 
 			// Set up a crowdloan
-			assert_ok!(Crowdloan::create(Origin::signed(1), para, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para, 1000, 1, 1, 9, None));
 
 			// Fund crowdloans.
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para, 100, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), para, 50, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(2), para, 100, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(3), para, 50, None));
 			// simulate the reserving of para's funds. this actually happens in the Slots pallet.
 			assert_ok!(Balances::reserve(&account_id, 150));
 
 			run_to_block(19);
 			assert_noop!(
-				Crowdloan::withdraw(Origin::signed(2), 2, para),
+				Crowdloan::withdraw(RuntimeOrigin::signed(2), 2, para),
 				Error::<Test>::BidOrLeaseActive
 			);
 
@@ -1770,11 +1796,11 @@ mod tests {
 			assert_eq!(Balances::free_balance(2), 1900);
 			assert_eq!(Balances::free_balance(3), 2950);
 
-			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 2, para));
+			assert_ok!(Crowdloan::withdraw(RuntimeOrigin::signed(2), 2, para));
 			assert_eq!(Balances::free_balance(&account_id), 50);
 			assert_eq!(Balances::free_balance(2), 2000);
 
-			assert_ok!(Crowdloan::withdraw(Origin::signed(2), 3, para));
+			assert_ok!(Crowdloan::withdraw(RuntimeOrigin::signed(2), 3, para));
 			assert_eq!(Balances::free_balance(&account_id), 0);
 			assert_eq!(Balances::free_balance(3), 3000);
 		});
@@ -1787,11 +1813,11 @@ mod tests {
 			let para_2 = new_para();
 
 			// Set up crowdloans
-			assert_ok!(Crowdloan::create(Origin::signed(1), para_1, 1000, 1, 1, 9, None));
-			assert_ok!(Crowdloan::create(Origin::signed(1), para_2, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para_1, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para_2, 1000, 1, 1, 9, None));
 			// Different contributions
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para_1, 100, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(3), para_2, 50, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(2), para_1, 100, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(3), para_2, 50, None));
 			// Original state
 			assert_eq!(Funds::<Test>::get(para_1).unwrap().raised, 100);
 			assert_eq!(Funds::<Test>::get(para_2).unwrap().raised, 50);
@@ -1808,10 +1834,10 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			let para_1 = new_para();
 
-			assert_ok!(Crowdloan::create(Origin::signed(1), para_1, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para_1, 1000, 1, 1, 9, None));
 			// Cannot create a fund again
 			assert_noop!(
-				Crowdloan::create(Origin::signed(1), para_1, 1000, 1, 1, 9, None),
+				Crowdloan::create(RuntimeOrigin::signed(1), para_1, 1000, 1, 1, 9, None),
 				Error::<Test>::FundNotEnded,
 			);
 		});
@@ -1822,11 +1848,11 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			let para_1 = new_para();
 
-			assert_ok!(Crowdloan::create(Origin::signed(1), para_1, 1000, 1, 1, 9, None));
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para_1, 100, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para_1, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(2), para_1, 100, None));
 			let old_crowdloan = Crowdloan::funds(para_1).unwrap();
 
-			assert_ok!(Crowdloan::edit(Origin::root(), para_1, 1234, 2, 3, 4, None));
+			assert_ok!(Crowdloan::edit(RuntimeOrigin::root(), para_1, 1234, 2, 3, 4, None));
 			let new_crowdloan = Crowdloan::funds(para_1).unwrap();
 
 			// Some things stay the same
@@ -1846,25 +1872,29 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			let para_1 = new_para();
 
-			assert_ok!(Crowdloan::create(Origin::signed(1), para_1, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para_1, 1000, 1, 1, 9, None));
 			// Cant add a memo before you have contributed.
 			assert_noop!(
-				Crowdloan::add_memo(Origin::signed(1), para_1, b"hello, world".to_vec()),
+				Crowdloan::add_memo(RuntimeOrigin::signed(1), para_1, b"hello, world".to_vec()),
 				Error::<Test>::NoContributions,
 			);
 			// Make a contribution. Initially no memo.
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), para_1, 100, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(1), para_1, 100, None));
 			assert_eq!(Crowdloan::contribution_get(0u32, &1), (100, vec![]));
 			// Can't place a memo that is too large.
 			assert_noop!(
-				Crowdloan::add_memo(Origin::signed(1), para_1, vec![123; 123]),
+				Crowdloan::add_memo(RuntimeOrigin::signed(1), para_1, vec![123; 123]),
 				Error::<Test>::MemoTooLarge,
 			);
 			// Adding a memo to an existing contribution works
-			assert_ok!(Crowdloan::add_memo(Origin::signed(1), para_1, b"hello, world".to_vec()));
+			assert_ok!(Crowdloan::add_memo(
+				RuntimeOrigin::signed(1),
+				para_1,
+				b"hello, world".to_vec()
+			));
 			assert_eq!(Crowdloan::contribution_get(0u32, &1), (100, b"hello, world".to_vec()));
 			// Can contribute again and data persists
-			assert_ok!(Crowdloan::contribute(Origin::signed(1), para_1, 100, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(1), para_1, 100, None));
 			assert_eq!(Crowdloan::contribution_get(0u32, &1), (200, b"hello, world".to_vec()));
 		});
 	}
@@ -1875,18 +1905,18 @@ mod tests {
 			let para_1 = new_para();
 
 			assert_ok!(TestAuctioneer::new_auction(5, 0));
-			assert_ok!(Crowdloan::create(Origin::signed(1), para_1, 1000, 1, 1, 9, None));
+			assert_ok!(Crowdloan::create(RuntimeOrigin::signed(1), para_1, 1000, 1, 1, 9, None));
 			// Should fail when no contributions.
 			assert_noop!(
-				Crowdloan::poke(Origin::signed(1), para_1),
+				Crowdloan::poke(RuntimeOrigin::signed(1), para_1),
 				Error::<Test>::NoContributions
 			);
-			assert_ok!(Crowdloan::contribute(Origin::signed(2), para_1, 100, None));
+			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(2), para_1, 100, None));
 			run_to_block(6);
-			assert_ok!(Crowdloan::poke(Origin::signed(1), para_1));
+			assert_ok!(Crowdloan::poke(RuntimeOrigin::signed(1), para_1));
 			assert_eq!(Crowdloan::new_raise(), vec![para_1]);
 			assert_noop!(
-				Crowdloan::poke(Origin::signed(1), para_1),
+				Crowdloan::poke(RuntimeOrigin::signed(1), para_1),
 				Error::<Test>::AlreadyInNewRaise
 			);
 		});
@@ -1904,9 +1934,9 @@ mod benchmarking {
 
 	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 
-	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 		let events = frame_system::Pallet::<T>::events();
-		let system_event: <T as frame_system::Config>::Event = generic_event.into();
+		let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 		assert_eq!(event, &system_event);

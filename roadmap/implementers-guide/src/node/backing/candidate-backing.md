@@ -94,7 +94,10 @@ match msg {
 Add `Seconded` statements and `Valid` statements to a quorum. If the quorum reaches a pre-defined threshold, send a [`ProvisionerMessage`][PM]`::ProvisionableData(ProvisionableData::BackedCandidate(CandidateReceipt))` message.
 `Invalid` statements that conflict with already witnessed `Seconded` and `Valid` statements for the given candidate, statements that are double-votes, self-contradictions and so on, should result in issuing a [`ProvisionerMessage`][PM]`::MisbehaviorReport` message for each newly detected case of this kind.
 
-On each incoming statement, [`DisputeCoordinatorMessage::ImportStatement`][DCM] should be issued.
+Backing does not need to concern itself with providing statements to the dispute
+coordinator as the dispute coordinator scrapes them from chain. This way the
+import is batched and contains only statements that actually made it on some
+chain.
 
 ### Validating Candidates.
 

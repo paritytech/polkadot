@@ -21,7 +21,7 @@ use futures::{executor, future};
 use futures_timer::Delay;
 
 use parity_scale_codec::Encode;
-use polkadot_node_network_protocol::request_response::IncomingRequest;
+use polkadot_node_network_protocol::request_response::{IncomingRequest, ReqProtocolNames};
 
 use super::*;
 
@@ -36,10 +36,13 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
+use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash, HeadData, PersistedValidationData};
 use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 
 type VirtualOverseer = TestSubsystemContextHandle<AvailabilityRecoveryMessage>;
+
+// Deterministic genesis hash for protocol names
+const GENESIS_HASH: Hash = Hash::repeat_byte(0xff);
 
 fn test_harness_fast_path<T: Future<Output = (VirtualOverseer, RequestResponseConfig)>>(
 	test: impl FnOnce(VirtualOverseer, RequestResponseConfig) -> T,
@@ -53,7 +56,8 @@ fn test_harness_fast_path<T: Future<Output = (VirtualOverseer, RequestResponseCo
 
 	let (context, virtual_overseer) = make_subsystem_context(pool.clone());
 
-	let (collation_req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
+	let (collation_req_receiver, req_cfg) =
+		IncomingRequest::get_config_receiver(&ReqProtocolNames::new(&GENESIS_HASH, None));
 	let subsystem =
 		AvailabilityRecoverySubsystem::with_fast_path(collation_req_receiver, Metrics::new_dummy());
 	let subsystem = async {
@@ -87,7 +91,8 @@ fn test_harness_chunks_only<T: Future<Output = (VirtualOverseer, RequestResponse
 
 	let (context, virtual_overseer) = make_subsystem_context(pool.clone());
 
-	let (collation_req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
+	let (collation_req_receiver, req_cfg) =
+		IncomingRequest::get_config_receiver(&ReqProtocolNames::new(&GENESIS_HASH, None));
 	let subsystem = AvailabilityRecoverySubsystem::with_chunks_only(
 		collation_req_receiver,
 		Metrics::new_dummy(),
@@ -184,6 +189,7 @@ struct TestState {
 
 	available_data: AvailableData,
 	chunks: Vec<ErasureChunk>,
+	invalid_chunks: Vec<ErasureChunk>,
 }
 
 impl TestState {
@@ -259,6 +265,26 @@ impl TestState {
 				AvailabilityStoreMessage::QueryAllChunks(_, tx)
 			) => {
 				let v = self.chunks.iter()
+					.filter(|c| send_chunk(c.index.0 as usize))
+					.cloned()
+					.collect();
+
+				let _ = tx.send(v);
+			}
+		)
+	}
+
+	async fn respond_to_query_all_request_invalid(
+		&self,
+		virtual_overseer: &mut VirtualOverseer,
+		send_chunk: impl Fn(usize) -> bool,
+	) {
+		assert_matches!(
+			overseer_recv(virtual_overseer).await,
+			AllMessages::AvailabilityStore(
+				AvailabilityStoreMessage::QueryAllChunks(_, tx)
+			) => {
+				let v = self.invalid_chunks.iter()
 					.filter(|c| send_chunk(c.index.0 as usize))
 					.cloned()
 					.collect();
@@ -449,6 +475,22 @@ impl Default for TestState {
 			&available_data,
 			|_, _| {},
 		);
+		// Mess around:
+		let invalid_chunks = chunks
+			.iter()
+			.cloned()
+			.map(|mut chunk| {
+				if chunk.chunk.len() >= 2 && chunk.chunk[0] != chunk.chunk[1] {
+					chunk.chunk[0] = chunk.chunk[1];
+				} else if chunk.chunk.len() >= 1 {
+					chunk.chunk[0] = !chunk.chunk[0];
+				} else {
+					chunk.proof = Proof::dummy_proof();
+				}
+				chunk
+			})
+			.collect();
+		debug_assert_ne!(chunks, invalid_chunks);
 
 		candidate.descriptor.erasure_root = erasure_root;
 		candidate.descriptor.relay_parent = Hash::repeat_byte(10);
@@ -463,6 +505,7 @@ impl Default for TestState {
 			persisted_validation_data,
 			available_data,
 			chunks,
+			invalid_chunks,
 		}
 	}
 }
@@ -1265,6 +1308,57 @@ fn does_not_query_local_validator() {
 			.await;
 
 		// second round, make sure it uses the local chunk.
+		test_state
+			.test_chunk_requests(
+				candidate_hash,
+				&mut virtual_overseer,
+				test_state.threshold() - 1,
+				|i| if i == 0 { panic!("requested from local validator") } else { Has::Yes },
+			)
+			.await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), test_state.available_data);
+		(virtual_overseer, req_cfg)
+	});
+}
+
+#[test]
+fn invalid_local_chunk_is_ignored() {
+	let test_state = TestState::default();
+
+	test_harness_chunks_only(|mut virtual_overseer, req_cfg| async move {
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.current.clone(),
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
+		)
+		.await;
+
+		let (tx, rx) = oneshot::channel();
+
+		overseer_send(
+			&mut virtual_overseer,
+			AvailabilityRecoveryMessage::RecoverAvailableData(
+				test_state.candidate.clone(),
+				test_state.session_index,
+				None,
+				tx,
+			),
+		)
+		.await;
+
+		test_state.test_runtime_api(&mut virtual_overseer).await;
+		test_state.respond_to_available_data_query(&mut virtual_overseer, false).await;
+		test_state
+			.respond_to_query_all_request_invalid(&mut virtual_overseer, |i| i == 0)
+			.await;
+
+		let candidate_hash = test_state.candidate.hash();
+
 		test_state
 			.test_chunk_requests(
 				candidate_hash,

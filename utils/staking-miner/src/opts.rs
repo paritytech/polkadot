@@ -27,6 +27,14 @@ pub(crate) struct Opt {
 	#[clap(long, short, default_value = DEFAULT_URI, env = "URI", global = true)]
 	pub uri: String,
 
+	/// WS connection timeout in number of seconds.
+	#[clap(long, parse(try_from_str), default_value_t = 60)]
+	pub connection_timeout: usize,
+
+	/// WS request timeout in number of seconds.
+	#[clap(long, parse(try_from_str), default_value_t = 60 * 10)]
+	pub request_timeout: usize,
+
 	#[clap(subcommand)]
 	pub command: Command,
 }
@@ -223,6 +231,8 @@ mod test_super {
 			opt,
 			Opt {
 				uri: "hi".to_string(),
+				connection_timeout: 60,
+				request_timeout: 10 * 60,
 				command: Command::Monitor(MonitorConfig {
 					seed_or_path: "//Alice".to_string(),
 					listen: "head".to_string(),
@@ -251,6 +261,8 @@ mod test_super {
 			opt,
 			Opt {
 				uri: "hi".to_string(),
+				connection_timeout: 60,
+				request_timeout: 10 * 60,
 				command: Command::DryRun(DryRunConfig {
 					seed_or_path: "//Alice".to_string(),
 					at: None,
@@ -279,6 +291,8 @@ mod test_super {
 			opt,
 			Opt {
 				uri: "hi".to_string(),
+				connection_timeout: 60,
+				request_timeout: 10 * 60,
 				command: Command::EmergencySolution(EmergencySolutionConfig {
 					take: Some(99),
 					at: None,
@@ -294,7 +308,37 @@ mod test_super {
 
 		assert_eq!(
 			opt,
-			Opt { uri: "hi".to_string(), command: Command::Info(InfoOpts { json: false }) }
+			Opt {
+				uri: "hi".to_string(),
+				connection_timeout: 60,
+				request_timeout: 10 * 60,
+				command: Command::Info(InfoOpts { json: false })
+			}
+		);
+	}
+
+	#[test]
+	fn cli_request_conn_timeout_works() {
+		let opt = Opt::try_parse_from([
+			env!("CARGO_PKG_NAME"),
+			"--uri",
+			"hi",
+			"--request-timeout",
+			"10",
+			"--connection-timeout",
+			"9",
+			"info",
+		])
+		.unwrap();
+
+		assert_eq!(
+			opt,
+			Opt {
+				uri: "hi".to_string(),
+				connection_timeout: 9,
+				request_timeout: 10,
+				command: Command::Info(InfoOpts { json: false })
+			}
 		);
 	}
 

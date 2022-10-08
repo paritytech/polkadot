@@ -449,7 +449,7 @@ impl WeightInfo for TestWeightInfo {
 	}
 	fn include_pvf_check_statement() -> Weight {
 		// This special value is to distinguish from the finalizing variants above in tests.
-		Weight::MAX - 1
+		Weight::MAX - Weight::from_ref_time(1)
 	}
 }
 
@@ -473,7 +473,7 @@ pub mod pallet {
 		+ shared::Config
 		+ frame_system::offchain::SendTransactionTypes<Call<Self>>
 	{
-		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		#[pallet::constant]
 		type UnsignedPriority: Get<TransactionPriority>;
@@ -879,16 +879,11 @@ pub mod pallet {
 		/// Includes a statement for a PVF pre-checking vote. Potentially, finalizes the vote and
 		/// enacts the results if that was the last vote before achieving the supermajority.
 		#[pallet::weight(
-			sp_std::cmp::max(
-				sp_std::cmp::max(
-					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_accept(),
-					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_reject(),
-				),
-				sp_std::cmp::max(
-					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_accept(),
-					<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_reject(),
+			<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_accept()
+				.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_reject())
+				.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_accept()
+					.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_onboarding_reject())
 				)
-			)
 		)]
 		pub fn include_pvf_check_statement(
 			origin: OriginFor<T>,
@@ -1398,7 +1393,7 @@ impl<T: Config> Pallet<T> {
 		sessions_observed: SessionIndex,
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
-		let mut weight = 0;
+		let mut weight = Weight::zero();
 		for cause in causes {
 			weight += T::DbWeight::get().reads_writes(3, 2);
 			Self::deposit_event(Event::PvfCheckAccepted(*code_hash, cause.para_id()));
@@ -1443,7 +1438,7 @@ impl<T: Config> Pallet<T> {
 		relay_parent_number: T::BlockNumber,
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
-		let mut weight = 0;
+		let mut weight = Weight::zero();
 
 		// Compute the relay-chain block number starting at which the code upgrade is ready to be
 		// applied.
@@ -1483,7 +1478,7 @@ impl<T: Config> Pallet<T> {
 		code_hash: &ValidationCodeHash,
 		causes: Vec<PvfCheckCause<T::BlockNumber>>,
 	) -> Weight {
-		let mut weight = 0;
+		let mut weight = Weight::zero();
 
 		for cause in causes {
 			// Whenever PVF pre-checking is started or a new cause is added to it, the RC is bumped.
@@ -1601,15 +1596,21 @@ impl<T: Config> Pallet<T> {
 	///
 	/// No-op if para is not registered at all.
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> DispatchResult {
-		// Disallow offboarding in case there is an upcoming upgrade.
+		// Disallow offboarding in case there is a PVF pre-checking in progress.
 		//
 		// This is not a fundamential limitation but rather simplification: it allows us to get
 		// away without introducing additional logic for pruning and, more importantly, enacting
 		// ongoing PVF pre-checking votes. It also removes some nasty edge cases.
 		//
+		// However, an upcoming upgrade on its own imposes no restrictions. An upgrade is enacted
+		// with a new para head, so if a para never progresses we still should be able to offboard it.
+		//
 		// This implicitly assumes that the given para exists, i.e. it's lifecycle != None.
-		if FutureCodeHash::<T>::contains_key(&id) {
-			return Err(Error::<T>::CannotOffboard.into())
+		if let Some(future_code_hash) = FutureCodeHash::<T>::get(&id) {
+			let active_prechecking = PvfActiveVoteList::<T>::get();
+			if active_prechecking.contains(&future_code_hash) {
+				return Err(Error::<T>::CannotOffboard.into())
+			}
 		}
 
 		let lifecycle = ParaLifecycles::<T>::get(&id);
@@ -1772,7 +1773,7 @@ impl<T: Config> Pallet<T> {
 		code: ValidationCode,
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
-		let mut weight = 0;
+		let mut weight = Weight::zero();
 
 		weight += T::DbWeight::get().reads_writes(3, 2);
 		Self::deposit_event(Event::PvfCheckStarted(code_hash, cause.para_id()));
@@ -1871,7 +1872,7 @@ impl<T: Config> Pallet<T> {
 					Self::note_past_code(id, expected_at, now, prior_code_hash)
 				} else {
 					log::error!(target: LOG_TARGET, "Missing prior code hash for para {:?}", &id);
-					0 as Weight
+					Weight::zero()
 				};
 
 				// add 1 to writes due to heads update.
