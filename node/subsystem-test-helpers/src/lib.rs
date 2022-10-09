@@ -30,11 +30,11 @@ use sp_core::testing::TaskExecutor;
 
 use std::{
 	convert::Infallible,
+	future::Future,
 	pin::Pin,
 	sync::Arc,
 	task::{Context, Poll, Waker},
 	time::Duration,
-	future::Future
 };
 
 /// Generally useful mock data providers for unit tests.
@@ -407,17 +407,17 @@ impl Yield {
 }
 
 impl Future for Yield {
-    type Output = ();
+	type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if !self.0 {
-            self.0 = true;
-            cx.waker().wake_by_ref();
-            Poll::Pending
-        } else {
-           Poll::Ready(())
-        }
-    }
+	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+		if !self.0 {
+			self.0 = true;
+			cx.waker().wake_by_ref();
+			Poll::Pending
+		} else {
+			Poll::Ready(())
+		}
+	}
 }
 
 #[cfg(test)]
