@@ -18,7 +18,7 @@
 
 use frame_support::{
 	ensure,
-	traits::{Currency, Get, IsSubType, VestingSchedule, WithdrawReasons},
+	traits::{Currency, Get, IsSubType, VestingSchedule},
 	weights::Weight,
 };
 pub use pallet::*;
@@ -717,7 +717,7 @@ mod tests {
 		assert_err, assert_noop, assert_ok,
 		dispatch::{DispatchError::BadOrigin, GetDispatchInfo, Pays},
 		ord_parameter_types, parameter_types,
-		traits::{ExistenceRequirement, GenesisBuild},
+		traits::{ExistenceRequirement, GenesisBuild, WithdrawReasons},
 	};
 	use pallet_balances;
 	use sp_runtime::{

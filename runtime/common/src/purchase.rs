@@ -18,7 +18,7 @@
 
 use frame_support::{
 	pallet_prelude::*,
-	traits::{Currency, EnsureOrigin, ExistenceRequirement, Get, VestingSchedule, WithdrawReasons},
+	traits::{Currency, EnsureOrigin, ExistenceRequirement, Get, VestingSchedule},
 };
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
@@ -474,8 +474,10 @@ mod tests {
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use crate::purchase;
 	use frame_support::{
-		assert_noop, assert_ok, dispatch::DispatchError::BadOrigin, ord_parameter_types,
-		parameter_types, traits::Currency,
+		assert_noop, assert_ok,
+		dispatch::DispatchError::BadOrigin,
+		ord_parameter_types, parameter_types,
+		traits::{Currency, WithdrawReasons},
 	};
 	use pallet_balances::Error as BalancesError;
 	use sp_runtime::{
