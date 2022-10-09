@@ -17,13 +17,12 @@
 //! XCM configuration for Polkadot.
 
 use super::{
-	parachains_origin, AccountId, Balances, Call, CouncilCollective, Event, Origin, ParaId,
-	Runtime, WeightToFee, XcmPallet,
+	parachains_origin, AccountId, Balances, CouncilCollective, ParaId, Runtime, RuntimeCall,
+	RuntimeEvent, RuntimeOrigin, WeightToFee, XcmPallet,
 };
 use frame_support::{
 	match_types, parameter_types,
 	traits::{Everything, Nothing},
-	weights::Weight,
 };
 use runtime_common::{xcm_sender, ToAuthor};
 use xcm::latest::prelude::*;
@@ -81,18 +80,18 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 type LocalOriginConverter = (
 	// If the origin kind is `Sovereign`, then return a `Signed` origin with the account determined
 	// by the `SovereignAccountOf` converter.
-	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
+	SovereignSignedViaLocation<SovereignAccountOf, RuntimeOrigin>,
 	// If the origin kind is `Native` and the XCM origin is a child parachain, then we can express
 	// it with the special `parachains_origin::Origin` origin variant.
-	ChildParachainAsNative<parachains_origin::Origin, Origin>,
+	ChildParachainAsNative<parachains_origin::Origin, RuntimeOrigin>,
 	// If the origin kind is `Native` and the XCM origin is the `AccountId32` location, then it can
 	// be expressed using the `Signed` origin variant.
-	SignedAccountId32AsNative<PolkadotNetwork, Origin>,
+	SignedAccountId32AsNative<PolkadotNetwork, RuntimeOrigin>,
 );
 
 parameter_types! {
 	/// The amount of weight an XCM operation takes. This is a safe overestimate.
-	pub const BaseXcmWeight: Weight = 1_000_000_000;
+	pub const BaseXcmWeight: u64 = 1_000_000_000;
 	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
 	/// calculations getting too crazy.
 	pub const MaxInstructions: u32 = 100;
@@ -133,7 +132,7 @@ pub type Barrier = (
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type XcmSender = XcmRouter;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
@@ -142,7 +141,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
 	type Trader = UsingComponents<WeightToFee, DotLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
@@ -159,7 +158,7 @@ parameter_types! {
 
 /// Type to convert a council origin to a Plurality `MultiLocation` value.
 pub type CouncilToPlurality = BackingToPlurality<
-	Origin,
+	RuntimeOrigin,
 	pallet_collective::Origin<Runtime, CouncilCollective>,
 	CouncilBodyId,
 >;
@@ -171,25 +170,25 @@ pub type LocalOriginToLocation = (
 	// `Unit` body.
 	CouncilToPlurality,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<Origin, AccountId, PolkadotNetwork>,
+	SignedToAccountId32<RuntimeOrigin, AccountId, PolkadotNetwork>,
 );
 
 impl pallet_xcm::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	// Only allow the council to send messages.
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, CouncilToPlurality>;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, CouncilToPlurality>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	// ...but they must match our filter, which rejects all.
 	type XcmExecuteFilter = Nothing; // == Deny All
 	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything; // == Allow All
 	type XcmReserveTransferFilter = Everything; // == Allow All
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = AdvertisedXcmVersion;
 }

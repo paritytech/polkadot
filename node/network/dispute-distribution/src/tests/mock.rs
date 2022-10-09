@@ -20,6 +20,7 @@
 use std::{
 	collections::{HashMap, HashSet},
 	sync::Arc,
+	time::Instant,
 };
 
 use async_trait::async_trait;
@@ -38,6 +39,8 @@ use polkadot_primitives::v2::{
 };
 use polkadot_primitives_test_helpers::dummy_candidate_descriptor;
 
+use crate::LOG_TARGET;
+
 pub const MOCK_SESSION_INDEX: SessionIndex = 1;
 pub const MOCK_NEXT_SESSION_INDEX: SessionIndex = 2;
 pub const MOCK_VALIDATORS: [Sr25519Keyring; 6] = [
@@ -54,6 +57,8 @@ pub const MOCK_AUTHORITIES_NEXT_SESSION: [Sr25519Keyring; 2] =
 
 pub const FERDIE_INDEX: ValidatorIndex = ValidatorIndex(0);
 pub const ALICE_INDEX: ValidatorIndex = ValidatorIndex(1);
+pub const BOB_INDEX: ValidatorIndex = ValidatorIndex(2);
+pub const CHARLIE_INDEX: ValidatorIndex = ValidatorIndex(3);
 
 lazy_static! {
 
@@ -148,12 +153,22 @@ pub async fn make_dispute_message(
 	invalid_validator: ValidatorIndex,
 ) -> DisputeMessage {
 	let candidate_hash = candidate.hash();
+	let before_request = Instant::now();
 	let valid_vote =
 		make_explicit_signed(MOCK_VALIDATORS[valid_validator.0 as usize], candidate_hash, true)
 			.await;
+	gum::trace!(
+		"Passed time for valid vote: {:#?}",
+		Instant::now().saturating_duration_since(before_request)
+	);
+	let before_request = Instant::now();
 	let invalid_vote =
 		make_explicit_signed(MOCK_VALIDATORS[invalid_validator.0 as usize], candidate_hash, false)
 			.await;
+	gum::trace!(
+		"Passed time for invald vote: {:#?}",
+		Instant::now().saturating_duration_since(before_request)
+	);
 	DisputeMessage::from_signed_statements(
 		valid_vote,
 		valid_validator,
@@ -206,10 +221,15 @@ impl AuthorityDiscovery for MockAuthorityDiscovery {
 	) -> Option<HashSet<polkadot_primitives::v2::AuthorityDiscoveryId>> {
 		for (a, p) in self.peer_ids.iter() {
 			if p == &peer_id {
-				return Some(HashSet::from([MOCK_VALIDATORS_DISCOVERY_KEYS
-					.get(&a)
-					.unwrap()
-					.clone()]))
+				let result =
+					HashSet::from([MOCK_VALIDATORS_DISCOVERY_KEYS.get(&a).unwrap().clone()]);
+				gum::trace!(
+					target: LOG_TARGET,
+					%peer_id,
+					?result,
+					"Returning authority ids for peer id"
+				);
+				return Some(result)
 			}
 		}
 

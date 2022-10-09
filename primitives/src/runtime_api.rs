@@ -18,31 +18,97 @@
 //! of the Runtime API exposed from the Runtime to the Host.
 //!
 //! The functions in trait ParachainHost` can be part of the stable API
-//! (which is versioned) or they can be staging (aka unstable functions).
+//! (which is versioned) or they can be staging (aka unstable/testing
+//! functions).
+//!
+//! The separation outlined above is achieved with the versioned API feature
+//! of `decl_runtime_apis!` and `impl_runtime_apis!`. Before moving on let's
+//! see a quick example about how API versioning works.
+//!
+//! # Runtime API versioning crash course
+//!
+//! The versioning is achieved with the `api_version` attribute. It can be
+//! placed on:
+//! * trait declaration - represents the base version of the API.
+//! * method declaration (inside a trait declaration) - represents a versioned
+//!   method, which is not available in the base version.
+//! * trait implementation - represents which version of the API is being
+//!   implemented.
+//!
+//! Let's see a quick example:
+//!
+//! ```rust(ignore)
+//! sp_api::decl_runtime_apis! {
+//! 	#[api_version(2)]
+//! 	pub trait MyApi {
+//! 		fn fn1();
+//! 		fn fn2();
+//! 		#[api_version(3)]
+//! 		fn fn3();
+//! 		#[api_version(4)]
+//! 		fn fn4();
+//! 	}
+//! }
+//!
+//! struct Runtime {}
+//!
+//! sp_api::impl_runtime_apis! {
+//!     #[api_version(3)]
+//!     impl self::MyApi<Block> for Runtime {
+//!         fn fn1() {}
+//!         fn fn2() {}
+//!         fn fn3() {}
+//!     }
+//! }
+//! ```
+//! A new API named `MyApi` is declared with `decl_runtime_apis!`. The trait declaration
+//! has got an `api_version` attribute which represents its base version - 2 in this case.
+//!
+//! The API has got three methods - `fn1`, `fn2`, `fn3` and `fn4`. `fn3` and `fn4` has got
+//! an `api_version` attribute which makes them versioned methods. These methods do not exist
+//! in the base version of the API. Behind the scenes the declaration above creates three
+//! runtime APIs:
+//! * `MyApiV2` with `fn1` and `fn2`
+//! * `MyApiV3` with `fn1`, `fn2` and `fn3`.
+//! * `MyApiV4` with `fn1`, `fn2`, `fn3` and `fn4`.
+//!
+//! Please note that `v4` contains all methods from `v3`, `v3` all methods from `v2` and so on.
+//!
+//! Back to our example. At the end runtime API is implemented for `struct Runtime` with
+//! `impl_runtime_apis` macro. `api_version` attribute is attached to the `impl` block which
+//! means that a version different from the base one is being implemented - in our case this
+//! is `v3`.
+//!
+//! This version of the API contains three methods so the `impl` block has got definitions
+//! for them. Note that `fn4` is not implemented as it is not part of this version of the API.
+//! `impl_runtime_apis` generates a default implementation for it calling `unimplemented!()`.
+//!
+//! Hopefully this should be all you need to know in order to use versioned methods in the node.
+//! For more details about how the API versioning works refer to `spi_api`
+//! documentation [here](https://docs.substrate.io/rustdocs/latest/sp_api/macro.decl_runtime_apis.html).
+//!
+//! # How versioned methods are used for `ParachainHost`
+//!
+//! Let's introduce two types of `ParachainHost` API implementation:
+//! * stable - used on stable production networks like Polkadot and Kusama. There is only one
+//!   stable API at a single point in time.
+//! * staging - used on test networks like Westend or Rococo. Depending on the development needs
+//!   there can be zero, one or multiple staging APIs.
+//!
+//! The stable version of `ParachainHost` is indicated by the base version of the API. Any staging
+//! method must use `api_version` attribute so that it is assigned to a specific version of a
+//! staging API. This way in a single declaration one can see what's the stable version of
+//! `ParachainHost` and what staging versions/functions are available.
 //!
 //! All stable API functions should use primitives from the latest version.
-//! In the time of writing of this document - this is v2. So for example:
+//! In the time of writing of this document - this is `v2`. So for example:
 //! ```ignore
 //! fn validators() -> Vec<v2::ValidatorId>;
 //! ```
-//! indicates a function from the stable v2 API.
+//! indicates a function from the stable `v2` API.
 //!
-//! On the other hand a staging function's name should be prefixed with
-//! `staging_` like this:
-//! ```ignore
-//! fn staging_get_disputes() -> Vec<(vstaging::SessionIndex, vstaging::CandidateHash, vstaging::DisputeState<vstaging::BlockNumber>)>;
-//! ```
-//!
-//! How a staging function becomes stable?
-//!
-//! Once a staging function is ready to be versioned the `renamed` macro
-//! should be used to rename it and version it. For the example above:
-//! ```ignore
-//! #[renamed("staging_get_session_disputes", 3)]
-//! fn get_session_disputes() -> Vec<(v3::SessionIndex, v3::CandidateHash, v3::DisputeState<v3::BlockNumber>)>;
-//! ```
-//! For more details about how the API versioning works refer to `spi_api`
-//! documentation [here](https://docs.substrate.io/rustdocs/latest/sp_api/macro.decl_runtime_apis.html).
+//! All staging API functions should use primitives from `vstaging`. They should be clearly separated
+//! from the stable primitives.
 
 use crate::v2;
 use parity_scale_codec::{Decode, Encode};
@@ -153,7 +219,7 @@ sp_api::decl_runtime_apis! {
 		/***** STAGING *****/
 
 		/// Returns all onchain disputes.
-		/// This is a staging method! Do not use on production runtimes!
-		fn staging_get_disputes() -> Vec<(v2::SessionIndex, v2::CandidateHash, v2::DisputeState<v2::BlockNumber>)>;
+		#[api_version(3)]
+		fn disputes() -> Vec<(v2::SessionIndex, v2::CandidateHash, v2::DisputeState<v2::BlockNumber>)>;
 	}
 }

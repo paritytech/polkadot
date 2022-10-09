@@ -16,10 +16,12 @@
 
 //! Various implementations for `ShouldExecute`.
 
-use frame_support::{ensure, traits::Contains, weights::Weight};
+use frame_support::{ensure, traits::Contains};
 use polkadot_parachain::primitives::IsSystem;
 use sp_std::{marker::PhantomData, result::Result};
-use xcm::latest::{Instruction::*, Junction, Junctions, MultiLocation, WeightLimit::*, Xcm};
+use xcm::latest::{
+	Instruction::*, Junction, Junctions, MultiLocation, Weight, WeightLimit::*, Xcm,
+};
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 
 /// Execution barrier that just takes `max_weight` from `weight_credit`.
@@ -29,9 +31,9 @@ use xcm_executor::traits::{OnResponse, ShouldExecute};
 /// out of the local chain to another one.
 pub struct TakeWeightCredit;
 impl ShouldExecute for TakeWeightCredit {
-	fn should_execute<Call>(
+	fn should_execute<RuntimeCall>(
 		_origin: &MultiLocation,
-		_message: &mut Xcm<Call>,
+		_message: &mut Xcm<RuntimeCall>,
 		max_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {
@@ -52,9 +54,9 @@ impl ShouldExecute for TakeWeightCredit {
 /// because they are the only ones that place assets in the Holding Register to pay for execution.
 pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
-	fn should_execute<Call>(
+	fn should_execute<RuntimeCall>(
 		origin: &MultiLocation,
-		message: &mut Xcm<Call>,
+		message: &mut Xcm<RuntimeCall>,
 		max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
@@ -95,9 +97,9 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 /// Use only for executions from trusted origin groups.
 pub struct AllowUnpaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
-	fn should_execute<Call>(
+	fn should_execute<RuntimeCall>(
 		origin: &MultiLocation,
-		_message: &mut Xcm<Call>,
+		_message: &mut Xcm<RuntimeCall>,
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
@@ -126,9 +128,9 @@ impl<ParaId: IsSystem + From<u32>> Contains<MultiLocation> for IsChildSystemPara
 /// Allows only messages if the generic `ResponseHandler` expects them via `expecting_response`.
 pub struct AllowKnownQueryResponses<ResponseHandler>(PhantomData<ResponseHandler>);
 impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<ResponseHandler> {
-	fn should_execute<Call>(
+	fn should_execute<RuntimeCall>(
 		origin: &MultiLocation,
-		message: &mut Xcm<Call>,
+		message: &mut Xcm<RuntimeCall>,
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
@@ -150,9 +152,9 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 /// `UnsubscribeVersion` instruction.
 pub struct AllowSubscriptionsFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
-	fn should_execute<Call>(
+	fn should_execute<RuntimeCall>(
 		origin: &MultiLocation,
-		message: &mut Xcm<Call>,
+		message: &mut Xcm<RuntimeCall>,
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {

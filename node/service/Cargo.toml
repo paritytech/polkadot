@@ -1,8 +1,9 @@
 [package]
 name = "polkadot-service"
-version = "0.9.27"
+version = "0.9.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
+rust-version = "1.60"
 
 [dependencies]
 # Substrate Client
@@ -10,6 +11,7 @@ sc-authority-discovery = { git = "https://github.com/paritytech/substrate", bran
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -67,11 +69,11 @@ gum = { package = "tracing-gum", path = "../gum/" }
 serde = { version = "1.0.137", features = ["derive"] }
 serde_json = "1.0.81"
 thiserror = "1.0.31"
-kvdb = "0.11.0"
-kvdb-rocksdb = { version = "0.15.2", optional = true }
+kvdb = "0.12.0"
+kvdb-rocksdb = { version = "0.16.0", optional = true }
 parity-db = { version = "0.3.16", optional = true }
 async-trait = "0.1.57"
-lru = "0.7"
+lru = "0.8"
 
 # Polkadot
 polkadot-node-core-parachains-inherent = { path = "../core/parachains-inherent" }
@@ -173,32 +175,32 @@ westend-native = [ "westend-runtime", "westend-runtime-constants", "polkadot-cli
 rococo-native = [ "rococo-runtime", "rococo-runtime-constants", "polkadot-client/rococo" ]
 
 runtime-benchmarks = [
-	"polkadot-runtime/runtime-benchmarks",
-	"kusama-runtime/runtime-benchmarks",
-	"westend-runtime/runtime-benchmarks",
-	"rococo-runtime/runtime-benchmarks"
+	"polkadot-runtime?/runtime-benchmarks",
+	"kusama-runtime?/runtime-benchmarks",
+	"westend-runtime?/runtime-benchmarks",
+	"rococo-runtime?/runtime-benchmarks",
+
+	"service/runtime-benchmarks",
 ]
 try-runtime = [
-	"polkadot-runtime/try-runtime",
-	"kusama-runtime/try-runtime",
-	"westend-runtime/try-runtime",
-	"rococo-runtime/try-runtime",
+	"polkadot-runtime?/try-runtime",
+	"kusama-runtime?/try-runtime",
+	"westend-runtime?/try-runtime",
+	"rococo-runtime?/try-runtime",
 ]
 fast-runtime = [
-	"polkadot-runtime/fast-runtime",
-	"kusama-runtime/fast-runtime",
-	"westend-runtime/fast-runtime",
-	"rococo-runtime/fast-runtime",
+	"polkadot-runtime?/fast-runtime",
+	"kusama-runtime?/fast-runtime",
+	"westend-runtime?/fast-runtime",
+	"rococo-runtime?/fast-runtime",
 ]
 
 malus = ["full-node"]
 runtime-metrics = [
 	"polkadot-client/runtime-metrics",
-	"rococo-runtime/runtime-metrics",
-	"westend-runtime/runtime-metrics",
-	"kusama-runtime/runtime-metrics",
-	"polkadot-runtime/runtime-metrics",
+	"rococo-runtime?/runtime-metrics",
+	"westend-runtime?/runtime-metrics",
+	"kusama-runtime?/runtime-metrics",
+	"polkadot-runtime?/runtime-metrics",
 	"polkadot-runtime-parachains/runtime-metrics"
 ]
-
-staging-client = ["polkadot-node-core-provisioner/staging-client"]

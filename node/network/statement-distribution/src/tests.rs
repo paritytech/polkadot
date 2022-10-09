@@ -20,6 +20,7 @@ use futures::executor::{self, block_on};
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_network_protocol::{
+	peer_set::ValidationVersion,
 	request_response::{
 		v1::{StatementFetchingRequest, StatementFetchingResponse},
 		IncomingRequest, Recipient, ReqProtocolNames, Requests,
@@ -779,7 +780,12 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full, 1, None),
+					NetworkBridgeEvent::PeerConnected(
+						peer_a.clone(),
+						ObservedRole::Full,
+						ValidationVersion::V1.into(),
+						None,
+					),
 				),
 			})
 			.await;
@@ -787,7 +793,12 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		handle
 			.send(FromOrchestra::Communication {
 				msg: StatementDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full, 1, None),
+					NetworkBridgeEvent::PeerConnected(
+						peer_b.clone(),
+						ObservedRole::Full,
+						ValidationVersion::V1.into(),
+						None,
+					),
 				),
 			})
 			.await;
@@ -977,7 +988,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
 					),
 				),
@@ -990,7 +1001,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Bob.public().into()])),
 					),
 				),
@@ -1002,7 +1013,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					NetworkBridgeEvent::PeerConnected(
 						peer_c.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Charlie.public().into()])),
 					),
 				),
@@ -1014,7 +1025,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					NetworkBridgeEvent::PeerConnected(
 						peer_bad.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						None,
 					),
 				),
@@ -1492,7 +1503,7 @@ fn share_prioritizes_backing_group() {
 						NetworkBridgeEvent::PeerConnected(
 							peer,
 							ObservedRole::Full,
-							1,
+							ValidationVersion::V1.into(),
 							Some(HashSet::from([pair.public().into()])),
 						),
 					),
@@ -1515,7 +1526,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
 					),
 				),
@@ -1527,7 +1538,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Bob.public().into()])),
 					),
 				),
@@ -1539,7 +1550,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_c.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Charlie.public().into()])),
 					),
 				),
@@ -1551,7 +1562,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_bad.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						None,
 					),
 				),
@@ -1563,7 +1574,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_other_group.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Dave.public().into()])),
 					),
 				),
@@ -1786,7 +1797,7 @@ fn peer_cant_flood_with_large_statements() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
 						ObservedRole::Full,
-						1,
+						ValidationVersion::V1.into(),
 						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
 					),
 				),
@@ -1993,7 +2004,7 @@ fn handle_multiple_seconded_statements() {
 						NetworkBridgeEvent::PeerConnected(
 							peer.clone(),
 							ObservedRole::Full,
-							1,
+							ValidationVersion::V1.into(),
 							None,
 						),
 					),

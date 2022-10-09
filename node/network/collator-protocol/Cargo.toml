@@ -1,11 +1,12 @@
 [package]
 name = "polkadot-collator-protocol"
-version = "0.9.27"
+version = "0.9.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
 always-assert = "0.1.2"
+bitvec = { version = "1.0.1", default-features = false, features = ["alloc"] }
 futures = "0.3.21"
 futures-timer = "3"
 gum = { package = "tracing-gum", path = "../../gum" }

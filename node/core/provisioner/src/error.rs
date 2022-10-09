@@ -88,9 +88,7 @@ pub enum GetOnchainDisputesError {
 	#[error("runtime execution error occurred while fetching onchain disputes for parent {1}")]
 	Execution(#[source] RuntimeApiError, Hash),
 
-	#[error(
-		"runtime doesn't support RuntimeApiRequest::Disputes/RuntimeApiRequest::StagingDisputes for parent {1}"
-	)]
+	#[error("runtime doesn't support RuntimeApiRequest::Disputes for parent {1}")]
 	NotSupported(#[source] RuntimeApiError, Hash),
 }
 

@@ -15,19 +15,18 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::Assets;
-use frame_support::weights::Weight;
 use sp_std::result::Result;
-use xcm::latest::prelude::*;
+use xcm::latest::{prelude::*, Weight};
 
 /// Determine the weight of an XCM message.
-pub trait WeightBounds<Call> {
+pub trait WeightBounds<RuntimeCall> {
 	/// Return the maximum amount of weight that an attempted execution of this message could
 	/// consume.
-	fn weight(message: &mut Xcm<Call>) -> Result<Weight, ()>;
+	fn weight(message: &mut Xcm<RuntimeCall>) -> Result<Weight, ()>;
 
 	/// Return the maximum amount of weight that an attempted execution of this instruction could
 	/// consume.
-	fn instr_weight(instruction: &Instruction<Call>) -> Result<Weight, ()>;
+	fn instr_weight(instruction: &Instruction<RuntimeCall>) -> Result<Weight, ()>;
 }
 
 /// A means of getting approximate weight consumption for a given destination message executor and a

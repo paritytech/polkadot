@@ -27,7 +27,8 @@ pub mod currency {
 
 	pub const UNITS: Balance = 1_000_000_000_000;
 	pub const CENTS: Balance = UNITS / 30_000;
-	pub const GRAND: Balance = CENTS * 100_000;
+	pub const QUID: Balance = CENTS * 100;
+	pub const GRAND: Balance = QUID * 1_000;
 	pub const MILLICENTS: Balance = CENTS / 1_000;
 
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
@@ -50,6 +51,9 @@ pub mod time {
 	pub const WEEKS: BlockNumber = DAYS * 7;
 
 	// 1 in 4 blocks (on average, not counting collisions) will be primary babe blocks.
+	// The choice of is done in accordance to the slot duration and expected target
+	// block time, for safely resisting network delays of maximum two seconds.
+	// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
 	pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
 }
 
@@ -82,7 +86,7 @@ pub mod fee {
 		fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
 			// in Kusama, extrinsic base weight (smallest non-zero weight) is mapped to 1/10 CENT:
 			let p = super::currency::CENTS;
-			let q = 10 * Balance::from(ExtrinsicBaseWeight::get());
+			let q = 10 * Balance::from(ExtrinsicBaseWeight::get().ref_time());
 			smallvec![WeightToFeeCoefficient {
 				degree: 1,
 				negative: false,
