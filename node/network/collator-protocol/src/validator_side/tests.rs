@@ -579,7 +579,7 @@ fn fetch_one_collation_at_a_time() {
 	})
 }
 
-/// Tests that a validator starts fetching next queued collations on unshared
+/// Tests that a validator starts fetching next queued collations on [`MAX_UNSHARED_DOWNLOAD_TIME`]
 /// timeout and in case of an error.
 #[test]
 fn fetches_next_collation() {
