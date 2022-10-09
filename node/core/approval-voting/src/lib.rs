@@ -2370,6 +2370,37 @@ async fn launch_approval<Context>(
 			},
 		};
 
+		let (ee_params_tx, ee_params_rx) = oneshot::channel();
+		sender
+			.send_message(RuntimeApiMessage::Request(
+				block_hash,
+				RuntimeApiRequest::SessionEeParamsByParentHash(
+					candidate.descriptor.relay_parent,
+					ee_params_tx,
+				),
+			))
+			.await;
+
+		let ee_params = match ee_params_rx.await {
+			Err(_) => return ApprovalState::failed(validator_index, candidate_hash),
+			Ok(Err(_)) => return ApprovalState::failed(validator_index, candidate_hash),
+			Ok(Ok(Some(eep))) => eep,
+			Ok(Ok(None)) => {
+				gum::warn!(
+					target: LOG_TARGET,
+					"Execution environment parameter set not available for block {:?} in the state of block {:?} (a recent descendant)",
+					candidate.descriptor.relay_parent,
+					block_hash,
+				);
+
+				// FIXME: Is metrics_guard call needed?
+				// No dispute necessary, as this indicates that the chain is not behaving
+				// according to expectations.
+				metrics_guard.take().on_approval_unavailable();
+				return ApprovalState::failed(validator_index, candidate_hash)
+			},
+		};
+
 		let (val_tx, val_rx) = oneshot::channel();
 
 		sender
@@ -2378,6 +2409,7 @@ async fn launch_approval<Context>(
 				validation_code,
 				candidate.clone(),
 				available_data.pov,
+				ee_params,
 				APPROVAL_EXECUTION_TIMEOUT,
 				val_tx,
 			))
