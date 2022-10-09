@@ -34,6 +34,7 @@ use std::{
 	sync::Arc,
 	task::{Context, Poll, Waker},
 	time::Duration,
+	future::Future
 };
 
 /// Generally useful mock data providers for unit tests.
@@ -389,6 +390,34 @@ macro_rules! arbitrary_order {
 			_ => unreachable!("neither first nor second pattern matched"),
 		}
 	};
+}
+
+/// Future that yields the execution once and resolves
+/// immediately after.
+///
+/// Useful when one wants to poll the background task to completion
+/// before sending messages to it in order to avoid races.
+pub struct Yield(bool);
+
+impl Yield {
+	/// Returns new `Yield` future.
+	pub fn new() -> Self {
+		Self(false)
+	}
+}
+
+impl Future for Yield {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if !self.0 {
+            self.0 = true;
+            cx.waker().wake_by_ref();
+            Poll::Pending
+        } else {
+           Poll::Ready(())
+        }
+    }
 }
 
 #[cfg(test)]
