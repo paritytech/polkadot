@@ -16,8 +16,8 @@
 
 //! Convenient interface to runtime information.
 
-use std::num::NonZeroUsize;
 use polkadot_primitives::vstaging::ExecutorParams;
+use std::num::NonZeroUsize;
 
 use lru::LruCache;
 
@@ -35,8 +35,8 @@ use polkadot_primitives::v2::{
 
 use crate::{
 	request_availability_cores, request_candidate_events, request_on_chain_votes,
-	request_session_index_for_child, request_session_info, request_validation_code_by_hash,
-	request_validator_groups, request_session_ee_params_by_parent_hash,
+	request_session_ee_params_by_parent_hash, request_session_index_for_child,
+	request_session_info, request_validation_code_by_hash, request_validator_groups,
 };
 
 /// Errors that can happen on runtime fetches.

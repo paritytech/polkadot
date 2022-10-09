@@ -332,7 +332,8 @@ where
 		at: Hash,
 		parent_hash: Hash,
 	) -> Result<Option<ExecutorParams>, ApiError> {
-		self.runtime_api().session_ee_params_by_parent_hash(&BlockId::Hash(at), parent_hash)
+		self.runtime_api()
+			.session_ee_params_by_parent_hash(&BlockId::Hash(at), parent_hash)
 	}
 
 	async fn session_info(

@@ -114,7 +114,8 @@ pub mod pallet {
 	/// Executor parameter set for a given session index
 	#[pallet::storage]
 	#[pallet::getter(fn session_ee_params)]
-	pub(crate) type SessionEeParams<T: Config> = StorageMap<_, Identity, SessionIndex, ExecutorParams>;
+	pub(crate) type SessionEeParams<T: Config> =
+		StorageMap<_, Identity, SessionIndex, ExecutorParams>;
 }
 
 /// An abstraction for the authority discovery pallet

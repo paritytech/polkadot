@@ -24,12 +24,12 @@
 
 #![warn(missing_docs)]
 
-use polkadot_primitives::vstaging::ExecutorParams;
 use polkadot_node_subsystem::{
 	errors::{RuntimeApiError, SubsystemError},
 	messages::{RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
 	overseer, SubsystemSender,
 };
+use polkadot_primitives::vstaging::ExecutorParams;
 
 pub use overseer::{
 	gen::{OrchestraError as OverseerError, Timeout},

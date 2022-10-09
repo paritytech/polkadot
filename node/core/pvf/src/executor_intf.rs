@@ -141,7 +141,8 @@ fn params_to_semantics(par: ExecutorParams) -> Semantics {
 					EEINST_POOLING_COW =>
 						sem.instantiation_strategy = InstantiationStrategy::PoolingCopyOnWrite,
 					EEINST_RECREATE_COW =>
-						sem.instantiation_strategy = InstantiationStrategy::RecreateInstanceCopyOnWrite,
+						sem.instantiation_strategy =
+							InstantiationStrategy::RecreateInstanceCopyOnWrite,
 					EEINST_POOLING => sem.instantiation_strategy = InstantiationStrategy::Pooling,
 					EEINST_RECREATE =>
 						sem.instantiation_strategy = InstantiationStrategy::RecreateInstance,

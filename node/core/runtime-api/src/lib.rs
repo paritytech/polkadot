@@ -452,8 +452,12 @@ where
 		),
 		Request::CandidateEvents(sender) =>
 			query!(CandidateEvents, candidate_events(), ver = 1, sender),
-		Request::SessionEeParamsByParentHash(hash, sender) =>
-			query!(SessionEeParamsByParentHash, session_ee_params_by_parent_hash(hash), ver = 2, sender), // FIXME: Bump API vesrion?
+		Request::SessionEeParamsByParentHash(hash, sender) => query!(
+			SessionEeParamsByParentHash,
+			session_ee_params_by_parent_hash(hash),
+			ver = 2,
+			sender
+		), // FIXME: Bump API vesrion?
 		Request::SessionInfo(index, sender) => {
 			let api_version = client
 				.api_version_parachain_host(relay_parent)
