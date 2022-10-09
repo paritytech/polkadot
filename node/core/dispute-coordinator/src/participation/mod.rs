@@ -27,7 +27,10 @@ use futures_timer::Delay;
 
 use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
 use polkadot_node_subsystem::{
-	messages::{AvailabilityRecoveryMessage, CandidateValidationMessage},
+	messages::{
+		AvailabilityRecoveryMessage, CandidateValidationMessage, RuntimeApiMessage,
+		RuntimeApiRequest,
+	},
 	overseer, ActiveLeavesUpdate, RecoveryError,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
@@ -319,6 +322,33 @@ async fn participate(
 		},
 	};
 
+	let (ee_params_tx, ee_params_rx) = oneshot::channel();
+	sender
+		.send_message(RuntimeApiMessage::Request(
+			block_hash,
+			RuntimeApiRequest::SessionEeParamsByParentHash(
+				req.candidate_receipt().descriptor.relay_parent,
+				ee_params_tx,
+			),
+		))
+		.await;
+
+	let ee_params = match ee_params_rx.await {
+		Err(_) => {
+			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
+			return
+		},
+		Ok(Err(_)) => {
+			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
+			return
+		},
+		Ok(Ok(Some(eep))) => eep,
+		Ok(Ok(None)) => {
+			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await; // FIXME: Use default?
+			return
+		},
+	};
+
 	// Issue a request to validate the candidate with the provided exhaustive
 	// parameters
 	//
@@ -332,6 +362,7 @@ async fn participate(
 			validation_code,
 			req.candidate_receipt().clone(),
 			available_data.pov,
+			ee_params,
 			APPROVAL_EXECUTION_TIMEOUT,
 			validation_tx,
 		))
