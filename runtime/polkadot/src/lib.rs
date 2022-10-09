@@ -41,7 +41,7 @@ use frame_election_provider_support::{generate_solution_type, onchain, Sequentia
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		ConstU32, Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		ConstU32, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		PrivilegeCmp, WithdrawReasons,
 	},
 	weights::ConstantMultiplier,
