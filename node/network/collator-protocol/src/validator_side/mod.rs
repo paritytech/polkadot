@@ -19,7 +19,7 @@ use futures::{
 	channel::oneshot,
 	future::{BoxFuture, Fuse, FusedFuture},
 	select,
-	stream::FuturesUnordered,
+	stream::{FusedStream, FuturesUnordered},
 	FutureExt, StreamExt,
 };
 use futures_timer::Delay;
@@ -57,7 +57,7 @@ use polkadot_primitives::v2::{CandidateReceipt, CollatorId, Hash, Id as ParaId};
 
 use crate::error::Result;
 
-use super::{modify_reputation, tick_stream, LOG_TARGET};
+use super::{modify_reputation, LOG_TARGET};
 
 #[cfg(test)]
 mod tests;
@@ -85,7 +85,6 @@ const BENEFIT_NOTIFY_GOOD: Rep =
 /// to finish on time.
 ///
 /// There is debug logging output, so we can adjust this value based on production results.
-#[cfg(not(test))]
 const MAX_UNSHARED_DOWNLOAD_TIME: Duration = Duration::from_millis(400);
 
 // How often to check all peers with activity.
@@ -93,15 +92,12 @@ const MAX_UNSHARED_DOWNLOAD_TIME: Duration = Duration::from_millis(400);
 const ACTIVITY_POLL: Duration = Duration::from_secs(1);
 
 #[cfg(test)]
-const MAX_UNSHARED_DOWNLOAD_TIME: Duration = Duration::from_millis(100);
-
-#[cfg(test)]
 const ACTIVITY_POLL: Duration = Duration::from_millis(10);
 
 // How often to poll collation responses.
 // This is a hack that should be removed in a refactoring.
 // See https://github.com/paritytech/polkadot/issues/4182
-const CHECK_COLLATIONS_POLL: Duration = Duration::from_millis(50);
+const CHECK_COLLATIONS_POLL: Duration = Duration::from_millis(5);
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
@@ -1171,6 +1167,25 @@ async fn process_msg<Context>(
 	}
 }
 
+// wait until next inactivity check. returns the instant for the following check.
+async fn wait_until_next_check(last_poll: Instant) -> Instant {
+	let now = Instant::now();
+	let next_poll = last_poll + ACTIVITY_POLL;
+
+	if next_poll > now {
+		Delay::new(next_poll - now).await
+	}
+
+	Instant::now()
+}
+
+fn infinite_stream(every: Duration) -> impl FusedStream<Item = ()> {
+	futures::stream::unfold(Instant::now() + every, |next_check| async move {
+		Some(((), wait_until_next_check(next_check).await))
+	})
+	.fuse()
+}
+
 /// The main run loop.
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 pub(crate) async fn run<Context>(
@@ -1181,10 +1196,10 @@ pub(crate) async fn run<Context>(
 ) -> std::result::Result<(), crate::error::FatalError> {
 	let mut state = State { metrics, ..Default::default() };
 
-	let next_inactivity_stream = tick_stream(ACTIVITY_POLL);
+	let next_inactivity_stream = infinite_stream(ACTIVITY_POLL);
 	futures::pin_mut!(next_inactivity_stream);
 
-	let check_collations_stream = tick_stream(CHECK_COLLATIONS_POLL);
+	let check_collations_stream = infinite_stream(CHECK_COLLATIONS_POLL);
 	futures::pin_mut!(check_collations_stream);
 
 	loop {
