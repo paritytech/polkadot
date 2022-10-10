@@ -458,6 +458,9 @@ impl<T: Config> Registrar for Pallet<T> {
 		);
 		runtime_parachains::schedule_parathread_upgrade::<T>(id)
 			.map_err(|_| Error::<T>::CannotUpgrade)?;
+		// Once a para has upgraded to a parachain, it can no longer be managed by the owner.
+		// Intentionally, the flag stays with the para even after downgrade.
+		Self::apply_lock(id);
 		Ok(())
 	}
 
