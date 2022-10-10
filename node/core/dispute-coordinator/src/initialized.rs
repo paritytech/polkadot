@@ -826,28 +826,8 @@ impl Initialized {
 		let new_state = import_result.new_state();
 
 		let is_included = self.scraper.is_candidate_included(&candidate_hash);
-		let is_backed = self.scraper.is_candidate_backed(&candidate_hash);
-		let is_confirmed = new_state.is_confirmed();
 
 		let potential_spam = !is_included && !new_state.is_confirmed() && !new_state.has_own_vote();
-
-		// Disputes should fall in one of the categories below, otherwise they will be ignored.
-		// `is_included` lands in prioritised queue
-		// `is_confirmed` | `is_backed` lands in best effort queue
-		// The actual prioritisation happens later. At this point irrelevant disputes are filtered out.
-		if !is_included && !is_confirmed && !is_backed {
-			gum::warn!(
-				target: LOG_TARGET,
-				?candidate_hash,
-				?session,
-				?is_included,
-				?is_confirmed,
-				?is_backed,
-				"Dispute will be ignored"
-			);
-
-			return Ok(ImportStatementsResult::InvalidImport)
-		}
 
 		gum::trace!(
 			target: LOG_TARGET,
@@ -889,15 +869,21 @@ impl Initialized {
 			}
 		}
 
+		let has_own_vote = new_state.has_own_vote();
+		let is_disputed = new_state.is_disputed();
+		let has_controlled_indices = env.controlled_indices().is_empty();
+		let is_backed = self.scraper.is_candidate_backed(&candidate_hash);
+		let is_confirmed = new_state.is_confirmed();
+		// Refrain from participation if the dispute is not included, not backed and not confirmed
+		let refrain_participation = !is_included && !is_backed && !is_confirmed;
+
 		// Participate in dispute if we did not cast a vote before and actually have keys to cast a
-		// local vote:
-		if !new_state.has_own_vote() &&
-			new_state.is_disputed() &&
-			!env.controlled_indices().is_empty()
-		{
-			// Included disputes go in priority queue. Everything else is best effort.
-			// Reminder: at this point the disputes are already filtered. A dispute which is not
-			// included is either backed or confirmed.
+		// local vote. Disputes should fall in one of the categories below, otherwise we will refrain
+		// from participation:
+		// - `is_included` lands in prioritised queue
+		// - `is_confirmed` | `is_backed` lands in best effort queue
+		// We don't participate in disputes on finalized candidates.
+		if !has_own_vote && is_disputed && !has_controlled_indices && !refrain_participation {
 			let priority = ParticipationPriority::with_priority_if(is_included);
 			gum::trace!(
 				target: LOG_TARGET,
@@ -919,6 +905,19 @@ impl Initialized {
 				)
 				.await;
 			log_error(r)?;
+		} else {
+			gum::trace!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				?is_confirmed,
+				?has_own_vote,
+				?is_disputed,
+				?has_controlled_indices,
+				?refrain_participation,
+				?is_included,
+				?is_backed,
+				"Will not queue participation for candidate"
+			);
 		}
 
 		// Also send any already existing approval vote on new disputes:
