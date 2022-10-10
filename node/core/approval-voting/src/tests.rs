@@ -807,6 +807,37 @@ async fn import_block(
 		}
 	);
 
+	assert_matches!(
+		overseer_recv(overseer).await,
+		AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
+			s_tx,
+		)) => {
+			let _ = s_tx.send(Ok(number));
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(overseer).await,
+		AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
+			block_number,
+			s_tx,
+		)) => {
+			assert_eq!(block_number, number);
+			let _ = s_tx.send(Ok(Some(hashes[number as usize].0)));
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			h,
+			RuntimeApiRequest::SessionIndexForChild(s_tx),
+		)) => {
+			assert_eq!(h, hashes[number as usize].0);
+			let _ = s_tx.send(Ok(number.into()));
+		}
+	);
+
 	if !fork {
 		assert_matches!(
 			overseer_recv(overseer).await,
