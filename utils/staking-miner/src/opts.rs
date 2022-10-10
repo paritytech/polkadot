@@ -89,6 +89,8 @@ pub(crate) struct MonitorConfig {
 	/// `--submission-strategy always`: always submit.
 	///
 	/// `--submission-strategy "percent-better <percent>"`: submit if the submission is `n` percent better.
+	///
+	/// `--submission-strategy "no-worse-than  <percent>"`: submit if submission is no more than `n` percent worse.
 	#[clap(long, parse(try_from_str), default_value = "if-leading")]
 	pub submission_strategy: SubmissionStrategy,
 
@@ -200,10 +202,10 @@ impl FromStr for SubmissionStrategy {
 		} else if s == "always" {
 			Self::Always
 		} else if let Some(percent) = s.strip_prefix("no-worse-than ") {
-			let percent: u32 = s[14..].parse().map_err(|e| format!("{:?}", e))?;
+			let percent: u32 = percent.parse().map_err(|e| format!("{:?}", e))?;
 			Self::ClaimNoWorseThan(Perbill::from_percent(percent))
-		} else if s.starts_with("percent-better ") {
-			let percent: u32 = s[15..].parse().map_err(|e| format!("{:?}", e))?;
+		} else if let Some(percent) = s.strip_prefix("percent-better ") {
+			let percent: u32 = percent.parse().map_err(|e| format!("{:?}", e))?;
 			Self::ClaimBetterThan(Perbill::from_percent(percent))
 		} else {
 			return Err(s.into())

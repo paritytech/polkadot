@@ -232,7 +232,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			// block on this because if this fails there is no way to recover from
 			// that error i.e, upgrade/downgrade required.
-			if let Err(err) = crate::check_versions::<Runtime>(&rpc).await {
+			if let Err(err) = crate::check_versions::<Runtime>(&rpc, false).await {
 				let _ = tx.send(err.into());
 				return;
 			}
