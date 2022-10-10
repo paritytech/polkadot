@@ -894,7 +894,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	// There is weight remaining to be consumed by a subset of candidates
 	// which are going to be picked now.
 	if let Some(max_consumable_by_candidates) =
-		max_consumable_weight.checked_sub(&total_bitfields_weight)
+		max_consumable_weight.checked_sub(total_bitfields_weight)
 	{
 		let (acc_candidate_weight, indices) =
 			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
