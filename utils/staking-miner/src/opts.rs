@@ -199,7 +199,7 @@ impl FromStr for SubmissionStrategy {
 			Self::IfLeading
 		} else if s == "always" {
 			Self::Always
-		} else if s.starts_with("no-worse-than ") {
+		} else if let Some(percent) = s.strip_prefix("no-worse-than ") {
 			let percent: u32 = s[14..].parse().map_err(|e| format!("{:?}", e))?;
 			Self::ClaimNoWorseThan(Perbill::from_percent(percent))
 		} else if s.starts_with("percent-better ") {
