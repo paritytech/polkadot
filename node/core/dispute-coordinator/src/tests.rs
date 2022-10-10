@@ -608,12 +608,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 			let candidate_hash2 = candidate_receipt2.hash();
 
 			test_state
-				.activate_leaf_at_session(
-					&mut virtual_overseer,
-					session,
-					1,
-					vec![make_candidate_backed_event(candidate_receipt1.clone())],
-				)
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
 			let valid_vote1 = test_state
@@ -662,9 +657,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 				.await;
 
 			// Participation has to fail, otherwise the dispute will be confirmed.
-			// Confirmed here means that we would participate in it and issue a vote, not that
-			// f+1 votes in total will be issued.
-			participation_missing_availability(&mut virtual_overseer).await;
+			// Participation won't happen because the dispute is neither backed, not confirmed nor the candidate is included
 
 			{
 				let (tx, rx) = oneshot::channel();
@@ -748,12 +741,7 @@ fn approval_vote_import_works() {
 			let candidate_hash1 = candidate_receipt1.hash();
 
 			test_state
-				.activate_leaf_at_session(
-					&mut virtual_overseer,
-					session,
-					1,
-					vec![make_candidate_backed_event(candidate_receipt1.clone())],
-				)
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
 			let valid_vote1 = test_state
@@ -798,7 +786,7 @@ fn approval_vote_import_works() {
 				.await;
 
 			// Participation has to fail, otherwise the dispute will be confirmed.
-			participation_missing_availability(&mut virtual_overseer).await;
+			// Participation won't happen because the dispute is neither backed, not confirmed nor the candidate is included
 
 			{
 				let (tx, rx) = oneshot::channel();
@@ -1009,15 +997,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 			let candidate_hash2 = candidate_receipt2.hash();
 
 			test_state
-				.activate_leaf_at_session(
-					&mut virtual_overseer,
-					session,
-					1,
-					vec![
-						make_candidate_backed_event(candidate_receipt1.clone()),
-						make_candidate_backed_event(candidate_receipt2.clone()),
-					],
-				)
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
 			let valid_vote1 = test_state
@@ -1092,7 +1072,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash1, HashMap::new())
 				.await;
 
-			participation_missing_availability(&mut virtual_overseer).await;
+			// Participation won't happen because the dispute is neither backed, not confirmed nor the candidate is included
 
 			{
 				let (tx, rx) = oneshot::channel();
@@ -1180,12 +1160,7 @@ fn backing_statements_import_works_and_no_spam() {
 			let candidate_hash = candidate_receipt.hash();
 
 			test_state
-				.activate_leaf_at_session(
-					&mut virtual_overseer,
-					session,
-					1,
-					vec![make_candidate_backed_event(candidate_receipt.clone())],
-				)
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
 			let valid_vote1 = test_state
@@ -1552,12 +1527,7 @@ fn wrong_validator_index_is_ignored() {
 			let candidate_hash = candidate_receipt.hash();
 
 			test_state
-				.activate_leaf_at_session(
-					&mut virtual_overseer,
-					session,
-					1,
-					vec![make_candidate_backed_event(candidate_receipt.clone())],
-				)
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
 			let valid_vote = test_state
@@ -2157,12 +2127,7 @@ fn resume_dispute_without_local_statement() {
 			let candidate_hash = candidate_receipt.hash();
 
 			test_state
-				.activate_leaf_at_session(
-					&mut virtual_overseer,
-					session,
-					1,
-					vec![make_candidate_backed_event(candidate_receipt.clone())],
-				)
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
 			let valid_vote = test_state
@@ -2201,7 +2166,7 @@ fn resume_dispute_without_local_statement() {
 				.await;
 
 			// Missing availability -> No local vote.
-			participation_missing_availability(&mut virtual_overseer).await;
+			// Participation won't happen because the dispute is neither backed, not confirmed nor the candidate is included
 
 			assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
 
@@ -2449,12 +2414,7 @@ fn resume_dispute_without_local_statement_or_local_key() {
 				let candidate_hash = candidate_receipt.hash();
 
 				test_state
-					.activate_leaf_at_session(
-						&mut virtual_overseer,
-						session,
-						1,
-						vec![make_candidate_backed_event(candidate_receipt.clone())],
-					)
+					.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 					.await;
 
 				let valid_vote = test_state
@@ -2549,12 +2509,7 @@ fn resume_dispute_with_local_statement_without_local_key() {
 			let candidate_hash = candidate_receipt.hash();
 
 			test_state
-				.activate_leaf_at_session(
-					&mut virtual_overseer,
-					session,
-					1,
-					vec![make_candidate_backed_event(candidate_receipt.clone())],
-				)
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
 			let local_valid_vote = test_state
@@ -2664,12 +2619,7 @@ fn issue_local_statement_does_cause_distribution_but_not_duplicate_participation
 			let candidate_hash = candidate_receipt.hash();
 
 			test_state
-				.activate_leaf_at_session(
-					&mut virtual_overseer,
-					session,
-					1,
-					vec![make_candidate_backed_event(candidate_receipt.clone())],
-				)
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
 			let other_vote = test_state
@@ -2744,12 +2694,7 @@ fn own_approval_vote_gets_distributed_on_dispute() {
 			let candidate_hash = candidate_receipt.hash();
 
 			test_state
-				.activate_leaf_at_session(
-					&mut virtual_overseer,
-					session,
-					1,
-					vec![make_candidate_backed_event(candidate_receipt.clone())],
-				)
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
 			let statement = test_state.issue_approval_vote_with_index(
@@ -2842,12 +2787,7 @@ fn negative_issue_local_statement_only_triggers_import() {
 			let candidate_hash = candidate_receipt.hash();
 
 			test_state
-				.activate_leaf_at_session(
-					&mut virtual_overseer,
-					session,
-					1,
-					vec![make_candidate_backed_event(candidate_receipt.clone())],
-				)
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
 			virtual_overseer
@@ -2897,12 +2837,7 @@ fn redundant_votes_ignored() {
 			let candidate_hash = candidate_receipt.hash();
 
 			test_state
-				.activate_leaf_at_session(
-					&mut virtual_overseer,
-					session,
-					1,
-					vec![make_candidate_backed_event(candidate_receipt.clone())],
-				)
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
 				.await;
 
 			let valid_vote = test_state
