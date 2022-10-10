@@ -111,7 +111,6 @@ impl Into<InvalidCandidate> for FakeCandidateValidationError {
 pub struct ReplaceValidationResult<Spawner> {
 	fake_validation: FakeCandidateValidation,
 	fake_validation_error: FakeCandidateValidationError,
-	percentage: f64,
 	distribution: Bernoulli,
 	spawner: Spawner,
 }
@@ -128,7 +127,7 @@ where
 	) -> Self {
 		let distribution = Bernoulli::new(percentage / 100.0)
 			.expect("Invalid probability! Percentage must be in range [0..=100].");
-		Self { fake_validation, fake_validation_error, percentage, distribution, spawner }
+		Self { fake_validation, fake_validation_error, distribution, spawner }
 	}
 
 	/// Creates and sends the validation response for a given candidate. Queries the runtime to obtain the validation data for the
