@@ -47,7 +47,7 @@ const EXTRA_HEAP_PAGES: u64 = 2048;
 /// The number of bytes devoted for the stack during wasm execution of a PVF.
 const NATIVE_STACK_MAX: u32 = 256 * 1024 * 1024;
 
-const CONFIG: Config = Config {
+const DEFAULT_CONFIG: Config = Config {
 	allow_missing_func_imports: true,
 	cache_path: None,
 	semantics: Semantics {
@@ -99,7 +99,7 @@ pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error
 /// Runs preparation on the given runtime blob. If successful, it returns a serialized compiled
 /// artifact which can then be used to pass into [`execute`] after writing it to the disk.
 pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::WasmError> {
-	sc_executor_wasmtime::prepare_runtime_artifact(blob, &CONFIG.semantics)
+	sc_executor_wasmtime::prepare_runtime_artifact(blob, &DEFAULT_CONFIG.semantics) // FIXME: Explore usecases, use external config
 }
 
 const EEPAR_VERSION: u8 = 0;
@@ -120,8 +120,7 @@ const EEINST_RECREATE: u8 = 0b0100;
 const EEINST_LEGACY: u8 = 0b0101;
 
 fn params_to_semantics(par: ExecutorParams) -> Semantics {
-	// FIXME: Implement `Default` for `Semantics`?
-	let mut sem = CONFIG.semantics.clone();
+	let mut sem = DEFAULT_CONFIG.semantics.clone();
 	for (key, value) in par.iter() {
 		match *key {
 			EEPAR_EXTRA_HEAP_PAGES => sem.extra_heap_pages = *value,
@@ -212,12 +211,8 @@ impl Executor {
 		let spawner =
 			TaskSpawner::new().map_err(|e| format!("cannot create task spawner: {}", e))?;
 
-		// FIXME: Implement `Clone` (or `Default`) for `sc_executor_wasmtime::Config`
-		let config = Config {
-			allow_missing_func_imports: true,
-			cache_path: None,
-			semantics: params_to_semantics(params),
-		};
+		let mut config = DEFAULT_CONFIG.clone();
+		config.semantics = params_to_semantics(params);
 
 		Ok(Self { thread_pool, spawner, config })
 	}
@@ -246,30 +241,9 @@ impl Executor {
 			let result = &mut result;
 			move |s| {
 				s.spawn(move |_| {
-					// FIXME: Derive `Clone` for `Config` to get rid of this!
-					let config = Config {
-						allow_missing_func_imports: self.config.allow_missing_func_imports,
-						cache_path: self.config.cache_path.clone(),
-						semantics: Semantics {
-							instantiation_strategy: self
-								.config
-								.semantics
-								.instantiation_strategy
-								.clone(),
-							deterministic_stack_limit: self
-								.config
-								.semantics
-								.deterministic_stack_limit
-								.clone(),
-							canonicalize_nans: self.config.semantics.canonicalize_nans,
-							parallel_compilation: self.config.semantics.parallel_compilation,
-							extra_heap_pages: self.config.semantics.extra_heap_pages,
-							max_memory_size: self.config.semantics.max_memory_size.clone(),
-						},
-					};
 					// spawn does not return a value, so we need to use a variable to pass the result.
 					*result = Some(
-						do_execute(compiled_artifact_path, config, params, spawner)
+						do_execute(compiled_artifact_path, self.config.clone(), params, spawner)
 							.map_err(|err| format!("execute error: {:?}", err)),
 					);
 				});
