@@ -918,6 +918,10 @@ impl Initialized {
 				?is_backed,
 				"Will not queue participation for candidate"
 			);
+
+			if refrain_participation {
+				self.metrics.on_refrained_participation();
+			}
 		}
 
 		// Also send any already existing approval vote on new disputes:
