@@ -16,7 +16,6 @@
 
 //! Convenient interface to runtime information.
 
-use polkadot_primitives::vstaging::ExecutorParams;
 use std::num::NonZeroUsize;
 
 use lru::LruCache;
@@ -35,8 +34,8 @@ use polkadot_primitives::v2::{
 
 use crate::{
 	request_availability_cores, request_candidate_events, request_on_chain_votes,
-	request_session_ee_params_by_parent_hash, request_session_index_for_child,
-	request_session_info, request_validation_code_by_hash, request_validator_groups,
+	request_session_index_for_child, request_session_info, request_validation_code_by_hash,
+	request_validator_groups,
 };
 
 /// Errors that can happen on runtime fetches.
@@ -183,36 +182,6 @@ impl RuntimeInfo {
 			.get(&session_index)
 			.expect("We just put the value there. qed."))
 	}
-
-	// /// Get `ExtendedSessionInfo` by parent hash.
-	// pub async fn get_session_info_by_parent_hash<'a, Sender>(
-	// 	&'a mut self,
-	// 	sender: &mut Sender,
-	// 	parent: Hash,
-	// ) -> Result<&'a SessionInfo>
-	// where
-	// 	Sender: SubsystemSender<RuntimeApiMessage>,
-	// {
-	// 	// FIXME: Cache?
-	// 	let session_index = recv_runtime(request_session_index_by_parent_hash(parent, parent, sender).await)
-	// 		.await?
-	// 		.ok_or(JfyiError::NoSuchSessionForParentHash(parent))?;
-	// 	if !self.session_info_cache.contains(&session_index) {
-	// 		let session_info =
-	// 			recv_runtime(request_session_info(parent, session_index, sender).await)
-	// 				.await?
-	// 				.ok_or(JfyiError::NoSuchSession(session_index))?;
-	// 		let validator_info = self.get_validator_info(&session_info).await?;
-
-	// 		let full_info = ExtendedSessionInfo { session_info, validator_info };
-
-	// 		self.session_info_cache.put(session_index, full_info);
-	// 	}
-	// 	Ok(self
-	// 		.session_info_cache
-	// 		.get(&session_index)
-	// 		.expect("We just put the value there. qed."))
-	// }
 
 	/// Convenience function for checking the signature of something signed.
 	pub async fn check_signature<Sender, Payload, RealPayload>(
@@ -373,16 +342,4 @@ where
 {
 	recv_runtime(request_validation_code_by_hash(relay_parent, validation_code_hash, sender).await)
 		.await
-}
-
-/// Fetch `ExecutorParams` by parent hash from the runtime.
-pub async fn get_session_ee_params_by_parent_hash<Sender>(
-	sender: &mut Sender,
-	relay_parent: Hash,
-	parent: Hash,
-) -> Result<Option<ExecutorParams>>
-where
-	Sender: SubsystemSender<RuntimeApiMessage>,
-{
-	recv_runtime(request_session_ee_params_by_parent_hash(relay_parent, parent, sender).await).await
 }

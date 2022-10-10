@@ -18,6 +18,7 @@
 
 #![deny(unused_crate_dependencies)]
 
+use polkadot_node_subsystem::messages::RuntimeApiMessage;
 use std::{
 	collections::{HashMap, HashSet},
 	sync::Arc,
@@ -46,7 +47,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
-	request_validators, runtime::get_session_ee_params_by_parent_hash, Validator,
+	request_validators, Validator,
 };
 use polkadot_primitives::v2::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
@@ -646,25 +647,39 @@ async fn request_candidate_validation(
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 ) -> Result<ValidationResult, Error> {
-	let ee_params_req = get_session_ee_params_by_parent_hash(
-		sender,
-		candidate_receipt.descriptor.relay_parent,
-		candidate_receipt.descriptor.relay_parent,
-	)
-	.await
-	.map_err(|_| {
-		Error::SubsystemError(polkadot_node_subsystem::SubsystemError::Context(
-			"get execution environment parameters".to_string(),
+	let (ee_params_tx, ee_params_rx) = oneshot::channel();
+	sender
+		.send_message(RuntimeApiMessage::Request(
+			candidate_receipt.descriptor.relay_parent, // FIXME: Is it okay to use relay parent here?
+			RuntimeApiRequest::SessionEeParamsByParentHash(
+				candidate_receipt.descriptor.relay_parent,
+				ee_params_tx,
+			),
 		))
-	})?; // FIXME: Not really sure what type of error would suit
+		.await;
 
-	let ee_params = match ee_params_req {
-		Some(eep) => eep,
-		None => {
-			// FIXME: Better logic, including migration? Use default parameters?
+	let ee_params = match ee_params_rx.await {
+		Err(_) =>
 			return Err(Error::SubsystemError(polkadot_node_subsystem::SubsystemError::Context(
-				"find execution environment parameters for the candidate".to_string(),
-			)))
+				"communicate to runtime API".to_string(),
+			))),
+		Ok(Err(_)) =>
+			return Err(Error::SubsystemError(polkadot_node_subsystem::SubsystemError::Context(
+				"get execution environment parameters".to_string(),
+			))),
+		Ok(Ok(Some(eep))) => eep,
+		Ok(Ok(None)) => {
+			gum::warn!(
+				target: LOG_TARGET,
+				"Execution environment parameter set not available for block {:?}",
+				candidate_receipt.descriptor.relay_parent,
+			);
+
+			return Err(Error::ValidationFailed(
+				polkadot_node_subsystem::messages::ValidationFailed(
+					"execution environment parameter set is not stored".to_string(),
+				),
+			))
 		},
 	};
 
