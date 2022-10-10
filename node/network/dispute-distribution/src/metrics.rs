@@ -72,12 +72,9 @@ impl Metrics {
 	}
 
 	/// Statements have been imported.
-	pub fn on_imported(&self, label: &'static str, num_requests: usize) {
+	pub fn on_imported(&self, label: &'static str) {
 		if let Some(metrics) = &self.0 {
-			metrics
-				.imported_requests
-				.with_label_values(&[label])
-				.inc_by(num_requests as u64)
+			metrics.imported_requests.with_label_values(&[label]).inc()
 		}
 	}
 

@@ -474,10 +474,8 @@ mod tests {
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use crate::purchase;
 	use frame_support::{
-		assert_noop, assert_ok,
-		dispatch::DispatchError::BadOrigin,
-		ord_parameter_types, parameter_types,
-		traits::{Currency, WithdrawReasons},
+		assert_noop, assert_ok, dispatch::DispatchError::BadOrigin, ord_parameter_types,
+		parameter_types, traits::Currency,
 	};
 	use pallet_balances::Error as BalancesError;
 	use sp_runtime::{
@@ -552,8 +550,6 @@ mod tests {
 
 	parameter_types! {
 		pub const MinVestedTransfer: u64 = 1;
-		pub UnvestedFundsAllowedWithdrawReasons: WithdrawReasons =
-			WithdrawReasons::except(WithdrawReasons::TRANSFER | WithdrawReasons::RESERVE);
 	}
 
 	impl pallet_vesting::Config for Test {
@@ -562,7 +558,6 @@ mod tests {
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
 		type WeightInfo = ();
-		type UnvestedFundsAllowedWithdrawReasons = UnvestedFundsAllowedWithdrawReasons;
 		const MAX_VESTING_SCHEDULES: u32 = 28;
 	}
 

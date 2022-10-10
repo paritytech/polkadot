@@ -20,7 +20,6 @@
 
 use std::{
 	collections::{HashMap, VecDeque},
-	num::NonZeroUsize,
 	pin::Pin,
 	time::Duration,
 };
@@ -78,10 +77,7 @@ const LOG_TARGET: &str = "parachain::availability-recovery";
 const N_PARALLEL: usize = 50;
 
 // Size of the LRU cache where we keep recovered data.
-const LRU_SIZE: NonZeroUsize = match NonZeroUsize::new(16) {
-	Some(cap) => cap,
-	None => panic!("Availability-recovery cache size must be non-zero."),
-};
+const LRU_SIZE: usize = 16;
 
 const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request");
 

@@ -235,21 +235,16 @@ impl Backend for DbBackend {
 			self.inner.iter_with_prefix(self.config.col_data, &STAGNANT_AT_PREFIX[..]);
 
 		let val = stagnant_at_iter
-			.filter_map(|r| match r {
-				Ok((k, v)) =>
-					match (decode_stagnant_at_key(&mut &k[..]), <Vec<_>>::decode(&mut &v[..]).ok())
-					{
-						(Some(at), Some(stagnant_at)) => Some(Ok((at, stagnant_at))),
-						_ => None,
-					},
-				Err(e) => Some(Err(e)),
+			.filter_map(|(k, v)| {
+				match (decode_stagnant_at_key(&mut &k[..]), <Vec<_>>::decode(&mut &v[..]).ok()) {
+					(Some(at), Some(stagnant_at)) => Some((at, stagnant_at)),
+					_ => None,
+				}
 			})
 			.enumerate()
-			.take_while(|(idx, r)| {
-				r.as_ref().map_or(true, |(at, _)| *at <= up_to.into() && *idx < max_elements)
-			})
+			.take_while(|(idx, (at, _))| *at <= up_to.into() && *idx < max_elements)
 			.map(|(_, v)| v)
-			.collect::<Result<Vec<_>, _>>()?;
+			.collect::<Vec<_>>();
 
 		Ok(val)
 	}
@@ -259,13 +254,10 @@ impl Backend for DbBackend {
 			self.inner.iter_with_prefix(self.config.col_data, &BLOCK_HEIGHT_PREFIX[..]);
 
 		let val = blocks_at_height_iter
-			.filter_map(|r| match r {
-				Ok((k, _)) => decode_block_height_key(&k[..]).map(Ok),
-				Err(e) => Some(Err(e)),
-			})
+			.filter_map(|(k, _)| decode_block_height_key(&k[..]))
 			.next();
 
-		val.transpose().map_err(Error::from)
+		Ok(val)
 	}
 
 	fn load_blocks_by_number(&self, number: BlockNumber) -> Result<Vec<Hash>, Error> {
