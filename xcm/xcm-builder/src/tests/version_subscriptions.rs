@@ -23,25 +23,25 @@ fn simple_version_subscriptions_should_work() {
 	let origin = Parachain(1000);
 	let message = Xcm::<TestCall>(vec![
 		SetAppendix(Xcm(vec![])),
-		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
+		SubscribeVersion { query_id: 42, max_response_weight: Weight::from_ref_time(5000) },
 	]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = 20;
+	let weight_limit = Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, hash, weight_limit);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
 	let origin = Parachain(1000);
 	let message =
-		Xcm::<TestCall>(vec![SubscribeVersion { query_id: 42, max_response_weight: 5000 }]);
+		Xcm::<TestCall>(vec![SubscribeVersion { query_id: 42, max_response_weight: Weight::from_ref_time(5000) }]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = 10;
+	let weight_limit = Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message.clone(), hash, weight_limit);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(10));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
 
-	assert_eq!(SubscriptionRequests::get(), vec![(Parent.into(), Some((42, 5000)))]);
+	assert_eq!(SubscriptionRequests::get(), vec![(Parent.into(), Some((42, Weight::from_ref_time(5000))))]);
 }
 
 #[test]
@@ -49,10 +49,10 @@ fn version_subscription_instruction_should_work() {
 	let origin = Parachain(1000);
 	let message = Xcm::<TestCall>(vec![
 		DescendOrigin(X1(AccountIndex64 { index: 1, network: None })),
-		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
+		SubscribeVersion { query_id: 42, max_response_weight: Weight::from_ref_time(5000) },
 	]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = 20;
+	let weight_limit = Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE);
 	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
 		origin.clone(),
 		message,
@@ -60,11 +60,11 @@ fn version_subscription_instruction_should_work() {
 		weight_limit,
 		weight_limit,
 	);
-	assert_eq!(r, Outcome::Incomplete(20, XcmError::BadOrigin));
+	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::BadOrigin));
 
 	let message = Xcm::<TestCall>(vec![
 		SetAppendix(Xcm(vec![])),
-		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
+		SubscribeVersion { query_id: 42, max_response_weight: Weight::from_ref_time(5000) },
 	]);
 	let hash = fake_message_hash(&message);
 	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
@@ -74,9 +74,9 @@ fn version_subscription_instruction_should_work() {
 		weight_limit,
 		weight_limit,
 	);
-	assert_eq!(r, Outcome::Complete(20));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE)));
 
-	assert_eq!(SubscriptionRequests::get(), vec![(Parachain(1000).into(), Some((42, 5000)))]);
+	assert_eq!(SubscriptionRequests::get(), vec![(Parachain(1000).into(), Some((42, Weight::from_ref_time(5000))))]);
 }
 
 #[test]
@@ -86,19 +86,19 @@ fn simple_version_unsubscriptions_should_work() {
 	let origin = Parachain(1000);
 	let message = Xcm::<TestCall>(vec![SetAppendix(Xcm(vec![])), UnsubscribeVersion]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = 20;
+	let weight_limit = Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, hash, weight_limit);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
 	let origin = Parachain(1000);
 	let message = Xcm::<TestCall>(vec![UnsubscribeVersion]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = 10;
+	let weight_limit = Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message.clone(), hash, weight_limit);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(10));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
 
 	assert_eq!(SubscriptionRequests::get(), vec![(Parent.into(), None)]);
 	assert_eq!(sent_xcm(), vec![]);
@@ -114,7 +114,7 @@ fn version_unsubscription_instruction_should_work() {
 		UnsubscribeVersion,
 	]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = 20;
+	let weight_limit = Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE);
 	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
 		origin.clone(),
 		message,
@@ -122,7 +122,7 @@ fn version_unsubscription_instruction_should_work() {
 		weight_limit,
 		weight_limit,
 	);
-	assert_eq!(r, Outcome::Incomplete(20, XcmError::BadOrigin));
+	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::BadOrigin));
 
 	// Fine to do it when origin is untouched.
 	let message = Xcm::<TestCall>(vec![SetAppendix(Xcm(vec![])), UnsubscribeVersion]);
@@ -134,7 +134,7 @@ fn version_unsubscription_instruction_should_work() {
 		weight_limit,
 		weight_limit,
 	);
-	assert_eq!(r, Outcome::Complete(20));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE)));
 
 	assert_eq!(SubscriptionRequests::get(), vec![(Parachain(1000).into(), None)]);
 	assert_eq!(sent_xcm(), vec![]);

@@ -21,7 +21,7 @@ use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
 use sp_std::vec;
 use xcm::{
-	latest::{prelude::*, MaybeErrorCode},
+	latest::{prelude::*, MaybeErrorCode, Weight},
 	DoubleEncoded,
 };
 use xcm_executor::{ExecutorError, FeesMode};
@@ -37,7 +37,7 @@ benchmarks! {
 			response_info: QueryResponseInfo {
 				destination: T::valid_destination()?,
 				query_id: Default::default(),
-				max_weight: u64::MAX,
+				max_weight: Weight::MAX,
 			},
 			// Worst case is looking through all holdings for every asset explicitly.
 			assets: Definite(holding),
@@ -76,7 +76,7 @@ benchmarks! {
 	query_response {
 		let mut executor = new_executor::<T>(Default::default());
 		let (query_id, response) = T::worst_case_response();
-		let max_weight = u64::MAX;
+		let max_weight = Weight::MAX;
 		let querier: Option<MultiLocation> = Some(Here.into());
 		let instruction = Instruction::QueryResponse { query_id, response, max_weight, querier };
 		let xcm = Xcm(vec![instruction]);
@@ -99,7 +99,7 @@ benchmarks! {
 
 		let instruction = Instruction::Transact {
 			origin_kind: OriginKind::SovereignAccount,
-			require_weight_at_most: noop_call.get_dispatch_info().weight.ref_time(),
+			require_weight_at_most: noop_call.get_dispatch_info().weight,
 			call: double_encoded_noop_call,
 		};
 		let xcm = Xcm(vec![instruction]);
@@ -117,16 +117,16 @@ benchmarks! {
 		let holding = T::worst_case_holding(0).into();
 		let mut executor = new_executor::<T>(Default::default());
 		executor.set_holding(holding);
-		executor.set_total_surplus(1337);
-		executor.set_total_refunded(0);
+		executor.set_total_surplus(Weight::from_ref_time(1337));
+		executor.set_total_refunded(Weight::zero());
 
 		let instruction = Instruction::<XcmCallOf<T>>::RefundSurplus;
 		let xcm = Xcm(vec![instruction]);
 	} : {
 		let result = executor.bench_process(xcm)?;
 	} verify {
-		assert_eq!(executor.total_surplus(), &1337);
-		assert_eq!(executor.total_refunded(), &1337);
+		assert_eq!(executor.total_surplus(), &Weight::from_ref_time(1337));
+		assert_eq!(executor.total_refunded(), &Weight::from_ref_time(1337));
 	}
 
 	set_error_handler {

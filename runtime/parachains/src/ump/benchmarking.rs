@@ -43,7 +43,7 @@ fn create_message_min_size<T: Config>(size: u32) -> Vec<u8> {
 	// Create a message with an empty remark call to determine the encoding overhead
 	let msg_size_empty_transact = VersionedXcm::<T>::from(Xcm::<T>(vec![Transact {
 		origin_kind: OriginKind::SovereignAccount,
-		require_weight_at_most: Weight::MAX.ref_time(),
+		require_weight_at_most: Weight::MAX,
 		call: frame_system::Call::<T>::remark_with_event { remark: vec![] }.encode().into(),
 	}]))
 	.encode()
@@ -55,7 +55,7 @@ fn create_message_min_size<T: Config>(size: u32) -> Vec<u8> {
 	remark.resize(size, 0u8);
 	let msg = VersionedXcm::<T>::from(Xcm::<T>(vec![Transact {
 		origin_kind: OriginKind::SovereignAccount,
-		require_weight_at_most: Weight::MAX.ref_time(),
+		require_weight_at_most: Weight::MAX,
 		call: frame_system::Call::<T>::remark_with_event { remark }.encode().into(),
 	}]))
 	.encode();
@@ -70,7 +70,7 @@ fn create_message_overweight<T: Config>() -> Vec<u8> {
 	let call = frame_system::Call::<T>::set_code { code: vec![] };
 	VersionedXcm::<T>::from(Xcm::<T>(vec![Transact {
 		origin_kind: OriginKind::Superuser,
-		require_weight_at_most: max_block_weight.ref_time(),
+		require_weight_at_most: max_block_weight,
 		call: call.encode().into(),
 	}]))
 	.encode()

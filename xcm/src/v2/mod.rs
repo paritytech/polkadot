@@ -53,7 +53,8 @@
 use super::{
 	v3::{
 		BodyId as NewBodyId, BodyPart as NewBodyPart, Instruction as NewInstruction,
-		NetworkId as NewNetworkId, Response as NewResponse, Xcm as NewXcm,
+		NetworkId as NewNetworkId, Response as NewResponse, WeightLimit as NewWeightLimit,
+		Xcm as NewXcm,
 	},
 	DoubleEncoded, GetWeight,
 };
@@ -376,6 +377,17 @@ impl From<WeightLimit> for Option<u64> {
 		match x {
 			WeightLimit::Limited(w) => Some(w),
 			WeightLimit::Unlimited => None,
+		}
+	}
+}
+
+impl TryFrom<NewWeightLimit> for WeightLimit {
+	type Error = ();
+	fn try_from(x: NewWeightLimit) -> result::Result<Self, Self::Error> {
+		use NewWeightLimit::*;
+		match x {
+			Limited(w) => Ok(Self::Limited(w.ref_time())),
+			Unlimited => Ok(Self::Unlimited),
 		}
 	}
 }
@@ -885,48 +897,81 @@ impl<RuntimeCall> Instruction<RuntimeCall> {
 
 // TODO: Automate Generation
 impl<RuntimeCall, W: XcmWeightInfo<RuntimeCall>> GetWeight<W> for Instruction<RuntimeCall> {
-	fn weight(&self) -> Weight {
+	fn weight(&self) -> sp_weights::Weight {
 		use Instruction::*;
 		match self {
-			WithdrawAsset(assets) => W::withdraw_asset(assets),
-			ReserveAssetDeposited(assets) => W::reserve_asset_deposited(assets),
-			ReceiveTeleportedAsset(assets) => W::receive_teleported_asset(assets),
+			WithdrawAsset(assets) => sp_weights::Weight::from_ref_time(W::withdraw_asset(assets)),
+			ReserveAssetDeposited(assets) =>
+				sp_weights::Weight::from_ref_time(W::reserve_asset_deposited(assets)),
+			ReceiveTeleportedAsset(assets) =>
+				sp_weights::Weight::from_ref_time(W::receive_teleported_asset(assets)),
 			QueryResponse { query_id, response, max_weight } =>
-				W::query_response(query_id, response, max_weight),
-			TransferAsset { assets, beneficiary } => W::transfer_asset(assets, beneficiary),
+				sp_weights::Weight::from_ref_time(W::query_response(query_id, response, max_weight)),
+			TransferAsset { assets, beneficiary } =>
+				sp_weights::Weight::from_ref_time(W::transfer_asset(assets, beneficiary)),
 			TransferReserveAsset { assets, dest, xcm } =>
-				W::transfer_reserve_asset(&assets, dest, xcm),
+				sp_weights::Weight::from_ref_time(W::transfer_reserve_asset(&assets, dest, xcm)),
 			Transact { origin_type, require_weight_at_most, call } =>
-				W::transact(origin_type, require_weight_at_most, call),
+				sp_weights::Weight::from_ref_time(W::transact(
+					origin_type,
+					require_weight_at_most,
+					call,
+				)),
 			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
-				W::hrmp_new_channel_open_request(sender, max_message_size, max_capacity),
-			HrmpChannelAccepted { recipient } => W::hrmp_channel_accepted(recipient),
+				sp_weights::Weight::from_ref_time(W::hrmp_new_channel_open_request(
+					sender,
+					max_message_size,
+					max_capacity,
+				)),
+			HrmpChannelAccepted { recipient } =>
+				sp_weights::Weight::from_ref_time(W::hrmp_channel_accepted(recipient)),
 			HrmpChannelClosing { initiator, sender, recipient } =>
-				W::hrmp_channel_closing(initiator, sender, recipient),
-			ClearOrigin => W::clear_origin(),
-			DescendOrigin(who) => W::descend_origin(who),
+				sp_weights::Weight::from_ref_time(W::hrmp_channel_closing(
+					initiator, sender, recipient,
+				)),
+			ClearOrigin => sp_weights::Weight::from_ref_time(W::clear_origin()),
+			DescendOrigin(who) => sp_weights::Weight::from_ref_time(W::descend_origin(who)),
 			ReportError { query_id, dest, max_response_weight } =>
-				W::report_error(query_id, dest, max_response_weight),
+				sp_weights::Weight::from_ref_time(W::report_error(
+					query_id,
+					dest,
+					max_response_weight,
+				)),
 			DepositAsset { assets, max_assets, beneficiary } =>
-				W::deposit_asset(assets, max_assets, beneficiary),
+				sp_weights::Weight::from_ref_time(W::deposit_asset(assets, max_assets, beneficiary)),
 			DepositReserveAsset { assets, max_assets, dest, xcm } =>
-				W::deposit_reserve_asset(assets, max_assets, dest, xcm),
-			ExchangeAsset { give, receive } => W::exchange_asset(give, receive),
-			InitiateReserveWithdraw { assets, reserve, xcm } =>
+				sp_weights::Weight::from_ref_time(W::deposit_reserve_asset(
+					assets, max_assets, dest, xcm,
+				)),
+			ExchangeAsset { give, receive } =>
+				sp_weights::Weight::from_ref_time(W::exchange_asset(give, receive)),
+			InitiateReserveWithdraw { assets, reserve, xcm } => sp_weights::Weight::from_ref_time(
 				W::initiate_reserve_withdraw(assets, reserve, xcm),
-			InitiateTeleport { assets, dest, xcm } => W::initiate_teleport(assets, dest, xcm),
+			),
+			InitiateTeleport { assets, dest, xcm } =>
+				sp_weights::Weight::from_ref_time(W::initiate_teleport(assets, dest, xcm)),
 			QueryHolding { query_id, dest, assets, max_response_weight } =>
-				W::query_holding(query_id, dest, assets, max_response_weight),
-			BuyExecution { fees, weight_limit } => W::buy_execution(fees, weight_limit),
-			RefundSurplus => W::refund_surplus(),
-			SetErrorHandler(xcm) => W::set_error_handler(xcm),
-			SetAppendix(xcm) => W::set_appendix(xcm),
-			ClearError => W::clear_error(),
-			ClaimAsset { assets, ticket } => W::claim_asset(assets, ticket),
-			Trap(code) => W::trap(code),
+				sp_weights::Weight::from_ref_time(W::query_holding(
+					query_id,
+					dest,
+					assets,
+					max_response_weight,
+				)),
+			BuyExecution { fees, weight_limit } =>
+				sp_weights::Weight::from_ref_time(W::buy_execution(fees, weight_limit)),
+			RefundSurplus => sp_weights::Weight::from_ref_time(W::refund_surplus()),
+			SetErrorHandler(xcm) => sp_weights::Weight::from_ref_time(W::set_error_handler(xcm)),
+			SetAppendix(xcm) => sp_weights::Weight::from_ref_time(W::set_appendix(xcm)),
+			ClearError => sp_weights::Weight::from_ref_time(W::clear_error()),
+			ClaimAsset { assets, ticket } =>
+				sp_weights::Weight::from_ref_time(W::claim_asset(assets, ticket)),
+			Trap(code) => sp_weights::Weight::from_ref_time(W::trap(code)),
 			SubscribeVersion { query_id, max_response_weight } =>
-				W::subscribe_version(query_id, max_response_weight),
-			UnsubscribeVersion => W::unsubscribe_version(),
+				sp_weights::Weight::from_ref_time(W::subscribe_version(
+					query_id,
+					max_response_weight,
+				)),
+			UnsubscribeVersion => sp_weights::Weight::from_ref_time(W::unsubscribe_version()),
 		}
 	}
 }
@@ -975,8 +1020,11 @@ impl<RuntimeCall> TryFrom<NewInstruction<RuntimeCall>> for Instruction<RuntimeCa
 			WithdrawAsset(assets) => Self::WithdrawAsset(assets.try_into()?),
 			ReserveAssetDeposited(assets) => Self::ReserveAssetDeposited(assets.try_into()?),
 			ReceiveTeleportedAsset(assets) => Self::ReceiveTeleportedAsset(assets.try_into()?),
-			QueryResponse { query_id, response, max_weight, .. } =>
-				Self::QueryResponse { query_id, response: response.try_into()?, max_weight },
+			QueryResponse { query_id, response, max_weight, .. } => Self::QueryResponse {
+				query_id,
+				response: response.try_into()?,
+				max_weight: max_weight.ref_time(),
+			},
 			TransferAsset { assets, beneficiary } => Self::TransferAsset {
 				assets: assets.try_into()?,
 				beneficiary: beneficiary.try_into()?,
@@ -993,13 +1041,13 @@ impl<RuntimeCall> TryFrom<NewInstruction<RuntimeCall>> for Instruction<RuntimeCa
 				Self::HrmpChannelClosing { initiator, sender, recipient },
 			Transact { origin_kind, require_weight_at_most, call } => Self::Transact {
 				origin_type: origin_kind,
-				require_weight_at_most,
+				require_weight_at_most: require_weight_at_most.ref_time(),
 				call: call.into(),
 			},
 			ReportError(response_info) => Self::ReportError {
 				query_id: response_info.query_id,
 				dest: response_info.destination.try_into()?,
-				max_response_weight: response_info.max_weight,
+				max_response_weight: response_info.max_weight.ref_time(),
 			},
 			DepositAsset { assets, beneficiary } => {
 				let max_assets = assets.count().ok_or(())?;
@@ -1037,10 +1085,11 @@ impl<RuntimeCall> TryFrom<NewInstruction<RuntimeCall>> for Instruction<RuntimeCa
 				query_id: response_info.query_id,
 				dest: response_info.destination.try_into()?,
 				assets: assets.try_into()?,
-				max_response_weight: response_info.max_weight,
+				max_response_weight: response_info.max_weight.ref_time(),
 			},
 			BuyExecution { fees, weight_limit } => {
 				let fees = fees.try_into()?;
+				let weight_limit = weight_limit.try_into()?;
 				Self::BuyExecution { fees, weight_limit }
 			},
 			ClearOrigin => Self::ClearOrigin,
@@ -1055,8 +1104,10 @@ impl<RuntimeCall> TryFrom<NewInstruction<RuntimeCall>> for Instruction<RuntimeCa
 				Self::ClaimAsset { assets, ticket }
 			},
 			Trap(code) => Self::Trap(code),
-			SubscribeVersion { query_id, max_response_weight } =>
-				Self::SubscribeVersion { query_id, max_response_weight },
+			SubscribeVersion { query_id, max_response_weight } => Self::SubscribeVersion {
+				query_id,
+				max_response_weight: max_response_weight.ref_time(),
+			},
 			UnsubscribeVersion => Self::UnsubscribeVersion,
 			_ => return Err(()),
 		})

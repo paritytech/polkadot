@@ -21,6 +21,8 @@ use core::result;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
+pub use sp_weights::Weight;
+
 use super::*;
 
 #[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
@@ -205,8 +207,8 @@ impl From<SendError> for Error {
 
 pub type Result = result::Result<(), Error>;
 
-/// Local weight type; execution time in picoseconds.
-pub type Weight = u64;
+/// Default value for the proof size weight component. Set at 64 KB.
+pub const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
 
 /// Outcome of an XCM execution.
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
@@ -239,7 +241,7 @@ impl Outcome {
 		match self {
 			Outcome::Complete(w) => *w,
 			Outcome::Incomplete(w, _) => *w,
-			Outcome::Error(_) => 0,
+			Outcome::Error(_) => Weight::zero(),
 		}
 	}
 }
@@ -276,7 +278,7 @@ pub trait ExecuteXcm<Call> {
 			message,
 			weight_limit,
 		);
-		Self::execute_xcm_in_credit(origin, message, hash, weight_limit, 0)
+		Self::execute_xcm_in_credit(origin, message, hash, weight_limit, Weight::zero())
 	}
 
 	/// Execute some XCM `message` with the message `hash` from `origin` using no more than `weight_limit` weight.
@@ -295,7 +297,7 @@ pub trait ExecuteXcm<Call> {
 			Err(_) => return Outcome::Error(Error::WeightNotComputable),
 		};
 		let xcm_weight = pre.weight_of();
-		if xcm_weight > weight_limit {
+		if xcm_weight.any_gt(weight_limit) {
 			return Outcome::Error(Error::WeightLimitReached(xcm_weight))
 		}
 		Self::execute(origin, pre, hash, weight_credit)

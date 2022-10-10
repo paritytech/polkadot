@@ -530,7 +530,7 @@ impl parachains_ump::Config for Runtime {
 }
 
 parameter_types! {
-	pub const BaseXcmWeight: xcm::latest::Weight = 1_000;
+	pub const BaseXcmWeight: xcm::latest::Weight = Weight::from_ref_time(1_000);
 	pub const AnyNetwork: Option<xcm::latest::NetworkId> = None;
 	pub const MaxInstructions: u32 = 100;
 	pub const UniversalLocation: xcm::latest::InteriorMultiLocation = xcm::latest::Junctions::Here;

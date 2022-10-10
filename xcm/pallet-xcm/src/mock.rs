@@ -18,6 +18,7 @@ use codec::Encode;
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Everything, Nothing},
+	weights::Weight,
 };
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::origin;
@@ -262,7 +263,7 @@ type LocalOriginConverter = (
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: u64 = 1_000;
+	pub const BaseXcmWeight: Weight = Weight::from_ref_time(1_000);
 	pub CurrencyPerSecond: (AssetId, u128) = (Concrete(RelayLocation::get()), 1);
 	pub TrustedAssets: (MultiAssetFilter, MultiLocation) = (All.into(), Here.into());
 	pub const MaxInstructions: u32 = 100;
@@ -351,7 +352,7 @@ pub(crate) fn buy_execution<C>(fees: impl Into<MultiAsset>) -> Instruction<C> {
 	BuyExecution { fees: fees.into(), weight_limit: Unlimited }
 }
 
-pub(crate) fn buy_limited_execution<C>(fees: impl Into<MultiAsset>, weight: u64) -> Instruction<C> {
+pub(crate) fn buy_limited_execution<C>(fees: impl Into<MultiAsset>, weight: Weight) -> Instruction<C> {
 	use xcm::latest::prelude::*;
 	BuyExecution { fees: fees.into(), weight_limit: Limited(weight) }
 }

@@ -22,7 +22,7 @@ use frame_support::{
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
 use sp_std::{marker::PhantomData, result::Result};
-use xcm::latest::{prelude::*, Weight};
+use xcm::latest::{prelude::*, Weight, DEFAULT_PROOF_SIZE};
 use xcm_executor::{
 	traits::{WeightBounds, WeightTrader},
 	Assets,
@@ -36,18 +36,22 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M: Get<u32>> WeightBounds<C>
 		log::trace!(target: "xcm::weight", "FixedWeightBounds message: {:?}", message);
 		let mut instructions_left = M::get();
 		Self::weight_with_limit(message, &mut instructions_left)
+			// FIXME: Actually measure the proof size for the XCM instructions
+			.map(|w| w.set_proof_size(DEFAULT_PROOF_SIZE))
 	}
 	fn instr_weight(instruction: &Instruction<C>) -> Result<Weight, ()> {
 		Self::instr_weight_with_limit(instruction, &mut u32::max_value())
+			// FIXME: Actually measure the proof size for the XCM instructions
+			.map(|w| w.set_proof_size(DEFAULT_PROOF_SIZE))
 	}
 }
 
 impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M> FixedWeightBounds<T, C, M> {
 	fn weight_with_limit(message: &Xcm<C>, instrs_limit: &mut u32) -> Result<Weight, ()> {
-		let mut r: Weight = 0;
+		let mut r: Weight = Weight::zero();
 		*instrs_limit = instrs_limit.checked_sub(message.0.len() as u32).ok_or(())?;
 		for m in message.0.iter() {
-			r = r.checked_add(Self::instr_weight_with_limit(m, instrs_limit)?).ok_or(())?;
+			r = r.checked_add(&Self::instr_weight_with_limit(m, instrs_limit)?).ok_or(())?;
 		}
 		Ok(r)
 	}
@@ -55,14 +59,13 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M> FixedWeightBounds<T, C, M> 
 		instruction: &Instruction<C>,
 		instrs_limit: &mut u32,
 	) -> Result<Weight, ()> {
-		T::get()
-			.checked_add(match instruction {
-				Transact { require_weight_at_most, .. } => *require_weight_at_most,
-				SetErrorHandler(xcm) | SetAppendix(xcm) =>
-					Self::weight_with_limit(xcm, instrs_limit)?,
-				_ => 0,
-			})
-			.ok_or(())
+		let instr_weight = match instruction {
+			Transact { require_weight_at_most, .. } => *require_weight_at_most,
+			SetErrorHandler(xcm) | SetAppendix(xcm) =>
+				Self::weight_with_limit(xcm, instrs_limit)?,
+			_ => Weight::zero(),
+		};
+		T::get().checked_add(&instr_weight).ok_or(())
 	}
 }
 
@@ -78,9 +81,13 @@ where
 		log::trace!(target: "xcm::weight", "WeightInfoBounds message: {:?}", message);
 		let mut instructions_left = M::get();
 		Self::weight_with_limit(message, &mut instructions_left)
+			// FIXME: Actually measure the proof size for the XCM instructions
+			.map(|w| w.set_proof_size(DEFAULT_PROOF_SIZE))
 	}
 	fn instr_weight(instruction: &Instruction<C>) -> Result<Weight, ()> {
 		Self::instr_weight_with_limit(instruction, &mut u32::max_value())
+			// FIXME: Actually measure the proof size for the XCM instructions
+			.map(|w| w.set_proof_size(DEFAULT_PROOF_SIZE))
 	}
 }
 
@@ -92,10 +99,10 @@ where
 	Instruction<C>: xcm::GetWeight<W>,
 {
 	fn weight_with_limit(message: &Xcm<C>, instrs_limit: &mut u32) -> Result<Weight, ()> {
-		let mut r: Weight = 0;
+		let mut r: Weight = Weight::zero();
 		*instrs_limit = instrs_limit.checked_sub(message.0.len() as u32).ok_or(())?;
 		for m in message.0.iter() {
-			r = r.checked_add(Self::instr_weight_with_limit(m, instrs_limit)?).ok_or(())?;
+			r = r.checked_add(&Self::instr_weight_with_limit(m, instrs_limit)?).ok_or(())?;
 		}
 		Ok(r)
 	}
@@ -104,15 +111,12 @@ where
 		instrs_limit: &mut u32,
 	) -> Result<Weight, ()> {
 		use xcm::GetWeight;
-		instruction
-			.weight()
-			.checked_add(match instruction {
-				Transact { require_weight_at_most, .. } => *require_weight_at_most,
-				SetErrorHandler(xcm) | SetAppendix(xcm) =>
-					Self::weight_with_limit(xcm, instrs_limit)?,
-				_ => 0,
-			})
-			.ok_or(())
+		let instr_weight = match instruction {
+			Transact { require_weight_at_most, .. } => *require_weight_at_most,
+			SetErrorHandler(xcm) | SetAppendix(xcm) => Self::weight_with_limit(xcm, instrs_limit)?,
+			_ => Weight::zero(),
+		};
+		instruction.weight().checked_add(&instr_weight).ok_or(())
 	}
 }
 
@@ -139,7 +143,7 @@ pub struct FixedRateOfFungible<T: Get<(AssetId, u128)>, R: TakeRevenue>(
 );
 impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungible<T, R> {
 	fn new() -> Self {
-		Self(0, 0, PhantomData)
+		Self(Weight::zero(), 0, PhantomData)
 	}
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
@@ -149,7 +153,7 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 			weight, payment,
 		);
 		let (id, units_per_second) = T::get();
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
+		let amount = units_per_second * (weight.ref_time() as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
 		if amount == 0 {
 			return Ok(payment)
 		}
@@ -164,7 +168,7 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 		log::trace!(target: "xcm::weight", "FixedRateOfFungible::refund_weight weight: {:?}", weight);
 		let (id, units_per_second) = T::get();
 		let weight = weight.min(self.0);
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
+		let amount = units_per_second * (weight.ref_time() as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		if amount > 0 {
@@ -205,13 +209,13 @@ impl<
 	> WeightTrader for UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced>
 {
 	fn new() -> Self {
-		Self(0, Zero::zero(), PhantomData)
+		Self(Weight::zero(), Zero::zero(), PhantomData)
 	}
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
 		log::trace!(target: "xcm::weight", "UsingComponents::buy_weight weight: {:?}, payment: {:?}", weight, payment);
 		let amount =
-			WeightToFee::weight_to_fee(&frame_support::weights::Weight::from_ref_time(weight));
+			WeightToFee::weight_to_fee(&weight);
 		let u128_amount: u128 = amount.try_into().map_err(|_| XcmError::Overflow)?;
 		let required = (Concrete(AssetId::get()), u128_amount).into();
 		let unused = payment.checked_sub(required).map_err(|_| XcmError::TooExpensive)?;
@@ -224,7 +228,7 @@ impl<
 		log::trace!(target: "xcm::weight", "UsingComponents::refund_weight weight: {:?}", weight);
 		let weight = weight.min(self.0);
 		let amount =
-			WeightToFee::weight_to_fee(&frame_support::weights::Weight::from_ref_time(weight));
+			WeightToFee::weight_to_fee(&weight);
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		let amount: u128 = amount.saturated_into();

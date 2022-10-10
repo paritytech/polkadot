@@ -12721,6 +12721,7 @@ dependencies = [
  "serde",
  "sp-core",
  "sp-io",
+ "sp-weights",
  "xcm-procedural",
 ]
 
@@ -12763,6 +12764,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "sp-weights",
  "xcm",
 ]
 

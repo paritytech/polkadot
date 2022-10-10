@@ -22,7 +22,7 @@ use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
 use frame_system::pallet_prelude::*;
 use primitives::v2::{Id as ParaId, UpwardMessage};
 use sp_std::{collections::btree_map::BTreeMap, fmt, marker::PhantomData, mem, prelude::*};
-use xcm::latest::Outcome;
+use xcm::latest::{Outcome, DEFAULT_PROOF_SIZE};
 
 pub use pallet::*;
 
@@ -133,13 +133,15 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink
 			},
 			Ok((Ok(xcm_message), weight_used)) => {
 				let xcm_junction = Junction::Parachain(origin.into());
+				// FIXME: Provide an actual proof size weight limit
+				let max_weight = max_weight.set_proof_size(DEFAULT_PROOF_SIZE);
 				let outcome =
-					XcmExecutor::execute_xcm(xcm_junction, xcm_message, id, max_weight.ref_time());
+					XcmExecutor::execute_xcm(xcm_junction, xcm_message, id, max_weight);
 				match outcome {
 					Outcome::Error(XcmError::WeightLimitReached(required)) =>
-						Err((id, Weight::from_ref_time(required))),
+						Err((id, required)),
 					outcome => {
-						let outcome_weight = Weight::from_ref_time(outcome.weight_used());
+						let outcome_weight = outcome.weight_used();
 						Pallet::<C>::deposit_event(Event::ExecutedUpward(id, outcome));
 						Ok(weight_used.saturating_add(outcome_weight))
 					},

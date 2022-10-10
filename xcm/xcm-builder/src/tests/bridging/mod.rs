@@ -134,7 +134,7 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		// The we execute it:
 		let hash = fake_message_hash(&message);
 		let outcome =
-			XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), hash, 2_000_000_000_000);
+			XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), hash, Weight::from_ref_time(2_000_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE));
 		match outcome {
 			Outcome::Complete(..) => Ok(hash),
 			Outcome::Incomplete(..) => Err(Transport("Error executing")),
@@ -175,7 +175,7 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		// The we execute it:
 		let hash = fake_message_hash(&message);
 		let outcome =
-			XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), hash, 2_000_000_000_000);
+			XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), hash, Weight::from_ref_time(2_000_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE));
 		match outcome {
 			Outcome::Complete(..) => Ok(hash),
 			Outcome::Incomplete(..) => Err(Transport("Error executing")),

@@ -23,6 +23,8 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub mod migration;
+
 use codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
 use frame_support::traits::{
 	Contains, ContainsPair, Currency, Defensive, EnsureOrigin, Get, LockableCurrency, OriginTrait,
@@ -35,10 +37,7 @@ use sp_runtime::{
 	RuntimeDebug,
 };
 use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
-use xcm::{
-	latest::{QueryResponseInfo, Weight as XcmWeight},
-	prelude::*,
-};
+use xcm::{latest::QueryResponseInfo, prelude::*};
 use xcm_executor::traits::{Convert, ConvertOrigin};
 
 use frame_support::{
@@ -75,6 +74,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::storage_version(migration::STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -456,7 +456,7 @@ pub mod pallet {
 		XcmVersion,
 		Blake2_128Concat,
 		VersionedMultiLocation,
-		(QueryId, u64, XcmVersion),
+		(QueryId, Weight, XcmVersion),
 		OptionQuery,
 	>;
 
@@ -695,7 +695,7 @@ pub mod pallet {
 							xcm: Xcm(vec![]),
 						},
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000.saturating_add(w)))
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000).saturating_add(w))
 				},
 				_ => Weight::MAX,
 			}
@@ -733,7 +733,7 @@ pub mod pallet {
 					let mut message = Xcm(vec![
 						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000.saturating_add(w)))
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000).saturating_add(w))
 				},
 				_ => Weight::MAX,
 			}
@@ -766,11 +766,11 @@ pub mod pallet {
 		///
 		/// NOTE: A successful return to this does *not* imply that the `msg` was executed successfully
 		/// to completion; only that *some* of it was executed.
-		#[pallet::weight(Weight::from_ref_time(max_weight.saturating_add(100_000_000u64)))]
+		#[pallet::weight(max_weight.saturating_add(Weight::from_ref_time(100_000_000u64)))]
 		pub fn execute(
 			origin: OriginFor<T>,
 			message: Box<VersionedXcm<<T as SysConfig>::RuntimeCall>>,
-			max_weight: XcmWeight,
+			max_weight: Weight,
 		) -> DispatchResultWithPostInfo {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			let hash = message.using_encoded(sp_io::hashing::blake2_256);
@@ -782,10 +782,12 @@ pub mod pallet {
 				origin_location,
 				message,
 				hash,
-				max_weight, //.ref_time(),
-				max_weight, //.ref_time(),
+				max_weight,
+				max_weight,
 			);
-			let result = Ok(Some(outcome.weight_used().saturating_add(100_000_000)).into());
+			let result =
+				Ok(Some(outcome.weight_used().saturating_add(Weight::from_ref_time(100_000_000)))
+					.into());
 			Self::deposit_event(Event::Attempted(outcome));
 			result
 		}
@@ -897,7 +899,7 @@ pub mod pallet {
 					let mut message = Xcm(vec![
 						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000.saturating_add(w)))
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000).saturating_add(w))
 				},
 				_ => Weight::MAX,
 			}
@@ -947,7 +949,7 @@ pub mod pallet {
 						WithdrawAsset(assets),
 						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000.saturating_add(w)))
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000).saturating_add(w))
 				},
 				_ => Weight::MAX,
 			}
@@ -1011,7 +1013,7 @@ impl<T: Config> Pallet<T> {
 				let mut remote_message = Xcm(vec![
 					ReserveAssetDeposited(assets.clone()),
 					ClearOrigin,
-					BuyExecution { fees, weight_limit: Limited(0) },
+					BuyExecution { fees, weight_limit: Limited(Weight::zero()) },
 					DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
 				]);
 				// use local weight for remote message and hope for the best.
@@ -1069,7 +1071,7 @@ impl<T: Config> Pallet<T> {
 				let mut remote_message = Xcm(vec![
 					ReceiveTeleportedAsset(assets.clone()),
 					ClearOrigin,
-					BuyExecution { fees, weight_limit: Limited(0) },
+					BuyExecution { fees, weight_limit: Limited(Weight::zero()) },
 					DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
 				]);
 				// use local weight for remote message and hope for the best.
@@ -1248,7 +1250,7 @@ impl<T: Config> Pallet<T> {
 			r
 		});
 		// TODO #3735: Correct weight.
-		let instruction = SubscribeVersion { query_id, max_response_weight: 0 };
+		let instruction = SubscribeVersion { query_id, max_response_weight: Weight::zero() };
 		let (_hash, cost) = send_xcm::<T::XcmRouter>(dest.clone(), Xcm(vec![instruction]))?;
 		Self::deposit_event(Event::VersionNotifyRequested(dest, cost));
 		VersionNotifiers::<T>::insert(XCM_VERSION, &versioned_dest, query_id);
@@ -1346,7 +1348,7 @@ impl<T: Config> Pallet<T> {
 			.invert_target(&responder)
 			.map_err(|()| XcmError::LocationNotInvertible)?;
 		let query_id = Self::new_query(responder, timeout, Here);
-		let response_info = QueryResponseInfo { destination, query_id, max_weight: 0 };
+		let response_info = QueryResponseInfo { destination, query_id, max_weight: Weight::zero() };
 		let report_error = Xcm(vec![ReportError(response_info)]);
 		message.0.insert(0, SetAppendix(report_error));
 		Ok(query_id)
@@ -1385,7 +1387,7 @@ impl<T: Config> Pallet<T> {
 			.invert_target(&responder)
 			.map_err(|()| XcmError::LocationNotInvertible)?;
 		let notify: <T as Config>::RuntimeCall = notify.into();
-		let max_weight = notify.get_dispatch_info().weight.ref_time();
+		let max_weight = notify.get_dispatch_info().weight;
 		let query_id = Self::new_notify_query(responder, notify, timeout, Here);
 		let response_info = QueryResponseInfo { destination, query_id, max_weight };
 		let report_error = Xcm(vec![ReportError(response_info)]);
@@ -1680,7 +1682,7 @@ impl<T: Config> VersionChangeNotifier for Pallet<T> {
 	fn start(
 		dest: &MultiLocation,
 		query_id: QueryId,
-		max_weight: u64,
+		max_weight: Weight,
 		_context: &XcmContext,
 	) -> XcmResult {
 		let versioned_dest = LatestVersionedMultiLocation(dest);
@@ -1713,16 +1715,16 @@ impl<T: Config> VersionChangeNotifier for Pallet<T> {
 }
 
 impl<T: Config> DropAssets for Pallet<T> {
-	fn drop_assets(origin: &MultiLocation, assets: Assets, _context: &XcmContext) -> u64 {
+	fn drop_assets(origin: &MultiLocation, assets: Assets, _context: &XcmContext) -> Weight {
 		if assets.is_empty() {
-			return 0
+			return Weight::zero()
 		}
 		let versioned = VersionedMultiAssets::from(MultiAssets::from(assets));
 		let hash = BlakeTwo256::hash_of(&(&origin, &versioned));
 		AssetTraps::<T>::mutate(hash, |n| *n += 1);
 		Self::deposit_event(Event::AssetsTrapped(hash, origin.clone(), versioned));
 		// TODO #3735: Put the real weight in there.
-		0
+		Weight::zero()
 	}
 }
 
@@ -1778,9 +1780,9 @@ impl<T: Config> OnResponse for Pallet<T> {
 		query_id: QueryId,
 		querier: Option<&MultiLocation>,
 		response: Response,
-		max_weight: u64,
+		max_weight: Weight,
 		_context: &XcmContext,
-	) -> u64 {
+	) -> Weight {
 		match (response, Queries::<T>::get(query_id)) {
 			(
 				Response::Version(v),
@@ -1794,7 +1796,7 @@ impl<T: Config> OnResponse for Pallet<T> {
 							query_id,
 							Some(o),
 						));
-						return 0
+						return Weight::zero()
 					},
 					_ => {
 						Self::deposit_event(Event::InvalidResponder(
@@ -1803,7 +1805,7 @@ impl<T: Config> OnResponse for Pallet<T> {
 							None,
 						));
 						// TODO #3735: Correct weight for this.
-						return 0
+						return Weight::zero()
 					},
 				};
 				// TODO #3735: Check max_weight is correct.
@@ -1823,7 +1825,7 @@ impl<T: Config> OnResponse for Pallet<T> {
 					v,
 				);
 				Self::deposit_event(Event::SupportedVersionChanged(origin, v));
-				0
+				Weight::zero()
 			},
 			(
 				response,
@@ -1837,7 +1839,7 @@ impl<T: Config> OnResponse for Pallet<T> {
 								origin.clone(),
 								query_id,
 							));
-							return 0
+							return Weight::zero()
 						},
 					};
 					if querier.map_or(true, |q| q != &match_querier) {
@@ -1847,7 +1849,7 @@ impl<T: Config> OnResponse for Pallet<T> {
 							match_querier,
 							querier.cloned(),
 						));
-						return 0
+						return Weight::zero()
 					}
 				}
 				let responder = match MultiLocation::try_from(responder) {
@@ -1857,7 +1859,7 @@ impl<T: Config> OnResponse for Pallet<T> {
 							origin.clone(),
 							query_id,
 						));
-						return 0
+						return Weight::zero()
 					},
 				};
 				if origin != &responder {
@@ -1866,7 +1868,7 @@ impl<T: Config> OnResponse for Pallet<T> {
 						query_id,
 						Some(responder),
 					));
-					return 0
+					return Weight::zero()
 				}
 				return match maybe_notify {
 					Some((pallet_index, call_index)) => {
@@ -1879,16 +1881,16 @@ impl<T: Config> OnResponse for Pallet<T> {
 						}) {
 							Queries::<T>::remove(query_id);
 							let weight = call.get_dispatch_info().weight;
-							if weight.ref_time() > max_weight {
+							if weight.any_gt(max_weight) {
 								let e = Event::NotifyOverweight(
 									query_id,
 									pallet_index,
 									call_index,
 									weight,
-									Weight::from_ref_time(max_weight),
+									max_weight,
 								);
 								Self::deposit_event(e);
-								return 0
+								return Weight::zero()
 							}
 							let dispatch_origin = Origin::Response(origin.clone()).into();
 							match call.dispatch(dispatch_origin) {
@@ -1910,11 +1912,10 @@ impl<T: Config> OnResponse for Pallet<T> {
 								},
 							}
 							.unwrap_or(weight)
-							.ref_time()
 						} else {
 							let e = Event::NotifyDecodeFailed(query_id, pallet_index, call_index);
 							Self::deposit_event(e);
-							0
+							Weight::zero()
 						}
 					},
 					None => {
@@ -1923,13 +1924,13 @@ impl<T: Config> OnResponse for Pallet<T> {
 						let at = frame_system::Pallet::<T>::current_block_number();
 						let response = response.into();
 						Queries::<T>::insert(query_id, QueryStatus::Ready { response, at });
-						0
+						Weight::zero()
 					},
 				}
 			},
 			_ => {
 				Self::deposit_event(Event::UnexpectedResponse(origin.clone(), query_id));
-				return 0
+				return Weight::zero()
 			},
 		}
 	}

@@ -23,6 +23,7 @@ use super::{
 use frame_support::{
 	match_types, parameter_types,
 	traits::{Everything, Nothing},
+	weights::Weight,
 };
 use runtime_common::{xcm_sender, ToAuthor};
 use xcm::latest::prelude::*;
@@ -90,7 +91,7 @@ type LocalOriginConverter = (
 
 parameter_types! {
 	/// The amount of weight an XCM operation takes. This is a safe overestimate.
-	pub const BaseXcmWeight: u64 = 1_000_000_000;
+	pub const BaseXcmWeight: Weight = Weight::from_ref_time(1_000_000_000);
 	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
 	/// calculations getting too crazy.
 	pub const MaxInstructions: u32 = 100;

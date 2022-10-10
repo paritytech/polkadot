@@ -49,7 +49,7 @@ impl ShouldExecute for TakeWeightCredit {
 			"TakeWeightCredit origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			_origin, _instructions, max_weight, weight_credit,
 		);
-		*weight_credit = weight_credit.checked_sub(max_weight).ok_or(())?;
+		*weight_credit = weight_credit.checked_sub(&max_weight).ok_or(())?;
 		Ok(())
 	}
 }
@@ -91,8 +91,8 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 			i = iter.next().ok_or(())?;
 		}
 		match i {
-			BuyExecution { weight_limit: Limited(ref mut weight), .. } if *weight >= max_weight => {
-				*weight = max_weight;
+			BuyExecution { weight_limit: Limited(ref mut weight), .. } if weight.any_gte(max_weight) => {
+				*weight = weight.max(max_weight);
 				Ok(())
 			},
 			BuyExecution { ref mut weight_limit, .. } if weight_limit == &Unlimited => {
@@ -240,7 +240,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowExplicitUnpaidExecutionF
 		);
 		ensure!(T::contains(origin), ());
 		match instructions.first() {
-			Some(UnpaidExecution { weight_limit: Limited(m), .. }) if *m >= max_weight => Ok(()),
+			Some(UnpaidExecution { weight_limit: Limited(m), .. }) if m.any_gte(max_weight) => Ok(()),
 			Some(UnpaidExecution { weight_limit: Unlimited, .. }) => Ok(()),
 			_ => Err(()),
 		}

@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_runtime::traits::Zero;
 use xcm::latest::{
 	Error as XcmError, MultiLocation, QueryId, Response, Result as XcmResult, Weight, XcmContext,
 };
@@ -72,7 +71,7 @@ pub trait VersionChangeNotifier {
 	fn start(
 		location: &MultiLocation,
 		query_id: QueryId,
-		max_weight: u64,
+		max_weight: Weight,
 		context: &XcmContext,
 	) -> XcmResult;
 
@@ -85,7 +84,7 @@ pub trait VersionChangeNotifier {
 }
 
 impl VersionChangeNotifier for () {
-	fn start(_: &MultiLocation, _: QueryId, _: u64, _: &XcmContext) -> XcmResult {
+	fn start(_: &MultiLocation, _: QueryId, _: Weight, _: &XcmContext) -> XcmResult {
 		Err(XcmError::Unimplemented)
 	}
 	fn stop(_: &MultiLocation, _: &XcmContext) -> XcmResult {
