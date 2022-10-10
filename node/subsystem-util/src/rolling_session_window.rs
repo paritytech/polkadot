@@ -597,6 +597,7 @@ mod tests {
 		let db: Arc<dyn Database> = Arc::new(db);
 		DatabaseParams { db, db_column: SESSION_DATA_COL }
 	}
+
 	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
 		SessionInfo {
 			validators: Vec::new(),
@@ -620,7 +621,10 @@ mod tests {
 		session: SessionIndex,
 		window: Option<RollingSessionWindow>,
 		expect_requests_from: SessionIndex,
-	) {
+		db_params: Option<DatabaseParams>,
+	) -> RollingSessionWindow {
+		let db_params = db_params.unwrap_or(dummy_db_params());
+
 		let header = Header {
 			digest: Default::default(),
 			extrinsics_root: Default::default(),
@@ -648,14 +652,10 @@ mod tests {
 		let test_fut = {
 			Box::pin(async move {
 				let window = match window {
-					None => RollingSessionWindow::new(
-						sender.clone(),
-						TEST_WINDOW_SIZE,
-						hash,
-						dummy_db_params(),
-					)
-					.await
-					.unwrap(),
+					None =>
+						RollingSessionWindow::new(sender.clone(), TEST_WINDOW_SIZE, hash, db_params)
+							.await
+							.unwrap(),
 					Some(mut window) => {
 						window.cache_session_info_for_head(sender, hash).await.unwrap();
 						window
@@ -666,6 +666,8 @@ mod tests {
 					window.session_info,
 					(expected_start_session..=session).map(dummy_session_info).collect::<Vec<_>>(),
 				);
+
+				window
 			})
 		};
 
@@ -727,12 +729,43 @@ mod tests {
 			}
 		});
 
-		futures::executor::block_on(futures::future::join(test_fut, aux_fut));
+		let (window, _) = futures::executor::block_on(futures::future::join(test_fut, aux_fut));
+		window
+	}
+
+	#[test]
+	fn cache_session_info_start_empty_db() {
+		let db_params = dummy_db_params();
+
+		let window = cache_session_info_test(
+			(10 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			10,
+			None,
+			(10 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			Some(db_params.clone()),
+		);
+
+		let window = cache_session_info_test(
+			(11 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			11,
+			Some(window),
+			11,
+			None,
+		);
+		assert_eq!(window.session_info.len(), TEST_WINDOW_SIZE.get() as usize);
+
+		cache_session_info_test(
+			(11 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			12,
+			None,
+			12,
+			Some(db_params),
+		);
 	}
 
 	#[test]
 	fn cache_session_info_first_early() {
-		cache_session_info_test(0, 1, None, 0);
+		cache_session_info_test(0, 1, None, 0, None);
 	}
 
 	#[test]
@@ -744,7 +777,7 @@ mod tests {
 			db_params: Some(dummy_db_params()),
 		};
 
-		cache_session_info_test(1, 2, Some(window), 2);
+		cache_session_info_test(1, 2, Some(window), 2, None);
 	}
 
 	#[test]
@@ -754,6 +787,7 @@ mod tests {
 			100,
 			None,
 			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			None,
 		);
 	}
 
@@ -775,6 +809,7 @@ mod tests {
 			100,
 			Some(window),
 			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			None,
 		);
 	}
 
@@ -793,7 +828,42 @@ mod tests {
 			100,
 			Some(window),
 			100, // should only make one request.
+			None,
 		);
+	}
+
+	#[test]
+	fn cache_session_info_roll_many_full_db() {
+		let db_params = dummy_db_params();
+		let start = 97 - (TEST_WINDOW_SIZE.get() - 1);
+		let window = RollingSessionWindow {
+			earliest_session: start,
+			session_info: (start..=97).map(dummy_session_info).collect(),
+			window_size: TEST_WINDOW_SIZE,
+			db_params: Some(db_params.clone()),
+		};
+
+		cache_session_info_test(
+			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			100,
+			Some(window),
+			98,
+			None,
+		);
+
+		// We expect the session to be populated from DB, and only fetch 101 from on chain.
+		cache_session_info_test(
+			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			101,
+			None,
+			101,
+			Some(db_params.clone()),
+		);
+
+		// Session warps in the future.
+		let window = cache_session_info_test(195, 200, None, 195, Some(db_params));
+
+		assert_eq!(window.session_info.len(), TEST_WINDOW_SIZE.get() as usize);
 	}
 
 	#[test]
@@ -811,6 +881,7 @@ mod tests {
 			100,
 			Some(window),
 			98,
+			None,
 		);
 	}
 
@@ -829,6 +900,7 @@ mod tests {
 			2,
 			Some(window),
 			2, // should only make one request.
+			None,
 		);
 	}
 
@@ -844,7 +916,7 @@ mod tests {
 
 		let actual_window_size = window.session_info.len() as u32;
 
-		cache_session_info_test(0, 3, Some(window), actual_window_size);
+		cache_session_info_test(0, 3, Some(window), actual_window_size, None);
 	}
 
 	#[test]
