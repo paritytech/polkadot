@@ -52,15 +52,10 @@ use crate::{
 
 // Import extra types relevant to the particular
 // subsystem.
-use polkadot_node_subsystem::{
-	messages::{CandidateBackingMessage},
-	SpawnGlue,
-};
+use polkadot_node_subsystem::{messages::CandidateBackingMessage, SpawnGlue};
 use polkadot_primitives::v2::CandidateReceipt;
 
-use std::{
-	sync::Arc,
-};
+use std::sync::Arc;
 
 /// Replace outgoing approval messages with disputes.
 #[derive(Clone)]
