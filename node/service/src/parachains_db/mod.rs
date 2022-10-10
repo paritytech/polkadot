@@ -30,7 +30,7 @@ pub(crate) mod columns {
 	}
 
 	pub mod v1 {
-		pub const NUM_COLUMNS: u32 = 6;
+		pub const NUM_COLUMNS: u32 = 5;
 
 		pub const COL_AVAILABILITY_DATA: u32 = 0;
 		pub const COL_AVAILABILITY_META: u32 = 1;
@@ -39,6 +39,10 @@ pub(crate) mod columns {
 		pub const COL_DISPUTE_COORDINATOR_DATA: u32 = 4;
 		pub const ORDERED_COL: &[u32] =
 			&[COL_AVAILABILITY_META, COL_CHAIN_SELECTION_DATA, COL_DISPUTE_COORDINATOR_DATA];
+	}
+
+	pub mod v2 {
+		pub const NUM_COLUMNS: u32 = 6;
 		pub const COL_SESSION_WINDOW_DATA: u32 = 5;
 	}
 }
@@ -69,7 +73,7 @@ pub const REAL_COLUMNS: ColumnsConfig = ColumnsConfig {
 	col_approval_data: columns::v1::COL_APPROVAL_DATA,
 	col_chain_selection_data: columns::v1::COL_CHAIN_SELECTION_DATA,
 	col_dispute_coordinator_data: columns::v1::COL_DISPUTE_COORDINATOR_DATA,
-	col_session_window_data: columns::v1::COL_SESSION_WINDOW_DATA,
+	col_session_window_data: columns::v2::COL_SESSION_WINDOW_DATA,
 };
 
 #[derive(PartialEq)]
@@ -117,7 +121,7 @@ pub fn open_creating_rocksdb(
 
 	let path = root.join("parachains").join("db");
 
-	let mut db_config = DatabaseConfig::with_columns(columns::v1::NUM_COLUMNS);
+	let mut db_config = DatabaseConfig::with_columns(columns::v2::NUM_COLUMNS);
 
 	let _ = db_config
 		.memory_budget
@@ -130,7 +134,7 @@ pub fn open_creating_rocksdb(
 		.insert(columns::v1::COL_APPROVAL_DATA, cache_sizes.approval_data);
 	let _ = db_config
 		.memory_budget
-		.insert(columns::v1::COL_SESSION_WINDOW_DATA, cache_sizes.session_data);
+		.insert(columns::v2::COL_SESSION_WINDOW_DATA, cache_sizes.session_data);
 
 	let path_str = path
 		.to_str()
@@ -161,7 +165,7 @@ pub fn open_creating_paritydb(
 	std::fs::create_dir_all(&path_str)?;
 	upgrade::try_upgrade_db(&path, DatabaseKind::ParityDB)?;
 
-	let db = parity_db::Db::open_or_create(&upgrade::paritydb_version_1_config(&path))
+	let db = parity_db::Db::open_or_create(&upgrade::paritydb_version_2_config(&path))
 		.map_err(|err| io::Error::new(io::ErrorKind::Other, format!("{:?}", err)))?;
 
 	let db = polkadot_node_subsystem_util::database::paritydb_impl::DbAdapter::new(
