@@ -332,7 +332,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				flatten(ensure_strategy_met_fut),
 				flatten(ensure_signed_phase_fut),
 			) {
-				log::error!(target: LOG_TARGET, "Skipping to submit at block {}; {}", at.number, err);
+				log::debug!(target: LOG_TARGET, "Skipping to submit at block {}; {}", at.number, err);
 				return;
 			}
 
