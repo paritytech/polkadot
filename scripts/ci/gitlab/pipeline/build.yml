@@ -22,7 +22,6 @@ build-linux-stable:
     RUN_UI_TESTS: 1
   script:
     - time cargo build --profile testnet --features pyroscope --verbose --bin polkadot
-    - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
@@ -73,7 +72,6 @@ build-test-collators:
   script:
     - time cargo build --profile testnet --verbose -p test-parachain-adder-collator
     - time cargo build --profile testnet --verbose -p test-parachain-undying-collator
-    - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
     - mv ./target/testnet/adder-collator ./artifacts/.
@@ -98,7 +96,6 @@ build-malus:
     - .collect-artifacts
   script:
     - time cargo build --profile testnet --verbose -p polkadot-test-malus
-    - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
     - mv ./target/testnet/malus ./artifacts/.
