@@ -92,7 +92,7 @@ default:
       - api_failure
   interruptible:                   true
   tags:
-    - linux-docker
+    - autoscale
 
 .compiler-info:
   before_script:
