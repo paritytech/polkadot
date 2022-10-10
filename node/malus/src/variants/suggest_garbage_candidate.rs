@@ -33,7 +33,7 @@ use polkadot_cli::{
 };
 use polkadot_node_core_candidate_validation::find_validation_data;
 use polkadot_node_primitives::{AvailableData, BlockData, PoV};
-use polkadot_primitives::v2::{CandidateDescriptor, CandidateHash};
+use polkadot_primitives::v2::CandidateDescriptor;
 
 use polkadot_node_subsystem_util::request_validators;
 use sp_core::traits::SpawnNamed;
@@ -53,14 +53,13 @@ use crate::{
 // Import extra types relevant to the particular
 // subsystem.
 use polkadot_node_subsystem::{
-	messages::{CandidateBackingMessage, CollatorProtocolMessage},
+	messages::{CandidateBackingMessage},
 	SpawnGlue,
 };
 use polkadot_primitives::v2::CandidateReceipt;
 
 use std::{
-	collections::HashMap,
-	sync::{Arc, Mutex},
+	sync::Arc,
 };
 
 /// Replace outgoing approval messages with disputes.
