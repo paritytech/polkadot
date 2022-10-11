@@ -34,6 +34,22 @@ struct SubTopologyGroupLocalView {
 	receiving: HashSet<AuthorityDiscoveryId>,
 }
 
+/// Our local view of the topology for a session, as it pertains to backed
+/// candidate distribution.
+struct TopologyView {
+	group_views: HashMap<GroupIndex, SubTopologyGroupLocalView>
+}
+
+/// TODO [now]: build topology for the session.
+/// For groups that we are part of: we receive from nobody and send to our X/Y peers.
+/// For groups that we are not part of: we receive from any validator in the group we share a slice with.
+///    and send to the corresponding X/Y slice.
+///    For any validators we don't share a slice with, we receive from the nodes
+///    which share a slice with them.
+fn build_session_topology() -> TopologyView {
+	unimplemented!()
+}
+
 /// A tracker of knowledge from authorities within the grid for a
 /// specific relay-parent.
 struct PerRelayParentGridTracker {
@@ -41,4 +57,11 @@ struct PerRelayParentGridTracker {
 }
 
 struct Knowledge {
+	// TODO [now]
+	// keep track of all the seconded statements they either have _claimed_ or
+	// have sent us.
+	//
+	// we need to do some spam protection here. similar to cluster - we will need
+	// to begrudgingly accept some overflow but we will need to ignore manifests
+	// which don't contain a `Seconded` statement from a validator under the limit.
 }
