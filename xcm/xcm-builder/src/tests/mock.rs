@@ -102,10 +102,7 @@ impl GetDispatchInfo for TestCall {
 			TestCall::OnlySigned(estimate, ..) |
 			TestCall::Any(estimate, ..) => estimate,
 		};
-		DispatchInfo {
-			weight,
-			..Default::default()
-		}
+		DispatchInfo { weight, ..Default::default() }
 	}
 }
 

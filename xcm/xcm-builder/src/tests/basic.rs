@@ -42,10 +42,16 @@ fn basic_setup_works() {
 fn weigher_should_work() {
 	let mut message = Xcm(vec![
 		ReserveAssetDeposited((Parent, 100u128).into()),
-		BuyExecution { fees: (Parent, 1u128).into(), weight_limit: Limited(Weight::from_ref_time(30)) },
+		BuyExecution {
+			fees: (Parent, 1u128).into(),
+			weight_limit: Limited(Weight::from_ref_time(30)),
+		},
 		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
 	]);
-	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Ok(Weight::from_ref_time(30).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(
+		<TestConfig as Config>::Weigher::weight(&mut message),
+		Ok(Weight::from_ref_time(30).set_proof_size(DEFAULT_PROOF_SIZE))
+	);
 }
 
 #[test]

@@ -33,7 +33,12 @@ fn exchange_asset_should_work() {
 		},
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parent,
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(40).set_proof_size(DEFAULT_PROOF_SIZE)));
 	assert_eq!(asset_list(Parent), vec![(Here, 100u128).into(), (Parent, 950u128).into()]);
 	assert_eq!(exchange_assets(), vec![(Parent, 50u128).into()].into());
@@ -56,7 +61,12 @@ fn exchange_asset_without_maximal_should_work() {
 		},
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parent,
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(40).set_proof_size(DEFAULT_PROOF_SIZE)));
 	assert_eq!(asset_list(Parent), vec![(Here, 50u128).into(), (Parent, 950u128).into()]);
 	assert_eq!(exchange_assets(), vec![(Here, 50u128).into(), (Parent, 50u128).into()].into());
@@ -79,8 +89,19 @@ fn exchange_asset_should_fail_when_no_deal_possible() {
 		},
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(40).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::NoDeal));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parent,
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
+	assert_eq!(
+		r,
+		Outcome::Incomplete(
+			Weight::from_ref_time(40).set_proof_size(DEFAULT_PROOF_SIZE),
+			XcmError::NoDeal
+		)
+	);
 	assert_eq!(asset_list(Parent), vec![(Parent, 1000u128).into()]);
 	assert_eq!(exchange_assets(), vec![(Here, 100u128).into()].into());
 }
@@ -116,7 +137,12 @@ fn transfer_should_work() {
 		beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
 	assert_eq!(
 		asset_list(AccountIndex64 { index: 3, network: None }),
@@ -145,7 +171,12 @@ fn reserve_transfer_should_work() {
 		}]),
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
 
 	let expected_msg = Xcm::<()>(vec![
@@ -171,7 +202,12 @@ fn burn_should_work() {
 		DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Parachain(1).into() },
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(30).set_proof_size(DEFAULT_PROOF_SIZE)));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900u128).into()]);
 	assert_eq!(sent_xcm(), vec![]);
@@ -183,7 +219,12 @@ fn burn_should_work() {
 		DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Parachain(1).into() },
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(30).set_proof_size(DEFAULT_PROOF_SIZE)));
 	assert_eq!(asset_list(Parachain(1)), vec![]);
 	assert_eq!(sent_xcm(), vec![]);
@@ -205,7 +246,12 @@ fn basic_asset_trap_should_work() {
 		},
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(25).set_proof_size(DEFAULT_PROOF_SIZE)));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900u128).into()]);
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![]);
@@ -220,7 +266,12 @@ fn basic_asset_trap_should_work() {
 	]);
 	let hash = fake_message_hash(&message);
 	let old_trapped_assets = TrappedAssets::get();
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10), XcmError::UnknownClaim));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900u128).into()]);
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![]);
@@ -236,7 +287,12 @@ fn basic_asset_trap_should_work() {
 	]);
 	let hash = fake_message_hash(&message);
 	let old_trapped_assets = TrappedAssets::get();
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(2), message, hash, Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(2),
+		message,
+		hash,
+		Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10), XcmError::UnknownClaim));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900u128).into()]);
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![]);
@@ -252,7 +308,12 @@ fn basic_asset_trap_should_work() {
 	]);
 	let hash = fake_message_hash(&message);
 	let old_trapped_assets = TrappedAssets::get();
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10), XcmError::UnknownClaim));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900u128).into()]);
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![]);
@@ -266,7 +327,12 @@ fn basic_asset_trap_should_work() {
 		},
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE)));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900u128).into()]);
 	assert_eq!(
@@ -283,7 +349,12 @@ fn basic_asset_trap_should_work() {
 		},
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10), XcmError::UnknownClaim));
 }
 
@@ -314,7 +385,12 @@ fn max_assets_limit_should_work() {
 		WithdrawAsset(([8u8; 32], 100u128).into()),
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(100).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(100).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(85).set_proof_size(DEFAULT_PROOF_SIZE)));
 
 	// Attempt to withdraw 9 different assets will fail.
@@ -330,8 +406,19 @@ fn max_assets_limit_should_work() {
 		WithdrawAsset(([9u8; 32], 100u128).into()),
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(100).set_proof_size(DEFAULT_PROOF_SIZE));
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(95).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::HoldingWouldOverflow));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(100).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
+	assert_eq!(
+		r,
+		Outcome::Incomplete(
+			Weight::from_ref_time(95).set_proof_size(DEFAULT_PROOF_SIZE),
+			XcmError::HoldingWouldOverflow
+		)
+	);
 
 	// Attempt to withdraw 4 different assets and then the same 4 and then a different 4 will succeed.
 	let message = Xcm(vec![
@@ -349,7 +436,12 @@ fn max_assets_limit_should_work() {
 		WithdrawAsset(([8u8; 32], 100u128).into()),
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(200).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(200).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(125).set_proof_size(DEFAULT_PROOF_SIZE)));
 
 	// Attempt to withdraw 4 different assets and then a different 4 and then the same 4 will fail.
@@ -368,7 +460,12 @@ fn max_assets_limit_should_work() {
 		WithdrawAsset(([4u8; 32], 100u128).into()),
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(200).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(200).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(95), XcmError::HoldingWouldOverflow));
 
 	// Attempt to withdraw 4 different assets and then a different 4 and then the same 4 will fail.
@@ -386,6 +483,17 @@ fn max_assets_limit_should_work() {
 		WithdrawAsset(([1u8; 32], 100u128).into()),
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(200).set_proof_size(DEFAULT_PROOF_SIZE));
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(25).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::HoldingWouldOverflow));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(200).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
+	assert_eq!(
+		r,
+		Outcome::Incomplete(
+			Weight::from_ref_time(25).set_proof_size(DEFAULT_PROOF_SIZE),
+			XcmError::HoldingWouldOverflow
+		)
+	);
 }

@@ -55,8 +55,7 @@ impl WeighMultiAssets for MultiAssetFilter {
 
 impl WeighMultiAssets for MultiAssets {
 	fn weigh_multi_assets(&self, balances_weight: Weight) -> Weight {
-		self
-			.inner()
+		self.inner()
 			.into_iter()
 			.map(|m| <AssetTypes as From<&MultiAsset>>::from(m))
 			.map(|t| match t {
@@ -139,11 +138,7 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for KusamaXcmWeight<RuntimeCall> {
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::deposit_reserve_asset())
 	}
-	fn exchange_asset(
-		_give: &MultiAssetFilter,
-		_receive: &MultiAssets,
-		_maximal: &bool,
-	) -> Weight {
+	fn exchange_asset(_give: &MultiAssetFilter, _receive: &MultiAssets, _maximal: &bool) -> Weight {
 		// Kusama does not currently support exchange asset operations
 		Weight::MAX
 	}

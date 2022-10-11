@@ -30,7 +30,12 @@ fn universal_origin_should_work() {
 		TransferAsset { assets: (Parent, 100u128).into(), beneficiary: Here.into() },
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(2), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(2),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10), XcmError::InvalidLocation));
 
 	let message = Xcm(vec![
@@ -38,8 +43,19 @@ fn universal_origin_should_work() {
 		TransferAsset { assets: (Parent, 100u128).into(), beneficiary: Here.into() },
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::NotWithdrawable));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
+	assert_eq!(
+		r,
+		Outcome::Incomplete(
+			Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE),
+			XcmError::NotWithdrawable
+		)
+	);
 
 	add_asset((Ancestor(2), GlobalConsensus(Kusama)), (Parent, 100));
 	let message = Xcm(vec![
@@ -47,7 +63,12 @@ fn universal_origin_should_work() {
 		TransferAsset { assets: (Parent, 100u128).into(), beneficiary: Here.into() },
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE)));
 	assert_eq!(asset_list((Ancestor(2), GlobalConsensus(Kusama))), vec![]);
 }
@@ -69,7 +90,12 @@ fn export_message_should_work() {
 		xcm: expected_message.clone(),
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
 	let uni_src = (ByGenesis([0; 32]), Parachain(42), Parachain(1)).into();
 	assert_eq!(
@@ -91,15 +117,36 @@ fn unpaid_execution_should_work() {
 		check_origin: Some(Parachain(2).into()),
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message.clone(), hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::BadOrigin));
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(2), message.clone(), hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message.clone(),
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
+	assert_eq!(
+		r,
+		Outcome::Incomplete(
+			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			XcmError::BadOrigin
+		)
+	);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(2),
+		message.clone(),
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
 	let message = Xcm(vec![UnpaidExecution {
 		weight_limit: Limited(Weight::from_ref_time(10)),
 		check_origin: Some(Parachain(2).into()),
 	}]);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(2), message.clone(), hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(2),
+		message.clone(),
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
 }

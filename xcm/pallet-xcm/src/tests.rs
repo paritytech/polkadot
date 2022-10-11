@@ -25,7 +25,10 @@ use frame_support::{
 };
 use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, Hash};
-use xcm::{latest::{QueryResponseInfo, DEFAULT_PROOF_SIZE}, prelude::*};
+use xcm::{
+	latest::{QueryResponseInfo, DEFAULT_PROOF_SIZE},
+	prelude::*,
+};
 use xcm_builder::AllowKnownQueryResponses;
 use xcm_executor::{traits::ShouldExecute, XcmExecutor};
 
@@ -86,9 +89,16 @@ fn report_outcome_notify_works() {
 			querier: Some(querier),
 		}]);
 		let hash = fake_message_hash(&message);
-		let r =
-			XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, Weight::from_ref_time(1_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE));
-		assert_eq!(r, Outcome::Complete(Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE)));
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(
+			Parachain(PARA_ID),
+			message,
+			hash,
+			Weight::from_ref_time(1_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE),
+		);
+		assert_eq!(
+			r,
+			Outcome::Complete(Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE))
+		);
 		assert_eq!(
 			last_events(2),
 			vec![
@@ -144,9 +154,16 @@ fn report_outcome_works() {
 			querier: Some(querier),
 		}]);
 		let hash = fake_message_hash(&message);
-		let r =
-			XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, Weight::from_ref_time(1_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE));
-		assert_eq!(r, Outcome::Complete(Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE)));
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(
+			Parachain(PARA_ID),
+			message,
+			hash,
+			Weight::from_ref_time(1_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE),
+		);
+		assert_eq!(
+			r,
+			Outcome::Complete(Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE))
+		);
 		assert_eq!(
 			last_event(),
 			RuntimeEvent::XcmPallet(crate::Event::ResponseReady(
@@ -195,7 +212,10 @@ fn custom_querier_works() {
 			Weight::from_ref_time(1_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE),
 			Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE),
 		);
-		assert_eq!(r, Outcome::Complete(Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE)));
+		assert_eq!(
+			r,
+			Outcome::Complete(Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE))
+		);
 		assert_eq!(
 			last_event(),
 			RuntimeEvent::XcmPallet(crate::Event::InvalidQuerier(
@@ -221,7 +241,10 @@ fn custom_querier_works() {
 			Weight::from_ref_time(1_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE),
 			Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE),
 		);
-		assert_eq!(r, Outcome::Complete(Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE)));
+		assert_eq!(
+			r,
+			Outcome::Complete(Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE))
+		);
 		assert_eq!(
 			last_event(),
 			RuntimeEvent::XcmPallet(crate::Event::InvalidQuerier(
@@ -246,7 +269,10 @@ fn custom_querier_works() {
 			hash,
 			Weight::from_ref_time(1_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE),
 		);
-		assert_eq!(r, Outcome::Complete(Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE)));
+		assert_eq!(
+			r,
+			Outcome::Complete(Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE))
+		);
 		assert_eq!(
 			last_event(),
 			RuntimeEvent::XcmPallet(crate::Event::ResponseReady(
@@ -359,7 +385,10 @@ fn teleport_assets_works() {
 				Xcm(vec![
 					ReceiveTeleportedAsset((Here, SEND_AMOUNT).into()),
 					ClearOrigin,
-					buy_limited_execution((Here, SEND_AMOUNT), Weight::from_ref_time(4000).set_proof_size(DEFAULT_PROOF_SIZE)),
+					buy_limited_execution(
+						(Here, SEND_AMOUNT),
+						Weight::from_ref_time(4000).set_proof_size(DEFAULT_PROOF_SIZE)
+					),
 					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 				]),
 			)]
@@ -492,7 +521,10 @@ fn reserve_transfer_assets_works() {
 				Xcm(vec![
 					ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 					ClearOrigin,
-					buy_limited_execution((Parent, SEND_AMOUNT), Weight::from_ref_time(4000).set_proof_size(DEFAULT_PROOF_SIZE)),
+					buy_limited_execution(
+						(Parent, SEND_AMOUNT),
+						Weight::from_ref_time(4000).set_proof_size(DEFAULT_PROOF_SIZE)
+					),
 					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 				]),
 			)]
@@ -540,7 +572,10 @@ fn limited_reserve_transfer_assets_works() {
 				Xcm(vec![
 					ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 					ClearOrigin,
-					buy_limited_execution((Parent, SEND_AMOUNT), Weight::from_ref_time(5000).set_proof_size(DEFAULT_PROOF_SIZE)),
+					buy_limited_execution(
+						(Parent, SEND_AMOUNT),
+						Weight::from_ref_time(5000).set_proof_size(DEFAULT_PROOF_SIZE)
+					),
 					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 				]),
 			)]
@@ -785,11 +820,17 @@ fn subscriptions_increment_id() {
 			vec![
 				(
 					remote.clone(),
-					Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: Weight::zero() }]),
+					Xcm(vec![SubscribeVersion {
+						query_id: 0,
+						max_response_weight: Weight::zero()
+					}]),
 				),
 				(
 					remote2.clone(),
-					Xcm(vec![SubscribeVersion { query_id: 1, max_response_weight: Weight::zero() }]),
+					Xcm(vec![SubscribeVersion {
+						query_id: 1,
+						max_response_weight: Weight::zero()
+					}]),
 				),
 			]
 		);
@@ -839,7 +880,10 @@ fn unsubscribe_works() {
 			vec![
 				(
 					remote.clone(),
-					Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: Weight::zero() }]),
+					Xcm(vec![SubscribeVersion {
+						query_id: 0,
+						max_response_weight: Weight::zero()
+					}]),
 				),
 				(remote.clone(), Xcm(vec![UnsubscribeVersion]),),
 			]
@@ -855,7 +899,8 @@ fn subscription_side_works() {
 
 		let remote: MultiLocation = Parachain(1000).into();
 		let weight = BaseXcmWeight::get().set_proof_size(DEFAULT_PROOF_SIZE);
-		let message = Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: Weight::zero() }]);
+		let message =
+			Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: Weight::zero() }]);
 		let hash = fake_message_hash(&message);
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
@@ -933,7 +978,7 @@ fn subscription_side_upgrades_work_with_notify() {
 		);
 
 		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
-		contents.sort_by_key(|k| k.2.0);
+		contents.sort_by_key(|k| k.2 .0);
 		assert_eq!(
 			contents,
 			vec![
@@ -958,7 +1003,7 @@ fn subscription_side_upgrades_work_without_notify() {
 		XcmPallet::on_initialize(1);
 
 		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
-		contents.sort_by_key(|k| k.2.0);
+		contents.sort_by_key(|k| k.2 .0);
 		assert_eq!(
 			contents,
 			vec![
@@ -1181,7 +1226,7 @@ fn subscription_side_upgrades_work_with_multistage_notify() {
 		);
 
 		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
-		contents.sort_by_key(|k| k.2.0);
+		contents.sort_by_key(|k| k.2 .0);
 		assert_eq!(
 			contents,
 			vec![

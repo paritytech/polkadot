@@ -91,7 +91,9 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 			i = iter.next().ok_or(())?;
 		}
 		match i {
-			BuyExecution { weight_limit: Limited(ref mut weight), .. } if weight.any_gte(max_weight) => {
+			BuyExecution { weight_limit: Limited(ref mut weight), .. }
+				if weight.any_gte(max_weight) =>
+			{
 				*weight = weight.max(max_weight);
 				Ok(())
 			},
@@ -240,7 +242,8 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowExplicitUnpaidExecutionF
 		);
 		ensure!(T::contains(origin), ());
 		match instructions.first() {
-			Some(UnpaidExecution { weight_limit: Limited(m), .. }) if m.any_gte(max_weight) => Ok(()),
+			Some(UnpaidExecution { weight_limit: Limited(m), .. }) if m.any_gte(max_weight) =>
+				Ok(()),
 			Some(UnpaidExecution { weight_limit: Unlimited, .. }) => Ok(()),
 			_ => Err(()),
 		}

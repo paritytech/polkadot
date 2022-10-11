@@ -42,10 +42,7 @@ pub mod v1 {
 	impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<(), &'static str> {
-			ensure!(
-				StorageVersion::get::<Pallet<T>>() == 0,
-				"must upgrade linearly"
-			);
+			ensure!(StorageVersion::get::<Pallet<T>>() == 0, "must upgrade linearly");
 
 			Ok()
 		}

@@ -52,7 +52,13 @@ fn errors_should_return_unused_weight() {
 	assert_eq!(sent_xcm(), vec![]);
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), hash, limit);
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(30).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::NotWithdrawable));
+	assert_eq!(
+		r,
+		Outcome::Incomplete(
+			Weight::from_ref_time(30).set_proof_size(DEFAULT_PROOF_SIZE),
+			XcmError::NotWithdrawable
+		)
+	);
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 10u128).into()]);
 	assert_eq!(asset_list(Here), vec![(Here, 1u128).into()]);
 	assert_eq!(sent_xcm(), vec![]);
@@ -92,7 +98,10 @@ fn weight_bounds_should_respect_instructions_limit() {
 	let mut message =
 		Xcm(vec![SetErrorHandler(Xcm(vec![SetErrorHandler(Xcm(vec![ClearOrigin]))]))]);
 	// 3 instructions are OK.
-	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Ok(Weight::from_ref_time(30).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(
+		<TestConfig as Config>::Weigher::weight(&mut message),
+		Ok(Weight::from_ref_time(30).set_proof_size(DEFAULT_PROOF_SIZE))
+	);
 }
 
 #[test]
@@ -119,16 +128,23 @@ fn weight_trader_tuple_should_work() {
 		Ok(fungible_multi_asset(Here.into(), 5).into()),
 	);
 	// trader one refunds
-	assert_eq!(traders.refund_weight(Weight::from_ref_time(2)), Some(fungible_multi_asset(Here.into(), 2)));
+	assert_eq!(
+		traders.refund_weight(Weight::from_ref_time(2)),
+		Some(fungible_multi_asset(Here.into(), 2))
+	);
 
 	let mut traders = Traders::new();
 	// trader one failed; trader two buys weight
 	assert_eq!(
-		traders.buy_weight(Weight::from_ref_time(5), fungible_multi_asset(para_1.clone(), 10).into()),
+		traders
+			.buy_weight(Weight::from_ref_time(5), fungible_multi_asset(para_1.clone(), 10).into()),
 		Ok(fungible_multi_asset(para_1.clone(), 5).into()),
 	);
 	// trader two refunds
-	assert_eq!(traders.refund_weight(Weight::from_ref_time(2)), Some(fungible_multi_asset(para_1, 2)));
+	assert_eq!(
+		traders.refund_weight(Weight::from_ref_time(2)),
+		Some(fungible_multi_asset(para_1, 2))
+	);
 
 	let mut traders = Traders::new();
 	// all traders fails

@@ -47,7 +47,10 @@ fn computed_origin_should_work() {
 		DescendOrigin(Parachain(100).into()),
 		DescendOrigin(PalletInstance(69).into()),
 		WithdrawAsset((Parent, 100).into()),
-		BuyExecution { fees: (Parent, 100).into(), weight_limit: Limited(Weight::from_ref_time(100)) },
+		BuyExecution {
+			fees: (Parent, 100).into(),
+			weight_limit: Limited(Weight::from_ref_time(100)),
+		},
 		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
 	]);
 
@@ -72,14 +75,24 @@ fn computed_origin_should_work() {
 		AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
 		ExecutorUniversalLocation,
 		ConstU32<2>,
-	>::should_execute(&Parent.into(), message.inner_mut(), Weight::from_ref_time(100), &mut Weight::zero());
+	>::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		Weight::from_ref_time(100),
+		&mut Weight::zero(),
+	);
 	assert_eq!(r, Err(()));
 
 	let r = WithComputedOrigin::<
 		AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
 		ExecutorUniversalLocation,
 		ConstU32<5>,
-	>::should_execute(&Parent.into(), message.inner_mut(), Weight::from_ref_time(100), &mut Weight::zero());
+	>::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		Weight::from_ref_time(100),
+		&mut Weight::zero(),
+	);
 	assert_eq!(r, Ok(()));
 }
 
@@ -113,12 +126,18 @@ fn allow_explicit_unpaid_should_work() {
 		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
 
 	let mut bad_message2 = Xcm::<()>(vec![
-		UnpaidExecution { weight_limit: Limited(Weight::from_ref_time(10)), check_origin: Some(Parent.into()) },
+		UnpaidExecution {
+			weight_limit: Limited(Weight::from_ref_time(10)),
+			check_origin: Some(Parent.into()),
+		},
 		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
 	]);
 
 	let mut good_message = Xcm::<()>(vec![
-		UnpaidExecution { weight_limit: Limited(Weight::from_ref_time(20)), check_origin: Some(Parent.into()) },
+		UnpaidExecution {
+			weight_limit: Limited(Weight::from_ref_time(20)),
+			check_origin: Some(Parent.into()),
+		},
 		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
 	]);
 

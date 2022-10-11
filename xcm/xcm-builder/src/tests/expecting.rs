@@ -29,7 +29,12 @@ fn expect_pallet_should_work() {
 		min_crate_minor: 42,
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
 
 	let message = Xcm(vec![ExpectPallet {
@@ -40,7 +45,12 @@ fn expect_pallet_should_work() {
 		min_crate_minor: 41,
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
 }
 
@@ -55,8 +65,19 @@ fn expect_pallet_should_fail_correctly() {
 		min_crate_minor: 60,
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::VersionIncompatible));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
+	assert_eq!(
+		r,
+		Outcome::Incomplete(
+			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			XcmError::VersionIncompatible
+		)
+	);
 
 	let message = Xcm(vec![ExpectPallet {
 		index: 1,
@@ -66,8 +87,19 @@ fn expect_pallet_should_fail_correctly() {
 		min_crate_minor: 42,
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::NameMismatch));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
+	assert_eq!(
+		r,
+		Outcome::Incomplete(
+			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			XcmError::NameMismatch
+		)
+	);
 
 	let message = Xcm(vec![ExpectPallet {
 		index: 1,
@@ -77,8 +109,19 @@ fn expect_pallet_should_fail_correctly() {
 		min_crate_minor: 42,
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::NameMismatch));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
+	assert_eq!(
+		r,
+		Outcome::Incomplete(
+			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			XcmError::NameMismatch
+		)
+	);
 
 	let message = Xcm(vec![ExpectPallet {
 		index: 0,
@@ -88,8 +131,19 @@ fn expect_pallet_should_fail_correctly() {
 		min_crate_minor: 42,
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::NameMismatch));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
+	assert_eq!(
+		r,
+		Outcome::Incomplete(
+			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			XcmError::NameMismatch
+		)
+	);
 
 	let message = Xcm(vec![ExpectPallet {
 		index: 2,
@@ -99,8 +153,19 @@ fn expect_pallet_should_fail_correctly() {
 		min_crate_minor: 42,
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::PalletNotFound));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
+	assert_eq!(
+		r,
+		Outcome::Incomplete(
+			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			XcmError::PalletNotFound
+		)
+	);
 
 	let message = Xcm(vec![ExpectPallet {
 		index: 1,
@@ -110,8 +175,19 @@ fn expect_pallet_should_fail_correctly() {
 		min_crate_minor: 42,
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::VersionIncompatible));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
+	assert_eq!(
+		r,
+		Outcome::Incomplete(
+			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			XcmError::VersionIncompatible
+		)
+	);
 
 	let message = Xcm(vec![ExpectPallet {
 		index: 1,
@@ -121,8 +197,19 @@ fn expect_pallet_should_fail_correctly() {
 		min_crate_minor: 42,
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::VersionIncompatible));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
+	assert_eq!(
+		r,
+		Outcome::Incomplete(
+			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			XcmError::VersionIncompatible
+		)
+	);
 
 	let message = Xcm(vec![ExpectPallet {
 		index: 1,
@@ -132,6 +219,17 @@ fn expect_pallet_should_fail_correctly() {
 		min_crate_minor: 43,
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::VersionIncompatible));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
+	assert_eq!(
+		r,
+		Outcome::Incomplete(
+			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			XcmError::VersionIncompatible
+		)
+	);
 }

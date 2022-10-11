@@ -43,7 +43,13 @@ fn transacting_should_respect_max_weight_requirement() {
 	let hash = fake_message_hash(&message);
 	let weight_limit = Weight::from_ref_time(60).set_proof_size(DEFAULT_PROOF_SIZE);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE), XcmError::MaxWeightInvalid));
+	assert_eq!(
+		r,
+		Outcome::Incomplete(
+			Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+			XcmError::MaxWeightInvalid
+		)
+	);
 }
 
 #[test]
@@ -53,7 +59,9 @@ fn transacting_should_refund_weight() {
 	let message = Xcm::<TestCall>(vec![Transact {
 		origin_kind: OriginKind::Native,
 		require_weight_at_most: Weight::from_ref_time(50),
-		call: TestCall::Any(Weight::from_ref_time(50), Some(Weight::from_ref_time(30))).encode().into(),
+		call: TestCall::Any(Weight::from_ref_time(50), Some(Weight::from_ref_time(30)))
+			.encode()
+			.into(),
 	}]);
 	let hash = fake_message_hash(&message);
 	let weight_limit = Weight::from_ref_time(60).set_proof_size(DEFAULT_PROOF_SIZE);
@@ -77,7 +85,9 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 			origin_kind: OriginKind::Native,
 			require_weight_at_most: Weight::from_ref_time(50),
 			// call estimated at 50 but only takes 10.
-			call: TestCall::Any(Weight::from_ref_time(50), Some(Weight::from_ref_time(10))).encode().into(),
+			call: TestCall::Any(Weight::from_ref_time(50), Some(Weight::from_ref_time(10)))
+				.encode()
+				.into(),
 		},
 		RefundSurplus,
 		DepositAsset { assets: AllCounted(1).into(), beneficiary: one.clone() },

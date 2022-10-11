@@ -30,7 +30,12 @@ fn pallet_query_should_work() {
 		},
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
 
 	let expected_msg = Xcm::<()>(vec![QueryResponse {
@@ -57,7 +62,12 @@ fn pallet_query_with_results_should_work() {
 		},
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+	);
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
 
 	let expected_msg = Xcm::<()>(vec![QueryResponse {

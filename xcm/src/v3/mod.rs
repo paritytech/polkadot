@@ -513,11 +513,7 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
-	Transact {
-		origin_kind: OriginKind,
-		require_weight_at_most: Weight,
-		call: DoubleEncoded<Call>,
-	},
+	Transact { origin_kind: OriginKind, require_weight_at_most: Weight, call: DoubleEncoded<Call> },
 
 	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
 	/// relay-chain to a para.

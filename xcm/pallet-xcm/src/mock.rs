@@ -352,7 +352,10 @@ pub(crate) fn buy_execution<C>(fees: impl Into<MultiAsset>) -> Instruction<C> {
 	BuyExecution { fees: fees.into(), weight_limit: Unlimited }
 }
 
-pub(crate) fn buy_limited_execution<C>(fees: impl Into<MultiAsset>, weight: Weight) -> Instruction<C> {
+pub(crate) fn buy_limited_execution<C>(
+	fees: impl Into<MultiAsset>,
+	weight: Weight,
+) -> Instruction<C> {
 	use xcm::latest::prelude::*;
 	BuyExecution { fees: fees.into(), weight_limit: Limited(weight) }
 }

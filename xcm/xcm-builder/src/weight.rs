@@ -61,8 +61,7 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M> FixedWeightBounds<T, C, M> 
 	) -> Result<Weight, ()> {
 		let instr_weight = match instruction {
 			Transact { require_weight_at_most, .. } => *require_weight_at_most,
-			SetErrorHandler(xcm) | SetAppendix(xcm) =>
-				Self::weight_with_limit(xcm, instrs_limit)?,
+			SetErrorHandler(xcm) | SetAppendix(xcm) => Self::weight_with_limit(xcm, instrs_limit)?,
 			_ => Weight::zero(),
 		};
 		T::get().checked_add(&instr_weight).ok_or(())
@@ -153,7 +152,8 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 			weight, payment,
 		);
 		let (id, units_per_second) = T::get();
-		let amount = units_per_second * (weight.ref_time() as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
+		let amount =
+			units_per_second * (weight.ref_time() as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
 		if amount == 0 {
 			return Ok(payment)
 		}
@@ -168,7 +168,8 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 		log::trace!(target: "xcm::weight", "FixedRateOfFungible::refund_weight weight: {:?}", weight);
 		let (id, units_per_second) = T::get();
 		let weight = weight.min(self.0);
-		let amount = units_per_second * (weight.ref_time() as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
+		let amount =
+			units_per_second * (weight.ref_time() as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		if amount > 0 {
@@ -214,8 +215,7 @@ impl<
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
 		log::trace!(target: "xcm::weight", "UsingComponents::buy_weight weight: {:?}, payment: {:?}", weight, payment);
-		let amount =
-			WeightToFee::weight_to_fee(&weight);
+		let amount = WeightToFee::weight_to_fee(&weight);
 		let u128_amount: u128 = amount.try_into().map_err(|_| XcmError::Overflow)?;
 		let required = (Concrete(AssetId::get()), u128_amount).into();
 		let unused = payment.checked_sub(required).map_err(|_| XcmError::TooExpensive)?;
@@ -227,8 +227,7 @@ impl<
 	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
 		log::trace!(target: "xcm::weight", "UsingComponents::refund_weight weight: {:?}", weight);
 		let weight = weight.min(self.0);
-		let amount =
-			WeightToFee::weight_to_fee(&weight);
+		let amount = WeightToFee::weight_to_fee(&weight);
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		let amount: u128 = amount.saturated_into();

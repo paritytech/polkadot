@@ -135,11 +135,9 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink
 				let xcm_junction = Junction::Parachain(origin.into());
 				// FIXME: Provide an actual proof size weight limit
 				let max_weight = max_weight.set_proof_size(DEFAULT_PROOF_SIZE);
-				let outcome =
-					XcmExecutor::execute_xcm(xcm_junction, xcm_message, id, max_weight);
+				let outcome = XcmExecutor::execute_xcm(xcm_junction, xcm_message, id, max_weight);
 				match outcome {
-					Outcome::Error(XcmError::WeightLimitReached(required)) =>
-						Err((id, required)),
+					Outcome::Error(XcmError::WeightLimitReached(required)) => Err((id, required)),
 					outcome => {
 						let outcome_weight = outcome.weight_used();
 						Pallet::<C>::deposit_event(Event::ExecutedUpward(id, outcome));
