@@ -169,7 +169,8 @@ build-implementers-guide:
     - .test-refs
     - .collect-artifacts-short
   script:
-    - cargo install mdbook mdbook-mermaid mdbook-linkcheck
+    - apt-get -y update; apt-get install -y graphviz
+    - cargo install mdbook mdbook-mermaid mdbook-linkcheck mdbook-graphviz
     - mdbook build ./roadmap/implementers-guide
     - mkdir -p artifacts
     - mv roadmap/implementers-guide/book artifacts/
