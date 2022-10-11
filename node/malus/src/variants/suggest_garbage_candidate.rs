@@ -83,7 +83,7 @@ where
 			} => {
 				gum::info!(
 					target: MALUS,
-					"😈 Started Malus node with '--percentage' set to: {:?}",
+					"😈 Started Malus node with a chance of {:?}% to behave maliciously for a given candidate.",
 					&self.percentage,
 				);
 
@@ -94,22 +94,22 @@ where
 					"Received request to second candidate",
 				);
 
-				// Need to draw value from Bernoulli distribution with given probability of success defined by the Clap parameter.
-				// Note that clap parameter must be f64 since this is expected by the Bernoulli::new() function, hence it must be converted.
+				// Need to draw value from Bernoulli distribution with given probability of success defined by the clap parameter.
+				// Note that clap parameter must be f64 since this is expected by the Bernoulli::new() function. 
+				// It must be converted from u8, due to the lack of support for the .range() call on u64 in the clap crate.
 				let distribution = Bernoulli::new(self.percentage / 100.0)
 					.expect("Invalid probability! Percentage must be in range [0..=100].");
 
-				// Draw a random value from the distribution, where T: bool, and probability of drawing a 'true' value is = to percentage parameter,
-				// using thread_rng as the source of randomness.
+				// Draw a random boolean from the Bernoulli distribution with probability of true equal to `p`.
+				// We use `rand::thread_rng` as the source of randomness.
 				let generate_malicious_candidate = distribution.sample(&mut rand::thread_rng());
 
-				gum::debug!(
-					target: MALUS,
-					"😈 Sampled value from Bernoulli distribution is: {:?}",
-					&generate_malicious_candidate,
-				);
-
 				if generate_malicious_candidate == true {
+					gum::debug!(
+						target: MALUS,
+						"😈 Suggesting malicious candidate.",
+					);
+
 					let pov = PoV { block_data: BlockData(MALICIOUS_POV.into()) };
 
 					let (sender, receiver) = std::sync::mpsc::channel();
@@ -221,9 +221,8 @@ where
 					gum::info!(
 						target: MALUS,
 						candidate_hash = ?candidate.hash(),
-						?malicious_candidate_hash,
 						"😈 Intercepted CandidateBackingMessage::Second and created malicious candidate with hash: {:?}",
-						&candidate_hash
+						&malicious_candidate_hash
 					);
 					Some(message)
 				} else {
@@ -277,11 +276,11 @@ impl OverseerGen for SuggestGarbageCandidateWrapper {
 			spawner: SpawnGlue(args.spawner.clone()),
 			percentage: f64::from(self.opts.percentage),
 		};
-		let validation_probability = 100.0;
+		let fake_valid_probability = 100.0;
 		let validation_filter = ReplaceValidationResult::new(
 			FakeCandidateValidation::BackingAndApprovalValid,
 			FakeCandidateValidationError::InvalidOutputs,
-			validation_probability,
+			fake_valid_probability,
 			SpawnGlue(args.spawner.clone()),
 		);
 

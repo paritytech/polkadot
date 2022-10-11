@@ -215,7 +215,7 @@ where
 		msg: FromOrchestra<Self::Message>,
 	) -> Option<FromOrchestra<Self::Message>> {
 		match msg {
-			// Behaviour related to the approval subsystem
+			// Message sent by the approval voting subsystem
 			FromOrchestra::Communication {
 				msg:
 					CandidateValidationMessage::ValidateFromExhaustive(
@@ -243,14 +243,15 @@ where
 								),
 							})
 						}
-						// Create the fake response with probability `p` if the `PoV` is malicious.
+						// Create the fake response with probability `p` if the `PoV` is malicious,
+						// where 'p' defaults to 100% for suggest-garbage-candidate variant.
 						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
 						match behave_maliciously {
 							true => {
 								gum::info!(
 									target: MALUS,
-									"😈 Malicious behaviour is sampled as: {:?}. Now outputting malicious ValidationResult::Valid message.",
-									&behave_maliciously,
+									?behave_maliciously,
+									"😈 Creating malicious ValidationResult::Valid message with fake candidate commitments.",
 								);
 
 								create_validation_response(
@@ -264,8 +265,8 @@ where
 								// Behave normally with probability `(1-p)` for a malicious `PoV`.
 								gum::info!(
 									target: MALUS,
-									"😈 Malicious behaviour is sampled as: {:?}. Faking normal behaviour and outputting CandidateValidationMessage::ValidateFromExhaustive.",
-									&behave_maliciously,
+									?behave_maliciously,
+									"😈 Passing CandidateValidationMessage::ValidateFromExhaustive to the candidate validation subsystem.",
 								);
 
 								Some(FromOrchestra::Communication {
@@ -287,21 +288,17 @@ where
 						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
 						match behave_maliciously {
 							true => {
-								gum::info!(
-									target: MALUS,
-									"😈 Malicious behaviour is sampled as: {:?}. Now setting ValidationResult::Invalid.",
-									&behave_maliciously,
-								);
-
 								let validation_result =
 									ValidationResult::Invalid(InvalidCandidate::InvalidOutputs);
-
-								gum::debug!(
+								
+								gum::info!(
 									target: MALUS,
+									?behave_maliciously,
 									para_id = ?candidate_receipt.descriptor.para_id,
-									"ValidateFromExhaustive result: {:?}",
-									&validation_result
+									"😈 Maliciously sending invalid validation result: {:?}.",
+									&validation_result,
 								);
+
 								// We're not even checking the candidate, this makes us appear faster than honest validators.
 								sender.send(Ok(validation_result)).unwrap();
 								None
@@ -310,8 +307,8 @@ where
 								// Behave normally with probability `(1-p)`
 								gum::info!(
 									target: MALUS,
-									"😈 Malicious behaviour is sampled as: {:?}. Faking normal behaviour and outputting CandidateValidationMessage::ValidateFromExhaustive message.",
-									&behave_maliciously,
+									?behave_maliciously,
+									"😈 Behaving normally and passing CandidateValidationMessage::ValidateFromExhaustive message.",
 								);
 
 								Some(FromOrchestra::Communication {
@@ -365,14 +362,14 @@ where
 							})
 						}
 						// If the `PoV` is malicious, back the candidate with some probability `p`,
-						// which defaults to 100% for suggest-garbage-candidate variant.
+						// where 'p' defaults to 100% for suggest-garbage-candidate variant.
 						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
 						match behave_maliciously {
 							true => {
 								gum::info!(
 									target: MALUS,
-									"😈 Malicious behaviour is sampled as: {:?}. Backing candidate with malicious PoV.",
-									&behave_maliciously,
+									?behave_maliciously,
+									"😈 Backing candidate with malicious PoV.",
 								);
 
 								self.send_validation_response(
@@ -395,27 +392,19 @@ where
 					},
 					FakeCandidateValidation::BackingInvalid |
 					FakeCandidateValidation::BackingAndApprovalInvalid => {
-						// We back a garbage candidate with some probability `p`,
-						// which defaults to 100% for suggest-garbage-candidate variant.
+						// Maliciously set the validation result to invalid for a valid candidate with probability `p`
 						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
 						match behave_maliciously {
 							true => {
-								gum::info!(
-									target: MALUS,
-									"😈 Malicious behaviour is sampled as: {:?}. Setting ValidationResult::Invalid for valid candidate.",
-									&behave_maliciously,
-								);
-
 								let validation_result = ValidationResult::Invalid(
 									self.fake_validation_error.clone().into(),
 								);
-								gum::debug!(
+								gum::info!(
 									target: MALUS,
 									para_id = ?candidate_receipt.descriptor.para_id,
-									"ValidateFromChainState result: {:?}",
-									&validation_result
+									"😈 Maliciously sending invalid validation result: {:?}.",
+									&validation_result,
 								);
-
 								// We're not even checking the candidate, this makes us appear faster than honest validators.
 								response_sender.send(Ok(validation_result)).unwrap();
 								None
@@ -424,8 +413,7 @@ where
 							false => {
 								gum::info!(
 									target: MALUS,
-									"😈 Malicious behaviour is sampled as: {:?}. Faking normal behaviour and outputting CandidateValidationMessage::ValidateFromChainState message.",
-									&behave_maliciously,
+									"😈 'Decided' to not act maliciously.",
 								);
 
 								Some(FromOrchestra::Communication {
