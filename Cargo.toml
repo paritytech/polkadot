@@ -21,7 +21,7 @@ version = "0.9.29"
 [dependencies]
 polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
 color-eyre = { version = "0.6.1", default-features = false }
-parity-util-mem = { version = "0.11.0", default-features = false, features = ["jemalloc-global"] }
+parity-util-mem = { version = "0.12.0", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
@@ -89,8 +89,6 @@ members = [
 	"node/network/gossip-support",
 	"node/network/dispute-distribution",
 	"node/overseer",
-	"node/orchestra",
-	"node/orchestra/proc-macro",
 	"node/malus",
 	"node/primitives",
 	"node/service",
@@ -102,7 +100,6 @@ members = [
 	"node/gum",
 	"node/gum/proc-macro",
 	"node/metrics",
-	"node/metered-channel",
 	"node/test/client",
 	"node/test/performance-test",
 	"node/test/service",
@@ -134,9 +131,9 @@ maintenance = { status = "actively-developed" }
 #
 # This list is ordered alphabetically.
 [profile.dev.package]
-blake2b_simd = { opt-level = 3 }
 blake2 = { opt-level = 3 }
 blake2-rfc = { opt-level = 3 }
+blake2b_simd = { opt-level = 3 }
 chacha20poly1305 = { opt-level = 3 }
 cranelift-codegen = { opt-level = 3 }
 cranelift-wasm = { opt-level = 3 }
@@ -147,8 +144,8 @@ curve25519-dalek = { opt-level = 3 }
 ed25519-dalek = { opt-level = 3 }
 flate2 = { opt-level = 3 }
 futures-channel = { opt-level = 3 }
-hashbrown = { opt-level = 3 }
 hash-db = { opt-level = 3 }
+hashbrown = { opt-level = 3 }
 hmac = { opt-level = 3 }
 httparse = { opt-level = 3 }
 integer-sqrt = { opt-level = 3 }
@@ -160,8 +157,8 @@ libz-sys = { opt-level = 3 }
 mio = { opt-level = 3 }
 nalgebra = { opt-level = 3 }
 num-bigint = { opt-level = 3 }
-parking_lot_core = { opt-level = 3 }
 parking_lot = { opt-level = 3 }
+parking_lot_core = { opt-level = 3 }
 percent-encoding = { opt-level = 3 }
 primitive-types = { opt-level = 3 }
 reed-solomon-novelpoly = { opt-level = 3 }
@@ -171,6 +168,7 @@ sha2 = { opt-level = 3 }
 sha3 = { opt-level = 3 }
 smallvec = { opt-level = 3 }
 snow = { opt-level = 3 }
+substrate-bip39 = {opt-level = 3}
 twox-hash = { opt-level = 3 }
 uint = { opt-level = 3 }
 wasmi = { opt-level = 3 }
