@@ -126,7 +126,7 @@ mod tests {
 			variant: NemesisVariant::DisputeAncestor(run),
 			..
 		} => {
-			assert!(run.cmd.base.bob);
+			assert!(run.cli.run.base.bob);
 		});
 	}
 }
