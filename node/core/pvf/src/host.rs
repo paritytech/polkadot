@@ -41,12 +41,12 @@ use std::{
 /// The time period after which the precheck preparation worker is considered unresponsive and will
 /// be killed.
 // NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
-const PRECHECK_COMPILATION_TIMEOUT: Duration = Duration::from_secs(60);
+pub const PRECHECK_COMPILATION_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// The time period after which the execute preparation worker is considered unresponsive and will
 /// be killed.
 // NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
-const EXECUTE_COMPILATION_TIMEOUT: Duration = Duration::from_secs(180);
+pub const EXECUTE_COMPILATION_TIMEOUT: Duration = Duration::from_secs(180);
 
 /// An alias to not spell the type for the oneshot sender for the PVF execution result.
 pub(crate) type ResultSender = oneshot::Sender<Result<ValidationResult, ValidationError>>;

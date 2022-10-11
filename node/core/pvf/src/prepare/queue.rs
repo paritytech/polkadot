@@ -494,7 +494,7 @@ pub fn start(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::error::PrepareError;
+	use crate::{error::PrepareError, host::PRECHECK_COMPILATION_TIMEOUT};
 	use assert_matches::assert_matches;
 	use futures::{future::BoxFuture, FutureExt};
 	use slotmap::SlotMap;
@@ -587,7 +587,6 @@ mod tests {
 
 		async fn poll_ensure_to_pool_is_empty(&mut self) {
 			use futures_timer::Delay;
-			use std::time::Duration;
 
 			let to_pool_rx = &mut self.to_pool_rx;
 			run_until(
@@ -610,7 +609,11 @@ mod tests {
 	async fn properly_concludes() {
 		let mut test = Test::new(2, 2);
 
-		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(1) });
+		test.send_queue(ToQueue::Enqueue {
+			priority: Priority::Normal,
+			pvf: pvf(1),
+			compilation_timeout: PRECHECK_COMPILATION_TIMEOUT,
+		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
 		let w = test.workers.insert(());
@@ -623,10 +626,12 @@ mod tests {
 	#[async_std::test]
 	async fn dont_spawn_over_soft_limit_unless_critical() {
 		let mut test = Test::new(2, 3);
+		let compilation_timeout = PRECHECK_COMPILATION_TIMEOUT;
 
-		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(1) });
-		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(2) });
-		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(3) });
+		let priority = Priority::Normal;
+		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(1), compilation_timeout });
+		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(2), compilation_timeout });
+		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(3), compilation_timeout });
 
 		// Receive only two spawns.
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -647,7 +652,11 @@ mod tests {
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
 		// Enqueue a critical job.
-		test.send_queue(ToQueue::Enqueue { priority: Priority::Critical, pvf: pvf(4) });
+		test.send_queue(ToQueue::Enqueue {
+			priority: Priority::Critical,
+			pvf: pvf(4),
+			compilation_timeout,
+		});
 
 		// 2 out of 2 are working, but there is a critical job incoming. That means that spawning
 		// another worker is warranted.
@@ -657,15 +666,24 @@ mod tests {
 	#[async_std::test]
 	async fn cull_unwanted() {
 		let mut test = Test::new(1, 2);
+		let compilation_timeout = PRECHECK_COMPILATION_TIMEOUT;
 
-		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(1) });
+		test.send_queue(ToQueue::Enqueue {
+			priority: Priority::Normal,
+			pvf: pvf(1),
+			compilation_timeout,
+		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 		let w1 = test.workers.insert(());
 		test.send_from_pool(pool::FromPool::Spawned(w1));
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
 		// Enqueue a critical job, which warrants spawning over the soft limit.
-		test.send_queue(ToQueue::Enqueue { priority: Priority::Critical, pvf: pvf(2) });
+		test.send_queue(ToQueue::Enqueue {
+			priority: Priority::Critical,
+			pvf: pvf(2),
+			compilation_timeout,
+		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
 		// However, before the new worker had a chance to spawn, the first worker finishes with its
@@ -683,9 +701,10 @@ mod tests {
 	async fn worker_mass_die_out_doesnt_stall_queue() {
 		let mut test = Test::new(2, 2);
 
-		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(1) });
-		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(2) });
-		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(3) });
+		let (priority, compilation_timeout) = (Priority::Normal, PRECHECK_COMPILATION_TIMEOUT);
+		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(1), compilation_timeout });
+		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(2), compilation_timeout });
+		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(3), compilation_timeout });
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -712,7 +731,11 @@ mod tests {
 	async fn doesnt_resurrect_ripped_worker_if_no_work() {
 		let mut test = Test::new(2, 2);
 
-		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(1) });
+		test.send_queue(ToQueue::Enqueue {
+			priority: Priority::Normal,
+			pvf: pvf(1),
+			compilation_timeout: PRECHECK_COMPILATION_TIMEOUT,
+		});
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
@@ -733,7 +756,11 @@ mod tests {
 	async fn rip_for_start_work() {
 		let mut test = Test::new(2, 2);
 
-		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(1) });
+		test.send_queue(ToQueue::Enqueue {
+			priority: Priority::Normal,
+			pvf: pvf(1),
+			compilation_timeout: PRECHECK_COMPILATION_TIMEOUT,
+		});
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
