@@ -308,7 +308,7 @@ where
 								gum::info!(
 									target: MALUS,
 									?behave_maliciously,
-									"😈 Behaving normally and passing CandidateValidationMessage::ValidateFromExhaustive message.",
+									"😈 Passing CandidateValidationMessage::ValidateFromExhaustive to the candidate validation subsystem.",
 								);
 
 								Some(FromOrchestra::Communication {

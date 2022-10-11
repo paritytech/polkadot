@@ -83,7 +83,7 @@ where
 			} => {
 				gum::info!(
 					target: MALUS,
-					"😈 Started Malus node with a chance of {:?}% to behave maliciously for a given candidate.",
+					"😈 Started Malus node with a {:?} % chance to behave maliciously for a given candidate.",
 					&self.percentage,
 				);
 
