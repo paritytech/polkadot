@@ -137,7 +137,7 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 			origin,
 			message.into(),
 			hash,
-			Weight::from_ref_time(2_000_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_parts(2_000_000_000_000, 2_000_000_000_000),
 		);
 		match outcome {
 			Outcome::Complete(..) => Ok(hash),
@@ -182,7 +182,7 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 			origin,
 			message.into(),
 			hash,
-			Weight::from_ref_time(2_000_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_parts(2_000_000_000_000, 2_000_000_000_000),
 		);
 		match outcome {
 			Outcome::Complete(..) => Ok(hash),

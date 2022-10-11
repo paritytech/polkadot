@@ -56,7 +56,7 @@ pub mod v1 {
 				for (k1, k2, value) in VersionNotifyTargets::<T>::iter() {
 					let val = (
 						value.0,
-						Weight::from_components(value.1, DEFAULT_PROOF_SIZE),
+						Weight::from_parts(value.1, DEFAULT_PROOF_SIZE),
 						value.2,
 					);
 					<Pallet<T> as Store>::VersionNotifyTargets::insert(k1, k2, val);

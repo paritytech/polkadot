@@ -34,9 +34,9 @@ fn pallet_query_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10)));
 
 	let expected_msg = Xcm::<()>(vec![QueryResponse {
 		query_id: 1,
@@ -66,9 +66,9 @@ fn pallet_query_with_results_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10)));
 
 	let expected_msg = Xcm::<()>(vec![QueryResponse {
 		query_id: 1,
@@ -106,11 +106,11 @@ fn prepaid_result_of_query_should_get_free_execution() {
 		querier: Some(Here.into()),
 	}]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE);
+	let weight_limit = Weight::from_parts(10, 10);
 
 	// First time the response gets through since we're expecting it...
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message.clone(), hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10)));
 	assert_eq!(response(query_id).unwrap(), the_response);
 
 	// Second time it doesn't, since we're not.

@@ -39,9 +39,9 @@ fn lock_roundtrip_should_work() {
 		(3u64,),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(40).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(40)));
 	assert_eq!(asset_list((3u64,)), vec![(Parent, 990u128).into()]);
 
 	let expected_msg = Xcm::<()>(vec![NoteUnlockable {
@@ -67,9 +67,9 @@ fn lock_roundtrip_should_work() {
 		(Parent, Parachain(1)),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10)));
 }
 
 #[test]
@@ -91,9 +91,9 @@ fn auto_fee_paying_should_work() {
 		(3u64,),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(20)));
 	assert_eq!(asset_list((3u64,)), vec![(Parent, 990u128).into()]);
 }
 
@@ -113,12 +113,12 @@ fn lock_should_fail_correctly() {
 		(3u64,),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(10),
 			XcmError::LockError
 		)
 	);
@@ -141,12 +141,12 @@ fn lock_should_fail_correctly() {
 		(3u64,),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(10),
 			XcmError::NotHoldingFees
 		)
 	);
@@ -171,9 +171,9 @@ fn remote_unlock_roundtrip_should_work() {
 		(Parent, Parachain(1)),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10)));
 	assert_eq!(
 		take_lock_trace(),
 		vec![Note {
@@ -196,9 +196,9 @@ fn remote_unlock_roundtrip_should_work() {
 		(3u64,),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(40).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(40)));
 	assert_eq!(asset_list((3u64,)), vec![(Parent, 990u128).into()]);
 
 	let expected_msg =
@@ -234,12 +234,12 @@ fn remote_unlock_should_fail_correctly() {
 		(3u64,),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(10),
 			XcmError::LockError
 		)
 	);
@@ -254,9 +254,9 @@ fn remote_unlock_should_fail_correctly() {
 		(Parent, Parachain(1)),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10)));
 	let _discard = take_lock_trace();
 
 	// We want to unlock 100 of the native parent tokens which were locked for us on parachain.
@@ -271,12 +271,12 @@ fn remote_unlock_should_fail_correctly() {
 		(3u64,),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(10),
 			XcmError::NotHoldingFees
 		)
 	);

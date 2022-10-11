@@ -22,7 +22,7 @@ use frame_support::{
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
 use sp_std::{marker::PhantomData, result::Result};
-use xcm::latest::{prelude::*, Weight, DEFAULT_PROOF_SIZE};
+use xcm::latest::{prelude::*, Weight};
 use xcm_executor::{
 	traits::{WeightBounds, WeightTrader},
 	Assets,
@@ -36,13 +36,9 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M: Get<u32>> WeightBounds<C>
 		log::trace!(target: "xcm::weight", "FixedWeightBounds message: {:?}", message);
 		let mut instructions_left = M::get();
 		Self::weight_with_limit(message, &mut instructions_left)
-			// FIXME: Actually measure the proof size for the XCM instructions
-			.map(|w| w.set_proof_size(DEFAULT_PROOF_SIZE))
 	}
 	fn instr_weight(instruction: &Instruction<C>) -> Result<Weight, ()> {
 		Self::instr_weight_with_limit(instruction, &mut u32::max_value())
-			// FIXME: Actually measure the proof size for the XCM instructions
-			.map(|w| w.set_proof_size(DEFAULT_PROOF_SIZE))
 	}
 }
 
@@ -80,13 +76,9 @@ where
 		log::trace!(target: "xcm::weight", "WeightInfoBounds message: {:?}", message);
 		let mut instructions_left = M::get();
 		Self::weight_with_limit(message, &mut instructions_left)
-			// FIXME: Actually measure the proof size for the XCM instructions
-			.map(|w| w.set_proof_size(DEFAULT_PROOF_SIZE))
 	}
 	fn instr_weight(instruction: &Instruction<C>) -> Result<Weight, ()> {
 		Self::instr_weight_with_limit(instruction, &mut u32::max_value())
-			// FIXME: Actually measure the proof size for the XCM instructions
-			.map(|w| w.set_proof_size(DEFAULT_PROOF_SIZE))
 	}
 }
 

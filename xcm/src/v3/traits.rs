@@ -207,9 +207,6 @@ impl From<SendError> for Error {
 
 pub type Result = result::Result<(), Error>;
 
-/// Default value for the proof size weight component. Set at 64 KB.
-pub const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
-
 /// Outcome of an XCM execution.
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
 pub enum Outcome {

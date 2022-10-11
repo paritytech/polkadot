@@ -37,7 +37,7 @@ pub use sp_std::{
 	fmt::Debug,
 	marker::PhantomData,
 };
-pub use xcm::latest::{prelude::*, Weight, DEFAULT_PROOF_SIZE};
+pub use xcm::latest::{prelude::*, Weight};
 pub use xcm_executor::{
 	traits::{
 		AssetExchange, AssetLock, ConvertOrigin, Enact, ExportXcm, FeeManager, FeeReason,

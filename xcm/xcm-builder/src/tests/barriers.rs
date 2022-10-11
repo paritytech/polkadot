@@ -135,7 +135,7 @@ fn allow_explicit_unpaid_should_work() {
 
 	let mut good_message = Xcm::<()>(vec![
 		UnpaidExecution {
-			weight_limit: Limited(Weight::from_ref_time(20)),
+			weight_limit: Limited(Weight::from_parts(20, 20)),
 			check_origin: Some(Parent.into()),
 		},
 		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
@@ -146,7 +146,7 @@ fn allow_explicit_unpaid_should_work() {
 	let r = AllowExplicitUnpaidExecutionFrom::<IsInVec<AllowExplicitUnpaidFrom>>::should_execute(
 		&Parachain(1).into(),
 		good_message.inner_mut(),
-		Weight::from_ref_time(20).set_proof_size(20),
+		Weight::from_parts(20, 20),
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Err(()));
@@ -154,7 +154,7 @@ fn allow_explicit_unpaid_should_work() {
 	let r = AllowExplicitUnpaidExecutionFrom::<IsInVec<AllowExplicitUnpaidFrom>>::should_execute(
 		&Parent.into(),
 		bad_message1.inner_mut(),
-		Weight::from_ref_time(20).set_proof_size(20),
+		Weight::from_parts(20, 20),
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Err(()));
@@ -162,7 +162,7 @@ fn allow_explicit_unpaid_should_work() {
 	let r = AllowExplicitUnpaidExecutionFrom::<IsInVec<AllowExplicitUnpaidFrom>>::should_execute(
 		&Parent.into(),
 		bad_message2.inner_mut(),
-		Weight::from_ref_time(20).set_proof_size(20),
+		Weight::from_parts(20, 20),
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Err(()));
@@ -170,7 +170,7 @@ fn allow_explicit_unpaid_should_work() {
 	let r = AllowExplicitUnpaidExecutionFrom::<IsInVec<AllowExplicitUnpaidFrom>>::should_execute(
 		&Parent.into(),
 		good_message.inner_mut(),
-		Weight::from_ref_time(20).set_proof_size(20),
+		Weight::from_parts(20, 20),
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Ok(()));
@@ -201,7 +201,7 @@ fn allow_paid_should_work() {
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parent.into(),
 		underpaying_message.inner_mut(),
-		Weight::from_ref_time(30).set_proof_size(30),
+		Weight::from_parts(30, 30),
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Err(()));
@@ -209,14 +209,14 @@ fn allow_paid_should_work() {
 	let fees = (Parent, 1).into();
 	let mut paying_message = Xcm::<()>(vec![
 		ReserveAssetDeposited((Parent, 100).into()),
-		BuyExecution { fees, weight_limit: Limited(Weight::from_ref_time(30)) },
+		BuyExecution { fees, weight_limit: Limited(Weight::from_parts(30, 30)) },
 		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
 	]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parachain(1).into(),
 		paying_message.inner_mut(),
-		Weight::from_ref_time(30).set_proof_size(30),
+		Weight::from_parts(30, 30),
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Err(()));
@@ -224,7 +224,7 @@ fn allow_paid_should_work() {
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parent.into(),
 		paying_message.inner_mut(),
-		Weight::from_ref_time(30).set_proof_size(30),
+		Weight::from_parts(30, 30),
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Ok(()));

@@ -34,7 +34,7 @@ fn universal_origin_should_work() {
 		Parachain(2),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10), XcmError::InvalidLocation));
 
@@ -47,12 +47,12 @@ fn universal_origin_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(20),
 			XcmError::NotWithdrawable
 		)
 	);
@@ -67,9 +67,9 @@ fn universal_origin_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(20)));
 	assert_eq!(asset_list((Ancestor(2), GlobalConsensus(Kusama))), vec![]);
 }
 
@@ -94,9 +94,9 @@ fn export_message_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10)));
 	let uni_src = (ByGenesis([0; 32]), Parachain(42), Parachain(1)).into();
 	assert_eq!(
 		exported_xcm(),
@@ -121,12 +121,12 @@ fn unpaid_execution_should_work() {
 		Parachain(1),
 		message.clone(),
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(10),
 			XcmError::BadOrigin
 		)
 	);
@@ -134,7 +134,7 @@ fn unpaid_execution_should_work() {
 		Parachain(2),
 		message.clone(),
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
@@ -146,7 +146,7 @@ fn unpaid_execution_should_work() {
 		Parachain(2),
 		message.clone(),
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10)));
 }

@@ -26,9 +26,9 @@ fn transacting_should_work() {
 		call: TestCall::Any(Weight::from_ref_time(50), None).encode().into(),
 	}]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = Weight::from_ref_time(60).set_proof_size(DEFAULT_PROOF_SIZE);
+	let weight_limit = Weight::from_parts(60, 60);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(60).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(60)));
 }
 
 #[test]
@@ -41,12 +41,12 @@ fn transacting_should_respect_max_weight_requirement() {
 		call: TestCall::Any(Weight::from_ref_time(50), None).encode().into(),
 	}]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = Weight::from_ref_time(60).set_proof_size(DEFAULT_PROOF_SIZE);
+	let weight_limit = Weight::from_parts(60, 60);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(50),
 			XcmError::MaxWeightInvalid
 		)
 	);
@@ -64,9 +64,9 @@ fn transacting_should_refund_weight() {
 			.into(),
 	}]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = Weight::from_ref_time(60).set_proof_size(DEFAULT_PROOF_SIZE);
+	let weight_limit = Weight::from_parts(60, 60);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(40).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(40)));
 }
 
 #[test]
@@ -93,9 +93,9 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 		DepositAsset { assets: AllCounted(1).into(), beneficiary: one.clone() },
 	]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = Weight::from_ref_time(100).set_proof_size(DEFAULT_PROOF_SIZE);
+	let weight_limit = Weight::from_parts(100, 100);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(60).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(60)));
 	assert_eq!(
 		asset_list(AccountIndex64 { index: 1, network: None }),
 		vec![(Parent, 40u128).into()]
@@ -119,9 +119,9 @@ fn report_successful_transact_status_should_work() {
 		}),
 	]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = Weight::from_ref_time(70).set_proof_size(DEFAULT_PROOF_SIZE);
+	let weight_limit = Weight::from_parts(70, 70);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(70).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(70)));
 	let expected_msg = Xcm(vec![QueryResponse {
 		response: Response::DispatchResult(MaybeErrorCode::Success),
 		query_id: 42,
@@ -149,9 +149,9 @@ fn report_failed_transact_status_should_work() {
 		}),
 	]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = Weight::from_ref_time(70).set_proof_size(DEFAULT_PROOF_SIZE);
+	let weight_limit = Weight::from_parts(70, 70);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(70).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(70)));
 	let expected_msg = Xcm(vec![QueryResponse {
 		response: Response::DispatchResult(MaybeErrorCode::Error(vec![2])),
 		query_id: 42,
@@ -180,9 +180,9 @@ fn clear_transact_status_should_work() {
 		}),
 	]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = Weight::from_ref_time(80).set_proof_size(DEFAULT_PROOF_SIZE);
+	let weight_limit = Weight::from_parts(80, 80);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(80).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(80)));
 	let expected_msg = Xcm(vec![QueryResponse {
 		response: Response::DispatchResult(MaybeErrorCode::Success),
 		query_id: 42,

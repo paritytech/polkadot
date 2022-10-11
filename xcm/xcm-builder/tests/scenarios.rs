@@ -23,7 +23,7 @@ use mock::{
 };
 use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::AccountIdConversion;
-use xcm::latest::{prelude::*, DEFAULT_PROOF_SIZE};
+use xcm::latest::prelude::*;
 use xcm_executor::XcmExecutor;
 
 pub const ALICE: AccountId = AccountId::new([0u8; 32]);
@@ -47,7 +47,7 @@ fn withdraw_and_deposit_works() {
 	kusama_like_with_balances(balances).execute_with(|| {
 		let other_para_id = 3000;
 		let amount = REGISTER_AMOUNT;
-		let weight = (BaseXcmWeight::get() * 3).set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get() * 3;
 		let message = Xcm(vec![
 			WithdrawAsset((Here, amount).into()),
 			buy_execution(),
@@ -75,7 +75,7 @@ fn transfer_asset_works() {
 	let balances = vec![(ALICE, INITIAL_BALANCE), (bob.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
 		let amount = REGISTER_AMOUNT;
-		let weight = BaseXcmWeight::get().set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get();
 		let message = Xcm(vec![TransferAsset {
 			assets: (Here, amount).into(),
 			beneficiary: AccountId32 { network: None, id: bob.clone().into() }.into(),
@@ -114,7 +114,7 @@ fn report_holding_works() {
 	kusama_like_with_balances(balances).execute_with(|| {
 		let other_para_id = 3000;
 		let amount = REGISTER_AMOUNT;
-		let weight = (BaseXcmWeight::get() * 4).set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get() * 4;
 		let response_info = QueryResponseInfo {
 			destination: Parachain(PARA_ID).into(),
 			query_id: 1234,
@@ -135,7 +135,7 @@ fn report_holding_works() {
 		assert_eq!(
 			r,
 			Outcome::Incomplete(
-				weight - BaseXcmWeight::get().set_proof_size(DEFAULT_PROOF_SIZE),
+				weight - BaseXcmWeight::get(),
 				XcmError::FailedToTransactAsset("AccountIdConversionFailed")
 			)
 		);
@@ -198,7 +198,7 @@ fn teleport_to_statemine_works() {
 				beneficiary: (Parent, Parachain(PARA_ID)).into(),
 			},
 		];
-		let weight = (BaseXcmWeight::get() * 3).set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get() * 3;
 
 		// teleports are allowed to community chains, even in the absence of trust from their side.
 		let message = Xcm(vec![
@@ -284,7 +284,7 @@ fn reserve_based_transfer_works() {
 			},
 		]);
 		let hash = fake_message_hash(&message);
-		let weight = (BaseXcmWeight::get() * 3).set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get() * 3;
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(Parachain(PARA_ID), message, hash, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);

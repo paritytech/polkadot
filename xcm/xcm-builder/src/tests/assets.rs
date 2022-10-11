@@ -37,9 +37,9 @@ fn exchange_asset_should_work() {
 		Parent,
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(40).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(40)));
 	assert_eq!(asset_list(Parent), vec![(Here, 100u128).into(), (Parent, 950u128).into()]);
 	assert_eq!(exchange_assets(), vec![(Parent, 50u128).into()].into());
 }
@@ -65,9 +65,9 @@ fn exchange_asset_without_maximal_should_work() {
 		Parent,
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(40).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(40)));
 	assert_eq!(asset_list(Parent), vec![(Here, 50u128).into(), (Parent, 950u128).into()]);
 	assert_eq!(exchange_assets(), vec![(Here, 50u128).into(), (Parent, 50u128).into()].into());
 }
@@ -93,12 +93,12 @@ fn exchange_asset_should_fail_when_no_deal_possible() {
 		Parent,
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(40).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(40),
 			XcmError::NoDeal
 		)
 	);
@@ -119,9 +119,9 @@ fn paying_reserve_deposit_should_work() {
 		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
 	]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE);
+	let weight_limit = Weight::from_parts(50, 50);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(30).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(30)));
 	assert_eq!(asset_list(Here), vec![(Parent, 70u128).into()]);
 }
 
@@ -141,9 +141,9 @@ fn transfer_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10)));
 	assert_eq!(
 		asset_list(AccountIndex64 { index: 3, network: None }),
 		vec![(Here, 100u128).into()]
@@ -175,9 +175,9 @@ fn reserve_transfer_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10)));
 
 	let expected_msg = Xcm::<()>(vec![
 		ReserveAssetDeposited((Parent, 100u128).into()),
@@ -206,9 +206,9 @@ fn burn_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(30).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(30)));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900u128).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 
@@ -223,9 +223,9 @@ fn burn_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(30).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(30)));
 	assert_eq!(asset_list(Parachain(1)), vec![]);
 	assert_eq!(sent_xcm(), vec![]);
 }
@@ -250,9 +250,9 @@ fn basic_asset_trap_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(20, 20),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(25).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(25)));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900u128).into()]);
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![]);
 
@@ -270,7 +270,7 @@ fn basic_asset_trap_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(20, 20),
 	);
 	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10), XcmError::UnknownClaim));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900u128).into()]);
@@ -291,7 +291,7 @@ fn basic_asset_trap_should_work() {
 		Parachain(2),
 		message,
 		hash,
-		Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(20, 20),
 	);
 	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10), XcmError::UnknownClaim));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900u128).into()]);
@@ -312,7 +312,7 @@ fn basic_asset_trap_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(20, 20),
 	);
 	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10), XcmError::UnknownClaim));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900u128).into()]);
@@ -331,9 +331,9 @@ fn basic_asset_trap_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(20, 20),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(20)));
 	assert_eq!(asset_list(Parachain(1)), vec![(Here, 900u128).into()]);
 	assert_eq!(
 		asset_list(AccountIndex64 { index: 3, network: None }),
@@ -353,7 +353,7 @@ fn basic_asset_trap_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(20).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(20, 20),
 	);
 	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10), XcmError::UnknownClaim));
 }
@@ -389,9 +389,9 @@ fn max_assets_limit_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(100).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(100, 100),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(85).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(85)));
 
 	// Attempt to withdraw 9 different assets will fail.
 	let message = Xcm(vec![
@@ -410,12 +410,12 @@ fn max_assets_limit_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(100).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(100, 100),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(95).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(95),
 			XcmError::HoldingWouldOverflow
 		)
 	);
@@ -440,9 +440,9 @@ fn max_assets_limit_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(200).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(200, 200),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(125).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(125)));
 
 	// Attempt to withdraw 4 different assets and then a different 4 and then the same 4 will fail.
 	let message = Xcm(vec![
@@ -464,7 +464,7 @@ fn max_assets_limit_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(200).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(200, 200),
 	);
 	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(95), XcmError::HoldingWouldOverflow));
 
@@ -487,12 +487,12 @@ fn max_assets_limit_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(200).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(200, 200),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(25).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(25),
 			XcmError::HoldingWouldOverflow
 		)
 	);

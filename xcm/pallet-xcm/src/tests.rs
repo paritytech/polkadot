@@ -25,10 +25,7 @@ use frame_support::{
 };
 use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, Hash};
-use xcm::{
-	latest::{QueryResponseInfo, DEFAULT_PROOF_SIZE},
-	prelude::*,
-};
+use xcm::{latest::QueryResponseInfo, prelude::*};
 use xcm_builder::AllowKnownQueryResponses;
 use xcm_executor::{traits::ShouldExecute, XcmExecutor};
 
@@ -93,11 +90,11 @@ fn report_outcome_notify_works() {
 			Parachain(PARA_ID),
 			message,
 			hash,
-			Weight::from_ref_time(1_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_parts(1_000_000_000, 1_000_000_000),
 		);
 		assert_eq!(
 			r,
-			Outcome::Complete(Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE))
+			Outcome::Complete(Weight::from_ref_time(1_000))
 		);
 		assert_eq!(
 			last_events(2),
@@ -158,11 +155,11 @@ fn report_outcome_works() {
 			Parachain(PARA_ID),
 			message,
 			hash,
-			Weight::from_ref_time(1_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_parts(1_000_000_000, 1_000_000_000),
 		);
 		assert_eq!(
 			r,
-			Outcome::Complete(Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE))
+			Outcome::Complete(Weight::from_ref_time(1_000))
 		);
 		assert_eq!(
 			last_event(),
@@ -209,12 +206,12 @@ fn custom_querier_works() {
 			AccountId32 { network: None, id: ALICE.into() },
 			message,
 			hash,
-			Weight::from_ref_time(1_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE),
-			Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_parts(1_000_000_000, 1_000_000_000),
+			Weight::from_parts(1_000, 1_000),
 		);
 		assert_eq!(
 			r,
-			Outcome::Complete(Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE))
+			Outcome::Complete(Weight::from_ref_time(1_000))
 		);
 		assert_eq!(
 			last_event(),
@@ -238,12 +235,12 @@ fn custom_querier_works() {
 			AccountId32 { network: None, id: ALICE.into() },
 			message,
 			hash,
-			Weight::from_ref_time(1_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE),
-			Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_parts(1_000_000_000, 1_000_000_000),
+			Weight::from_parts(1_000, 1_000),
 		);
 		assert_eq!(
 			r,
-			Outcome::Complete(Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE))
+			Outcome::Complete(Weight::from_ref_time(1_000))
 		);
 		assert_eq!(
 			last_event(),
@@ -267,11 +264,11 @@ fn custom_querier_works() {
 			AccountId32 { network: None, id: ALICE.into() },
 			message,
 			hash,
-			Weight::from_ref_time(1_000_000_000).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_parts(1_000_000_000, 1_000_000_000),
 		);
 		assert_eq!(
 			r,
-			Outcome::Complete(Weight::from_ref_time(1_000).set_proof_size(DEFAULT_PROOF_SIZE))
+			Outcome::Complete(Weight::from_ref_time(1_000))
 		);
 		assert_eq!(
 			last_event(),
@@ -367,7 +364,7 @@ fn teleport_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = (BaseXcmWeight::get() * 2).set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get() * 2;
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		let dest: MultiLocation = AccountId32 { network: None, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::teleport_assets(
@@ -387,7 +384,7 @@ fn teleport_assets_works() {
 					ClearOrigin,
 					buy_limited_execution(
 						(Here, SEND_AMOUNT),
-						Weight::from_ref_time(4000).set_proof_size(DEFAULT_PROOF_SIZE)
+						Weight::from_ref_time(4000)
 					),
 					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 				]),
@@ -413,7 +410,7 @@ fn limited_teleport_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = (BaseXcmWeight::get() * 2).set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get() * 2;
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		let dest: MultiLocation = AccountId32 { network: None, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::limited_teleport_assets(
@@ -457,7 +454,7 @@ fn unlimited_teleport_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = (BaseXcmWeight::get() * 2).set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get() * 2;
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		let dest: MultiLocation = AccountId32 { network: None, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::limited_teleport_assets(
@@ -499,7 +496,7 @@ fn reserve_transfer_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = BaseXcmWeight::get().set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get();
 		let dest: MultiLocation = Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::reserve_transfer_assets(
@@ -523,7 +520,7 @@ fn reserve_transfer_assets_works() {
 					ClearOrigin,
 					buy_limited_execution(
 						(Parent, SEND_AMOUNT),
-						Weight::from_ref_time(4000).set_proof_size(DEFAULT_PROOF_SIZE)
+						Weight::from_ref_time(4000)
 					),
 					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 				]),
@@ -549,7 +546,7 @@ fn limited_reserve_transfer_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = BaseXcmWeight::get().set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get();
 		let dest: MultiLocation = Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
@@ -558,7 +555,7 @@ fn limited_reserve_transfer_assets_works() {
 			Box::new(dest.clone().into()),
 			Box::new((Here, SEND_AMOUNT).into()),
 			0,
-			WeightLimit::Limited(Weight::from_ref_time(5000).set_proof_size(DEFAULT_PROOF_SIZE)),
+			WeightLimit::Limited(Weight::from_parts(5000, 5000)),
 		));
 		// Alice spent amount
 		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - SEND_AMOUNT);
@@ -574,7 +571,7 @@ fn limited_reserve_transfer_assets_works() {
 					ClearOrigin,
 					buy_limited_execution(
 						(Parent, SEND_AMOUNT),
-						Weight::from_ref_time(5000).set_proof_size(DEFAULT_PROOF_SIZE)
+						Weight::from_parts(5000, 5000)
 					),
 					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 				]),
@@ -600,7 +597,7 @@ fn unlimited_reserve_transfer_assets_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = BaseXcmWeight::get().set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get();
 		let dest: MultiLocation = Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
@@ -646,7 +643,7 @@ fn execute_withdraw_to_deposit_works() {
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
 	];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = (BaseXcmWeight::get() * 3).set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get() * 3;
 		let dest: MultiLocation = Junction::AccountId32 { network: None, id: BOB.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::execute(
@@ -672,7 +669,7 @@ fn execute_withdraw_to_deposit_works() {
 fn trapped_assets_can_be_claimed() {
 	let balances = vec![(ALICE, INITIAL_BALANCE), (BOB, INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = (BaseXcmWeight::get() * 6).set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get() * 6;
 		let dest: MultiLocation = Junction::AccountId32 { network: None, id: BOB.into() }.into();
 
 		assert_ok!(XcmPallet::execute(
@@ -709,7 +706,7 @@ fn trapped_assets_can_be_claimed() {
 		let expected = vec![(hash, 1u32)];
 		assert_eq!(trapped, expected);
 
-		let weight = (BaseXcmWeight::get() * 3).set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get() * 3;
 		assert_ok!(XcmPallet::execute(
 			RuntimeOrigin::signed(ALICE),
 			Box::new(VersionedXcm::from(Xcm(vec![
@@ -724,7 +721,7 @@ fn trapped_assets_can_be_claimed() {
 		assert_eq!(Balances::total_balance(&BOB), INITIAL_BALANCE + SEND_AMOUNT);
 		assert_eq!(AssetTraps::<Test>::iter().collect::<Vec<_>>(), vec![]);
 
-		let weight = (BaseXcmWeight::get() * 3).set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get() * 3;
 		assert_ok!(XcmPallet::execute(
 			RuntimeOrigin::signed(ALICE),
 			Box::new(VersionedXcm::from(Xcm(vec![
@@ -898,7 +895,7 @@ fn subscription_side_works() {
 		AdvertisedXcmVersion::set(1);
 
 		let remote: MultiLocation = Parachain(1000).into();
-		let weight = BaseXcmWeight::get().set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get();
 		let message =
 			Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: Weight::zero() }]);
 		let hash = fake_message_hash(&message);
@@ -1026,7 +1023,7 @@ fn subscriber_side_subscription_works() {
 
 		// Assume subscription target is working ok.
 
-		let weight = BaseXcmWeight::get().set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get();
 		let message = Xcm(vec![
 			// Remote supports XCM v2
 			QueryResponse {
@@ -1107,7 +1104,7 @@ fn auto_subscription_works() {
 
 		// Assume remote_v3 is working ok and XCM version 3.
 
-		let weight = BaseXcmWeight::get().set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get();
 		let message = Xcm(vec![
 			// Remote supports XCM v3
 			QueryResponse {
@@ -1143,7 +1140,7 @@ fn auto_subscription_works() {
 
 		// Assume remote_v2 is working ok and XCM version 2.
 
-		let weight = BaseXcmWeight::get().set_proof_size(DEFAULT_PROOF_SIZE);
+		let weight = BaseXcmWeight::get();
 		let message = Xcm(vec![
 			// Remote supports XCM v2
 			QueryResponse {

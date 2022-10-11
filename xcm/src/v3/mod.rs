@@ -48,7 +48,7 @@ pub use multilocation::{
 };
 pub use traits::{
 	send_xcm, validate_send, Error, ExecuteXcm, Outcome, PreparedMessage, Result, SendError,
-	SendResult, SendXcm, Unwrappable, Weight, XcmHash, DEFAULT_PROOF_SIZE,
+	SendResult, SendXcm, Unwrappable, Weight, XcmHash,
 };
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::OriginKind;
@@ -1214,6 +1214,9 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 	}
 }
 
+/// Default value for the proof size weight component. Set at 64 KB.
+const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
+
 // Convert from a v2 instruction to a v3 instruction.
 impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 	type Error = ();
@@ -1226,7 +1229,7 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 			QueryResponse { query_id, response, max_weight } => Self::QueryResponse {
 				query_id,
 				response: response.try_into()?,
-				max_weight: Weight::from_ref_time(max_weight).set_proof_size(DEFAULT_PROOF_SIZE),
+				max_weight: Weight::from_parts(max_weight, DEFAULT_PROOF_SIZE),
 				querier: None,
 			},
 			TransferAsset { assets, beneficiary } => Self::TransferAsset {
@@ -1245,8 +1248,7 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 				Self::HrmpChannelClosing { initiator, sender, recipient },
 			Transact { origin_type, require_weight_at_most, call } => Self::Transact {
 				origin_kind: origin_type,
-				require_weight_at_most: Weight::from_ref_time(require_weight_at_most)
-					.set_proof_size(DEFAULT_PROOF_SIZE),
+				require_weight_at_most: Weight::from_parts(require_weight_at_most, DEFAULT_PROOF_SIZE),
 				call: call.into(),
 			},
 			ReportError { query_id, dest, max_response_weight } => {
@@ -1285,8 +1287,7 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 				let response_info = QueryResponseInfo {
 					destination: dest.try_into()?,
 					query_id,
-					max_weight: Weight::from_ref_time(max_response_weight)
-						.set_proof_size(DEFAULT_PROOF_SIZE),
+					max_weight: Weight::from_parts(max_response_weight, DEFAULT_PROOF_SIZE),
 				};
 				Self::ReportHolding { response_info, assets: assets.try_into()? }
 			},
@@ -1308,8 +1309,7 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 			Trap(code) => Self::Trap(code),
 			SubscribeVersion { query_id, max_response_weight } => Self::SubscribeVersion {
 				query_id,
-				max_response_weight: Weight::from_ref_time(max_response_weight)
-					.set_proof_size(DEFAULT_PROOF_SIZE),
+				max_response_weight: Weight::from_parts(max_response_weight, DEFAULT_PROOF_SIZE),
 			},
 			UnsubscribeVersion => Self::UnsubscribeVersion,
 		})

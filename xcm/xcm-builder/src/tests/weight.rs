@@ -41,12 +41,12 @@ fn errors_should_return_unused_weight() {
 	]);
 	// Weight limit of 70 is needed.
 	let limit = <TestConfig as Config>::Weigher::weight(&mut message).unwrap();
-	assert_eq!(limit, Weight::from_ref_time(30).set_proof_size(DEFAULT_PROOF_SIZE));
+	assert_eq!(limit, Weight::from_ref_time(30));
 
 	let hash = fake_message_hash(&message);
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), hash, limit);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(30).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(30)));
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 7u128).into()]);
 	assert_eq!(asset_list(Here), vec![(Here, 4u128).into()]);
 	assert_eq!(sent_xcm(), vec![]);
@@ -55,7 +55,7 @@ fn errors_should_return_unused_weight() {
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(30).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(30),
 			XcmError::NotWithdrawable
 		)
 	);
@@ -100,7 +100,7 @@ fn weight_bounds_should_respect_instructions_limit() {
 	// 3 instructions are OK.
 	assert_eq!(
 		<TestConfig as Config>::Weigher::weight(&mut message),
-		Ok(Weight::from_ref_time(30).set_proof_size(DEFAULT_PROOF_SIZE))
+		Ok(Weight::from_ref_time(30))
 	);
 }
 

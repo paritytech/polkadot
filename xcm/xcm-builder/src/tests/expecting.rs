@@ -33,9 +33,9 @@ fn expect_pallet_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10)));
 
 	let message = Xcm(vec![ExpectPallet {
 		index: 1,
@@ -49,9 +49,9 @@ fn expect_pallet_should_work() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE)));
+	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10)));
 }
 
 #[test]
@@ -69,12 +69,12 @@ fn expect_pallet_should_fail_correctly() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(10),
 			XcmError::VersionIncompatible
 		)
 	);
@@ -91,12 +91,12 @@ fn expect_pallet_should_fail_correctly() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(10),
 			XcmError::NameMismatch
 		)
 	);
@@ -113,12 +113,12 @@ fn expect_pallet_should_fail_correctly() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(10),
 			XcmError::NameMismatch
 		)
 	);
@@ -135,12 +135,12 @@ fn expect_pallet_should_fail_correctly() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(10),
 			XcmError::NameMismatch
 		)
 	);
@@ -157,12 +157,12 @@ fn expect_pallet_should_fail_correctly() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(10),
 			XcmError::PalletNotFound
 		)
 	);
@@ -179,12 +179,12 @@ fn expect_pallet_should_fail_correctly() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(10),
 			XcmError::VersionIncompatible
 		)
 	);
@@ -201,12 +201,12 @@ fn expect_pallet_should_fail_correctly() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(10),
 			XcmError::VersionIncompatible
 		)
 	);
@@ -223,12 +223,12 @@ fn expect_pallet_should_fail_correctly() {
 		Parachain(1),
 		message,
 		hash,
-		Weight::from_ref_time(50).set_proof_size(DEFAULT_PROOF_SIZE),
+		Weight::from_parts(50, 50),
 	);
 	assert_eq!(
 		r,
 		Outcome::Incomplete(
-			Weight::from_ref_time(10).set_proof_size(DEFAULT_PROOF_SIZE),
+			Weight::from_ref_time(10),
 			XcmError::VersionIncompatible
 		)
 	);
