@@ -28,7 +28,7 @@ type Version = u32;
 const VERSION_FILE_NAME: &'static str = "parachain_db_version";
 
 /// Current db version.
-const CURRENT_VERSION: Version = 1;
+const CURRENT_VERSION: Version = 2;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -56,6 +56,8 @@ pub(crate) fn try_upgrade_db(db_path: &Path, db_kind: DatabaseKind) -> Result<()
 		match get_db_version(db_path)? {
 			// 0 -> 1 migration
 			Some(0) => migrate_from_version_0_to_1(db_path, db_kind)?,
+			// 1 -> 2 migration
+			Some(1) => migrate_from_version_1_to_2(db_path, db_kind)?,
 			// Already at current version, do nothing.
 			Some(CURRENT_VERSION) => (),
 			// This is an arbitrary future version, we don't handle it.
@@ -112,6 +114,19 @@ fn migrate_from_version_0_to_1(path: &Path, db_kind: DatabaseKind) -> Result<(),
 	})
 }
 
+fn migrate_from_version_1_to_2(path: &Path, db_kind: DatabaseKind) -> Result<(), Error> {
+	gum::info!(target: LOG_TARGET, "Migrating parachains db from version 1 to version 2 ...");
+
+	match db_kind {
+		DatabaseKind::ParityDB => paritydb_migrate_from_version_1_to_2(path),
+		DatabaseKind::RocksDB => rocksdb_migrate_from_version_1_to_2(path),
+	}
+	.and_then(|result| {
+		gum::info!(target: LOG_TARGET, "Migration complete! ");
+		Ok(result)
+	})
+}
+
 /// Migration from version 0 to version 1:
 /// * the number of columns has changed from 3 to 5;
 fn rocksdb_migrate_from_version_0_to_1(path: &Path) -> Result<(), Error> {
@@ -124,6 +139,22 @@ fn rocksdb_migrate_from_version_0_to_1(path: &Path) -> Result<(), Error> {
 	let db = Database::open(&db_cfg, db_path)?;
 
 	db.add_column()?;
+	db.add_column()?;
+
+	Ok(())
+}
+
+/// Migration from version 1 to version 2:
+/// * the number of columns has changed from 5 to 6;
+fn rocksdb_migrate_from_version_1_to_2(path: &Path) -> Result<(), Error> {
+	use kvdb_rocksdb::{Database, DatabaseConfig};
+
+	let db_path = path
+		.to_str()
+		.ok_or_else(|| super::other_io_error("Invalid database path".into()))?;
+	let db_cfg = DatabaseConfig::with_columns(super::columns::v0::NUM_COLUMNS);
+	let db = Database::open(&db_cfg, db_path)?;
+
 	db.add_column()?;
 
 	Ok(())
@@ -197,6 +228,17 @@ pub(crate) fn paritydb_version_1_config(path: &Path) -> parity_db::Options {
 	options
 }
 
+/// Database configuration for version 2.
+pub(crate) fn paritydb_version_2_config(path: &Path) -> parity_db::Options {
+	let mut options =
+		parity_db::Options::with_columns(&path, super::columns::v2::NUM_COLUMNS as u8);
+	for i in columns::v1::ORDERED_COL {
+		options.columns[*i as usize].btree_index = true;
+	}
+
+	options
+}
+
 /// Database configuration for version 0. This is useful just for testing.
 #[cfg(test)]
 pub(crate) fn paritydb_version_0_config(path: &Path) -> parity_db::Options {
@@ -221,6 +263,12 @@ fn paritydb_migrate_from_version_0_to_1(path: &Path) -> Result<(), Error> {
 		vec![super::columns::v1::COL_DISPUTE_COORDINATOR_DATA],
 	)?;
 
+	Ok(())
+}
+
+/// Migration from version 1 to version 2.
+/// Cases covered: a no-op since `paritydb` handles new columns automatically.
+fn paritydb_migrate_from_version_1_to_2(_path: &Path) -> Result<(), Error> {
 	Ok(())
 }
 
@@ -254,5 +302,39 @@ mod tests {
 			db.get(super::columns::v1::COL_AVAILABILITY_META as u8, b"5678").unwrap(),
 			Some("somevalue".as_bytes().to_vec())
 		);
+	}
+
+	#[test]
+	fn test_paritydb_migrate_1_2() {
+		use super::{columns::v1::*, *};
+		use parity_db::Db;
+
+		let db_dir = tempfile::tempdir().unwrap();
+		let path = db_dir.path();
+		{
+			let db = Db::open_or_create(&paritydb_version_1_config(&path)).unwrap();
+
+			db.commit(vec![
+				(COL_DISPUTE_COORDINATOR_DATA as u8, b"1234".to_vec(), Some(b"somevalue".to_vec())),
+				(COL_AVAILABILITY_META as u8, b"5678".to_vec(), Some(b"somevalue".to_vec())),
+			])
+			.unwrap();
+
+			assert_eq!(db.num_columns(), super::columns::v1::NUM_COLUMNS as u8);
+		}
+
+		try_upgrade_db(&path, DatabaseKind::ParityDB).unwrap();
+
+		let db = Db::open(&paritydb_version_2_config(&path)).unwrap();
+		assert_eq!(
+			db.get(super::columns::v1::COL_DISPUTE_COORDINATOR_DATA as u8, b"1234").unwrap(),
+			None
+		);
+		assert_eq!(
+			db.get(super::columns::v1::COL_AVAILABILITY_META as u8, b"5678").unwrap(),
+			Some("somevalue".as_bytes().to_vec())
+		);
+
+		assert_eq!(db.num_columns(), super::columns::v2::NUM_COLUMNS as u8);
 	}
 }
