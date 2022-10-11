@@ -318,19 +318,12 @@ pub mod mock_msg_queue {
 			let (result, event) = match Xcm::<T::RuntimeCall>::try_from(xcm) {
 				Ok(xcm) => {
 					let location = (Parent, Parachain(sender.into()));
-					match T::XcmExecutor::execute_xcm(
-						location,
-						xcm,
-						message_hash,
-						max_weight,
-					) {
+					match T::XcmExecutor::execute_xcm(location, xcm, message_hash, max_weight) {
 						Outcome::Error(e) => (Err(e.clone()), Event::Fail(Some(hash), e)),
-						Outcome::Complete(w) =>
-							(Ok(w), Event::Success(Some(hash))),
+						Outcome::Complete(w) => (Ok(w), Event::Success(Some(hash))),
 						// As far as the caller is concerned, this was dispatched without error, so
 						// we just report the weight used.
-						Outcome::Incomplete(w, e) =>
-							(Ok(w), Event::Fail(Some(hash), e)),
+						Outcome::Incomplete(w, e) => (Ok(w), Event::Fail(Some(hash), e)),
 					}
 				},
 				Err(()) => (Err(XcmError::UnhandledXcmVersion), Event::BadVersion(Some(hash))),
@@ -380,12 +373,7 @@ pub mod mock_msg_queue {
 					Ok(versioned) => match Xcm::try_from(versioned) {
 						Err(()) => Self::deposit_event(Event::UnsupportedVersion(id)),
 						Ok(x) => {
-							let outcome = T::XcmExecutor::execute_xcm(
-								Parent,
-								x.clone(),
-								id,
-								limit,
-							);
+							let outcome = T::XcmExecutor::execute_xcm(Parent, x.clone(), id, limit);
 							<ReceivedDmp<T>>::append(x);
 							Self::deposit_event(Event::ExecutedDownward(id, outcome));
 						},
