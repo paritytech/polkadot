@@ -138,7 +138,7 @@ mod tests {
 	use super::*;
 
 	use codec::Encode;
-	use frame_support::assert_ok;
+	use frame_support::{assert_ok, weights::Weight};
 	use xcm::latest::QueryResponseInfo;
 	use xcm_simulator::TestExt;
 
