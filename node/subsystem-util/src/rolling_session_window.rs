@@ -499,9 +499,7 @@ async fn get_session_index_for_child(
 }
 
 /// Attempts to extend db stored sessions with sessions missing between `start` and up to `end_inclusive`.
-/// If `allow_failure` is true, fetching errors are ignored until we get a first session, then
-/// the function would return error. This allows us to be more relaxed `wrt` sessions no longer
-/// available in the runtime, but not for other types of errors.
+/// Runtime session info fetching errors are ignored if that doesn't create a gap in the window.
 async fn extend_sessions_from_chain_state(
 	db_sessions: Vec<SessionInfo>,
 	sender: &mut impl overseer::SubsystemSender<RuntimeApiMessage>,
@@ -512,6 +510,7 @@ async fn extend_sessions_from_chain_state(
 	// Start from the db sessions.
 	let mut sessions = db_sessions;
 	// We allow session fetch failures only if we won't create a gap in the window by doing so.
+	// If `allow_failure` is set to true here, fetching errors are ignored until we get a first session.
 	let mut allow_failure = sessions.is_empty();
 
 	let start = *window_start + sessions.len() as u32;
