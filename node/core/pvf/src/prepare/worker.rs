@@ -72,7 +72,6 @@ pub async fn start_work(
 	gum::debug!(
 		target: LOG_TARGET,
 		worker_pid = %pid,
-		?compilation_timeout,
 		"starting prepare for {}",
 		artifact_path.display(),
 	);
