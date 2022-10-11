@@ -569,12 +569,13 @@ async fn validate_candidate_exhaustive(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(
 				"ambiguous worker death".to_string(),
 			))),
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) =>
-		// In principle if preparation of the `WASM` fails, the current candidate can not be the
-		// reason for that. So we can't say whether it is invalid or not in addition with
-		// pre-checking enabled only valid runtimes should ever get enacted, so we can be
-		// reasonably sure that this is some local problem on the current node.
-			Err(ValidationFailed(e)),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) => {
+			// In principle if preparation of the `WASM` fails, the current candidate can not be the
+			// reason for that. So we can't say whether it is invalid or not in addition with
+			// pre-checking enabled only valid runtimes should ever get enacted, so we can be
+			// reasonably sure that this is some local problem on the current node.
+			Err(ValidationFailed(e))
+		},
 		Ok(res) =>
 			if res.head_data.hash() != candidate_receipt.descriptor.para_head {
 				gum::info!(target: LOG_TARGET, ?para_id, "Invalid candidate (para_head)");
