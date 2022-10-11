@@ -43,13 +43,7 @@ fn transacting_should_respect_max_weight_requirement() {
 	let hash = fake_message_hash(&message);
 	let weight_limit = Weight::from_parts(60, 60);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(
-		r,
-		Outcome::Incomplete(
-			Weight::from_ref_time(50),
-			XcmError::MaxWeightInvalid
-		)
-	);
+	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(50), XcmError::MaxWeightInvalid));
 }
 
 #[test]

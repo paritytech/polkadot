@@ -65,13 +65,7 @@ fn version_subscription_instruction_should_work() {
 		weight_limit,
 		weight_limit,
 	);
-	assert_eq!(
-		r,
-		Outcome::Incomplete(
-			Weight::from_ref_time(20),
-			XcmError::BadOrigin
-		)
-	);
+	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(20), XcmError::BadOrigin));
 
 	let message = Xcm::<TestCall>(vec![
 		SetAppendix(Xcm(vec![])),
@@ -136,13 +130,7 @@ fn version_unsubscription_instruction_should_work() {
 		weight_limit,
 		weight_limit,
 	);
-	assert_eq!(
-		r,
-		Outcome::Incomplete(
-			Weight::from_ref_time(20),
-			XcmError::BadOrigin
-		)
-	);
+	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(20), XcmError::BadOrigin));
 
 	// Fine to do it when origin is untouched.
 	let message = Xcm::<TestCall>(vec![SetAppendix(Xcm(vec![])), UnsubscribeVersion]);

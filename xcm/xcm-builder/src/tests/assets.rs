@@ -33,12 +33,8 @@ fn exchange_asset_should_work() {
 		},
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parent,
-		message,
-		hash,
-		Weight::from_parts(50, 50),
-	);
+	let r =
+		XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, Weight::from_parts(50, 50));
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(40)));
 	assert_eq!(asset_list(Parent), vec![(Here, 100u128).into(), (Parent, 950u128).into()]);
 	assert_eq!(exchange_assets(), vec![(Parent, 50u128).into()].into());
@@ -61,12 +57,8 @@ fn exchange_asset_without_maximal_should_work() {
 		},
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parent,
-		message,
-		hash,
-		Weight::from_parts(50, 50),
-	);
+	let r =
+		XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, Weight::from_parts(50, 50));
 	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(40)));
 	assert_eq!(asset_list(Parent), vec![(Here, 50u128).into(), (Parent, 950u128).into()]);
 	assert_eq!(exchange_assets(), vec![(Here, 50u128).into(), (Parent, 50u128).into()].into());
@@ -89,19 +81,9 @@ fn exchange_asset_should_fail_when_no_deal_possible() {
 		},
 	]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parent,
-		message,
-		hash,
-		Weight::from_parts(50, 50),
-	);
-	assert_eq!(
-		r,
-		Outcome::Incomplete(
-			Weight::from_ref_time(40),
-			XcmError::NoDeal
-		)
-	);
+	let r =
+		XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, Weight::from_parts(50, 50));
+	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(40), XcmError::NoDeal));
 	assert_eq!(asset_list(Parent), vec![(Parent, 1000u128).into()]);
 	assert_eq!(exchange_assets(), vec![(Here, 100u128).into()].into());
 }
@@ -412,13 +394,7 @@ fn max_assets_limit_should_work() {
 		hash,
 		Weight::from_parts(100, 100),
 	);
-	assert_eq!(
-		r,
-		Outcome::Incomplete(
-			Weight::from_ref_time(95),
-			XcmError::HoldingWouldOverflow
-		)
-	);
+	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(95), XcmError::HoldingWouldOverflow));
 
 	// Attempt to withdraw 4 different assets and then the same 4 and then a different 4 will succeed.
 	let message = Xcm(vec![
@@ -489,11 +465,5 @@ fn max_assets_limit_should_work() {
 		hash,
 		Weight::from_parts(200, 200),
 	);
-	assert_eq!(
-		r,
-		Outcome::Incomplete(
-			Weight::from_ref_time(25),
-			XcmError::HoldingWouldOverflow
-		)
-	);
+	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(25), XcmError::HoldingWouldOverflow));
 }

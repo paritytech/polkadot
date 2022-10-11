@@ -54,11 +54,7 @@ pub mod v1 {
 				let mut weight = T::DbWeight::get().reads(1);
 
 				for (k1, k2, value) in VersionNotifyTargets::<T>::iter() {
-					let val = (
-						value.0,
-						Weight::from_parts(value.1, DEFAULT_PROOF_SIZE),
-						value.2,
-					);
+					let val = (value.0, Weight::from_parts(value.1, DEFAULT_PROOF_SIZE), value.2);
 					<Pallet<T> as Store>::VersionNotifyTargets::insert(k1, k2, val);
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 				}

@@ -92,10 +92,7 @@ fn report_outcome_notify_works() {
 			hash,
 			Weight::from_parts(1_000_000_000, 1_000_000_000),
 		);
-		assert_eq!(
-			r,
-			Outcome::Complete(Weight::from_ref_time(1_000))
-		);
+		assert_eq!(r, Outcome::Complete(Weight::from_ref_time(1_000)));
 		assert_eq!(
 			last_events(2),
 			vec![
@@ -157,10 +154,7 @@ fn report_outcome_works() {
 			hash,
 			Weight::from_parts(1_000_000_000, 1_000_000_000),
 		);
-		assert_eq!(
-			r,
-			Outcome::Complete(Weight::from_ref_time(1_000))
-		);
+		assert_eq!(r, Outcome::Complete(Weight::from_ref_time(1_000)));
 		assert_eq!(
 			last_event(),
 			RuntimeEvent::XcmPallet(crate::Event::ResponseReady(
@@ -209,10 +203,7 @@ fn custom_querier_works() {
 			Weight::from_parts(1_000_000_000, 1_000_000_000),
 			Weight::from_parts(1_000, 1_000),
 		);
-		assert_eq!(
-			r,
-			Outcome::Complete(Weight::from_ref_time(1_000))
-		);
+		assert_eq!(r, Outcome::Complete(Weight::from_ref_time(1_000)));
 		assert_eq!(
 			last_event(),
 			RuntimeEvent::XcmPallet(crate::Event::InvalidQuerier(
@@ -238,10 +229,7 @@ fn custom_querier_works() {
 			Weight::from_parts(1_000_000_000, 1_000_000_000),
 			Weight::from_parts(1_000, 1_000),
 		);
-		assert_eq!(
-			r,
-			Outcome::Complete(Weight::from_ref_time(1_000))
-		);
+		assert_eq!(r, Outcome::Complete(Weight::from_ref_time(1_000)));
 		assert_eq!(
 			last_event(),
 			RuntimeEvent::XcmPallet(crate::Event::InvalidQuerier(
@@ -266,10 +254,7 @@ fn custom_querier_works() {
 			hash,
 			Weight::from_parts(1_000_000_000, 1_000_000_000),
 		);
-		assert_eq!(
-			r,
-			Outcome::Complete(Weight::from_ref_time(1_000))
-		);
+		assert_eq!(r, Outcome::Complete(Weight::from_ref_time(1_000)));
 		assert_eq!(
 			last_event(),
 			RuntimeEvent::XcmPallet(crate::Event::ResponseReady(
@@ -382,10 +367,7 @@ fn teleport_assets_works() {
 				Xcm(vec![
 					ReceiveTeleportedAsset((Here, SEND_AMOUNT).into()),
 					ClearOrigin,
-					buy_limited_execution(
-						(Here, SEND_AMOUNT),
-						Weight::from_ref_time(4000)
-					),
+					buy_limited_execution((Here, SEND_AMOUNT), Weight::from_ref_time(4000)),
 					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 				]),
 			)]
@@ -518,10 +500,7 @@ fn reserve_transfer_assets_works() {
 				Xcm(vec![
 					ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 					ClearOrigin,
-					buy_limited_execution(
-						(Parent, SEND_AMOUNT),
-						Weight::from_ref_time(4000)
-					),
+					buy_limited_execution((Parent, SEND_AMOUNT), Weight::from_ref_time(4000)),
 					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 				]),
 			)]
@@ -569,10 +548,7 @@ fn limited_reserve_transfer_assets_works() {
 				Xcm(vec![
 					ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 					ClearOrigin,
-					buy_limited_execution(
-						(Parent, SEND_AMOUNT),
-						Weight::from_parts(5000, 5000)
-					),
+					buy_limited_execution((Parent, SEND_AMOUNT), Weight::from_parts(5000, 5000)),
 					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 				]),
 			)]

@@ -1248,7 +1248,10 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 				Self::HrmpChannelClosing { initiator, sender, recipient },
 			Transact { origin_type, require_weight_at_most, call } => Self::Transact {
 				origin_kind: origin_type,
-				require_weight_at_most: Weight::from_parts(require_weight_at_most, DEFAULT_PROOF_SIZE),
+				require_weight_at_most: Weight::from_parts(
+					require_weight_at_most,
+					DEFAULT_PROOF_SIZE,
+				),
 				call: call.into(),
 			},
 			ReportError { query_id, dest, max_response_weight } => {

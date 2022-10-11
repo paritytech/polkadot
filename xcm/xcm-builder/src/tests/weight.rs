@@ -52,13 +52,7 @@ fn errors_should_return_unused_weight() {
 	assert_eq!(sent_xcm(), vec![]);
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), hash, limit);
-	assert_eq!(
-		r,
-		Outcome::Incomplete(
-			Weight::from_ref_time(30),
-			XcmError::NotWithdrawable
-		)
-	);
+	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(30), XcmError::NotWithdrawable));
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 10u128).into()]);
 	assert_eq!(asset_list(Here), vec![(Here, 1u128).into()]);
 	assert_eq!(sent_xcm(), vec![]);

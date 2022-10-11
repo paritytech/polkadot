@@ -49,13 +49,7 @@ fn universal_origin_should_work() {
 		hash,
 		Weight::from_parts(50, 50),
 	);
-	assert_eq!(
-		r,
-		Outcome::Incomplete(
-			Weight::from_ref_time(20),
-			XcmError::NotWithdrawable
-		)
-	);
+	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(20), XcmError::NotWithdrawable));
 
 	add_asset((Ancestor(2), GlobalConsensus(Kusama)), (Parent, 100));
 	let message = Xcm(vec![
@@ -123,13 +117,7 @@ fn unpaid_execution_should_work() {
 		hash,
 		Weight::from_parts(50, 50),
 	);
-	assert_eq!(
-		r,
-		Outcome::Incomplete(
-			Weight::from_ref_time(10),
-			XcmError::BadOrigin
-		)
-	);
+	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10), XcmError::BadOrigin));
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(2),
 		message.clone(),
