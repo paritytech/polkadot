@@ -21,9 +21,11 @@ use frame_support::{
 	traits::{OnRuntimeUpgrade, StorageVersion},
 	weights::Weight,
 };
-use xcm::{latest::DEFAULT_PROOF_SIZE, Version as XcmVersion, VersionedMultiLocation};
+use xcm::{Version as XcmVersion, VersionedMultiLocation};
 
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
+const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
 
 pub mod v1 {
 	use super::*;
@@ -54,7 +56,7 @@ pub mod v1 {
 				for (k1, k2, value) in VersionNotifyTargets::<T>::iter() {
 					let val = (
 						value.0,
-						Weight::from_ref_time(value.1).set_proof_size(DEFAULT_PROOF_SIZE),
+						Weight::from_components(value.1, DEFAULT_PROOF_SIZE),
 						value.2,
 					);
 					<Pallet<T> as Store>::VersionNotifyTargets::insert(k1, k2, val);
