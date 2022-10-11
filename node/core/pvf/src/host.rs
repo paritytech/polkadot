@@ -61,8 +61,9 @@ pub struct ValidationHost {
 }
 
 impl ValidationHost {
-	/// Precheck PVF with the given code, i.e. verify that it compiles within a reasonable time limit.
-	/// This will prepare the PVF. The result of preparation will be sent to the provided result sender.
+	/// Precheck PVF with the given code, i.e. verify that it compiles within a reasonable time
+	/// limit. This will prepare the PVF. The result of preparation will be sent to the provided
+	/// result sender.
 	///
 	/// This is async to accommodate the possibility of back-pressure. In the vast majority of
 	/// situations this function should return immediately.
