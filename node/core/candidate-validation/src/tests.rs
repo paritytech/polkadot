@@ -238,6 +238,10 @@ fn check_runtime_validation_code_request() {
 		hrmp_watermark: 0,
 	};
 
+	let commitments = make_commitments_from_validation_result(&validation_result);
+
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: commitments.hash() };
+
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) =
 		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
@@ -247,7 +251,7 @@ fn check_runtime_validation_code_request() {
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data.clone(),
 		None,
-		descriptor,
+		candidate_receipt,
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&metrics,
@@ -317,14 +321,7 @@ fn candidate_validation_ok_is_ok() {
 		hrmp_watermark: 0,
 	};
 
-	let commitments = CandidateCommitments {
-		head_data: validation_result.head_data.clone(),
-		upward_messages: validation_result.upward_messages.clone(),
-		horizontal_messages: validation_result.horizontal_messages.clone(),
-		new_validation_code: validation_result.new_validation_code.clone(),
-		processed_downward_messages: validation_result.processed_downward_messages,
-		hrmp_watermark: validation_result.hrmp_watermark,
-	};
+	let commitments = make_commitments_from_validation_result(&validation_result);
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: commitments.hash() };
 
@@ -333,7 +330,6 @@ fn candidate_validation_ok_is_ok() {
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data.clone(),
 		Some(validation_code),
-		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
 		Duration::from_secs(0),
@@ -390,7 +386,6 @@ fn candidate_validation_bad_return_is_invalid() {
 		)),
 		validation_data,
 		Some(validation_code),
-		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
 		Duration::from_secs(0),
@@ -480,10 +475,15 @@ fn candidate_validation_commitment_hash_mismatch_is_invalid() {
 		hrmp_watermark: 12345,
 	};
 
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut _ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
 	let result = executor::block_on(validate_candidate_exhaustive(
+		ctx.sender(),
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
-		validation_code,
+		Some(validation_code),
 		candidate_receipt,
 		Arc::new(pov),
 		Duration::from_secs(0),
@@ -579,14 +579,7 @@ fn compressed_code_works() {
 		hrmp_watermark: 0,
 	};
 
-	let commitments = CandidateCommitments {
-		head_data: validation_result.head_data.clone(),
-		upward_messages: validation_result.upward_messages.clone(),
-		horizontal_messages: validation_result.horizontal_messages.clone(),
-		new_validation_code: validation_result.new_validation_code.clone(),
-		processed_downward_messages: validation_result.processed_downward_messages,
-		hrmp_watermark: validation_result.hrmp_watermark,
-	};
+	let commitments = make_commitments_from_validation_result(&validation_result);
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: commitments.hash() };
 
@@ -741,6 +734,10 @@ fn requests_code_from_api_if_not_found() {
 		hrmp_watermark: 0,
 	};
 
+	let commitments = make_commitments_from_validation_result(&validation_result);
+
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: commitments.hash() };
+
 	let metrics = Default::default();
 
 	let (check_fut, check_result) = validate_candidate_exhaustive(
@@ -748,7 +745,7 @@ fn requests_code_from_api_if_not_found() {
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		None,
-		descriptor,
+		candidate_receipt,
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&metrics,
@@ -809,12 +806,14 @@ fn code_hash_mismatch_error() {
 		hrmp_watermark: 0,
 	};
 
+	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
+
 	let metrics = Default::default();
 
 	let (check_fut, check_result) = validate_from_chain_state(
 		ctx.sender(),
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
-		descriptor,
+		candidate_receipt,
 		Arc::new(pov),
 		Duration::from_secs(0),
 		&metrics,
@@ -1008,4 +1007,17 @@ fn precheck_properly_classifies_outcomes() {
 
 	inner(Err(PrepareError::TimedOut), PreCheckOutcome::Failed);
 	inner(Err(PrepareError::DidNotMakeIt), PreCheckOutcome::Failed);
+}
+
+fn make_commitments_from_validation_result(
+	validation_result: &WasmValidationResult,
+) -> CandidateCommitments {
+	CandidateCommitments {
+		head_data: validation_result.head_data.clone(),
+		upward_messages: validation_result.upward_messages.clone(),
+		horizontal_messages: validation_result.horizontal_messages.clone(),
+		new_validation_code: validation_result.new_validation_code.clone(),
+		processed_downward_messages: validation_result.processed_downward_messages,
+		hrmp_watermark: validation_result.hrmp_watermark,
+	}
 }

@@ -42,7 +42,7 @@ use polkadot_node_subsystem::{
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateCommitments, CandidateDescriptor, CandidateReceipt, Hash,
-	OccupiedCoreAssumption, PersistedValidationData, ValidationCode, ValidationCodeHash,
+	PersistedValidationData, ValidationCode, ValidationCodeHash,
 };
 
 use parity_scale_codec::Encode;
@@ -286,7 +286,7 @@ async fn request_assumed_validation_data<Sender>(
 	RuntimeRequestFailed,
 >
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 	runtime_api_request(
@@ -437,12 +437,13 @@ async fn validate_candidate_exhaustive<Sender>(
 	metrics: &Metrics,
 ) -> Result<ValidationResult, ValidationFailed>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
+	let descriptor = &candidate_receipt.descriptor;
 	let validation_code_hash = validation_code.as_ref().map(ValidationCode::hash);
-	let para_id = candidate_receipt.descriptor.para_id.clone();
+	let para_id = descriptor.para_id.clone();
 	gum::debug!(
 		target: LOG_TARGET,
 		?validation_code_hash,
@@ -451,7 +452,7 @@ where
 	);
 
 	if let Err(e) = perform_basic_checks(
-		&candidate_receipt.descriptor,
+		&descriptor,
 		persisted_validation_data.max_pov_size,
 		&*pov,
 		validation_code_hash.as_ref(),
