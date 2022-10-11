@@ -117,7 +117,7 @@ impl DisputeStatus {
 /// disputes.
 pub const ACTIVE_DURATION_SECS: Timestamp = 180;
 
-/// Returns true if the dispute has concluded for longer than ACTIVE_DURATION_SECS
+/// Returns true if the dispute has concluded for longer than [`ACTIVE_DURATION_SECS`].
 pub fn dispute_is_inactive(status: &DisputeStatus, now: &Timestamp) -> bool {
 	let at = status.concluded_at();
 
