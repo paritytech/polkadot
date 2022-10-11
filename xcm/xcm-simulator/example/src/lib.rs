@@ -17,7 +17,7 @@
 mod parachain;
 mod relay_chain;
 
-use frame_support::sp_tracing;
+use frame_support::{sp_tracing, weights::Weight};
 use xcm::prelude::*;
 use xcm_executor::traits::Convert;
 use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain};
@@ -167,7 +167,7 @@ mod tests {
 				Parachain(1),
 				Xcm(vec![Transact {
 					origin_kind: OriginKind::SovereignAccount,
-					require_weight_at_most: INITIAL_BALANCE as u64,
+					require_weight_at_most: Weight::from_ref_time(INITIAL_BALANCE as u64),
 					call: remark.encode().into(),
 				}]),
 			));
@@ -195,7 +195,7 @@ mod tests {
 				Parent,
 				Xcm(vec![Transact {
 					origin_kind: OriginKind::SovereignAccount,
-					require_weight_at_most: INITIAL_BALANCE as u64,
+					require_weight_at_most: Weight::from_ref_time(INITIAL_BALANCE as u64),
 					call: remark.encode().into(),
 				}]),
 			));
@@ -223,7 +223,7 @@ mod tests {
 				(Parent, Parachain(2)),
 				Xcm(vec![Transact {
 					origin_kind: OriginKind::SovereignAccount,
-					require_weight_at_most: INITIAL_BALANCE as u64,
+					require_weight_at_most: Weight::from_ref_time(INITIAL_BALANCE as u64),
 					call: remark.encode().into(),
 				}]),
 			));
@@ -494,7 +494,7 @@ mod tests {
 
 			let message = Xcm(vec![Transact {
 				origin_kind: OriginKind::Xcm,
-				require_weight_at_most: 1_000_000_000,
+				require_weight_at_most: Weight::from_ref_time(1_000_000_000),
 				call: parachain::RuntimeCall::from(
 					pallet_uniques::Call::<parachain::Runtime>::create {
 						collection: (Parent, 2u64).into(),
@@ -586,7 +586,7 @@ mod tests {
 					response_info: QueryResponseInfo {
 						destination: Parachain(1).into(),
 						query_id: query_id_set,
-						max_weight: 1_000_000_000,
+						max_weight: Weight::from_ref_time(1_000_000_000),
 					},
 					assets: All.into(),
 				},
@@ -616,7 +616,7 @@ mod tests {
 				vec![Xcm(vec![QueryResponse {
 					query_id: query_id_set,
 					response: Response::Assets(MultiAssets::new()),
-					max_weight: 1_000_000_000,
+					max_weight: Weight::from_ref_time(1_000_000_000),
 					querier: Some(Here.into()),
 				}])],
 			);

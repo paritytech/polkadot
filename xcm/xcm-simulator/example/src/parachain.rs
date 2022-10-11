@@ -187,7 +187,7 @@ pub type XcmOriginToCallOrigin = (
 );
 
 parameter_types! {
-	pub const UnitWeightCost: u64 = 1;
+	pub const UnitWeightCost: Weight = Weight::from_ref_time(1);
 	pub KsmPerSecond: (AssetId, u128) = (Concrete(Parent.into()), 1);
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
@@ -322,15 +322,15 @@ pub mod mock_msg_queue {
 						location,
 						xcm,
 						message_hash,
-						max_weight.ref_time(),
+						max_weight,
 					) {
 						Outcome::Error(e) => (Err(e.clone()), Event::Fail(Some(hash), e)),
 						Outcome::Complete(w) =>
-							(Ok(Weight::from_ref_time(w)), Event::Success(Some(hash))),
+							(Ok(w), Event::Success(Some(hash))),
 						// As far as the caller is concerned, this was dispatched without error, so
 						// we just report the weight used.
 						Outcome::Incomplete(w, e) =>
-							(Ok(Weight::from_ref_time(w)), Event::Fail(Some(hash), e)),
+							(Ok(w), Event::Fail(Some(hash), e)),
 					}
 				},
 				Err(()) => (Err(XcmError::UnhandledXcmVersion), Event::BadVersion(Some(hash))),
@@ -384,7 +384,7 @@ pub mod mock_msg_queue {
 								Parent,
 								x.clone(),
 								id,
-								limit.ref_time(),
+								limit,
 							);
 							<ReceivedDmp<T>>::append(x);
 							Self::deposit_event(Event::ExecutedDownward(id, outcome));
