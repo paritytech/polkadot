@@ -576,6 +576,16 @@ fn make_candidate_backed_event(candidate_receipt: CandidateReceipt) -> Candidate
 	)
 }
 
+// Generate a `CandidateIncluded` event from a `CandidateReceipt`. The rest is dummy data.
+fn make_candidate_included_event(candidate_receipt: CandidateReceipt) -> CandidateEvent {
+	CandidateEvent::CandidateIncluded(
+		candidate_receipt,
+		HeadData(Vec::new()),
+		CoreIndex(0),
+		GroupIndex(0),
+	)
+}
+
 /// Handle request for approval votes:
 pub async fn handle_approval_vote_request(
 	ctx_handle: &mut VirtualOverseer,
@@ -2891,6 +2901,290 @@ fn redundant_votes_ignored() {
 
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 			assert!(virtual_overseer.try_recv().await.is_none());
+
+			test_state
+		})
+	});
+}
+
+#[test]
+fn refrain_from_participation() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = make_valid_candidate_receipt();
+			let candidate_hash = candidate_receipt.hash();
+
+			// activate leaf - no backing/included event
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
+				.await;
+
+			// generate two votes
+			let valid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					true,
+				)
+				.await;
+
+			let invalid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					false,
+				)
+				.await;
+
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(valid_vote, ValidatorIndex(1)),
+							(invalid_vote, ValidatorIndex(2)),
+						],
+						pending_confirmation: None,
+					},
+				})
+				.await;
+
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
+				.await;
+
+			{
+				let (tx, rx) = oneshot::channel();
+				virtual_overseer
+					.send(FromOrchestra::Communication {
+						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
+					})
+					.await;
+
+				assert_eq!(rx.await.unwrap().len(), 1);
+
+				let (tx, rx) = oneshot::channel();
+				virtual_overseer
+					.send(FromOrchestra::Communication {
+						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
+							vec![(session, candidate_hash)],
+							tx,
+						),
+					})
+					.await;
+
+				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
+				assert_eq!(votes.valid.len(), 1);
+				assert_eq!(votes.invalid.len(), 1);
+			}
+
+			// activate leaf - no backing event
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
+				.await;
+
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+
+			// This confirms that no participation request is made.
+			assert!(virtual_overseer.try_recv().await.is_none());
+
+			test_state
+		})
+	});
+}
+
+#[test]
+fn participation_for_included_candidates() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = make_valid_candidate_receipt();
+			let candidate_hash = candidate_receipt.hash();
+
+			// activate leaf - no backing event
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session,
+					1,
+					vec![make_candidate_included_event(candidate_receipt.clone())],
+				)
+				.await;
+
+			// generate two votes
+			let valid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					true,
+				)
+				.await;
+
+			let invalid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					false,
+				)
+				.await;
+
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(valid_vote, ValidatorIndex(1)),
+							(invalid_vote, ValidatorIndex(2)),
+						],
+						pending_confirmation: None,
+					},
+				})
+				.await;
+
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
+				.await;
+
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				candidate_receipt.commitments_hash,
+			)
+			.await;
+
+			{
+				let (tx, rx) = oneshot::channel();
+				virtual_overseer
+					.send(FromOrchestra::Communication {
+						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
+					})
+					.await;
+
+				assert_eq!(rx.await.unwrap().len(), 1);
+
+				let (tx, rx) = oneshot::channel();
+				virtual_overseer
+					.send(FromOrchestra::Communication {
+						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
+							vec![(session, candidate_hash)],
+							tx,
+						),
+					})
+					.await;
+
+				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
+				assert_eq!(votes.valid.len(), 2);
+				assert_eq!(votes.invalid.len(), 1);
+			}
+
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+
+			test_state
+		})
+	});
+}
+
+#[test]
+fn participation_for_finalized_block() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = make_valid_candidate_receipt();
+			let candidate_hash = candidate_receipt.hash();
+
+			// activate leaf - no backing event
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session,
+					1,
+					vec![make_candidate_included_event(candidate_receipt.clone())],
+				)
+				.await;
+
+			// generate two votes
+			let valid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					true,
+				)
+				.await;
+
+			let invalid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					false,
+				)
+				.await;
+
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(valid_vote, ValidatorIndex(1)),
+							(invalid_vote, ValidatorIndex(2)),
+						],
+						pending_confirmation: None,
+					},
+				})
+				.await;
+
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
+				.await;
+
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				candidate_receipt.commitments_hash,
+			)
+			.await;
+
+			{
+				let (tx, rx) = oneshot::channel();
+				virtual_overseer
+					.send(FromOrchestra::Communication {
+						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
+					})
+					.await;
+
+				assert_eq!(rx.await.unwrap().len(), 1);
+
+				let (tx, rx) = oneshot::channel();
+				virtual_overseer
+					.send(FromOrchestra::Communication {
+						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
+							vec![(session, candidate_hash)],
+							tx,
+						),
+					})
+					.await;
+
+				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
+				assert_eq!(votes.valid.len(), 2);
+				assert_eq!(votes.invalid.len(), 1);
+			}
+
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 
 			test_state
 		})
