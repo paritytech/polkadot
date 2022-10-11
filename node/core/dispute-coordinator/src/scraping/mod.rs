@@ -66,8 +66,6 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: NonZeroUsize = match NonZeroUsize::new(20) {
 pub struct ChainScraper {
 	/// All candidates we have seen included, which not yet have been finalized.
 	included_candidates: HashSet<CandidateHash>,
-	/// All candidates we have seen backed
-	backed_candidates: HashSet<CandidateHash>,
 	/// including block -> `CandidateHash`
 	///
 	/// We need this to clean up `included_candidates` on finalization.
@@ -77,6 +75,8 @@ pub struct ChainScraper {
 	/// We assume that ancestors of cached blocks are already processed, i.e. we have saved
 	/// corresponding included candidates.
 	last_observed_blocks: LruCache<Hash, ()>,
+	/// All candidates we have seen backed
+	backed_candidates: HashSet<CandidateHash>,
 }
 
 impl ChainScraper {
@@ -99,9 +99,9 @@ impl ChainScraper {
 	{
 		let mut s = Self {
 			included_candidates: HashSet::new(),
-			backed_candidates: HashSet::new(),
 			candidates_by_block_number: BTreeMap::new(),
 			last_observed_blocks: LruCache::new(LRU_OBSERVED_BLOCKS_CAPACITY),
+			backed_candidates: HashSet::new(),
 		};
 		let update =
 			ActiveLeavesUpdate { activated: Some(initial_head), deactivated: Default::default() };
@@ -175,6 +175,7 @@ impl ChainScraper {
 		// Clean up finalized:
 		for finalized_candidate in finalized.into_values().flatten() {
 			self.included_candidates.remove(&finalized_candidate);
+			self.backed_candidates.remove(&finalized_candidate);
 		}
 	}
 
@@ -191,16 +192,7 @@ impl ChainScraper {
 		Sender: overseer::DisputeCoordinatorSenderTrait,
 	{
 		// Get included and backed events:
-		let events =
-			get_candidate_events(sender, block_hash)
-				.await?
-				.into_iter()
-				.filter(|ev| match ev {
-					CandidateEvent::CandidateIncluded(_, _, _, _) => true,
-					CandidateEvent::CandidateBacked(_, _, _, _) => true,
-					_ => false,
-				});
-		for ev in events {
+		for ev in get_candidate_events(sender, block_hash).await? {
 			match ev {
 				CandidateEvent::CandidateIncluded(receipt, _, _, _) => {
 					let candidate_hash = receipt.hash();
@@ -227,10 +219,7 @@ impl ChainScraper {
 					self.backed_candidates.insert(candidate_hash);
 				},
 				_ => {
-					debug_assert!(
-						false,
-						"Candidates are already filtered out. There should be nothing unexpected."
-					)
+					// skip the rest
 				},
 			}
 		}
