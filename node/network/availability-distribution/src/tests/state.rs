@@ -20,8 +20,8 @@ use std::{
 	time::Duration,
 };
 
+use polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle;
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_subsystem_testhelpers::TestSubsystemContextHandle;
 
 use futures::{
 	channel::{mpsc, oneshot},
@@ -39,18 +39,18 @@ use polkadot_node_network_protocol::{
 	request_response::{v1, IncomingRequest, OutgoingRequest, Requests},
 };
 use polkadot_node_primitives::ErasureChunk;
+use polkadot_node_subsystem::{
+	messages::{
+		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
+		NetworkBridgeTxMessage, RuntimeApiMessage, RuntimeApiRequest,
+	},
+	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
+};
+use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::v2::{
 	CandidateHash, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore, SessionInfo,
 	ValidatorIndex,
 };
-use polkadot_subsystem::{
-	messages::{
-		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage, ChainApiMessage,
-		NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest,
-	},
-	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
-};
-use polkadot_subsystem_testhelpers as test_helpers;
 use test_helpers::{mock::make_ferdie_keystore, SingleItemSink};
 
 use super::mock::{make_session_info, OccupiedCoreBuilder};
@@ -214,7 +214,7 @@ impl TestState {
 			gum::trace!(target: LOG_TARGET, remaining_stores, "Stores left to go");
 			let msg = overseer_recv(&mut rx).await;
 			match msg {
-				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(
 					reqs,
 					IfDisconnected::ImmediateError,
 				)) => {
@@ -295,12 +295,14 @@ impl TestState {
 }
 
 async fn overseer_signal(
-	mut tx: SingleItemSink<FromOverseer<AvailabilityDistributionMessage>>,
+	mut tx: SingleItemSink<FromOrchestra<AvailabilityDistributionMessage>>,
 	msg: impl Into<OverseerSignal>,
 ) {
 	let msg = msg.into();
 	gum::trace!(target: LOG_TARGET, msg = ?msg, "sending message");
-	tx.send(FromOverseer::Signal(msg)).await.expect("Test subsystem no longer live");
+	tx.send(FromOrchestra::Signal(msg))
+		.await
+		.expect("Test subsystem no longer live");
 }
 
 async fn overseer_recv(rx: &mut mpsc::UnboundedReceiver<AllMessages>) -> AllMessages {
@@ -313,7 +315,7 @@ fn to_incoming_req(
 	outgoing: Requests,
 ) -> IncomingRequest<v1::ChunkFetchingRequest> {
 	match outgoing {
-		Requests::ChunkFetching(OutgoingRequest { payload, pending_response, .. }) => {
+		Requests::ChunkFetchingV1(OutgoingRequest { payload, pending_response, .. }) => {
 			let (tx, rx): (oneshot::Sender<netconfig::OutgoingResponse>, oneshot::Receiver<_>) =
 				oneshot::channel();
 			executor.spawn(

@@ -43,7 +43,7 @@ use frame_support::{
 	weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use frame_system::limits;
-use primitives::v2::{AssignmentId, BlockNumber, ValidatorId};
+use primitives::v2::{AssignmentId, Balance, BlockNumber, ValidatorId, MAX_POV_SIZE};
 use sp_runtime::{FixedPointNumber, Perbill, Perquintill};
 use static_assertions::const_assert;
 
@@ -52,6 +52,7 @@ pub use pallet_balances::Call as BalancesCall;
 pub use pallet_staking::StakerStatus;
 pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
+pub use sp_runtime::traits::Bounded;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
@@ -68,24 +69,27 @@ pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(1);
 /// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used
 /// by  Operational  extrinsics.
 pub const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
-/// We allow for 2 seconds of compute with a 6 second average block time.
-pub const MAXIMUM_BLOCK_WEIGHT: Weight = 2 * WEIGHT_PER_SECOND;
+/// The storage proof size is not limited so far.
+pub const MAXIMUM_BLOCK_WEIGHT: Weight =
+	WEIGHT_PER_SECOND.saturating_mul(2).set_proof_size(MAX_POV_SIZE as u64);
 
 const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO.deconstruct());
 
 // Common constants used in all runtimes.
 parameter_types! {
-	pub const BlockHashCount: BlockNumber = 2400;
+	pub const BlockHashCount: BlockNumber = 4096;
 	/// The portion of the `NORMAL_DISPATCH_RATIO` that we adjust the fees with. Blocks filled less
 	/// than this will decrease the weight and more will increase.
 	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
 	/// The adjustment variable of the runtime. Higher values will cause `TargetBlockFullness` to
 	/// change the fees more rapidly.
-	pub AdjustmentVariable: Multiplier = Multiplier::saturating_from_rational(3, 100_000);
+	pub AdjustmentVariable: Multiplier = Multiplier::saturating_from_rational(75, 1000_000);
 	/// Minimum amount of the multiplier. This value cannot be too low. A test case should ensure
 	/// that combined with `AdjustmentVariable`, we can recover from the minimum.
 	/// See `multiplier_can_grow_from_zero`.
-	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000u128);
+	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 10u128);
+	/// The maximum amount of the multiplier.
+	pub MaximumMultiplier: Multiplier = Bounded::max_value();
 	/// Maximum length of block. Up to 5MB.
 	pub BlockLength: limits::BlockLength =
 	limits::BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
@@ -93,8 +97,13 @@ parameter_types! {
 
 /// Parameterized slow adjusting fee updated based on
 /// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#-2.-slow-adjusting-mechanism
-pub type SlowAdjustingFeeUpdate<R> =
-	TargetedFeeAdjustment<R, TargetBlockFullness, AdjustmentVariable, MinimumMultiplier>;
+pub type SlowAdjustingFeeUpdate<R> = TargetedFeeAdjustment<
+	R,
+	TargetBlockFullness,
+	AdjustmentVariable,
+	MinimumMultiplier,
+	MaximumMultiplier,
+>;
 
 /// Implements the weight types for a runtime.
 /// It expects the passed runtime constants to contain a `weights` module.
@@ -103,7 +112,7 @@ pub type SlowAdjustingFeeUpdate<R> =
 #[macro_export]
 macro_rules! impl_runtime_weights {
 	($runtime:ident) => {
-		use frame_support::weights::{DispatchClass, Weight};
+		use frame_support::{dispatch::DispatchClass, weights::Weight};
 		use frame_system::limits;
 		use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 		pub use runtime_common::{
@@ -215,6 +224,23 @@ impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
 	type MaxNominators = ConstU32<1000>;
 }
 
+/// Convert a balance to an unsigned 256-bit number, use in nomination pools.
+pub struct BalanceToU256;
+impl sp_runtime::traits::Convert<Balance, sp_core::U256> for BalanceToU256 {
+	fn convert(n: Balance) -> sp_core::U256 {
+		n.into()
+	}
+}
+
+/// Convert an unsigned 256-bit number to balance, use in nomination pools.
+pub struct U256ToBalance;
+impl sp_runtime::traits::Convert<sp_core::U256, Balance> for U256ToBalance {
+	fn convert(n: sp_core::U256) -> Balance {
+		use frame_support::traits::Defensive;
+		n.try_into().defensive_unwrap_or(Balance::MAX)
+	}
+}
+
 /// Macro to set a value (e.g. when using the `parameter_types` macro) to either a production value
 /// or to an environment variable or testing value (in case the `fast-runtime` feature is selected).
 /// Note that the environment variable is evaluated _at compile time_.
@@ -226,6 +252,7 @@ impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
 /// 	pub LaunchPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1, "KSM_LAUNCH_PERIOD");
 /// 	pub const VotingPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1 * MINUTES);
 /// }
+/// ```
 #[macro_export]
 macro_rules! prod_or_fast {
 	($prod:expr, $test:expr) => {
@@ -242,117 +269,4 @@ macro_rules! prod_or_fast {
 			$prod
 		}
 	};
-}
-
-#[cfg(test)]
-mod multiplier_tests {
-	use super::*;
-	use frame_support::{
-		parameter_types,
-		weights::{DispatchClass, Weight},
-	};
-	use sp_core::H256;
-	use sp_runtime::{
-		testing::Header,
-		traits::{BlakeTwo256, Convert, IdentityLookup, One},
-		Perbill,
-	};
-
-	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;
-	type Block = frame_system::mocking::MockBlock<Runtime>;
-
-	frame_support::construct_runtime!(
-		pub enum Runtime where
-			Block = Block,
-			NodeBlock = Block,
-			UncheckedExtrinsic = UncheckedExtrinsic,
-		{
-			System: frame_system::{Pallet, Call, Config, Storage, Event<T>}
-		}
-	);
-
-	parameter_types! {
-		pub const BlockHashCount: u64 = 250;
-		pub const AvailableBlockRatio: Perbill = Perbill::one();
-		pub BlockLength: frame_system::limits::BlockLength =
-			frame_system::limits::BlockLength::max(2 * 1024);
-		pub BlockWeights: frame_system::limits::BlockWeights =
-			frame_system::limits::BlockWeights::simple_max(1024);
-	}
-
-	impl frame_system::Config for Runtime {
-		type BaseCallFilter = frame_support::traits::Everything;
-		type BlockWeights = BlockWeights;
-		type BlockLength = ();
-		type DbWeight = ();
-		type Origin = Origin;
-		type Index = u64;
-		type BlockNumber = u64;
-		type Call = Call;
-		type Hash = H256;
-		type Hashing = BlakeTwo256;
-		type AccountId = u64;
-		type Lookup = IdentityLookup<Self::AccountId>;
-		type Header = Header;
-		type Event = Event;
-		type BlockHashCount = BlockHashCount;
-		type Version = ();
-		type PalletInfo = PalletInfo;
-		type AccountData = ();
-		type OnNewAccount = ();
-		type OnKilledAccount = ();
-		type SystemWeightInfo = ();
-		type SS58Prefix = ();
-		type OnSetCode = ();
-		type MaxConsumers = frame_support::traits::ConstU32<16>;
-	}
-
-	fn run_with_system_weight<F>(w: Weight, mut assertions: F)
-	where
-		F: FnMut() -> (),
-	{
-		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
-			.build_storage::<Runtime>()
-			.unwrap()
-			.into();
-		t.execute_with(|| {
-			System::set_block_consumed_resources(w, 0);
-			assertions()
-		});
-	}
-
-	#[test]
-	fn multiplier_can_grow_from_zero() {
-		let minimum_multiplier = MinimumMultiplier::get();
-		let target = TargetBlockFullness::get() *
-			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
-		// if the min is too small, then this will not change, and we are doomed forever.
-		// the weight is 1/100th bigger than target.
-		run_with_system_weight(target * 101 / 100, || {
-			let next = SlowAdjustingFeeUpdate::<Runtime>::convert(minimum_multiplier);
-			assert!(next > minimum_multiplier, "{:?} !>= {:?}", next, minimum_multiplier);
-		})
-	}
-
-	#[test]
-	#[ignore]
-	fn multiplier_growth_simulator() {
-		// assume the multiplier is initially set to its minimum. We update it with values twice the
-		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
-		let mut multiplier = MinimumMultiplier::get();
-		let block_weight = TargetBlockFullness::get() *
-			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap() *
-			2;
-		let mut blocks = 0;
-		while multiplier <= Multiplier::one() {
-			run_with_system_weight(block_weight, || {
-				let next = SlowAdjustingFeeUpdate::<Runtime>::convert(multiplier);
-				// ensure that it is growing as well.
-				assert!(next > multiplier, "{:?} !>= {:?}", next, multiplier);
-				multiplier = next;
-			});
-			blocks += 1;
-			println!("block = {} multiplier {:?}", blocks, multiplier);
-		}
-	}
 }

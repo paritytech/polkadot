@@ -33,15 +33,14 @@ use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
+use polkadot_node_subsystem::{
+	errors::{ChainApiError, RuntimeApiError},
+	messages::{AvailabilityStoreMessage, ChainApiMessage},
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
+};
 use polkadot_node_subsystem_util as util;
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Header, ValidatorIndex,
-};
-use polkadot_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
-	messages::{AvailabilityStoreMessage, ChainApiMessage},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError,
 };
 
 mod metrics;
@@ -355,6 +354,9 @@ pub enum Error {
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
 
+	#[error("Context signal channel closed")]
+	ContextChannelClosed,
+
 	#[error(transparent)]
 	Time(#[from] SystemTimeError),
 
@@ -374,6 +376,7 @@ impl Error {
 			Self::Io(_) => true,
 			Self::Oneshot(_) => true,
 			Self::CustomDatabase => true,
+			Self::ContextChannelClosed => true,
 			_ => false,
 		}
 	}
@@ -515,23 +518,17 @@ impl KnownUnfinalizedBlocks {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for AvailabilityStoreSubsystem
-where
-	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
-	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
-{
+#[overseer::subsystem(AvailabilityStore, error=SubsystemError, prefix=self::overseer)]
+impl<Context> AvailabilityStoreSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = run(self, ctx).map(|_| Ok(())).boxed();
+		let future = run::<Context>(self, ctx).map(|_| Ok(())).boxed();
 
 		SpawnedSubsystem { name: "availability-store-subsystem", future }
 	}
 }
 
-async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
-where
-	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
-	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
-{
+#[overseer::contextbounds(AvailabilityStore, prefix = self::overseer)]
+async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context) {
 	let mut next_pruning = Delay::new(subsystem.pruning_config.pruning_interval).fuse();
 
 	loop {
@@ -552,20 +549,17 @@ where
 	}
 }
 
+#[overseer::contextbounds(AvailabilityStore, prefix = self::overseer)]
 async fn run_iteration<Context>(
 	ctx: &mut Context,
 	subsystem: &mut AvailabilityStoreSubsystem,
 	mut next_pruning: &mut future::Fuse<Delay>,
-) -> Result<bool, Error>
-where
-	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
-	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
-{
+) -> Result<bool, Error> {
 	select! {
 		incoming = ctx.recv().fuse() => {
-			match incoming? {
-				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(true),
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+			match incoming.map_err(|_| Error::ContextChannelClosed)? {
+				FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(true),
+				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 					ActiveLeavesUpdate { activated, .. })
 				) => {
 					for activated in activated.into_iter() {
@@ -573,7 +567,7 @@ where
 						process_block_activated(ctx, subsystem, activated.hash).await?;
 					}
 				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
+				FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
 					let _timer = subsystem.metrics.time_process_block_finalized();
 
 					subsystem.finalized_number = Some(number);
@@ -585,7 +579,7 @@ where
 						number,
 					).await?;
 				}
-				FromOverseer::Communication { msg } => {
+				FromOrchestra::Communication { msg } => {
 					let _timer = subsystem.metrics.time_process_message();
 					process_message(subsystem, msg)?;
 				}
@@ -604,15 +598,12 @@ where
 	Ok(false)
 }
 
+#[overseer::contextbounds(AvailabilityStore, prefix = self::overseer)]
 async fn process_block_activated<Context>(
 	ctx: &mut Context,
 	subsystem: &mut AvailabilityStoreSubsystem,
 	activated: Hash,
-) -> Result<(), Error>
-where
-	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
-	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
-{
+) -> Result<(), Error> {
 	let now = subsystem.clock.now()?;
 
 	let block_header = {
@@ -659,6 +650,7 @@ where
 	Ok(())
 }
 
+#[overseer::contextbounds(AvailabilityStore, prefix = self::overseer)]
 async fn process_new_head<Context>(
 	ctx: &mut Context,
 	db: &Arc<dyn Database>,
@@ -668,11 +660,7 @@ async fn process_new_head<Context>(
 	now: Duration,
 	hash: Hash,
 	header: Header,
-) -> Result<(), Error>
-where
-	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
-	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
-{
+) -> Result<(), Error> {
 	let candidate_events = util::request_candidate_events(hash, ctx.sender()).await.await??;
 
 	// We need to request the number of validators based on the parent state,
@@ -804,22 +792,20 @@ fn note_block_included(
 macro_rules! peek_num {
 	($iter:ident) => {
 		match $iter.peek() {
-			Some((k, _)) => decode_unfinalized_key(&k[..]).ok().map(|(b, _, _)| b),
-			None => None,
+			Some(Ok((k, _))) => Ok(decode_unfinalized_key(&k[..]).ok().map(|(b, _, _)| b)),
+			Some(Err(_)) => Err($iter.next().expect("peek returned Some(Err); qed").unwrap_err()),
+			None => Ok(None),
 		}
 	};
 }
 
+#[overseer::contextbounds(AvailabilityStore, prefix = self::overseer)]
 async fn process_block_finalized<Context>(
 	ctx: &mut Context,
 	subsystem: &AvailabilityStoreSubsystem,
 	finalized_hash: Hash,
 	finalized_number: BlockNumber,
-) -> Result<(), Error>
-where
-	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
-	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
-{
+) -> Result<(), Error> {
 	let now = subsystem.clock.now()?;
 
 	let mut next_possible_batch = 0;
@@ -834,10 +820,10 @@ where
 			let mut iter = subsystem
 				.db
 				.iter_with_prefix(subsystem.config.col_meta, &start_prefix)
-				.take_while(|(k, _)| &k[..] < &end_prefix[..])
+				.take_while(|r| r.as_ref().map_or(true, |(k, _v)| &k[..] < &end_prefix[..]))
 				.peekable();
 
-			match peek_num!(iter) {
+			match peek_num!(iter)? {
 				None => break, // end of iterator.
 				Some(n) => n,
 			}
@@ -882,10 +868,10 @@ where
 		let iter = subsystem
 			.db
 			.iter_with_prefix(subsystem.config.col_meta, &start_prefix)
-			.take_while(|(k, _)| &k[..] < &end_prefix[..])
+			.take_while(|r| r.as_ref().map_or(true, |(k, _v)| &k[..] < &end_prefix[..]))
 			.peekable();
 
-		let batch = load_all_at_finalized_height(iter, batch_num, batch_finalized_hash);
+		let batch = load_all_at_finalized_height(iter, batch_num, batch_finalized_hash)?;
 
 		// Now that we've iterated over the entire batch at this finalized height,
 		// update the meta.
@@ -905,22 +891,22 @@ where
 // loads all candidates at the finalized height and maps them to `true` if finalized
 // and `false` if unfinalized.
 fn load_all_at_finalized_height(
-	mut iter: std::iter::Peekable<impl Iterator<Item = (Box<[u8]>, Box<[u8]>)>>,
+	mut iter: std::iter::Peekable<impl Iterator<Item = io::Result<util::database::DBKeyValue>>>,
 	block_number: BlockNumber,
 	finalized_hash: Hash,
-) -> impl IntoIterator<Item = (CandidateHash, bool)> {
+) -> io::Result<impl IntoIterator<Item = (CandidateHash, bool)>> {
 	// maps candidate hashes to true if finalized, false otherwise.
 	let mut candidates = HashMap::new();
 
 	// Load all candidates that were included at this height.
 	loop {
-		match peek_num!(iter) {
+		match peek_num!(iter)? {
 			None => break,                         // end of iterator.
 			Some(n) if n != block_number => break, // end of batch.
 			_ => {},
 		}
 
-		let (k, _v) = iter.next().expect("`peek` used to check non-empty; qed");
+		let (k, _v) = iter.next().expect("`peek` used to check non-empty; qed")?;
 		let (_, block_hash, candidate_hash) =
 			decode_unfinalized_key(&k[..]).expect("`peek_num` checks validity of key; qed");
 
@@ -931,7 +917,7 @@ fn load_all_at_finalized_height(
 		}
 	}
 
-	candidates
+	Ok(candidates)
 }
 
 fn update_blocks_at_finalized_height(
@@ -1229,9 +1215,10 @@ fn prune_all(db: &Arc<dyn Database>, config: &Config, clock: &dyn Clock) -> Resu
 	let mut tx = DBTransaction::new();
 	let iter = db
 		.iter_with_prefix(config.col_meta, &range_start[..])
-		.take_while(|(k, _)| &k[..] < &range_end[..]);
+		.take_while(|r| r.as_ref().map_or(true, |(k, _v)| &k[..] < &range_end[..]));
 
-	for (k, _v) in iter {
+	for r in iter {
+		let (k, _v) = r?;
 		tx.delete(config.col_meta, &k[..]);
 
 		let (_, candidate_hash) = match decode_pruning_key(&k[..]) {

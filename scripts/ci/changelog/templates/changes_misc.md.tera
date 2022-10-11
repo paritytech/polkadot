@@ -1,0 +1,39 @@
+{%- import "change.md.tera" as m_c -%}
+
+{%- set_global misc_count = 0 -%}
+{#- First pass to count #}
+{%- for pr in changes -%}
+    {%- if pr.meta.B %}
+        {%- if pr.meta.B.value == 0 -%}
+        {#- We skip silent ones -#}
+        {%- else -%}
+            {%- if pr.meta.B and pr.meta.B.value != 5 and pr.meta.B.value != 7 or pr.meta.C or not pr.meta.B %}
+{%- set_global misc_count = misc_count + 1 -%}
+            {%- endif -%}
+        {% endif -%}
+    {% endif -%}
+{% endfor -%}
+
+### Misc
+
+{% if misc_count > 10 %}
+There are other misc. changes. You can expand the list below to view them all.
+<details><summary>Other misc. changes</summary>
+{% endif -%}
+
+{#- The changes are sorted by merge date #}
+{%- for pr in changes | sort(attribute="merged_at") %}
+    {%- if pr.meta.B and not pr.title is containing("ompanion") %}
+        {%- if pr.meta.B.value == 0 %}
+        {#- We skip silent ones -#}
+        {%- else -%}
+            {%- if pr.meta.B and pr.meta.B.value != 5 and pr.meta.B.value != 7 or pr.meta.C or not pr.meta.B %}
+- {{ m_c::change(c=pr) }}
+            {%- endif -%}
+        {% endif -%}
+    {% endif -%}
+{% endfor %}
+
+{% if misc_count > 10 %}
+</details>
+{% endif -%}

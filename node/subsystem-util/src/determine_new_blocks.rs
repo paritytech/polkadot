@@ -39,7 +39,7 @@ pub async fn determine_new_blocks<E, Sender>(
 	lower_bound_number: BlockNumber,
 ) -> Result<Vec<(Hash, Header)>, E>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<ChainApiMessage>,
 {
 	const ANCESTRY_STEP: usize = 4;
 
@@ -124,7 +124,7 @@ where
 						Ok(Ok(h)) => h,
 					}
 				})
-				.for_each(|x| requests.push(x));
+				.for_each(|x| requests.push_back(x));
 
 			let batch_headers: Vec<_> =
 				requests.flat_map(|x: Option<Header>| stream::iter(x)).collect().await;

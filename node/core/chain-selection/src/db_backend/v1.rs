@@ -229,19 +229,27 @@ impl Backend for DbBackend {
 	fn load_stagnant_at_up_to(
 		&self,
 		up_to: crate::Timestamp,
+		max_elements: usize,
 	) -> Result<Vec<(crate::Timestamp, Vec<Hash>)>, Error> {
 		let stagnant_at_iter =
 			self.inner.iter_with_prefix(self.config.col_data, &STAGNANT_AT_PREFIX[..]);
 
 		let val = stagnant_at_iter
-			.filter_map(|(k, v)| {
-				match (decode_stagnant_at_key(&mut &k[..]), <Vec<_>>::decode(&mut &v[..]).ok()) {
-					(Some(at), Some(stagnant_at)) => Some((at, stagnant_at)),
-					_ => None,
-				}
+			.filter_map(|r| match r {
+				Ok((k, v)) =>
+					match (decode_stagnant_at_key(&mut &k[..]), <Vec<_>>::decode(&mut &v[..]).ok())
+					{
+						(Some(at), Some(stagnant_at)) => Some(Ok((at, stagnant_at))),
+						_ => None,
+					},
+				Err(e) => Some(Err(e)),
 			})
-			.take_while(|(at, _)| *at <= up_to.into())
-			.collect::<Vec<_>>();
+			.enumerate()
+			.take_while(|(idx, r)| {
+				r.as_ref().map_or(true, |(at, _)| *at <= up_to.into() && *idx < max_elements)
+			})
+			.map(|(_, v)| v)
+			.collect::<Result<Vec<_>, _>>()?;
 
 		Ok(val)
 	}
@@ -251,10 +259,13 @@ impl Backend for DbBackend {
 			self.inner.iter_with_prefix(self.config.col_data, &BLOCK_HEIGHT_PREFIX[..]);
 
 		let val = blocks_at_height_iter
-			.filter_map(|(k, _)| decode_block_height_key(&k[..]))
+			.filter_map(|r| match r {
+				Ok((k, _)) => decode_block_height_key(&k[..]).map(Ok),
+				Err(e) => Some(Err(e)),
+			})
 			.next();
 
-		Ok(val)
+		val.transpose().map_err(Error::from)
 	}
 
 	fn load_blocks_by_number(&self, number: BlockNumber) -> Result<Vec<Hash>, Error> {
@@ -528,7 +539,10 @@ mod tests {
 		let mut backend = DbBackend::new(db, config);
 
 		// Prove that it's cheap
-		assert!(backend.load_stagnant_at_up_to(Timestamp::max_value()).unwrap().is_empty());
+		assert!(backend
+			.load_stagnant_at_up_to(Timestamp::max_value(), usize::MAX)
+			.unwrap()
+			.is_empty());
 
 		backend
 			.write(vec![
@@ -539,7 +553,7 @@ mod tests {
 			.unwrap();
 
 		assert_eq!(
-			backend.load_stagnant_at_up_to(Timestamp::max_value()).unwrap(),
+			backend.load_stagnant_at_up_to(Timestamp::max_value(), usize::MAX).unwrap(),
 			vec![
 				(2, vec![Hash::repeat_byte(1)]),
 				(5, vec![Hash::repeat_byte(2)]),
@@ -548,7 +562,7 @@ mod tests {
 		);
 
 		assert_eq!(
-			backend.load_stagnant_at_up_to(10).unwrap(),
+			backend.load_stagnant_at_up_to(10, usize::MAX).unwrap(),
 			vec![
 				(2, vec![Hash::repeat_byte(1)]),
 				(5, vec![Hash::repeat_byte(2)]),
@@ -557,21 +571,26 @@ mod tests {
 		);
 
 		assert_eq!(
-			backend.load_stagnant_at_up_to(9).unwrap(),
+			backend.load_stagnant_at_up_to(9, usize::MAX).unwrap(),
 			vec![(2, vec![Hash::repeat_byte(1)]), (5, vec![Hash::repeat_byte(2)]),]
+		);
+
+		assert_eq!(
+			backend.load_stagnant_at_up_to(9, 1).unwrap(),
+			vec![(2, vec![Hash::repeat_byte(1)]),]
 		);
 
 		backend.write(vec![BackendWriteOp::DeleteStagnantAt(2)]).unwrap();
 
 		assert_eq!(
-			backend.load_stagnant_at_up_to(5).unwrap(),
+			backend.load_stagnant_at_up_to(5, usize::MAX).unwrap(),
 			vec![(5, vec![Hash::repeat_byte(2)]),]
 		);
 
 		backend.write(vec![BackendWriteOp::WriteStagnantAt(5, vec![])]).unwrap();
 
 		assert_eq!(
-			backend.load_stagnant_at_up_to(10).unwrap(),
+			backend.load_stagnant_at_up_to(10, usize::MAX).unwrap(),
 			vec![(10, vec![Hash::repeat_byte(3)]),]
 		);
 	}

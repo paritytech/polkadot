@@ -15,7 +15,10 @@
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
 use assert_cmd::cargo::cargo_bin;
-use std::{convert::TryInto, process::Command, time::Duration};
+use std::{
+	process::{self, Command},
+	time::Duration,
+};
 use tempfile::tempdir;
 
 pub mod common;
@@ -35,20 +38,27 @@ async fn running_the_node_works_and_can_be_interrupted() {
 		let tmpdir = tempdir().expect("coult not create temp dir");
 
 		let mut cmd = Command::new(cargo_bin("polkadot"))
+			.stdout(process::Stdio::piped())
+			.stderr(process::Stdio::piped())
 			.args(&["--dev", "-d"])
 			.arg(tmpdir.path())
+			.arg("--no-hardware-benchmarks")
 			.spawn()
 			.unwrap();
 
+		let (ws_url, _) = common::find_ws_url_from_output(cmd.stderr.take().unwrap());
+
 		// Let it produce three blocks.
-		common::wait_n_finalized_blocks(3, Duration::from_secs(60)).await.unwrap();
+		common::wait_n_finalized_blocks(3, Duration::from_secs(60), &ws_url)
+			.await
+			.unwrap();
 
 		assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
 		kill(Pid::from_raw(cmd.id().try_into().unwrap()), signal).unwrap();
 		assert_eq!(
 			common::wait_for(&mut cmd, 30).map(|x| x.success()),
 			Some(true),
-			"the pocess must exit gracefully after signal {}",
+			"the process must exit gracefully after signal {}",
 			signal,
 		);
 	}

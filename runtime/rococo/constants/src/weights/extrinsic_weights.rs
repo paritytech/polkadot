@@ -16,7 +16,7 @@
 // limitations under the License.
 
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2022-03-24 (Y/M/D)
+//! DATE: 2022-05-25 (Y/M/D)
 //!
 //! SHORT-NAME: `extrinsic`, LONG-NAME: `ExtrinsicBase`, RUNTIME: `Development`
 //! WARMUPS: `10`, REPEAT: `100`
@@ -25,17 +25,14 @@
 
 // Executed Command:
 //   ./target/production/polkadot
-//   benchmark-overhead
-//   --chain
-//   rococo-dev
+//   benchmark
+//   overhead
+//   --chain=rococo-dev
 //   --execution=wasm
 //   --wasm-execution=compiled
-//   --weight-path
-//   runtime/rococo/constants/src/weights/
-//   --warmup
-//   10
-//   --repeat
-//   100
+//   --weight-path=runtime/rococo/constants/src/weights/
+//   --warmup=10
+//   --repeat=100
 
 use frame_support::{
 	parameter_types,
@@ -46,17 +43,17 @@ parameter_types! {
 	/// Time to execute a NO-OP extrinsic, for example `System::remark`.
 	/// Calculated by multiplying the *Average* with `1` and adding `0`.
 	///
-	/// Stats [NS]:
-	///   Min, Max: 73_999, 74_403
-	///   Average:  74_171
-	///   Median:   74_161
-	///   Std-Dev:  85.56
+	/// Stats nanoseconds:
+	///   Min, Max: 77_945, 79_607
+	///   Average:  78_269
+	///   Median:   78_211
+	///   Std-Dev:  259.27
 	///
-	/// Percentiles [NS]:
-	///   99th: 74_375
-	///   95th: 74_309
-	///   75th: 74_241
-	pub const ExtrinsicBaseWeight: Weight = 74_171 * WEIGHT_PER_NANOS;
+	/// Percentiles nanoseconds:
+	///   99th: 79_591
+	///   95th: 78_730
+	///   75th: 78_272
+	pub const ExtrinsicBaseWeight: Weight = WEIGHT_PER_NANOS.saturating_mul(78_269);
 }
 
 #[cfg(test)]
@@ -71,8 +68,14 @@ mod test_weights {
 		let w = super::ExtrinsicBaseWeight::get();
 
 		// At least 10 µs.
-		assert!(w >= 10 * constants::WEIGHT_PER_MICROS, "Weight should be at least 10 µs.");
+		assert!(
+			w.ref_time() >= 10u64 * constants::WEIGHT_PER_MICROS.ref_time(),
+			"Weight should be at least 10 µs."
+		);
 		// At most 1 ms.
-		assert!(w <= constants::WEIGHT_PER_MILLIS, "Weight should be at most 1 ms.");
+		assert!(
+			w.ref_time() <= constants::WEIGHT_PER_MILLIS.ref_time(),
+			"Weight should be at most 1 ms."
+		);
 	}
 }

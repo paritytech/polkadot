@@ -60,7 +60,7 @@ pub type ChainId = u32;
 /// A hash of some data used by the relay chain.
 pub type Hash = sp_core::H256;
 
-/// Unit type wrapper around [`Hash`] that represents a candidate hash.
+/// Unit type wrapper around [`type@Hash`] that represents a candidate hash.
 ///
 /// This type is produced by [`CandidateReceipt::hash`].
 ///

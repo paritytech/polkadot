@@ -46,10 +46,11 @@ pub(super) trait Backend {
 	/// Load the stagnant list at the given timestamp.
 	fn load_stagnant_at(&self, timestamp: Timestamp) -> Result<Vec<Hash>, Error>;
 	/// Load all stagnant lists up to and including the given Unix timestamp
-	/// in ascending order.
+	/// in ascending order. Stop fetching stagnant entries upon reaching `max_elements`.
 	fn load_stagnant_at_up_to(
 		&self,
 		up_to: Timestamp,
+		max_elements: usize,
 	) -> Result<Vec<(Timestamp, Vec<Hash>)>, Error>;
 	/// Load the earliest kept block number.
 	fn load_first_block_number(&self) -> Result<Option<BlockNumber>, Error>;

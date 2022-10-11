@@ -18,7 +18,7 @@
 
 use clap::Parser;
 use color_eyre::eyre;
-use polkadot_cli::{Cli, RunCmd};
+use polkadot_cli::Cli;
 
 pub(crate) mod interceptor;
 pub(crate) mod shared;
@@ -33,11 +33,11 @@ use variants::*;
 #[clap(rename_all = "kebab-case")]
 enum NemesisVariant {
 	/// Suggest a candidate with an invalid proof of validity.
-	SuggestGarbageCandidate(RunCmd),
+	SuggestGarbageCandidate(Cli),
 	/// Back a candidate with a specifically crafted proof of validity.
-	BackGarbageCandidate(RunCmd),
+	BackGarbageCandidate(Cli),
 	/// Delayed disputing of ancestors that are perfectly fine.
-	DisputeAncestor(RunCmd),
+	DisputeAncestor(DisputeAncestorOptions),
 
 	#[allow(missing_docs)]
 	#[clap(name = "prepare-worker", hide = true)]
@@ -53,22 +53,28 @@ enum NemesisVariant {
 struct MalusCli {
 	#[clap(subcommand)]
 	pub variant: NemesisVariant,
-}
-
-fn run_cmd(run: RunCmd) -> Cli {
-	Cli { subcommand: None, run }
+	/// Sets the minimum delay between the best and finalized block.
+	pub finality_delay: Option<u32>,
 }
 
 impl MalusCli {
 	/// Launch a malus node.
 	fn launch(self) -> eyre::Result<()> {
+		let finality_delay = self.finality_delay;
 		match self.variant {
-			NemesisVariant::BackGarbageCandidate(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate)?,
-			NemesisVariant::SuggestGarbageCandidate(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), SuggestGarbageCandidate)?,
-			NemesisVariant::DisputeAncestor(cmd) =>
-				polkadot_cli::run_node(run_cmd(cmd), DisputeValidCandidates)?,
+			NemesisVariant::BackGarbageCandidate(cli) =>
+				polkadot_cli::run_node(cli, BackGarbageCandidate, finality_delay)?,
+			NemesisVariant::SuggestGarbageCandidate(cli) =>
+				polkadot_cli::run_node(cli, BackGarbageCandidateWrapper, finality_delay)?,
+			NemesisVariant::DisputeAncestor(opts) => {
+				let DisputeAncestorOptions { fake_validation, fake_validation_error, cli } = opts;
+
+				polkadot_cli::run_node(
+					cli,
+					DisputeValidCandidates { fake_validation, fake_validation_error },
+					finality_delay,
+				)?
+			},
 			NemesisVariant::PvfPrepareWorker(cmd) => {
 				#[cfg(target_os = "android")]
 				{
@@ -120,7 +126,7 @@ mod tests {
 			variant: NemesisVariant::DisputeAncestor(run),
 			..
 		} => {
-			assert!(run.base.bob);
+			assert!(run.cli.run.base.bob);
 		});
 	}
 }

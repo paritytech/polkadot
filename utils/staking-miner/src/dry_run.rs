@@ -16,7 +16,7 @@
 
 //! The dry-run command.
 
-use crate::{prelude::*, rpc::*, signer::Signer, DryRunConfig, Error, SharedRpcClient};
+use crate::{opts::DryRunConfig, prelude::*, rpc::*, signer::Signer, Error, SharedRpcClient};
 use codec::Encode;
 use frame_support::traits::Currency;
 use sp_core::Bytes;
@@ -39,7 +39,7 @@ fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> 
 async fn print_info<T: EPM::Config>(
 	rpc: &SharedRpcClient,
 	ext: &mut Ext,
-	raw_solution: &EPM::RawSolution<EPM::SolutionOf<T>>,
+	raw_solution: &EPM::RawSolution<EPM::SolutionOf<T::MinerConfig>>,
 	extrinsic: &Bytes,
 ) where
 	<T as EPM::Config>::Currency: Currency<T::AccountId, Balance = Balance>,

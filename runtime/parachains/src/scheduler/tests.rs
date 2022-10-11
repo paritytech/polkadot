@@ -227,10 +227,10 @@ fn session_change_prunes_cores_beyond_retries_and_those_from_non_live_parathread
 	};
 	let max_parathread_retries = default_config().parathread_retries;
 
-	let thread_a = ParaId::from(1);
-	let thread_b = ParaId::from(2);
-	let thread_c = ParaId::from(3);
-	let thread_d = ParaId::from(4);
+	let thread_a = ParaId::from(1_u32);
+	let thread_b = ParaId::from(2_u32);
+	let thread_c = ParaId::from(3_u32);
+	let thread_d = ParaId::from(4_u32);
 
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
@@ -330,8 +330,8 @@ fn session_change_shuffles_validators() {
 
 	assert_eq!(default_config().parathread_cores, 3);
 	new_test_ext(genesis_config).execute_with(|| {
-		let chain_a = ParaId::from(1);
-		let chain_b = ParaId::from(2);
+		let chain_a = ParaId::from(1_u32);
+		let chain_b = ParaId::from(2_u32);
 
 		// ensure that we have 5 groups by registering 2 parachains.
 		schedule_blank_para(chain_a, true);
@@ -387,9 +387,9 @@ fn session_change_takes_only_max_per_core() {
 	};
 
 	new_test_ext(genesis_config).execute_with(|| {
-		let chain_a = ParaId::from(1);
-		let chain_b = ParaId::from(2);
-		let chain_c = ParaId::from(3);
+		let chain_a = ParaId::from(1_u32);
+		let chain_b = ParaId::from(2_u32);
+		let chain_c = ParaId::from(3_u32);
 
 		// ensure that we have 5 groups by registering 2 parachains.
 		schedule_blank_para(chain_a, true);
@@ -434,12 +434,12 @@ fn schedule_schedules() {
 		..Default::default()
 	};
 
-	let chain_a = ParaId::from(1);
-	let chain_b = ParaId::from(2);
+	let chain_a = ParaId::from(1_u32);
+	let chain_b = ParaId::from(2_u32);
 
-	let thread_a = ParaId::from(3);
-	let thread_b = ParaId::from(4);
-	let thread_c = ParaId::from(5);
+	let thread_a = ParaId::from(3_u32);
+	let thread_b = ParaId::from(4_u32);
+	let thread_c = ParaId::from(5_u32);
 
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
@@ -559,14 +559,14 @@ fn schedule_schedules_including_just_freed() {
 		..Default::default()
 	};
 
-	let chain_a = ParaId::from(1);
-	let chain_b = ParaId::from(2);
+	let chain_a = ParaId::from(1_u32);
+	let chain_b = ParaId::from(2_u32);
 
-	let thread_a = ParaId::from(3);
-	let thread_b = ParaId::from(4);
-	let thread_c = ParaId::from(5);
-	let thread_d = ParaId::from(6);
-	let thread_e = ParaId::from(7);
+	let thread_a = ParaId::from(3_u32);
+	let thread_b = ParaId::from(4_u32);
+	let thread_c = ParaId::from(5_u32);
+	let thread_d = ParaId::from(6_u32);
+	let thread_e = ParaId::from(7_u32);
 
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
@@ -735,9 +735,9 @@ fn schedule_clears_availability_cores() {
 		..Default::default()
 	};
 
-	let chain_a = ParaId::from(1);
-	let chain_b = ParaId::from(2);
-	let chain_c = ParaId::from(3);
+	let chain_a = ParaId::from(1_u32);
+	let chain_b = ParaId::from(2_u32);
+	let chain_c = ParaId::from(3_u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
 		assert_eq!(default_config().parathread_cores, 3);
@@ -841,8 +841,8 @@ fn schedule_rotates_groups() {
 		..Default::default()
 	};
 
-	let thread_a = ParaId::from(1);
-	let thread_b = ParaId::from(2);
+	let thread_a = ParaId::from(1_u32);
+	let thread_b = ParaId::from(2_u32);
 
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
@@ -913,8 +913,8 @@ fn parathread_claims_are_pruned_after_retries() {
 		..Default::default()
 	};
 
-	let thread_a = ParaId::from(1);
-	let thread_b = ParaId::from(2);
+	let thread_a = ParaId::from(1_u32);
+	let thread_b = ParaId::from(2_u32);
 
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
@@ -974,8 +974,8 @@ fn availability_predicate_works() {
 			thread_availability_period < group_rotation_frequency
 	);
 
-	let chain_a = ParaId::from(1);
-	let thread_a = ParaId::from(2);
+	let chain_a = ParaId::from(1_u32);
+	let thread_a = ParaId::from(2_u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
 		schedule_blank_para(chain_a, true);
@@ -1069,8 +1069,8 @@ fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
 		..Default::default()
 	};
 
-	let thread_a = ParaId::from(1);
-	let thread_b = ParaId::from(2);
+	let thread_a = ParaId::from(1_u32);
+	let thread_b = ParaId::from(2_u32);
 
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
@@ -1141,8 +1141,8 @@ fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
 		..Default::default()
 	};
 
-	let thread_a = ParaId::from(1);
-	let thread_b = ParaId::from(2);
+	let thread_a = ParaId::from(1_u32);
+	let thread_b = ParaId::from(2_u32);
 
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
@@ -1219,7 +1219,7 @@ fn next_up_on_available_is_parachain_always() {
 		..Default::default()
 	};
 
-	let chain_a = ParaId::from(1);
+	let chain_a = ParaId::from(1_u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
 		schedule_blank_para(chain_a, true);
@@ -1273,7 +1273,7 @@ fn next_up_on_time_out_is_parachain_always() {
 		..Default::default()
 	};
 
-	let chain_a = ParaId::from(1);
+	let chain_a = ParaId::from(1_u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
 		schedule_blank_para(chain_a, true);
@@ -1326,8 +1326,8 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 
 	assert_eq!(default_config().parathread_cores, 3);
 	new_test_ext(genesis_config).execute_with(|| {
-		let chain_a = ParaId::from(1);
-		let chain_b = ParaId::from(2);
+		let chain_a = ParaId::from(1_u32);
+		let chain_b = ParaId::from(2_u32);
 
 		// ensure that we have 5 groups by registering 2 parachains.
 		schedule_blank_para(chain_a, true);
@@ -1401,8 +1401,8 @@ fn parathread_claims_are_pruned_after_deregistration() {
 		..Default::default()
 	};
 
-	let thread_a = ParaId::from(1);
-	let thread_b = ParaId::from(2);
+	let thread_a = ParaId::from(1_u32);
+	let thread_b = ParaId::from(2_u32);
 
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 

@@ -23,8 +23,8 @@ use polkadot_primitives::v2::SessionIndex;
 
 use futures::channel::oneshot;
 
+use polkadot_node_subsystem::{ChainApiError, SubsystemError};
 use polkadot_node_subsystem_util::runtime;
-use polkadot_subsystem::{ChainApiError, SubsystemError};
 
 use crate::LOG_TARGET;
 

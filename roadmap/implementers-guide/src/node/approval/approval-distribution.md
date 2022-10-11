@@ -22,6 +22,16 @@ For assignments, what we need to be checking is whether we are aware of the (blo
 
 However, awareness on its own of a (block, candidate) pair would imply that even ancient candidates all the way back to the genesis are relevant. We are actually not interested in anything before finality.
 
+We gossip assignments along a grid topology produced by the [Gossip Support Subsystem](../utility/gossip-support.md) and also to a few random peers. The first time we accept an assignment or approval, regardless of the source, which originates from a validator peer in a shared dimension of the grid, we propagate the message to validator peers in the unshared dimension as well as a few random peers.
+
+But, in case these mechanisms don't work on their own, we need to trade bandwidth for protocol liveness by introducing aggression.
+
+Aggression has 3 levels:
+    Aggression Level 0: The basic behaviors described above.
+    Aggression Level 1: The originator of a message sends to all peers. Other peers follow the rules above.
+    Aggression Level 2: All peers send all messages to all their row and column neighbors. This means that each validator will, on average, receive each message approximately 2*sqrt(n) times.
+
+These aggression levels are chosen based on how long a block has taken to finalize: assignments and approvals related to the unfinalized block will be propagated with more aggression. In particular, it's only the earliest unfinalized blocks that aggression should be applied to, because descendants may be unfinalized only by virtue of being descendants.
 
 ## Protocol
 
@@ -29,7 +39,7 @@ Input:
   - `ApprovalDistributionMessage::NewBlocks`
   - `ApprovalDistributionMessage::DistributeAssignment`
   - `ApprovalDistributionMessage::DistributeApproval`
-  - `ApprovalDistributionMessage::NetworkBridgeUpdateV1`
+  - `ApprovalDistributionMessage::NetworkBridgeUpdate`
   - `OverseerSignal::BlockFinalized`
 
 Output:

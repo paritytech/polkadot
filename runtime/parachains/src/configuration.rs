@@ -285,7 +285,8 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_max_parachain_outbound_channels: Default::default(),
 			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
-			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
+			ump_max_individual_weight: (20u64 * WEIGHT_PER_MILLIS)
+				.set_proof_size(MAX_POV_SIZE as u64),
 			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
@@ -478,13 +479,6 @@ pub mod pallet {
 	#[pallet::getter(fn config)]
 	pub(crate) type ActiveConfig<T: Config> =
 		StorageValue<_, HostConfiguration<T::BlockNumber>, ValueQuery>;
-
-	/// Pending configuration (if any) for the next session.
-	///
-	/// DEPRECATED: This is no longer used, and will be removed in the future.
-	#[pallet::storage]
-	pub(crate) type PendingConfig<T: Config> =
-		StorageMap<_, Twox64Concat, SessionIndex, migration::v1::HostConfiguration<T::BlockNumber>>;
 
 	/// Pending configuration changes.
 	///
@@ -1120,10 +1114,6 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_runtime_upgrade() -> Weight {
-			migration::migrate_to_latest::<T>()
-		}
-
 		fn integrity_test() {
 			assert_eq!(
 				&ActiveConfig::<T>::hashed_key(),
@@ -1147,7 +1137,7 @@ pub struct SessionChangeOutcome<BlockNumber> {
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the configuration pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	/// Called by the initializer to finalize the configuration pallet.

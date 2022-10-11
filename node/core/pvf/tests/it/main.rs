@@ -78,7 +78,6 @@ impl TestHost {
 }
 
 #[async_std::test]
-#[ignore]
 async fn terminates_on_timeout() {
 	let host = TestHost::new();
 

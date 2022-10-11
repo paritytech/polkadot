@@ -17,7 +17,7 @@
 //! Tests for the Kusama Runtime Configuration
 
 use crate::*;
-use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
+use frame_support::{dispatch::GetDispatchInfo, weights::WeightToFee as WeightToFeeT};
 use keyring::Sr25519Keyring::Charlie;
 use pallet_transaction_payment::Multiplier;
 use parity_scale_codec::Encode;
@@ -30,7 +30,7 @@ fn remove_keys_weight_is_sensible() {
 	use runtime_common::crowdloan::WeightInfo;
 	let max_weight = <Runtime as crowdloan::Config>::WeightInfo::refund(RemoveKeysLimit::get());
 	// Max remove keys limit should be no more than half the total block weight.
-	assert!(max_weight * 2 < BlockWeights::get().max_block);
+	assert!((max_weight * 2).all_lt(BlockWeights::get().max_block));
 }
 
 #[test]
@@ -40,20 +40,20 @@ fn sample_size_is_sensible() {
 	let samples: BlockNumber = EndingPeriod::get() / SampleLength::get();
 	let max_weight: Weight = RocksDbWeight::get().reads_writes(samples.into(), samples.into());
 	// Max sample cleanup should be no more than half the total block weight.
-	assert!(max_weight * 2 < BlockWeights::get().max_block);
-	assert!(
-		<Runtime as auctions::Config>::WeightInfo::on_initialize() * 2 <
-			BlockWeights::get().max_block
-	);
+	assert!((max_weight * 2).all_lt(BlockWeights::get().max_block));
+	assert!((<Runtime as auctions::Config>::WeightInfo::on_initialize() * 2)
+		.all_lt(BlockWeights::get().max_block));
 }
 
 #[test]
 fn payout_weight_portion() {
 	use pallet_staking::WeightInfo;
-	let payout_weight = <Runtime as pallet_staking::Config>::WeightInfo::payout_stakers_alive_staked(
-		MaxNominatorRewardedPerValidator::get(),
-	) as f64;
-	let block_weight = BlockWeights::get().max_block as f64;
+	let payout_weight =
+		<Runtime as pallet_staking::Config>::WeightInfo::payout_stakers_alive_staked(
+			MaxNominatorRewardedPerValidator::get(),
+		)
+		.ref_time() as f64;
+	let block_weight = BlockWeights::get().max_block.ref_time() as f64;
 
 	println!(
 		"a full payout takes {:.2} of the block weight [{} / {}]",
@@ -68,7 +68,7 @@ fn payout_weight_portion() {
 #[ignore]
 fn block_cost() {
 	let max_block_weight = BlockWeights::get().max_block;
-	let raw_fee = WeightToFee::calc(&max_block_weight);
+	let raw_fee = WeightToFee::weight_to_fee(&max_block_weight);
 
 	println!(
 		"Full Block weight == {} // WeightToFee(full_block) == {} plank",
@@ -87,7 +87,7 @@ fn transfer_cost_min_multiplier() {
 	};
 	let info = call.get_dispatch_info();
 	// convert to outer call.
-	let call = Call::Balances(call);
+	let call = RuntimeCall::Balances(call);
 	let len = call.using_encoded(|e| e.len()) as u32;
 
 	let mut ext = sp_io::TestExternalities::new_empty();
@@ -97,7 +97,7 @@ fn transfer_cost_min_multiplier() {
 			let fee = TransactionPayment::compute_fee(len, &info, 0);
 			println!(
 				"weight = {:?} // multiplier = {:?} // full transfer fee = {:?}",
-				info.weight.separated_string(),
+				info.weight.ref_time().separated_string(),
 				pallet_transaction_payment::NextFeeMultiplier::<Runtime>::get(),
 				fee.separated_string(),
 			);
@@ -130,7 +130,7 @@ fn nominator_limit() {
 	};
 
 	let mut active = 1;
-	while weight_with(active) <= OffchainSolutionWeightLimit::get() || active == all_voters {
+	while weight_with(active).all_lte(OffchainSolutionWeightLimit::get()) || active == all_voters {
 		active += 1;
 	}
 
@@ -173,10 +173,5 @@ fn era_payout_should_give_sensible_results() {
 
 #[test]
 fn call_size() {
-	assert!(
-		core::mem::size_of::<Call>() <= 230,
-		"size of Call is more than 230 bytes: some calls have too big arguments, use Box to reduce \
-		the size of Call.
-		If the limit is too strong, maybe consider increase the limit to 300.",
-	);
+	RuntimeCall::assert_size_under(230);
 }

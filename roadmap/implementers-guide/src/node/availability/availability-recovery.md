@@ -10,7 +10,7 @@ This version of the availability recovery subsystem is based off of direct conne
 
 Input:
 
-- `NetworkBridgeUpdateV1(update)`
+- `NetworkBridgeUpdate(update)`
 - `AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session, backing_group, response)`
 
 Output:

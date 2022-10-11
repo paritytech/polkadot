@@ -22,23 +22,21 @@
 
 #![deny(missing_docs)]
 
-use std::{convert::TryFrom, pin::Pin, time::Duration};
+use std::{pin::Pin, time::Duration};
 
 use bounded_vec::BoundedVec;
 use futures::Future;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-pub use sp_consensus_babe::{
-	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
-};
-pub use sp_core::traits::SpawnNamed;
-
 use polkadot_primitives::v2::{
 	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
 	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
 	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
 	ValidatorIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
+};
+pub use sp_consensus_babe::{
+	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
 };
 
 pub use polkadot_parachain::primitives::BlockData;
@@ -48,8 +46,9 @@ pub mod approval;
 /// Disputes related types.
 pub mod disputes;
 pub use disputes::{
-	CandidateVotes, DisputeMessage, DisputeMessageCheckError, InvalidDisputeVote,
-	SignedDisputeStatement, UncheckedDisputeMessage, ValidDisputeVote,
+	dispute_is_inactive, CandidateVotes, DisputeMessage, DisputeMessageCheckError, DisputeStatus,
+	InvalidDisputeVote, SignedDisputeStatement, Timestamp, UncheckedDisputeMessage,
+	ValidDisputeVote, ACTIVE_DURATION_SECS,
 };
 
 // For a 16-ary Merkle Prefix Trie, we can expect at most 16 32-byte hashes per node
@@ -74,7 +73,7 @@ pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
 /// ensure that in the absence of extremely large disparities between hardware,
 /// blocks that pass backing are considerd executable by approval checkers or
 /// dispute participants.
-pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(6);
+pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
 
 /// Linked to `MAX_FINALITY_LAG` in relay chain selection,
 /// `MAX_HEADS_LOOK_BACK` in `approval-voting` and
@@ -86,7 +85,7 @@ pub const MAX_FINALITY_LAG: u32 = 500;
 /// We are not using `NonZeroU32` here because `expect` and `unwrap` are not yet const, so global
 /// constants of `SessionWindowSize` would require `lazy_static` in that case.
 ///
-/// See: https://github.com/rust-lang/rust/issues/67441
+/// See: <https://github.com/rust-lang/rust/issues/67441>
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct SessionWindowSize(SessionIndex);
 
@@ -236,6 +235,8 @@ pub enum InvalidCandidate {
 	ParaHeadHashMismatch,
 	/// Validation code hash does not match.
 	CodeHashMismatch,
+	/// Validation has generated different candidate commitments.
+	CommitmentsHashMismatch,
 }
 
 /// Result of the validation of the candidate.

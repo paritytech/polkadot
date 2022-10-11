@@ -24,7 +24,7 @@
 #![deny(missing_docs)]
 #![deny(unused_imports)]
 
-pub use metered_channel as metered;
+pub use metered;
 
 /// Cyclic metric collection support.
 pub mod metronome;
@@ -37,11 +37,11 @@ pub use self::runtime::logger_hook;
 
 /// Export a dummy logger hook when the `runtime-metrics` feature is not enabled.
 #[cfg(not(feature = "runtime-metrics"))]
-pub fn logger_hook() -> impl FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration) -> () {
+pub fn logger_hook() -> impl FnOnce(&mut sc_cli::LoggerBuilder, &sc_service::Configuration) {
 	|_logger_builder, _config| {}
 }
 
-/// This module reexports Prometheus types and defines the [`Metrics`] trait.
+/// This module reexports Prometheus types and defines the [`Metrics`](metrics::Metrics) trait.
 pub mod metrics {
 	/// Reexport Substrate Prometheus types.
 	pub use substrate_prometheus_endpoint as prometheus;

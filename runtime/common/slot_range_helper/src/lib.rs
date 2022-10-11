@@ -22,7 +22,7 @@ pub use enumn::N;
 pub use parity_scale_codec::{Decode, Encode};
 pub use paste;
 pub use sp_runtime::traits::CheckedSub;
-pub use sp_std::{convert::TryInto, ops::Add, result};
+pub use sp_std::{ops::Add, result};
 
 /// This macro generates a `SlotRange` enum of arbitrary length for use in the Slot Auction
 /// mechanism on Polkadot.
@@ -168,7 +168,7 @@ macro_rules! generate_slot_range_new_bounded {
 		///
 		/// For example: `SlotRange::new_bounded(1, 2, 3) == SlotRange::OneTwo`.
 		pub fn new_bounded<
-			Index: $crate::Add<Output=Index> + $crate::CheckedSub + Copy + Ord + From<u32> + $crate::TryInto<u32>
+			Index: $crate::Add<Output=Index> + $crate::CheckedSub + Copy + Ord + From<u32> + TryInto<u32>
 		>(
 			current: Index,
 			first: Index,
