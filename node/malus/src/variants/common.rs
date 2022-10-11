@@ -290,7 +290,7 @@ where
 							true => {
 								let validation_result =
 									ValidationResult::Invalid(InvalidCandidate::InvalidOutputs);
-								
+
 								gum::info!(
 									target: MALUS,
 									?behave_maliciously,
@@ -411,10 +411,7 @@ where
 							},
 							// With some probability `(1-p)` we behave normally
 							false => {
-								gum::info!(
-									target: MALUS,
-									"😈 'Decided' to not act maliciously.",
-								);
+								gum::info!(target: MALUS, "😈 'Decided' to not act maliciously.",);
 
 								Some(FromOrchestra::Communication {
 									msg: CandidateValidationMessage::ValidateFromChainState(
