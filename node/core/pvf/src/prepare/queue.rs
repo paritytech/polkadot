@@ -21,7 +21,10 @@ use crate::{artifacts::ArtifactId, metrics::Metrics, PrepareResult, Priority, Pv
 use always_assert::{always, never};
 use async_std::path::PathBuf;
 use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};
-use std::collections::{HashMap, VecDeque};
+use std::{
+	collections::{HashMap, VecDeque},
+	time::Duration,
+};
 
 /// A request to pool.
 #[derive(Debug)]
@@ -30,7 +33,7 @@ pub enum ToQueue {
 	///
 	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
 	/// [`FromQueue`] response.
-	Enqueue { priority: Priority, pvf: Pvf },
+	Enqueue { priority: Priority, pvf: Pvf, compilation_timeout: Duration },
 }
 
 /// A response from queue.
@@ -76,6 +79,8 @@ struct JobData {
 	/// The priority of this job. Can be bumped.
 	priority: Priority,
 	pvf: Pvf,
+	/// The timeout for the preparation job.
+	compilation_timeout: Duration,
 	worker: Option<Worker>,
 }
 
@@ -203,18 +208,24 @@ impl Queue {
 
 async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fatal> {
 	match to_queue {
-		ToQueue::Enqueue { priority, pvf } => {
-			handle_enqueue(queue, priority, pvf).await?;
+		ToQueue::Enqueue { priority, pvf, compilation_timeout } => {
+			handle_enqueue(queue, priority, pvf, compilation_timeout).await?;
 		},
 	}
 	Ok(())
 }
 
-async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: Pvf) -> Result<(), Fatal> {
+async fn handle_enqueue(
+	queue: &mut Queue,
+	priority: Priority,
+	pvf: Pvf,
+	compilation_timeout: Duration,
+) -> Result<(), Fatal> {
 	gum::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?pvf.code_hash,
 		?priority,
+		?compilation_timeout,
 		"PVF is enqueued for preparation.",
 	);
 	queue.metrics.prepare_enqueued();
@@ -236,7 +247,7 @@ async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: Pvf) -> Resu
 		return Ok(())
 	}
 
-	let job = queue.jobs.insert(JobData { priority, pvf, worker: None });
+	let job = queue.jobs.insert(JobData { priority, pvf, compilation_timeout, worker: None });
 	queue.artifact_id_to_job.insert(artifact_id, job);
 
 	if let Some(available) = find_idle_worker(queue) {
@@ -424,7 +435,12 @@ async fn assign(queue: &mut Queue, worker: Worker, job: Job) -> Result<(), Fatal
 
 	send_pool(
 		&mut queue.to_pool_tx,
-		pool::ToPool::StartWork { worker, code: job_data.pvf.code.clone(), artifact_path },
+		pool::ToPool::StartWork {
+			worker,
+			code: job_data.pvf.code.clone(),
+			artifact_path,
+			compilation_timeout: job_data.compilation_timeout,
+		},
 	)
 	.await?;
 
