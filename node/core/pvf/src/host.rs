@@ -52,9 +52,9 @@ pub struct ValidationHost {
 
 impl ValidationHost {
 	/// Precheck PVF with the given code, i.e. verify that it compiles within a reasonable time limit.
-	/// The result of execution will be sent to the provided result sender.
+	/// This will prepare the PVF. The result of preparation will be sent to the provided result sender.
 	///
-	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
+	/// This is async to accommodate the possibility of back-pressure. In the vast majority of
 	/// situations this function should return immediately.
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
@@ -72,7 +72,7 @@ impl ValidationHost {
 	/// Execute PVF with the given code, execution timeout, parameters and priority.
 	/// The result of execution will be sent to the provided result sender.
 	///
-	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
+	/// This is async to accommodate the possibility of back-pressure. In the vast majority of
 	/// situations this function should return immediately.
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
@@ -418,6 +418,9 @@ async fn handle_to_host(
 	Ok(())
 }
 
+/// Handles PVF prechecking.
+///
+/// This tries to prepare the PVF by compiling the WASM blob within a given timeout ([`PRECHECK_COMPILATION_TIMEOUT`]).
 async fn handle_precheck_pvf(
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
@@ -446,6 +449,11 @@ async fn handle_precheck_pvf(
 	Ok(())
 }
 
+/// Handles PVF execution.
+///
+/// This will first try to prepare the PVF, if a prepared artifact does not already exist. If there is already a
+/// preparation job, we coalesce the two preparation jobs. When preparing for execution, we use a more lenient timeout
+/// ([`EXECUTE_COMPILATION_TIMEOUT`]) than when prechecking.
 async fn handle_execute_pvf(
 	cache_path: &Path,
 	artifacts: &mut Artifacts,
@@ -485,7 +493,7 @@ async fn handle_execute_pvf(
 		}
 	} else {
 		// Artifact is unknown: register it and enqueue a job with the corresponding priority and
-		//
+		// PVF.
 		artifacts.insert_preparing(artifact_id.clone(), Vec::new());
 		send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf }).await?;
 

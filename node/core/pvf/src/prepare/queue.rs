@@ -91,7 +91,7 @@ impl WorkerData {
 }
 
 /// A queue structured like this is prone to starving, however, we don't care that much since we expect
-///  there is going to be a limited number of critical jobs and we don't really care if background starve.
+/// there is going to be a limited number of critical jobs and we don't really care if background starve.
 #[derive(Default)]
 struct Unscheduled {
 	normal: VecDeque<Job>,
@@ -225,7 +225,7 @@ async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: Pvf) -> Resu
 		"second Enqueue sent for a known artifact"
 	) {
 		// This function is called in response to a `Enqueue` message;
-		// Precondtion for `Enqueue` is that it is sent only once for a PVF;
+		// Precondition for `Enqueue` is that it is sent only once for a PVF;
 		// Thus this should always be `false`;
 		// qed.
 		gum::warn!(

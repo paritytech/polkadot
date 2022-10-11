@@ -1,6 +1,6 @@
 # PVF Pre-checking Overview
 
-> ⚠️ This discusses a mechanism that is currently not under-development. Follow the progress under [#3211].
+> ⚠️ This discusses a mechanism that is currently under-development. Follow the progress under [#3211].
 
 ## Motivation
 
