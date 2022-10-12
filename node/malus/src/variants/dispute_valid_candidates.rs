@@ -29,7 +29,7 @@ use polkadot_cli::{
 		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
 		ProvideRuntimeApi,
 	},
-	RunCmd,
+	Cli,
 };
 use polkadot_node_subsystem::SpawnGlue;
 use sp_core::traits::SpawnNamed;
@@ -40,7 +40,7 @@ use crate::{interceptor::*, variants::ReplaceValidationResult};
 
 use std::sync::Arc;
 
-#[derive(Clone, Debug, clap::Parser)]
+#[derive(Debug, clap::Parser)]
 #[clap(rename_all = "kebab-case")]
 #[allow(missing_docs)]
 pub struct DisputeAncestorOptions {
@@ -56,18 +56,14 @@ pub struct DisputeAncestorOptions {
 	pub fake_validation_error: FakeCandidateValidationError,
 
 	#[clap(flatten)]
-	pub cmd: RunCmd,
+	pub cli: Cli,
 }
 
 pub(crate) struct DisputeValidCandidates {
 	/// Fake validation config (applies to disputes as well).
-	opts: DisputeAncestorOptions,
-}
-
-impl DisputeValidCandidates {
-	pub fn new(opts: DisputeAncestorOptions) -> Self {
-		Self { opts }
-	}
+	pub fake_validation: FakeCandidateValidation,
+	/// Fake validation error config.
+	pub fake_validation_error: FakeCandidateValidationError,
 }
 
 impl OverseerGen for DisputeValidCandidates {
@@ -83,8 +79,8 @@ impl OverseerGen for DisputeValidCandidates {
 	{
 		let spawner = args.spawner.clone();
 		let validation_filter = ReplaceValidationResult::new(
-			self.opts.fake_validation,
-			self.opts.fake_validation_error,
+			self.fake_validation,
+			self.fake_validation_error,
 			SpawnGlue(spawner.clone()),
 		);
 
