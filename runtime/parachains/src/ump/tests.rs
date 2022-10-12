@@ -34,7 +34,7 @@ pub(super) struct GenesisConfigBuilder {
 impl Default for GenesisConfigBuilder {
 	fn default() -> Self {
 		Self {
-			max_upward_message_size: 16,
+			max_upward_message_size: 32,
 			max_upward_message_num_per_candidate: 2,
 			max_upward_queue_count: 4,
 			max_upward_queue_size: 64,
