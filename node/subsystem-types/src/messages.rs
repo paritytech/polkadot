@@ -195,10 +195,16 @@ pub enum CollatorProtocolMessage {
 	/// This should be sent before any `DistributeCollation` message.
 	CollateOn(ParaId),
 	/// Provide a collation to distribute to validators with an optional result sender.
+	/// The second argument is the parent head-data hash.
 	///
 	/// The result sender should be informed when at least one parachain validator seconded the collation. It is also
 	/// completely okay to just drop the sender.
-	DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<CollationSecondedSignal>>),
+	DistributeCollation(
+		CandidateReceipt,
+		Hash,
+		PoV,
+		Option<oneshot::Sender<CollationSecondedSignal>>,
+	),
 	/// Report a collator as having provided an invalid collation. This should lead to disconnect
 	/// and blacklist of the collator.
 	ReportCollator(CollatorId),
@@ -719,7 +725,7 @@ impl RuntimeApiRequest {
 	/// `Disputes`
 	pub const DISPUTES_RUNTIME_REQUIREMENT: u32 = 3;
 
-	/// Minimum version for valididty constraints, required for async backing.
+	/// Minimum version for validity constraints, required for async backing.
 	///
 	/// 99 for now, should be adjusted to VSTAGING/actual runtime version once released.
 	pub const VALIDITY_CONSTRAINTS: u32 = 99;
