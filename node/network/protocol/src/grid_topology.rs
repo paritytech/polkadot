@@ -82,7 +82,9 @@ impl SessionGridTopology {
 	///
 	/// Returns `None` if the validator index is out of bounds.
 	pub fn compute_grid_neighbors_for(&self, v: ValidatorIndex) -> Option<GridNeighbors> {
+		if self.shuffled_indices.len() != self.canonical_shuffling.len() { return None }
 		let shuffled_val_index = *self.shuffled_indices.get(v.0 as usize)?;
+
 		let neighbors = matrix_neighbors(shuffled_val_index, self.shuffled_indices.len())?;
 
 		let mut grid_subset = GridNeighbors::empty();
