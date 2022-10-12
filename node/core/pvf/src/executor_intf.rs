@@ -16,7 +16,7 @@
 
 //! Interface to the Substrate Executor
 
-use polkadot_primitives::vstaging::ExecutorParams;
+use polkadot_primitives::vstaging::{executor_params as Ep, ExecutorParams};
 use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{InvokeMethod, WasmModule as _},
@@ -102,50 +102,34 @@ pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::
 	sc_executor_wasmtime::prepare_runtime_artifact(blob, &DEFAULT_CONFIG.semantics) // FIXME: Explore usecases, use external config
 }
 
-const EEPAR_VERSION: u8 = 0;
-const EEPAR_EXTRA_HEAP_PAGES: u8 = 1;
-const EEPAR_MAX_MEMORY_SIZE: u8 = 2;
-const EEPAR_STACK_LIMIT: u8 = 3;
-const EEPAR_BITS: u8 = 4;
-
-const EEPAR_LEN: usize = 5;
-
-const EEPAR_FLAG_CANONICAL_NANS: u8 = 0;
-const EEPAR_FLAG_PARALLEL_COMPILATION: u8 = 1;
-
-const EEINST_POOLING_COW: u8 = 0b0001;
-const EEINST_RECREATE_COW: u8 = 0b0010;
-const EEINST_POOLING: u8 = 0b0011;
-const EEINST_RECREATE: u8 = 0b0100;
-const EEINST_LEGACY: u8 = 0b0101;
-
+// FIXME: Big endian architectures?
 fn params_to_semantics(par: ExecutorParams) -> Semantics {
 	let mut sem = DEFAULT_CONFIG.semantics.clone();
 	for (key, value) in par.iter() {
 		match *key {
-			EEPAR_EXTRA_HEAP_PAGES => sem.extra_heap_pages = *value,
-			EEPAR_MAX_MEMORY_SIZE if *value <= std::u32::MAX as u64 =>
+			Ep::PAR_EXTRA_HEAP_PAGES => sem.extra_heap_pages = *value,
+			Ep::PAR_MAX_MEMORY_SIZE if *value <= std::u32::MAX as u64 =>
 				sem.max_memory_size = (*value).try_into().ok(),
-			EEPAR_STACK_LIMIT =>
+			Ep::PAR_STACK_LIMIT =>
 				sem.deterministic_stack_limit = Some(DeterministicStackLimit {
 					logical_max: (value & 0xFFFFFFFFu64) as u32,
 					native_stack_max: (value >> 32) as u32,
 				}),
-			EEPAR_BITS => {
+			Ep::PAR_BITS => {
 				sem.canonicalize_nans =
-					if value & (1 << EEPAR_FLAG_CANONICAL_NANS) == 0 { false } else { true };
+					if value & (1 << Ep::BIT_CANONICAL_NANS) == 0 { false } else { true };
 				sem.parallel_compilation =
-					if value & (1 << EEPAR_FLAG_PARALLEL_COMPILATION) == 0 { false } else { true };
+					if value & (1 << Ep::BIT_PARALLEL_COMPILATION) == 0 { false } else { true };
 				match ((value >> 2) & 0b111u64) as u8 {
-					EEINST_POOLING_COW =>
+					Ep::INST_POOLING_COW =>
 						sem.instantiation_strategy = InstantiationStrategy::PoolingCopyOnWrite,
-					EEINST_RECREATE_COW =>
+					Ep::INST_RECREATE_COW =>
 						sem.instantiation_strategy =
 							InstantiationStrategy::RecreateInstanceCopyOnWrite,
-					EEINST_POOLING => sem.instantiation_strategy = InstantiationStrategy::Pooling,
-					EEINST_RECREATE =>
+					Ep::INST_POOLING => sem.instantiation_strategy = InstantiationStrategy::Pooling,
+					Ep::INST_RECREATE =>
 						sem.instantiation_strategy = InstantiationStrategy::RecreateInstance,
-					EEINST_LEGACY =>
+					Ep::INST_LEGACY =>
 						sem.instantiation_strategy = InstantiationStrategy::LegacyInstanceReuse,
 					_ => (),
 				}

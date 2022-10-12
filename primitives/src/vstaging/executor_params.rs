@@ -14,11 +14,49 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::{ops::Deref, vec::Vec};
-// use sp_core::Hash;
+//! Abstract execution environment parameter set.
+//!
+//! Parameters are encoded as (u8, u64) tuples, where u8 is a tag defining a type of
+//! parameter, and u64 is a parameter value. Parameter set and value structure are opaque
+//! and depend on execution environment itself. Decoding to a usable sematics structure is
+//! done in `polkadot-node-core-pvf`.
+
 use parity_scale_codec::{Decode, Encode};
 use parity_util_mem::MallocSizeOf;
 use scale_info::TypeInfo;
+use sp_std::{ops::Deref, vec::Vec};
+
+// FIXME: Version structure is to be determined
+/// Tag for version of execution environment parameter set.
+pub const PAR_VERSION: u8 = 0;
+/// Tag for extra heap page count
+pub const PAR_EXTRA_HEAP_PAGES: u8 = 1;
+/// Tag for max. memory size
+pub const PAR_MAX_MEMORY_SIZE: u8 = 2;
+/// Tag for stack limits. 32 LSB bits define logical limit, and 32 MSB bits define native stack limit
+pub const PAR_STACK_LIMIT: u8 = 3;
+/// Tag for bit-packed fields
+pub const PAR_BITS: u8 = 4;
+
+/// Total number of tags (for vector pre-allocation)
+pub const PAR_LEN: usize = 5;
+
+/// Bitflag for NaNs canonicalization boolean
+pub const BIT_CANONICAL_NANS: u8 = 0;
+/// Bitflag fof parallel compilation boolean
+pub const BIT_PARALLEL_COMPILATION: u8 = 1;
+
+/// Insantiation strategy bit-packed constants:
+/// Pooling copy-on-write
+pub const INST_POOLING_COW: u8 = 0b001;
+/// Recreate copy-on-write
+pub const INST_RECREATE_COW: u8 = 0b010;
+/// Pooling
+pub const INST_POOLING: u8 = 0b011;
+/// Recreate
+pub const INST_RECREATE: u8 = 0b100;
+/// Legacy instantiation strategy
+pub const INST_LEGACY: u8 = 0b101;
 
 /// Deterministically serialized execution environment semantics
 /// to include into `SessionInfo`
@@ -26,12 +64,16 @@ use scale_info::TypeInfo;
 pub struct ExecutorParams(Vec<(u8, u64)>);
 
 impl ExecutorParams {
+	/// Returns version of execution environment parameter set, if present. Otherwise, returns 0.
 	pub fn version(&self) -> u64 {
 		if self.0.len() == 0 {
 			0
 		} else {
-			// EEPAR_VERSION must always be the first element of ExecutorParams
-			self.0[0].1
+			if self.0[0].0 == PAR_VERSION {
+				self.0[0].1
+			} else {
+				0
+			}
 		}
 	}
 }
