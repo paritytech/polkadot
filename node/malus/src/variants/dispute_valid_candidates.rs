@@ -29,7 +29,7 @@ use polkadot_cli::{
 		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
 		ProvideRuntimeApi,
 	},
-	RunCmd,
+	Cli,
 };
 use polkadot_node_subsystem::SpawnGlue;
 use sp_core::traits::SpawnNamed;
@@ -40,7 +40,7 @@ use crate::{interceptor::*, variants::ReplaceValidationResult};
 
 use std::sync::Arc;
 
-#[derive(Clone, Debug, clap::Parser)]
+#[derive(Debug, clap::Parser)]
 #[clap(rename_all = "kebab-case")]
 #[allow(missing_docs)]
 pub struct DisputeAncestorOptions {
@@ -61,7 +61,7 @@ pub struct DisputeAncestorOptions {
 	pub percentage: u8,
 
 	#[clap(flatten)]
-	pub cmd: RunCmd,
+	pub cli: Cli,
 }
 
 pub(crate) struct DisputeValidCandidateWrapper {

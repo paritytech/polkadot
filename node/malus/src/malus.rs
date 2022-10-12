@@ -18,7 +18,7 @@
 
 use clap::Parser;
 use color_eyre::eyre;
-use polkadot_cli::{Cli, RunCmd};
+use polkadot_cli::Cli;
 
 pub(crate) mod interceptor;
 pub(crate) mod shared;
@@ -55,10 +55,6 @@ struct MalusCli {
 	pub variant: NemesisVariant,
 	/// Sets the minimum delay between the best and finalized block.
 	pub finality_delay: Option<u32>,
-}
-
-fn run_cmd(run: RunCmd) -> Cli {
-	Cli { subcommand: None, run }
 }
 
 impl MalusCli {
@@ -132,7 +128,7 @@ mod tests {
 			variant: NemesisVariant::DisputeAncestor(run),
 			..
 		} => {
-			assert!(run.cmd.base.bob);
+			assert!(run.cli.run.base.bob);
 		});
 	}
 
