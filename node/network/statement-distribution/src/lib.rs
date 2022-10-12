@@ -27,7 +27,7 @@ use parity_scale_codec::Encode;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
-	grid_topology::{RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology},
+	grid_topology::{GridNeighbors, RequiredRouting, SessionBoundGridTopologyStorage},
 	peer_set::{IsAuthority, PeerSet},
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	v1::{self as protocol_v1, StatementMetadata},
@@ -910,7 +910,10 @@ async fn circulate_statement_and_dependents<Context>(
 		.with_candidate(statement.payload().candidate_hash())
 		.with_stage(jaeger::Stage::StatementDistribution);
 
-	let topology = topology_store.get_topology_or_fallback(active_head.session_index);
+	let topology = topology_store
+		.get_topology_or_fallback(active_head.session_index)
+		.local_grid_neighbors();
+
 	// First circulate the statement directly to all peers needing it.
 	// The borrow of `active_head` needs to encompass only this (Rust) statement.
 	let outputs: Option<(CandidateHash, Vec<PeerId>)> = {
@@ -1009,7 +1012,7 @@ fn is_statement_large(statement: &SignedFullStatement) -> (bool, Option<usize>) 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn circulate_statement<'a, Context>(
 	required_routing: RequiredRouting,
-	topology: &SessionGridTopology,
+	topology: &GridNeighbors,
 	peers: &mut HashMap<PeerId, PeerData>,
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -1352,7 +1355,8 @@ async fn handle_incoming_message_and_circulate<'a, Context, R>(
 
 		let session_index = runtime.get_session_index_for_child(ctx.sender(), relay_parent).await;
 		let topology = match session_index {
-			Ok(session_index) => topology_storage.get_topology_or_fallback(session_index),
+			Ok(session_index) =>
+				topology_storage.get_topology_or_fallback(session_index).local_grid_neighbors(),
 			Err(e) => {
 				gum::debug!(
 					target: LOG_TARGET,
@@ -1361,7 +1365,7 @@ async fn handle_incoming_message_and_circulate<'a, Context, R>(
 					e
 				);
 
-				topology_storage.get_current_topology()
+				topology_storage.get_current_topology().local_grid_neighbors()
 			},
 		};
 		let required_routing =
@@ -1588,7 +1592,7 @@ async fn handle_incoming_message<'a, Context>(
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn update_peer_view_and_maybe_send_unlocked<Context, R>(
 	peer: PeerId,
-	topology: &SessionGridTopology,
+	topology: &GridNeighbors,
 	peer_data: &mut PeerData,
 	ctx: &mut Context,
 	active_heads: &HashMap<Hash, ActiveHeadData>,
@@ -1673,16 +1677,22 @@ async fn handle_network_update<Context, R>(
 			let _ = metrics.time_network_bridge_update_v1("new_gossip_topology");
 
 			let new_session_index = topology.session;
-			let new_topology: SessionGridTopology = topology.into();
-			let old_topology = topology_storage.get_current_topology();
-			let newly_added = new_topology.peers_diff(old_topology);
-			topology_storage.update_topology(new_session_index, new_topology);
+			let new_topology = topology.topology;
+			let old_topology =
+				topology_storage.get_current_topology().local_grid_neighbors().clone();
+			topology_storage.update_topology(new_session_index, new_topology, topology.local_index);
+
+			let newly_added = topology_storage
+				.get_current_topology()
+				.local_grid_neighbors()
+				.peers_diff(&old_topology);
+
 			for peer in newly_added {
 				if let Some(data) = peers.get_mut(&peer) {
 					let view = std::mem::take(&mut data.view);
 					update_peer_view_and_maybe_send_unlocked(
 						peer,
-						topology_storage.get_current_topology(),
+						topology_storage.get_current_topology().local_grid_neighbors(),
 						data,
 						ctx,
 						&*active_heads,
@@ -1717,7 +1727,7 @@ async fn handle_network_update<Context, R>(
 				Some(data) =>
 					update_peer_view_and_maybe_send_unlocked(
 						peer,
-						topology_storage.get_current_topology(),
+						topology_storage.get_current_topology().local_grid_neighbors(),
 						data,
 						ctx,
 						&*active_heads,
