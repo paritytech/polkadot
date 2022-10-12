@@ -19,6 +19,7 @@
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Everything, Nothing},
+	weights::Weight,
 };
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
@@ -97,7 +98,6 @@ parameter_types! {
 	pub const ThisNetwork: NetworkId = NetworkId::ByGenesis([0; 32]);
 	pub const AnyNetwork: Option<NetworkId> = None;
 	pub const UniversalLocation: InteriorMultiLocation = Here;
-	pub const UnitWeightCost: u64 = 1_000;
 }
 
 pub type SovereignAccountOf =
@@ -114,7 +114,7 @@ type LocalOriginConverter = (
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: u64 = 1_000;
+	pub const BaseXcmWeight: Weight = Weight::from_ref_time(1_000);
 	pub KsmPerSecond: (AssetId, u128) = (Concrete(TokenLocation::get()), 1);
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
