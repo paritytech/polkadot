@@ -29,6 +29,7 @@ use sp_consensus_babe::{AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch
 use sp_core::crypto::Pair as PairT;
 use sp_keyring::Sr25519Keyring;
 
+use polkadot_node_network_protocol::grid_topology::{SessionGridTopology, TopologyPeerInfo};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
@@ -73,13 +74,15 @@ lazy_static! {
 	// [1 3]
 	// [0  ]
 
-	static ref ROW_NEIGHBORS: Vec<(AuthorityDiscoveryId, ValidatorIndex)> = vec![
-		(Sr25519Keyring::Charlie.public().into(), ValidatorIndex::from(2)),
+	static ref EXPECTED_SHUFFLING: Vec<usize> = vec![6, 4, 0, 5, 2, 3, 1];
+
+	static ref ROW_NEIGHBORS: Vec<ValidatorIndex> = vec![
+		ValidatorIndex::from(2),
 	];
 
-	static ref COLUMN_NEIGHBORS: Vec<(AuthorityDiscoveryId, ValidatorIndex)> = vec![
-		(Sr25519Keyring::Two.public().into(), ValidatorIndex::from(5)),
-		(Sr25519Keyring::Eve.public().into(), ValidatorIndex::from(3)),
+	static ref COLUMN_NEIGHBORS: Vec<ValidatorIndex> = vec![
+		ValidatorIndex::from(3),
+		ValidatorIndex::from(5),
 	];
 }
 
@@ -257,12 +260,31 @@ async fn test_neighbors(overseer: &mut VirtualOverseer, expected_session: Sessio
 		overseer_recv(overseer).await,
 		AllMessages::NetworkBridgeRx(NetworkBridgeRxMessage::NewGossipTopology {
 			session: got_session,
-			our_neighbors_x,
-			our_neighbors_y,
+			local_index,
+			canonical_shuffling,
+			shuffled_indices,
 		}) => {
 			assert_eq!(expected_session, got_session);
-			let mut got_row: Vec<_> = our_neighbors_x.into_iter().collect();
-			let mut got_column: Vec<_> = our_neighbors_y.into_iter().collect();
+			assert_eq!(local_index, Some(ValidatorIndex(6)));
+			assert_eq!(shuffled_indices, EXPECTED_SHUFFLING.clone());
+
+			let grid_topology = SessionGridTopology::new(
+				shuffled_indices,
+				canonical_shuffling.into_iter()
+					.map(|(a, v)| TopologyPeerInfo {
+						validator_index: v,
+						discovery_id: a,
+						peer_ids: Vec::new(),
+					})
+					.collect(),
+			);
+
+			let grid_neighbors = grid_topology
+				.compute_grid_neighbors_for(local_index.unwrap())
+				.unwrap();
+
+			let mut got_row: Vec<_> = grid_neighbors.validator_indices_x.into_iter().collect();
+			let mut got_column: Vec<_> = grid_neighbors.validator_indices_y.into_iter().collect();
 			got_row.sort();
 			got_column.sort();
 			assert_eq!(got_row, ROW_NEIGHBORS.clone());
@@ -693,27 +715,4 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 
 	assert_eq!(state.last_session_index, Some(1));
 	assert!(state.last_failure.is_none());
-}
-
-#[test]
-fn test_matrix_neighbors() {
-	for (our_index, len, expected_row, expected_column) in vec![
-		(0usize, 1usize, vec![], vec![]),
-		(1, 2, vec![], vec![0usize]),
-		(0, 9, vec![1, 2], vec![3, 6]),
-		(9, 10, vec![], vec![0, 3, 6]),
-		(10, 11, vec![9], vec![1, 4, 7]),
-		(7, 11, vec![6, 8], vec![1, 4, 10]),
-	]
-	.into_iter()
-	{
-		let matrix = matrix_neighbors(our_index, len);
-		let mut row_result: Vec<_> = matrix.row_neighbors.collect();
-		let mut column_result: Vec<_> = matrix.column_neighbors.collect();
-		row_result.sort();
-		column_result.sort();
-
-		assert_eq!(row_result, expected_row);
-		assert_eq!(column_result, expected_column);
-	}
 }

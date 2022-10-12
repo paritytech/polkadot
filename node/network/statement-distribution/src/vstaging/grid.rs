@@ -37,7 +37,7 @@ struct SubTopologyGroupLocalView {
 /// Our local view of the topology for a session, as it pertains to backed
 /// candidate distribution.
 struct TopologyView {
-	group_views: HashMap<GroupIndex, SubTopologyGroupLocalView>
+	group_views: HashMap<GroupIndex, SubTopologyGroupLocalView>,
 }
 
 /// TODO [now]: build topology for the session.
@@ -53,7 +53,7 @@ fn build_session_topology() -> TopologyView {
 /// A tracker of knowledge from authorities within the grid for a
 /// specific relay-parent.
 struct PerRelayParentGridTracker {
-	by_authority: HashMap<(AuthorityDiscoveryId, GroupIndex), Knowledge>
+	by_authority: HashMap<(AuthorityDiscoveryId, GroupIndex), Knowledge>,
 }
 
 struct Knowledge {

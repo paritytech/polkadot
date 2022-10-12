@@ -179,8 +179,12 @@ pub(crate) async fn handle_network_update<Context>(
 		},
 		NetworkBridgeEvent::NewGossipTopology(topology) => {
 			let new_session_index = topology.session;
-			let new_topology: SessionGridTopology = topology.into();
-			state.topology_storage.insert_topology(new_session_index, new_topology);
+			let new_topology = topology.topology;
+			state.topology_storage.insert_topology(
+				new_session_index,
+				new_topology,
+				topology.local_index,
+			);
 
 			// TODO [now]: can we not update authority IDs for peers?
 
