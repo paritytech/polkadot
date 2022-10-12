@@ -88,7 +88,7 @@ zombienet-tests-parachains-disputes:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --test="0002-parachains-disputes.zndsl"
-  allow_failure:                   true
+  allow_failure:                   false
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
