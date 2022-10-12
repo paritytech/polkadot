@@ -765,20 +765,24 @@ fn fetches_next_collation() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
-		let TestHarness { mut virtual_overseer } = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let second = Hash::random();
+
+		let our_view = our_view![test_state.relay_parent, second];
 
 		overseer_send(
 			&mut virtual_overseer,
 			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
-				our_view![test_state.relay_parent, second],
+				our_view.clone(),
 			)),
 		)
 		.await;
 
-		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
-		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+		for hash in our_view.iter() {
+			assert_runtime_version_request(&mut virtual_overseer, *hash).await;
+			respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+		}
 
 		let peer_b = PeerId::random();
 		let peer_c = PeerId::random();
