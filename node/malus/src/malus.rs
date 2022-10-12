@@ -18,7 +18,6 @@
 
 use clap::Parser;
 use color_eyre::eyre;
-use polkadot_cli::Cli;
 
 pub(crate) mod interceptor;
 pub(crate) mod shared;
