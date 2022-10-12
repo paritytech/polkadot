@@ -1372,6 +1372,9 @@ pub fn polkadot_testnet_genesis(
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
+		sudo: polkadot::SudoConfig {
+			key: Some(get_account_id_from_seed::<sr25519::Public>("Alice")),
+		},
 	}
 }
 
