@@ -240,6 +240,7 @@ impl RollingSessionWindow {
 	}
 
 	// Saves/Updates all sessions in the database.
+	// TODO: https://github.com/paritytech/polkadot/issues/6144
 	fn db_save(&mut self, stored_window: StoredWindow) {
 		if let Some(db_params) = self.db_params.as_ref() {
 			match db_params.db.write(DBTransaction {
@@ -501,14 +502,14 @@ async fn get_session_index_for_child(
 /// Attempts to extend db stored sessions with sessions missing between `start` and up to `end_inclusive`.
 /// Runtime session info fetching errors are ignored if that doesn't create a gap in the window.
 async fn extend_sessions_from_chain_state(
-	db_sessions: Vec<SessionInfo>,
+	stored_sessions: Vec<SessionInfo>,
 	sender: &mut impl overseer::SubsystemSender<RuntimeApiMessage>,
 	block_hash: Hash,
 	window_start: &mut SessionIndex,
 	end_inclusive: SessionIndex,
 ) -> Result<Vec<SessionInfo>, SessionsUnavailableReason> {
 	// Start from the db sessions.
-	let mut sessions = db_sessions;
+	let mut sessions = stored_sessions;
 	// We allow session fetch failures only if we won't create a gap in the window by doing so.
 	// If `allow_failure` is set to true here, fetching errors are ignored until we get a first session.
 	let mut allow_failure = sessions.is_empty();
