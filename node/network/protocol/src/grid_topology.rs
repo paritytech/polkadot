@@ -242,7 +242,7 @@ impl GridNeighbors {
 	}
 }
 
-/// An entry tracking a session grid topology and some memoized local neighbors.
+/// An entry tracking a session grid topology and some cached local neighbors.
 #[derive(Debug)]
 pub struct SessionGridTopologyEntry {
 	topology: SessionGridTopology,
