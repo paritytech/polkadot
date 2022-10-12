@@ -159,7 +159,7 @@ mod tests {
 			variant: NemesisVariant::SuggestGarbageCandidate(run),
 			..
 		} => {
-			assert!(run.cmd.base.bob);
+			assert!(run.cli.run.base.bob);
 		});
 	}
 
@@ -177,7 +177,7 @@ mod tests {
 			variant: NemesisVariant::DisputeAncestor(run),
 			..
 		} => {
-			assert!(run.cmd.base.bob);
+			assert!(run.cli.run.base.bob);
 		});
 	}
 
@@ -195,7 +195,7 @@ mod tests {
 			variant: NemesisVariant::BackGarbageCandidate(run),
 			..
 		} => {
-			assert!(run.cmd.base.bob);
+			assert!(run.cli.run.base.bob);
 		});
 	}
 
@@ -214,7 +214,7 @@ mod tests {
 			variant: NemesisVariant::DisputeAncestor(run),
 			..
 		} => {
-			assert!(run.cmd.base.bob);
+			assert!(run.cli.run.base.bob);
 		});
 	}
 }
