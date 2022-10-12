@@ -81,12 +81,6 @@ where
 			FromOrchestra::Communication {
 				msg: CandidateBackingMessage::Second(relay_parent, ref candidate, ref _pov),
 			} => {
-				gum::info!(
-					target: MALUS,
-					"😈 Started Malus node with a {:?} % chance to behave maliciously for a given candidate.",
-					&self.percentage,
-				);
-
 				gum::debug!(
 					target: MALUS,
 					candidate_hash = ?candidate.hash(),
@@ -263,6 +257,12 @@ impl OverseerGen for SuggestGarbageCandidates {
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 		Spawner: 'static + SpawnNamed + Clone + Unpin,
 	{
+		gum::info!(
+			target: MALUS,
+			"😈 Started Malus node with a {:?} percent chance of behaving maliciously for a given candidate.",
+			&self.percentage,
+		);
+
 		let note_candidate = NoteCandidate {
 			spawner: SpawnGlue(args.spawner.clone()),
 			percentage: f64::from(self.percentage),
