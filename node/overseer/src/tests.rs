@@ -873,8 +873,9 @@ fn test_network_bridge_tx_msg() -> NetworkBridgeTxMessage {
 fn test_network_bridge_rx_msg() -> NetworkBridgeRxMessage {
 	NetworkBridgeRxMessage::NewGossipTopology {
 		session: SessionIndex::from(0_u32),
-		our_neighbors_x: HashMap::new(),
-		our_neighbors_y: HashMap::new(),
+		local_index: None,
+		canonical_shuffling: Vec::new(),
+		shuffled_indices: Vec::new(),
 	}
 }
 
