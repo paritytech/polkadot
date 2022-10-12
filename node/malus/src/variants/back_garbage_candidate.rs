@@ -25,7 +25,7 @@ use polkadot_cli::{
 		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
 		ProvideRuntimeApi,
 	},
-	RunCmd,
+	Cli,
 };
 use polkadot_node_subsystem::SpawnGlue;
 use sp_core::traits::SpawnNamed;
@@ -37,7 +37,7 @@ use crate::{
 
 use std::sync::Arc;
 
-#[derive(Clone, Debug, clap::Parser)]
+#[derive(Debug, clap::Parser)]
 #[clap(rename_all = "kebab-case")]
 #[allow(missing_docs)]
 pub struct BackGarbageCandidateOptions {
@@ -47,23 +47,17 @@ pub struct BackGarbageCandidateOptions {
 	pub percentage: u8,
 
 	#[clap(flatten)]
-	pub cmd: RunCmd,
+	pub cli: Cli,
 }
 
 /// Generates an overseer that replaces the candidate validation subsystem with our malicious
 /// variant.
-pub(crate) struct BackGarbageCandidateWrapper {
-	/// Options from CLI
-	opts: BackGarbageCandidateOptions,
+pub(crate) struct BackGarbageCandidates {
+	/// The probability of behaving maliciously.
+	pub percentage: u8,
 }
 
-impl BackGarbageCandidateWrapper {
-	pub fn new(opts: BackGarbageCandidateOptions) -> Self {
-		Self { opts }
-	}
-}
-
-impl OverseerGen for BackGarbageCandidateWrapper {
+impl OverseerGen for BackGarbageCandidates {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
@@ -78,7 +72,7 @@ impl OverseerGen for BackGarbageCandidateWrapper {
 		let validation_filter = ReplaceValidationResult::new(
 			FakeCandidateValidation::BackingAndApprovalValid,
 			FakeCandidateValidationError::InvalidOutputs,
-			f64::from(self.opts.percentage),
+			f64::from(self.percentage),
 			SpawnGlue(spawner),
 		);
 

@@ -29,7 +29,7 @@ use polkadot_cli::{
 		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
 		ProvideRuntimeApi,
 	},
-	RunCmd,
+	Cli,
 };
 use polkadot_node_core_candidate_validation::find_validation_data;
 use polkadot_node_primitives::{AvailableData, BlockData, PoV};
@@ -232,7 +232,7 @@ where
 	}
 }
 
-#[derive(Clone, Debug, clap::Parser)]
+#[derive(Debug, clap::Parser)]
 #[clap(rename_all = "kebab-case")]
 #[allow(missing_docs)]
 pub struct SuggestGarbageCandidateOptions {
@@ -243,22 +243,16 @@ pub struct SuggestGarbageCandidateOptions {
 	pub percentage: u8,
 
 	#[clap(flatten)]
-	pub cmd: RunCmd,
+	pub cli: Cli,
 }
 
 /// Garbage candidate implementation wrapper which implements `OverseerGen` glue.
-pub(crate) struct SuggestGarbageCandidateWrapper {
-	/// Options from CLI.
-	opts: SuggestGarbageCandidateOptions,
+pub(crate) struct SuggestGarbageCandidates {
+	/// The probability of behaving maliciously.
+	pub percentage: u8,
 }
 
-impl SuggestGarbageCandidateWrapper {
-	pub fn new(opts: SuggestGarbageCandidateOptions) -> Self {
-		Self { opts }
-	}
-}
-
-impl OverseerGen for SuggestGarbageCandidateWrapper {
+impl OverseerGen for SuggestGarbageCandidates {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
@@ -271,7 +265,7 @@ impl OverseerGen for SuggestGarbageCandidateWrapper {
 	{
 		let note_candidate = NoteCandidate {
 			spawner: SpawnGlue(args.spawner.clone()),
-			percentage: f64::from(self.opts.percentage),
+			percentage: f64::from(self.percentage),
 		};
 		let fake_valid_probability = 100.0;
 		let validation_filter = ReplaceValidationResult::new(

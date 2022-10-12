@@ -62,21 +62,46 @@ impl MalusCli {
 	fn launch(self) -> eyre::Result<()> {
 		let finality_delay = self.finality_delay;
 		match self.variant {
-			NemesisVariant::BackGarbageCandidate(opts) => polkadot_cli::run_node(
-				run_cmd(opts.clone().cmd),
-				BackGarbageCandidateWrapper::new(opts),
+			NemesisVariant::BackGarbageCandidate(opts) => { 
+				let BackGarbageCandidateOptions {
+					percentage,
+					cli
+				} = opts;
+
+				polkadot_cli::run_node(
+				cli,
+				BackGarbageCandidates { 
+					percentage,
+				 },
 				finality_delay,
-			)?,
-			NemesisVariant::SuggestGarbageCandidate(opts) => polkadot_cli::run_node(
-				run_cmd(opts.clone().cmd),
-				SuggestGarbageCandidateWrapper::new(opts),
+				)?
+			},
+			NemesisVariant::SuggestGarbageCandidate(opts) => {
+				let SuggestGarbageCandidateOptions {
+					percentage,
+					cli
+				} = opts;
+				
+				polkadot_cli::run_node(
+				cli,
+				SuggestGarbageCandidates { percentage },
 				finality_delay,
-			)?,
-			NemesisVariant::DisputeAncestor(opts) => polkadot_cli::run_node(
-				run_cmd(opts.clone().cmd),
-				DisputeValidCandidateWrapper::new(opts),
-				finality_delay,
-			)?,
+				)?
+			},
+			NemesisVariant::DisputeAncestor(opts) => {
+				let DisputeAncestorOptions { 
+					fake_validation,
+					fake_validation_error,
+					percentage,
+					cli 
+				} = opts;
+
+				polkadot_cli::run_node(
+					cli,
+					DisputeValidCandidates { fake_validation, fake_validation_error, percentage },
+					finality_delay,
+				)?
+			},
 			NemesisVariant::PvfPrepareWorker(cmd) => {
 				#[cfg(target_os = "android")]
 				{
