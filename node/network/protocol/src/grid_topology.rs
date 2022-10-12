@@ -555,7 +555,7 @@ mod tests {
 		]
 		.into_iter()
 		{
-			let matrix = matrix_neighbors(our_index, len);
+			let matrix = matrix_neighbors(our_index, len).unwrap();
 			let mut row_result: Vec<_> = matrix.row_neighbors.collect();
 			let mut column_result: Vec<_> = matrix.column_neighbors.collect();
 			row_result.sort();
