@@ -73,7 +73,6 @@ pub(crate) struct DisputeValidCandidates {
 	pub percentage: u8,
 }
 
-
 impl OverseerGen for DisputeValidCandidates {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,

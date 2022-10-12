@@ -62,38 +62,26 @@ impl MalusCli {
 	fn launch(self) -> eyre::Result<()> {
 		let finality_delay = self.finality_delay;
 		match self.variant {
-			NemesisVariant::BackGarbageCandidate(opts) => { 
-				let BackGarbageCandidateOptions {
-					percentage,
-					cli
-				} = opts;
+			NemesisVariant::BackGarbageCandidate(opts) => {
+				let BackGarbageCandidateOptions { percentage, cli } = opts;
 
-				polkadot_cli::run_node(
-				cli,
-				BackGarbageCandidates { 
-					percentage,
-				 },
-				finality_delay,
-				)?
+				polkadot_cli::run_node(cli, BackGarbageCandidates { percentage }, finality_delay)?
 			},
 			NemesisVariant::SuggestGarbageCandidate(opts) => {
-				let SuggestGarbageCandidateOptions {
-					percentage,
-					cli
-				} = opts;
-				
+				let SuggestGarbageCandidateOptions { percentage, cli } = opts;
+
 				polkadot_cli::run_node(
-				cli,
-				SuggestGarbageCandidates { percentage },
-				finality_delay,
+					cli,
+					SuggestGarbageCandidates { percentage },
+					finality_delay,
 				)?
 			},
 			NemesisVariant::DisputeAncestor(opts) => {
-				let DisputeAncestorOptions { 
+				let DisputeAncestorOptions {
 					fake_validation,
 					fake_validation_error,
 					percentage,
-					cli 
+					cli,
 				} = opts;
 
 				polkadot_cli::run_node(
