@@ -80,7 +80,7 @@ impl SessionGridTopology {
 
 	/// Produces the outgoing routing logic for a particular peer.
 	///
-	/// This fails if the validator index is out of bounds.
+	/// Returns `None` if the validator index is out of bounds.
 	pub fn compute_grid_neighbors_for(&self, v: ValidatorIndex) -> Option<GridNeighbors> {
 		let shuffled_val_index = *self.shuffled_indices.get(v.0 as usize)?;
 		let neighbors = matrix_neighbors(shuffled_val_index, self.shuffled_indices.len())?;
