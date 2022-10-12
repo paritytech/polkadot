@@ -111,7 +111,7 @@ struct MatrixNeighbors<R, C> {
 	column_neighbors: C,
 }
 
-/// Compute our row and column neighbors in a matrix
+/// Compute the row and column neighbors of `val_index` in a matrix
 fn matrix_neighbors(
 	val_index: usize,
 	len: usize,
