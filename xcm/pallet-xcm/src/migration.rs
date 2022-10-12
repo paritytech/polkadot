@@ -14,14 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{Config, Pallet, QueryId, Store};
+use crate::{Config, Pallet, Store};
 use frame_support::{
 	pallet_prelude::*,
-	storage_alias,
 	traits::{OnRuntimeUpgrade, StorageVersion},
 	weights::Weight,
 };
-use xcm::{Version as XcmVersion, VersionedMultiLocation};
 
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
@@ -29,16 +27,6 @@ const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
 
 pub mod v1 {
 	use super::*;
-
-	#[storage_alias]
-	type VersionNotifyTargets<T: Config> = StorageDoubleMap<
-		Pallet<T>,
-		Twox64Concat,
-		XcmVersion,
-		Blake2_128Concat,
-		VersionedMultiLocation,
-		(QueryId, u64, XcmVersion),
-	>;
 
 	pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
@@ -53,11 +41,12 @@ pub mod v1 {
 			if StorageVersion::get::<Pallet<T>>() == 0 {
 				let mut weight = T::DbWeight::get().reads(1);
 
-				for (k1, k2, value) in VersionNotifyTargets::<T>::iter() {
-					let val = (value.0, Weight::from_parts(value.1, DEFAULT_PROOF_SIZE), value.2);
-					<Pallet<T> as Store>::VersionNotifyTargets::insert(k1, k2, val);
+				let translate = |pre: (u64, u64, u32)| -> Option<(u64, Weight, u32)> {
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-				}
+					Some((pre.0, Weight::from_parts(pre.1, DEFAULT_PROOF_SIZE), pre.2))
+				};
+
+				<Pallet<T> as Store>::VersionNotifyTargets::translate_values(translate);
 
 				log::info!("v1 applied successfully");
 				STORAGE_VERSION.put::<Pallet<T>>();
