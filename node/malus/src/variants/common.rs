@@ -305,11 +305,7 @@ where
 							},
 							false => {
 								// Behave normally with probability `(1-p)`
-								gum::info!(
-									target: MALUS,
-									?behave_maliciously,
-									"😈 Passing CandidateValidationMessage::ValidateFromExhaustive to the candidate validation subsystem.",
-								);
+								gum::info!(target: MALUS, "😈 'Decided' to not act maliciously.",);
 
 								Some(FromOrchestra::Communication {
 									msg: CandidateValidationMessage::ValidateFromExhaustive(
