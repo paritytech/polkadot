@@ -50,7 +50,8 @@ mod mock;
 
 pub use origin::{ensure_parachain, Origin};
 pub use paras::ParaLifecycle;
-use primitives::v2::Id as ParaId;
+use primitives::v2::{HeadData, Id as ParaId, ValidationCode};
+use sp_runtime::DispatchResult;
 
 /// Schedule a para to be initialized at the start of the next session with the given genesis data.
 ///
@@ -77,4 +78,21 @@ pub fn schedule_parathread_upgrade<T: paras::Config>(id: ParaId) -> Result<(), (
 /// Schedule a parachain to be downgraded to a parathread.
 pub fn schedule_parachain_downgrade<T: paras::Config>(id: ParaId) -> Result<(), ()> {
 	paras::Pallet::<T>::schedule_parachain_downgrade(id).map_err(|_| ())
+}
+
+/// Schedules a validation code upgrade to a parachain with the given id.
+///
+/// This simply calls [`crate::paras::Pallet::schedule_code_upgrade_external`].
+pub fn schedule_code_upgrade<T: paras::Config>(
+	id: ParaId,
+	new_code: ValidationCode,
+) -> DispatchResult {
+	paras::Pallet::<T>::schedule_code_upgrade_external(id, new_code)
+}
+
+/// Sets the current parachain head with the given id.
+///
+/// This simply calls [`crate::paras::Pallet::set_current_head`].
+pub fn set_current_head<T: paras::Config>(id: ParaId, new_head: HeadData) {
+	paras::Pallet::<T>::set_current_head(id, new_head)
 }

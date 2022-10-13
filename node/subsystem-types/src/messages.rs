@@ -331,18 +331,13 @@ pub enum NetworkBridgeRxMessage {
 	NewGossipTopology {
 		/// The session info this gossip topology is concerned with.
 		session: SessionIndex,
-		/// Ids of our neighbors in the X dimensions of the new gossip topology,
-		/// along with their validator indices within the session.
-		///
-		/// We're not necessarily connected to all of them, but we should
-		/// try to be.
-		our_neighbors_x: HashMap<AuthorityDiscoveryId, ValidatorIndex>,
-		/// Ids of our neighbors in the X dimensions of the new gossip topology,
-		/// along with their validator indices within the session.
-		///
-		/// We're not necessarily connected to all of them, but we should
-		/// try to be.
-		our_neighbors_y: HashMap<AuthorityDiscoveryId, ValidatorIndex>,
+		/// Our validator index in the session, if any.
+		local_index: Option<ValidatorIndex>,
+		/// The canonical shuffling of validators for the session.
+		canonical_shuffling: Vec<(AuthorityDiscoveryId, ValidatorIndex)>,
+		/// The reverse mapping of `canonical_shuffling`: from validator index
+		/// to the index in `canonical_shuffling`
+		shuffled_indices: Vec<usize>,
 	},
 }
 
@@ -433,6 +428,10 @@ pub enum AvailabilityDistributionMessage {
 		relay_parent: Hash,
 		/// Validator to fetch the PoV from.
 		from_validator: ValidatorIndex,
+		/// The id of the parachain that produced this PoV.
+		/// This field is only used to provide more context when logging errors
+		/// from the `AvailabilityDistribution` subsystem.
+		para_id: ParaId,
 		/// Candidate hash to fetch the PoV for.
 		candidate_hash: CandidateHash,
 		/// Expected hash of the PoV, a PoV not matching this hash will be rejected.
@@ -706,6 +705,7 @@ pub enum RuntimeApiRequest {
 	/// This is a staging API that will not be available on production runtimes.
 	StagingValidityConstraints(ParaId, RuntimeApiSender<Option<vstaging_primitives::Constraints>>),
 	/// Returns all on-chain disputes at given block number. Available in v3.
+	/// Returns all on-chain disputes at given block number. Available in `v3`.
 	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
 }
 

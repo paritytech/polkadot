@@ -27,9 +27,6 @@ use sp_core::{storage::StorageKey, Bytes};
 use sp_version::RuntimeVersion;
 use std::{future::Future, time::Duration};
 
-const MAX_CONNECTION_DURATION: Duration = Duration::from_secs(20);
-const MAX_REQUEST_DURATION: Duration = Duration::from_secs(60);
-
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
 pub(crate) enum RpcHelperError {
 	JsonRpsee(#[from] jsonrpsee::core::Error),
@@ -125,11 +122,15 @@ impl SharedRpcClient {
 	}
 
 	/// Create a new shared JSON-RPC web-socket client.
-	pub(crate) async fn new(uri: &str) -> Result<Self, RpcError> {
+	pub(crate) async fn new(
+		uri: &str,
+		connection_timeout: Duration,
+		request_timeout: Duration,
+	) -> Result<Self, RpcError> {
 		let client = WsClientBuilder::default()
-			.connection_timeout(MAX_CONNECTION_DURATION)
+			.connection_timeout(connection_timeout)
 			.max_request_body_size(u32::MAX)
-			.request_timeout(MAX_REQUEST_DURATION)
+			.request_timeout(request_timeout)
 			.build(uri)
 			.await?;
 		Ok(Self(Arc::new(client)))
