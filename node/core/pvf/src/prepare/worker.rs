@@ -32,10 +32,6 @@ use parity_scale_codec::{Decode, Encode};
 use sp_core::hexdisplay::HexDisplay;
 use std::{panic, sync::Arc, time::Duration};
 
-/// The time period after which the preparation worker is considered unresponsive and will be killed.
-// NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
-const COMPILATION_TIMEOUT: Duration = Duration::from_secs(60);
-
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
 /// The program should be able to handle `<program-path> prepare-worker <socket-path>` invocation.
@@ -69,6 +65,7 @@ pub async fn start_work(
 	code: Arc<Vec<u8>>,
 	cache_path: &Path,
 	artifact_path: PathBuf,
+	compilation_timeout: Duration,
 ) -> Outcome {
 	let IdleWorker { mut stream, pid } = worker;
 
@@ -103,7 +100,7 @@ pub async fn start_work(
 		}
 
 		let selected =
-			match async_std::future::timeout(COMPILATION_TIMEOUT, framed_recv(&mut stream)).await {
+			match async_std::future::timeout(compilation_timeout, framed_recv(&mut stream)).await {
 				Ok(Ok(response_bytes)) => {
 					// Received bytes from worker within the time limit.
 					// By convention we expect encoded `PrepareResult`.
