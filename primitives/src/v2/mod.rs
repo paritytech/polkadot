@@ -19,8 +19,7 @@
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use sp_std::prelude::*;
-use sp_std::ops::Index;
+use sp_std::{ops::Index, prelude::*};
 
 use application_crypto::KeyTypeId;
 use inherents::InherentIdentifier;
@@ -1573,9 +1572,9 @@ impl CompactStatement {
 /// Validators struct indexed by ValidatorIndex.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
-pub struct Validators (Vec<ValidatorId>);
+pub struct Validators(Vec<ValidatorId>);
 
-impl Index<ValidatorIndex> for Validators{
+impl Index<ValidatorIndex> for Validators {
 	type Output = ValidatorId;
 
 	fn index(&self, index: ValidatorIndex) -> &Self::Output {
@@ -1583,7 +1582,7 @@ impl Index<ValidatorIndex> for Validators{
 	}
 }
 
-impl From<Vec<ValidatorId>> for Validators{
+impl From<Vec<ValidatorId>> for Validators {
 	fn from(validators: Vec<ValidatorId>) -> Self {
 		Validators(validators)
 	}
@@ -1591,12 +1590,12 @@ impl From<Vec<ValidatorId>> for Validators{
 
 impl Validators {
 	/// Returns a reference to an element indexed using ValidatorIndex.
-	pub fn get(&self, index: ValidatorIndex) -> Option<&ValidatorId>{
+	pub fn get(&self, index: ValidatorIndex) -> Option<&ValidatorId> {
 		self.0.get(index.0 as usize)
 	}
 
 	///Returns number of elements in vector.
-	pub fn len(&self) -> usize{
+	pub fn len(&self) -> usize {
 		self.0.len()
 	}
 
@@ -1609,9 +1608,9 @@ impl Validators {
 /// GroupValidators struct indexed by GroupIndex.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
-pub struct GroupValidators (Vec<Vec<ValidatorIndex>>);
+pub struct GroupValidators(Vec<Vec<ValidatorIndex>>);
 
-impl Index<GroupIndex> for GroupValidators{
+impl Index<GroupIndex> for GroupValidators {
 	type Output = Vec<ValidatorIndex>;
 
 	fn index(&self, index: GroupIndex) -> &Self::Output {
@@ -1619,7 +1618,7 @@ impl Index<GroupIndex> for GroupValidators{
 	}
 }
 
-impl From<Vec<Vec<ValidatorIndex>>> for GroupValidators{
+impl From<Vec<Vec<ValidatorIndex>>> for GroupValidators {
 	fn from(group_validators: Vec<Vec<ValidatorIndex>>) -> Self {
 		GroupValidators(group_validators)
 	}
@@ -1627,12 +1626,12 @@ impl From<Vec<Vec<ValidatorIndex>>> for GroupValidators{
 
 impl GroupValidators {
 	/// Returns a reference to an element indexed using GroupIndex.
-	pub fn get(&self, index: GroupIndex) -> Option<&Vec<ValidatorIndex>>{
+	pub fn get(&self, index: GroupIndex) -> Option<&Vec<ValidatorIndex>> {
 		self.0.get(index.0 as usize)
 	}
 
 	///Returns number of elements in vector.
-	pub fn len(&self) -> usize{
+	pub fn len(&self) -> usize {
 		self.0.len()
 	}
 

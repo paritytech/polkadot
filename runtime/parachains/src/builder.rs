@@ -21,7 +21,15 @@ use crate::{
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
-use primitives::v2::{collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt, CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData, Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind, PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation, Validators};
+use primitives::v2::{
+	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
+	CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
+	CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
+	HeadData, Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
+	PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
+	ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, Validators,
+	ValidityAttestation,
+};
 use sp_core::{sr25519, H256};
 use sp_runtime::{
 	generic::Digest,

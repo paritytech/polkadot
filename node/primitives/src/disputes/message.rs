@@ -223,8 +223,7 @@ impl UncheckedDisputeMessage {
 
 		let vote_valid = {
 			let ValidDisputeVote { validator_index, signature, kind } = valid_vote;
-			let validator_public =
-				session_info.validators.get(validator_index).ok_or(())?.clone();
+			let validator_public = session_info.validators.get(validator_index).ok_or(())?.clone();
 
 			(
 				SignedDisputeStatement::new_checked(
@@ -240,8 +239,7 @@ impl UncheckedDisputeMessage {
 
 		let vote_invalid = {
 			let InvalidDisputeVote { validator_index, signature, kind } = invalid_vote;
-			let validator_public =
-				session_info.validators.get(validator_index).ok_or(())?.clone();
+			let validator_public = session_info.validators.get(validator_index).ok_or(())?.clone();
 
 			(
 				SignedDisputeStatement::new_checked(
