@@ -140,6 +140,7 @@ impl Contains<Call> for BaseFilter {
 	fn contains(call: &Call) -> bool {
 		match call {
 			// These modules are all allowed to be called by transactions:
+			Call::Sudo(_) |
 			Call::Democracy(_) |
 			Call::Council(_) |
 			Call::TechnicalCommittee(_) |
@@ -1547,8 +1548,8 @@ construct_runtime! {
 }
 
 impl pallet_sudo::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type RuntimeCall = RuntimeCall;
+	type Event = Event;
+	type Call = Call;
 }
 
 /// The address format for describing accounts.
