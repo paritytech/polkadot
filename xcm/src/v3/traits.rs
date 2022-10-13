@@ -387,7 +387,7 @@ impl<T> Unwrappable for Option<T> {
 /// # Example
 /// ```rust
 /// # use parity_scale_codec::Encode;
-/// # use xcm::v3::prelude::*;
+/// # use xcm::v3::{prelude::*, Weight};
 /// # use xcm::VersionedXcm;
 /// # use std::convert::Infallible;
 ///
@@ -438,7 +438,7 @@ impl<T> Unwrappable for Option<T> {
 /// let call: Vec<u8> = ().encode();
 /// let message = Xcm(vec![Instruction::Transact {
 ///     origin_kind: OriginKind::Superuser,
-///     require_weight_at_most: 0,
+///     require_weight_at_most: Weight::zero(),
 ///     call: call.into(),
 /// }]);
 /// let message_hash = message.using_encoded(sp_io::hashing::blake2_256);
