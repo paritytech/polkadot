@@ -195,10 +195,16 @@ pub enum CollatorProtocolMessage {
 	/// This should be sent before any `DistributeCollation` message.
 	CollateOn(ParaId),
 	/// Provide a collation to distribute to validators with an optional result sender.
+	/// The second argument is the parent head-data hash.
 	///
 	/// The result sender should be informed when at least one parachain validator seconded the collation. It is also
 	/// completely okay to just drop the sender.
-	DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<CollationSecondedSignal>>),
+	DistributeCollation(
+		CandidateReceipt,
+		Hash,
+		PoV,
+		Option<oneshot::Sender<CollationSecondedSignal>>,
+	),
 	/// Report a collator as having provided an invalid collation. This should lead to disconnect
 	/// and blacklist of the collator.
 	ReportCollator(CollatorId),
@@ -704,7 +710,6 @@ pub enum RuntimeApiRequest {
 	/// Get the validity constraints of the given para.
 	/// This is a staging API that will not be available on production runtimes.
 	StagingValidityConstraints(ParaId, RuntimeApiSender<Option<vstaging_primitives::Constraints>>),
-	/// Returns all on-chain disputes at given block number. Available in v3.
 	/// Returns all on-chain disputes at given block number. Available in `v3`.
 	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
 }
@@ -714,6 +719,11 @@ impl RuntimeApiRequest {
 
 	/// `Disputes`
 	pub const DISPUTES_RUNTIME_REQUIREMENT: u32 = 3;
+
+	/// Minimum version for validity constraints, required for async backing.
+	///
+	/// 99 for now, should be adjusted to VSTAGING/actual runtime version once released.
+	pub const VALIDITY_CONSTRAINTS: u32 = 99;
 }
 
 /// A message to the Runtime API subsystem.

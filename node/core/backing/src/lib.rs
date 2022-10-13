@@ -764,6 +764,12 @@ async fn handle_communication<Context>(
 		CandidateBackingMessage::GetBackedCandidates(relay_parent, requested_candidates, tx) =>
 			if let Some(rp_state) = state.per_relay_parent.get(&relay_parent) {
 				handle_get_backed_candidates_message(rp_state, requested_candidates, tx, metrics)?;
+			} else {
+				gum::debug!(
+					target: LOG_TARGET,
+					?relay_parent,
+					"Received `GetBackedCandidates` for an unknown relay parent."
+				);
 			},
 	}
 
@@ -787,13 +793,13 @@ async fn prospective_parachains_mode<Context>(
 		.map_err(Error::RuntimeApiUnavailable)?
 		.map_err(Error::FetchRuntimeApiVersion)?;
 
-	if version == 3 {
+	if version >= RuntimeApiRequest::VALIDITY_CONSTRAINTS {
 		Ok(ProspectiveParachainsMode::Enabled)
 	} else {
-		if version != 2 {
+		if version < 2 {
 			gum::warn!(
 				target: LOG_TARGET,
-				"Runtime API version is {}, expected 2 or 3. Prospective parachains are disabled",
+				"Runtime API version is {}, it is expected to be at least 2. Prospective parachains are disabled",
 				version
 			);
 		}

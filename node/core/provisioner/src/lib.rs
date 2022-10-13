@@ -201,13 +201,13 @@ async fn prospective_parachains_mode(
 
 	let version = rx.await.map_err(Error::CanceledRuntimeApiVersion)?.map_err(Error::Runtime)?;
 
-	if version == 3 {
+	if version >= RuntimeApiRequest::VALIDITY_CONSTRAINTS {
 		Ok(ProspectiveParachainsMode::Enabled)
 	} else {
-		if version != 2 {
+		if version < 2 {
 			gum::warn!(
 				target: LOG_TARGET,
-				"Runtime API version is {}, expected 2 or 3. Prospective parachains are disabled",
+				"Runtime API version is {}, it is expected to be at least 2. Prospective parachains are disabled",
 				version
 			);
 		}
