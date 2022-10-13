@@ -630,9 +630,7 @@ pub(crate) mod tests {
 	pub(crate) use sp_runtime::{Digest, DigestItem};
 	use std::{pin::Pin, sync::Arc};
 
-	use crate::{
-		approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry, APPROVAL_SESSIONS,
-	};
+	use crate::{approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry};
 
 	const DATA_COL: u32 = 0;
 	const SESSION_DATA_COL: u32 = 1;
