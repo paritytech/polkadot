@@ -65,7 +65,7 @@ pub async fn start_work(
 	code: Arc<Vec<u8>>,
 	cache_path: &Path,
 	artifact_path: PathBuf,
-	compilation_timeout: Duration,
+	preparation_timeout: Duration,
 ) -> Outcome {
 	let IdleWorker { mut stream, pid } = worker;
 
@@ -100,7 +100,7 @@ pub async fn start_work(
 		}
 
 		let selected =
-			match async_std::future::timeout(compilation_timeout, framed_recv(&mut stream)).await {
+			match async_std::future::timeout(preparation_timeout, framed_recv(&mut stream)).await {
 				Ok(Ok(response_bytes)) => {
 					// Received bytes from worker within the time limit.
 					// By convention we expect encoded `PrepareResult`.
