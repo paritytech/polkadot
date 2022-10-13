@@ -20,7 +20,7 @@ use futures::{executor, future, Future};
 use sp_core::{crypto::Pair, Encode};
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{testing::KeyStore as TestKeyStore, SyncCryptoStore};
-use std::{iter, sync::Arc, time::Duration};
+use std::{iter, sync::Arc, task::Poll, time::Duration};
 
 use polkadot_node_network_protocol::{
 	our_view,
@@ -493,17 +493,11 @@ fn collator_authentication_verification_works() {
 	});
 }
 
-// A test scenario that takes the following steps
-//  - Two collators connect, declare themselves and advertise a collation relevant to
-//	our view.
-//	- Collation protocol should request one PoV.
-//	- Collation protocol should disconnect both collators after having received the collation.
-//	- The same collators plus an additional collator connect again and send `PoV`s for a different relay parent.
-//	- Collation protocol will request one PoV, but we will cancel it.
-//	- Collation protocol should request the second PoV which does not succeed in time.
-//	- Collation protocol should request third PoV.
+/// Tests that a validator fetches only one collation at any moment of time
+/// per relay parent and ignores other advertisements once a candidate gets
+/// seconded.
 #[test]
-fn fetch_collations_works() {
+fn fetch_one_collation_at_a_time() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
@@ -575,21 +569,37 @@ fn fetch_collations_works() {
 		)
 		.await;
 
+		// Ensure the subsystem is polled.
+		test_helpers::Yield::new().await;
+
+		// Second collation is not requested since there's already seconded one.
+		assert_matches!(futures::poll!(virtual_overseer.recv().boxed()), Poll::Pending);
+
+		virtual_overseer
+	})
+}
+
+/// Tests that a validator starts fetching next queued collations on [`MAX_UNSHARED_DOWNLOAD_TIME`]
+/// timeout and in case of an error.
+#[test]
+fn fetches_next_collation() {
+	let test_state = TestState::default();
+
+	test_harness(|test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+
+		let second = Hash::random();
+
 		overseer_send(
 			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerDisconnected(
-				peer_b.clone(),
+			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(
+				our_view![test_state.relay_parent, second],
 			)),
 		)
 		.await;
 
-		overseer_send(
-			&mut virtual_overseer,
-			CollatorProtocolMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerDisconnected(
-				peer_c.clone(),
-			)),
-		)
-		.await;
+		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
 
 		let peer_b = PeerId::random();
 		let peer_c = PeerId::random();

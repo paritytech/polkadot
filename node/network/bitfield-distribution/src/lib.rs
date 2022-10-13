@@ -27,7 +27,7 @@ use futures::{channel::oneshot, FutureExt};
 use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{
-		RandomRouting, RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology,
+		GridNeighbors, RandomRouting, RequiredRouting, SessionBoundGridTopologyStorage,
 	},
 	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
@@ -327,7 +327,7 @@ async fn handle_bitfield_distribution<Context>(
 	};
 
 	let msg = BitfieldGossipMessage { relay_parent, signed_availability };
-	let topology = state.topologies.get_topology_or_fallback(session_idx);
+	let topology = state.topologies.get_topology_or_fallback(session_idx).local_grid_neighbors();
 	let required_routing = topology.required_routing_by_index(validator_index, true);
 
 	relay_message(
@@ -352,7 +352,7 @@ async fn handle_bitfield_distribution<Context>(
 async fn relay_message<Context>(
 	ctx: &mut Context,
 	job_data: &mut PerRelayParentData,
-	topology: &SessionGridTopology,
+	topology_neighbors: &GridNeighbors,
 	peer_views: &mut HashMap<PeerId, View>,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
@@ -384,7 +384,7 @@ async fn relay_message<Context>(
 				let message_needed =
 					job_data.message_from_validator_needed_by_peer(&peer, &validator);
 				if message_needed {
-					let in_topology = topology.route_to_peer(required_routing, &peer);
+					let in_topology = topology_neighbors.route_to_peer(required_routing, &peer);
 					let need_routing = in_topology || {
 						let route_random = random_routing.sample(total_peers, rng);
 						if route_random {
@@ -533,7 +533,8 @@ async fn process_incoming_peer_message<Context>(
 
 	let topology = state
 		.topologies
-		.get_topology_or_fallback(job_data.signing_context.session_index);
+		.get_topology_or_fallback(job_data.signing_context.session_index)
+		.local_grid_neighbors();
 	let required_routing = topology.required_routing_by_index(validator_index, false);
 
 	metrics.on_bitfield_received();
@@ -579,14 +580,24 @@ async fn handle_network_msg<Context>(
 		},
 		NetworkBridgeEvent::NewGossipTopology(gossip_topology) => {
 			let session_index = gossip_topology.session;
-			let new_topology = SessionGridTopology::from(gossip_topology);
-			let newly_added = new_topology.peers_diff(&new_topology);
-			state.topologies.update_topology(session_index, new_topology);
+			let new_topology = gossip_topology.topology;
+			let prev_neighbors =
+				state.topologies.get_current_topology().local_grid_neighbors().clone();
+
+			state.topologies.update_topology(
+				session_index,
+				new_topology,
+				gossip_topology.local_index,
+			);
+			let current_topology = state.topologies.get_current_topology();
+
+			let newly_added = current_topology.local_grid_neighbors().peers_diff(&prev_neighbors);
+
 			gum::debug!(
 				target: LOG_TARGET,
 				?session_index,
-				"New gossip topology received {} unseen peers",
-				newly_added.len()
+				newly_added_peers = ?newly_added.len(),
+				"New gossip topology received",
 			);
 
 			for new_peer in newly_added {
@@ -651,7 +662,7 @@ async fn handle_peer_view_change<Context>(
 		.cloned()
 		.collect::<Vec<_>>();
 
-	let topology = state.topologies.get_current_topology();
+	let topology = state.topologies.get_current_topology().local_grid_neighbors();
 	let is_gossip_peer = topology.route_to_peer(RequiredRouting::GridXY, &origin);
 	let lucky = is_gossip_peer ||
 		util::gen_ratio_rng(

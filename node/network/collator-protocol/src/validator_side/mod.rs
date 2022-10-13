@@ -85,11 +85,15 @@ const BENEFIT_NOTIFY_GOOD: Rep =
 /// to finish on time.
 ///
 /// There is debug logging output, so we can adjust this value based on production results.
+#[cfg(not(test))]
 const MAX_UNSHARED_DOWNLOAD_TIME: Duration = Duration::from_millis(400);
 
 // How often to check all peers with activity.
 #[cfg(not(test))]
 const ACTIVITY_POLL: Duration = Duration::from_secs(1);
+
+#[cfg(test)]
+const MAX_UNSHARED_DOWNLOAD_TIME: Duration = Duration::from_millis(100);
 
 #[cfg(test)]
 const ACTIVITY_POLL: Duration = Duration::from_millis(10);

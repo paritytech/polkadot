@@ -1,12 +1,34 @@
 # PVF Pre-checking Overview
 
-> ⚠️ This discusses a mechanism that is currently not under-development. Follow the progress under [#3211].
+> ⚠️ This discusses a mechanism that is currently under-development. Follow the progress under [#3211].
+
+## Terms
+
+This functionality involves several processes which may be potentially
+confusing:
+
+- **Prechecking:** This is the process of initially checking the PVF when it is
+  first added. We attempt *preparation* of the PVF and make sure it succeeds
+  within a given timeout.
+- **Execution:** This actually executes the PVF. The node may not have the
+  artifact from prechecking, in which case this process also includes a
+  *preparation* job. The timeout for preparation here is more lenient than when
+  prechecking.
+- **Preparation:** This is the process of preparing the WASM blob and includes
+  both *prevalidation* and *compilation*. As prevalidation is pretty minimal
+  right now, preparation mostly consists of compilation. Note that *prechecking*
+  just consists of preparation, whereas *execution* will also prepare the PVF if
+  the artifact is not already found.
+- **Prevalidation:** Right now this just tries to deserialize the binary with
+  parity-wasm. It is a part of *preparation*.
+- **Compilation:** This is the process of compiling a PVF from wasm code to
+  machine code. It is a part of *preparation*.
 
 ## Motivation
 
 Parachains' and parathreads' validation function is described by a wasm module that we refer to as a PVF. Since it's a wasm module the typical way of executing it is to compile it to machine code. Typically an optimizing compiler consists of algorithms that are able to optimize the resulting machine code heavily. However, while those algorithms perform quite well for a typical wasm code produced by standard toolchains (e.g. rustc/LLVM), those algorithms can be abused to consume a lot of resources. Moreover, since those algorithms are rather complex there is a lot of room for a bug that can crash the compiler.
 
-If compilation of a Parachain Validation Function (PVF) takes too long or uses too much memory, this can leave a node in limbo as to whether a candidate of that parachain is valid or not. 
+If compilation of a Parachain Validation Function (PVF) takes too long or uses too much memory, this can leave a node in limbo as to whether a candidate of that parachain is valid or not.
 
 The amount of time that a PVF takes to compile is a subjective resource limit and as such PVFs may be maliciously crafted so that there is e.g. a 50/50 split of validators which can and cannot compile and execute the PVF.
 

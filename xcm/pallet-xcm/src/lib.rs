@@ -218,6 +218,10 @@ pub mod pallet {
 		///
 		/// \[ location, query ID \]
 		NotifyTargetMigrationFail(VersionedMultiLocation, QueryId),
+		/// Some assets have been claimed from an asset trap
+		///
+		/// \[ hash, origin, assets \]
+		AssetsClaimed(H256, MultiLocation, VersionedMultiAssets),
 	}
 
 	#[pallet::origin]
@@ -1312,12 +1316,13 @@ pub mod pallet {
 				(0, Here) => (),
 				_ => return false,
 			};
-			let hash = BlakeTwo256::hash_of(&(origin, versioned));
+			let hash = BlakeTwo256::hash_of(&(origin, versioned.clone()));
 			match AssetTraps::<T>::get(hash) {
 				0 => return false,
 				1 => AssetTraps::<T>::remove(hash),
 				n => AssetTraps::<T>::insert(hash, n - 1),
 			}
+			Self::deposit_event(Event::AssetsClaimed(hash, origin.clone(), versioned));
 			return true
 		}
 	}
