@@ -26,6 +26,7 @@ use primitives::v2::{
 	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
 	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
 	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	LOWEST_PUBLIC_ID,
 };
 use runtime_common::{
 	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
@@ -511,20 +512,13 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 		_total_issuance: Balance,
 		era_duration_millis: u64,
 	) -> (Balance, Balance) {
-		let auctioned_slots = {
-			// all para-ids that have been leased out.
-			let auctioned_winner_para_ids = Auctions::auctioned_winner_para_ids();
-			// and all para-ids that are not active.
-			let active_para_ids = Paras::parachains();
-			// the intersection of which is the number of parachain's which we should take into
-			// account for inflation.
-			auctioned_winner_para_ids
-				.into_iter()
-				.filter(|i| active_para_ids.contains(i))
-				.count() as u64
-			// note: we could speed up this block a bit with sorting and binary searching, but it
-			// does not seem worthwhile for a few hundred parachains at most.
-		};
+		// all para-ids that are currently active.
+		let auctioned_slots = Paras::parachains()
+			.into_iter()
+			// all active para-ids that do not belong to a system or common good chain is the number
+			// of parachains that we should take into account for inflation.
+			.filter(|i| i >= LOWEST_PUBLIC_ID)
+			.count() as u64;
 
 		const MAX_ANNUAL_INFLATION: Perquintill = Perquintill::from_percent(10);
 		const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
