@@ -24,7 +24,9 @@ use crate::{
 	artifacts::{ArtifactId, ArtifactPathId, ArtifactState, Artifacts},
 	execute,
 	metrics::Metrics,
-	prepare, PrepareResult, Priority, Pvf, ValidationError, LOG_TARGET,
+	prepare,
+	pvf::{PvfDescriptor, PvfPreimage},
+	PrepareResult, Priority, ValidationError, LOG_TARGET,
 };
 use always_assert::never;
 use async_std::path::{Path, PathBuf};
@@ -60,7 +62,7 @@ impl ValidationHost {
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
 	pub async fn precheck_pvf(
 		&mut self,
-		pvf: Pvf,
+		pvf: PvfPreimage,
 		result_tx: PrepareResultSender,
 	) -> Result<(), String> {
 		self.to_host_tx
@@ -78,7 +80,7 @@ impl ValidationHost {
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
 	pub async fn execute_pvf(
 		&mut self,
-		pvf: Pvf,
+		pvf: PvfDescriptor,
 		execution_timeout: Duration,
 		params: Vec<u8>,
 		priority: Priority,
@@ -96,7 +98,7 @@ impl ValidationHost {
 	/// situations this function should return immediately.
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
-	pub async fn heads_up(&mut self, active_pvfs: Vec<Pvf>) -> Result<(), String> {
+	pub async fn heads_up(&mut self, active_pvfs: Vec<PvfPreimage>) -> Result<(), String> {
 		self.to_host_tx
 			.send(ToHost::HeadsUp { active_pvfs })
 			.await
@@ -106,18 +108,18 @@ impl ValidationHost {
 
 enum ToHost {
 	PrecheckPvf {
-		pvf: Pvf,
+		pvf: PvfPreimage,
 		result_tx: PrepareResultSender,
 	},
 	ExecutePvf {
-		pvf: Pvf,
+		pvf: PvfDescriptor,
 		execution_timeout: Duration,
 		params: Vec<u8>,
 		priority: Priority,
 		result_tx: ResultSender,
 	},
 	HeadsUp {
-		active_pvfs: Vec<Pvf>,
+		active_pvfs: Vec<PvfPreimage>,
 	},
 }
 
@@ -421,7 +423,7 @@ async fn handle_to_host(
 async fn handle_precheck_pvf(
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
-	pvf: Pvf,
+	pvf: PvfPreimage,
 	result_sender: PrepareResultSender,
 ) -> Result<(), Fatal> {
 	let artifact_id = pvf.as_artifact_id();
@@ -452,7 +454,7 @@ async fn handle_execute_pvf(
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
 	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
 	awaiting_prepare: &mut AwaitingPrepare,
-	pvf: Pvf,
+	pvf: PvfDescriptor,
 	execution_timeout: Duration,
 	params: Vec<u8>,
 	priority: Priority,
@@ -484,12 +486,16 @@ async fn handle_execute_pvf(
 			},
 		}
 	} else {
-		// Artifact is unknown: register it and enqueue a job with the corresponding priority and
-		//
-		artifacts.insert_preparing(artifact_id.clone(), Vec::new());
-		send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf }).await?;
+		if let PvfDescriptor::Preimage(code) = pvf {
+			// Artifact is unknown: register it and enqueue a job with the corresponding priority and
+			artifacts.insert_preparing(artifact_id.clone(), Vec::new());
+			send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf: code }).await?;
 
-		awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
+			awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
+		} else {
+			// Expect another request with PVF code provided.
+			let _ = result_tx.send(Err(ValidationError::ArtifactNotFound));
+		}
 	}
 
 	return Ok(())
@@ -498,7 +504,7 @@ async fn handle_execute_pvf(
 async fn handle_heads_up(
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
-	active_pvfs: Vec<Pvf>,
+	active_pvfs: Vec<PvfPreimage>,
 ) -> Result<(), Fatal> {
 	let now = SystemTime::now();
 
@@ -701,12 +707,12 @@ mod tests {
 	}
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
-	fn artifact_id(descriminator: u32) -> ArtifactId {
-		Pvf::from_discriminator(descriminator).as_artifact_id()
+	fn artifact_id(discriminator: u32) -> ArtifactId {
+		PvfPreimage::from_discriminator(discriminator).as_artifact_id()
 	}
 
-	fn artifact_path(descriminator: u32) -> PathBuf {
-		artifact_id(descriminator).path(&PathBuf::from(std::env::temp_dir())).to_owned()
+	fn artifact_path(discriminator: u32) -> PathBuf {
+		artifact_id(discriminator).path(&PathBuf::from(std::env::temp_dir())).to_owned()
 	}
 
 	struct Builder {
@@ -857,6 +863,11 @@ mod tests {
 		}
 	}
 
+	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
+	fn pvf(discriminator: u32) -> PvfPreimage {
+		PvfPreimage::from_discriminator(discriminator)
+	}
+
 	#[async_std::test]
 	async fn shutdown_on_handle_drop() {
 		let test = Builder::default().build();
@@ -881,7 +892,7 @@ mod tests {
 		let mut test = builder.build();
 		let mut host = test.host_handle();
 
-		host.heads_up(vec![Pvf::from_discriminator(1)]).await.unwrap();
+		host.heads_up(vec![pvf(1)]).await.unwrap();
 
 		let to_sweeper_rx = &mut test.to_sweeper_rx;
 		run_until(
@@ -895,7 +906,7 @@ mod tests {
 
 		// Extend TTL for the first artifact and make sure we don't receive another file removal
 		// request.
-		host.heads_up(vec![Pvf::from_discriminator(1)]).await.unwrap();
+		host.heads_up(vec![pvf(1)]).await.unwrap();
 		test.poll_ensure_to_sweeper_is_empty().await;
 	}
 
@@ -906,7 +917,7 @@ mod tests {
 
 		let (result_tx, result_rx_pvf_1_1) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			PvfDescriptor::Preimage(PvfPreimage::from_discriminator(1)),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
 			Priority::Normal,
@@ -917,7 +928,7 @@ mod tests {
 
 		let (result_tx, result_rx_pvf_1_2) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			PvfDescriptor::Preimage(PvfPreimage::from_discriminator(1)),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
 			Priority::Critical,
@@ -928,7 +939,7 @@ mod tests {
 
 		let (result_tx, result_rx_pvf_2) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(2),
+			PvfDescriptor::Preimage(PvfPreimage::from_discriminator(2)),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf2".to_vec(),
 			Priority::Normal,
@@ -1000,7 +1011,7 @@ mod tests {
 
 		// First, test a simple precheck request.
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(1), result_tx).await.unwrap();
+		host.precheck_pvf(PvfPreimage::from_discriminator(1), result_tx).await.unwrap();
 
 		// The queue received the prepare request.
 		assert_matches!(
@@ -1021,7 +1032,7 @@ mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(Pvf::from_discriminator(2), result_tx).await.unwrap();
+			host.precheck_pvf(PvfPreimage::from_discriminator(2), result_tx).await.unwrap();
 			precheck_receivers.push(result_rx);
 		}
 		// Received prepare request.
@@ -1056,7 +1067,7 @@ mod tests {
 		// Send PVF for the execution and request the prechecking for it.
 		let (result_tx, result_rx_execute) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			PvfDescriptor::Preimage(PvfPreimage::from_discriminator(1)),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf2".to_vec(),
 			Priority::Critical,
@@ -1071,7 +1082,7 @@ mod tests {
 		);
 
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(1), result_tx).await.unwrap();
+		host.precheck_pvf(PvfPreimage::from_discriminator(1), result_tx).await.unwrap();
 
 		// Suppose the preparation failed, the execution queue is empty and both
 		// "clients" receive their results.
@@ -1093,13 +1104,13 @@ mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(Pvf::from_discriminator(2), result_tx).await.unwrap();
+			host.precheck_pvf(PvfPreimage::from_discriminator(2), result_tx).await.unwrap();
 			precheck_receivers.push(result_rx);
 		}
 
 		let (result_tx, _result_rx_execute) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(2),
+			PvfDescriptor::Preimage(PvfPreimage::from_discriminator(2)),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf2".to_vec(),
 			Priority::Critical,
@@ -1134,7 +1145,7 @@ mod tests {
 
 		let (result_tx, result_rx) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			PvfDescriptor::Preimage(PvfPreimage::from_discriminator(1)),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
 			Priority::Normal,
@@ -1156,5 +1167,65 @@ mod tests {
 		drop(result_rx);
 
 		test.poll_ensure_to_execute_queue_is_empty().await;
+	}
+
+	#[async_std::test]
+	async fn artifact_cache() {
+		let mut test = Builder::default().build();
+		let mut host = test.host_handle();
+
+		let pvf_code = PvfDescriptor::Preimage(PvfPreimage::from_discriminator(1));
+		let pvf_hash = PvfDescriptor::Hash(pvf_code.hash());
+
+		// First, ensure that we receive an `ArtifactNotFound` error when sending
+		// an unknown code hash.
+		let (result_tx, result_rx) = oneshot::channel();
+		host.execute_pvf(
+			pvf_hash.clone(),
+			TEST_EXECUTION_TIMEOUT,
+			Vec::new(),
+			Priority::Normal,
+			result_tx,
+		)
+		.await
+		.unwrap();
+
+		test.poll_ensure_to_execute_queue_is_empty().await;
+		assert_matches!(
+			result_rx.now_or_never().unwrap().unwrap(),
+			Err(ValidationError::ArtifactNotFound)
+		);
+
+		// Supply the code and retry the request.
+		let (result_tx, _result_rx) = oneshot::channel();
+		host.execute_pvf(
+			pvf_code, // Code.
+			TEST_EXECUTION_TIMEOUT,
+			Vec::new(),
+			Priority::Normal,
+			result_tx,
+		)
+		.await
+		.unwrap();
+
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+
+		let (result_tx, result_rx) = oneshot::channel();
+		host.execute_pvf(
+			pvf_hash, // Hash.
+			TEST_EXECUTION_TIMEOUT,
+			Vec::new(),
+			Priority::Normal,
+			result_tx,
+		)
+		.await
+		.unwrap();
+
+		test.poll_ensure_to_execute_queue_is_empty().await;
+		// The execution is queued, no error expected.
+		assert_matches!(result_rx.now_or_never(), None);
 	}
 }

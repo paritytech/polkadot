@@ -17,7 +17,9 @@
 //! A queue that handles requests for PVF preparation.
 
 use super::pool::{self, Worker};
-use crate::{artifacts::ArtifactId, metrics::Metrics, PrepareResult, Priority, Pvf, LOG_TARGET};
+use crate::{
+	artifacts::ArtifactId, metrics::Metrics, pvf::PvfPreimage, PrepareResult, Priority, LOG_TARGET,
+};
 use always_assert::{always, never};
 use async_std::path::PathBuf;
 use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};
@@ -30,7 +32,7 @@ pub enum ToQueue {
 	///
 	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
 	/// [`FromQueue`] response.
-	Enqueue { priority: Priority, pvf: Pvf },
+	Enqueue { priority: Priority, pvf: PvfPreimage },
 }
 
 /// A response from queue.
@@ -75,7 +77,7 @@ slotmap::new_key_type! { pub struct Job; }
 struct JobData {
 	/// The priority of this job. Can be bumped.
 	priority: Priority,
-	pvf: Pvf,
+	pvf: PvfPreimage,
 	worker: Option<Worker>,
 }
 
@@ -210,7 +212,11 @@ async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fat
 	Ok(())
 }
 
-async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: Pvf) -> Result<(), Fatal> {
+async fn handle_enqueue(
+	queue: &mut Queue,
+	priority: Priority,
+	pvf: PvfPreimage,
+) -> Result<(), Fatal> {
 	gum::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?pvf.code_hash,
@@ -485,8 +491,8 @@ mod tests {
 	use std::task::Poll;
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
-	fn pvf(descriminator: u32) -> Pvf {
-		Pvf::from_discriminator(descriminator)
+	fn pvf(discriminator: u32) -> PvfPreimage {
+		PvfPreimage::from_discriminator(discriminator)
 	}
 
 	async fn run_until<R>(

@@ -43,6 +43,8 @@ pub enum ValidationError {
 	InvalidCandidate(InvalidCandidate),
 	/// This error is raised due to inability to serve the request.
 	InternalError(String),
+	/// Provided validation code hash is not present in the artifacts cache.
+	ArtifactNotFound,
 }
 
 /// A description of an error raised during executing a PVF and can be attributed to the combination
