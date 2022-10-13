@@ -207,10 +207,10 @@ impl RuntimeInfo {
 	///
 	/// Returns: `None` if not a parachain validator.
 	async fn get_validator_info(&self, session_info: &SessionInfo) -> Result<ValidatorInfo> {
-		if let Some(our_index) = self.get_our_index(&session_info.validators).await {
+		if let Some(our_index) = self.get_our_index(&session_info.validators.to_vec()).await {
 			// Get our group index:
 			let our_group =
-				session_info.validator_groups.iter().enumerate().find_map(|(i, g)| {
+				session_info.validator_groups.to_vec().iter().enumerate().find_map(|(i, g)| {
 					g.iter().find_map(|v| {
 						if *v == our_index {
 							Some(GroupIndex(i as u32))
@@ -254,7 +254,7 @@ where
 
 	session_info
 		.validators
-		.get(signed.unchecked_validator_index().0 as usize)
+		.get(signed.unchecked_validator_index())
 		.ok_or_else(|| signed.clone())
 		.and_then(|v| signed.try_into_checked(&signing_context, v))
 }
