@@ -24,7 +24,7 @@
 //! The sender is responsible for getting our vote out, see [`sender`]. The receiver handles
 //! incoming [`DisputeRequest`]s and offers spam protection, see [`receiver`].
 
-use std::num::NonZeroUsize;
+use std::{num::NonZeroUsize, time::Duration};
 
 use futures::{channel::mpsc, FutureExt, StreamExt, TryFutureExt};
 
@@ -66,15 +66,18 @@ use self::sender::{DisputeSender, TaskFinish};
 ///	via a dedicated channel and forwarding them to the dispute coordinator via
 ///	`DisputeCoordinatorMessage::ImportStatements`. Being the interface to the network and untrusted
 ///	nodes, the reality is not that simple of course. Before importing statements the receiver will
-///	make sure as good as it can to filter out malicious/unwanted/spammy requests. For this it does
-///	the following:
+///	batch up imports as well as possible for efficient imports while maintaining timely dispute
+///	resolution and handling of spamming validators:
 ///
 ///	- Drop all messages from non validator nodes, for this it requires the [`AuthorityDiscovery`]
 ///	service.
-///	- Drop messages from a node, if we are already importing a message from that node (flood).
-///	- Drop messages from nodes, that provided us messages where the statement import failed.
+///	- Drop messages from a node, if it sends at a too high rate.
+///	- Filter out duplicate messages (over some period of time).
 ///	- Drop any obviously invalid votes (invalid signatures for example).
 ///	- Ban peers whose votes were deemed invalid.
+///
+///	In general dispute-distribution works on limiting the work the dispute-coordinator will have to
+///	do, while at the same time making it aware of new disputes as fast as possible.
 ///
 /// For successfully imported votes, we will confirm the receipt of the message back to the sender.
 /// This way a received confirmation guarantees, that the vote has been stored to disk by the
@@ -94,6 +97,20 @@ mod metrics;
 pub use metrics::Metrics;
 
 const LOG_TARGET: &'static str = "parachain::dispute-distribution";
+
+/// Rate limit on the `receiver` side.
+///
+/// If messages from one peer come in at a higher rate than every `RECEIVE_RATE_LIMIT` on average, we
+/// start dropping messages from that peer to enforce that limit.
+pub const RECEIVE_RATE_LIMIT: Duration = Duration::from_millis(100);
+
+/// Rate limit on the `sender` side.
+///
+/// In order to not hit the `RECEIVE_RATE_LIMIT` on the receiving side, we limit out sending rate as
+/// well.
+///
+/// We add 50ms extra, just to have some save margin to the `RECEIVE_RATE_LIMIT`.
+pub const SEND_RATE_LIMIT: Duration = RECEIVE_RATE_LIMIT.saturating_add(Duration::from_millis(50));
 
 /// The dispute distribution subsystem.
 pub struct DisputeDistributionSubsystem<AD> {
@@ -175,6 +192,12 @@ where
 		ctx.spawn("disputes-receiver", receiver.run().boxed())
 			.map_err(FatalError::SpawnTask)?;
 
+		// Process messages for sending side.
+		//
+		// Note: We want the sender to be rate limited and we are currently taking advantage of the
+		// fact that the root task of this subsystem is only concerned with sending: Functions of
+		// `DisputeSender` might back pressure if the rate limit is hit, which will slow down this
+		// loop. If this fact ever changes, we will likely need another task.
 		loop {
 			let message = MuxedMessage::receive(&mut ctx, &mut self.sender_rx).await;
 			match message {
@@ -250,9 +273,10 @@ impl MuxedMessage {
 		// ends.
 		let from_overseer = ctx.recv().fuse();
 		futures::pin_mut!(from_overseer, from_sender);
-		futures::select!(
-			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
+		// We select biased to make sure we finish up loose ends, before starting new work.
+		futures::select_biased!(
 			msg = from_sender.next() => MuxedMessage::Sender(msg),
+			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
 		)
 	}
 }
