@@ -17,11 +17,18 @@
 //! Utilities for handling distribution of backed candidates along
 //! the grid.
 
-use polkadot_primitives::vstaging::{AuthorityDiscoveryId, GroupIndex};
+use polkadot_primitives::vstaging::{AuthorityDiscoveryId, GroupIndex, ValidatorIndex};
+use polkadot_node_network_protocol::{
+	PeerId,
+	grid_topology::SessionGridTopology,
+};
 
 use std::collections::{HashMap, HashSet};
 
-/// Our local view of a subset of the grid topology organized around a specific group.
+use super::LOG_TARGET;
+
+/// Our local view of a subset of the grid topology organized around a specific validator
+/// group.
 ///
 /// This tracks which authorities we expect to communicate with concerning
 /// candidates from the group. This includes both the authorities we are
@@ -29,25 +36,111 @@ use std::collections::{HashMap, HashSet};
 ///
 /// In the case that this group is the group that we are locally assigned to,
 /// the 'receiving' side will be empty.
-struct SubTopologyGroupLocalView {
-	sending: HashSet<AuthorityDiscoveryId>,
-	receiving: HashSet<AuthorityDiscoveryId>,
+struct GroupSubView {
+	sending: HashSet<ValidatorIndex>,
+	receiving: HashSet<ValidatorIndex>,
 }
 
 /// Our local view of the topology for a session, as it pertains to backed
 /// candidate distribution.
-struct TopologyView {
-	group_views: HashMap<GroupIndex, SubTopologyGroupLocalView>,
+struct SessionTopologyView {
+	group_views: HashMap<GroupIndex, GroupSubView>,
 }
 
-/// TODO [now]: build topology for the session.
+/// Build a view of the topology for the session.
 /// For groups that we are part of: we receive from nobody and send to our X/Y peers.
 /// For groups that we are not part of: we receive from any validator in the group we share a slice with.
 ///    and send to the corresponding X/Y slice.
 ///    For any validators we don't share a slice with, we receive from the nodes
 ///    which share a slice with them.
-fn build_session_topology() -> TopologyView {
-	unimplemented!()
+fn build_session_topology(
+	groups: &[Vec<ValidatorIndex>],
+	topology: &SessionGridTopology,
+	our_index: ValidatorIndex,
+) -> SessionTopologyView {
+	let mut view = SessionTopologyView {
+		group_views: HashMap::new(),
+	};
+
+	let our_neighbors = match topology.compute_grid_neighbors_for(our_index) {
+		None => {
+			gum::warn!(
+				target: LOG_TARGET,
+				?our_index,
+				"our index unrecognized in topology?"
+			);
+
+			return view;
+		},
+		Some(n) => n,
+	};
+
+	for (i, group) in groups.into_iter().enumerate() {
+		let mut sub_view = GroupSubView {
+			sending: HashSet::new(),
+			receiving: HashSet::new(),
+		};
+
+		if group.contains(&our_index) {
+			sub_view.sending.extend(our_neighbors.validator_indices_x.iter().cloned());
+			sub_view.sending.extend(our_neighbors.validator_indices_y.iter().cloned());
+		} else {
+			for &group_val in group {
+				// If the validator shares a slice with us, we expect to
+				// receive from them and send to our neighbors in the other
+				// dimension.
+
+				if our_neighbors.validator_indices_x.contains(&group_val) {
+					sub_view.receiving.insert(group_val);
+					sub_view.sending.extend(our_neighbors.validator_indices_y.iter().cloned());
+
+					continue
+				}
+
+				if our_neighbors.validator_indices_y.contains(&group_val) {
+					sub_view.receiving.insert(group_val);
+					sub_view.sending.extend(our_neighbors.validator_indices_x.iter().cloned());
+
+					continue
+				}
+
+				// If they don't share a slice with us, we don't send to anybody
+				// but receive from any peers sharing a dimension with both of us.
+				let their_neighbors = match topology.compute_grid_neighbors_for(group_val) {
+					None => {
+						gum::warn!(
+							target: LOG_TARGET,
+							index = ?group_val,
+							"validator index unrecognized in topology?"
+						);
+
+						continue;
+					}
+					Some(n) => n,
+				};
+
+				// their X, our Y
+				for potential_link in &their_neighbors.validator_indices_x {
+					if our_neighbors.validator_indices_y.contains(potential_link) {
+						sub_view.receiving.insert(*potential_link);
+						break; // one max
+					}
+				}
+
+				// their Y, our X
+				for potential_link in &their_neighbors.validator_indices_y {
+					if our_neighbors.validator_indices_x.contains(potential_link) {
+						sub_view.receiving.insert(*potential_link);
+						break; // one max
+					}
+				}
+			}
+		}
+
+		view.group_views.insert(GroupIndex(i as _), sub_view);
+	}
+
+	view
 }
 
 /// A tracker of knowledge from authorities within the grid for a
