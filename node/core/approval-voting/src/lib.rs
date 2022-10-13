@@ -44,8 +44,8 @@ use polkadot_node_subsystem_util::{
 	database::Database,
 	metrics::{self, prometheus},
 	rolling_session_window::{
-		new_session_window_size, DatabaseParams, RollingSessionWindow, SessionWindowSize,
-		SessionWindowUpdate, SessionsUnavailable,
+		DatabaseParams, RollingSessionWindow, SessionWindowSize, SessionWindowUpdate,
+		SessionsUnavailable,
 	},
 	TimeoutExt,
 };
@@ -96,8 +96,6 @@ use crate::{
 
 #[cfg(test)]
 mod tests;
-
-pub const APPROVAL_SESSIONS: SessionWindowSize = new_session_window_size!(6);
 
 const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
 /// How long are we willing to wait for approval signatures?
@@ -650,7 +648,6 @@ impl State {
 				self.session_window = Some(
 					RollingSessionWindow::new(
 						sender,
-						APPROVAL_SESSIONS,
 						head,
 						DatabaseParams {
 							db: self.db.clone(),

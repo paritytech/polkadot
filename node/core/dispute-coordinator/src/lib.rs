@@ -368,7 +368,7 @@ async fn get_rolling_session_window<Context>(
 		let sender = ctx.sender().clone();
 		Ok(Some((
 			leaf.clone(),
-			RollingSessionWindow::new(sender, DISPUTE_WINDOW, leaf.hash, db_params)
+			RollingSessionWindow::new(sender, leaf.hash, db_params)
 				.await
 				.map_err(JfyiError::RollingSessionWindow)?,
 		)))

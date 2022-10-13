@@ -34,6 +34,7 @@ use polkadot_node_subsystem::{
 	overseer,
 };
 
+const SESSION_WINDOW_SIZE: SessionWindowSize = new_session_window_size!(6);
 const LOG_TARGET: &str = "parachain::rolling-session-window";
 const STORED_ROLLING_SESSION_WINDOW: &[u8] = b"Rolling_session_window";
 
@@ -131,7 +132,6 @@ impl RollingSessionWindow {
 	/// we can always extend the session info vector using chain state.
 	pub async fn new<Sender>(
 		mut sender: Sender,
-		window_size: SessionWindowSize,
 		block_hash: Hash,
 		db_params: DatabaseParams,
 	) -> Result<Self, SessionsUnavailable>
@@ -146,7 +146,7 @@ impl RollingSessionWindow {
 
 		// This will increase the session window to cover the full unfinalized chain.
 		let on_chain_window_start = std::cmp::min(
-			session_index.saturating_sub(window_size.get() - 1),
+			session_index.saturating_sub(SESSION_WINDOW_SIZE.get() - 1),
 			earliest_non_finalized_block_session,
 		);
 
@@ -213,7 +213,7 @@ impl RollingSessionWindow {
 		Ok(Self {
 			earliest_session: window_start,
 			session_info: sessions,
-			window_size,
+			window_size: SESSION_WINDOW_SIZE,
 			db_params: Some(db_params),
 		})
 	}
@@ -262,11 +262,15 @@ impl RollingSessionWindow {
 	/// initial data.
 	/// This is only used in `approval voting` tests.
 	pub fn with_session_info(
-		window_size: SessionWindowSize,
 		earliest_session: SessionIndex,
 		session_info: Vec<SessionInfo>,
 	) -> Self {
-		RollingSessionWindow { earliest_session, session_info, window_size, db_params: None }
+		RollingSessionWindow {
+			earliest_session,
+			session_info,
+			window_size: SESSION_WINDOW_SIZE,
+			db_params: None,
+		}
 	}
 
 	/// Access the session info for the given session index, if stored within the window.
@@ -586,7 +590,6 @@ mod tests {
 	use polkadot_primitives::v2::Header;
 	use sp_core::testing::TaskExecutor;
 
-	pub const TEST_WINDOW_SIZE: SessionWindowSize = new_session_window_size!(6);
 	const SESSION_DATA_COL: u32 = 0;
 
 	const NUM_COLUMNS: u32 = 1;
@@ -653,9 +656,7 @@ mod tests {
 			Box::pin(async move {
 				let window = match window {
 					None =>
-						RollingSessionWindow::new(sender.clone(), TEST_WINDOW_SIZE, hash, db_params)
-							.await
-							.unwrap(),
+						RollingSessionWindow::new(sender.clone(), hash, db_params).await.unwrap(),
 					Some(mut window) => {
 						window.cache_session_info_for_head(sender, hash).await.unwrap();
 						window
@@ -738,24 +739,24 @@ mod tests {
 		let db_params = dummy_db_params();
 
 		let window = cache_session_info_test(
-			(10 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			(10 as SessionIndex).saturating_sub(SESSION_WINDOW_SIZE.get() - 1),
 			10,
 			None,
-			(10 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			(10 as SessionIndex).saturating_sub(SESSION_WINDOW_SIZE.get() - 1),
 			Some(db_params.clone()),
 		);
 
 		let window = cache_session_info_test(
-			(11 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			(11 as SessionIndex).saturating_sub(SESSION_WINDOW_SIZE.get() - 1),
 			11,
 			Some(window),
 			11,
 			None,
 		);
-		assert_eq!(window.session_info.len(), TEST_WINDOW_SIZE.get() as usize);
+		assert_eq!(window.session_info.len(), SESSION_WINDOW_SIZE.get() as usize);
 
 		cache_session_info_test(
-			(11 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			(11 as SessionIndex).saturating_sub(SESSION_WINDOW_SIZE.get() - 1),
 			12,
 			None,
 			12,
@@ -773,7 +774,7 @@ mod tests {
 		let window = RollingSessionWindow {
 			earliest_session: 1,
 			session_info: vec![dummy_session_info(1)],
-			window_size: TEST_WINDOW_SIZE,
+			window_size: SESSION_WINDOW_SIZE,
 			db_params: Some(dummy_db_params()),
 		};
 
@@ -783,10 +784,10 @@ mod tests {
 	#[test]
 	fn cache_session_info_first_late() {
 		cache_session_info_test(
-			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			(100 as SessionIndex).saturating_sub(SESSION_WINDOW_SIZE.get() - 1),
 			100,
 			None,
-			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			(100 as SessionIndex).saturating_sub(SESSION_WINDOW_SIZE.get() - 1),
 			None,
 		);
 	}
@@ -800,31 +801,31 @@ mod tests {
 				dummy_session_info(51),
 				dummy_session_info(52),
 			],
-			window_size: TEST_WINDOW_SIZE,
+			window_size: SESSION_WINDOW_SIZE,
 			db_params: Some(dummy_db_params()),
 		};
 
 		cache_session_info_test(
-			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			(100 as SessionIndex).saturating_sub(SESSION_WINDOW_SIZE.get() - 1),
 			100,
 			Some(window),
-			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			(100 as SessionIndex).saturating_sub(SESSION_WINDOW_SIZE.get() - 1),
 			None,
 		);
 	}
 
 	#[test]
 	fn cache_session_info_roll_full() {
-		let start = 99 - (TEST_WINDOW_SIZE.get() - 1);
+		let start = 99 - (SESSION_WINDOW_SIZE.get() - 1);
 		let window = RollingSessionWindow {
 			earliest_session: start,
 			session_info: (start..=99).map(dummy_session_info).collect(),
-			window_size: TEST_WINDOW_SIZE,
+			window_size: SESSION_WINDOW_SIZE,
 			db_params: Some(dummy_db_params()),
 		};
 
 		cache_session_info_test(
-			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			(100 as SessionIndex).saturating_sub(SESSION_WINDOW_SIZE.get() - 1),
 			100,
 			Some(window),
 			100, // should only make one request.
@@ -835,16 +836,16 @@ mod tests {
 	#[test]
 	fn cache_session_info_roll_many_full_db() {
 		let db_params = dummy_db_params();
-		let start = 97 - (TEST_WINDOW_SIZE.get() - 1);
+		let start = 97 - (SESSION_WINDOW_SIZE.get() - 1);
 		let window = RollingSessionWindow {
 			earliest_session: start,
 			session_info: (start..=97).map(dummy_session_info).collect(),
-			window_size: TEST_WINDOW_SIZE,
+			window_size: SESSION_WINDOW_SIZE,
 			db_params: Some(db_params.clone()),
 		};
 
 		cache_session_info_test(
-			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			(100 as SessionIndex).saturating_sub(SESSION_WINDOW_SIZE.get() - 1),
 			100,
 			Some(window),
 			98,
@@ -853,7 +854,7 @@ mod tests {
 
 		// We expect the session to be populated from DB, and only fetch 101 from on chain.
 		cache_session_info_test(
-			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			(100 as SessionIndex).saturating_sub(SESSION_WINDOW_SIZE.get() - 1),
 			101,
 			None,
 			101,
@@ -863,21 +864,21 @@ mod tests {
 		// Session warps in the future.
 		let window = cache_session_info_test(195, 200, None, 195, Some(db_params));
 
-		assert_eq!(window.session_info.len(), TEST_WINDOW_SIZE.get() as usize);
+		assert_eq!(window.session_info.len(), SESSION_WINDOW_SIZE.get() as usize);
 	}
 
 	#[test]
 	fn cache_session_info_roll_many_full() {
-		let start = 97 - (TEST_WINDOW_SIZE.get() - 1);
+		let start = 97 - (SESSION_WINDOW_SIZE.get() - 1);
 		let window = RollingSessionWindow {
 			earliest_session: start,
 			session_info: (start..=97).map(dummy_session_info).collect(),
-			window_size: TEST_WINDOW_SIZE,
+			window_size: SESSION_WINDOW_SIZE,
 			db_params: Some(dummy_db_params()),
 		};
 
 		cache_session_info_test(
-			(100 as SessionIndex).saturating_sub(TEST_WINDOW_SIZE.get() - 1),
+			(100 as SessionIndex).saturating_sub(SESSION_WINDOW_SIZE.get() - 1),
 			100,
 			Some(window),
 			98,
@@ -891,7 +892,7 @@ mod tests {
 		let window = RollingSessionWindow {
 			earliest_session: start,
 			session_info: (0..=1).map(dummy_session_info).collect(),
-			window_size: TEST_WINDOW_SIZE,
+			window_size: SESSION_WINDOW_SIZE,
 			db_params: Some(dummy_db_params()),
 		};
 
@@ -910,7 +911,7 @@ mod tests {
 		let window = RollingSessionWindow {
 			earliest_session: start,
 			session_info: (0..=1).map(dummy_session_info).collect(),
-			window_size: TEST_WINDOW_SIZE,
+			window_size: SESSION_WINDOW_SIZE,
 			db_params: Some(dummy_db_params()),
 		};
 
@@ -949,9 +950,7 @@ mod tests {
 		let test_fut = {
 			let sender = ctx.sender().clone();
 			Box::pin(async move {
-				let res =
-					RollingSessionWindow::new(sender, TEST_WINDOW_SIZE, hash, dummy_db_params())
-						.await;
+				let res = RollingSessionWindow::new(sender, hash, dummy_db_params()).await;
 
 				assert!(res.is_err());
 			})
@@ -1076,9 +1075,7 @@ mod tests {
 		let test_fut = {
 			let sender = ctx.sender().clone();
 			Box::pin(async move {
-				let res =
-					RollingSessionWindow::new(sender, TEST_WINDOW_SIZE, hash, dummy_db_params())
-						.await;
+				let res = RollingSessionWindow::new(sender, hash, dummy_db_params()).await;
 				assert!(res.is_ok());
 				let rsw = res.unwrap();
 				// Since first 50 sessions are missing the earliest should be 50.
@@ -1158,7 +1155,7 @@ mod tests {
 	#[test]
 	fn any_session_unavailable_for_caching_means_no_change() {
 		let session: SessionIndex = 6;
-		let start_session = session.saturating_sub(TEST_WINDOW_SIZE.get() - 1);
+		let start_session = session.saturating_sub(SESSION_WINDOW_SIZE.get() - 1);
 
 		let header = Header {
 			digest: Default::default(),
@@ -1184,9 +1181,7 @@ mod tests {
 		let test_fut = {
 			let sender = ctx.sender().clone();
 			Box::pin(async move {
-				let res =
-					RollingSessionWindow::new(sender, TEST_WINDOW_SIZE, hash, dummy_db_params())
-						.await;
+				let res = RollingSessionWindow::new(sender, hash, dummy_db_params()).await;
 				assert!(res.is_err());
 			})
 		};
@@ -1278,9 +1273,7 @@ mod tests {
 			Box::pin(async move {
 				let sender = ctx.sender().clone();
 				let window =
-					RollingSessionWindow::new(sender, TEST_WINDOW_SIZE, hash, dummy_db_params())
-						.await
-						.unwrap();
+					RollingSessionWindow::new(sender, hash, dummy_db_params()).await.unwrap();
 
 				assert_eq!(window.earliest_session, session);
 				assert_eq!(window.session_info, vec![dummy_session_info(session)]);

@@ -671,11 +671,7 @@ pub(crate) mod tests {
 
 	fn single_session_state(index: SessionIndex, info: SessionInfo) -> State {
 		State {
-			session_window: Some(RollingSessionWindow::with_session_info(
-				APPROVAL_SESSIONS,
-				index,
-				vec![info],
-			)),
+			session_window: Some(RollingSessionWindow::with_session_info(index, vec![info])),
 			..blank_state()
 		}
 	}
@@ -788,11 +784,8 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let session_window = RollingSessionWindow::with_session_info(
-				APPROVAL_SESSIONS,
-				session,
-				vec![session_info],
-			);
+			let session_window =
+				RollingSessionWindow::with_session_info(session, vec![session_info]);
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -897,11 +890,8 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let session_window = RollingSessionWindow::with_session_info(
-				APPROVAL_SESSIONS,
-				session,
-				vec![session_info],
-			);
+			let session_window =
+				RollingSessionWindow::with_session_info(session, vec![session_info]);
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -1095,11 +1085,8 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let session_window = Some(RollingSessionWindow::with_session_info(
-				APPROVAL_SESSIONS,
-				session,
-				vec![session_info],
-			));
+			let session_window =
+				Some(RollingSessionWindow::with_session_info(session, vec![session_info]));
 
 			let header = header.clone();
 			Box::pin(async move {
