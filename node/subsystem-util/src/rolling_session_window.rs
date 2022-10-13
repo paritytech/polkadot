@@ -178,7 +178,7 @@ impl RollingSessionWindow {
 				(on_chain_window_start, Vec::new())
 			};
 
-		// Try to load sessions from DB first and load more from chain state if needed.
+		// Compute the amount of sessions missing from the window that will be fetched from chain state.
 		let sessions_missing_count = session_index
 			.saturating_sub(window_start)
 			.saturating_add(1)
