@@ -153,7 +153,7 @@ fn rocksdb_migrate_from_version_1_to_2(path: &Path) -> Result<(), Error> {
 		.to_str()
 		.ok_or_else(|| super::other_io_error("Invalid database path".into()))?;
 	let db_cfg = DatabaseConfig::with_columns(super::columns::v1::NUM_COLUMNS);
-	let db = Database::open(&db_cfg, db_path)?;
+	let mut db = Database::open(&db_cfg, db_path)?;
 
 	db.add_column()?;
 

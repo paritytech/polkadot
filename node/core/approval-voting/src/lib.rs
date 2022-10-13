@@ -44,7 +44,7 @@ use polkadot_node_subsystem_util::{
 	database::Database,
 	metrics::{self, prometheus},
 	rolling_session_window::{
-		DatabaseParams, RollingSessionWindow, SessionWindowSize, SessionWindowUpdate,
+		DatabaseParams, RollingSessionWindow, SessionWindowUpdate,
 		SessionsUnavailable,
 	},
 	TimeoutExt,
