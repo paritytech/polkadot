@@ -695,7 +695,14 @@ pub mod vstaging {
 		/// Advertise a collation to a validator. Can only be sent once the peer has
 		/// declared that they are a collator with given ID.
 		#[codec(index = 1)]
-		AdvertiseCollation(Hash),
+		AdvertiseCollation {
+			/// Hash of the relay parent advertised collation is based on.
+			relay_parent: Hash,
+			/// Candidate hash.
+			candidate_hash: CandidateHash,
+			/// Parachain head data hash before candidate execution.
+			parent_head_data_hash: Hash,
+		},
 		/// A collation sent to a validator was seconded.
 		#[codec(index = 4)]
 		CollationSeconded(Hash, UncheckedSignedFullStatement),

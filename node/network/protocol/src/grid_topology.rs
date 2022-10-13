@@ -80,9 +80,13 @@ impl SessionGridTopology {
 
 	/// Produces the outgoing routing logic for a particular peer.
 	///
-	/// This fails if the validator index is out of bounds.
+	/// Returns `None` if the validator index is out of bounds.
 	pub fn compute_grid_neighbors_for(&self, v: ValidatorIndex) -> Option<GridNeighbors> {
+		if self.shuffled_indices.len() != self.canonical_shuffling.len() {
+			return None
+		}
 		let shuffled_val_index = *self.shuffled_indices.get(v.0 as usize)?;
+
 		let neighbors = matrix_neighbors(shuffled_val_index, self.shuffled_indices.len())?;
 
 		let mut grid_subset = GridNeighbors::empty();
@@ -111,7 +115,7 @@ struct MatrixNeighbors<R, C> {
 	column_neighbors: C,
 }
 
-/// Compute our row and column neighbors in a matrix
+/// Compute the row and column neighbors of `val_index` in a matrix
 fn matrix_neighbors(
 	val_index: usize,
 	len: usize,
@@ -242,7 +246,7 @@ impl GridNeighbors {
 	}
 }
 
-/// An entry tracking a session grid topology and some memoized local neighbors.
+/// An entry tracking a session grid topology and some cached local neighbors.
 #[derive(Debug)]
 pub struct SessionGridTopologyEntry {
 	topology: SessionGridTopology,

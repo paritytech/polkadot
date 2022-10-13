@@ -66,6 +66,8 @@ pub enum Protocol {
 	ChunkFetchingV1,
 	/// Protocol for fetching collations from collators.
 	CollationFetchingV1,
+	/// Protocol for fetching collations from collators when async backing is enabled.
+	CollationFetchingVStaging,
 	/// Protocol for fetching seconded PoVs from validators of the same group.
 	PoVFetchingV1,
 	/// Protocol for fetching available data.
@@ -152,6 +154,10 @@ const STATEMENT_RESPONSE_SIZE: u64 = MAX_CODE_SIZE as u64 + 10_000;
 /// additional backing statements.
 const ATTESTED_CANDIDATE_RESPONSE_SIZE: u64 = MAX_CODE_SIZE as u64 + 100_000;
 
+/// We can have relative large timeouts here, there is no value of hitting a
+/// timeout as we want to get statements through to each node in any case.
+pub const DISPUTE_REQUEST_TIMEOUT: Duration = Duration::from_secs(12);
+
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.
 	///
@@ -174,15 +180,16 @@ impl Protocol {
 				request_timeout: CHUNK_REQUEST_TIMEOUT,
 				inbound_queue: Some(tx),
 			},
-			Protocol::CollationFetchingV1 => RequestResponseConfig {
-				name,
-				fallback_names,
-				max_request_size: 1_000,
-				max_response_size: POV_RESPONSE_SIZE,
-				// Taken from initial implementation in collator protocol:
-				request_timeout: POV_REQUEST_TIMEOUT_CONNECTED,
-				inbound_queue: Some(tx),
-			},
+			Protocol::CollationFetchingV1 | Protocol::CollationFetchingVStaging =>
+				RequestResponseConfig {
+					name,
+					fallback_names,
+					max_request_size: 1_000,
+					max_response_size: POV_RESPONSE_SIZE,
+					// Taken from initial implementation in collator protocol:
+					request_timeout: POV_REQUEST_TIMEOUT_CONNECTED,
+					inbound_queue: Some(tx),
+				},
 			Protocol::PoVFetchingV1 => RequestResponseConfig {
 				name,
 				fallback_names,
@@ -225,9 +232,7 @@ impl Protocol {
 				/// Responses are just confirmation, in essence not even a bit. So 100 seems
 				/// plenty.
 				max_response_size: 100,
-				/// We can have relative large timeouts here, there is no value of hitting a
-				/// timeout as we want to get statements through to each node in any case.
-				request_timeout: Duration::from_secs(12),
+				request_timeout: DISPUTE_REQUEST_TIMEOUT,
 				inbound_queue: Some(tx),
 			},
 
@@ -253,7 +258,7 @@ impl Protocol {
 			// as well.
 			Protocol::ChunkFetchingV1 => 100,
 			// 10 seems reasonable, considering group sizes of max 10 validators.
-			Protocol::CollationFetchingV1 => 10,
+			Protocol::CollationFetchingV1 | Protocol::CollationFetchingVStaging => 10,
 			// 10 seems reasonable, considering group sizes of max 10 validators.
 			Protocol::PoVFetchingV1 => 10,
 			// Validators are constantly self-selecting to request available data which may lead
@@ -323,6 +328,7 @@ impl Protocol {
 
 			// Introduced after legacy names became legacy.
 			Protocol::AttestedCandidateV2 => None,
+			Protocol::CollationFetchingVStaging => None,
 		}
 	}
 }
@@ -374,6 +380,7 @@ impl ReqProtocolNames {
 		let short_name = match protocol {
 			Protocol::ChunkFetchingV1 => "/req_chunk/1",
 			Protocol::CollationFetchingV1 => "/req_collation/1",
+			Protocol::CollationFetchingVStaging => "/req_collation/2",
 			Protocol::PoVFetchingV1 => "/req_pov/1",
 			Protocol::AvailableDataFetchingV1 => "/req_available_data/1",
 			Protocol::StatementFetchingV1 => "/req_statement/1",

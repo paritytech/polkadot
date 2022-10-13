@@ -22,7 +22,7 @@ use futures::executor::{self, block_on};
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_network_protocol::{
-	grid_topology::TopologyPeerInfo,
+	grid_topology::{SessionGridTopology, TopologyPeerInfo},
 	peer_set::ValidationVersion,
 	request_response::{
 		v1::{StatementFetchingRequest, StatementFetchingResponse},

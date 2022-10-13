@@ -21,6 +21,7 @@ use parity_scale_codec::{Decode, Encode};
 use bitvec::{order::Lsb0, vec::BitVec};
 use polkadot_primitives::vstaging::{
 	CandidateHash, CommittedCandidateReceipt, PersistedValidationData, UncheckedSignedStatement,
+	Id as ParaId, Hash,
 };
 
 use super::{IsRequest, Protocol};
@@ -57,4 +58,24 @@ pub struct AttestedCandidateResponse {
 impl IsRequest for AttestedCandidateRequest {
 	type Response = AttestedCandidateResponse;
 	const PROTOCOL: Protocol = Protocol::AttestedCandidateV2;
+}
+
+/// Responses as sent by collators.
+pub type CollationFetchingResponse = super::v1::CollationFetchingResponse;
+
+/// Request the advertised collation at that relay-parent.
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct CollationFetchingRequest {
+	/// Relay parent collation is built on top of.
+	pub relay_parent: Hash,
+	/// The `ParaId` of the collation.
+	pub para_id: ParaId,
+	/// Candidate hash.
+	pub candidate_hash: CandidateHash,
+}
+
+impl IsRequest for CollationFetchingRequest {
+	// The response is the same as for V1.
+	type Response = CollationFetchingResponse;
+	const PROTOCOL: Protocol = Protocol::CollationFetchingVStaging;
 }

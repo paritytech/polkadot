@@ -26,7 +26,9 @@ use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
 use polkadot_node_network_protocol::{
 	peer_set::PeerSetProtocolNames,
-	request_response::{v1 as request_v1, IncomingRequestReceiver, ReqProtocolNames},
+	request_response::{
+		v1 as request_v1, vstaging as request_vstaging, IncomingRequestReceiver, ReqProtocolNames,
+	},
 };
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::{
@@ -93,13 +95,21 @@ where
 	pub network_service: Arc<sc_network::NetworkService<Block, Hash>>,
 	/// Underlying authority discovery service.
 	pub authority_discovery_service: AuthorityDiscoveryService,
-	/// POV request receiver
+	/// POV request receiver.
 	pub pov_req_receiver: IncomingRequestReceiver<request_v1::PoVFetchingRequest>,
+	/// Erasure chunks request receiver.
 	pub chunk_req_receiver: IncomingRequestReceiver<request_v1::ChunkFetchingRequest>,
-	pub collation_req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+	/// Collations request receiver for network protocol v1.
+	pub collation_req_v1_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+	/// Collations request receiver for network protocol vstaging.
+	pub collation_req_vstaging_receiver:
+		IncomingRequestReceiver<request_vstaging::CollationFetchingRequest>,
+	/// Receiver for available data requests.
 	pub available_data_req_receiver:
 		IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
+	/// Receiver for incoming large statement requests.
 	pub statement_req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
+	/// Receiver for incoming disputes.
 	pub dispute_req_receiver: IncomingRequestReceiver<request_v1::DisputeRequest>,
 	/// Prometheus registry, commonly used for production systems, less so for test.
 	pub registry: Option<&'a Registry>,
@@ -139,7 +149,8 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		authority_discovery_service,
 		pov_req_receiver,
 		chunk_req_receiver,
-		collation_req_receiver,
+		collation_req_v1_receiver,
+		collation_req_vstaging_receiver,
 		available_data_req_receiver,
 		statement_req_receiver,
 		dispute_req_receiver,
@@ -257,12 +268,13 @@ where
 		.collation_generation(CollationGenerationSubsystem::new(Metrics::register(registry)?))
 		.collator_protocol({
 			let side = match is_collator {
-				IsCollator::Yes(collator_pair) => ProtocolSide::Collator(
-					network_service.local_peer_id().clone(),
+				IsCollator::Yes(collator_pair) => ProtocolSide::Collator {
+					peer_id: network_service.local_peer_id().clone(),
 					collator_pair,
-					collation_req_receiver,
-					Metrics::register(registry)?,
-				),
+					request_receiver_v1: collation_req_v1_receiver,
+					request_receiver_vstaging: collation_req_vstaging_receiver,
+					metrics: Metrics::register(registry)?,
+				},
 				IsCollator::No => ProtocolSide::Validator {
 					keystore: keystore.clone(),
 					eviction_policy: Default::default(),

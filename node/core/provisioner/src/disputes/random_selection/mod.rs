@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! This module selects all RECENT disputes, fetches the votes for them from dispute-coordinator and
-//! returns them as MultiDisputeStatementSet. If the RECENT disputes are more than
+//! returns them as `MultiDisputeStatementSet`. If the RECENT disputes are more than
 //! `MAX_DISPUTES_FORWARDED_TO_RUNTIME` constant - the ACTIVE disputes plus a random selection of
 //! RECENT disputes (up to `MAX_DISPUTES_FORWARDED_TO_RUNTIME`) are returned instead.
 //! If the ACTIVE disputes are also above `MAX_DISPUTES_FORWARDED_TO_RUNTIME` limit - a random selection
