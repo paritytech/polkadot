@@ -549,7 +549,7 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 			.into_iter()
 			// all active para-ids that do not belong to a system or common good chain is the number
 			// of parachains that we should take into account for inflation.
-			.filter(|i| i >= LOWEST_PUBLIC_ID)
+			.filter(|i| *i >= LOWEST_PUBLIC_ID)
 			.count() as u64;
 
 		const MAX_ANNUAL_INFLATION: Perquintill = Perquintill::from_percent(10);
