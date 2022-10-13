@@ -44,7 +44,8 @@ use std::{
 pub const PRECHECK_PREPARATION_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// For execution and heads-up requests, the time period after which the preparation worker is
-/// considered unresponsive and will be killed.
+/// considered unresponsive and will be killed. More lenient than the timeout for prechecking to
+/// prevent honest validators from timing out on valid PVFs.
 // NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
 pub const LENIENT_PREPARATION_TIMEOUT: Duration = Duration::from_secs(360);
 

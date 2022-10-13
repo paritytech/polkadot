@@ -48,7 +48,7 @@ The logic described above is implemented by the [paras] module.
 
 On the node-side, there is a PVF pre-checking [subsystem][pvf-prechecker-subsystem] that scans the chain for new PVFs via using [runtime APIs][pvf-runtime-api]. Upon finding a new PVF, the subsystem will initiate a PVF pre-checking request and wait for the result. Whenever the result is obtained, the subsystem will use the [runtime API][pvf-runtime-api] to submit a vote for the PVF. The vote is an unsigned transaction. The vote will be distributed via the gossip similarly to a normal transaction. Eventually a block producer will include the vote into the block where it will be handled by the [runtime][paras].
 
-## Summary
+## Pre-checking Summary
 
 Parachains' and parathreads' validation function is described by a wasm module that we refer to as a PVF.
 
