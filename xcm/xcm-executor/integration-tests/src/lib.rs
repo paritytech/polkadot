@@ -23,7 +23,7 @@ use polkadot_test_client::{
 };
 use polkadot_test_runtime::pallet_test_notifier;
 use polkadot_test_service::construct_extrinsic;
-use sp_runtime::{generic::BlockId, traits::Block};
+use sp_runtime::traits::Block;
 use sp_state_machine::InspectState;
 use xcm::{latest::prelude::*, VersionedResponse, VersionedXcm};
 
@@ -61,7 +61,7 @@ fn basic_buy_fees_message_executes() {
 		.expect("imports the block");
 
 	client
-		.state_at(&BlockId::Hash(block_hash))
+		.state_at(&block_hash)
 		.expect("state should exist")
 		.inspect_state(|| {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
@@ -105,7 +105,7 @@ fn query_response_fires() {
 
 	let mut query_id = None;
 	client
-		.state_at(&BlockId::Hash(block_hash))
+		.state_at(&block_hash)
 		.expect("state should exist")
 		.inspect_state(|| {
 			for r in polkadot_test_runtime::System::events().iter() {
@@ -143,7 +143,7 @@ fn query_response_fires() {
 		.expect("imports the block");
 
 	client
-		.state_at(&BlockId::Hash(block_hash))
+		.state_at(&block_hash)
 		.expect("state should exist")
 		.inspect_state(|| {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
@@ -194,7 +194,7 @@ fn query_response_elicits_handler() {
 
 	let mut query_id = None;
 	client
-		.state_at(&BlockId::Hash(block_hash))
+		.state_at(&block_hash)
 		.expect("state should exist")
 		.inspect_state(|| {
 			for r in polkadot_test_runtime::System::events().iter() {
@@ -231,7 +231,7 @@ fn query_response_elicits_handler() {
 		.expect("imports the block");
 
 	client
-		.state_at(&BlockId::Hash(block_hash))
+		.state_at(&block_hash)
 		.expect("state should exist")
 		.inspect_state(|| {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
