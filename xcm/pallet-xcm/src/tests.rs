@@ -517,7 +517,7 @@ fn execute_withdraw_to_deposit_works() {
 				buy_execution((Here, SEND_AMOUNT)),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
 			]))),
-			Weight::from_ref_time(weight)
+			weight
 		));
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
 		assert_eq!(Balances::total_balance(&BOB), SEND_AMOUNT);
@@ -549,7 +549,7 @@ fn trapped_assets_can_be_claimed() {
 				// This would succeed, but we never get to it.
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest.clone() },
 			]))),
-			Weight::from_ref_time(weight)
+			weight
 		));
 		let source: MultiLocation =
 			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
@@ -579,7 +579,7 @@ fn trapped_assets_can_be_claimed() {
 				buy_execution((Here, SEND_AMOUNT)),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest.clone() },
 			]))),
-			Weight::from_ref_time(weight)
+			weight
 		));
 
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
@@ -594,7 +594,7 @@ fn trapped_assets_can_be_claimed() {
 				buy_execution((Here, SEND_AMOUNT)),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
 			]))),
-			Weight::from_ref_time(weight)
+			weight
 		));
 		assert_eq!(
 			last_event(),
