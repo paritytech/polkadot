@@ -30,7 +30,7 @@ validator-8: reports node_roles is 4
 validator-9: reports node_roles is 4
 
 # Ensure parachains are registered.
-validator-0: parachain 2000 is registered
+validator-0: parachain 2000 is registered within 20 seconds
 validator-0: parachain 2001 is registered
 validator-0: parachain 2002 is registered
 validator-0: parachain 2003 is registered

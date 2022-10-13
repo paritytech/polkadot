@@ -14,10 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{
-	collections::{HashMap, HashSet},
-	convert::TryFrom,
-};
+use std::{collections::HashSet, convert::TryFrom};
 
 pub use sc_network::{PeerId, ReputationChange};
 
@@ -27,25 +24,15 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_primitives::v2::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
 
-/// Information about a peer in the gossip topology for a session.
-#[derive(Debug, Clone, PartialEq)]
-pub struct TopologyPeerInfo {
-	/// The validator's known peer IDs.
-	pub peer_ids: Vec<PeerId>,
-	/// The index of the validator in the discovery keys of the corresponding
-	/// `SessionInfo`. This can extend _beyond_ the set of active parachain validators.
-	pub validator_index: ValidatorIndex,
-}
-
 /// A struct indicating new gossip topology.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NewGossipTopology {
 	/// The session index this topology corresponds to.
 	pub session: SessionIndex,
-	/// Neighbors in the 'X' dimension of the grid.
-	pub our_neighbors_x: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
-	/// Neighbors in the 'Y' dimension of the grid.
-	pub our_neighbors_y: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
+	/// The topology itself.
+	pub topology: SessionGridTopology,
+	/// The local validator index, if any.
+	pub local_index: Option<ValidatorIndex>,
 }
 
 /// Events from network.
@@ -120,21 +107,5 @@ impl<M> NetworkBridgeEvent<M> {
 			NetworkBridgeEvent::OurViewChange(ref view) =>
 				NetworkBridgeEvent::OurViewChange(view.clone()),
 		})
-	}
-}
-
-impl From<NewGossipTopology> for SessionGridTopology {
-	fn from(topology: NewGossipTopology) -> Self {
-		let peers_x =
-			topology.our_neighbors_x.values().flat_map(|p| &p.peer_ids).cloned().collect();
-		let peers_y =
-			topology.our_neighbors_y.values().flat_map(|p| &p.peer_ids).cloned().collect();
-
-		let validator_indices_x =
-			topology.our_neighbors_x.values().map(|p| p.validator_index.clone()).collect();
-		let validator_indices_y =
-			topology.our_neighbors_y.values().map(|p| p.validator_index.clone()).collect();
-
-		SessionGridTopology { peers_x, peers_y, validator_indices_x, validator_indices_y }
 	}
 }
