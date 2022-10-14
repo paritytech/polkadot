@@ -273,7 +273,7 @@ pub mod pallet {
 		OpenChannelAccepted(ParaId, ParaId),
 		/// HRMP channel closed. `[by_parachain, channel_id]`
 		ChannelClosed(ParaId, HrmpChannelId),
-		/// And RMP channel was opened via Root origin.
+		/// An HRMP channel was opened via Root origin.
 		/// `[sender, recipient, proposed_max_capacity, proposed_max_message_size]`
 		HrmpChannelForceOpened(ParaId, ParaId, u32, u32),
 	}
