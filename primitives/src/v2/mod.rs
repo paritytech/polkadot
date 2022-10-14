@@ -1570,7 +1570,7 @@ impl CompactStatement {
 }
 
 /// Validators struct indexed by ValidatorIndex.
-#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo, Default)]
 #[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct Validators(Vec<ValidatorId>);
 
@@ -1606,7 +1606,7 @@ impl Validators {
 }
 
 /// GroupValidators struct indexed by GroupIndex.
-#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo, Default)]
 #[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct GroupValidators(Vec<Vec<ValidatorIndex>>);
 
