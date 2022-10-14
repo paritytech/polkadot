@@ -36,7 +36,7 @@ pub enum Error {
 	Io(#[from] io::Error),
 	#[error("The version file format is incorrect")]
 	CorruptedVersionFile,
-	#[error("Future version (expected {current:?}, found {got:?})")]
+	#[error("Parachains DB has a future version (expected {current:?}, found {got:?})")]
 	FutureVersion { current: Version, got: Version },
 }
 
