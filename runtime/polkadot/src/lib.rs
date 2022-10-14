@@ -2022,10 +2022,10 @@ sp_api::impl_runtime_apis! {
 			let multiasset: MultiAsset = (asset_location, u128::MAX).into();
 			let mut trader = <xcm_config::XcmConfig as xcm_executor::Config>::Trader::new();
 
-			// we assume max weight can be bought
-			// given the types u64 vs u128, it should be feasible
+			// buy_weight returns unused assets
 			let unused = trader.buy_weight(weight, vec![multiasset.clone()].into())?;
 
+			// we just need to substract from u128::MAX the unused assets
 			unused.fungible.get(&multiasset.id).map(|&value| u128::MAX.saturating_sub(value)).ok_or(XcmError::NotHoldingFees)
 		}
 	}
