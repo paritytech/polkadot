@@ -476,7 +476,12 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	#[cfg(feature = "fast-runtime")]
 	type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
 	#[cfg(not(feature = "fast-runtime"))]
-	type Fallback = frame_election_provider_support::NoElection<(AccountId, BlockNumber, Staking, MaxActiveValidators)>;
+	type Fallback = frame_election_provider_support::NoElection<(
+		AccountId,
+		BlockNumber,
+		Staking,
+		MaxActiveValidators,
+	)>;
 	type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
 	type Solver = SequentialPhragmen<
 		AccountId,
