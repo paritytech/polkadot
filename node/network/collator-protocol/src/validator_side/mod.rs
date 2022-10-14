@@ -364,19 +364,10 @@ impl PeerData {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct GroupAssignments {
 	/// Current assignment.
 	current: Option<ParaId>,
-	/// Paras we're implicitly assigned to with respect to ancestry.
-	/// This only includes paras from children relay chain blocks assignments.
-	///
-	/// Implicit assignments are not reference-counted since they're accumulated
-	/// from the most recent leaf.
-	///
-	/// Should be relatively small depending on the group rotation frequency and
-	/// allowed ancestry length.
-	implicit: Vec<ParaId>,
 }
 
 struct PerRelayParent {
@@ -389,7 +380,7 @@ impl PerRelayParent {
 	fn new(mode: ProspectiveParachainsMode) -> Self {
 		Self {
 			prospective_parachains_mode: mode,
-			assignment: GroupAssignments { current: None, implicit: Vec::new() },
+			assignment: GroupAssignments { current: None },
 			collations: Collations::default(),
 		}
 	}
@@ -540,7 +531,7 @@ where
 		}
 	}
 
-	*group_assignment = GroupAssignments { current: para_now, implicit: Vec::new() };
+	*group_assignment = GroupAssignments { current: para_now };
 
 	Ok(())
 }
@@ -988,10 +979,6 @@ where
 		Some(id) if id == collator_para_id => {
 			// Our assignment.
 		},
-		_ if assignment.implicit.contains(&collator_para_id) => {
-			// This relay parent is a part of implicit ancestry,
-			// thus async backing is enabled.
-		},
 		_ => return Err(AdvertisementError::InvalidAssignment),
 	};
 
@@ -1127,8 +1114,6 @@ where
 		.await?;
 
 		state.active_leaves.insert(*leaf, mode);
-
-		let mut implicit_assignment = Vec::from_iter(per_relay_parent.assignment.current);
 		state.per_relay_parent.insert(*leaf, per_relay_parent);
 
 		if mode.is_enabled() {
@@ -1144,38 +1129,21 @@ where
 				.known_allowed_relay_parents_under(leaf, None)
 				.unwrap_or_default();
 			for block_hash in allowed_ancestry {
-				let entry = match state.per_relay_parent.entry(*block_hash) {
-					Entry::Vacant(entry) => {
-						let mut per_relay_parent =
-							PerRelayParent::new(ProspectiveParachainsMode::Enabled);
-						assign_incoming(
-							sender,
-							&mut per_relay_parent.assignment,
-							&mut state.current_assignments,
-							keystore,
-							*block_hash,
-							mode,
-						)
-						.await?;
+				if let Entry::Vacant(entry) = state.per_relay_parent.entry(*block_hash) {
+					let mut per_relay_parent =
+						PerRelayParent::new(ProspectiveParachainsMode::Enabled);
+					assign_incoming(
+						sender,
+						&mut per_relay_parent.assignment,
+						&mut state.current_assignments,
+						keystore,
+						*block_hash,
+						mode,
+					)
+					.await?;
 
-						entry.insert(per_relay_parent)
-					},
-					Entry::Occupied(entry) => entry.into_mut(),
-				};
-
-				let current = entry.assignment.current;
-				let implicit = &mut entry.assignment.implicit;
-
-				// Extend implicitly assigned parachains.
-				for para in &implicit_assignment {
-					if !implicit.contains(para) {
-						implicit.push(*para);
-					}
+					entry.insert(per_relay_parent);
 				}
-				// Current assignment propagates to parents, meaning that a parachain
-				// we're assigned to in fresh blocks can submit collations built
-				// on top of relay parents in the allowed ancestry, but not vice versa.
-				implicit_assignment.extend(current);
 			}
 		}
 	}
