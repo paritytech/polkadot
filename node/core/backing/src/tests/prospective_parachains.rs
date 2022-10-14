@@ -299,7 +299,7 @@ fn seconding_sanity_check_allowed() {
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 		// Candidate is seconded in a parent of the activated `leaf_a`.
 		const LEAF_A_BLOCK_NUMBER: BlockNumber = 100;
-		const LEAF_A_DEPTH: BlockNumber = 3;
+		const LEAF_A_ANCESTRY_LEN: BlockNumber = 3;
 		let para_id = test_state.chain_ids[0];
 
 		let leaf_b_hash = Hash::from_low_u64_be(128);
@@ -312,11 +312,11 @@ fn seconding_sanity_check_allowed() {
 			status: LeafStatus::Fresh,
 			span: Arc::new(jaeger::Span::Disabled),
 		};
-		let min_relay_parents = vec![(para_id, LEAF_A_BLOCK_NUMBER - LEAF_A_DEPTH)];
+		let min_relay_parents = vec![(para_id, LEAF_A_BLOCK_NUMBER - LEAF_A_ANCESTRY_LEN)];
 		let test_leaf_a = TestLeaf { activated, min_relay_parents };
 
 		const LEAF_B_BLOCK_NUMBER: BlockNumber = LEAF_A_BLOCK_NUMBER + 2;
-		const LEAF_B_DEPTH: BlockNumber = 4;
+		const LEAF_B_ANCESTRY_LEN: BlockNumber = 4;
 
 		let activated = ActivatedLeaf {
 			hash: leaf_b_hash,
@@ -324,7 +324,7 @@ fn seconding_sanity_check_allowed() {
 			status: LeafStatus::Fresh,
 			span: Arc::new(jaeger::Span::Disabled),
 		};
-		let min_relay_parents = vec![(para_id, LEAF_B_BLOCK_NUMBER - LEAF_B_DEPTH)];
+		let min_relay_parents = vec![(para_id, LEAF_B_BLOCK_NUMBER - LEAF_B_ANCESTRY_LEN)];
 		let test_leaf_b = TestLeaf { activated, min_relay_parents };
 
 		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
@@ -436,7 +436,7 @@ fn seconding_sanity_check_disallowed() {
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 		// Candidate is seconded in a parent of the activated `leaf_a`.
 		const LEAF_A_BLOCK_NUMBER: BlockNumber = 100;
-		const LEAF_A_DEPTH: BlockNumber = 3;
+		const LEAF_A_ANCESTRY_LEN: BlockNumber = 3;
 		let para_id = test_state.chain_ids[0];
 
 		let leaf_b_hash = Hash::from_low_u64_be(128);
@@ -449,11 +449,11 @@ fn seconding_sanity_check_disallowed() {
 			status: LeafStatus::Fresh,
 			span: Arc::new(jaeger::Span::Disabled),
 		};
-		let min_relay_parents = vec![(para_id, LEAF_A_BLOCK_NUMBER - LEAF_A_DEPTH)];
+		let min_relay_parents = vec![(para_id, LEAF_A_BLOCK_NUMBER - LEAF_A_ANCESTRY_LEN)];
 		let test_leaf_a = TestLeaf { activated, min_relay_parents };
 
 		const LEAF_B_BLOCK_NUMBER: BlockNumber = LEAF_A_BLOCK_NUMBER + 2;
-		const LEAF_B_DEPTH: BlockNumber = 4;
+		const LEAF_B_ANCESTRY_LEN: BlockNumber = 4;
 
 		let activated = ActivatedLeaf {
 			hash: leaf_b_hash,
@@ -461,7 +461,7 @@ fn seconding_sanity_check_disallowed() {
 			status: LeafStatus::Fresh,
 			span: Arc::new(jaeger::Span::Disabled),
 		};
-		let min_relay_parents = vec![(para_id, LEAF_B_BLOCK_NUMBER - LEAF_B_DEPTH)];
+		let min_relay_parents = vec![(para_id, LEAF_B_BLOCK_NUMBER - LEAF_B_ANCESTRY_LEN)];
 		let test_leaf_b = TestLeaf { activated, min_relay_parents };
 
 		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
@@ -633,7 +633,7 @@ fn prospective_parachains_reject_candidate() {
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 		// Candidate is seconded in a parent of the activated `leaf_a`.
 		const LEAF_A_BLOCK_NUMBER: BlockNumber = 100;
-		const LEAF_A_DEPTH: BlockNumber = 3;
+		const LEAF_A_ANCESTRY_LEN: BlockNumber = 3;
 		let para_id = test_state.chain_ids[0];
 
 		let leaf_a_hash = Hash::from_low_u64_be(130);
@@ -644,7 +644,7 @@ fn prospective_parachains_reject_candidate() {
 			status: LeafStatus::Fresh,
 			span: Arc::new(jaeger::Span::Disabled),
 		};
-		let min_relay_parents = vec![(para_id, LEAF_A_BLOCK_NUMBER - LEAF_A_DEPTH)];
+		let min_relay_parents = vec![(para_id, LEAF_A_BLOCK_NUMBER - LEAF_A_ANCESTRY_LEN)];
 		let test_leaf_a = TestLeaf { activated, min_relay_parents };
 
 		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
@@ -798,7 +798,7 @@ fn second_multiple_candidates_per_relay_parent() {
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 		// Candidate `a` is seconded in a parent of the activated `leaf`.
 		const LEAF_BLOCK_NUMBER: BlockNumber = 100;
-		const LEAF_DEPTH: BlockNumber = 3;
+		const LEAF_ANCESTRY_LEN: BlockNumber = 3;
 		let para_id = test_state.chain_ids[0];
 
 		let leaf_hash = Hash::from_low_u64_be(130);
@@ -810,7 +810,7 @@ fn second_multiple_candidates_per_relay_parent() {
 			status: LeafStatus::Fresh,
 			span: Arc::new(jaeger::Span::Disabled),
 		};
-		let min_relay_parents = vec![(para_id, LEAF_BLOCK_NUMBER - LEAF_DEPTH)];
+		let min_relay_parents = vec![(para_id, LEAF_BLOCK_NUMBER - LEAF_ANCESTRY_LEN)];
 		let test_leaf_a = TestLeaf { activated, min_relay_parents };
 
 		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
@@ -922,7 +922,7 @@ fn backing_works() {
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 		// Candidate `a` is seconded in a parent of the activated `leaf`.
 		const LEAF_BLOCK_NUMBER: BlockNumber = 100;
-		const LEAF_DEPTH: BlockNumber = 3;
+		const LEAF_ANCESTRY_LEN: BlockNumber = 3;
 		let para_id = test_state.chain_ids[0];
 
 		let leaf_hash = Hash::from_low_u64_be(130);
@@ -933,7 +933,7 @@ fn backing_works() {
 			status: LeafStatus::Fresh,
 			span: Arc::new(jaeger::Span::Disabled),
 		};
-		let min_relay_parents = vec![(para_id, LEAF_BLOCK_NUMBER - LEAF_DEPTH)];
+		let min_relay_parents = vec![(para_id, LEAF_BLOCK_NUMBER - LEAF_ANCESTRY_LEN)];
 		let test_leaf_a = TestLeaf { activated, min_relay_parents };
 
 		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
@@ -1081,7 +1081,7 @@ fn concurrent_dependent_candidates() {
 		// Candidate `a` is seconded in a grandparent of the activated `leaf`,
 		// candidate `b` -- in parent.
 		const LEAF_BLOCK_NUMBER: BlockNumber = 100;
-		const LEAF_DEPTH: BlockNumber = 3;
+		const LEAF_ANCESTRY_LEN: BlockNumber = 3;
 		let para_id = test_state.chain_ids[0];
 
 		let leaf_hash = Hash::from_low_u64_be(130);
@@ -1093,7 +1093,7 @@ fn concurrent_dependent_candidates() {
 			status: LeafStatus::Fresh,
 			span: Arc::new(jaeger::Span::Disabled),
 		};
-		let min_relay_parents = vec![(para_id, LEAF_BLOCK_NUMBER - LEAF_DEPTH)];
+		let min_relay_parents = vec![(para_id, LEAF_BLOCK_NUMBER - LEAF_ANCESTRY_LEN)];
 		let test_leaf_a = TestLeaf { activated, min_relay_parents };
 
 		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
@@ -1308,7 +1308,7 @@ fn seconding_sanity_check_occupy_same_depth() {
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 		// Candidate `a` is seconded in a parent of the activated `leaf`.
 		const LEAF_BLOCK_NUMBER: BlockNumber = 100;
-		const LEAF_DEPTH: BlockNumber = 3;
+		const LEAF_ANCESTRY_LEN: BlockNumber = 3;
 
 		let para_id_a = test_state.chain_ids[0];
 		let para_id_b = test_state.chain_ids[1];
@@ -1323,7 +1323,7 @@ fn seconding_sanity_check_occupy_same_depth() {
 			span: Arc::new(jaeger::Span::Disabled),
 		};
 
-		let min_block_number = LEAF_BLOCK_NUMBER - LEAF_DEPTH;
+		let min_block_number = LEAF_BLOCK_NUMBER - LEAF_ANCESTRY_LEN;
 		let min_relay_parents = vec![(para_id_a, min_block_number), (para_id_b, min_block_number)];
 		let test_leaf_a = TestLeaf { activated, min_relay_parents };
 
