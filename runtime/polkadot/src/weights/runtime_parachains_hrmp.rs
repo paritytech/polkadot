@@ -154,4 +154,5 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 			.saturating_add(T::DbWeight::get().writes(1 as u64))
 			.saturating_add(T::DbWeight::get().writes((1 as u64).saturating_mul(c as u64)))
 	}
+	fn force_open_hrmp_channel() -> Weight { todo!() }
 }
