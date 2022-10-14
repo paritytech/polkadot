@@ -34,6 +34,8 @@ use polkadot_node_subsystem::{
 	overseer,
 };
 
+// The window size is equal to the `approval-voting` and `dispute-coordinator` constants that
+// have been obsoleted.
 const SESSION_WINDOW_SIZE: SessionWindowSize = new_session_window_size!(6);
 const LOG_TARGET: &str = "parachain::rolling-session-window";
 const STORED_ROLLING_SESSION_WINDOW: &[u8] = b"Rolling_session_window";
