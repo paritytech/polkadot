@@ -19,27 +19,51 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::Codec;
+use codec::{Codec, Decode, Encode};
+use derivative::Derivative;
+use scale_info::TypeInfo;
 use sp_runtime::traits::MaybeDisplay;
-use xcm::{
-	latest::{Error as XcmError, Weight},
-	VersionedMultiLocation, VersionedXcm,
-};
+use xcm::{latest::Error as XcmError, VersionedMultiLocation, VersionedXcm};
+
+// Versioned Weight, to not break api with Weight v2
+#[derive(Derivative, Encode, Decode, TypeInfo)]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
+#[codec(encode_bound())]
+#[codec(decode_bound())]
+pub enum VersionedWeight {
+	V2(xcm::v2::Weight),
+}
+
+impl From<xcm::v2::Weight> for VersionedWeight {
+	fn from(x: xcm::v2::Weight) -> Self {
+		VersionedWeight::V2(x)
+	}
+}
+
+impl TryFrom<VersionedWeight> for xcm::v2::Weight {
+	type Error = ();
+	fn try_from(x: VersionedWeight) -> Result<Self, ()> {
+		match x {
+			VersionedWeight::V2(x) => Ok(x),
+		}
+	}
+}
+
 // [`XcmResult`]
 pub type XcmResult<T> = Result<T, XcmError>;
 
 sp_api::decl_runtime_apis! {
-	pub trait PalletXcmApi<AccountId, RuntimeCall> where
+	pub trait XcmApi<AccountId, RuntimeCall> where
 		AccountId: Codec + MaybeDisplay,
 
 	{
 		/// Returns weight of a given message
-		fn weight_message(message: VersionedXcm<RuntimeCall>) -> XcmResult<Weight>;
+		fn weight_message(message: VersionedXcm<RuntimeCall>) -> XcmResult<VersionedWeight>;
 
 		/// Returns the location to accountId conversion
 		fn convert_location(location: VersionedMultiLocation) -> XcmResult<AccountId>;
 
 		/// Returns fee charged for an amount of weight in a concrete multiasset
-		fn calculate_concrete_asset_fee(asset_location: VersionedMultiLocation, weight: Weight) -> XcmResult<u128>;
+		fn calculate_concrete_asset_fee(asset_location: VersionedMultiLocation, weight: VersionedWeight) -> XcmResult<u128>;
 	}
 }

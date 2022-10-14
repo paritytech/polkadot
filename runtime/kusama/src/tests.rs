@@ -24,7 +24,7 @@ use parity_scale_codec::Encode;
 use runtime_common::MinimumMultiplier;
 use separator::Separatable;
 use sp_runtime::FixedPointNumber;
-use xcm_runtime_api::runtime_decl_for_PalletXcmApi::PalletXcmApi;
+use xcm_runtime_api::runtime_decl_for_XcmApi::XcmApi;
 
 #[test]
 fn remove_keys_weight_is_sensible() {
@@ -185,7 +185,7 @@ fn xcm_runtime_api_weight() {
 	]));
 	assert_eq!(
 		Runtime::weight_message(message),
-		Ok(weights::xcm::KusamaXcmWeight::<RuntimeCall>::clear_origin())
+		Ok(weights::xcm::WestendXcmWeight::<RuntimeCall>::clear_origin().into())
 	);
 }
 
@@ -205,7 +205,7 @@ fn xcm_runtime_location_convert() {
 	);
 	assert_eq!(
 		Runtime::convert_location(local_location.clone().into()),
-		Ok(xcm_builder::AccountId32Aliases::<xcm_config::KusamaNetwork, AccountId>::convert_ref(
+		Ok(xcm_builder::AccountId32Aliases::<xcm_config::WestendNetwork, AccountId>::convert_ref(
 			local_location
 		)
 		.unwrap())
@@ -224,7 +224,7 @@ fn xcm_asset() {
 	ext.execute_with(|| {
 		let result = Runtime::calculate_concrete_asset_fee(
 			asset_location.into(),
-			ExtrinsicBaseWeight::get().ref_time(),
+			ExtrinsicBaseWeight::get().ref_time().into(),
 		);
 		assert_eq!(result, Ok(WeightToFee::weight_to_fee(&ExtrinsicBaseWeight::get())));
 	});

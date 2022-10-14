@@ -12908,6 +12908,7 @@ dependencies = [
 name = "xcm-runtime-api"
 version = "0.9.29"
 dependencies = [
+ "derivative",
  "frame-support",
  "frame-system",
  "log",

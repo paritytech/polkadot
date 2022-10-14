@@ -82,7 +82,7 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
 use xcm::{
-	latest::{Error as XcmError, MultiAsset, MultiLocation, Weight as XcmWeight, Xcm},
+	latest::{Error as XcmError, MultiAsset, MultiLocation, Xcm},
 	VersionedMultiLocation, VersionedXcm,
 };
 use xcm_executor::traits::{WeightBounds, WeightTrader};
@@ -1906,17 +1906,16 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl xcm_runtime_api::PalletXcmApi<
+	impl xcm_runtime_api::XcmApi<
 		Block,
 		AccountId,
 		RuntimeCall,
 	> for Runtime {
 
-		fn weight_message(message: VersionedXcm<RuntimeCall>) -> xcm_runtime_api::XcmResult<XcmWeight> {
+		fn weight_message(message: VersionedXcm<RuntimeCall>) -> xcm_runtime_api::XcmResult< xcm_runtime_api::VersionedWeight> {
 			let mut message: Xcm<RuntimeCall> = message.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
-			<xcm_config::XcmConfig as xcm_executor::Config>::Weigher::weight(& mut message).map_err(|_| XcmError::WeightNotComputable)
+			<xcm_config::XcmConfig as xcm_executor::Config>::Weigher::weight(& mut message).map_err(|_| XcmError::WeightNotComputable).map(|weight| weight.into())
 		}
-
 		fn convert_location(location: VersionedMultiLocation) -> xcm_runtime_api::XcmResult<AccountId> {
 			let location: MultiLocation = location.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
 			<xcm_config::SovereignAccountOf as xcm_executor::traits::Convert<
@@ -1924,8 +1923,10 @@ sp_api::impl_runtime_apis! {
 			>>::convert_ref(location).map_err(|_| XcmError::FailedToTransactAsset("AccountIdConversionFailed"))
 		}
 
-		fn calculate_concrete_asset_fee(asset_location: VersionedMultiLocation, weight: XcmWeight) -> xcm_runtime_api::XcmResult<u128>  {
+		fn calculate_concrete_asset_fee(asset_location: VersionedMultiLocation, weight: xcm_runtime_api::VersionedWeight) -> xcm_runtime_api::XcmResult<u128>  {
 			let asset_location: MultiLocation = asset_location.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
+			let weight: xcm::latest::Weight = weight.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
+
 			// We create a multiasset with max fee
 			let multiasset: MultiAsset = (asset_location, u128::MAX).into();
 			let mut trader = <xcm_config::XcmConfig as xcm_executor::Config>::Trader::new();
