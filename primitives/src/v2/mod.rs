@@ -20,6 +20,7 @@ use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::{ops::Index, prelude::*};
+use std::slice::Iter;
 
 use application_crypto::KeyTypeId;
 use inherents::InherentIdentifier;
@@ -1603,6 +1604,11 @@ impl Validators {
 	pub fn to_vec(&self) -> Vec<ValidatorId> {
 		self.0.clone()
 	}
+
+	/// Returns Iterator of contained vector
+	pub fn iter(&self) -> Iter<'_, ValidatorId> {
+		self.0.iter()
+	}
 }
 
 /// GroupValidators struct indexed by GroupIndex.
@@ -1638,6 +1644,11 @@ impl GroupValidators {
 	/// Returns contained vector
 	pub fn to_vec(&self) -> Vec<Vec<ValidatorIndex>> {
 		self.0.clone()
+	}
+
+	/// Returns Iterator of contained vector
+	pub fn iter(&self) -> Iter<'_, Vec<ValidatorIndex>> {
+		self.0.iter()
 	}
 }
 

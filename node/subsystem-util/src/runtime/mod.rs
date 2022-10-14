@@ -29,7 +29,7 @@ use polkadot_node_subsystem::{messages::RuntimeApiMessage, overseer, SubsystemSe
 use polkadot_primitives::v2::{
 	CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore,
 	ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, Validators,
 };
 
 use crate::{
@@ -207,10 +207,10 @@ impl RuntimeInfo {
 	///
 	/// Returns: `None` if not a parachain validator.
 	async fn get_validator_info(&self, session_info: &SessionInfo) -> Result<ValidatorInfo> {
-		if let Some(our_index) = self.get_our_index(&session_info.validators.to_vec()).await {
+		if let Some(our_index) = self.get_our_index(&session_info.validators).await {
 			// Get our group index:
 			let our_group =
-				session_info.validator_groups.to_vec().iter().enumerate().find_map(|(i, g)| {
+				session_info.validator_groups.iter().enumerate().find_map(|(i, g)| {
 					g.iter().find_map(|v| {
 						if *v == our_index {
 							Some(GroupIndex(i as u32))
@@ -228,7 +228,7 @@ impl RuntimeInfo {
 	/// Get our `ValidatorIndex`.
 	///
 	/// Returns: None if we are not a validator.
-	async fn get_our_index(&self, validators: &[ValidatorId]) -> Option<ValidatorIndex> {
+	async fn get_our_index(&self, validators: &Validators) -> Option<ValidatorIndex> {
 		let keystore = self.keystore.as_ref()?;
 		for (i, v) in validators.iter().enumerate() {
 			if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
