@@ -1076,16 +1076,26 @@ async fn construct_per_relay_parent_state<Context>(
 	let mut assignment = None;
 
 	for (idx, core) in cores.into_iter().enumerate() {
-		// Ignore prospective assignments on occupied cores for the time being.
-		if let CoreState::Scheduled(scheduled) = core {
-			let core_index = CoreIndex(idx as _);
-			let group_index = group_rotation_info.group_for_core(core_index, n_cores);
-			if let Some(g) = validator_groups.get(group_index.0 as usize) {
-				if validator.as_ref().map_or(false, |v| g.contains(&v.index())) {
-					assignment = Some((scheduled.para_id, scheduled.collator));
-				}
-				groups.insert(scheduled.para_id, g.clone());
+		let core_para_id = match core {
+			CoreState::Scheduled(scheduled) => scheduled.para_id,
+			CoreState::Occupied(occupied) =>
+				if mode.is_enabled() {
+					// Async backing makes it legal to build on top of
+					// occupied core.
+					occupied.candidate_descriptor.para_id
+				} else {
+					continue
+				},
+			CoreState::Free => continue,
+		};
+
+		let core_index = CoreIndex(idx as _);
+		let group_index = group_rotation_info.group_for_core(core_index, n_cores);
+		if let Some(g) = validator_groups.get(group_index.0 as usize) {
+			if validator.as_ref().map_or(false, |v| g.contains(&v.index())) {
+				assignment = Some(core_para_id);
 			}
+			groups.insert(core_para_id, g.clone());
 		}
 	}
 
@@ -1096,13 +1106,6 @@ async fn construct_per_relay_parent_state<Context>(
 			ProspectiveParachainsMode::Disabled => false,
 		},
 	};
-
-	// TODO [now]: I've removed the `required_collator` more broadly,
-	// because it's not used in practice and was intended for parathreads.
-	//
-	// We should attempt parathreads another way, I think, so it makes sense
-	// to remove.
-	let assignment = assignment.map(|(a, _required_collator)| a);
 
 	Ok(Some(PerRelayParentState {
 		prospective_parachains_mode: mode,
