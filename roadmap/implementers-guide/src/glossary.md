@@ -27,7 +27,9 @@ exactly one downward message queue.
 - **PDK (Parachain Development Kit):** A toolset that allows one to develop a parachain. Cumulus is a PDK.
 - **Preimage:** In our context, if `H(X) = Y` where `H` is a hash function and `Y` is the hash, then `X` is the hash preimage.
 - **Proof-of-Validity (PoV):** A stateless-client proof that a parachain candidate is valid, with respect to some validation function.
-- **PVF:** Parachain Validation Function. The validation code that is run by validators on parachains or parathreads. See the [PVF glossary][1].
+- **PVF:** Parachain Validation Function. The validation code that is run by validators on parachains or parathreads.
+- **PVF Prechecking:** This is the process of initially checking the PVF when it is first added. We attempt preparation of the PVF and make sure it succeeds within a given timeout.
+- **PVF Preparation:** This is the process of preparing the WASM blob and includes both prevalidation and compilation. As prevalidation is pretty minimal right now, preparation mostly consists of compilation.
 - **Relay Parent:** A block in the relay chain, referred to in a context where work is being done in the context of the state at this block.
 - **Router:** The router module is a meta module that consists of three runtime modules responsible for routing messages between paras and the relay chain. The three separate runtime modules are: Dmp, Ump, Hrmp, each responsible for the respective part of message routing.
 - **Runtime:** The relay-chain state machine.
@@ -40,29 +42,6 @@ exactly one downward message queue.
 - **Validation Function:** A piece of Wasm code that describes the state-transition function of a parachain.
 - **VMP:** (Vertical Message Passing) A family of mechanisms that are responsible for message exchange between the relay chain and parachains.
 - **XCMP:** (Cross-Chain Message Passing) A type of horizontal message passing (i.e. between parachains) that allows secure message passing directly between parachains and has minimal resource requirements from the relay chain, thus highly scalable.
-
-## PVF
-
-The PVF functionality involves several processes which may be potentially
-confusing:
-
-- **Prechecking:** This is the process of initially checking the PVF when it is
-  first added. We attempt *preparation* of the PVF and make sure it succeeds
-  within a given timeout.
-- **Execution:** This actually executes the PVF. The node may not have the
-  artifact from prechecking, in which case this process also includes a
-  *preparation* job. The timeout for preparation here is more lenient than when
-  prechecking.
-- **Preparation:** This is the process of preparing the WASM blob and includes
-  both *prevalidation* and *compilation*. As prevalidation is pretty minimal
-  right now, preparation mostly consists of compilation. Note that *prechecking*
-  just consists of preparation, whereas *execution* will also prepare the PVF if
-  the artifact is not already found.
-- **Prevalidation:** Right now this just tries to deserialize the binary with
-  parity-wasm. It is a part of *preparation*.
-- **Compilation:** This is the process of compiling a PVF from wasm code to
-  a machine code *artifact*. It is a part of *preparation*.
-- **Artifact:** The compiled machine code for the wasm module.
 
 ## See Also
 
