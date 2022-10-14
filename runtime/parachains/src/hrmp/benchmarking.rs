@@ -312,13 +312,10 @@ frame_benchmarking::benchmarks! {
 		let capacity = Configuration::<T>::config().hrmp_channel_max_capacity;
 		let message_size = Configuration::<T>::config().hrmp_channel_max_message_size;
 
-		assert_ok!(Hrmp::<T>::force_open_hrmp_channel(
-			frame_system::Origin::<T>::Root.into(),
-			sender_id,
-			recipient_id,
-			capacity,
-			message_size
-		));
+		// make sure this channel doesn't exist
+		let channel_id = HrmpChannelId { sender: sender_id, recipient: recipient_id };
+		assert!(HrmpOpenChannelRequests::<T>::get(&channel_id).is_none());
+		assert!(HrmpChannels::<T>::get(&channel_id).is_none());
 	}: _(frame_system::Origin::<T>::Root, sender_id, recipient_id, capacity, message_size)
 	verify {
 		assert_last_event::<T>(
