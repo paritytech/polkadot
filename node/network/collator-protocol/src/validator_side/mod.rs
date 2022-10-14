@@ -364,22 +364,10 @@ impl PeerData {
 	}
 }
 
-#[derive(Debug, Copy, Clone)]
-enum AssignedCoreState {
-	Scheduled,
-	Occupied,
-}
-
-impl AssignedCoreState {
-	fn is_occupied(&self) -> bool {
-		matches!(self, AssignedCoreState::Occupied)
-	}
-}
-
 #[derive(Debug, Clone)]
 struct GroupAssignments {
 	/// Current assignment.
-	current: Option<(ParaId, AssignedCoreState)>,
+	current: Option<ParaId>,
 	/// Paras we're implicitly assigned to with respect to ancestry.
 	/// This only includes paras from children relay chain blocks assignments.
 	///
@@ -490,6 +478,7 @@ async fn assign_incoming<Sender>(
 	current_assignments: &mut HashMap<ParaId, usize>,
 	keystore: &SyncCryptoStorePtr,
 	relay_parent: Hash,
+	relay_parent_mode: ProspectiveParachainsMode,
 ) -> Result<()>
 where
 	Sender: CollatorProtocolSenderTrait,
@@ -518,9 +507,9 @@ where
 			let core_now = rotation_info.core_for_group(group, cores.len());
 
 			cores.get(core_now.0 as usize).and_then(|c| match c {
-				CoreState::Occupied(core) => Some((core.para_id(), AssignedCoreState::Occupied)),
-				CoreState::Scheduled(core) => Some((core.para_id, AssignedCoreState::Scheduled)),
-				CoreState::Free => None,
+				CoreState::Occupied(core) if relay_parent_mode.is_enabled() => Some(core.para_id()),
+				CoreState::Scheduled(core) => Some(core.para_id),
+				CoreState::Occupied(_) | CoreState::Free => None,
 			})
 		},
 		None => {
@@ -538,7 +527,7 @@ where
 	//
 	// However, this'll work fine for parachains, as each parachain gets a dedicated
 	// core.
-	if let Some((para_id, _)) = para_now.as_ref() {
+	if let Some(para_id) = para_now.as_ref() {
 		let entry = current_assignments.entry(*para_id).or_default();
 		*entry += 1;
 		if *entry == 1 {
@@ -562,7 +551,7 @@ fn remove_outgoing(
 ) {
 	let GroupAssignments { current, .. } = per_relay_parent.assignment;
 
-	if let Some((cur, _)) = current {
+	if let Some(cur) = current {
 		if let Entry::Occupied(mut occupied) = current_assignments.entry(cur) {
 			*occupied.get_mut() -= 1;
 			if *occupied.get() == 0 {
@@ -944,9 +933,6 @@ enum AdvertisementError {
 	UndeclaredCollator,
 	/// We're assigned to a different para at the given relay parent.
 	InvalidAssignment,
-	/// Collator is trying to build on top of occupied core
-	/// when async backing is disabled.
-	CoreOccupied,
 	/// An advertisement format doesn't match the relay parent.
 	ProtocolMismatch,
 	/// Para reached a limit of seconded candidates for this relay parent.
@@ -962,8 +948,7 @@ impl AdvertisementError {
 		use AdvertisementError::*;
 		match self {
 			InvalidAssignment => Some(COST_WRONG_PARA),
-			RelayParentUnknown | UndeclaredCollator | CoreOccupied | Invalid(_) =>
-				Some(COST_UNEXPECTED_MESSAGE),
+			RelayParentUnknown | UndeclaredCollator | Invalid(_) => Some(COST_UNEXPECTED_MESSAGE),
 			UnknownPeer |
 			ProtocolMismatch |
 			SecondedLimitReached |
@@ -1000,12 +985,8 @@ where
 		peer_data.collating_para().ok_or(AdvertisementError::UndeclaredCollator)?;
 
 	match assignment.current {
-		Some((id, core_state)) if id == collator_para_id => {
-			// Disallow building on top occupied core if async
-			// backing is disabled.
-			if !relay_parent_mode.is_enabled() && core_state.is_occupied() {
-				return Err(AdvertisementError::CoreOccupied)
-			}
+		Some(id) if id == collator_para_id => {
+			// Our assignment.
 		},
 		_ if assignment.implicit.contains(&collator_para_id) => {
 			// This relay parent is a part of implicit ancestry,
@@ -1141,13 +1122,13 @@ where
 			&mut state.current_assignments,
 			keystore,
 			*leaf,
+			mode,
 		)
 		.await?;
 
 		state.active_leaves.insert(*leaf, mode);
 
-		let mut implicit_assignment =
-			Vec::from_iter(per_relay_parent.assignment.current.map(|(para, _)| para));
+		let mut implicit_assignment = Vec::from_iter(per_relay_parent.assignment.current);
 		state.per_relay_parent.insert(*leaf, per_relay_parent);
 
 		if mode.is_enabled() {
@@ -1173,6 +1154,7 @@ where
 							&mut state.current_assignments,
 							keystore,
 							*block_hash,
+							mode,
 						)
 						.await?;
 
@@ -1181,7 +1163,7 @@ where
 					Entry::Occupied(entry) => entry.into_mut(),
 				};
 
-				let current = entry.assignment.current.map(|(para, _)| para);
+				let current = entry.assignment.current;
 				let implicit = &mut entry.assignment.implicit;
 
 				// Extend implicitly assigned parachains.
