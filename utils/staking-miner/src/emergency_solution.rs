@@ -36,17 +36,17 @@ macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
 
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
-			let mut ready_solution = EPM::Pallet::<Runtime>::feasibility_check(raw_solution, EPM::ElectionCompute::Signed)?;
-
+			let ready_solution = EPM::Pallet::<Runtime>::feasibility_check(raw_solution, EPM::ElectionCompute::Signed)?;
+			let mut supports = ready_solution.supports.clone().into_inner();
 			// maybe truncate.
 			if let Some(take) = config.take {
-				log::info!(target: LOG_TARGET, "truncating {} winners to {}", ready_solution.supports.len(), take);
-				ready_solution.supports.sort_unstable_by_key(|(_, s)| s.total);
-				ready_solution.supports.truncate(take);
+				log::info!(target: LOG_TARGET, "truncating {} winners to {}", supports.len(), take);
+				supports.sort_unstable_by_key(|(_, s)| s.total);
+				supports.truncate(take);
 			}
 
 			// write to file and stdout.
-			let encoded_support = ready_solution.supports.encode();
+			let encoded_support = supports.encode();
 			let mut supports_file = std::fs::File::create("solution.supports.bin")?;
 			supports_file.write_all(&encoded_support)?;
 
