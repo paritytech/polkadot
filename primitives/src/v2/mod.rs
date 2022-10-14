@@ -1594,12 +1594,12 @@ impl Validators {
 		self.0.get(index.0 as usize)
 	}
 
-	///Returns number of elements in vector.
+	/// Returns number of elements in vector.
 	pub fn len(&self) -> usize {
 		self.0.len()
 	}
 
-	///Returns contained vector
+	/// Returns contained vector
 	pub fn to_vec(&self) -> Vec<ValidatorId> {
 		self.0.clone()
 	}
@@ -1630,12 +1630,12 @@ impl GroupValidators {
 		self.0.get(index.0 as usize)
 	}
 
-	///Returns number of elements in vector.
+	/// Returns number of elements in vector.
 	pub fn len(&self) -> usize {
 		self.0.len()
 	}
 
-	///Returns contained vector
+	/// Returns contained vector
 	pub fn to_vec(&self) -> Vec<Vec<ValidatorIndex>> {
 		self.0.clone()
 	}
