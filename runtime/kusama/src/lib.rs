@@ -78,6 +78,11 @@ use sp_staking::SessionIndex;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
+use xcm::{
+	latest::{Error as XcmError, MultiAsset, MultiLocation, Weight as XcmWeight, Xcm},
+	VersionedMultiLocation, VersionedXcm,
+};
+use xcm_executor::traits::{WeightBounds, WeightTrader};
 
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
@@ -1906,6 +1911,38 @@ sp_api::impl_runtime_apis! {
 	> for Runtime {
 		fn pending_rewards(member: AccountId) -> Balance {
 			NominationPools::pending_rewards(member).unwrap_or_default()
+		}
+	}
+
+	impl xcm_runtime_api::PalletXcmApi<
+		Block,
+		AccountId,
+		RuntimeCall,
+	> for Runtime {
+
+		fn weight_message(message: VersionedXcm<RuntimeCall>) -> xcm_runtime_api::XcmResult<XcmWeight> {
+			let mut message: Xcm<RuntimeCall> = message.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
+			<xcm_config::XcmConfig as xcm_executor::Config>::Weigher::weight(& mut message).map_err(|_| XcmError::WeightNotComputable)
+		}
+
+		fn convert_location(location: VersionedMultiLocation) -> xcm_runtime_api::XcmResult<AccountId> {
+			let location: MultiLocation = location.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
+			<xcm_config::SovereignAccountOf as xcm_executor::traits::Convert<
+				MultiLocation, AccountId
+			>>::convert_ref(location).map_err(|_| XcmError::FailedToTransactAsset("AccountIdConversionFailed"))
+		}
+
+		fn calculate_concrete_asset_fee(asset_location: VersionedMultiLocation, weight: XcmWeight) -> xcm_runtime_api::XcmResult<u128>  {
+			let asset_location: MultiLocation = asset_location.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
+			// We create a multiasset with max fee
+			let multiasset: MultiAsset = (asset_location, u128::MAX).into();
+			let mut trader = <xcm_config::XcmConfig as xcm_executor::Config>::Trader::new();
+
+			// we assume max weight can be bought
+			// given the types u64 vs u128, it should be feasible
+			let unused = trader.buy_weight(weight, vec![multiasset.clone()].into())?;
+
+			unused.fungible.get(&multiasset.id).map(|&value| u128::MAX.saturating_sub(value)).ok_or(XcmError::NotHoldingFees)
 		}
 	}
 

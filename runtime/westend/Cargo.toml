@@ -70,6 +70,7 @@ pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-nomination-pools-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -93,6 +94,7 @@ runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parac
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
 xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default-features = false }
+xcm-runtime-api = { path = "../../xcm/xcm-runtime-api", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.3.4"
@@ -168,6 +170,7 @@ std = [
 	"sp-runtime/std",
 	"sp-staking/std",
 	"frame-system/std",
+	"xcm-runtime-api/std",
 	"frame-system-rpc-runtime-api/std",
 	"westend-runtime-constants/std",
 	"sp-version/std",

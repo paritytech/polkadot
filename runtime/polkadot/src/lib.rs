@@ -26,15 +26,6 @@ use runtime_common::{
 	prod_or_fast, slots, BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
 };
 
-use runtime_parachains::{
-	configuration as parachains_configuration, disputes as parachains_disputes,
-	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
-	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
-	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
-};
-
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_election_provider_support::{generate_solution_type, onchain, SequentialPhragmen};
@@ -59,6 +50,14 @@ use primitives::v2::{
 	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
 	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
+use runtime_parachains::{
+	configuration as parachains_configuration, disputes as parachains_disputes,
+	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
+	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
+	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
+	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
+	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
+};
 use sp_core::OpaqueMetadata;
 use sp_mmr_primitives as mmr;
 use sp_runtime::{
@@ -78,6 +77,11 @@ use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
+use xcm::{
+	latest::{Error as XcmError, MultiAsset, MultiLocation, Weight as XcmWeight, Xcm},
+	VersionedMultiLocation, VersionedXcm,
+};
+use xcm_executor::traits::{WeightBounds, WeightTrader};
 
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
@@ -1989,6 +1993,38 @@ sp_api::impl_runtime_apis! {
 		}
 		fn query_call_fee_details(call: RuntimeCall, len: u32) -> FeeDetails<Balance> {
 			TransactionPayment::query_call_fee_details(call, len)
+		}
+	}
+
+	impl xcm_runtime_api::PalletXcmApi<
+		Block,
+		AccountId,
+		RuntimeCall,
+	> for Runtime {
+
+		fn weight_message(message: VersionedXcm<RuntimeCall>) -> xcm_runtime_api::XcmResult<XcmWeight> {
+			let mut message: Xcm<RuntimeCall> = message.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
+			<xcm_config::XcmConfig as xcm_executor::Config>::Weigher::weight(& mut message).map_err(|_| XcmError::WeightNotComputable)
+		}
+
+		fn convert_location(location: VersionedMultiLocation) -> xcm_runtime_api::XcmResult<AccountId> {
+			let location: MultiLocation = location.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
+			<xcm_config::SovereignAccountOf as xcm_executor::traits::Convert<
+				MultiLocation, AccountId
+			>>::convert_ref(location).map_err(|_| XcmError::FailedToTransactAsset("AccountIdConversionFailed"))
+		}
+
+		fn calculate_concrete_asset_fee(asset_location: VersionedMultiLocation, weight: XcmWeight) -> xcm_runtime_api::XcmResult<u128>  {
+			let asset_location: MultiLocation = asset_location.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
+			// We create a multiasset with max fee
+			let multiasset: MultiAsset = (asset_location, u128::MAX).into();
+			let mut trader = <xcm_config::XcmConfig as xcm_executor::Config>::Trader::new();
+
+			// we assume max weight can be bought
+			// given the types u64 vs u128, it should be feasible
+			let unused = trader.buy_weight(weight, vec![multiasset.clone()].into())?;
+
+			unused.fungible.get(&multiasset.id).map(|&value| u128::MAX.saturating_sub(value)).ok_or(XcmError::NotHoldingFees)
 		}
 	}
 
