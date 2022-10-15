@@ -439,7 +439,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let availability_bitvec = Self::availability_bitvec(concluding_cores, total_cores);
 
 		let bitfields: Vec<UncheckedSigned<AvailabilityBitfield>> = validators
-			.to_vec()
 			.iter()
 			.enumerate()
 			.map(|(i, public)| {
