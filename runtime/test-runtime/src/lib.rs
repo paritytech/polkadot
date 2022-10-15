@@ -28,7 +28,8 @@ use polkadot_runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
-	paras_inherent as parachains_paras_inherent, runtime_api_impl::v2 as runtime_impl,
+	paras_inherent as parachains_paras_inherent,
+	runtime_api_impl::{v2 as runtime_impl, vstaging as runtime_impl_staging},
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared, ump as parachains_ump,
 };
@@ -44,12 +45,15 @@ use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
-use primitives::v2::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
-	ScrapedOnChainVotes, SessionInfo as SessionInfoData, Signature, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+use primitives::{
+	v2::{
+		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+		CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, InboundDownwardMessage,
+		InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
+		ScrapedOnChainVotes, SessionInfo as SessionInfoData, Signature, ValidationCode,
+		ValidationCodeHash, ValidatorId, ValidatorIndex,
+	},
+	vstaging::ExecutorParams,
 };
 use runtime_common::{
 	claims, impl_runtime_weights, paras_sudo_wrapper, BlockHashCount, BlockLength,
@@ -868,6 +872,10 @@ sp_api::impl_runtime_apis! {
 
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
 			runtime_impl::candidate_events::<Runtime, _>(|trait_event| trait_event.try_into().ok())
+		}
+
+		fn session_ee_params_by_parent_hash(parent_hash: Hash) -> Option<ExecutorParams> {
+			runtime_impl_staging::session_ee_params_by_parent_hash::<Runtime>(parent_hash)
 		}
 
 		fn session_info(index: SessionIndex) -> Option<SessionInfoData> {
