@@ -17,13 +17,14 @@
 //! Utilities for handling distribution of backed candidates along
 //! the grid.
 
-use polkadot_primitives::vstaging::{AuthorityDiscoveryId, GroupIndex, ValidatorIndex};
-use polkadot_node_network_protocol::{
-	PeerId,
-	grid_topology::SessionGridTopology,
+use polkadot_node_network_protocol::{grid_topology::SessionGridTopology, PeerId};
+use polkadot_primitives::vstaging::{
+	AuthorityDiscoveryId, CandidateHash, GroupIndex, Hash, ValidatorIndex,
 };
 
 use std::collections::{HashMap, HashSet};
+
+use bitvec::vec::BitVec;
 
 use super::LOG_TARGET;
 
@@ -58,28 +59,19 @@ fn build_session_topology(
 	topology: &SessionGridTopology,
 	our_index: ValidatorIndex,
 ) -> SessionTopologyView {
-	let mut view = SessionTopologyView {
-		group_views: HashMap::new(),
-	};
+	let mut view = SessionTopologyView { group_views: HashMap::new() };
 
 	let our_neighbors = match topology.compute_grid_neighbors_for(our_index) {
 		None => {
-			gum::warn!(
-				target: LOG_TARGET,
-				?our_index,
-				"our index unrecognized in topology?"
-			);
+			gum::warn!(target: LOG_TARGET, ?our_index, "our index unrecognized in topology?");
 
-			return view;
+			return view
 		},
 		Some(n) => n,
 	};
 
 	for (i, group) in groups.into_iter().enumerate() {
-		let mut sub_view = GroupSubView {
-			sending: HashSet::new(),
-			receiving: HashSet::new(),
-		};
+		let mut sub_view = GroupSubView { sending: HashSet::new(), receiving: HashSet::new() };
 
 		if group.contains(&our_index) {
 			sub_view.sending.extend(our_neighbors.validator_indices_x.iter().cloned());
@@ -114,8 +106,8 @@ fn build_session_topology(
 							"validator index unrecognized in topology?"
 						);
 
-						continue;
-					}
+						continue
+					},
 					Some(n) => n,
 				};
 
@@ -123,7 +115,7 @@ fn build_session_topology(
 				for potential_link in &their_neighbors.validator_indices_x {
 					if our_neighbors.validator_indices_y.contains(potential_link) {
 						sub_view.receiving.insert(*potential_link);
-						break; // one max
+						break // one max
 					}
 				}
 
@@ -131,7 +123,7 @@ fn build_session_topology(
 				for potential_link in &their_neighbors.validator_indices_y {
 					if our_neighbors.validator_indices_x.contains(potential_link) {
 						sub_view.receiving.insert(*potential_link);
-						break; // one max
+						break // one max
 					}
 				}
 			}
@@ -146,15 +138,25 @@ fn build_session_topology(
 /// A tracker of knowledge from authorities within the grid for a
 /// specific relay-parent.
 struct PerRelayParentGridTracker {
-	by_authority: HashMap<(AuthorityDiscoveryId, GroupIndex), Knowledge>,
+	by_validator: HashMap<(ValidatorIndex, GroupIndex), Knowledge>,
+}
+
+struct ManifestSummary {
+	claimed_parent_hash: Hash,
+	seconded_in_group: BitVec<u8, bitvec::order::Lsb0>,
+	validated_in_group: BitVec<u8, bitvec::order::Lsb0>,
 }
 
 struct Knowledge {
-	// TODO [now]
-	// keep track of all the seconded statements they either have _claimed_ or
-	// have sent us.
-	//
-	// we need to do some spam protection here. similar to cluster - we will need
-	// to begrudgingly accept some overflow but we will need to ignore manifests
-	// which don't contain a `Seconded` statement from a validator under the limit.
+	manifests: HashMap<CandidateHash, ManifestSummary>,
+	seconded_counts: Vec<usize>,
+}
+
+impl Knowledge {}
+
+#[cfg(tests)]
+mod tests {
+	use super::*;
+
+	// TODO [now]: test that grid topology views are set up correctly.
 }
