@@ -16,11 +16,13 @@
 
 //! `V1` Primitives.
 
+use sp_std::slice::IterMut;
+use sp_std::vec::IntoIter;
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::{ops::Index, prelude::*};
-use std::slice::Iter;
+use sp_std::slice::Iter;
 
 use application_crypto::KeyTypeId;
 use inherents::InherentIdentifier;
@@ -1589,6 +1591,17 @@ impl From<Vec<ValidatorId>> for Validators {
 	}
 }
 
+impl FromIterator<ValidatorId> for Validators{
+	fn from_iter<T: IntoIterator<Item=ValidatorId>>(iter: T) -> Self {
+		let mut validators = Vec::new();
+
+		for i in iter{
+			validators.push(i);
+		}
+		Validators(validators)
+	}
+}
+
 impl Validators {
 	/// Returns a reference to an element indexed using ValidatorIndex.
 	pub fn get(&self, index: ValidatorIndex) -> Option<&ValidatorId> {
@@ -1600,14 +1613,24 @@ impl Validators {
 		self.0.len()
 	}
 
-	/// Returns contained vector
+	/// Returns contained vector.
 	pub fn to_vec(&self) -> Vec<ValidatorId> {
 		self.0.clone()
 	}
 
-	/// Returns Iterator of contained vector
+	/// Returns Iterator of contained vector.
 	pub fn iter(&self) -> Iter<'_, ValidatorId> {
 		self.0.iter()
+	}
+
+	/// Returns a mutable Iterator.
+	pub fn iter_mut(&mut self) -> IterMut<'_, ValidatorId> {
+		self.0.iter_mut()
+	}
+
+	/// Returns an Iterator with ownership.
+	pub fn into_iter(self) -> IntoIter<ValidatorId> {
+		self.0.into_iter()
 	}
 }
 
@@ -1630,6 +1653,17 @@ impl From<Vec<Vec<ValidatorIndex>>> for GroupValidators {
 	}
 }
 
+impl FromIterator<Vec<ValidatorIndex>> for GroupValidators{
+	fn from_iter<T: IntoIterator<Item=Vec<ValidatorIndex>>>(iter: T) -> Self {
+		let mut validator_groups = Vec::new();
+
+		for i in iter{
+			validator_groups.push(i);
+		}
+		GroupValidators(validator_groups)
+	}
+}
+
 impl GroupValidators {
 	/// Returns a reference to an element indexed using GroupIndex.
 	pub fn get(&self, index: GroupIndex) -> Option<&Vec<ValidatorIndex>> {
@@ -1641,14 +1675,24 @@ impl GroupValidators {
 		self.0.len()
 	}
 
-	/// Returns contained vector
+	/// Returns contained vector.
 	pub fn to_vec(&self) -> Vec<Vec<ValidatorIndex>> {
 		self.0.clone()
 	}
 
-	/// Returns Iterator of contained vector
+	/// Returns Iterator of contained vector.
 	pub fn iter(&self) -> Iter<'_, Vec<ValidatorIndex>> {
 		self.0.iter()
+	}
+
+	/// Returns a mutable Iterator.
+	pub fn iter_mut(&mut self) -> IterMut<'_, Vec<ValidatorIndex>> {
+		self.0.iter_mut()
+	}
+
+	/// Returns an Iterator with ownership.
+	pub fn into_iter(self) -> IntoIter<Vec<ValidatorIndex>> {
+		self.0.into_iter()
 	}
 }
 
