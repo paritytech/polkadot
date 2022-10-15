@@ -366,7 +366,11 @@ impl ValidationBackend for MockValidateCandidateBackend {
 		self.result.clone()
 	}
 
-	async fn precheck_pvf(&mut self, _pvf: Pvf) -> Result<(), PrepareError> {
+	async fn precheck_pvf(
+		&mut self,
+		_pvf: Pvf,
+		ee_params: ExecutorParams,
+	) -> Result<(), PrepareError> {
 		unreachable!()
 	}
 }
@@ -796,7 +800,11 @@ impl ValidationBackend for MockPreCheckBackend {
 		unreachable!()
 	}
 
-	async fn precheck_pvf(&mut self, _pvf: Pvf) -> Result<(), PrepareError> {
+	async fn precheck_pvf(
+		&mut self,
+		_pvf: Pvf,
+		ee_params: ExecutorParams,
+	) -> Result<(), PrepareError> {
 		self.result.clone()
 	}
 }
@@ -816,6 +824,7 @@ fn precheck_works() {
 		MockPreCheckBackend::with_hardcoded_result(Ok(())),
 		relay_parent,
 		validation_code_hash,
+		ExecutorParams::default(),
 	)
 	.remote_handle();
 
@@ -862,6 +871,7 @@ fn precheck_invalid_pvf_blob_compression() {
 		MockPreCheckBackend::with_hardcoded_result(Ok(())),
 		relay_parent,
 		validation_code_hash,
+		ExecutorParams::default(),
 	)
 	.remote_handle();
 
@@ -904,6 +914,7 @@ fn precheck_properly_classifies_outcomes() {
 			MockPreCheckBackend::with_hardcoded_result(prepare_result),
 			relay_parent,
 			validation_code_hash,
+			ExecutorParams::default(),
 		)
 		.remote_handle();
 

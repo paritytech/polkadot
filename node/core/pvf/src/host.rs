@@ -74,10 +74,11 @@ impl ValidationHost {
 	pub async fn precheck_pvf(
 		&mut self,
 		pvf: Pvf,
+		ee_params: ExecutorParams,
 		result_tx: PrepareResultSender,
 	) -> Result<(), String> {
 		self.to_host_tx
-			.send(ToHost::PrecheckPvf { pvf, result_tx })
+			.send(ToHost::PrecheckPvf { pvf, result_tx, ee_params })
 			.await
 			.map_err(|_| "the inner loop hung up".to_string())
 	}
@@ -117,7 +118,10 @@ impl ValidationHost {
 	/// situations this function should return immediately.
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
-	pub async fn heads_up(&mut self, active_pvfs: Vec<Pvf>) -> Result<(), String> {
+	pub async fn heads_up(
+		&mut self,
+		active_pvfs: Vec<(Pvf, ExecutorParams)>,
+	) -> Result<(), String> {
 		self.to_host_tx
 			.send(ToHost::HeadsUp { active_pvfs })
 			.await
@@ -128,6 +132,7 @@ impl ValidationHost {
 enum ToHost {
 	PrecheckPvf {
 		pvf: Pvf,
+		ee_params: ExecutorParams,
 		result_tx: PrepareResultSender,
 	},
 	ExecutePvf {
@@ -139,7 +144,7 @@ enum ToHost {
 		result_tx: ResultSender,
 	},
 	HeadsUp {
-		active_pvfs: Vec<Pvf>,
+		active_pvfs: Vec<(Pvf, ExecutorParams)>,
 	},
 }
 
@@ -417,8 +422,8 @@ async fn handle_to_host(
 	to_host: ToHost,
 ) -> Result<(), Fatal> {
 	match to_host {
-		ToHost::PrecheckPvf { pvf, result_tx } => {
-			handle_precheck_pvf(artifacts, prepare_queue, pvf, result_tx).await?;
+		ToHost::PrecheckPvf { pvf, result_tx, ee_params } => {
+			handle_precheck_pvf(artifacts, prepare_queue, pvf, ee_params, result_tx).await?;
 		},
 		ToHost::ExecutePvf { pvf, execution_timeout, params, ee_params, priority, result_tx } => {
 			handle_execute_pvf(
@@ -452,6 +457,7 @@ async fn handle_precheck_pvf(
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
 	pvf: Pvf,
+	ee_params: ExecutorParams,
 	result_sender: PrepareResultSender,
 ) -> Result<(), Fatal> {
 	let artifact_id = pvf.as_artifact_id();
@@ -475,6 +481,7 @@ async fn handle_precheck_pvf(
 			prepare::ToQueue::Enqueue {
 				priority: Priority::Normal,
 				pvf,
+				ee_params,
 				preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
 			},
 		)
@@ -537,6 +544,7 @@ async fn handle_execute_pvf(
 			prepare::ToQueue::Enqueue {
 				priority,
 				pvf,
+				ee_params: ee_params.clone(),
 				preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
 			},
 		)
@@ -551,12 +559,12 @@ async fn handle_execute_pvf(
 async fn handle_heads_up(
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
-	active_pvfs: Vec<Pvf>,
+	active_pvfs: Vec<(Pvf, ExecutorParams)>,
 ) -> Result<(), Fatal> {
 	let now = SystemTime::now();
 
 	for active_pvf in active_pvfs {
-		let artifact_id = active_pvf.as_artifact_id();
+		let artifact_id = active_pvf.0.as_artifact_id();
 		if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 			match state {
 				ArtifactState::Prepared { last_time_needed, .. } => {
@@ -575,7 +583,8 @@ async fn handle_heads_up(
 				prepare_queue,
 				prepare::ToQueue::Enqueue {
 					priority: Priority::Normal,
-					pvf: active_pvf,
+					pvf: active_pvf.0,
+					ee_params: active_pvf.1,
 					preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
 				},
 			)
@@ -941,7 +950,9 @@ mod tests {
 		let mut test = builder.build();
 		let mut host = test.host_handle();
 
-		host.heads_up(vec![Pvf::from_discriminator(1)]).await.unwrap();
+		host.heads_up(vec![(Pvf::from_discriminator(1), ExecutorParams::default())])
+			.await
+			.unwrap();
 
 		let to_sweeper_rx = &mut test.to_sweeper_rx;
 		run_until(
@@ -955,7 +966,9 @@ mod tests {
 
 		// Extend TTL for the first artifact and make sure we don't receive another file removal
 		// request.
-		host.heads_up(vec![Pvf::from_discriminator(1)]).await.unwrap();
+		host.heads_up(vec![(Pvf::from_discriminator(1), ExecutorParams::default())])
+			.await
+			.unwrap();
 		test.poll_ensure_to_sweeper_is_empty().await;
 	}
 
@@ -1063,7 +1076,9 @@ mod tests {
 
 		// First, test a simple precheck request.
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(1), result_tx).await.unwrap();
+		host.precheck_pvf(Pvf::from_discriminator(1), ExecutorParams::default(), result_tx)
+			.await
+			.unwrap();
 
 		// The queue received the prepare request.
 		assert_matches!(
@@ -1084,7 +1099,9 @@ mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(Pvf::from_discriminator(2), result_tx).await.unwrap();
+			host.precheck_pvf(Pvf::from_discriminator(2), ExecutorParams::default(), result_tx)
+				.await
+				.unwrap();
 			precheck_receivers.push(result_rx);
 		}
 		// Received prepare request.
@@ -1135,7 +1152,9 @@ mod tests {
 		);
 
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(1), result_tx).await.unwrap();
+		host.precheck_pvf(Pvf::from_discriminator(1), ExecutorParams::default(), result_tx)
+			.await
+			.unwrap();
 
 		// Suppose the preparation failed, the execution queue is empty and both
 		// "clients" receive their results.
@@ -1157,7 +1176,9 @@ mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(Pvf::from_discriminator(2), result_tx).await.unwrap();
+			host.precheck_pvf(Pvf::from_discriminator(2), ExecutorParams::default(), result_tx)
+				.await
+				.unwrap();
 			precheck_receivers.push(result_rx);
 		}
 

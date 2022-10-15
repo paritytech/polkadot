@@ -171,6 +171,7 @@ pub enum CandidateValidationMessage {
 		// Relay-parent
 		Hash,
 		ValidationCodeHash,
+		ExecutorParams,
 		oneshot::Sender<PreCheckOutcome>,
 	),
 }
@@ -181,7 +182,7 @@ impl CandidateValidationMessage {
 		match self {
 			Self::ValidateFromChainState(_, _, _, _, _) => None,
 			Self::ValidateFromExhaustive(_, _, _, _, _, _, _) => None,
-			Self::PreCheck(relay_parent, _, _) => Some(*relay_parent),
+			Self::PreCheck(relay_parent, _, _, _) => Some(*relay_parent),
 		}
 	}
 }

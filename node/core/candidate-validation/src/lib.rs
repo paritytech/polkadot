@@ -201,6 +201,7 @@ async fn run<Context>(
 				CandidateValidationMessage::PreCheck(
 					relay_parent,
 					validation_code_hash,
+					ee_params,
 					response_sender,
 				) => {
 					let bg = {
@@ -213,6 +214,7 @@ async fn run<Context>(
 								validation_host,
 								relay_parent,
 								validation_code_hash,
+								ee_params,
 							)
 							.await;
 
@@ -286,6 +288,7 @@ async fn precheck_pvf<Sender>(
 	mut validation_backend: impl ValidationBackend,
 	relay_parent: Hash,
 	validation_code_hash: ValidationCodeHash,
+	ee_params: ExecutorParams,
 ) -> PreCheckOutcome
 where
 	Sender: SubsystemSender<RuntimeApiMessage>,
@@ -319,7 +322,7 @@ where
 		},
 	};
 
-	match validation_backend.precheck_pvf(validation_code).await {
+	match validation_backend.precheck_pvf(validation_code, ee_params).await {
 		Ok(_) => PreCheckOutcome::Valid,
 		Err(prepare_err) => match prepare_err {
 			PrepareError::Prevalidation(_) |
@@ -621,7 +624,11 @@ trait ValidationBackend {
 		ee_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError>;
 
-	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError>;
+	async fn precheck_pvf(
+		&mut self,
+		pvf: Pvf,
+		ee_params: ExecutorParams,
+	) -> Result<(), PrepareError>;
 }
 
 #[async_trait]
@@ -658,9 +665,13 @@ impl ValidationBackend for ValidationHost {
 		validation_result
 	}
 
-	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError> {
+	async fn precheck_pvf(
+		&mut self,
+		pvf: Pvf,
+		ee_params: ExecutorParams,
+	) -> Result<(), PrepareError> {
 		let (tx, rx) = oneshot::channel();
-		if let Err(_) = self.precheck_pvf(pvf, tx).await {
+		if let Err(_) = self.precheck_pvf(pvf, ee_params, tx).await {
 			return Err(PrepareError::DidNotMakeIt)
 		}
 

@@ -25,6 +25,7 @@ use std::{
 	collections::{HashMap, VecDeque},
 	time::Duration,
 };
+use polkadot_primitives::vstaging::ExecutorParams;
 
 /// A request to pool.
 #[derive(Debug)]
@@ -33,7 +34,7 @@ pub enum ToQueue {
 	///
 	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
 	/// [`FromQueue`] response.
-	Enqueue { priority: Priority, pvf: Pvf, preparation_timeout: Duration },
+	Enqueue { priority: Priority, pvf: Pvf, ee_params: ExecutorParams, preparation_timeout: Duration },
 }
 
 /// A response from queue.
@@ -79,6 +80,7 @@ struct JobData {
 	/// The priority of this job. Can be bumped.
 	priority: Priority,
 	pvf: Pvf,
+	ee_params: ExecutorParams,
 	/// The timeout for the preparation job.
 	preparation_timeout: Duration,
 	worker: Option<Worker>,
@@ -208,8 +210,8 @@ impl Queue {
 
 async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fatal> {
 	match to_queue {
-		ToQueue::Enqueue { priority, pvf, preparation_timeout } => {
-			handle_enqueue(queue, priority, pvf, preparation_timeout).await?;
+		ToQueue::Enqueue { priority, pvf, ee_params, preparation_timeout } => {
+			handle_enqueue(queue, priority, pvf, ee_params, preparation_timeout).await?;
 		},
 	}
 	Ok(())
@@ -219,6 +221,7 @@ async fn handle_enqueue(
 	queue: &mut Queue,
 	priority: Priority,
 	pvf: Pvf,
+	ee_params: ExecutorParams,
 	preparation_timeout: Duration,
 ) -> Result<(), Fatal> {
 	gum::debug!(
@@ -247,7 +250,7 @@ async fn handle_enqueue(
 		return Ok(())
 	}
 
-	let job = queue.jobs.insert(JobData { priority, pvf, preparation_timeout, worker: None });
+	let job = queue.jobs.insert(JobData { priority, pvf, ee_params, preparation_timeout, worker: None });
 	queue.artifact_id_to_job.insert(artifact_id, job);
 
 	if let Some(available) = find_idle_worker(queue) {
@@ -439,6 +442,7 @@ async fn assign(queue: &mut Queue, worker: Worker, job: Job) -> Result<(), Fatal
 			worker,
 			code: job_data.pvf.code.clone(),
 			artifact_path,
+			ee_params: job_data.ee_params.clone(),
 			preparation_timeout: job_data.preparation_timeout,
 		},
 	)
@@ -612,6 +616,7 @@ mod tests {
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(1),
+			ee_params: ExecutorParams::default(),
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -628,10 +633,24 @@ mod tests {
 		let mut test = Test::new(2, 3);
 		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
 
-		let priority = Priority::Normal;
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(1), preparation_timeout });
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(2), preparation_timeout });
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(3), preparation_timeout });
+		test.send_queue(ToQueue::Enqueue {
+			priority: Priority::Normal,
+			pvf: pvf(1),
+			ee_params: ExecutorParams::default(),
+			preparation_timeout,
+		});
+		test.send_queue(ToQueue::Enqueue {
+			priority: Priority::Normal,
+			pvf: pvf(2),
+			ee_params: ExecutorParams::default(),
+			preparation_timeout,
+		});
+		test.send_queue(ToQueue::Enqueue {
+			priority: Priority::Normal,
+			pvf: pvf(3),
+			ee_params: ExecutorParams::default(),
+			preparation_timeout,
+		});
 
 		// Receive only two spawns.
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -655,6 +674,7 @@ mod tests {
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Critical,
 			pvf: pvf(4),
+			ee_params: ExecutorParams::default(),
 			preparation_timeout,
 		});
 
@@ -671,6 +691,7 @@ mod tests {
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(1),
+			ee_params: ExecutorParams::default(),
 			preparation_timeout,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -682,6 +703,7 @@ mod tests {
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Critical,
 			pvf: pvf(2),
+			ee_params: ExecutorParams::default(),
 			preparation_timeout,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -701,10 +723,24 @@ mod tests {
 	async fn worker_mass_die_out_doesnt_stall_queue() {
 		let mut test = Test::new(2, 2);
 
-		let (priority, preparation_timeout) = (Priority::Normal, PRECHECK_PREPARATION_TIMEOUT);
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(1), preparation_timeout });
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(2), preparation_timeout });
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(3), preparation_timeout });
+		test.send_queue(ToQueue::Enqueue {
+			priority: Priority::Normal,
+			pvf: pvf(1),
+			ee_params: ExecutorParams::default(),
+			preparation_timeout,
+		});
+		test.send_queue(ToQueue::Enqueue {
+			priority: Priority::Normal,
+			pvf: pvf(2),
+			ee_params: ExecutorParams::default(),
+			preparation_timeout,
+		});
+		test.send_queue(ToQueue::Enqueue {
+			priority: Priority::Normal,
+			pvf: pvf(3),
+			ee_params: ExecutorParams::default(),
+			preparation_timeout,
+		});
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -734,6 +770,7 @@ mod tests {
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(1),
+			ee_params: ExecutorParams::default(),
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
 		});
 
@@ -759,6 +796,7 @@ mod tests {
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(1),
+			ee_params: ExecutorParams::default(),
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
 		});
 

@@ -60,7 +60,7 @@ pub const INST_LEGACY: u8 = 0b101;
 
 /// Deterministically serialized execution environment semantics
 /// to include into `SessionInfo`
-#[derive(Clone, Debug, Encode, Decode, PartialEq, MallocSizeOf, TypeInfo)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, MallocSizeOf, TypeInfo)]
 pub struct ExecutorParams(Vec<(u8, u64)>);
 
 impl ExecutorParams {

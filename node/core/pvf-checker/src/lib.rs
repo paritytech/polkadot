@@ -20,6 +20,7 @@
 //! as well as submitting statements regarding them passing or not the PVF pre-checking.
 
 use futures::{channel::oneshot, future::BoxFuture, prelude::*, stream::FuturesUnordered};
+use polkadot_node_subsystem::messages::RuntimeApiRequest;
 
 use polkadot_node_subsystem::{
 	messages::{CandidateValidationMessage, PreCheckOutcome, PvfCheckerMessage, RuntimeApiMessage},
@@ -536,9 +537,30 @@ async fn initiate_precheck(
 ) {
 	gum::debug!(target: LOG_TARGET, ?validation_code_hash, ?relay_parent, "initiating a precheck",);
 
+	let (ee_params_tx, ee_params_rx) = oneshot::channel();
+	sender
+		.send_message(RuntimeApiMessage::Request(
+			relay_parent,
+			RuntimeApiRequest::SessionEeParamsByParentHash(relay_parent, ee_params_tx),
+		))
+		.await;
+
+	// FIXME: Error checking?
+	let ee_params = match ee_params_rx.await {
+		Err(_) => return,
+		Ok(Err(_)) => return,
+		Ok(Ok(Some(eep))) => eep,
+		Ok(Ok(None)) => return,
+	};
+
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send_message(CandidateValidationMessage::PreCheck(relay_parent, validation_code_hash, tx))
+		.send_message(CandidateValidationMessage::PreCheck(
+			relay_parent,
+			validation_code_hash,
+			ee_params,
+			tx,
+		))
 		.await;
 
 	let timer = metrics.time_pre_check_judgement();
