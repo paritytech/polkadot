@@ -50,6 +50,7 @@ use crate::{
 };
 use candidate_entry::CandidateEntry;
 use cluster::{Accept as ClusterAccept, ClusterTracker, RejectIncoming as ClusterRejectIncoming};
+use groups::Groups;
 use requests::RequestManager;
 use statement_store::StatementStore;
 
@@ -104,13 +105,18 @@ struct LocalValidatorState {
 	cluster_tracker: ClusterTracker,
 }
 
+struct PerSessionState {
+	session_info: SessionInfo,
+	groups: Groups,
+}
+
 pub(crate) struct State {
 	/// The utility for managing the implicit and explicit views in a consistent way.
 	///
 	/// We only feed leaves which have prospective parachains enabled to this view.
 	implicit_view: ImplicitView,
 	per_relay_parent: HashMap<Hash, PerRelayParentState>,
-	per_session: HashMap<SessionIndex, SessionInfo>,
+	per_session: HashMap<SessionIndex, PerSessionState>,
 	peers: HashMap<PeerId, PeerState>,
 	keystore: SyncCryptoStorePtr,
 	topology_storage: SessionGridTopologies,
@@ -282,18 +288,27 @@ pub(crate) async fn handle_activated_leaf<Context>(
 				Some(s) => s,
 			};
 
-			state.per_session.insert(session_index, session_info);
+			let groups = Groups::new(
+				session_info.validator_groups.clone(),
+				&session_info.discovery_keys,
+			);
+
+			state.per_session.insert(session_index, PerSessionState {
+				session_info,
+				groups,
+			});
 		}
 
-		let session_info = state
+		let per_session = state
 			.per_session
 			.get(&session_index)
 			.expect("either existed or just inserted; qed");
+		let session_info = &per_session.session_info;
 
 		let local_validator = find_local_validator_state(
 			&session_info.validators,
 			&state.keystore,
-			&session_info.validator_groups,
+			&per_session.groups,
 			&availability_cores,
 		)
 		.await;
@@ -321,17 +336,13 @@ pub(crate) async fn handle_activated_leaf<Context>(
 async fn find_local_validator_state(
 	validators: &[ValidatorId],
 	keystore: &SyncCryptoStorePtr,
-	groups: &[Vec<ValidatorIndex>],
+	groups: &Groups,
 	availability_cores: &[CoreState],
 ) -> Option<LocalValidatorState> {
-	if groups.is_empty() {
-		return None
-	}
-
 	let (validator_id, validator_index) =
 		polkadot_node_subsystem_util::signing_key_and_index(validators, keystore).await?;
 
-	let our_group = polkadot_node_subsystem_util::find_validator_group(groups, validator_index)?;
+	let our_group = groups.by_validator_index(validator_index)?;
 
 	// note: this won't work well for parathreads because it only works
 	// when core assignments to paras are static throughout the session.
@@ -339,7 +350,7 @@ async fn find_local_validator_state(
 	let para_for_group =
 		|g: GroupIndex| availability_cores.get(g.0 as usize).and_then(|c| c.para_id());
 
-	let group_validators = groups[our_group.0 as usize].clone();
+	let group_validators = groups.get(our_group)?.to_owned();
 	Some(LocalValidatorState {
 		index: validator_index,
 		group: our_group,
@@ -503,10 +514,11 @@ async fn send_statement_direct<Context>(
 		None => return,
 	};
 
-	let session_info = match state.per_session.get(&per_relay_parent.session) {
+	let per_session = match state.per_session.get(&per_relay_parent.session) {
 		Some(s) => s,
 		None => return,
 	};
+	let session_info = &per_session.session_info;
 
 	let candidate_hash = statement.payload().candidate_hash().clone();
 
@@ -530,7 +542,7 @@ async fn send_statement_direct<Context>(
 			None => return, // sanity: should be impossible to reach this.
 		};
 
-		let current_group = local_validator
+		let cluster_targets = local_validator
 			.cluster_tracker
 			.targets()
 			.iter()
@@ -539,7 +551,7 @@ async fn send_statement_direct<Context>(
 
 		// TODO [now]: extend with grid targets, dedup
 
-		let targets = current_group
+		let targets = cluster_targets
 			.filter_map(|(v, k)| {
 				session_info.discovery_keys.get(v.0 as usize).map(|a| (v, a.clone(), k))
 			})
@@ -717,7 +729,7 @@ async fn handle_incoming_statement<Context>(
 		Some(p) => p,
 	};
 
-	let session_info = match state.per_session.get(&per_relay_parent.session) {
+	let per_session = match state.per_session.get(&per_relay_parent.session) {
 		None => {
 			gum::warn!(
 				target: LOG_TARGET,
@@ -729,6 +741,7 @@ async fn handle_incoming_statement<Context>(
 		},
 		Some(s) => s,
 	};
+	let session_info = &per_session.session_info;
 
 	let local_validator = match per_relay_parent.local_validator.as_mut() {
 		None => {
