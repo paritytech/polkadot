@@ -22,9 +22,9 @@ use polkadot_primitives::vstaging::{
 	AuthorityDiscoveryId, CandidateHash, GroupIndex, Hash, ValidatorIndex,
 };
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 
-use bitvec::vec::BitVec;
+use bitvec::{vec::BitVec, order::Lsb0, slice::BitSlice};
 
 use super::LOG_TARGET;
 
@@ -97,7 +97,7 @@ fn build_session_topology(
 				}
 
 				// If they don't share a slice with us, we don't send to anybody
-				// but receive from any peers sharing a dimension with both of us.
+				// but receive from any peers sharing a dimension with both of us
 				let their_neighbors = match topology.compute_grid_neighbors_for(group_val) {
 					None => {
 						gum::warn!(
@@ -138,25 +138,162 @@ fn build_session_topology(
 /// A tracker of knowledge from authorities within the grid for a
 /// specific relay-parent.
 struct PerRelayParentGridTracker {
-	by_validator: HashMap<(ValidatorIndex, GroupIndex), Knowledge>,
+	by_validator: HashMap<ValidatorIndex, CounterPartyManifestKnowledge>,
 }
 
 struct ManifestSummary {
 	claimed_parent_hash: Hash,
-	seconded_in_group: BitVec<u8, bitvec::order::Lsb0>,
-	validated_in_group: BitVec<u8, bitvec::order::Lsb0>,
+	claimed_group_index: GroupIndex,
+	seconded_in_group: BitVec<u8, Lsb0>,
+	validated_in_group: BitVec<u8, Lsb0>,
 }
 
-struct Knowledge {
-	manifests: HashMap<CandidateHash, ManifestSummary>,
-	seconded_counts: Vec<usize>,
+#[derive(Debug, Clone)]
+enum ManifestImportError {
+	// The manifest conflicts with another, previously sent manifest.
+	Conflicting,
+	// The manifest has overflowed beyond the limits of what the
+	// counterparty was allowed to send us.
+	Overflow,
 }
 
-impl Knowledge {}
+/// The knowledge we are awawre of counterparties having of manifests.
+#[derive(Default)]
+struct CounterPartyManifestKnowledge {
+	received: HashMap<CandidateHash, ManifestSummary>,
+	seconded_counts: HashMap<GroupIndex, Vec<usize>>,
+}
+
+impl CounterPartyManifestKnowledge {
+	fn new(group_size: usize) -> Self {
+		CounterPartyManifestKnowledge {
+			received: HashMap::new(),
+			seconded_counts: HashMap::new(),
+		}
+	}
+
+	/// Attempt to import a received manifest from a counterparty.
+	///
+	/// This will reject manifests which are either duplicate, conflicting,
+	/// or imply an irrational amount of `Seconded` statements.
+	///
+	/// This assumes that the manifest has already been checked for
+	/// validity - i.e. that the bitvecs match the claimed group in size
+	/// and that that the manifest includes at least one `Seconded`
+	/// attestation and includes enough attestations for the candidate
+	/// to be backed.
+	///
+	/// This also should only be invoked when we are intended to track
+	/// the knowledge of this peer as determined by the [`SessionTopology`].
+	fn import_received(
+		&mut self,
+		group_size: usize,
+		seconding_limit: usize,
+		candidate_hash: CandidateHash,
+		manifest_summary: ManifestSummary,
+	) -> Result<(), ManifestImportError> {
+		match self.received.entry(candidate_hash) {
+			Entry::Occupied(mut e) => {
+				// occupied entry.
+
+				// filter out clearly conflicting data.
+				{
+					let prev = e.get();
+					if prev.claimed_group_index != manifest_summary.claimed_group_index {
+						return Err(ManifestImportError::Conflicting);
+					}
+
+					if prev.claimed_parent_hash != manifest_summary.claimed_parent_hash {
+						return Err(ManifestImportError::Conflicting);
+					}
+
+					if !manifest_summary.seconded_in_group.contains(&prev.seconded_in_group) {
+						return Err(ManifestImportError::Conflicting);
+					}
+
+					if !manifest_summary.validated_in_group.contains(&prev.validated_in_group) {
+						return Err(ManifestImportError::Conflicting);
+					}
+
+					let mut fresh_seconded = manifest_summary.seconded_in_group.clone();
+					fresh_seconded |= &prev.seconded_in_group;
+
+					let mut fresh_validated = manifest_summary.validated_in_group.clone();
+					fresh_validated |= &prev.validated_in_group;
+
+					let within_limits = updating_ensure_within_seconding_limit(
+						&mut self.seconded_counts,
+						manifest_summary.claimed_group_index,
+						group_size,
+						seconding_limit,
+						&*fresh_seconded,
+					);
+
+					if !within_limits {
+						return Err(ManifestImportError::Overflow);
+					}
+				}
+
+				// All checks passed. Overwrite: guaranteed to be
+				// superset.
+				*e.get_mut() = manifest_summary;
+				Ok(())
+			}
+			Entry::Vacant(e) => {
+				let within_limits = updating_ensure_within_seconding_limit(
+					&mut self.seconded_counts,
+					manifest_summary.claimed_group_index,
+					group_size,
+					seconding_limit,
+					&*manifest_summary.seconded_in_group,
+				);
+
+				if within_limits {
+					e.insert(manifest_summary);
+					Ok(())
+				} else {
+					Err(ManifestImportError::Overflow)
+				}
+			}
+		}
+	}
+}
+
+// updates validator-seconded records but only if the new statements
+// are OK. returns `true` if alright and `false` otherwise.
+fn updating_ensure_within_seconding_limit(
+	seconded_counts: &mut HashMap<GroupIndex, Vec<usize>>,
+	group_index: GroupIndex,
+	group_size: usize,
+	seconding_limit: usize,
+	new_seconded: &BitSlice<u8, Lsb0>,
+) -> bool {
+	if seconding_limit == 0 { return false }
+
+	// due to the check above, if this was non-existent this function will
+	// always return `true`.
+	let counts = seconded_counts
+		.entry(group_index)
+		.or_insert_with(|| vec![0; group_size]);
+
+	for i in new_seconded.iter_ones() {
+		if counts[i] == seconding_limit { return false }
+	}
+
+	for i in new_seconded.iter_ones() {
+		counts[i] += 1;
+	}
+
+	true
+}
 
 #[cfg(tests)]
 mod tests {
 	use super::*;
 
 	// TODO [now]: test that grid topology views are set up correctly.
+
+	// TODO [now]: tests that conflicting manifests are rejected.
+
+	// TODO [now]: test that overflowing manifests are rejected.
 }
