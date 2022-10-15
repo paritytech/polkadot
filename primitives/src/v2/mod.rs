@@ -16,13 +16,15 @@
 
 //! `V1` Primitives.
 
-use sp_std::slice::IterMut;
-use sp_std::vec::IntoIter;
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use sp_std::{ops::Index, prelude::*};
-use sp_std::slice::Iter;
+use sp_std::{
+	ops::Index,
+	prelude::*,
+	slice::{Iter, IterMut},
+	vec::IntoIter,
+};
 
 use application_crypto::KeyTypeId;
 use inherents::InherentIdentifier;
@@ -1591,11 +1593,11 @@ impl From<Vec<ValidatorId>> for Validators {
 	}
 }
 
-impl FromIterator<ValidatorId> for Validators{
-	fn from_iter<T: IntoIterator<Item=ValidatorId>>(iter: T) -> Self {
+impl FromIterator<ValidatorId> for Validators {
+	fn from_iter<T: IntoIterator<Item = ValidatorId>>(iter: T) -> Self {
 		let mut validators = Vec::new();
 
-		for i in iter{
+		for i in iter {
 			validators.push(i);
 		}
 		Validators(validators)
@@ -1653,11 +1655,11 @@ impl From<Vec<Vec<ValidatorIndex>>> for GroupValidators {
 	}
 }
 
-impl FromIterator<Vec<ValidatorIndex>> for GroupValidators{
-	fn from_iter<T: IntoIterator<Item=Vec<ValidatorIndex>>>(iter: T) -> Self {
+impl FromIterator<Vec<ValidatorIndex>> for GroupValidators {
+	fn from_iter<T: IntoIterator<Item = Vec<ValidatorIndex>>>(iter: T) -> Self {
 		let mut validator_groups = Vec::new();
 
-		for i in iter{
+		for i in iter {
 			validator_groups.push(i);
 		}
 		GroupValidators(validator_groups)
