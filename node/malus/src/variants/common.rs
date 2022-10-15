@@ -222,6 +222,7 @@ where
 						validation_code,
 						candidate_receipt,
 						pov,
+						ee_params,
 						timeout,
 						sender,
 					),
@@ -237,6 +238,7 @@ where
 									validation_code,
 									candidate_receipt,
 									pov,
+									ee_params,
 									timeout,
 									sender,
 								),
@@ -326,6 +328,7 @@ where
 							validation_code,
 							candidate_receipt,
 							pov,
+							ee_params,
 							timeout,
 							sender,
 						),
@@ -338,6 +341,7 @@ where
 					CandidateValidationMessage::ValidateFromChainState(
 						candidate_receipt,
 						pov,
+						ee_params,
 						timeout,
 						response_sender,
 					),
@@ -351,6 +355,7 @@ where
 								msg: CandidateValidationMessage::ValidateFromChainState(
 									candidate_receipt,
 									pov,
+									ee_params,
 									timeout,
 									response_sender,
 								),
@@ -423,6 +428,7 @@ where
 						msg: CandidateValidationMessage::ValidateFromChainState(
 							candidate_receipt,
 							pov,
+							ee_params,
 							timeout,
 							response_sender,
 						),
