@@ -29,7 +29,10 @@ use frame_support::{
 };
 use primitives::{
 	v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo},
-	vstaging::{executor_params as Ep, ExecutorParams},
+	vstaging::{
+		executor_params::{ExecutionEnvironment, ExecutorParam},
+		ExecutorParams,
+	},
 };
 use sp_std::vec::Vec;
 
@@ -40,8 +43,9 @@ pub mod migration;
 #[cfg(test)]
 mod tests;
 
-// The order of tags should be deterministic, PAR_VERSION should always be the first tag
-const EXECUTOR_PARAMS: [(u8, u64); 1] = [(Ep::PAR_VERSION, 1)];
+// The order of tags should be deterministic, `Environment` should always be the first, and `Version` the second one
+const EXECUTOR_PARAMS: [ExecutorParam; 2] =
+	[ExecutorParam::Environment(ExecutionEnvironment::WasmtimeGeneric), ExecutorParam::Version(1)];
 
 /// A type for representing the validator account id in a session.
 pub type AccountId<T> = <<T as Config>::ValidatorSet as ValidatorSet<

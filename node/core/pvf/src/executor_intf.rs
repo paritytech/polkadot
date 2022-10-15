@@ -16,7 +16,12 @@
 
 //! Interface to the Substrate Executor
 
-use polkadot_primitives::vstaging::{executor_params as Ep, ExecutorParams};
+use parity_scale_codec::Decode;
+use polkadot_primitives::vstaging::{
+	executor_params as Ep,
+	executor_params::{ExecutionEnvironment, ExecutorParam},
+	ExecutorParams,
+};
 use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{InvokeMethod, WasmModule as _},
@@ -102,48 +107,89 @@ pub fn prepare(
 	blob: RuntimeBlob,
 	ee_params: ExecutorParams,
 ) -> Result<Vec<u8>, sc_executor_common::error::WasmError> {
-	let semantics = params_to_semantics(ee_params);
+	let semantics = params_to_wasmtime_semantics(ee_params)
+		.map_err(|e| sc_executor_common::error::WasmError::Other(e))?;
 	sc_executor_wasmtime::prepare_runtime_artifact(blob, &semantics)
 }
 
-// FIXME: Big endian architectures?
-fn params_to_semantics(par: ExecutorParams) -> Semantics {
+fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String> {
 	let mut sem = DEFAULT_CONFIG.semantics.clone();
-	for (key, value) in par.iter() {
-		match *key {
-			Ep::PAR_EXTRA_HEAP_PAGES => sem.extra_heap_pages = *value,
-			Ep::PAR_MAX_MEMORY_SIZE if *value <= std::u32::MAX as u64 =>
-				sem.max_memory_size = (*value).try_into().ok(),
-			Ep::PAR_STACK_LIMIT =>
-				sem.deterministic_stack_limit = Some(DeterministicStackLimit {
-					logical_max: (value & 0xFFFFFFFFu64) as u32,
-					native_stack_max: (value >> 32) as u32,
-				}),
-			Ep::PAR_BITS => {
-				sem.canonicalize_nans =
-					if value & (1 << Ep::BIT_CANONICAL_NANS) == 0 { false } else { true };
-				sem.parallel_compilation =
-					if value & (1 << Ep::BIT_PARALLEL_COMPILATION) == 0 { false } else { true };
-				match ((value >> 2) & 0b111u64) as u8 {
-					Ep::INST_POOLING_COW =>
-						sem.instantiation_strategy = InstantiationStrategy::PoolingCopyOnWrite,
-					Ep::INST_RECREATE_COW =>
-						sem.instantiation_strategy =
-							InstantiationStrategy::RecreateInstanceCopyOnWrite,
-					Ep::INST_POOLING => sem.instantiation_strategy = InstantiationStrategy::Pooling,
-					Ep::INST_RECREATE =>
-						sem.instantiation_strategy = InstantiationStrategy::RecreateInstance,
-					Ep::INST_LEGACY =>
-						sem.instantiation_strategy = InstantiationStrategy::LegacyInstanceReuse,
-					_ => (),
-				}
+	let mut stack_limit = if let Some(stack_limit) = sem.deterministic_stack_limit.clone() {
+		stack_limit
+	} else {
+		return Err("No default stack limit set".to_string())
+	};
+	for p in par.iter() {
+		let enc = p.clone();
+		match ExecutorParam::decode(&mut &enc[..]) {
+			Err(_) => return Err("Cannot decode executor parameter".to_string()),
+			Ok(ExecutorParam::Environment(env)) =>
+				if env != ExecutionEnvironment::WasmtimeGeneric {
+					return Err("Wrong execution environment type".to_string())
+				},
+			Ok(ExecutorParam::ExtraHeapPages(ehp)) => sem.extra_heap_pages = ehp,
+			Ok(ExecutorParam::MaxMemorySize(mms)) => sem.max_memory_size = Some(mms as usize),
+			Ok(ExecutorParam::StackLogicalMax(slm)) => stack_limit.logical_max = slm,
+			Ok(ExecutorParam::StackNativeMax(snm)) => stack_limit.native_stack_max = snm,
+			Ok(ExecutorParam::InstantiationStrategy(is)) => match is {
+				Ep::INST_POOLING_COW =>
+					sem.instantiation_strategy = InstantiationStrategy::PoolingCopyOnWrite,
+				Ep::INST_RECREATE_COW =>
+					sem.instantiation_strategy = InstantiationStrategy::RecreateInstanceCopyOnWrite,
+				Ep::INST_POOLING => sem.instantiation_strategy = InstantiationStrategy::Pooling,
+				Ep::INST_RECREATE =>
+					sem.instantiation_strategy = InstantiationStrategy::RecreateInstance,
+				Ep::INST_LEGACY =>
+					sem.instantiation_strategy = InstantiationStrategy::LegacyInstanceReuse,
+				_ => (),
 			},
-			_ => (),
+			Ok(ExecutorParam::CanonicalizeNaNs(cnan)) => sem.canonicalize_nans = cnan,
+			Ok(ExecutorParam::ParallelCompilation(pc)) => sem.parallel_compilation = pc,
+			Ok(_) => (),
 		}
 	}
-
-	sem
+	sem.deterministic_stack_limit = Some(stack_limit);
+	Ok(sem)
 }
+
+// // FIXME: Big endian architectures?
+// fn params_to_semantics(par: ExecutorParams) -> Semantics {
+// 	let mut sem = DEFAULT_CONFIG.semantics.clone();
+// 	for (key, value) in par.iter() {
+// 		match *key {
+// 			Ep::PAR_EXTRA_HEAP_PAGES => sem.extra_heap_pages = *value,
+// 			Ep::PAR_MAX_MEMORY_SIZE if *value <= std::u32::MAX as u64 =>
+// 				sem.max_memory_size = (*value).try_into().ok(),
+// 			Ep::PAR_STACK_LIMIT =>
+// 				sem.deterministic_stack_limit = Some(DeterministicStackLimit {
+// 					logical_max: (value & 0xFFFFFFFFu64) as u32,
+// 					native_stack_max: (value >> 32) as u32,
+// 				}),
+// 			Ep::PAR_BITS => {
+// 				sem.canonicalize_nans =
+// 					if value & (1 << Ep::BIT_CANONICAL_NANS) == 0 { false } else { true };
+// 				sem.parallel_compilation =
+// 					if value & (1 << Ep::BIT_PARALLEL_COMPILATION) == 0 { false } else { true };
+// 				match ((value >> 2) & 0b111u64) as u8 {
+// 					Ep::INST_POOLING_COW =>
+// 						sem.instantiation_strategy = InstantiationStrategy::PoolingCopyOnWrite,
+// 					Ep::INST_RECREATE_COW =>
+// 						sem.instantiation_strategy =
+// 							InstantiationStrategy::RecreateInstanceCopyOnWrite,
+// 					Ep::INST_POOLING => sem.instantiation_strategy = InstantiationStrategy::Pooling,
+// 					Ep::INST_RECREATE =>
+// 						sem.instantiation_strategy = InstantiationStrategy::RecreateInstance,
+// 					Ep::INST_LEGACY =>
+// 						sem.instantiation_strategy = InstantiationStrategy::LegacyInstanceReuse,
+// 					_ => (),
+// 				}
+// 			},
+// 			_ => (),
+// 		}
+// 	}
+
+// 	sem
+// }
 
 pub struct Executor {
 	thread_pool: rayon::ThreadPool,
@@ -200,7 +246,7 @@ impl Executor {
 			TaskSpawner::new().map_err(|e| format!("cannot create task spawner: {}", e))?;
 
 		let mut config = DEFAULT_CONFIG.clone();
-		config.semantics = params_to_semantics(params);
+		config.semantics = params_to_wasmtime_semantics(params)?;
 
 		Ok(Self { thread_pool, spawner, config })
 	}

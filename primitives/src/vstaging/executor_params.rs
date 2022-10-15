@@ -18,7 +18,7 @@
 //!
 //! Parameters are encoded as (u8, u64) tuples, where u8 is a tag defining a type of
 //! parameter, and u64 is a parameter value. Parameter set and value structure are opaque
-//! and depend on execution environment itself. Decoding to a usable sematics structure is
+//! and depend on execution environment itself. Decoding to a usable semantics structure is
 //! done in `polkadot-node-core-pvf`.
 
 use parity_scale_codec::{Decode, Encode};
@@ -58,28 +58,78 @@ pub const INST_RECREATE: u8 = 0b100;
 /// Legacy instantiation strategy
 pub const INST_LEGACY: u8 = 0b101;
 
+#[derive(Encode, Decode, PartialEq)]
+pub enum ExecutionEnvironment {
+	WasmtimeGeneric = 0,
+}
+
+#[non_exhaustive]
+#[derive(Encode, Decode)]
+pub enum ExecutorParam {
+	Environment(ExecutionEnvironment),
+	Version(u32),
+
+	// Wasmtime semantics
+	ExtraHeapPages(u64),
+	MaxMemorySize(u32),
+	StackLogicalMax(u32),
+	StackNativeMax(u32),
+	InstantiationStrategy(u8),
+	CanonicalizeNaNs(bool),
+	ParallelCompilation(bool),
+}
+
 /// Deterministically serialized execution environment semantics
 /// to include into `SessionInfo`
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, MallocSizeOf, TypeInfo)]
-pub struct ExecutorParams(Vec<(u8, u64)>);
+pub struct ExecutorParams(Vec<Vec<u8>>);
+// pub struct ExecutorParams(Vec<(u8, u64)>);
 
 impl ExecutorParams {
+	// /// Returns version of execution environment parameter set, if present. Otherwise, returns 0.
+	// pub fn version(&self) -> u64 {
+	// 	if self.0.len() == 0 {
+	// 		0
+	// 	} else {
+	// 		if self.0[0].0 == PAR_VERSION {
+	// 			self.0[0].1
+	// 		} else {
+	// 			0
+	// 		}
+	// 	}
+	// }
+
 	/// Returns version of execution environment parameter set, if present. Otherwise, returns 0.
 	pub fn version(&self) -> u64 {
-		if self.0.len() == 0 {
-			0
-		} else {
-			if self.0[0].0 == PAR_VERSION {
-				self.0[0].1
-			} else {
-				0
-			}
+		if self.0.len() < 2 {
+			return 0
+		}
+		let env = match ExecutorParam::decode(&mut &self.0[0].clone()[..]) {
+			Ok(ExecutorParam::Environment(v)) => v,
+			_ => return 0,
+		};
+		let ver = match ExecutorParam::decode(&mut &self.0[1].clone()[..]) {
+			Ok(ExecutorParam::Version(v)) => v,
+			_ => return 0,
+		};
+		(env as u64) * 2 ^ 32u64 + ver as u64
+	}
+
+	/// Returns execution environment identifier
+	pub fn environment(&self) -> ExecutionEnvironment {
+		if self.0.len() < 1 {
+			return ExecutionEnvironment::WasmtimeGeneric
+		}
+		match ExecutorParam::decode(&mut &self.0[0].clone()[..]) {
+			Ok(ExecutorParam::Environment(v)) => v,
+			_ => ExecutionEnvironment::WasmtimeGeneric,
 		}
 	}
 }
 
 impl Deref for ExecutorParams {
-	type Target = Vec<(u8, u64)>;
+	// type Target = Vec<(u8, u64)>;
+	type Target = Vec<Vec<u8>>;
 
 	fn deref(&self) -> &Self::Target {
 		&self.0
@@ -92,8 +142,14 @@ impl Default for ExecutorParams {
 	}
 }
 
-impl From<&[(u8, u64)]> for ExecutorParams {
-	fn from(arr: &[(u8, u64)]) -> Self {
-		ExecutorParams(arr.into())
+// impl From<&[(u8, u64)]> for ExecutorParams {
+// 	fn from(arr: &[(u8, u64)]) -> Self {
+// 		ExecutorParams(arr.into())
+// 	}
+// }
+
+impl From<&[ExecutorParam]> for ExecutorParams {
+	fn from(arr: &[ExecutorParam]) -> Self {
+		ExecutorParams(arr.iter().map(|v| v.encode()).collect())
 	}
 }
