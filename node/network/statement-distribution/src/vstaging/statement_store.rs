@@ -29,10 +29,11 @@ use polkadot_primitives::vstaging::{
 };
 use std::collections::hash_map::{Entry as HEntry, HashMap};
 
+use super::groups::Groups;
+
 /// Storage for statements. Intended to be used for statements signed under
 /// the same relay-parent. See module docs for more details.
 pub struct StatementStore {
-	groups: Vec<Vec<ValidatorIndex>>,
 	validator_meta: HashMap<ValidatorIndex, ValidatorMeta>,
 
 	// we keep statements per-group because even though only one group _should_ be
@@ -44,9 +45,9 @@ pub struct StatementStore {
 
 impl StatementStore {
 	/// Create a new [`StatementStore`]
-	pub fn new(groups: Vec<Vec<ValidatorIndex>>) -> Self {
+	pub fn new(groups: &Groups) -> Self {
 		let mut validator_meta = HashMap::new();
-		for (g, group) in groups.iter().enumerate() {
+		for (g, group) in groups.all().iter().enumerate() {
 			for (i, v) in group.iter().enumerate() {
 				validator_meta.insert(
 					v,
@@ -60,7 +61,6 @@ impl StatementStore {
 		}
 
 		StatementStore {
-			groups,
 			validator_meta: HashMap::new(),
 			group_statements: HashMap::new(),
 			known_statements: HashMap::new(),
@@ -75,7 +75,11 @@ impl StatementStore {
 
 	/// Insert a statement. Returns `true` if was not known already, `false` if it was.
 	/// Ignores statements by unknown validators and returns an error.
-	pub fn insert(&mut self, statement: SignedStatement) -> Result<bool, ValidatorUnknown> {
+	pub fn insert(
+		&mut self,
+		groups: &Groups,
+		statement: SignedStatement,
+	) -> Result<bool, ValidatorUnknown> {
 		let validator_index = statement.validator_index();
 
 		let validator_meta = match self.validator_meta.get_mut(&validator_index) {
@@ -98,10 +102,18 @@ impl StatementStore {
 		// cross-reference updates.
 		{
 			let group_index = validator_meta.group;
-			let group = self.groups.get(group_index.0 as usize).expect(
-				"we only have meta info on validators confirmed to be \
-					in groups at construction; qed",
-			);
+			let group = match groups.get(group_index) {
+				Some(g) => g,
+				None => {
+					gum::error!(
+						target: crate::LOG_TARGET,
+						?group_index,
+						"groups passed into `insert` differ from those used at store creation"
+					);
+
+					return Err(ValidatorUnknown)
+				},
+			};
 
 			let group_statements = self
 				.group_statements
@@ -139,11 +151,12 @@ impl StatementStore {
 	/// Get an iterator over signed statements of the given form by the given group.
 	pub fn group_statements<'a>(
 		&'a self,
+		groups: &'a Groups,
 		group_index: GroupIndex,
 		statement: CompactStatement,
 	) -> impl Iterator<Item = &'a SignedStatement> + 'a {
 		let bitslice = self.group_statement_bitslice(group_index, statement.clone());
-		let group_validators = self.groups.get(group_index.0 as usize);
+		let group_validators = groups.get(group_index);
 
 		bitslice
 			.into_iter()

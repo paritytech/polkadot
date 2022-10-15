@@ -50,6 +50,11 @@ impl Groups {
 		Groups { groups, by_validator_index, by_discovery_key }
 	}
 
+	/// Access all the underlying groups.
+	pub fn all(&self) -> &[Vec<ValidatorIndex>] {
+		&self.groups
+	}
+
 	/// Get the underlying group validators by group index.
 	pub fn get(&self, group_index: GroupIndex) -> Option<&[ValidatorIndex]> {
 		self.groups.get(group_index.0 as usize).map(|x| &x[..])

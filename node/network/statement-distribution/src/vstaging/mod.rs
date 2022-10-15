@@ -288,25 +288,21 @@ pub(crate) async fn handle_activated_leaf<Context>(
 				Some(s) => s,
 			};
 
-			let groups = Groups::new(
-				session_info.validator_groups.clone(),
-				&session_info.discovery_keys,
-			);
+			let groups =
+				Groups::new(session_info.validator_groups.clone(), &session_info.discovery_keys);
 
-			state.per_session.insert(session_index, PerSessionState {
-				session_info,
-				groups,
-			});
+			state
+				.per_session
+				.insert(session_index, PerSessionState { session_info, groups });
 		}
 
 		let per_session = state
 			.per_session
 			.get(&session_index)
 			.expect("either existed or just inserted; qed");
-		let session_info = &per_session.session_info;
 
 		let local_validator = find_local_validator_state(
-			&session_info.validators,
+			&per_session.session_info.validators,
 			&state.keystore,
 			&per_session.groups,
 			&availability_cores,
@@ -319,7 +315,7 @@ pub(crate) async fn handle_activated_leaf<Context>(
 				validator_state: HashMap::new(),
 				candidates: HashMap::new(),
 				local_validator,
-				statement_store: StatementStore::new(session_info.validator_groups.clone()),
+				statement_store: StatementStore::new(&per_session.groups),
 				session: session_index,
 			},
 		);
@@ -339,6 +335,10 @@ async fn find_local_validator_state(
 	groups: &Groups,
 	availability_cores: &[CoreState],
 ) -> Option<LocalValidatorState> {
+	if groups.all().is_empty() {
+		return None
+	}
+
 	let (validator_id, validator_index) =
 		polkadot_node_subsystem_util::signing_key_and_index(validators, keystore).await?;
 
@@ -406,6 +406,11 @@ pub(crate) async fn share_local_statement<Context>(
 		Some(x) => x,
 	};
 
+	let per_session = match state.per_session.get(&per_relay_parent.session) {
+		Some(s) => s,
+		None => return Ok(()),
+	};
+
 	let (local_index, local_assignment, local_group) =
 		match per_relay_parent.local_validator.as_ref() {
 			None => return Err(JfyiError::InvalidShare),
@@ -463,7 +468,10 @@ pub(crate) async fn share_local_statement<Context>(
 			},
 		};
 
-		match per_relay_parent.statement_store.insert(compact_statement.clone()) {
+		match per_relay_parent
+			.statement_store
+			.insert(&per_session.groups, compact_statement.clone())
+		{
 			Ok(false) | Err(_) => {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -822,20 +830,21 @@ async fn handle_incoming_statement<Context>(
 	let statement = checked_statement.payload().clone();
 	let sender_index = checked_statement.validator_index();
 	let candidate_hash = *checked_statement.payload().candidate_hash();
-	let was_fresh = match per_relay_parent.statement_store.insert(checked_statement) {
-		Err(_) => {
-			// sanity: should never happen.
-			gum::warn!(
-				target: LOG_TARGET,
-				?relay_parent,
-				validator_index = ?sender_index,
-				"Error -Cluster accepted message from unknown validator."
-			);
+	let was_fresh =
+		match per_relay_parent.statement_store.insert(&per_session.groups, checked_statement) {
+			Err(_) => {
+				// sanity: should never happen.
+				gum::warn!(
+					target: LOG_TARGET,
+					?relay_parent,
+					validator_index = ?sender_index,
+					"Error -Cluster accepted message from unknown validator."
+				);
 
-			return
-		},
-		Ok(known) => known,
-	};
+				return
+			},
+			Ok(known) => known,
+		};
 
 	let sender_group_index = per_relay_parent
 		.statement_store
