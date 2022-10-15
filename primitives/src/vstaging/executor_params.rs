@@ -91,3 +91,9 @@ impl Default for ExecutorParams {
 		ExecutorParams(Vec::new())
 	}
 }
+
+impl From<&[(u8, u64)]> for ExecutorParams {
+	fn from(arr: &[(u8, u64)]) -> Self {
+		ExecutorParams(arr.into())
+	}
+}

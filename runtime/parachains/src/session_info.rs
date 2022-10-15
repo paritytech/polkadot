@@ -29,7 +29,7 @@ use frame_support::{
 };
 use primitives::{
 	v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo},
-	vstaging::ExecutorParams,
+	vstaging::{executor_params as Ep, ExecutorParams},
 };
 use sp_std::vec::Vec;
 
@@ -39,6 +39,9 @@ pub mod migration;
 
 #[cfg(test)]
 mod tests;
+
+// The order of tags should be deterministic, PAR_VERSION should always be the first tag
+const EXECUTOR_PARAMS: [(u8, u64); 1] = [(Ep::PAR_VERSION, 1)];
 
 /// A type for representing the validator account id in a session.
 pub type AccountId<T> = <<T as Config>::ValidatorSet as ValidatorSet<
@@ -211,7 +214,10 @@ impl<T: Config> Pallet<T> {
 			dispute_period,
 		};
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
-		SessionEeParams::<T>::insert(&new_session_index, &ExecutorParams::default());
+		SessionEeParams::<T>::insert(
+			&new_session_index,
+			ExecutorParams::from(&EXECUTOR_PARAMS[..]),
+		);
 	}
 
 	/// Called by the initializer to initialize the session info pallet.
