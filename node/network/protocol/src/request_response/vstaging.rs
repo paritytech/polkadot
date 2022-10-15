@@ -20,8 +20,8 @@ use parity_scale_codec::{Decode, Encode};
 
 use bitvec::{order::Lsb0, vec::BitVec};
 use polkadot_primitives::vstaging::{
-	CandidateHash, CommittedCandidateReceipt, PersistedValidationData, UncheckedSignedStatement,
-	Id as ParaId, Hash,
+	CandidateHash, CommittedCandidateReceipt, Hash, Id as ParaId, PersistedValidationData,
+	UncheckedSignedStatement,
 };
 
 use super::{IsRequest, Protocol};
