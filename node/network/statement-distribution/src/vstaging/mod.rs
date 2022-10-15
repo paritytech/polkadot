@@ -56,6 +56,7 @@ use statement_store::StatementStore;
 mod candidate_entry;
 mod cluster;
 mod grid;
+mod groups;
 mod requests;
 mod statement_store;
 
