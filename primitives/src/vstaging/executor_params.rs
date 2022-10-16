@@ -26,61 +26,89 @@ use parity_util_mem::MallocSizeOf;
 use scale_info::TypeInfo;
 use sp_std::{ops::Deref, vec::Vec};
 
-// FIXME: Version structure is to be determined
-/// Tag for version of execution environment parameter set.
-pub const PAR_VERSION: u8 = 0;
-/// Tag for extra heap page count
-pub const PAR_EXTRA_HEAP_PAGES: u8 = 1;
-/// Tag for max. memory size
-pub const PAR_MAX_MEMORY_SIZE: u8 = 2;
-/// Tag for stack limits. 32 LSB bits define logical limit, and 32 MSB bits define native stack limit
-pub const PAR_STACK_LIMIT: u8 = 3;
-/// Tag for bit-packed fields
-pub const PAR_BITS: u8 = 4;
+// // FIXME: Version structure is to be determined
+// /// Tag for version of execution environment parameter set.
+// pub const PAR_VERSION: u8 = 0;
+// /// Tag for extra heap page count
+// pub const PAR_EXTRA_HEAP_PAGES: u8 = 1;
+// /// Tag for max. memory size
+// pub const PAR_MAX_MEMORY_SIZE: u8 = 2;
+// /// Tag for stack limits. 32 LSB bits define logical limit, and 32 MSB bits define native stack limit
+// pub const PAR_STACK_LIMIT: u8 = 3;
+// /// Tag for bit-packed fields
+// pub const PAR_BITS: u8 = 4;
 
-/// Total number of tags (for vector pre-allocation)
-pub const PAR_LEN: usize = 5;
+// /// Total number of tags (for vector pre-allocation)
+// pub const PAR_LEN: usize = 5;
 
-/// Bitflag for NaNs canonicalization boolean
-pub const BIT_CANONICAL_NANS: u8 = 0;
-/// Bitflag fof parallel compilation boolean
-pub const BIT_PARALLEL_COMPILATION: u8 = 1;
+// /// Bitflag for NaNs canonicalization boolean
+// pub const BIT_CANONICAL_NANS: u8 = 0;
+// /// Bitflag fof parallel compilation boolean
+// pub const BIT_PARALLEL_COMPILATION: u8 = 1;
 
-/// Insantiation strategy bit-packed constants:
-/// Pooling copy-on-write
-pub const INST_POOLING_COW: u8 = 0b001;
-/// Recreate copy-on-write
-pub const INST_RECREATE_COW: u8 = 0b010;
-/// Pooling
-pub const INST_POOLING: u8 = 0b011;
-/// Recreate
-pub const INST_RECREATE: u8 = 0b100;
-/// Legacy instantiation strategy
-pub const INST_LEGACY: u8 = 0b101;
+// /// Insantiation strategy bit-packed constants:
+// /// Pooling copy-on-write
+// pub const INST_POOLING_COW: u8 = 0b001;
+// /// Recreate copy-on-write
+// pub const INST_RECREATE_COW: u8 = 0b010;
+// /// Pooling
+// pub const INST_POOLING: u8 = 0b011;
+// /// Recreate
+// pub const INST_RECREATE: u8 = 0b100;
+// /// Legacy instantiation strategy
+// pub const INST_LEGACY: u8 = 0b101;
 
+/// Execution environment type
 #[derive(Encode, Decode, PartialEq)]
 pub enum ExecutionEnvironment {
+	/// Generic Wasmtime executor
 	WasmtimeGeneric = 0,
 }
 
+/// Executor instantiation strategy
+#[derive(Encode, Decode)]
+pub enum ExecInstantiationStrategy {
+	/// Pooling copy-on-write
+	PoolingCoW,
+	/// Recreate instance copy-on-write
+	RecreateCoW,
+	/// Pooling
+	Pooling,
+	/// Recreate instance
+	Recreate,
+	/// Legacy instantiation strategy
+	Legacy,
+}
+
+/// A single executor parameter
 #[non_exhaustive]
 #[derive(Encode, Decode)]
 pub enum ExecutorParam {
+	/// General parameters:
+	/// Execution environment type
 	Environment(ExecutionEnvironment),
+	/// Version of the set of execution parameters, unique in the scope of execution environment type
 	Version(u32),
 
-	// Wasmtime semantics
+	/// Parameters setting the executuion environment semantics:
+	/// Number of extra heap pages
 	ExtraHeapPages(u64),
+	/// Max. memory size
 	MaxMemorySize(u32),
+	/// Wasm logical stack size limit, in units
 	StackLogicalMax(u32),
+	/// Executor machine stack size limit, in bytes
 	StackNativeMax(u32),
-	InstantiationStrategy(u8),
+	/// Executor instantiation strategy
+	InstantiationStrategy(ExecInstantiationStrategy),
+	/// `true` if compiler should perform NaNs canonicalization
 	CanonicalizeNaNs(bool),
+	/// `true` if parallel compilation is allowed, single thread is used otherwise
 	ParallelCompilation(bool),
 }
 
 /// Deterministically serialized execution environment semantics
-/// to include into `SessionInfo`
+///
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, MallocSizeOf, TypeInfo)]
 pub struct ExecutorParams(Vec<Vec<u8>>);
 // pub struct ExecutorParams(Vec<(u8, u64)>);
@@ -99,7 +127,7 @@ impl ExecutorParams {
 	// 	}
 	// }
 
-	/// Returns version of execution environment parameter set, if present. Otherwise, returns 0.
+	/// Returns globally unique version of execution environment parameter set, if present. Otherwise, returns 0.
 	pub fn version(&self) -> u64 {
 		if self.0.len() < 2 {
 			return 0
@@ -115,7 +143,7 @@ impl ExecutorParams {
 		(env as u64) * 2 ^ 32u64 + ver as u64
 	}
 
-	/// Returns execution environment identifier
+	/// Returns execution environment type identifier
 	pub fn environment(&self) -> ExecutionEnvironment {
 		if self.0.len() < 1 {
 			return ExecutionEnvironment::WasmtimeGeneric
