@@ -307,7 +307,7 @@ fn backing_second_works() {
 					_,
 					timeout,
 					tx,
-				 )
+				)
 			) if pov == pov && &candidate_receipt.descriptor == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT &&  candidate.commitments.hash() == candidate_receipt.commitments_hash => {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
