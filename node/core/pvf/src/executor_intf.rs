@@ -16,7 +16,6 @@
 
 //! Interface to the Substrate Executor
 
-use parity_scale_codec::Decode;
 use polkadot_primitives::vstaging::executor_params::{
 	ExecInstantiationStrategy, ExecutionEnvironment, ExecutorParam, ExecutorParams,
 };
@@ -118,18 +117,19 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 		return Err("No default stack limit set".to_string())
 	};
 	for p in par.iter() {
-		let enc = p.clone();
-		match ExecutorParam::decode(&mut &enc[..]) {
-			Err(_) => return Err("Cannot decode executor parameter".to_string()),
-			Ok(ExecutorParam::Environment(env)) =>
-				if env != ExecutionEnvironment::WasmtimeGeneric {
+		// let enc = p.clone();
+		// match ExecutorParam::decode(&mut &enc[..]) {
+		match p {
+			// Err(_) => return Err("Cannot decode executor parameter".to_string()),
+			ExecutorParam::Environment(env) =>
+				if *env != ExecutionEnvironment::WasmtimeGeneric {
 					return Err("Wrong execution environment type".to_string())
 				},
-			Ok(ExecutorParam::ExtraHeapPages(ehp)) => sem.extra_heap_pages = ehp,
-			Ok(ExecutorParam::MaxMemorySize(mms)) => sem.max_memory_size = Some(mms as usize),
-			Ok(ExecutorParam::StackLogicalMax(slm)) => stack_limit.logical_max = slm,
-			Ok(ExecutorParam::StackNativeMax(snm)) => stack_limit.native_stack_max = snm,
-			Ok(ExecutorParam::InstantiationStrategy(is)) => match is {
+			ExecutorParam::ExtraHeapPages(ehp) => sem.extra_heap_pages = *ehp,
+			ExecutorParam::MaxMemorySize(mms) => sem.max_memory_size = Some(*mms as usize),
+			ExecutorParam::StackLogicalMax(slm) => stack_limit.logical_max = *slm,
+			ExecutorParam::StackNativeMax(snm) => stack_limit.native_stack_max = *snm,
+			ExecutorParam::InstantiationStrategy(is) => match is {
 				ExecInstantiationStrategy::PoolingCoW =>
 					sem.instantiation_strategy = InstantiationStrategy::PoolingCopyOnWrite,
 				ExecInstantiationStrategy::RecreateCoW =>
@@ -141,9 +141,9 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 				ExecInstantiationStrategy::Legacy =>
 					sem.instantiation_strategy = InstantiationStrategy::LegacyInstanceReuse,
 			},
-			Ok(ExecutorParam::CanonicalizeNaNs(cnan)) => sem.canonicalize_nans = cnan,
-			Ok(ExecutorParam::ParallelCompilation(pc)) => sem.parallel_compilation = pc,
-			Ok(_) => (),
+			ExecutorParam::CanonicalizeNaNs(cnan) => sem.canonicalize_nans = *cnan,
+			ExecutorParam::ParallelCompilation(pc) => sem.parallel_compilation = *pc,
+			_ => (),
 		}
 	}
 	sem.deterministic_stack_limit = Some(stack_limit);

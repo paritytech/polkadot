@@ -59,14 +59,14 @@ use sp_std::{ops::Deref, vec::Vec};
 // pub const INST_LEGACY: u8 = 0b101;
 
 /// Execution environment type
-#[derive(Encode, Decode, PartialEq)]
+#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, MallocSizeOf, TypeInfo)]
 pub enum ExecutionEnvironment {
 	/// Generic Wasmtime executor
 	WasmtimeGeneric = 0,
 }
 
 /// Executor instantiation strategy
-#[derive(Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, MallocSizeOf, TypeInfo)]
 pub enum ExecInstantiationStrategy {
 	/// Pooling copy-on-write
 	PoolingCoW,
@@ -82,7 +82,7 @@ pub enum ExecInstantiationStrategy {
 
 /// A single executor parameter
 #[non_exhaustive]
-#[derive(Encode, Decode)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, MallocSizeOf, TypeInfo)]
 pub enum ExecutorParam {
 	/// General parameters:
 	/// Execution environment type
@@ -110,7 +110,7 @@ pub enum ExecutorParam {
 /// Deterministically serialized execution environment semantics
 ///
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, MallocSizeOf, TypeInfo)]
-pub struct ExecutorParams(Vec<Vec<u8>>);
+pub struct ExecutorParams(Vec<ExecutorParam>);
 // pub struct ExecutorParams(Vec<(u8, u64)>);
 
 impl ExecutorParams {
@@ -132,14 +132,16 @@ impl ExecutorParams {
 		if self.0.len() < 2 {
 			return 0
 		}
-		let env = match ExecutorParam::decode(&mut &self.0[0].clone()[..]) {
-			Ok(ExecutorParam::Environment(v)) => v,
-			_ => return 0,
-		};
-		let ver = match ExecutorParam::decode(&mut &self.0[1].clone()[..]) {
-			Ok(ExecutorParam::Version(v)) => v,
-			_ => return 0,
-		};
+		let env = if let ExecutorParam::Environment(env) = self.0[0] { env } else { return 0 };
+		let ver = if let ExecutorParam::Version(ver) = self.0[1] { ver } else { return 0 };
+		// let env = match ExecutorParam::decode(&mut &self.0[0].clone()[..]) {
+		// 	Ok(ExecutorParam::Environment(v)) => v,
+		// 	_ => return 0,
+		// };
+		// let ver = match ExecutorParam::decode(&mut &self.0[1].clone()[..]) {
+		// 	Ok(ExecutorParam::Version(v)) => v,
+		// 	_ => return 0,
+		// };
 		(env as u64) * 2 ^ 32u64 + ver as u64
 	}
 
@@ -148,16 +150,21 @@ impl ExecutorParams {
 		if self.0.len() < 1 {
 			return ExecutionEnvironment::WasmtimeGeneric
 		}
-		match ExecutorParam::decode(&mut &self.0[0].clone()[..]) {
-			Ok(ExecutorParam::Environment(v)) => v,
-			_ => ExecutionEnvironment::WasmtimeGeneric,
+		// match ExecutorParam::decode(&mut &self.0[0].clone()[..]) {
+		// 	Ok(ExecutorParam::Environment(v)) => v,
+		// 	_ => ExecutionEnvironment::WasmtimeGeneric,
+		// }
+		if let ExecutorParam::Environment(env) = self.0[0] {
+			env
+		} else {
+			ExecutionEnvironment::WasmtimeGeneric
 		}
 	}
 }
 
 impl Deref for ExecutorParams {
 	// type Target = Vec<(u8, u64)>;
-	type Target = Vec<Vec<u8>>;
+	type Target = Vec<ExecutorParam>;
 
 	fn deref(&self) -> &Self::Target {
 		&self.0
@@ -178,6 +185,6 @@ impl Default for ExecutorParams {
 
 impl From<&[ExecutorParam]> for ExecutorParams {
 	fn from(arr: &[ExecutorParam]) -> Self {
-		ExecutorParams(arr.iter().map(|v| v.encode()).collect())
+		ExecutorParams(arr.to_vec())
 	}
 }
