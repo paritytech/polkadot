@@ -21,11 +21,11 @@ use crate::{artifacts::ArtifactId, metrics::Metrics, PrepareResult, Priority, Pv
 use always_assert::{always, never};
 use async_std::path::PathBuf;
 use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};
+use polkadot_primitives::vstaging::ExecutorParams;
 use std::{
 	collections::{HashMap, VecDeque},
 	time::Duration,
 };
-use polkadot_primitives::vstaging::ExecutorParams;
 
 /// A request to pool.
 #[derive(Debug)]
@@ -34,7 +34,12 @@ pub enum ToQueue {
 	///
 	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
 	/// [`FromQueue`] response.
-	Enqueue { priority: Priority, pvf: Pvf, ee_params: ExecutorParams, preparation_timeout: Duration },
+	Enqueue {
+		priority: Priority,
+		pvf: Pvf,
+		ee_params: ExecutorParams,
+		preparation_timeout: Duration,
+	},
 }
 
 /// A response from queue.
@@ -250,7 +255,10 @@ async fn handle_enqueue(
 		return Ok(())
 	}
 
-	let job = queue.jobs.insert(JobData { priority, pvf, ee_params, preparation_timeout, worker: None });
+	let job =
+		queue
+			.jobs
+			.insert(JobData { priority, pvf, ee_params, preparation_timeout, worker: None });
 	queue.artifact_id_to_job.insert(artifact_id, job);
 
 	if let Some(available) = find_idle_worker(queue) {

@@ -277,7 +277,8 @@ async fn start_work_task<Timer>(
 	_preparation_timer: Option<Timer>,
 ) -> PoolEvent {
 	let outcome =
-		worker::start_work(idle, code, &cache_path, artifact_path, ee_params, preparation_timeout).await;
+		worker::start_work(idle, code, &cache_path, artifact_path, ee_params, preparation_timeout)
+			.await;
 	PoolEvent::StartWork(worker, outcome)
 }
 
