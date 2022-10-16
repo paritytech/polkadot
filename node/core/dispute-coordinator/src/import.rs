@@ -30,10 +30,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use polkadot_node_primitives::{CandidateVotes, SignedDisputeStatement};
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
-use polkadot_primitives::v2::{
-	CandidateReceipt, DisputeStatement, SessionIndex, SessionInfo, ValidDisputeStatementKind,
-	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
-};
+use polkadot_primitives::v2::{CandidateReceipt, DisputeStatement, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorIndex, ValidatorPair, ValidatorSignature, Validators};
 use sc_keystore::LocalKeystore;
 
 use crate::LOG_TARGET;
@@ -63,7 +60,7 @@ impl<'a> CandidateEnvironment<'a> {
 	}
 
 	/// Validators in the candidate's session.
-	pub fn validators(&self) -> &Vec<ValidatorId> {
+	pub fn validators(&self) -> &Validators {
 		&self.session.validators
 	}
 
@@ -229,7 +226,7 @@ impl CandidateVoteState<CandidateVotes> {
 		for (statement, val_index) in statements {
 			if env
 				.validators()
-				.get(val_index.0 as usize)
+				.get(val_index)
 				.map_or(true, |v| v != statement.validator_public())
 			{
 				gum::error!(
@@ -488,7 +485,7 @@ impl ImportResult {
 		for (index, sig) in approval_votes.into_iter() {
 			debug_assert!(
 				{
-					let pub_key = &env.session_info().validators[index.0 as usize];
+					let pub_key = &env.session_info().validators[index];
 					let candidate_hash = votes.candidate_receipt.hash();
 					let session_index = env.session_index();
 					DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking)
@@ -538,7 +535,7 @@ impl ImportResult {
 /// That is all `ValidatorIndex`es we have private keys for. Usually this will only be one.
 fn find_controlled_validator_indices(
 	keystore: &LocalKeystore,
-	validators: &[ValidatorId],
+	validators: &Validators,
 ) -> HashSet<ValidatorIndex> {
 	let mut controlled = HashSet::new();
 	for (index, validator) in validators.iter().enumerate() {
