@@ -27,7 +27,6 @@ use xcm::{latest::prelude::*, MAX_XCM_DECODE_DEPTH};
 
 pub const ALICE: sp_runtime::AccountId32 = sp_runtime::AccountId32::new([0u8; 32]);
 pub const INITIAL_BALANCE: u128 = 1_000_000_000;
-use honggfuzz::fuzz;
 
 decl_test_parachain! {
 	pub struct ParaA {
@@ -123,7 +122,7 @@ fn main() {
 	#[cfg(fuzzing)]
 	{
 		loop {
-			fuzz!(|data: &[u8]| {
+			honggfuzz::fuzz!(|data: &[u8]| {
 				run_one_input(data);
 			});
 		}
