@@ -17,10 +17,8 @@
 //! Interface to the Substrate Executor
 
 use parity_scale_codec::Decode;
-use polkadot_primitives::vstaging::{
-	executor_params as Ep,
-	executor_params::{ExecutionEnvironment, ExecutorParam},
-	ExecutorParams,
+use polkadot_primitives::vstaging::executor_params::{
+	ExecInstantiationStrategy, ExecutionEnvironment, ExecutorParam, ExecutorParams,
 };
 use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
@@ -132,16 +130,16 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 			Ok(ExecutorParam::StackLogicalMax(slm)) => stack_limit.logical_max = slm,
 			Ok(ExecutorParam::StackNativeMax(snm)) => stack_limit.native_stack_max = snm,
 			Ok(ExecutorParam::InstantiationStrategy(is)) => match is {
-				Ep::INST_POOLING_COW =>
+				ExecInstantiationStrategy::PoolingCoW =>
 					sem.instantiation_strategy = InstantiationStrategy::PoolingCopyOnWrite,
-				Ep::INST_RECREATE_COW =>
+				ExecInstantiationStrategy::RecreateCoW =>
 					sem.instantiation_strategy = InstantiationStrategy::RecreateInstanceCopyOnWrite,
-				Ep::INST_POOLING => sem.instantiation_strategy = InstantiationStrategy::Pooling,
-				Ep::INST_RECREATE =>
+				ExecInstantiationStrategy::Pooling =>
+					sem.instantiation_strategy = InstantiationStrategy::Pooling,
+				ExecInstantiationStrategy::Recreate =>
 					sem.instantiation_strategy = InstantiationStrategy::RecreateInstance,
-				Ep::INST_LEGACY =>
+				ExecInstantiationStrategy::Legacy =>
 					sem.instantiation_strategy = InstantiationStrategy::LegacyInstanceReuse,
-				_ => (),
 			},
 			Ok(ExecutorParam::CanonicalizeNaNs(cnan)) => sem.canonicalize_nans = cnan,
 			Ok(ExecutorParam::ParallelCompilation(pc)) => sem.parallel_compilation = pc,
