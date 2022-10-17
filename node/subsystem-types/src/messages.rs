@@ -328,18 +328,13 @@ pub enum NetworkBridgeRxMessage {
 	NewGossipTopology {
 		/// The session info this gossip topology is concerned with.
 		session: SessionIndex,
-		/// Ids of our neighbors in the X dimensions of the new gossip topology,
-		/// along with their validator indices within the session.
-		///
-		/// We're not necessarily connected to all of them, but we should
-		/// try to be.
-		our_neighbors_x: HashMap<AuthorityDiscoveryId, ValidatorIndex>,
-		/// Ids of our neighbors in the X dimensions of the new gossip topology,
-		/// along with their validator indices within the session.
-		///
-		/// We're not necessarily connected to all of them, but we should
-		/// try to be.
-		our_neighbors_y: HashMap<AuthorityDiscoveryId, ValidatorIndex>,
+		/// Our validator index in the session, if any.
+		local_index: Option<ValidatorIndex>,
+		/// The canonical shuffling of validators for the session.
+		canonical_shuffling: Vec<(AuthorityDiscoveryId, ValidatorIndex)>,
+		/// The reverse mapping of `canonical_shuffling`: from validator index
+		/// to the index in `canonical_shuffling`
+		shuffled_indices: Vec<usize>,
 	},
 }
 

@@ -34,6 +34,7 @@ futures = "0.3.21"
 futures-timer = "3.0.2"
 gum = { package = "tracing-gum", path = "../gum/" }
 erasure = { package = "polkadot-erasure-coding", path = "../../erasure-coding" }
+rand = "0.8.5"
 
 [features]
 default = []
