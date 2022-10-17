@@ -35,16 +35,16 @@ pub enum Subcommand {
 #[derive(Debug, Parser)]
 pub struct ExportGenesisStateCommand {
 	/// Id of the parachain this collator collates for.
-	#[arg(long, default_value = "100")]
+	#[arg(long, default_value_t = 100)]
 	pub parachain_id: u32,
 
 	/// The target raw PoV size in bytes. Minimum value is 64.
-	#[arg(long, default_value = "1024")]
+	#[arg(long, default_value_t = 1024)]
 	pub pov_size: usize,
 
 	/// The PVF execution complexity. Actually specifies how  many iterations/signatures
 	/// we compute per block.
-	#[arg(long, default_value = "1")]
+	#[arg(long, default_value_t = 1)]
 	pub pvf_complexity: u32,
 }
 
@@ -60,16 +60,16 @@ pub struct RunCmd {
 	pub base: sc_cli::RunCmd,
 
 	/// Id of the parachain this collator collates for.
-	#[arg(long, default_value = "2000")]
+	#[arg(long, default_value_t = 2000)]
 	pub parachain_id: u32,
 
 	/// The target raw PoV size in bytes. Minimum value is 64.
-	#[arg(long, default_value = "1024")]
+	#[arg(long, default_value_t = 1024)]
 	pub pov_size: usize,
 
 	/// The PVF execution complexity. Actually specifies how many iterations/signatures
 	/// we compute per block.
-	#[arg(long, default_value = "1")]
+	#[arg(long, default_value_t = 1)]
 	pub pvf_complexity: u32,
 }
 

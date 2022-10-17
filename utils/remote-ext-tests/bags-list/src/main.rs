@@ -38,9 +38,9 @@ enum Runtime {
 struct Cli {
 	#[arg(long, short, default_value = "wss://kusama-rpc.polkadot.io:443")]
 	uri: String,
-	#[arg(long, short, ignore_case = true, value_enum, default_value = "kusama")]
+	#[arg(long, short, ignore_case = true, value_enum, default_value_t = Runtime::Kusama)]
 	runtime: Runtime,
-	#[arg(long, short, ignore_case = true, value_enum, default_value = "SanityCheck")]
+	#[arg(long, short, ignore_case = true, value_enum, default_value_t = Command::SanityCheck)]
 	command: Command,
 	#[arg(long, short)]
 	snapshot_limit: Option<usize>,

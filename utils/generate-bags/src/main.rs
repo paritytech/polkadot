@@ -50,11 +50,11 @@ impl Runtime {
 #[derive(Debug, Parser)]
 struct Opt {
 	/// How many bags to generate.
-	#[arg(long, default_value = "200")]
+	#[arg(long, default_value_t = 200)]
 	n_bags: usize,
 
 	/// Which runtime to generate.
-	#[arg(long, ignore_case = true, value_enum, default_value = "Polkadot")]
+	#[arg(long, ignore_case = true, value_enum, default_value_t = Runtime::Polkadot)]
 	runtime: Runtime,
 
 	/// Where to write the output.

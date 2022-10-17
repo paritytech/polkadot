@@ -170,11 +170,11 @@ pub enum SubmissionStrategy {
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) enum Solver {
 	SeqPhragmen {
-		#[arg(long, default_value = "10")]
+		#[arg(long, default_value_t = 10)]
 		iterations: usize,
 	},
 	PhragMMS {
-		#[arg(long, default_value = "10")]
+		#[arg(long, default_value_t = 10)]
 		iterations: usize,
 	},
 }
