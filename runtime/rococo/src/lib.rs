@@ -1734,7 +1734,7 @@ sp_api::impl_runtime_apis! {
 
 		fn generate_historical_batch_proof(
 			block_numbers: Vec<BlockNumber>,
-			best_known_block_number: BlockNumber,
+			best_known_block_number: Option<BlockNumber>,
 		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error> {
 			Mmr::generate_historical_batch_proof(block_numbers, best_known_block_number).map(
 				|(leaves, proof)| {
