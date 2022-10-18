@@ -392,7 +392,7 @@ mod tests {
 		SubsystemContext,
 	};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_primitives::v2::{GroupValidators, Header, Validators};
+	use polkadot_primitives::v2::Header;
 	use sp_core::testing::TaskExecutor;
 
 	pub const TEST_WINDOW_SIZE: SessionWindowSize = new_session_window_size!(6);
