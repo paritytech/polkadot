@@ -295,11 +295,16 @@ frame_support::parameter_types! {
 
 /// Build the Ext at hash with all the data of `ElectionProviderMultiPhase` and any additional
 /// pallets.
-async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
+async fn create_election_ext<T, B>(
 	client: SharedRpcClient,
 	at: Option<B::Hash>,
 	additional: Vec<String>,
-) -> Result<Ext, Error<T>> {
+) -> Result<Ext, Error<T>>
+where
+	T: EPM::Config,
+	B: BlockT,
+	B::Header: DeserializeOwned,
+{
 	use frame_support::{storage::generator::StorageMap, traits::PalletInfo};
 	use sp_core::hashing::twox_128;
 
