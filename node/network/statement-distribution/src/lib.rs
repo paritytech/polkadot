@@ -45,7 +45,11 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
 	SubsystemError,
 };
-use polkadot_primitives::v2::{AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash, SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorIndex, Validators, ValidatorSignature};
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
+	SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorIndex, ValidatorSignature,
+	Validators,
+};
 
 use futures::{
 	channel::{mpsc, oneshot},

@@ -30,7 +30,10 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use polkadot_node_primitives::{CandidateVotes, SignedDisputeStatement};
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
-use polkadot_primitives::v2::{CandidateReceipt, DisputeStatement, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorIndex, ValidatorPair, ValidatorSignature, Validators};
+use polkadot_primitives::v2::{
+	CandidateReceipt, DisputeStatement, SessionIndex, SessionInfo, ValidDisputeStatementKind,
+	ValidatorIndex, ValidatorPair, ValidatorSignature, Validators,
+};
 use sc_keystore::LocalKeystore;
 
 use crate::LOG_TARGET;

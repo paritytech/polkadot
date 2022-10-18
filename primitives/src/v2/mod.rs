@@ -1634,6 +1634,11 @@ impl Validators {
 	pub fn into_iter(self) -> IntoIter<ValidatorId> {
 		self.0.into_iter()
 	}
+
+	/// Returns true if contained Vector is empty
+	pub fn is_empty(&self) -> bool {
+		self.0.is_empty()
+	}
 }
 
 /// GroupValidators struct indexed by GroupIndex.
@@ -1695,6 +1700,11 @@ impl GroupValidators {
 	/// Returns an Iterator with ownership.
 	pub fn into_iter(self) -> IntoIter<Vec<ValidatorIndex>> {
 		self.0.into_iter()
+	}
+
+	/// Returns true if contained Vector is empty
+	pub fn is_empty(&self) -> bool {
+		self.0.is_empty()
 	}
 }
 

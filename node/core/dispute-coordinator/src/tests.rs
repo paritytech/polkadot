@@ -56,7 +56,12 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
-use polkadot_primitives::v2::{ApprovalVote, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt, DisputeStatement, Hash, Header, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SessionInfo, SigningContext, ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature, Validators, GroupValidators};
+use polkadot_primitives::v2::{
+	ApprovalVote, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt,
+	DisputeStatement, GroupValidators, Hash, Header, MultiDisputeStatementSet, ScrapedOnChainVotes,
+	SessionIndex, SessionInfo, SigningContext, ValidDisputeStatementKind, ValidatorId,
+	ValidatorIndex, ValidatorSignature, Validators,
+};
 
 use crate::{
 	backend::Backend,
