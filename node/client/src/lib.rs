@@ -418,10 +418,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 	}
 }
 
-impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client
-where
-	Block: BlockT,
-{
+impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 	fn storage(
 		&self,
 		hash: &<Block as BlockT>::Hash,
