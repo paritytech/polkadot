@@ -20,15 +20,15 @@
 //! touched again. It can be reused to regenerate a wholly different
 //! quantity of bags, or if the existential deposit changes, etc.
 
-use clap::{ArgEnum, Parser};
+use clap::{Parser, ValueEnum};
 use generate_bags::generate_thresholds;
 use kusama_runtime::Runtime as KusamaRuntime;
 use polkadot_runtime::Runtime as PolkadotRuntime;
 use std::path::{Path, PathBuf};
 use westend_runtime::Runtime as WestendRuntime;
 
-#[derive(Clone, Debug, ArgEnum)]
-#[clap(rename_all = "PascalCase")]
+#[derive(Clone, Debug, ValueEnum)]
+#[value(rename_all = "PascalCase")]
 enum Runtime {
 	Westend,
 	Kusama,
@@ -50,22 +50,22 @@ impl Runtime {
 #[derive(Debug, Parser)]
 struct Opt {
 	/// How many bags to generate.
-	#[clap(long, default_value = "200")]
+	#[arg(long, default_value_t = 200)]
 	n_bags: usize,
 
 	/// Which runtime to generate.
-	#[clap(long, ignore_case = true, arg_enum, default_value = "Polkadot")]
+	#[arg(long, ignore_case = true, value_enum, default_value_t = Runtime::Polkadot)]
 	runtime: Runtime,
 
 	/// Where to write the output.
 	output: PathBuf,
 
 	/// The total issuance of the native currency.
-	#[clap(short, long)]
+	#[arg(short, long)]
 	total_issuance: u128,
 
 	/// The minimum account balance (i.e. existential deposit) for the native currency.
-	#[clap(short, long)]
+	#[arg(short, long)]
 	minimum_balance: u128,
 }
 
