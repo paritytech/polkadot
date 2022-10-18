@@ -1449,13 +1449,6 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
-		fn generate_proof(_block_number: BlockNumber)
-			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
-		{
-
-			Err(mmr::Error::PalletNotIncluded)
-		}
-
 		fn verify_proof(_leaf: mmr::EncodableOpaqueLeaf, _proof: mmr::Proof<Hash>)
 			-> Result<(), mmr::Error>
 		{
@@ -1477,7 +1470,7 @@ sp_api::impl_runtime_apis! {
 			Err(mmr::Error::PalletNotIncluded)
 		}
 
-		fn generate_batch_proof(
+		fn generate_proof(
 			_block_numbers: Vec<BlockNumber>,
 			_best_known_block_number: Option<BlockNumber>,
 		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error> {
