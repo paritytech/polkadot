@@ -81,7 +81,7 @@ use futures::{
 use error::{Error, FatalResult};
 use polkadot_node_primitives::{
 	AvailableData, InvalidCandidate, PoV, SignedFullStatementWithPVD, StatementWithPVD,
-	ValidationResult, BACKING_EXECUTION_TIMEOUT,
+	ValidationResult, BACKING_EXECUTION_TIMEOUT, MAX_CANDIDATE_DEPTH,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -1391,6 +1391,9 @@ async fn handle_validated_candidate_command<Context>(
 								Some(p) => p.seconded_locally = true,
 							}
 
+							let is_max_depth = fragment_tree_membership
+								.iter()
+								.all(|(_, m)| m.contains(MAX_CANDIDATE_DEPTH));
 							// update seconded depths in active leaves.
 							for (leaf, depths) in fragment_tree_membership {
 								let leaf_data = match state.per_leaf.get_mut(&leaf) {
@@ -1415,14 +1418,16 @@ async fn handle_validated_candidate_command<Context>(
 									seconded_at_depth.insert(depth, candidate_hash);
 								}
 							}
-							// send notifications for unblocked candidates.
-							let para = candidate.descriptor.para_id;
-							let head_data_hash = candidate.descriptor.para_head;
-							if let Some(requests) =
-								state.seconding_check_requests.remove(&(para, head_data_hash))
-							{
-								for req in requests {
-									let _ = req.sender.send(true);
+							if !is_max_depth {
+								// send notifications for unblocked candidates.
+								let para = candidate.descriptor.para_id;
+								let head_data_hash = candidate.descriptor.para_head;
+								if let Some(requests) =
+									state.seconding_check_requests.remove(&(para, head_data_hash))
+								{
+									for req in requests {
+										let _ = req.sender.send(true);
+									}
 								}
 							}
 
