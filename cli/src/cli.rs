@@ -84,6 +84,7 @@ pub struct ValidationWorkerCommand {
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
+#[group(skip)]
 pub struct RunCmd {
 	#[allow(missing_docs)]
 	#[clap(flatten)]
