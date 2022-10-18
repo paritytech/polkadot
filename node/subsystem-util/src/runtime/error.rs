@@ -38,9 +38,6 @@ pub enum Error {
 	/// We tried fetching a session info which was not available.
 	#[error("There was no session with the given index {0}")]
 	NoSuchSession(SessionIndex),
-	// /// Cannot get session index by parent hash, either a communication error or it is missing in underlying session_info pallet cache
-	// #[error("There was no session index for parent hash {0}")]
-	// NoSuchSessionForParentHash(Hash),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

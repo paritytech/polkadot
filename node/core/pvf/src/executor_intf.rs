@@ -117,10 +117,7 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 		return Err("No default stack limit set".to_string())
 	};
 	for p in par.iter() {
-		// let enc = p.clone();
-		// match ExecutorParam::decode(&mut &enc[..]) {
 		match p {
-			// Err(_) => return Err("Cannot decode executor parameter".to_string()),
 			ExecutorParam::Environment(env) =>
 				if *env != ExecutionEnvironment::WasmtimeGeneric {
 					return Err("Wrong execution environment type".to_string())
@@ -149,45 +146,6 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 	sem.deterministic_stack_limit = Some(stack_limit);
 	Ok(sem)
 }
-
-// // FIXME: Big endian architectures?
-// fn params_to_semantics(par: ExecutorParams) -> Semantics {
-// 	let mut sem = DEFAULT_CONFIG.semantics.clone();
-// 	for (key, value) in par.iter() {
-// 		match *key {
-// 			Ep::PAR_EXTRA_HEAP_PAGES => sem.extra_heap_pages = *value,
-// 			Ep::PAR_MAX_MEMORY_SIZE if *value <= std::u32::MAX as u64 =>
-// 				sem.max_memory_size = (*value).try_into().ok(),
-// 			Ep::PAR_STACK_LIMIT =>
-// 				sem.deterministic_stack_limit = Some(DeterministicStackLimit {
-// 					logical_max: (value & 0xFFFFFFFFu64) as u32,
-// 					native_stack_max: (value >> 32) as u32,
-// 				}),
-// 			Ep::PAR_BITS => {
-// 				sem.canonicalize_nans =
-// 					if value & (1 << Ep::BIT_CANONICAL_NANS) == 0 { false } else { true };
-// 				sem.parallel_compilation =
-// 					if value & (1 << Ep::BIT_PARALLEL_COMPILATION) == 0 { false } else { true };
-// 				match ((value >> 2) & 0b111u64) as u8 {
-// 					Ep::INST_POOLING_COW =>
-// 						sem.instantiation_strategy = InstantiationStrategy::PoolingCopyOnWrite,
-// 					Ep::INST_RECREATE_COW =>
-// 						sem.instantiation_strategy =
-// 							InstantiationStrategy::RecreateInstanceCopyOnWrite,
-// 					Ep::INST_POOLING => sem.instantiation_strategy = InstantiationStrategy::Pooling,
-// 					Ep::INST_RECREATE =>
-// 						sem.instantiation_strategy = InstantiationStrategy::RecreateInstance,
-// 					Ep::INST_LEGACY =>
-// 						sem.instantiation_strategy = InstantiationStrategy::LegacyInstanceReuse,
-// 					_ => (),
-// 				}
-// 			},
-// 			_ => (),
-// 		}
-// 	}
-
-// 	sem
-// }
 
 pub struct Executor {
 	thread_pool: rayon::ThreadPool,

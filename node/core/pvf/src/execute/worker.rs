@@ -200,7 +200,6 @@ pub fn worker_entrypoint(socket_path: &str) {
 		let mut executors: BTreeMap<u64, Executor> = BTreeMap::new();
 		loop {
 			let (artifact_path, params, ee_params) = recv_request(&mut stream).await?;
-			//let ee_hash = sp_io::hashing::blake2_256(&ee_params.encode()); // FIXME: Any better/more efficent/idiomatic way?
 			let version = ee_params.version();
 
 			let executor = match executors.get(&version) {
