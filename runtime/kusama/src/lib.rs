@@ -410,7 +410,9 @@ parameter_types! {
 	pub const MaxElectableTargets: u16 = u16::MAX;
 	pub NposSolutionPriority: TransactionPriority =
 		Perbill::from_percent(90) * TransactionPriority::max_value();
-	pub const MaxActiveValidators: u32 = 1000;
+	/// Setup election pallet to support maximum winners upto 2000. This will mean Staking Pallet
+	/// cannot have active validators higher than this count.
+	pub const MaxActiveValidators: u32 = 2000;
 }
 
 generate_solution_type!(

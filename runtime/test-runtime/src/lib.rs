@@ -319,7 +319,7 @@ parameter_types! {
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
 	pub storage OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	pub const MaxAuthorities: u32 = 100_000;
-	pub OnChainMaxWinners: u32 = 100;
+	pub const OnChainMaxWinners: u32 = u32::MAX;
 	pub const MaxElectingVoters: u32 = u32::MAX;
 	pub const MaxElectableTargets: u16 = u16::MAX;
 }

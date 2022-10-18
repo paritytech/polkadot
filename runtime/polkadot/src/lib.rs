@@ -405,7 +405,9 @@ parameter_types! {
 	/// ... and all of the validators as electable targets. Whilst this is the case, we cannot and
 	/// shall not increase the size of the validator intentions.
 	pub const MaxElectableTargets: u16 = u16::MAX;
-	pub const MaxActiveValidators: u32 = 1000;
+	/// Setup election pallet to support maximum winners upto 1200. This will mean Staking Pallet
+	/// cannot have active validators higher than this count.
+	pub const MaxActiveValidators: u32 = 1200;
 }
 
 generate_solution_type!(
