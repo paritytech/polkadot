@@ -1031,7 +1031,7 @@ where
 				});
 
 			let collations = &mut per_relay_parent.collations;
-			if !collations.is_seconded_limit_reached(relay_parent_mode, collator_para_id) {
+			if !collations.is_seconded_limit_reached(relay_parent_mode) {
 				return Err(AdvertisementError::SecondedLimitReached)
 			}
 
@@ -1305,9 +1305,8 @@ async fn process_msg<Context>(
 			let fetched_collation = FetchedCollation::from(&receipt.to_plain());
 			if let Some(collation_event) = state.fetched_candidates.remove(&fetched_collation) {
 				let (collator_id, pending_collation) = collation_event;
-				let PendingCollation {
-					relay_parent, peer_id, para_id, prospective_candidate, ..
-				} = pending_collation;
+				let PendingCollation { relay_parent, peer_id, prospective_candidate, .. } =
+					pending_collation;
 				note_good_collation(ctx.sender(), &state.peer_data, collator_id.clone()).await;
 				if let Some(peer_data) = state.peer_data.get(&peer_id) {
 					notify_collation_seconded(
@@ -1320,9 +1319,9 @@ async fn process_msg<Context>(
 					.await;
 				}
 
-				if let Some(state) = state.per_relay_parent.get_mut(&parent) {
-					state.collations.status = CollationStatus::Seconded;
-					state.collations.note_seconded(para_id);
+				if let Some(rp_state) = state.per_relay_parent.get_mut(&parent) {
+					rp_state.collations.status = CollationStatus::Seconded;
+					rp_state.collations.note_seconded();
 				}
 				// If async backing is enabled, make an attempt to fetch next collation.
 				let maybe_candidate_hash =
