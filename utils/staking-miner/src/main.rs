@@ -303,7 +303,7 @@ async fn create_election_ext<T, B>(
 where
 	T: EPM::Config,
 	B: BlockT,
-	B::Header: DeserializeOwned
+	B::Header: DeserializeOwned,
 {
 	use frame_support::{storage::generator::StorageMap, traits::PalletInfo};
 	use sp_core::hashing::twox_128;
