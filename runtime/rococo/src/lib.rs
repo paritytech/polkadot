@@ -1691,15 +1691,6 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
-		fn verify_proof_stateless(
-			root: Hash,
-			leaf: mmr::EncodableOpaqueLeaf,
-			proof: mmr::Proof<Hash>
-		) -> Result<(), mmr::Error> {
-			let node = mmr::DataOrHash::Data(leaf.into_opaque_leaf());
-			pallet_mmr::verify_leaves_proof::<MmrHashing, _>(root, vec![node], mmr::Proof::into_batch_proof(proof))
-		}
-
 		fn mmr_root() -> Result<Hash, mmr::Error> {
 			Ok(Mmr::mmr_root())
 		}
@@ -1732,7 +1723,7 @@ sp_api::impl_runtime_apis! {
 			Mmr::verify_leaves(leaves, proof)
 		}
 
-		fn verify_batch_proof_stateless(
+		fn verify_proof_stateless(
 			root: Hash,
 			leaves: Vec<mmr::EncodableOpaqueLeaf>,
 			proof: mmr::BatchProof<Hash>

@@ -1715,14 +1715,6 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
-		fn verify_proof_stateless(
-			_root: Hash,
-			_leaf: mmr::EncodableOpaqueLeaf,
-			_proof: mmr::Proof<Hash>
-		) -> Result<(), mmr::Error> {
-			Err(mmr::Error::PalletNotIncluded)
-		}
-
 		fn mmr_root() -> Result<Hash, mmr::Error> {
 			Err(mmr::Error::PalletNotIncluded)
 		}
@@ -1740,7 +1732,7 @@ sp_api::impl_runtime_apis! {
 			Err(mmr::Error::PalletNotIncluded)
 		}
 
-		fn verify_batch_proof_stateless(
+		fn verify_proof_stateless(
 			_root: Hash,
 			_leaves: Vec<mmr::EncodableOpaqueLeaf>,
 			_proof: mmr::BatchProof<Hash>
