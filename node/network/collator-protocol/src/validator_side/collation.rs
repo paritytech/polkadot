@@ -31,12 +31,12 @@ use futures::channel::oneshot;
 use std::collections::VecDeque;
 
 use polkadot_node_network_protocol::PeerId;
-use polkadot_node_primitives::PoV;
+use polkadot_node_primitives::{PoV, MAX_CANDIDATE_DEPTH};
 use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, CollatorId, Hash, Id as ParaId, PersistedValidationData,
 };
 
-use crate::{error::SecondingError, ProspectiveParachainsMode, LOG_TARGET, MAX_CANDIDATE_DEPTH};
+use crate::{error::SecondingError, ProspectiveParachainsMode, LOG_TARGET};
 
 /// Candidate supplied with a para head it's built on top of.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]

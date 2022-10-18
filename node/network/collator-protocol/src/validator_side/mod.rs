@@ -44,7 +44,7 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, vstaging as protocol_vstaging, OurView, PeerId,
 	UnifiedReputationChange as Rep, Versioned, View,
 };
-use polkadot_node_primitives::{PoV, SignedFullStatement, Statement};
+use polkadot_node_primitives::{PoV, SignedFullStatement, Statement, MAX_CANDIDATE_DEPTH};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
@@ -65,7 +65,7 @@ use crate::error::{Error, FetchError, Result, SecondingError};
 
 use super::{
 	modify_reputation, prospective_parachains_mode, tick_stream, ProspectiveParachainsMode,
-	LOG_TARGET, MAX_CANDIDATE_DEPTH,
+	LOG_TARGET,
 };
 
 mod collation;

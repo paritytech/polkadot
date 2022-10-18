@@ -114,7 +114,7 @@ impl BoundToRelayParent for CandidateBackingMessage {
 	fn relay_parent(&self) -> Hash {
 		match self {
 			Self::GetBackedCandidates(hash, _, _) => *hash,
-			Self::SecondingCheck { request, .. } => request.candidate_relay_parent,
+			Self::AdvertisementSecondingCheck { request, .. } => request.candidate_relay_parent,
 			Self::Second(hash, _, _, _) => *hash,
 			Self::Statement(hash, _) => *hash,
 		}

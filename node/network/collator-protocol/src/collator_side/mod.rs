@@ -36,7 +36,7 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, vstaging as protocol_vstaging, OurView, PeerId,
 	UnifiedReputationChange as Rep, Versioned, View,
 };
-use polkadot_node_primitives::{CollationSecondedSignal, PoV, Statement};
+use polkadot_node_primitives::{CollationSecondedSignal, PoV, Statement, MAX_CANDIDATE_DEPTH};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
@@ -54,9 +54,7 @@ use polkadot_primitives::v2::{
 	GroupIndex, Hash, Id as ParaId, SessionIndex,
 };
 
-use super::{
-	prospective_parachains_mode, ProspectiveParachainsMode, LOG_TARGET, MAX_CANDIDATE_DEPTH,
-};
+use super::{prospective_parachains_mode, ProspectiveParachainsMode, LOG_TARGET};
 use crate::{
 	error::{log_error, Error, FatalError, Result},
 	modify_reputation,

@@ -51,6 +51,17 @@ pub use disputes::{
 	ValidDisputeVote, ACTIVE_DURATION_SECS,
 };
 
+/// The maximum depth of a parachain candidate. 'depth' is defined as the
+/// amount of blocks between the para head in a relay-chain block's state
+/// and a candidate with a particular relay-parent. When async backing is
+/// disabled, the only possible depth is 0 and this constant should be ignored.
+///
+/// This value is chosen mostly for reasons of resource-limitation.
+/// Without it, a malicious validator group could create arbitrarily long,
+/// useless prospective parachains and DoS honest nodes.
+// TODO: fetch from the Runtime (https://github.com/paritytech/polkadot/issues/6163).
+pub const MAX_CANDIDATE_DEPTH: usize = 4;
+
 // For a 16-ary Merkle Prefix Trie, we can expect at most 16 32-byte hashes per node
 // plus some overhead:
 // header 1 + bitmap 2 + max partial_key 8 + children 16 * (32 + len 1) + value 32 + value len 1

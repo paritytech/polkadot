@@ -42,7 +42,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::inclusion_emulator::staging::{Constraints, RelayChainBlockInfo};
 use polkadot_primitives::vstaging::{
 	BlockNumber, CandidateHash, CommittedCandidateReceipt, CoreState, Hash, Id as ParaId,
-	PersistedValidationData,
+	PersistedValidationData, MAX_CANDIDATE_DEPTH,
 };
 
 use crate::{
@@ -55,16 +55,8 @@ mod fragment_tree;
 
 const LOG_TARGET: &str = "parachain::prospective-parachains";
 
-// The maximum depth the subsystem will allow. 'depth' is defined as the
-// amount of blocks between the para head in a relay-chain block's state
-// and a candidate with a particular relay-parent.
-//
-// This value is chosen mostly for reasons of resource-limitation.
-// Without it, a malicious validator group could create arbitrarily long,
-// useless prospective parachains and DoS honest nodes.
-const MAX_DEPTH: usize = 4;
-
 // The maximum ancestry we support.
+// TODO: fetch from the Runtime (https://github.com/paritytech/polkadot/issues/6163).
 const MAX_ANCESTRY: usize = 5;
 
 struct RelayBlockViewData {
@@ -215,7 +207,7 @@ async fn handle_active_leaves_update<Context>(
 				para,
 				block_info.clone(),
 				constraints,
-				MAX_DEPTH,
+				MAX_CANDIDATE_DEPTH,
 				ancestry.iter().cloned(),
 			)
 			.expect("ancestors are provided in reverse order and correctly; qed");
