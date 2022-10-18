@@ -67,12 +67,41 @@ pub trait BoundToRelayParent {
 	fn relay_parent(&self) -> Hash;
 }
 
+/// A request to the candidate backing subsystem to check whether
+/// it's correct to fetch and start seconding a candidate.
+#[derive(Debug, Copy, Clone)]
+pub struct SecondingCheckRequest {
+	/// Para id of the candidate.
+	pub candidate_para_id: ParaId,
+	/// The relay-parent of the candidate.
+	pub candidate_relay_parent: Hash,
+	/// Hash of the candidate.
+	pub candidate_hash: CandidateHash,
+	/// Parent head data hash.
+	pub parent_head_data_hash: Hash,
+}
+
 /// Messages received by the Candidate Backing subsystem.
 #[derive(Debug)]
 pub enum CandidateBackingMessage {
 	/// Requests a set of backable candidates that could be backed in a child of the given
 	/// relay-parent, referenced by its hash.
 	GetBackedCandidates(Hash, Vec<CandidateHash>, oneshot::Sender<Vec<BackedCandidate>>),
+	/// Request the subsystem to check whether it's allowed to second given candidate.
+	/// The rule is to only fetch collations that are either built on top of the root
+	/// of some fragment tree or have a parent node which represents (at least) locally
+	/// seconded candidate.
+	///
+	/// Returns false immediately if there exists an already-occupied depth in some fragment
+	/// tree for this candidate. Otherwise, notifies back when the parent node is seconded.
+	AdvertisementSecondingCheck {
+		/// Request parameters.
+		request: SecondingCheckRequest,
+		/// Response sender. The receiving side should not be blocked on
+		/// since it can take up some time until the candidate is ready
+		/// to be seconded, if ever. Rather works as a subscribe-notify channel.
+		sender: oneshot::Sender<bool>,
+	},
 	/// Note that the Candidate Backing subsystem should second the given candidate in the context of the
 	/// given relay-parent (ref. by hash). This candidate must be validated.
 	Second(Hash, CandidateReceipt, PersistedValidationData, PoV),
@@ -85,6 +114,7 @@ impl BoundToRelayParent for CandidateBackingMessage {
 	fn relay_parent(&self) -> Hash {
 		match self {
 			Self::GetBackedCandidates(hash, _, _) => *hash,
+			Self::SecondingCheck { request, .. } => request.candidate_relay_parent,
 			Self::Second(hash, _, _, _) => *hash,
 			Self::Statement(hash, _) => *hash,
 		}

@@ -88,7 +88,7 @@ use polkadot_node_subsystem::{
 		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
 		CandidateValidationMessage, CollatorProtocolMessage, HypotheticalDepthRequest,
 		ProspectiveParachainsMessage, ProvisionableData, ProvisionerMessage, RuntimeApiMessage,
-		RuntimeApiRequest, StatementDistributionMessage,
+		RuntimeApiRequest, SecondingCheckRequest, StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -251,6 +251,13 @@ struct ActiveLeafState {
 	seconded_at_depth: HashMap<ParaId, BTreeMap<usize, CandidateHash>>,
 }
 
+struct PerSecondingCheckRequest {
+	/// Candidate relay parent.
+	relay_parent: Hash,
+	/// Response sender.
+	sender: oneshot::Sender<bool>,
+}
+
 /// The state of the subsystem.
 struct State {
 	/// The utility for managing the implicit and explicit views in a consistent way.
@@ -281,6 +288,8 @@ struct State {
 	/// This is guaranteed to have an entry for each candidate with a relay parent in the implicit
 	/// or explicit view for which a `Seconded` statement has been successfully imported.
 	per_candidate: HashMap<CandidateHash, PerCandidateState>,
+	/// Stored seconding-check requests.
+	seconding_check_requests: HashMap<(ParaId, Hash), Vec<PerSecondingCheckRequest>>,
 	/// A cloneable sender which is dispatched to background candidate validation tasks to inform
 	/// the main task of the result.
 	background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
@@ -298,6 +307,7 @@ impl State {
 			per_leaf: HashMap::default(),
 			per_relay_parent: HashMap::default(),
 			per_candidate: HashMap::new(),
+			seconding_check_requests: HashMap::new(),
 			background_validation_tx,
 			keystore,
 		}
@@ -770,6 +780,8 @@ async fn handle_communication<Context>(
 					"Received `GetBackedCandidates` for an unknown relay parent."
 				);
 			},
+		CandidateBackingMessage::AdvertisementSecondingCheck { request, sender } =>
+			handle_seconding_check_message(ctx, state, request, sender).await,
 	}
 
 	Ok(())
@@ -862,6 +874,11 @@ async fn handle_active_leaves_update<Context>(
 	state
 		.per_candidate
 		.retain(|_, pc| state.per_relay_parent.contains_key(&pc.relay_parent));
+
+	// Remove pending requests for seconding checks.
+	state.seconding_check_requests.values_mut().for_each(|requests| {
+		requests.retain(|req| state.per_relay_parent.contains_key(&req.relay_parent))
+	});
 
 	// Get relay parents which might be fresh but might be known already
 	// that are explicit or implicit from the new active leaf.
@@ -1136,22 +1153,8 @@ async fn seconding_sanity_check<Context>(
 	candidate_hash: CandidateHash,
 	candidate_para: ParaId,
 	parent_head_data_hash: Hash,
-	head_data_hash: Hash,
 	candidate_relay_parent: Hash,
 ) -> SecondingAllowed {
-	// Note that `GetHypotheticalDepths` doesn't account for recursion,
-	// i.e. candidates can appear at multiple depths in the tree and in fact
-	// at all depths, and we don't know what depths a candidate will ultimately occupy
-	// because that's dependent on other candidates we haven't yet received.
-	//
-	// The only way to effectively rule this out is to have candidate receipts
-	// directly commit to the parachain block number or some other incrementing
-	// counter. That requires a major primitives format upgrade, so for now
-	// we just rule out trivial cycles.
-	if parent_head_data_hash == head_data_hash {
-		return SecondingAllowed::No
-	}
-
 	let mut membership = Vec::new();
 	let mut responses = FuturesOrdered::<BoxFuture<'_, Result<_, oneshot::Canceled>>>::new();
 
@@ -1236,6 +1239,49 @@ async fn seconding_sanity_check<Context>(
 	SecondingAllowed::Yes(membership)
 }
 
+/// Performs seconding sanity check for an advertisement.
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn handle_seconding_check_message<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	request: SecondingCheckRequest,
+	sender: oneshot::Sender<bool>,
+) {
+	let relay_parent = request.candidate_relay_parent;
+	if state
+		.per_relay_parent
+		.get(&relay_parent)
+		.map_or(false, |pr_state| pr_state.prospective_parachains_mode.is_enabled())
+	{
+		let result = seconding_sanity_check(
+			ctx,
+			&state.per_leaf,
+			&state.implicit_view,
+			request.candidate_hash,
+			request.candidate_para_id,
+			request.parent_head_data_hash,
+			relay_parent,
+		)
+		.await;
+
+		match result {
+			SecondingAllowed::No => {
+				let _ = sender.send(false);
+			},
+			SecondingAllowed::Yes(membership) =>
+				if membership.iter().any(|(_, m)| !m.is_empty()) {
+					let _ = sender.send(true);
+				} else {
+					state
+						.seconding_check_requests
+						.entry((request.candidate_para_id, request.parent_head_data_hash))
+						.or_default()
+						.push(PerSecondingCheckRequest { relay_parent, sender });
+				},
+		}
+	}
+}
+
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn handle_validated_candidate_command<Context>(
 	ctx: &mut Context,
@@ -1262,6 +1308,19 @@ async fn handle_validated_candidate_command<Context>(
 							return Ok(())
 						}
 
+						let parent_head_data_hash = persisted_validation_data.parent_head.hash();
+						// Note that `GetHypotheticalDepths` doesn't account for recursion,
+						// i.e. candidates can appear at multiple depths in the tree and in fact
+						// at all depths, and we don't know what depths a candidate will ultimately occupy
+						// because that's dependent on other candidates we haven't yet received.
+						//
+						// The only way to effectively rule this out is to have candidate receipts
+						// directly commit to the parachain block number or some other incrementing
+						// counter. That requires a major primitives format upgrade, so for now
+						// we just rule out trivial cycles.
+						if parent_head_data_hash == commitments.head_data.hash() {
+							return Ok(())
+						}
 						// sanity check that we're allowed to second the candidate
 						// and that it doesn't conflict with other candidates we've
 						// seconded.
@@ -1272,7 +1331,6 @@ async fn handle_validated_candidate_command<Context>(
 							candidate_hash,
 							candidate.descriptor().para_id,
 							persisted_validation_data.parent_head.hash(),
-							commitments.head_data.hash(),
 							candidate.descriptor().relay_parent,
 						)
 						.await
@@ -1355,6 +1413,16 @@ async fn handle_validated_candidate_command<Context>(
 
 								for depth in depths {
 									seconded_at_depth.insert(depth, candidate_hash);
+								}
+							}
+							// send notifications for unblocked candidates.
+							let para = candidate.descriptor.para_id;
+							let head_data_hash = candidate.descriptor.para_head;
+							if let Some(requests) =
+								state.seconding_check_requests.remove(&(para, head_data_hash))
+							{
+								for req in requests {
+									let _ = req.sender.send(true);
 								}
 							}
 
