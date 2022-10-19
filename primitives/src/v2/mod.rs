@@ -1697,7 +1697,7 @@ impl GroupValidators {
 		self.0.iter_mut()
 	}
 
-	/// Returns an Iterator with ownership.
+	/// Creates a consuming iterator.
 	pub fn into_iter(self) -> IntoIter<Vec<ValidatorIndex>> {
 		self.0.into_iter()
 	}
