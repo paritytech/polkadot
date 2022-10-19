@@ -159,7 +159,7 @@ fn build_session_topology(
 /// A tracker of knowledge from authorities within the grid for a
 /// specific relay-parent.
 struct PerRelayParentGridTracker {
-	by_validator: HashMap<ValidatorIndex, CounterPartyManifestKnowledge>,
+	received: HashMap<ValidatorIndex, CounterPartyManifestKnowledge>,
 }
 
 struct ManifestSummary {
