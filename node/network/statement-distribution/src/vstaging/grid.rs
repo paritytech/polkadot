@@ -495,5 +495,58 @@ mod tests {
 		);
 	}
 
-	// TODO [now]: test that overflowing manifests are rejected.
+	#[test]
+	fn reject_overflowing_manifests() {
+		let mut knowledge = CounterPartyManifestKnowledge::new();
+		knowledge.import_received(
+			3,
+			2,
+			CandidateHash(Hash::repeat_byte(1)),
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0xA),
+				claimed_group_index: GroupIndex(0),
+				seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
+				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+			},
+		).unwrap();
+
+		knowledge.import_received(
+			3,
+			2,
+			CandidateHash(Hash::repeat_byte(2)),
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0xB),
+				claimed_group_index: GroupIndex(0),
+				seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+			},
+		).unwrap();
+
+		assert_matches!(
+			knowledge.import_received(
+				3,
+				2,
+				CandidateHash(Hash::repeat_byte(3)),
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0xC),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+				},
+			),
+			Err(ManifestImportError::Overflow)
+		);
+
+		knowledge.import_received(
+			3,
+			2,
+			CandidateHash(Hash::repeat_byte(3)),
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0xC),
+				claimed_group_index: GroupIndex(0),
+				seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+			},
+		).unwrap();
+	}
 }
