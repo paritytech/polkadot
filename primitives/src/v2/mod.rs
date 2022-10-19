@@ -1692,7 +1692,7 @@ impl GroupValidators {
 		self.0.iter()
 	}
 
-	/// Returns a mutable Iterator.
+	/// Returns an iterator that allows modifying each group.
 	pub fn iter_mut(&mut self) -> IterMut<'_, Vec<ValidatorIndex>> {
 		self.0.iter_mut()
 	}
