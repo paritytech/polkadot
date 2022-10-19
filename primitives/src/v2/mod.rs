@@ -1687,7 +1687,7 @@ impl GroupValidators {
 		self.0.clone()
 	}
 
-	/// Returns Iterator of contained vector.
+	/// Returns an iterator over the groups.
 	pub fn iter(&self) -> Iter<'_, Vec<ValidatorIndex>> {
 		self.0.iter()
 	}
