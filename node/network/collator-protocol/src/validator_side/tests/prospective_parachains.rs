@@ -294,10 +294,11 @@ fn accept_advertisements_from_implicit_view() {
 		let head_b = Hash::from_low_u64_be(128);
 		let head_b_num: u32 = 2;
 
+		let head_c = get_parent_hash(head_b);
 		// Grandparent of head `b`.
-		// Group rotation frequency is 1 by default, at `c` we're assigned
+		// Group rotation frequency is 1 by default, at `d` we're assigned
 		// to the first para.
-		let head_c = Hash::from_low_u64_be(130);
+		let head_d = get_parent_hash(head_c);
 
 		// Activated leaf is `b`, but the collation will be based on `c`.
 		update_view(&mut virtual_overseer, &test_state, vec![(head_b, head_b_num)], 1).await;
@@ -332,35 +333,24 @@ fn accept_advertisements_from_implicit_view() {
 			Some((candidate_hash, parent_head_data_hash)),
 		)
 		.await;
-		// Advertise with different para.
-		advertise_collation(
-			&mut virtual_overseer,
-			peer_a,
-			head_c,
-			Some((candidate_hash, parent_head_data_hash)),
-		)
-		.await;
-
-		let response_channel = assert_fetch_collation_request(
+		assert_fetch_collation_request(
 			&mut virtual_overseer,
 			head_c,
 			test_state.chain_ids[1],
 			Some(candidate_hash),
 		)
 		.await;
-
-		// Respond with an error to abort seconding.
-		response_channel
-			.send(Err(sc_network::RequestFailure::NotConnected))
-			.expect("Sending response should succeed");
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(..),)
-		);
-
+		// Advertise with different para.
+		advertise_collation(
+			&mut virtual_overseer,
+			peer_a,
+			head_d, // Note different relay parent.
+			Some((candidate_hash, parent_head_data_hash)),
+		)
+		.await;
 		assert_fetch_collation_request(
 			&mut virtual_overseer,
-			head_c,
+			head_d,
 			test_state.chain_ids[0],
 			Some(candidate_hash),
 		)

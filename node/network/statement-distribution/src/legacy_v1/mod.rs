@@ -18,9 +18,7 @@ use parity_scale_codec::Encode;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
-	grid_topology::{
-		GridNeighbors, RequiredRouting, SessionBoundGridTopologyStorage,
-	},
+	grid_topology::{GridNeighbors, RequiredRouting, SessionBoundGridTopologyStorage},
 	peer_set::{IsAuthority, PeerSet, ValidationVersion},
 	v1::{self as protocol_v1, StatementMetadata},
 	vstaging as protocol_vstaging, IfDisconnected, PeerId, UnifiedReputationChange as Rep,
