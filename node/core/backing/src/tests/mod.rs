@@ -212,7 +212,7 @@ impl TestCandidateBuilder {
 				erasure_root: self.erasure_root,
 				collator: dummy_collator(),
 				signature: dummy_collator_signature(),
-				para_head: dummy_hash(),
+				para_head: self.head_data.hash(),
 				validation_code_hash: ValidationCode(self.validation_code).hash(),
 				persisted_validation_data_hash: self.persisted_validation_data_hash,
 			},

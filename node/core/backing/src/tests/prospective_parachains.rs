@@ -1561,3 +1561,182 @@ fn occupied_core_assignment() {
 		virtual_overseer
 	});
 }
+
+#[test]
+fn seconding_check_request_notify() {
+	let test_state = TestState::default();
+	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
+		const LEAF_A_BLOCK_NUMBER: BlockNumber = 90;
+		const LEAF_A_ANCESTRY_LEN: BlockNumber = 3;
+		let para_id = test_state.chain_ids[0];
+
+		let leaf_b_hash = Hash::from_low_u64_be(128);
+		// `a` is grandparent of `b`.
+		let leaf_a_hash = Hash::from_low_u64_be(130);
+		let leaf_a_parent = get_parent_hash(leaf_a_hash);
+		let activated = ActivatedLeaf {
+			hash: leaf_a_hash,
+			number: LEAF_A_BLOCK_NUMBER,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		};
+		let min_relay_parents = vec![(para_id, LEAF_A_BLOCK_NUMBER - LEAF_A_ANCESTRY_LEN)];
+		let test_leaf_a = TestLeaf { activated, min_relay_parents };
+
+		const LEAF_B_BLOCK_NUMBER: BlockNumber = LEAF_A_BLOCK_NUMBER + 2;
+		const LEAF_B_ANCESTRY_LEN: BlockNumber = 4;
+
+		let activated = ActivatedLeaf {
+			hash: leaf_b_hash,
+			number: LEAF_B_BLOCK_NUMBER,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		};
+		let min_relay_parents = vec![(para_id, LEAF_B_BLOCK_NUMBER - LEAF_B_ANCESTRY_LEN)];
+		let test_leaf_b = TestLeaf { activated, min_relay_parents };
+
+		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
+		activate_leaf(&mut virtual_overseer, test_leaf_b, &test_state, 0).await;
+		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
+		let pvd = dummy_pvd();
+		let validation_code = ValidationCode(vec![1, 2, 3]);
+
+		let expected_head_data = test_state.head_data.get(&para_id).unwrap();
+		let parent_head_data_hash = expected_head_data.hash();
+
+		let mut receivers = Vec::new();
+		for i in 0u8..3 {
+			let (tx, rx) = oneshot::channel();
+			receivers.push(rx);
+
+			let candidate_hash = CandidateHash(Hash::repeat_byte(i));
+			let request = SecondingCheckRequest {
+				candidate_para_id: para_id,
+				candidate_relay_parent: leaf_a_parent,
+				candidate_hash,
+				parent_head_data_hash,
+			};
+			let msg = CandidateBackingMessage::AdvertisementSecondingCheck { request, tx };
+			virtual_overseer.send(FromOrchestra::Communication { msg }).await;
+
+			let expected_request_a = HypotheticalDepthRequest {
+				candidate_hash,
+				candidate_para: para_id,
+				parent_head_data_hash,
+				candidate_relay_parent: leaf_a_parent,
+				fragment_tree_relay_parent: leaf_a_hash,
+			};
+			let expected_request_b = HypotheticalDepthRequest {
+				candidate_hash,
+				candidate_para: para_id,
+				parent_head_data_hash,
+				candidate_relay_parent: leaf_a_parent,
+				fragment_tree_relay_parent: leaf_b_hash,
+			};
+			assert_hypothetical_depth_requests(
+				&mut virtual_overseer,
+				vec![(expected_request_a, Vec::new()), (expected_request_b, Vec::new())],
+			)
+			.await;
+		}
+
+		let pov_hash = pov.hash();
+		let leaf_a_grandparent = get_parent_hash(leaf_a_parent);
+		let candidate = TestCandidateBuilder {
+			para_id,
+			relay_parent: leaf_a_grandparent,
+			pov_hash,
+			head_data: expected_head_data.clone(),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
+			persisted_validation_data_hash: pvd.hash(),
+			validation_code: validation_code.0.clone(),
+			..Default::default()
+		}
+		.build();
+
+		let second = CandidateBackingMessage::Second(
+			leaf_a_grandparent,
+			candidate.to_plain(),
+			pvd.clone(),
+			pov.clone(),
+		);
+
+		virtual_overseer.send(FromOrchestra::Communication { msg: second }).await;
+
+		assert_validate_seconded_candidate(
+			&mut virtual_overseer,
+			leaf_a_grandparent,
+			&candidate,
+			&pov,
+			&pvd,
+			&validation_code,
+			expected_head_data,
+			false,
+		)
+		.await;
+
+		// `seconding_sanity_check`
+		let expected_request_a = HypotheticalDepthRequest {
+			candidate_hash: candidate.hash(),
+			candidate_para: para_id,
+			parent_head_data_hash: pvd.parent_head.hash(),
+			candidate_relay_parent: leaf_a_grandparent,
+			fragment_tree_relay_parent: leaf_a_hash,
+		};
+		let expected_request_b = HypotheticalDepthRequest {
+			candidate_hash: candidate.hash(),
+			candidate_para: para_id,
+			parent_head_data_hash: pvd.parent_head.hash(),
+			candidate_relay_parent: leaf_a_grandparent,
+			fragment_tree_relay_parent: leaf_b_hash,
+		};
+		assert_hypothetical_depth_requests(
+			&mut virtual_overseer,
+			vec![(expected_request_a, vec![0]), (expected_request_b, vec![3])],
+		)
+		.await;
+		// Prospective parachains are notified.
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ProspectiveParachains(
+				ProspectiveParachainsMessage::CandidateSeconded(
+					candidate_para,
+					candidate_receipt,
+					_pvd,
+					tx,
+				),
+			) if candidate_receipt == candidate && candidate_para == para_id && pvd == _pvd => {
+				// Any non-empty response will do.
+				tx.send(vec![(leaf_a_hash, vec![0, 1, 2, 3])]).unwrap();
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::StatementDistribution(
+				StatementDistributionMessage::Share(
+					parent_hash,
+					_signed_statement,
+				)
+			) if parent_hash == leaf_a_grandparent => {}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::CollatorProtocol(CollatorProtocolMessage::Seconded(hash, statement)) => {
+				assert_eq!(leaf_a_grandparent, hash);
+				assert_matches!(statement.payload(), Statement::Seconded(_));
+			}
+		);
+
+		for mut rx in receivers {
+			// Responded with `true`.
+			assert!(rx
+				.try_recv()
+				.expect("sender is expected to be used")
+				.expect("response should've been already sent"));
+		}
+
+		virtual_overseer
+	});
+}

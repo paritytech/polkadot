@@ -1264,6 +1264,11 @@ async fn handle_seconding_check_message<Context>(
 		)
 		.await;
 
+		// If seconding sanity check doesn't pass now, fetching collation
+		// is pointless as it will also fail once candidate validation concludes.
+		// However, the response may happen to be empty: this means that the
+		// parent node-candidate has not been seconded yet. This is OK,
+		// the request will be kept in memory.
 		match result {
 			SecondingAllowed::No => {
 				let _ = tx.send(false);
