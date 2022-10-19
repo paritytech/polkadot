@@ -488,7 +488,7 @@ impl ImportResult {
 		for (index, sig) in approval_votes.into_iter() {
 			debug_assert!(
 				{
-					let pub_key = &env.session_info().validators[index];
+					let pub_key = &env.session_info().validators.get(index).expect("<write an actual proof here; qed>");
 					let candidate_hash = votes.candidate_receipt.hash();
 					let session_index = env.session_index();
 					DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking)

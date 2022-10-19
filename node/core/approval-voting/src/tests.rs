@@ -32,8 +32,8 @@ use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_overseer::HeadSupportsParachains;
 use polkadot_primitives::v2::{
-	CandidateCommitments, CandidateEvent, CoreIndex, GroupIndex, GroupValidators, Header,
-	Id as ParaId, ValidationCode, ValidatorSignature,
+	CandidateCommitments, CandidateEvent, CoreIndex, GroupIndex, Header, Id as ParaId,
+	ValidationCode, ValidatorGroups, ValidatorSignature,
 };
 use std::time::Duration;
 
@@ -739,7 +739,7 @@ fn session_info(keys: &[Sr25519Keyring]) -> SessionInfo {
 		validators: keys.iter().map(|v| v.public().into()).collect(),
 		discovery_keys: keys.iter().map(|v| v.public().into()).collect(),
 		assignment_keys: keys.iter().map(|v| v.public().into()).collect(),
-		validator_groups: GroupValidators::from(vec![
+		validator_groups: ValidatorGroups::from(vec![
 			vec![ValidatorIndex(0)],
 			vec![ValidatorIndex(1)],
 		]),
@@ -1555,7 +1555,7 @@ fn subsystem_second_approval_import_only_schedules_wakeups() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validator_groups: GroupValidators::from(vec![
+			validator_groups: ValidatorGroups::from(vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
@@ -1892,7 +1892,7 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validator_groups: GroupValidators::from(vec![
+			validator_groups: ValidatorGroups::from(vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
@@ -2049,7 +2049,7 @@ fn subsystem_import_checked_approval_sets_one_block_bit_at_a_time() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validator_groups: GroupValidators::from(vec![
+			validator_groups: ValidatorGroups::from(vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
@@ -2339,7 +2339,7 @@ fn subsystem_validate_approvals_cache() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validator_groups: GroupValidators::from(vec![
+			validator_groups: ValidatorGroups::from(vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
@@ -2551,7 +2551,7 @@ where
 			Sr25519Keyring::Ferdie,
 		];
 		let session_info = SessionInfo {
-			validator_groups: GroupValidators::from(vec![
+			validator_groups: ValidatorGroups::from(vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2), ValidatorIndex(3)],
 				vec![ValidatorIndex(4), ValidatorIndex(5)],
@@ -2871,7 +2871,7 @@ fn pre_covers_dont_stall_approval() {
 			Sr25519Keyring::One,
 		];
 		let session_info = SessionInfo {
-			validator_groups: GroupValidators::from(vec![
+			validator_groups: ValidatorGroups::from(vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2), ValidatorIndex(5)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
@@ -3048,7 +3048,7 @@ fn waits_until_approving_assignments_are_old_enough() {
 			Sr25519Keyring::One,
 		];
 		let session_info = SessionInfo {
-			validator_groups: GroupValidators::from(vec![
+			validator_groups: ValidatorGroups::from(vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2), ValidatorIndex(5)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],

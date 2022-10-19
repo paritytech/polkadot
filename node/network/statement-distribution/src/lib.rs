@@ -2072,7 +2072,10 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					// directly:
 					let group_peers = {
 						if let Some(our_group) = validator_info.our_group {
-							let our_group = &session_info.validator_groups[our_group];
+							let our_group = &session_info
+								.validator_groups
+								.get(our_group)
+								.expect("<write an actual proof here; qed>");
 
 							our_group
 								.into_iter()

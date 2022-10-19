@@ -21,8 +21,8 @@ use polkadot_node_primitives::approval::{
 	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
 };
 use polkadot_primitives::v2::{
-	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, GroupValidators,
-	SessionInfo, ValidatorIndex,
+	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, SessionInfo,
+	ValidatorGroups, ValidatorIndex,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::ByteArray;
@@ -139,7 +139,7 @@ pub(crate) struct Config {
 	/// The assignment public keys for validators.
 	assignment_keys: Vec<AssignmentId>,
 	/// The groups of validators assigned to each core.
-	validator_groups: GroupValidators,
+	validator_groups: ValidatorGroups,
 	/// The number of availability cores used by the protocol during this session.
 	n_cores: u32,
 	/// The zeroth delay tranche width.
@@ -542,7 +542,7 @@ pub(crate) fn check_assignment_cert(
 }
 
 fn is_in_backing_group(
-	validator_groups: &GroupValidators,
+	validator_groups: &ValidatorGroups,
 	validator: ValidatorIndex,
 	group: GroupIndex,
 ) -> bool {
@@ -591,7 +591,7 @@ mod tests {
 			.collect()
 	}
 
-	fn basic_groups(n_validators: usize, n_groups: usize) -> GroupValidators {
+	fn basic_groups(n_validators: usize, n_groups: usize) -> ValidatorGroups {
 		let size = n_validators / n_groups;
 		let big_groups = n_validators % n_groups;
 		let scraps = n_groups * size;
@@ -632,7 +632,7 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: GroupValidators::from(vec![
+				validator_groups: ValidatorGroups::from(vec![
 					vec![ValidatorIndex(0)],
 					vec![ValidatorIndex(1), ValidatorIndex(2)],
 				]),
@@ -667,7 +667,7 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: GroupValidators::from(vec![
+				validator_groups: ValidatorGroups::from(vec![
 					vec![ValidatorIndex(0)],
 					vec![ValidatorIndex(1), ValidatorIndex(2)],
 				]),

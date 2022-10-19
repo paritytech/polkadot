@@ -135,7 +135,7 @@ impl TestState {
 	fn current_group_validator_indices(&self) -> &[ValidatorIndex] {
 		let core_num = self.availability_cores.len();
 		let GroupIndex(group_idx) = self.group_rotation_info.group_for_core(CoreIndex(0), core_num);
-		&self.session_info.validator_groups[GroupIndex::from(group_idx)]
+		&self.session_info.validator_groups.get(GroupIndex::from(group_idx)).unwrap()
 	}
 
 	fn current_session_index(&self) -> SessionIndex {

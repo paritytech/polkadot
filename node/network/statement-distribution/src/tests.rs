@@ -36,7 +36,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
 use polkadot_primitives::v2::{
-	GroupValidators, Hash, Id as ParaId, SessionInfo, ValidationCode, ValidatorId,
+	Hash, Id as ParaId, SessionInfo, ValidationCode, ValidatorGroups, ValidatorId,
 };
 use polkadot_primitives_test_helpers::{
 	dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
@@ -2321,7 +2321,7 @@ fn handle_multiple_seconded_statements() {
 }
 
 fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInfo {
-	let validator_groups: GroupValidators = groups
+	let validator_groups: ValidatorGroups = groups
 		.iter()
 		.map(|g| g.into_iter().map(|v| ValidatorIndex(*v)).collect())
 		.collect();

@@ -1097,7 +1097,7 @@ impl Initialized {
 				valid,
 				candidate_hash,
 				session,
-				env.validators()[*index].clone(),
+				env.validators().get(*index).expect("<write an actual proof here; qed>").clone(),
 			)
 			.await;
 

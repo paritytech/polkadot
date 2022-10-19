@@ -58,8 +58,8 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 use polkadot_primitives::v2::{
 	ApprovalVote, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt,
-	DisputeStatement, GroupValidators, Hash, Header, MultiDisputeStatementSet, ScrapedOnChainVotes,
-	SessionIndex, SessionInfo, SigningContext, ValidDisputeStatementKind, ValidatorId,
+	DisputeStatement, Hash, Header, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex,
+	SessionInfo, SigningContext, ValidDisputeStatementKind, ValidatorGroups, ValidatorId,
 	ValidatorIndex, ValidatorSignature, Validators,
 };
 
@@ -126,7 +126,7 @@ impl MockClock {
 struct TestState {
 	validators: Vec<Pair>,
 	validator_public: Validators,
-	validator_groups: GroupValidators,
+	validator_groups: ValidatorGroups,
 	master_keystore: Arc<sc_keystore::LocalKeystore>,
 	subsystem_keystore: Arc<sc_keystore::LocalKeystore>,
 	db: Arc<dyn Database>,
@@ -163,7 +163,7 @@ impl Default for TestState {
 			.map(|k| ValidatorId::from(k.0.public()))
 			.collect();
 
-		let validator_groups = GroupValidators::from(vec![
+		let validator_groups = ValidatorGroups::from(vec![
 			vec![ValidatorIndex(0), ValidatorIndex(1)],
 			vec![ValidatorIndex(2), ValidatorIndex(3)],
 			vec![ValidatorIndex(4), ValidatorIndex(5), ValidatorIndex(6)],
@@ -431,7 +431,7 @@ impl TestState {
 		session: SessionIndex,
 		valid: bool,
 	) -> SignedDisputeStatement {
-		let public = self.validator_public[index].clone();
+		let public = self.validator_public.get(index).unwrap().clone();
 
 		let keystore = self.master_keystore.clone() as SyncCryptoStorePtr;
 

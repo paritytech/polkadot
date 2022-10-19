@@ -621,7 +621,7 @@ pub(crate) mod tests {
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
 	use polkadot_primitives::v2::{
-		GroupValidators, Id as ParaId, SessionInfo, ValidatorIndex, Validators,
+		Id as ParaId, SessionInfo, ValidatorGroups, ValidatorIndex, Validators,
 	};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
@@ -1180,7 +1180,7 @@ pub(crate) mod tests {
 			validators: Validators::from(vec![Sr25519Keyring::Alice.public().into(); 6]),
 			discovery_keys: Vec::new(),
 			assignment_keys: Vec::new(),
-			validator_groups: GroupValidators::from(vec![
+			validator_groups: ValidatorGroups::from(vec![
 				vec![ValidatorIndex(0); 5],
 				vec![ValidatorIndex(0); 2],
 			]),

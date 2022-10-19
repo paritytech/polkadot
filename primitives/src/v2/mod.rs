@@ -1579,14 +1579,6 @@ impl CompactStatement {
 #[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct Validators(Vec<ValidatorId>);
 
-impl Index<ValidatorIndex> for Validators {
-	type Output = ValidatorId;
-
-	fn index(&self, index: ValidatorIndex) -> &Self::Output {
-		&self.0.get(index.0 as usize).unwrap()
-	}
-}
-
 impl From<Vec<ValidatorId>> for Validators {
 	fn from(validators: Vec<ValidatorId>) -> Self {
 		Validators(validators)
@@ -1595,12 +1587,7 @@ impl From<Vec<ValidatorId>> for Validators {
 
 impl FromIterator<ValidatorId> for Validators {
 	fn from_iter<T: IntoIterator<Item = ValidatorId>>(iter: T) -> Self {
-		let mut validators = Vec::new();
-
-		for i in iter {
-			validators.push(i);
-		}
-		Validators(validators)
+		Self(Vec::from_iter(iter))
 	}
 }
 
@@ -1641,37 +1628,24 @@ impl Validators {
 	}
 }
 
-/// GroupValidators struct indexed by GroupIndex.
+/// ValidatorGroups struct indexed by GroupIndex.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo, Default)]
 #[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
-pub struct GroupValidators(Vec<Vec<ValidatorIndex>>);
+pub struct ValidatorGroups(Vec<Vec<ValidatorIndex>>);
 
-impl Index<GroupIndex> for GroupValidators {
-	type Output = Vec<ValidatorIndex>;
-
-	fn index(&self, index: GroupIndex) -> &Self::Output {
-		self.0.get(index.0 as usize).unwrap()
-	}
-}
-
-impl From<Vec<Vec<ValidatorIndex>>> for GroupValidators {
+impl From<Vec<Vec<ValidatorIndex>>> for ValidatorGroups {
 	fn from(group_validators: Vec<Vec<ValidatorIndex>>) -> Self {
-		GroupValidators(group_validators)
+		ValidatorGroups(group_validators)
 	}
 }
 
-impl FromIterator<Vec<ValidatorIndex>> for GroupValidators {
+impl FromIterator<Vec<ValidatorIndex>> for ValidatorGroups {
 	fn from_iter<T: IntoIterator<Item = Vec<ValidatorIndex>>>(iter: T) -> Self {
-		let mut validator_groups = Vec::new();
-
-		for i in iter {
-			validator_groups.push(i);
-		}
-		GroupValidators(validator_groups)
+		Self(Vec::from_iter(iter))
 	}
 }
 
-impl GroupValidators {
+impl ValidatorGroups {
 	/// Returns a reference to an element indexed using GroupIndex.
 	pub fn get(&self, index: GroupIndex) -> Option<&Vec<ValidatorIndex>> {
 		self.0.get(index.0 as usize)
@@ -1765,7 +1739,7 @@ pub struct SessionInfo {
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by
 	/// `GroupIndex`.
-	pub validator_groups: GroupValidators,
+	pub validator_groups: ValidatorGroups,
 	/// The number of availability cores used by the protocol during this session.
 	pub n_cores: u32,
 	/// The zeroth delay tranche width.
@@ -1841,7 +1815,7 @@ pub struct OldV1SessionInfo {
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by
 	/// `GroupIndex`.
-	pub validator_groups: GroupValidators,
+	pub validator_groups: ValidatorGroups,
 	/// The number of availability cores used by the protocol during this session.
 	pub n_cores: u32,
 	/// The zeroth delay tranche width.
