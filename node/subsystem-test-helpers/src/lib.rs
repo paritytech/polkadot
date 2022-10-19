@@ -177,7 +177,7 @@ where
 /// A test subsystem context.
 pub struct TestSubsystemContext<M, S> {
 	tx: TestSubsystemSender,
-	rx: SingleItemStream<FromOrchestra<M>>,
+	rx: mpsc::Receiver<FromOrchestra<M>>,
 	spawn: S,
 }
 
@@ -239,7 +239,7 @@ pub struct TestSubsystemContextHandle<M> {
 	///
 	/// Useful for shared ownership situations (one can have multiple senders, but only one
 	/// receiver.
-	pub tx: SingleItemSink<FromOrchestra<M>>,
+	pub tx: mpsc::Sender<FromOrchestra<M>>,
 
 	/// Direct access to the receiver.
 	pub rx: mpsc::UnboundedReceiver<AllMessages>,
@@ -284,7 +284,7 @@ impl<M> TestSubsystemContextHandle<M> {
 pub fn make_subsystem_context<M, S>(
 	spawner: S,
 ) -> (TestSubsystemContext<M, SpawnGlue<S>>, TestSubsystemContextHandle<M>) {
-	let (overseer_tx, overseer_rx) = single_item_sink();
+	let (overseer_tx, overseer_rx) = mpsc::channel(1);
 	let (all_messages_tx, all_messages_rx) = mpsc::unbounded();
 
 	(
