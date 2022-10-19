@@ -20,7 +20,6 @@ use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::{
-	ops::Index,
 	prelude::*,
 	slice::{Iter, IterMut},
 	vec::IntoIter,
