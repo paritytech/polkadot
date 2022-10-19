@@ -380,6 +380,10 @@ impl TestState {
 					);
 					gum::trace!("After answering runtime API request (votes)");
 				},
+				AllMessages::ChainApi(ChainApiMessage::BlockNumber(hash, tx)) => {
+					let block_num = self.headers.get(&hash).map(|header| header.number);
+					tx.send(Ok(block_num)).unwrap();
+				},
 				msg => {
 					panic!("Received unexpected message in `handle_sync_queries`: {:?}", msg);
 				},
