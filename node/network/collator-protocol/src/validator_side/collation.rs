@@ -18,20 +18,23 @@
 //!
 //! Usually a path of collations is as follows:
 //!    1. First, collation must be advertised by collator.
-//!    2. If the advertisement was accepted, it's queued for fetch (per relay parent).
-//!    3. Once it's requested, the collation is said to be Pending.
-//!    4. Pending collation becomes Fetched once received, we send it to backing for validation.
-//!    5. If it turns to be invalid or async backing allows seconding another candidate, carry on with
+//!    2. If the advertisement was accepted, send it to candidate backing for seconding check
+//!       (only if async backing is enabled).
+//!    3. When the seconding check concludes, queue collation for fetch (per relay parent).
+//!    4. Once it's requested, the collation is said to be Pending.
+//!    5. Pending collation becomes Fetched once received, we send it to backing for validation.
+//!    6. If it turns to be invalid or async backing allows seconding another candidate, carry on with
 //!       the next advertisement, otherwise we're done with this relay parent.
 //!
-//!    ┌──────────────────────────────────────────┐
-//!    └─▶Advertised ─▶ Pending ─▶ Fetched ─▶ Validated
+//!    ┌───────────────────────────────────────────────────────────────────────┐
+//!    └─▶Advertised ─▶ (UndergoesSecondingCheck ─▶) Pending ─▶ Fetched ─▶ Validated
 
 use futures::channel::oneshot;
 use std::collections::VecDeque;
 
 use polkadot_node_network_protocol::PeerId;
 use polkadot_node_primitives::{PoV, MAX_CANDIDATE_DEPTH};
+use polkadot_node_subsystem::messages::SecondingCheckRequest;
 use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, CollatorId, Hash, Id as ParaId, PersistedValidationData,
 };
@@ -109,6 +112,19 @@ impl PendingCollation {
 			commitments_hash: None,
 		}
 	}
+}
+
+/// Result of advertisement seconding check.
+pub struct SecondingCheckResult {
+	/// Response from the candidate backing subsystem.
+	/// `None` if the request was dropped.
+	pub seconding_allowed: Option<bool>,
+	/// Peer that advertised the collation.
+	pub peer_id: PeerId,
+	/// Collator id.
+	pub collator_id: CollatorId,
+	/// Request parameters.
+	pub request: SecondingCheckRequest,
 }
 
 /// Performs a sanity check between advertised and fetched collations.

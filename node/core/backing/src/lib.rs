@@ -255,7 +255,7 @@ struct PerSecondingCheckRequest {
 	/// Candidate relay parent.
 	relay_parent: Hash,
 	/// Response sender.
-	sender: oneshot::Sender<bool>,
+	tx: oneshot::Sender<bool>,
 }
 
 /// The state of the subsystem.
@@ -780,8 +780,8 @@ async fn handle_communication<Context>(
 					"Received `GetBackedCandidates` for an unknown relay parent."
 				);
 			},
-		CandidateBackingMessage::AdvertisementSecondingCheck { request, sender } =>
-			handle_seconding_check_message(ctx, state, request, sender).await,
+		CandidateBackingMessage::AdvertisementSecondingCheck { request, tx } =>
+			handle_seconding_check_message(ctx, state, request, tx).await,
 	}
 
 	Ok(())
@@ -1245,7 +1245,7 @@ async fn handle_seconding_check_message<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	request: SecondingCheckRequest,
-	sender: oneshot::Sender<bool>,
+	tx: oneshot::Sender<bool>,
 ) {
 	let relay_parent = request.candidate_relay_parent;
 	if state
@@ -1266,17 +1266,17 @@ async fn handle_seconding_check_message<Context>(
 
 		match result {
 			SecondingAllowed::No => {
-				let _ = sender.send(false);
+				let _ = tx.send(false);
 			},
 			SecondingAllowed::Yes(membership) =>
 				if membership.iter().any(|(_, m)| !m.is_empty()) {
-					let _ = sender.send(true);
+					let _ = tx.send(true);
 				} else {
 					state
 						.seconding_check_requests
 						.entry((request.candidate_para_id, request.parent_head_data_hash))
 						.or_default()
-						.push(PerSecondingCheckRequest { relay_parent, sender });
+						.push(PerSecondingCheckRequest { relay_parent, tx });
 				},
 		}
 	}
@@ -1393,7 +1393,7 @@ async fn handle_validated_candidate_command<Context>(
 
 							let is_max_depth = fragment_tree_membership
 								.iter()
-								.all(|(_, m)| m.contains(MAX_CANDIDATE_DEPTH));
+								.all(|(_, m)| m.contains(&MAX_CANDIDATE_DEPTH));
 							// update seconded depths in active leaves.
 							for (leaf, depths) in fragment_tree_membership {
 								let leaf_data = match state.per_leaf.get_mut(&leaf) {
@@ -1426,7 +1426,7 @@ async fn handle_validated_candidate_command<Context>(
 									state.seconding_check_requests.remove(&(para, head_data_hash))
 								{
 									for req in requests {
-										let _ = req.sender.send(true);
+										let _ = req.tx.send(true);
 									}
 								}
 							}

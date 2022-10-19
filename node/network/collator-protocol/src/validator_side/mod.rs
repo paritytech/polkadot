@@ -50,6 +50,7 @@ use polkadot_node_subsystem::{
 	messages::{
 		CandidateBackingMessage, CollatorProtocolMessage, IfDisconnected, NetworkBridgeEvent,
 		NetworkBridgeTxMessage, ProspectiveParachainsMessage, ProspectiveValidationDataRequest,
+		SecondingCheckRequest,
 	},
 	overseer, CollatorProtocolSenderTrait, FromOrchestra, OverseerSignal, PerLeafSpan,
 };
@@ -73,7 +74,7 @@ mod metrics;
 
 use collation::{
 	fetched_collation_sanity_check, CollationEvent, CollationStatus, Collations, FetchedCollation,
-	PendingCollation, PendingCollationFetch, ProspectiveCandidate,
+	PendingCollation, PendingCollationFetch, ProspectiveCandidate, SecondingCheckResult,
 };
 
 #[cfg(test)]
@@ -438,6 +439,14 @@ struct State {
 	/// another collator the chance to be faster (dequeue next fetch request as well).
 	collation_fetch_timeouts:
 		FuturesUnordered<BoxFuture<'static, (CollatorId, Option<CandidateHash>, Hash)>>,
+
+	/// Collations we sent to backing in order to check whether it's allowed to fetch
+	/// and second it.
+	///
+	/// The rule is to only fetch collations that are either built on top of the root
+	/// of some fragment tree or have a parent node which represents (at least) locally
+	/// seconded candidate.
+	ongoing_seconding_checks: FuturesUnordered<BoxFuture<'static, SecondingCheckResult>>,
 
 	/// Collations that we have successfully requested from peers and waiting
 	/// on validation.
@@ -845,7 +854,7 @@ async fn process_incoming_peer_message<Context>(
 		},
 		Versioned::V1(V1::AdvertiseCollation(relay_parent)) =>
 			if let Err(err) =
-				handle_advertisement(ctx.sender(), state, relay_parent, &origin, None).await
+				handle_advertisement(ctx.sender(), state, relay_parent, origin, None).await
 			{
 				gum::debug!(
 					target: LOG_TARGET,
@@ -868,7 +877,7 @@ async fn process_incoming_peer_message<Context>(
 				ctx.sender(),
 				state,
 				relay_parent,
-				&origin,
+				origin,
 				Some((candidate_hash, parent_head_data_hash)),
 			)
 			.await
@@ -899,21 +908,6 @@ async fn process_incoming_peer_message<Context>(
 	}
 }
 
-async fn is_seconding_allowed<Sender>(
-	_sender: &mut Sender,
-	_relay_parent: Hash,
-	_candidate_hash: CandidateHash,
-	_parent_head_data_hash: Hash,
-	_para_id: ParaId,
-	_active_leaves: impl IntoIterator<Item = Hash>,
-) -> Option<bool>
-where
-	Sender: CollatorProtocolSenderTrait,
-{
-	// TODO https://github.com/paritytech/polkadot/issues/5923
-	Some(true)
-}
-
 #[derive(Debug)]
 enum AdvertisementError {
 	/// Relay parent is unknown.
@@ -930,8 +924,6 @@ enum AdvertisementError {
 	SecondedLimitReached,
 	/// Advertisement is invalid.
 	Invalid(InsertAdvertisementError),
-	/// Failed to query prospective parachains subsystem.
-	ProspectiveParachainsUnavailable,
 }
 
 impl AdvertisementError {
@@ -940,10 +932,7 @@ impl AdvertisementError {
 		match self {
 			InvalidAssignment => Some(COST_WRONG_PARA),
 			RelayParentUnknown | UndeclaredCollator | Invalid(_) => Some(COST_UNEXPECTED_MESSAGE),
-			UnknownPeer |
-			ProtocolMismatch |
-			SecondedLimitReached |
-			ProspectiveParachainsUnavailable => None,
+			UnknownPeer | ProtocolMismatch | SecondedLimitReached => None,
 		}
 	}
 }
@@ -952,7 +941,7 @@ async fn handle_advertisement<Sender>(
 	sender: &mut Sender,
 	state: &mut State,
 	relay_parent: Hash,
-	peer_id: &PeerId,
+	peer_id: PeerId,
 	prospective_candidate: Option<(CandidateHash, Hash)>,
 ) -> std::result::Result<(), AdvertisementError>
 where
@@ -965,7 +954,7 @@ where
 
 	let per_relay_parent = state
 		.per_relay_parent
-		.get_mut(&relay_parent)
+		.get(&relay_parent)
 		.ok_or(AdvertisementError::RelayParentUnknown)?;
 
 	let relay_parent_mode = per_relay_parent.prospective_parachains_mode;
@@ -982,100 +971,169 @@ where
 		_ => return Err(AdvertisementError::InvalidAssignment),
 	};
 
-	// TODO: only fetch a collation if it's built on top of backed nodes in fragment tree.
-	// https://github.com/paritytech/polkadot/issues/5923
-	let is_seconding_allowed = match (relay_parent_mode, prospective_candidate) {
-		(ProspectiveParachainsMode::Disabled, _) => true,
-		(ProspectiveParachainsMode::Enabled, Some((candidate_hash, parent_head_data_hash))) => {
-			let active_leaves = state.active_leaves.keys().copied();
-			is_seconding_allowed(
-				sender,
-				relay_parent,
+	let seconding_check_request = match (relay_parent_mode, prospective_candidate) {
+		(ProspectiveParachainsMode::Disabled, _) => {
+			// Unnecessary if async backing is disabled.
+			None
+		},
+		(ProspectiveParachainsMode::Enabled, Some((candidate_hash, parent_head_data_hash))) =>
+			SecondingCheckRequest {
+				candidate_para_id: collator_para_id,
+				candidate_relay_parent: relay_parent,
 				candidate_hash,
 				parent_head_data_hash,
-				collator_para_id,
-				active_leaves,
-			)
-			.await
-			.ok_or(AdvertisementError::ProspectiveParachainsUnavailable)?
-		},
+			}
+			.into(),
 		_ => return Err(AdvertisementError::ProtocolMismatch),
 	};
 
-	if !is_seconding_allowed {
-		// TODO
-		return Ok(())
+	// Always insert advertisements that pass all the checks for spam protection.
+	let candidate_hash = prospective_candidate.map(|(hash, ..)| hash);
+	let (collator_id, para_id) = peer_data
+		.insert_advertisement(
+			relay_parent,
+			relay_parent_mode,
+			candidate_hash,
+			&state.implicit_view,
+			&state.active_leaves,
+		)
+		.map_err(AdvertisementError::Invalid)?;
+	if !per_relay_parent.collations.is_seconded_limit_reached(relay_parent_mode) {
+		return Err(AdvertisementError::SecondedLimitReached)
 	}
 
-	let candidate_hash = prospective_candidate.map(|(hash, ..)| hash);
-	let insert_result = peer_data.insert_advertisement(
-		relay_parent,
-		relay_parent_mode,
-		candidate_hash,
-		&state.implicit_view,
-		&state.active_leaves,
-	);
-
-	match insert_result {
-		Ok((id, para_id)) => {
+	if let Some(request) = seconding_check_request {
+		let collator_id = collator_id.clone();
+		let (tx, rx) = oneshot::channel();
+		sender
+			.send_message(CandidateBackingMessage::AdvertisementSecondingCheck { request, tx })
+			.await;
+		state.ongoing_seconding_checks.push(
+			async move {
+				SecondingCheckResult {
+					seconding_allowed: rx.await.ok(),
+					peer_id,
+					collator_id,
+					request,
+				}
+			}
+			.boxed(),
+		);
+	// Don't request collation until the check resolves.
+	} else {
+		let result = enqueue_collation(
+			sender,
+			state,
+			relay_parent,
+			para_id,
+			peer_id,
+			collator_id,
+			prospective_candidate,
+		)
+		.await;
+		if let Err(fetch_error) = result {
 			gum::debug!(
+				target: LOG_TARGET,
+				relay_parent = ?relay_parent,
+				para_id = ?para_id,
+				peer_id = ?peer_id,
+				error = %fetch_error,
+				"Failed to request advertised collation",
+			);
+		}
+	}
+
+	Ok(())
+}
+
+/// Enqueue collation for fetching. The advertisement is expected to be
+/// validated.
+async fn enqueue_collation<Sender>(
+	sender: &mut Sender,
+	state: &mut State,
+	relay_parent: Hash,
+	para_id: ParaId,
+	peer_id: PeerId,
+	collator_id: CollatorId,
+	prospective_candidate: Option<(CandidateHash, Hash)>,
+) -> std::result::Result<(), FetchError>
+where
+	Sender: CollatorProtocolSenderTrait,
+{
+	gum::debug!(
+		target: LOG_TARGET,
+		peer_id = ?peer_id,
+		%para_id,
+		?relay_parent,
+		"Received advertise collation",
+	);
+	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
+		Some(rp_state) => rp_state,
+		None => {
+			// Race happened, not an error.
+			gum::trace!(
 				target: LOG_TARGET,
 				peer_id = ?peer_id,
 				%para_id,
 				?relay_parent,
-				"Received advertise collation",
+				?prospective_candidate,
+				"Candidate relay parent went out of view for valid advertisement",
 			);
-			let prospective_candidate =
-				prospective_candidate.map(|(candidate_hash, parent_head_data_hash)| {
-					ProspectiveCandidate { candidate_hash, parent_head_data_hash }
-				});
-
-			let collations = &mut per_relay_parent.collations;
-			if !collations.is_seconded_limit_reached(relay_parent_mode) {
-				return Err(AdvertisementError::SecondedLimitReached)
-			}
-
-			let pending_collation =
-				PendingCollation::new(relay_parent, para_id, peer_id, prospective_candidate);
-
-			match collations.status {
-				CollationStatus::Fetching | CollationStatus::WaitingOnValidation => {
-					gum::trace!(
-						target: LOG_TARGET,
-						peer_id = ?peer_id,
-						%para_id,
-						?relay_parent,
-						"Added collation to the pending list"
-					);
-					collations.waiting_queue.push_back((pending_collation, id));
-				},
-				CollationStatus::Waiting => {
-					let _ = fetch_collation(sender, state, pending_collation, id).await;
-				},
-				CollationStatus::Seconded if relay_parent_mode.is_enabled() => {
-					// Limit is not reached, it's allowed to second another
-					// collation.
-					let _ = fetch_collation(sender, state, pending_collation, id).await;
-				},
-				CollationStatus::Seconded => {
-					gum::trace!(
-						target: LOG_TARGET,
-						peer_id = ?peer_id,
-						%para_id,
-						?relay_parent,
-						?relay_parent_mode,
-						"A collation has already been seconded",
-					);
-				},
-			}
+			return Ok(())
 		},
-		Err(InsertAdvertisementError::ProtocolMismatch) => {
-			// Checked above.
-			return Err(AdvertisementError::ProtocolMismatch)
-		},
-		Err(error) => return Err(AdvertisementError::Invalid(error)),
+	};
+	let relay_parent_mode = per_relay_parent.prospective_parachains_mode;
+	let prospective_candidate =
+		prospective_candidate.map(|(candidate_hash, parent_head_data_hash)| ProspectiveCandidate {
+			candidate_hash,
+			parent_head_data_hash,
+		});
+
+	let collations = &mut per_relay_parent.collations;
+	if !collations.is_seconded_limit_reached(relay_parent_mode) {
+		gum::trace!(
+			target: LOG_TARGET,
+			peer_id = ?peer_id,
+			%para_id,
+			?relay_parent,
+			"Limit of seconded collations reached for valid advertisement",
+		);
+		return Ok(())
 	}
 
+	let pending_collation =
+		PendingCollation::new(relay_parent, para_id, &peer_id, prospective_candidate);
+
+	match collations.status {
+		CollationStatus::Fetching | CollationStatus::WaitingOnValidation => {
+			gum::trace!(
+				target: LOG_TARGET,
+				peer_id = ?peer_id,
+				%para_id,
+				?relay_parent,
+				"Added collation to the pending list"
+			);
+			collations.waiting_queue.push_back((pending_collation, collator_id));
+		},
+		CollationStatus::Waiting => {
+			fetch_collation(sender, state, pending_collation, collator_id).await?;
+		},
+		CollationStatus::Seconded if relay_parent_mode.is_enabled() => {
+			// Limit is not reached, it's allowed to second another
+			// collation.
+			fetch_collation(sender, state, pending_collation, collator_id).await?;
+		},
+		CollationStatus::Seconded => {
+			gum::trace!(
+				target: LOG_TARGET,
+				peer_id = ?peer_id,
+				%para_id,
+				?relay_parent,
+				?relay_parent_mode,
+				"A collation has already been seconded",
+			);
+		},
+	}
 	Ok(())
 }
 
@@ -1456,6 +1514,56 @@ pub(crate) async fn run<Context>(
 
 				for (peer_id, rep) in reputation_changes {
 					modify_reputation(ctx.sender(), peer_id, rep).await;
+				}
+			},
+			result = state.ongoing_seconding_checks.select_next_some() => {
+				let request = result.request;
+				let seconding_allowed = match result.seconding_allowed {
+					Some(response) => response,
+					None => {
+						// Most likely the parent went out of view.
+						gum::debug!(
+							target: LOG_TARGET,
+							relay_parent = ?request.candidate_relay_parent,
+							candidate_hash = ?request.candidate_hash,
+							para_id = ?request.candidate_para_id,
+							"Response sender for seconding check was dropped",
+						);
+						continue
+					},
+				};
+				if !seconding_allowed {
+					gum::debug!(
+						target: LOG_TARGET,
+						relay_parent = ?request.candidate_relay_parent,
+						candidate_hash = ?request.candidate_hash,
+						para_id = ?request.candidate_para_id,
+						"Seconding is prohibited by candidate backing",
+					);
+					continue
+				}
+
+				let prospective_candidate =
+					Some((request.candidate_hash, request.parent_head_data_hash));
+				let fetch_result = enqueue_collation(
+					ctx.sender(),
+					&mut state,
+					request.candidate_relay_parent,
+					request.candidate_para_id,
+					result.peer_id,
+					result.collator_id,
+					prospective_candidate,
+				)
+				.await;
+				if let Err(fetch_error) = fetch_result {
+					gum::debug!(
+						target: LOG_TARGET,
+						relay_parent = ?request.candidate_relay_parent,
+						para_id = ?request.candidate_para_id,
+						peer_id = ?result.peer_id,
+						error = %fetch_error,
+						"Failed to request seconding-checked collation",
+					);
 				}
 			},
 		}
