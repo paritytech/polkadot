@@ -39,8 +39,9 @@ fn make_dummy_comparator(
 
 /// Check that dequeuing acknowledges order.
 ///
-/// Any priority item will be dequeued before any best effort items, priority items will be
-/// processed in order. Best effort items, based on how often they have been added.
+/// Any priority item will be dequeued before any best effort items, priority and best effort with
+/// known parent block number items will be processed in order. Best effort items without known parent
+/// block number should be treated with lowest priority.
 #[test]
 fn ordering_works_as_expected() {
 	let mut queue = Queues::new();
@@ -48,12 +49,12 @@ fn ordering_works_as_expected() {
 	let req_prio = make_participation_request(Hash::repeat_byte(0x02));
 	let req3 = make_participation_request(Hash::repeat_byte(0x03));
 	let req_prio_2 = make_participation_request(Hash::repeat_byte(0x04));
-	let req5 = make_participation_request(Hash::repeat_byte(0x05));
+	let req5_unknown_parent = make_participation_request(Hash::repeat_byte(0x05));
 	let req_full = make_participation_request(Hash::repeat_byte(0x06));
 	let req_prio_full = make_participation_request(Hash::repeat_byte(0x07));
 	queue
 		.queue_with_comparator(
-			make_dummy_comparator(&req1, None),
+			make_dummy_comparator(&req1, Some(1)),
 			ParticipationPriority::BestEffort,
 			req1.clone(),
 		)
@@ -67,7 +68,7 @@ fn ordering_works_as_expected() {
 		.unwrap();
 	queue
 		.queue_with_comparator(
-			make_dummy_comparator(&req3, None),
+			make_dummy_comparator(&req3, Some(2)),
 			ParticipationPriority::BestEffort,
 			req3.clone(),
 		)
@@ -81,16 +82,9 @@ fn ordering_works_as_expected() {
 		.unwrap();
 	queue
 		.queue_with_comparator(
-			make_dummy_comparator(&req3, None),
+			make_dummy_comparator(&req5_unknown_parent, None),
 			ParticipationPriority::BestEffort,
-			req3.clone(),
-		)
-		.unwrap();
-	queue
-		.queue_with_comparator(
-			make_dummy_comparator(&req5, None),
-			ParticipationPriority::BestEffort,
-			req5.clone(),
+			req5_unknown_parent.clone(),
 		)
 		.unwrap();
 	assert_matches!(
@@ -103,24 +97,21 @@ fn ordering_works_as_expected() {
 	);
 	assert_matches!(
 		queue.queue_with_comparator(
-			make_dummy_comparator(&req_full, None),
+			make_dummy_comparator(&req_full, Some(3)),
 			ParticipationPriority::BestEffort,
 			req_full
 		),
 		Err(QueueError::BestEffortFull)
 	);
 
+	// Prioritized queue is ordered correctly
 	assert_eq!(queue.dequeue(), Some(req_prio));
 	assert_eq!(queue.dequeue(), Some(req_prio_2));
+	// So is the best-effort
+	assert_eq!(queue.dequeue(), Some(req1));
 	assert_eq!(queue.dequeue(), Some(req3));
-	assert_matches!(
-		queue.dequeue(),
-		Some(r) => { assert!(r == req1 || r == req5) }
-	);
-	assert_matches!(
-		queue.dequeue(),
-		Some(r) => { assert!(r == req1 || r == req5) }
-	);
+	assert_eq!(queue.dequeue(), Some(req5_unknown_parent));
+
 	assert_matches!(queue.dequeue(), None);
 }
 
@@ -167,7 +158,7 @@ fn candidate_is_only_dequeued_once() {
 	// Insert first as best effort:
 	queue
 		.queue_with_comparator(
-			make_dummy_comparator(&req_best_effort_then_prio, None),
+			make_dummy_comparator(&req_best_effort_then_prio, Some(2)),
 			ParticipationPriority::BestEffort,
 			req_best_effort_then_prio.clone(),
 		)
@@ -195,7 +186,7 @@ fn candidate_is_only_dequeued_once() {
 	// Then as best effort:
 	queue
 		.queue_with_comparator(
-			make_dummy_comparator(&req_prio_then_best_effort, None),
+			make_dummy_comparator(&req_prio_then_best_effort, Some(3)),
 			ParticipationPriority::BestEffort,
 			req_prio_then_best_effort.clone(),
 		)
