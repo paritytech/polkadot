@@ -1005,6 +1005,7 @@ where
 	if let Some(request) = seconding_check_request {
 		let collator_id = collator_id.clone();
 		let (tx, rx) = oneshot::channel();
+		// Don't request collation until the check resolves.
 		sender
 			.send_message(CandidateBackingMessage::AdvertisementSecondingCheck { request, tx })
 			.await;
@@ -1019,7 +1020,6 @@ where
 			}
 			.boxed(),
 		);
-	// Don't request collation until the check resolves.
 	} else {
 		let result = enqueue_collation(
 			sender,
