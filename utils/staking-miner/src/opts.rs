@@ -189,7 +189,7 @@ pub(crate) enum Solver {
 /// * --submission-strategy if-leading: only submit if leading
 /// * --submission-strategy always: always submit
 /// * --submission-strategy "percent-better <percent>": submit if submission is `n` percent better.
-/// * --submission-strategy "no-worse-than  <percent>": submit if submission is no more than `n` percent worse.
+/// * --submission-strategy "no-worse-than<percent>": submit if submission is no more than `n` percent worse.
 ///
 impl FromStr for SubmissionStrategy {
 	type Err = String;
