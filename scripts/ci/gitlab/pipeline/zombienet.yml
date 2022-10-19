@@ -327,7 +327,7 @@ zombienet-tests-async-backing:
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
-        --test="async-backing-test.feature"
+        --test="async-backing.feature"
   allow_failure:                   false
   retry: 2
   tags:
