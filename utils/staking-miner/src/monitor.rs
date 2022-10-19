@@ -94,9 +94,8 @@ pub(crate) fn score_passes_strategy(
 				our_score.strict_threshold_better(best_score, Perbill::zero()),
 		SubmissionStrategy::ClaimBetterThan(epsilon) =>
 			our_score.strict_threshold_better(best_score, epsilon),
-		SubmissionStrategy::ClaimNoWorseThan(epsilon) => {
-			!best_score.strict_threshold_better(our_score, epsilon)
-		},
+		SubmissionStrategy::ClaimNoWorseThan(epsilon) =>
+			!best_score.strict_threshold_better(our_score, epsilon),
 	}
 }
 
