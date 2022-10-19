@@ -1573,7 +1573,7 @@ impl CompactStatement {
 	}
 }
 
-/// Validators struct indexed by ValidatorIndex.
+/// `Validators` struct indexed by `ValidatorIndex`.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo, Default)]
 #[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct Validators(Vec<ValidatorId>);
@@ -1591,7 +1591,7 @@ impl FromIterator<ValidatorId> for Validators {
 }
 
 impl Validators {
-	/// Returns a reference to an element indexed using ValidatorIndex.
+	/// Returns a reference to an element indexed using `ValidatorIndex`.
 	pub fn get(&self, index: ValidatorIndex) -> Option<&ValidatorId> {
 		self.0.get(index.0 as usize)
 	}
@@ -1627,7 +1627,7 @@ impl Validators {
 	}
 }
 
-/// ValidatorGroups struct indexed by GroupIndex.
+/// `ValidatorGroups` struct indexed by `GroupIndex`.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo, Default)]
 #[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct ValidatorGroups(Vec<Vec<ValidatorIndex>>);
@@ -1645,7 +1645,7 @@ impl FromIterator<Vec<ValidatorIndex>> for ValidatorGroups {
 }
 
 impl ValidatorGroups {
-	/// Returns a reference to an element indexed using GroupIndex.
+	/// Returns a reference to an element indexed using `GroupIndex`.
 	pub fn get(&self, index: GroupIndex) -> Option<&Vec<ValidatorIndex>> {
 		self.0.get(index.0 as usize)
 	}
