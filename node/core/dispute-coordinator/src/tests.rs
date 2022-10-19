@@ -2825,6 +2825,12 @@ fn negative_issue_local_statement_only_triggers_import() {
 				})
 				.await;
 
+			// Assert that subsystem is not participating.
+			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
+
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+			assert!(virtual_overseer.try_recv().await.is_none());
+
 			let backend = DbBackend::new(
 				test_state.db.clone(),
 				test_state.config.column_config(),
@@ -2837,12 +2843,6 @@ fn negative_issue_local_statement_only_triggers_import() {
 
 			let disputes = backend.load_recent_disputes().unwrap();
 			assert_eq!(disputes, None);
-
-			// Assert that subsystem is not participating.
-			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
-
-			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
-			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
 		})
