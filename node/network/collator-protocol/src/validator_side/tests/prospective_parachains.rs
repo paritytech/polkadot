@@ -18,7 +18,7 @@
 
 use super::*;
 
-use polkadot_node_subsystem::messages::ChainApiMessage;
+use polkadot_node_subsystem::messages::{CandidateBackingMessage, ChainApiMessage};
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateCommitments, CommittedCandidateReceipt, Header, SigningContext,
 	ValidatorId,
@@ -259,8 +259,6 @@ fn v1_advertisement_rejected() {
 		update_view(&mut virtual_overseer, &test_state, vec![(head_b, head_b_num)], 1).await;
 
 		let peer_a = PeerId::random();
-
-		// Accept both collators from the implicit view.
 		connect_and_declare_collator(
 			&mut virtual_overseer,
 			peer_a,
@@ -273,9 +271,8 @@ fn v1_advertisement_rejected() {
 		advertise_collation(&mut virtual_overseer, peer_a, head_b, None).await;
 
 		// Not reported.
-		assert!(overseer_recv_with_timeout(&mut virtual_overseer, Duration::from_millis(50))
-			.await
-			.is_none());
+		test_helpers::Yield::new().await;
+		assert_matches!(futures::poll!(virtual_overseer.recv().boxed()), Poll::Pending);
 
 		virtual_overseer
 	});
@@ -333,6 +330,17 @@ fn accept_advertisements_from_implicit_view() {
 			Some((candidate_hash, parent_head_data_hash)),
 		)
 		.await;
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::CandidateBacking(
+				CandidateBackingMessage::AdvertisementSecondingCheck { request, tx },
+			) => {
+				assert_eq!(request.candidate_hash, candidate_hash);
+				assert_eq!(request.candidate_para_id, test_state.chain_ids[1]);
+				assert_eq!(request.parent_head_data_hash, parent_head_data_hash);
+				tx.send(true).expect("receiving side should be alive");
+			}
+		);
 		assert_fetch_collation_request(
 			&mut virtual_overseer,
 			head_c,
@@ -340,6 +348,7 @@ fn accept_advertisements_from_implicit_view() {
 			Some(candidate_hash),
 		)
 		.await;
+
 		// Advertise with different para.
 		advertise_collation(
 			&mut virtual_overseer,
@@ -348,6 +357,17 @@ fn accept_advertisements_from_implicit_view() {
 			Some((candidate_hash, parent_head_data_hash)),
 		)
 		.await;
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::CandidateBacking(
+				CandidateBackingMessage::AdvertisementSecondingCheck { request, tx },
+			) => {
+				assert_eq!(request.candidate_hash, candidate_hash);
+				assert_eq!(request.candidate_para_id, test_state.chain_ids[0]);
+				assert_eq!(request.parent_head_data_hash, parent_head_data_hash);
+				tx.send(true).expect("receiving side should be alive");
+			}
+		);
 		assert_fetch_collation_request(
 			&mut virtual_overseer,
 			head_d,
@@ -417,6 +437,17 @@ fn second_multiple_candidates_per_relay_parent() {
 				Some((candidate_hash, parent_head_data_hash)),
 			)
 			.await;
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::CandidateBacking(
+					CandidateBackingMessage::AdvertisementSecondingCheck { request, tx },
+				) => {
+					assert_eq!(request.candidate_hash, candidate_hash);
+					assert_eq!(request.candidate_para_id, test_state.chain_ids[0]);
+					assert_eq!(request.parent_head_data_hash, parent_head_data_hash);
+					tx.send(true).expect("receiving side should be alive");
+				}
+			);
 
 			let response_channel = assert_fetch_collation_request(
 				&mut virtual_overseer,
@@ -496,9 +527,8 @@ fn second_multiple_candidates_per_relay_parent() {
 		)
 		.await;
 
-		assert!(overseer_recv_with_timeout(&mut virtual_overseer, Duration::from_millis(50))
-			.await
-			.is_none());
+		test_helpers::Yield::new().await;
+		assert_matches!(futures::poll!(virtual_overseer.recv().boxed()), Poll::Pending);
 
 		virtual_overseer
 	});
@@ -559,6 +589,17 @@ fn fetched_collation_sanity_check() {
 			Some((candidate_hash, parent_head_data_hash)),
 		)
 		.await;
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::CandidateBacking(
+				CandidateBackingMessage::AdvertisementSecondingCheck { request, tx },
+			) => {
+				assert_eq!(request.candidate_hash, candidate_hash);
+				assert_eq!(request.candidate_para_id, test_state.chain_ids[0]);
+				assert_eq!(request.parent_head_data_hash, parent_head_data_hash);
+				tx.send(true).expect("receiving side should be alive");
+			}
+		);
 
 		let response_channel = assert_fetch_collation_request(
 			&mut virtual_overseer,
@@ -598,6 +639,137 @@ fn fetched_collation_sanity_check() {
 			) => {
 				assert_eq!(peer_a, peer_id);
 				assert_eq!(rep, COST_REPORT_BAD);
+			}
+		);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn seconding_check_failed() {
+	let test_state = TestState::default();
+
+	test_harness(|test_harness| async move {
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
+
+		let pair_a = CollatorPair::generate().0;
+
+		let head_b = Hash::from_low_u64_be(128);
+		let head_b_num: u32 = 0;
+
+		update_view(&mut virtual_overseer, &test_state, vec![(head_b, head_b_num)], 1).await;
+
+		let peer_a = PeerId::random();
+
+		// Accept both collators from the implicit view.
+		connect_and_declare_collator(
+			&mut virtual_overseer,
+			peer_a,
+			pair_a.clone(),
+			test_state.chain_ids[0],
+			CollationVersion::VStaging,
+		)
+		.await;
+
+		let candidate_hash = CandidateHash(Hash::zero());
+		let parent_head_data_hash = Hash::zero();
+		advertise_collation(
+			&mut virtual_overseer,
+			peer_a,
+			head_b,
+			Some((candidate_hash, parent_head_data_hash)),
+		)
+		.await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::CandidateBacking(
+				CandidateBackingMessage::AdvertisementSecondingCheck { request, tx },
+			) => {
+				assert_eq!(request.candidate_hash, candidate_hash);
+				assert_eq!(request.candidate_para_id, test_state.chain_ids[0]);
+				assert_eq!(request.parent_head_data_hash, parent_head_data_hash);
+				// Send false.
+				tx.send(false).expect("receiving side should be alive");
+			}
+		);
+
+		// Collation request is discarded.
+		test_helpers::Yield::new().await;
+		assert_matches!(futures::poll!(virtual_overseer.recv().boxed()), Poll::Pending);
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn advertisement_spam_protection() {
+	let test_state = TestState::default();
+
+	test_harness(|test_harness| async move {
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
+
+		let pair_a = CollatorPair::generate().0;
+
+		let head_b = Hash::from_low_u64_be(128);
+		let head_b_num: u32 = 2;
+
+		let head_c = get_parent_hash(head_b);
+
+		// Activated leaf is `b`, but the collation will be based on `c`.
+		update_view(&mut virtual_overseer, &test_state, vec![(head_b, head_b_num)], 1).await;
+
+		let peer_a = PeerId::random();
+
+		// Accept both collators from the implicit view.
+		connect_and_declare_collator(
+			&mut virtual_overseer,
+			peer_a,
+			pair_a.clone(),
+			test_state.chain_ids[1],
+			CollationVersion::VStaging,
+		)
+		.await;
+
+		let candidate_hash = CandidateHash::default();
+		let parent_head_data_hash = Hash::zero();
+		advertise_collation(
+			&mut virtual_overseer,
+			peer_a,
+			head_c,
+			Some((candidate_hash, parent_head_data_hash)),
+		)
+		.await;
+		let _tx = assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::CandidateBacking(
+				CandidateBackingMessage::AdvertisementSecondingCheck { request, tx },
+			) => {
+				assert_eq!(request.candidate_hash, candidate_hash);
+				assert_eq!(request.candidate_para_id, test_state.chain_ids[1]);
+				assert_eq!(request.parent_head_data_hash, parent_head_data_hash);
+				// Don't drop the sender.
+				tx
+			}
+		);
+
+		// Send the same advertisement again.
+		advertise_collation(
+			&mut virtual_overseer,
+			peer_a,
+			head_c,
+			Some((candidate_hash, parent_head_data_hash)),
+		)
+		.await;
+		// Reported.
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridgeTx(
+				NetworkBridgeTxMessage::ReportPeer(peer_id, rep),
+			) => {
+				assert_eq!(peer_a, peer_id);
+				assert_eq!(rep, COST_UNEXPECTED_MESSAGE);
 			}
 		);
 
