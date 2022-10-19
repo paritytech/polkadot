@@ -1651,7 +1651,7 @@ impl ValidatorGroups {
 		self.0.get(index.0 as usize)
 	}
 
-	/// Returns number of elements in vector.
+	/// Returns the number of validator groups.
 	pub fn len(&self) -> usize {
 		self.0.len()
 	}
@@ -1661,22 +1661,22 @@ impl ValidatorGroups {
 		self.0.clone()
 	}
 
-	/// Returns Iterator of contained vector.
+	/// Returns an iterator over the groups.
 	pub fn iter(&self) -> Iter<'_, Vec<ValidatorIndex>> {
 		self.0.iter()
 	}
 
-	/// Returns a mutable Iterator.
+	/// Returns an iterator that allows modifying each group.
 	pub fn iter_mut(&mut self) -> IterMut<'_, Vec<ValidatorIndex>> {
 		self.0.iter_mut()
 	}
 
-	/// Returns an Iterator with ownership.
+	/// Creates a consuming iterator.
 	pub fn into_iter(self) -> IntoIter<Vec<ValidatorIndex>> {
 		self.0.into_iter()
 	}
 
-	/// Returns true if contained Vector is empty
+	/// Returns true if the underlying container is empty.
 	pub fn is_empty(&self) -> bool {
 		self.0.is_empty()
 	}
