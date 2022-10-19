@@ -22,9 +22,12 @@ use polkadot_primitives::vstaging::{
 	AuthorityDiscoveryId, CandidateHash, GroupIndex, Hash, ValidatorIndex,
 };
 
-use std::collections::{hash_map::{Entry, HashMap}, HashSet};
+use std::collections::{
+	hash_map::{Entry, HashMap},
+	HashSet,
+};
 
-use bitvec::{vec::BitVec, order::Lsb0, slice::BitSlice};
+use bitvec::{order::Lsb0, slice::BitSlice, vec::BitVec};
 
 use super::LOG_TARGET;
 
@@ -105,10 +108,10 @@ fn build_session_topology(
 					sub_view.receiving.insert(group_val);
 					sub_view.sending.extend(
 						our_neighbors
-						.validator_indices_x
-						.iter()
-						.filter(|v| !group.contains(v))
-						.cloned()
+							.validator_indices_x
+							.iter()
+							.filter(|v| !group.contains(v))
+							.cloned(),
 					);
 
 					continue
@@ -184,10 +187,7 @@ struct CounterPartyManifestKnowledge {
 
 impl CounterPartyManifestKnowledge {
 	fn new() -> Self {
-		CounterPartyManifestKnowledge {
-			received: HashMap::new(),
-			seconded_counts: HashMap::new(),
-		}
+		CounterPartyManifestKnowledge { received: HashMap::new(), seconded_counts: HashMap::new() }
 	}
 
 	/// Attempt to import a received manifest from a counterparty.
@@ -218,19 +218,19 @@ impl CounterPartyManifestKnowledge {
 				{
 					let prev = e.get();
 					if prev.claimed_group_index != manifest_summary.claimed_group_index {
-						return Err(ManifestImportError::Conflicting);
+						return Err(ManifestImportError::Conflicting)
 					}
 
 					if prev.claimed_parent_hash != manifest_summary.claimed_parent_hash {
-						return Err(ManifestImportError::Conflicting);
+						return Err(ManifestImportError::Conflicting)
 					}
 
 					if !manifest_summary.seconded_in_group.contains(&prev.seconded_in_group) {
-						return Err(ManifestImportError::Conflicting);
+						return Err(ManifestImportError::Conflicting)
 					}
 
 					if !manifest_summary.validated_in_group.contains(&prev.validated_in_group) {
-						return Err(ManifestImportError::Conflicting);
+						return Err(ManifestImportError::Conflicting)
 					}
 
 					let mut fresh_seconded = manifest_summary.seconded_in_group.clone();
@@ -248,7 +248,7 @@ impl CounterPartyManifestKnowledge {
 					);
 
 					if !within_limits {
-						return Err(ManifestImportError::Overflow);
+						return Err(ManifestImportError::Overflow)
 					}
 				}
 
@@ -256,7 +256,7 @@ impl CounterPartyManifestKnowledge {
 				// superset.
 				*e.get_mut() = manifest_summary;
 				Ok(())
-			}
+			},
 			Entry::Vacant(e) => {
 				let within_limits = updating_ensure_within_seconding_limit(
 					&mut self.seconded_counts,
@@ -272,7 +272,7 @@ impl CounterPartyManifestKnowledge {
 				} else {
 					Err(ManifestImportError::Overflow)
 				}
-			}
+			},
 		}
 	}
 }
@@ -286,16 +286,18 @@ fn updating_ensure_within_seconding_limit(
 	seconding_limit: usize,
 	new_seconded: &BitSlice<u8, Lsb0>,
 ) -> bool {
-	if seconding_limit == 0 { return false }
+	if seconding_limit == 0 {
+		return false
+	}
 
 	// due to the check above, if this was non-existent this function will
 	// always return `true`.
-	let counts = seconded_counts
-		.entry(group_index)
-		.or_insert_with(|| vec![0; group_size]);
+	let counts = seconded_counts.entry(group_index).or_insert_with(|| vec![0; group_size]);
 
 	for i in new_seconded.iter_ones() {
-		if counts[i] == seconding_limit { return false }
+		if counts[i] == seconding_limit {
+			return false
+		}
 	}
 
 	for i in new_seconded.iter_ones() {
@@ -337,11 +339,7 @@ mod tests {
 		);
 
 		let t = build_session_topology(
-			&[
-				vec![ValidatorIndex(0)],
-				vec![ValidatorIndex(1)],
-				vec![ValidatorIndex(2)],
-			],
+			&[vec![ValidatorIndex(0)], vec![ValidatorIndex(1)], vec![ValidatorIndex(2)]],
 			&base_topology,
 			None,
 		);
@@ -383,10 +381,7 @@ mod tests {
 			t.group_views.get(&GroupIndex(0)).unwrap().sending,
 			vec![1, 2, 3, 6].into_iter().map(ValidatorIndex).collect::<HashSet<_>>(),
 		);
-		assert_eq!(
-			t.group_views.get(&GroupIndex(0)).unwrap().receiving,
-			HashSet::new(),
-		);
+		assert_eq!(t.group_views.get(&GroupIndex(0)).unwrap().receiving, HashSet::new(),);
 
 		// we share a row with '2' and have indirect connections to '4' and '7'.
 
@@ -414,17 +409,19 @@ mod tests {
 	#[test]
 	fn knowledge_rejects_conflicting_manifest() {
 		let mut knowledge = CounterPartyManifestKnowledge::new();
-		knowledge.import_received(
-			3,
-			2,
-			CandidateHash(Hash::repeat_byte(1)),
-			ManifestSummary {
-				claimed_parent_hash: Hash::repeat_byte(2),
-				claimed_group_index: GroupIndex(0),
-				seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
-				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
-			},
-		).unwrap();
+		knowledge
+			.import_received(
+				3,
+				2,
+				CandidateHash(Hash::repeat_byte(1)),
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(2),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+				},
+			)
+			.unwrap();
 
 		// conflicting group
 
@@ -498,29 +495,33 @@ mod tests {
 	#[test]
 	fn reject_overflowing_manifests() {
 		let mut knowledge = CounterPartyManifestKnowledge::new();
-		knowledge.import_received(
-			3,
-			2,
-			CandidateHash(Hash::repeat_byte(1)),
-			ManifestSummary {
-				claimed_parent_hash: Hash::repeat_byte(0xA),
-				claimed_group_index: GroupIndex(0),
-				seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
-				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
-			},
-		).unwrap();
+		knowledge
+			.import_received(
+				3,
+				2,
+				CandidateHash(Hash::repeat_byte(1)),
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0xA),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+				},
+			)
+			.unwrap();
 
-		knowledge.import_received(
-			3,
-			2,
-			CandidateHash(Hash::repeat_byte(2)),
-			ManifestSummary {
-				claimed_parent_hash: Hash::repeat_byte(0xB),
-				claimed_group_index: GroupIndex(0),
-				seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
-				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
-			},
-		).unwrap();
+		knowledge
+			.import_received(
+				3,
+				2,
+				CandidateHash(Hash::repeat_byte(2)),
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0xB),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+				},
+			)
+			.unwrap();
 
 		assert_matches!(
 			knowledge.import_received(
@@ -537,16 +538,18 @@ mod tests {
 			Err(ManifestImportError::Overflow)
 		);
 
-		knowledge.import_received(
-			3,
-			2,
-			CandidateHash(Hash::repeat_byte(3)),
-			ManifestSummary {
-				claimed_parent_hash: Hash::repeat_byte(0xC),
-				claimed_group_index: GroupIndex(0),
-				seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
-				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
-			},
-		).unwrap();
+		knowledge
+			.import_received(
+				3,
+				2,
+				CandidateHash(Hash::repeat_byte(3)),
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0xC),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+				},
+			)
+			.unwrap();
 	}
 }
