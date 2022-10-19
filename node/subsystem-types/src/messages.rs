@@ -195,10 +195,16 @@ pub enum CollatorProtocolMessage {
 	/// This should be sent before any `DistributeCollation` message.
 	CollateOn(ParaId),
 	/// Provide a collation to distribute to validators with an optional result sender.
+	/// The second argument is the parent head-data hash.
 	///
 	/// The result sender should be informed when at least one parachain validator seconded the collation. It is also
 	/// completely okay to just drop the sender.
-	DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<CollationSecondedSignal>>),
+	DistributeCollation(
+		CandidateReceipt,
+		Hash,
+		PoV,
+		Option<oneshot::Sender<CollationSecondedSignal>>,
+	),
 	/// Report a collator as having provided an invalid collation. This should lead to disconnect
 	/// and blacklist of the collator.
 	ReportCollator(CollatorId),
@@ -331,18 +337,13 @@ pub enum NetworkBridgeRxMessage {
 	NewGossipTopology {
 		/// The session info this gossip topology is concerned with.
 		session: SessionIndex,
-		/// Ids of our neighbors in the X dimensions of the new gossip topology,
-		/// along with their validator indices within the session.
-		///
-		/// We're not necessarily connected to all of them, but we should
-		/// try to be.
-		our_neighbors_x: HashMap<AuthorityDiscoveryId, ValidatorIndex>,
-		/// Ids of our neighbors in the X dimensions of the new gossip topology,
-		/// along with their validator indices within the session.
-		///
-		/// We're not necessarily connected to all of them, but we should
-		/// try to be.
-		our_neighbors_y: HashMap<AuthorityDiscoveryId, ValidatorIndex>,
+		/// Our validator index in the session, if any.
+		local_index: Option<ValidatorIndex>,
+		/// The canonical shuffling of validators for the session.
+		canonical_shuffling: Vec<(AuthorityDiscoveryId, ValidatorIndex)>,
+		/// The reverse mapping of `canonical_shuffling`: from validator index
+		/// to the index in `canonical_shuffling`
+		shuffled_indices: Vec<usize>,
 	},
 }
 
@@ -433,6 +434,10 @@ pub enum AvailabilityDistributionMessage {
 		relay_parent: Hash,
 		/// Validator to fetch the PoV from.
 		from_validator: ValidatorIndex,
+		/// The id of the parachain that produced this PoV.
+		/// This field is only used to provide more context when logging errors
+		/// from the `AvailabilityDistribution` subsystem.
+		para_id: ParaId,
 		/// Candidate hash to fetch the PoV for.
 		candidate_hash: CandidateHash,
 		/// Expected hash of the PoV, a PoV not matching this hash will be rejected.
@@ -705,7 +710,7 @@ pub enum RuntimeApiRequest {
 	/// Get the validity constraints of the given para.
 	/// This is a staging API that will not be available on production runtimes.
 	StagingValidityConstraints(ParaId, RuntimeApiSender<Option<vstaging_primitives::Constraints>>),
-	/// Returns all on-chain disputes at given block number. Available in v3.
+	/// Returns all on-chain disputes at given block number. Available in `v3`.
 	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
 }
 
@@ -715,7 +720,7 @@ impl RuntimeApiRequest {
 	/// `Disputes`
 	pub const DISPUTES_RUNTIME_REQUIREMENT: u32 = 3;
 
-	/// Minimum version for valididty constraints, required for async backing.
+	/// Minimum version for validity constraints, required for async backing.
 	///
 	/// 99 for now, should be adjusted to VSTAGING/actual runtime version once released.
 	pub const VALIDITY_CONSTRAINTS: u32 = 99;

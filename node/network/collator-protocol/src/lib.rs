@@ -21,20 +21,25 @@
 #![deny(unused_crate_dependencies)]
 #![recursion_limit = "256"]
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use futures::{FutureExt, TryFutureExt};
+use futures::{
+	stream::{FusedStream, StreamExt},
+	FutureExt, TryFutureExt,
+};
 
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::{
-	request_response::{v1 as request_v1, IncomingRequestReceiver},
+	request_response::{v1 as request_v1, vstaging as protocol_vstaging, IncomingRequestReceiver},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v2::CollatorPair;
+use polkadot_primitives::v2::{CollatorPair, Hash};
 
 use polkadot_node_subsystem::{
-	errors::SubsystemError, messages::NetworkBridgeTxMessage, overseer, SpawnedSubsystem,
+	errors::SubsystemError,
+	messages::{NetworkBridgeTxMessage, RuntimeApiMessage, RuntimeApiRequest},
+	overseer, SpawnedSubsystem,
 };
 
 mod error;
@@ -43,6 +48,15 @@ mod collator_side;
 mod validator_side;
 
 const LOG_TARGET: &'static str = "parachain::collator-protocol";
+
+/// The maximum depth a candidate can occupy for any relay parent.
+/// 'depth' is defined as the amount of blocks between the para
+/// head in a relay-chain block's state and a candidate with a
+/// particular relay-parent.
+///
+/// This value is only used for limiting the number of candidates
+/// we accept and distribute per relay parent.
+const MAX_CANDIDATE_DEPTH: usize = 4;
 
 /// A collator eviction policy - how fast to evict collators which are inactive.
 #[derive(Debug, Clone, Copy)]
@@ -74,12 +88,19 @@ pub enum ProtocolSide {
 		metrics: validator_side::Metrics,
 	},
 	/// Collators operate on a parachain.
-	Collator(
-		PeerId,
-		CollatorPair,
-		IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
-		collator_side::Metrics,
-	),
+	Collator {
+		/// Local peer id.
+		peer_id: PeerId,
+		/// Parachain collator pair.
+		collator_pair: CollatorPair,
+		/// Receiver for v1 collation fetching requests.
+		request_receiver_v1: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+		/// Receiver for vstaging collation fetching requests.
+		request_receiver_vstaging:
+			IncomingRequestReceiver<protocol_vstaging::CollationFetchingRequest>,
+		/// Metrics.
+		metrics: collator_side::Metrics,
+	},
 }
 
 /// The collator protocol subsystem.
@@ -101,8 +122,22 @@ impl CollatorProtocolSubsystem {
 		match self.protocol_side {
 			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
 				validator_side::run(ctx, keystore, eviction_policy, metrics).await,
-			ProtocolSide::Collator(local_peer_id, collator_pair, req_receiver, metrics) =>
-				collator_side::run(ctx, local_peer_id, collator_pair, req_receiver, metrics).await,
+			ProtocolSide::Collator {
+				peer_id,
+				collator_pair,
+				request_receiver_v1,
+				request_receiver_vstaging,
+				metrics,
+			} =>
+				collator_side::run(
+					ctx,
+					peer_id,
+					collator_pair,
+					request_receiver_v1,
+					request_receiver_vstaging,
+					metrics,
+				)
+				.await,
 		}
 	}
 }
@@ -133,4 +168,69 @@ async fn modify_reputation(
 	);
 
 	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await;
+}
+
+/// Wait until tick and return the timestamp for the following one.
+async fn wait_until_next_tick(last_poll: Instant, period: Duration) -> Instant {
+	let now = Instant::now();
+	let next_poll = last_poll + period;
+
+	if next_poll > now {
+		futures_timer::Delay::new(next_poll - now).await
+	}
+
+	Instant::now()
+}
+
+/// Returns an infinite stream that yields with an interval of `period`.
+fn tick_stream(period: Duration) -> impl FusedStream<Item = ()> {
+	futures::stream::unfold(Instant::now(), move |next_check| async move {
+		Some(((), wait_until_next_tick(next_check, period).await))
+	})
+	.fuse()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ProspectiveParachainsMode {
+	// v2 runtime API: no prospective parachains.
+	Disabled,
+	// vstaging runtime API: prospective parachains.
+	Enabled,
+}
+
+impl ProspectiveParachainsMode {
+	fn is_enabled(&self) -> bool {
+		matches!(self, Self::Enabled)
+	}
+}
+
+async fn prospective_parachains_mode<Sender>(
+	sender: &mut Sender,
+	leaf_hash: Hash,
+) -> Result<ProspectiveParachainsMode, error::Error>
+where
+	Sender: polkadot_node_subsystem::CollatorProtocolSenderTrait,
+{
+	let (tx, rx) = futures::channel::oneshot::channel();
+	sender
+		.send_message(RuntimeApiMessage::Request(leaf_hash, RuntimeApiRequest::Version(tx)))
+		.await;
+
+	let version = rx
+		.await
+		.map_err(error::Error::CancelledRuntimeApiVersion)?
+		.map_err(error::Error::RuntimeApi)?;
+
+	if version >= RuntimeApiRequest::VALIDITY_CONSTRAINTS {
+		Ok(ProspectiveParachainsMode::Enabled)
+	} else {
+		if version < 2 {
+			gum::warn!(
+				target: LOG_TARGET,
+				"Runtime API version is {}, it is expected to be at least 2. Prospective parachains are disabled",
+				version
+			);
+		}
+		Ok(ProspectiveParachainsMode::Disabled)
+	}
 }
