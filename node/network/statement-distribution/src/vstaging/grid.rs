@@ -37,6 +37,7 @@ use super::LOG_TARGET;
 ///
 /// In the case that this group is the group that we are locally assigned to,
 /// the 'receiving' side will be empty.
+#[derive(PartialEq)]
 struct GroupSubView {
 	sending: HashSet<ValidatorIndex>,
 	receiving: HashSet<ValidatorIndex>,
@@ -57,9 +58,14 @@ struct SessionTopologyView {
 fn build_session_topology(
 	groups: &[Vec<ValidatorIndex>],
 	topology: &SessionGridTopology,
-	our_index: ValidatorIndex,
+	our_index: Option<ValidatorIndex>,
 ) -> SessionTopologyView {
 	let mut view = SessionTopologyView { group_views: HashMap::new() };
+
+	let our_index = match our_index {
+		None => return view,
+		Some(i) => i,
+	};
 
 	let our_neighbors = match topology.compute_grid_neighbors_for(our_index) {
 		None => {
@@ -287,11 +293,110 @@ fn updating_ensure_within_seconding_limit(
 	true
 }
 
-#[cfg(tests)]
+#[cfg(test)]
 mod tests {
 	use super::*;
+	use polkadot_node_network_protocol::grid_topology::TopologyPeerInfo;
+	use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
+	use sp_core::crypto::Pair as PairT;
 
-	// TODO [now]: test that grid topology views are set up correctly.
+	#[test]
+	fn topology_empty_for_no_index() {
+		let base_topology = SessionGridTopology::new(
+			vec![0, 1, 2],
+			vec![
+				TopologyPeerInfo {
+					peer_ids: Vec::new(),
+					validator_index: ValidatorIndex(0),
+					discovery_id: AuthorityDiscoveryPair::generate().0.public(),
+				},
+				TopologyPeerInfo {
+					peer_ids: Vec::new(),
+					validator_index: ValidatorIndex(1),
+					discovery_id: AuthorityDiscoveryPair::generate().0.public(),
+				},
+				TopologyPeerInfo {
+					peer_ids: Vec::new(),
+					validator_index: ValidatorIndex(2),
+					discovery_id: AuthorityDiscoveryPair::generate().0.public(),
+				},
+			],
+		);
+
+		let t = build_session_topology(
+			&[
+				vec![ValidatorIndex(0)],
+				vec![ValidatorIndex(1)],
+				vec![ValidatorIndex(2)],
+			],
+			&base_topology,
+			None,
+		);
+
+		assert!(t.group_views.is_empty());
+	}
+
+	#[test]
+	fn topology_setup() {
+		let base_topology = SessionGridTopology::new(
+			(0..9).collect(),
+			(0..9)
+				.map(|i| TopologyPeerInfo {
+					peer_ids: Vec::new(),
+					validator_index: ValidatorIndex(i),
+					discovery_id: AuthorityDiscoveryPair::generate().0.public(),
+				})
+				.collect(),
+		);
+
+		let t = build_session_topology(
+			&[
+				vec![ValidatorIndex(0), ValidatorIndex(3), ValidatorIndex(6)],
+				vec![ValidatorIndex(4), ValidatorIndex(2), ValidatorIndex(7)],
+				vec![ValidatorIndex(8), ValidatorIndex(5), ValidatorIndex(1)],
+			],
+			&base_topology,
+			Some(ValidatorIndex(0)),
+		);
+
+		assert_eq!(t.group_views.len(), 3);
+
+		// 0 1 2
+		// 3 4 5
+		// 6 7 8
+
+		// our group: we send to all row/column neighbors and receive nothing
+		assert_eq!(
+			t.group_views.get(&GroupIndex(0)).unwrap().sending,
+			vec![1, 2, 3, 6].into_iter().map(ValidatorIndex).collect::<HashSet<_>>(),
+		);
+		assert_eq!(
+			t.group_views.get(&GroupIndex(0)).unwrap().receiving,
+			HashSet::new(),
+		);
+
+		// we share a row with '2' and have indirect connections to '4' and '7'.
+
+		assert_eq!(
+			t.group_views.get(&GroupIndex(1)).unwrap().sending,
+			vec![3, 6].into_iter().map(ValidatorIndex).collect::<HashSet<_>>(),
+		);
+		assert_eq!(
+			t.group_views.get(&GroupIndex(1)).unwrap().receiving,
+			vec![1, 2, 3, 6].into_iter().map(ValidatorIndex).collect::<HashSet<_>>(),
+		);
+
+		// we share a row with '1' and have indirect connections to '5' and '8'.
+
+		assert_eq!(
+			t.group_views.get(&GroupIndex(2)).unwrap().sending,
+			vec![3, 6].into_iter().map(ValidatorIndex).collect::<HashSet<_>>(),
+		);
+		assert_eq!(
+			t.group_views.get(&GroupIndex(2)).unwrap().receiving,
+			vec![1, 2, 3, 6].into_iter().map(ValidatorIndex).collect::<HashSet<_>>(),
+		);
+	}
 
 	// TODO [now]: tests that conflicting manifests are rejected.
 
