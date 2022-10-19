@@ -456,7 +456,9 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 	if linked_version.spec_name != on_chain_version.spec_name ||
 		linked_version.spec_version != on_chain_version.spec_version
 	{
-		if !print { do_print(); }
+		if !print {
+			do_print();
+		}
 		log::error!(
 			target: LOG_TARGET,
 			"VERSION MISMATCH: any transaction will fail with bad-proof"
