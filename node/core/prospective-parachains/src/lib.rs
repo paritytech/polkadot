@@ -31,6 +31,7 @@ use std::collections::{HashMap, HashSet};
 
 use futures::{channel::oneshot, prelude::*};
 
+use polkadot_node_primitives::MAX_CANDIDATE_DEPTH;
 use polkadot_node_subsystem::{
 	messages::{
 		ChainApiMessage, FragmentTreeMembership, HypotheticalDepthRequest,
@@ -42,7 +43,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::inclusion_emulator::staging::{Constraints, RelayChainBlockInfo};
 use polkadot_primitives::vstaging::{
 	BlockNumber, CandidateHash, CommittedCandidateReceipt, CoreState, Hash, Id as ParaId,
-	PersistedValidationData, MAX_CANDIDATE_DEPTH,
+	PersistedValidationData,
 };
 
 use crate::{
