@@ -183,7 +183,7 @@ struct CounterPartyManifestKnowledge {
 }
 
 impl CounterPartyManifestKnowledge {
-	fn new(group_size: usize) -> Self {
+	fn new() -> Self {
 		CounterPartyManifestKnowledge {
 			received: HashMap::new(),
 			seconded_counts: HashMap::new(),
@@ -308,6 +308,7 @@ fn updating_ensure_within_seconding_limit(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use assert_matches::assert_matches;
 	use polkadot_node_network_protocol::grid_topology::TopologyPeerInfo;
 	use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
 	use sp_core::crypto::Pair as PairT;
@@ -410,7 +411,89 @@ mod tests {
 		);
 	}
 
-	// TODO [now]: tests that conflicting manifests are rejected.
+	#[test]
+	fn knowledge_rejects_conflicting_manifest() {
+		let mut knowledge = CounterPartyManifestKnowledge::new();
+		knowledge.import_received(
+			3,
+			2,
+			CandidateHash(Hash::repeat_byte(1)),
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(2),
+				claimed_group_index: GroupIndex(0),
+				seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
+				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+			},
+		).unwrap();
+
+		// conflicting group
+
+		assert_matches!(
+			knowledge.import_received(
+				3,
+				2,
+				CandidateHash(Hash::repeat_byte(1)),
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(2),
+					claimed_group_index: GroupIndex(1),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+				},
+			),
+			Err(ManifestImportError::Conflicting)
+		);
+
+		// conflicting parent hash
+
+		assert_matches!(
+			knowledge.import_received(
+				3,
+				2,
+				CandidateHash(Hash::repeat_byte(1)),
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(3),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+				},
+			),
+			Err(ManifestImportError::Conflicting)
+		);
+
+		// conflicting seconded statements bitfield
+
+		assert_matches!(
+			knowledge.import_received(
+				3,
+				2,
+				CandidateHash(Hash::repeat_byte(1)),
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(2),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+				},
+			),
+			Err(ManifestImportError::Conflicting)
+		);
+
+		// conflicting valid statements bitfield
+
+		assert_matches!(
+			knowledge.import_received(
+				3,
+				2,
+				CandidateHash(Hash::repeat_byte(1)),
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(2),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+				},
+			),
+			Err(ManifestImportError::Conflicting)
+		);
+	}
 
 	// TODO [now]: test that overflowing manifests are rejected.
 }
