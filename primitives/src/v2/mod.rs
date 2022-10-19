@@ -1677,7 +1677,7 @@ impl GroupValidators {
 		self.0.get(index.0 as usize)
 	}
 
-	/// Returns number of elements in vector.
+	/// Returns the number of validator groups.
 	pub fn len(&self) -> usize {
 		self.0.len()
 	}
