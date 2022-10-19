@@ -311,7 +311,7 @@ impl TestState {
 				AllMessages::NetworkBridgeTx(
 					NetworkBridgeTxMessage::SendRequests(
 						requests,
-						IfDisconnected::ImmediateError,
+						_if_disconnected,
 					)
 				) => {
 					for req in requests {

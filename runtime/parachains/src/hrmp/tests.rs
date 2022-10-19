@@ -17,7 +17,7 @@
 use super::*;
 use crate::mock::{
 	new_test_ext, Configuration, Hrmp, MockGenesisConfig, Paras, ParasShared,
-	RuntimeEvent as MockEvent, System, Test,
+	RuntimeEvent as MockEvent, RuntimeOrigin, System, Test,
 };
 use frame_support::{assert_noop, assert_ok, traits::Currency as _};
 use primitives::v2::BlockNumber;
@@ -181,6 +181,34 @@ fn open_channel_works() {
 			.iter()
 			.any(|record| record.event ==
 				MockEvent::Hrmp(Event::OpenChannelAccepted(para_a, para_b))));
+
+		// Advance to a block 6, but without session change. That means that the channel has
+		// not been created yet.
+		run_to_block(6, None);
+		assert!(!channel_exists(para_a, para_b));
+		Hrmp::assert_storage_consistency_exhaustive();
+
+		// Now let the session change happen and thus open the channel.
+		run_to_block(8, Some(vec![8]));
+		assert!(channel_exists(para_a, para_b));
+	});
+}
+
+#[test]
+fn force_open_channel_works() {
+	let para_a = 1.into();
+	let para_b = 3.into();
+
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+		// We need both A & B to be registered and live parachains.
+		register_parachain(para_a);
+		register_parachain(para_b);
+
+		run_to_block(5, Some(vec![4, 5]));
+		Hrmp::force_open_hrmp_channel(RuntimeOrigin::root(), para_a, para_b, 2, 8).unwrap();
+		Hrmp::assert_storage_consistency_exhaustive();
+		assert!(System::events().iter().any(|record| record.event ==
+			MockEvent::Hrmp(Event::HrmpChannelForceOpened(para_a, para_b, 2, 8))));
 
 		// Advance to a block 6, but without session change. That means that the channel has
 		// not been created yet.
