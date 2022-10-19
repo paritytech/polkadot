@@ -90,14 +90,26 @@ fn build_session_topology(
 
 				if our_neighbors.validator_indices_x.contains(&group_val) {
 					sub_view.receiving.insert(group_val);
-					sub_view.sending.extend(our_neighbors.validator_indices_y.iter().cloned());
+					sub_view.sending.extend(
+						our_neighbors
+							.validator_indices_y
+							.iter()
+							.filter(|v| !group.contains(v))
+							.cloned(),
+					);
 
 					continue
 				}
 
 				if our_neighbors.validator_indices_y.contains(&group_val) {
 					sub_view.receiving.insert(group_val);
-					sub_view.sending.extend(our_neighbors.validator_indices_x.iter().cloned());
+					sub_view.sending.extend(
+						our_neighbors
+						.validator_indices_x
+						.iter()
+						.filter(|v| !group.contains(v))
+						.cloned()
+					);
 
 					continue
 				}
