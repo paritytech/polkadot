@@ -30,7 +30,7 @@ struct MetricsInner {
 	queued_participations: prometheus::CounterVec<prometheus::U64>,
 	/// How long vote cleanup batches take.
 	vote_cleanup_time: prometheus::Histogram,
-	/// Number of refrained participations
+	/// Number of refrained participations.
 	refrained_participations: prometheus::Counter<prometheus::U64>,
 }
 
@@ -159,7 +159,7 @@ impl metrics::Metrics for Metrics {
 			prometheus::Counter::with_opts(
 				prometheus::Opts::new(
 					"polkadot_parachain_dispute_refrained_participations",
-					"Number of refrained participations.",
+					"Number of refrained participations. We refrain from participation if all of the following conditions are met: disputed candidate is not included, not backed and not confirmed.",
 				))?,
 				registry,
 			)?,
