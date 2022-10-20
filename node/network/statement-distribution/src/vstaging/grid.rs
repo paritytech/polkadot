@@ -156,13 +156,23 @@ pub fn build_session_topology(
 	view
 }
 
+/// Advertisers of a candidate which became known.
+#[derive(Default)]
+pub struct CandidateAdvertisers {
+	/// Advertisers who got the details correct.
+	pub correct: Vec<ValidatorIndex>,
+	/// Advertisers who got the details incorrect.
+	pub incorrect: Vec<ValidatorIndex>,
+}
+
 /// A tracker of knowledge from authorities within the grid for the
 /// entire session. This stores only data on manifests sent within a bounded
 /// set of relay-parents.
 #[derive(Default)]
 pub struct PerSessionGridTracker {
 	received: HashMap<ValidatorIndex, CounterPartyManifestKnowledge>,
-	pending_unknown: HashMap<CandidateHash, HashSet<ValidatorIndex>>,
+	// advertisers of currently unknown candidates.
+	unknown_advertisers: HashMap<CandidateHash, HashSet<ValidatorIndex>>,
 }
 
 impl PerSessionGridTracker {
@@ -172,7 +182,7 @@ impl PerSessionGridTracker {
 		for (v, knowledge) in &mut self.received {
 			let pruned = knowledge.collect_garbage(&view_contains);
 			for pruned_candidate in pruned {
-				if let Entry::Occupied(mut e) = self.pending_unknown.entry(pruned_candidate) {
+				if let Entry::Occupied(mut e) = self.unknown_advertisers.entry(pruned_candidate) {
 					e.get_mut().remove(v);
 					if e.get().is_empty() {
 						e.remove();
@@ -181,9 +191,48 @@ impl PerSessionGridTracker {
 			}
 		}
 	}
+
+	/// Note that a candidate's full receipt has been acquired, with its actual group index,
+	/// relay-parent, and parent head data.
+	///
+	/// Returns validator indices which advertised the candidate both
+	/// correctly and incorrectly.
+	pub fn note_acquired_candidate(
+		&mut self,
+		candidate_hash: CandidateHash,
+		relay_parent: Hash,
+		group_index: GroupIndex,
+		parent_hash: Hash,
+	) -> CandidateAdvertisers {
+		let mut advertisers = CandidateAdvertisers::default();
+		for v in self.unknown_advertisers.remove(&candidate_hash).into_iter().flat_map(|x| x) {
+			let knowledge = match self.received.get(&v) {
+				None => continue,
+				Some(k) => k,
+			};
+
+			let m = match knowledge.received.get(&candidate_hash) {
+				None => continue,
+				Some(m) => m,
+			};
+
+			if m.claimed_relay_parent != relay_parent ||
+				m.claimed_group_index != group_index ||
+				m.claimed_parent_hash != parent_hash
+			{
+				advertisers.incorrect.push(v);
+			} else {
+				advertisers.correct.push(v)
+			}
+		}
+
+		advertisers
+	}
 }
 
+#[derive(Clone)]
 struct ManifestSummary {
+	claimed_relay_parent: Hash,
 	claimed_parent_hash: Hash,
 	claimed_group_index: GroupIndex,
 	seconded_in_group: BitVec<u8, Lsb0>,
@@ -256,6 +305,10 @@ impl CounterPartyManifestKnowledge {
 				// filter out clearly conflicting data.
 				{
 					let prev = e.get();
+					if prev.claimed_relay_parent != manifest_summary.claimed_relay_parent {
+						return Err(ManifestImportError::Conflicting)
+					}
+
 					if prev.claimed_group_index != manifest_summary.claimed_group_index {
 						return Err(ManifestImportError::Conflicting)
 					}
@@ -281,7 +334,7 @@ impl CounterPartyManifestKnowledge {
 					let within_limits = updating_ensure_within_seconding_limit(
 						&mut self.seconded_counts,
 						manifest_summary.claimed_group_index,
-						manifest_summary.claimed_parent_hash,
+						manifest_summary.claimed_relay_parent,
 						group_size,
 						seconding_limit,
 						&*fresh_seconded,
@@ -301,7 +354,7 @@ impl CounterPartyManifestKnowledge {
 				let within_limits = updating_ensure_within_seconding_limit(
 					&mut self.seconded_counts,
 					manifest_summary.claimed_group_index,
-					manifest_summary.claimed_parent_hash,
+					manifest_summary.claimed_relay_parent,
 					group_size,
 					seconding_limit,
 					&*manifest_summary.seconded_in_group,
@@ -453,85 +506,66 @@ mod tests {
 	#[test]
 	fn knowledge_rejects_conflicting_manifest() {
 		let mut knowledge = CounterPartyManifestKnowledge::new();
+
+		let expected_manifest_summary = ManifestSummary {
+			claimed_relay_parent: Hash::repeat_byte(0),
+			claimed_parent_hash: Hash::repeat_byte(2),
+			claimed_group_index: GroupIndex(0),
+			seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
+			validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+		};
+
 		knowledge
 			.import_received(
 				3,
 				2,
 				CandidateHash(Hash::repeat_byte(1)),
-				ManifestSummary {
-					claimed_parent_hash: Hash::repeat_byte(2),
-					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
-				},
+				expected_manifest_summary.clone(),
 			)
 			.unwrap();
 
+		// conflicting relay-parent
+
+		let mut s = expected_manifest_summary.clone();
+		s.claimed_relay_parent = Hash::repeat_byte(1);
+		assert_matches!(
+			knowledge.import_received(3, 2, CandidateHash(Hash::repeat_byte(1)), s,),
+			Err(ManifestImportError::Conflicting)
+		);
+
 		// conflicting group
 
+		let mut s = expected_manifest_summary.clone();
+		s.claimed_group_index = GroupIndex(1);
 		assert_matches!(
-			knowledge.import_received(
-				3,
-				2,
-				CandidateHash(Hash::repeat_byte(1)),
-				ManifestSummary {
-					claimed_parent_hash: Hash::repeat_byte(2),
-					claimed_group_index: GroupIndex(1),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
-				},
-			),
+			knowledge.import_received(3, 2, CandidateHash(Hash::repeat_byte(1)), s,),
 			Err(ManifestImportError::Conflicting)
 		);
 
 		// conflicting parent hash
 
+		let mut s = expected_manifest_summary.clone();
+		s.claimed_parent_hash = Hash::repeat_byte(3);
 		assert_matches!(
-			knowledge.import_received(
-				3,
-				2,
-				CandidateHash(Hash::repeat_byte(1)),
-				ManifestSummary {
-					claimed_parent_hash: Hash::repeat_byte(3),
-					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
-				},
-			),
+			knowledge.import_received(3, 2, CandidateHash(Hash::repeat_byte(1)), s,),
 			Err(ManifestImportError::Conflicting)
 		);
 
 		// conflicting seconded statements bitfield
 
+		let mut s = expected_manifest_summary.clone();
+		s.seconded_in_group = bitvec::bitvec![u8, Lsb0; 0, 1, 0];
 		assert_matches!(
-			knowledge.import_received(
-				3,
-				2,
-				CandidateHash(Hash::repeat_byte(1)),
-				ManifestSummary {
-					claimed_parent_hash: Hash::repeat_byte(2),
-					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
-				},
-			),
+			knowledge.import_received(3, 2, CandidateHash(Hash::repeat_byte(1)), s,),
 			Err(ManifestImportError::Conflicting)
 		);
 
 		// conflicting valid statements bitfield
 
+		let mut s = expected_manifest_summary.clone();
+		s.validated_in_group = bitvec::bitvec![u8, Lsb0; 0, 1, 0];
 		assert_matches!(
-			knowledge.import_received(
-				3,
-				2,
-				CandidateHash(Hash::repeat_byte(1)),
-				ManifestSummary {
-					claimed_parent_hash: Hash::repeat_byte(2),
-					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-				},
-			),
+			knowledge.import_received(3, 2, CandidateHash(Hash::repeat_byte(1)), s,),
 			Err(ManifestImportError::Conflicting)
 		);
 	}
@@ -545,6 +579,7 @@ mod tests {
 				2,
 				CandidateHash(Hash::repeat_byte(1)),
 				ManifestSummary {
+					claimed_relay_parent: Hash::repeat_byte(0),
 					claimed_parent_hash: Hash::repeat_byte(0xA),
 					claimed_group_index: GroupIndex(0),
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
@@ -559,6 +594,7 @@ mod tests {
 				2,
 				CandidateHash(Hash::repeat_byte(2)),
 				ManifestSummary {
+					claimed_relay_parent: Hash::repeat_byte(0),
 					claimed_parent_hash: Hash::repeat_byte(0xB),
 					claimed_group_index: GroupIndex(0),
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
@@ -573,6 +609,7 @@ mod tests {
 				2,
 				CandidateHash(Hash::repeat_byte(3)),
 				ManifestSummary {
+					claimed_relay_parent: Hash::repeat_byte(0),
 					claimed_parent_hash: Hash::repeat_byte(0xC),
 					claimed_group_index: GroupIndex(0),
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
@@ -588,6 +625,7 @@ mod tests {
 				2,
 				CandidateHash(Hash::repeat_byte(3)),
 				ManifestSummary {
+					claimed_relay_parent: Hash::repeat_byte(0),
 					claimed_parent_hash: Hash::repeat_byte(0xC),
 					claimed_group_index: GroupIndex(0),
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
@@ -595,5 +633,22 @@ mod tests {
 				},
 			)
 			.unwrap();
+
+		// different relay-parent: different counters.
+		assert_matches!(
+			knowledge.import_received(
+				3,
+				2,
+				CandidateHash(Hash::repeat_byte(4)),
+				ManifestSummary {
+					claimed_relay_parent: Hash::repeat_byte(1),
+					claimed_parent_hash: Hash::repeat_byte(0xC),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+				},
+			),
+			Ok(())
+		);
 	}
 }
