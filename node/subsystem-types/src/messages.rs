@@ -62,7 +62,7 @@ pub mod network_bridge_event;
 pub use network_bridge_event::NetworkBridgeEvent;
 
 /// A request to the candidate backing subsystem to check whether
-/// it's correct to fetch and start seconding a candidate.
+/// there exists vacant membership in some fragment tree.
 #[derive(Debug, Copy, Clone)]
 pub struct SecondingCheckRequest {
 	/// Para id of the candidate.
@@ -87,7 +87,10 @@ pub enum CandidateBackingMessage {
 	/// seconded candidate.
 	///
 	/// Returns false immediately if there exists an already-occupied depth in some fragment
-	/// tree for this candidate. Otherwise, notifies back when the parent node is seconded.
+	/// tree for this candidate. Otherwise, notifies back if the parent node is seconded.
+	///
+	/// The sender will be dropped with no response if candidate relay parent leaves the implicit
+	/// view or async backing is disabled.
 	AdvertisementSecondingCheck {
 		/// Request parameters.
 		request: SecondingCheckRequest,

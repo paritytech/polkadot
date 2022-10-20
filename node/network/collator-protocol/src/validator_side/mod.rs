@@ -977,13 +977,12 @@ where
 			None
 		},
 		(ProspectiveParachainsMode::Enabled, Some((candidate_hash, parent_head_data_hash))) =>
-			SecondingCheckRequest {
+			Some(SecondingCheckRequest {
 				candidate_para_id: collator_para_id,
 				candidate_relay_parent: relay_parent,
 				candidate_hash,
 				parent_head_data_hash,
-			}
-			.into(),
+			}),
 		_ => return Err(AdvertisementError::ProtocolMismatch),
 	};
 
@@ -1522,7 +1521,7 @@ pub(crate) async fn run<Context>(
 					Some(response) => response,
 					None => {
 						// Most likely the parent went out of view.
-						gum::debug!(
+						gum::trace!(
 							target: LOG_TARGET,
 							relay_parent = ?request.candidate_relay_parent,
 							candidate_hash = ?request.candidate_hash,
