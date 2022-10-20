@@ -16,6 +16,7 @@
 
 //! `V1` Primitives.
 
+use std::marker::PhantomData;
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -1576,24 +1577,25 @@ impl CompactStatement {
 /// `Validators` struct indexed by `ValidatorIndex`.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo, Default)]
 #[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
-pub struct Validators(Vec<ValidatorId>);
+pub struct IndexedVec<K,V>(Vec<V>, PhantomData<fn(K) -> K>);
 
-impl From<Vec<ValidatorId>> for Validators {
-	fn from(validators: Vec<ValidatorId>) -> Self {
-		Validators(validators)
+impl<K,V> From<Vec<V>> for IndexedVec<K,V> {
+	fn from(validators: Vec<V>) -> Self {
+		Self(validators, PhantomData)
 	}
 }
 
-impl FromIterator<ValidatorId> for Validators {
-	fn from_iter<T: IntoIterator<Item = ValidatorId>>(iter: T) -> Self {
-		Self(Vec::from_iter(iter))
+impl<K,V> FromIterator<V> for IndexedVec<K,V> {
+	fn from_iter<T: IntoIterator<Item = V>>(iter: T) -> Self {
+		Self(Vec::from_iter(iter), PhantomData)
 	}
 }
 
-impl Validators {
+impl<K,V> IndexedVec<K,V> {
 	/// Returns a reference to an element indexed using `ValidatorIndex`.
-	pub fn get(&self, index: ValidatorIndex) -> Option<&ValidatorId> {
-		self.0.get(index.0 as usize)
+	pub fn get(&self, index: K) -> Option<&V>
+	where K: From<u32>{
+		self.0.get(u32::from(index))
 	}
 
 	/// Returns number of elements in vector.
@@ -1602,22 +1604,22 @@ impl Validators {
 	}
 
 	/// Returns contained vector.
-	pub fn to_vec(&self) -> Vec<ValidatorId> {
+	pub fn to_vec(&self) -> Vec<V> {
 		self.0.clone()
 	}
 
 	/// Returns Iterator of contained vector.
-	pub fn iter(&self) -> Iter<'_, ValidatorId> {
+	pub fn iter(&self) -> Iter<'_, V> {
 		self.0.iter()
 	}
 
 	/// Returns a mutable Iterator.
-	pub fn iter_mut(&mut self) -> IterMut<'_, ValidatorId> {
+	pub fn iter_mut(&mut self) -> IterMut<'_, V> {
 		self.0.iter_mut()
 	}
 
 	/// Returns an Iterator with ownership.
-	pub fn into_iter(self) -> IntoIter<ValidatorId> {
+	pub fn into_iter(self) -> IntoIter<V> {
 		self.0.into_iter()
 	}
 
