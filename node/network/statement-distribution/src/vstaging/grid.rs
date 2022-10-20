@@ -48,7 +48,7 @@ struct GroupSubView {
 
 /// Our local view of the topology for a session, as it pertains to backed
 /// candidate distribution.
-struct SessionTopologyView {
+pub struct SessionTopologyView {
 	group_views: HashMap<GroupIndex, GroupSubView>,
 }
 
@@ -58,7 +58,7 @@ struct SessionTopologyView {
 ///    and send to the corresponding X/Y slice.
 ///    For any validators we don't share a slice with, we receive from the nodes
 ///    which share a slice with them.
-fn build_session_topology(
+pub fn build_session_topology(
 	groups: &[Vec<ValidatorIndex>],
 	topology: &SessionGridTopology,
 	our_index: Option<ValidatorIndex>,
@@ -156,10 +156,31 @@ fn build_session_topology(
 	view
 }
 
-/// A tracker of knowledge from authorities within the grid for a
-/// specific relay-parent.
-struct PerRelayParentGridTracker {
+/// A tracker of knowledge from authorities within the grid for the
+/// entire session. This stores only data on manifests sent within a bounded
+/// set of relay-parents.
+#[derive(Default)]
+pub struct PerSessionGridTracker {
 	received: HashMap<ValidatorIndex, CounterPartyManifestKnowledge>,
+	pending_unknown: HashMap<CandidateHash, HashSet<ValidatorIndex>>,
+}
+
+impl PerSessionGridTracker {
+	/// Collect all garbage, provided a function that informs us on the state
+	/// of the view.
+	pub fn collect_garbage(&mut self, view_contains: impl Fn(&Hash) -> bool) {
+		for (v, knowledge) in &mut self.received {
+			let pruned = knowledge.collect_garbage(&view_contains);
+			for pruned_candidate in pruned {
+				if let Entry::Occupied(mut e) = self.pending_unknown.entry(pruned_candidate) {
+					e.get_mut().remove(v);
+					if e.get().is_empty() {
+						e.remove();
+					}
+				}
+			}
+		}
+	}
 }
 
 struct ManifestSummary {
@@ -182,12 +203,30 @@ enum ManifestImportError {
 #[derive(Default)]
 struct CounterPartyManifestKnowledge {
 	received: HashMap<CandidateHash, ManifestSummary>,
-	seconded_counts: HashMap<GroupIndex, Vec<usize>>,
+	// (group, relay parent) -> seconded counts.
+	seconded_counts: HashMap<(GroupIndex, Hash), Vec<usize>>,
 }
 
 impl CounterPartyManifestKnowledge {
 	fn new() -> Self {
 		CounterPartyManifestKnowledge { received: HashMap::new(), seconded_counts: HashMap::new() }
+	}
+
+	/// Collect all garbage: anything outside the provided view.
+	/// Returns a set of all pruned candidate hashes.
+	fn collect_garbage(&mut self, view_contains: impl Fn(&Hash) -> bool) -> Vec<CandidateHash> {
+		let mut v = Vec::new();
+		self.seconded_counts.retain(|&(_, ref r_p), _| view_contains(r_p));
+		self.received.retain(|c_hash, summary| {
+			if !view_contains(&summary.claimed_parent_hash) {
+				v.push(*c_hash);
+				false
+			} else {
+				true
+			}
+		});
+
+		v
 	}
 
 	/// Attempt to import a received manifest from a counterparty.
@@ -242,6 +281,7 @@ impl CounterPartyManifestKnowledge {
 					let within_limits = updating_ensure_within_seconding_limit(
 						&mut self.seconded_counts,
 						manifest_summary.claimed_group_index,
+						manifest_summary.claimed_parent_hash,
 						group_size,
 						seconding_limit,
 						&*fresh_seconded,
@@ -261,6 +301,7 @@ impl CounterPartyManifestKnowledge {
 				let within_limits = updating_ensure_within_seconding_limit(
 					&mut self.seconded_counts,
 					manifest_summary.claimed_group_index,
+					manifest_summary.claimed_parent_hash,
 					group_size,
 					seconding_limit,
 					&*manifest_summary.seconded_in_group,
@@ -280,8 +321,9 @@ impl CounterPartyManifestKnowledge {
 // updates validator-seconded records but only if the new statements
 // are OK. returns `true` if alright and `false` otherwise.
 fn updating_ensure_within_seconding_limit(
-	seconded_counts: &mut HashMap<GroupIndex, Vec<usize>>,
+	seconded_counts: &mut HashMap<(GroupIndex, Hash), Vec<usize>>,
 	group_index: GroupIndex,
+	relay_parent: Hash,
 	group_size: usize,
 	seconding_limit: usize,
 	new_seconded: &BitSlice<u8, Lsb0>,
@@ -292,7 +334,9 @@ fn updating_ensure_within_seconding_limit(
 
 	// due to the check above, if this was non-existent this function will
 	// always return `true`.
-	let counts = seconded_counts.entry(group_index).or_insert_with(|| vec![0; group_size]);
+	let counts = seconded_counts
+		.entry((group_index, relay_parent))
+		.or_insert_with(|| vec![0; group_size]);
 
 	for i in new_seconded.iter_ones() {
 		if counts[i] == seconding_limit {
