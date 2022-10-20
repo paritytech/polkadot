@@ -666,8 +666,9 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash1, HashMap::new())
 				.await;
 
-			// Participation has to fail, otherwise the dispute will be confirmed.
-			// Participation won't happen because the dispute is neither backed, not confirmed nor the candidate is included
+			// Participation has to fail here, otherwise the dispute will be confirmed. However
+			// participation won't happen at all because the dispute is neither backed, not confirmed
+			// nor the candidate is included. Or in other words - we'll refrain from participation.
 
 			{
 				let (tx, rx) = oneshot::channel();
@@ -795,8 +796,9 @@ fn approval_vote_import_works() {
 			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash1, approval_votes)
 				.await;
 
-			// Participation has to fail, otherwise the dispute will be confirmed.
-			// Participation won't happen because the dispute is neither backed, not confirmed nor the candidate is included
+			// Participation has to fail here, otherwise the dispute will be confirmed. However
+			// participation won't happen at all because the dispute is neither backed, not confirmed
+			// nor the candidate is included. Or in other words - we'll refrain from participation.
 
 			{
 				let (tx, rx) = oneshot::channel();
@@ -1082,7 +1084,9 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash1, HashMap::new())
 				.await;
 
-			// Participation won't happen because the dispute is neither backed, not confirmed nor the candidate is included
+			// Participation has to fail here, otherwise the dispute will be confirmed. However
+			// participation won't happen at all because the dispute is neither backed, not confirmed
+			// nor the candidate is included. Or in other words - we'll refrain from participation.
 
 			{
 				let (tx, rx) = oneshot::channel();
@@ -2176,7 +2180,9 @@ fn resume_dispute_without_local_statement() {
 				.await;
 
 			// Missing availability -> No local vote.
-			// Participation won't happen because the dispute is neither backed, not confirmed nor the candidate is included
+			// Participation has to fail here, otherwise the dispute will be confirmed. However
+			// participation won't happen at all because the dispute is neither backed, not confirmed
+			// nor the candidate is included. Or in other words - we'll refrain from participation.
 
 			assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
 
@@ -2991,7 +2997,7 @@ fn refrain_from_participation() {
 
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 
-			// This confirms that no participation request is made.
+			// confirm that no participation request is made.
 			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
@@ -3010,7 +3016,7 @@ fn participation_for_included_candidates() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			// activate leaf - no backing event
+			// activate leaf - with candidate included event
 			test_state
 				.activate_leaf_at_session(
 					&mut virtual_overseer,
@@ -3073,6 +3079,7 @@ fn participation_for_included_candidates() {
 
 				assert_eq!(rx.await.unwrap().len(), 1);
 
+				// check if we have participated (casted a vote)
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
 					.send(FromOrchestra::Communication {
@@ -3084,103 +3091,7 @@ fn participation_for_included_candidates() {
 					.await;
 
 				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert_eq!(votes.valid.len(), 2);
-				assert_eq!(votes.invalid.len(), 1);
-			}
-
-			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
-
-			test_state
-		})
-	});
-}
-
-#[test]
-fn participation_for_finalized_block() {
-	test_harness(|mut test_state, mut virtual_overseer| {
-		Box::pin(async move {
-			let session = 1;
-
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
-
-			let candidate_receipt = make_valid_candidate_receipt();
-			let candidate_hash = candidate_receipt.hash();
-
-			// activate leaf - no backing event
-			test_state
-				.activate_leaf_at_session(
-					&mut virtual_overseer,
-					session,
-					1,
-					vec![make_candidate_included_event(candidate_receipt.clone())],
-				)
-				.await;
-
-			// generate two votes
-			let valid_vote = test_state
-				.issue_explicit_statement_with_index(
-					ValidatorIndex(1),
-					candidate_hash,
-					session,
-					true,
-				)
-				.await;
-
-			let invalid_vote = test_state
-				.issue_explicit_statement_with_index(
-					ValidatorIndex(2),
-					candidate_hash,
-					session,
-					false,
-				)
-				.await;
-
-			virtual_overseer
-				.send(FromOrchestra::Communication {
-					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_receipt: candidate_receipt.clone(),
-						session,
-						statements: vec![
-							(valid_vote, ValidatorIndex(1)),
-							(invalid_vote, ValidatorIndex(2)),
-						],
-						pending_confirmation: None,
-					},
-				})
-				.await;
-
-			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
-				.await;
-
-			participation_with_distribution(
-				&mut virtual_overseer,
-				&candidate_hash,
-				candidate_receipt.commitments_hash,
-			)
-			.await;
-
-			{
-				let (tx, rx) = oneshot::channel();
-				virtual_overseer
-					.send(FromOrchestra::Communication {
-						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
-					})
-					.await;
-
-				assert_eq!(rx.await.unwrap().len(), 1);
-
-				let (tx, rx) = oneshot::channel();
-				virtual_overseer
-					.send(FromOrchestra::Communication {
-						msg: DisputeCoordinatorMessage::QueryCandidateVotes(
-							vec![(session, candidate_hash)],
-							tx,
-						),
-					})
-					.await;
-
-				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert_eq!(votes.valid.len(), 2);
+				assert_eq!(votes.valid.len(), 2); // 2 => we have participated
 				assert_eq!(votes.invalid.len(), 1);
 			}
 
