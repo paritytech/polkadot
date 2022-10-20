@@ -1564,7 +1564,9 @@ fn occupied_core_assignment() {
 
 #[test]
 fn seconding_check_request_notify() {
-	let test_state = TestState::default();
+	let mut test_state = TestState::default();
+	// Make it so our vote is enough to attest a candidate.
+	test_state.validator_groups.0[0] = vec![0.into()];
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 		const LEAF_A_BLOCK_NUMBER: BlockNumber = 90;
 		const LEAF_A_ANCESTRY_LEN: BlockNumber = 3;
@@ -1653,6 +1655,7 @@ fn seconding_check_request_notify() {
 			..Default::default()
 		}
 		.build();
+		let candidate_hash = candidate.hash();
 
 		let second = CandidateBackingMessage::Second(
 			leaf_a_grandparent,
@@ -1711,22 +1714,14 @@ fn seconding_check_request_notify() {
 			}
 		);
 
+		// Prospective parachains are notified about candidate backed.
 		assert_matches!(
 			virtual_overseer.recv().await,
-			AllMessages::StatementDistribution(
-				StatementDistributionMessage::Share(
-					parent_hash,
-					_signed_statement,
-				)
-			) if parent_hash == leaf_a_grandparent => {}
-		);
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::CollatorProtocol(CollatorProtocolMessage::Seconded(hash, statement)) => {
-				assert_eq!(leaf_a_grandparent, hash);
-				assert_matches!(statement.payload(), Statement::Seconded(_));
-			}
+			AllMessages::ProspectiveParachains(
+				ProspectiveParachainsMessage::CandidateBacked(
+					candidate_para_id, _candidate_hash
+				),
+			) if _candidate_hash == candidate_hash && candidate_para_id == para_id
 		);
 
 		for mut rx in receivers {

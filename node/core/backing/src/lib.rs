@@ -66,7 +66,10 @@
 #![deny(unused_crate_dependencies)]
 
 use std::{
-	collections::{BTreeMap, HashMap, HashSet},
+	collections::{
+		hash_map::{Entry, HashMap},
+		BTreeMap, HashSet,
+	},
 	sync::Arc,
 };
 
@@ -1359,6 +1362,7 @@ async fn handle_validated_candidate_command<Context>(
 							ctx,
 							rp_state,
 							&mut state.per_candidate,
+							&mut state.seconding_check_requests,
 							statement,
 							state.keystore.clone(),
 							metrics,
@@ -1396,9 +1400,6 @@ async fn handle_validated_candidate_command<Context>(
 								Some(p) => p.seconded_locally = true,
 							}
 
-							let is_max_depth = fragment_tree_membership
-								.iter()
-								.all(|(_, m)| m.contains(&MAX_CANDIDATE_DEPTH));
 							// update seconded depths in active leaves.
 							for (leaf, depths) in fragment_tree_membership {
 								let leaf_data = match state.per_leaf.get_mut(&leaf) {
@@ -1421,18 +1422,6 @@ async fn handle_validated_candidate_command<Context>(
 
 								for depth in depths {
 									seconded_at_depth.insert(depth, candidate_hash);
-								}
-							}
-							if !is_max_depth {
-								// send notifications for unblocked candidates.
-								let para = candidate.descriptor.para_id;
-								let head_data_hash = candidate.descriptor.para_head;
-								if let Some(requests) =
-									state.seconding_check_requests.remove(&(para, head_data_hash))
-								{
-									for req in requests {
-										let _ = req.tx.send(true);
-									}
 								}
 							}
 
@@ -1466,6 +1455,7 @@ async fn handle_validated_candidate_command<Context>(
 								ctx,
 								rp_state,
 								&mut state.per_candidate,
+								&mut state.seconding_check_requests,
 								statement,
 								state.keystore.clone(),
 								metrics,
@@ -1552,6 +1542,7 @@ async fn import_statement<Context>(
 	ctx: &mut Context,
 	rp_state: &mut PerRelayParentState,
 	per_candidate: &mut HashMap<CandidateHash, PerCandidateState>,
+	seconding_check_requests: &mut HashMap<(ParaId, Hash), Vec<PerSecondingCheckRequest>>,
 	statement: &SignedFullStatementWithPVD,
 ) -> Result<Option<TableSummary>, Error> {
 	gum::debug!(
@@ -1576,6 +1567,7 @@ async fn import_statement<Context>(
 	//
 	// We should also not accept any candidates which have no valid depths under any of
 	// our active leaves.
+	let mut maybe_membership = None;
 	if let StatementWithPVD::Seconded(candidate, pvd) = statement.payload() {
 		if !per_candidate.contains_key(&candidate_hash) {
 			if rp_state.prospective_parachains_mode.is_enabled() {
@@ -1597,10 +1589,12 @@ async fn import_statement<Context>(
 
 						return Err(Error::RejectedByProspectiveParachains)
 					},
-					Ok(membership) =>
+					Ok(membership) => {
 						if membership.is_empty() {
 							return Err(Error::RejectedByProspectiveParachains)
-						},
+						}
+						maybe_membership = Some(membership);
+					},
 				}
 			}
 
@@ -1637,6 +1631,44 @@ async fn import_statement<Context>(
 					%para_id,
 					"Candidate backed",
 				);
+
+				let head_data_hash = backed.candidate.descriptor().para_head;
+				if let Entry::Occupied(entry) =
+					seconding_check_requests.entry((para_id, head_data_hash))
+				{
+					if maybe_membership.is_none() {
+						let (tx, rx) = oneshot::channel();
+						ctx.send_message(ProspectiveParachainsMessage::GetTreeMembership(
+							para_id,
+							candidate_hash,
+							tx,
+						))
+						.await;
+
+						match rx.await {
+							Err(oneshot::Canceled) => gum::warn!(
+								target: LOG_TARGET,
+								?para_id,
+								?candidate_hash,
+								"Prospective parachains subsystem unreachable for membership request",
+							),
+							Ok(membership) => {
+								maybe_membership = Some(membership);
+							},
+						}
+					}
+
+					if let Some(membership) = maybe_membership {
+						let unblocked =
+							membership.iter().any(|(_, m)| !m.contains(&MAX_CANDIDATE_DEPTH));
+						if unblocked {
+							let requests = entry.remove();
+							for req in requests {
+								let _ = req.tx.send(true);
+							}
+						}
+					}
+				}
 
 				// Inform the prospective parachains subsystem
 				// that the candidate is now backed.
@@ -1695,12 +1727,14 @@ async fn sign_import_and_distribute_statement<Context>(
 	ctx: &mut Context,
 	rp_state: &mut PerRelayParentState,
 	per_candidate: &mut HashMap<CandidateHash, PerCandidateState>,
+	seconding_check_requests: &mut HashMap<(ParaId, Hash), Vec<PerSecondingCheckRequest>>,
 	statement: StatementWithPVD,
 	keystore: SyncCryptoStorePtr,
 	metrics: &Metrics,
 ) -> Result<Option<SignedFullStatementWithPVD>, Error> {
 	if let Some(signed_statement) = sign_statement(&*rp_state, statement, keystore, metrics).await {
-		import_statement(ctx, rp_state, per_candidate, &signed_statement).await?;
+		import_statement(ctx, rp_state, per_candidate, seconding_check_requests, &signed_statement)
+			.await?;
 
 		let smsg = StatementDistributionMessage::Share(rp_state.parent, signed_statement.clone());
 		ctx.send_unbounded_message(smsg);
@@ -1814,7 +1848,14 @@ async fn maybe_validate_and_import<Context>(
 		},
 	};
 
-	let res = import_statement(ctx, rp_state, &mut state.per_candidate, &statement).await;
+	let res = import_statement(
+		ctx,
+		rp_state,
+		&mut state.per_candidate,
+		&mut state.seconding_check_requests,
+		&statement,
+	)
+	.await;
 
 	// if we get an Error::RejectedByProspectiveParachains,
 	// we will do nothing.
