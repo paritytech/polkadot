@@ -60,6 +60,14 @@ impl Groups {
 		self.groups.get(group_index.0 as usize).map(|x| &x[..])
 	}
 
+	/// Get the backing group size and backing threshold.
+	pub fn get_size_and_backing_threshold(
+		&self,
+		group_index: GroupIndex,
+	) -> Option<(usize, usize)> {
+		self.get(group_index).map(|g| (g.len(), minimum_votes(g.len())))
+	}
+
 	/// Get the group index for a validator by index.
 	pub fn by_validator_index(&self, validator_index: ValidatorIndex) -> Option<GroupIndex> {
 		self.by_validator_index.get(&validator_index).map(|x| *x)
@@ -69,4 +77,13 @@ impl Groups {
 	pub fn by_discovery_key(&self, discovery_key: AuthorityDiscoveryId) -> Option<GroupIndex> {
 		self.by_discovery_key.get(&discovery_key).map(|x| *x)
 	}
+}
+
+/// How many votes we need to consider a candidate backed.
+///
+/// WARNING: This has to be kept in sync with the runtime check in the inclusion module and
+/// the backing subsystem.
+// TODO [now]: extract to shared primitives.
+fn minimum_votes(n_validators: usize) -> usize {
+	std::cmp::min(2, n_validators)
 }

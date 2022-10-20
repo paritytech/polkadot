@@ -82,6 +82,9 @@ const BENEFIT_VALID_STATEMENT: Rep = Rep::BenefitMajor("Peer provided a valid st
 
 struct PerRelayParentState {
 	validator_state: HashMap<ValidatorIndex, PerRelayParentValidatorState>,
+	// TODO [now]: this should be a global view which tracks
+	// advertisers' claimed relay-parent, group, para-head for unconfirmed
+	// candidates. that will be used to report them when confirming.
 	candidates: HashMap<CandidateHash, CandidateEntry>,
 	local_validator: Option<LocalValidatorState>,
 	statement_store: StatementStore,

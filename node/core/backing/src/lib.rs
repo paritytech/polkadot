@@ -387,7 +387,8 @@ struct AttestingData {
 
 /// How many votes we need to consider a candidate backed.
 ///
-/// WARNING: This has to be kept in sync with the runtime check in the inclusion module.
+/// WARNING: This has to be kept in sync with the runtime check in the inclusion module and
+/// statement distribution.
 fn minimum_votes(n_validators: usize) -> usize {
 	std::cmp::min(2, n_validators)
 }

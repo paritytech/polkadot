@@ -29,7 +29,7 @@ use std::collections::{
 
 use bitvec::{order::Lsb0, slice::BitSlice, vec::BitVec};
 
-use super::LOG_TARGET;
+use super::{groups::Groups, LOG_TARGET};
 
 /// Our local view of a subset of the grid topology organized around a specific validator
 /// group.
@@ -169,113 +169,117 @@ pub struct CandidateAdvertisers {
 /// entire session. This stores only data on manifests sent within a bounded
 /// set of relay-parents.
 #[derive(Default)]
-pub struct PerSessionGridTracker {
+pub struct PerRelayParentGridTracker {
 	received: HashMap<ValidatorIndex, CounterPartyManifestKnowledge>,
-	// advertisers of currently unknown candidates.
-	unknown_advertisers: HashMap<CandidateHash, HashSet<ValidatorIndex>>,
 }
 
-impl PerSessionGridTracker {
-	/// Collect all garbage, provided a function that informs us on the state
-	/// of the view.
-	pub fn collect_garbage(&mut self, view_contains: impl Fn(&Hash) -> bool) {
-		for (v, knowledge) in &mut self.received {
-			let pruned = knowledge.collect_garbage(&view_contains);
-			for pruned_candidate in pruned {
-				if let Entry::Occupied(mut e) = self.unknown_advertisers.entry(pruned_candidate) {
-					e.get_mut().remove(v);
-					if e.get().is_empty() {
-						e.remove();
-					}
-				}
-			}
-		}
-	}
-
-	/// Note that a candidate's full receipt has been acquired, with its actual group index,
-	/// relay-parent, and parent head data.
+impl PerRelayParentGridTracker {
+	/// Attempt to import a manifest.
 	///
-	/// Returns validator indices which advertised the candidate both
-	/// correctly and incorrectly.
-	pub fn note_acquired_candidate(
+	/// This checks whether the peer is allowed to send us manifests
+	/// about this group at this relay-parent. This also does sanity
+	/// checks on the format of the manifest and the amount of votes
+	/// it contains. It has effects on the stored state only when successful.
+	pub fn import_manifest(
 		&mut self,
+		session_topology: &SessionTopologyView,
+		groups: &Groups,
 		candidate_hash: CandidateHash,
-		relay_parent: Hash,
-		group_index: GroupIndex,
-		parent_hash: Hash,
-	) -> CandidateAdvertisers {
-		let mut advertisers = CandidateAdvertisers::default();
-		for v in self.unknown_advertisers.remove(&candidate_hash).into_iter().flat_map(|x| x) {
-			let knowledge = match self.received.get(&v) {
-				None => continue,
-				Some(k) => k,
-			};
+		seconding_limit: usize,
+		manifest: ManifestSummary,
+		sender: ValidatorIndex,
+	) -> Result<(), ManifestImportError> {
+		let claimed_group_index = manifest.claimed_group_index;
 
-			let m = match knowledge.received.get(&candidate_hash) {
-				None => continue,
-				Some(m) => m,
-			};
-
-			if m.claimed_relay_parent != relay_parent ||
-				m.claimed_group_index != group_index ||
-				m.claimed_parent_hash != parent_hash
-			{
-				advertisers.incorrect.push(v);
-			} else {
-				advertisers.correct.push(v)
-			}
+		if session_topology
+			.group_views
+			.get(&manifest.claimed_group_index)
+			.map_or(false, |g| g.receiving.contains(&sender))
+		{
+			return Err(ManifestImportError::Disallowed)
 		}
 
-		advertisers
+		let (group_size, backing_threshold) =
+			match groups.get_size_and_backing_threshold(manifest.claimed_group_index) {
+				Some(x) => x,
+				None => return Err(ManifestImportError::Malformed),
+			};
+
+		if manifest.seconded_in_group.len() != group_size ||
+			manifest.validated_in_group.len() != group_size
+		{
+			return Err(ManifestImportError::Malformed)
+		}
+
+		if manifest.seconded_in_group.count_ones() == 0 {
+			return Err(ManifestImportError::Malformed)
+		}
+
+		// ensure votes are sufficient to back.
+		let votes = manifest
+			.seconded_in_group
+			.iter()
+			.by_vals()
+			.zip(manifest.validated_in_group.iter().by_vals())
+			.map(|(s, v)| s || v)
+			.count();
+
+		if votes < backing_threshold {
+			return Err(ManifestImportError::Malformed)
+		}
+
+		self.received.entry(sender).or_default().import_received(
+			group_size,
+			seconding_limit,
+			candidate_hash,
+			manifest,
+		)
 	}
 }
 
+/// A summary of a manifest being sent by a counterparty.
 #[derive(Clone)]
-struct ManifestSummary {
-	claimed_relay_parent: Hash,
-	claimed_parent_hash: Hash,
-	claimed_group_index: GroupIndex,
-	seconded_in_group: BitVec<u8, Lsb0>,
-	validated_in_group: BitVec<u8, Lsb0>,
+pub struct ManifestSummary {
+	/// The claimed parent head data hash of the candidate.
+	pub claimed_parent_hash: Hash,
+	/// The claimed group index assigned to the candidate.
+	pub claimed_group_index: GroupIndex,
+	/// A bitfield of validators in the group which seconded the
+	/// candidate.
+	pub seconded_in_group: BitVec<u8, Lsb0>,
+	/// A bitfield of validators in the group which validated the
+	/// candidate.
+	pub validated_in_group: BitVec<u8, Lsb0>,
 }
 
+/// Errors in importing a manifest.
 #[derive(Debug, Clone)]
-enum ManifestImportError {
-	// The manifest conflicts with another, previously sent manifest.
+pub enum ManifestImportError {
+	/// The manifest conflicts with another, previously sent manifest.
 	Conflicting,
-	// The manifest has overflowed beyond the limits of what the
-	// counterparty was allowed to send us.
+	/// The manifest has overflowed beyond the limits of what the
+	/// counterparty was allowed to send us.
 	Overflow,
+	/// The manifest claims insufficient attestations to achieve the backing
+	/// threshold.
+	Insufficient,
+	/// The manifest is malformed.
+	Malformed,
+	/// The manifest was not allowed to be sent.
+	Disallowed,
 }
 
 /// The knowledge we are awawre of counterparties having of manifests.
 #[derive(Default)]
 struct CounterPartyManifestKnowledge {
 	received: HashMap<CandidateHash, ManifestSummary>,
-	// (group, relay parent) -> seconded counts.
-	seconded_counts: HashMap<(GroupIndex, Hash), Vec<usize>>,
+	// group -> seconded counts.
+	seconded_counts: HashMap<GroupIndex, Vec<usize>>,
 }
 
 impl CounterPartyManifestKnowledge {
 	fn new() -> Self {
 		CounterPartyManifestKnowledge { received: HashMap::new(), seconded_counts: HashMap::new() }
-	}
-
-	/// Collect all garbage: anything outside the provided view.
-	/// Returns a set of all pruned candidate hashes.
-	fn collect_garbage(&mut self, view_contains: impl Fn(&Hash) -> bool) -> Vec<CandidateHash> {
-		let mut v = Vec::new();
-		self.seconded_counts.retain(|&(_, ref r_p), _| view_contains(r_p));
-		self.received.retain(|c_hash, summary| {
-			if !view_contains(&summary.claimed_parent_hash) {
-				v.push(*c_hash);
-				false
-			} else {
-				true
-			}
-		});
-
-		v
 	}
 
 	/// Attempt to import a received manifest from a counterparty.
@@ -305,10 +309,6 @@ impl CounterPartyManifestKnowledge {
 				// filter out clearly conflicting data.
 				{
 					let prev = e.get();
-					if prev.claimed_relay_parent != manifest_summary.claimed_relay_parent {
-						return Err(ManifestImportError::Conflicting)
-					}
-
 					if prev.claimed_group_index != manifest_summary.claimed_group_index {
 						return Err(ManifestImportError::Conflicting)
 					}
@@ -334,7 +334,6 @@ impl CounterPartyManifestKnowledge {
 					let within_limits = updating_ensure_within_seconding_limit(
 						&mut self.seconded_counts,
 						manifest_summary.claimed_group_index,
-						manifest_summary.claimed_relay_parent,
 						group_size,
 						seconding_limit,
 						&*fresh_seconded,
@@ -354,7 +353,6 @@ impl CounterPartyManifestKnowledge {
 				let within_limits = updating_ensure_within_seconding_limit(
 					&mut self.seconded_counts,
 					manifest_summary.claimed_group_index,
-					manifest_summary.claimed_relay_parent,
 					group_size,
 					seconding_limit,
 					&*manifest_summary.seconded_in_group,
@@ -374,9 +372,8 @@ impl CounterPartyManifestKnowledge {
 // updates validator-seconded records but only if the new statements
 // are OK. returns `true` if alright and `false` otherwise.
 fn updating_ensure_within_seconding_limit(
-	seconded_counts: &mut HashMap<(GroupIndex, Hash), Vec<usize>>,
+	seconded_counts: &mut HashMap<GroupIndex, Vec<usize>>,
 	group_index: GroupIndex,
-	relay_parent: Hash,
 	group_size: usize,
 	seconding_limit: usize,
 	new_seconded: &BitSlice<u8, Lsb0>,
@@ -387,9 +384,7 @@ fn updating_ensure_within_seconding_limit(
 
 	// due to the check above, if this was non-existent this function will
 	// always return `true`.
-	let counts = seconded_counts
-		.entry((group_index, relay_parent))
-		.or_insert_with(|| vec![0; group_size]);
+	let counts = seconded_counts.entry(group_index).or_insert_with(|| vec![0; group_size]);
 
 	for i in new_seconded.iter_ones() {
 		if counts[i] == seconding_limit {
@@ -508,7 +503,6 @@ mod tests {
 		let mut knowledge = CounterPartyManifestKnowledge::new();
 
 		let expected_manifest_summary = ManifestSummary {
-			claimed_relay_parent: Hash::repeat_byte(0),
 			claimed_parent_hash: Hash::repeat_byte(2),
 			claimed_group_index: GroupIndex(0),
 			seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
@@ -523,15 +517,6 @@ mod tests {
 				expected_manifest_summary.clone(),
 			)
 			.unwrap();
-
-		// conflicting relay-parent
-
-		let mut s = expected_manifest_summary.clone();
-		s.claimed_relay_parent = Hash::repeat_byte(1);
-		assert_matches!(
-			knowledge.import_received(3, 2, CandidateHash(Hash::repeat_byte(1)), s,),
-			Err(ManifestImportError::Conflicting)
-		);
 
 		// conflicting group
 
@@ -579,7 +564,6 @@ mod tests {
 				2,
 				CandidateHash(Hash::repeat_byte(1)),
 				ManifestSummary {
-					claimed_relay_parent: Hash::repeat_byte(0),
 					claimed_parent_hash: Hash::repeat_byte(0xA),
 					claimed_group_index: GroupIndex(0),
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
@@ -594,7 +578,6 @@ mod tests {
 				2,
 				CandidateHash(Hash::repeat_byte(2)),
 				ManifestSummary {
-					claimed_relay_parent: Hash::repeat_byte(0),
 					claimed_parent_hash: Hash::repeat_byte(0xB),
 					claimed_group_index: GroupIndex(0),
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
@@ -609,7 +592,6 @@ mod tests {
 				2,
 				CandidateHash(Hash::repeat_byte(3)),
 				ManifestSummary {
-					claimed_relay_parent: Hash::repeat_byte(0),
 					claimed_parent_hash: Hash::repeat_byte(0xC),
 					claimed_group_index: GroupIndex(0),
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
@@ -625,7 +607,6 @@ mod tests {
 				2,
 				CandidateHash(Hash::repeat_byte(3)),
 				ManifestSummary {
-					claimed_relay_parent: Hash::repeat_byte(0),
 					claimed_parent_hash: Hash::repeat_byte(0xC),
 					claimed_group_index: GroupIndex(0),
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
@@ -633,22 +614,5 @@ mod tests {
 				},
 			)
 			.unwrap();
-
-		// different relay-parent: different counters.
-		assert_matches!(
-			knowledge.import_received(
-				3,
-				2,
-				CandidateHash(Hash::repeat_byte(4)),
-				ManifestSummary {
-					claimed_relay_parent: Hash::repeat_byte(1),
-					claimed_parent_hash: Hash::repeat_byte(0xC),
-					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
-				},
-			),
-			Ok(())
-		);
 	}
 }
