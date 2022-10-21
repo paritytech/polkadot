@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
-use polkadot_primitives::v2::ValidatorGroups;
+use polkadot_primitives::v2::IndexedVec;
 use test_helpers::mock::make_ferdie_keystore;
 
 use super::*;
@@ -220,7 +220,9 @@ fn make_session_info() -> SessionInfo {
 		validators: AUTHORITY_KEYRINGS.iter().map(|k| k.public().into()).collect(),
 		discovery_keys: AUTHORITIES.clone(),
 		assignment_keys: AUTHORITY_KEYRINGS.iter().map(|k| k.public().into()).collect(),
-		validator_groups: ValidatorGroups::from(vec![all_validator_indices]),
+		validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
+			all_validator_indices,
+		]),
 		n_cores: 1,
 		zeroth_delay_tranche_width: 1,
 		relay_vrf_modulo_samples: 1,

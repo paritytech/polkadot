@@ -58,9 +58,9 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 use polkadot_primitives::v2::{
 	ApprovalVote, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt,
-	DisputeStatement, Hash, Header, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex,
-	SessionInfo, SigningContext, ValidDisputeStatementKind, ValidatorGroups, ValidatorId,
-	ValidatorIndex, ValidatorSignature, Validators,
+	DisputeStatement, Hash, Header, IndexedVec, MultiDisputeStatementSet, ScrapedOnChainVotes,
+	SessionIndex, SessionInfo, SigningContext, ValidDisputeStatementKind, ValidatorId,
+	ValidatorIndex, ValidatorSignature,
 };
 
 use crate::{
@@ -125,8 +125,8 @@ impl MockClock {
 
 struct TestState {
 	validators: Vec<Pair>,
-	validator_public: Validators,
-	validator_groups: ValidatorGroups,
+	validator_public: IndexedVec<ValidatorIndex, ValidatorId>,
+	validator_groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
 	master_keystore: Arc<sc_keystore::LocalKeystore>,
 	subsystem_keystore: Arc<sc_keystore::LocalKeystore>,
 	db: Arc<dyn Database>,
@@ -163,7 +163,7 @@ impl Default for TestState {
 			.map(|k| ValidatorId::from(k.0.public()))
 			.collect();
 
-		let validator_groups = ValidatorGroups::from(vec![
+		let validator_groups = IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
 			vec![ValidatorIndex(0), ValidatorIndex(1)],
 			vec![ValidatorIndex(2), ValidatorIndex(3)],
 			vec![ValidatorIndex(4), ValidatorIndex(5), ValidatorIndex(6)],

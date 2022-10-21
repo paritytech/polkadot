@@ -16,11 +16,11 @@
 
 //! `V1` Primitives.
 
-use std::marker::PhantomData;
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::{
+	marker::PhantomData,
 	prelude::*,
 	slice::{Iter, IterMut},
 	vec::IntoIter,
@@ -129,7 +129,9 @@ impl MallocSizeOf for ValidatorId {
 }
 
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
-#[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[derive(
+	Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode, TypeInfo, RuntimeDebug, Default,
+)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
 pub struct ValidatorIndex(pub u32);
 
@@ -137,6 +139,12 @@ pub struct ValidatorIndex(pub u32);
 impl From<u32> for ValidatorIndex {
 	fn from(n: u32) -> Self {
 		ValidatorIndex(n)
+	}
+}
+
+impl From<ValidatorIndex> for u32 {
+	fn from(i: ValidatorIndex) -> Self {
+		i.0
 	}
 }
 
@@ -784,6 +792,12 @@ impl From<u32> for CoreIndex {
 	}
 }
 
+impl From<CoreIndex> for u32 {
+	fn from(i: CoreIndex) -> Self {
+		i.0
+	}
+}
+
 /// The unique (during session) index of a validator group.
 #[derive(Encode, Decode, Default, Clone, Copy, Debug, PartialEq, Eq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
@@ -792,6 +806,12 @@ pub struct GroupIndex(pub u32);
 impl From<u32> for GroupIndex {
 	fn from(i: u32) -> GroupIndex {
 		GroupIndex(i)
+	}
+}
+
+impl From<GroupIndex> for u32 {
+	fn from(i: GroupIndex) -> Self {
+		i.0
 	}
 }
 
@@ -1574,28 +1594,39 @@ impl CompactStatement {
 	}
 }
 
-/// `Validators` struct indexed by `ValidatorIndex`.
-#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo, Default)]
+/// `IndexedVec` struct indexed by type specific indexes.
+#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
-pub struct IndexedVec<K,V>(Vec<V>, PhantomData<fn(K) -> K>);
+pub struct IndexedVec<K, V>(Vec<V>, PhantomData<fn(K) -> K>);
 
-impl<K,V> From<Vec<V>> for IndexedVec<K,V> {
+impl<K, V> Default for IndexedVec<K, V> {
+	fn default() -> Self {
+		Self(vec![], PhantomData)
+	}
+}
+
+impl<K, V> From<Vec<V>> for IndexedVec<K, V> {
 	fn from(validators: Vec<V>) -> Self {
 		Self(validators, PhantomData)
 	}
 }
 
-impl<K,V> FromIterator<V> for IndexedVec<K,V> {
+impl<K, V> FromIterator<V> for IndexedVec<K, V> {
 	fn from_iter<T: IntoIterator<Item = V>>(iter: T) -> Self {
 		Self(Vec::from_iter(iter), PhantomData)
 	}
 }
 
-impl<K,V> IndexedVec<K,V> {
+impl<K, V> IndexedVec<K, V>
+where
+	V: Clone,
+{
 	/// Returns a reference to an element indexed using `ValidatorIndex`.
 	pub fn get(&self, index: K) -> Option<&V>
-	where K: From<u32>{
-		self.0.get(u32::from(index))
+	where
+		K: Into<u32>,
+	{
+		self.0.get(index.into() as usize)
 	}
 
 	/// Returns number of elements in vector.
@@ -1624,60 +1655,6 @@ impl<K,V> IndexedVec<K,V> {
 	}
 
 	/// Returns true if contained Vector is empty
-	pub fn is_empty(&self) -> bool {
-		self.0.is_empty()
-	}
-}
-
-/// `ValidatorGroups` struct indexed by `GroupIndex`.
-#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo, Default)]
-#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
-pub struct ValidatorGroups(Vec<Vec<ValidatorIndex>>);
-
-impl From<Vec<Vec<ValidatorIndex>>> for ValidatorGroups {
-	fn from(group_validators: Vec<Vec<ValidatorIndex>>) -> Self {
-		ValidatorGroups(group_validators)
-	}
-}
-
-impl FromIterator<Vec<ValidatorIndex>> for ValidatorGroups {
-	fn from_iter<T: IntoIterator<Item = Vec<ValidatorIndex>>>(iter: T) -> Self {
-		Self(Vec::from_iter(iter))
-	}
-}
-
-impl ValidatorGroups {
-	/// Returns a reference to an element indexed using `GroupIndex`.
-	pub fn get(&self, index: GroupIndex) -> Option<&Vec<ValidatorIndex>> {
-		self.0.get(index.0 as usize)
-	}
-
-	/// Returns the number of validator groups.
-	pub fn len(&self) -> usize {
-		self.0.len()
-	}
-
-	/// Returns contained vector.
-	pub fn to_vec(&self) -> Vec<Vec<ValidatorIndex>> {
-		self.0.clone()
-	}
-
-	/// Returns an iterator over the groups.
-	pub fn iter(&self) -> Iter<'_, Vec<ValidatorIndex>> {
-		self.0.iter()
-	}
-
-	/// Returns an iterator that allows modifying each group.
-	pub fn iter_mut(&mut self) -> IterMut<'_, Vec<ValidatorIndex>> {
-		self.0.iter_mut()
-	}
-
-	/// Creates a consuming iterator.
-	pub fn into_iter(self) -> IntoIter<Vec<ValidatorIndex>> {
-		self.0.into_iter()
-	}
-
-	/// Returns true if the underlying container is empty.
 	pub fn is_empty(&self) -> bool {
 		self.0.is_empty()
 	}
@@ -1717,7 +1694,7 @@ pub struct SessionInfo {
 	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
 	///
 	/// `SessionInfo::validators` will be limited to to `max_validators` when set.
-	pub validators: Validators,
+	pub validators: IndexedVec<ValidatorIndex, ValidatorId>,
 	/// Validators' authority discovery keys for the session in canonical ordering.
 	///
 	/// NOTE: The first `validators.len()` entries will match the corresponding validators in
@@ -1740,7 +1717,7 @@ pub struct SessionInfo {
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by
 	/// `GroupIndex`.
-	pub validator_groups: ValidatorGroups,
+	pub validator_groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
 	/// The number of availability cores used by the protocol during this session.
 	pub n_cores: u32,
 	/// The zeroth delay tranche width.
@@ -1793,7 +1770,7 @@ pub struct OldV1SessionInfo {
 	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
 	///
 	/// `SessionInfo::validators` will be limited to to `max_validators` when set.
-	pub validators: Validators,
+	pub validators: IndexedVec<ValidatorIndex, ValidatorId>,
 	/// Validators' authority discovery keys for the session in canonical ordering.
 	///
 	/// NOTE: The first `validators.len()` entries will match the corresponding validators in
@@ -1816,7 +1793,7 @@ pub struct OldV1SessionInfo {
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by
 	/// `GroupIndex`.
-	pub validator_groups: ValidatorGroups,
+	pub validator_groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
 	/// The number of availability cores used by the protocol during this session.
 	pub n_cores: u32,
 	/// The zeroth delay tranche width.

@@ -58,7 +58,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::request_session_info;
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt, GroupIndex,
-	Hash, HashT, SessionIndex, SessionInfo, ValidatorIndex, Validators,
+	Hash, HashT, IndexedVec, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
 };
 
 mod error;
@@ -134,7 +134,7 @@ struct RecoveryParams {
 	validator_authority_keys: Vec<AuthorityDiscoveryId>,
 
 	/// Validators relevant to this `RecoveryTask`.
-	validators: Validators,
+	validators: IndexedVec<ValidatorIndex, ValidatorId>,
 
 	/// The number of pieces needed.
 	threshold: usize,

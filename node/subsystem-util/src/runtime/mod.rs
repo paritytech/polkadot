@@ -27,9 +27,9 @@ use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_subsystem::{messages::RuntimeApiMessage, overseer, SubsystemSender};
 use polkadot_primitives::v2::{
-	CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore,
-	ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, Validators,
+	CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, IndexedVec,
+	OccupiedCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed, SigningContext,
+	UncheckedSigned, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 
 use crate::{
@@ -228,7 +228,10 @@ impl RuntimeInfo {
 	/// Get our `ValidatorIndex`.
 	///
 	/// Returns: None if we are not a validator.
-	async fn get_our_index(&self, validators: &Validators) -> Option<ValidatorIndex> {
+	async fn get_our_index(
+		&self,
+		validators: &IndexedVec<ValidatorIndex, ValidatorId>,
+	) -> Option<ValidatorIndex> {
 		let keystore = self.keystore.as_ref()?;
 		for (i, v) in validators.iter().enumerate() {
 			if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {

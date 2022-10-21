@@ -31,8 +31,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use polkadot_node_primitives::{CandidateVotes, SignedDisputeStatement};
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
 use polkadot_primitives::v2::{
-	CandidateReceipt, DisputeStatement, SessionIndex, SessionInfo, ValidDisputeStatementKind,
-	ValidatorIndex, ValidatorPair, ValidatorSignature, Validators,
+	CandidateReceipt, DisputeStatement, IndexedVec, SessionIndex, SessionInfo,
+	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 
@@ -63,7 +63,7 @@ impl<'a> CandidateEnvironment<'a> {
 	}
 
 	/// Validators in the candidate's session.
-	pub fn validators(&self) -> &Validators {
+	pub fn validators(&self) -> &IndexedVec<ValidatorIndex, ValidatorId> {
 		&self.session.validators
 	}
 
@@ -538,7 +538,7 @@ impl ImportResult {
 /// That is all `ValidatorIndex`es we have private keys for. Usually this will only be one.
 fn find_controlled_validator_indices(
 	keystore: &LocalKeystore,
-	validators: &Validators,
+	validators: &IndexedVec<ValidatorIndex, ValidatorId>,
 ) -> HashSet<ValidatorIndex> {
 	let mut controlled = HashSet::new();
 	for (index, validator) in validators.iter().enumerate() {

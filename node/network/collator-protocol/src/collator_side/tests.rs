@@ -44,8 +44,8 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, CollatorPair, GroupIndex, GroupRotationInfo, ScheduledCore, SessionIndex,
-	SessionInfo, ValidatorIndex, Validators,
+	AuthorityDiscoveryId, CollatorPair, GroupIndex, GroupRotationInfo, IndexedVec, ScheduledCore,
+	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::TestCandidateBuilder;
 
@@ -62,7 +62,7 @@ struct TestState {
 	session_index: SessionIndex,
 }
 
-fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Validators {
+fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> IndexedVec<ValidatorIndex, ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
 }
 

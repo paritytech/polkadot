@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, Hash, HeadData, PersistedValidationData, ValidatorGroups,
+	AuthorityDiscoveryId, Hash, HeadData, IndexedVec, PersistedValidationData, ValidatorId,
 };
 use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 
@@ -181,7 +181,7 @@ impl Has {
 #[derive(Clone)]
 struct TestState {
 	validators: Vec<Sr25519Keyring>,
-	validator_public: Validators,
+	validator_public: IndexedVec<ValidatorIndex, ValidatorId>,
 	validator_authority_id: Vec<AuthorityDiscoveryId>,
 	current: Hash,
 	candidate: CandidateReceipt,
@@ -220,7 +220,7 @@ impl TestState {
 					validators: self.validator_public.clone(),
 					discovery_keys: self.validator_authority_id.clone(),
 					// all validators in the same group.
-					validator_groups: ValidatorGroups::from(vec![(0..self.validators.len()).map(|i| ValidatorIndex(i as _)).collect()]),
+					validator_groups: IndexedVec::<GroupIndex,Vec<ValidatorIndex>>::from(vec![(0..self.validators.len()).map(|i| ValidatorIndex(i as _)).collect()]),
 					assignment_keys: vec![],
 					n_cores: 0,
 					zeroth_delay_tranche_width: 0,
@@ -404,7 +404,7 @@ impl TestState {
 	}
 }
 
-fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Validators {
+fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> IndexedVec<ValidatorIndex, ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
 }
 
