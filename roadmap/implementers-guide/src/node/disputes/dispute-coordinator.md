@@ -359,14 +359,19 @@ times instead of just once to the oldest offender. This is obviously a good
 idea, in particular it makes it impossible for an attacker to prevent rolling
 back a very old candidate, by keeping raising disputes for newer candidates.
 
-For candidates we have not seen included, but we have our availability piece
-available we put participation on a best-effort queue, which at the moment is
-processed on the basis how often we requested participation locally, which
-equals the number of times we imported votes for that dispute. The idea is, if
-we have not seen the candidate included, but the dispute is valid, other nodes
-will have seen it included - so the more votes there are, the more likely it is
-a valid dispute and we should implicitly arrive at a similar ordering as the
-nodes that are able to sort based on the relay parent block height.
+For candidates we have not seen included, but we know are backed (thanks to chain
+scraping) or we have seen a dispute with 1/3+1 participation (confirmed dispute)
+on them - we put participation on a best-effort queue. It is has got the same
+ordering as the priority one - by block heights of the relay parent, older blocks
+are with priority. There is a possibility not to be able to obtain the block number
+of the parent when we are inserting the dispute in the queue. The reason for this
+is either the dispute is completely made up or we are out of sync with the other
+nodes in terms of last finalized block. The former is very unlikely. If we are
+adding a dispute in best-effort it should already be either confirmed or the
+candidate is backed. In the latter case we will promote the dispute to the
+priority queue once we learn about the new block. NOTE: this is still work in
+progress and is tracked by [this issue]
+(https://github.com/paritytech/polkadot/issues/5875).
 
 #### Import
 
