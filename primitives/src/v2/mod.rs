@@ -1639,7 +1639,7 @@ where
 		self.0.iter()
 	}
 
-	/// Returns an Iterator with ownership.
+	/// Creates a consuming iterator.
 	pub fn into_iter(self) -> IntoIter<V> {
 		self.0.into_iter()
 	}
