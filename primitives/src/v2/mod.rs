@@ -128,10 +128,14 @@ impl MallocSizeOf for ValidatorId {
 	}
 }
 
+/// Trait required for type specific indices e.g. `ValidatorIndex` and `GroupIndex`
+pub trait TypeIndex {
+	///Converts `Self` to usize.
+	fn into_usize(self) -> usize;
+}
+
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
-#[derive(
-	Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode, TypeInfo, RuntimeDebug, Default,
-)]
+#[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
 pub struct ValidatorIndex(pub u32);
 
@@ -142,9 +146,9 @@ impl From<u32> for ValidatorIndex {
 	}
 }
 
-impl From<ValidatorIndex> for u32 {
-	fn from(i: ValidatorIndex) -> Self {
-		i.0
+impl TypeIndex for ValidatorIndex {
+	fn into_usize(self) -> usize {
+		self.0 as usize
 	}
 }
 
@@ -792,9 +796,9 @@ impl From<u32> for CoreIndex {
 	}
 }
 
-impl From<CoreIndex> for u32 {
-	fn from(i: CoreIndex) -> Self {
-		i.0
+impl TypeIndex for CoreIndex {
+	fn into_usize(self) -> usize {
+		self.0 as usize
 	}
 }
 
@@ -809,9 +813,9 @@ impl From<u32> for GroupIndex {
 	}
 }
 
-impl From<GroupIndex> for u32 {
-	fn from(i: GroupIndex) -> Self {
-		i.0
+impl TypeIndex for GroupIndex {
+	fn into_usize(self) -> usize {
+		self.0 as usize
 	}
 }
 
@@ -1594,7 +1598,7 @@ impl CompactStatement {
 	}
 }
 
-/// `IndexedVec` struct indexed by type specific indexes.
+/// `IndexedVec` struct indexed by type specific indices.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct IndexedVec<K, V>(Vec<V>, PhantomData<fn(K) -> K>);
@@ -1624,9 +1628,9 @@ where
 	/// Returns a reference to an element indexed using `K`.
 	pub fn get(&self, index: K) -> Option<&V>
 	where
-		K: Into<u32>,
+		K: TypeIndex,
 	{
-		self.0.get(index.into() as usize)
+		self.0.get(index.into_usize())
 	}
 
 	/// Returns number of elements in vector.
