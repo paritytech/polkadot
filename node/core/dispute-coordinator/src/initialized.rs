@@ -1097,7 +1097,10 @@ impl Initialized {
 				valid,
 				candidate_hash,
 				session,
-				env.validators().get(*index).expect("`controlled_indices` are derived from `validators`; qed").clone(),
+				env.validators()
+					.get(*index)
+					.expect("`controlled_indices` are derived from `validators`; qed")
+					.clone(),
 			)
 			.await;
 
