@@ -272,7 +272,7 @@ fn v1_advertisement_rejected() {
 
 		// Not reported.
 		test_helpers::Yield::new().await;
-		assert_matches!(futures::poll!(virtual_overseer.recv().boxed()), Poll::Pending);
+		assert_matches!(virtual_overseer.recv().now_or_never(), None);
 
 		virtual_overseer
 	});
@@ -528,7 +528,7 @@ fn second_multiple_candidates_per_relay_parent() {
 		.await;
 
 		test_helpers::Yield::new().await;
-		assert_matches!(futures::poll!(virtual_overseer.recv().boxed()), Poll::Pending);
+		assert_matches!(virtual_overseer.recv().now_or_never(), None);
 
 		virtual_overseer
 	});
@@ -661,8 +661,6 @@ fn seconding_check_failed() {
 		update_view(&mut virtual_overseer, &test_state, vec![(head_b, head_b_num)], 1).await;
 
 		let peer_a = PeerId::random();
-
-		// Accept both collators from the implicit view.
 		connect_and_declare_collator(
 			&mut virtual_overseer,
 			peer_a,
@@ -697,7 +695,7 @@ fn seconding_check_failed() {
 
 		// Collation request is discarded.
 		test_helpers::Yield::new().await;
-		assert_matches!(futures::poll!(virtual_overseer.recv().boxed()), Poll::Pending);
+		assert_matches!(virtual_overseer.recv().now_or_never(), None);
 
 		virtual_overseer
 	});
@@ -721,8 +719,6 @@ fn advertisement_spam_protection() {
 		update_view(&mut virtual_overseer, &test_state, vec![(head_b, head_b_num)], 1).await;
 
 		let peer_a = PeerId::random();
-
-		// Accept both collators from the implicit view.
 		connect_and_declare_collator(
 			&mut virtual_overseer,
 			peer_a,

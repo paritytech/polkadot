@@ -20,7 +20,7 @@ use futures::{executor, future, Future};
 use sp_core::{crypto::Pair, Encode};
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{testing::KeyStore as TestKeyStore, SyncCryptoStore};
-use std::{iter, sync::Arc, task::Poll, time::Duration};
+use std::{iter, sync::Arc, time::Duration};
 
 use polkadot_node_network_protocol::{
 	our_view,
@@ -752,7 +752,7 @@ fn fetch_one_collation_at_a_time() {
 		test_helpers::Yield::new().await;
 
 		// Second collation is not requested since there's already seconded one.
-		assert_matches!(futures::poll!(virtual_overseer.recv().boxed()), Poll::Pending);
+		assert_matches!(virtual_overseer.recv().now_or_never(), None);
 
 		virtual_overseer
 	})
