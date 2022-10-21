@@ -37,6 +37,8 @@ async fn activate_leaf(
 	leaf: TestLeaf,
 	test_state: &TestState,
 	seconded_in_view: usize,
+	// If there're any pending seconding check requests.
+	seconding_check_responses: Vec<Vec<usize>>,
 ) {
 	let TestLeaf { activated, min_relay_parents } = leaf;
 	let leaf_hash = activated.hash;
@@ -134,6 +136,22 @@ async fn activate_leaf(
 				ProspectiveParachainsMessage::GetTreeMembership(.., tx),
 			) => {
 				tx.send(Vec::new()).unwrap();
+			}
+		);
+	}
+
+	for response in seconding_check_responses {
+		let msg = match next_overseer_message.take() {
+			Some(msg) => msg,
+			None => virtual_overseer.recv().await,
+		};
+		assert_matches!(
+			msg,
+			AllMessages::ProspectiveParachains(
+				ProspectiveParachainsMessage::GetHypotheticalDepth(request, tx),
+			) => {
+				assert_eq!(request.fragment_tree_relay_parent, leaf_hash);
+				tx.send(response).unwrap();
 			}
 		);
 	}
@@ -327,8 +345,8 @@ fn seconding_sanity_check_allowed() {
 		let min_relay_parents = vec![(para_id, LEAF_B_BLOCK_NUMBER - LEAF_B_ANCESTRY_LEN)];
 		let test_leaf_b = TestLeaf { activated, min_relay_parents };
 
-		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
-		activate_leaf(&mut virtual_overseer, test_leaf_b, &test_state, 0).await;
+		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0, vec![]).await;
+		activate_leaf(&mut virtual_overseer, test_leaf_b, &test_state, 0, vec![]).await;
 
 		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
 		let pvd = dummy_pvd();
@@ -464,7 +482,7 @@ fn seconding_sanity_check_disallowed() {
 		let min_relay_parents = vec![(para_id, LEAF_B_BLOCK_NUMBER - LEAF_B_ANCESTRY_LEN)];
 		let test_leaf_b = TestLeaf { activated, min_relay_parents };
 
-		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
+		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0, vec![]).await;
 
 		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
 		let pvd = dummy_pvd();
@@ -556,7 +574,7 @@ fn seconding_sanity_check_disallowed() {
 		// A seconded candidate occupies a depth, try to second another one.
 		// It is allowed in a new leaf but not allowed in the old one.
 		// Expect it to be rejected.
-		activate_leaf(&mut virtual_overseer, test_leaf_b, &test_state, 1).await;
+		activate_leaf(&mut virtual_overseer, test_leaf_b, &test_state, 1, vec![]).await;
 		let leaf_a_grandparent = get_parent_hash(leaf_a_parent);
 		let candidate = TestCandidateBuilder {
 			para_id,
@@ -647,7 +665,7 @@ fn prospective_parachains_reject_candidate() {
 		let min_relay_parents = vec![(para_id, LEAF_A_BLOCK_NUMBER - LEAF_A_ANCESTRY_LEN)];
 		let test_leaf_a = TestLeaf { activated, min_relay_parents };
 
-		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
+		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0, vec![]).await;
 
 		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
 		let pvd = dummy_pvd();
@@ -813,7 +831,7 @@ fn second_multiple_candidates_per_relay_parent() {
 		let min_relay_parents = vec![(para_id, LEAF_BLOCK_NUMBER - LEAF_ANCESTRY_LEN)];
 		let test_leaf_a = TestLeaf { activated, min_relay_parents };
 
-		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
+		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0, vec![]).await;
 
 		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
 		let pvd = dummy_pvd();
@@ -936,7 +954,7 @@ fn backing_works() {
 		let min_relay_parents = vec![(para_id, LEAF_BLOCK_NUMBER - LEAF_ANCESTRY_LEN)];
 		let test_leaf_a = TestLeaf { activated, min_relay_parents };
 
-		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
+		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0, vec![]).await;
 
 		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
 		let pvd = dummy_pvd();
@@ -1096,7 +1114,7 @@ fn concurrent_dependent_candidates() {
 		let min_relay_parents = vec![(para_id, LEAF_BLOCK_NUMBER - LEAF_ANCESTRY_LEN)];
 		let test_leaf_a = TestLeaf { activated, min_relay_parents };
 
-		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
+		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0, vec![]).await;
 
 		let head_data = &[
 			HeadData(vec![10, 20, 30]), // Before `a`.
@@ -1327,7 +1345,7 @@ fn seconding_sanity_check_occupy_same_depth() {
 		let min_relay_parents = vec![(para_id_a, min_block_number), (para_id_b, min_block_number)];
 		let test_leaf_a = TestLeaf { activated, min_relay_parents };
 
-		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
+		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0, vec![]).await;
 
 		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
 		let pvd = dummy_pvd();
@@ -1469,7 +1487,7 @@ fn occupied_core_assignment() {
 		let min_relay_parents = vec![(para_id, LEAF_A_BLOCK_NUMBER - LEAF_A_ANCESTRY_LEN)];
 		let test_leaf_a = TestLeaf { activated, min_relay_parents };
 
-		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
+		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0, vec![]).await;
 
 		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
 		let pvd = dummy_pvd();
@@ -1597,8 +1615,8 @@ fn seconding_check_request_notify() {
 		let min_relay_parents = vec![(para_id, LEAF_B_BLOCK_NUMBER - LEAF_B_ANCESTRY_LEN)];
 		let test_leaf_b = TestLeaf { activated, min_relay_parents };
 
-		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0).await;
-		activate_leaf(&mut virtual_overseer, test_leaf_b, &test_state, 0).await;
+		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0, vec![]).await;
+		activate_leaf(&mut virtual_overseer, test_leaf_b, &test_state, 0, vec![]).await;
 		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
 		let pvd = dummy_pvd();
 		let validation_code = ValidationCode(vec![1, 2, 3]);
@@ -1723,6 +1741,262 @@ fn seconding_check_request_notify() {
 				),
 			) if _candidate_hash == candidate_hash && candidate_para_id == para_id
 		);
+
+		for mut rx in receivers {
+			// Responded with `true`.
+			assert!(rx
+				.try_recv()
+				.expect("sender is expected to be used")
+				.expect("response should've been already sent"));
+		}
+
+		virtual_overseer
+	});
+}
+
+#[test]
+fn seconding_check_resolved_on_activated_leaf() {
+	let test_state = TestState::default();
+	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
+		const LEAF_A_BLOCK_NUMBER: BlockNumber = 90;
+		const LEAF_A_ANCESTRY_LEN: BlockNumber = 10;
+		let para_id = test_state.chain_ids[0];
+
+		let leaf_b_hash = Hash::from_low_u64_be(128);
+		// `a` is grandparent of `b`.
+		let leaf_a_hash = Hash::from_low_u64_be(130);
+		let leaf_a_parent = get_parent_hash(leaf_a_hash);
+		let activated = ActivatedLeaf {
+			hash: leaf_a_hash,
+			number: LEAF_A_BLOCK_NUMBER,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		};
+		let min_relay_parents = vec![(para_id, LEAF_A_BLOCK_NUMBER - LEAF_A_ANCESTRY_LEN)];
+		let test_leaf_a = TestLeaf { activated, min_relay_parents };
+
+		const LEAF_B_BLOCK_NUMBER: BlockNumber = LEAF_A_BLOCK_NUMBER + 2;
+		const LEAF_B_ANCESTRY_LEN: BlockNumber = 10;
+
+		let activated = ActivatedLeaf {
+			hash: leaf_b_hash,
+			number: LEAF_B_BLOCK_NUMBER,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		};
+		let min_relay_parents = vec![(para_id, LEAF_B_BLOCK_NUMBER - LEAF_B_ANCESTRY_LEN)];
+		let test_leaf_b = TestLeaf { activated, min_relay_parents };
+
+		activate_leaf(&mut virtual_overseer, test_leaf_a, &test_state, 0, vec![]).await;
+		activate_leaf(&mut virtual_overseer, test_leaf_b, &test_state, 0, vec![]).await;
+		let pov = PoV { block_data: BlockData(vec![42, 43, 44]) };
+		let pvd = dummy_pvd();
+		let validation_code = ValidationCode(vec![1, 2, 3]);
+
+		let expected_head_data = test_state.head_data.get(&para_id).unwrap();
+		let parent_head_data_hash = expected_head_data.hash();
+
+		let mut receivers = Vec::new();
+		for i in 0u8..3 {
+			let (tx, rx) = oneshot::channel();
+			receivers.push(rx);
+
+			let candidate_hash = CandidateHash(Hash::repeat_byte(i));
+			let request = SecondingCheckRequest {
+				candidate_para_id: para_id,
+				candidate_relay_parent: leaf_a_parent,
+				candidate_hash,
+				parent_head_data_hash,
+			};
+			let msg = CandidateBackingMessage::AdvertisementSecondingCheck { request, tx };
+			virtual_overseer.send(FromOrchestra::Communication { msg }).await;
+
+			let expected_request_a = HypotheticalDepthRequest {
+				candidate_hash,
+				candidate_para: para_id,
+				parent_head_data_hash,
+				candidate_relay_parent: leaf_a_parent,
+				fragment_tree_relay_parent: leaf_a_hash,
+			};
+			let expected_request_b = HypotheticalDepthRequest {
+				candidate_hash,
+				candidate_para: para_id,
+				parent_head_data_hash,
+				candidate_relay_parent: leaf_a_parent,
+				fragment_tree_relay_parent: leaf_b_hash,
+			};
+			assert_hypothetical_depth_requests(
+				&mut virtual_overseer,
+				vec![(expected_request_a, Vec::new()), (expected_request_b, Vec::new())],
+			)
+			.await;
+		}
+
+		let pov_hash = pov.hash();
+		let leaf_a_grandparent = get_parent_hash(leaf_a_parent);
+		let candidate = TestCandidateBuilder {
+			para_id,
+			relay_parent: leaf_a_grandparent,
+			pov_hash,
+			head_data: expected_head_data.clone(),
+			erasure_root: make_erasure_root(&test_state, pov.clone(), pvd.clone()),
+			persisted_validation_data_hash: pvd.hash(),
+			validation_code: validation_code.0.clone(),
+			..Default::default()
+		}
+		.build();
+		let candidate_hash = candidate.hash();
+
+		let public1 = CryptoStore::sr25519_generate_new(
+			&*test_state.keystore,
+			ValidatorId::ID,
+			Some(&test_state.validators[5].to_seed()),
+		)
+		.await
+		.expect("Insert key into keystore");
+
+		// Signing context should have a parent hash candidate is based on.
+		let signing_context =
+			SigningContext { parent_hash: leaf_a_grandparent, session_index: test_state.session() };
+		let signed_a = SignedFullStatementWithPVD::sign(
+			&test_state.keystore,
+			StatementWithPVD::Seconded(candidate.clone(), pvd.clone()),
+			&signing_context,
+			ValidatorIndex(5),
+			&public1.into(),
+		)
+		.await
+		.ok()
+		.flatten()
+		.expect("should be signed");
+
+		let statement = CandidateBackingMessage::Statement(leaf_a_grandparent, signed_a.clone());
+		virtual_overseer.send(FromOrchestra::Communication { msg: statement }).await;
+
+		// Prospective parachains are notified about candidate seconded first.
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ProspectiveParachains(
+				ProspectiveParachainsMessage::CandidateSeconded(
+					candidate_para,
+					candidate_receipt,
+					_pvd,
+					tx,
+				),
+			) if candidate_receipt == candidate && candidate_para == para_id && pvd == _pvd => {
+				// Any non-empty response will do.
+				tx.send(vec![(leaf_a_grandparent, vec![0, 2, 3])]).unwrap();
+			}
+		);
+
+		assert_validate_seconded_candidate(
+			&mut virtual_overseer,
+			candidate.descriptor().relay_parent,
+			&candidate,
+			&pov,
+			&pvd,
+			&validation_code,
+			expected_head_data,
+			true,
+		)
+		.await;
+
+		// Validator distributes `Valid` statement and the candidate is backed.
+		// Potentially it unblocks seconding check requests, thus the membership
+		// is requested.
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ProspectiveParachains(
+				ProspectiveParachainsMessage::GetTreeMembership(.., tx),
+			) => {
+				// Respond with maximum possible depth => doesn't unblock.
+				tx.send(vec![(leaf_a_hash, vec![MAX_CANDIDATE_DEPTH])]).unwrap();
+			}
+		);
+
+		// Prospective parachains are notified about candidate backed.
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ProspectiveParachains(
+				ProspectiveParachainsMessage::CandidateBacked(
+					candidate_para_id, _candidate_hash
+				),
+			) if _candidate_hash == candidate_hash && candidate_para_id == para_id
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::Provisioner(
+				ProvisionerMessage::ProvisionableData(
+					_,
+					ProvisionableData::BackedCandidate(candidate_receipt)
+				)
+			) => {
+				assert_eq!(candidate_receipt, candidate.to_plain());
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::StatementDistribution(
+				StatementDistributionMessage::Share(hash, _stmt)
+			) => {
+				assert_eq!(leaf_a_grandparent, hash);
+			}
+		);
+
+		// Unblock second request with a new active leaf.
+		let leaf_c_hash = Hash::from_low_u64_be(127);
+		const LEAF_C_BLOCK_NUMBER: u32 = LEAF_B_BLOCK_NUMBER + 1;
+		let activated = ActivatedLeaf {
+			hash: leaf_c_hash,
+			number: LEAF_C_BLOCK_NUMBER,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		};
+		let min_relay_parents = vec![(para_id, LEAF_C_BLOCK_NUMBER - LEAF_A_ANCESTRY_LEN)];
+		let test_leaf_c = TestLeaf { activated, min_relay_parents };
+		activate_leaf(
+			&mut virtual_overseer,
+			test_leaf_c,
+			&test_state,
+			0, // Not seconded locally.
+			vec![
+				Vec::new(),
+				vec![MAX_CANDIDATE_DEPTH], // Max depth is vacant.
+				Vec::new(),
+			],
+		)
+		.await;
+
+		assert!(receivers
+			.remove(1)
+			.try_recv()
+			.expect("sender is expected to be used")
+			.expect("response should've been already sent"));
+		for rx in &mut receivers {
+			assert!(rx.try_recv().expect("sender shouldn't be canceled").is_none());
+		}
+
+		// Unblock the rest.
+		let leaf_d_hash = Hash::from_low_u64_be(126);
+		const LEAF_D_BLOCK_NUMBER: u32 = LEAF_C_BLOCK_NUMBER + 1;
+		let activated = ActivatedLeaf {
+			hash: leaf_d_hash,
+			number: LEAF_D_BLOCK_NUMBER,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		};
+		let min_relay_parents = vec![(para_id, LEAF_D_BLOCK_NUMBER - LEAF_A_ANCESTRY_LEN)];
+		let test_leaf_d = TestLeaf { activated, min_relay_parents };
+		activate_leaf(
+			&mut virtual_overseer,
+			test_leaf_d,
+			&test_state,
+			0, // Not seconded locally.
+			vec![vec![1], vec![2]],
+		)
+		.await;
 
 		for mut rx in receivers {
 			// Responded with `true`.

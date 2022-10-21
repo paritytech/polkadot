@@ -255,8 +255,8 @@ struct ActiveLeafState {
 }
 
 struct PerSecondingCheckRequest {
-	/// Candidate relay parent.
-	relay_parent: Hash,
+	/// Request parameters.
+	request: SecondingCheckRequest,
 	/// Response sender.
 	tx: oneshot::Sender<bool>,
 }
@@ -880,7 +880,9 @@ async fn handle_active_leaves_update<Context>(
 
 	// Remove pending requests for seconding checks.
 	state.seconding_check_requests.values_mut().for_each(|requests| {
-		requests.retain(|req| state.per_relay_parent.contains_key(&req.relay_parent))
+		// Silently drops response sender.
+		requests
+			.retain(|req| state.per_relay_parent.contains_key(&req.request.candidate_relay_parent))
 	});
 
 	// Get relay parents which might be fresh but might be known already
@@ -973,6 +975,42 @@ async fn handle_active_leaves_update<Context>(
 					seconded_at_depth,
 				},
 			);
+
+			// Check if any space opened up in a new fragment tree for pending requests.
+			for requests in state.seconding_check_requests.values_mut() {
+				for request in std::mem::take(requests) {
+					let request_params = request.request;
+					// Only perform seconding check for a single inserted leaf.
+					let result = seconding_sanity_check(
+						ctx,
+						state.per_leaf.get_key_value(&leaf.hash),
+						&state.implicit_view,
+						request_params.candidate_hash,
+						request_params.candidate_para_id,
+						request_params.parent_head_data_hash,
+						request_params.candidate_relay_parent,
+					)
+					.await;
+
+					match result {
+						SecondingAllowed::No => {
+							// unreachable: the request wasn't rejected previously
+							// when received, it's not expected to have any possible
+							// membership in known fragment trees. Once there appears
+							// at least one, request is removed from the memory.
+							// Thus, we couldn't have seconded candidate with the same
+							// fragment tree membership prior to this activation.
+						},
+						SecondingAllowed::Yes(membership) =>
+							if membership.iter().any(|(_, m)| !m.is_empty()) {
+								let _ = request.tx.send(true);
+							} else {
+								// put the request back.
+								requests.push(request);
+							},
+					}
+				}
+			}
 
 			match fresh_relay_parents {
 				Some(f) => f.to_vec(),
@@ -1149,15 +1187,18 @@ enum SecondingAllowed {
 /// depths in the fragment tree and what we've already seconded in all
 /// active leaves.
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn seconding_sanity_check<Context>(
+async fn seconding_sanity_check<'a, Context, I>(
 	ctx: &mut Context,
-	active_leaves: &HashMap<Hash, ActiveLeafState>,
+	active_leaves: I,
 	implicit_view: &ImplicitView,
 	candidate_hash: CandidateHash,
 	candidate_para: ParaId,
 	parent_head_data_hash: Hash,
 	candidate_relay_parent: Hash,
-) -> SecondingAllowed {
+) -> SecondingAllowed
+where
+	I: IntoIterator<Item = (&'a Hash, &'a ActiveLeafState)>,
+{
 	let mut membership = Vec::new();
 	let mut responses = FuturesOrdered::<BoxFuture<'_, Result<_, oneshot::Canceled>>>::new();
 
@@ -1284,7 +1325,7 @@ async fn handle_seconding_check_message<Context>(
 						.seconding_check_requests
 						.entry((request.candidate_para_id, request.parent_head_data_hash))
 						.or_default()
-						.push(PerSecondingCheckRequest { relay_parent, tx });
+						.push(PerSecondingCheckRequest { request, tx });
 				},
 		}
 	}
