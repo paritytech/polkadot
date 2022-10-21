@@ -2075,7 +2075,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 							let our_group = &session_info
 								.validator_groups
 								.get(our_group)
-								.expect("<write an actual proof here; qed>");
+								.expect("`our_group` is derived from `validator_groups`; qed");
 
 							our_group
 								.into_iter()
