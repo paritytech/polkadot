@@ -1639,7 +1639,7 @@ where
 		self.0.clone()
 	}
 
-	/// Returns Iterator of contained vector.
+	/// Returns an iterator over the underlying vector.
 	pub fn iter(&self) -> Iter<'_, V> {
 		self.0.iter()
 	}
