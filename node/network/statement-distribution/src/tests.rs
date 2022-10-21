@@ -85,7 +85,7 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	};
 
 	let mut head_data = ActiveHeadData::new(
-		Validators::from(validators),
+		IndexedVec::<ValidatorIndex, ValidatorId>::from(validators),
 		session_index,
 		PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 	);
@@ -431,7 +431,7 @@ fn peer_view_update_sends_messages() {
 
 	let new_head_data = {
 		let mut data = ActiveHeadData::new(
-			Validators::from(validators),
+			IndexedVec::<ValidatorIndex, ValidatorId>::from(validators),
 			session_index,
 			PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 		);

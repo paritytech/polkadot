@@ -1621,7 +1621,7 @@ impl<K, V> IndexedVec<K, V>
 where
 	V: Clone,
 {
-	/// Returns a reference to an element indexed using `ValidatorIndex`.
+	/// Returns a reference to an element indexed using `K`.
 	pub fn get(&self, index: K) -> Option<&V>
 	where
 		K: Into<u32>,

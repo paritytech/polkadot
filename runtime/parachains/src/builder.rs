@@ -25,9 +25,9 @@ use primitives::v2::{
 	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
 	CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
 	CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
-	HeadData, Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
-	PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
-	ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, Validators,
+	HeadData, Id as ParaId, IndexedVec, InherentData as ParachainsInherentData,
+	InvalidDisputeStatementKind, PersistedValidationData, SessionIndex, SigningContext,
+	UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex,
 	ValidityAttestation,
 };
 use sp_core::{sr25519, H256};
@@ -66,7 +66,7 @@ fn byte32_slice_from(n: u32) -> [u8; 32] {
 /// Paras inherent `enter` benchmark scenario builder.
 pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 	/// Active validators. Validators should be declared prior to all other setup.
-	validators: Option<Validators>,
+	validators: Option<IndexedVec<ValidatorIndex, ValidatorId>>,
 	/// Starting block number; we expect it to get incremented on session setup.
 	block_number: T::BlockNumber,
 	/// Starting session; we expect it to get incremented on session setup.
