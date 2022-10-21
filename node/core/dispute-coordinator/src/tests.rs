@@ -58,9 +58,9 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 use polkadot_primitives::v2::{
 	ApprovalVote, BlockNumber, CandidateCommitments, CandidateHash, CandidateReceipt,
-	DisputeStatement, Hash, Header, IndexedVec, MultiDisputeStatementSet, ScrapedOnChainVotes,
-	SessionIndex, SessionInfo, SigningContext, ValidDisputeStatementKind, ValidatorId,
-	ValidatorIndex, ValidatorSignature,
+	DisputeStatement, GroupIndex, Hash, Header, IndexedVec, MultiDisputeStatementSet,
+	ScrapedOnChainVotes, SessionIndex, SessionInfo, SigningContext, ValidDisputeStatementKind,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 
 use crate::{
