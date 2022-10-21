@@ -1654,7 +1654,7 @@ where
 		self.0.into_iter()
 	}
 
-	/// Returns true if contained Vector is empty
+	/// Returns true if the underlying container is empty.
 	pub fn is_empty(&self) -> bool {
 		self.0.is_empty()
 	}
