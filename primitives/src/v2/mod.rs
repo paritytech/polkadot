@@ -130,8 +130,8 @@ impl MallocSizeOf for ValidatorId {
 
 /// Trait required for type specific indices e.g. `ValidatorIndex` and `GroupIndex`
 pub trait TypeIndex {
-	///Converts `Self` to `usize`.
-	fn into_usize(self) -> usize;
+	/// Returns the index associated to this value.
+	fn type_index(&self) -> usize;
 }
 
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
@@ -147,7 +147,7 @@ impl From<u32> for ValidatorIndex {
 }
 
 impl TypeIndex for ValidatorIndex {
-	fn into_usize(self) -> usize {
+	fn type_index(&self) -> usize {
 		self.0 as usize
 	}
 }
@@ -797,7 +797,7 @@ impl From<u32> for CoreIndex {
 }
 
 impl TypeIndex for CoreIndex {
-	fn into_usize(self) -> usize {
+	fn type_index(&self) -> usize {
 		self.0 as usize
 	}
 }
@@ -814,7 +814,7 @@ impl From<u32> for GroupIndex {
 }
 
 impl TypeIndex for GroupIndex {
-	fn into_usize(self) -> usize {
+	fn type_index(&self) -> usize {
 		self.0 as usize
 	}
 }
@@ -1630,7 +1630,7 @@ where
 	where
 		K: TypeIndex,
 	{
-		self.0.get(index.into_usize())
+		self.0.get(index.type_index())
 	}
 
 	/// Returns number of elements in vector.
