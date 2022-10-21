@@ -1634,7 +1634,7 @@ where
 		self.0.clone()
 	}
 
-	/// Returns Iterator of contained vector.
+	/// Returns an iterator over the underlying vector.
 	pub fn iter(&self) -> Iter<'_, V> {
 		self.0.iter()
 	}
@@ -1644,7 +1644,7 @@ where
 		self.0.into_iter()
 	}
 
-	/// Returns true if contained Vector is empty
+	/// Returns true if the underlying container is empty.
 	pub fn is_empty(&self) -> bool {
 		self.0.is_empty()
 	}
