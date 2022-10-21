@@ -130,7 +130,7 @@ impl MallocSizeOf for ValidatorId {
 
 /// Trait required for type specific indices e.g. `ValidatorIndex` and `GroupIndex`
 pub trait TypeIndex {
-	///Converts `Self` to usize.
+	///Converts `Self` to `usize`.
 	fn into_usize(self) -> usize;
 }
 
