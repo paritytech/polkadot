@@ -343,9 +343,13 @@ impl State {
 				})
 			},
 			NetworkBridgeEvent::NewGossipTopology(topology) => {
-				let session = topology.session;
-				self.handle_new_session_topology(ctx, session, SessionGridTopology::from(topology))
-					.await;
+				self.handle_new_session_topology(
+					ctx,
+					topology.session,
+					topology.topology,
+					topology.local_index,
+				)
+				.await;
 			},
 			NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 				self.handle_peer_view_change(ctx, metrics, peer_id, view, rng).await;
@@ -500,8 +504,14 @@ impl State {
 		ctx: &mut Context,
 		session: SessionIndex,
 		topology: SessionGridTopology,
+		local_index: Option<ValidatorIndex>,
 	) {
-		self.topologies.insert_topology(session, topology);
+		if local_index.is_none() {
+			// this subsystem only matters to validators.
+			return
+		}
+
+		self.topologies.insert_topology(session, topology, local_index);
 		let topology = self.topologies.get_topology(session).expect("just inserted above; qed");
 
 		adjust_required_routing_and_propagate(
@@ -511,7 +521,9 @@ impl State {
 			|block_entry| block_entry.session == session,
 			|required_routing, local, validator_index| {
 				if *required_routing == RequiredRouting::PendingTopology {
-					*required_routing = topology.required_routing_by_index(*validator_index, local);
+					*required_routing = topology
+						.local_grid_neighbors()
+						.required_routing_by_index(*validator_index, local);
 				}
 			},
 		)
@@ -861,7 +873,7 @@ impl State {
 		let local = source == MessageSource::Local;
 
 		let required_routing = topology.map_or(RequiredRouting::PendingTopology, |t| {
-			t.required_routing_by_index(validator_index, local)
+			t.local_grid_neighbors().required_routing_by_index(validator_index, local)
 		});
 
 		let message_state = match entry.candidates.get_mut(claimed_candidate_index as usize) {
@@ -902,7 +914,10 @@ impl State {
 				return false
 			}
 
-			if let Some(true) = topology.as_ref().map(|t| t.route_to_peer(required_routing, peer)) {
+			if let Some(true) = topology
+				.as_ref()
+				.map(|t| t.local_grid_neighbors().route_to_peer(required_routing, peer))
+			{
 				return true
 			}
 
@@ -1169,7 +1184,8 @@ impl State {
 			//      the assignment to all aware peers in the required routing _except_ the original
 			//      source of the assignment. Hence the `in_topology_check`.
 			//   3. Any randomly selected peers have been sent the assignment already.
-			let in_topology = topology.map_or(false, |t| t.route_to_peer(required_routing, peer));
+			let in_topology = topology
+				.map_or(false, |t| t.local_grid_neighbors().route_to_peer(required_routing, peer));
 			in_topology || knowledge.sent.contains(message_subject, MessageKind::Assignment)
 		};
 
@@ -1301,9 +1317,9 @@ impl State {
 						let required_routing = message_state.required_routing;
 						let rng = &mut *rng;
 						let mut peer_filter = move |peer_id| {
-							let in_topology = topology
-								.as_ref()
-								.map_or(false, |t| t.route_to_peer(required_routing, peer_id));
+							let in_topology = topology.as_ref().map_or(false, |t| {
+								t.local_grid_neighbors().route_to_peer(required_routing, peer_id)
+							});
 							in_topology || {
 								let route_random = random_routing.sample(total_peers, rng);
 								if route_random {
@@ -1564,7 +1580,10 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 				});
 
 			for (peer, peer_knowledge) in &mut block_entry.known_by {
-				if !topology.route_to_peer(message_state.required_routing, peer) {
+				if !topology
+					.local_grid_neighbors()
+					.route_to_peer(message_state.required_routing, peer)
+				{
 					continue
 				}
 

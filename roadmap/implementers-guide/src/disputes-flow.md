@@ -96,7 +96,7 @@ Votes must be queryable by a particular validator, identified by its signing key
 
 Votes must be queryable by a particular validator, identified by a session index and the validator index valid in that session.
 
-If there exists a negative and a positive fork for a particular block, a dispute is detected.
+If there exists a negative and a positive vote for a particular block, a dispute is detected.
 
 If a dispute is detected, all currently available votes for that block must be gossiped.
 
