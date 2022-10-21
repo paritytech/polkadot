@@ -19,12 +19,7 @@
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use sp_std::{
-	marker::PhantomData,
-	prelude::*,
-	slice::{Iter, IterMut},
-	vec::IntoIter,
-};
+use sp_std::{marker::PhantomData, prelude::*, slice::Iter, vec::IntoIter};
 
 use application_crypto::KeyTypeId;
 use inherents::InherentIdentifier;
@@ -1642,11 +1637,6 @@ where
 	/// Returns Iterator of contained vector.
 	pub fn iter(&self) -> Iter<'_, V> {
 		self.0.iter()
-	}
-
-	/// Returns a mutable Iterator.
-	pub fn iter_mut(&mut self) -> IterMut<'_, V> {
-		self.0.iter_mut()
 	}
 
 	/// Returns an Iterator with ownership.
