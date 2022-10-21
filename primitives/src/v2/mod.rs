@@ -1644,7 +1644,7 @@ where
 		self.0.iter()
 	}
 
-	/// Returns a mutable Iterator.
+	/// Returns a mutable iterator over the underlying vector.
 	pub fn iter_mut(&mut self) -> IterMut<'_, V> {
 		self.0.iter_mut()
 	}
