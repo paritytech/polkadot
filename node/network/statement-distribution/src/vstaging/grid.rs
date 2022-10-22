@@ -170,7 +170,7 @@ pub struct CandidateAdvertisers {
 /// set of relay-parents.
 #[derive(Default)]
 pub struct PerRelayParentGridTracker {
-	received: HashMap<ValidatorIndex, CounterPartyManifestKnowledge>,
+	received: HashMap<ValidatorIndex, ManifestKnowledge>,
 }
 
 impl PerRelayParentGridTracker {
@@ -271,15 +271,15 @@ pub enum ManifestImportError {
 
 /// The knowledge we are awawre of counterparties having of manifests.
 #[derive(Default)]
-struct CounterPartyManifestKnowledge {
+struct ManifestKnowledge {
 	received: HashMap<CandidateHash, ManifestSummary>,
 	// group -> seconded counts.
 	seconded_counts: HashMap<GroupIndex, Vec<usize>>,
 }
 
-impl CounterPartyManifestKnowledge {
+impl ManifestKnowledge {
 	fn new() -> Self {
-		CounterPartyManifestKnowledge { received: HashMap::new(), seconded_counts: HashMap::new() }
+		ManifestKnowledge { received: HashMap::new(), seconded_counts: HashMap::new() }
 	}
 
 	/// Attempt to import a received manifest from a counterparty.
@@ -327,9 +327,6 @@ impl CounterPartyManifestKnowledge {
 
 					let mut fresh_seconded = manifest_summary.seconded_in_group.clone();
 					fresh_seconded |= &prev.seconded_in_group;
-
-					let mut fresh_validated = manifest_summary.validated_in_group.clone();
-					fresh_validated |= &prev.validated_in_group;
 
 					let within_limits = updating_ensure_within_seconding_limit(
 						&mut self.seconded_counts,
@@ -500,7 +497,7 @@ mod tests {
 
 	#[test]
 	fn knowledge_rejects_conflicting_manifest() {
-		let mut knowledge = CounterPartyManifestKnowledge::new();
+		let mut knowledge = ManifestKnowledge::default();
 
 		let expected_manifest_summary = ManifestSummary {
 			claimed_parent_hash: Hash::repeat_byte(2),
@@ -557,7 +554,7 @@ mod tests {
 
 	#[test]
 	fn reject_overflowing_manifests() {
-		let mut knowledge = CounterPartyManifestKnowledge::new();
+		let mut knowledge = ManifestKnowledge::default();
 		knowledge
 			.import_received(
 				3,
@@ -615,4 +612,6 @@ mod tests {
 			)
 			.unwrap();
 	}
+
+	// TODO [now]: tests for malformed or disallowed manifests.
 }
