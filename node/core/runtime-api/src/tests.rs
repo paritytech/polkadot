@@ -23,11 +23,11 @@ use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
 	v2::{
-		AuthorityDiscoveryId, Block, BlockNumber, CandidateEvent, CandidateHash,
-		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Id as ParaId,
-		InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+		AuthorityDiscoveryId, Block, CandidateEvent, CommittedCandidateReceipt, CoreState,
+		GroupRotationInfo, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+		OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
+		SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+		ValidatorSignature,
 	},
 };
 use sp_api::ProvideRuntimeApi;
@@ -195,10 +195,6 @@ sp_api::mock_impl_runtime_apis! {
 			_assumption: OccupiedCoreAssumption,
 		) -> Option<ValidationCodeHash> {
 			self.validation_code_hash.get(&para).map(|c| c.clone())
-		}
-
-		fn staging_get_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
-			unimplemented!()
 		}
 	}
 
@@ -526,10 +522,10 @@ fn requests_session_index_for_child() {
 
 fn dummy_session_info() -> SessionInfo {
 	SessionInfo {
-		validators: vec![],
+		validators: Default::default(),
 		discovery_keys: vec![],
 		assignment_keys: vec![],
-		validator_groups: vec![],
+		validator_groups: Default::default(),
 		n_cores: 4u32,
 		zeroth_delay_tranche_width: 0u32,
 		relay_vrf_modulo_samples: 0u32,

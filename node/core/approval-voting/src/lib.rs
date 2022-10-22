@@ -70,6 +70,7 @@ use std::{
 	collections::{
 		btree_map::Entry as BTMEntry, hash_map::Entry as HMEntry, BTreeMap, HashMap, HashSet,
 	},
+	num::NonZeroUsize,
 	sync::Arc,
 	time::Duration,
 };
@@ -104,7 +105,11 @@ const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
 /// Value rather arbitrarily: Should not be hit in practice, it exists to more easily diagnose dead
 /// lock issues for example.
 const WAIT_FOR_SIGS_TIMEOUT: Duration = Duration::from_millis(500);
-const APPROVAL_CACHE_SIZE: usize = 1024;
+const APPROVAL_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(1024) {
+	Some(cap) => cap,
+	None => panic!("Approval cache size must be non-zero."),
+};
+
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 const APPROVAL_DELAY: Tick = 2;
 const LOG_TARGET: &str = "parachain::approval-voting";
@@ -1798,7 +1803,7 @@ fn check_and_import_approval<T>(
 		)),
 	};
 
-	let pubkey = match session_info.validators.get(approval.validator.0 as usize) {
+	let pubkey = match session_info.validators.get(approval.validator) {
 		Some(k) => k,
 		None => respond_early!(ApprovalCheckResult::Bad(
 			ApprovalCheckError::InvalidValidatorIndex(approval.validator),
@@ -2498,7 +2503,7 @@ async fn issue_approval<Context>(
 		},
 	};
 
-	let validator_pubkey = match session_info.validators.get(validator_index.0 as usize) {
+	let validator_pubkey = match session_info.validators.get(validator_index) {
 		Some(p) => p,
 		None => {
 			gum::warn!(

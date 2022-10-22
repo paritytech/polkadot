@@ -26,8 +26,8 @@ use futures::{
 use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
-	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
-	DISPUTE_WINDOW,
+	CandidateVotes, DisputeMessage, DisputeMessageCheckError, DisputeStatus,
+	SignedDisputeStatement, Timestamp, DISPUTE_WINDOW,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -49,7 +49,7 @@ use crate::{
 	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	import::{CandidateEnvironment, CandidateVoteState},
 	metrics::Metrics,
-	status::{get_active_with_status, Clock, DisputeStatus, Timestamp},
+	status::{get_active_with_status, Clock},
 	DisputeCoordinatorSubsystem, LOG_TARGET,
 };
 
@@ -372,7 +372,7 @@ impl Initialized {
 				.filter_map(|(validator_index, attestation)| {
 					let validator_public: ValidatorId = session_info
 						.validators
-						.get(validator_index.0 as usize)
+						.get(validator_index)
 						.or_else(|| {
 							gum::error!(
 								target: LOG_TARGET,
@@ -473,7 +473,7 @@ impl Initialized {
 
 					let validator_public: ValidatorId = session_info
 						.validators
-						.get(validator_index.0 as usize)
+						.get(validator_index)
 						.or_else(|| {
 							gum::error!(
 								target: LOG_TARGET,
@@ -599,7 +599,9 @@ impl Initialized {
 				};
 				gum::trace!(target: LOG_TARGET, "Loaded recent disputes from db");
 
-				let _ = tx.send(recent_disputes.keys().cloned().collect());
+				let _ = tx.send(
+					recent_disputes.into_iter().map(|(k, v)| (k.0, k.1, v)).collect::<Vec<_>>(),
+				);
 			},
 			DisputeCoordinatorMessage::ActiveDisputes(tx) => {
 				// Return error if session information is missing.
@@ -901,7 +903,7 @@ impl Initialized {
 			let no_votes = Vec::new();
 			let our_approval_votes = new_state.own_approval_votes().unwrap_or(&no_votes);
 			for (validator_index, sig) in our_approval_votes {
-				let pub_key = match env.validators().get(validator_index.0 as usize) {
+				let pub_key = match env.validators().get(*validator_index) {
 					None => {
 						gum::error!(
 							target: LOG_TARGET,
@@ -1095,7 +1097,10 @@ impl Initialized {
 				valid,
 				candidate_hash,
 				session,
-				env.validators()[index.0 as usize].clone(),
+				env.validators()
+					.get(*index)
+					.expect("`controlled_indices` are derived from `validators`; qed")
+					.clone(),
 			)
 			.await;
 
@@ -1236,7 +1241,7 @@ fn make_dispute_message(
 				our_vote.candidate_hash().clone(),
 				our_vote.session_index(),
 				validators
-					.get(validator_index.0 as usize)
+					.get(*validator_index)
 					.ok_or(DisputeMessageCreationError::InvalidValidatorIndex)?
 					.clone(),
 				validator_signature.clone(),
@@ -1251,7 +1256,7 @@ fn make_dispute_message(
 				our_vote.candidate_hash().clone(),
 				our_vote.session_index(),
 				validators
-					.get(validator_index.0 as usize)
+					.get(*validator_index)
 					.ok_or(DisputeMessageCreationError::InvalidValidatorIndex)?
 					.clone(),
 				validator_signature.clone(),
