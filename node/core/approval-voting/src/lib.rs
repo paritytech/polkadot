@@ -1803,7 +1803,7 @@ fn check_and_import_approval<T>(
 		)),
 	};
 
-	let pubkey = match session_info.validators.get(approval.validator.0 as usize) {
+	let pubkey = match session_info.validators.get(approval.validator) {
 		Some(k) => k,
 		None => respond_early!(ApprovalCheckResult::Bad(
 			ApprovalCheckError::InvalidValidatorIndex(approval.validator),
@@ -2503,7 +2503,7 @@ async fn issue_approval<Context>(
 		},
 	};
 
-	let validator_pubkey = match session_info.validators.get(validator_index.0 as usize) {
+	let validator_pubkey = match session_info.validators.get(validator_index) {
 		Some(p) => p,
 		None => {
 			gum::warn!(
