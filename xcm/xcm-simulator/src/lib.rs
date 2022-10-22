@@ -80,6 +80,16 @@ pub fn encode_xcm(message: Xcm<()>, message_kind: MessageKind) -> Vec<u8> {
 /// Expects a relay chain struct as an argument and implements UMP for it. The
 /// provided struct needs to have the `Runtime` and `XcmConfig` defined. Also
 /// expects the `TestExternalities` to be provided in the relay chain struct.
+///
+/// ```ignore
+/// decl_test_relay_chain! {
+///		pub struct Relay {
+///			Runtime = relay_chain::Runtime,
+///			XcmConfig = relay_chain::XcmConfig,
+///			new_ext = relay_ext(),
+///		}
+///	}
+/// ```
 #[macro_export]
 #[rustfmt::skip]
 macro_rules! decl_test_relay_chain {
@@ -116,6 +126,17 @@ macro_rules! decl_test_relay_chain {
 /// and `XcmpMessageHandlerT` traits for it. The macro expects the provided struct
 /// to define `Runtime`, `DmpMessageHandler` and `XcmpMessageHandler`. Also expects
 /// the `TestExternalities` to be provided in the relay chain struct.
+///
+/// ```ignore
+/// decl_test_parachain! {
+///		pub struct ParaA {
+///			Runtime = parachain::Runtime,
+///			XcmpMessageHandler = parachain::MsgQueue,
+///			DmpMessageHandler = parachain::MsgQueue,
+///			new_ext = para_ext(),
+///		}
+/// }
+/// ```
 #[macro_export]
 macro_rules! decl_test_parachain {
 	(
@@ -215,6 +236,18 @@ thread_local! {
 /// implements some functionality for testing and the `ParachainXcmRouter` and
 /// `RelayChainXcmRouter`. The struct needs to contain the relay chain struct
 /// and an indexed list of parachains that are going to be in the network.
+///
+/// ```ignore
+/// decl_test_network! {
+///		pub struct ExampleNet {
+///			relay_chain = Relay,
+///			parachains = vec![
+///				(1, ParaA),
+///				(2, ParaB),
+///			],
+///		}
+/// }
+/// ```
 #[macro_export]
 macro_rules! decl_test_network {
 	(
