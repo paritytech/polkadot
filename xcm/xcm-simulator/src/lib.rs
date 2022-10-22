@@ -62,7 +62,7 @@ pub enum MessageKind {
 	Xcmp,
 }
 
-/// Encodes the provided Xcm message based on the `message_kind`.
+/// Encodes the provided XCM message based on the `message_kind`.
 pub fn encode_xcm(message: Xcm<()>, message_kind: MessageKind) -> Vec<u8> {
 	match message_kind {
 		MessageKind::Ump | MessageKind::Dmp => VersionedXcm::<()>::from(message).encode(),
@@ -211,7 +211,7 @@ thread_local! {
 		= RefCell::new(VecDeque::new());
 }
 
-/// Declares a test network. Expects a network struct as an arugument and
+/// Declares a test network. Expects a network struct as an argument and
 /// implements some functionality for testing and the `ParachainXcmRouter` and
 /// `RelayChainXcmRouter`. The struct needs to contain the relay chain struct
 /// and an indexed list of parachains that are going to be in the network.
