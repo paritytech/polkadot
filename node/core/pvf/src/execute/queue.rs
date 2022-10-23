@@ -244,7 +244,7 @@ fn handle_job_finish(
 	};
 
 	queue.metrics.execute_finished();
-	gum::debug!(
+	gum::trace!(
 		target: LOG_TARGET,
 		validation_code_hash = ?artifact_id.code_hash,
 		worker_rip = idle_worker.is_none(),

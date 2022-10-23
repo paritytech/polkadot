@@ -129,7 +129,7 @@ impl Executor {
 		// 2. It cannot and does not limit the stack space consumed by Rust code.
 		//
 		//    Meaning that if the wasm code leaves no stack space for Rust code, then the Rust code
-		//    and that will abort the process as well.
+		//    will abort and that will abort the process as well.
 		//
 		// Typically on Linux the main thread gets the stack size specified by the `ulimit` and
 		// typically it's configured to 8 MiB. Rust's spawned threads are 2 MiB. OTOH, the
