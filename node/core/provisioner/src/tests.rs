@@ -234,6 +234,7 @@ mod select_candidates {
 		},
 	};
 	use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
+	use polkadot_node_subsystem_util::runtime::ProspectiveParachainsMode;
 	use polkadot_primitives::v2::{
 		BlockNumber, CandidateCommitments, CommittedCandidateReceipt, PersistedValidationData,
 	};
@@ -316,15 +317,10 @@ mod select_candidates {
 		]
 	}
 
-	enum TestProspectiveParachainsMode {
-		Enabled,
-		Disabled,
-	}
-
 	async fn mock_overseer(
 		mut receiver: mpsc::UnboundedReceiver<AllMessages>,
 		expected: Vec<BackedCandidate>,
-		prospective_parachains_mode: TestProspectiveParachainsMode,
+		prospective_parachains_mode: ProspectiveParachainsMode,
 	) {
 		use ChainApiMessage::BlockNumber;
 		use RuntimeApiMessage::Request;
@@ -354,10 +350,10 @@ mod select_candidates {
 				AllMessages::ProspectiveParachains(
 					ProspectiveParachainsMessage::GetBackableCandidate(.., tx),
 				) => match prospective_parachains_mode {
-					TestProspectiveParachainsMode::Enabled => {
+					ProspectiveParachainsMode::Enabled => {
 						let _ = tx.send(candidates.next());
 					},
-					TestProspectiveParachainsMode::Disabled =>
+					ProspectiveParachainsMode::Disabled =>
 						panic!("unexpected prospective parachains request"),
 				},
 				_ => panic!("Unexpected message: {:?}", from_job),
@@ -368,14 +364,14 @@ mod select_candidates {
 	#[test]
 	fn can_succeed() {
 		test_harness(
-			|r| mock_overseer(r, Vec::new(), TestProspectiveParachainsMode::Disabled),
+			|r| mock_overseer(r, Vec::new(), ProspectiveParachainsMode::Disabled),
 			|mut tx: TestSubsystemSender| async move {
-				let prospective_parachains_mode =
-					ProspectiveParachainsMode::Disabled { backed_candidates: Vec::new() };
+				let prospective_parachains_mode = ProspectiveParachainsMode::Disabled;
 				select_candidates(
 					&[],
 					&[],
-					&prospective_parachains_mode,
+					&[],
+					prospective_parachains_mode,
 					Default::default(),
 					&mut tx,
 				)
@@ -431,8 +427,7 @@ mod select_candidates {
 		// why those particular indices? see the comments on mock_availability_cores()
 		let expected_candidates: Vec<_> =
 			[1, 4, 7, 8, 10].iter().map(|&idx| candidates[idx].clone()).collect();
-		let prospective_parachains_mode =
-			ProspectiveParachainsMode::Disabled { backed_candidates: candidates };
+		let prospective_parachains_mode = ProspectiveParachainsMode::Disabled;
 
 		let expected_backed = expected_candidates
 			.iter()
@@ -447,12 +442,13 @@ mod select_candidates {
 			.collect();
 
 		test_harness(
-			|r| mock_overseer(r, expected_backed, TestProspectiveParachainsMode::Disabled),
+			|r| mock_overseer(r, expected_backed, ProspectiveParachainsMode::Disabled),
 			|mut tx: TestSubsystemSender| async move {
 				let result = select_candidates(
 					&mock_cores,
 					&[],
-					&prospective_parachains_mode,
+					&candidates,
+					prospective_parachains_mode,
 					Default::default(),
 					&mut tx,
 				)
@@ -520,16 +516,16 @@ mod select_candidates {
 		let expected_backed_filtered: Vec<_> =
 			expected_cores.iter().map(|&idx| candidates[idx].clone()).collect();
 
-		let prospective_parachains_mode =
-			ProspectiveParachainsMode::Disabled { backed_candidates: candidates };
+		let prospective_parachains_mode = ProspectiveParachainsMode::Disabled;
 
 		test_harness(
-			|r| mock_overseer(r, expected_backed, TestProspectiveParachainsMode::Disabled),
+			|r| mock_overseer(r, expected_backed, ProspectiveParachainsMode::Disabled),
 			|mut tx: TestSubsystemSender| async move {
 				let result = select_candidates(
 					&mock_cores,
 					&[],
-					&prospective_parachains_mode,
+					&candidates,
+					prospective_parachains_mode,
 					Default::default(),
 					&mut tx,
 				)
@@ -591,12 +587,13 @@ mod select_candidates {
 			.collect();
 
 		test_harness(
-			|r| mock_overseer(r, expected_backed, TestProspectiveParachainsMode::Enabled),
+			|r| mock_overseer(r, expected_backed, ProspectiveParachainsMode::Enabled),
 			|mut tx: TestSubsystemSender| async move {
 				let result = select_candidates(
 					&mock_cores,
 					&[],
-					&prospective_parachains_mode,
+					&[],
+					prospective_parachains_mode,
 					Default::default(),
 					&mut tx,
 				)

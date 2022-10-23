@@ -54,7 +54,9 @@ use polkadot_node_subsystem::{
 	overseer, CollatorProtocolSenderTrait, FromOrchestra, OverseerSignal, PerLeafSpan,
 };
 use polkadot_node_subsystem_util::{
-	backing_implicit_view::View as ImplicitView, metrics::prometheus::prometheus::HistogramTimer,
+	backing_implicit_view::View as ImplicitView,
+	metrics::prometheus::prometheus::HistogramTimer,
+	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
 };
 use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, CollatorId, CoreState, Hash, Id as ParaId,
@@ -63,10 +65,7 @@ use polkadot_primitives::v2::{
 
 use crate::error::{Error, FetchError, Result, SecondingError};
 
-use super::{
-	modify_reputation, prospective_parachains_mode, tick_stream, ProspectiveParachainsMode,
-	LOG_TARGET, MAX_CANDIDATE_DEPTH,
-};
+use super::{modify_reputation, tick_stream, LOG_TARGET, MAX_CANDIDATE_DEPTH};
 
 mod collation;
 mod metrics;
