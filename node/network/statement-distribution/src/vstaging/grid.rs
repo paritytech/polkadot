@@ -212,7 +212,7 @@ impl PerRelayParentGridTracker {
 			.iter()
 			.by_vals()
 			.zip(manifest.validated_in_group.iter().by_vals())
-			.filter(|&(s, v)| s || v)
+			.filter(|&(s, v)| s || v) // no double-counting
 			.count();
 
 		if votes < backing_threshold {
