@@ -156,15 +156,6 @@ pub fn build_session_topology(
 	view
 }
 
-/// Advertisers of a candidate which became known.
-#[derive(Default)]
-pub struct CandidateAdvertisers {
-	/// Advertisers who got the details correct.
-	pub correct: Vec<ValidatorIndex>,
-	/// Advertisers who got the details incorrect.
-	pub incorrect: Vec<ValidatorIndex>,
-}
-
 /// A tracker of knowledge from authorities within the grid for the
 /// entire session. This stores only data on manifests sent within a bounded
 /// set of relay-parents.
@@ -194,7 +185,7 @@ impl PerRelayParentGridTracker {
 		if session_topology
 			.group_views
 			.get(&manifest.claimed_group_index)
-			.map_or(false, |g| g.receiving.contains(&sender))
+			.map_or(true, |g| !g.receiving.contains(&sender))
 		{
 			return Err(ManifestImportError::Disallowed)
 		}
@@ -221,7 +212,7 @@ impl PerRelayParentGridTracker {
 			.iter()
 			.by_vals()
 			.zip(manifest.validated_in_group.iter().by_vals())
-			.map(|(s, v)| s || v)
+			.filter(|&(s, v)| s || v)
 			.count();
 
 		if votes < backing_threshold {
@@ -613,5 +604,265 @@ mod tests {
 			.unwrap();
 	}
 
-	// TODO [now]: tests for malformed or disallowed manifests.
+	#[test]
+	fn reject_disallowed_manifest() {
+		let mut tracker = PerRelayParentGridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![
+				(GroupIndex(0), GroupSubView {
+					sending: HashSet::new(),
+					receiving: vec![ValidatorIndex(0)].into_iter().collect(),
+				})
+			].into_iter().collect(),
+		};
+
+		let groups = Groups::new(
+			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]],
+			&[
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+			],
+		);
+
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+
+		assert_eq!(
+			groups.get_size_and_backing_threshold(GroupIndex(0)),
+			Some((3, 2)),
+		);
+
+		// Known group, disallowed receiving validator.
+
+		assert_matches!(
+			tracker.import_manifest(
+				&session_topology,
+				&groups,
+				candidate_hash,
+				3,
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
+				ValidatorIndex(1),
+			),
+			Err(ManifestImportError::Disallowed)
+		);
+
+		// Unknown group
+
+		assert_matches!(
+			tracker.import_manifest(
+				&session_topology,
+				&groups,
+				candidate_hash,
+				3,
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0),
+					claimed_group_index: GroupIndex(1),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
+				ValidatorIndex(0),
+			),
+			Err(ManifestImportError::Disallowed)
+		);
+	}
+
+	#[test]
+	fn reject_malformed_wrong_group_size() {
+		let mut tracker = PerRelayParentGridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![
+				(GroupIndex(0), GroupSubView {
+					sending: HashSet::new(),
+					receiving: vec![ValidatorIndex(0)].into_iter().collect(),
+				})
+			].into_iter().collect(),
+		};
+
+		let groups = Groups::new(
+			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]],
+			&[
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+			],
+		);
+
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+
+		assert_eq!(
+			groups.get_size_and_backing_threshold(GroupIndex(0)),
+			Some((3, 2)),
+		);
+
+		assert_matches!(
+			tracker.import_manifest(
+				&session_topology,
+				&groups,
+				candidate_hash,
+				3,
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
+				ValidatorIndex(0),
+			),
+			Err(ManifestImportError::Malformed)
+		);
+
+		assert_matches!(
+			tracker.import_manifest(
+				&session_topology,
+				&groups,
+				candidate_hash,
+				3,
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1, 0],
+				},
+				ValidatorIndex(0),
+			),
+			Err(ManifestImportError::Malformed)
+		);
+	}
+
+	#[test]
+	fn reject_malformed_no_seconders() {
+		let mut tracker = PerRelayParentGridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![
+				(GroupIndex(0), GroupSubView {
+					sending: HashSet::new(),
+					receiving: vec![ValidatorIndex(0)].into_iter().collect(),
+				})
+			].into_iter().collect(),
+		};
+
+		let groups = Groups::new(
+			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]],
+			&[
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+			],
+		);
+
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+
+		assert_eq!(
+			groups.get_size_and_backing_threshold(GroupIndex(0)),
+			Some((3, 2)),
+		);
+
+		assert_matches!(
+			tracker.import_manifest(
+				&session_topology,
+				&groups,
+				candidate_hash,
+				3,
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
+				},
+				ValidatorIndex(0),
+			),
+			Err(ManifestImportError::Malformed)
+		);
+	}
+
+	#[test]
+	fn reject_malformed_below_threshold() {
+		let mut tracker = PerRelayParentGridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![
+				(GroupIndex(0), GroupSubView {
+					sending: HashSet::new(),
+					receiving: vec![ValidatorIndex(0)].into_iter().collect(),
+				})
+			].into_iter().collect(),
+		};
+
+		let groups = Groups::new(
+			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]],
+			&[
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+			],
+		);
+
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+
+		assert_eq!(
+			groups.get_size_and_backing_threshold(GroupIndex(0)),
+			Some((3, 2)),
+		);
+
+		// only one vote
+
+		assert_matches!(
+			tracker.import_manifest(
+				&session_topology,
+				&groups,
+				candidate_hash,
+				3,
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+				},
+				ValidatorIndex(0),
+			),
+			Err(ManifestImportError::Malformed)
+		);
+
+		// seconding + validating still not enough to reach '2' threshold
+
+		assert_matches!(
+			tracker.import_manifest(
+				&session_topology,
+				&groups,
+				candidate_hash,
+				3,
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+				},
+				ValidatorIndex(0),
+			),
+			Err(ManifestImportError::Malformed)
+		);
+
+		// finally good.
+
+		assert_matches!(
+			tracker.import_manifest(
+				&session_topology,
+				&groups,
+				candidate_hash,
+				3,
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0),
+					claimed_group_index: GroupIndex(0),
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+				},
+				ValidatorIndex(0),
+			),
+			Ok(())
+		);
+	}
 }
