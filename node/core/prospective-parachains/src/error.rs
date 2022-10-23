@@ -22,6 +22,7 @@ use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	SubsystemError,
 };
+use polkadot_node_subsystem_util::runtime;
 
 use crate::LOG_TARGET;
 use fatality::Nested;
@@ -44,6 +45,9 @@ pub enum Error {
 	#[fatal]
 	#[error("Receiving message from overseer failed: {0}")]
 	SubsystemReceive(#[source] SubsystemError),
+
+	#[error("Error while accessing runtime information")]
+	Runtime(#[from] runtime::Error),
 
 	#[error(transparent)]
 	RuntimeApi(#[from] RuntimeApiError),
