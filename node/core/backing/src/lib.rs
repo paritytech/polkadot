@@ -994,12 +994,22 @@ async fn handle_active_leaves_update<Context>(
 
 					match result {
 						SecondingAllowed::No => {
-							// unreachable: the request wasn't rejected previously
-							// when received, it's not expected to have any possible
-							// membership in known fragment trees. Once there appears
-							// at least one, request is removed from the memory.
-							// Thus, we couldn't have seconded candidate with the same
-							// fragment tree membership prior to this activation.
+							// This branch is unreachable for both known leaves and
+							// an activated one:
+							// 1. The request wasn't rejected previously when received.
+							// Therefore, there was no conflicting entry in known active leaves.
+							//
+							// 2. If a validator learned about new backed candidate which made
+							// a fragment tree membership clear, the request would've already left the memory.
+							// Hence, no conflicting entry exists in known active leaves at the
+							// moment of new activation.
+							//
+							// 3. A single new leaf is imported, which **may** make fragment tree membership clear.
+							// Prospective parachains only learns about new candidates from backing, this leaf
+							// cannot introduce conflicting entry ((2) still holds).
+							//
+							// 4. Either it has a possible membership in the fragment tree (respond with true)
+							// or it does not (membership is empty and precondition at (2) holds).
 						},
 						SecondingAllowed::Yes(membership) =>
 							if membership.iter().any(|(_, m)| !m.is_empty()) {
