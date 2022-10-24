@@ -76,7 +76,7 @@ fn xcm_runtime_api_weight() {
 		xcm::latest::prelude::ClearOrigin,
 	]));
 	assert_eq!(
-		Runtime::weight_message(message),
+		Runtime::weigh_message(message),
 		Ok(weights::xcm::WestendXcmWeight::<RuntimeCall>::clear_origin().into())
 	);
 }

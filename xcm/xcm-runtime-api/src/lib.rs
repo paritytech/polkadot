@@ -57,13 +57,13 @@ sp_api::decl_runtime_apis! {
 		AccountId: Codec + MaybeDisplay,
 
 	{
-		/// Returns weight of a given message
-		fn weight_message(message: VersionedXcm<RuntimeCall>) -> XcmResult<VersionedWeight>;
+		/// Returns weight of a given message.
+		fn weigh_message(message: VersionedXcm<RuntimeCall>) -> XcmResult<VersionedWeight>;
 
-		/// Returns the location to accountId conversion
+		/// Returns the location to accountId conversion.
 		fn convert_location(location: VersionedMultiLocation) -> XcmResult<AccountId>;
 
-		/// Returns fee charged for an amount of weight in a concrete multiasset
+		/// Returns fee charged for an amount of weight in a concrete multiasset.
 		fn calculate_concrete_asset_fee(asset_location: VersionedMultiLocation, weight: VersionedWeight) -> XcmResult<u128>;
 	}
 }

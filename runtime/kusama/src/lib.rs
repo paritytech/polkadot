@@ -1920,7 +1920,7 @@ sp_api::impl_runtime_apis! {
 		RuntimeCall,
 	> for Runtime {
 
-		fn weight_message(message: VersionedXcm<RuntimeCall>) -> xcm_runtime_api::XcmResult< xcm_runtime_api::VersionedWeight> {
+		fn weigh_message(message: VersionedXcm<RuntimeCall>) -> xcm_runtime_api::XcmResult< xcm_runtime_api::VersionedWeight> {
 			let mut message: Xcm<RuntimeCall> = message.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
 			<xcm_config::XcmConfig as xcm_executor::Config>::Weigher::weight(& mut message).map_err(|_| XcmError::WeightNotComputable).map(|weight| weight.into())
 		}
