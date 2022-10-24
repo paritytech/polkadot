@@ -48,13 +48,13 @@ use crate::{
 	error::{JfyiError, JfyiErrorResult},
 	LOG_TARGET,
 };
-use candidate_entry::CandidateEntry;
+use candidates::{BadAdvertisement, Candidates};
 use cluster::{Accept as ClusterAccept, ClusterTracker, RejectIncoming as ClusterRejectIncoming};
 use groups::Groups;
 use requests::RequestManager;
 use statement_store::StatementStore;
 
-mod candidate_entry;
+mod candidates;
 mod cluster;
 mod grid;
 mod groups;
@@ -82,10 +82,6 @@ const BENEFIT_VALID_STATEMENT: Rep = Rep::BenefitMajor("Peer provided a valid st
 
 struct PerRelayParentState {
 	validator_state: HashMap<ValidatorIndex, PerRelayParentValidatorState>,
-	// TODO [now]: this should be a global view which tracks
-	// advertisers' claimed relay-parent, group, para-head for unconfirmed
-	// candidates. that will be used to report them when confirming.
-	candidates: HashMap<CandidateHash, CandidateEntry>,
 	local_validator: Option<LocalValidatorState>,
 	statement_store: StatementStore,
 	session: SessionIndex,
@@ -118,6 +114,7 @@ pub(crate) struct State {
 	///
 	/// We only feed leaves which have prospective parachains enabled to this view.
 	implicit_view: ImplicitView,
+	candidates: Candidates,
 	per_relay_parent: HashMap<Hash, PerRelayParentState>,
 	per_session: HashMap<SessionIndex, PerSessionState>,
 	peers: HashMap<PeerId, PeerState>,
@@ -316,7 +313,6 @@ pub(crate) async fn handle_activated_leaf<Context>(
 			*leaf,
 			PerRelayParentState {
 				validator_state: HashMap::new(),
-				candidates: HashMap::new(),
 				local_validator,
 				statement_store: StatementStore::new(&per_session.groups),
 				session: session_index,
@@ -422,13 +418,16 @@ pub(crate) async fn share_local_statement<Context>(
 
 	// Two possibilities: either the statement is `Seconded` or we already
 	// have the candidate. Sanity: check the para-id is valid.
-	let expected_para = match statement.payload() {
-		FullStatementWithPVD::Seconded(ref c, _) => Some(c.descriptor().para_id),
-		FullStatementWithPVD::Valid(hash) => per_relay_parent
-			.candidates
-			.get(&hash)
-			.and_then(|c| c.receipt())
-			.map(|c| c.descriptor().para_id),
+	let expected = match statement.payload() {
+		FullStatementWithPVD::Seconded(ref c, _) =>
+			Some((c.descriptor().para_id, c.descriptor().relay_parent)),
+		FullStatementWithPVD::Valid(hash) =>
+			state.candidates.get_confirmed(&hash).map(|c| (c.para_id(), c.relay_parent())),
+	};
+
+	let (expected_para, expected_relay_parent) = match expected {
+		None => return Err(JfyiError::InvalidShare),
+		Some(x) => x,
 	};
 
 	if local_index != statement.validator_index() {
@@ -438,7 +437,7 @@ pub(crate) async fn share_local_statement<Context>(
 	// TODO [now]: ensure seconded_count isn't too high. Needs our definition
 	// of 'too high' i.e. max_depth, which isn't done yet.
 
-	if expected_para.is_none() || local_assignment != expected_para {
+	if local_assignment != Some(expected_para) || relay_parent != expected_relay_parent {
 		return Err(JfyiError::InvalidShare)
 	}
 
@@ -447,28 +446,8 @@ pub(crate) async fn share_local_statement<Context>(
 		let compact_statement = FullStatementWithPVD::signed_to_compact(statement.clone());
 		let candidate_hash = CandidateHash(*statement.payload().candidate_hash());
 
-		let candidate_entry = match statement.payload() {
-			FullStatementWithPVD::Seconded(ref c, ref pvd) => {
-				let candidate_entry =
-					per_relay_parent.candidates.entry(candidate_hash).or_insert_with(|| {
-						CandidateEntry::confirmed(candidate_hash, c.clone(), pvd.clone())
-					});
-
-				candidate_entry
-			},
-			FullStatementWithPVD::Valid(_) => {
-				match per_relay_parent.candidates.get_mut(&candidate_hash) {
-					None => {
-						// Can't share a 'Valid' statement about a candidate we don't know about!
-						return Err(JfyiError::InvalidShare)
-					},
-					Some(ref c) if !c.is_confirmed() => {
-						// Can't share a 'Valid' statement about a candidate we don't know about!
-						return Err(JfyiError::InvalidShare)
-					},
-					Some(c) => c,
-				}
-			},
+		if let FullStatementWithPVD::Seconded(ref c, ref pvd) = statement.payload() {
+			// TODO [now]: insert confirmed candidate and report peers.
 		};
 
 		match per_relay_parent
@@ -831,7 +810,7 @@ async fn handle_incoming_statement<Context>(
 	);
 
 	let statement = checked_statement.payload().clone();
-	let sender_index = checked_statement.validator_index();
+	let originator_index = checked_statement.validator_index();
 	let candidate_hash = *checked_statement.payload().candidate_hash();
 	let was_fresh =
 		match per_relay_parent.statement_store.insert(&per_session.groups, checked_statement) {
@@ -840,7 +819,7 @@ async fn handle_incoming_statement<Context>(
 				gum::warn!(
 					target: LOG_TARGET,
 					?relay_parent,
-					validator_index = ?sender_index,
+					validator_index = ?originator_index,
 					"Error -Cluster accepted message from unknown validator."
 				);
 
@@ -849,24 +828,31 @@ async fn handle_incoming_statement<Context>(
 			Ok(known) => known,
 		};
 
-	let sender_group_index = per_relay_parent
+	let originator_group = per_relay_parent
 		.statement_store
-		.validator_group_index(sender_index)
+		.validator_group_index(originator_index)
 		.expect("validator confirmed to be known by statement_store.insert; qed");
 
 	// Insert an unconfirmed candidate entry if needed
-	let candidate_entry = per_relay_parent
-		.candidates
-		.entry(candidate_hash)
-		.or_insert_with(|| CandidateEntry::unconfirmed(candidate_hash));
+	let res = state.candidates.insert_unconfirmed(
+		peer.clone(),
+		candidate_hash,
+		relay_parent,
+		originator_group,
+		None,
+	);
 
-	// If the candidate is not confirmed, note that we should attempt
-	// to request it from the given peer.
-	if !candidate_entry.is_confirmed() {
+	if let Err(BadAdvertisement) = res {
+		// TODO [now]: punish the peer.
+		// TODO [now]: return?
+	} else if !state.candidates.is_confirmed(&candidate_hash) {
+		// If the candidate is not confirmed, note that we should attempt
+		// to request it from the given peer.
 		let mut request_entry =
 			state
 				.request_manager
-				.get_or_insert(relay_parent, candidate_hash, sender_group_index);
+				.get_or_insert(relay_parent, candidate_hash, originator_group);
+
 		request_entry.get_mut().add_peer(peer);
 		request_entry.get_mut().set_cluster_priority();
 	}
