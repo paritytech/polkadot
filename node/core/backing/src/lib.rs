@@ -96,7 +96,9 @@ use polkadot_node_subsystem_util::{
 	self as util,
 	backing_implicit_view::{FetchError as ImplicitViewFetchError, View as ImplicitView},
 	request_from_runtime, request_session_index_for_child, request_validator_groups,
-	request_validators, Validator,
+	request_validators,
+	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
+	Validator,
 };
 use polkadot_primitives::v2::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt,
@@ -223,20 +225,6 @@ struct PerCandidateState {
 	seconded_locally: bool,
 	para_id: ParaId,
 	relay_parent: Hash,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum ProspectiveParachainsMode {
-	// v2 runtime API: no prospective parachains.
-	Disabled,
-	// vstaging runtime API: prospective parachains.
-	Enabled,
-}
-
-impl ProspectiveParachainsMode {
-	fn is_enabled(&self) -> bool {
-		self == &ProspectiveParachainsMode::Enabled
-	}
 }
 
 struct ActiveLeafState {
@@ -776,37 +764,6 @@ async fn handle_communication<Context>(
 }
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn prospective_parachains_mode<Context>(
-	ctx: &mut Context,
-	leaf_hash: Hash,
-) -> Result<ProspectiveParachainsMode, Error> {
-	// TODO: call a Runtime API once staging version is available
-	// https://github.com/paritytech/substrate/discussions/11338
-
-	let (tx, rx) = oneshot::channel();
-	ctx.send_message(RuntimeApiMessage::Request(leaf_hash, RuntimeApiRequest::Version(tx)))
-		.await;
-
-	let version = rx
-		.await
-		.map_err(Error::RuntimeApiUnavailable)?
-		.map_err(Error::FetchRuntimeApiVersion)?;
-
-	if version >= RuntimeApiRequest::VALIDITY_CONSTRAINTS {
-		Ok(ProspectiveParachainsMode::Enabled)
-	} else {
-		if version < 2 {
-			gum::warn!(
-				target: LOG_TARGET,
-				"Runtime API version is {}, it is expected to be at least 2. Prospective parachains are disabled",
-				version
-			);
-		}
-		Ok(ProspectiveParachainsMode::Disabled)
-	}
-}
-
-#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn handle_active_leaves_update<Context>(
 	ctx: &mut Context,
 	update: ActiveLeavesUpdate,
@@ -822,7 +779,7 @@ async fn handle_active_leaves_update<Context>(
 	let res = if let Some(leaf) = update.activated {
 		// Only activate in implicit view if prospective
 		// parachains are enabled.
-		let mode = prospective_parachains_mode(ctx, leaf.hash).await?;
+		let mode = prospective_parachains_mode(ctx.sender(), leaf.hash).await?;
 
 		let leaf_hash = leaf.hash;
 		Some((

@@ -52,9 +52,6 @@ pub enum Error {
 	#[error(transparent)]
 	ImplicitViewFetchError(backing_implicit_view::FetchError),
 
-	#[error("Response receiver for Runtime API version request cancelled")]
-	CancelledRuntimeApiVersion(oneshot::Canceled),
-
 	#[error("Response receiver for active validators request cancelled")]
 	CancelledActiveValidators(oneshot::Canceled),
 

@@ -39,7 +39,10 @@ use polkadot_node_subsystem::{
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
-use polkadot_node_subsystem_util::inclusion_emulator::staging::{Constraints, RelayChainBlockInfo};
+use polkadot_node_subsystem_util::{
+	inclusion_emulator::staging::{Constraints, RelayChainBlockInfo},
+	runtime::prospective_parachains_mode,
+};
 use polkadot_primitives::vstaging::{
 	BlockNumber, CandidateHash, CommittedCandidateReceipt, CoreState, Hash, Id as ParaId,
 	PersistedValidationData,
@@ -163,10 +166,22 @@ async fn handle_active_leaves_update<Context>(
 	}
 
 	for activated in update.activated.into_iter() {
-		// TODO [now]: skip leaves which don't have prospective parachains
-		// enabled. This should be a runtime API version check.
-
 		let hash = activated.hash;
+
+		let mode = prospective_parachains_mode(ctx.sender(), hash)
+			.await
+			.map_err(JfyiError::Runtime)?;
+		if !mode.is_enabled() {
+			gum::trace!(
+				target: LOG_TARGET,
+				block_hash = ?hash,
+				"Skipping leaf activation since async backing is disabled"
+			);
+
+			// Not a part of any allowed ancestry.
+			return Ok(())
+		}
+
 		let scheduled_paras = fetch_upcoming_paras(&mut *ctx, hash).await?;
 
 		let block_info: RelayChainBlockInfo = match fetch_block_info(&mut *ctx, hash).await? {

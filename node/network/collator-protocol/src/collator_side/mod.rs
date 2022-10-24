@@ -46,7 +46,10 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	backing_implicit_view::View as ImplicitView,
-	runtime::{get_availability_cores, get_group_rotation_info, RuntimeInfo},
+	runtime::{
+		get_availability_cores, get_group_rotation_info, prospective_parachains_mode,
+		ProspectiveParachainsMode, RuntimeInfo,
+	},
 	TimeoutExt,
 };
 use polkadot_primitives::v2::{
@@ -54,9 +57,7 @@ use polkadot_primitives::v2::{
 	GroupIndex, Hash, Id as ParaId, SessionIndex,
 };
 
-use super::{
-	prospective_parachains_mode, ProspectiveParachainsMode, LOG_TARGET, MAX_CANDIDATE_DEPTH,
-};
+use super::{LOG_TARGET, MAX_CANDIDATE_DEPTH};
 use crate::{
 	error::{log_error, Error, FatalError, Result},
 	modify_reputation,

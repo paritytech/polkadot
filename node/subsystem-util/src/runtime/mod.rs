@@ -25,7 +25,10 @@ use sp_application_crypto::AppKey;
 use sp_core::crypto::ByteArray;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
-use polkadot_node_subsystem::{messages::RuntimeApiMessage, overseer, SubsystemSender};
+use polkadot_node_subsystem::{
+	messages::{RuntimeApiMessage, RuntimeApiRequest},
+	overseer, SubsystemSender,
+};
 use polkadot_primitives::v2::{
 	CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore,
 	ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned,
@@ -34,8 +37,8 @@ use polkadot_primitives::v2::{
 
 use crate::{
 	request_availability_cores, request_candidate_events, request_on_chain_votes,
-	request_session_index_for_child, request_session_info, request_validation_code_by_hash,
-	request_validator_groups,
+	request_runtime_api_version, request_session_index_for_child, request_session_info,
+	request_validation_code_by_hash, request_validator_groups,
 };
 
 /// Errors that can happen on runtime fetches.
@@ -43,6 +46,8 @@ mod error;
 
 use error::{recv_runtime, Result};
 pub use error::{Error, FatalError, JfyiError};
+
+const LOG_TARGET: &'static str = "parachain::runtime-info";
 
 /// Configuration for construction a `RuntimeInfo`.
 pub struct Config {
@@ -339,6 +344,51 @@ where
 {
 	recv_runtime(request_validation_code_by_hash(relay_parent, validation_code_hash, sender).await)
 		.await
+}
+
+/// Prospective parachains mode of a relay parent. Defined by
+/// the Runtime API version.
+///
+/// Needed for the period of transition to asynchronous backing.
+#[derive(Debug, Copy, Clone)]
+pub enum ProspectiveParachainsMode {
+	/// v2 runtime API: no prospective parachains.
+	Disabled,
+	/// vstaging runtime API: prospective parachains.
+	Enabled,
+}
+
+impl ProspectiveParachainsMode {
+	/// Returns `true` if mode is enabled, `false` otherwise.
+	pub fn is_enabled(&self) -> bool {
+		matches!(self, ProspectiveParachainsMode::Enabled)
+	}
+}
+
+/// Requests prospective parachains mode for a given relay parent based on
+/// the Runtime API version.
+pub async fn prospective_parachains_mode<Sender>(
+	sender: &mut Sender,
+	relay_parent: Hash,
+) -> Result<ProspectiveParachainsMode>
+where
+	Sender: SubsystemSender<RuntimeApiMessage>,
+{
+	let version = recv_runtime(request_runtime_api_version(relay_parent, sender).await).await?;
+
+	if version >= RuntimeApiRequest::VALIDITY_CONSTRAINTS {
+		Ok(ProspectiveParachainsMode::Enabled)
+	} else {
+		if version < 2 {
+			gum::warn!(
+				target: LOG_TARGET,
+				?relay_parent,
+				"Runtime API version is {}, it is expected to be at least 2. Prospective parachains are disabled",
+				version
+			);
+		}
+		Ok(ProspectiveParachainsMode::Disabled)
+	}
 }
 
 // TODO [now] : a way of getting all [`ContextLimitations`] from runtime.

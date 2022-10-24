@@ -195,6 +195,7 @@ macro_rules! specialize_requests {
 }
 
 specialize_requests! {
+	fn request_runtime_api_version() -> u32; Version;
 	fn request_authorities() -> Vec<AuthorityDiscoveryId>; Authorities;
 	fn request_validators() -> Vec<ValidatorId>; Validators;
 	fn request_validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo); ValidatorGroups;
