@@ -81,6 +81,7 @@ pub trait SlashingHandler<BlockNumber> {
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
+		backers: impl IntoIterator<Item = ValidatorIndex>,
 	);
 
 	/// Punish a series of validators who were against a valid parablock. This
@@ -89,6 +90,7 @@ pub trait SlashingHandler<BlockNumber> {
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
+		backers: impl IntoIterator<Item = ValidatorIndex>,
 	);
 
 	/// Called by the initializer to initialize the slashing pallet.
@@ -106,12 +108,14 @@ impl<BlockNumber> SlashingHandler<BlockNumber> for () {
 		_: SessionIndex,
 		_: CandidateHash,
 		_: impl IntoIterator<Item = ValidatorIndex>,
+		_: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 	}
 
 	fn punish_against_valid(
 		_: SessionIndex,
 		_: CandidateHash,
+		_: impl IntoIterator<Item = ValidatorIndex>,
 		_: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 	}
@@ -459,6 +463,18 @@ pub mod pallet {
 		DisputeState<T::BlockNumber>,
 	>;
 
+	/// Backing votes stored for each dispute.
+	/// This storage is used for slashing.
+	#[pallet::storage]
+	pub(super) type BackersOnDisputes<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		SessionIndex,
+		Blake2_128Concat,
+		CandidateHash,
+		Vec<ValidatorIndex>,
+	>;
+
 	/// All included blocks on the chain, as well as the block number in this chain that
 	/// should be reverted back to if the candidate is disputed and determined to be invalid.
 	#[pallet::storage]
@@ -521,6 +537,8 @@ pub mod pallet {
 		PotentialSpam,
 		/// A dispute where there are only votes on one side.
 		SingleSidedDispute,
+		/// No backing votes were provides along dispute statements.
+		MissingBackingVotes,
 	}
 
 	#[pallet::call]
@@ -888,6 +906,8 @@ impl<T: Config> Pallet<T> {
 				// This should be small, as disputes are rare, so `None` is fine.
 				#[allow(deprecated)]
 				<Disputes<T>>::remove_prefix(to_prune, None);
+				#[allow(deprecated)]
+				<BackersOnDisputes<T>>::remove_prefix(to_prune, None);
 
 				// This is larger, and will be extracted to the `shared` pallet for more proper pruning.
 				// TODO: https://github.com/paritytech/polkadot/issues/3469
@@ -984,7 +1004,8 @@ impl<T: Config> Pallet<T> {
 		let mut summary = {
 			let mut importer = DisputeStateImporter::new(dispute_state, now);
 			for (i, (statement, validator_index, signature)) in set.statements.iter().enumerate() {
-				// assure the validator index and is present in the session info
+				// ensure the validator index is present in the session info
+				// and the signature is valid
 				let validator_public = match session_info.validators.get(*validator_index) {
 					None => {
 						filter.remove_index(i);
@@ -1181,6 +1202,9 @@ impl<T: Config> Pallet<T> {
 			}
 		};
 
+		let mut backers =
+			<BackersOnDisputes<T>>::get(&set.session, &set.candidate_hash).unwrap_or_default();
+
 		// Import all votes. They were pre-checked.
 		let summary = {
 			let mut importer = DisputeStateImporter::new(dispute_state, now);
@@ -1188,6 +1212,14 @@ impl<T: Config> Pallet<T> {
 				let valid = statement.indicates_validity();
 
 				importer.import(*validator_index, valid).map_err(Error::<T>::from)?;
+
+				match statement {
+					DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(_)) |
+					DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(_)) => {
+						backers.push(validator_index.clone());
+					},
+					_ => {},
+				}
 			}
 
 			importer.finish()
@@ -1199,6 +1231,11 @@ impl<T: Config> Pallet<T> {
 				summary.state.validators_against.count_ones() > 0,
 			Error::<T>::SingleSidedDispute,
 		);
+
+		// Reject statements with no accompanying backing votes.
+		ensure!(!backers.is_empty(), Error::<T>::MissingBackingVotes,);
+
+		<BackersOnDisputes<T>>::insert(&set.session, &set.candidate_hash, backers.clone());
 
 		let DisputeStatementSet { ref session, ref candidate_hash, .. } = set;
 		let session = *session;
@@ -1246,10 +1283,16 @@ impl<T: Config> Pallet<T> {
 				session,
 				candidate_hash,
 				summary.slash_against,
+				backers.clone(),
 			);
 
 			// an invalid candidate, according to 2/3. Punish those on the 'for' side.
-			T::SlashingHandler::punish_for_invalid(session, candidate_hash, summary.slash_for);
+			T::SlashingHandler::punish_for_invalid(
+				session,
+				candidate_hash,
+				summary.slash_for,
+				backers,
+			);
 		}
 
 		<Disputes<T>>::insert(&session, &candidate_hash, &summary.state);
