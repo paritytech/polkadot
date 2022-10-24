@@ -386,6 +386,12 @@ dispute coordinator level (dispute-distribution also has its own), which is spam
 slots. For each import, where we don't know whether it might be spam or not we
 increment a counter for each signing participant of explicit `invalid` votes.
 
+What votes do we treat as a potential spam? A vote will increase a spam slot if
+and only if all of the following condidions are satisfied:
+* the candidate under dispute is not included on any chain
+* the dispute is not confirmed
+* we haven't casted a vote for the dispute
+
 The reason this works is because we only need to worry about actual dispute
 votes. Import of backing votes are already rate limited and concern only real
 candidates for approval votes a similar argument holds (if they come from
