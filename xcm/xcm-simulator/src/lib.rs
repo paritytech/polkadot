@@ -77,17 +77,17 @@ pub fn encode_xcm(message: Xcm<()>, message_kind: MessageKind) -> Vec<u8> {
 	}
 }
 
-/// Expects a relay chain struct as an argument and implements UMP for it. The
-/// provided struct needs to have the `Runtime` and `XcmConfig` defined. Also
-/// expects the `TestExternalities` to be provided in the relay chain struct.
+/// The macro is implementing upward message passing(UMP) for the provided relay
+/// chain struct. The struct has to provide the XCM configuration for the relay
+/// chain.
 ///
 /// ```ignore
 /// decl_test_relay_chain! {
-///		pub struct Relay {
-///			Runtime = relay_chain::Runtime,
-///			XcmConfig = relay_chain::XcmConfig,
-///			new_ext = relay_ext(),
-///		}
+///	    pub struct Relay {
+///	        Runtime = relay_chain::Runtime,
+///	        XcmConfig = relay_chain::XcmConfig,
+///	        new_ext = relay_ext(),
+///	    }
 ///	}
 /// ```
 #[macro_export]
@@ -122,19 +122,19 @@ macro_rules! decl_test_relay_chain {
 	};
 }
 
-/// Expects a parachain struct as an argument and implements`DmpMessageHandlerT`
-/// and `XcmpMessageHandlerT` traits for it. The macro expects the provided struct
-/// to define `Runtime`, `DmpMessageHandler` and `XcmpMessageHandler`. Also expects
-/// the `TestExternalities` to be provided in the relay chain struct.
+/// The macro is implementing the `XcmMessageHandlerT` and `DmpMessageHandlerT`
+/// traits for the provided parachain struct. Expects the provided parachain
+/// struct to define the XcmpMessageHandler and DmpMessageHandler pallets that
+/// contain the message handling logic.
 ///
 /// ```ignore
 /// decl_test_parachain! {
-///		pub struct ParaA {
-///			Runtime = parachain::Runtime,
-///			XcmpMessageHandler = parachain::MsgQueue,
-///			DmpMessageHandler = parachain::MsgQueue,
-///			new_ext = para_ext(),
-///		}
+///	    pub struct ParaA {
+///	        Runtime = parachain::Runtime,
+///	        XcmpMessageHandler = parachain::MsgQueue,
+///	        DmpMessageHandler = parachain::MsgQueue,
+///	        new_ext = para_ext(),
+///	    }
 /// }
 /// ```
 #[macro_export]
@@ -232,20 +232,21 @@ thread_local! {
 		= RefCell::new(VecDeque::new());
 }
 
-/// Declares a test network. Expects a network struct as an argument and
-/// implements some functionality for testing and the `ParachainXcmRouter` and
-/// `RelayChainXcmRouter`. The struct needs to contain the relay chain struct
-/// and an indexed list of parachains that are going to be in the network.
+/// Declares a test network that consists of a relay chain and multiple
+/// parachains. Expects a network struct as an argument and implements testing
+/// functionality, `ParachainXcmRouter` and the `RelayChainXcmRouter`. The
+/// struct needs to contain the relay chain struct and an indexed list of
+/// parachains that are going to be in the network.
 ///
 /// ```ignore
 /// decl_test_network! {
-///		pub struct ExampleNet {
-///			relay_chain = Relay,
-///			parachains = vec![
-///				(1, ParaA),
-///				(2, ParaB),
-///			],
-///		}
+///	    pub struct ExampleNet {
+///	        relay_chain = Relay,
+///	        parachains = vec![
+///	            (1, ParaA),
+///	            (2, ParaB),
+///	        ],
+///	    }
 /// }
 /// ```
 #[macro_export]
