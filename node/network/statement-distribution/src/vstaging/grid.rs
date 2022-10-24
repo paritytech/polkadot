@@ -608,12 +608,15 @@ mod tests {
 	fn reject_disallowed_manifest() {
 		let mut tracker = PerRelayParentGridTracker::default();
 		let session_topology = SessionTopologyView {
-			group_views: vec![
-				(GroupIndex(0), GroupSubView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
 					sending: HashSet::new(),
 					receiving: vec![ValidatorIndex(0)].into_iter().collect(),
-				})
-			].into_iter().collect(),
+				},
+			)]
+			.into_iter()
+			.collect(),
 		};
 
 		let groups = Groups::new(
@@ -627,10 +630,7 @@ mod tests {
 
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
-		assert_eq!(
-			groups.get_size_and_backing_threshold(GroupIndex(0)),
-			Some((3, 2)),
-		);
+		assert_eq!(groups.get_size_and_backing_threshold(GroupIndex(0)), Some((3, 2)),);
 
 		// Known group, disallowed receiving validator.
 
@@ -675,12 +675,15 @@ mod tests {
 	fn reject_malformed_wrong_group_size() {
 		let mut tracker = PerRelayParentGridTracker::default();
 		let session_topology = SessionTopologyView {
-			group_views: vec![
-				(GroupIndex(0), GroupSubView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
 					sending: HashSet::new(),
 					receiving: vec![ValidatorIndex(0)].into_iter().collect(),
-				})
-			].into_iter().collect(),
+				},
+			)]
+			.into_iter()
+			.collect(),
 		};
 
 		let groups = Groups::new(
@@ -694,10 +697,7 @@ mod tests {
 
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
-		assert_eq!(
-			groups.get_size_and_backing_threshold(GroupIndex(0)),
-			Some((3, 2)),
-		);
+		assert_eq!(groups.get_size_and_backing_threshold(GroupIndex(0)), Some((3, 2)),);
 
 		assert_matches!(
 			tracker.import_manifest(
@@ -738,12 +738,15 @@ mod tests {
 	fn reject_malformed_no_seconders() {
 		let mut tracker = PerRelayParentGridTracker::default();
 		let session_topology = SessionTopologyView {
-			group_views: vec![
-				(GroupIndex(0), GroupSubView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
 					sending: HashSet::new(),
 					receiving: vec![ValidatorIndex(0)].into_iter().collect(),
-				})
-			].into_iter().collect(),
+				},
+			)]
+			.into_iter()
+			.collect(),
 		};
 
 		let groups = Groups::new(
@@ -757,10 +760,7 @@ mod tests {
 
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
-		assert_eq!(
-			groups.get_size_and_backing_threshold(GroupIndex(0)),
-			Some((3, 2)),
-		);
+		assert_eq!(groups.get_size_and_backing_threshold(GroupIndex(0)), Some((3, 2)),);
 
 		assert_matches!(
 			tracker.import_manifest(
@@ -784,12 +784,15 @@ mod tests {
 	fn reject_malformed_below_threshold() {
 		let mut tracker = PerRelayParentGridTracker::default();
 		let session_topology = SessionTopologyView {
-			group_views: vec![
-				(GroupIndex(0), GroupSubView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
 					sending: HashSet::new(),
 					receiving: vec![ValidatorIndex(0)].into_iter().collect(),
-				})
-			].into_iter().collect(),
+				},
+			)]
+			.into_iter()
+			.collect(),
 		};
 
 		let groups = Groups::new(
@@ -803,10 +806,7 @@ mod tests {
 
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
-		assert_eq!(
-			groups.get_size_and_backing_threshold(GroupIndex(0)),
-			Some((3, 2)),
-		);
+		assert_eq!(groups.get_size_and_backing_threshold(GroupIndex(0)), Some((3, 2)),);
 
 		// only one vote
 
