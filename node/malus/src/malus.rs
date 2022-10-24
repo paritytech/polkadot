@@ -28,8 +28,7 @@ use variants::*;
 
 /// Define the different variants of behavior.
 #[derive(Debug, Parser)]
-#[clap(about = "Malus - the nemesis of polkadot.", version)]
-#[clap(rename_all = "kebab-case")]
+#[command(about = "Malus - the nemesis of polkadot.", version, rename_all = "kebab-case")]
 enum NemesisVariant {
 	/// Suggest a candidate with an invalid proof of validity.
 	SuggestGarbageCandidate(SuggestGarbageCandidateOptions),
@@ -39,18 +38,18 @@ enum NemesisVariant {
 	DisputeAncestor(DisputeAncestorOptions),
 
 	#[allow(missing_docs)]
-	#[clap(name = "prepare-worker", hide = true)]
+	#[command(name = "prepare-worker", hide = true)]
 	PvfPrepareWorker(polkadot_cli::ValidationWorkerCommand),
 
 	#[allow(missing_docs)]
-	#[clap(name = "execute-worker", hide = true)]
+	#[command(name = "execute-worker", hide = true)]
 	PvfExecuteWorker(polkadot_cli::ValidationWorkerCommand),
 }
 
 #[derive(Debug, Parser)]
 #[allow(missing_docs)]
 struct MalusCli {
-	#[clap(subcommand)]
+	#[command(subcommand)]
 	pub variant: NemesisVariant,
 	/// Sets the minimum delay between the best and finalized block.
 	pub finality_delay: Option<u32>,

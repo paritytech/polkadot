@@ -23,7 +23,7 @@ use polkadot_test_client::{
 };
 use polkadot_test_runtime::pallet_test_notifier;
 use polkadot_test_service::construct_extrinsic;
-use sp_runtime::{generic::BlockId, traits::Block};
+use sp_runtime::traits::Block;
 use sp_state_machine::InspectState;
 use xcm::{latest::prelude::*, VersionedResponse, VersionedXcm};
 
@@ -60,17 +60,14 @@ fn basic_buy_fees_message_executes() {
 	futures::executor::block_on(client.import(sp_consensus::BlockOrigin::Own, block))
 		.expect("imports the block");
 
-	client
-		.state_at(&BlockId::Hash(block_hash))
-		.expect("state should exist")
-		.inspect_state(|| {
-			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
-				r.event,
-				polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::Attempted(
-					Outcome::Complete(_)
-				)),
-			)));
-		});
+	client.state_at(&block_hash).expect("state should exist").inspect_state(|| {
+		assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
+			r.event,
+			polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::Attempted(
+				Outcome::Complete(_)
+			)),
+		)));
+	});
 }
 
 #[test]
@@ -104,17 +101,14 @@ fn query_response_fires() {
 		.expect("imports the block");
 
 	let mut query_id = None;
-	client
-		.state_at(&BlockId::Hash(block_hash))
-		.expect("state should exist")
-		.inspect_state(|| {
-			for r in polkadot_test_runtime::System::events().iter() {
-				match r.event {
-					TestNotifier(QueryPrepared(q)) => query_id = Some(q),
-					_ => (),
-				}
+	client.state_at(&block_hash).expect("state should exist").inspect_state(|| {
+		for r in polkadot_test_runtime::System::events().iter() {
+			match r.event {
+				TestNotifier(QueryPrepared(q)) => query_id = Some(q),
+				_ => (),
 			}
-		});
+		}
+	});
 	let query_id = query_id.unwrap();
 
 	let mut block_builder = client.init_polkadot_block_builder();
@@ -142,25 +136,22 @@ fn query_response_fires() {
 	futures::executor::block_on(client.import(sp_consensus::BlockOrigin::Own, block))
 		.expect("imports the block");
 
-	client
-		.state_at(&BlockId::Hash(block_hash))
-		.expect("state should exist")
-		.inspect_state(|| {
-			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
-				r.event,
-				polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::ResponseReady(
-					q,
-					Response::ExecutionResult(None),
-				)) if q == query_id,
-			)));
-			assert_eq!(
-				polkadot_test_runtime::Xcm::query(query_id),
-				Some(QueryStatus::Ready {
-					response: VersionedResponse::V2(Response::ExecutionResult(None)),
-					at: 2u32.into()
-				}),
-			)
-		});
+	client.state_at(&block_hash).expect("state should exist").inspect_state(|| {
+		assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
+			r.event,
+			polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::ResponseReady(
+				q,
+				Response::ExecutionResult(None),
+			)) if q == query_id,
+		)));
+		assert_eq!(
+			polkadot_test_runtime::Xcm::query(query_id),
+			Some(QueryStatus::Ready {
+				response: VersionedResponse::V2(Response::ExecutionResult(None)),
+				at: 2u32.into()
+			}),
+		)
+	});
 }
 
 #[test]
@@ -193,17 +184,14 @@ fn query_response_elicits_handler() {
 		.expect("imports the block");
 
 	let mut query_id = None;
-	client
-		.state_at(&BlockId::Hash(block_hash))
-		.expect("state should exist")
-		.inspect_state(|| {
-			for r in polkadot_test_runtime::System::events().iter() {
-				match r.event {
-					TestNotifier(NotifyQueryPrepared(q)) => query_id = Some(q),
-					_ => (),
-				}
+	client.state_at(&block_hash).expect("state should exist").inspect_state(|| {
+		for r in polkadot_test_runtime::System::events().iter() {
+			match r.event {
+				TestNotifier(NotifyQueryPrepared(q)) => query_id = Some(q),
+				_ => (),
 			}
-		});
+		}
+	});
 	let query_id = query_id.unwrap();
 
 	let mut block_builder = client.init_polkadot_block_builder();
@@ -230,17 +218,14 @@ fn query_response_elicits_handler() {
 	futures::executor::block_on(client.import(sp_consensus::BlockOrigin::Own, block))
 		.expect("imports the block");
 
-	client
-		.state_at(&BlockId::Hash(block_hash))
-		.expect("state should exist")
-		.inspect_state(|| {
-			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
-				r.event,
-				TestNotifier(ResponseReceived(
-					MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { .. }) },
-					q,
-					Response::ExecutionResult(None),
-				)) if q == query_id,
-			)));
-		});
+	client.state_at(&block_hash).expect("state should exist").inspect_state(|| {
+		assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
+			r.event,
+			TestNotifier(ResponseReceived(
+				MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { .. }) },
+				q,
+				Response::ExecutionResult(None),
+			)) if q == query_id,
+		)));
+	});
 }
