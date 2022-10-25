@@ -126,12 +126,12 @@ impl<T: Config> Pallet<T> {
 
 		let dispute_period = config.dispute_period;
 
-		let validators = notification.validators.clone();
+		let validators = notification.validators.clone().into();
 		let discovery_keys = <T as AuthorityDiscoveryConfig>::authorities();
 		let assignment_keys = AssignmentKeysUnsafe::<T>::get();
 		let active_set = <shared::Pallet<T>>::active_validator_indices();
 
-		let validator_groups = <scheduler::Pallet<T>>::validator_groups();
+		let validator_groups = <scheduler::Pallet<T>>::validator_groups().into();
 		let n_cores = <scheduler::Pallet<T>>::availability_cores().len() as u32;
 		let zeroth_delay_tranche_width = config.zeroth_delay_tranche_width;
 		let relay_vrf_modulo_samples = config.relay_vrf_modulo_samples;

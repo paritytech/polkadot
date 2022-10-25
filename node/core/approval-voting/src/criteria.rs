@@ -21,7 +21,8 @@ use polkadot_node_primitives::approval::{
 	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
 };
 use polkadot_primitives::v2::{
-	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, SessionInfo, ValidatorIndex,
+	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, IndexedVec, SessionInfo,
+	ValidatorIndex,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::ByteArray;
@@ -138,7 +139,7 @@ pub(crate) struct Config {
 	/// The assignment public keys for validators.
 	assignment_keys: Vec<AssignmentId>,
 	/// The groups of validators assigned to each core.
-	validator_groups: Vec<Vec<ValidatorIndex>>,
+	validator_groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
 	/// The number of availability cores used by the protocol during this session.
 	n_cores: u32,
 	/// The zeroth delay tranche width.
@@ -541,11 +542,11 @@ pub(crate) fn check_assignment_cert(
 }
 
 fn is_in_backing_group(
-	validator_groups: &[Vec<ValidatorIndex>],
+	validator_groups: &IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
 	validator: ValidatorIndex,
 	group: GroupIndex,
 ) -> bool {
-	validator_groups.get(group.0 as usize).map_or(false, |g| g.contains(&validator))
+	validator_groups.get(group).map_or(false, |g| g.contains(&validator))
 }
 
 #[cfg(test)]
@@ -590,7 +591,10 @@ mod tests {
 			.collect()
 	}
 
-	fn basic_groups(n_validators: usize, n_groups: usize) -> Vec<Vec<ValidatorIndex>> {
+	fn basic_groups(
+		n_validators: usize,
+		n_groups: usize,
+	) -> IndexedVec<GroupIndex, Vec<ValidatorIndex>> {
 		let size = n_validators / n_groups;
 		let big_groups = n_validators % n_groups;
 		let scraps = n_groups * size;
@@ -631,10 +635,10 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: vec![
+				validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
 					vec![ValidatorIndex(0)],
 					vec![ValidatorIndex(1), ValidatorIndex(2)],
-				],
+				]),
 				n_cores: 2,
 				zeroth_delay_tranche_width: 10,
 				relay_vrf_modulo_samples: 3,
@@ -666,10 +670,10 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: vec![
+				validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
 					vec![ValidatorIndex(0)],
 					vec![ValidatorIndex(1), ValidatorIndex(2)],
-				],
+				]),
 				n_cores: 2,
 				zeroth_delay_tranche_width: 10,
 				relay_vrf_modulo_samples: 3,
@@ -696,7 +700,7 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: vec![],
+				validator_groups: Default::default(),
 				n_cores: 0,
 				zeroth_delay_tranche_width: 10,
 				relay_vrf_modulo_samples: 3,

@@ -135,11 +135,11 @@ impl DisputeMessage {
 
 		let valid_id = session_info
 			.validators
-			.get(valid_index.0 as usize)
+			.get(valid_index)
 			.ok_or(Error::ValidStatementInvalidValidatorIndex)?;
 		let invalid_id = session_info
 			.validators
-			.get(invalid_index.0 as usize)
+			.get(invalid_index)
 			.ok_or(Error::InvalidStatementInvalidValidatorIndex)?;
 
 		if valid_id != valid_statement.validator_public() {
@@ -223,8 +223,7 @@ impl UncheckedDisputeMessage {
 
 		let vote_valid = {
 			let ValidDisputeVote { validator_index, signature, kind } = valid_vote;
-			let validator_public =
-				session_info.validators.get(validator_index.0 as usize).ok_or(())?.clone();
+			let validator_public = session_info.validators.get(validator_index).ok_or(())?.clone();
 
 			(
 				SignedDisputeStatement::new_checked(
@@ -240,8 +239,7 @@ impl UncheckedDisputeMessage {
 
 		let vote_invalid = {
 			let InvalidDisputeVote { validator_index, signature, kind } = invalid_vote;
-			let validator_public =
-				session_info.validators.get(validator_index.0 as usize).ok_or(())?.clone();
+			let validator_public = session_info.validators.get(validator_index).ok_or(())?.clone();
 
 			(
 				SignedDisputeStatement::new_checked(
