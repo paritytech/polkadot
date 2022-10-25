@@ -520,6 +520,7 @@ impl pallet_fast_unstake::Config for Runtime {
 	type DepositCurrency = Balances;
 	type Deposit = frame_support::traits::ConstU128<{ UNITS }>;
 	type ControlOrigin = EnsureRoot<AccountId>;
+	type BatchSize = ConstU32<128>;
 	type WeightInfo = weights::pallet_fast_unstake::WeightInfo<Runtime>;
 }
 
