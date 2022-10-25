@@ -8,6 +8,12 @@ This project will fuzz-test the XCM simulator. It can catch reachable panics, ti
 cargo hfuzz run xcm-fuzzer
 ```
 
+## Run a single input
+
+```
+cargo hfuzz run-debug xcm-fuzzer hfuzz_workspace/xcm-fuzzer/fuzzer_input_file
+```
+
 ## Generate coverage
 
 In this directory, run these four commands:
