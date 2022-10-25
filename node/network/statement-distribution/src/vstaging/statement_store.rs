@@ -75,6 +75,7 @@ impl StatementStore {
 
 	/// Insert a statement. Returns `true` if was not known already, `false` if it was.
 	/// Ignores statements by unknown validators and returns an error.
+	// TODO [now]: perhaps reject over-seconded statements.
 	pub fn insert(
 		&mut self,
 		groups: &Groups,

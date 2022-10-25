@@ -156,12 +156,19 @@ pub fn build_session_topology(
 	view
 }
 
+/// Actions that can be taken once affirming that a candidate is backed.
+pub enum PostBackingAction {
+	Acknowledge,
+	Advertise,
+}
+
 /// A tracker of knowledge from authorities within the grid for the
 /// entire session. This stores only data on manifests sent within a bounded
 /// set of relay-parents.
 #[derive(Default)]
 pub struct PerRelayParentGridTracker {
-	received: HashMap<ValidatorIndex, ManifestKnowledge>,
+	received: HashMap<ValidatorIndex, ReceivedManifests>,
+	known: HashMap<CandidateHash, KnownBackedCandidate>,
 }
 
 impl PerRelayParentGridTracker {
@@ -219,12 +226,109 @@ impl PerRelayParentGridTracker {
 			return Err(ManifestImportError::Malformed)
 		}
 
+		// TODO [now]: disallow manifests when we've advertised to them
+		// or have already acknowledged their advertisement. can be racy,
+		// misbehavior should be minor.
+
 		self.received.entry(sender).or_default().import_received(
 			group_size,
 			seconding_limit,
 			candidate_hash,
 			manifest,
 		)
+
+		// TODO [now]: update remote mutual knowledge for candidate.
+	}
+
+	/// Add a new backed candidate to the tracker. This yields
+	/// an iterator of validators which we should either advertise to
+	/// or signal that we know the candidate.
+	pub fn add_backed_candidate(
+		&mut self,
+		session_topology: &SessionTopologyView,
+		candidate_hash: CandidateHash,
+		group_index: GroupIndex,
+		group_size: usize,
+	) -> Vec<(ValidatorIndex, PostBackingAction)> {
+		let c = self.known.entry(candidate_hash).or_insert_with(|| KnownBackedCandidate {
+			confirmed_backed: false,
+			group_index,
+			mutual_knowledge: HashMap::new(),
+		});
+
+		c.note_confirmed_backed();
+
+		let mut actions = Vec::new();
+		let group_topology = match session_topology.group_views.get(&group_index) {
+			None => return actions,
+			Some(g) => g,
+		};
+
+		// advertise onwards ad accept received advertisements
+
+		for &v in &group_topology.sending {
+			if c.should_advertise(v) {
+				actions.push((v, PostBackingAction::Advertise))
+			}
+		}
+
+		for &v in &group_topology.receiving {
+			if c.can_local_acknowledge(v) {
+				actions.push((v, PostBackingAction::Acknowledge))
+			}
+		}
+
+		actions
+	}
+
+	/// Note that a backed candidate has been advertised to a
+	/// given validator.
+	pub fn note_advertised_to(
+		&mut self,
+		validator_index: ValidatorIndex,
+		candidate_hash: CandidateHash,
+	) {
+		unimplemented!()
+	}
+
+	/// Provided a validator index, gives an iterator of candidate
+	/// hashes which may be advertised to the validator and have not yet
+	/// been.
+	pub fn advertisements(
+		&self,
+		session_topology: &SessionTopologyView,
+		validator_index: ValidatorIndex,
+	) -> Vec<CandidateHash> { // TODO [now]: impl iterator
+		unimplemented!()
+	}
+
+	/// Whether the given validator is allowed to acknowledge an advertisement
+	/// via request.
+	pub fn can_remote_acknowledge(
+		&self,
+		validator_index: ValidatorIndex,
+		candidate_hash: CandidateHash,
+	) -> bool {
+		unimplemented!()
+	}
+
+	/// note that a validator peer we advertised a backed candidate to
+	/// now knows the candidate without a doubt.
+	pub fn note_known(
+		&mut self,
+		validator_index: ValidatorIndex,
+		candidate_hash: CandidateHash,
+	) {
+		unimplemented!()
+	}
+
+	/// Whether a validator peer knows the underlying candidate.
+	pub fn known_by(
+		&self,
+		validator_index: ValidatorIndex,
+		candidate_hash: CandidateHash,
+	) {
+
 	}
 }
 
@@ -262,15 +366,15 @@ pub enum ManifestImportError {
 
 /// The knowledge we are awawre of counterparties having of manifests.
 #[derive(Default)]
-struct ManifestKnowledge {
+struct ReceivedManifests {
 	received: HashMap<CandidateHash, ManifestSummary>,
 	// group -> seconded counts.
 	seconded_counts: HashMap<GroupIndex, Vec<usize>>,
 }
 
-impl ManifestKnowledge {
+impl ReceivedManifests {
 	fn new() -> Self {
-		ManifestKnowledge { received: HashMap::new(), seconded_counts: HashMap::new() }
+		ReceivedManifests { received: HashMap::new(), seconded_counts: HashMap::new() }
 	}
 
 	/// Attempt to import a received manifest from a counterparty.
@@ -387,6 +491,252 @@ fn updating_ensure_within_seconding_limit(
 	true
 }
 
+// The direction of advertisement about the candidate.
+enum AdvertisementDirection {
+	// We advertised to the remote.
+	Outgoing,
+	// They advertised to us.
+	Incoming,
+}
+
+impl AdvertisementDirection {
+	fn is_outgoing(&self) -> bool {
+		match *self {
+			AdvertisementDirection::Outgoing => true,
+			AdvertisementDirection::Incoming => false,
+		}
+	}
+
+	fn is_incoming(&self) -> bool {
+		match *self {
+			AdvertisementDirection::Outgoing => false,
+			AdvertisementDirection::Incoming => true,
+		}
+	}
+}
+
+#[derive(Clone, Copy)]
+enum StatementKind {
+	Seconded,
+	Valid,
+}
+
+/// Bitfields indicating the statements that are known or undesired
+/// about a candidate.
+pub struct StatementFilter {
+	/// Seconded statements. '1' is known or undesired.
+	pub seconded_in_group: BitVec<u8, Lsb0>,
+	/// Valid statements. '1' is known or undesired.
+	pub validated_in_group: BitVec<u8, Lsb0>,
+}
+
+impl StatementFilter {
+	/// Create a new filter with the given group size.
+	pub fn new(group_size: usize) -> Self {
+		StatementFilter {
+			seconded_in_group: BitVec::repeat(false, group_size),
+			validated_in_group: BitVec::repeat(false, group_size),
+		}
+	}
+
+	fn contains(&self, index: usize, statement_kind: StatementKind) -> bool {
+		match statement_kind {
+			StatementKind::Seconded => self.seconded_in_group.get(index).map_or(false, |x| *x),
+			StatementKind::Valid => self.validated_in_group.get(index).map_or(false, |x| *x),
+		}
+	}
+
+	fn set(&mut self, index: usize, statement_kind: StatementKind) {
+		let b = match statement_kind {
+			StatementKind::Seconded => self.seconded_in_group.get_mut(index),
+			StatementKind::Valid => self.validated_in_group.get_mut(index),
+		};
+
+		if let Some(mut b) = b {
+			*b = true;
+		}
+	}
+}
+
+struct MutualKnowledge {
+	direction: AdvertisementDirection,
+	// semantically, meaning varies according to advertisement direction
+	// indicates that the receiver of the advertisement requested or acknowledged
+	// the candidate.
+	accepted: bool,
+	remote_knowledge: StatementFilter,
+	// specifically, what we have indicated to them - may be subset of what
+	// we actually know.
+	local_knowledge: StatementFilter,
+}
+
+// A utility struct for keeping track of metadata about candidates
+// we have confirmed as having been backed.
+struct KnownBackedCandidate {
+	confirmed_backed: bool,
+	group_index: GroupIndex,
+	mutual_knowledge: HashMap<ValidatorIndex, MutualKnowledge>,
+}
+
+impl KnownBackedCandidate {
+	fn note_confirmed_backed(&mut self) {
+		self.confirmed_backed = true;
+	}
+
+	fn known_by(&self, validator: ValidatorIndex) -> bool {
+		match self.mutual_knowledge.get(&validator) {
+			None => false,
+			Some(k) => match k.direction {
+				AdvertisementDirection::Incoming => true,
+				AdvertisementDirection::Outgoing => k.accepted,
+			}
+		}
+	}
+
+	// should only be invoked for validators which are known
+	// to be valid recipients of advertisement.
+	fn should_advertise(&self, validator: ValidatorIndex) -> bool {
+		self.confirmed_backed && !self.mutual_knowledge.contains_key(&validator)
+	}
+
+	// is a no-op when either they or we have advertised.
+	fn note_advertised_to(
+		&mut self,
+		validator: ValidatorIndex,
+		remote_knowledge: StatementFilter,
+	) {
+		self.mutual_knowledge
+			.entry(validator)
+			.or_insert_with(|| MutualKnowledge {
+				direction: AdvertisementDirection::Outgoing,
+				accepted: false,
+				local_knowledge: StatementFilter::new(
+					remote_knowledge.validated_in_group.len(),
+				),
+				remote_knowledge,
+			});
+	}
+
+	// whether we are allowed to acknowledge/request a remote validator's
+	// advertisement.
+	fn can_local_acknowledge(
+		&self,
+		validator: ValidatorIndex,
+	) -> bool {
+		match self.mutual_knowledge.get(&validator) {
+			None => false,
+			Some(k) => !k.accepted || k.direction.is_incoming(),
+		}
+	}
+
+	// whether a remote is allowed to acknowledge/request our local
+	// advertisement.
+	fn can_remote_acknowledge(
+		&self,
+		validator: ValidatorIndex,
+	) -> bool {
+		match self.mutual_knowledge.get(&validator) {
+			None => false,
+			Some(k) => !k.accepted || k.direction.is_outgoing(),
+		}
+	}
+
+	fn can_send_direct_statement_to(
+		&self,
+		validator: ValidatorIndex,
+		statement_index_in_group: usize,
+		statement_kind: StatementKind,
+	) -> bool {
+		self.confirmed_backed && match self.mutual_knowledge.get(&validator) {
+			None => false,
+			Some(k) => k.accepted && !k.remote_knowledge.contains(
+				statement_index_in_group,
+				statement_kind,
+			),
+		}
+	}
+
+	fn can_receive_direct_statement_from(
+		&self,
+		validator: ValidatorIndex,
+		statement_index_in_group: usize,
+		statement_kind: StatementKind,
+	) -> bool {
+		self.confirmed_backed && match self.mutual_knowledge.get(&validator) {
+			None => false,
+			Some(k) => k.accepted && !k.local_knowledge.contains(
+				statement_index_in_group,
+				statement_kind,
+			),
+		}
+	}
+
+	fn note_sent_direct_statement_to(
+		&mut self,
+		validator: ValidatorIndex,
+		statement_index_in_group: usize,
+		statement_kind: StatementKind,
+	) {
+		if let Some(k) = self.mutual_knowledge.get_mut(&validator) {
+			if k.accepted {
+				k.remote_knowledge.set(
+					statement_index_in_group,
+					statement_kind,
+				)
+			}
+		}
+	}
+
+	fn note_received_direct_statement_from(
+		&mut self,
+		validator: ValidatorIndex,
+		statement_index_in_group: usize,
+		statement_kind: StatementKind,
+	) {
+		if let Some(k) = self.mutual_knowledge.get_mut(&validator) {
+			if k.accepted {
+				k.local_knowledge.set(
+					statement_index_in_group,
+					statement_kind,
+				);
+
+				k.remote_knowledge.set(
+					statement_index_in_group,
+					statement_kind,
+				)
+			}
+		}
+	}
+
+	// no-op if we haven't sent an outgoing advertisement.
+	fn note_remote_acknowledged(
+		&mut self,
+		validator: ValidatorIndex,
+		remote_knowledge: StatementFilter,
+	) {
+		if let Some(ref mut k) = self.mutual_knowledge.get_mut(&validator) {
+			if let AdvertisementDirection::Outgoing = k.direction {
+				k.accepted = true;
+				k.remote_knowledge = remote_knowledge;
+			}
+		}
+	}
+
+	// no-op if we haven't received an incoming advertisement.
+	fn note_local_acknowledged(
+		&mut self,
+		validator: ValidatorIndex,
+		local_knowledge: StatementFilter,
+	) {
+		if let Some(ref mut k) = self.mutual_knowledge.get_mut(&validator) {
+			if let AdvertisementDirection::Incoming = k.direction {
+				k.accepted = true;
+				k.local_knowledge = local_knowledge
+			}
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -488,7 +838,7 @@ mod tests {
 
 	#[test]
 	fn knowledge_rejects_conflicting_manifest() {
-		let mut knowledge = ManifestKnowledge::default();
+		let mut knowledge = ReceivedManifests::default();
 
 		let expected_manifest_summary = ManifestSummary {
 			claimed_parent_hash: Hash::repeat_byte(2),
@@ -545,7 +895,7 @@ mod tests {
 
 	#[test]
 	fn reject_overflowing_manifests() {
-		let mut knowledge = ManifestKnowledge::default();
+		let mut knowledge = ReceivedManifests::default();
 		knowledge
 			.import_received(
 				3,
