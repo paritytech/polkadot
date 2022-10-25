@@ -29,7 +29,7 @@ use polkadot_cli::{
 		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
 		ProvideRuntimeApi,
 	},
-	RunCmd,
+	Cli,
 };
 use polkadot_node_subsystem::SpawnGlue;
 use sp_core::traits::SpawnNamed;
@@ -40,34 +40,37 @@ use crate::{interceptor::*, variants::ReplaceValidationResult};
 
 use std::sync::Arc;
 
-#[derive(Clone, Debug, clap::Parser)]
-#[clap(rename_all = "kebab-case")]
+#[derive(Debug, clap::Parser)]
+#[command(rename_all = "kebab-case")]
 #[allow(missing_docs)]
 pub struct DisputeAncestorOptions {
 	/// Malicious candidate validation subsystem configuration. When enabled, node PVF execution is skipped
 	/// during backing and/or approval and it's result can by specified by this option and `--fake-validation-error`
 	/// for invalid candidate outcomes.
-	#[clap(long, arg_enum, ignore_case = true, default_value_t = FakeCandidateValidation::BackingAndApprovalInvalid)]
+	#[arg(long, value_enum, ignore_case = true, default_value_t = FakeCandidateValidation::BackingAndApprovalInvalid)]
 	pub fake_validation: FakeCandidateValidation,
 
 	/// Applies only when `--fake-validation` is configured to reject candidates as invalid. It allows
 	/// to specify the exact error to return from the malicious candidate validation subsystem.
-	#[clap(long, arg_enum, ignore_case = true, default_value_t = FakeCandidateValidationError::InvalidOutputs)]
+	#[arg(long, value_enum, ignore_case = true, default_value_t = FakeCandidateValidationError::InvalidOutputs)]
 	pub fake_validation_error: FakeCandidateValidationError,
 
+	/// Determines the percentage of candidates that should be disputed. Allows for fine-tuning
+	/// the intensity of the behavior of the malicious node. Value must be in the range [0..=100].
+	#[clap(short, long, ignore_case = true, default_value_t = 100, value_parser = clap::value_parser!(u8).range(0..=100))]
+	pub percentage: u8,
+
 	#[clap(flatten)]
-	pub cmd: RunCmd,
+	pub cli: Cli,
 }
 
 pub(crate) struct DisputeValidCandidates {
 	/// Fake validation config (applies to disputes as well).
-	opts: DisputeAncestorOptions,
-}
-
-impl DisputeValidCandidates {
-	pub fn new(opts: DisputeAncestorOptions) -> Self {
-		Self { opts }
-	}
+	pub fake_validation: FakeCandidateValidation,
+	/// Fake validation error config.
+	pub fake_validation_error: FakeCandidateValidationError,
+	/// The probability of behaving maliciously.
+	pub percentage: u8,
 }
 
 impl OverseerGen for DisputeValidCandidates {
@@ -83,8 +86,9 @@ impl OverseerGen for DisputeValidCandidates {
 	{
 		let spawner = args.spawner.clone();
 		let validation_filter = ReplaceValidationResult::new(
-			self.opts.fake_validation,
-			self.opts.fake_validation_error,
+			self.fake_validation,
+			self.fake_validation_error,
+			f64::from(self.percentage),
 			SpawnGlue(spawner.clone()),
 		);
 

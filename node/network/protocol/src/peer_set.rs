@@ -80,6 +80,7 @@ impl PeerSet {
 				notifications_protocol: protocol,
 				fallback_names,
 				max_notification_size,
+				handshake: None,
 				set_config: sc_network_common::config::SetConfig {
 					// we allow full nodes to connect to validators for gossip
 					// to ensure any `MIN_GOSSIP_PEERS` always include reserved peers
@@ -95,6 +96,7 @@ impl PeerSet {
 				notifications_protocol: protocol,
 				fallback_names,
 				max_notification_size,
+				handshake: None,
 				set_config: SetConfig {
 					// Non-authority nodes don't need to accept incoming connections on this peer set:
 					in_peers: if is_authority == IsAuthority::Yes { 100 } else { 0 },

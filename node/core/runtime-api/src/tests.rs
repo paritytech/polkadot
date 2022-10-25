@@ -522,10 +522,10 @@ fn requests_session_index_for_child() {
 
 fn dummy_session_info() -> SessionInfo {
 	SessionInfo {
-		validators: vec![],
+		validators: Default::default(),
 		discovery_keys: vec![],
 		assignment_keys: vec![],
-		validator_groups: vec![],
+		validator_groups: Default::default(),
 		n_cores: 4u32,
 		zeroth_delay_tranche_width: 0u32,
 		relay_vrf_modulo_samples: 0u32,
