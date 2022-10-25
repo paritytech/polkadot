@@ -1525,18 +1525,18 @@ async fn import_statement<Context>(
 						candidate_hash,
 					))
 					.await;
+				} else {
+					// The provisioner waits on candidate-backing, which means
+					// that we need to send unbounded messages to avoid cycles.
+					//
+					// Backed candidates are bounded by the number of validators,
+					// parachains, and the block production rate of the relay chain.
+					let message = ProvisionerMessage::ProvisionableData(
+						rp_state.parent,
+						ProvisionableData::BackedCandidate(backed.receipt()),
+					);
+					ctx.send_unbounded_message(message);
 				}
-
-				// The provisioner waits on candidate-backing, which means
-				// that we need to send unbounded messages to avoid cycles.
-				//
-				// Backed candidates are bounded by the number of validators,
-				// parachains, and the block production rate of the relay chain.
-				let message = ProvisionerMessage::ProvisionableData(
-					rp_state.parent,
-					ProvisionableData::BackedCandidate(backed.receipt()),
-				);
-				ctx.send_unbounded_message(message);
 			}
 		}
 	}

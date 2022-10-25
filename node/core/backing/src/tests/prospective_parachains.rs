@@ -1046,18 +1046,6 @@ fn backing_works() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
-			AllMessages::Provisioner(
-				ProvisionerMessage::ProvisionableData(
-					_,
-					ProvisionableData::BackedCandidate(candidate_receipt)
-				)
-			) => {
-				assert_eq!(candidate_receipt, candidate_a.to_plain());
-			}
-		);
-
-		assert_matches!(
-			virtual_overseer.recv().await,
 			AllMessages::StatementDistribution(
 				StatementDistributionMessage::Share(hash, _stmt)
 			) => {
@@ -1267,7 +1255,6 @@ fn concurrent_dependent_candidates() {
 				AllMessages::ProspectiveParachains(
 					ProspectiveParachainsMessage::CandidateBacked(..),
 				) => {},
-				AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(..)) => {},
 				AllMessages::StatementDistribution(StatementDistributionMessage::Share(
 					_,
 					statement,
