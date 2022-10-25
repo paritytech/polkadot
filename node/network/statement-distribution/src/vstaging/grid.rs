@@ -298,7 +298,8 @@ impl PerRelayParentGridTracker {
 		&self,
 		session_topology: &SessionTopologyView,
 		validator_index: ValidatorIndex,
-	) -> Vec<CandidateHash> { // TODO [now]: impl iterator
+	) -> Vec<CandidateHash> {
+		// TODO [now]: impl iterator
 		unimplemented!()
 	}
 
@@ -314,22 +315,12 @@ impl PerRelayParentGridTracker {
 
 	/// note that a validator peer we advertised a backed candidate to
 	/// now knows the candidate without a doubt.
-	pub fn note_known(
-		&mut self,
-		validator_index: ValidatorIndex,
-		candidate_hash: CandidateHash,
-	) {
+	pub fn note_known(&mut self, validator_index: ValidatorIndex, candidate_hash: CandidateHash) {
 		unimplemented!()
 	}
 
 	/// Whether a validator peer knows the underlying candidate.
-	pub fn known_by(
-		&self,
-		validator_index: ValidatorIndex,
-		candidate_hash: CandidateHash,
-	) {
-
-	}
+	pub fn known_by(&self, validator_index: ValidatorIndex, candidate_hash: CandidateHash) {}
 }
 
 /// A summary of a manifest being sent by a counterparty.
@@ -589,7 +580,7 @@ impl KnownBackedCandidate {
 			Some(k) => match k.direction {
 				AdvertisementDirection::Incoming => true,
 				AdvertisementDirection::Outgoing => k.accepted,
-			}
+			},
 		}
 	}
 
@@ -600,29 +591,18 @@ impl KnownBackedCandidate {
 	}
 
 	// is a no-op when either they or we have advertised.
-	fn note_advertised_to(
-		&mut self,
-		validator: ValidatorIndex,
-		remote_knowledge: StatementFilter,
-	) {
-		self.mutual_knowledge
-			.entry(validator)
-			.or_insert_with(|| MutualKnowledge {
-				direction: AdvertisementDirection::Outgoing,
-				accepted: false,
-				local_knowledge: StatementFilter::new(
-					remote_knowledge.validated_in_group.len(),
-				),
-				remote_knowledge,
-			});
+	fn note_advertised_to(&mut self, validator: ValidatorIndex, remote_knowledge: StatementFilter) {
+		self.mutual_knowledge.entry(validator).or_insert_with(|| MutualKnowledge {
+			direction: AdvertisementDirection::Outgoing,
+			accepted: false,
+			local_knowledge: StatementFilter::new(remote_knowledge.validated_in_group.len()),
+			remote_knowledge,
+		});
 	}
 
 	// whether we are allowed to acknowledge/request a remote validator's
 	// advertisement.
-	fn can_local_acknowledge(
-		&self,
-		validator: ValidatorIndex,
-	) -> bool {
+	fn can_local_acknowledge(&self, validator: ValidatorIndex) -> bool {
 		match self.mutual_knowledge.get(&validator) {
 			None => false,
 			Some(k) => !k.accepted || k.direction.is_incoming(),
@@ -631,10 +611,7 @@ impl KnownBackedCandidate {
 
 	// whether a remote is allowed to acknowledge/request our local
 	// advertisement.
-	fn can_remote_acknowledge(
-		&self,
-		validator: ValidatorIndex,
-	) -> bool {
+	fn can_remote_acknowledge(&self, validator: ValidatorIndex) -> bool {
 		match self.mutual_knowledge.get(&validator) {
 			None => false,
 			Some(k) => !k.accepted || k.direction.is_outgoing(),
@@ -647,13 +624,13 @@ impl KnownBackedCandidate {
 		statement_index_in_group: usize,
 		statement_kind: StatementKind,
 	) -> bool {
-		self.confirmed_backed && match self.mutual_knowledge.get(&validator) {
-			None => false,
-			Some(k) => k.accepted && !k.remote_knowledge.contains(
-				statement_index_in_group,
-				statement_kind,
-			),
-		}
+		self.confirmed_backed &&
+			match self.mutual_knowledge.get(&validator) {
+				None => false,
+				Some(k) =>
+					k.accepted &&
+						!k.remote_knowledge.contains(statement_index_in_group, statement_kind),
+			}
 	}
 
 	fn can_receive_direct_statement_from(
@@ -662,13 +639,13 @@ impl KnownBackedCandidate {
 		statement_index_in_group: usize,
 		statement_kind: StatementKind,
 	) -> bool {
-		self.confirmed_backed && match self.mutual_knowledge.get(&validator) {
-			None => false,
-			Some(k) => k.accepted && !k.local_knowledge.contains(
-				statement_index_in_group,
-				statement_kind,
-			),
-		}
+		self.confirmed_backed &&
+			match self.mutual_knowledge.get(&validator) {
+				None => false,
+				Some(k) =>
+					k.accepted &&
+						!k.local_knowledge.contains(statement_index_in_group, statement_kind),
+			}
 	}
 
 	fn note_sent_direct_statement_to(
@@ -679,10 +656,7 @@ impl KnownBackedCandidate {
 	) {
 		if let Some(k) = self.mutual_knowledge.get_mut(&validator) {
 			if k.accepted {
-				k.remote_knowledge.set(
-					statement_index_in_group,
-					statement_kind,
-				)
+				k.remote_knowledge.set(statement_index_in_group, statement_kind)
 			}
 		}
 	}
@@ -695,15 +669,9 @@ impl KnownBackedCandidate {
 	) {
 		if let Some(k) = self.mutual_knowledge.get_mut(&validator) {
 			if k.accepted {
-				k.local_knowledge.set(
-					statement_index_in_group,
-					statement_kind,
-				);
+				k.local_knowledge.set(statement_index_in_group, statement_kind);
 
-				k.remote_knowledge.set(
-					statement_index_in_group,
-					statement_kind,
-				)
+				k.remote_knowledge.set(statement_index_in_group, statement_kind)
 			}
 		}
 	}
