@@ -1375,9 +1375,6 @@ construct_runtime! {
 		// Gilts pallet.
 		Gilt: pallet_gilt::{Pallet, Call, Storage, Event<T>, Config} = 38,
 
-		// State trie migration pallet, only temporary.
-		StateTrieMigration: pallet_state_trie_migration = 41,
-
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 51,
@@ -1415,6 +1412,9 @@ construct_runtime! {
 
 		// Validator Manager pallet.
 		ValidatorManager: validator_manager::{Pallet, Call, Storage, Event<T>} = 252,
+
+		// State trie migration pallet, only temporary.
+		StateTrieMigration: pallet_state_trie_migration = 254,
 
 		// Sudo.
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>} = 255,
@@ -1478,7 +1478,6 @@ impl pallet_state_trie_migration::Config for Runtime {
 	type Currency = Balances;
 	type SignedDepositPerItem = MigrationSignedDepositPerItem;
 	type SignedDepositBase = MigrationSignedDepositBase;
-	// An origin that can control the whole pallet: should be Root, or a part of your council.
 	type ControlOrigin = EnsureRoot<AccountId>;
 	// specific account for the migration, can trigger the signed migrations.
 	type SignedFilter = frame_system::EnsureSignedBy<MigController, AccountId>;
@@ -1490,16 +1489,6 @@ impl pallet_state_trie_migration::Config for Runtime {
 
 frame_support::ord_parameter_types! {
 	pub const MigController: AccountId = AccountId::from(hex_literal::hex!("52bc71c1eca5353749542dfdf0af97bf764f9c2f44e860cd485f1cd86400f649"));
-}
-
-#[test]
-fn ensure_key_ss58() {
-	use frame_support::traits::SortedMembers;
-	use sp_core::crypto::Ss58Codec;
-	let acc =
-		AccountId::from_ss58check("5DwBmEFPXRESyEam5SsQF1zbWSCn2kCjyLW51hJHXe9vW4xs").unwrap();
-	//panic!("{:x?}", acc);
-	assert_eq!(acc, MigController::sorted_members()[0]);
 }
 
 #[cfg(feature = "runtime-benchmarks")]
