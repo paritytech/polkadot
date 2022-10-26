@@ -2,6 +2,12 @@
 
 This project will fuzz-test the XCM simulator. It can catch reachable panics, timeouts as well as integer overflows and underflows.
 
+## Install dependencies
+
+```
+cargo install honggfuzz
+```
+
 ## Run the fuzzer
 
 ```
