@@ -113,11 +113,6 @@ pub mod pallet {
 	pub(crate) type AccountKeys<T: Config> =
 		StorageMap<_, Identity, SessionIndex, Vec<AccountId<T>>>;
 
-	/// A mapping from a parent block hash to the session index
-	#[pallet::storage]
-	#[pallet::getter(fn session_index_by_parent_hash)]
-	pub(crate) type SessionIndexCache<T: Config> = StorageMap<_, Identity, T::Hash, SessionIndex>;
-
 	/// Executor parameter set for a given session index
 	#[pallet::storage]
 	#[pallet::getter(fn session_ee_params)]
@@ -164,7 +159,7 @@ impl<T: Config> Pallet<T> {
 		let random_seed = notification.random_seed;
 		let old_earliest_stored_session = EarliestStoredSession::<T>::get();
 		let new_earliest_stored_session = new_session_index.saturating_sub(dispute_period);
-		let mut new_earliest_stored_session =
+		let new_earliest_stored_session =
 			core::cmp::max(new_earliest_stored_session, old_earliest_stored_session);
 		// remove all entries from `Sessions` from the previous value up to the new value
 		// avoid a potentially heavy loop when introduced on a live chain
@@ -181,18 +176,6 @@ impl<T: Config> Pallet<T> {
 		} else {
 			// just introduced on a live chain
 			EarliestStoredSession::<T>::set(new_session_index);
-			new_earliest_stored_session = new_session_index;
-		}
-
-		// prune session index cache
-		let mut parents_to_remove: Vec<T::Hash> = Vec::new();
-		for (parent, session_index) in SessionIndexCache::<T>::iter() {
-			if session_index < new_earliest_stored_session {
-				parents_to_remove.push(parent);
-			}
-		}
-		for parent in parents_to_remove {
-			SessionIndexCache::<T>::remove(parent);
 		}
 
 		// The validator set is guaranteed to be of the current session
@@ -226,10 +209,6 @@ impl<T: Config> Pallet<T> {
 
 	/// Called by the initializer to initialize the session info pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
-		let session_index = <shared::Pallet<T>>::session_index();
-		SessionIndexCache::<T>::insert(&parent_hash, &session_index);
-		// FIXME: Weight?
 		Weight::zero()
 	}
 

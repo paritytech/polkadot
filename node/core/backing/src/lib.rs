@@ -650,11 +650,8 @@ async fn request_candidate_validation(
 	let (ee_params_tx, ee_params_rx) = oneshot::channel();
 	sender
 		.send_message(RuntimeApiMessage::Request(
-			candidate_receipt.descriptor.relay_parent, // FIXME: Is it okay to use relay parent here?
-			RuntimeApiRequest::SessionEeParamsByParentHash(
-				candidate_receipt.descriptor.relay_parent,
-				ee_params_tx,
-			),
+			candidate_receipt.descriptor.relay_parent,
+			RuntimeApiRequest::SessionEeParamsByParentHash(ee_params_tx),
 		))
 		.await;
 

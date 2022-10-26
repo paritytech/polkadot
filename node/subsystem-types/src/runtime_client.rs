@@ -146,7 +146,6 @@ pub trait RuntimeApiSubsystemClient {
 	async fn session_ee_params_by_parent_hash(
 		&self,
 		at: Hash,
-		parent_hash: Hash,
 	) -> Result<Option<ExecutorParams>, ApiError>;
 
 	/// Get the session info for the given session, if stored.
@@ -330,10 +329,8 @@ where
 	async fn session_ee_params_by_parent_hash(
 		&self,
 		at: Hash,
-		parent_hash: Hash,
 	) -> Result<Option<ExecutorParams>, ApiError> {
-		self.runtime_api()
-			.session_ee_params_by_parent_hash(&BlockId::Hash(at), parent_hash)
+		self.runtime_api().session_ee_params_by_parent_hash(&BlockId::Hash(at))
 	}
 
 	async fn session_info(

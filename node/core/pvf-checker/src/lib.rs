@@ -541,7 +541,7 @@ async fn initiate_precheck(
 	sender
 		.send_message(RuntimeApiMessage::Request(
 			relay_parent,
-			RuntimeApiRequest::SessionEeParamsByParentHash(relay_parent, ee_params_tx),
+			RuntimeApiRequest::SessionEeParamsByParentHash(ee_params_tx),
 		))
 		.await;
 

@@ -209,10 +209,6 @@ sp_api::decl_runtime_apis! {
 		fn validation_code_hash(para_id: ppp::Id, assumption: v2::OccupiedCoreAssumption)
 			-> Option<ppp::ValidationCodeHash>;
 
-
-		// FIXME: Docs; move to v3
-		fn session_ee_params_by_parent_hash(parent_hash: pcp::v2::Hash) -> Option<vstaging::ExecutorParams>;
-
 		/***** Replaced in v2 *****/
 
 		/// Old method to fetch v1 session info.
@@ -224,5 +220,9 @@ sp_api::decl_runtime_apis! {
 		/// Returns all onchain disputes.
 		#[api_version(3)]
 		fn disputes() -> Vec<(v2::SessionIndex, v2::CandidateHash, v2::DisputeState<v2::BlockNumber>)>;
+
+		/// Returns execution environment parameter set for the session.
+		#[api_version(3)]
+		fn session_ee_params_by_parent_hash() -> Option<vstaging::ExecutorParams>;
 	}
 }

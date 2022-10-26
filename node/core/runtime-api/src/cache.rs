@@ -333,17 +333,18 @@ impl RequestResultCache {
 
 	pub(crate) fn session_ee_params_by_parent_hash(
 		&mut self,
-		key: (Hash, Hash),
+		relay_parent: &Hash,
 	) -> Option<&Option<ExecutorParams>> {
-		self.session_ee_params_by_parent_hash.get(&key.1).map(|v| &v.0)
+		self.session_ee_params_by_parent_hash.get(relay_parent).map(|v| &v.0)
 	}
 
 	pub(crate) fn cache_session_ee_params_by_parent_hash(
 		&mut self,
-		key: Hash,
+		relay_parent: Hash,
 		value: Option<ExecutorParams>,
 	) {
-		self.session_ee_params_by_parent_hash.insert(key, ResidentSizeOf(value));
+		self.session_ee_params_by_parent_hash
+			.insert(relay_parent, ResidentSizeOf(value));
 	}
 
 	pub(crate) fn dmq_contents(
@@ -472,7 +473,7 @@ pub(crate) enum RequestResult {
 	ValidationCodeByHash(Hash, ValidationCodeHash, Option<ValidationCode>),
 	CandidatePendingAvailability(Hash, ParaId, Option<CommittedCandidateReceipt>),
 	CandidateEvents(Hash, Vec<CandidateEvent>),
-	SessionEeParamsByParentHash(Hash, Hash, Option<ExecutorParams>),
+	SessionEeParamsByParentHash(Hash, Option<ExecutorParams>),
 	SessionInfo(Hash, SessionIndex, Option<SessionInfo>),
 	DmqContents(Hash, ParaId, Vec<InboundDownwardMessage<BlockNumber>>),
 	InboundHrmpChannelsContents(

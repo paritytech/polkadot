@@ -325,11 +325,8 @@ async fn participate(
 	let (ee_params_tx, ee_params_rx) = oneshot::channel();
 	sender
 		.send_message(RuntimeApiMessage::Request(
-			block_hash,
-			RuntimeApiRequest::SessionEeParamsByParentHash(
-				req.candidate_receipt().descriptor.relay_parent,
-				ee_params_tx,
-			),
+			req.candidate_receipt().descriptor.relay_parent,
+			RuntimeApiRequest::SessionEeParamsByParentHash(ee_params_tx),
 		))
 		.await;
 
