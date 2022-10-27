@@ -244,7 +244,8 @@ impl PerRelayParentGridTracker {
 			confirmed.note_remote_advertised(sender, remote_knowledge);
 		} else {
 			// received prevents conflicting manifests so this is max 1 per validator.
-			self.unconfirmed.entry(candidate_hash)
+			self.unconfirmed
+				.entry(candidate_hash)
 				.or_default()
 				.push((sender, claimed_group_index))
 		}
@@ -265,23 +266,22 @@ impl PerRelayParentGridTracker {
 		let mut actions = Vec::new();
 		let c = match self.confirmed_backed.entry(candidate_hash) {
 			Entry::Occupied(_) => return actions,
-			Entry::Vacant(v) => v.insert(KnownBackedCandidate {
-				group_index,
-				mutual_knowledge: HashMap::new(),
-			}),
+			Entry::Vacant(v) =>
+				v.insert(KnownBackedCandidate { group_index, mutual_knowledge: HashMap::new() }),
 		};
 
 		// Populate the entry with previously unconfirmed manifests.
-		for (v, claimed_group_index) in self.unconfirmed.remove(&candidate_hash)
-			.into_iter()
-			.flat_map(|x| x)
+		for (v, claimed_group_index) in
+			self.unconfirmed.remove(&candidate_hash).into_iter().flat_map(|x| x)
 		{
 			if claimed_group_index != group_index {
 				// This is misbehavior, but is handled more comprehensively elsewhere
-				continue;
+				continue
 			}
 
-			let statement_filter = self.received.get(&v)
+			let statement_filter = self
+				.received
+				.get(&v)
 				.and_then(|r| r.candidate_statement_filter(&candidate_hash))
 				.expect("unconfirmed is only populated by validators who have sent manifest; qed");
 
@@ -338,7 +338,8 @@ impl PerRelayParentGridTracker {
 			.map(|(g, x)| *g)
 			.collect();
 
-		self.confirmed_backed.iter()
+		self.confirmed_backed
+			.iter()
 			.filter(move |(_, c)| allowed_groups.contains(c.group_index()))
 			.filter(move |(_, c)| c.should_advertise(validator_index))
 			.map(|(c_h, _)| *c_h)
@@ -351,7 +352,8 @@ impl PerRelayParentGridTracker {
 		validator_index: ValidatorIndex,
 		candidate_hash: CandidateHash,
 	) -> bool {
-		self.confirmed_backed.get(&candidate_hash)
+		self.confirmed_backed
+			.get(&candidate_hash)
 			.map_or(false, |c| c.can_remote_acknowledge(validator_index))
 	}
 
@@ -374,7 +376,8 @@ impl PerRelayParentGridTracker {
 		validator_index: ValidatorIndex,
 		candidate_hash: CandidateHash,
 	) -> bool {
-		self.confirmed_backed.get(&candidate_hash)
+		self.confirmed_backed
+			.get(&candidate_hash)
 			.map_or(false, |c| c.can_local_acknowledge(validator_index))
 	}
 
@@ -436,9 +439,10 @@ impl ReceivedManifests {
 		ReceivedManifests { received: HashMap::new(), seconded_counts: HashMap::new() }
 	}
 
-	fn candidate_statement_filter(&self, candidate_hash: &CandidateHash)
-		-> Option<StatementFilter>
-	{
+	fn candidate_statement_filter(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> Option<StatementFilter> {
 		self.received.get(candidate_hash).map(|m| StatementFilter {
 			seconded_in_group: m.seconded_in_group.clone(),
 			validated_in_group: m.validated_in_group.clone(),
@@ -634,17 +638,17 @@ impl KnownBackedCandidate {
 	// should only be invoked for validators which are known
 	// to be valid recipients of advertisement.
 	fn should_advertise(&self, validator: ValidatorIndex) -> bool {
-		self.mutual_knowledge.get(&validator)
+		self.mutual_knowledge
+			.get(&validator)
 			.map_or(true, |k| k.local_knowledge.is_none())
 	}
 
 	// is a no-op when either they or we have advertised.
 	fn note_advertised_to(&mut self, validator: ValidatorIndex, local_knowledge: StatementFilter) {
-		let k = self.mutual_knowledge.entry(validator)
-			.or_insert_with(|| MutualKnowledge {
-				remote_knowledge: None,
-				local_knowledge: None,
-			});
+		let k = self
+			.mutual_knowledge
+			.entry(validator)
+			.or_insert_with(|| MutualKnowledge { remote_knowledge: None, local_knowledge: None });
 
 		k.local_knowledge = Some(local_knowledge);
 	}
@@ -654,10 +658,10 @@ impl KnownBackedCandidate {
 		validator: ValidatorIndex,
 		remote_knowledge: StatementFilter,
 	) {
-		let k = self.mutual_knowledge.entry(validator).or_insert_with(|| MutualKnowledge {
-			remote_knowledge: None,
-			local_knowledge: None,
-		});
+		let k = self
+			.mutual_knowledge
+			.entry(validator)
+			.or_insert_with(|| MutualKnowledge { remote_knowledge: None, local_knowledge: None });
 
 		k.remote_knowledge = Some(remote_knowledge);
 	}
@@ -707,9 +711,8 @@ impl KnownBackedCandidate {
 		statement_kind: StatementKind,
 	) -> bool {
 		match self.mutual_knowledge.get(&validator) {
-			Some(MutualKnowledge { remote_knowledge: Some(r), local_knowledge: Some(_) }) => {
-				!r.contains(statement_index_in_group, statement_kind)
-			},
+			Some(MutualKnowledge { remote_knowledge: Some(r), local_knowledge: Some(_) }) =>
+				!r.contains(statement_index_in_group, statement_kind),
 			_ => false,
 		}
 	}
@@ -721,9 +724,8 @@ impl KnownBackedCandidate {
 		statement_kind: StatementKind,
 	) -> bool {
 		match self.mutual_knowledge.get(&validator) {
-			Some(MutualKnowledge { remote_knowledge: Some(_), local_knowledge: Some(l) }) => {
-				!l.contains(statement_index_in_group, statement_kind)
-			},
+			Some(MutualKnowledge { remote_knowledge: Some(_), local_knowledge: Some(l) }) =>
+				!l.contains(statement_index_in_group, statement_kind),
 			_ => false,
 		}
 	}

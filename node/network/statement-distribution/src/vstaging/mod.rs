@@ -42,7 +42,10 @@ use sp_keystore::SyncCryptoStorePtr;
 
 use indexmap::IndexMap;
 
-use std::collections::{hash_map::{HashMap, Entry}, HashSet};
+use std::collections::{
+	hash_map::{Entry, HashMap},
+	HashSet,
+};
 
 use crate::{
 	error::{JfyiError, JfyiErrorResult},
@@ -115,20 +118,17 @@ struct PerSessionState {
 }
 
 impl PerSessionState {
-	async fn new(
-		session_info: SessionInfo,
-		keystore: &SyncCryptoStorePtr,
-	) -> Self {
-		let groups = Groups::new(session_info.validator_groups.clone(), &session_info.discovery_keys);
+	async fn new(session_info: SessionInfo, keystore: &SyncCryptoStorePtr) -> Self {
+		let groups =
+			Groups::new(session_info.validator_groups.clone(), &session_info.discovery_keys);
 		let mut authority_lookup = HashMap::new();
 		for (i, ad) in session_info.discovery_keys.iter().cloned().enumerate() {
 			authority_lookup.insert(ad, ValidatorIndex(i as _));
 		}
 
-		let local_validator = polkadot_node_subsystem_util::signing_key_and_index(
-			&session_info.validators,
-			keystore,
-		).await;
+		let local_validator =
+			polkadot_node_subsystem_util::signing_key_and_index(&session_info.validators, keystore)
+				.await;
 
 		PerSessionState {
 			session_info,
@@ -139,10 +139,7 @@ impl PerSessionState {
 		}
 	}
 
-	fn supply_topology(
-		&mut self,
-		topology: &SessionGridTopology,
-	) {
+	fn supply_topology(&mut self, topology: &SessionGridTopology) {
 		let grid_view = grid::build_session_topology(
 			&self.session_info.validator_groups[..],
 			topology,
@@ -152,7 +149,10 @@ impl PerSessionState {
 		self.grid_view = Some(grid_view);
 	}
 
-	fn authority_index_in_session(&self, discovery_key: &AuthorityDiscoveryId) -> Option<ValidatorIndex> {
+	fn authority_index_in_session(
+		&self,
+		discovery_key: &AuthorityDiscoveryId,
+	) -> Option<ValidatorIndex> {
 		self.authority_lookup.get(discovery_key).map(|x| *x)
 	}
 }
@@ -178,7 +178,10 @@ fn connected_validator_peer(
 	per_session: &PerSessionState,
 	validator_index: ValidatorIndex,
 ) -> Option<PeerId> {
-	per_session.session_info.discovery_keys.get(validator_index.0 as usize)
+	per_session
+		.session_info
+		.discovery_keys
+		.get(validator_index.0 as usize)
 		.and_then(|k| authorities.get(k))
 		.map(|p| p.clone())
 }
@@ -226,24 +229,22 @@ pub(crate) async fn handle_network_update<Context>(
 			}
 
 			if let Some(ref mut authority_ids) = authority_ids {
-				authority_ids.retain(|a| {
-					match state.authorities.entry(a.clone()) {
-						Entry::Vacant(e) => {
-							e.insert(peer_id);
-							true
-						}
-						Entry::Occupied(e) => {
-							gum::trace!(
-								target: LOG_TARGET,
-								authority_id = ?a,
-								existing_peer = ?e.get(),
-								new_peer = ?peer_id,
-								"Ignoring new peer with duplicate authority ID as a bearer of that identity"
-							);
+				authority_ids.retain(|a| match state.authorities.entry(a.clone()) {
+					Entry::Vacant(e) => {
+						e.insert(peer_id);
+						true
+					},
+					Entry::Occupied(e) => {
+						gum::trace!(
+							target: LOG_TARGET,
+							authority_id = ?a,
+							existing_peer = ?e.get(),
+							new_peer = ?peer_id,
+							"Ignoring new peer with duplicate authority ID as a bearer of that identity"
+						);
 
-							false
-						}
-					}
+						false
+					},
 				});
 			}
 
@@ -366,10 +367,7 @@ pub(crate) async fn handle_activated_leaf<Context>(
 
 			state
 				.per_session
-				.insert(
-					session_index,
-					PerSessionState::new(session_info, &state.keystore).await,
-				);
+				.insert(session_index, PerSessionState::new(session_info, &state.keystore).await);
 		}
 
 		let per_session = state
@@ -377,12 +375,14 @@ pub(crate) async fn handle_activated_leaf<Context>(
 			.get(&session_index)
 			.expect("either existed or just inserted; qed");
 
-		let local_validator = per_session.local_validator.and_then(|v| find_local_validator_state(
-			v,
-			&per_session.session_info.validators,
-			&per_session.groups,
-			&availability_cores,
-		));
+		let local_validator = per_session.local_validator.and_then(|v| {
+			find_local_validator_state(
+				v,
+				&per_session.session_info.validators,
+				&per_session.groups,
+				&availability_cores,
+			)
+		});
 
 		state.per_relay_parent.insert(
 			*leaf,
