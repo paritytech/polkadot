@@ -16,6 +16,7 @@
 
 use crate::{
 	configuration, inclusion, initializer, paras,
+	paras::ParaType,
 	paras_inherent::{self},
 	scheduler, session_info, shared,
 };
@@ -345,7 +346,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				paras::ParaGenesisArgs {
 					genesis_head: Self::mock_head_data(),
 					validation_code: mock_validation_code(),
-					parachain: true,
+					paratype: ParaType::Parachain,
 				},
 			)
 			.unwrap();

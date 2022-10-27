@@ -571,7 +571,7 @@ impl<T: Config> Pallet<T> {
 		};
 		ensure!(paras::Pallet::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
 		let (genesis, deposit) =
-			Self::validate_onboarding_data(genesis_head, validation_code, ParaType::ParaThread)?;
+			Self::validate_onboarding_data(genesis_head, validation_code, ParaType::Parathread)?;
 		let deposit = deposit_override.unwrap_or(deposit);
 
 		if let Some(additional) = deposit.checked_sub(&deposited) {
