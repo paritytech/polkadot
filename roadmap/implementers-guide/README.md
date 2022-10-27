@@ -1,7 +1,14 @@
 # The Polkadot Parachain Host Implementers' Guide
 
 The implementers' guide is compiled from several source files with [`mdBook`](https://github.com/rust-lang/mdBook).
-To view it live, locally, from the repo root:
+
+## Hosted build
+
+This is avalible at https://paritytech.github.io/polkadot/book/
+
+## Local build
+
+To view it locally from the repo root:
 
 Ensure graphviz is installed:
 ```sh
