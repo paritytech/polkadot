@@ -19,7 +19,7 @@
 
 use polkadot_node_network_protocol::{grid_topology::SessionGridTopology, PeerId};
 use polkadot_primitives::vstaging::{
-	AuthorityDiscoveryId, CandidateHash, GroupIndex, Hash, ValidatorIndex,
+	AuthorityDiscoveryId, CandidateHash, CompactStatement, GroupIndex, Hash, ValidatorIndex,
 };
 
 use std::collections::{
@@ -162,17 +162,16 @@ pub enum PostBackingAction {
 	Advertise,
 }
 
-/// A tracker of knowledge from authorities within the grid for the
-/// entire session. This stores only data on manifests sent within a bounded
-/// set of relay-parents.
+/// A tracker of knowledge from authorities within the grid for a particular
+/// relay-parent.
 #[derive(Default)]
-pub struct PerRelayParentGridTracker {
+pub struct GridTracker {
 	received: HashMap<ValidatorIndex, ReceivedManifests>,
 	confirmed_backed: HashMap<CandidateHash, KnownBackedCandidate>,
 	unconfirmed: HashMap<CandidateHash, Vec<(ValidatorIndex, GroupIndex)>>,
 }
 
-impl PerRelayParentGridTracker {
+impl GridTracker {
 	/// Attempt to import a manifest advertised by a remote peer.
 	///
 	/// This checks whether the peer is allowed to send us manifests
@@ -392,6 +391,64 @@ impl PerRelayParentGridTracker {
 			c.note_local_acknowledged(validator_index, local_knowledge);
 		}
 	}
+
+	/// Determine the validators which can receive a statement by direct
+	/// broadcast.
+	pub fn direct_statement_recipients(
+		&self,
+		groups: &Groups,
+		originator: ValidatorIndex,
+		statement: &CompactStatement,
+	) -> Vec<ValidatorIndex> {
+		let (g, c_h, kind, in_group) =
+			match extract_statement_and_group_info(groups, originator, statement) {
+				None => return Vec::new(),
+				Some(x) => x,
+			};
+
+		self.confirmed_backed
+			.get(&c_h)
+			.map(|k| k.direct_statement_recipients(g, in_group, kind))
+			.unwrap_or_default()
+	}
+
+	/// Note that a direct statement about a given candidate was sent to or
+	/// received from the given validator.
+	pub fn note_sent_or_received_direct_statement(
+		&mut self,
+		groups: &Groups,
+		originator: ValidatorIndex,
+		counterparty: ValidatorIndex,
+		statement: &CompactStatement,
+	) {
+		if let Some((g, c_h, kind, in_group)) =
+			extract_statement_and_group_info(groups, originator, statement)
+		{
+			if let Some(known) = self.confirmed_backed.get_mut(&c_h) {
+				known.note_sent_or_received_direct_statement(counterparty, in_group, kind);
+			}
+		}
+	}
+}
+
+fn extract_statement_and_group_info(
+	groups: &Groups,
+	originator: ValidatorIndex,
+	statement: &CompactStatement,
+) -> Option<(GroupIndex, CandidateHash, StatementKind, usize)> {
+	let (statement_kind, candidate_hash) = match statement {
+		CompactStatement::Seconded(h) => (StatementKind::Seconded, h),
+		CompactStatement::Valid(h) => (StatementKind::Valid, h),
+	};
+
+	let group = match groups.by_validator_index(originator) {
+		None => return None,
+		Some(g) => g,
+	};
+
+	let index_in_group = groups.get(group)?.iter().position(|v| v == &originator)?;
+
+	Some((group, *candidate_hash, statement_kind, index_in_group))
 }
 
 /// A summary of a manifest being sent by a counterparty.
@@ -717,6 +774,28 @@ impl KnownBackedCandidate {
 		}
 	}
 
+	fn direct_statement_recipients(
+		&self,
+		group_index: GroupIndex,
+		originator_index_in_group: usize,
+		statement_kind: StatementKind,
+	) -> Vec<ValidatorIndex> {
+		if group_index != self.group_index {
+			return Vec::new()
+		}
+
+		self.mutual_knowledge
+			.iter()
+			.filter(|(_, k)| k.local_knowledge.is_some())
+			.filter(|(_, k)| {
+				k.remote_knowledge
+					.as_ref()
+					.map_or(false, |r| !r.contains(originator_index_in_group, statement_kind))
+			})
+			.map(|(v, _)| *v)
+			.collect()
+	}
+
 	fn can_receive_direct_statement_from(
 		&self,
 		validator: ValidatorIndex,
@@ -964,7 +1043,7 @@ mod tests {
 
 	#[test]
 	fn reject_disallowed_manifest() {
-		let mut tracker = PerRelayParentGridTracker::default();
+		let mut tracker = GridTracker::default();
 		let session_topology = SessionTopologyView {
 			group_views: vec![(
 				GroupIndex(0),
@@ -1031,7 +1110,7 @@ mod tests {
 
 	#[test]
 	fn reject_malformed_wrong_group_size() {
-		let mut tracker = PerRelayParentGridTracker::default();
+		let mut tracker = GridTracker::default();
 		let session_topology = SessionTopologyView {
 			group_views: vec![(
 				GroupIndex(0),
@@ -1094,7 +1173,7 @@ mod tests {
 
 	#[test]
 	fn reject_malformed_no_seconders() {
-		let mut tracker = PerRelayParentGridTracker::default();
+		let mut tracker = GridTracker::default();
 		let session_topology = SessionTopologyView {
 			group_views: vec![(
 				GroupIndex(0),
@@ -1140,7 +1219,7 @@ mod tests {
 
 	#[test]
 	fn reject_malformed_below_threshold() {
-		let mut tracker = PerRelayParentGridTracker::default();
+		let mut tracker = GridTracker::default();
 		let session_topology = SessionTopologyView {
 			group_views: vec![(
 				GroupIndex(0),

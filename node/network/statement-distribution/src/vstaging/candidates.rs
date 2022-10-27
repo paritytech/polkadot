@@ -166,11 +166,11 @@ impl Candidates {
 
 	/// Prune all candidates according to the relay-parent predicate
 	/// provided.
-	pub fn collect_garbage(&mut self, relay_parent_live: impl Fn(Hash) -> bool) {
+	pub fn collect_garbage(&mut self, relay_parent_live: impl Fn(&Hash) -> bool) {
 		self.candidates.retain(|_, state| match state {
-			CandidateState::Confirmed(ref c) => relay_parent_live(c.relay_parent()),
+			CandidateState::Confirmed(ref c) => relay_parent_live(&c.relay_parent()),
 			CandidateState::Unconfirmed(ref mut c) => {
-				c.claims.retain(|c| relay_parent_live(c.1.relay_parent));
+				c.claims.retain(|c| relay_parent_live(&c.1.relay_parent));
 
 				!c.claims.is_empty()
 			},

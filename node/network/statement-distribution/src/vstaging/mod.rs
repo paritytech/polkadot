@@ -53,6 +53,7 @@ use crate::{
 };
 use candidates::{BadAdvertisement, Candidates};
 use cluster::{Accept as ClusterAccept, ClusterTracker, RejectIncoming as ClusterRejectIncoming};
+use grid::{GridTracker, ManifestSummary, StatementFilter};
 use groups::Groups;
 use requests::RequestManager;
 use statement_store::StatementStore;
@@ -105,6 +106,8 @@ struct LocalValidatorState {
 	assignment: Option<ParaId>,
 	// the 'direct-in-group' communication at this relay-parent.
 	cluster_tracker: ClusterTracker,
+	// the grid-level communication at this relay-parent.
+	grid_tracker: GridTracker,
 }
 
 struct PerSessionState {
@@ -431,6 +434,7 @@ fn find_local_validator_state(
 			todo!(), // TODO [now]: seconding limit?
 		)
 		.expect("group is non-empty because we are in it; qed"),
+		grid_tracker: GridTracker::default(),
 	})
 }
 
@@ -448,7 +452,7 @@ pub(crate) fn handle_deactivate_leaf(state: &mut State, leaf_hash: Hash) {
 	state.per_relay_parent.retain(|r, x| relay_parents.contains(r));
 
 	// TODO [now]: clean up requests
-	// TODO [now]: clean up candidates
+	state.candidates.collect_garbage(|h| relay_parents.contains(h));
 
 	// clean up sessions based on everything remaining.
 	let sessions: HashSet<_> = state.per_relay_parent.values().map(|r| r.session).collect();
@@ -596,6 +600,7 @@ async fn send_statement_direct<Context>(
 		Grid,
 	}
 
+	let originator = statement.validator_index();
 	let (local_validator, targets) = {
 		let local_validator = match per_relay_parent.local_validator.as_mut() {
 			Some(v) => v,
@@ -609,9 +614,15 @@ async fn send_statement_direct<Context>(
 			.filter(|&v| v != &local_validator.index)
 			.map(|v| (*v, TargetKind::Cluster));
 
-		// TODO [now]: extend with grid targets, dedup
+		let grid_targets = local_validator
+			.grid_tracker
+			.direct_statement_recipients(&per_session.groups, originator, &compact_statement)
+			.into_iter()
+			.filter(|v| !local_validator.cluster_tracker.targets().contains(v))
+			.map(|v| (v, TargetKind::Grid));
 
 		let targets = cluster_targets
+			.chain(grid_targets)
 			.filter_map(|(v, k)| {
 				session_info.discovery_keys.get(v.0 as usize).map(|a| (v, a.clone(), k))
 			})
@@ -619,8 +630,6 @@ async fn send_statement_direct<Context>(
 
 		(local_validator, targets)
 	};
-
-	let originator = statement.validator_index();
 
 	let mut prior_to = Vec::new();
 	let mut statement_to = Vec::new();
@@ -696,7 +705,13 @@ async fn send_statement_direct<Context>(
 				}
 			},
 			TargetKind::Grid => {
-				// TODO [now]
+				statement_to.push(peer_id);
+				local_validator.grid_tracker.note_sent_or_received_direct_statement(
+					&per_session.groups,
+					originator,
+					target,
+					&compact_statement,
+				);
 			},
 		}
 	}
