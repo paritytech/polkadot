@@ -118,7 +118,7 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 	};
 	for p in par.iter() {
 		match p {
-			ExecutorParam::Environment(env) =>
+			ExecutorParam::Version(env, _) =>
 				if *env != ExecutionEnvironment::WasmtimeGeneric {
 					return Err("Wrong execution environment type".to_string())
 				},

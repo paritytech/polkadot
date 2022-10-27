@@ -16,9 +16,9 @@
 
 //! Abstract execution environment parameter set.
 //!
-//! Parameters are encoded as (u8, u64) tuples, where u8 is a tag defining a type of
-//! parameter, and u64 is a parameter value. Parameter set and value structure are opaque
-//! and depend on execution environment itself. Decoding to a usable semantics structure is
+//! Parameter set is encoded as an opaque vector which structure depends on the execution
+//! environment itself (except for environment type/version which is always represented
+//! by the first element of the vector). Decoding to a usable semantics structure is
 //! done in `polkadot-node-core-pvf`.
 
 use parity_scale_codec::{Decode, Encode};
@@ -53,10 +53,9 @@ pub enum ExecInstantiationStrategy {
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, MallocSizeOf, TypeInfo)]
 pub enum ExecutorParam {
 	/// General parameters:
-	/// Execution environment type
-	Environment(ExecutionEnvironment),
-	/// Version of the set of execution parameters, unique in the scope of execution environment type
-	Version(u32),
+	/// Execution environment type and a version of the set of execution parameters, unique in
+	/// the scope of execution environment type
+	Version(ExecutionEnvironment, u32),
 
 	/// Parameters setting the executuion environment semantics:
 	/// Number of extra heap pages
@@ -85,8 +84,8 @@ impl ExecutorParams {
 		if self.0.len() < 2 {
 			return 0
 		}
-		let env = if let ExecutorParam::Environment(env) = self.0[0] { env } else { return 0 };
-		let ver = if let ExecutorParam::Version(ver) = self.0[1] { ver } else { return 0 };
+		let (env, ver) =
+			if let ExecutorParam::Version(env, ver) = self.0[0] { (env, ver) } else { return 0 };
 		(env as u64) * 2 ^ 32u64 + ver as u64
 	}
 
@@ -95,7 +94,7 @@ impl ExecutorParams {
 		if self.0.len() < 1 {
 			return ExecutionEnvironment::WasmtimeGeneric
 		}
-		if let ExecutorParam::Environment(env) = self.0[0] {
+		if let ExecutorParam::Version(env, _) = self.0[0] {
 			env
 		} else {
 			ExecutionEnvironment::WasmtimeGeneric

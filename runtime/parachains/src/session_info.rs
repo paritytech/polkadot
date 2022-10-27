@@ -44,8 +44,8 @@ pub mod migration;
 mod tests;
 
 // The order of tags should be deterministic, `Environment` should always be the first, and `Version` the second one
-const EXECUTOR_PARAMS: [ExecutorParam; 2] =
-	[ExecutorParam::Environment(ExecutionEnvironment::WasmtimeGeneric), ExecutorParam::Version(1)];
+const EXECUTOR_PARAMS: [ExecutorParam; 1] =
+	[ExecutorParam::Version(ExecutionEnvironment::WasmtimeGeneric, 1)];
 
 /// A type for representing the validator account id in a session.
 pub type AccountId<T> = <<T as Config>::ValidatorSet as ValidatorSet<
