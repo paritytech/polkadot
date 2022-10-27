@@ -49,10 +49,13 @@ use polkadot_node_subsystem_util::{
 	},
 	TimeoutExt,
 };
-use polkadot_primitives::v2::{
-	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
-	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
-	ValidatorIndex, ValidatorPair, ValidatorSignature,
+use polkadot_primitives::{
+	v2::{
+		ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt,
+		DisputeStatement, GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind,
+		ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	},
+	vstaging::ExecutorParams,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -2379,8 +2382,7 @@ async fn launch_approval<Context>(
 			.await;
 
 		let ee_params = match ee_params_rx.await {
-			Err(_) => return ApprovalState::failed(validator_index, candidate_hash),
-			Ok(Err(_)) => return ApprovalState::failed(validator_index, candidate_hash),
+			Err(_) | Ok(Err(_)) => ExecutorParams::default(), // Runtime API is not yet available
 			Ok(Ok(Some(eep))) => eep,
 			Ok(Ok(None)) => {
 				gum::warn!(

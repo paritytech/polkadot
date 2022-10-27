@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use polkadot_primitives::vstaging::ExecutorParams;
 use std::collections::HashSet;
 #[cfg(test)]
 use std::time::Duration;
@@ -331,14 +332,7 @@ async fn participate(
 		.await;
 
 	let ee_params = match ee_params_rx.await {
-		Err(_) => {
-			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
-			return
-		},
-		Ok(Err(_)) => {
-			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
-			return
-		},
+		Err(_) | Ok(Err(_)) => ExecutorParams::default(), // Runtime API is not yet available
 		Ok(Ok(Some(eep))) => eep,
 		Ok(Ok(None)) => {
 			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await; // FIXME: Use default?

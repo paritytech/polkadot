@@ -49,10 +49,13 @@ use polkadot_node_subsystem_util::{
 	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
 	request_validators, Validator,
 };
-use polkadot_primitives::v2::{
-	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
-	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SigningContext,
-	ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+use polkadot_primitives::{
+	v2::{
+		BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
+		CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SigningContext,
+		ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+	},
+	vstaging::ExecutorParams,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{
@@ -656,14 +659,7 @@ async fn request_candidate_validation(
 		.await;
 
 	let ee_params = match ee_params_rx.await {
-		Err(_) =>
-			return Err(Error::SubsystemError(polkadot_node_subsystem::SubsystemError::Context(
-				"communicate to runtime API".to_string(),
-			))),
-		Ok(Err(_)) =>
-			return Err(Error::SubsystemError(polkadot_node_subsystem::SubsystemError::Context(
-				"get execution environment parameters".to_string(),
-			))),
+		Err(_) | Ok(Err(_)) => ExecutorParams::default(), // Runtime API is not yet available
 		Ok(Ok(Some(eep))) => eep,
 		Ok(Ok(None)) => {
 			gum::warn!(
