@@ -23,3 +23,7 @@ cargo install mdbook mdbook-linkcheck mdbook-graphviz mdbook-mermaid
 mdbook serve roadmap/implementers-guide
 open http://localhost:3000
 ```
+
+## Specification
+
+See also the Polkadot specificaton [hosted](https://spec.polkadot.network/), and it's [source](https://github.com/w3f/polkadot-spec)).
