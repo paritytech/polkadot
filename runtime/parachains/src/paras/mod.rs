@@ -295,11 +295,12 @@ pub struct ParaGenesisArgs {
 	pub paratype: ParaType,
 }
 
+/// Distinguishes between Parachain and Parathread
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum ParaType {
-	ParaChain,
-	ParaThread,
+	Parachain,
+	Parathread,
 }
 
 /// This enum describes a reason why a particular PVF pre-checking vote was initiated. When the
@@ -2029,11 +2030,11 @@ impl<T: Config> Pallet<T> {
 		genesis_data: &ParaGenesisArgs,
 	) {
 		match genesis_data.paratype {
-			ParaType::ParaChain => {
+			ParaType::Parachain => {
 				parachains.add(id);
 				ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parachain);
 			},
-			ParaType::ParaThread => ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parathread),
+			ParaType::Parathread => ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parathread),
 		}
 
 		// HACK: see the notice in `schedule_para_initialize`.
