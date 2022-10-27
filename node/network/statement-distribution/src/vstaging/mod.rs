@@ -549,6 +549,13 @@ pub(crate) async fn share_local_statement<Context>(
 	Ok(())
 }
 
+// two kinds of targets: those in our 'cluster' (currently just those in the same group),
+// and those we are propagating to through the grid.
+enum DirectTargetKind {
+	Cluster,
+	Grid,
+}
+
 // Circulates a compact statement to all peers who need it: those in the current group of the
 // local validator, those in the next group for the parachain, and grid peers which have already
 // indicated that they know the candidate as backed.
@@ -593,13 +600,6 @@ async fn send_statement_direct<Context>(
 		CompactStatement::Valid(_) => false,
 	};
 
-	// two kinds of targets: those in our 'cluster' (currently just those in the same group),
-	// and those we are propagating to through the grid.
-	enum TargetKind {
-		Cluster,
-		Grid,
-	}
-
 	let originator = statement.validator_index();
 	let (local_validator, targets) = {
 		let local_validator = match per_relay_parent.local_validator.as_mut() {
@@ -607,21 +607,30 @@ async fn send_statement_direct<Context>(
 			None => return, // sanity: should be impossible to reach this.
 		};
 
-		let cluster_targets = local_validator
-			.cluster_tracker
-			.targets()
-			.iter()
-			.filter(|&v| v != &local_validator.index)
-			.map(|v| (*v, TargetKind::Cluster));
+		let statement_group = per_session.groups.by_validator_index(originator);
+
+		let cluster_relevant = Some(local_validator.group) == statement_group;
+		let cluster_targets = if cluster_relevant {
+			Some(local_validator
+				.cluster_tracker
+				.targets()
+				.iter()
+				.filter(|&v| v != &local_validator.index)
+				.map(|v| (*v, DirectTargetKind::Cluster)))
+		} else {
+			None
+		};
 
 		let grid_targets = local_validator
 			.grid_tracker
 			.direct_statement_recipients(&per_session.groups, originator, &compact_statement)
 			.into_iter()
-			.filter(|v| !local_validator.cluster_tracker.targets().contains(v))
-			.map(|v| (v, TargetKind::Grid));
+			.filter(|v| !cluster_relevant || !local_validator.cluster_tracker.targets().contains(v))
+			.map(|v| (v, DirectTargetKind::Grid));
 
 		let targets = cluster_targets
+			.into_iter()
+			.flat_map(|c| c)
 			.chain(grid_targets)
 			.filter_map(|(v, k)| {
 				session_info.discovery_keys.get(v.0 as usize).map(|a| (v, a.clone(), k))
@@ -643,7 +652,7 @@ async fn send_statement_direct<Context>(
 		};
 
 		match kind {
-			TargetKind::Cluster => {
+			DirectTargetKind::Cluster => {
 				if !local_validator.cluster_tracker.knows_candidate(target, candidate_hash) &&
 					!is_seconded
 				{
@@ -704,7 +713,7 @@ async fn send_statement_direct<Context>(
 					statement_to.push(peer_id);
 				}
 			},
-			TargetKind::Grid => {
+			DirectTargetKind::Grid => {
 				statement_to.push(peer_id);
 				local_validator.grid_tracker.note_sent_or_received_direct_statement(
 					&per_session.groups,

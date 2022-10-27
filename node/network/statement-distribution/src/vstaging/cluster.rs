@@ -98,7 +98,6 @@ enum TaggedKnowledge {
 pub struct ClusterTracker {
 	validators: Vec<ValidatorIndex>,
 	seconding_limit: usize,
-
 	knowledge: HashMap<ValidatorIndex, HashSet<TaggedKnowledge>>,
 }
 
