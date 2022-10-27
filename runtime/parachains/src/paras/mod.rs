@@ -291,8 +291,15 @@ pub struct ParaGenesisArgs {
 	pub genesis_head: HeadData,
 	/// The initial validation code to use.
 	pub validation_code: ValidationCode,
-	/// True if parachain, false if parathread.
-	pub parachain: bool,
+	/// Parachain or Parathread.
+	pub paratype: ParaType,
+}
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+pub enum ParaType {
+	ParaChain,
+	ParaThread,
 }
 
 /// This enum describes a reason why a particular PVF pre-checking vote was initiated. When the
@@ -2021,11 +2028,12 @@ impl<T: Config> Pallet<T> {
 		id: ParaId,
 		genesis_data: &ParaGenesisArgs,
 	) {
-		if genesis_data.parachain {
-			parachains.add(id);
-			ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parachain);
-		} else {
-			ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parathread);
+		match genesis_data.paratype {
+			ParaType::ParaChain => {
+				parachains.add(id);
+				ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parachain);
+			},
+			ParaType::ParaThread => ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parathread),
 		}
 
 		// HACK: see the notice in `schedule_para_initialize`.

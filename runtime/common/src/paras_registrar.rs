@@ -35,6 +35,7 @@ use sp_std::{prelude::*, result};
 use crate::traits::{OnSwap, Registrar};
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
+use runtime_parachains::paras::ParaType;
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{CheckedSub, Saturating},
@@ -570,7 +571,7 @@ impl<T: Config> Pallet<T> {
 		};
 		ensure!(paras::Pallet::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
 		let (genesis, deposit) =
-			Self::validate_onboarding_data(genesis_head, validation_code, false)?;
+			Self::validate_onboarding_data(genesis_head, validation_code, ParaType::ParaThread)?;
 		let deposit = deposit_override.unwrap_or(deposit);
 
 		if let Some(additional) = deposit.checked_sub(&deposited) {
@@ -613,7 +614,7 @@ impl<T: Config> Pallet<T> {
 	fn validate_onboarding_data(
 		genesis_head: HeadData,
 		validation_code: ValidationCode,
-		parachain: bool,
+		paratype: ParaType,
 	) -> Result<(ParaGenesisArgs, BalanceOf<T>), sp_runtime::DispatchError> {
 		let config = configuration::Pallet::<T>::config();
 		ensure!(validation_code.0.len() > 0, Error::<T>::EmptyCode);
@@ -628,7 +629,7 @@ impl<T: Config> Pallet<T> {
 			.saturating_add(per_byte_fee.saturating_mul((genesis_head.0.len() as u32).into()))
 			.saturating_add(per_byte_fee.saturating_mul((validation_code.0.len() as u32).into()));
 
-		Ok((ParaGenesisArgs { genesis_head, validation_code, parachain }, deposit))
+		Ok((ParaGenesisArgs { genesis_head, validation_code, paratype }, deposit))
 	}
 
 	/// Swap a parachain and parathread, which involves scheduling an appropriate lifecycle update.
