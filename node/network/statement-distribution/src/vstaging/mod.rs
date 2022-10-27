@@ -19,7 +19,7 @@
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
-	grid_topology::{RequiredRouting, SessionGridTopologies, SessionGridTopology},
+	grid_topology::{RequiredRouting, SessionGridTopology},
 	peer_set::ValidationVersion,
 	vstaging as protocol_vstaging, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
@@ -42,7 +42,7 @@ use sp_keystore::SyncCryptoStorePtr;
 
 use indexmap::IndexMap;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map::{HashMap, Entry}, HashSet};
 
 use crate::{
 	error::{JfyiError, JfyiErrorResult},
@@ -107,6 +107,54 @@ struct LocalValidatorState {
 struct PerSessionState {
 	session_info: SessionInfo,
 	groups: Groups,
+	authority_lookup: HashMap<AuthorityDiscoveryId, ValidatorIndex>,
+	// is only `None` in the time between seeing a session and
+	// getting the topology from the gossip-support subsystem
+	grid_view: Option<grid::SessionTopologyView>,
+	local_validator: Option<ValidatorIndex>,
+}
+
+impl PerSessionState {
+	async fn new(
+		session_info: SessionInfo,
+		keystore: &SyncCryptoStorePtr,
+	) -> Self {
+		let groups = Groups::new(session_info.validator_groups.clone(), &session_info.discovery_keys);
+		let mut authority_lookup = HashMap::new();
+		for (i, ad) in session_info.discovery_keys.iter().cloned().enumerate() {
+			authority_lookup.insert(ad, ValidatorIndex(i as _));
+		}
+
+		let local_validator = polkadot_node_subsystem_util::signing_key_and_index(
+			&session_info.validators,
+			keystore,
+		).await;
+
+		PerSessionState {
+			session_info,
+			groups,
+			authority_lookup,
+			grid_view: None,
+			local_validator: local_validator.map(|(_key, index)| index),
+		}
+	}
+
+	fn supply_topology(
+		&mut self,
+		topology: &SessionGridTopology,
+	) {
+		let grid_view = grid::build_session_topology(
+			&self.session_info.validator_groups[..],
+			topology,
+			self.local_validator,
+		);
+
+		self.grid_view = Some(grid_view);
+	}
+
+	fn authority_index_in_session(&self, discovery_key: &AuthorityDiscoveryId) -> Option<ValidatorIndex> {
+		self.authority_lookup.get(discovery_key).map(|x| *x)
+	}
 }
 
 pub(crate) struct State {
@@ -119,15 +167,26 @@ pub(crate) struct State {
 	per_session: HashMap<SessionIndex, PerSessionState>,
 	peers: HashMap<PeerId, PeerState>,
 	keystore: SyncCryptoStorePtr,
-	topology_storage: SessionGridTopologies,
 	authorities: HashMap<AuthorityDiscoveryId, PeerId>,
 	request_manager: RequestManager,
+}
+
+// For the provided validator index, if there is a connected peer
+// controlling the given authority ID,
+fn connected_validator_peer(
+	authorities: &HashMap<AuthorityDiscoveryId, PeerId>,
+	per_session: &PerSessionState,
+	validator_index: ValidatorIndex,
+) -> Option<PeerId> {
+	per_session.session_info.discovery_keys.get(validator_index.0 as usize)
+		.and_then(|k| authorities.get(k))
+		.map(|p| p.clone())
 }
 
 struct PeerState {
 	view: View,
 	implicit_view: HashSet<Hash>,
-	maybe_authority: Option<HashSet<AuthorityDiscoveryId>>,
+	discovery_ids: Option<HashSet<AuthorityDiscoveryId>>,
 }
 
 impl PeerState {
@@ -141,7 +200,7 @@ impl PeerState {
 	}
 
 	fn is_authority(&self, authority_id: &AuthorityDiscoveryId) -> bool {
-		self.maybe_authority.as_ref().map_or(false, |x| x.contains(authority_id))
+		self.discovery_ids.as_ref().map_or(false, |x| x.contains(authority_id))
 	}
 }
 
@@ -159,11 +218,33 @@ pub(crate) async fn handle_network_update<Context>(
 	update: NetworkBridgeEvent<net_protocol::StatementDistributionMessage>,
 ) {
 	match update {
-		NetworkBridgeEvent::PeerConnected(peer_id, role, protocol_version, authority_ids) => {
+		NetworkBridgeEvent::PeerConnected(peer_id, role, protocol_version, mut authority_ids) => {
 			gum::trace!(target: LOG_TARGET, ?peer_id, ?role, ?protocol_version, "Peer connected");
 
 			if protocol_version != ValidationVersion::VStaging.into() {
 				return
+			}
+
+			if let Some(ref mut authority_ids) = authority_ids {
+				authority_ids.retain(|a| {
+					match state.authorities.entry(a.clone()) {
+						Entry::Vacant(e) => {
+							e.insert(peer_id);
+							true
+						}
+						Entry::Occupied(e) => {
+							gum::trace!(
+								target: LOG_TARGET,
+								authority_id = ?a,
+								existing_peer = ?e.get(),
+								new_peer = ?peer_id,
+								"Ignoring new peer with duplicate authority ID as a bearer of that identity"
+							);
+
+							false
+						}
+					}
+				});
 			}
 
 			state.peers.insert(
@@ -171,29 +252,24 @@ pub(crate) async fn handle_network_update<Context>(
 				PeerState {
 					view: View::default(),
 					implicit_view: HashSet::new(),
-					maybe_authority: authority_ids.clone(),
+					discovery_ids: authority_ids,
 				},
 			);
-
-			if let Some(authority_ids) = authority_ids {
-				authority_ids.into_iter().for_each(|a| {
-					state.authorities.insert(a, peer_id);
-				})
-			}
 		},
 		NetworkBridgeEvent::PeerDisconnected(peer_id) => {
-			state.peers.remove(&peer_id);
+			if let Some(p) = state.peers.remove(&peer_id) {
+				for discovery_key in p.discovery_ids.into_iter().flat_map(|x| x) {
+					state.authorities.remove(&discovery_key);
+				}
+			}
 		},
 		NetworkBridgeEvent::NewGossipTopology(topology) => {
 			let new_session_index = topology.session;
 			let new_topology = topology.topology;
-			state.topology_storage.insert_topology(
-				new_session_index,
-				new_topology,
-				topology.local_index,
-			);
 
-			// TODO [now]: can we not update authority IDs for peers?
+			if let Some(per_session) = state.per_session.get_mut(&new_session_index) {
+				per_session.supply_topology(&new_topology);
+			}
 
 			// TODO [now] for all relay-parents with this session, send all grid peers
 			// any `BackedCandidateInv` messages they might need.
@@ -288,12 +364,12 @@ pub(crate) async fn handle_activated_leaf<Context>(
 				Some(s) => s,
 			};
 
-			let groups =
-				Groups::new(session_info.validator_groups.clone(), &session_info.discovery_keys);
-
 			state
 				.per_session
-				.insert(session_index, PerSessionState { session_info, groups });
+				.insert(
+					session_index,
+					PerSessionState::new(session_info, &state.keystore).await,
+				);
 		}
 
 		let per_session = state
@@ -301,13 +377,12 @@ pub(crate) async fn handle_activated_leaf<Context>(
 			.get(&session_index)
 			.expect("either existed or just inserted; qed");
 
-		let local_validator = find_local_validator_state(
+		let local_validator = per_session.local_validator.and_then(|v| find_local_validator_state(
+			v,
 			&per_session.session_info.validators,
-			&state.keystore,
 			&per_session.groups,
 			&availability_cores,
-		)
-		.await;
+		));
 
 		state.per_relay_parent.insert(
 			*leaf,
@@ -319,8 +394,6 @@ pub(crate) async fn handle_activated_leaf<Context>(
 			},
 		);
 
-		state.topology_storage.inc_session_refs(session_index);
-
 		// TODO [now]: update peers which have the leaf in their view.
 		// update their implicit view. send any messages accordingly.
 	}
@@ -328,9 +401,9 @@ pub(crate) async fn handle_activated_leaf<Context>(
 	Ok(())
 }
 
-async fn find_local_validator_state(
+fn find_local_validator_state(
+	validator_index: ValidatorIndex,
 	validators: &[ValidatorId],
-	keystore: &SyncCryptoStorePtr,
 	groups: &Groups,
 	availability_cores: &[CoreState],
 ) -> Option<LocalValidatorState> {
@@ -338,8 +411,7 @@ async fn find_local_validator_state(
 		return None
 	}
 
-	let (validator_id, validator_index) =
-		polkadot_node_subsystem_util::signing_key_and_index(validators, keystore).await?;
+	let validator_id = validators.get(validator_index.0 as usize)?.clone();
 
 	let our_group = groups.by_validator_index(validator_index)?;
 
@@ -373,19 +445,10 @@ pub(crate) fn handle_deactivate_leaf(state: &mut State, leaf_hash: Hash) {
 	}
 
 	// clean up per-relay-parent data based on everything removed.
-	let topology_storage = &mut state.topology_storage;
-	state.per_relay_parent.retain(|r, x| {
-		if relay_parents.contains(r) {
-			true
-		} else {
-			// clean up topology storage.
-			topology_storage.dec_session_refs(x.session);
-
-			false
-		}
-	});
+	state.per_relay_parent.retain(|r, x| relay_parents.contains(r));
 
 	// TODO [now]: clean up requests
+	// TODO [now]: clean up candidates
 
 	// clean up sessions based on everything remaining.
 	let sessions: HashSet<_> = state.per_relay_parent.values().map(|r| r.session).collect();
@@ -447,7 +510,14 @@ pub(crate) async fn share_local_statement<Context>(
 		let candidate_hash = CandidateHash(*statement.payload().candidate_hash());
 
 		if let FullStatementWithPVD::Seconded(ref c, ref pvd) = statement.payload() {
-			// TODO [now]: insert confirmed candidate and report peers.
+			if let Some(reckoning) = state.candidates.confirm_candidate(
+				candidate_hash,
+				c.clone(),
+				pvd.clone(),
+				local_group,
+			) {
+				// TODO [now] apply the reckoning.
+			}
 		};
 
 		match per_relay_parent
