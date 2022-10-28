@@ -80,9 +80,13 @@ const COST_IMPROPERLY_DECODED_RESPONSE: Rep =
 const COST_INVALID_RESPONSE: Rep = Rep::CostMajor("Invalid Candidate Response");
 const COST_UNREQUESTED_RESPONSE_STATEMENT: Rep =
 	Rep::CostMajor("Un-requested Statement In Response");
+const COST_INACCURATE_ADVERTISEMENT: Rep =
+	Rep::CostMajor("Peer advertised a candidate inaccurately");
 
 const BENEFIT_VALID_RESPONSE: Rep = Rep::BenefitMajor("Peer Answered Candidate Request");
 const BENEFIT_VALID_STATEMENT: Rep = Rep::BenefitMajor("Peer provided a valid statement");
+const BENEFIT_VALID_STATEMENT_FIRST: Rep =
+	Rep::BenefitMajorFirst("Peer was the first to provide a valid statement");
 
 struct PerRelayParentState {
 	validator_state: HashMap<ValidatorIndex, PerRelayParentValidatorState>,
@@ -540,11 +544,8 @@ pub(crate) async fn share_local_statement<Context>(
 		}
 	};
 
-	// send the compact version of the statement to nodes in current group and next-up. If not a `Seconded` statement,
-	// send a `Seconded` statement as well.
-	send_statement_direct(ctx, state, relay_parent, local_group, compact_statement).await;
-
-	// TODO [now]: send along grid if backed, send statement to backing if we can
+	// send the compact version of the statement to any peers which need it.
+	circulate_statement(ctx, state, relay_parent, local_group, compact_statement).await;
 
 	Ok(())
 }
@@ -570,10 +571,8 @@ enum DirectTargetKind {
 // preconditions: the candidate entry exists in the state under the relay parent
 // and the statement has already been imported into the entry. If this is a `Valid`
 // statement, then there must be at least one `Seconded` statement.
-// TODO [now]: make this a more general `broadcast_statement` with an `BroadcastBehavior` that
-// affects targets: `Local` keeps current behavior while `Forward` only sends onwards via `BackedCandidate` knowers.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-async fn send_statement_direct<Context>(
+async fn circulate_statement<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	relay_parent: Hash,
@@ -611,12 +610,20 @@ async fn send_statement_direct<Context>(
 
 		let cluster_relevant = Some(local_validator.group) == statement_group;
 		let cluster_targets = if cluster_relevant {
-			Some(local_validator
-				.cluster_tracker
-				.targets()
-				.iter()
-				.filter(|&v| v != &local_validator.index)
-				.map(|v| (*v, DirectTargetKind::Cluster)))
+			Some(
+				local_validator
+					.cluster_tracker
+					.targets()
+					.iter()
+					.filter(|&&v| {
+						local_validator
+							.cluster_tracker
+							.can_send(v, originator, compact_statement.clone())
+							.is_ok()
+					})
+					.filter(|&v| v != &local_validator.index)
+					.map(|v| (*v, DirectTargetKind::Cluster)),
+			)
 		} else {
 			None
 		};
@@ -850,77 +857,35 @@ async fn handle_incoming_statement<Context>(
 			.next()
 	};
 
-	// TODO [now]: handle direct statements from grid peers
-	let cluster_sender_index = match cluster_sender_index {
-		None => {
-			report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
-			return
-		},
-		Some(c) => c,
-	};
+	let was_backed = false; // TODO [now]
 
-	// additional cluster checks.
-	{
-		match local_validator.cluster_tracker.can_receive(
+	let is_cluster = cluster_sender_index.is_some();
+	let checked_statement = if let Some(cluster_sender_index) = cluster_sender_index {
+		match handle_cluster_statement(
+			relay_parent,
+			local_validator,
+			per_relay_parent.session,
+			&per_session.session_info,
+			statement,
 			cluster_sender_index,
-			statement.unchecked_validator_index(),
-			statement.unchecked_payload().clone(),
 		) {
-			Ok(ClusterAccept::Ok | ClusterAccept::WithPrejudice) => {},
-			Err(ClusterRejectIncoming::ExcessiveSeconded) => {
-				report_peer(ctx.sender(), peer, COST_EXCESSIVE_SECONDED).await;
-				return
-			},
-			Err(ClusterRejectIncoming::CandidateUnknown | ClusterRejectIncoming::Duplicate) => {
-				report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
-				return
-			},
-			Err(ClusterRejectIncoming::NotInGroup) => {
-				// sanity: shouldn't be possible; we already filtered this
-				// out above.
+			Ok(Some(s)) => s,
+			Ok(None) => return,
+			Err(rep) => {
+				report_peer(ctx.sender(), peer, rep).await;
 				return
 			},
 		}
-	}
-
-	// Ensure the statement is correctly signed.
-	let checked_statement = match check_statement_signature(
-		per_relay_parent.session,
-		&session_info.validators[..],
-		relay_parent,
-		statement,
-	) {
-		Ok(s) => s,
-		Err(_) => {
-			report_peer(ctx.sender(), peer, COST_INVALID_SIGNATURE).await;
-			return
-		},
+	} else {
+		// TODO [now]: handle direct statements from grid peers
+		// TODO [now]: if not a grid peer
+		report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
+		return
 	};
-
-	local_validator.cluster_tracker.note_received(
-		cluster_sender_index,
-		checked_statement.validator_index(),
-		checked_statement.payload().clone(),
-	);
 
 	let statement = checked_statement.payload().clone();
 	let originator_index = checked_statement.validator_index();
 	let candidate_hash = *checked_statement.payload().candidate_hash();
-	let was_fresh =
-		match per_relay_parent.statement_store.insert(&per_session.groups, checked_statement) {
-			Err(_) => {
-				// sanity: should never happen.
-				gum::warn!(
-					target: LOG_TARGET,
-					?relay_parent,
-					validator_index = ?originator_index,
-					"Error -Cluster accepted message from unknown validator."
-				);
-
-				return
-			},
-			Ok(known) => known,
-		};
 
 	let originator_group = per_relay_parent
 		.statement_store
@@ -928,18 +893,22 @@ async fn handle_incoming_statement<Context>(
 		.expect("validator confirmed to be known by statement_store.insert; qed");
 
 	// Insert an unconfirmed candidate entry if needed
-	let res = state.candidates.insert_unconfirmed(
-		peer.clone(),
-		candidate_hash,
-		relay_parent,
-		originator_group,
-		None,
-	);
+	{
+		let res = state.candidates.insert_unconfirmed(
+			peer.clone(),
+			candidate_hash,
+			relay_parent,
+			originator_group,
+			None,
+		);
 
-	if let Err(BadAdvertisement) = res {
-		// TODO [now]: punish the peer.
-		// TODO [now]: return?
-	} else if !state.candidates.is_confirmed(&candidate_hash) {
+		if let Err(BadAdvertisement) = res {
+			report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
+			return
+		}
+	}
+
+	if !state.candidates.is_confirmed(&candidate_hash) {
 		// If the candidate is not confirmed, note that we should attempt
 		// to request it from the given peer.
 		let mut request_entry =
@@ -948,11 +917,95 @@ async fn handle_incoming_statement<Context>(
 				.get_or_insert(relay_parent, candidate_hash, originator_group);
 
 		request_entry.get_mut().add_peer(peer);
+
+		// We only successfully accept statements from the grid on confirmed
+		// candidates, therefore this check only passes if the statement is from the cluster
 		request_entry.get_mut().set_cluster_priority();
 	}
 
+	let was_fresh =
+		match per_relay_parent.statement_store.insert(&per_session.groups, checked_statement) {
+			Err(_) => {
+				// sanity: should never happen.
+				gum::warn!(
+					target: LOG_TARGET,
+					?relay_parent,
+					validator_index = ?originator_index,
+					"Error - Cluster accepted message from unknown validator."
+				);
+
+				return
+			},
+			Ok(known) => known,
+		};
+
+	let is_backed = false; // TODO [now]
+
 	if was_fresh {
-		// both of the below probably in some shared function.
-		// TODO [now]: send along grid if backed, send statement to backing if we can
+		report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT_FIRST).await;
+
+	// both of the below probably in some shared function.
+	// TODO [now]: circulate the statement
+	// TODO [now]: import the statement into backing if we can.
+	} else {
+		report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT).await;
 	}
+
+	if is_backed && !was_backed {
+		// TODO [now]: handle a candidate being completely backed now.
+	}
+}
+
+/// Checks whether a statement is allowed, whether the signature is accurate,
+/// inserting an unconfirmed candidate entry and importing into the cluster tracker
+/// if successful.
+///
+/// if successful, this returns a checked signed statement if it should be imported
+/// or otherwise an error indicating a reputational fault.
+fn handle_cluster_statement(
+	relay_parent: Hash,
+	local_validator: &mut LocalValidatorState,
+	session: SessionIndex,
+	session_info: &SessionInfo,
+	statement: UncheckedSignedStatement,
+	cluster_sender_index: ValidatorIndex,
+) -> Result<Option<SignedStatement>, Rep> {
+	// additional cluster checks.
+	let should_import = {
+		match local_validator.cluster_tracker.can_receive(
+			cluster_sender_index,
+			statement.unchecked_validator_index(),
+			statement.unchecked_payload().clone(),
+		) {
+			Ok(ClusterAccept::Ok) => true,
+			Ok(ClusterAccept::WithPrejudice) => false,
+			Err(ClusterRejectIncoming::ExcessiveSeconded) => return Err(COST_EXCESSIVE_SECONDED),
+			Err(ClusterRejectIncoming::CandidateUnknown | ClusterRejectIncoming::Duplicate) =>
+				return Err(COST_UNEXPECTED_STATEMENT),
+			Err(ClusterRejectIncoming::NotInGroup) => {
+				// sanity: shouldn't be possible; we already filtered this
+				// out above.
+				return Err(COST_UNEXPECTED_STATEMENT)
+			},
+		}
+	};
+
+	// Ensure the statement is correctly signed.
+	let checked_statement = match check_statement_signature(
+		session,
+		&session_info.validators[..],
+		relay_parent,
+		statement,
+	) {
+		Ok(s) => s,
+		Err(_) => return Err(COST_INVALID_SIGNATURE),
+	};
+
+	local_validator.cluster_tracker.note_received(
+		cluster_sender_index,
+		checked_statement.validator_index(),
+		checked_statement.payload().clone(),
+	);
+
+	Ok(if should_import { Some(checked_statement) } else { None })
 }
