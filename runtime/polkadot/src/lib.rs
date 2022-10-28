@@ -113,13 +113,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9290,
+	spec_version: 9310,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 14,
+	transaction_version: 16,
 	state_version: 0,
 };
 
@@ -1018,7 +1018,7 @@ parameter_types! {
 	pub const DepositBase: Balance = deposit(1, 88);
 	// Additional storage item size of 32 bytes.
 	pub const DepositFactor: Balance = deposit(0, 32);
-	pub const MaxSignatories: u16 = 100;
+	pub const MaxSignatories: u32 = 100;
 }
 
 impl pallet_multisig::Config for Runtime {
@@ -1571,6 +1571,7 @@ pub type Executive = frame_executive::Executive<
 		pallet_multisig::migrations::v1::MigrateToV1<Runtime>,
 		// "Properly migrate weights to v2" <https://github.com/paritytech/polkadot/pull/6091>
 		parachains_configuration::migration::v3::MigrateToV3<Runtime>,
+		pallet_election_provider_multi_phase::migrations::v1::MigrateToV1<Runtime>,
 	),
 >;
 
@@ -1594,6 +1595,7 @@ mod benches {
 		[runtime_common::paras_registrar, Registrar]
 		[runtime_parachains::configuration, Configuration]
 		[runtime_parachains::disputes, ParasDisputes]
+		[runtime_parachains::hrmp, Hrmp]
 		[runtime_parachains::initializer, Initializer]
 		[runtime_parachains::paras, Paras]
 		[runtime_parachains::paras_inherent, ParaInherent]

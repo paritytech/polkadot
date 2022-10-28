@@ -620,7 +620,9 @@ pub(crate) mod tests {
 	use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
-	use polkadot_primitives::v2::{Id as ParaId, SessionInfo, ValidatorIndex};
+	use polkadot_primitives::v2::{
+		Id as ParaId, IndexedVec, SessionInfo, ValidatorId, ValidatorIndex,
+	};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -713,10 +715,10 @@ pub(crate) mod tests {
 
 	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
 		SessionInfo {
-			validators: Vec::new(),
+			validators: Default::default(),
 			discovery_keys: Vec::new(),
 			assignment_keys: Vec::new(),
-			validator_groups: Vec::new(),
+			validator_groups: Default::default(),
 			n_cores: index as _,
 			zeroth_delay_tranche_width: index as _,
 			relay_vrf_modulo_samples: index as _,
@@ -1174,21 +1176,27 @@ pub(crate) mod tests {
 
 		let session = 5;
 		let irrelevant = 666;
-		let session_info = SessionInfo {
-			validators: vec![Sr25519Keyring::Alice.public().into(); 6],
-			discovery_keys: Vec::new(),
-			assignment_keys: Vec::new(),
-			validator_groups: vec![vec![ValidatorIndex(0); 5], vec![ValidatorIndex(0); 2]],
-			n_cores: 6,
-			needed_approvals: 2,
-			zeroth_delay_tranche_width: irrelevant,
-			relay_vrf_modulo_samples: irrelevant,
-			n_delay_tranches: irrelevant,
-			no_show_slots: irrelevant,
-			active_validator_indices: Vec::new(),
-			dispute_period: 6,
-			random_seed: [0u8; 32],
-		};
+		let session_info =
+			SessionInfo {
+				validators: IndexedVec::<ValidatorIndex, ValidatorId>::from(
+					vec![Sr25519Keyring::Alice.public().into(); 6],
+				),
+				discovery_keys: Vec::new(),
+				assignment_keys: Vec::new(),
+				validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
+					vec![ValidatorIndex(0); 5],
+					vec![ValidatorIndex(0); 2],
+				]),
+				n_cores: 6,
+				needed_approvals: 2,
+				zeroth_delay_tranche_width: irrelevant,
+				relay_vrf_modulo_samples: irrelevant,
+				n_delay_tranches: irrelevant,
+				no_show_slots: irrelevant,
+				active_validator_indices: Vec::new(),
+				dispute_period: 6,
+				random_seed: [0u8; 32],
+			};
 
 		let slot = Slot::from(10);
 

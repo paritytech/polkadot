@@ -257,7 +257,7 @@ where
 
 		let keys = losers
 			.into_iter()
-			.filter_map(|i| session_info.validators.get(i.0 as usize).cloned().map(|id| (i, id)))
+			.filter_map(|i| session_info.validators.get(i).cloned().map(|id| (i, id)))
 			.collect();
 		let unapplied = PendingSlashes { keys, kind };
 		<UnappliedSlashes<T>>::insert(session_index, candidate_hash, unapplied);

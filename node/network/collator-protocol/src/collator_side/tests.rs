@@ -44,8 +44,8 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, CollatorPair, GroupRotationInfo, ScheduledCore, SessionIndex,
-	SessionInfo, ValidatorId, ValidatorIndex,
+	AuthorityDiscoveryId, CollatorPair, GroupIndex, GroupRotationInfo, IndexedVec, ScheduledCore,
+	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::TestCandidateBuilder;
 
@@ -62,7 +62,7 @@ struct TestState {
 	session_index: SessionIndex,
 }
 
-fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
+fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> IndexedVec<ValidatorIndex, ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
 }
 
@@ -135,7 +135,7 @@ impl TestState {
 	fn current_group_validator_indices(&self) -> &[ValidatorIndex] {
 		let core_num = self.availability_cores.len();
 		let GroupIndex(group_idx) = self.group_rotation_info.group_for_core(CoreIndex(0), core_num);
-		&self.session_info.validator_groups[group_idx as usize]
+		&self.session_info.validator_groups.get(GroupIndex::from(group_idx)).unwrap()
 	}
 
 	fn current_session_index(&self) -> SessionIndex {
@@ -367,7 +367,7 @@ async fn distribute_collation(
 			)) => {
 				assert_eq!(relay_parent, test_state.relay_parent);
 				tx.send(Ok((
-					test_state.session_info.validator_groups.clone(),
+					test_state.session_info.validator_groups.to_vec(),
 					test_state.group_rotation_info.clone(),
 				)))
 				.unwrap();

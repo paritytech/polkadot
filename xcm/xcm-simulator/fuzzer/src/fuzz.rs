@@ -122,7 +122,7 @@ fn main() {
 	#[cfg(fuzzing)]
 	{
 		loop {
-			fuzz!(|data: &[u8]| {
+			honggfuzz::fuzz!(|data: &[u8]| {
 				run_one_input(data);
 			});
 		}
