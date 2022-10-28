@@ -31,7 +31,7 @@ fn register_parachain_with_balance<T: Config>(id: ParaId, balance: BalanceOf<T>)
 		&mut parachains,
 		id,
 		&crate::paras::ParaGenesisArgs {
-			paratype: ParaKind::Parachain,
+			parakind: ParaKind::Parachain,
 			genesis_head: vec![1].into(),
 			validation_code: vec![1].into(),
 		},

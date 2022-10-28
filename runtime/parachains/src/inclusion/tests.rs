@@ -62,7 +62,7 @@ pub(crate) fn genesis_config(paras: Vec<(ParaId, ParaKind)>) -> MockGenesisConfi
 						ParaGenesisArgs {
 							genesis_head: Vec::new().into(),
 							validation_code: dummy_validation_code(),
-							paratype,
+							parakind: paratype,
 						},
 					)
 				})

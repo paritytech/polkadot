@@ -629,7 +629,7 @@ impl<T: Config> Pallet<T> {
 			.saturating_add(per_byte_fee.saturating_mul((genesis_head.0.len() as u32).into()))
 			.saturating_add(per_byte_fee.saturating_mul((validation_code.0.len() as u32).into()));
 
-		Ok((ParaGenesisArgs { genesis_head, validation_code, paratype }, deposit))
+		Ok((ParaGenesisArgs { genesis_head, validation_code, parakind: paratype }, deposit))
 	}
 
 	/// Swap a parachain and parathread, which involves scheduling an appropriate lifecycle update.

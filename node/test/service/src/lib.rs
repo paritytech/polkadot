@@ -305,7 +305,7 @@ impl PolkadotTestNode {
 			genesis: ParaGenesisArgs {
 				genesis_head: genesis_head.into(),
 				validation_code: validation_code.into(),
-				paratype: ParaKind::Parachain,
+				parakind: ParaKind::Parachain,
 			},
 		};
 
