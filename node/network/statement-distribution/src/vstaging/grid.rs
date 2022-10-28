@@ -392,6 +392,25 @@ impl GridTracker {
 		}
 	}
 
+	/// Determine the validators which can send a statement by direct broadcast.
+	pub fn direct_statement_senders(
+		&self,
+		groups: &Groups,
+		originator: ValidatorIndex,
+		statement: &CompactStatement,
+	) -> Vec<ValidatorIndex> {
+		let (g, c_h, kind, in_group) =
+			match extract_statement_and_group_info(groups, originator, statement) {
+				None => return Vec::new(),
+				Some(x) => x,
+			};
+
+		self.confirmed_backed
+			.get(&c_h)
+			.map(|k| k.direct_statement_senders(g, in_group, kind))
+			.unwrap_or_default()
+	}
+
 	/// Determine the validators which can receive a statement by direct
 	/// broadcast.
 	pub fn direct_statement_recipients(
@@ -772,6 +791,28 @@ impl KnownBackedCandidate {
 				!r.contains(statement_index_in_group, statement_kind),
 			_ => false,
 		}
+	}
+
+	fn direct_statement_senders(
+		&self,
+		group_index: GroupIndex,
+		originator_index_in_group: usize,
+		statement_kind: StatementKind,
+	) -> Vec<ValidatorIndex> {
+		if group_index != self.group_index {
+			return Vec::new()
+		}
+
+		self.mutual_knowledge
+			.iter()
+			.filter(|(_, k)| k.remote_knowledge.is_some())
+			.filter(|(_, k)| {
+				k.local_knowledge
+					.as_ref()
+					.map_or(false, |r| !r.contains(originator_index_in_group, statement_kind))
+			})
+			.map(|(v, _)| *v)
+			.collect()
 	}
 
 	fn direct_statement_recipients(

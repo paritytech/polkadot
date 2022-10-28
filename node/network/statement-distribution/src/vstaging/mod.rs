@@ -844,6 +844,16 @@ async fn handle_incoming_statement<Context>(
 		Some(l) => l,
 	};
 
+	let originator_group = match per_session.groups
+		.by_validator_index(statement.unchecked_validator_index())
+	{
+		Some(g) => g,
+		None => {
+			report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
+			return
+		}
+	};
+
 	let cluster_sender_index = {
 		let allowed_senders = local_validator
 			.cluster_tracker
@@ -859,11 +869,10 @@ async fn handle_incoming_statement<Context>(
 
 	let was_backed = false; // TODO [now]
 
-	let is_cluster = cluster_sender_index.is_some();
 	let checked_statement = if let Some(cluster_sender_index) = cluster_sender_index {
 		match handle_cluster_statement(
 			relay_parent,
-			local_validator,
+			&mut local_validator.cluster_tracker,
 			per_relay_parent.session,
 			&per_session.session_info,
 			statement,
@@ -877,10 +886,38 @@ async fn handle_incoming_statement<Context>(
 			},
 		}
 	} else {
-		// TODO [now]: handle direct statements from grid peers
-		// TODO [now]: if not a grid peer
-		report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
-		return
+		let grid_sender_index = local_validator.grid_tracker
+			.direct_statement_senders(
+				&per_session.groups,
+				statement.unchecked_validator_index(),
+				statement.unchecked_payload(),
+			)
+			.into_iter()
+			.filter_map(|i| session_info.discovery_keys.get(i.0 as usize).map(|ad| (i, ad)))
+			.filter(|(_, ad)| peer_state.is_authority(ad))
+			.map(|(i, _)| i)
+			.next();
+
+		if let Some(grid_sender_index) = grid_sender_index {
+			match handle_grid_statement(
+				relay_parent,
+				&mut local_validator.grid_tracker,
+				per_relay_parent.session,
+				&per_session,
+				statement,
+				grid_sender_index,
+			) {
+				Ok(s) => s,
+				Err(rep) => {
+					report_peer(ctx.sender(), peer, rep).await;
+					return
+				}
+			}
+		} else {
+			// Not a cluster or grid peer.
+			report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
+			return
+		}
 	};
 
 	let statement = checked_statement.payload().clone();
@@ -957,14 +994,13 @@ async fn handle_incoming_statement<Context>(
 }
 
 /// Checks whether a statement is allowed, whether the signature is accurate,
-/// inserting an unconfirmed candidate entry and importing into the cluster tracker
-/// if successful.
+/// and importing into the cluster tracker if successful.
 ///
 /// if successful, this returns a checked signed statement if it should be imported
 /// or otherwise an error indicating a reputational fault.
 fn handle_cluster_statement(
 	relay_parent: Hash,
-	local_validator: &mut LocalValidatorState,
+	cluster_tracker: &mut ClusterTracker,
 	session: SessionIndex,
 	session_info: &SessionInfo,
 	statement: UncheckedSignedStatement,
@@ -972,7 +1008,7 @@ fn handle_cluster_statement(
 ) -> Result<Option<SignedStatement>, Rep> {
 	// additional cluster checks.
 	let should_import = {
-		match local_validator.cluster_tracker.can_receive(
+		match cluster_tracker.can_receive(
 			cluster_sender_index,
 			statement.unchecked_validator_index(),
 			statement.unchecked_payload().clone(),
@@ -1001,11 +1037,45 @@ fn handle_cluster_statement(
 		Err(_) => return Err(COST_INVALID_SIGNATURE),
 	};
 
-	local_validator.cluster_tracker.note_received(
+	cluster_tracker.note_received(
 		cluster_sender_index,
 		checked_statement.validator_index(),
 		checked_statement.payload().clone(),
 	);
 
 	Ok(if should_import { Some(checked_statement) } else { None })
+}
+
+/// Checks whether the signature is accurate,
+/// importing into the grid tracker if successful.
+///
+/// if successful, this returns a checked signed statement if it should be imported
+/// or otherwise an error indicating a reputational fault.
+fn handle_grid_statement(
+	relay_parent: Hash,
+	grid_tracker: &mut GridTracker,
+	session: SessionIndex,
+	per_session: &PerSessionState,
+	statement: UncheckedSignedStatement,
+	grid_sender_index: ValidatorIndex,
+) -> Result<SignedStatement, Rep> {
+	// Ensure the statement is correctly signed.
+	let checked_statement = match check_statement_signature(
+		session,
+		&per_session.session_info.validators[..],
+		relay_parent,
+		statement,
+	) {
+		Ok(s) => s,
+		Err(_) => return Err(COST_INVALID_SIGNATURE),
+	};
+
+	grid_tracker.note_sent_or_received_direct_statement(
+		&per_session.groups,
+		checked_statement.validator_index(),
+		grid_sender_index,
+		&checked_statement.payload(),
+	);
+
+	Ok(checked_statement)
 }
