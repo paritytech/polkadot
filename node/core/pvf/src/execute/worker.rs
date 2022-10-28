@@ -212,7 +212,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 						)
 					})?;
 					executors.insert(version, exc);
-					executors.get(&version).unwrap()
+					executors.get(&version).expect("just inserted above")
 				},
 			};
 
