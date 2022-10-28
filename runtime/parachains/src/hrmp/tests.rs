@@ -20,7 +20,7 @@ use crate::{
 		new_test_ext, Configuration, Hrmp, MockGenesisConfig, Paras, ParasShared,
 		RuntimeEvent as MockEvent, RuntimeOrigin, System, Test,
 	},
-	paras::ParaType,
+	paras::ParaKind,
 };
 use frame_support::{assert_noop, assert_ok, traits::Currency as _};
 use primitives::v2::BlockNumber;
@@ -133,7 +133,7 @@ fn register_parachain_with_balance(id: ParaId, balance: Balance) {
 	assert_ok!(Paras::schedule_para_initialize(
 		id,
 		crate::paras::ParaGenesisArgs {
-			paratype: ParaType::Parachain,
+			paratype: ParaKind::Parachain,
 			genesis_head: vec![1].into(),
 			validation_code: vec![1].into(),
 		},

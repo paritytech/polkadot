@@ -22,7 +22,7 @@ use crate::{
 		new_test_ext, Configuration, MockGenesisConfig, ParaInclusion, Paras, ParasShared, System,
 		Test,
 	},
-	paras::{ParaGenesisArgs, ParaType},
+	paras::{ParaGenesisArgs, ParaKind},
 	paras_inherent::DisputedBitfield,
 	scheduler::AssignmentKind,
 };
@@ -51,7 +51,7 @@ fn default_config() -> HostConfiguration<BlockNumber> {
 	config
 }
 
-pub(crate) fn genesis_config(paras: Vec<(ParaId, ParaType)>) -> MockGenesisConfig {
+pub(crate) fn genesis_config(paras: Vec<(ParaId, ParaKind)>) -> MockGenesisConfig {
 	MockGenesisConfig {
 		paras: paras::GenesisConfig {
 			paras: paras
@@ -311,9 +311,9 @@ fn collect_pending_cleans_up_pending() {
 	let thread_a = ParaId::from(3_u32);
 
 	let paras = vec![
-		(chain_a, ParaType::Parachain),
-		(chain_b, ParaType::Parachain),
-		(thread_a, ParaType::Parathread),
+		(chain_a, ParaKind::Parachain),
+		(chain_b, ParaKind::Parachain),
+		(thread_a, ParaKind::Parathread),
 	];
 	new_test_ext(genesis_config(paras)).execute_with(|| {
 		let default_candidate = TestCandidateBuilder::default().build();
@@ -373,9 +373,9 @@ fn bitfield_checks() {
 	let thread_a = ParaId::from(3_u32);
 
 	let paras = vec![
-		(chain_a, ParaType::Parachain),
-		(chain_b, ParaType::Parachain),
-		(thread_a, ParaType::Parathread),
+		(chain_a, ParaKind::Parachain),
+		(chain_b, ParaKind::Parachain),
+		(thread_a, ParaKind::Parathread),
 	];
 	let validators = vec![
 		Sr25519Keyring::Alice,
@@ -720,9 +720,9 @@ fn supermajority_bitfields_trigger_availability() {
 	let thread_a = ParaId::from(3_u32);
 
 	let paras = vec![
-		(chain_a, ParaType::Parachain),
-		(chain_b, ParaType::Parachain),
-		(thread_a, ParaType::Parathread),
+		(chain_a, ParaKind::Parachain),
+		(chain_b, ParaKind::Parachain),
+		(thread_a, ParaKind::Parathread),
 	];
 	let validators = vec![
 		Sr25519Keyring::Alice,
@@ -912,9 +912,9 @@ fn candidate_checks() {
 	const RELAY_PARENT_NUM: BlockNumber = 4;
 
 	let paras = vec![
-		(chain_a, ParaType::Parachain),
-		(chain_b, ParaType::Parachain),
-		(thread_a, ParaType::Parathread),
+		(chain_a, ParaKind::Parachain),
+		(chain_b, ParaKind::Parachain),
+		(thread_a, ParaKind::Parathread),
 	];
 	let validators = vec![
 		Sr25519Keyring::Alice,
@@ -1459,9 +1459,9 @@ fn backing_works() {
 	const RELAY_PARENT_NUM: BlockNumber = 4;
 
 	let paras = vec![
-		(chain_a, ParaType::Parachain),
-		(chain_b, ParaType::Parachain),
-		(thread_a, ParaType::Parathread),
+		(chain_a, ParaKind::Parachain),
+		(chain_b, ParaKind::Parachain),
+		(thread_a, ParaKind::Parathread),
 	];
 	let validators = vec![
 		Sr25519Keyring::Alice,
@@ -1742,7 +1742,7 @@ fn can_include_candidate_with_ok_code_upgrade() {
 	// The block number of the relay-parent for testing.
 	const RELAY_PARENT_NUM: BlockNumber = 4;
 
-	let paras = vec![(chain_a, ParaType::Parachain)];
+	let paras = vec![(chain_a, ParaKind::Parachain)];
 	let validators = vec![
 		Sr25519Keyring::Alice,
 		Sr25519Keyring::Bob,
@@ -1848,9 +1848,9 @@ fn session_change_wipes() {
 	let thread_a = ParaId::from(3_u32);
 
 	let paras = vec![
-		(chain_a, ParaType::Parachain),
-		(chain_b, ParaType::Parachain),
-		(thread_a, ParaType::Parathread),
+		(chain_a, ParaKind::Parachain),
+		(chain_b, ParaKind::Parachain),
+		(thread_a, ParaKind::Parathread),
 	];
 	let validators = vec![
 		Sr25519Keyring::Alice,

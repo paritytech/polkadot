@@ -292,13 +292,13 @@ pub struct ParaGenesisArgs {
 	/// The initial validation code to use.
 	pub validation_code: ValidationCode,
 	/// Parachain or Parathread.
-	pub paratype: ParaType,
+	pub paratype: ParaKind,
 }
 
 /// Distinguishes between Parachain and Parathread
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub enum ParaType {
+pub enum ParaKind {
 	Parachain,
 	Parathread,
 }
@@ -2030,11 +2030,11 @@ impl<T: Config> Pallet<T> {
 		genesis_data: &ParaGenesisArgs,
 	) {
 		match genesis_data.paratype {
-			ParaType::Parachain => {
+			ParaKind::Parachain => {
 				parachains.add(id);
 				ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parachain);
 			},
-			ParaType::Parathread => ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parathread),
+			ParaKind::Parathread => ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parathread),
 		}
 
 		// HACK: see the notice in `schedule_para_initialize`.

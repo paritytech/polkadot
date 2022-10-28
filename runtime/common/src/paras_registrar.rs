@@ -35,7 +35,7 @@ use sp_std::{prelude::*, result};
 use crate::traits::{OnSwap, Registrar};
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
-use runtime_parachains::paras::ParaType;
+use runtime_parachains::paras::ParaKind;
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{CheckedSub, Saturating},
@@ -571,7 +571,7 @@ impl<T: Config> Pallet<T> {
 		};
 		ensure!(paras::Pallet::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
 		let (genesis, deposit) =
-			Self::validate_onboarding_data(genesis_head, validation_code, ParaType::Parathread)?;
+			Self::validate_onboarding_data(genesis_head, validation_code, ParaKind::Parathread)?;
 		let deposit = deposit_override.unwrap_or(deposit);
 
 		if let Some(additional) = deposit.checked_sub(&deposited) {
@@ -614,7 +614,7 @@ impl<T: Config> Pallet<T> {
 	fn validate_onboarding_data(
 		genesis_head: HeadData,
 		validation_code: ValidationCode,
-		paratype: ParaType,
+		paratype: ParaKind,
 	) -> Result<(ParaGenesisArgs, BalanceOf<T>), sp_runtime::DispatchError> {
 		let config = configuration::Pallet::<T>::config();
 		ensure!(validation_code.0.len() > 0, Error::<T>::EmptyCode);

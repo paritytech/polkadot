@@ -17,7 +17,7 @@
 use crate::{
 	configuration::Pallet as Configuration,
 	hrmp::{Pallet as Hrmp, *},
-	paras::{Pallet as Paras, ParaType, ParachainsCache},
+	paras::{Pallet as Paras, ParaKind, ParachainsCache},
 	shared::Pallet as Shared,
 };
 use frame_support::{assert_ok, traits::Currency};
@@ -31,7 +31,7 @@ fn register_parachain_with_balance<T: Config>(id: ParaId, balance: BalanceOf<T>)
 		&mut parachains,
 		id,
 		&crate::paras::ParaGenesisArgs {
-			paratype: ParaType::Parachain,
+			paratype: ParaKind::Parachain,
 			genesis_head: vec![1].into(),
 			validation_code: vec![1].into(),
 		},
