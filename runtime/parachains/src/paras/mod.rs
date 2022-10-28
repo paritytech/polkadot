@@ -296,11 +296,37 @@ pub struct ParaGenesisArgs {
 }
 
 /// Distinguishes between Parachain and Parathread
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+#[derive(PartialEq, Eq, Clone, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum ParaKind {
 	Parathread,
 	Parachain,
+}
+
+// manual encoding and decoding as the parakind field in ParaGenesisArgs used to be a bool
+impl Encode for ParaKind {
+	fn size_hint(&self) -> usize {
+		true.size_hint()
+	}
+
+	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+		match self {
+			ParaKind::Parachain => true.using_encoded(f),
+			ParaKind::Parathread => false.using_encoded(f),
+		}
+	}
+}
+
+impl Decode for ParaKind {
+	fn decode<I: parity_scale_codec::Input>(
+		input: &mut I,
+	) -> Result<Self, parity_scale_codec::Error> {
+		match bool::decode(input) {
+			Ok(true) => Ok(ParaKind::Parachain),
+			Ok(false) => Ok(ParaKind::Parathread),
+			_ => Err("Invalid ParaKind representation".into()),
+		}
+	}
 }
 
 /// This enum describes a reason why a particular PVF pre-checking vote was initiated. When the

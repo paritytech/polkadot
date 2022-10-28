@@ -29,7 +29,7 @@ use crate::{
 	paras::{ParaGenesisArgs, ParaKind},
 };
 
-fn schedule_blank_para(id: ParaId, paratype: ParaKind) {
+fn schedule_blank_para(id: ParaId, parakind: ParaKind) {
 	assert_ok!(Paras::schedule_para_initialize(
 		id,
 		ParaGenesisArgs {

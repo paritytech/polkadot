@@ -1723,3 +1723,20 @@ fn verify_upgrade_restriction_signal_is_externally_accessible() {
 		);
 	});
 }
+
+#[test]
+fn parakind_encodes_decodes_to_bool() {
+	let chain_kind = ParaKind::Parachain.encode();
+	let chain_bool = true.encode();
+	assert_eq!(chain_kind, chain_bool);
+
+	let chain_dec = ParaKind::decode(&mut chain_kind.as_slice());
+	assert_eq!(chain_dec, Ok(ParaKind::Parachain));
+
+	let thread_kind = ParaKind::Parathread.encode();
+	let thread_bool = false.encode();
+	assert_eq!(thread_kind, thread_bool);
+
+	let thread_dec = ParaKind::decode(&mut thread_kind.as_slice());
+	assert_eq!(thread_dec, Ok(ParaKind::Parathread));
+}
