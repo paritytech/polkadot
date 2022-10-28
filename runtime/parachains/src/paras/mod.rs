@@ -299,8 +299,8 @@ pub struct ParaGenesisArgs {
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum ParaKind {
-	Parachain,
 	Parathread,
+	Parachain,
 }
 
 /// This enum describes a reason why a particular PVF pre-checking vote was initiated. When the
