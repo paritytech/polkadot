@@ -177,12 +177,11 @@ fn run_input(xcm_messages: [XcmMessage; 5]) {
 				_ => Parent.into(),
 			};
 			#[cfg(not(fuzzing))]
-			let destination_str = match xcm_message.destination % 4 {
-				n @ 1..=3 => format!("Parachain {n}"),
-				_ => "Relay Chain".to_string(),
-			};
-			#[cfg(not(fuzzing))]
 			{
+				let destination_str = match xcm_message.destination % 4 {
+					n @ 1..=3 => format!("Parachain {n}"),
+					_ => "Relay Chain".to_string(),
+				};
 				println!("  source:      Parachain {}", xcm_message.source % 4);
 				println!("  destination: {}", destination_str);
 				println!("  message:     {:?}", xcm_message.message);
