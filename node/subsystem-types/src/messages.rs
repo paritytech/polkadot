@@ -715,6 +715,9 @@ impl RuntimeApiRequest {
 
 	/// `Disputes`
 	pub const DISPUTES_RUNTIME_REQUIREMENT: u32 = 3;
+
+	/// `ExecutorParams`
+	pub const EXECUTOR_PARAMS_RUNTIME_REQUIREMENT: u32 = 3;
 }
 
 /// A message to the Runtime API subsystem.
