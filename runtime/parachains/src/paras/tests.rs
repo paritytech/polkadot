@@ -1739,4 +1739,6 @@ fn parakind_encodes_decodes_to_bool() {
 
 	let thread_dec = ParaKind::decode(&mut thread_kind.as_slice());
 	assert_eq!(thread_dec, Ok(ParaKind::Parathread));
+
+	assert_eq!(bool::type_info(), ParaKind::type_info());
 }

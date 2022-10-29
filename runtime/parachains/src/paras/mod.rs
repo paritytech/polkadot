@@ -115,7 +115,7 @@ use primitives::v2::{
 	ConsensusLog, HeadData, Id as ParaId, PvfCheckStatement, SessionIndex, UpgradeGoAhead,
 	UpgradeRestriction, ValidationCode, ValidationCodeHash, ValidatorSignature,
 };
-use scale_info::TypeInfo;
+use scale_info::{Type, TypeInfo};
 use sp_core::RuntimeDebug;
 use sp_runtime::{
 	traits::{AppVerify, One, Saturating},
@@ -296,14 +296,14 @@ pub struct ParaGenesisArgs {
 }
 
 /// Distinguishes between Parachain and Parathread
-#[derive(PartialEq, Eq, Clone, RuntimeDebug, TypeInfo)]
+#[derive(PartialEq, Eq, Clone, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum ParaKind {
 	Parathread,
 	Parachain,
 }
 
-// manual encoding and decoding as the parakind field in ParaGenesisArgs used to be a bool
+// manual encoding, decoding, adn TypeInfo as the parakind field in ParaGenesisArgs used to be a bool
 impl Encode for ParaKind {
 	fn size_hint(&self) -> usize {
 		true.size_hint()
@@ -326,6 +326,13 @@ impl Decode for ParaKind {
 			Ok(false) => Ok(ParaKind::Parathread),
 			_ => Err("Invalid ParaKind representation".into()),
 		}
+	}
+}
+
+impl TypeInfo for ParaKind {
+	type Identity = bool;
+	fn type_info() -> Type {
+		bool::type_info()
 	}
 }
 
