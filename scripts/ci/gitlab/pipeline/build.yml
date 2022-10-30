@@ -171,6 +171,8 @@ build-implementers-guide:
   script:
     - apt-get -y update; apt-get install -y graphviz
     - cargo install mdbook mdbook-mermaid mdbook-linkcheck mdbook-graphviz
+    # This plugin is not available on crates.io yet.
+    - cargo install --git https://github.com/badboy/mdbook-last-changed/ --rev 2448157
     - mdbook build ./roadmap/implementers-guide
     - mkdir -p artifacts
     - mv roadmap/implementers-guide/book artifacts/
