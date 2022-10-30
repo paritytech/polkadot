@@ -303,7 +303,7 @@ pub enum ParaKind {
 	Parachain,
 }
 
-// manual encoding, decoding, adn TypeInfo as the parakind field in ParaGenesisArgs used to be a bool
+// Manual encoding, decoding, and TypeInfo as the parakind field in ParaGenesisArgs used to be a bool
 impl Encode for ParaKind {
 	fn size_hint(&self) -> usize {
 		true.size_hint()
