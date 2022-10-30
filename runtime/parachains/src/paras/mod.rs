@@ -292,7 +292,7 @@ pub struct ParaGenesisArgs {
 	/// The initial validation code to use.
 	pub validation_code: ValidationCode,
 	/// Parachain or Parathread.
-	#[cfg_attr(feature = "std", serde(rename(serialize = "parachain", deserialize = "parachain")))]
+	#[cfg_attr(feature = "std", serde(rename = "parachain"))]
 	pub para_kind: ParaKind,
 }
 
