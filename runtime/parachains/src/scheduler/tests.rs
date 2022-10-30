@@ -35,7 +35,7 @@ fn schedule_blank_para(id: ParaId, parakind: ParaKind) {
 		ParaGenesisArgs {
 			genesis_head: Vec::new().into(),
 			validation_code: vec![1, 2, 3].into(),
-			parakind,
+			parachain,
 		}
 	));
 }

@@ -222,7 +222,7 @@ fn schedule_para_init_rejects_empty_code() {
 			Paras::schedule_para_initialize(
 				1000.into(),
 				ParaGenesisArgs {
-					parakind: ParaKind::Parathread,
+					parachain: ParaKind::Parathread,
 					genesis_head: dummy_head_data(),
 					validation_code: ValidationCode(vec![]),
 				}
@@ -233,7 +233,7 @@ fn schedule_para_init_rejects_empty_code() {
 		assert_ok!(Paras::schedule_para_initialize(
 			1000.into(),
 			ParaGenesisArgs {
-				parakind: ParaKind::Parathread,
+				parachain: ParaKind::Parathread,
 				genesis_head: dummy_head_data(),
 				validation_code: ValidationCode(vec![1]),
 			}
@@ -248,7 +248,7 @@ fn para_past_code_pruning_in_initialize() {
 		(
 			0u32.into(),
 			ParaGenesisArgs {
-				parakind: ParaKind::Parachain,
+				parachain: ParaKind::Parachain,
 				genesis_head: dummy_head_data(),
 				validation_code: dummy_validation_code(),
 			},
@@ -256,7 +256,7 @@ fn para_past_code_pruning_in_initialize() {
 		(
 			1u32.into(),
 			ParaGenesisArgs {
-				parakind: ParaKind::Parathread,
+				parachain: ParaKind::Parathread,
 				genesis_head: dummy_head_data(),
 				validation_code: dummy_validation_code(),
 			},
@@ -316,7 +316,7 @@ fn note_new_head_sets_head() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parakind: ParaKind::Parachain,
+			parachain: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: dummy_validation_code(),
 		},
@@ -349,7 +349,7 @@ fn note_past_code_sets_up_pruning_correctly() {
 		(
 			0u32.into(),
 			ParaGenesisArgs {
-				parakind: ParaKind::Parachain,
+				parachain: ParaKind::Parachain,
 				genesis_head: dummy_head_data(),
 				validation_code: dummy_validation_code(),
 			},
@@ -357,7 +357,7 @@ fn note_past_code_sets_up_pruning_correctly() {
 		(
 			1u32.into(),
 			ParaGenesisArgs {
-				parakind: ParaKind::Parathread,
+				parachain: ParaKind::Parathread,
 				genesis_head: dummy_head_data(),
 				validation_code: dummy_validation_code(),
 			},
@@ -402,7 +402,7 @@ fn code_upgrade_applied_after_delay() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parakind: ParaKind::Parachain,
+			parachain: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: original_code.clone(),
 		},
@@ -505,7 +505,7 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parakind: ParaKind::Parachain,
+			parachain: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: original_code.clone(),
 		},
@@ -590,7 +590,7 @@ fn submit_code_change_when_not_allowed_is_err() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parakind: ParaKind::Parachain,
+			parachain: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: vec![1, 2, 3].into(),
 		},
@@ -658,7 +658,7 @@ fn upgrade_restriction_elapsed_doesnt_mean_can_upgrade() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parakind: ParaKind::Parachain,
+			parachain: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: vec![1, 2, 3].into(),
 		},
@@ -721,7 +721,7 @@ fn full_parachain_cleanup_storage() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parakind: ParaKind::Parachain,
+			parachain: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: original_code.clone(),
 		},
@@ -827,7 +827,7 @@ fn cannot_offboard_ongoing_pvf_check() {
 	let paras = vec![(
 		para_id,
 		ParaGenesisArgs {
-			parakind: ParaKind::Parachain,
+			parachain: ParaKind::Parachain,
 			genesis_head: Default::default(),
 			validation_code: existing_code,
 		},
@@ -900,7 +900,7 @@ fn para_incoming_at_session() {
 		assert_ok!(Paras::schedule_para_initialize(
 			b,
 			ParaGenesisArgs {
-				parakind: ParaKind::Parachain,
+				parachain: ParaKind::Parachain,
 				genesis_head: vec![1].into(),
 				validation_code: code_b.clone(),
 			},
@@ -909,7 +909,7 @@ fn para_incoming_at_session() {
 		assert_ok!(Paras::schedule_para_initialize(
 			a,
 			ParaGenesisArgs {
-				parakind: ParaKind::Parathread,
+				parachain: ParaKind::Parathread,
 				genesis_head: vec![2].into(),
 				validation_code: code_a.clone(),
 			},
@@ -918,7 +918,7 @@ fn para_incoming_at_session() {
 		assert_ok!(Paras::schedule_para_initialize(
 			c,
 			ParaGenesisArgs {
-				parakind: ParaKind::Parachain,
+				parachain: ParaKind::Parachain,
 				genesis_head: vec![3].into(),
 				validation_code: code_c.clone(),
 			},
@@ -994,7 +994,7 @@ fn code_hash_at_returns_up_to_end_of_code_retention_period() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parakind: ParaKind::Parachain,
+			parachain: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: vec![1, 2, 3].into(),
 		},
@@ -1084,7 +1084,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 	let paras = vec![(
 		a,
 		ParaGenesisArgs {
-			parakind: ParaKind::Parachain,
+			parachain: ParaKind::Parachain,
 			genesis_head: Default::default(),
 			validation_code: existing_code,
 		},
@@ -1117,7 +1117,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 		assert_ok!(Paras::schedule_para_initialize(
 			b,
 			ParaGenesisArgs {
-				parakind: ParaKind::Parachain,
+				parachain: ParaKind::Parachain,
 				genesis_head: vec![2].into(),
 				validation_code: validation_code.clone(),
 			},
@@ -1185,7 +1185,7 @@ fn pvf_check_onboarding_reject_on_expiry() {
 		assert_ok!(Paras::schedule_para_initialize(
 			a,
 			ParaGenesisArgs {
-				parakind: ParaKind::Parathread,
+				parachain: ParaKind::Parathread,
 				genesis_head: vec![2].into(),
 				validation_code: validation_code.clone(),
 			},
@@ -1224,7 +1224,7 @@ fn pvf_check_upgrade_reject() {
 	let paras = vec![(
 		a,
 		ParaGenesisArgs {
-			parakind: ParaKind::Parathread,
+			parachain: ParaKind::Parathread,
 			genesis_head: Default::default(),
 			validation_code: old_code,
 		},
@@ -1359,7 +1359,7 @@ fn pvf_check_submit_vote() {
 		assert_ok!(Paras::schedule_para_initialize(
 			1000.into(),
 			ParaGenesisArgs {
-				parakind: ParaKind::Parathread,
+				parachain: ParaKind::Parathread,
 				genesis_head: vec![2].into(),
 				validation_code: code_a.clone(),
 			},
@@ -1446,7 +1446,7 @@ fn include_pvf_check_statement_refunds_weight() {
 	let paras = vec![(
 		a,
 		ParaGenesisArgs {
-			parakind: ParaKind::Parathread,
+			parachain: ParaKind::Parathread,
 			genesis_head: Default::default(),
 			validation_code: old_code,
 		},

@@ -91,7 +91,7 @@ fn scheduled_cleanup_performed() {
 	let c = ParaId::from(123);
 
 	let mock_genesis = crate::paras::ParaGenesisArgs {
-		parakind: ParaKind::Parachain,
+		parachain: ParaKind::Parachain,
 		genesis_head: HeadData(vec![4, 5, 6]),
 		validation_code: dummy_validation_code(),
 	};

@@ -292,7 +292,7 @@ pub struct ParaGenesisArgs {
 	/// The initial validation code to use.
 	pub validation_code: ValidationCode,
 	/// Parachain or Parathread.
-	pub parakind: ParaKind,
+	pub parachain: ParaKind,
 }
 
 /// Distinguishes between Parachain and Parathread
@@ -2062,7 +2062,7 @@ impl<T: Config> Pallet<T> {
 		id: ParaId,
 		genesis_data: &ParaGenesisArgs,
 	) {
-		match genesis_data.parakind {
+		match genesis_data.parachain {
 			ParaKind::Parachain => {
 				parachains.add(id);
 				ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parachain);
