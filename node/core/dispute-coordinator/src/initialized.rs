@@ -19,7 +19,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use futures::{
-	channel::{mpsc, oneshot},
+	channel::{mpsc},
 	FutureExt, StreamExt,
 };
 
@@ -31,7 +31,7 @@ use polkadot_node_primitives::{
 };
 use polkadot_node_subsystem::{
 	messages::{
-		ApprovalVotingMessage, BlockDescription, DisputeCoordinatorMessage,
+		BlockDescription, DisputeCoordinatorMessage,
 		DisputeDistributionMessage, ImportStatementsResult,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
@@ -765,56 +765,7 @@ impl Initialized {
 
 		gum::trace!(target: LOG_TARGET, ?candidate_hash, ?session, "Loaded votes");
 
-		let import_result = {
-			let intermediate_result = old_state.import_statements(&env, statements);
-
-			// Handle approval vote import:
-			//
-			// See guide: We import on fresh disputes to maximize likelihood of fetching votes for
-			// dead forks and once concluded to maximize time for approval votes to trickle in.
-			if intermediate_result.is_freshly_disputed() ||
-				intermediate_result.is_freshly_concluded()
-			{
-				gum::trace!(
-					target: LOG_TARGET,
-					?candidate_hash,
-					?session,
-					"Requesting approval signatures"
-				);
-				let (tx, rx) = oneshot::channel();
-				// Use of unbounded channels justified because:
-				// 1. Only triggered twice per dispute.
-				// 2. Raising a dispute is costly (requires validation + recovery) by honest nodes,
-				// dishonest nodes are limited by spam slots.
-				// 3. Concluding a dispute is even more costly.
-				// Therefore it is reasonable to expect a simple vote request to succeed way faster
-				// than disputes are raised.
-				// 4. We are waiting (and blocking the whole subsystem) on a response right after -
-				// therefore even with all else failing we will never have more than
-				// one message in flight at any given time.
-				ctx.send_unbounded_message(
-					ApprovalVotingMessage::GetApprovalSignaturesForCandidate(candidate_hash, tx),
-				);
-				match rx.await {
-					Err(_) => {
-						gum::warn!(
-							target: LOG_TARGET,
-							"Fetch for approval votes got cancelled, only expected during shutdown!"
-						);
-						intermediate_result
-					},
-					Ok(votes) => intermediate_result.import_approval_votes(&env, votes),
-				}
-			} else {
-				gum::trace!(
-					target: LOG_TARGET,
-					?candidate_hash,
-					?session,
-					"Not requested approval signatures"
-				);
-				intermediate_result
-			}
-		};
+		let import_result = old_state.import_statements(&env, statements);
 
 		gum::trace!(
 			target: LOG_TARGET,
@@ -1000,7 +951,6 @@ impl Initialized {
 			target: LOG_TARGET,
 			?candidate_hash,
 			?session,
-			imported_approval_votes = ?import_result.imported_approval_votes(),
 			imported_valid_votes = ?import_result.imported_valid_votes(),
 			imported_invalid_votes = ?import_result.imported_invalid_votes(),
 			total_valid_votes = ?import_result.new_state().votes().valid.len(),
@@ -1009,7 +959,6 @@ impl Initialized {
 			"Import summary"
 		);
 
-		self.metrics.on_approval_votes(import_result.imported_approval_votes());
 		if import_result.is_freshly_concluded_valid() {
 			gum::info!(
 				target: LOG_TARGET,

@@ -26,7 +26,7 @@
 //! got imported on top of an existing `CandidateVoteState` and reveals "dynamic" information, like whether
 //! due to the import a dispute was raised/got confirmed, ...
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 use polkadot_node_primitives::{CandidateVotes, SignedDisputeStatement};
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
@@ -301,7 +301,6 @@ impl CandidateVoteState<CandidateVotes> {
 			new_state,
 			imported_invalid_votes,
 			imported_valid_votes,
-			imported_approval_votes: 0,
 			new_invalid_voters,
 		}
 	}
@@ -387,12 +386,6 @@ pub struct ImportResult {
 	imported_invalid_votes: u32,
 	/// Number of successfully imported invalid votes.
 	imported_valid_votes: u32,
-	/// Number of approval votes imported via `import_approval_votes()`.
-	///
-	/// And only those: If normal import included approval votes, those are not counted here.
-	///
-	/// In other words, without a call `import_approval_votes()` this will always be 0.
-	imported_approval_votes: u32,
 }
 
 impl ImportResult {
@@ -435,11 +428,6 @@ impl ImportResult {
 		self.imported_invalid_votes
 	}
 
-	/// Number of imported approval votes.
-	pub fn imported_approval_votes(&self) -> u32 {
-		self.imported_approval_votes
-	}
-
 	/// Whether we now have a dispute and did not prior to the import.
 	pub fn is_freshly_disputed(&self) -> bool {
 		!self.old_state().is_disputed() && self.new_state().is_disputed()
@@ -463,61 +451,6 @@ impl ImportResult {
 	/// Whether or not any dispute just concluded either invalid or valid due to the import.
 	pub fn is_freshly_concluded(&self) -> bool {
 		self.is_freshly_concluded_invalid() || self.is_freshly_concluded_valid()
-	}
-
-	/// Modify this `ImportResult`s, by importing additional approval votes.
-	///
-	/// Both results and `new_state` will be changed as if those approval votes had been in the
-	/// original import.
-	pub fn import_approval_votes(
-		self,
-		env: &CandidateEnvironment,
-		approval_votes: HashMap<ValidatorIndex, ValidatorSignature>,
-	) -> Self {
-		let Self {
-			old_state,
-			new_state,
-			new_invalid_voters,
-			mut imported_valid_votes,
-			imported_invalid_votes,
-			mut imported_approval_votes,
-		} = self;
-
-		let (mut votes, _) = new_state.into_old_state();
-
-		for (index, sig) in approval_votes.into_iter() {
-			debug_assert!(
-				{
-					let pub_key = &env.session_info().validators[index.0 as usize];
-					let candidate_hash = votes.candidate_receipt.hash();
-					let session_index = env.session_index();
-					DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking)
-						.check_signature(pub_key, candidate_hash, session_index, &sig)
-						.is_ok()
-				},
-				"Signature check for imported approval votes failed! This is a serious bug. Session: {:?}, candidate hash: {:?}, validator index: {:?}", env.session_index(), votes.candidate_receipt.hash(), index
-			);
-			if insert_into_statements(
-				&mut votes.valid,
-				ValidDisputeStatementKind::ApprovalChecking,
-				index,
-				sig,
-			) {
-				imported_valid_votes += 1;
-				imported_approval_votes += 1;
-			}
-		}
-
-		let new_state = CandidateVoteState::new(votes, env);
-
-		Self {
-			old_state,
-			new_state,
-			new_invalid_voters,
-			imported_valid_votes,
-			imported_invalid_votes,
-			imported_approval_votes,
-		}
 	}
 
 	/// All done, give me those votes.

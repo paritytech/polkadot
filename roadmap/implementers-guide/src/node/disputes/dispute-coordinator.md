@@ -9,7 +9,7 @@ In particular the dispute-coordinator is responsible for:
 
 - Ensuring that the node is able to raise a dispute in case an invalid candidate
   is found during approval checking.
-- Ensuring malicious approval votes will be recorded, so nodes can get slashed
+- Ensuring malicious backing votes will be recorded, so nodes can get slashed
   properly.
 - Coordinating actual participation in a dispute, ensuring that the node
   participates in any justified dispute in a way that ensures resolution of
@@ -69,141 +69,11 @@ backing votes on the including block, we will have seen the backing votes by the
 time we process messages from approval voting.
 
 In summary, for making it possible for a dispute to be raised, recording of
-backing votes from chain is sufficient and efficient. In particular there is no
-need to preemptively import approval votes, which has shown to be a very
-inefficient process. (Quadratic complexity adds up, with 35 votes in total per candidate)
-
-Approval votes are very relevant nonetheless as we are going to see in the next
-section.
-
-## Ensuring Malicious Approval Votes Will Be Recorded
-
-### Ensuring Recording
-
-While there is no need to record approval votes in the dispute coordinator
-preemptively, we do need to make sure they are recorded when a dispute
-actually happens. This is because only votes recorded by the dispute
-coordinator will be considered for slashing. While the backing group always gets
-slashed, a serious attack attempt will likely also consist of malicious approval
-checkers which will cast approval votes, although the candidate is invalid. If
-we did not import those votes, those nodes would likely cast an `invalid` explicit
-vote as part of the dispute in addition to their approval vote and thus avoid a
-slash. With the 2/3rd honest assumption it seems unrealistic that malicious
-actors will keep sending approval votes once they became aware of a raised
-dispute. Hence the most crucial approval votes to import are the early ones
-(tranche 0), to take into account network latencies and such we still want to
-import approval votes at a later point in time as well (in particular we need to
-make sure the dispute can conclude, but more on that later).
-
-As mentioned already previously, importing votes is most efficient when batched.
-At the same time approval voting and disputes are running concurrently so
-approval votes are expected to trickle in still, when a dispute is already
-ongoing.
-
-Hence, we have the following requirements for importing approval votes:
-
-1. Only import them when there is a dispute, because otherwise we are
-   wasting lots of resources _always_ for the exceptional case of a dispute.
-2. Import votes batched when possible, to avoid quadratic import complexity.
-3. Take into account that approval voting is still ongoing, while a dispute is
-   already running.
-
-With a design where approval voting sends votes to the dispute-coordinator by
-itself, we would need to make approval voting aware of ongoing disputes and
-once it is aware it could start sending all already existing votes batched and
-trickling in votes as they come. The problem with this is, that it adds some
-unnecessary complexity to approval-voting and also we might still import most of
-the votes unbatched, but one-by-one, depending on what point in time the dispute
-was raised.
-
-Instead of the dispute coordinator informing approval-voting of an ongoing
-dispute for it to begin forwarding votes to the dispute coordinator, it makes
-more sense for the dispute-coordinator to just ask approval-voting for votes of
-candidates in dispute. This way, the dispute coordinator can also pick the best
-time for maximizing the number of votes in the batch.
-
-Now the question remains, when should the dispute coordinator ask
-approval-voting for votes? As argued above already, querying approval votes at
-the beginning of the dispute, will likely already take care of most malicious
-votes. Still we would like to have a record of all, if possible. So what are
-other points in time we might query approval votes?
-
-In fact for slashing it is only relevant to have them once the dispute
-concluded, so we can query approval voting the moment the dispute concludes!
-There are two potential caveats with this though:
-
-1. Timing: We would like to rely as little as possible on implementation details
-   of approval voting. In particular, if the dispute is ongoing for a long time,
-   do we have any guarantees that approval votes are kept around long enough by
-   approval voting? Will approval votes still be present by the time the
-   dispute concludes in all cases? The answer is nuanced, but in general we
-   cannot rely on it. The problem is first, that finalization and
-   approval-voting is an off-chain process so there is no global consensus: As
-   soon as at least f+1 honest (f= n/3, where n is the number of
-   validators/nodes) nodes have seen the dispute conclude, finalization will
-   take place and approval votes will be cleared. This would still be fine, if
-   we had some guarantees that those honest nodes will be able to include those
-   votes in a block. This guarantee does not exist unfortunately, we will
-   discuss the problem and solutions in more detail [below][#Ensuring Chain Import].
-
-   The second problem is that approval-voting will abandon votes as soon as a
-   chain can no longer be finalized (some other/better fork already has been).
-   This second problem can somehow be mitigated by also importing votes as soon
-   as a dispute is detected, but not fully resolved. It is still inherently
-   racy. The problem can be solved in at least two ways: Either go back to full
-   eager import of approval votes into the dispute-coordinator in some more
-   efficient manner or by changing requirements on approval-voting, making it
-   hold on votes longer than necessary for approval-voting itself. Conceptually
-   both solutions are equivalent, as we make sure votes are available even
-   without an ongoing dispute. For now, in the interest of time we punt on this
-   issue: If nodes import votes as soon as a dispute is raised in addition to
-   when it concludes, we have a good chance of getting relevant votes and even
-   if not, the fundamental security properties will still hold: Backers are
-   getting slashed, therefore gambler's ruin is maintained. We would still like
-   to fix this at [some
-   point](https://github.com/paritytech/polkadot/issues/5864).
-2. There could be a chicken and egg problem: If we wait for approval vote import
-   for the dispute to conclude, we would run into a problem if we needed those
-   approval votes to get enough votes to conclude the dispute. Luckily it turns
-   out that this is not quite true or at least can be made not true easily: As
-   already mentioned, approval voting and disputes are running concurrently, but
-   not only that, they race with each other! A node might simultaneously start
-   participating in a dispute via the dispute coordinator, due to learning about
-   a dispute via dispute-distribution, while also participating in approval
-   voting. By distributing our own approval vote we make sure the dispute can
-   conclude regardless how the race ended (we either participate explicitly
-   anyway or we sent our already present approval vote). By importing all
-   approval votes we make it possible to slash malicious approval voters, even
-   if they also cast an invalid explicit vote.
-
-Conclusion: As long as we make sure, if our own approval vote gets imported
-(which would prevent dispute participation) to also distribute it via
-dispute-distribution, disputes can conclude. To mitigate raciness with
-approval-voting deleting votes we will import approval votes twice during a
-dispute: Once when it is raised, to make as sure as possible to see approval
-votes also for abandoned forks and second when the dispute concludes, to
-maximize the amount of potentially malicious approval votes to be recorded. The
-raciness obviously is not fully resolved by this, [a
-ticket](https://github.com/paritytech/polkadot/issues/5864) exists.
-
-Ensuring vote import on chain is covered in the next section.
-
-As already touched: Honest nodes
-will likely validate twice, once in approval voting and once via
-dispute-participation. Avoiding that does not really seem worthwhile though, as
-disputes are for one exceptional, so a little wasted effort won't affect
-everyday performance - second, even with eager importing of approval votes,
-those doubled work is still present as disputes and approvals are racing. Every
-time participation is faster than approval, a node would do double work.
+backing votes from chain is sufficient and efficient.
 
 ### Ensuring Chain Import
 
-While in the previous section we discussed means for nodes to ensure relevant
-votes are recorded so attackers get slashed properly, it is crucial to also
-discuss the actual chain import. Only if we guarantee that recorded votes will
-also get imported on chain (on all potential chains really) we will succeed in
-executing slashes. Again approval votes prove to be our weak spot here, but also
-backing votes might get missed.
+It is crucial to discuss the actual chain import. Only if we guarantee that recorded backing votes will also get imported on chain (on all potential chains really) will we succeed in executing slashes.
 
 Dispute distribution will make sure all explicit dispute votes get distributed
 among nodes which includes current block producers (current authority set) which
@@ -215,23 +85,13 @@ The issue is, for dispute-distribution, nodes send only their own explicit (or
 in some cases their approval vote) in addition to some opposing vote. This
 guarantees that at least some backing or approval vote will be present at the
 block producer, but we don't have a 100% guarantee to have votes for all
-backers, even less for approval checkers.
+backers.
 
 Reason for backing votes: While backing votes will be present on at least some
 chain, that does not mean that any such chain is still considered for block
 production in the current set - they might only exist on an already abandoned
 fork. This means a block producer that just joined the set, might not have seen
 any of them.
-
-For approvals it is even more tricky: Approval voting together with finalization
-is a completely off-chain process therefore those protocols don't care about
-block production at all. Approval votes only have a guarantee of being
-propagated between the nodes that are responsible for finalizing the concerned
-blocks. This implies that on an era change the current authority set, will not
-necessarily get informed about any approval votes for the previous era. Hence
-even if all validators of the previous era successfully recorded all approval
-votes in the dispute coordinator, they won't get a chance to put them on chain,
-hence they won't be considered for slashing.
 
 It is important to note, that the essential properties of the system still hold:
 Dispute-distribution will distribute at _least one_ "valid" vote to the current
@@ -377,11 +237,7 @@ increment a counter for each signing participant of explicit `invalid` votes.
 The reason this works is because we only need to worry about actual dispute
 votes. Import of backing votes are already rate limited and concern only real
 candidates for approval votes a similar argument holds (if they come from
-approval-voting), but we also don't import them until a dispute already
-concluded. For actual dispute votes, we need two opposing votes, so there must be
-an explicit `invalid` vote in the import. Only a third of the validators can be
-malicious, so spam disk usage is limited to `2*vote_size*n/3*NUM_SPAM_SLOTS`, with
-`n` being the number of validators.
+approval-voting). For actual dispute votes, we need two opposing votes, so there must be an explicit `invalid` vote in the import. Only a third of the validators can be malicious, so spam disk usage is limited to `2*vote_size*n 3*NUM_SPAM_SLOTS`, with `n` being the number of validators.
 
 ## Attacks & Considerations
 
@@ -680,8 +536,7 @@ Performs cleanup of the finalized candidate.
 
 ### On `DisputeCoordinatorMessage::ImportStatements`
 
-Import statements by validators are processed in `fn handle_import_statements()`. The function has
-got three main responsibilities:
+Import statements by validators are processed in `fn handle_import_statements()`. The function has three main responsibilities:
 * Initiate participation in disputes and sending out of any existing own
   approval vote in case of a raised dispute.
 * Persist all fresh votes in the database. Fresh votes in this context means votes that are not
