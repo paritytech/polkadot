@@ -1725,7 +1725,7 @@ fn verify_upgrade_restriction_signal_is_externally_accessible() {
 }
 
 #[test]
-fn parakind_encodes_decodes_to_bool() {
+fn parakind_encodes_decodes_to_bool_scale() {
 	let chain_kind = ParaKind::Parachain.encode();
 	let chain_bool = true.encode();
 	assert_eq!(chain_kind, chain_bool);
@@ -1741,4 +1741,23 @@ fn parakind_encodes_decodes_to_bool() {
 	assert_eq!(thread_dec, Ok(ParaKind::Parathread));
 
 	assert_eq!(bool::type_info(), ParaKind::type_info());
+}
+
+#[test]
+fn parakind_encodes_decodes_to_bool_serde() {
+	let chain = ParaKind::Parachain;
+	let ser_chain = serde_json::to_string(&ParaKind::Parachain).unwrap();
+	let de_chain: ParaKind = serde_json::from_str(&ser_chain).unwrap();
+	assert_eq!(chain, de_chain);
+
+	let ser_true = serde_json::to_string(&true).unwrap();
+	assert_eq!(ser_true, ser_chain);
+
+	let thread = ParaKind::Parathread;
+	let ser_thread = serde_json::to_string(&thread).unwrap();
+	let de_thread: ParaKind = serde_json::from_str(&ser_thread).unwrap();
+	assert_eq!(thread, de_thread);
+
+	let ser_false = serde_json::to_string(&false).unwrap();
+	assert_eq!(ser_false, ser_thread);
 }
