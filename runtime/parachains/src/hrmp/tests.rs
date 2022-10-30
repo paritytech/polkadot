@@ -133,7 +133,7 @@ fn register_parachain_with_balance(id: ParaId, balance: Balance) {
 	assert_ok!(Paras::schedule_para_initialize(
 		id,
 		crate::paras::ParaGenesisArgs {
-			parachain: ParaKind::Parachain,
+			para_kind: ParaKind::Parachain,
 			genesis_head: vec![1].into(),
 			validation_code: vec![1].into(),
 		},

@@ -614,7 +614,7 @@ impl<T: Config> Pallet<T> {
 	fn validate_onboarding_data(
 		genesis_head: HeadData,
 		validation_code: ValidationCode,
-		paratype: ParaKind,
+		para_kind: ParaKind,
 	) -> Result<(ParaGenesisArgs, BalanceOf<T>), sp_runtime::DispatchError> {
 		let config = configuration::Pallet::<T>::config();
 		ensure!(validation_code.0.len() > 0, Error::<T>::EmptyCode);
@@ -629,7 +629,7 @@ impl<T: Config> Pallet<T> {
 			.saturating_add(per_byte_fee.saturating_mul((genesis_head.0.len() as u32).into()))
 			.saturating_add(per_byte_fee.saturating_mul((validation_code.0.len() as u32).into()));
 
-		Ok((ParaGenesisArgs { genesis_head, validation_code, parachain: paratype }, deposit))
+		Ok((ParaGenesisArgs { genesis_head, validation_code, para_kind: para_kind}, deposit))
 	}
 
 	/// Swap a parachain and parathread, which involves scheduling an appropriate lifecycle update.

@@ -56,13 +56,13 @@ pub(crate) fn genesis_config(paras: Vec<(ParaId, ParaKind)>) -> MockGenesisConfi
 		paras: paras::GenesisConfig {
 			paras: paras
 				.into_iter()
-				.map(|(id, paratype)| {
+				.map(|(id, para_kind)| {
 					(
 						id,
 						ParaGenesisArgs {
 							genesis_head: Vec::new().into(),
 							validation_code: dummy_validation_code(),
-							parachain: paratype,
+							para_kind,
 						},
 					)
 				})

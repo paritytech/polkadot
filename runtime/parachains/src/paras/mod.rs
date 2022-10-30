@@ -292,15 +292,42 @@ pub struct ParaGenesisArgs {
 	/// The initial validation code to use.
 	pub validation_code: ValidationCode,
 	/// Parachain or Parathread.
-	pub parachain: ParaKind,
+	#[cfg_attr(feature = "std", serde(rename(serialize = "parachain", deserialize = "parachain")))]
+	pub para_kind: ParaKind,
 }
 
 /// Distinguishes between Parachain and Parathread
 #[derive(PartialEq, Eq, Clone, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum ParaKind {
 	Parathread,
 	Parachain,
+}
+
+#[cfg(feature = "std")]
+impl Serialize for ParaKind {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: serde::Serializer,
+	{
+		match self {
+			ParaKind::Parachain => serializer.serialize_bool(true),
+			ParaKind::Parathread => serializer.serialize_bool(false),
+		}
+	}
+}
+
+#[cfg(feature = "std")]
+impl<'de> Deserialize<'de> for ParaKind {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: serde::Deserializer<'de>,
+	{
+		match serde::de::Deserialize::deserialize(deserializer) {
+			Ok(true) => Ok(ParaKind::Parachain),
+			Ok(false) => Ok(ParaKind::Parathread),
+			_ => Err(serde::de::Error::custom("invalid ParaKind serde representation")),
+		}
+	}
 }
 
 // Manual encoding, decoding, and TypeInfo as the parakind field in ParaGenesisArgs used to be a bool
@@ -2062,7 +2089,7 @@ impl<T: Config> Pallet<T> {
 		id: ParaId,
 		genesis_data: &ParaGenesisArgs,
 	) {
-		match genesis_data.parachain {
+		match genesis_data.para_kind {
 			ParaKind::Parachain => {
 				parachains.add(id);
 				ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parachain);

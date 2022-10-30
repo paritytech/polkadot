@@ -346,7 +346,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				paras::ParaGenesisArgs {
 					genesis_head: Self::mock_head_data(),
 					validation_code: mock_validation_code(),
-					parachain: ParaKind::Parachain,
+					para_kind: ParaKind::Parachain,
 				},
 			)
 			.unwrap();
