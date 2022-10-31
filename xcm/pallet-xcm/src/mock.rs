@@ -78,7 +78,7 @@ pub mod pallet_test_notifier {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(Weight::from_parts(1_000_000, 1_000_000))]
 		pub fn prepare_new_query(origin: OriginFor<T>, querier: MultiLocation) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let id = who
@@ -93,7 +93,7 @@ pub mod pallet_test_notifier {
 			Ok(())
 		}
 
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(Weight::from_parts(1_000_000, 1_000_000))]
 		pub fn prepare_new_notify_query(
 			origin: OriginFor<T>,
 			querier: MultiLocation,
@@ -114,7 +114,7 @@ pub mod pallet_test_notifier {
 			Ok(())
 		}
 
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(Weight::from_parts(1_000_000, 1_000_000))]
 		pub fn notification_received(
 			origin: OriginFor<T>,
 			query_id: QueryId,
@@ -263,7 +263,7 @@ type LocalOriginConverter = (
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: Weight = Weight::from_ref_time(1_000);
+	pub const BaseXcmWeight: Weight = Weight::from_parts(1_000, 1_000);
 	pub CurrencyPerSecond: (AssetId, u128) = (Concrete(RelayLocation::get()), 1);
 	pub TrustedAssets: (MultiAssetFilter, MultiLocation) = (All.into(), Here.into());
 	pub const MaxInstructions: u32 = 100;

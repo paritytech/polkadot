@@ -118,7 +118,7 @@ fn report_holding_works() {
 		let response_info = QueryResponseInfo {
 			destination: Parachain(PARA_ID).into(),
 			query_id: 1234,
-			max_weight: Weight::from_ref_time(1_000_000_000),
+			max_weight: Weight::from_parts(1_000_000_000, 1_000_000_000),
 		};
 		let message = Xcm(vec![
 			WithdrawAsset((Here, amount).into()),

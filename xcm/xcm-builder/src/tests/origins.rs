@@ -36,7 +36,7 @@ fn universal_origin_should_work() {
 		hash,
 		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10), XcmError::InvalidLocation));
+	assert_eq!(r, Outcome::Incomplete(Weight::from_parts(10, 10), XcmError::InvalidLocation));
 
 	let message = Xcm(vec![
 		UniversalOrigin(GlobalConsensus(Kusama)),
@@ -49,7 +49,7 @@ fn universal_origin_should_work() {
 		hash,
 		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(20), XcmError::NotWithdrawable));
+	assert_eq!(r, Outcome::Incomplete(Weight::from_parts(20, 20), XcmError::NotWithdrawable));
 
 	add_asset((Ancestor(2), GlobalConsensus(Kusama)), (Parent, 100));
 	let message = Xcm(vec![
@@ -63,7 +63,7 @@ fn universal_origin_should_work() {
 		hash,
 		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(20)));
+	assert_eq!(r, Outcome::Complete(Weight::from_parts(20, 20)));
 	assert_eq!(asset_list((Ancestor(2), GlobalConsensus(Kusama))), vec![]);
 }
 
@@ -90,7 +90,7 @@ fn export_message_should_work() {
 		hash,
 		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10)));
+	assert_eq!(r, Outcome::Complete(Weight::from_parts(10, 10)));
 	let uni_src = (ByGenesis([0; 32]), Parachain(42), Parachain(1)).into();
 	assert_eq!(
 		exported_xcm(),
@@ -107,7 +107,7 @@ fn unpaid_execution_should_work() {
 	AllowExplicitUnpaidFrom::set(vec![X1(Parachain(2)).into()]);
 	// Asking for unpaid execution of up to 9 weight on the assumption it is origin of #2.
 	let message = Xcm(vec![UnpaidExecution {
-		weight_limit: Limited(Weight::from_ref_time(9)),
+		weight_limit: Limited(Weight::from_parts(9, 9)),
 		check_origin: Some(Parachain(2).into()),
 	}]);
 	let hash = fake_message_hash(&message);
@@ -117,7 +117,7 @@ fn unpaid_execution_should_work() {
 		hash,
 		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10), XcmError::BadOrigin));
+	assert_eq!(r, Outcome::Incomplete(Weight::from_parts(10, 10), XcmError::BadOrigin));
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(2),
 		message.clone(),
@@ -127,7 +127,7 @@ fn unpaid_execution_should_work() {
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
 	let message = Xcm(vec![UnpaidExecution {
-		weight_limit: Limited(Weight::from_ref_time(10)),
+		weight_limit: Limited(Weight::from_parts(10, 10)),
 		check_origin: Some(Parachain(2).into()),
 	}]);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
@@ -136,5 +136,5 @@ fn unpaid_execution_should_work() {
 		hash,
 		Weight::from_parts(50, 50),
 	);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(10)));
+	assert_eq!(r, Outcome::Complete(Weight::from_parts(10, 10)));
 }

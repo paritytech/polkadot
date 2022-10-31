@@ -449,7 +449,7 @@ impl WeightInfo for TestWeightInfo {
 	}
 	fn include_pvf_check_statement() -> Weight {
 		// This special value is to distinguish from the finalizing variants above in tests.
-		Weight::MAX - Weight::from_ref_time(1)
+		Weight::MAX - Weight::from_parts(1, 1)
 	}
 }
 

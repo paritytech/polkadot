@@ -364,7 +364,7 @@ impl TryFrom<OldWeightLimit> for WeightLimit {
 		use OldWeightLimit::*;
 		match x {
 			Limited(w) =>
-				Ok(Self::Limited(Weight::from_ref_time(w).set_proof_size(DEFAULT_PROOF_SIZE))),
+				Ok(Self::Limited(Weight::from_parts(w, DEFAULT_PROOF_SIZE))),
 			Unlimited => Ok(Self::Unlimited),
 		}
 	}
@@ -1258,8 +1258,7 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 				let response_info = QueryResponseInfo {
 					destination: dest.try_into()?,
 					query_id,
-					max_weight: Weight::from_ref_time(max_response_weight)
-						.set_proof_size(DEFAULT_PROOF_SIZE),
+					max_weight: Weight::from_parts(max_response_weight, DEFAULT_PROOF_SIZE),
 				};
 				Self::ReportError(response_info)
 			},
@@ -1370,7 +1369,7 @@ mod tests {
 			ClearOrigin,
 			BuyExecution {
 				fees: (Here, 1u128).into(),
-				weight_limit: Some(Weight::from_ref_time(1).set_proof_size(DEFAULT_PROOF_SIZE))
+				weight_limit: Some(Weight::from_parts(1, DEFAULT_PROOF_SIZE))
 					.into(),
 			},
 			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Here.into() },

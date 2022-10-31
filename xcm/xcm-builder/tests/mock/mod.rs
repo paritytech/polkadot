@@ -153,7 +153,7 @@ type LocalOriginConverter = (
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: Weight = Weight::from_ref_time(1_000_000_000);
+	pub const BaseXcmWeight: Weight = Weight::from_parts(1_000_000_000, 1_000_000_000);
 	pub KsmPerSecond: (AssetId, u128) = (KsmLocation::get().into(), 1);
 }
 

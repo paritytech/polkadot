@@ -41,30 +41,30 @@ fn errors_should_return_unused_weight() {
 	]);
 	// Weight limit of 70 is needed.
 	let limit = <TestConfig as Config>::Weigher::weight(&mut message).unwrap();
-	assert_eq!(limit, Weight::from_ref_time(30));
+	assert_eq!(limit, Weight::from_parts(30, 30));
 
 	let hash = fake_message_hash(&message);
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), hash, limit);
-	assert_eq!(r, Outcome::Complete(Weight::from_ref_time(30)));
+	assert_eq!(r, Outcome::Complete(Weight::from_parts(30, 30)));
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 7u128).into()]);
 	assert_eq!(asset_list(Here), vec![(Here, 4u128).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), hash, limit);
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(30), XcmError::NotWithdrawable));
+	assert_eq!(r, Outcome::Incomplete(Weight::from_parts(30, 30), XcmError::NotWithdrawable));
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 10u128).into()]);
 	assert_eq!(asset_list(Here), vec![(Here, 1u128).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message.clone(), hash, limit);
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(20), XcmError::NotWithdrawable));
+	assert_eq!(r, Outcome::Incomplete(Weight::from_parts(20, 20), XcmError::NotWithdrawable));
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 11u128).into()]);
 	assert_eq!(asset_list(Here), vec![]);
 	assert_eq!(sent_xcm(), vec![]);
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here, message, hash, limit);
-	assert_eq!(r, Outcome::Incomplete(Weight::from_ref_time(10), XcmError::NotWithdrawable));
+	assert_eq!(r, Outcome::Incomplete(Weight::from_parts(10, 10), XcmError::NotWithdrawable));
 	assert_eq!(asset_list(AccountIndex64 { index: 3, network: None }), vec![(Here, 11u128).into()]);
 	assert_eq!(asset_list(Here), vec![]);
 	assert_eq!(sent_xcm(), vec![]);
@@ -94,7 +94,7 @@ fn weight_bounds_should_respect_instructions_limit() {
 	// 3 instructions are OK.
 	assert_eq!(
 		<TestConfig as Config>::Weigher::weight(&mut message),
-		Ok(Weight::from_ref_time(30))
+		Ok(Weight::from_parts(30, 30))
 	);
 }
 
@@ -118,12 +118,12 @@ fn weight_trader_tuple_should_work() {
 	let mut traders = Traders::new();
 	// trader one buys weight
 	assert_eq!(
-		traders.buy_weight(Weight::from_ref_time(5), fungible_multi_asset(Here.into(), 10).into()),
+		traders.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(Here.into(), 10).into()),
 		Ok(fungible_multi_asset(Here.into(), 5).into()),
 	);
 	// trader one refunds
 	assert_eq!(
-		traders.refund_weight(Weight::from_ref_time(2)),
+		traders.refund_weight(Weight::from_parts(2, 2)),
 		Some(fungible_multi_asset(Here.into(), 2))
 	);
 
@@ -131,21 +131,21 @@ fn weight_trader_tuple_should_work() {
 	// trader one failed; trader two buys weight
 	assert_eq!(
 		traders
-			.buy_weight(Weight::from_ref_time(5), fungible_multi_asset(para_1.clone(), 10).into()),
+			.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(para_1.clone(), 10).into()),
 		Ok(fungible_multi_asset(para_1.clone(), 5).into()),
 	);
 	// trader two refunds
 	assert_eq!(
-		traders.refund_weight(Weight::from_ref_time(2)),
+		traders.refund_weight(Weight::from_parts(2, 2)),
 		Some(fungible_multi_asset(para_1, 2))
 	);
 
 	let mut traders = Traders::new();
 	// all traders fails
 	assert_err!(
-		traders.buy_weight(Weight::from_ref_time(5), fungible_multi_asset(para_2, 10).into()),
+		traders.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(para_2, 10).into()),
 		XcmError::TooExpensive,
 	);
 	// and no refund
-	assert_eq!(traders.refund_weight(Weight::from_ref_time(2)), None);
+	assert_eq!(traders.refund_weight(Weight::from_parts(2, 2)), None);
 }

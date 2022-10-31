@@ -47,7 +47,7 @@ fn basic_buy_fees_message_executes() {
 		&client,
 		polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
 			message: Box::new(VersionedXcm::from(msg)),
-			max_weight: Weight::from_ref_time(1_000_000_000),
+			max_weight: Weight::from_parts(1_000_000_000, 1024 * 1024),
 		}),
 		sp_keyring::Sr25519Keyring::Alice,
 		0,
@@ -121,7 +121,7 @@ fn query_response_fires() {
 	let mut block_builder = client.init_polkadot_block_builder();
 
 	let response = Response::ExecutionResult(None);
-	let max_weight = Weight::from_ref_time(1_000_000);
+	let max_weight = Weight::from_parts(1_000_000, 1024 * 1024);
 	let querier = Some(Here.into());
 	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight, querier }]);
 	let msg = Box::new(VersionedXcm::from(msg));
@@ -130,7 +130,7 @@ fn query_response_fires() {
 		&client,
 		polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
 			message: msg,
-			max_weight: Weight::from_ref_time(1_000_000_000),
+			max_weight: Weight::from_parts(1_000_000_000, 1024 * 1024),
 		}),
 		sp_keyring::Sr25519Keyring::Alice,
 		1,
@@ -211,7 +211,7 @@ fn query_response_elicits_handler() {
 	let mut block_builder = client.init_polkadot_block_builder();
 
 	let response = Response::ExecutionResult(None);
-	let max_weight = Weight::from_ref_time(1_000_000);
+	let max_weight = Weight::from_parts(1_000_000, 1024 * 1024);
 	let querier = Some(Here.into());
 	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight, querier }]);
 
@@ -219,7 +219,7 @@ fn query_response_elicits_handler() {
 		&client,
 		polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
 			message: Box::new(VersionedXcm::from(msg)),
-			max_weight: Weight::from_ref_time(1_000_000_000),
+			max_weight: Weight::from_parts(1_000_000_000, 1024 * 1024),
 		}),
 		sp_keyring::Sr25519Keyring::Alice,
 		1,

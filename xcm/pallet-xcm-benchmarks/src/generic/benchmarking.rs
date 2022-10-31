@@ -117,7 +117,7 @@ benchmarks! {
 		let holding = T::worst_case_holding(0).into();
 		let mut executor = new_executor::<T>(Default::default());
 		executor.set_holding(holding);
-		executor.set_total_surplus(Weight::from_ref_time(1337));
+		executor.set_total_surplus(Weight::from_parts(1337, 1337));
 		executor.set_total_refunded(Weight::zero());
 
 		let instruction = Instruction::<XcmCallOf<T>>::RefundSurplus;
@@ -125,8 +125,8 @@ benchmarks! {
 	} : {
 		let result = executor.bench_process(xcm)?;
 	} verify {
-		assert_eq!(executor.total_surplus(), &Weight::from_ref_time(1337));
-		assert_eq!(executor.total_refunded(), &Weight::from_ref_time(1337));
+		assert_eq!(executor.total_surplus(), &Weight::from_parts(1337, 1337));
+		assert_eq!(executor.total_refunded(), &Weight::from_parts(1337, 1337));
 	}
 
 	set_error_handler {

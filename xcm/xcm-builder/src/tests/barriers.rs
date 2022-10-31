@@ -20,11 +20,11 @@ use super::*;
 fn take_weight_credit_barrier_should_work() {
 	let mut message =
 		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
-	let mut weight_credit = Weight::from_ref_time(10);
+	let mut weight_credit = Weight::from_parts(10, 10);
 	let r = TakeWeightCredit::should_execute(
 		&Parent.into(),
 		message.inner_mut(),
-		Weight::from_ref_time(10),
+		Weight::from_parts(10, 10),
 		&mut weight_credit,
 	);
 	assert_eq!(r, Ok(()));
@@ -33,7 +33,7 @@ fn take_weight_credit_barrier_should_work() {
 	let r = TakeWeightCredit::should_execute(
 		&Parent.into(),
 		message.inner_mut(),
-		Weight::from_ref_time(10),
+		Weight::from_parts(10, 10),
 		&mut weight_credit,
 	);
 	assert_eq!(r, Err(()));
@@ -49,7 +49,7 @@ fn computed_origin_should_work() {
 		WithdrawAsset((Parent, 100).into()),
 		BuyExecution {
 			fees: (Parent, 100).into(),
-			weight_limit: Limited(Weight::from_ref_time(100)),
+			weight_limit: Limited(Weight::from_parts(100, 100)),
 		},
 		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
 	]);
@@ -66,7 +66,7 @@ fn computed_origin_should_work() {
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parent.into(),
 		message.inner_mut(),
-		Weight::from_ref_time(100),
+		Weight::from_parts(100, 100),
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Err(()));
@@ -78,7 +78,7 @@ fn computed_origin_should_work() {
 	>::should_execute(
 		&Parent.into(),
 		message.inner_mut(),
-		Weight::from_ref_time(100),
+		Weight::from_parts(100, 100),
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Err(()));
@@ -90,7 +90,7 @@ fn computed_origin_should_work() {
 	>::should_execute(
 		&Parent.into(),
 		message.inner_mut(),
-		Weight::from_ref_time(100),
+		Weight::from_parts(100, 100),
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Ok(()));
@@ -106,7 +106,7 @@ fn allow_unpaid_should_work() {
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
 		&Parachain(1).into(),
 		message.inner_mut(),
-		Weight::from_ref_time(10),
+		Weight::from_parts(10, 10),
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Err(()));
@@ -114,7 +114,7 @@ fn allow_unpaid_should_work() {
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
 		&Parent.into(),
 		message.inner_mut(),
-		Weight::from_ref_time(10),
+		Weight::from_parts(10, 10),
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Ok(()));
@@ -127,7 +127,7 @@ fn allow_explicit_unpaid_should_work() {
 
 	let mut bad_message2 = Xcm::<()>(vec![
 		UnpaidExecution {
-			weight_limit: Limited(Weight::from_ref_time(10)),
+			weight_limit: Limited(Weight::from_parts(10, 10)),
 			check_origin: Some(Parent.into()),
 		},
 		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
@@ -186,7 +186,7 @@ fn allow_paid_should_work() {
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parachain(1).into(),
 		message.inner_mut(),
-		Weight::from_ref_time(10).set_proof_size(10),
+		Weight::from_parts(10, 10),
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Err(()));
@@ -194,7 +194,7 @@ fn allow_paid_should_work() {
 	let fees = (Parent, 1).into();
 	let mut underpaying_message = Xcm::<()>(vec![
 		ReserveAssetDeposited((Parent, 100).into()),
-		BuyExecution { fees, weight_limit: Limited(Weight::from_ref_time(20)) },
+		BuyExecution { fees, weight_limit: Limited(Weight::from_parts(20, 20)) },
 		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
 	]);
 

@@ -386,7 +386,7 @@ impl OnResponse for TestResponseHandler {
 				}
 			});
 		});
-		Weight::from_ref_time(10)
+		Weight::from_parts(10, 10)
 	}
 }
 pub fn expect_response(query_id: u64, from: MultiLocation) {
@@ -404,7 +404,7 @@ pub fn response(query_id: u64) -> Option<Response> {
 parameter_types! {
 	pub static ExecutorUniversalLocation: InteriorMultiLocation
 		= (ByGenesis([0; 32]), Parachain(42)).into();
-	pub UnitWeightCost: Weight = Weight::from_ref_time(10);
+	pub UnitWeightCost: Weight = Weight::from_parts(10, 10);
 }
 parameter_types! {
 	// Nothing is allowed to be paid/unpaid by default.

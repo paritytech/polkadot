@@ -167,7 +167,7 @@ mod tests {
 				Parachain(1),
 				Xcm(vec![Transact {
 					origin_kind: OriginKind::SovereignAccount,
-					require_weight_at_most: Weight::from_ref_time(INITIAL_BALANCE as u64),
+					require_weight_at_most: Weight::from_parts(INITIAL_BALANCE as u64, 1024 * 1024),
 					call: remark.encode().into(),
 				}]),
 			));
@@ -195,7 +195,7 @@ mod tests {
 				Parent,
 				Xcm(vec![Transact {
 					origin_kind: OriginKind::SovereignAccount,
-					require_weight_at_most: Weight::from_ref_time(INITIAL_BALANCE as u64),
+					require_weight_at_most: Weight::from_parts(INITIAL_BALANCE as u64, 1024 * 1024),
 					call: remark.encode().into(),
 				}]),
 			));
@@ -223,7 +223,7 @@ mod tests {
 				(Parent, Parachain(2)),
 				Xcm(vec![Transact {
 					origin_kind: OriginKind::SovereignAccount,
-					require_weight_at_most: Weight::from_ref_time(INITIAL_BALANCE as u64),
+					require_weight_at_most: Weight::from_parts(INITIAL_BALANCE as u64, 1024 * 1024),
 					call: remark.encode().into(),
 				}]),
 			));
@@ -494,7 +494,7 @@ mod tests {
 
 			let message = Xcm(vec![Transact {
 				origin_kind: OriginKind::Xcm,
-				require_weight_at_most: Weight::from_ref_time(1_000_000_000),
+				require_weight_at_most: Weight::from_parts(1_000_000_000, 1024 * 1024),
 				call: parachain::RuntimeCall::from(
 					pallet_uniques::Call::<parachain::Runtime>::create {
 						collection: (Parent, 2u64).into(),
@@ -586,7 +586,7 @@ mod tests {
 					response_info: QueryResponseInfo {
 						destination: Parachain(1).into(),
 						query_id: query_id_set,
-						max_weight: Weight::from_ref_time(1_000_000_000),
+						max_weight: Weight::from_parts(1_000_000_000, 1024 * 1024),
 					},
 					assets: All.into(),
 				},
@@ -616,7 +616,7 @@ mod tests {
 				vec![Xcm(vec![QueryResponse {
 					query_id: query_id_set,
 					response: Response::Assets(MultiAssets::new()),
-					max_weight: Weight::from_ref_time(1_000_000_000),
+					max_weight: Weight::from_parts(1_000_000_000, 1024 * 1024),
 					querier: Some(Here.into()),
 				}])],
 			);

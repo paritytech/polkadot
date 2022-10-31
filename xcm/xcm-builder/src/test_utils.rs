@@ -73,7 +73,7 @@ impl DropAssets for TestAssetTrap {
 		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
 		t.push((origin.clone(), assets.into()));
 		TrappedAssets::set(t);
-		Weight::from_ref_time(5)
+		Weight::from_parts(5, 5)
 	}
 }
 
