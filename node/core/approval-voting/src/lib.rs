@@ -382,7 +382,6 @@ impl ApprovalVotingSubsystem {
 // empty approval vote DB if we changed DB type or the node will sync from scratch.
 fn db_sanity_check(db: Arc<dyn Database>, config: DatabaseConfig) -> SubsystemResult<()> {
 	let backend = DbBackend::new(db, config);
-	let backend = OverlayedBackend::new(&backend);
 	let all_blocks = backend.load_all_blocks()?;
 
 	if all_blocks.is_empty() {
