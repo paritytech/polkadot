@@ -60,6 +60,8 @@ pub trait WeightInfo {
 	fn force_register() -> Weight;
 	fn deregister() -> Weight;
 	fn swap() -> Weight;
+	fn schedule_code_upgrade(b: u32) -> Weight;
+	fn set_current_head(b: u32) -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -77,6 +79,12 @@ impl WeightInfo for TestWeightInfo {
 		Weight::zero()
 	}
 	fn swap() -> Weight {
+		Weight::zero()
+	}
+	fn schedule_code_upgrade(_b: u32) -> Weight {
+		Weight::zero()
+	}
+	fn set_current_head(_b: u32) -> Weight {
 		Weight::zero()
 	}
 }
@@ -318,11 +326,11 @@ pub mod pallet {
 		/// Remove a manager lock from a para. This will allow the manager of a
 		/// previously locked para to deregister or swap a para without using governance.
 		///
-		/// Can only be called by the Root origin.
+		/// Can only be called by the Root origin or the parachain.
 		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
-		pub fn force_remove_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::remove_lock(para);
+		pub fn remove_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
+			Self::ensure_root_or_para(origin, para)?;
+			<Self as Registrar>::remove_lock(para);
 			Ok(())
 		}
 
@@ -346,6 +354,45 @@ pub mod pallet {
 			let id = NextFreeParaId::<T>::get().max(LOWEST_PUBLIC_ID);
 			Self::do_reserve(who, None, id)?;
 			NextFreeParaId::<T>::set(id + 1);
+			Ok(())
+		}
+
+		/// Add a manager lock from a para. This will prevent the manager of a
+		/// para to deregister or swap a para.
+		///
+		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
+		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
+		pub fn add_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
+			Self::ensure_root_para_or_owner(origin, para)?;
+			<Self as Registrar>::apply_lock(para);
+			Ok(())
+		}
+
+		/// Schedule a parachain upgrade.
+		///
+		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
+		#[pallet::weight(<T as Config>::WeightInfo::schedule_code_upgrade(new_code.0.len() as u32))]
+		pub fn schedule_code_upgrade(
+			origin: OriginFor<T>,
+			para: ParaId,
+			new_code: ValidationCode,
+		) -> DispatchResult {
+			Self::ensure_root_para_or_owner(origin, para)?;
+			runtime_parachains::schedule_code_upgrade::<T>(para, new_code)?;
+			Ok(())
+		}
+
+		/// Set the parachain's current head.
+		///
+		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
+		#[pallet::weight(<T as Config>::WeightInfo::set_current_head(new_head.0.len() as u32))]
+		pub fn set_current_head(
+			origin: OriginFor<T>,
+			para: ParaId,
+			new_head: HeadData,
+		) -> DispatchResult {
+			Self::ensure_root_para_or_owner(origin, para)?;
+			runtime_parachains::set_current_head::<T>(para, new_head);
 			Ok(())
 		}
 	}
@@ -379,7 +426,7 @@ impl<T: Config> Registrar for Pallet<T> {
 		Paras::<T>::mutate(id, |x| x.as_mut().map(|mut info| info.locked = true));
 	}
 
-	// Apply a lock to the parachain.
+	// Remove a lock from the parachain.
 	fn remove_lock(id: ParaId) {
 		Paras::<T>::mutate(id, |x| x.as_mut().map(|mut info| info.locked = false));
 	}
@@ -467,17 +514,23 @@ impl<T: Config> Pallet<T> {
 				ensure!(para_info.manager == who, Error::<T>::NotOwner);
 				Ok(())
 			})
-			.or_else(|_| -> DispatchResult {
-				// Else check if para origin...
-				let caller_id =
-					ensure_parachain(<T as Config>::RuntimeOrigin::from(origin.clone()))?;
-				ensure!(caller_id == id, Error::<T>::NotOwner);
-				Ok(())
-			})
-			.or_else(|_| -> DispatchResult {
-				// Check if root...
-				ensure_root(origin.clone()).map_err(|e| e.into())
-			})
+			.or_else(|_| -> DispatchResult { Self::ensure_root_or_para(origin, id) })
+	}
+
+	/// Ensure the origin is one of Root or the `para` itself.
+	fn ensure_root_or_para(
+		origin: <T as frame_system::Config>::RuntimeOrigin,
+		id: ParaId,
+	) -> DispatchResult {
+		if let Ok(caller_id) = ensure_parachain(<T as Config>::RuntimeOrigin::from(origin.clone()))
+		{
+			// Check if matching para id...
+			ensure!(caller_id == id, Error::<T>::NotOwner);
+		} else {
+			// Check if root...
+			ensure_root(origin.clone())?;
+		}
+		Ok(())
 	}
 
 	fn do_reserve(
@@ -1087,21 +1140,20 @@ mod tests {
 				vec![1, 2, 3].into(),
 			));
 
-			// Owner can call swap
-			assert_ok!(Registrar::swap(RuntimeOrigin::signed(1), para_id, para_id + 1));
-
-			// 2 session changes to fully onboard.
-			run_to_session(2);
-			assert_eq!(Parachains::lifecycle(para_id), Some(ParaLifecycle::Parathread));
-
+			assert_noop!(Registrar::add_lock(RuntimeOrigin::signed(2), para_id), BadOrigin);
 			// Once they begin onboarding, we lock them in.
-			assert_ok!(Registrar::make_parachain(para_id));
-
-			// Owner cannot call swap anymore
+			assert_ok!(Registrar::add_lock(RuntimeOrigin::signed(1), para_id));
+			// Owner cannot pass origin check when checking lock
 			assert_noop!(
-				Registrar::swap(RuntimeOrigin::signed(1), para_id, para_id + 2),
+				Registrar::ensure_root_para_or_owner(RuntimeOrigin::signed(1), para_id),
 				BadOrigin
 			);
+			// Owner cannot remove lock.
+			assert_noop!(Registrar::remove_lock(RuntimeOrigin::signed(1), para_id), BadOrigin);
+			// Para can.
+			assert_ok!(Registrar::remove_lock(para_origin(para_id), para_id));
+			// Owner can pass origin check again
+			assert_ok!(Registrar::ensure_root_para_or_owner(RuntimeOrigin::signed(1), para_id));
 		});
 	}
 
@@ -1227,6 +1279,7 @@ mod benchmarking {
 	use crate::traits::Registrar as RegistrarT;
 	use frame_support::assert_ok;
 	use frame_system::RawOrigin;
+	use primitives::v2::{MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
 	use runtime_parachains::{paras, shared, Origin as ParaOrigin};
 	use sp_runtime::traits::Bounded;
 
@@ -1342,6 +1395,18 @@ mod benchmarking {
 			assert_eq!(paras::Pallet::<T>::lifecycle(parachain), Some(ParaLifecycle::Parathread));
 			assert_eq!(paras::Pallet::<T>::lifecycle(parathread), Some(ParaLifecycle::Parachain));
 		}
+
+		schedule_code_upgrade {
+			let b in 1 .. MAX_CODE_SIZE;
+			let new_code = ValidationCode(vec![0; b as usize]);
+			let para_id = ParaId::from(1000);
+		}: _(RawOrigin::Root, para_id, new_code)
+
+		set_current_head {
+			let b in 1 .. MAX_HEAD_DATA_SIZE;
+			let new_head = HeadData(vec![0; b as usize]);
+			let para_id = ParaId::from(1000);
+		}: _(RawOrigin::Root, para_id, new_head)
 
 		impl_benchmark_test_suite!(
 			Registrar,

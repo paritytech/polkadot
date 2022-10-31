@@ -31,8 +31,8 @@ use std::collections::{BTreeMap, HashSet};
 use polkadot_node_primitives::{CandidateVotes, SignedDisputeStatement};
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
 use polkadot_primitives::v2::{
-	CandidateReceipt, DisputeStatement, SessionIndex, SessionInfo, ValidDisputeStatementKind,
-	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	CandidateReceipt, DisputeStatement, IndexedVec, SessionIndex, SessionInfo,
+	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 
@@ -63,7 +63,7 @@ impl<'a> CandidateEnvironment<'a> {
 	}
 
 	/// Validators in the candidate's session.
-	pub fn validators(&self) -> &Vec<ValidatorId> {
+	pub fn validators(&self) -> &IndexedVec<ValidatorIndex, ValidatorId> {
 		&self.session.validators
 	}
 
@@ -229,7 +229,7 @@ impl CandidateVoteState<CandidateVotes> {
 		for (statement, val_index) in statements {
 			if env
 				.validators()
-				.get(val_index.0 as usize)
+				.get(val_index)
 				.map_or(true, |v| v != statement.validator_public())
 			{
 				gum::error!(
@@ -453,17 +453,17 @@ impl ImportResult {
 		self.is_freshly_concluded_invalid() || self.is_freshly_concluded_valid()
 	}
 
-	/// All done, give me those votes.
-	///
-	/// Returns: `None` in case nothing has changed (import was redundant).
-	pub fn into_updated_votes(self) -> Option<CandidateVotes> {
-		if self.votes_changed() {
-			let CandidateVoteState { votes, .. } = self.new_state;
-			Some(votes)
-		} else {
-			None
-		}
-	}
+  /// All done, give me those votes.
+  ///
+  /// Returns: `None` in case nothing has changed (import was redundant).
+  pub fn into_updated_votes(self) -> Option<CandidateVotes> {
+    if self.votes_changed() {
+      let CandidateVoteState { votes, .. } = self.new_state;
+      Some(votes)
+     } else {
+        None
+     }
+  }
 }
 
 /// Find indices controlled by this validator.
@@ -471,7 +471,7 @@ impl ImportResult {
 /// That is all `ValidatorIndex`es we have private keys for. Usually this will only be one.
 fn find_controlled_validator_indices(
 	keystore: &LocalKeystore,
-	validators: &[ValidatorId],
+	validators: &IndexedVec<ValidatorIndex, ValidatorId>,
 ) -> HashSet<ValidatorIndex> {
 	let mut controlled = HashSet::new();
 	for (index, validator) in validators.iter().enumerate() {

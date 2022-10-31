@@ -399,10 +399,10 @@ mod tests {
 
 	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
 		SessionInfo {
-			validators: Vec::new(),
+			validators: Default::default(),
 			discovery_keys: Vec::new(),
 			assignment_keys: Vec::new(),
-			validator_groups: Vec::new(),
+			validator_groups: Default::default(),
 			n_cores: index as _,
 			zeroth_delay_tranche_width: index as _,
 			relay_vrf_modulo_samples: index as _,

@@ -155,7 +155,8 @@ impl metrics::Metrics for Metrics {
 						"Time spent in preparing PVF artifacts in seconds",
 					)
 					.buckets(vec![
-						// This is synchronized with COMPILATION_TIMEOUT=60s constant found in
+						// This is synchronized with the PRECHECK_COMPILATION_TIMEOUT=60s
+						// and EXECUTE_COMPILATION_TIMEOUT=180s constants found in
 						// src/prepare/worker.rs
 						0.1,
 						0.5,
@@ -166,6 +167,7 @@ impl metrics::Metrics for Metrics {
 						20.0,
 						30.0,
 						60.0,
+						180.0,
 					]),
 				)?,
 				registry,

@@ -247,9 +247,9 @@ fn handle_job_finish(
 	gum::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?artifact_id.code_hash,
+		?worker,
 		worker_rip = idle_worker.is_none(),
-		?result,
-		"job finished.",
+		"execute worker concluded",
 	);
 
 	// First we send the result. It may fail due the other end of the channel being dropped, that's
