@@ -1329,7 +1329,7 @@ where
 	// in a new leaf.
 	let maybe_unblocked = std::mem::take(&mut state.blocked_advertisements);
 	// Could be optimized to only sanity check new leaves.
-	request_unblocked_collations(ctx.sender(), state, maybe_unblocked).await;
+	request_unblocked_collations(sender, state, maybe_unblocked).await;
 
 	for (peer_id, peer_data) in state.peer_data.iter_mut() {
 		peer_data.prune_old_advertisements(
