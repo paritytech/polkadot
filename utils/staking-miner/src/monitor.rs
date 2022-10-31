@@ -120,11 +120,6 @@ async fn ensure_strategy_met<T: EPM::Config, B: BlockT>(
 		.map_err::<Error<T>, _>(Into::into)?
 		.unwrap_or_default();
 
-	// we check the queue here as well. Could be checked elsewhere.
-	if indices.len() as u32 >= max_submissions {
-		return Err(Error::<T>::QueueFull)
-	}
-
 	// default score is all zeros, any score is better than it.
 	let best_score = indices.last().map(|(score, _, _)| *score).unwrap_or_default();
 	log::debug!(target: LOG_TARGET, "best onchain score is {:?}", best_score);
