@@ -61,12 +61,6 @@ use std::{
 pub mod network_bridge_event;
 pub use network_bridge_event::NetworkBridgeEvent;
 
-/// Subsystem messages where each message is always bound to a relay parent.
-pub trait BoundToRelayParent {
-	/// Returns the relay parent this message is bound to.
-	fn relay_parent(&self) -> Hash;
-}
-
 /// Messages received by the Candidate Backing subsystem.
 #[derive(Debug)]
 pub enum CandidateBackingMessage {
@@ -79,16 +73,6 @@ pub enum CandidateBackingMessage {
 	/// Note a validator's statement about a particular candidate.
 	/// Agreements are simply tallied until a quorum is reached.
 	Statement(Hash, SignedFullStatementWithPVD),
-}
-
-impl BoundToRelayParent for CandidateBackingMessage {
-	fn relay_parent(&self) -> Hash {
-		match self {
-			Self::GetBackedCandidates(hash, _, _) => *hash,
-			Self::Second(hash, _, _, _) => *hash,
-			Self::Statement(hash, _) => *hash,
-		}
-	}
 }
 
 /// Blanket error for validation failing for internal reasons.
@@ -224,12 +208,6 @@ pub enum CollatorProtocolMessage {
 impl Default for CollatorProtocolMessage {
 	fn default() -> Self {
 		Self::CollateOn(Default::default())
-	}
-}
-
-impl BoundToRelayParent for CollatorProtocolMessage {
-	fn relay_parent(&self) -> Hash {
-		Default::default()
 	}
 }
 
@@ -487,12 +465,6 @@ impl BitfieldDistributionMessage {
 /// Currently non-instantiable.
 #[derive(Debug)]
 pub enum BitfieldSigningMessage {}
-
-impl BoundToRelayParent for BitfieldSigningMessage {
-	fn relay_parent(&self) -> Hash {
-		match *self {}
-	}
-}
 
 /// Availability store subsystem message.
 #[derive(Debug)]
@@ -791,15 +763,6 @@ pub enum ProvisionerMessage {
 	RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
 	/// This data should become part of a relay chain block
 	ProvisionableData(Hash, ProvisionableData),
-}
-
-impl BoundToRelayParent for ProvisionerMessage {
-	fn relay_parent(&self) -> Hash {
-		match self {
-			Self::RequestInherentData(hash, _) => *hash,
-			Self::ProvisionableData(hash, _) => *hash,
-		}
-	}
 }
 
 /// Message to the Collation Generation subsystem.
