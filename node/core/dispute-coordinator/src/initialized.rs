@@ -871,11 +871,11 @@ impl Initialized {
 
 		let has_own_vote = new_state.has_own_vote();
 		let is_disputed = new_state.is_disputed();
-		let has_controlled_indices = env.controlled_indices().is_empty();
+		let has_controlled_indices = !env.controlled_indices().is_empty();
 		let is_backed = self.scraper.is_candidate_backed(&candidate_hash);
 		let is_confirmed = new_state.is_confirmed();
-		// Refrain from participation if the dispute is not included, not backed and not confirmed
-		let refrain_participation = !is_included && !is_backed && !is_confirmed;
+		// We participate only in disputes which are included, backed or confirmed
+		let allow_participation = is_included || is_backed || is_confirmed;
 
 		// Participate in dispute if we did not cast a vote before and actually have keys to cast a
 		// local vote. Disputes should fall in one of the categories below, otherwise we will refrain
@@ -883,7 +883,7 @@ impl Initialized {
 		// - `is_included` lands in prioritised queue
 		// - `is_confirmed` | `is_backed` lands in best effort queue
 		// We don't participate in disputes on finalized candidates.
-		if !has_own_vote && is_disputed && !has_controlled_indices && !refrain_participation {
+		if !has_own_vote && is_disputed && has_controlled_indices && allow_participation {
 			let priority = ParticipationPriority::with_priority_if(is_included);
 			gum::trace!(
 				target: LOG_TARGET,
@@ -913,13 +913,13 @@ impl Initialized {
 				?has_own_vote,
 				?is_disputed,
 				?has_controlled_indices,
-				?refrain_participation,
+				?allow_participation,
 				?is_included,
 				?is_backed,
 				"Will not queue participation for candidate"
 			);
 
-			if refrain_participation {
+			if allow_participation {
 				self.metrics.on_refrained_participation();
 			}
 		}

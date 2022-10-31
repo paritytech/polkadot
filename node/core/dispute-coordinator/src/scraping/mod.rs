@@ -58,7 +58,8 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: NonZeroUsize = match NonZeroUsize::new(20) {
 ///
 /// Concretely:
 ///
-/// - Monitors for inclusion events to keep track of candidates that have been included on chains.
+/// - Monitors for `CandidateIncluded` events to keep track of candidates that have been included on chains.
+/// - Monitors for `CandidateBacked` events to keep track of all backed candidates.
 /// - Calls `FetchOnChainVotes` for each block to gather potentially missed votes from chain.
 ///
 /// With this information it provides a `CandidateComparator` and as a return value of
@@ -66,6 +67,8 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: NonZeroUsize = match NonZeroUsize::new(20) {
 pub struct ChainScraper {
 	/// All candidates we have seen included, which not yet have been finalized.
 	included_candidates: HashSet<CandidateHash>,
+	/// All candidates we have seen backed
+	backed_candidates: HashSet<CandidateHash>,
 	/// including block -> `CandidateHash`
 	///
 	/// We need this to clean up `included_candidates` on finalization.
@@ -75,8 +78,6 @@ pub struct ChainScraper {
 	/// We assume that ancestors of cached blocks are already processed, i.e. we have saved
 	/// corresponding included candidates.
 	last_observed_blocks: LruCache<Hash, ()>,
-	/// All candidates we have seen backed
-	backed_candidates: HashSet<CandidateHash>,
 }
 
 impl ChainScraper {
@@ -99,9 +100,9 @@ impl ChainScraper {
 	{
 		let mut s = Self {
 			included_candidates: HashSet::new(),
+			backed_candidates: HashSet::new(),
 			candidates_by_block_number: BTreeMap::new(),
 			last_observed_blocks: LruCache::new(LRU_OBSERVED_BLOCKS_CAPACITY),
-			backed_candidates: HashSet::new(),
 		};
 		let update =
 			ActiveLeavesUpdate { activated: Some(initial_head), deactivated: Default::default() };
@@ -181,7 +182,7 @@ impl ChainScraper {
 
 	/// Process candidate events of a block.
 	///
-	/// Keep track of all included candidates.
+	/// Keep track of all included and backed candidates.
 	async fn process_candidate_events<Sender>(
 		&mut self,
 		sender: &mut Sender,

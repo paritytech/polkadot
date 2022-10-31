@@ -796,8 +796,7 @@ fn approval_vote_import_works() {
 			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash1, approval_votes)
 				.await;
 
-			// Participation has to fail here, otherwise the dispute will be confirmed. However
-			// participation won't happen at all because the dispute is neither backed, not confirmed
+			// Participation won't happen here because the dispute is neither backed, not confirmed
 			// nor the candidate is included. Or in other words - we'll refrain from participation.
 
 			{
@@ -1084,8 +1083,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash1, HashMap::new())
 				.await;
 
-			// Participation has to fail here, otherwise the dispute will be confirmed. However
-			// participation won't happen at all because the dispute is neither backed, not confirmed
+			// Participation won't happen here because the dispute is neither backed, not confirmed
 			// nor the candidate is included. Or in other words - we'll refrain from participation.
 
 			{
@@ -2180,8 +2178,7 @@ fn resume_dispute_without_local_statement() {
 				.await;
 
 			// Missing availability -> No local vote.
-			// Participation has to fail here, otherwise the dispute will be confirmed. However
-			// participation won't happen at all because the dispute is neither backed, not confirmed
+			// Participation won't happen here because the dispute is neither backed, not confirmed
 			// nor the candidate is included. Or in other words - we'll refrain from participation.
 
 			assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
