@@ -569,13 +569,14 @@ impl pallet_staking::Config for Runtime {
 
 impl pallet_fast_unstake::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type DepositCurrency = Balances;
+	type Currency = Balances;
 	type Deposit = frame_support::traits::ConstU128<{ UNITS }>;
 	type ControlOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
 	>;
 	type WeightInfo = weights::pallet_fast_unstake::WeightInfo<Runtime>;
+	type Staking = Staking;
 }
 
 parameter_types! {
@@ -1378,11 +1379,10 @@ parameter_types! {
 impl pallet_nomination_pools::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type CurrencyBalance = Balance;
 	type RewardCounter = FixedU128;
 	type BalanceToU256 = runtime_common::BalanceToU256;
 	type U256ToBalance = runtime_common::U256ToBalance;
-	type StakingInterface = Staking;
+	type Staking = Staking;
 	type PostUnbondingPoolsWindow = frame_support::traits::ConstU32<4>;
 	type MaxMetadataLen = frame_support::traits::ConstU32<256>;
 	// we use the same number of allowed unlocking chunks as with staking.
@@ -1498,7 +1498,7 @@ construct_runtime! {
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 53,
 		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 54,
 		ParaScheduler: parachains_scheduler::{Pallet, Storage} = 55,
-		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config} = 56,
+		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config, ValidateUnsigned} = 56,
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 57,
 		Dmp: parachains_dmp::{Pallet, Call, Storage} = 58,
 		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 59,
