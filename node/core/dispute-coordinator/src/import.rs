@@ -453,17 +453,17 @@ impl ImportResult {
 		self.is_freshly_concluded_invalid() || self.is_freshly_concluded_valid()
 	}
 
-  /// All done, give me those votes.
-  ///
-  /// Returns: `None` in case nothing has changed (import was redundant).
-  pub fn into_updated_votes(self) -> Option<CandidateVotes> {
-    if self.votes_changed() {
-      let CandidateVoteState { votes, .. } = self.new_state;
-      Some(votes)
-     } else {
-        None
-     }
-  }
+    /// All done, give me those votes.
+    ///
+    /// Returns: `None` in case nothing has changed (import was redundant).
+    pub fn into_updated_votes(self) -> Option<CandidateVotes> {
+		if self.votes_changed() {
+    	let CandidateVoteState { votes, .. } = self.new_state;
+    	Some(votes)
+    	} else {
+    		None
+    	}
+  	}
 }
 
 /// Find indices controlled by this validator.
