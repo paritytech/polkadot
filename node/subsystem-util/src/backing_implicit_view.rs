@@ -377,7 +377,7 @@ where
 
 		ancestry
 	} else {
-		Vec::new()
+		vec![leaf_hash]
 	};
 
 	let fetched_ancestry = FetchSummary {
@@ -708,5 +708,32 @@ mod tests {
 		// Prune the last leaf.
 		view.deactivate_leaf(*leaf_a);
 		assert!(view.block_info_storage.is_empty());
+	}
+
+	#[test]
+	fn genesis_ancestry() {
+		let pool = TaskExecutor::new();
+		let (mut ctx, mut ctx_handle) = make_subsystem_context::<AllMessages, _>(pool);
+
+		let mut view = View::default();
+
+		const PARA_A_MIN_PARENT: u32 = 0;
+
+		let prospective_response = vec![(PARA_A, PARA_A_MIN_PARENT)];
+		let fut = view.activate_leaf(ctx.sender(), GENESIS_HASH).timeout(TIMEOUT).map(|res| {
+			let paras = res.expect("`activate_leaf` timed out").unwrap();
+			assert_eq!(paras, vec![PARA_A]);
+		});
+		let overseer_fut = async {
+			assert_min_relay_parents_request(&mut ctx_handle, &GENESIS_HASH, prospective_response)
+				.await;
+			assert_block_header_requests(&mut ctx_handle, &[GENESIS_HASH], &[GENESIS_HASH]).await;
+		};
+		futures::executor::block_on(join(fut, overseer_fut));
+
+		assert_matches!(
+			view.known_allowed_relay_parents_under(&GENESIS_HASH, None),
+			Some(hashes) if !hashes.is_empty()
+		);
 	}
 }
