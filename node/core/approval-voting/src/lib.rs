@@ -411,6 +411,7 @@ impl<Context: Send> ApprovalVotingSubsystem {
 		)
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		.boxed();
+
 		SpawnedSubsystem { name: "approval-voting-subsystem", future }
 	}
 }
