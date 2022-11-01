@@ -4,13 +4,14 @@ The implementers' guide is compiled from several source files with [`mdBook`](ht
 
 ## Hosted build
 
-This is avalible at https://paritytech.github.io/polkadot/book/
+This is available [here](https://paritytech.github.io/polkadot/book/).
 
 ## Local build
 
 To view it locally from the repo root:
 
 Ensure graphviz is installed:
+
 ```sh
 brew install graphviz # for macOS
 sudo apt-get install graphviz # for Ubuntu/Debian
@@ -26,4 +27,4 @@ open http://localhost:3000
 
 ## Specification
 
-See also the Polkadot specificaton [hosted](https://spec.polkadot.network/), and it's [source](https://github.com/w3f/polkadot-spec)).
+See also the Polkadot specification [hosted](https://spec.polkadot.network/), and its [source](https://github.com/w3f/polkadot-spec).
