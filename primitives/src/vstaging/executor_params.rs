@@ -33,77 +33,55 @@ pub enum ExecutionEnvironment {
 	WasmtimeGeneric = 0,
 }
 
-/// Executor instantiation strategy
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, MallocSizeOf, TypeInfo)]
-pub enum ExecInstantiationStrategy {
-	/// Pooling copy-on-write
-	PoolingCoW,
-	/// Recreate instance copy-on-write
-	RecreateCoW,
-	/// Pooling
-	Pooling,
-	/// Recreate instance
-	Recreate,
-	/// Legacy instantiation strategy
-	Legacy,
-}
-
-/// A single executor parameter
-#[non_exhaustive]
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, MallocSizeOf, TypeInfo)]
-pub enum ExecutorParam {
-	/// General parameters:
-	/// Execution environment type and a version of the set of execution parameters, unique in
-	/// the scope of execution environment type
-	Version(ExecutionEnvironment, u32),
-
-	/// Parameters setting the executuion environment semantics:
-	/// Number of extra heap pages
-	ExtraHeapPages(u64),
-	/// Max. memory size
-	MaxMemorySize(u32),
-	/// Wasm logical stack size limit, in units
-	StackLogicalMax(u32),
-	/// Executor machine stack size limit, in bytes
-	StackNativeMax(u32),
-	/// Executor instantiation strategy
-	InstantiationStrategy(ExecInstantiationStrategy),
-	/// `true` if compiler should perform NaNs canonicalization
-	CanonicalizeNaNs(bool),
-	/// `true` if parallel compilation is allowed, single thread is used otherwise
-	ParallelCompilation(bool),
-}
+pub const EEPAR_ENVIRONMENT: u32 = 1;
+pub const EEPAR_VERSION: u32 = 2;
+pub const EEPAR_STACK_LOGICAL_MAX: u32 = 3;
+pub const EEPAR_STACK_NATIVE_MAX: u32 = 4;
 
 /// Deterministically serialized execution environment semantics
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, MallocSizeOf, TypeInfo)]
-pub struct ExecutorParams(Vec<ExecutorParam>);
+pub struct ExecutorParams(Vec<(u32, Vec<u8>)>);
 
 impl ExecutorParams {
+	/// Creates a new, empty executor parameter set
+	pub fn new() -> Self {
+		ExecutorParams(Vec::new())
+	}
+
 	/// Returns globally unique version of execution environment parameter set, if present. Otherwise, returns 0.
 	pub fn version(&self) -> u64 {
-		if self.0.len() < 2 {
+		if self.0.len() < 2 || self.0[0].0 != EEPAR_ENVIRONMENT || self.0[1].0 != EEPAR_VERSION {
 			return 0
 		}
-		let (env, ver) =
-			if let ExecutorParam::Version(env, ver) = self.0[0] { (env, ver) } else { return 0 };
-		(env as u64) * 2 ^ 32u64 + ver as u64
+		let env_enc = self.0[0].1.clone();
+		let ver_enc = self.0[1].1.clone();
+		match (ExecutionEnvironment::decode(&mut &env_enc[..]), u32::decode(&mut &ver_enc[..])) {
+			(Ok(env), Ok(ver)) => (env as u64) * 2 ^ 32u64 + ver as u64,
+			_ => 0,
+		}
 	}
 
 	/// Returns execution environment type identifier
 	pub fn environment(&self) -> ExecutionEnvironment {
-		if self.0.len() < 1 {
+		if self.0.len() < 1 || self.0[0].0 != EEPAR_ENVIRONMENT {
 			return ExecutionEnvironment::WasmtimeGeneric
 		}
-		if let ExecutorParam::Version(env, _) = self.0[0] {
-			env
-		} else {
-			ExecutionEnvironment::WasmtimeGeneric
+		let env_enc = self.0[0].1.clone();
+		match ExecutionEnvironment::decode(&mut &env_enc[..]) {
+			Ok(env) => env,
+			_ => ExecutionEnvironment::WasmtimeGeneric,
 		}
+	}
+
+	/// Adds an execution parameter to the set
+	pub fn add(&mut self, tag: u32, value: impl Encode) {
+		// TODO: Check for determinictic order of tags
+		self.0.push((tag, value.encode()));
 	}
 }
 
 impl Deref for ExecutorParams {
-	type Target = Vec<ExecutorParam>;
+	type Target = Vec<(u32, Vec<u8>)>;
 
 	fn deref(&self) -> &Self::Target {
 		&self.0
@@ -116,8 +94,14 @@ impl Default for ExecutorParams {
 	}
 }
 
-impl From<&[ExecutorParam]> for ExecutorParams {
-	fn from(arr: &[ExecutorParam]) -> Self {
-		ExecutorParams(arr.to_vec())
-	}
-}
+// impl From<&[(u32, &[u8])]> for ExecutorParams {
+// 	fn from(arr: &[(u32, &[u8])]) -> Self {
+// 		ExecutorParams(arr.into_iter().map(|e| (e.0, e.1.to_vec())).collect())
+// 	}
+// }
+
+// impl From<&[(u32, &dyn Encode)]> for ExecutorParams {
+// 	fn from(arr: &[(u32, impl Encode)]) -> Self {
+// 		ExecutorParams(arr.into_iter().map(|e| (e.0, e.1.encode())).collect())
+// 	}
+// }

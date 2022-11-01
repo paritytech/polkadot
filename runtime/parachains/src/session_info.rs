@@ -30,7 +30,7 @@ use frame_support::{
 use primitives::{
 	v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo},
 	vstaging::{
-		executor_params::{ExecutionEnvironment, ExecutorParam},
+		executor_params::{self as Ep, ExecutionEnvironment},
 		ExecutorParams,
 	},
 };
@@ -44,8 +44,15 @@ pub mod migration;
 mod tests;
 
 // The order of tags should be deterministic, `Environment` should always be the first, and `Version` the second one
-const EXECUTOR_PARAMS: [ExecutorParam; 1] =
-	[ExecutorParam::Version(ExecutionEnvironment::WasmtimeGeneric, 1)];
+// const EXECUTOR_PARAMS: [ExecutorParam; 1] =
+// 	[ExecutorParam::Version(ExecutionEnvironment::WasmtimeGeneric, 1)];
+
+fn current_exec_params() -> ExecutorParams {
+	let mut exec_params = ExecutorParams::new();
+	exec_params.add(Ep::EEPAR_ENVIRONMENT, ExecutionEnvironment::WasmtimeGeneric);
+	exec_params.add(Ep::EEPAR_VERSION, 1u32);
+	exec_params
+}
 
 /// A type for representing the validator account id in a session.
 pub type AccountId<T> = <<T as Config>::ValidatorSet as ValidatorSet<
@@ -203,7 +210,8 @@ impl<T: Config> Pallet<T> {
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
 		SessionEeParams::<T>::insert(
 			&new_session_index,
-			ExecutorParams::from(&EXECUTOR_PARAMS[..]),
+			current_exec_params(),
+			// ExecutorParams::from(&EXECUTOR_PARAMS[..]),
 		);
 	}
 

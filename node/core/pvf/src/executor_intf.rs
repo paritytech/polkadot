@@ -16,14 +16,13 @@
 
 //! Interface to the Substrate Executor
 
-use polkadot_primitives::vstaging::executor_params::{
-	ExecInstantiationStrategy, ExecutionEnvironment, ExecutorParam, ExecutorParams,
-};
+use parity_scale_codec::Decode;
+use polkadot_primitives::vstaging::executor_params::{self as Ep, ExecutorParams};
 use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{InvokeMethod, WasmModule as _},
 };
-use sc_executor_wasmtime::{Config, DeterministicStackLimit, InstantiationStrategy, Semantics};
+use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
 use sp_externalities::MultiRemovalResults;
 use std::{
@@ -116,30 +115,20 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 	} else {
 		return Err("No default stack limit set".to_string())
 	};
-	for p in par.iter() {
-		match p {
-			ExecutorParam::Version(env, _) =>
-				if *env != ExecutionEnvironment::WasmtimeGeneric {
-					return Err("Wrong execution environment type".to_string())
+	for (tag, val_enc) in par.iter() {
+		match *tag {
+			Ep::EEPAR_STACK_LOGICAL_MAX =>
+				if let Ok(slm) = u32::decode(&mut &val_enc[..]) {
+					stack_limit.logical_max = slm;
+				} else {
+					return Err("Cannot decode stack logical limit".to_string())
 				},
-			ExecutorParam::ExtraHeapPages(ehp) => sem.extra_heap_pages = *ehp,
-			ExecutorParam::MaxMemorySize(mms) => sem.max_memory_size = Some(*mms as usize),
-			ExecutorParam::StackLogicalMax(slm) => stack_limit.logical_max = *slm,
-			ExecutorParam::StackNativeMax(snm) => stack_limit.native_stack_max = *snm,
-			ExecutorParam::InstantiationStrategy(is) => match is {
-				ExecInstantiationStrategy::PoolingCoW =>
-					sem.instantiation_strategy = InstantiationStrategy::PoolingCopyOnWrite,
-				ExecInstantiationStrategy::RecreateCoW =>
-					sem.instantiation_strategy = InstantiationStrategy::RecreateInstanceCopyOnWrite,
-				ExecInstantiationStrategy::Pooling =>
-					sem.instantiation_strategy = InstantiationStrategy::Pooling,
-				ExecInstantiationStrategy::Recreate =>
-					sem.instantiation_strategy = InstantiationStrategy::RecreateInstance,
-				ExecInstantiationStrategy::Legacy =>
-					sem.instantiation_strategy = InstantiationStrategy::LegacyInstanceReuse,
-			},
-			ExecutorParam::CanonicalizeNaNs(cnan) => sem.canonicalize_nans = *cnan,
-			ExecutorParam::ParallelCompilation(pc) => sem.parallel_compilation = *pc,
+			Ep::EEPAR_STACK_NATIVE_MAX =>
+				if let Ok(snm) = u32::decode(&mut &val_enc[..]) {
+					stack_limit.native_stack_max = snm;
+				} else {
+					return Err("Cannot decode native stack limit".to_string())
+				},
 			_ => (),
 		}
 	}
