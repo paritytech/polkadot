@@ -61,6 +61,9 @@ pub enum NetworkBridgeEvent<M> {
 
 	/// Our view has changed.
 	OurViewChange(OurView),
+
+	/// The authority ids got updated.
+	UpdatedAuthorityIds(PeerId, HashSet<AuthorityDiscoveryId>),
 }
 
 impl<M> NetworkBridgeEvent<M> {
@@ -106,6 +109,8 @@ impl<M> NetworkBridgeEvent<M> {
 				NetworkBridgeEvent::PeerViewChange(peer.clone(), view.clone()),
 			NetworkBridgeEvent::OurViewChange(ref view) =>
 				NetworkBridgeEvent::OurViewChange(view.clone()),
+			NetworkBridgeEvent::UpdatedAuthorityIds(ref peer, ref authority_ids) =>
+				NetworkBridgeEvent::UpdatedAuthorityIds(peer.clone(), authority_ids.clone()),
 		})
 	}
 }

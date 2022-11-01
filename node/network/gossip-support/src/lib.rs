@@ -403,6 +403,12 @@ where
 					});
 				}
 			},
+			NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authority_ids) => {
+				authority_ids.iter().for_each(|a| {
+					self.connected_authorities.insert(a.clone(), peer_id);
+				});
+				self.connected_authorities_by_peer_id.insert(peer_id, authority_ids);
+			},
 			NetworkBridgeEvent::OurViewChange(_) => {},
 			NetworkBridgeEvent::PeerViewChange(_, _) => {},
 			NetworkBridgeEvent::NewGossipTopology { .. } => {},

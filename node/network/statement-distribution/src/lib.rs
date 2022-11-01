@@ -1742,6 +1742,12 @@ async fn handle_network_update<Context, R>(
 		NetworkBridgeEvent::OurViewChange(_view) => {
 			// handled by `ActiveLeavesUpdate`
 		},
+		NetworkBridgeEvent::UpdatedAuthorityIds(peer, authority_ids) => {
+			gum::trace!(target: LOG_TARGET, ?peer, "Updated authority ids");
+			authority_ids.into_iter().for_each(|a| {
+				authorities.insert(a, peer);
+			});
+		},
 	}
 }
 

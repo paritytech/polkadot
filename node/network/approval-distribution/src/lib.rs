@@ -374,6 +374,9 @@ impl State {
 					live
 				});
 			},
+			NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authority_ids) => {
+				todo!()
+			},
 			NetworkBridgeEvent::PeerMessage(peer_id, Versioned::V1(msg)) => {
 				self.process_incoming_peer_message(ctx, metrics, peer_id, msg, rng).await;
 			},
