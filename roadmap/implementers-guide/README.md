@@ -19,9 +19,7 @@ sudo apt-get install graphviz # for Ubuntu/Debian
 Then install and build the book:
 
 ```sh
-cargo install mdbook mdbook-linkcheck mdbook-graphviz mdbook-mermaid
-# This plugin is not available on crates.io yet.
-cargo install --git https://github.com/badboy/mdbook-last-changed/ --rev 2448157
+cargo install mdbook mdbook-linkcheck mdbook-graphviz mdbook-mermaid mdbook-last-changed
 mdbook serve roadmap/implementers-guide
 open http://localhost:3000
 ```
