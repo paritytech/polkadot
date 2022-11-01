@@ -31,10 +31,10 @@ pub mod v1 {
 	pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
 		#[cfg(feature = "try-runtime")]
-		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+		fn pre_upgrade() -> Result<sp_std::vec::Vec<u8>, &'static str> {
 			ensure!(StorageVersion::get::<Pallet<T>>() == 0, "must upgrade linearly");
 
-			Ok(Vec::new())
+			Ok(sp_std::vec::Vec::new())
 		}
 
 		fn on_runtime_upgrade() -> Weight {
