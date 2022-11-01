@@ -3537,7 +3537,7 @@ dependencies = [
  "libp2p-core",
  "libp2p-swarm",
  "log",
- "lru 0.8.0",
+ "lru 0.8.1",
  "prost",
  "prost-build",
  "prost-codec",
@@ -3922,9 +3922,9 @@ dependencies = [
 
 [[package]]
 name = "lru"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "936d98d2ddd79c18641c6709e7bb09981449694e402d1a0f0f657ea8d61f4a51"
+checksum = "b6e8aaa3f231bb4bd57b84b2d5dc3ae7f350265df8aa96492e0bc394a1571909"
 dependencies = [
  "hashbrown",
 ]
@@ -4071,7 +4071,7 @@ version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ce95ae042940bad7e312857b929ee3d11b8f799a80cb7b9c7ec5125516906395"
 dependencies = [
- "lru 0.8.0",
+ "lru 0.8.1",
 ]
 
 [[package]]
@@ -4265,7 +4265,7 @@ dependencies = [
  "matrixmultiply",
  "nalgebra-macros",
  "num-complex",
- "num-rational 0.4.0",
+ "num-rational 0.4.1",
  "num-traits",
  "rand 0.8.5",
  "rand_distr",
@@ -4511,9 +4511,9 @@ dependencies = [
 
 [[package]]
 name = "num-rational"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d41702bd167c2df5520b384281bc111a4b5efcf7fbc4c9c222c815b07e0a6a6a"
+checksum = "0638a1c9d0a3c0914158145bc76cff373a75a627e6ecbfb71cbe6f453a5a19b0"
 dependencies = [
  "autocfg",
  "num-bigint 0.4.3",
@@ -6003,7 +6003,7 @@ dependencies = [
  "fatality",
  "futures",
  "futures-timer",
- "lru 0.8.0",
+ "lru 0.8.1",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -6033,7 +6033,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "log",
- "lru 0.8.0",
+ "lru 0.8.1",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -6173,7 +6173,7 @@ dependencies = [
  "futures-timer",
  "indexmap",
  "lazy_static",
- "lru 0.8.0",
+ "lru 0.8.1",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -6293,7 +6293,7 @@ dependencies = [
  "futures-timer",
  "kvdb",
  "kvdb-memorydb",
- "lru 0.8.0",
+ "lru 0.8.1",
  "merlin",
  "parity-scale-codec",
  "parking_lot 0.12.1",
@@ -6462,7 +6462,7 @@ dependencies = [
  "futures-timer",
  "kvdb",
  "kvdb-memorydb",
- "lru 0.8.0",
+ "lru 0.8.1",
  "parity-scale-codec",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -6749,7 +6749,7 @@ dependencies = [
  "kvdb-shared-tests",
  "lazy_static",
  "log",
- "lru 0.8.0",
+ "lru 0.8.1",
  "parity-db",
  "parity-scale-codec",
  "parity-util-mem",
@@ -6783,7 +6783,7 @@ dependencies = [
  "femme",
  "futures",
  "futures-timer",
- "lru 0.8.0",
+ "lru 0.8.1",
  "orchestra",
  "parity-util-mem",
  "parking_lot 0.12.1",
@@ -7140,7 +7140,7 @@ dependencies = [
  "kvdb",
  "kvdb-rocksdb",
  "log",
- "lru 0.8.0",
+ "lru 0.8.1",
  "pallet-babe",
  "pallet-im-online",
  "pallet-staking",
@@ -12104,7 +12104,7 @@ dependencies = [
  "downcast-rs",
  "libm",
  "memory_units",
- "num-rational 0.4.0",
+ "num-rational 0.4.1",
  "num-traits",
 ]
 
