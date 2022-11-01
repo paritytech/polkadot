@@ -58,7 +58,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::request_session_info;
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt, GroupIndex,
-	Hash, HashT, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
+	Hash, HashT, IndexedVec, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
 };
 
 mod error;
@@ -134,7 +134,7 @@ struct RecoveryParams {
 	validator_authority_keys: Vec<AuthorityDiscoveryId>,
 
 	/// Validators relevant to this `RecoveryTask`.
-	validators: Vec<ValidatorId>,
+	validators: IndexedVec<ValidatorIndex, ValidatorId>,
 
 	/// The number of pieces needed.
 	threshold: usize,
@@ -871,7 +871,7 @@ async fn launch_recovery_task<Context>(
 	};
 
 	let phase = backing_group
-		.and_then(|g| session_info.validator_groups.get(g.0 as usize))
+		.and_then(|g| session_info.validator_groups.get(g))
 		.map(|group| Source::RequestFromBackers(RequestFromBackers::new(group.clone())))
 		.unwrap_or_else(|| {
 			Source::RequestChunks(RequestChunksFromValidators::new(params.validators.len() as _))

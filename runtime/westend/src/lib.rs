@@ -109,13 +109,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9290,
+	spec_version: 9310,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 12,
+	transaction_version: 14,
 	state_version: 0,
 };
 
@@ -517,10 +517,11 @@ impl pallet_staking::Config for Runtime {
 
 impl pallet_fast_unstake::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type DepositCurrency = Balances;
+	type Currency = Balances;
 	type Deposit = frame_support::traits::ConstU128<{ UNITS }>;
 	type ControlOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_fast_unstake::WeightInfo<Runtime>;
+	type Staking = Staking;
 }
 
 parameter_types! {
@@ -679,7 +680,7 @@ parameter_types! {
 	pub const DepositBase: Balance = deposit(1, 88);
 	// Additional storage item size of 32 bytes.
 	pub const DepositFactor: Balance = deposit(0, 32);
-	pub const MaxSignatories: u16 = 100;
+	pub const MaxSignatories: u32 = 100;
 }
 
 impl pallet_multisig::Config for Runtime {
@@ -1060,11 +1061,10 @@ impl pallet_nomination_pools::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
 	type Currency = Balances;
-	type CurrencyBalance = Balance;
 	type RewardCounter = FixedU128;
 	type BalanceToU256 = BalanceToU256;
 	type U256ToBalance = U256ToBalance;
-	type StakingInterface = Staking;
+	type Staking = Staking;
 	type PostUnbondingPoolsWindow = ConstU32<4>;
 	type MaxMetadataLen = ConstU32<256>;
 	// we use the same number of allowed unlocking chunks as with staking.
@@ -1148,7 +1148,7 @@ construct_runtime! {
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 44,
 		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 45,
 		ParaScheduler: parachains_scheduler::{Pallet, Storage} = 46,
-		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config} = 47,
+		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config, ValidateUnsigned} = 47,
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 48,
 		Dmp: parachains_dmp::{Pallet, Call, Storage} = 49,
 		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 50,

@@ -35,7 +35,9 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
-use polkadot_primitives::v2::{Hash, Id as ParaId, SessionInfo, ValidationCode};
+use polkadot_primitives::v2::{
+	GroupIndex, Hash, Id as ParaId, IndexedVec, SessionInfo, ValidationCode, ValidatorId,
+};
 use polkadot_primitives_test_helpers::{
 	dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
 };
@@ -83,7 +85,7 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	};
 
 	let mut head_data = ActiveHeadData::new(
-		validators,
+		IndexedVec::<ValidatorIndex, ValidatorId>::from(validators),
 		session_index,
 		PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 	);
@@ -429,7 +431,7 @@ fn peer_view_update_sends_messages() {
 
 	let new_head_data = {
 		let mut data = ActiveHeadData::new(
-			validators,
+			IndexedVec::<ValidatorIndex, ValidatorId>::from(validators),
 			session_index,
 			PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 		);
@@ -2319,7 +2321,7 @@ fn handle_multiple_seconded_statements() {
 }
 
 fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInfo {
-	let validator_groups: Vec<Vec<ValidatorIndex>> = groups
+	let validator_groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>> = groups
 		.iter()
 		.map(|g| g.into_iter().map(|v| ValidatorIndex(*v)).collect())
 		.collect();
