@@ -327,13 +327,13 @@ impl UsageProvider<Block> for Client {
 impl sc_client_api::BlockBackend<Block> for Client {
 	fn block_body(
 		&self,
-		id: &BlockId<Block>,
+		hash: &<Block as BlockT>::Hash,
 	) -> sp_blockchain::Result<Option<Vec<<Block as BlockT>::Extrinsic>>> {
 		with_client! {
 			self,
 			client,
 			{
-				client.block_body(id)
+				client.block_body(hash)
 			}
 		}
 	}
