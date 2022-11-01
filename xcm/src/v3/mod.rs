@@ -363,8 +363,7 @@ impl TryFrom<OldWeightLimit> for WeightLimit {
 	fn try_from(x: OldWeightLimit) -> result::Result<Self, ()> {
 		use OldWeightLimit::*;
 		match x {
-			Limited(w) =>
-				Ok(Self::Limited(Weight::from_parts(w, DEFAULT_PROOF_SIZE))),
+			Limited(w) => Ok(Self::Limited(Weight::from_parts(w, DEFAULT_PROOF_SIZE))),
 			Unlimited => Ok(Self::Unlimited),
 		}
 	}
@@ -1369,8 +1368,7 @@ mod tests {
 			ClearOrigin,
 			BuyExecution {
 				fees: (Here, 1u128).into(),
-				weight_limit: Some(Weight::from_parts(1, DEFAULT_PROOF_SIZE))
-					.into(),
+				weight_limit: Some(Weight::from_parts(1, DEFAULT_PROOF_SIZE)).into(),
 			},
 			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Here.into() },
 		]);
