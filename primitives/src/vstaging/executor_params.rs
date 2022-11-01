@@ -26,17 +26,19 @@ use parity_util_mem::MallocSizeOf;
 use scale_info::TypeInfo;
 use sp_std::{ops::Deref, vec::Vec};
 
-/// Execution environment type
-#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, MallocSizeOf, TypeInfo)]
-pub enum ExecutionEnvironment {
-	/// Generic Wasmtime executor
-	WasmtimeGeneric = 0,
-}
-
+/// # Execution environment parameter tags
+/// Environment type
 pub const EEPAR_ENVIRONMENT: u32 = 1;
+/// Parameter set version, unique within environment type
 pub const EEPAR_VERSION: u32 = 2;
+/// Logical stack limit, in stack items
 pub const EEPAR_STACK_LOGICAL_MAX: u32 = 3;
+/// Native stack limit, in bytes
 pub const EEPAR_STACK_NATIVE_MAX: u32 = 4;
+
+/// # Execution enviroment types
+/// Generic Wasmtime environment
+pub const EXEC_ENV_TYPE_WASMTIME_GENERIC: u32 = 0;
 
 /// Deterministically serialized execution environment semantics
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, MallocSizeOf, TypeInfo)]
@@ -55,21 +57,21 @@ impl ExecutorParams {
 		}
 		let env_enc = self.0[0].1.clone();
 		let ver_enc = self.0[1].1.clone();
-		match (ExecutionEnvironment::decode(&mut &env_enc[..]), u32::decode(&mut &ver_enc[..])) {
+		match (u32::decode(&mut &env_enc[..]), u32::decode(&mut &ver_enc[..])) {
 			(Ok(env), Ok(ver)) => (env as u64) * 2 ^ 32u64 + ver as u64,
 			_ => 0,
 		}
 	}
 
 	/// Returns execution environment type identifier
-	pub fn environment(&self) -> ExecutionEnvironment {
+	pub fn environment(&self) -> u32 {
 		if self.0.len() < 1 || self.0[0].0 != EEPAR_ENVIRONMENT {
-			return ExecutionEnvironment::WasmtimeGeneric
+			return EXEC_ENV_TYPE_WASMTIME_GENERIC
 		}
 		let env_enc = self.0[0].1.clone();
-		match ExecutionEnvironment::decode(&mut &env_enc[..]) {
+		match u32::decode(&mut &env_enc[..]) {
 			Ok(env) => env,
-			_ => ExecutionEnvironment::WasmtimeGeneric,
+			_ => EXEC_ENV_TYPE_WASMTIME_GENERIC,
 		}
 	}
 
