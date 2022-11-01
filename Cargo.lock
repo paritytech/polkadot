@@ -3293,7 +3293,6 @@ dependencies = [
  "xcm",
  "xcm-builder",
  "xcm-executor",
- "xcm-runtime-api",
 ]
 
 [[package]]
@@ -5735,6 +5734,7 @@ dependencies = [
 name = "pallet-xcm"
 version = "0.9.29"
 dependencies = [
+ "derivative",
  "frame-support",
  "frame-system",
  "log",
@@ -5744,6 +5744,7 @@ dependencies = [
  "polkadot-runtime-parachains",
  "scale-info",
  "serde",
+ "sp-api",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -7143,7 +7144,6 @@ dependencies = [
  "xcm",
  "xcm-builder",
  "xcm-executor",
- "xcm-runtime-api",
 ]
 
 [[package]]
@@ -8445,7 +8445,6 @@ dependencies = [
  "xcm",
  "xcm-builder",
  "xcm-executor",
- "xcm-runtime-api",
 ]
 
 [[package]]
@@ -12592,7 +12591,6 @@ dependencies = [
  "xcm",
  "xcm-builder",
  "xcm-executor",
- "xcm-runtime-api",
 ]
 
 [[package]]
@@ -12902,24 +12900,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "xcm-runtime-api"
-version = "0.9.29"
-dependencies = [
- "derivative",
- "frame-support",
- "frame-system",
- "log",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-api",
- "sp-core",
- "sp-runtime",
- "sp-std",
- "xcm",
 ]
 
 [[package]]

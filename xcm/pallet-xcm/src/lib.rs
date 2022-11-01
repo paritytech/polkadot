@@ -23,12 +23,13 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-use codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
+use codec::{Codec, Decode, Encode, EncodeLike, MaxEncodedLen};
+use derivative::Derivative;
 use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{BadOrigin, Saturating},
-	RuntimeDebug,
+	traits::{BadOrigin, Saturating, MaybeDisplay},
+	RuntimeDebug
 };
 use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
 use xcm::{latest::Weight as XcmWeight, prelude::*};
@@ -1582,5 +1583,50 @@ impl<RuntimeOrigin: From<crate::Origin>> ConvertOrigin<RuntimeOrigin>
 			OriginKind::Xcm => Ok(crate::Origin::Xcm(origin).into()),
 			_ => Err(origin),
 		}
+	}
+}
+
+// XCM runtime API
+
+// Versioned Weight, to not break api with Weight v2
+#[derive(Derivative, Encode, Decode, TypeInfo)]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
+#[codec(encode_bound())]
+#[codec(decode_bound())]
+pub enum VersionedWeight {
+	V2(xcm::v2::Weight),
+}
+
+impl From<xcm::v2::Weight> for VersionedWeight {
+	fn from(x: xcm::v2::Weight) -> Self {
+		VersionedWeight::V2(x)
+	}
+}
+
+impl TryFrom<VersionedWeight> for xcm::v2::Weight {
+	type Error = ();
+	fn try_from(x: VersionedWeight) -> Result<Self, ()> {
+		match x {
+			VersionedWeight::V2(x) => Ok(x),
+		}
+	}
+}
+
+// [`XcmResult`]
+pub type XcmApiResult<T> = Result<T, XcmError>;
+
+sp_api::decl_runtime_apis! {
+	pub trait XcmApi<AccountId, RuntimeCall> where
+		AccountId: Codec + MaybeDisplay,
+
+	{
+		/// Returns weight of a given message.
+		fn weigh_message(message: VersionedXcm<RuntimeCall>) -> XcmApiResult<VersionedWeight>;
+
+		/// Returns the location to accountId conversion.
+		fn convert_location(location: VersionedMultiLocation) -> XcmApiResult<AccountId>;
+
+		/// Returns fee charged for an amount of weight in a concrete multiasset.
+		fn calculate_concrete_asset_fee(asset_location: VersionedMultiLocation, weight: VersionedWeight) -> XcmApiResult<u128>;
 	}
 }

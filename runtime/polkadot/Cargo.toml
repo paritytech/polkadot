@@ -75,7 +75,6 @@ pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
-xcm-runtime-api = { path = "../../xcm/xcm-runtime-api", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
@@ -182,7 +181,6 @@ std = [
 	"xcm/std",
 	"xcm-executor/std",
 	"xcm-builder/std",
-	"xcm-runtime-api/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",

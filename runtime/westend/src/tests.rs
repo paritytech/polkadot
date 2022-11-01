@@ -18,7 +18,7 @@
 
 use crate::*;
 use xcm::latest::{AssetId::*, Fungibility::*, MultiLocation};
-use xcm_runtime_api::runtime_decl_for_XcmApi::XcmApi;
+use pallet_xcm::runtime_decl_for_XcmApi::XcmApi;
 
 #[test]
 fn remove_keys_weight_is_sensible() {
@@ -70,7 +70,7 @@ fn sanity_check_teleport_assets_weight() {
 }
 
 #[test]
-fn xcm_runtime_api_weight() {
+fn pallet_xcm_weight() {
 	use xcm::v2::XcmWeightInfo;
 	let message = xcm::VersionedXcm::<RuntimeCall>::V2(xcm::latest::Xcm(vec![
 		xcm::latest::prelude::ClearOrigin,

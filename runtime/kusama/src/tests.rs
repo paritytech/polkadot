@@ -24,7 +24,7 @@ use parity_scale_codec::Encode;
 use runtime_common::MinimumMultiplier;
 use separator::Separatable;
 use sp_runtime::FixedPointNumber;
-use xcm_runtime_api::runtime_decl_for_XcmApi::XcmApi;
+use pallet_xcm::runtime_decl_for_XcmApi::XcmApi;
 
 #[test]
 fn remove_keys_weight_is_sensible() {
@@ -178,14 +178,14 @@ fn call_size() {
 }
 
 #[test]
-fn xcm_runtime_api_weight() {
+fn pallet_xcm_weight() {
 	use xcm::v2::XcmWeightInfo;
 	let message = xcm::VersionedXcm::<RuntimeCall>::V2(xcm::latest::Xcm(vec![
 		xcm::latest::prelude::ClearOrigin,
 	]));
 	assert_eq!(
 		Runtime::weigh_message(message),
-		Ok(weights::xcm::WestendXcmWeight::<RuntimeCall>::clear_origin().into())
+		Ok(weights::xcm::KusamaXcmWeight::<RuntimeCall>::clear_origin().into())
 	);
 }
 
@@ -205,7 +205,7 @@ fn xcm_runtime_location_convert() {
 	);
 	assert_eq!(
 		Runtime::convert_location(local_location.clone().into()),
-		Ok(xcm_builder::AccountId32Aliases::<xcm_config::WestendNetwork, AccountId>::convert_ref(
+		Ok(xcm_builder::AccountId32Aliases::<xcm_config::KusamaNetwork, AccountId>::convert_ref(
 			local_location
 		)
 		.unwrap())

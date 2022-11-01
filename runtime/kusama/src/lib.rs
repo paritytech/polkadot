@@ -1914,24 +1914,24 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl xcm_runtime_api::XcmApi<
+	impl pallet_xcm::XcmApi<
 		Block,
 		AccountId,
 		RuntimeCall,
 	> for Runtime {
 
-		fn weigh_message(message: VersionedXcm<RuntimeCall>) -> xcm_runtime_api::XcmResult< xcm_runtime_api::VersionedWeight> {
+		fn weigh_message(message: VersionedXcm<RuntimeCall>) -> pallet_xcm::XcmApiResult< pallet_xcm::VersionedWeight> {
 			let mut message: Xcm<RuntimeCall> = message.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
 			<xcm_config::XcmConfig as xcm_executor::Config>::Weigher::weight(& mut message).map_err(|_| XcmError::WeightNotComputable).map(|weight| weight.into())
 		}
-		fn convert_location(location: VersionedMultiLocation) -> xcm_runtime_api::XcmResult<AccountId> {
+		fn convert_location(location: VersionedMultiLocation) -> pallet_xcm::XcmApiResult<AccountId> {
 			let location: MultiLocation = location.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
 			<xcm_config::SovereignAccountOf as xcm_executor::traits::Convert<
 				MultiLocation, AccountId
 			>>::convert_ref(location).map_err(|_| XcmError::FailedToTransactAsset("AccountIdConversionFailed"))
 		}
 
-		fn calculate_concrete_asset_fee(asset_location: VersionedMultiLocation, weight: xcm_runtime_api::VersionedWeight) -> xcm_runtime_api::XcmResult<u128>  {
+		fn calculate_concrete_asset_fee(asset_location: VersionedMultiLocation, weight: pallet_xcm::VersionedWeight) -> pallet_xcm::XcmApiResult<u128>  {
 			let asset_location: MultiLocation = asset_location.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
 			let weight: xcm::latest::Weight = weight.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
 
