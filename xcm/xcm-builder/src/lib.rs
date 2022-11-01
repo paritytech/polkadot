@@ -48,6 +48,9 @@ pub use barriers::{
 	AllowUnpaidExecutionFrom, IsChildSystemParachain, TakeWeightCredit,
 };
 
+mod process_xcm_message;
+pub use process_xcm_message::ProcessXcmMessage;
+
 mod currency_adapter;
 pub use currency_adapter::CurrencyAdapter;
 
