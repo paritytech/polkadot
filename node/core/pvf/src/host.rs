@@ -22,6 +22,7 @@
 
 use crate::{
 	artifacts::{ArtifactId, ArtifactPathId, ArtifactState, Artifacts},
+	error::PrepareError,
 	execute,
 	metrics::Metrics,
 	prepare, PrepareResult, Priority, Pvf, ValidationError, LOG_TARGET,
@@ -48,8 +49,8 @@ pub const PRECHECK_COMPILATION_TIMEOUT: Duration = Duration::from_secs(60);
 // NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
 pub const EXECUTE_COMPILATION_TIMEOUT: Duration = Duration::from_secs(180);
 
-/// The time period after which a failed preparation artifact is considered ready to be retried. Note that we will only
-/// retry if another request comes in after this cooldown has passed.
+/// The time period after which a failed preparation artifact is considered ready to be retried.
+/// Note that we will only retry if another request comes in after this cooldown has passed.
 pub const PREPARE_FAILURE_COOLDOWN: Duration = Duration::from_secs(15 * 60);
 
 /// The amount of times we will retry failed prepare jobs.
@@ -459,26 +460,11 @@ async fn handle_precheck_pvf(
 			},
 			ArtifactState::Preparing { waiting_for_response, num_failures: _ } =>
 				waiting_for_response.push(result_sender),
-			ArtifactState::FailedToProcess { last_time_failed, num_failures, error } =>
-				if can_retry_prepare_after_failure(*last_time_failed, *num_failures) {
-					// If we are allowed to retry the failed prepare job, change the state to
-					// Preparing and re-queue this job.
-					*state = ArtifactState::Preparing {
-						waiting_for_response: vec![result_sender],
-						num_failures: *num_failures,
-					};
-					send_prepare(
-						prepare_queue,
-						prepare::ToQueue::Enqueue {
-							priority: Priority::Normal,
-							pvf,
-							compilation_timeout: PRECHECK_COMPILATION_TIMEOUT,
-						},
-					)
-					.await?;
-				} else {
-					let _ = result_sender.send(PrepareResult::Err(error.clone()));
-				},
+			ArtifactState::FailedToProcess { error, .. } => {
+				// Do not retry failed preparation if another pre-check request comes in. We do not retry pre-checking,
+				// anyway.
+				let _ = result_sender.send(PrepareResult::Err(error.clone()));
+			},
 		}
 	} else {
 		artifacts.insert_preparing(artifact_id, vec![result_sender]);
@@ -539,7 +525,7 @@ async fn handle_execute_pvf(
 				awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
 			},
 			ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
-				if can_retry_prepare_after_failure(*last_time_failed, *num_failures) {
+				if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
 					// If we are allowed to retry the failed prepare job, change the state to
 					// Preparing and re-queue this job.
 					*state = ArtifactState::Preparing {
@@ -598,9 +584,8 @@ async fn handle_heads_up(
 				ArtifactState::Preparing { .. } => {
 					// The artifact is already being prepared, so we don't need to do anything.
 				},
-				ArtifactState::FailedToProcess { last_time_failed, num_failures, error: _ } => {
-					// TODO: Do we want to retry for heads-up requests?
-					if can_retry_prepare_after_failure(*last_time_failed, *num_failures) {
+				ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
+					if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
 						// If we are allowed to retry the failed prepare job, change the state to
 						// Preparing and re-queue this job.
 						*state = ArtifactState::Preparing {
@@ -786,9 +771,21 @@ async fn sweeper_task(mut sweeper_rx: mpsc::Receiver<PathBuf>) {
 }
 
 /// Check if the conditions to retry a prepare job have been met.
-fn can_retry_prepare_after_failure(last_time_failed: SystemTime, num_failures: u32) -> bool {
-	SystemTime::now() >= last_time_failed + PREPARE_FAILURE_COOLDOWN &&
-		num_failures <= NUM_PREPARE_RETRIES
+fn can_retry_prepare_after_failure(
+	last_time_failed: SystemTime,
+	num_failures: u32,
+	error: &PrepareError,
+) -> bool {
+	use PrepareError::*;
+	match error {
+		// Gracefully returned an error, so it will probably be reproducible. Don't retry.
+		Prevalidation(_) | Preparation(_) => false,
+		// Retry if the retry cooldown has elapsed and if we have already retried less than
+		// `NUM_PREPARE_RETRIES` times.
+		Panic(_) | TimedOut | DidNotMakeIt =>
+			SystemTime::now() >= last_time_failed + PREPARE_FAILURE_COOLDOWN &&
+				num_failures <= NUM_PREPARE_RETRIES,
+	}
 }
 
 /// A stream that yields a pulse continuously at a given interval.

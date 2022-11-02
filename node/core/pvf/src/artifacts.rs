@@ -116,7 +116,7 @@ pub enum ArtifactState {
 		last_time_failed: SystemTime,
 		/// The number of times this artifact has failed to prepare.
 		num_failures: u32,
-		/// The prepare error.
+		/// The last error encountered for preparation.
 		error: PrepareError,
 	},
 }
