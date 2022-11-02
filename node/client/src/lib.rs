@@ -358,7 +358,10 @@ impl sc_client_api::BlockBackend<Block> for Client {
 		}
 	}
 
-	fn justifications(&self, hash: &<Block as BlockT>::Hash) -> sp_blockchain::Result<Option<Justifications>> {
+	fn justifications(
+		&self,
+		hash: &<Block as BlockT>::Hash,
+	) -> sp_blockchain::Result<Option<Justifications>> {
 		with_client! {
 			self,
 			client,
