@@ -39,15 +39,16 @@ use std::{
 	time::{Duration, SystemTime},
 };
 
-/// The time period after which the precheck preparation worker is considered unresponsive and will
-/// be killed.
+/// For prechecking requests, the time period after which the preparation worker is considered
+/// unresponsive and will be killed.
 // NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
-pub const PRECHECK_COMPILATION_TIMEOUT: Duration = Duration::from_secs(60);
+pub const PRECHECK_PREPARATION_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// The time period after which the execute preparation worker is considered unresponsive and will
-/// be killed.
+/// For execution and heads-up requests, the time period after which the preparation worker is
+/// considered unresponsive and will be killed. More lenient than the timeout for prechecking to
+/// prevent honest validators from timing out on valid PVFs.
 // NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
-pub const EXECUTE_COMPILATION_TIMEOUT: Duration = Duration::from_secs(180);
+pub const LENIENT_PREPARATION_TIMEOUT: Duration = Duration::from_secs(360);
 
 /// The time period after which a failed preparation artifact is considered ready to be retried.
 /// Note that we will only retry if another request comes in after this cooldown has passed.
@@ -439,7 +440,7 @@ async fn handle_to_host(
 	Ok(())
 }
 
-/// Handles PVF prechecking.
+/// Handles PVF prechecking requests.
 ///
 /// This tries to prepare the PVF by compiling the WASM blob within a given timeout ([`PRECHECK_COMPILATION_TIMEOUT`]).
 ///
@@ -473,7 +474,7 @@ async fn handle_precheck_pvf(
 			prepare::ToQueue::Enqueue {
 				priority: Priority::Normal,
 				pvf,
-				compilation_timeout: PRECHECK_COMPILATION_TIMEOUT,
+				preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
 			},
 		)
 		.await?;
@@ -555,7 +556,7 @@ async fn handle_execute_pvf(
 			prepare::ToQueue::Enqueue {
 				priority,
 				pvf,
-				compilation_timeout: EXECUTE_COMPILATION_TIMEOUT,
+				preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
 			},
 		)
 		.await?;
@@ -613,7 +614,7 @@ async fn handle_heads_up(
 				prepare::ToQueue::Enqueue {
 					priority: Priority::Normal,
 					pvf: active_pvf,
-					compilation_timeout: EXECUTE_COMPILATION_TIMEOUT,
+					preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
 				},
 			)
 			.await?;
