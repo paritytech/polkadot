@@ -2,7 +2,7 @@
 name = "pallet-xcm-benchmarks"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
-version = "0.9.29"
+version = "0.9.30"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -10,22 +10,22 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
-frame-support = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
-frame-system = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
-sp-runtime = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
-sp-std = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
-sp-io = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
-xcm-executor = { path = "../xcm-executor", default-features = false }
-frame-benchmarking = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
-xcm = { path = "..", default-features = false }
-xcm-builder = { path = "../xcm-builder", default-features = false }
+frame-support = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.30" }
+frame-system = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.30" }
+sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.30" }
+sp-std = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.30" }
+xcm-executor = { path = "../xcm-executor", default-features = false, features = ["runtime-benchmarks"] }
+frame-benchmarking = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.30" }
+xcm = { path = "..", default-features = false, features = ["runtime-benchmarks"] }
 log = "0.4.17"
 
 [dev-dependencies]
-pallet-balances = { branch = "master", git = "https://github.com/paritytech/substrate" }
-pallet-assets = { branch = "master", git = "https://github.com/paritytech/substrate" }
-sp-core = { branch = "master", git = "https://github.com/paritytech/substrate" }
-sp-tracing = { branch = "master", git = "https://github.com/paritytech/substrate" }
+pallet-balances = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.30" }
+pallet-assets = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.30" }
+sp-core = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.30" }
+sp-io = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.30" }
+sp-tracing = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.30" }
+xcm-builder = { path = "../xcm-builder" }
 xcm = { path = ".." }
 # temp
 pallet-xcm = { path = "../pallet-xcm" }
@@ -40,16 +40,10 @@ std = [
 	"frame-benchmarking/std",
 	"frame-support/std",
 	"frame-system/std",
-	"sp-io/std",
 	"sp-runtime/std",
-	"sp-std/std",
-	"xcm-builder/std",
-	"xcm-executor/std"
+	"sp-std/std"
 ]
 runtime-benchmarks = [
-	"xcm/runtime-benchmarks",
-	"xcm-builder/runtime-benchmarks",
-	"xcm-executor/runtime-benchmarks",
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
