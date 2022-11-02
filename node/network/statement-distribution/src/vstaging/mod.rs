@@ -844,15 +844,14 @@ async fn handle_incoming_statement<Context>(
 		Some(l) => l,
 	};
 
-	let originator_group = match per_session.groups
-		.by_validator_index(statement.unchecked_validator_index())
-	{
-		Some(g) => g,
-		None => {
-			report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
-			return
-		}
-	};
+	let originator_group =
+		match per_session.groups.by_validator_index(statement.unchecked_validator_index()) {
+			Some(g) => g,
+			None => {
+				report_peer(ctx.sender(), peer, COST_UNEXPECTED_STATEMENT).await;
+				return
+			},
+		};
 
 	let cluster_sender_index = {
 		let allowed_senders = local_validator
@@ -886,7 +885,8 @@ async fn handle_incoming_statement<Context>(
 			},
 		}
 	} else {
-		let grid_sender_index = local_validator.grid_tracker
+		let grid_sender_index = local_validator
+			.grid_tracker
 			.direct_statement_senders(
 				&per_session.groups,
 				statement.unchecked_validator_index(),
@@ -911,7 +911,7 @@ async fn handle_incoming_statement<Context>(
 				Err(rep) => {
 					report_peer(ctx.sender(), peer, rep).await;
 					return
-				}
+				},
 			}
 		} else {
 			// Not a cluster or grid peer.
