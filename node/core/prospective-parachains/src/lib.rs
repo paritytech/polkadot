@@ -34,15 +34,14 @@ use futures::{channel::oneshot, prelude::*};
 use polkadot_node_subsystem::{
 	messages::{
 		ChainApiMessage, FragmentTreeMembership, HypotheticalDepthRequest,
-		ProspectiveParachainsMessage, ProspectiveValidationDataRequest, RuntimeApiMessage,
-		RuntimeApiRequest, IntroduceCandidateRequest,
+		IntroduceCandidateRequest, ProspectiveParachainsMessage, ProspectiveValidationDataRequest,
+		RuntimeApiMessage, RuntimeApiRequest,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::inclusion_emulator::staging::{Constraints, RelayChainBlockInfo};
 use polkadot_primitives::vstaging::{
-	BlockNumber, CandidateHash, CoreState, Hash, Id as ParaId,
-	PersistedValidationData,
+	BlockNumber, CandidateHash, CoreState, Hash, Id as ParaId, PersistedValidationData,
 };
 
 use crate::{
@@ -297,11 +296,7 @@ async fn handle_candidate_introduced<Context>(
 		Ok(c) => c,
 		Err(crate::fragment_tree::CandidateStorageInsertionError::CandidateAlreadyKnown(c)) => {
 			// Candidate known - return existing fragment tree membership.
-			let _ = tx.send(fragment_tree_membership(
-				&view.active_leaves,
-				para,
-				c,
-			));
+			let _ = tx.send(fragment_tree_membership(&view.active_leaves, para, c));
 			return Ok(())
 		},
 		Err(
@@ -341,11 +336,7 @@ async fn handle_candidate_introduced<Context>(
 	Ok(())
 }
 
-fn handle_candidate_seconded(
-	view: &mut View,
-	para: ParaId,
-	candidate_hash: CandidateHash,
-) {
+fn handle_candidate_seconded(view: &mut View, para: ParaId, candidate_hash: CandidateHash) {
 	let storage = match view.candidate_storage.get_mut(&para) {
 		None => {
 			gum::warn!(
@@ -522,11 +513,7 @@ fn answer_tree_membership_request(
 	candidate: CandidateHash,
 	tx: oneshot::Sender<FragmentTreeMembership>,
 ) {
-	let _ = tx.send(fragment_tree_membership(
-		&view.active_leaves,
-		para,
-		candidate,
-	));
+	let _ = tx.send(fragment_tree_membership(&view.active_leaves, para, candidate));
 }
 
 fn answer_minimum_relay_parents_request(

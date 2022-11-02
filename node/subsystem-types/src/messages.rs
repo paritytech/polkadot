@@ -1034,10 +1034,7 @@ pub enum ProspectiveParachainsMessage {
 	///
 	/// The response sender accepts the candidate membership, which is the existing
 	/// membership of the candidate if it was already known.
-	IntroduceCandidate(
-		IntroduceCandidateRequest,
-		oneshot::Sender<FragmentTreeMembership>,
-	),
+	IntroduceCandidate(IntroduceCandidateRequest, oneshot::Sender<FragmentTreeMembership>),
 	/// Inform the Prospective Parachains Subsystem that a previously introduced candidate
 	/// has been seconded. This requires that the candidate was successfully introduced in
 	/// the past.

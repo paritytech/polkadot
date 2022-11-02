@@ -410,9 +410,10 @@ fn seconding_sanity_check_allowed() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
-			AllMessages::ProspectiveParachains(
-				ProspectiveParachainsMessage::CandidateSeconded(_, _)
-			)
+			AllMessages::ProspectiveParachains(ProspectiveParachainsMessage::CandidateSeconded(
+				_,
+				_
+			))
 		);
 
 		assert_matches!(
@@ -548,9 +549,10 @@ fn seconding_sanity_check_disallowed() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
-			AllMessages::ProspectiveParachains(
-				ProspectiveParachainsMessage::CandidateSeconded(_, _)
-			)
+			AllMessages::ProspectiveParachains(ProspectiveParachainsMessage::CandidateSeconded(
+				_,
+				_
+			))
 		);
 
 		assert_matches!(
@@ -793,9 +795,10 @@ fn prospective_parachains_reject_candidate() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
-			AllMessages::ProspectiveParachains(
-				ProspectiveParachainsMessage::CandidateSeconded(_, _)
-			)
+			AllMessages::ProspectiveParachains(ProspectiveParachainsMessage::CandidateSeconded(
+				_,
+				_
+			))
 		);
 
 		assert_matches!(
@@ -1064,9 +1067,10 @@ fn backing_works() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
-			AllMessages::ProspectiveParachains(
-				ProspectiveParachainsMessage::CandidateSeconded(_, _)
-			)
+			AllMessages::ProspectiveParachains(ProspectiveParachainsMessage::CandidateSeconded(
+				_,
+				_
+			))
 		);
 
 		assert_validate_seconded_candidate(
@@ -1264,7 +1268,7 @@ fn concurrent_dependent_candidates() {
 					tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
 				},
 				AllMessages::ProspectiveParachains(
-					ProspectiveParachainsMessage::CandidateSeconded(_, _)
+					ProspectiveParachainsMessage::CandidateSeconded(_, _),
 				) => {},
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					_,

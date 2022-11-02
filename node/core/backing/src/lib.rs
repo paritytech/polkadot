@@ -87,8 +87,8 @@ use polkadot_node_subsystem::{
 	messages::{
 		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
 		CandidateValidationMessage, CollatorProtocolMessage, HypotheticalDepthRequest,
-		ProspectiveParachainsMessage, ProvisionableData, ProvisionerMessage, RuntimeApiMessage,
-		RuntimeApiRequest, StatementDistributionMessage, IntroduceCandidateRequest,
+		IntroduceCandidateRequest, ProspectiveParachainsMessage, ProvisionableData,
+		ProvisionerMessage, RuntimeApiMessage, RuntimeApiRequest, StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -1530,7 +1530,8 @@ async fn import_statement<Context>(
 				ctx.send_message(ProspectiveParachainsMessage::CandidateSeconded(
 					candidate.descriptor().para_id,
 					candidate_hash,
-				)).await;
+				))
+				.await;
 			}
 
 			// Only save the candidate if it was approved by prospective parachains.

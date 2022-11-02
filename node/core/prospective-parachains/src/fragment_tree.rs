@@ -54,7 +54,10 @@
 //! bounded and in practice will not exceed a few thousand at any time. This naive implementation
 //! will still perform fairly well under these conditions, despite being somewhat wasteful of memory.
 
-use std::collections::{hash_map::{Entry, HashMap}, BTreeMap, HashSet};
+use std::collections::{
+	hash_map::{Entry, HashMap},
+	BTreeMap, HashSet,
+};
 
 use super::LOG_TARGET;
 use bitvec::prelude::*;
