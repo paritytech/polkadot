@@ -267,7 +267,4 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for KusamaXcmWeight<RuntimeCall> {
 	fn unpaid_execution(_: &WeightLimit, _: &Option<MultiLocation>) -> XCMWeight {
 		XcmGeneric::<Runtime>::unpaid_execution().ref_time()
 	}
-	fn unpaid_execution(_: &WeightLimit, _: &Option<MultiLocation>) -> Weight {
-		Weight::MAX
-	}
 }

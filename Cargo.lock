@@ -12579,6 +12579,8 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
+ "serde",
+ "sp-io",
  "sp-runtime",
  "xcm-procedural",
 ]
@@ -12589,6 +12591,7 @@ version = "0.9.31"
 dependencies = [
  "frame-support",
  "frame-system",
+ "impl-trait-for-tuples",
  "log",
  "pallet-balances",
  "pallet-transaction-payment",

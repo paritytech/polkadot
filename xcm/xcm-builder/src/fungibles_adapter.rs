@@ -31,7 +31,7 @@ impl<
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
 	> TransactAsset for FungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>
 {
-	fn internal_transfer_asset(
+	fn transfer_asset(
 		what: &MultiAsset,
 		from: &MultiLocation,
 		to: &MultiLocation,
@@ -39,7 +39,7 @@ impl<
 	) -> result::Result<xcm_executor::Assets, XcmError> {
 		log::trace!(
 			target: "xcm::fungibles_adapter",
-			"internal_transfer_asset what: {:?}, from: {:?}, to: {:?}",
+			"transfer_asset what: {:?}, from: {:?}, to: {:?}",
 			what, from, to
 		);
 		// Check we handle this asset.
@@ -370,13 +370,13 @@ impl<
 		>::withdraw_asset(what, who, maybe_context)
 	}
 
-	fn internal_transfer_asset(
+	fn transfer_asset(
 		what: &MultiAsset,
 		from: &MultiLocation,
 		to: &MultiLocation,
 		context: &XcmContext,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
-		FungiblesTransferAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::internal_transfer_asset(
+		FungiblesTransferAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::transfer_asset(
 			what, from, to, context
 		)
 	}

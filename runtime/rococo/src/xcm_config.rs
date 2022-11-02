@@ -32,7 +32,7 @@ use xcm_builder::{
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	MintLocation, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
-	TakeWeightCredit, UsingComponents, WeightInfoBounds,
+	TakeWeightCredit, UsingComponents,
 };
 use xcm_executor::XcmExecutor;
 
@@ -142,11 +142,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
-	type Weigher = WeightInfoBounds<
-		crate::weights::xcm::RococoXcmWeight<RuntimeCall>,
-		RuntimeCall,
-		MaxInstructions,
-	>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	type Trader =
 		UsingComponents<WeightToFee, TokenLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
