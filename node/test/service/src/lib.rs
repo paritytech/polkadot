@@ -37,11 +37,8 @@ use polkadot_test_runtime::{
 };
 use sc_chain_spec::ChainSpec;
 use sc_client_api::execution_extensions::ExecutionStrategies;
-use sc_network::{
-	config::{NetworkConfiguration, TransportConfig},
-	multiaddr,
-};
-use sc_network_common::service::NetworkStateInfo;
+use sc_network::{config::NetworkConfiguration, multiaddr};
+use sc_network_common::{config::TransportConfig, service::NetworkStateInfo};
 use sc_service::{
 	config::{
 		DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod,
@@ -139,7 +136,7 @@ pub fn node_config(
 	is_validator: bool,
 ) -> Configuration {
 	let base_path = BasePath::new_temp_dir().expect("could not create temporary directory");
-	let root = base_path.path();
+	let root = base_path.path().join(key.to_string());
 	let role = if is_validator { Role::Authority } else { Role::Full };
 	let key_seed = key.to_seed();
 	let mut spec = polkadot_local_testnet_config();
@@ -179,7 +176,7 @@ pub fn node_config(
 		state_cache_size: 16777216,
 		state_cache_child_ratio: None,
 		state_pruning: Default::default(),
-		blocks_pruning: BlocksPruning::All,
+		blocks_pruning: BlocksPruning::KeepFinalized,
 		chain_spec: Box::new(spec),
 		wasm_method: WasmExecutionMethod::Compiled {
 			instantiation_strategy: WasmtimeInstantiationStrategy::PoolingCopyOnWrite,
@@ -289,7 +286,7 @@ impl PolkadotTestNode {
 	/// Send an extrinsic to this node.
 	pub async fn send_extrinsic(
 		&self,
-		function: impl Into<polkadot_test_runtime::Call>,
+		function: impl Into<polkadot_test_runtime::RuntimeCall>,
 		caller: Sr25519Keyring,
 	) -> Result<RpcTransactionOutput, RpcTransactionError> {
 		let extrinsic = construct_extrinsic(&*self.client, function, caller, 0);
@@ -346,7 +343,7 @@ impl PolkadotTestNode {
 /// Construct an extrinsic that can be applied to the test runtime.
 pub fn construct_extrinsic(
 	client: &Client,
-	function: impl Into<polkadot_test_runtime::Call>,
+	function: impl Into<polkadot_test_runtime::RuntimeCall>,
 	caller: Sr25519Keyring,
 	nonce: u32,
 ) -> UncheckedExtrinsic {
@@ -397,7 +394,7 @@ pub fn construct_transfer_extrinsic(
 	dest: sp_keyring::AccountKeyring,
 	value: Balance,
 ) -> UncheckedExtrinsic {
-	let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer {
+	let function = polkadot_test_runtime::RuntimeCall::Balances(pallet_balances::Call::transfer {
 		dest: MultiSigner::from(dest.public()).into_account().into(),
 		value,
 	});

@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::{BTreeMap, HashSet};
+use std::{
+	collections::{BTreeMap, HashSet},
+	num::NonZeroUsize,
+};
 
 use futures::channel::oneshot;
 use lru::LruCache;
@@ -44,7 +47,10 @@ mod tests;
 /// `last_observed_blocks` LRU. This means, this value should the very least be as large as the
 /// number of expected forks for keeping chain scraping efficient. Making the LRU much larger than
 /// that has very limited use.
-const LRU_OBSERVED_BLOCKS_CAPACITY: usize = 20;
+const LRU_OBSERVED_BLOCKS_CAPACITY: NonZeroUsize = match NonZeroUsize::new(20) {
+	Some(cap) => cap,
+	None => panic!("Observed blocks cache size must be non-zero"),
+};
 
 /// Chain scraper
 ///
@@ -55,7 +61,7 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: usize = 20;
 /// - Monitors for inclusion events to keep track of candidates that have been included on chains.
 /// - Calls `FetchOnChainVotes` for each block to gather potentially missed votes from chain.
 ///
-/// With this information it provies a `CandidateComparator` and as a return value of
+/// With this information it provides a `CandidateComparator` and as a return value of
 /// `process_active_leaves_update` any scraped votes.
 pub struct ChainScraper {
 	/// All candidates we have seen included, which not yet have been finalized.
@@ -136,7 +142,7 @@ impl ChainScraper {
 
 		let mut on_chain_votes = Vec::new();
 		for (block_number, block_hash) in block_numbers.zip(block_hashes) {
-			gum::trace!(?block_number, ?block_hash, "In ancestor processesing.");
+			gum::trace!(?block_number, ?block_hash, "In ancestor processing.");
 
 			self.process_candidate_events(sender, block_number, block_hash).await?;
 

@@ -54,11 +54,11 @@ const SEED: u32 = 0;
 /// The XCM executor to use for doing stuff.
 pub type ExecutorOf<T> = xcm_executor::XcmExecutor<<T as Config>::XcmConfig>;
 /// The overarching call type.
-pub type OverArchingCallOf<T> = <T as frame_system::Config>::Call;
+pub type OverArchingCallOf<T> = <T as frame_system::Config>::RuntimeCall;
 /// The asset transactor of our executor
 pub type AssetTransactorOf<T> = <<T as Config>::XcmConfig as XcmConfig>::AssetTransactor;
 /// The call type of executor's config. Should eventually resolve to the same overarching call type.
-pub type XcmCallOf<T> = <<T as Config>::XcmConfig as XcmConfig>::Call;
+pub type XcmCallOf<T> = <<T as Config>::XcmConfig as XcmConfig>::RuntimeCall;
 
 pub fn mock_worst_case_holding(depositable_count: u32, max_assets: u32) -> MultiAssets {
 	let fungibles_amount: u128 = 100;

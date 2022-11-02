@@ -1,5 +1,6 @@
 pub use pallet::*;
 
+#[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 #[cfg(test)]
 mod mock;
@@ -7,12 +8,15 @@ mod mock;
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_benchmarking::BenchmarkError;
-	use frame_support::{dispatch::Dispatchable, pallet_prelude::Encode, weights::GetDispatchInfo};
+	use frame_support::{
+		dispatch::{Dispatchable, GetDispatchInfo},
+		pallet_prelude::Encode,
+	};
 	use xcm::latest::{Junction, MultiAsset, MultiAssets, MultiLocation, Response};
 
 	#[pallet::config]
 	pub trait Config<I: 'static = ()>: frame_system::Config + crate::Config {
-		type Call: Dispatchable<Origin = Self::Origin>
+		type RuntimeCall: Dispatchable<RuntimeOrigin = Self::RuntimeOrigin>
 			+ GetDispatchInfo
 			+ From<frame_system::Call<Self>>
 			+ Encode;
@@ -31,7 +35,7 @@ pub mod pallet {
 
 		/// A `Junction` that is one of the `UniversalAliases` configured by the XCM executor.
 		///
-		/// If set to `None`, benchmarks which rely on a universal alais will be skipped.
+		/// If set to `None`, benchmarks which rely on a universal alias will be skipped.
 		fn universal_alias() -> Result<Junction, BenchmarkError>;
 
 		/// The `MultiLocation` used for successful transaction XCMs.

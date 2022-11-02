@@ -1,6 +1,6 @@
 [package]
 name = "test-parachains"
-version = "0.9.28"
+version = "0.9.29"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Integration tests using the test-parachains"
 edition = "2021"
@@ -13,7 +13,7 @@ adder = { package = "test-parachain-adder", path = "adder" }
 halt = { package = "test-parachain-halt", path = "halt" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.28" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["std"]

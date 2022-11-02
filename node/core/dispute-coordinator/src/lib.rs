@@ -304,7 +304,6 @@ impl DisputeCoordinatorSubsystem {
 				Some(info) => info.validators.clone(),
 			};
 
-			let n_validators = validators.len();
 			let voted_indices = votes.voted_indices();
 
 			// Determine if there are any missing local statements for this dispute. Validators are
@@ -335,11 +334,7 @@ impl DisputeCoordinatorSubsystem {
 			if missing_local_statement {
 				participation_requests.push((
 					ParticipationPriority::with_priority_if(is_included),
-					ParticipationRequest::new(
-						votes.candidate_receipt.clone(),
-						session,
-						n_validators,
-					),
+					ParticipationRequest::new(votes.candidate_receipt.clone(), session),
 				));
 			}
 		}

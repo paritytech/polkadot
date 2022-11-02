@@ -51,6 +51,7 @@ Debian/M
 decodable/MS
 decrement
 deduplicated
+deduplication
 deinitializing
 dequeue/SD
 dequeuing
@@ -137,6 +138,7 @@ KYC/M
 lib
 libp2p
 lifecycle/MS
+liveness
 lookahead/MS
 lookup/MS
 LRU
@@ -223,10 +225,12 @@ redhat/M
 register/CD
 relayer
 repo/MS
+requesters
 reservable
 responder/SM
 retriability
 reverify
+ROC
 roundtrip/MS
 routable
 rpc
@@ -285,6 +289,7 @@ typesystem
 ubuntu/M
 UDP
 UI
+unapplied
 unassign
 unconcluded
 unexpectable

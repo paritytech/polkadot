@@ -316,7 +316,7 @@ impl DmpMessageHandler for () {
 		_max_weight: Weight,
 	) -> Weight {
 		iter.for_each(drop);
-		0
+		Weight::zero()
 	}
 }
 
@@ -349,7 +349,7 @@ impl XcmpMessageHandler for () {
 		_max_weight: Weight,
 	) -> Weight {
 		for _ in iter {}
-		0
+		Weight::zero()
 	}
 }
 
