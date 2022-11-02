@@ -17,9 +17,8 @@
 use frame_support::{
 	parameter_types,
 	traits::{Everything, Nothing},
-	weights::Weight,
 };
-use xcm::latest::prelude::*;
+use xcm::latest::{prelude::*, Weight as XCMWeight};
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
 use xcm_executor::{
 	traits::{TransactAsset, WeightTrader},
@@ -37,7 +36,7 @@ parameter_types! {
 /// of this chain.
 pub type LocalOriginToLocation = (
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<crate::Origin, crate::AccountId, OurNetwork>,
+	SignedToAccountId32<crate::RuntimeOrigin, crate::AccountId, OurNetwork>,
 );
 
 pub struct DoNothingRouter;
@@ -75,22 +74,22 @@ impl WeightTrader for DummyWeightTrader {
 		DummyWeightTrader
 	}
 
-	fn buy_weight(&mut self, _weight: Weight, _payment: Assets) -> Result<Assets, XcmError> {
+	fn buy_weight(&mut self, _weight: XCMWeight, _payment: Assets) -> Result<Assets, XcmError> {
 		Ok(Assets::default())
 	}
 }
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
-	type Call = super::Call;
+	type RuntimeCall = super::RuntimeCall;
 	type XcmSender = DoNothingRouter;
 	type AssetTransactor = DummyAssetTransactor;
-	type OriginConverter = pallet_xcm::XcmPassthrough<super::Origin>;
+	type OriginConverter = pallet_xcm::XcmPassthrough<super::RuntimeOrigin>;
 	type IsReserve = ();
 	type IsTeleporter = ();
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::Call, MaxInstructions>;
+	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::RuntimeCall, MaxInstructions>;
 	type Trader = DummyWeightTrader;
 	type ResponseHandler = super::Xcm;
 	type AssetTrap = super::Xcm;
@@ -103,4 +102,5 @@ impl xcm_executor::Config for XcmConfig {
 	type FeeManager = ();
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
+	type CallDispatcher = super::RuntimeCall;
 }

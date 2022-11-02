@@ -38,6 +38,16 @@ use std::{
 	time::{Duration, SystemTime},
 };
 
+/// The time period after which the precheck preparation worker is considered unresponsive and will
+/// be killed.
+// NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
+pub const PRECHECK_COMPILATION_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// The time period after which the execute preparation worker is considered unresponsive and will
+/// be killed.
+// NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
+pub const EXECUTE_COMPILATION_TIMEOUT: Duration = Duration::from_secs(180);
+
 /// An alias to not spell the type for the oneshot sender for the PVF execution result.
 pub(crate) type ResultSender = oneshot::Sender<Result<ValidationResult, ValidationError>>;
 
@@ -51,10 +61,11 @@ pub struct ValidationHost {
 }
 
 impl ValidationHost {
-	/// Precheck PVF with the given code, i.e. verify that it compiles within a reasonable time limit.
-	/// The result of execution will be sent to the provided result sender.
+	/// Precheck PVF with the given code, i.e. verify that it compiles within a reasonable time
+	/// limit. This will prepare the PVF. The result of preparation will be sent to the provided
+	/// result sender.
 	///
-	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
+	/// This is async to accommodate the possibility of back-pressure. In the vast majority of
 	/// situations this function should return immediately.
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
@@ -72,7 +83,7 @@ impl ValidationHost {
 	/// Execute PVF with the given code, execution timeout, parameters and priority.
 	/// The result of execution will be sent to the provided result sender.
 	///
-	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
+	/// This is async to accommodate the possibility of back-pressure. In the vast majority of
 	/// situations this function should return immediately.
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
@@ -92,7 +103,7 @@ impl ValidationHost {
 
 	/// Sends a signal to the validation host requesting to prepare a list of the given PVFs.
 	///
-	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
+	/// This is async to accommodate the possibility of back-pressure. In the vast majority of
 	/// situations this function should return immediately.
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
@@ -418,6 +429,9 @@ async fn handle_to_host(
 	Ok(())
 }
 
+/// Handles PVF prechecking.
+///
+/// This tries to prepare the PVF by compiling the WASM blob within a given timeout ([`PRECHECK_COMPILATION_TIMEOUT`]).
 async fn handle_precheck_pvf(
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
@@ -440,12 +454,24 @@ async fn handle_precheck_pvf(
 		}
 	} else {
 		artifacts.insert_preparing(artifact_id, vec![result_sender]);
-		send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority: Priority::Normal, pvf })
-			.await?;
+		send_prepare(
+			prepare_queue,
+			prepare::ToQueue::Enqueue {
+				priority: Priority::Normal,
+				pvf,
+				compilation_timeout: PRECHECK_COMPILATION_TIMEOUT,
+			},
+		)
+		.await?;
 	}
 	Ok(())
 }
 
+/// Handles PVF execution.
+///
+/// This will first try to prepare the PVF, if a prepared artifact does not already exist. If there is already a
+/// preparation job, we coalesce the two preparation jobs. When preparing for execution, we use a more lenient timeout
+/// ([`EXECUTE_COMPILATION_TIMEOUT`]) than when prechecking.
 async fn handle_execute_pvf(
 	cache_path: &Path,
 	artifacts: &mut Artifacts,
@@ -462,7 +488,7 @@ async fn handle_execute_pvf(
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
-			ArtifactState::Prepared { ref mut last_time_needed } => {
+			ArtifactState::Prepared { last_time_needed } => {
 				*last_time_needed = SystemTime::now();
 
 				send_execute(
@@ -485,9 +511,17 @@ async fn handle_execute_pvf(
 		}
 	} else {
 		// Artifact is unknown: register it and enqueue a job with the corresponding priority and
-		//
+		// PVF.
 		artifacts.insert_preparing(artifact_id.clone(), Vec::new());
-		send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf }).await?;
+		send_prepare(
+			prepare_queue,
+			prepare::ToQueue::Enqueue {
+				priority,
+				pvf,
+				compilation_timeout: EXECUTE_COMPILATION_TIMEOUT,
+			},
+		)
+		.await?;
 
 		awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
 	}
@@ -520,7 +554,11 @@ async fn handle_heads_up(
 
 			send_prepare(
 				prepare_queue,
-				prepare::ToQueue::Enqueue { priority: Priority::Normal, pvf: active_pvf },
+				prepare::ToQueue::Enqueue {
+					priority: Priority::Normal,
+					pvf: active_pvf,
+					compilation_timeout: EXECUTE_COMPILATION_TIMEOUT,
+				},
 			)
 			.await?;
 		}

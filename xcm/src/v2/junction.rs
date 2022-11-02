@@ -18,14 +18,14 @@
 
 use super::{BodyId, BodyPart, Junctions, MultiLocation, NetworkId};
 use crate::v3::Junction as NewJunction;
-use alloc::vec::Vec;
-use parity_scale_codec::{self, Decode, Encode};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
+use sp_runtime::{traits::ConstU32, WeakBoundedVec};
 
 /// A single item in a path to describe the relative location of a consensus system.
 ///
 /// Each item assumes a pre-existing location as its context and is defined in terms of it.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Junction {
 	/// An indexed parachain belonging to and operated by the context.
@@ -66,7 +66,7 @@ pub enum Junction {
 	/// Usage will vary widely owing to its generality.
 	///
 	/// NOTE: Try to avoid using this and instead use a more specific item.
-	GeneralKey(Vec<u8>),
+	GeneralKey(WeakBoundedVec<u8, ConstU32<32>>),
 	/// The unambiguous child.
 	///
 	/// Not currently used except as a fallback when deriving ancestry.
@@ -92,7 +92,12 @@ impl TryFrom<NewJunction> for Junction {
 				Self::AccountKey20 { network: network.try_into()?, key },
 			PalletInstance(index) => Self::PalletInstance(index),
 			GeneralIndex(id) => Self::GeneralIndex(id),
-			GeneralKey(key) => Self::GeneralKey(key[..].to_vec()),
+			GeneralKey(key) => Self::GeneralKey(
+				key[..]
+					.to_vec()
+					.try_into()
+					.expect("array is of size 32 and so will never be out of bounds; qed"),
+			),
 			OnlyChild => Self::OnlyChild,
 			Plurality { id, part } => Self::Plurality { id: id.into(), part: part.into() },
 			_ => return Err(()),

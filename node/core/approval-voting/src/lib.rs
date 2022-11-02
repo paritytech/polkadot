@@ -70,6 +70,7 @@ use std::{
 	collections::{
 		btree_map::Entry as BTMEntry, hash_map::Entry as HMEntry, BTreeMap, HashMap, HashSet,
 	},
+	num::NonZeroUsize,
 	sync::Arc,
 	time::Duration,
 };
@@ -104,7 +105,11 @@ const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
 /// Value rather arbitrarily: Should not be hit in practice, it exists to more easily diagnose dead
 /// lock issues for example.
 const WAIT_FOR_SIGS_TIMEOUT: Duration = Duration::from_millis(500);
-const APPROVAL_CACHE_SIZE: usize = 1024;
+const APPROVAL_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(1024) {
+	Some(cap) => cap,
+	None => panic!("Approval cache size must be non-zero."),
+};
+
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 const APPROVAL_DELAY: Tick = 2;
 const LOG_TARGET: &str = "parachain::approval-voting";
@@ -1210,8 +1215,24 @@ async fn get_approval_signatures_for_candidate<Context>(
 	candidate_hash: CandidateHash,
 	tx: oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
 ) -> SubsystemResult<()> {
+	let send_votes = |votes| {
+		if let Err(_) = tx.send(votes) {
+			gum::debug!(
+				target: LOG_TARGET,
+				"Sending approval signatures back failed, as receiver got closed."
+			);
+		}
+	};
 	let entry = match db.load_candidate_entry(&candidate_hash)? {
-		None => return Ok(()),
+		None => {
+			send_votes(HashMap::new());
+			gum::debug!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				"Sent back empty votes because the candidate was not found in db."
+			);
+			return Ok(())
+		},
 		Some(e) => e,
 	};
 
@@ -1261,13 +1282,7 @@ async fn get_approval_signatures_for_candidate<Context>(
 				target: LOG_TARGET,
 				"Request for approval signatures got cancelled by `approval-distribution`."
 			),
-			Some(Ok(votes)) =>
-				if let Err(_) = tx.send(votes) {
-					gum::debug!(
-						target: LOG_TARGET,
-						"Sending approval signatures back failed, as receiver got closed"
-					);
-				},
+			Some(Ok(votes)) => send_votes(votes),
 		}
 	};
 

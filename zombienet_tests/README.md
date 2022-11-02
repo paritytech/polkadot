@@ -7,10 +7,11 @@ _The content of this directory is meant to be used by Parity's private CI/CD inf
 `parachains`
     At the moment this directory only have one test related to parachains: `/parachains-smoke-test`, that check the parachain registration and the block height.
 
-## Resources (private)
+## Resources
 
 * [zombienet repo](https://github.com/paritytech/zombienet)
+* [zombienet book](https://paritytech.github.io/zombienet/)
 
 ## Questions / permissions
 
-Ping in element [Javier](@javier:matrix.parity.io) to ask questions or grant permission to run the test from your local setup.
+Ping in element Javier (@javier:matrix.parity.io) to ask questions or grant permission to run the test from your local setup.

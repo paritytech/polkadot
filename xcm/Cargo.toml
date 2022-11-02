@@ -1,6 +1,6 @@
 [package]
 name = "xcm"
-version = "0.9.28"
+version = "0.9.31"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "The basic XCM datastructures."
 edition = "2021"
@@ -9,10 +9,11 @@ edition = "2021"
 impl-trait-for-tuples = "0.2.2"
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.28" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
 derivative = {version = "2.2.0", default-features = false, features = [ "use_core" ] }
 log = { version = "0.4.17", default-features = false }
-serde = { version = "1.0.137", features = ["derive"] }
+serde = { version = "1.0.137", optional = true, features = ["derive"] }
 xcm-procedural = { path = "procedural" }
 
 [features]
@@ -24,5 +25,7 @@ runtime-benchmarks = [
 std = [
 	"parity-scale-codec/std",
 	"scale-info/std",
+	"serde",
+	"sp-io/std",
 	"sp-runtime/std",
 ]

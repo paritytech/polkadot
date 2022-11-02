@@ -69,6 +69,13 @@ pub trait AssetChecking<AssetId> {
 	fn asset_checking(asset: &AssetId) -> Option<MintLocation>;
 }
 
+pub struct NoChecking;
+impl<AssetId> AssetChecking<AssetId> for NoChecking {
+	fn asset_checking(_: &AssetId) -> Option<MintLocation> {
+		None
+	}
+}
+
 pub struct LocalMint<T>(sp_std::marker::PhantomData<T>);
 impl<AssetId, T: Contains<AssetId>> AssetChecking<AssetId> for LocalMint<T> {
 	fn asset_checking(asset: &AssetId) -> Option<MintLocation> {
@@ -125,7 +132,7 @@ impl<
 {
 	fn can_accrue_checked(asset_id: Assets::AssetId, amount: Assets::Balance) -> XcmResult {
 		let checking_account = CheckingAccount::get();
-		Assets::can_deposit(asset_id, &checking_account, amount, false)
+		Assets::can_deposit(asset_id, &checking_account, amount, true)
 			.into_result()
 			.map_err(|_| XcmError::NotDepositable)
 	}
@@ -370,7 +377,7 @@ impl<
 		context: &XcmContext,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
 		FungiblesTransferAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::transfer_asset(
-			what, from, to, context,
+			what, from, to, context
 		)
 	}
 }

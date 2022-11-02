@@ -1296,6 +1296,38 @@ pub(crate) mod tests {
 				}
 			);
 
+			// Caching of sesssions needs sessoion of first unfinalied block.
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
+					s_tx,
+				)) => {
+					let _ = s_tx.send(Ok(header.number));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
+					block_number,
+					s_tx,
+				)) => {
+					assert_eq!(block_number, header.number);
+					let _ = s_tx.send(Ok(Some(header.hash())));
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					h,
+					RuntimeApiRequest::SessionIndexForChild(s_tx),
+				)) => {
+					assert_eq!(h, header.hash());
+					let _ = s_tx.send(Ok(session));
+				}
+			);
+
 			// determine_new_blocks exits early as the parent_hash is in the DB
 
 			assert_matches!(

@@ -136,7 +136,7 @@ benchmarks_instance_pallet! {
 		let (trusted_teleporter, teleportable_asset) = T::TrustedTeleporter::get()
 			.ok_or(BenchmarkError::Skip)?;
 
-		if let Some(checked_account) = T::CheckedAccount::get() {
+		if let Some((checked_account, _)) = T::CheckedAccount::get() {
 			T::TransactAsset::mint_into(
 				&checked_account,
 				<
@@ -223,7 +223,7 @@ benchmarks_instance_pallet! {
 		holding.push(asset.clone());
 
 		// Checked account starts at zero
-		assert!(T::CheckedAccount::get().map_or(true, |c| T::TransactAsset::balance(&c).is_zero()));
+		assert!(T::CheckedAccount::get().map_or(true, |(c, _)| T::TransactAsset::balance(&c).is_zero()));
 
 		let mut executor = new_executor::<T>(Default::default());
 		executor.set_holding(holding.into());
@@ -236,7 +236,7 @@ benchmarks_instance_pallet! {
 	}: {
 		executor.bench_process(xcm)?;
 	} verify {
-		if let Some(checked_account) = T::CheckedAccount::get() {
+		if let Some((checked_account, _)) = T::CheckedAccount::get() {
 			// teleport checked account should have received some asset.
 			assert!(!T::TransactAsset::balance(&checked_account).is_zero());
 		}

@@ -370,14 +370,14 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					TransactionStatus::Ready |
 					TransactionStatus::Broadcast(_) |
 					TransactionStatus::Future => continue,
-					TransactionStatus::InBlock(hash) => {
+					TransactionStatus::InBlock((hash, _)) => {
 						log::info!(target: LOG_TARGET, "included at {:?}", hash);
 						let key = StorageKey(
 							frame_support::storage::storage_prefix(b"System", b"Events").to_vec(),
 						);
 
 						let events = match rpc.get_storage_and_decode::<
-							Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>,
+							Vec<frame_system::EventRecord<RuntimeEvent, <Block as BlockT>::Hash>>,
 						>(&key, Some(hash))
 						.await {
 							Ok(rp) => rp.unwrap_or_default(),
@@ -399,7 +399,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					TransactionStatus::Retracted(hash) => {
 						log::info!(target: LOG_TARGET, "Retracted at {:?}", hash);
 					},
-					TransactionStatus::Finalized(hash) => {
+					TransactionStatus::Finalized((hash, _)) => {
 						log::info!(target: LOG_TARGET, "Finalized at {:?}", hash);
 						break
 					},

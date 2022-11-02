@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-performance-test"
-version = "0.9.28"
+version = "0.9.31"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -19,3 +19,6 @@ kusama-runtime = { path = "../../../runtime/kusama" }
 [[bin]]
 name = "gen-ref-constants"
 path = "src/gen_ref_constants.rs"
+
+[features]
+runtime-benchmarks = ["kusama-runtime/runtime-benchmarks"]

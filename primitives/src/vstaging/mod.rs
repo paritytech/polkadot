@@ -16,4 +16,4 @@
 
 //! Staging Primitives.
 
-// Put any primitives used by staging API functions here
+// Put any primitives used by staging APIs functions here

@@ -15,7 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::*;
-use frame_support::{parameter_types, traits::ContainsPair, weights::Weight};
+use frame_support::{parameter_types, traits::ContainsPair};
+use xcm::latest::Weight as XCMWeight;
 
 // An xcm sender/receiver akin to > /dev/null
 pub struct DevNull;
@@ -38,9 +39,9 @@ impl xcm_executor::traits::OnResponse for DevNull {
 		_: u64,
 		_: Option<&MultiLocation>,
 		_: Response,
-		_: Weight,
+		_: XCMWeight,
 		_: &XcmContext,
-	) -> Weight {
+	) -> XCMWeight {
 		0
 	}
 }
@@ -62,7 +63,7 @@ impl xcm_executor::traits::Convert<MultiLocation, u64> for AccountIdConverter {
 
 parameter_types! {
 	pub UniversalLocation: InteriorMultiLocation = Junction::Parachain(101).into();
-	pub UnitWeightCost: Weight = 10;
+	pub UnitWeightCost: u64 = 10;
 	pub WeightPrice: (AssetId, u128) = (Concrete(Here.into()), 1_000_000);
 }
 

@@ -124,7 +124,7 @@ where
 						Ok(Ok(h)) => h,
 					}
 				})
-				.for_each(|x| requests.push(x));
+				.for_each(|x| requests.push_back(x));
 
 			let batch_headers: Vec<_> =
 				requests.flat_map(|x: Option<Header>| stream::iter(x)).collect().await;

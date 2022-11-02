@@ -14,14 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_core_primitives::Block;
-use remote_externalities::rpc_api::get_finalized_head;
+use polkadot_core_primitives::{Block, Hash, Header};
 use std::{
 	io::{BufRead, BufReader, Read},
 	process::{Child, ExitStatus},
 	thread,
 	time::Duration,
 };
+use substrate_rpc_client::{ws_client, ChainApi};
 use tokio::time::timeout;
 
 /// Wait for the given `child` the given amount of `secs`.
@@ -56,7 +56,12 @@ async fn wait_n_finalized_blocks_from(n: usize, url: &str) {
 	let mut interval = tokio::time::interval(Duration::from_secs(6));
 
 	loop {
-		if let Ok(block) = get_finalized_head::<Block, _>(url).await {
+		let rpc = match ws_client(url).await {
+			Ok(rpc_service) => rpc_service,
+			Err(_) => continue,
+		};
+
+		if let Ok(block) = ChainApi::<(), Hash, Header, Block>::finalized_head(&rpc).await {
 			built_blocks.insert(block);
 			if built_blocks.len() > n {
 				break

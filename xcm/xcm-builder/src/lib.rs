@@ -58,7 +58,7 @@ pub use currency_adapter::CurrencyAdapter;
 mod fungibles_adapter;
 pub use fungibles_adapter::{
 	AssetChecking, DualMint, FungiblesAdapter, FungiblesMutateAdapter, FungiblesTransferAdapter,
-	LocalMint, MintLocation, NonLocalMint,
+	LocalMint, MintLocation, NoChecking, NonLocalMint,
 };
 
 mod nonfungibles_adapter;
@@ -79,6 +79,7 @@ pub use filter_asset_location::{Case, NativeAsset};
 
 mod universal_exports;
 pub use universal_exports::{
-	ExporterFor, LocalUnpaidExporter, NetworkExportTable, SovereignPaidRemoteExporter,
+	BridgeBlobDispatcher, BridgeMessage, DispatchBlob, DispatchBlobError, ExporterFor, HaulBlob,
+	HaulBlobExporter, LocalUnpaidExporter, NetworkExportTable, SovereignPaidRemoteExporter,
 	UnpaidRemoteExporter,
 };
