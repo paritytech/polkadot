@@ -88,7 +88,7 @@ use polkadot_node_subsystem::{
 		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
 		CandidateValidationMessage, CollatorProtocolMessage, HypotheticalDepthRequest,
 		ProspectiveParachainsMessage, ProvisionableData, ProvisionerMessage, RuntimeApiMessage,
-		RuntimeApiRequest, StatementDistributionMessage,
+		RuntimeApiRequest, StatementDistributionMessage, IntroduceCandidateRequest,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -1500,10 +1500,14 @@ async fn import_statement<Context>(
 		if !per_candidate.contains_key(&candidate_hash) {
 			if rp_state.prospective_parachains_mode.is_enabled() {
 				let (tx, rx) = oneshot::channel();
-				ctx.send_message(ProspectiveParachainsMessage::CandidateSeconded(
-					candidate.descriptor().para_id,
-					candidate.clone(),
-					pvd.clone(),
+				ctx.send_message(ProspectiveParachainsMessage::IntroduceCandidate(
+					IntroduceCandidateRequest {
+						candidate_para: candidate.descriptor().para_id,
+						candidate_receipt: candidate.clone(),
+						persisted_validation_data: pvd.clone(),
+						// Since this is used during seconding
+						keep_if_unneeded: false,
+					},
 					tx,
 				))
 				.await;
@@ -1522,6 +1526,11 @@ async fn import_statement<Context>(
 							return Err(Error::RejectedByProspectiveParachains)
 						},
 				}
+
+				ctx.send_message(ProspectiveParachainsMessage::CandidateSeconded(
+					candidate.descriptor().para_id,
+					candidate_hash,
+				)).await;
 			}
 
 			// Only save the candidate if it was approved by prospective parachains.
