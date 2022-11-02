@@ -108,13 +108,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v2.0"),
 	authoring_version: 0,
-	spec_version: 9300,
+	spec_version: 9310,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 14,
+	transaction_version: 15,
 	state_version: 0,
 };
 
@@ -1385,7 +1385,7 @@ construct_runtime! {
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 53,
 		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 54,
 		ParaScheduler: parachains_scheduler::{Pallet, Storage} = 55,
-		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config} = 56,
+		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config, ValidateUnsigned} = 56,
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 57,
 		Dmp: parachains_dmp::{Pallet, Call, Storage} = 58,
 		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 59,
@@ -1690,11 +1690,11 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl mmr::MmrApi<Block, Hash> for Runtime {
-		fn generate_proof(leaf_index: u64)
+	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
+		fn generate_proof(block_number: BlockNumber)
 			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
 		{
-			Mmr::generate_batch_proof(vec![leaf_index])
+			Mmr::generate_batch_proof(vec![block_number])
 				.and_then(|(leaves, proof)| Ok((
 					mmr::EncodableOpaqueLeaf::from_leaf(&leaves[0]),
 					mmr::BatchProof::into_single_leaf_proof(proof)?
@@ -1725,18 +1725,18 @@ sp_api::impl_runtime_apis! {
 			Ok(Mmr::mmr_root())
 		}
 
-		fn generate_batch_proof(leaf_indices: Vec<mmr::LeafIndex>)
+		fn generate_batch_proof(block_numbers: Vec<BlockNumber>)
 			-> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error>
 		{
-			Mmr::generate_batch_proof(leaf_indices)
+			Mmr::generate_batch_proof(block_numbers)
 				.map(|(leaves, proof)| (leaves.into_iter().map(|leaf| mmr::EncodableOpaqueLeaf::from_leaf(&leaf)).collect(), proof))
 		}
 
 		fn generate_historical_batch_proof(
-			leaf_indices: Vec<mmr::LeafIndex>,
-			leaves_count: mmr::LeafIndex,
+			block_numbers: Vec<BlockNumber>,
+			best_known_block_number: BlockNumber,
 		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error> {
-			Mmr::generate_historical_batch_proof(leaf_indices, leaves_count).map(
+			Mmr::generate_historical_batch_proof(block_numbers, best_known_block_number).map(
 				|(leaves, proof)| {
 					(
 						leaves
@@ -1930,20 +1930,20 @@ sp_api::impl_runtime_apis! {
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 			use xcm::latest::prelude::*;
-			use xcm_config::{CheckAccount, LocationConverter, Statemine, TokenLocation, XcmConfig};
+			use xcm_config::{CheckAccount, RocLocation, SovereignAccountOf, Statemine, XcmConfig};
 
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl frame_benchmarking::baseline::Config for Runtime {}
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
-				type AccountIdConverter = LocationConverter;
+				type AccountIdConverter = SovereignAccountOf;
 				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 					Ok(Statemine::get())
 				}
-				fn worst_case_holding(_depositable_count: u32) -> MultiAssets {
+				fn worst_case_holding() -> MultiAssets {
 					// Rococo only knows about ROC
 					vec![MultiAsset{
-						id: Concrete(TokenLocation::get()),
+						id: Concrete(RocLocation::get()),
 						fun: Fungible(1_000_000 * UNITS),
 					}].into()
 				}
@@ -1952,11 +1952,11 @@ sp_api::impl_runtime_apis! {
 			parameter_types! {
 				pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
 					Statemine::get(),
-					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
+					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(RocLocation::get()) },
 				));
 				pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
 					Statemine::get(),
-					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
+					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(RocLocation::get()) },
 				));
 			}
 
@@ -1965,10 +1965,11 @@ sp_api::impl_runtime_apis! {
 
 				type CheckedAccount = CheckAccount;
 				type TrustedTeleporter = TrustedTeleporter;
+				type TrustedReserve = TrustedReserve;
 
 				fn get_multi_asset() -> MultiAsset {
 					MultiAsset {
-						id: Concrete(TokenLocation::get()),
+						id: Concrete(RocLocation::get()),
 						fun: Fungible(1 * UNITS),
 					}
 				}
@@ -1981,16 +1982,6 @@ sp_api::impl_runtime_apis! {
 					(0u64, Response::Version(Default::default()))
 				}
 
-				fn worst_case_asset_exchange() -> Result<(MultiAssets, MultiAssets), BenchmarkError> {
-					// Rococo doesn't support asset exchanges
-					Err(BenchmarkError::Skip)
-				}
-
-				fn universal_alias() -> Result<Junction, BenchmarkError> {
-					// The XCM executor of Rococo doesn't have a configured `UniversalAliases`
-					Err(BenchmarkError::Skip)
-				}
-
 				fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
 					Ok(Statemine::get())
 				}
@@ -2001,14 +1992,9 @@ sp_api::impl_runtime_apis! {
 
 				fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
 					let origin = Statemine::get();
-					let assets: MultiAssets = (Concrete(TokenLocation::get()), 1_000 * UNITS).into();
+					let assets: MultiAssets = (Concrete(RocLocation::get()), 1_000 * UNITS).into();
 					let ticket = MultiLocation { parents: 0, interior: Here };
 					Ok((origin, ticket, assets))
-				}
-
-				fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError> {
-					// Rococo doesn't support asset locking
-					Err(BenchmarkError::Skip)
 				}
 			}
 

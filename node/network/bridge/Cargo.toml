@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-network-bridge"
-version = "0.9.30"
+version = "0.9.31"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -11,9 +11,9 @@ futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
 polkadot-primitives = { path = "../../../primitives" }
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sc-network-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
+sc-network-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
 polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-node-network-protocol = { path = "../protocol" }
@@ -26,7 +26,7 @@ thiserror = "1"
 [dev-dependencies]
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
 futures-timer = "3"
 polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }
