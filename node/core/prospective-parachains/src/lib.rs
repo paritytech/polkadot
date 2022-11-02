@@ -327,7 +327,7 @@ async fn handle_candidate_introduced<Context>(
 		}
 	}
 
-	if keep_if_unneeded && membership.is_empty() {
+	if !keep_if_unneeded && membership.is_empty() {
 		storage.remove_candidate(&candidate_hash);
 	}
 
