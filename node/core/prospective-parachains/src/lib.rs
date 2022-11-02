@@ -35,13 +35,13 @@ use polkadot_node_subsystem::{
 	messages::{
 		ChainApiMessage, FragmentTreeMembership, HypotheticalDepthRequest,
 		ProspectiveParachainsMessage, ProspectiveValidationDataRequest, RuntimeApiMessage,
-		RuntimeApiRequest,
+		RuntimeApiRequest, IntroduceCandidateRequest,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::inclusion_emulator::staging::{Constraints, RelayChainBlockInfo};
 use polkadot_primitives::vstaging::{
-	BlockNumber, CandidateHash, CommittedCandidateReceipt, CoreState, Hash, Id as ParaId,
+	BlockNumber, CandidateHash, CoreState, Hash, Id as ParaId,
 	PersistedValidationData,
 };
 
@@ -124,8 +124,10 @@ async fn run_iteration<Context>(ctx: &mut Context, view: &mut View) -> Result<()
 			},
 			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
 			FromOrchestra::Communication { msg } => match msg {
-				ProspectiveParachainsMessage::CandidateSeconded(para, candidate, pvd, tx) =>
-					handle_candidate_seconded(&mut *ctx, view, para, candidate, pvd, tx).await?,
+				ProspectiveParachainsMessage::IntroduceCandidate(request, tx) =>
+					handle_candidate_introduced(&mut *ctx, view, request, tx).await?,
+				ProspectiveParachainsMessage::CandidateSeconded(para, candidate_hash) =>
+					handle_candidate_seconded(view, para, candidate_hash),
 				ProspectiveParachainsMessage::CandidateBacked(para, candidate_hash) =>
 					handle_candidate_backed(&mut *ctx, view, para, candidate_hash).await?,
 				ProspectiveParachainsMessage::GetBackableCandidate(
@@ -261,14 +263,19 @@ fn prune_view_candidate_storage(view: &mut View) {
 }
 
 #[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
-async fn handle_candidate_seconded<Context>(
+async fn handle_candidate_introduced<Context>(
 	_ctx: &mut Context,
 	view: &mut View,
-	para: ParaId,
-	candidate: CommittedCandidateReceipt,
-	pvd: PersistedValidationData,
+	request: IntroduceCandidateRequest,
 	tx: oneshot::Sender<FragmentTreeMembership>,
 ) -> JfyiErrorResult<()> {
+	let IntroduceCandidateRequest {
+		candidate_para: para,
+		candidate_receipt: candidate,
+		persisted_validation_data: pvd,
+		keep_if_unneeded,
+	} = request;
+
 	// Add the candidate to storage.
 	// Then attempt to add it to all trees.
 	let storage = match view.candidate_storage.get_mut(&para) {
@@ -288,8 +295,13 @@ async fn handle_candidate_seconded<Context>(
 
 	let candidate_hash = match storage.add_candidate(candidate, pvd) {
 		Ok(c) => c,
-		Err(crate::fragment_tree::CandidateStorageInsertionError::CandidateAlreadyKnown(_)) => {
-			let _ = tx.send(Vec::new());
+		Err(crate::fragment_tree::CandidateStorageInsertionError::CandidateAlreadyKnown(c)) => {
+			// Candidate known - return existing fragment tree membership.
+			let _ = tx.send(fragment_tree_membership(
+				&view.active_leaves,
+				para,
+				c,
+			));
 			return Ok(())
 		},
 		Err(
@@ -319,9 +331,47 @@ async fn handle_candidate_seconded<Context>(
 			}
 		}
 	}
+
+	if keep_if_unneeded && membership.is_empty() {
+		storage.remove_candidate(&candidate_hash);
+	}
+
 	let _ = tx.send(membership);
 
 	Ok(())
+}
+
+fn handle_candidate_seconded(
+	view: &mut View,
+	para: ParaId,
+	candidate_hash: CandidateHash,
+) {
+	let storage = match view.candidate_storage.get_mut(&para) {
+		None => {
+			gum::warn!(
+				target: LOG_TARGET,
+				para_id = ?para,
+				?candidate_hash,
+				"Received instruction to second unknown candidate",
+			);
+
+			return
+		},
+		Some(storage) => storage,
+	};
+
+	if !storage.contains(&candidate_hash) {
+		gum::warn!(
+			target: LOG_TARGET,
+			para_id = ?para,
+			?candidate_hash,
+			"Received instruction to second unknown candidate",
+		);
+
+		return
+	}
+
+	storage.mark_seconded(&candidate_hash);
 }
 
 #[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
@@ -337,7 +387,7 @@ async fn handle_candidate_backed<Context>(
 				target: LOG_TARGET,
 				para_id = ?para,
 				?candidate_hash,
-				"Received instruction to back candidate",
+				"Received instruction to back unknown candidate",
 			);
 
 			return Ok(())
@@ -350,7 +400,7 @@ async fn handle_candidate_backed<Context>(
 			target: LOG_TARGET,
 			para_id = ?para,
 			?candidate_hash,
-			"Received instruction to mark unknown candidate as backed.",
+			"Received instruction to back unknown candidate",
 		);
 
 		return Ok(())
@@ -450,21 +500,33 @@ fn answer_hypothetical_depths_request(
 	}
 }
 
-fn answer_tree_membership_request(
-	view: &View,
+fn fragment_tree_membership(
+	active_leaves: &HashMap<Hash, RelayBlockViewData>,
 	para: ParaId,
 	candidate: CandidateHash,
-	tx: oneshot::Sender<FragmentTreeMembership>,
-) {
+) -> FragmentTreeMembership {
 	let mut membership = Vec::new();
-	for (relay_parent, view_data) in &view.active_leaves {
+	for (relay_parent, view_data) in active_leaves {
 		if let Some(tree) = view_data.fragment_trees.get(&para) {
 			if let Some(depths) = tree.candidate(&candidate) {
 				membership.push((*relay_parent, depths));
 			}
 		}
 	}
-	let _ = tx.send(membership);
+	membership
+}
+
+fn answer_tree_membership_request(
+	view: &View,
+	para: ParaId,
+	candidate: CandidateHash,
+	tx: oneshot::Sender<FragmentTreeMembership>,
+) {
+	let _ = tx.send(fragment_tree_membership(
+		&view.active_leaves,
+		para,
+		candidate,
+	));
 }
 
 fn answer_minimum_relay_parents_request(

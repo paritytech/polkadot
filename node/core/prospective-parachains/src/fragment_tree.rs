@@ -54,7 +54,7 @@
 //! bounded and in practice will not exceed a few thousand at any time. This naive implementation
 //! will still perform fairly well under these conditions, despite being somewhat wasteful of memory.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{hash_map::{Entry, HashMap}, BTreeMap, HashSet};
 
 use super::LOG_TARGET;
 use bitvec::prelude::*;
@@ -90,8 +90,7 @@ impl CandidateStorage {
 		CandidateStorage { by_parent_head: HashMap::new(), by_candidate_hash: HashMap::new() }
 	}
 
-	/// Introduce a new candidate. The candidate passed to this function
-	/// should have been seconded before introduction.
+	/// Introduce a new candidate.
 	pub fn add_candidate(
 		&mut self,
 		candidate: CommittedCandidateReceipt,
@@ -112,7 +111,7 @@ impl CandidateStorage {
 		let entry = CandidateEntry {
 			candidate_hash,
 			relay_parent: candidate.descriptor.relay_parent,
-			state: CandidateState::Seconded,
+			state: CandidateState::Introduced,
 			candidate: ProspectiveCandidate {
 				commitments: candidate.commitments,
 				collator: candidate.descriptor.collator,
@@ -128,6 +127,28 @@ impl CandidateStorage {
 		self.by_candidate_hash.insert(candidate_hash, entry);
 
 		Ok(candidate_hash)
+	}
+
+	/// Remove a candidate from the store.
+	pub fn remove_candidate(&mut self, candidate_hash: &CandidateHash) {
+		if let Some(entry) = self.by_candidate_hash.remove(candidate_hash) {
+			let parent_head_hash = entry.candidate.persisted_validation_data.parent_head.hash();
+			if let Entry::Occupied(mut e) = self.by_parent_head.entry(parent_head_hash) {
+				e.get_mut().remove(&candidate_hash);
+				if e.get().is_empty() {
+					e.remove();
+				}
+			}
+		}
+	}
+
+	/// Note that an existing candidate has been seconded.
+	pub fn mark_seconded(&mut self, candidate_hash: &CandidateHash) {
+		if let Some(entry) = self.by_candidate_hash.get_mut(candidate_hash) {
+			if entry.state != CandidateState::Backed {
+				entry.state = CandidateState::Seconded;
+			}
+		}
 	}
 
 	/// Note that an existing candidate has been backed.
@@ -191,6 +212,9 @@ impl CandidateStorage {
 /// Candidates aren't even considered until they've at least been seconded.
 #[derive(Debug, PartialEq)]
 enum CandidateState {
+	/// The candidate has been introduced in a spam-protected way but
+	/// is not necessarily backed.
+	Introduced,
 	/// The candidate has been seconded.
 	Seconded,
 	/// The candidate has been completely backed by the group.

@@ -976,8 +976,27 @@ pub enum GossipSupportMessage {
 #[derive(Debug)]
 pub enum PvfCheckerMessage {}
 
+/// Request introduction of a candidate into the prospective parachains subsystem.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct IntroduceCandidateRequest {
+	/// The para-id of the candidate.
+	pub candidate_para: ParaId,
+	/// The candidate receipt itself.
+	pub candidate_receipt: CommittedCandidateReceipt,
+	/// The persisted validation data of the candidate.
+	pub persisted_validation_data: PersistedValidationData,
+	/// Whether to keep the candidate in storage if unable
+	/// to introduce into any fragment tree.
+	///
+	/// This should be set to `false` in any scenario where the
+	/// candidate has not already been vetted for spam-prevention.
+	pub keep_if_unneeded: bool,
+}
+
 /// A request for the depths a hypothetical candidate would occupy within
-/// some fragment tree.
+/// some fragment tree. Note that this is not an absolute indication of whether
+/// a candidate can be added to a fragment tree, as the commitments are not
+/// considered in this request.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct HypotheticalDepthRequest {
 	/// The hash of the potential candidate.
@@ -1013,17 +1032,19 @@ pub type FragmentTreeMembership = Vec<(Hash, Vec<usize>)>;
 pub enum ProspectiveParachainsMessage {
 	/// Inform the Prospective Parachains Subsystem of a new candidate.
 	///
-	/// The response sender accepts the candidate membership, which is empty
-	/// if the candidate was already known.
-	CandidateSeconded(
-		ParaId,
-		CommittedCandidateReceipt,
-		PersistedValidationData,
+	/// The response sender accepts the candidate membership, which is the existing
+	/// membership of the candidate if it was already known.
+	IntroduceCandidate(
+		IntroduceCandidateRequest,
 		oneshot::Sender<FragmentTreeMembership>,
 	),
-	/// Inform the Prospective Parachains Subsystem that a previously seconded candidate
-	/// has been backed. This requires that `CandidateSeconded` was sent for the candidate
-	/// some time in the past.
+	/// Inform the Prospective Parachains Subsystem that a previously introduced candidate
+	/// has been seconded. This requires that the candidate was successfully introduced in
+	/// the past.
+	CandidateSeconded(ParaId, CandidateHash),
+	/// Inform the Prospective Parachains Subsystem that a previously introduced candidate
+	/// has been backed. This requires that the candidate was successfully introduced in
+	/// the past.
 	CandidateBacked(ParaId, CandidateHash),
 	/// Get a backable candidate hash for the given parachain, under the given relay-parent hash,
 	/// which is a descendant of the given candidate hashes. Returns `None` on the channel
