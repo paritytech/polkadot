@@ -3002,6 +3002,9 @@ fn refrain_from_participation() {
 	});
 }
 
+/// We have got no `participation_for_backed_candidates` test because most of the other tests (e.g.
+/// `dispute_gets_confirmed_via_participation`, `backing_statements_import_works_and_no_spam`) use
+/// candidate backing event to trigger participation. If they pass - that case works.
 #[test]
 fn participation_for_included_candidates() {
 	test_harness(|mut test_state, mut virtual_overseer| {
