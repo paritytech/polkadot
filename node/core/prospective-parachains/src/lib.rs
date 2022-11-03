@@ -27,13 +27,15 @@
 //! This also handles concerns such as the relay-chain being forkful,
 //! session changes, predicting validator group assignments.
 
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
 use futures::{channel::oneshot, prelude::*};
 
 use polkadot_node_subsystem::{
 	messages::{
-		ChainApiMessage, FragmentTreeMembership, HypotheticalDepthRequest,
+		ChainApiMessage, FragmentTreeMembership, HypotheticalDepthRequest, HypotheticalFrontierRequest,
+		HypotheticalCandidate,
 		IntroduceCandidateRequest, ProspectiveParachainsMessage, ProspectiveValidationDataRequest,
 		RuntimeApiMessage, RuntimeApiRequest,
 	},
@@ -137,6 +139,8 @@ async fn run_iteration<Context>(ctx: &mut Context, view: &mut View) -> Result<()
 				) => answer_get_backable_candidate(&view, relay_parent, para, required_path, tx),
 				ProspectiveParachainsMessage::GetHypotheticalDepth(request, tx) =>
 					answer_hypothetical_depths_request(&view, request, tx),
+				ProspectiveParachainsMessage::GetHypotheticalFrontier(request, tx) =>
+					answer_hypothetical_frontier_request(&view, request, tx),
 				ProspectiveParachainsMessage::GetTreeMembership(para, candidate, tx) =>
 					answer_tree_membership_request(&view, para, candidate, tx),
 				ProspectiveParachainsMessage::GetMinimumRelayParents(relay_parent, tx) =>
@@ -490,6 +494,68 @@ fn answer_hypothetical_depths_request(
 			let _ = tx.send(Vec::new());
 		},
 	}
+}
+
+fn answer_hypothetical_frontier_request(
+	view: &View,
+	request: HypotheticalFrontierRequest,
+	tx: oneshot::Sender<Vec<(HypotheticalCandidate, FragmentTreeMembership)>>,
+) {
+	let mut response = Vec::with_capacity(request.candidates.len());
+	for candidate in request.candidates {
+		response.push((candidate, Vec::new()));
+	}
+
+	let required_active_leaf = request.fragment_tree_relay_parent;
+	for (active_leaf, leaf_view) in view
+		.active_leaves
+		.iter()
+		.filter(|(h, _)| required_active_leaf.as_ref().map_or(true, |x| h == &x))
+	{
+		for &mut (ref c, ref mut membership) in &mut response {
+			let fragment_tree = match leaf_view.fragment_trees.get(&c.candidate_para()) {
+				None => continue,
+				Some(f) => f,
+			};
+
+			let (c_hash, hypothetical) = match c {
+				HypotheticalCandidate::Complete {
+					candidate_hash,
+					receipt,
+					persisted_validation_data,
+				} => (
+					*candidate_hash,
+					fragment_tree::HypotheticalCandidate::Complete {
+						receipt: Cow::Borrowed(&*receipt),
+						persisted_validation_data: Cow::Borrowed(&*persisted_validation_data),
+					},
+				),
+				HypotheticalCandidate::Incomplete {
+					candidate_hash,
+					parent_head_data_hash,
+					candidate_relay_parent,
+					..
+				} => (
+					*candidate_hash,
+					fragment_tree::HypotheticalCandidate::Incomplete {
+						relay_parent: *candidate_relay_parent,
+						parent_head_data_hash: *parent_head_data_hash,
+					},
+				),
+			};
+
+			let depths = fragment_tree.hypothetical_depths(
+				c_hash,
+				hypothetical,
+			);
+
+			if !depths.is_empty() {
+				membership.push((*active_leaf, depths));
+			}
+		}
+	}
+
+	let _ = tx.send(response);
 }
 
 fn fragment_tree_membership(

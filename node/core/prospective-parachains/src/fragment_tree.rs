@@ -340,7 +340,7 @@ enum NodePointer {
 pub(crate) enum HypotheticalCandidate<'a> {
 	Complete {
 		receipt: Cow<'a, CommittedCandidateReceipt>,
-		persisted_validation_data: PersistedValidationData,
+		persisted_validation_data: Cow<'a, PersistedValidationData>,
 	},
 	Incomplete {
 		relay_parent: Hash,
@@ -352,7 +352,7 @@ impl<'a> HypotheticalCandidate<'a> {
 	fn parent_head_data_hash(&self) -> Hash {
 		match *self {
 			HypotheticalCandidate::Complete { ref persisted_validation_data, .. } =>
-				persisted_validation_data.parent_head.hash(),
+				persisted_validation_data.as_ref().parent_head.hash(),
 			HypotheticalCandidate::Incomplete { ref parent_head_data_hash, .. } =>
 				*parent_head_data_hash,
 		}
@@ -587,7 +587,7 @@ impl FragmentTree {
 						commitments: Cow::Borrowed(&receipt.commitments),
 						collator: receipt.descriptor().collator.clone(),
 						collator_signature: receipt.descriptor().signature.clone(),
-						persisted_validation_data: persisted_validation_data.clone(),
+						persisted_validation_data: persisted_validation_data.as_ref().clone(),
 						pov_hash: receipt.descriptor().pov_hash,
 						validation_code_hash: receipt.descriptor().validation_code_hash,
 					};
@@ -1500,7 +1500,7 @@ mod tests {
 				candidate_a_hash,
 				HypotheticalCandidate::Complete {
 					receipt: Cow::Owned(candidate_a),
-					persisted_validation_data: pvd_a,
+					persisted_validation_data: Cow::Owned(pvd_a),
 				},
 			)
 			.is_empty());
