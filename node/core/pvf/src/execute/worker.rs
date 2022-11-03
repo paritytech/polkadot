@@ -32,7 +32,7 @@ use futures::FutureExt;
 use futures_timer::Delay;
 use parity_scale_codec::{alloc::collections::BTreeMap, Decode, Encode};
 use polkadot_parachain::primitives::ValidationResult;
-use polkadot_primitives::vstaging::ExecutorParams;
+use polkadot_primitives::vstaging::{ExecutorParams, ExecutorParamsHash};
 use std::time::{Duration, Instant};
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
@@ -197,12 +197,12 @@ impl Response {
 /// the path to the socket used to communicate with the host.
 pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("execute", socket_path, |mut stream| async move {
-		let mut executors: BTreeMap<u64, Executor> = BTreeMap::new();
+		let mut executors: BTreeMap<ExecutorParamsHash, Executor> = BTreeMap::new();
 		loop {
 			let (artifact_path, params, ee_params) = recv_request(&mut stream).await?;
-			let version = ee_params.version();
+			let hash = ee_params.hash();
 
-			let executor = match executors.get(&version) {
+			let executor = match executors.get(&hash) {
 				Some(exc) => exc,
 				None => {
 					let exc = Executor::new(ee_params).map_err(|e| {
@@ -211,8 +211,8 @@ pub fn worker_entrypoint(socket_path: &str) {
 							format!("cannot create executor: {}", e),
 						)
 					})?;
-					executors.insert(version, exc);
-					executors.get(&version).expect("just inserted above")
+					executors.insert(hash, exc);
+					executors.get(&hash).expect("just inserted above")
 				},
 			};
 

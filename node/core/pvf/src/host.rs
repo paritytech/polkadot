@@ -752,6 +752,7 @@ mod tests {
 	use crate::{InvalidCandidate, PrepareError};
 	use assert_matches::assert_matches;
 	use futures::future::BoxFuture;
+	use polkadot_primitives::vstaging::ExecutorParamsHash;
 
 	const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 

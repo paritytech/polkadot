@@ -47,7 +47,6 @@ mod tests;
 fn current_exec_params() -> ExecutorParams {
 	let mut exec_params = ExecutorParams::new();
 	exec_params.add(Ep::EEPAR_ENVIRONMENT, Ep::EXEC_ENV_TYPE_WASMTIME_GENERIC);
-	exec_params.add(Ep::EEPAR_VERSION, 1u32);
 	exec_params
 }
 

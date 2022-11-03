@@ -29,14 +29,14 @@ use scale_info::TypeInfo;
 use sp_std::{ops::Deref, vec::Vec};
 
 /// # Execution environment parameter tags
+/// Values from 1 to 16 are reserved for system-wide parameters not related to any concrete
+/// execution environment.
 /// Environment type
 pub const EEPAR_ENVIRONMENT: u32 = 1;
-/// Parameter set version, unique within environment type
-pub const EEPAR_VERSION: u32 = 2;
 /// Logical stack limit, in stack items
-pub const EEPAR_STACK_LOGICAL_MAX: u32 = 3;
+pub const EEPAR_STACK_LOGICAL_MAX: u32 = 17;
 /// Native stack limit, in bytes
-pub const EEPAR_STACK_NATIVE_MAX: u32 = 4;
+pub const EEPAR_STACK_NATIVE_MAX: u32 = 18;
 
 /// # Execution enviroment types
 /// Generic Wasmtime environment
@@ -86,19 +86,6 @@ impl ExecutorParams {
 	/// Creates a new, empty executor parameter set
 	pub fn new() -> Self {
 		ExecutorParams(Vec::new())
-	}
-
-	/// Returns globally unique version of execution environment parameter set, if present. Otherwise, returns 0.
-	pub fn version(&self) -> u64 {
-		if self.0.len() < 2 || self.0[0].0 != EEPAR_ENVIRONMENT || self.0[1].0 != EEPAR_VERSION {
-			return 0
-		}
-		let env_enc = self.0[0].1.clone();
-		let ver_enc = self.0[1].1.clone();
-		match (u32::decode(&mut &env_enc[..]), u32::decode(&mut &ver_enc[..])) {
-			(Ok(env), Ok(ver)) => (env as u64) * 2 ^ 32u64 + ver as u64,
-			_ => 0,
-		}
 	}
 
 	/// Returns execution environment type identifier
