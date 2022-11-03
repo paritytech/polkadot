@@ -399,7 +399,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 
 	fn block_indexed_body(
 		&self,
-		id: &BlockId<Block>,
+		id: &<Block as BlockT>::Hash,
 	) -> sp_blockchain::Result<Option<Vec<Vec<u8>>>> {
 		with_client! {
 			self,
