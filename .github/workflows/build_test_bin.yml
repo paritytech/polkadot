@@ -15,8 +15,8 @@ on:
 
 
 env:
-  tag: '0.0.1'
-  release_name: 'First iteration'
+  tag: '0.0.2'
+  release_name: 'Fix periods time'
 
 jobs:
   create-release:
