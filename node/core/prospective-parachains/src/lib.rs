@@ -272,7 +272,6 @@ async fn handle_candidate_introduced<Context>(
 		candidate_para: para,
 		candidate_receipt: candidate,
 		persisted_validation_data: pvd,
-		keep_if_unneeded,
 	} = request;
 
 	// Add the candidate to storage.
@@ -327,7 +326,7 @@ async fn handle_candidate_introduced<Context>(
 		}
 	}
 
-	if !keep_if_unneeded && membership.is_empty() {
+	if membership.is_empty() {
 		storage.remove_candidate(&candidate_hash);
 	}
 

@@ -401,8 +401,7 @@ fn seconding_sanity_check_allowed() {
 			) if
 				req.candidate_receipt == candidate
 				&& req.candidate_para == para_id
-				&& pvd == req.persisted_validation_data
-				&& !req.keep_if_unneeded => {
+				&& pvd == req.persisted_validation_data => {
 				// Any non-empty response will do.
 				tx.send(vec![(leaf_a_hash, vec![0, 1, 2, 3])]).unwrap();
 			}
@@ -540,8 +539,7 @@ fn seconding_sanity_check_disallowed() {
 			) if
 				req.candidate_receipt == candidate
 				&& req.candidate_para == para_id
-				&& pvd == req.persisted_validation_data
-				&& !req.keep_if_unneeded => {
+				&& pvd == req.persisted_validation_data => {
 				// Any non-empty response will do.
 				tx.send(vec![(leaf_a_hash, vec![0, 2, 3])]).unwrap();
 			}
@@ -733,8 +731,7 @@ fn prospective_parachains_reject_candidate() {
 			) if
 				req.candidate_receipt == candidate
 				&& req.candidate_para == para_id
-				&& pvd == req.persisted_validation_data
-				&& !req.keep_if_unneeded => {
+				&& pvd == req.persisted_validation_data => {
 				// Reject it.
 				tx.send(Vec::new()).unwrap();
 			}
@@ -786,8 +783,7 @@ fn prospective_parachains_reject_candidate() {
 			) if
 				req.candidate_receipt == candidate
 				&& req.candidate_para == para_id
-				&& pvd == req.persisted_validation_data
-				&& !req.keep_if_unneeded => {
+				&& pvd == req.persisted_validation_data => {
 				// Any non-empty response will do.
 				tx.send(vec![(leaf_a_hash, vec![0, 2, 3])]).unwrap();
 			}
@@ -920,7 +916,7 @@ fn second_multiple_candidates_per_relay_parent() {
 					&req.candidate_receipt == candidate
 					&& req.candidate_para == para_id
 					&& pvd == req.persisted_validation_data
-					&& !req.keep_if_unneeded => {
+ => {
 					// Any non-empty response will do.
 					tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
 				}
@@ -1058,8 +1054,7 @@ fn backing_works() {
 			) if
 				req.candidate_receipt == candidate_a
 				&& req.candidate_para == para_id
-				&& pvd == req.persisted_validation_data
-				&& !req.keep_if_unneeded => {
+				&& pvd == req.persisted_validation_data => {
 				// Any non-empty response will do.
 				tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
 			}
@@ -1461,7 +1456,7 @@ fn seconding_sanity_check_occupy_same_depth() {
 					&req.candidate_receipt == candidate
 					&& &req.candidate_para == para_id
 					&& pvd == req.persisted_validation_data
-					&& !req.keep_if_unneeded => {
+ => {
 					// Any non-empty response will do.
 					tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
 				}

@@ -992,12 +992,6 @@ pub struct IntroduceCandidateRequest {
 	pub candidate_receipt: CommittedCandidateReceipt,
 	/// The persisted validation data of the candidate.
 	pub persisted_validation_data: PersistedValidationData,
-	/// Whether to keep the candidate in storage if unable
-	/// to introduce into any fragment tree.
-	///
-	/// This should be set to `false` in any scenario where the
-	/// candidate has not already been vetted for spam-prevention.
-	pub keep_if_unneeded: bool,
 }
 
 /// A request for the depths a hypothetical candidate would occupy within

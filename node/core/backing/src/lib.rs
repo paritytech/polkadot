@@ -1505,8 +1505,6 @@ async fn import_statement<Context>(
 						candidate_para: candidate.descriptor().para_id,
 						candidate_receipt: candidate.clone(),
 						persisted_validation_data: pvd.clone(),
-						// Since this is used during seconding
-						keep_if_unneeded: false,
 					},
 					tx,
 				))
