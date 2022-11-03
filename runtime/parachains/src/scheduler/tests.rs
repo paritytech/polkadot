@@ -26,16 +26,16 @@ use crate::{
 	mock::{
 		new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, Scheduler, System, Test,
 	},
-	paras::ParaGenesisArgs,
+	paras::{ParaGenesisArgs, ParaKind},
 };
 
-fn schedule_blank_para(id: ParaId, is_chain: bool) {
+fn schedule_blank_para(id: ParaId, parakind: ParaKind) {
 	assert_ok!(Paras::schedule_para_initialize(
 		id,
 		ParaGenesisArgs {
 			genesis_head: Vec::new().into(),
 			validation_code: vec![1, 2, 3].into(),
-			parachain: is_chain,
+			para_kind: parakind,
 		}
 	));
 }
@@ -122,7 +122,7 @@ fn add_parathread_claim_works() {
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
 	new_test_ext(genesis_config).execute_with(|| {
-		schedule_blank_para(thread_id, false);
+		schedule_blank_para(thread_id, ParaKind::Parathread);
 
 		assert!(!Paras::is_parathread(thread_id));
 
@@ -203,7 +203,7 @@ fn cannot_add_claim_when_no_parathread_cores() {
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
 	new_test_ext(genesis_config).execute_with(|| {
-		schedule_blank_para(thread_id, false);
+		schedule_blank_para(thread_id, ParaKind::Parathread);
 
 		assert!(!Paras::is_parathread(thread_id));
 
@@ -239,9 +239,9 @@ fn session_change_prunes_cores_beyond_retries_and_those_from_non_live_parathread
 
 		// threads a, b, and c will be live in next session, but not d.
 		{
-			schedule_blank_para(thread_a, false);
-			schedule_blank_para(thread_b, false);
-			schedule_blank_para(thread_c, false);
+			schedule_blank_para(thread_a, ParaKind::Parathread);
+			schedule_blank_para(thread_b, ParaKind::Parathread);
+			schedule_blank_para(thread_c, ParaKind::Parathread);
 		}
 
 		// set up a queue as if `n_cores` was 4 and with some with many retries.
@@ -334,8 +334,8 @@ fn session_change_shuffles_validators() {
 		let chain_b = ParaId::from(2_u32);
 
 		// ensure that we have 5 groups by registering 2 parachains.
-		schedule_blank_para(chain_a, true);
-		schedule_blank_para(chain_b, true);
+		schedule_blank_para(chain_a, ParaKind::Parachain);
+		schedule_blank_para(chain_b, ParaKind::Parachain);
 
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
@@ -392,9 +392,9 @@ fn session_change_takes_only_max_per_core() {
 		let chain_c = ParaId::from(3_u32);
 
 		// ensure that we have 5 groups by registering 2 parachains.
-		schedule_blank_para(chain_a, true);
-		schedule_blank_para(chain_b, true);
-		schedule_blank_para(chain_c, false);
+		schedule_blank_para(chain_a, ParaKind::Parachain);
+		schedule_blank_para(chain_b, ParaKind::Parachain);
+		schedule_blank_para(chain_c, ParaKind::Parathread);
 
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
@@ -447,13 +447,13 @@ fn schedule_schedules() {
 		assert_eq!(default_config().parathread_cores, 3);
 
 		// register 2 parachains
-		schedule_blank_para(chain_a, true);
-		schedule_blank_para(chain_b, true);
+		schedule_blank_para(chain_a, ParaKind::Parachain);
+		schedule_blank_para(chain_b, ParaKind::Parachain);
 
 		// and 3 parathreads
-		schedule_blank_para(thread_a, false);
-		schedule_blank_para(thread_b, false);
-		schedule_blank_para(thread_c, false);
+		schedule_blank_para(thread_a, ParaKind::Parathread);
+		schedule_blank_para(thread_b, ParaKind::Parathread);
+		schedule_blank_para(thread_c, ParaKind::Parathread);
 
 		// start a new session to activate, 5 validators for 5 cores.
 		run_to_block(1, |number| match number {
@@ -574,15 +574,15 @@ fn schedule_schedules_including_just_freed() {
 		assert_eq!(default_config().parathread_cores, 3);
 
 		// register 2 parachains
-		schedule_blank_para(chain_a, true);
-		schedule_blank_para(chain_b, true);
+		schedule_blank_para(chain_a, ParaKind::Parachain);
+		schedule_blank_para(chain_b, ParaKind::Parachain);
 
 		// and 5 parathreads
-		schedule_blank_para(thread_a, false);
-		schedule_blank_para(thread_b, false);
-		schedule_blank_para(thread_c, false);
-		schedule_blank_para(thread_d, false);
-		schedule_blank_para(thread_e, false);
+		schedule_blank_para(thread_a, ParaKind::Parathread);
+		schedule_blank_para(thread_b, ParaKind::Parathread);
+		schedule_blank_para(thread_c, ParaKind::Parathread);
+		schedule_blank_para(thread_d, ParaKind::Parathread);
+		schedule_blank_para(thread_e, ParaKind::Parathread);
 
 		// start a new session to activate, 5 validators for 5 cores.
 		run_to_block(1, |number| match number {
@@ -743,9 +743,9 @@ fn schedule_clears_availability_cores() {
 		assert_eq!(default_config().parathread_cores, 3);
 
 		// register 3 parachains
-		schedule_blank_para(chain_a, true);
-		schedule_blank_para(chain_b, true);
-		schedule_blank_para(chain_c, true);
+		schedule_blank_para(chain_a, ParaKind::Parachain);
+		schedule_blank_para(chain_b, ParaKind::Parachain);
+		schedule_blank_para(chain_c, ParaKind::Parachain);
 
 		// start a new session to activate, 5 validators for 5 cores.
 		run_to_block(1, |number| match number {
@@ -849,8 +849,8 @@ fn schedule_rotates_groups() {
 	new_test_ext(genesis_config).execute_with(|| {
 		assert_eq!(default_config().parathread_cores, 3);
 
-		schedule_blank_para(thread_a, false);
-		schedule_blank_para(thread_b, false);
+		schedule_blank_para(thread_a, ParaKind::Parathread);
+		schedule_blank_para(thread_b, ParaKind::Parathread);
 
 		// start a new session to activate, 5 validators for 5 cores.
 		run_to_block(1, |number| match number {
@@ -921,8 +921,8 @@ fn parathread_claims_are_pruned_after_retries() {
 	new_test_ext(genesis_config).execute_with(|| {
 		assert_eq!(default_config().parathread_cores, 3);
 
-		schedule_blank_para(thread_a, false);
-		schedule_blank_para(thread_b, false);
+		schedule_blank_para(thread_a, ParaKind::Parathread);
+		schedule_blank_para(thread_b, ParaKind::Parathread);
 
 		// start a new session to activate, 5 validators for 5 cores.
 		run_to_block(1, |number| match number {
@@ -978,8 +978,8 @@ fn availability_predicate_works() {
 	let thread_a = ParaId::from(2_u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
-		schedule_blank_para(chain_a, true);
-		schedule_blank_para(thread_a, false);
+		schedule_blank_para(chain_a, ParaKind::Parachain);
+		schedule_blank_para(thread_a, ParaKind::Parathread);
 
 		// start a new session with our chain & thread registered.
 		run_to_block(1, |number| match number {
@@ -1075,8 +1075,8 @@ fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
 	new_test_ext(genesis_config).execute_with(|| {
-		schedule_blank_para(thread_a, false);
-		schedule_blank_para(thread_b, false);
+		schedule_blank_para(thread_a, ParaKind::Parathread);
+		schedule_blank_para(thread_b, ParaKind::Parathread);
 
 		// start a new session to activate, 5 validators for 5 cores.
 		run_to_block(1, |number| match number {
@@ -1147,8 +1147,8 @@ fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
 	new_test_ext(genesis_config).execute_with(|| {
-		schedule_blank_para(thread_a, false);
-		schedule_blank_para(thread_b, false);
+		schedule_blank_para(thread_a, ParaKind::Parathread);
+		schedule_blank_para(thread_b, ParaKind::Parathread);
 
 		// start a new session to activate, 5 validators for 5 cores.
 		run_to_block(1, |number| match number {
@@ -1222,7 +1222,7 @@ fn next_up_on_available_is_parachain_always() {
 	let chain_a = ParaId::from(1_u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
-		schedule_blank_para(chain_a, true);
+		schedule_blank_para(chain_a, ParaKind::Parachain);
 
 		// start a new session to activate, 5 validators for 5 cores.
 		run_to_block(1, |number| match number {
@@ -1276,7 +1276,7 @@ fn next_up_on_time_out_is_parachain_always() {
 	let chain_a = ParaId::from(1_u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
-		schedule_blank_para(chain_a, true);
+		schedule_blank_para(chain_a, ParaKind::Parachain);
 
 		// start a new session to activate, 5 validators for 5 cores.
 		run_to_block(1, |number| match number {
@@ -1330,8 +1330,8 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 		let chain_b = ParaId::from(2_u32);
 
 		// ensure that we have 5 groups by registering 2 parachains.
-		schedule_blank_para(chain_a, true);
-		schedule_blank_para(chain_b, true);
+		schedule_blank_para(chain_a, ParaKind::Parachain);
+		schedule_blank_para(chain_b, ParaKind::Parachain);
 
 		run_to_block(1, |number| match number {
 			1 => Some(SessionChangeNotification {
@@ -1409,8 +1409,8 @@ fn parathread_claims_are_pruned_after_deregistration() {
 	new_test_ext(genesis_config).execute_with(|| {
 		assert_eq!(default_config().parathread_cores, 3);
 
-		schedule_blank_para(thread_a, false);
-		schedule_blank_para(thread_b, false);
+		schedule_blank_para(thread_a, ParaKind::Parathread);
+		schedule_blank_para(thread_b, ParaKind::Parathread);
 
 		// start a new session to activate, 5 validators for 5 cores.
 		run_to_block(1, |number| match number {
