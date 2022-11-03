@@ -604,12 +604,12 @@ impl pallet_identity::Config for Runtime {
 }
 
 parameter_types! {
-	pub LaunchPeriod: BlockNumber = prod_or_fast!(28 * DAYS, 1, "DOT_LAUNCH_PERIOD");
-	pub VotingPeriod: BlockNumber = prod_or_fast!(28 * DAYS, 1 * MINUTES, "DOT_VOTING_PERIOD");
+	pub LaunchPeriod: BlockNumber = prod_or_fast!(28 * MINUTES, 1, "DOT_LAUNCH_PERIOD");
+	pub VotingPeriod: BlockNumber = prod_or_fast!(28 * MINUTES, 1 * MINUTES, "DOT_VOTING_PERIOD");
 	pub FastTrackVotingPeriod: BlockNumber = prod_or_fast!(3 * HOURS, 1 * MINUTES, "DOT_FAST_TRACK_VOTING_PERIOD");
 	pub const MinimumDeposit: Balance = 100 * DOLLARS;
-	pub EnactmentPeriod: BlockNumber = prod_or_fast!(28 * DAYS, 1, "DOT_ENACTMENT_PERIOD");
-	pub CooloffPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1, "DOT_COOLOFF_PERIOD");
+	pub EnactmentPeriod: BlockNumber = prod_or_fast!(28 * MINUTES, 1, "DOT_ENACTMENT_PERIOD");
+	pub CooloffPeriod: BlockNumber = prod_or_fast!(7 * MINUTES, 1, "DOT_COOLOFF_PERIOD");
 	pub const InstantAllowed: bool = true;
 	pub const MaxVotes: u32 = 100;
 	pub const MaxProposals: u32 = 100;
@@ -769,7 +769,7 @@ parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
 	pub const ProposalBondMinimum: Balance = 100 * DOLLARS;
 	pub const ProposalBondMaximum: Balance = 500 * DOLLARS;
-	pub const SpendPeriod: BlockNumber = 24 * DAYS;
+	pub const SpendPeriod: BlockNumber = 24 * MINUTES;
 	pub const Burn: Permill = Permill::from_percent(1);
 	pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
 
@@ -811,7 +811,7 @@ impl pallet_treasury::Config for Runtime {
 parameter_types! {
 	pub const BountyDepositBase: Balance = 1 * DOLLARS;
 	pub const BountyDepositPayoutDelay: BlockNumber = 8 * DAYS;
-	pub const BountyUpdatePeriod: BlockNumber = 90 * DAYS;
+	pub const BountyUpdatePeriod: BlockNumber = 90 * MINUTES;
 	pub const MaximumReasonLength: u32 = 16384;
 	pub const CuratorDepositMultiplier: Permill = Permill::from_percent(50);
 	pub const CuratorDepositMin: Balance = 10 * DOLLARS;
@@ -1302,13 +1302,13 @@ impl paras_registrar::Config for Runtime {
 
 parameter_types! {
 	// 12 weeks = 3 months per lease period -> 8 lease periods ~ 2 years
-	pub LeasePeriod: BlockNumber = prod_or_fast!(12 * WEEKS, 12 * WEEKS, "DOT_LEASE_PERIOD");
+	pub LeasePeriod: BlockNumber = prod_or_fast!(90 * MINUTES, 90 * MINUTES, "DOT_LEASE_PERIOD");
 	// Polkadot Genesis was on May 26, 2020.
 	// Target Parachain Onboarding Date: Dec 15, 2021.
 	// Difference is 568 days.
 	// We want a lease period to start on the target onboarding date.
 	// 568 % (12 * 7) = 64 day offset
-	pub LeaseOffset: BlockNumber = prod_or_fast!(64 * DAYS, 0, "DOT_LEASE_OFFSET");
+	pub LeaseOffset: BlockNumber = prod_or_fast!(64 * MINUTES, 0, "DOT_LEASE_OFFSET");
 }
 
 impl slots::Config for Runtime {
@@ -1348,7 +1348,7 @@ impl crowdloan::Config for Runtime {
 parameter_types! {
 	// The average auction is 7 days long, so this will be 70% for ending period.
 	// 5 Days = 72000 Blocks @ 6 sec per block
-	pub const EndingPeriod: BlockNumber = 5 * DAYS;
+	pub const EndingPeriod: BlockNumber = 1 * HOURS;
 	// ~ 1000 samples per day -> ~ 20 blocks per sample -> 2 minute samples
 	pub const SampleLength: BlockNumber = 2 * MINUTES;
 }
