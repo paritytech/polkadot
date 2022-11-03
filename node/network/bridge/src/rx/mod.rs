@@ -372,7 +372,7 @@ where
 					Ok(v) => v,
 				};
 
-				// non-decoded, but version-checked colldation messages.
+				// non-decoded, but version-checked collation messages.
 				let c_messages: Result<Vec<_>, _> = messages
 					.iter()
 					.filter_map(|(protocol, msg_bytes)| {
@@ -402,6 +402,24 @@ where
 					},
 					Ok(v) => v,
 				};
+
+				let maybe_authority =
+					authority_discovery_service.get_authority_ids_by_peer_id(remote).await;
+				if let Some(authority) = maybe_authority {
+					dispatch_validation_events_to_all(
+						vec![NetworkBridgeEvent::UpdatedAuthorityIds(
+							remote.clone(),
+							authority.clone(),
+						)],
+						&mut sender,
+					)
+					.await;
+					dispatch_collation_events_to_all(
+						vec![NetworkBridgeEvent::UpdatedAuthorityIds(remote.clone(), authority)],
+						&mut sender,
+					)
+					.await;
+				}
 
 				if v_messages.is_empty() && c_messages.is_empty() {
 					continue

@@ -1087,7 +1087,7 @@ async fn handle_network_msg<Context>(
 		},
 		UpdatedAuthorityIds(peer_id, authority_ids) => {
 			todo!()
-		}
+		},
 	}
 
 	Ok(())
