@@ -377,7 +377,7 @@ impl<
 		context: &XcmContext,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
 		FungiblesTransferAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::transfer_asset(
-			what, from, to, context
+			what, from, to, context,
 		)
 	}
 }
