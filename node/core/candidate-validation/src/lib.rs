@@ -38,6 +38,7 @@ use polkadot_node_subsystem::{
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 	SubsystemSender,
 };
+use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
 use polkadot_primitives::v2::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, Hash, OccupiedCoreAssumption,
@@ -59,6 +60,9 @@ use self::metrics::Metrics;
 mod tests;
 
 const LOG_TARGET: &'static str = "parachain::candidate-validation";
+
+// The amount of time to wait before retrying after an AmbiguousWorkerDeath validation error.
+const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_secs(1);
 
 /// Configuration for the candidate validation subsystem
 #[derive(Clone)]
@@ -621,28 +625,21 @@ impl ValidationBackend for ValidationHost {
 		timeout: Duration,
 		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
-		let (tx, rx) = oneshot::channel();
-		if let Err(err) = self
-			.execute_pvf(
-				Pvf::from_code(raw_validation_code),
-				timeout,
-				params.encode(),
-				polkadot_node_core_pvf::Priority::Normal,
-				tx,
-			)
-			.await
+		let pvf = Pvf::from_code(raw_validation_code);
+
+		let validation_result = execute_pvf_once(self, pvf.clone(), timeout, params.encode()).await;
+
+		// If we get an AmbiguousWorkerDeath error, retry once after a brief delay, on the
+		// assumption that the conditions that caused this error may have been transient.
+		if let Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)) =
+			validation_result
 		{
-			return Err(ValidationError::InternalError(format!(
-				"cannot send pvf to the validation host: {:?}",
-				err
-			)))
+			// Wait a brief delay before retrying.
+			let _: Option<()> = future::pending().timeout(PVF_EXECUTION_RETRY_DELAY).await;
+			execute_pvf_once(self, pvf, timeout, params.encode()).await
+		} else {
+			validation_result
 		}
-
-		let validation_result = rx
-			.await
-			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?;
-
-		validation_result
 	}
 
 	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError> {
@@ -655,6 +652,27 @@ impl ValidationBackend for ValidationHost {
 
 		precheck_result
 	}
+}
+
+// Tries executing a PVF a single time (no retries).
+async fn execute_pvf_once(
+	host: &mut ValidationHost,
+	pvf: Pvf,
+	timeout: Duration,
+	params: Vec<u8>,
+) -> Result<WasmValidationResult, ValidationError> {
+	let priority = polkadot_node_core_pvf::Priority::Normal;
+
+	let (tx, rx) = oneshot::channel();
+	if let Err(err) = host.execute_pvf(pvf, timeout, params, priority, tx).await {
+		return Err(ValidationError::InternalError(format!(
+			"cannot send pvf to the validation host: {:?}",
+			err
+		)))
+	}
+
+	rx.await
+		.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?
 }
 
 /// Does basic checks of a candidate. Provide the encoded PoV-block. Returns `Ok` if basic checks
