@@ -1,0 +1,52 @@
+name: Publish GitHub release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag name'
+        required: true
+        default: v*.*.*
+      release_name:
+        description: 'Special name changes'
+        required: true
+        default: Describe here what was changed
+  pull_request:
+
+
+env:
+  tag: '0.0.1'
+  release_name: 'First iteration'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    container:
+      image: paritytech/ci-linux:1c0fde6a-20220811
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: rickstaa/action-create-tag@v1
+        with:
+          tag: ${{ env.tag }}
+          message: ${{ env.release_name }}
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: ➡️ Upload build artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: bin
+          path: ./target/release/polkadot
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.tag }}
+          name: ${{ env.release_name }}
+          draft: false
+          files: ./target/release/polkadot
+
