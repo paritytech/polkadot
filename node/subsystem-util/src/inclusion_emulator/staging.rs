@@ -118,7 +118,10 @@ use polkadot_primitives::vstaging::{
 	Constraints as PrimitiveConstraints, Hash, HeadData, Id as ParaId, PersistedValidationData,
 	UpgradeRestriction, ValidationCodeHash,
 };
-use std::collections::HashMap;
+use std::{
+	borrow::{Borrow, Cow},
+	collections::HashMap,
+};
 
 /// Constraints on inbound HRMP channels.
 #[derive(Debug, Clone, PartialEq)]
@@ -526,9 +529,9 @@ impl ConstraintModifications {
 /// here. But the erasure-root is not. This means that prospective candidates
 /// are not correlated to any session in particular.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ProspectiveCandidate {
+pub struct ProspectiveCandidate<'a> {
 	/// The commitments to the output of the execution.
-	pub commitments: CandidateCommitments,
+	pub commitments: Cow<'a, CandidateCommitments>,
 	/// The collator that created the candidate.
 	pub collator: CollatorId,
 	/// The signature of the collator on the payload.
@@ -539,6 +542,32 @@ pub struct ProspectiveCandidate {
 	pub pov_hash: Hash,
 	/// The validation code hash used by the candidate.
 	pub validation_code_hash: ValidationCodeHash,
+}
+
+impl<'a> ProspectiveCandidate<'a> {
+	fn into_owned(self) -> ProspectiveCandidate<'static> {
+		ProspectiveCandidate { commitments: Cow::Owned(self.commitments.into_owned()), ..self }
+	}
+
+	/// Partially clone the prospective candidate, but borrow the
+	/// parts which are potentially heavy.
+	pub fn partial_clone<'b>(&'b self) -> ProspectiveCandidate<'b> {
+		ProspectiveCandidate {
+			commitments: Cow::Borrowed(self.commitments.borrow()),
+			collator: self.collator.clone(),
+			collator_signature: self.collator_signature.clone(),
+			persisted_validation_data: self.persisted_validation_data.clone(),
+			pov_hash: self.pov_hash.clone(),
+			validation_code_hash: self.validation_code_hash.clone(),
+		}
+	}
+}
+
+#[cfg(test)]
+impl ProspectiveCandidate<'static> {
+	fn commitments_mut(&mut self) -> &mut CandidateCommitments {
+		self.commitments.to_mut()
+	}
 }
 
 /// Kinds of errors with the validity of a fragment.
@@ -592,19 +621,19 @@ pub enum FragmentValidityError {
 /// This is a type which guarantees that the candidate is valid under the
 /// operating constraints.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Fragment {
+pub struct Fragment<'a> {
 	/// The new relay-parent.
 	relay_parent: RelayChainBlockInfo,
 	/// The constraints this fragment is operating under.
 	operating_constraints: Constraints,
 	/// The core information about the prospective candidate.
-	candidate: ProspectiveCandidate,
+	candidate: ProspectiveCandidate<'a>,
 	/// Modifications to the constraints based on the outputs of
 	/// the candidate.
 	modifications: ConstraintModifications,
 }
 
-impl Fragment {
+impl<'a> Fragment<'a> {
 	/// Create a new fragment.
 	///
 	/// This fails if the fragment isn't in line with the operating
@@ -616,7 +645,7 @@ impl Fragment {
 	pub fn new(
 		relay_parent: RelayChainBlockInfo,
 		operating_constraints: Constraints,
-		candidate: ProspectiveCandidate,
+		candidate: ProspectiveCandidate<'a>,
 	) -> Result<Self, FragmentValidityError> {
 		let modifications = {
 			let commitments = &candidate.commitments;
@@ -681,13 +710,18 @@ impl Fragment {
 	}
 
 	/// Access the underlying prospective candidate.
-	pub fn candidate(&self) -> &ProspectiveCandidate {
+	pub fn candidate(&self) -> &ProspectiveCandidate<'a> {
 		&self.candidate
 	}
 
 	/// Modifications to constraints based on the outputs of the candidate.
 	pub fn constraint_modifications(&self) -> &ConstraintModifications {
 		&self.modifications
+	}
+
+	/// Convert the fragment into an owned variant.
+	pub fn into_owned(self) -> Fragment<'static> {
+		Fragment { candidate: self.candidate.into_owned(), ..self }
 	}
 
 	/// Validate this fragment against some set of constraints
@@ -1129,21 +1163,21 @@ mod tests {
 	fn make_candidate(
 		constraints: &Constraints,
 		relay_parent: &RelayChainBlockInfo,
-	) -> ProspectiveCandidate {
+	) -> ProspectiveCandidate<'static> {
 		let collator_pair = CollatorPair::generate().0;
 		let collator = collator_pair.public();
 
 		let sig = collator_pair.sign(b"blabla".as_slice());
 
 		ProspectiveCandidate {
-			commitments: CandidateCommitments {
+			commitments: Cow::Owned(CandidateCommitments {
 				upward_messages: Vec::new(),
 				horizontal_messages: Vec::new(),
 				new_validation_code: None,
 				head_data: HeadData::from(vec![1, 2, 3, 4, 5]),
 				processed_downward_messages: 0,
 				hrmp_watermark: relay_parent.number,
-			},
+			}),
 			collator,
 			collator_signature: sig,
 			persisted_validation_data: PersistedValidationData {
@@ -1223,7 +1257,7 @@ mod tests {
 		let mut candidate = make_candidate(&constraints, &relay_parent);
 
 		let max_code_size = constraints.max_code_size;
-		candidate.commitments.new_validation_code = Some(vec![0; max_code_size + 1].into());
+		candidate.commitments_mut().new_validation_code = Some(vec![0; max_code_size + 1].into());
 
 		assert_eq!(
 			Fragment::new(relay_parent, constraints, candidate),
@@ -1261,9 +1295,13 @@ mod tests {
 
 		let max_hrmp = constraints.max_hrmp_num_per_candidate;
 
-		candidate.commitments.horizontal_messages.extend((0..max_hrmp + 1).map(|i| {
-			OutboundHrmpMessage { recipient: ParaId::from(i as u32), data: vec![1, 2, 3] }
-		}));
+		candidate
+			.commitments_mut()
+			.horizontal_messages
+			.extend((0..max_hrmp + 1).map(|i| OutboundHrmpMessage {
+				recipient: ParaId::from(i as u32),
+				data: vec![1, 2, 3],
+			}));
 
 		assert_eq!(
 			Fragment::new(relay_parent, constraints, candidate),
@@ -1313,7 +1351,7 @@ mod tests {
 		let mut candidate = make_candidate(&constraints, &relay_parent);
 
 		constraints.upgrade_restriction = Some(UpgradeRestriction::Present);
-		candidate.commitments.new_validation_code = Some(ValidationCode(vec![1, 2, 3]));
+		candidate.commitments_mut().new_validation_code = Some(ValidationCode(vec![1, 2, 3]));
 
 		assert_eq!(
 			Fragment::new(relay_parent, constraints, candidate),
@@ -1332,7 +1370,7 @@ mod tests {
 		let constraints = make_constraints();
 		let mut candidate = make_candidate(&constraints, &relay_parent);
 
-		candidate.commitments.horizontal_messages = vec![
+		candidate.commitments_mut().horizontal_messages = vec![
 			OutboundHrmpMessage { recipient: ParaId::from(0 as u32), data: vec![1, 2, 3] },
 			OutboundHrmpMessage { recipient: ParaId::from(0 as u32), data: vec![4, 5, 6] },
 		];
@@ -1342,7 +1380,7 @@ mod tests {
 			Err(FragmentValidityError::HrmpMessagesDescendingOrDuplicate(1)),
 		);
 
-		candidate.commitments.horizontal_messages = vec![
+		candidate.commitments_mut().horizontal_messages = vec![
 			OutboundHrmpMessage { recipient: ParaId::from(1 as u32), data: vec![1, 2, 3] },
 			OutboundHrmpMessage { recipient: ParaId::from(0 as u32), data: vec![4, 5, 6] },
 		];

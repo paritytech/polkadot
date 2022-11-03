@@ -875,8 +875,83 @@ pub enum GossipSupportMessage {
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::GossipSupportNetworkMessage>),
 }
 
+/// Request introduction of a candidate into the prospective parachains subsystem.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct IntroduceCandidateRequest {
+	/// The para-id of the candidate.
+	pub candidate_para: ParaId,
+	/// The candidate receipt itself.
+	pub candidate_receipt: CommittedCandidateReceipt,
+	/// The persisted validation data of the candidate.
+	pub persisted_validation_data: PersistedValidationData,
+}
+
+/// A hypothetical candidate to be evaluated for frontier membership
+/// in the prospective parachains subsystem.
+///
+/// Hypothetical candidates are either complete or incomplete.
+/// Complete candidates have already had their (potentially heavy)
+/// candidate receipt fetched, while incomplete candidates are simply
+/// claims about properties that a fetched candidate would have.
+///
+/// Complete candidates can be evaluated more strictly than incomplete candidates.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum HypotheticalCandidate {
+	/// A complete candidate.
+	Complete {
+		/// The hash of the candidate.
+		candidate_hash: CandidateHash,
+		/// The receipt of the candidate.
+		receipt: Arc<CommittedCandidateReceipt>,
+		/// The persisted validation data of the candidate.
+		persisted_validation_data: PersistedValidationData,
+	},
+	/// An incomplete candidate.
+	Incomplete {
+		/// The claimed hash of the candidate.
+		candidate_hash: CandidateHash,
+		/// The claimed para-ID of the candidate.
+		candidate_para: ParaId,
+		/// The claimed head-data hash of the candidate.
+		parent_head_data_hash: Hash,
+		/// The claimed relay parent of the candidate.
+		candidate_relay_parent: Hash,
+	},
+}
+
+impl HypotheticalCandidate {
+	/// Get the `ParaId` of the hypothetical candidate.
+	pub fn candidate_para(&self) -> ParaId {
+		match *self {
+			HypotheticalCandidate::Complete {
+				ref receipt,
+				..
+			} => receipt.descriptor().para_id,
+			HypotheticalCandidate::Incomplete {
+				candidate_para,
+				..
+			} => candidate_para,
+		}
+	}
+}
+
+/// Request specifying which candidates are either already included
+/// or might be included in the hypothetical frontier of fragment trees
+/// under a given active leaf.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct HypotheticalFrontierRequest {
+	/// Candidates, in arbitrary order, which should be checked for
+	/// possible membership in fragment trees.
+	pub candidates: Vec<HypotheticalCandidate>,
+	/// Either a specific fragment tree to check, otherwise all.
+	pub fragment_tree_relay_parent: Option<Hash>,
+}
+
 /// A request for the depths a hypothetical candidate would occupy within
-/// some fragment tree.
+/// some fragment tree. Note that this is not an absolute indication of whether
+/// a candidate can be added to a fragment tree, as the commitments are not
+/// considered in this request.
+// TODO [now]: file issue making this obsolete in favor of `HypotheticalFrontierRequest`
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct HypotheticalDepthRequest {
 	/// The hash of the potential candidate.
@@ -937,6 +1012,15 @@ pub enum ProspectiveParachainsMessage {
 	/// Returns an empty vector either if there is no such depth or the fragment tree relay-parent
 	/// is unknown.
 	GetHypotheticalDepth(HypotheticalDepthRequest, oneshot::Sender<Vec<usize>>),
+	/// Get the hypothetical frontier membership of candidates with the given properties
+	/// under the specified active leaves' fragment trees.
+	///
+	/// For any candidate which is already known, this returns the depths the candidate
+	/// occupies.
+	GetHypotheticalFrontier(
+		HypotheticalFrontierRequest,
+		oneshot::Sender<Vec<(HypotheticalCandidate, FragmentTreeMembership)>>,
+	),
 	/// Get the membership of the candidate in all fragment trees.
 	GetTreeMembership(ParaId, CandidateHash, oneshot::Sender<FragmentTreeMembership>),
 	/// Get the minimum accepted relay-parent number for each para in the fragment tree
