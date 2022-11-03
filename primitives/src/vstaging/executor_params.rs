@@ -21,8 +21,10 @@
 //! by the first element of the vector). Decoding to a usable semantics structure is
 //! done in `polkadot-node-core-pvf`.
 
+use crate::v2::{BlakeTwo256, HashT as _};
 use parity_scale_codec::{Decode, Encode};
 use parity_util_mem::MallocSizeOf;
+use polkadot_core_primitives::Hash;
 use scale_info::TypeInfo;
 use sp_std::{ops::Deref, vec::Vec};
 
@@ -39,6 +41,42 @@ pub const EEPAR_STACK_NATIVE_MAX: u32 = 4;
 /// # Execution enviroment types
 /// Generic Wasmtime environment
 pub const EXEC_ENV_TYPE_WASMTIME_GENERIC: u32 = 0;
+
+/// Unit type wrapper around [`type@Hash`] that represents an execution parameter set hash.
+///
+/// This type is produced by [`ExecutorParams::hash`].
+#[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, PartialOrd, Ord, TypeInfo)]
+pub struct ExecutorParamsHash(Hash);
+
+impl sp_std::fmt::Display for ExecutorParamsHash {
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+		self.0.fmt(f)
+	}
+}
+
+impl sp_std::fmt::Debug for ExecutorParamsHash {
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+		write!(f, "{:?}", self.0)
+	}
+}
+
+impl sp_std::fmt::LowerHex for ExecutorParamsHash {
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+		sp_std::fmt::LowerHex::fmt(&self.0, f)
+	}
+}
+
+impl From<Hash> for ExecutorParamsHash {
+	fn from(hash: Hash) -> Self {
+		Self(hash)
+	}
+}
+
+impl From<[u8; 32]> for ExecutorParamsHash {
+	fn from(hash: [u8; 32]) -> Self {
+		Self(hash.into())
+	}
+}
 
 /// Deterministically serialized execution environment semantics
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, MallocSizeOf, TypeInfo)]
@@ -80,6 +118,11 @@ impl ExecutorParams {
 		// TODO: Check for determinictic order of tags
 		self.0.push((tag, value.encode()));
 	}
+
+	/// Returns hash of the set of execution environment parameters
+	pub fn hash(&self) -> ExecutorParamsHash {
+		ExecutorParamsHash(BlakeTwo256::hash(&self.encode()))
+	}
 }
 
 impl Deref for ExecutorParams {
@@ -95,15 +138,3 @@ impl Default for ExecutorParams {
 		ExecutorParams(Vec::new())
 	}
 }
-
-// impl From<&[(u32, &[u8])]> for ExecutorParams {
-// 	fn from(arr: &[(u32, &[u8])]) -> Self {
-// 		ExecutorParams(arr.into_iter().map(|e| (e.0, e.1.to_vec())).collect())
-// 	}
-// }
-
-// impl From<&[(u32, &dyn Encode)]> for ExecutorParams {
-// 	fn from(arr: &[(u32, impl Encode)]) -> Self {
-// 		ExecutorParams(arr.into_iter().map(|e| (e.0, e.1.encode())).collect())
-// 	}
-// }

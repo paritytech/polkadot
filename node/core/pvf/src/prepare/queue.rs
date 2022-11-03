@@ -238,7 +238,7 @@ async fn handle_enqueue(
 	);
 	queue.metrics.prepare_enqueued();
 
-	let artifact_id = pvf.as_artifact_id();
+	let artifact_id = pvf.as_artifact_id(ee_params.hash());
 	if never!(
 		queue.artifact_id_to_job.contains_key(&artifact_id),
 		"second Enqueue sent for a known artifact"
@@ -349,7 +349,7 @@ async fn handle_worker_concluded(
 	// this can't be None;
 	// qed.
 	let job_data = never_none!(queue.jobs.remove(job));
-	let artifact_id = job_data.pvf.as_artifact_id();
+	let artifact_id = job_data.pvf.as_artifact_id(job_data.ee_params.hash());
 
 	queue.artifact_id_to_job.remove(&artifact_id);
 
@@ -437,7 +437,7 @@ async fn spawn_extra_worker(queue: &mut Queue, critical: bool) -> Result<(), Fat
 async fn assign(queue: &mut Queue, worker: Worker, job: Job) -> Result<(), Fatal> {
 	let job_data = &mut queue.jobs[job];
 
-	let artifact_id = job_data.pvf.as_artifact_id();
+	let artifact_id = job_data.pvf.as_artifact_id(job_data.ee_params.hash());
 	let artifact_path = artifact_id.path(&queue.cache_path);
 
 	job_data.worker = Some(worker);
@@ -620,11 +620,13 @@ mod tests {
 	#[async_std::test]
 	async fn properly_concludes() {
 		let mut test = Test::new(2, 2);
+		let ee_params = ExecutorParams::default();
+		let ee_params_hash = ee_params.hash();
 
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(1),
-			ee_params: ExecutorParams::default(),
+			ee_params,
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -633,7 +635,10 @@ mod tests {
 		test.send_from_pool(pool::FromPool::Spawned(w));
 		test.send_from_pool(pool::FromPool::Concluded { worker: w, rip: false, result: Ok(()) });
 
-		assert_eq!(test.poll_and_recv_from_queue().await.artifact_id, pvf(1).as_artifact_id());
+		assert_eq!(
+			test.poll_and_recv_from_queue().await.artifact_id,
+			pvf(1).as_artifact_id(ee_params_hash)
+		);
 	}
 
 	#[async_std::test]
@@ -730,23 +735,25 @@ mod tests {
 	#[async_std::test]
 	async fn worker_mass_die_out_doesnt_stall_queue() {
 		let mut test = Test::new(2, 2);
+		let ee_params = ExecutorParams::default();
+		let ee_params_hash = ee_params.hash();
 
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(1),
-			ee_params: ExecutorParams::default(),
+			ee_params,
 			preparation_timeout,
 		});
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(2),
-			ee_params: ExecutorParams::default(),
+			ee_params,
 			preparation_timeout,
 		});
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(3),
-			ee_params: ExecutorParams::default(),
+			ee_params,
 			preparation_timeout,
 		});
 
@@ -768,7 +775,10 @@ mod tests {
 		// Since there is still work, the queue requested one extra worker to spawn to handle the
 		// remaining enqueued work items.
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
-		assert_eq!(test.poll_and_recv_from_queue().await.artifact_id, pvf(1).as_artifact_id());
+		assert_eq!(
+			test.poll_and_recv_from_queue().await.artifact_id,
+			pvf(1).as_artifact_id(ee_params_hash)
+		);
 	}
 
 	#[async_std::test]

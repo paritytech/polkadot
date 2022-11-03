@@ -16,6 +16,7 @@
 
 use crate::artifacts::ArtifactId;
 use polkadot_parachain::primitives::ValidationCodeHash;
+use polkadot_primitives::vstaging::ExecutorParamsHash;
 use sp_core::blake2_256;
 use std::{fmt, sync::Arc};
 
@@ -50,7 +51,7 @@ impl Pvf {
 	}
 
 	/// Returns the artifact ID that corresponds to this PVF.
-	pub(crate) fn as_artifact_id(&self) -> ArtifactId {
-		ArtifactId::new(self.code_hash)
+	pub(crate) fn as_artifact_id(&self, ee_params_hash: ExecutorParamsHash) -> ArtifactId {
+		ArtifactId::new(self.code_hash, ee_params_hash)
 	}
 }

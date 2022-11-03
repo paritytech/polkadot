@@ -18,6 +18,7 @@ use crate::{error::PrepareError, host::PrepareResultSender};
 use always_assert::always;
 use async_std::path::{Path, PathBuf};
 use polkadot_parachain::primitives::ValidationCodeHash;
+use polkadot_primitives::vstaging::ExecutorParamsHash;
 use std::{
 	collections::HashMap,
 	time::{Duration, SystemTime},
@@ -42,14 +43,15 @@ impl AsRef<[u8]> for CompiledArtifact {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ArtifactId {
 	pub(crate) code_hash: ValidationCodeHash,
+	pub(crate) ee_params_hash: ExecutorParamsHash,
 }
 
 impl ArtifactId {
 	const PREFIX: &'static str = "wasmtime_";
 
 	/// Creates a new artifact ID with the given hash.
-	pub fn new(code_hash: ValidationCodeHash) -> Self {
-		Self { code_hash }
+	pub fn new(code_hash: ValidationCodeHash, ee_params_hash: ExecutorParamsHash) -> Self {
+		Self { code_hash, ee_params_hash }
 	}
 
 	/// Tries to recover the artifact id from the given file name.
@@ -59,14 +61,16 @@ impl ArtifactId {
 		use std::str::FromStr as _;
 
 		let file_name = file_name.strip_prefix(Self::PREFIX)?;
-		let code_hash = Hash::from_str(file_name).ok()?.into();
+		let (code_hash_str, ee_params_hash_str) = file_name.split_once('_')?;
+		let code_hash = Hash::from_str(code_hash_str).ok()?.into();
+		let ee_params_hash = Hash::from_str(ee_params_hash_str).ok()?.into();
 
-		Some(Self { code_hash })
+		Some(Self { code_hash, ee_params_hash })
 	}
 
 	/// Returns the expected path to this artifact given the root of the cache.
 	pub fn path(&self, cache_path: &Path) -> PathBuf {
-		let file_name = format!("{}{:#x}", Self::PREFIX, self.code_hash);
+		let file_name = format!("{}{:#x}_{:#x}", Self::PREFIX, self.code_hash, self.ee_params_hash);
 		cache_path.join(file_name)
 	}
 }
@@ -206,13 +210,17 @@ mod tests {
 
 		assert_eq!(
 			ArtifactId::from_file_name(
-				"wasmtime_0x0022800000000000000000000000000000000000000000000000000000000000"
+				"wasmtime_0x0022800000000000000000000000000000000000000000000000000000000000_0x0033900000000000000000000000000000000000000000000000000000000000"
 			),
 			Some(ArtifactId::new(
 				hex_literal::hex![
 					"0022800000000000000000000000000000000000000000000000000000000000"
 				]
-				.into()
+				.into(),
+				hex_literal::hex![
+					"0033900000000000000000000000000000000000000000000000000000000000"
+				]
+				.into(),
 			)),
 		);
 	}
@@ -222,13 +230,12 @@ mod tests {
 		let path = Path::new("/test");
 		let hash =
 			H256::from_str("1234567890123456789012345678901234567890123456789012345678901234")
-				.unwrap()
-				.into();
+				.unwrap();
 
 		assert_eq!(
-			ArtifactId::new(hash).path(path).to_str(),
+			ArtifactId::new(hash.into(), hash.into()).path(path).to_str(),
 			Some(
-				"/test/wasmtime_0x1234567890123456789012345678901234567890123456789012345678901234"
+				"/test/wasmtime_0x1234567890123456789012345678901234567890123456789012345678901234_0x1234567890123456789012345678901234567890123456789012345678901234"
 			),
 		);
 	}

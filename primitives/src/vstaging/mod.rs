@@ -19,4 +19,4 @@
 // Put any primitives used by staging APIs functions here
 
 pub mod executor_params;
-pub use executor_params::ExecutorParams;
+pub use executor_params::{ExecutorParams, ExecutorParamsHash};
