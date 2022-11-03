@@ -118,8 +118,10 @@ use polkadot_primitives::vstaging::{
 	Constraints as PrimitiveConstraints, Hash, HeadData, Id as ParaId, PersistedValidationData,
 	UpgradeRestriction, ValidationCodeHash,
 };
-use std::borrow::{Borrow, Cow};
-use std::collections::HashMap;
+use std::{
+	borrow::{Borrow, Cow},
+	collections::HashMap,
+};
 
 /// Constraints on inbound HRMP channels.
 #[derive(Debug, Clone, PartialEq)]
@@ -541,10 +543,7 @@ pub struct ProspectiveCandidate<'a> {
 
 impl<'a> ProspectiveCandidate<'a> {
 	fn into_owned(self) -> ProspectiveCandidate<'static> {
-		ProspectiveCandidate {
-			commitments: Cow::Owned(self.commitments.into_owned()),
-			..self
-		}
+		ProspectiveCandidate { commitments: Cow::Owned(self.commitments.into_owned()), ..self }
 	}
 
 	/// Partially clone the prospective candidate, but borrow the
@@ -712,10 +711,7 @@ impl<'a> Fragment<'a> {
 
 	/// Convert the fragment into an owned variant.
 	pub fn into_owned(self) -> Fragment<'static> {
-		Fragment {
-			candidate: self.candidate.into_owned(),
-			..self
-		}
+		Fragment { candidate: self.candidate.into_owned(), ..self }
 	}
 
 	/// Validate this fragment against some set of constraints
@@ -1281,9 +1277,13 @@ mod tests {
 
 		let max_hrmp = constraints.max_hrmp_num_per_candidate;
 
-		candidate.commitments_mut().horizontal_messages.extend((0..max_hrmp + 1).map(|i| {
-			OutboundHrmpMessage { recipient: ParaId::from(i as u32), data: vec![1, 2, 3] }
-		}));
+		candidate
+			.commitments_mut()
+			.horizontal_messages
+			.extend((0..max_hrmp + 1).map(|i| OutboundHrmpMessage {
+				recipient: ParaId::from(i as u32),
+				data: vec![1, 2, 3],
+			}));
 
 		assert_eq!(
 			Fragment::new(relay_parent, constraints, candidate),

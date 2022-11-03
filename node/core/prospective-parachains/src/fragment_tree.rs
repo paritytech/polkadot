@@ -54,10 +54,12 @@
 //! bounded and in practice will not exceed a few thousand at any time. This naive implementation
 //! will still perform fairly well under these conditions, despite being somewhat wasteful of memory.
 
-use std::borrow::Cow;
-use std::collections::{
-	hash_map::{Entry, HashMap},
-	BTreeMap, HashSet,
+use std::{
+	borrow::Cow,
+	collections::{
+		hash_map::{Entry, HashMap},
+		BTreeMap, HashSet,
+	},
 };
 
 use super::LOG_TARGET;
@@ -349,27 +351,18 @@ pub(crate) enum HypotheticalCandidate<'a> {
 impl<'a> HypotheticalCandidate<'a> {
 	fn parent_head_data_hash(&self) -> Hash {
 		match *self {
-			HypotheticalCandidate::Complete {
-				ref persisted_validation_data,
-				..
-			} => persisted_validation_data.parent_head.hash(),
-			HypotheticalCandidate::Incomplete {
-				ref parent_head_data_hash,
-				..
-			} => *parent_head_data_hash,
+			HypotheticalCandidate::Complete { ref persisted_validation_data, .. } =>
+				persisted_validation_data.parent_head.hash(),
+			HypotheticalCandidate::Incomplete { ref parent_head_data_hash, .. } =>
+				*parent_head_data_hash,
 		}
 	}
 
 	fn relay_parent(&self) -> Hash {
 		match *self {
-			HypotheticalCandidate::Complete {
-				ref receipt,
-				..
-			} => receipt.descriptor().relay_parent,
-			HypotheticalCandidate::Incomplete {
-				ref relay_parent,
-				..
-			} => *relay_parent,
+			HypotheticalCandidate::Complete { ref receipt, .. } =>
+				receipt.descriptor().relay_parent,
+			HypotheticalCandidate::Incomplete { ref relay_parent, .. } => *relay_parent,
 		}
 	}
 }
@@ -530,14 +523,13 @@ impl FragmentTree {
 
 		// if out of scope.
 		let candidate_relay_parent = candidate.relay_parent();
-		let candidate_relay_parent =
-			if self.scope.relay_parent.hash == candidate_relay_parent {
-				self.scope.relay_parent.clone()
-			} else if let Some(info) = self.scope.ancestors_by_hash.get(&candidate_relay_parent) {
-				info.clone()
-			} else {
-				return Vec::new()
-			};
+		let candidate_relay_parent = if self.scope.relay_parent.hash == candidate_relay_parent {
+			self.scope.relay_parent.clone()
+		} else if let Some(info) = self.scope.ancestors_by_hash.get(&candidate_relay_parent) {
+			info.clone()
+		} else {
+			return Vec::new()
+		};
 
 		let max_depth = self.scope.max_depth;
 		let mut depths = bitvec![u16, Msb0; 0; max_depth + 1];
@@ -589,7 +581,8 @@ impl FragmentTree {
 				if let HypotheticalCandidate::Complete {
 					ref receipt,
 					ref persisted_validation_data,
-				} = candidate {
+				} = candidate
+				{
 					let prospective_candidate = ProspectiveCandidate {
 						commitments: Cow::Borrowed(&receipt.commitments),
 						collator: receipt.descriptor().collator.clone(),
@@ -603,7 +596,9 @@ impl FragmentTree {
 						candidate_relay_parent.clone(),
 						child_constraints,
 						prospective_candidate,
-					).is_err() {
+					)
+					.is_err()
+					{
 						continue
 					}
 				}
@@ -1500,14 +1495,14 @@ mod tests {
 			vec![0],
 		);
 
-		assert!(
-			tree.hypothetical_depths(
+		assert!(tree
+			.hypothetical_depths(
 				candidate_a_hash,
 				HypotheticalCandidate::Complete {
 					receipt: Cow::Owned(candidate_a),
 					persisted_validation_data: pvd_a,
 				},
-			).is_empty()
-		);
+			)
+			.is_empty());
 	}
 }

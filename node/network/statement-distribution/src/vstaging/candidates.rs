@@ -128,9 +128,7 @@ impl Candidates {
 			}),
 		);
 
-		self.by_parent_hash.entry(parent_hash)
-			.or_default()
-			.insert(candidate_hash);
+		self.by_parent_hash.entry(parent_hash).or_default().insert(candidate_hash);
 
 		match prev_state {
 			None => None,
@@ -179,7 +177,7 @@ impl Candidates {
 	) {
 		let by_parent_hash = &mut self.by_parent_hash;
 		self.candidates.retain(|c_hash, state| match state {
-			CandidateState::Confirmed(ref mut c) => {
+			CandidateState::Confirmed(ref mut c) =>
 				if !relay_parent_live(&c.relay_parent()) {
 					if let Entry::Occupied(mut e) = by_parent_hash.entry(c.parent_hash) {
 						e.get_mut().remove(c_hash);
@@ -193,8 +191,7 @@ impl Candidates {
 						c.importable_under.remove(leaf_hash);
 					}
 					true
-				}
-			}
+				},
 			CandidateState::Unconfirmed(ref mut c) => {
 				c.claims.retain(|c| relay_parent_live(&c.1.relay_parent));
 

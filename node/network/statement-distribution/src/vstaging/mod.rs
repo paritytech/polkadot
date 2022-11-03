@@ -29,7 +29,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeTxMessage},
-	overseer, ActiveLeavesUpdate, ActivatedLeaf, PerLeafSpan, StatementDistributionSenderTrait,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, PerLeafSpan, StatementDistributionSenderTrait,
 };
 use polkadot_node_subsystem_util::backing_implicit_view::{FetchError, View as ImplicitView};
 use polkadot_primitives::vstaging::{
@@ -322,7 +322,6 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 	state: &mut State,
 	update: ActiveLeavesUpdate,
 ) -> JfyiErrorResult<()> {
-
 	if let Some(ref leaf) = update.activated {
 		state
 			.implicit_view
@@ -345,19 +344,23 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 
 		// New leaf: fetch info from runtime API and initialize
 		// `per_relay_parent`.
-		let session_index =
-			polkadot_node_subsystem_util::request_session_index_for_child(*new_relay_parent, ctx.sender())
-				.await
-				.await
-				.map_err(JfyiError::RuntimeApiUnavailable)?
-				.map_err(JfyiError::FetchSessionIndex)?;
+		let session_index = polkadot_node_subsystem_util::request_session_index_for_child(
+			*new_relay_parent,
+			ctx.sender(),
+		)
+		.await
+		.await
+		.map_err(JfyiError::RuntimeApiUnavailable)?
+		.map_err(JfyiError::FetchSessionIndex)?;
 
-		let availability_cores =
-			polkadot_node_subsystem_util::request_availability_cores(*new_relay_parent, ctx.sender())
-				.await
-				.await
-				.map_err(JfyiError::RuntimeApiUnavailable)?
-				.map_err(JfyiError::FetchAvailabilityCores)?;
+		let availability_cores = polkadot_node_subsystem_util::request_availability_cores(
+			*new_relay_parent,
+			ctx.sender(),
+		)
+		.await
+		.await
+		.map_err(JfyiError::RuntimeApiUnavailable)?
+		.map_err(JfyiError::FetchAvailabilityCores)?;
 
 		if !state.per_session.contains_key(&session_index) {
 			let session_info = polkadot_node_subsystem_util::request_session_info(
@@ -470,10 +473,7 @@ fn handle_deactivate_leaves(state: &mut State, leaves: &[Hash]) {
 	state.per_relay_parent.retain(|r, x| relay_parents.contains(r));
 
 	// TODO [now]: clean up requests
-	state.candidates.on_deactivate_leaves(
-		&leaves,
-		|h| relay_parents.contains(h),
-	);
+	state.candidates.on_deactivate_leaves(&leaves, |h| relay_parents.contains(h));
 
 	// clean up sessions based on everything remaining.
 	let sessions: HashSet<_> = state.per_relay_parent.values().map(|r| r.session).collect();

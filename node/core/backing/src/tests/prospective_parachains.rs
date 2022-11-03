@@ -906,21 +906,21 @@ fn second_multiple_candidates_per_relay_parent() {
 
 			// Prospective parachains are notified.
 			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::ProspectiveParachains(
-					ProspectiveParachainsMessage::IntroduceCandidate(
-						req,
-						tx,
-					),
-				) if
-					&req.candidate_receipt == candidate
-					&& req.candidate_para == para_id
-					&& pvd == req.persisted_validation_data
- => {
-					// Any non-empty response will do.
-					tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
-				}
-			);
+						   virtual_overseer.recv().await,
+						   AllMessages::ProspectiveParachains(
+							   ProspectiveParachainsMessage::IntroduceCandidate(
+								   req,
+								   tx,
+							   ),
+						   ) if
+							   &req.candidate_receipt == candidate
+							   && req.candidate_para == para_id
+							   && pvd == req.persisted_validation_data
+			=> {
+							   // Any non-empty response will do.
+							   tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
+						   }
+					   );
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -1446,21 +1446,21 @@ fn seconding_sanity_check_occupy_same_depth() {
 
 			// Prospective parachains are notified.
 			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::ProspectiveParachains(
-					ProspectiveParachainsMessage::IntroduceCandidate(
-						req,
-						tx,
-					),
-				) if
-					&req.candidate_receipt == candidate
-					&& &req.candidate_para == para_id
-					&& pvd == req.persisted_validation_data
- => {
-					// Any non-empty response will do.
-					tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
-				}
-			);
+						   virtual_overseer.recv().await,
+						   AllMessages::ProspectiveParachains(
+							   ProspectiveParachainsMessage::IntroduceCandidate(
+								   req,
+								   tx,
+							   ),
+						   ) if
+							   &req.candidate_receipt == candidate
+							   && &req.candidate_para == para_id
+							   && pvd == req.persisted_validation_data
+			=> {
+							   // Any non-empty response will do.
+							   tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
+						   }
+					   );
 
 			assert_matches!(
 				virtual_overseer.recv().await,

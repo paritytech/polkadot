@@ -482,7 +482,7 @@ fn answer_hypothetical_depths_request(
 				crate::fragment_tree::HypotheticalCandidate::Incomplete {
 					relay_parent: request.candidate_relay_parent,
 					parent_head_data_hash: request.parent_head_data_hash,
-				}
+				},
 			);
 			let _ = tx.send(depths);
 		},

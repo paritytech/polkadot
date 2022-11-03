@@ -266,12 +266,9 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						// TODO [now]: pass to vstaging, but not if the message is
 						// v1 or the connecting peer is v1.
 					},
-					StatementDistributionMessage::Backed {
-						para_id,
-						para_head,
-					} => {
+					StatementDistributionMessage::Backed { para_id, para_head } => {
 						// TODO [now]: pass to vstaging
-					}
+					},
 				},
 		}
 		Ok(false)
