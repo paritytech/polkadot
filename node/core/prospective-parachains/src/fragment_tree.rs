@@ -54,6 +54,7 @@
 //! bounded and in practice will not exceed a few thousand at any time. This naive implementation
 //! will still perform fairly well under these conditions, despite being somewhat wasteful of memory.
 
+use std::borrow::Cow;
 use std::collections::{
 	hash_map::{Entry, HashMap},
 	BTreeMap, HashSet,
@@ -116,7 +117,7 @@ impl CandidateStorage {
 			relay_parent: candidate.descriptor.relay_parent,
 			state: CandidateState::Introduced,
 			candidate: ProspectiveCandidate {
-				commitments: candidate.commitments,
+				commitments: Cow::Owned(candidate.commitments),
 				collator: candidate.descriptor.collator,
 				collator_signature: candidate.descriptor.signature,
 				persisted_validation_data,
@@ -227,7 +228,7 @@ enum CandidateState {
 struct CandidateEntry {
 	candidate_hash: CandidateHash,
 	relay_parent: Hash,
-	candidate: ProspectiveCandidate,
+	candidate: ProspectiveCandidate<'static>,
 	state: CandidateState,
 }
 
@@ -650,11 +651,11 @@ impl FragmentTree {
 						let f = Fragment::new(
 							relay_parent.clone(),
 							child_constraints.clone(),
-							candidate.candidate.clone(),
+							candidate.candidate.partial_clone(),
 						);
 
 						match f {
-							Ok(f) => f,
+							Ok(f) => f.into_owned(),
 							Err(e) => {
 								gum::debug!(
 									target: LOG_TARGET,
@@ -695,7 +696,7 @@ impl FragmentTree {
 struct FragmentNode {
 	// A pointer to the parent node.
 	parent: NodePointer,
-	fragment: Fragment,
+	fragment: Fragment<'static>,
 	candidate_hash: CandidateHash,
 	depth: usize,
 	cumulative_modifications: ConstraintModifications,
