@@ -42,6 +42,7 @@ use std::collections::{
 #[derive(Default)]
 pub struct Candidates {
 	candidates: HashMap<CandidateHash, CandidateState>,
+	by_parent_hash: HashMap<Hash, HashSet<CandidateHash>>,
 }
 
 impl Candidates {
@@ -123,8 +124,13 @@ impl Candidates {
 				persisted_validation_data,
 				assigned_group,
 				parent_hash,
+				importable_under: HashSet::new(),
 			}),
 		);
+
+		self.by_parent_hash.entry(parent_hash)
+			.or_default()
+			.insert(candidate_hash);
 
 		match prev_state {
 			None => None,
@@ -166,9 +172,29 @@ impl Candidates {
 
 	/// Prune all candidates according to the relay-parent predicate
 	/// provided.
-	pub fn collect_garbage(&mut self, relay_parent_live: impl Fn(&Hash) -> bool) {
-		self.candidates.retain(|_, state| match state {
-			CandidateState::Confirmed(ref c) => relay_parent_live(&c.relay_parent()),
+	pub fn on_deactivate_leaves(
+		&mut self,
+		leaves: &[Hash],
+		relay_parent_live: impl Fn(&Hash) -> bool,
+	) {
+		let by_parent_hash = &mut self.by_parent_hash;
+		self.candidates.retain(|c_hash, state| match state {
+			CandidateState::Confirmed(ref mut c) => {
+				if !relay_parent_live(&c.relay_parent()) {
+					if let Entry::Occupied(mut e) = by_parent_hash.entry(c.parent_hash) {
+						e.get_mut().remove(c_hash);
+						if e.get().is_empty() {
+							e.remove();
+						}
+					}
+					false
+				} else {
+					for leaf_hash in leaves {
+						c.importable_under.remove(leaf_hash);
+					}
+					true
+				}
+			}
 			CandidateState::Unconfirmed(ref mut c) => {
 				c.claims.retain(|c| relay_parent_live(&c.1.relay_parent));
 
@@ -240,6 +266,8 @@ pub struct ConfirmedCandidate {
 	persisted_validation_data: PersistedValidationData,
 	assigned_group: GroupIndex,
 	parent_hash: Hash,
+	// active leaves statements about this candidate are importable under.
+	importable_under: HashSet<Hash>,
 }
 
 impl ConfirmedCandidate {
@@ -251,6 +279,14 @@ impl ConfirmedCandidate {
 	/// Get the para-id of the candidate.
 	pub fn para_id(&self) -> ParaId {
 		self.receipt.descriptor().para_id
+	}
+
+	/// Whether the candidate is importable.
+	pub fn is_importable<'a>(&self, under_active_leaf: impl Into<Option<&'a Hash>>) -> bool {
+		match under_active_leaf.into() {
+			Some(h) => self.importable_under.contains(h),
+			None => !self.importable_under.is_empty(),
+		}
 	}
 
 	fn group_index(&self) -> GroupIndex {

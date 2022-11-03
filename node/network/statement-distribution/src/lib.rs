@@ -205,6 +205,8 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 			})) => {
 				let _timer = metrics.time_active_leaves_update();
 
+				// TODO [now]: vstaging should handle activated first
+				// because of implicit view.
 				for deactivated in deactivated {
 					crate::legacy_v1::handle_deactivate_leaf(legacy_v1_state, deactivated);
 				}
@@ -241,13 +243,13 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						// pass to legacy, but not if the message isn't
 						// v1.
 						let legacy = match &event {
-						&NetworkBridgeEvent::PeerMessage(_, ref message) => match message {
-							Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::V1Compatibility(_)) => true,
-							Versioned::V1(_) => true,
-							Versioned::VStaging(_) => false,
-						},
-						_ => true,
-					};
+							&NetworkBridgeEvent::PeerMessage(_, ref message) => match message {
+								Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::V1Compatibility(_)) => true,
+								Versioned::V1(_) => true,
+								Versioned::VStaging(_) => false,
+							},
+							_ => true,
+						};
 
 						if legacy {
 							crate::legacy_v1::handle_network_update(
@@ -264,6 +266,12 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						// TODO [now]: pass to vstaging, but not if the message is
 						// v1 or the connecting peer is v1.
 					},
+					StatementDistributionMessage::Backed {
+						para_id,
+						para_head,
+					} => {
+						// TODO [now]: pass to vstaging
+					}
 				},
 		}
 		Ok(false)

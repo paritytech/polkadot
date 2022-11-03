@@ -29,7 +29,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeTxMessage},
-	overseer, ActivatedLeaf, PerLeafSpan, StatementDistributionSenderTrait,
+	overseer, ActiveLeavesUpdate, ActivatedLeaf, PerLeafSpan, StatementDistributionSenderTrait,
 };
 use polkadot_node_subsystem_util::backing_implicit_view::{FetchError, View as ImplicitView};
 use polkadot_primitives::vstaging::{
@@ -314,35 +314,46 @@ pub(crate) async fn handle_network_update<Context>(
 	}
 }
 
-/// This should only be invoked for leaves that implement prospective parachains.
+/// If there is a new leaf, this should only be called for leaves which support
+/// prospective parachains.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-pub(crate) async fn handle_activated_leaf<Context>(
+pub(crate) async fn handle_active_leaves_update<Context>(
 	ctx: &mut Context,
 	state: &mut State,
-	leaf: ActivatedLeaf,
+	update: ActiveLeavesUpdate,
 ) -> JfyiErrorResult<()> {
-	state
-		.implicit_view
-		.activate_leaf(ctx.sender(), leaf.hash)
-		.await
-		.map_err(JfyiError::ActivateLeafFailure)?;
 
-	for leaf in state.implicit_view.all_allowed_relay_parents() {
-		if state.per_relay_parent.contains_key(leaf) {
+	if let Some(ref leaf) = update.activated {
+		state
+			.implicit_view
+			.activate_leaf(ctx.sender(), leaf.hash)
+			.await
+			.map_err(JfyiError::ActivateLeafFailure)?;
+	}
+
+	handle_deactivate_leaves(state, &update.deactivated[..]);
+
+	if let Some(ref leaf) = update.activated {
+		// TODO [now]: determine which candidates are importable under the given
+		// active leaf
+	}
+
+	for new_relay_parent in state.implicit_view.all_allowed_relay_parents() {
+		if state.per_relay_parent.contains_key(new_relay_parent) {
 			continue
 		}
 
 		// New leaf: fetch info from runtime API and initialize
 		// `per_relay_parent`.
 		let session_index =
-			polkadot_node_subsystem_util::request_session_index_for_child(*leaf, ctx.sender())
+			polkadot_node_subsystem_util::request_session_index_for_child(*new_relay_parent, ctx.sender())
 				.await
 				.await
 				.map_err(JfyiError::RuntimeApiUnavailable)?
 				.map_err(JfyiError::FetchSessionIndex)?;
 
 		let availability_cores =
-			polkadot_node_subsystem_util::request_availability_cores(*leaf, ctx.sender())
+			polkadot_node_subsystem_util::request_availability_cores(*new_relay_parent, ctx.sender())
 				.await
 				.await
 				.map_err(JfyiError::RuntimeApiUnavailable)?
@@ -350,7 +361,7 @@ pub(crate) async fn handle_activated_leaf<Context>(
 
 		if !state.per_session.contains_key(&session_index) {
 			let session_info = polkadot_node_subsystem_util::request_session_info(
-				*leaf,
+				*new_relay_parent,
 				session_index,
 				ctx.sender(),
 			)
@@ -363,7 +374,7 @@ pub(crate) async fn handle_activated_leaf<Context>(
 				None => {
 					gum::warn!(
 						target: LOG_TARGET,
-						relay_parent = ?leaf,
+						relay_parent = ?new_relay_parent,
 						"No session info available for current session"
 					);
 
@@ -392,7 +403,7 @@ pub(crate) async fn handle_activated_leaf<Context>(
 		});
 
 		state.per_relay_parent.insert(
-			*leaf,
+			*new_relay_parent,
 			PerRelayParentState {
 				validator_state: HashMap::new(),
 				local_validator,
@@ -442,9 +453,12 @@ fn find_local_validator_state(
 	})
 }
 
-pub(crate) fn handle_deactivate_leaf(state: &mut State, leaf_hash: Hash) {
+fn handle_deactivate_leaves(state: &mut State, leaves: &[Hash]) {
 	// deactivate the leaf in the implicit view.
-	state.implicit_view.deactivate_leaf(leaf_hash);
+	for leaf in leaves {
+		state.implicit_view.deactivate_leaf(*leaf);
+	}
+
 	let relay_parents = state.implicit_view.all_allowed_relay_parents().collect::<HashSet<_>>();
 
 	// fast exit for no-op.
@@ -456,7 +470,10 @@ pub(crate) fn handle_deactivate_leaf(state: &mut State, leaf_hash: Hash) {
 	state.per_relay_parent.retain(|r, x| relay_parents.contains(r));
 
 	// TODO [now]: clean up requests
-	state.candidates.collect_garbage(|h| relay_parents.contains(h));
+	state.candidates.on_deactivate_leaves(
+		&leaves,
+		|h| relay_parents.contains(h),
+	);
 
 	// clean up sessions based on everything remaining.
 	let sessions: HashSet<_> = state.per_relay_parent.values().map(|r| r.session).collect();
