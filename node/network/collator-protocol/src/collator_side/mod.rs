@@ -789,12 +789,6 @@ async fn process_msg<Context>(
 				},
 			}
 		},
-		ReportCollator(_) => {
-			gum::warn!(
-				target: LOG_TARGET,
-				"ReportCollator message is not expected on the collator side of the protocol",
-			);
-		},
 		NetworkBridgeUpdate(event) => {
 			// We should count only this shoulder in the histogram, as other shoulders are just introducing noise
 			let _ = state.metrics.time_process_msg();
@@ -807,7 +801,13 @@ async fn process_msg<Context>(
 				);
 			}
 		},
-		_ => {},
+		msg @ (ReportCollator(..) | Invalid(..) | Seconded(..) | Backed { .. }) => {
+			gum::warn!(
+				target: LOG_TARGET,
+				"{:?} message is not expected on the collator side of the protocol",
+				msg,
+			);
+		},
 	}
 
 	Ok(())

@@ -112,6 +112,21 @@ impl PendingCollation {
 	}
 }
 
+/// vstaging advertisement that was rejected by the backing
+/// subsystem. Validator may fetch it later if its fragment
+/// membership gets recognized before relay parent goes out of view.
+#[derive(Debug, Clone)]
+pub struct BlockedAdvertisement {
+	/// Peer that advertised the collation.
+	pub peer_id: PeerId,
+	/// Collator id.
+	pub collator_id: CollatorId,
+	/// The relay-parent of the candidate.
+	pub candidate_relay_parent: Hash,
+	/// Hash of the candidate.
+	pub candidate_hash: CandidateHash,
+}
+
 /// Performs a sanity check between advertised and fetched collations.
 ///
 /// Since the persisted validation data is constructed using the advertised
