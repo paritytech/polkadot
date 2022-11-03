@@ -480,8 +480,10 @@ fn answer_hypothetical_depths_request(
 		Some(fragment_tree) => {
 			let depths = fragment_tree.hypothetical_depths(
 				request.candidate_hash,
-				request.parent_head_data_hash,
-				request.candidate_relay_parent,
+				crate::fragment_tree::HypotheticalCandidate::Incomplete {
+					relay_parent: request.candidate_relay_parent,
+					parent_head_data_hash: request.parent_head_data_hash,
+				}
 			);
 			let _ = tx.send(depths);
 		},
