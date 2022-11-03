@@ -28,8 +28,8 @@ use derivative::Derivative;
 use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{BadOrigin, Saturating, MaybeDisplay},
-	RuntimeDebug
+	traits::{BadOrigin, MaybeDisplay, Saturating},
+	RuntimeDebug,
 };
 use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
 use xcm::{latest::Weight as XcmWeight, prelude::*};
