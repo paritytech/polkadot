@@ -22,7 +22,7 @@ assert_cmd = "2.0.4"
 nix = "0.24.1"
 tempfile = "3.2.0"
 tokio = "1.19.2"
-remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.30" }
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-jsonrpsee-v0.9.30" }
 polkadot-core-primitives = { path = "core-primitives" }
 
 [workspace]
@@ -232,3 +232,6 @@ polkadot = { path = "/usr/bin/polkadot" }
 
 [package.metadata.spellcheck]
 config = "./scripts/ci/gitlab/spellcheck.toml"
+
+[patch.crates-io]
+jsonrpsee = { git = "https://github.com/paritytech/jsonrpsee", branch = "master" }
