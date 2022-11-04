@@ -11,6 +11,7 @@ polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-primitives = { path = "../../../primitives" }
 rand = "0.8"
+fatality = "0.0.6"
 
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }

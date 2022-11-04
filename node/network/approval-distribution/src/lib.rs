@@ -20,7 +20,19 @@
 
 #![warn(missing_docs)]
 
-use futures::{channel::oneshot, FutureExt as _};
+use futures::{
+	channel::oneshot,
+	pin_mut,
+	stream::{FuturesUnordered, StreamExt},
+	Future, FutureExt as _,
+};
+use std::{
+	pin::Pin,
+	task::{Context, Poll},
+};
+
+use error::{JfyiError, JfyiResult};
+
 use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{RandomRouting, RequiredRouting, SessionGridTopologies, SessionGridTopology},
@@ -44,6 +56,7 @@ use std::collections::{hash_map, BTreeMap, HashMap, HashSet, VecDeque};
 
 use self::metrics::Metrics;
 
+mod error;
 mod metrics;
 
 #[cfg(test)]
@@ -179,6 +192,84 @@ struct State {
 
 	/// Config for aggression.
 	aggression_config: AggressionConfig,
+
+	/// Pending approval assignment checks.
+	pending_assignment_checks: FuturesUnordered<PendingAssignmentCheck>,
+
+	/// Pending approval vote checks.
+	pending_vote_checks: FuturesUnordered<PendingVoteCheck>,
+}
+
+// source: MessageSource,
+// assignment: IndirectAssignmentCert,
+// claimed_candidate_index: CandidateIndex,
+
+/// A `PendingAssignmentCheck` becomes an `PendingAssignmentCheckResult` once done.
+struct PendingAssignmentCheck {
+	pub peer_id: Option<PeerId>,
+	pub assignment: IndirectAssignmentCert,
+	pub claimed_candidate_index: CandidateIndex,
+	pub response: oneshot::Receiver<AssignmentCheckResult>,
+}
+
+struct PendingAssignmentCheckResult {
+	pub peer_id: Option<PeerId>,
+	pub assignment: IndirectAssignmentCert,
+	pub claimed_candidate_index: CandidateIndex,
+	pub result: Option<AssignmentCheckResult>,
+}
+
+impl PendingAssignmentCheck {
+	async fn wait_for_result(&mut self) -> JfyiResult<PendingAssignmentCheckResult> {
+		let result = (&mut self.response).await.map_err(|_| JfyiError::PendingCheckCanceled)?;
+		Ok(PendingAssignmentCheckResult {
+			peer_id: self.peer_id.clone(),
+			assignment: self.assignment.clone(),
+			claimed_candidate_index: self.claimed_candidate_index,
+			result: Some(result),
+		})
+	}
+}
+
+impl Future for PendingAssignmentCheck {
+	type Output = JfyiResult<PendingAssignmentCheckResult>;
+	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+		let fut = self.wait_for_result();
+		pin_mut!(fut);
+		fut.poll(cx)
+	}
+}
+/// A `PendingVoteCheck` becomes an `PendingVoteCheckResult` once done.
+struct PendingVoteCheck {
+	pub response: oneshot::Receiver<ApprovalCheckResult>,
+	pub peer_id: Option<PeerId>,
+	pub vote: IndirectSignedApprovalVote,
+}
+
+struct PendingVoteCheckResult {
+	pub peer_id: Option<PeerId>,
+	pub vote: IndirectSignedApprovalVote,
+	pub result: Option<ApprovalCheckResult>,
+}
+
+impl PendingVoteCheck {
+	async fn wait_for_result(&mut self) -> JfyiResult<PendingVoteCheckResult> {
+		let result = (&mut self.response).await.map_err(|_| JfyiError::PendingCheckCanceled)?;
+		Ok(PendingVoteCheckResult {
+			peer_id: self.peer_id.clone(),
+			vote: self.vote.clone(),
+			result: Some(result),
+		})
+	}
+}
+
+impl Future for PendingVoteCheck {
+	type Output = JfyiResult<PendingVoteCheckResult>;
+	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+		let fut = self.wait_for_result();
+		pin_mut!(fut);
+		fut.poll(cx)
+	}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -784,70 +875,30 @@ impl State {
 			))
 			.await;
 
-			let timer = metrics.time_awaiting_approval_voting();
-			let result = match rx.await {
-				Ok(result) => result,
-				Err(_) => {
-					gum::debug!(target: LOG_TARGET, "The approval voting subsystem is down");
-					return
-				},
-			};
-			drop(timer);
+			self.pending_assignment_checks.push(PendingAssignmentCheck {
+				assignment: assignment.clone(),
+				claimed_candidate_index,
+				peer_id: Some(peer_id.clone()),
+				response: rx,
+			});
 
-			gum::trace!(
-				target: LOG_TARGET,
-				?source,
-				?message_subject,
-				?result,
-				"Checked assignment",
-			);
-			match result {
-				AssignmentCheckResult::Accepted => {
-					modify_reputation(ctx.sender(), peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST)
-						.await;
-					entry.knowledge.known_messages.insert(message_subject.clone(), message_kind);
-					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-						peer_knowledge.received.insert(message_subject.clone(), message_kind);
-					}
-				},
-				AssignmentCheckResult::AcceptedDuplicate => {
-					// "duplicate" assignments aren't necessarily equal.
-					// There is more than one way each validator can be assigned to each core.
-					// cf. https://github.com/paritytech/polkadot/pull/2160#discussion_r557628699
-					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-						peer_knowledge.received.insert(message_subject.clone(), message_kind);
-					}
-					gum::debug!(
-						target: LOG_TARGET,
-						hash = ?block_hash,
-						?peer_id,
-						"Got an `AcceptedDuplicate` assignment",
-					);
-					return
-				},
-				AssignmentCheckResult::TooFarInFuture => {
-					gum::debug!(
-						target: LOG_TARGET,
-						hash = ?block_hash,
-						?peer_id,
-						"Got an assignment too far in the future",
-					);
-					modify_reputation(ctx.sender(), peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE)
-						.await;
-					return
-				},
-				AssignmentCheckResult::Bad(error) => {
-					gum::info!(
-						target: LOG_TARGET,
-						hash = ?block_hash,
-						?peer_id,
-						%error,
-						"Got a bad assignment from peer",
-					);
-					modify_reputation(ctx.sender(), peer_id, COST_INVALID_MESSAGE).await;
-					return
-				},
-			}
+		// let timer = metrics.time_awaiting_approval_voting();
+		// let result = match rx.await {
+		// 	Ok(result) => result,
+		// 	Err(_) => {
+		// 		gum::debug!(target: LOG_TARGET, "The approval voting subsystem is down");
+		// 		return
+		// 	},
+		// };
+		// drop(timer);
+
+		// gum::trace!(
+		// 	target: LOG_TARGET,
+		// 	?source,
+		// 	?message_subject,
+		// 	?result,
+		// 	"Checked assignment",
+		// );
 		} else {
 			if !entry.knowledge.insert(message_subject.clone(), message_kind) {
 				// if we already imported an assignment, there is no need to distribute it again
@@ -864,13 +915,102 @@ impl State {
 					"Importing locally a new assignment",
 				);
 			}
+
+			self.pending_assignment_check_completion(
+				ctx,
+				PendingAssignmentCheckResult {
+					peer_id: source.peer_id(),
+					assignment,
+					claimed_candidate_index,
+					result: None,
+				},
+				metrics,
+				rng,
+			)
+			.await;
+		}
+	}
+
+	async fn pending_assignment_check_completion<Context, R>(
+		&mut self,
+		ctx: &mut Context,
+		result: PendingAssignmentCheckResult,
+		metrics: &Metrics,
+		rng: &mut R,
+	) where
+		R: CryptoRng + Rng,
+	{
+		let peer_id = result.peer_id;
+		let block_hash = result.assignment.block_hash;
+		let validator_index = result.assignment.validator;
+		let claimed_candidate_index = result.claimed_candidate_index;
+		let assignment = result.assignment;
+
+		// compute metadata on the assignment.
+		let message_subject = MessageSubject(block_hash, claimed_candidate_index, validator_index);
+		let message_kind = MessageKind::Assignment;
+
+		let entry = self
+			.blocks
+			.get_mut(&block_hash)
+			.expect("completion routine is executed only if block exists; qed");
+
+		if let Some(peer_id) = result.peer_id {
+			match result.result {
+				Some(AssignmentCheckResult::Accepted) => {
+					modify_reputation(ctx.sender(), peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST)
+						.await;
+					entry.knowledge.known_messages.insert(message_subject.clone(), message_kind);
+					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+						peer_knowledge.received.insert(message_subject.clone(), message_kind);
+					}
+				},
+				Some(AssignmentCheckResult::AcceptedDuplicate) => {
+					// "duplicate" assignments aren't necessarily equal.
+					// There is more than one way each validator can be assigned to each core.
+					// cf. https://github.com/paritytech/polkadot/pull/2160#discussion_r557628699
+					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+						peer_knowledge.received.insert(message_subject.clone(), message_kind);
+					}
+					gum::debug!(
+						target: LOG_TARGET,
+						hash = ?block_hash,
+						?peer_id,
+						"Got an `AcceptedDuplicate` assignment",
+					);
+					return
+				},
+				Some(AssignmentCheckResult::TooFarInFuture) => {
+					gum::debug!(
+						target: LOG_TARGET,
+						hash = ?block_hash,
+						?peer_id,
+						"Got an assignment too far in the future",
+					);
+					modify_reputation(ctx.sender(), peer_id, COST_ASSIGNMENT_TOO_FAR_IN_THE_FUTURE)
+						.await;
+					return
+				},
+				Some(AssignmentCheckResult::Bad(error)) => {
+					gum::info!(
+						target: LOG_TARGET,
+						hash = ?block_hash,
+						?peer_id,
+						%error,
+						"Got a bad assignment from peer",
+					);
+					modify_reputation(ctx.sender(), peer_id, COST_INVALID_MESSAGE).await;
+					return
+				},
+				None => {},
+			}
 		}
 
 		// Invariant: to our knowledge, none of the peers except for the `source` know about the assignment.
 		metrics.on_assignment_imported();
 
 		let topology = self.topologies.get_topology(entry.session);
-		let local = source == MessageSource::Local;
+		let local = result.peer_id.is_none();
 
 		let required_routing = topology.map_or(RequiredRouting::PendingTopology, |t| {
 			t.local_grid_neighbors().required_routing_by_index(validator_index, local)
@@ -907,7 +1047,7 @@ impl State {
 
 		let assignments = vec![(assignment, claimed_candidate_index)];
 		let n_peers_total = self.peer_views.len();
-		let source_peer = source.peer_id();
+		let source_peer = result.peer_id.clone();
 
 		let mut peer_filter = move |peer| {
 			if Some(peer) == source_peer.as_ref() {
@@ -948,7 +1088,7 @@ impl State {
 				target: LOG_TARGET,
 				?block_hash,
 				?claimed_candidate_index,
-				local = source.peer_id().is_none(),
+				local = result.peer_id.is_none(),
 				num_peers = peers.len(),
 				"Sending an assignment to peers",
 			);
@@ -1046,44 +1186,29 @@ impl State {
 			ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(vote.clone(), tx))
 				.await;
 
-			let timer = metrics.time_awaiting_approval_voting();
-			let result = match rx.await {
-				Ok(result) => result,
-				Err(_) => {
-					gum::debug!(target: LOG_TARGET, "The approval voting subsystem is down");
-					return
-				},
-			};
-			drop(timer);
+			// let timer = metrics.time_awaiting_approval_voting();
+			// let result = match rx.await {
+			// 	Ok(result) => result,
+			// 	Err(_) => {
+			// 		gum::debug!(target: LOG_TARGET, "The approval voting subsystem is down");
+			// 		return
+			// 	},
+			// };
+			// drop(timer);
 
-			gum::trace!(
-				target: LOG_TARGET,
-				?peer_id,
-				?message_subject,
-				?result,
-				"Checked approval",
-			);
-			match result {
-				ApprovalCheckResult::Accepted => {
-					modify_reputation(ctx.sender(), peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST)
-						.await;
+			// gum::trace!(
+			// 	target: LOG_TARGET,
+			// 	?peer_id,
+			// 	?message_subject,
+			// 	?result,
+			// 	"Checked approval",
+			// );
 
-					entry.knowledge.insert(message_subject.clone(), message_kind);
-					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-						peer_knowledge.received.insert(message_subject.clone(), message_kind);
-					}
-				},
-				ApprovalCheckResult::Bad(error) => {
-					modify_reputation(ctx.sender(), peer_id, COST_INVALID_MESSAGE).await;
-					gum::info!(
-						target: LOG_TARGET,
-						?peer_id,
-						%error,
-						"Got a bad approval from peer",
-					);
-					return
-				},
-			}
+			self.pending_vote_checks.push(PendingVoteCheck {
+				response: rx,
+				peer_id: Some(peer_id.clone()),
+				vote: vote.clone(),
+			});
 		} else {
 			if !entry.knowledge.insert(message_subject.clone(), message_kind) {
 				// if we already imported an approval, there is no need to distribute it again
@@ -1100,10 +1225,59 @@ impl State {
 					"Importing locally a new approval",
 				);
 			}
+			self.pending_vote_check_completion(
+				ctx,
+				PendingVoteCheckResult { peer_id: None, vote, result: None },
+				metrics,
+			)
+			.await;
 		}
+	}
 
-		// Invariant: to our knowledge, none of the peers except for the `source` know about the approval.
+	// Bottom half of approval vote processing.
+	async fn pending_vote_check_completion<Context>(
+		&mut self,
+		ctx: &mut Context,
+		result: PendingVoteCheckResult,
+		metrics: &Metrics,
+	) {
+		let peer_id = result.peer_id;
+		let block_hash = result.vote.block_hash.clone();
+		let validator_index = result.vote.validator;
+		let candidate_index = result.vote.candidate_index;
+		let message_subject = MessageSubject(block_hash, candidate_index, validator_index);
+		let message_kind = MessageKind::Approval;
+
+		let entry = self
+			.blocks
+			.get_mut(&block_hash)
+			.expect("completion routine is executed only if block exists; qed");
 		metrics.on_approval_imported();
+
+		if let Some(peer_id) = peer_id {
+			match result.result {
+				Some(ApprovalCheckResult::Accepted) => {
+					modify_reputation(ctx.sender(), peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST)
+						.await;
+
+					entry.knowledge.insert(message_subject.clone(), message_kind);
+					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
+						peer_knowledge.received.insert(message_subject.clone(), message_kind);
+					}
+				},
+				Some(ApprovalCheckResult::Bad(error)) => {
+					modify_reputation(ctx.sender(), peer_id, COST_INVALID_MESSAGE).await;
+					gum::info!(
+						target: LOG_TARGET,
+						?peer_id,
+						%error,
+						"Got a bad approval from peer",
+					);
+					return
+				},
+				None => {},
+			}
+		}
 
 		let required_routing = match entry.candidates.get_mut(candidate_index as usize) {
 			Some(candidate_entry) => {
@@ -1121,7 +1295,7 @@ impl State {
 							MessageState {
 								approval_state: ApprovalState::Approved(
 									cert,
-									vote.signature.clone(),
+									result.vote.signature.clone(),
 								),
 								required_routing,
 								local,
@@ -1167,7 +1341,7 @@ impl State {
 		// to all peers required by the topology, with the exception of the source peer.
 
 		let topology = self.topologies.get_topology(entry.session);
-		let source_peer = source.peer_id();
+		let source_peer = peer_id;
 
 		let message_subject = &message_subject;
 		let peer_filter = move |peer, knowledge: &PeerKnowledge| {
@@ -1206,12 +1380,12 @@ impl State {
 		}
 
 		if !peers.is_empty() {
-			let approvals = vec![vote];
+			let approvals = vec![result.vote];
 			gum::trace!(
 				target: LOG_TARGET,
 				?block_hash,
 				?candidate_index,
-				local = source.peer_id().is_none(),
+				local = peer_id.is_none(),
 				num_peers = peers.len(),
 				"Sending an approval to peers",
 			);
@@ -1671,29 +1845,50 @@ impl ApprovalDistribution {
 		rng: &mut (impl CryptoRng + Rng),
 	) {
 		loop {
-			let message = match ctx.recv().await {
-				Ok(message) => message,
-				Err(e) => {
-					gum::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
-					return
+			futures::select_biased! {
+				maybe_assignment_check_result = state.pending_assignment_checks.select_next_some() => {
+					match maybe_assignment_check_result {
+						Ok(assignment_check_result) => {
+							state.pending_assignment_check_completion(&mut ctx, assignment_check_result, &self.metrics, rng).await;
+						},
+						Err(_) => {}
+					}
 				},
-			};
-			match message {
-				FromOrchestra::Communication { msg } =>
-					Self::handle_incoming(&mut ctx, state, msg, &self.metrics, rng).await,
-				FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					..
-				})) => {
-					gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
-					// the relay chain blocks relevant to the approval subsystems
-					// are those that are available, but not finalized yet
-					// actived and deactivated heads hence are irrelevant to this subsystem
+				maybe_approval_check_result = state.pending_vote_checks.select_next_some() => {
+					match maybe_approval_check_result {
+						Ok(approval_check_result) => {
+							state.pending_vote_check_completion(&mut ctx, approval_check_result, &self.metrics).await;
+						},
+						Err(_) => {}
+					}
 				},
-				FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
-					gum::trace!(target: LOG_TARGET, number = %number, "finalized signal");
-					state.handle_block_finalized(&mut ctx, &self.metrics, number).await;
+				message = ctx.recv().fuse() => {
+					let message = match message {
+						Ok(message) => message,
+						Err(e) => {
+							gum::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
+							return
+						},
+					};
+					match message {
+						FromOrchestra::Communication { msg } =>
+							Self::handle_incoming(&mut ctx, state, msg, &self.metrics, rng).await,
+						FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+							..
+						})) => {
+							gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
+							// the relay chain blocks relevant to the approval subsystems
+							// are those that are available, but not finalized yet
+							// actived and deactivated heads hence are irrelevant to this subsystem
+						},
+						FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
+							gum::trace!(target: LOG_TARGET, number = %number, "finalized signal");
+							state.handle_block_finalized(&mut ctx, &self.metrics, number).await;
+						},
+						FromOrchestra::Signal(OverseerSignal::Conclude) => return,
+					}
 				},
-				FromOrchestra::Signal(OverseerSignal::Conclude) => return,
+
 			}
 		}
 	}
