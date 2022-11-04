@@ -15,8 +15,8 @@ on:
 
 
 env:
-  tag: '0.0.2'
-  release_name: 'Fix periods time'
+  tag: '0.0.3'
+  release_name: 'Rebase from version 9291'
 
 jobs:
   create-release:
