@@ -42,7 +42,7 @@ use std::collections::{
 #[derive(Default)]
 pub struct Candidates {
 	candidates: HashMap<CandidateHash, CandidateState>,
-	by_parent_hash: HashMap<Hash, HashSet<CandidateHash>>,
+	by_parent: HashMap<(Hash, ParaId), HashSet<CandidateHash>>,
 }
 
 impl Candidates {
@@ -65,10 +65,14 @@ impl Candidates {
 		candidate_hash: CandidateHash,
 		claimed_relay_parent: Hash,
 		claimed_group_index: GroupIndex,
-		claimed_parent_hash: Option<Hash>,
+		claimed_parent_hash_and_id: Option<(Hash, ParaId)>,
 	) -> Result<(), BadAdvertisement> {
 		let entry = self.candidates.entry(candidate_hash).or_insert_with(|| {
-			CandidateState::Unconfirmed(UnconfirmedCandidate { claims: Vec::new() })
+			CandidateState::Unconfirmed(UnconfirmedCandidate {
+				claims: Vec::new(),
+				parent_claims: HashMap::new(),
+				unconfirmed_importable_under: HashSet::new(),
+			})
 		});
 
 		match entry {
@@ -81,8 +85,12 @@ impl Candidates {
 					return Err(BadAdvertisement)
 				}
 
-				if let Some(claimed_parent_hash) = claimed_parent_hash {
+				if let Some((claimed_parent_hash, claimed_id)) = claimed_parent_hash_and_id {
 					if c.parent_hash() != claimed_parent_hash {
+						return Err(BadAdvertisement)
+					}
+
+					if c.para_id() != claimed_id {
 						return Err(BadAdvertisement)
 					}
 				}
@@ -93,9 +101,13 @@ impl Candidates {
 					CandidateClaims {
 						relay_parent: claimed_relay_parent,
 						group_index: claimed_group_index,
-						parent_hash: claimed_parent_hash,
+						parent_hash_and_id: claimed_parent_hash_and_id,
 					},
 				);
+
+				if let Some(parent_claims) = claimed_parent_hash_and_id {
+					self.by_parent.entry(parent_claims).or_default().insert(candidate_hash);
+				}
 			},
 		}
 
@@ -116,6 +128,7 @@ impl Candidates {
 	) -> Option<PostConfirmationReckoning> {
 		let parent_hash = persisted_validation_data.parent_head.hash();
 		let relay_parent = candidate_receipt.descriptor().relay_parent;
+		let para_id = candidate_receipt.descriptor().para_id;
 
 		let prev_state = self.candidates.insert(
 			candidate_hash,
@@ -128,7 +141,7 @@ impl Candidates {
 			}),
 		);
 
-		self.by_parent_hash.entry(parent_hash).or_default().insert(candidate_hash);
+		self.by_parent.entry((parent_hash, para_id)).or_default().insert(candidate_hash);
 
 		match prev_state {
 			None => None,
@@ -140,7 +153,22 @@ impl Candidates {
 				};
 
 				for (peer, claims) in u.claims {
-					if claims.check(relay_parent, assigned_group, parent_hash) {
+					// Update the by-parent-hash index not to store any outdated
+					// claims.
+					if let Some((claimed_parent_hash, claimed_id)) = claims.parent_hash_and_id {
+						if claimed_parent_hash != parent_hash || claimed_id != para_id {
+							if let Entry::Occupied(mut e) =
+								self.by_parent.entry((claimed_parent_hash, claimed_id))
+							{
+								e.get_mut().remove(&candidate_hash);
+								if e.get().is_empty() {
+									e.remove();
+								}
+							}
+						}
+					}
+
+					if claims.check(relay_parent, assigned_group, parent_hash, para_id) {
 						reckoning.correct.insert(peer);
 					} else {
 						reckoning.incorrect.insert(peer);
@@ -175,16 +203,19 @@ impl Candidates {
 		leaves: &[Hash],
 		relay_parent_live: impl Fn(&Hash) -> bool,
 	) {
-		let by_parent_hash = &mut self.by_parent_hash;
+		let by_parent = &mut self.by_parent;
+		let mut remove_parent_claims = |c_hash, parent_hash, id| {
+			if let Entry::Occupied(mut e) = by_parent.entry((parent_hash, id)) {
+				e.get_mut().remove(&c_hash);
+				if e.get().is_empty() {
+					e.remove();
+				}
+			}
+		};
 		self.candidates.retain(|c_hash, state| match state {
 			CandidateState::Confirmed(ref mut c) =>
 				if !relay_parent_live(&c.relay_parent()) {
-					if let Entry::Occupied(mut e) = by_parent_hash.entry(c.parent_hash) {
-						e.get_mut().remove(c_hash);
-						if e.get().is_empty() {
-							e.remove();
-						}
-					}
+					remove_parent_claims(*c_hash, c.parent_hash(), c.para_id());
 					false
 				} else {
 					for leaf_hash in leaves {
@@ -193,9 +224,12 @@ impl Candidates {
 					true
 				},
 			CandidateState::Unconfirmed(ref mut c) => {
-				c.claims.retain(|c| relay_parent_live(&c.1.relay_parent));
-
-				!c.claims.is_empty()
+				c.on_deactivate_leaves(
+					leaves,
+					|parent_hash, id| remove_parent_claims(*c_hash, parent_hash, id),
+					&relay_parent_live,
+				);
+				c.has_claims()
 			},
 		})
 	}
@@ -226,17 +260,31 @@ struct CandidateClaims {
 	relay_parent: Hash,
 	/// The group index assigned to this candidate.
 	group_index: GroupIndex,
-	/// The hash of the parent head-data. This is optional,
+	/// The hash of the parent head-data and the ParaId. This is optional,
 	/// as only some types of advertisements include this data.
-	parent_hash: Option<Hash>,
+	parent_hash_and_id: Option<(Hash, ParaId)>,
 }
 
 impl CandidateClaims {
-	fn check(&self, relay_parent: Hash, group_index: GroupIndex, parent_hash: Hash) -> bool {
+	fn check(
+		&self,
+		relay_parent: Hash,
+		group_index: GroupIndex,
+		parent_hash: Hash,
+		para_id: ParaId,
+	) -> bool {
 		self.relay_parent == relay_parent &&
 			self.group_index == group_index &&
-			self.parent_hash.map_or(true, |p| p == parent_hash)
+			self.parent_hash_and_id.map_or(true, |p| p == (parent_hash, para_id))
 	}
+}
+
+// properties of an unconfirmed but hypothetically importable candidate.
+#[derive(Hash, PartialEq, Eq)]
+struct UnconfirmedImportable {
+	relay_parent: Hash,
+	parent_hash: Hash,
+	para_id: ParaId,
 }
 
 // An unconfirmed candidate may have have been advertised under
@@ -244,6 +292,9 @@ impl CandidateClaims {
 // the peers which advertised each candidate in a specific way.
 struct UnconfirmedCandidate {
 	claims: Vec<(PeerId, CandidateClaims)>,
+	// ref-counted
+	parent_claims: HashMap<(Hash, ParaId), usize>,
+	unconfirmed_importable_under: HashSet<(Hash, UnconfirmedImportable)>,
 }
 
 impl UnconfirmedCandidate {
@@ -253,7 +304,50 @@ impl UnconfirmedCandidate {
 		// each peer will be able to announce the same candidate about 1 time per live relay-parent,
 		// but in doing so it limits the amount of other candidates it can advertise. on balance,
 		// memory consumption is bounded in the same way.
+		if let Some(parent_claims) = claims.parent_hash_and_id {
+			*self.parent_claims.entry(parent_claims).or_default() += 1;
+		}
 		self.claims.push((peer, claims));
+	}
+
+	fn note_maybe_importable_under(
+		&mut self,
+		active_leaf: Hash,
+		unconfirmed_importable: UnconfirmedImportable,
+	) {
+		self.unconfirmed_importable_under.insert((active_leaf, unconfirmed_importable));
+	}
+
+	fn on_deactivate_leaves(
+		&mut self,
+		leaves: &[Hash],
+		mut remove_parent_index: impl FnMut(Hash, ParaId),
+		relay_parent_live: impl Fn(&Hash) -> bool,
+	) {
+		self.claims.retain(|c| {
+			if relay_parent_live(&c.1.relay_parent) {
+				true
+			} else {
+				if let Some(parent_claims) = c.1.parent_hash_and_id {
+					if let Entry::Occupied(mut e) = self.parent_claims.entry(parent_claims) {
+						*e.get_mut() -= 1;
+						if *e.get() == 0 {
+							remove_parent_index(parent_claims.0, parent_claims.1);
+							e.remove();
+						}
+					}
+				}
+
+				false
+			}
+		});
+
+		self.unconfirmed_importable_under
+			.retain(|(l, props)| leaves.contains(l) && relay_parent_live(&props.relay_parent));
+	}
+
+	fn has_claims(&self) -> bool {
+		!self.claims.is_empty()
 	}
 }
 
@@ -293,4 +387,17 @@ impl ConfirmedCandidate {
 	fn parent_hash(&self) -> Hash {
 		self.parent_hash
 	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	// TODO [now]: test that inserting unconfirmed rejects if claims are
+	// incomptable.
+
+	// TODO [now]: test that confirming correctly maintains the parent hash index
+
+	// TODO [now]: test that pruning unconfirmed claims correctly maintains the parent hash
+	// index
 }
