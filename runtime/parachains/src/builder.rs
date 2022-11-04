@@ -16,6 +16,7 @@
 
 use crate::{
 	configuration, inclusion, initializer, paras,
+	paras::ParaKind,
 	paras_inherent::{self},
 	scheduler, session_info, shared,
 };
@@ -25,9 +26,10 @@ use primitives::v2::{
 	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
 	CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
 	CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
-	HeadData, Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
-	PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
-	ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation,
+	HeadData, Id as ParaId, IndexedVec, InherentData as ParachainsInherentData,
+	InvalidDisputeStatementKind, PersistedValidationData, SessionIndex, SigningContext,
+	UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex,
+	ValidityAttestation,
 };
 use sp_core::{sr25519, H256};
 use sp_runtime::{
@@ -65,7 +67,7 @@ fn byte32_slice_from(n: u32) -> [u8; 32] {
 /// Paras inherent `enter` benchmark scenario builder.
 pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 	/// Active validators. Validators should be declared prior to all other setup.
-	validators: Option<Vec<ValidatorId>>,
+	validators: Option<IndexedVec<ValidatorIndex, ValidatorId>>,
 	/// Starting block number; we expect it to get incremented on session setup.
 	block_number: T::BlockNumber,
 	/// Starting session; we expect it to get incremented on session setup.
@@ -344,7 +346,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				paras::ParaGenesisArgs {
 					genesis_head: Self::mock_head_data(),
 					validation_code: mock_validation_code(),
-					parachain: true,
+					para_kind: ParaKind::Parachain,
 				},
 			)
 			.unwrap();
@@ -410,7 +412,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		assert_eq!(<shared::Pallet<T>>::session_index(), target_session);
 
 		// We need to refetch validators since they have been shuffled.
-		let validators_shuffled: Vec<_> = session_info::Pallet::<T>::session_info(target_session)
+		let validators_shuffled = session_info::Pallet::<T>::session_info(target_session)
 			.unwrap()
 			.validators
 			.clone();
@@ -549,7 +551,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					.iter()
 					.take(*num_votes as usize)
 					.map(|val_idx| {
-						let public = validators.get(val_idx.0 as usize).unwrap();
+						let public = validators.get(*val_idx).unwrap();
 						let sig = UncheckedSigned::<CompactStatement>::benchmark_sign(
 							public,
 							CompactStatement::Valid(candidate_hash.clone()),
@@ -606,7 +608,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					self.dispute_statements.get(&seed).cloned().unwrap_or(validators.len() as u32);
 				let statements = (0..statements_len)
 					.map(|validator_index| {
-						let validator_public = &validators.get(validator_index as usize).expect("Test case is not borked. `ValidatorIndex` out of bounds of `ValidatorId`s.");
+						let validator_public = &validators.get(ValidatorIndex::from(validator_index)).expect("Test case is not borked. `ValidatorIndex` out of bounds of `ValidatorId`s.");
 
 						// We need dispute statements on each side. And we don't want a revert log
 						// so we make sure that we have a super majority with valid statements.

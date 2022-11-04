@@ -27,6 +27,7 @@ use sp_consensus::SyncOracle;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
+	grid_topology::{SessionGridTopology, TopologyPeerInfo},
 	peer_set::{
 		CollationVersion, PeerSet, PeerSetProtocolNames, PerPeerSet, ProtocolVersion,
 		ValidationVersion,
@@ -37,10 +38,9 @@ use polkadot_node_network_protocol::{
 use polkadot_node_subsystem::{
 	errors::SubsystemError,
 	messages::{
-		network_bridge_event::{NewGossipTopology, TopologyPeerInfo},
-		ApprovalDistributionMessage, BitfieldDistributionMessage, CollatorProtocolMessage,
-		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeRxMessage,
-		StatementDistributionMessage,
+		network_bridge_event::NewGossipTopology, ApprovalDistributionMessage,
+		BitfieldDistributionMessage, CollatorProtocolMessage, GossipSupportMessage,
+		NetworkBridgeEvent, NetworkBridgeRxMessage, StatementDistributionMessage,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
 };
@@ -127,28 +127,6 @@ where
 			.boxed();
 		SpawnedSubsystem { name: "network-bridge-subsystem", future }
 	}
-}
-
-async fn update_gossip_peers_1d<AD, N>(
-	ads: &mut AD,
-	neighbors: N,
-) -> HashMap<AuthorityDiscoveryId, TopologyPeerInfo>
-where
-	AD: validator_discovery::AuthorityDiscovery,
-	N: IntoIterator<Item = (AuthorityDiscoveryId, ValidatorIndex)>,
-	N::IntoIter: std::iter::ExactSizeIterator,
-{
-	let neighbors = neighbors.into_iter();
-	let mut peers = HashMap::with_capacity(neighbors.len());
-	for (authority, validator_index) in neighbors {
-		let addr = get_peer_id_by_authority_id(ads, authority.clone()).await;
-
-		if let Some(peer_id) = addr {
-			peers.insert(authority, TopologyPeerInfo { peer_ids: vec![peer_id], validator_index });
-		}
-	}
-
-	peers
 }
 
 async fn handle_network_messages<AD>(
@@ -507,6 +485,26 @@ where
 	}
 }
 
+async fn flesh_out_topology_peers<AD, N>(ads: &mut AD, neighbors: N) -> Vec<TopologyPeerInfo>
+where
+	AD: validator_discovery::AuthorityDiscovery,
+	N: IntoIterator<Item = (AuthorityDiscoveryId, ValidatorIndex)>,
+	N::IntoIter: std::iter::ExactSizeIterator,
+{
+	let neighbors = neighbors.into_iter();
+	let mut peers = Vec::with_capacity(neighbors.len());
+	for (discovery_id, validator_index) in neighbors {
+		let addr = get_peer_id_by_authority_id(ads, discovery_id.clone()).await;
+		peers.push(TopologyPeerInfo {
+			peer_ids: addr.into_iter().collect(),
+			validator_index,
+			discovery_id,
+		});
+	}
+
+	peers
+}
+
 #[overseer::contextbounds(NetworkBridgeRx, prefix = self::overseer)]
 async fn run_incoming_orchestra_signals<Context, N, AD>(
 	mut ctx: Context,
@@ -532,29 +530,28 @@ where
 				msg:
 					NetworkBridgeRxMessage::NewGossipTopology {
 						session,
-						our_neighbors_x,
-						our_neighbors_y,
+						local_index,
+						canonical_shuffling,
+						shuffled_indices,
 					},
 			} => {
 				gum::debug!(
 					target: LOG_TARGET,
 					action = "NewGossipTopology",
-					neighbors_x = our_neighbors_x.len(),
-					neighbors_y = our_neighbors_y.len(),
+					?session,
+					?local_index,
 					"Gossip topology has changed",
 				);
 
-				let gossip_peers_x =
-					update_gossip_peers_1d(&mut authority_discovery_service, our_neighbors_x).await;
-
-				let gossip_peers_y =
-					update_gossip_peers_1d(&mut authority_discovery_service, our_neighbors_y).await;
+				let topology_peers =
+					flesh_out_topology_peers(&mut authority_discovery_service, canonical_shuffling)
+						.await;
 
 				dispatch_validation_event_to_all_unbounded(
 					NetworkBridgeEvent::NewGossipTopology(NewGossipTopology {
 						session,
-						our_neighbors_x: gossip_peers_x,
-						our_neighbors_y: gossip_peers_y,
+						topology: SessionGridTopology::new(shuffled_indices, topology_peers),
+						local_index,
 					}),
 					ctx.sender(),
 				);
