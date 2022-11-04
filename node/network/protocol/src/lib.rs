@@ -619,6 +619,10 @@ pub mod vstaging {
 		pub candidate_hash: CandidateHash,
 		/// The group index backing the candidate at the relay-parent.
 		pub group_index: GroupIndex,
+		/// The para ID of the candidate. It is illegal for this to
+		/// be a para ID which is not assigned to the group indicated
+		/// in this manifest.
+		pub para_id: ParaId,
 		/// The head-data corresponding to the candidate.
 		pub parent_head_data_hash: Hash,
 		/// A bitfield which indicates which validators in the para's

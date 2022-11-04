@@ -1031,14 +1031,8 @@ impl HypotheticalCandidate {
 	/// Get the `ParaId` of the hypothetical candidate.
 	pub fn candidate_para(&self) -> ParaId {
 		match *self {
-			HypotheticalCandidate::Complete {
-				ref receipt,
-				..
-			} => receipt.descriptor().para_id,
-			HypotheticalCandidate::Incomplete {
-				candidate_para,
-				..
-			} => candidate_para,
+			HypotheticalCandidate::Complete { ref receipt, .. } => receipt.descriptor().para_id,
+			HypotheticalCandidate::Incomplete { candidate_para, .. } => candidate_para,
 		}
 	}
 }
