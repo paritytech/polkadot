@@ -19,7 +19,7 @@
 //! https://w3f.github.io/parachain-implementers-guide/node/approval/approval-distribution.html
 
 #![warn(missing_docs)]
-
+//
 use futures::{channel::oneshot, FutureExt as _};
 use polkadot_node_network_protocol::{
 	self as net_protocol,
@@ -374,8 +374,8 @@ impl State {
 					live
 				});
 			},
-			NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authority_ids) => {
-				todo!()
+			NetworkBridgeEvent::UpdatedAuthorityIds { .. } => {
+				// The approval-distribution subsystem doesn't deel with authority-ids.
 			},
 			NetworkBridgeEvent::PeerMessage(peer_id, Versioned::V1(msg)) => {
 				self.process_incoming_peer_message(ctx, metrics, peer_id, msg, rng).await;

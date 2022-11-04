@@ -1085,8 +1085,8 @@ async fn handle_network_msg<Context>(
 		PeerMessage(remote, Versioned::V1(msg)) => {
 			process_incoming_peer_message(ctx, state, remote, msg).await;
 		},
-		UpdatedAuthorityIds(peer_id, authority_ids) => {
-			todo!()
+		UpdatedAuthorityIds { .. } => {
+			// The validator side doesn't deal with authority-ids
 		},
 	}
 
