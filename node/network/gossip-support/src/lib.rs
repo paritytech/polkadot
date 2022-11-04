@@ -404,7 +404,7 @@ where
 				}
 			},
 			NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authority_ids) => {
-				// get the outdated authority_ids for the peer.
+				// get the outdated authority_ids stored for the specific peer_id.
 				let old_auth_ids: Vec<AuthorityDiscoveryId> = self
 					.connected_authorities
 					.clone()
@@ -419,7 +419,7 @@ where
 				}
 				self.connected_authorities_by_peer_id.remove(&peer_id);
 
-				// add the new data.
+				// add the new updated data.
 				authority_ids.iter().for_each(|a| {
 					self.connected_authorities.insert(a.clone(), peer_id);
 				});

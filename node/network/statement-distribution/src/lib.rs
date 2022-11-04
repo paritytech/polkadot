@@ -1745,7 +1745,7 @@ async fn handle_network_update<Context, R>(
 		NetworkBridgeEvent::UpdatedAuthorityIds(peer, authority_ids) => {
 			gum::trace!(target: LOG_TARGET, ?peer, ?authority_ids, "Updated authority ids");
 
-			// get the outdated authority_ids for the peer.
+			// get the outdated authority_ids stored for the specific peer_id.
 			let old_auth_ids: Vec<AuthorityDiscoveryId> = authorities
 				.into_iter()
 				.filter(|(_, p)| **p == peer)
@@ -1757,7 +1757,7 @@ async fn handle_network_update<Context, R>(
 				authorities.remove(&auth);
 			}
 
-			// update `authorities` with the new data.
+			// update `authorities` with the new updated data.
 			authority_ids.clone().into_iter().for_each(|a| {
 				authorities.insert(a, peer);
 			});
