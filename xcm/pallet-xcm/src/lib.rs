@@ -704,14 +704,15 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		#[pallet::weight('weight: {
-			let Ok(message) = Xcm::<()>::try_from(*message.clone()) else {
-				break 'weight Weight::MAX
-			};
-			let Ok(msg_weight) = T::Weigher::weight(&mut message.into()) else {
-				break 'weight Weight::MAX
-			};
-			T::WeightInfo::send().saturating_add(msg_weight)
+		#[pallet::weight({
+			let maybe_msg: Result<Xcm<()>, ()> = (*message.clone()).try_into();
+			match maybe_msg {
+				Ok(msg) => {
+					T::Weigher::weight(&mut msg.into())
+						.map_or(Weight::MAX, |w| T::WeightInfo::send().saturating_add(w))
+				}
+				_ => Weight::MAX,
+			}
 		})]
 		pub fn send(
 			origin: OriginFor<T>,
@@ -744,27 +745,25 @@ pub mod pallet {
 		///   `dest` side. May not be empty.
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
-		#[pallet::weight('weight: {
-			let Ok(assets) = MultiAssets::try_from(*assets.clone()) else {
-				break 'weight Weight::MAX
-			};
-			let Ok(dest) = MultiLocation::try_from(*dest.clone()) else {
-				break 'weight Weight::MAX
-			};
-			use sp_std::vec;
-			let count = assets.len() as u32;
-			let mut message = Xcm(vec![
-				WithdrawAsset(assets),
-				InitiateTeleport {
-					assets: Wild(AllCounted(count)),
-					dest,
-					xcm: Xcm(vec![]),
-				},
-			]);
-			let Ok(msg_weight) = T::Weigher::weight(&mut message) else {
-				break 'weight Weight::MAX
-			};
-			T::WeightInfo::teleport_assets().saturating_add(msg_weight)
+		#[pallet::weight({
+			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
+			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
+			match (maybe_assets, maybe_dest) {
+				(Ok(assets), Ok(dest)) => {
+					use sp_std::vec;
+					let count = assets.len() as u32;
+					let mut message = Xcm(vec![
+						WithdrawAsset(assets),
+						InitiateTeleport {
+							assets: Wild(AllCounted(count)),
+							dest,
+							xcm: Xcm(vec![]),
+						},
+					]);
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::teleport_assets().saturating_add(w))
+				}
+				_ => Weight::MAX,
+			}
 		})]
 		pub fn teleport_assets(
 			origin: OriginFor<T>,
@@ -792,21 +791,19 @@ pub mod pallet {
 		///   `dest` side.
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
-		#[pallet::weight('weight: {
-			let Ok(assets) = MultiAssets::try_from(*assets.clone()) else {
-				break 'weight Weight::MAX
-			};
-			let Ok(dest) = MultiLocation::try_from(*dest.clone()) else {
-				break 'weight Weight::MAX
-			};
-			use sp_std::vec;
-			let mut message = Xcm(vec![
-				TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
-			]);
-			let Ok(msg_weight) = T::Weigher::weight(&mut message) else {
-				break 'weight Weight::MAX
-			};
-			T::WeightInfo::reserve_transfer_assets().saturating_add(msg_weight)
+		#[pallet::weight({
+			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
+			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
+			match (maybe_assets, maybe_dest) {
+				(Ok(assets), Ok(dest)) => {
+					use sp_std::vec;
+					let mut message = Xcm(vec![
+						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
+					]);
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::reserve_transfer_assets().saturating_add(w))
+				}
+				_ => Weight::MAX,
+			}	
 		})]
 		pub fn reserve_transfer_assets(
 			origin: OriginFor<T>,
@@ -962,21 +959,19 @@ pub mod pallet {
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
 		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
-		#[pallet::weight('weight: {
-			let Ok(assets) = MultiAssets::try_from(*assets.clone()) else {
-				break 'weight Weight::MAX
-			};
-			let Ok(dest) = MultiLocation::try_from(*dest.clone()) else {
-				break 'weight Weight::MAX
-			};
-			use sp_std::vec;
-			let mut message = Xcm(vec![
-				TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
-			]);
-			let Ok(msg_weight) = T::Weigher::weight(&mut message) else {
-				break 'weight Weight::MAX
-			};
-			T::WeightInfo::reserve_transfer_assets().saturating_add(msg_weight)
+		#[pallet::weight({
+			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
+			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
+			match (maybe_assets, maybe_dest) {
+				(Ok(assets), Ok(dest)) => {
+					use sp_std::vec;
+					let mut message = Xcm(vec![
+						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
+					]);
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::reserve_transfer_assets().saturating_add(w))
+				}
+				_ => Weight::MAX,
+			}
 		})]
 		pub fn limited_reserve_transfer_assets(
 			origin: OriginFor<T>,
@@ -1013,22 +1008,20 @@ pub mod pallet {
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
 		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
-		#[pallet::weight('weight: {
-			let Ok(assets) = MultiAssets::try_from(*assets.clone()) else {
-				break 'weight Weight::MAX
-			};
-			let Ok(dest) = MultiLocation::try_from(*dest.clone()) else {
-				break 'weight Weight::MAX
-			};
-			use sp_std::vec;
-			let mut message = Xcm(vec![
-				WithdrawAsset(assets),
-				InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
-			]);
-			let Ok(msg_weight) = T::Weigher::weight(&mut message) else {
-				break 'weight Weight::MAX
-			};
-			T::WeightInfo::teleport_assets().saturating_add(msg_weight)
+		#[pallet::weight({
+			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
+			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
+			match (maybe_assets, maybe_dest) {
+				(Ok(assets), Ok(dest)) => {
+					use sp_std::vec;
+					let mut message = Xcm(vec![
+						WithdrawAsset(assets),
+						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
+					]);
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::teleport_assets().saturating_add(w))
+				}
+				_ => Weight::MAX,
+			}
 		})]
 		pub fn limited_teleport_assets(
 			origin: OriginFor<T>,
