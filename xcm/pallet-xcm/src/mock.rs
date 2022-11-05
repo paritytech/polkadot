@@ -35,7 +35,7 @@ use xcm_builder::{
 };
 use xcm_executor::XcmExecutor;
 
-use crate as pallet_xcm;
+use crate::{self as pallet_xcm, TestWeightInfo};
 
 pub type AccountId = AccountId32;
 pub type Balance = u128;
@@ -329,6 +329,7 @@ impl pallet_xcm::Config for Test {
 	type Currency = Balances;
 	type CurrencyMatcher = IsConcrete<RelayLocation>;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
+	type WeightInfo = TestWeightInfo;
 }
 
 impl origin::Config for Test {}

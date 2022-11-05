@@ -5703,6 +5703,7 @@ dependencies = [
 name = "pallet-xcm"
 version = "0.9.29"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "log",

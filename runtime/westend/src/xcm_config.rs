@@ -157,4 +157,6 @@ impl pallet_xcm::Config for Runtime {
 	type TrustedLockers = ();
 	type SovereignAccountOf = LocationConverter;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
+	// FIXME: use proper benchmarked weights
+	type WeightInfo = pallet_xcm::TestWeightInfo;
 }
