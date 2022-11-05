@@ -803,7 +803,7 @@ pub mod pallet {
 					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::reserve_transfer_assets().saturating_add(w))
 				}
 				_ => Weight::MAX,
-			}	
+			}
 		})]
 		pub fn reserve_transfer_assets(
 			origin: OriginFor<T>,
