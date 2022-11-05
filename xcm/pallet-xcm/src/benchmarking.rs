@@ -15,8 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use frame_system::RawOrigin;
 use frame_benchmarking::{benchmarks, whitelisted_caller};
+use frame_system::RawOrigin;
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
 

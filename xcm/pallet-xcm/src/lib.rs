@@ -86,7 +86,7 @@ impl WeightInfo for TestWeightInfo {
 	fn execute() -> Weight {
 		Weight::MAX
 	}
-	
+
 	fn force_xcm_version() -> Weight {
 		Weight::MAX
 	}
