@@ -58,6 +58,7 @@ pub trait WeightInfo {
 	fn force_process_hrmp_close(c: u32) -> Weight;
 	fn hrmp_cancel_open_request(c: u32) -> Weight;
 	fn clean_open_channel_requests(c: u32) -> Weight;
+	fn force_open_hrmp_channel() -> Weight;
 }
 
 /// A weight info that is only suitable for testing.
@@ -86,6 +87,9 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn clean_open_channel_requests(_: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_open_hrmp_channel() -> Weight {
 		Weight::MAX
 	}
 }
@@ -269,6 +273,9 @@ pub mod pallet {
 		OpenChannelAccepted(ParaId, ParaId),
 		/// HRMP channel closed. `[by_parachain, channel_id]`
 		ChannelClosed(ParaId, HrmpChannelId),
+		/// An HRMP channel was opened via Root origin.
+		/// `[sender, recipient, proposed_max_capacity, proposed_max_message_size]`
+		HrmpChannelForceOpened(ParaId, ParaId, u32, u32),
 	}
 
 	#[pallet::error]
@@ -575,6 +582,32 @@ pub mod pallet {
 			);
 			Self::cancel_open_request(origin, channel_id.clone())?;
 			Self::deposit_event(Event::OpenChannelCanceled(origin, channel_id));
+			Ok(())
+		}
+
+		/// Open a channel from a `sender` to a `recipient` `ParaId` using the Root origin. Although
+		/// opened by Root, the `max_capacity` and `max_message_size` are still subject to the Relay
+		/// Chain's configured limits.
+		///
+		/// Expected use is when one of the `ParaId`s involved in the channel is governed by the
+		/// Relay Chain, e.g. a common good parachain.
+		#[pallet::weight(<T as Config>::WeightInfo::force_open_hrmp_channel())]
+		pub fn force_open_hrmp_channel(
+			origin: OriginFor<T>,
+			sender: ParaId,
+			recipient: ParaId,
+			max_capacity: u32,
+			max_message_size: u32,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::init_open_channel(sender, recipient, max_capacity, max_message_size)?;
+			Self::accept_open_channel(recipient, sender)?;
+			Self::deposit_event(Event::HrmpChannelForceOpened(
+				sender,
+				recipient,
+				max_capacity,
+				max_message_size,
+			));
 			Ok(())
 		}
 	}

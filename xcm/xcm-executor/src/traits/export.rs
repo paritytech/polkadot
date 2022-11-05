@@ -120,7 +120,7 @@ pub fn export_xcm<T: ExportXcm>(
 		channel,
 		&mut Some(universal_source),
 		&mut Some(dest),
-		&mut Some(msg.clone()),
+		&mut Some(msg),
 	)?;
 	let hash = T::deliver(ticket)?;
 	Ok((hash, price))

@@ -530,7 +530,7 @@ pub fn send_xcm<T: SendXcm>(
 	dest: MultiLocation,
 	msg: Xcm<()>,
 ) -> result::Result<(XcmHash, MultiAssets), SendError> {
-	let (ticket, price) = T::validate(&mut Some(dest), &mut Some(msg.clone()))?;
+	let (ticket, price) = T::validate(&mut Some(dest), &mut Some(msg))?;
 	let hash = T::deliver(ticket)?;
 	Ok((hash, price))
 }

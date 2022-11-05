@@ -555,14 +555,15 @@ enum NetworkBridgeMessage {
     /// Inform the distribution subsystems about the new
     /// gossip network topology formed.
     NewGossipTopology {
-        /// The session this topology corresponds to.
-        session: SessionIndex,
-        /// Ids of our neighbors in the X dimension of the new gossip topology.
-        /// We're not necessarily connected to all of them, but we should try to be.
-        our_neighbors_x: HashSet<AuthorityDiscoveryId>,
-        /// Ids of our neighbors in the Y dimension of the new gossip topology.
-        /// We're not necessarily connected to all of them, but we should try to be.
-        our_neighbors_y: HashSet<AuthorityDiscoveryId>,
+		/// The session info this gossip topology is concerned with.
+		session: SessionIndex,
+		/// Our validator index in the session, if any.
+		local_index: Option<ValidatorIndex>,
+		/// The canonical shuffling of validators for the session.
+		canonical_shuffling: Vec<(AuthorityDiscoveryId, ValidatorIndex)>,
+		/// The reverse mapping of `canonical_shuffling`: from validator index
+		/// to the index in `canonical_shuffling`
+		shuffled_indices: Vec<usize>,
     }
 }
 ```

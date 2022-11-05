@@ -377,7 +377,7 @@ std::thread_local! {
 	static PROCESSED: RefCell<Vec<(ParaId, UpwardMessage)>> = RefCell::new(vec![]);
 }
 
-/// Return which messages have been processed by `pocess_upward_message` and clear the buffer.
+/// Return which messages have been processed by `process_upward_message` and clear the buffer.
 pub fn take_processed() -> Vec<(ParaId, UpwardMessage)> {
 	PROCESSED.with(|opt_hook| std::mem::take(&mut *opt_hook.borrow_mut()))
 }
