@@ -327,6 +327,7 @@ impl pallet_xcm::Config for Runtime {
 	type TrustedLockers = ();
 	type SovereignAccountOf = LocationToAccountId;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
+	type WeightInfo = pallet_xcm::TestWeightInfo;
 }
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;
