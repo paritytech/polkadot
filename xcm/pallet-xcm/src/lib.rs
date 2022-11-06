@@ -853,8 +853,7 @@ pub mod pallet {
 				max_weight,
 			);
 			let result =
-				Ok(Some(outcome.weight_used().saturating_add(Weight::from_ref_time(100_000_000)))
-					.into());
+				Ok(Some(outcome.weight_used().saturating_add(T::WeightInfo::execute())).into());
 			Self::deposit_event(Event::Attempted(outcome));
 			result
 		}
