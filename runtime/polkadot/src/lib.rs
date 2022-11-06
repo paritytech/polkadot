@@ -1633,6 +1633,8 @@ mod benches {
 		[pallet_treasury, Treasury]
 		[pallet_utility, Utility]
 		[pallet_vesting, Vesting]
+		// XCM
+		[pallet_xcm, XcmPallet]
 	);
 }
 
