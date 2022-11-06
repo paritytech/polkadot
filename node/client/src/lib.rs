@@ -327,13 +327,13 @@ impl UsageProvider<Block> for Client {
 impl sc_client_api::BlockBackend<Block> for Client {
 	fn block_body(
 		&self,
-		id: &BlockId<Block>,
+		hash: &<Block as BlockT>::Hash,
 	) -> sp_blockchain::Result<Option<Vec<<Block as BlockT>::Extrinsic>>> {
 		with_client! {
 			self,
 			client,
 			{
-				client.block_body(id)
+				client.block_body(hash)
 			}
 		}
 	}
@@ -358,12 +358,15 @@ impl sc_client_api::BlockBackend<Block> for Client {
 		}
 	}
 
-	fn justifications(&self, id: &BlockId<Block>) -> sp_blockchain::Result<Option<Justifications>> {
+	fn justifications(
+		&self,
+		hash: &<Block as BlockT>::Hash,
+	) -> sp_blockchain::Result<Option<Justifications>> {
 		with_client! {
 			self,
 			client,
 			{
-				client.justifications(id)
+				client.justifications(hash)
 			}
 		}
 	}
@@ -396,7 +399,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 
 	fn block_indexed_body(
 		&self,
-		id: &BlockId<Block>,
+		id: &<Block as BlockT>::Hash,
 	) -> sp_blockchain::Result<Option<Vec<Vec<u8>>>> {
 		with_client! {
 			self,
