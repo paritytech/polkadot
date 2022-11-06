@@ -83,7 +83,7 @@ section.
 While there is no need to record approval votes in the dispute coordinator
 preemptively, we do need to make sure they are recorded when a dispute
 actually happens. This is because only votes recorded by the dispute
-coordinator will be considered for slashing. It was decided sufficient to our
+coordinator will be considered for slashing. It is sufficient for our
 threat model that malicious backers are slashed as opposed to both backers and 
 approval checkers. However, we still must import approval votes from the approvals 
 process into the disputes process to ensure that lazy approval checkers 
