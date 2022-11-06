@@ -541,7 +541,7 @@ pub struct EraPayout;
 impl pallet_staking::EraPayout<Balance> for EraPayout {
 	fn era_payout(
 		total_staked: Balance,
-		_total_issuance: Balance,
+		total_issuance: Balance,
 		era_duration_millis: u64,
 	) -> (Balance, Balance) {
 		// all para-ids that are not active.
@@ -558,7 +558,7 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 		runtime_common::impls::era_payout(
 			total_staked,
 			// Polkadot has no notion of gilts, the entire issuance is non-guilt.
-			Balances::total_issuance(),
+			total_issuance,
 			MAX_ANNUAL_INFLATION,
 			Perquintill::from_rational(era_duration_millis, MILLISECONDS_PER_YEAR),
 			auctioned_slots,
