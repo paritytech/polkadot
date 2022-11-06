@@ -9,7 +9,7 @@ In particular the dispute-coordinator is responsible for:
 
 - Ensuring that the node is able to raise a dispute in case an invalid candidate
   is found during approval checking.
-- Ensuring malicious approval votes will be recorded, so nodes can get slashed
+- Ensuring lazy approval votes will be recorded, so nodes can get slashed
   properly.
 - Coordinating actual participation in a dispute, ensuring that the node
   participates in any justified dispute in a way that ensures resolution of
@@ -76,24 +76,27 @@ inefficient process. (Quadratic complexity adds up, with 35 votes in total per c
 Approval votes are very relevant nonetheless as we are going to see in the next
 section.
 
-## Ensuring Malicious Approval Votes Will Be Recorded
+## Ensuring Lazy Approval Votes Will Be Recorded
 
 ### Ensuring Recording
 
 While there is no need to record approval votes in the dispute coordinator
 preemptively, we do need to make sure they are recorded when a dispute
 actually happens. This is because only votes recorded by the dispute
-coordinator will be considered for slashing. While the backing group always gets
-slashed, a serious attack attempt will likely also consist of malicious approval
-checkers which will cast approval votes, although the candidate is invalid. If
-we did not import those votes, those nodes would likely cast an `invalid` explicit
-vote as part of the dispute in addition to their approval vote and thus avoid a
-slash. With the 2/3rd honest assumption it seems unrealistic that malicious
-actors will keep sending approval votes once they became aware of a raised
-dispute. Hence the most crucial approval votes to import are the early ones
-(tranche 0), to take into account network latencies and such we still want to
-import approval votes at a later point in time as well (in particular we need to
-make sure the dispute can conclude, but more on that later).
+coordinator will be considered for slashing. It was decided sufficient to our
+threat model that malicious backers are slashed as opposed to both backers and 
+approval checkers. However, we still must import approval votes from the approvals 
+process into the disputes process to ensure that lazy approval checkers 
+actually run the parachain validation function. Slashing lazy approval checkers is necessary, else we risk a useless approvals process where every approval 
+checker blindly votes valid for every candidate. If we did not import approval 
+votes, lazy nodes would likely cast a properly checked explicit vote as part 
+of the dispute in addition to their blind approval vote and thus avoid a slash. 
+With the 2/3rd honest assumption it seems unrealistic that lazy approval voters 
+will keep sending unchecked approval votes once they became aware of a raised 
+dispute. Hence the most crucial approval votes to import are the early ones 
+(tranche 0), to take into account network latencies and such we still want to 
+import approval votes at a later point in time as well (in particular we need 
+to make sure the dispute can conclude, but more on that later).
 
 As mentioned already previously, importing votes is most efficient when batched.
 At the same time approval voting and disputes are running concurrently so
@@ -173,7 +176,7 @@ There are two potential caveats with this though:
    voting. By distributing our own approval vote we make sure the dispute can
    conclude regardless how the race ended (we either participate explicitly
    anyway or we sent our already present approval vote). By importing all
-   approval votes we make it possible to slash malicious approval voters, even
+   approval votes we make it possible to slash lazy approval voters, even
    if they also cast an invalid explicit vote.
 
 Conclusion: As long as we make sure, if our own approval vote gets imported
@@ -199,11 +202,11 @@ time participation is faster than approval, a node would do double work.
 ### Ensuring Chain Import
 
 While in the previous section we discussed means for nodes to ensure relevant
-votes are recorded so attackers get slashed properly, it is crucial to also
-discuss the actual chain import. Only if we guarantee that recorded votes will
-also get imported on chain (on all potential chains really) we will succeed in
-executing slashes. Again approval votes prove to be our weak spot here, but also
-backing votes might get missed.
+votes are recorded so lazy approval checkers get slashed properly, it is crucial 
+to also discuss the actual chain import. Only if we guarantee that recorded votes 
+will also get imported on chain (on all potential chains really) we will succeed 
+in executing slashes. Again approval votes prove to be our weak spot here, but 
+also backing votes might get missed.
 
 Dispute distribution will make sure all explicit dispute votes get distributed
 among nodes which includes current block producers (current authority set) which
