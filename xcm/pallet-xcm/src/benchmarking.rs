@@ -15,18 +15,18 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use frame_benchmarking::{benchmarks, whitelisted_caller};
+use frame_benchmarking::benchmarks;
 use frame_system::RawOrigin;
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
 
 benchmarks! {
 	send {
-		let caller = whitelisted_caller::<T::AccountId>();
+		let send_origin = T::SendXcmOrigin::successful_origin();
 		let msg = Xcm(vec![ClearOrigin]);
 		let versioned_dest: VersionedMultiLocation = Parachain(2000).into();
 		let versioned_msg = VersionedXcm::from(msg);
-	}: _(RawOrigin::Signed(caller.clone()), Box::new(versioned_dest), Box::new(versioned_msg))
+	}: _<<T as frame_system::Config>::RuntimeOrigin>(send_origin, Box::new(versioned_dest), Box::new(versioned_msg))
 
 	teleport_assets {
 		let recipient = [0u8; 32];
@@ -45,9 +45,10 @@ benchmarks! {
 	}: _(RawOrigin::Root, Box::new(versioned_dest), Box::new(versioned_beneficiary), Box::new(versioned_assets), 0)
 
 	execute {
+		let execute_origin = T::ExecuteXcmOrigin::successful_origin();
 		let msg = Xcm(vec![ClearOrigin]);
 		let versioned_msg = VersionedXcm::from(msg);
-	}: _(RawOrigin::Root, Box::new(versioned_msg), Weight::zero())
+	}: _<<T as frame_system::Config>::RuntimeOrigin>(execute_origin, Box::new(versioned_msg), Weight::zero())
 
 	force_xcm_version {
 		let loc = Parachain(2000).into_location();
