@@ -419,7 +419,6 @@ fn spam_attack_results_in_negative_reputation_change() {
 
 		for i in 0..candidates_count {
 			expect_reputation_change(overseer, peer, COST_UNEXPECTED_MESSAGE).await;
-
 			assert_matches!(
 				overseer_recv(overseer).await,
 				AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
@@ -432,7 +431,9 @@ fn spam_attack_results_in_negative_reputation_change() {
 					tx.send(AssignmentCheckResult::Accepted).unwrap();
 				}
 			);
+		}
 
+		for _ in 0..candidates_count {
 			expect_reputation_change(overseer, peer, BENEFIT_VALID_MESSAGE_FIRST).await;
 		}
 
