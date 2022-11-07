@@ -332,10 +332,10 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 
 	handle_deactivate_leaves(state, &update.deactivated[..]);
 
-	if let Some(ref leaf) = update.activated {
-		// TODO [now]: determine which candidates are importable under the given
-		// active leaf
-	}
+	let leaf = match update.activated {
+		Some(l) => l,
+		None => return Ok(()),
+	};
 
 	for new_relay_parent in state.implicit_view.all_allowed_relay_parents() {
 		if state.per_relay_parent.contains_key(new_relay_parent) {
@@ -414,10 +414,17 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 				session: session_index,
 			},
 		);
-
-		// TODO [now]: update peers which have the leaf in their view.
-		// update their implicit view. send any messages accordingly.
 	}
+
+	// TODO [now]: determine which candidates are importable under the given
+	// active leaf
+	new_leaf_fragment_tree_updates(
+		ctx,
+		leaf.hash,
+	).await;
+
+	// TODO [now]: update peers which have the leaf in their view.
+	// update their implicit view. send any messages accordingly.
 
 	Ok(())
 }
@@ -998,9 +1005,15 @@ async fn handle_incoming_statement<Context>(
 	if was_fresh {
 		report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT_FIRST).await;
 
-	// both of the below probably in some shared function.
-	// TODO [now]: circulate the statement
-	// TODO [now]: import the statement into backing if we can.
+		// both of the below probably in some shared function.
+		// TODO [now]: circulate the statement
+		// TODO [now]: import the statement into backing if we can.
+		// If the candidate is confirmed and statements are importable,
+		// we send the statement to backing either if
+		//    a) it is a candidate from the cluster
+		//    b) it is a candidate from the grid and it is backed
+		//
+		// We always circulate statements at this point.
 	} else {
 		report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT).await;
 	}
@@ -1095,4 +1108,62 @@ fn handle_grid_statement(
 	);
 
 	Ok(checked_statement)
+}
+
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn new_leaf_fragment_tree_updates<Context>(
+	ctx: &mut Context,
+	leaf_hash: Hash,
+) {
+	// TODO [now]
+	// 1. get hypothetical candidates
+	// 2. find out which are in the frontier
+	// 3. note that they are
+	// 4. for unconfirmed candidates, send requests to all given peers.
+	//    note that all unconfirmed hypothetical candidates are from the grid
+	// 5. for confirmed candidates, if the candidate has enough statements to
+	//    back, send all statements which are new to backing. Also, send
+	//    backed candidate manifests to peers with the relay parent in their view
+}
+
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn new_backed_fragment_tree_updates<Context>(
+	ctx: &mut Context,
+	para_id: ParaId,
+	head_data_hash: Hash,
+) {
+	// TODO [now]
+	// 1. get hypothetical candidates
+	// 2. find out which are in the frontier
+	// 3. note that they are
+	// 4. schedule requests/import statements accordingly.
+}
+
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn handle_incoming_manifest<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	peer: PeerId,
+	manifest: net_protocol::vstaging::BackedCandidateManifest,
+) {
+	// TODO [now]:
+	// 1. sanity checks: relay-parent in state, para ID matches group index,
+	// 2. sanity checks: peer is validator, bitvec size, import into grid tracker
+	// 3. if accepted by grid, insert as unconfirmed.
+	// 4. if already confirmed, acknowledge candidate
+	// 5. if already unconfirmed, add request entry
+	// 6. if fresh unconfirmed, determine whether it's in the hypothetical
+	//    frontier, update candidates wrapper, add request entry if so.
+}
+
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn handle_cluster_newly_backed<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	relay_parent: Hash,
+	candidate_hash: CandidateHash,
+) {
+	// TODO [now]
+	// 1. for confirmed & importable candidates only
+	// 2. send advertisements along the grid
 }
