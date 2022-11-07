@@ -6846,7 +6846,6 @@ name = "polkadot-primitives"
 version = "0.9.31"
 dependencies = [
  "bitvec",
- "frame-system",
  "hex-literal",
  "parity-scale-codec",
  "parity-util-mem",
@@ -6866,8 +6865,6 @@ dependencies = [
  "sp-runtime",
  "sp-staking",
  "sp-std",
- "sp-trie",
- "sp-version",
 ]
 
 [[package]]
