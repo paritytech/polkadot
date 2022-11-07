@@ -553,6 +553,7 @@ fn test_dispute_timeout() {
 		});
 
 		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+		let inclusion_parent = sp_core::H256::repeat_byte(0xff);
 
 		// v0 votes for 3, v6 against.
 		let stmts = vec![DisputeStatementSet {
@@ -560,16 +561,13 @@ fn test_dispute_timeout() {
 			session: start - 1,
 			statements: vec![
 				(
-					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(
+						inclusion_parent,
+					)),
 					ValidatorIndex(0),
-					v0.sign(
-						&ExplicitDisputeStatement {
-							valid: true,
-							candidate_hash: candidate_hash.clone(),
-							session: start - 1,
-						}
-						.signing_payload(),
-					),
+					v0.sign(&CompactStatement::Valid(candidate_hash).signing_payload(
+						&SigningContext { session_index: start - 1, parent_hash: inclusion_parent },
+					)),
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
@@ -740,6 +738,70 @@ fn test_provide_multi_dispute_is_providing() {
 }
 
 #[test]
+fn test_disputes_with_missing_backing_votes_are_rejected() {
+	new_test_ext(Default::default()).execute_with(|| {
+		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+		run_to_block(3, |b| {
+			// a new session at each block
+			if b == 1 {
+				Some((
+					true,
+					b,
+					vec![(&0, v0.public()), (&1, v1.public())],
+					Some(vec![(&0, v0.public()), (&1, v1.public())]),
+				))
+			} else {
+				Some((true, b, vec![(&1, v1.public())], Some(vec![(&1, v1.public())])))
+			}
+		});
+
+		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+		let session = 1;
+
+		let stmts = vec![DisputeStatementSet {
+			candidate_hash: candidate_hash.clone(),
+			session,
+			statements: vec![
+				(
+					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					ValidatorIndex(0),
+					v0.sign(
+						&ExplicitDisputeStatement {
+							valid: true,
+							candidate_hash: candidate_hash.clone(),
+							session,
+						}
+						.signing_payload(),
+					),
+				),
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(1),
+					v1.sign(
+						&ExplicitDisputeStatement {
+							valid: false,
+							candidate_hash: candidate_hash.clone(),
+							session,
+						}
+						.signing_payload(),
+					),
+				),
+			],
+		}];
+
+		assert!(Pallet::<Test>::process_checked_multi_dispute_data(
+			stmts
+				.into_iter()
+				.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
+				.collect()
+		)
+		.is_err(),);
+	})
+}
+
+#[test]
 fn test_freeze_on_note_included() {
 	new_test_ext(Default::default()).execute_with(|| {
 		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
@@ -756,6 +818,8 @@ fn test_freeze_on_note_included() {
 		});
 
 		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+		let inclusion_parent = sp_core::H256::repeat_byte(0xff);
+		let session = 3;
 
 		// v0 votes for 3
 		let stmts = vec![DisputeStatementSet {
@@ -787,16 +851,13 @@ fn test_freeze_on_note_included() {
 					),
 				),
 				(
-					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(
+						inclusion_parent,
+					)),
 					ValidatorIndex(1),
-					v1.sign(
-						&ExplicitDisputeStatement {
-							valid: true,
-							candidate_hash: candidate_hash.clone(),
-							session: 3,
-						}
-						.signing_payload(),
-					),
+					v0.sign(&CompactStatement::Valid(candidate_hash).signing_payload(
+						&SigningContext { session_index: session, parent_hash: inclusion_parent },
+					)),
 				),
 			],
 		}];
@@ -830,11 +891,13 @@ fn test_freeze_provided_against_supermajority_for_included() {
 		});
 
 		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+		let inclusion_parent = sp_core::H256::repeat_byte(0xff);
+		let session = 3;
 
 		// v0 votes for 3
 		let stmts = vec![DisputeStatementSet {
 			candidate_hash: candidate_hash.clone(),
-			session: 3,
+			session,
 			statements: vec![
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
@@ -843,7 +906,7 @@ fn test_freeze_provided_against_supermajority_for_included() {
 						&ExplicitDisputeStatement {
 							valid: false,
 							candidate_hash: candidate_hash.clone(),
-							session: 3,
+							session,
 						}
 						.signing_payload(),
 					),
@@ -855,22 +918,19 @@ fn test_freeze_provided_against_supermajority_for_included() {
 						&ExplicitDisputeStatement {
 							valid: false,
 							candidate_hash: candidate_hash.clone(),
-							session: 3,
+							session,
 						}
 						.signing_payload(),
 					),
 				),
 				(
-					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(
+						inclusion_parent,
+					)),
 					ValidatorIndex(1),
-					v1.sign(
-						&ExplicitDisputeStatement {
-							valid: true,
-							candidate_hash: candidate_hash.clone(),
-							session: 3,
-						}
-						.signing_payload(),
-					),
+					v0.sign(&CompactStatement::Valid(candidate_hash).signing_payload(
+						&SigningContext { session_index: session, parent_hash: inclusion_parent },
+					)),
 				),
 			],
 		}];
@@ -941,23 +1001,22 @@ fn test_provide_multi_dispute_success_and_other() {
 		});
 
 		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+		let inclusion_parent = sp_core::H256::repeat_byte(0xff);
+		let session = 3;
 
 		// v0 votes for 3, v6 votes against
 		let stmts = vec![DisputeStatementSet {
 			candidate_hash: candidate_hash.clone(),
-			session: 3,
+			session,
 			statements: vec![
 				(
-					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(
+						inclusion_parent,
+					)),
 					ValidatorIndex(0),
-					v0.sign(
-						&ExplicitDisputeStatement {
-							valid: true,
-							candidate_hash: candidate_hash.clone(),
-							session: 3,
-						}
-						.signing_payload(),
-					),
+					v0.sign(&CompactStatement::Valid(candidate_hash).signing_payload(
+						&SigningContext { session_index: session, parent_hash: inclusion_parent },
+					)),
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
@@ -966,7 +1025,7 @@ fn test_provide_multi_dispute_success_and_other() {
 						&ExplicitDisputeStatement {
 							valid: false,
 							candidate_hash: candidate_hash.clone(),
-							session: 3,
+							session,
 						}
 						.signing_payload(),
 					),
@@ -989,16 +1048,13 @@ fn test_provide_multi_dispute_success_and_other() {
 				session: 4,
 				statements: vec![
 					(
-						DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+						DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(
+							inclusion_parent,
+						)),
 						ValidatorIndex(3),
-						v1.sign(
-							&ExplicitDisputeStatement {
-								valid: true,
-								candidate_hash: candidate_hash.clone(),
-								session: 4,
-							}
-							.signing_payload(),
-						),
+						v0.sign(&CompactStatement::Valid(candidate_hash).signing_payload(
+							&SigningContext { session_index: 4, parent_hash: inclusion_parent },
+						)),
 					),
 					(
 						DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
@@ -1064,16 +1120,13 @@ fn test_provide_multi_dispute_success_and_other() {
 				session: 5,
 				statements: vec![
 					(
-						DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+						DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(
+							inclusion_parent,
+						)),
 						ValidatorIndex(5),
-						v3.sign(
-							&ExplicitDisputeStatement {
-								valid: true,
-								candidate_hash: candidate_hash.clone(),
-								session: 5,
-							}
-							.signing_payload(),
-						),
+						v3.sign(&CompactStatement::Valid(candidate_hash).signing_payload(
+							&SigningContext { session_index: 5, parent_hash: inclusion_parent },
+						)),
 					),
 					(
 						DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
