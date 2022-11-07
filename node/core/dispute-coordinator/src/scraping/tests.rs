@@ -112,6 +112,10 @@ async fn process_active_leaves_update(
 		.unwrap();
 }
 
+fn process_finalized_block(scraper: &mut ChainScraper, finalized: &BlockNumber) {
+	scraper.process_finalized_block(&finalized)
+}
+
 fn make_candidate_receipt(relay_parent: Hash) -> CandidateReceipt {
 	let zeros = dummy_hash();
 	let descriptor = CandidateDescriptor {
@@ -356,5 +360,120 @@ fn scraper_requests_candidates_of_non_finalized_ancestors() {
 		);
 		join(process_active_leaves_update(ctx.sender(), &mut ordering, next_update), overseer_fut)
 			.await;
+	});
+}
+
+#[test]
+fn scraper_prunes_finalized_candidates() {
+	const BLOCK_KEEP_BACK: usize = 2; // TODO: Get this from the actual code
+
+	const TEST_TARGET_BLOCK_NUMBER: BlockNumber = 1;
+
+	// How many blocks should we skip before sending a leaf update.
+	// We want block `TEST_TARGET_BLOCK_NUMBER` to fall behind `BLOCK_KEEP_BACK`.
+	// `+ 2` because we need 1 ancestor after the finalized block (this is what the testing code expects).
+	const BLOCKS_TO_SKIP: usize = TEST_TARGET_BLOCK_NUMBER as usize + BLOCK_KEEP_BACK + 2;
+
+	futures::executor::block_on(async {
+		let (state, mut virtual_overseer) = TestState::new().await;
+
+		let TestState { mut chain, mut scraper, mut ctx } = state;
+
+		// 1 because `TestState` starts at leaf 1.
+		let next_update = (1..BLOCKS_TO_SKIP).map(|_| next_leaf(&mut chain)).last().unwrap();
+
+		let finalized_block_number = BLOCKS_TO_SKIP as BlockNumber - 2;
+		let expected_ancestry_len = BLOCKS_TO_SKIP - finalized_block_number as usize;
+		let overseer_fut = overseer_process_active_leaves_update(
+			&mut virtual_overseer,
+			&chain,
+			finalized_block_number,
+			expected_ancestry_len,
+		);
+		join(process_active_leaves_update(ctx.sender(), &mut scraper, next_update), overseer_fut)
+			.await;
+
+		// Finalize blocks to enforce pruning of scraped events
+		process_finalized_block(&mut scraper, &finalized_block_number);
+
+		let candidate_1 = make_candidate_receipt(get_block_number_hash(TEST_TARGET_BLOCK_NUMBER));
+		assert!(!scraper.is_candidate_backed(&candidate_1.hash()));
+		assert!(!scraper.is_candidate_included(&candidate_1.hash()));
+	});
+}
+
+#[test]
+fn scraper_keeps_finalized_candidates_within_delay() {
+	const BLOCK_KEEP_BACK: usize = 2; // TODO: Get this from the actual code
+
+	const TEST_TARGET_BLOCK_NUMBER: BlockNumber = 1;
+
+	// How many blocks should we skip before sending a leaf update.
+	// We want block `TEST_TARGET_BLOCK_NUMBER` to be finalized but before `BLOCK_KEEP_BACK`.
+	const BLOCKS_TO_SKIP: usize = TEST_TARGET_BLOCK_NUMBER as usize + BLOCK_KEEP_BACK + 1;
+
+	futures::executor::block_on(async {
+		let (state, mut virtual_overseer) = TestState::new().await;
+
+		let TestState { mut chain, mut scraper, mut ctx } = state;
+
+		// 1 because `TestState` starts at leaf 1.
+		let next_update = (1..BLOCKS_TO_SKIP).map(|_| next_leaf(&mut chain)).last().unwrap();
+
+		let finalized_block_number = TEST_TARGET_BLOCK_NUMBER + BLOCK_KEEP_BACK as u32 - 1;
+		let expected_ancestry_len = BLOCKS_TO_SKIP - finalized_block_number as usize;
+		let overseer_fut = overseer_process_active_leaves_update(
+			&mut virtual_overseer,
+			&chain,
+			finalized_block_number,
+			expected_ancestry_len,
+		);
+		join(process_active_leaves_update(ctx.sender(), &mut scraper, next_update), overseer_fut)
+			.await;
+
+		// Finalize blocks to enforce pruning of scraped events
+		process_finalized_block(&mut scraper, &finalized_block_number);
+
+		let candidate_1 = make_candidate_receipt(get_block_number_hash(TEST_TARGET_BLOCK_NUMBER));
+		assert!(scraper.is_candidate_backed(&candidate_1.hash()));
+		assert!(scraper.is_candidate_included(&candidate_1.hash()));
+	});
+}
+
+#[test]
+fn scraper_handles_candidate_incuded_in_two_forks() {
+	const BLOCK_KEEP_BACK: usize = 2; // TODO: Get this from the actual code
+
+	const TEST_TARGET_BLOCK_NUMBER: BlockNumber = 1;
+
+	// How many blocks should we skip before sending a leaf update.
+	// We want block `TEST_TARGET_BLOCK_NUMBER` to be finalized but before `BLOCK_KEEP_BACK`.
+	const BLOCKS_TO_SKIP: usize = TEST_TARGET_BLOCK_NUMBER as usize + BLOCK_KEEP_BACK + 1;
+
+	futures::executor::block_on(async {
+		let (state, mut virtual_overseer) = TestState::new().await;
+
+		let TestState { mut chain, mut scraper, mut ctx } = state;
+
+		// 1 because `TestState` starts at leaf 1.
+		let next_update = (1..BLOCKS_TO_SKIP).map(|_| next_leaf(&mut chain)).last().unwrap();
+
+		let finalized_block_number = TEST_TARGET_BLOCK_NUMBER + BLOCK_KEEP_BACK as u32 - 1;
+		let expected_ancestry_len = BLOCKS_TO_SKIP - finalized_block_number as usize;
+		let overseer_fut = overseer_process_active_leaves_update(
+			&mut virtual_overseer,
+			&chain,
+			finalized_block_number,
+			expected_ancestry_len,
+		);
+		join(process_active_leaves_update(ctx.sender(), &mut scraper, next_update), overseer_fut)
+			.await;
+
+		// Finalize blocks to enforce pruning of scraped events
+		process_finalized_block(&mut scraper, &finalized_block_number);
+
+		let candidate_1 = make_candidate_receipt(get_block_number_hash(TEST_TARGET_BLOCK_NUMBER));
+		assert!(scraper.is_candidate_backed(&candidate_1.hash()));
+		assert!(scraper.is_candidate_included(&candidate_1.hash()));
 	});
 }
