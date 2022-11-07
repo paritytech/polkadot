@@ -197,14 +197,23 @@ struct State {
 	pending_assignment_checks: FuturesUnordered<PendingAssignmentCheck>,
 
 	/// Pending approval vote checks.
-	pending_vote_checks: FuturesUnordered<PendingVoteCheck>,
+	pending_vote_checks: FuturesUnordered<PendingApprovalCheck>,
+
+	/// Per peer work queues.
+	work_queues: HashMap<PeerId, VecDeque<PendingWork>>,
+
+	/// A flag which tells us if a queue is idle.
+	pending_work: HashMap<PeerId, bool>,
 }
 
-// source: MessageSource,
-// assignment: IndirectAssignmentCert,
-// claimed_candidate_index: CandidateIndex,
+#[derive(Debug)]
+enum PendingWork {
+	Assignment(PendingAssignmentCheck),
+	Approval(PendingApprovalCheck),
+}
 
 /// A `PendingAssignmentCheck` becomes an `PendingAssignmentCheckResult` once done.
+#[derive(Debug)]
 struct PendingAssignmentCheck {
 	pub peer_id: Option<PeerId>,
 	pub assignment: IndirectAssignmentCert,
@@ -239,23 +248,24 @@ impl Future for PendingAssignmentCheck {
 		fut.poll(cx)
 	}
 }
-/// A `PendingVoteCheck` becomes an `PendingVoteCheckResult` once done.
-struct PendingVoteCheck {
+/// A `PendingApprovalCheck` becomes an `PendingApprovalCheckResult` once done.
+#[derive(Debug)]
+struct PendingApprovalCheck {
 	pub response: oneshot::Receiver<ApprovalCheckResult>,
 	pub peer_id: Option<PeerId>,
 	pub vote: IndirectSignedApprovalVote,
 }
 
-struct PendingVoteCheckResult {
+struct PendingApprovalCheckResult {
 	pub peer_id: Option<PeerId>,
 	pub vote: IndirectSignedApprovalVote,
 	pub result: Option<ApprovalCheckResult>,
 }
 
-impl PendingVoteCheck {
-	async fn wait_for_result(&mut self) -> JfyiResult<PendingVoteCheckResult> {
+impl PendingApprovalCheck {
+	async fn wait_for_result(&mut self) -> JfyiResult<PendingApprovalCheckResult> {
 		let result = (&mut self.response).await.map_err(|_| JfyiError::PendingCheckCanceled)?;
-		Ok(PendingVoteCheckResult {
+		Ok(PendingApprovalCheckResult {
 			peer_id: self.peer_id.clone(),
 			vote: self.vote.clone(),
 			result: Some(result),
@@ -263,8 +273,8 @@ impl PendingVoteCheck {
 	}
 }
 
-impl Future for PendingVoteCheck {
-	type Output = JfyiResult<PendingVoteCheckResult>;
+impl Future for PendingApprovalCheck {
+	type Output = JfyiResult<PendingApprovalCheckResult>;
 	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
 		let fut = self.wait_for_result();
 		pin_mut!(fut);
@@ -563,7 +573,7 @@ impl State {
 				for (peer_id, message) in to_import {
 					match message {
 						PendingMessage::Assignment(assignment, claimed_index) => {
-							self.import_and_circulate_assignment(
+							self.start_assignment_import(
 								ctx,
 								metrics,
 								MessageSource::Peer(peer_id),
@@ -574,7 +584,7 @@ impl State {
 							.await;
 						},
 						PendingMessage::Approval(approval_vote) => {
-							self.import_and_circulate_approval(
+							self.start_approval_import(
 								ctx,
 								metrics,
 								MessageSource::Peer(peer_id),
@@ -662,7 +672,7 @@ impl State {
 						continue
 					}
 
-					self.import_and_circulate_assignment(
+					self.start_assignment_import(
 						ctx,
 						metrics,
 						MessageSource::Peer(peer_id.clone()),
@@ -700,7 +710,7 @@ impl State {
 						continue
 					}
 
-					self.import_and_circulate_approval(
+					self.start_approval_import(
 						ctx,
 						metrics,
 						MessageSource::Peer(peer_id.clone()),
@@ -789,7 +799,7 @@ impl State {
 		self.enable_aggression(ctx, Resend::No, metrics).await;
 	}
 
-	async fn import_and_circulate_assignment<Context, R>(
+	async fn start_assignment_import<Context, R>(
 		&mut self,
 		ctx: &mut Context,
 		metrics: &Metrics,
@@ -826,6 +836,14 @@ impl State {
 		let message_subject = MessageSubject(block_hash, claimed_candidate_index, validator_index);
 		let message_kind = MessageKind::Assignment;
 
+		let peer_id = source.peer_id();
+		gum::debug!(
+			target: LOG_TARGET,
+			?peer_id,
+			?message_subject,
+			"Starting assignment import",
+		);
+
 		if let Some(peer_id) = source.peer_id() {
 			// check if our knowledge of the peer already contains this assignment
 			match entry.known_by.entry(peer_id.clone()) {
@@ -852,6 +870,7 @@ impl State {
 						?message_subject,
 						"Assignment from a peer is out of view",
 					);
+
 					modify_reputation(ctx.sender(), peer_id.clone(), COST_UNEXPECTED_MESSAGE).await;
 				},
 			}
@@ -875,12 +894,23 @@ impl State {
 			))
 			.await;
 
-			self.pending_assignment_checks.push(PendingAssignmentCheck {
+			let pending = PendingAssignmentCheck {
 				assignment: assignment.clone(),
 				claimed_candidate_index,
 				peer_id: Some(peer_id.clone()),
 				response: rx,
-			});
+			};
+
+			// Add the assignment to the peer queue.
+			self.work_queues
+				.entry(peer_id.clone())
+				.or_default()
+				.push_back(PendingWork::Assignment(pending));
+
+			// If queue is idle we want to schedule work
+			if *self.pending_work.entry(peer_id.clone()).or_default() == false {
+				self.start_pending_work(&peer_id);
+			}
 
 		// let timer = metrics.time_awaiting_approval_voting();
 		// let result = match rx.await {
@@ -891,14 +921,6 @@ impl State {
 		// 	},
 		// };
 		// drop(timer);
-
-		// gum::trace!(
-		// 	target: LOG_TARGET,
-		// 	?source,
-		// 	?message_subject,
-		// 	?result,
-		// 	"Checked assignment",
-		// );
 		} else {
 			if !entry.knowledge.insert(message_subject.clone(), message_kind) {
 				// if we already imported an assignment, there is no need to distribute it again
@@ -916,7 +938,7 @@ impl State {
 				);
 			}
 
-			self.pending_assignment_check_completion(
+			self.finish_assignment_import_and_circulate(
 				ctx,
 				PendingAssignmentCheckResult {
 					peer_id: source.peer_id(),
@@ -931,7 +953,7 @@ impl State {
 		}
 	}
 
-	async fn pending_assignment_check_completion<Context, R>(
+	async fn finish_assignment_import_and_circulate<Context, R>(
 		&mut self,
 		ctx: &mut Context,
 		result: PendingAssignmentCheckResult,
@@ -954,6 +976,21 @@ impl State {
 			.blocks
 			.get_mut(&block_hash)
 			.expect("completion routine is executed only if block exists; qed");
+
+		gum::trace!(
+			target: LOG_TARGET,
+			?peer_id,
+			?message_subject,
+			?result.result,
+			"Checked assignment",
+		);
+
+		gum::debug!(
+			target: LOG_TARGET,
+			?peer_id,
+			?message_subject,
+			"Finishing assignment import",
+		);
 
 		if let Some(peer_id) = result.peer_id {
 			match result.result {
@@ -1018,6 +1055,14 @@ impl State {
 
 		let message_state = match entry.candidates.get_mut(claimed_candidate_index as usize) {
 			Some(candidate_entry) => {
+				let peer_id = result.peer_id.clone();
+				gum::debug!(
+					target: LOG_TARGET,
+					?peer_id,
+					?message_subject,
+					?validator_index,
+					"Setting assignment",
+				);
 				// set the approval state for validator_index to Assigned
 				// unless the approval state is set already
 				candidate_entry.messages.entry(validator_index).or_insert_with(|| MessageState {
@@ -1032,7 +1077,7 @@ impl State {
 					target: LOG_TARGET,
 					hash = ?block_hash,
 					?claimed_candidate_index,
-					"Expected a candidate entry on import_and_circulate_assignment",
+					"Expected a candidate entry on start_assignment_import",
 				);
 
 				return
@@ -1103,7 +1148,7 @@ impl State {
 		}
 	}
 
-	async fn import_and_circulate_approval<Context>(
+	async fn start_approval_import<Context>(
 		&mut self,
 		ctx: &mut Context,
 		metrics: &Metrics,
@@ -1129,6 +1174,14 @@ impl State {
 		// compute metadata on the assignment.
 		let message_subject = MessageSubject(block_hash, candidate_index, validator_index);
 		let message_kind = MessageKind::Approval;
+
+		let peer_id = source.peer_id();
+		gum::debug!(
+			target: LOG_TARGET,
+			?peer_id,
+			?message_subject,
+			"Starting approval vote import",
+		);
 
 		if let Some(peer_id) = source.peer_id() {
 			if !entry.knowledge.contains(&message_subject, MessageKind::Assignment) {
@@ -1186,6 +1239,7 @@ impl State {
 			ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(vote.clone(), tx))
 				.await;
 
+			// TODO: move this into the `PendingApprovalCheck` struct.
 			// let timer = metrics.time_awaiting_approval_voting();
 			// let result = match rx.await {
 			// 	Ok(result) => result,
@@ -1196,19 +1250,19 @@ impl State {
 			// };
 			// drop(timer);
 
-			// gum::trace!(
-			// 	target: LOG_TARGET,
-			// 	?peer_id,
-			// 	?message_subject,
-			// 	?result,
-			// 	"Checked approval",
-			// );
-
-			self.pending_vote_checks.push(PendingVoteCheck {
+			let pending = PendingWork::Approval(PendingApprovalCheck {
 				response: rx,
 				peer_id: Some(peer_id.clone()),
 				vote: vote.clone(),
 			});
+
+			// Add the assignment to the peer queue.
+			self.work_queues.entry(peer_id.clone()).or_default().push_back(pending);
+
+			// If queue is idle we want to schedule work
+			if *self.pending_work.entry(peer_id.clone()).or_default() == false {
+				self.start_pending_work(&peer_id);
+			}
 		} else {
 			if !entry.knowledge.insert(message_subject.clone(), message_kind) {
 				// if we already imported an approval, there is no need to distribute it again
@@ -1225,9 +1279,9 @@ impl State {
 					"Importing locally a new approval",
 				);
 			}
-			self.pending_vote_check_completion(
+			self.finish_approval_import_and_circulate(
 				ctx,
-				PendingVoteCheckResult { peer_id: None, vote, result: None },
+				PendingApprovalCheckResult { peer_id: None, vote, result: None },
 				metrics,
 			)
 			.await;
@@ -1235,10 +1289,10 @@ impl State {
 	}
 
 	// Bottom half of approval vote processing.
-	async fn pending_vote_check_completion<Context>(
+	async fn finish_approval_import_and_circulate<Context>(
 		&mut self,
 		ctx: &mut Context,
-		result: PendingVoteCheckResult,
+		result: PendingApprovalCheckResult,
 		metrics: &Metrics,
 	) {
 		let peer_id = result.peer_id;
@@ -1252,6 +1306,14 @@ impl State {
 			.blocks
 			.get_mut(&block_hash)
 			.expect("completion routine is executed only if block exists; qed");
+
+		gum::trace!(
+			target: LOG_TARGET,
+			?peer_id,
+			?message_subject,
+			?result.result,
+			"Checked approval",
+		);
 		metrics.on_approval_imported();
 
 		if let Some(peer_id) = peer_id {
@@ -1276,13 +1338,21 @@ impl State {
 					return
 				},
 				None => {},
-			}
+			};
+
 		}
+
+		gum::debug!(
+			target: LOG_TARGET,
+			?peer_id,
+			?message_subject,
+			"Finishing approval vote import",
+		);
 
 		let required_routing = match entry.candidates.get_mut(candidate_index as usize) {
 			Some(candidate_entry) => {
 				// set the approval state for validator_index to Approved
-				// it should be in assigned state already
+				// it should be in assigned state or approved state
 				match candidate_entry.messages.remove(&validator_index) {
 					Some(MessageState {
 						approval_state: ApprovalState::Assigned(cert),
@@ -1290,6 +1360,7 @@ impl State {
 						local,
 						random_routing,
 					}) => {
+						// This is the first approval message we are seeing for the assignment.
 						candidate_entry.messages.insert(
 							validator_index,
 							MessageState {
@@ -1304,6 +1375,16 @@ impl State {
 						);
 
 						required_routing
+					},
+					Some(MessageState {
+						approval_state: ApprovalState::Approved(cert, signature),
+						required_routing,
+						local,
+						random_routing,
+					}) => {
+						// Approval has already been imported and distributed earlier, but it was from a different peer.
+						// No need to distribute it again.
+						RequiredRouting::None
 					},
 					Some(_) => {
 						unreachable!(
@@ -1330,7 +1411,7 @@ impl State {
 					hash = ?block_hash,
 					?candidate_index,
 					?validator_index,
-					"Expected a candidate entry on import_and_circulate_approval",
+					"Expected a candidate entry on start_approval_import",
 				);
 
 				return
@@ -1678,6 +1759,24 @@ impl State {
 		)
 		.await;
 	}
+
+	// Start processing the next approval or assignment check for a given peer.
+	fn start_pending_work(&mut self, peer_id: &PeerId) {
+		if let Some(pending_work) = self.work_queues.get_mut(&peer_id) {
+			// Per peer FIFO message processing.
+			match pending_work.pop_front() {
+				Some(PendingWork::Approval(pending)) => {
+					*self.pending_work.entry(*peer_id).or_default() = true;
+					self.pending_vote_checks.push(pending);
+				},
+				Some(PendingWork::Assignment(pending)) => {
+					*self.pending_work.entry(*peer_id).or_default() = true;
+					self.pending_assignment_checks.push(pending);
+				},
+				None => {},
+			}
+		}
+	}
 }
 
 // This adjusts the required routing of messages in blocks that pass the block filter
@@ -1847,17 +1946,31 @@ impl ApprovalDistribution {
 		loop {
 			futures::select_biased! {
 				maybe_assignment_check_result = state.pending_assignment_checks.select_next_some() => {
+					// TODO: include peer in error to handle clearing pending work for all cases.
 					match maybe_assignment_check_result {
 						Ok(assignment_check_result) => {
-							state.pending_assignment_check_completion(&mut ctx, assignment_check_result, &self.metrics, rng).await;
+							// Pick next pending work item if any.
+							if let Some(peer_id) = assignment_check_result.peer_id {
+								// Clear pending work.
+								*state.pending_work.entry(peer_id.clone()).or_default() = false;
+								state.start_pending_work(&peer_id);
+							}
+							state.finish_assignment_import_and_circulate(&mut ctx, assignment_check_result, &self.metrics, rng).await;
 						},
 						Err(_) => {}
 					}
 				},
 				maybe_approval_check_result = state.pending_vote_checks.select_next_some() => {
+					// Clear pendingn work flag for this peer.
 					match maybe_approval_check_result {
 						Ok(approval_check_result) => {
-							state.pending_vote_check_completion(&mut ctx, approval_check_result, &self.metrics).await;
+							// Pick next pending work item if any.
+							if let Some(peer_id) = approval_check_result.peer_id {
+								// Clear pending work.
+								*state.pending_work.entry(peer_id.clone()).or_default() = false;
+								state.start_pending_work(&peer_id);
+							}
+							state.finish_approval_import_and_circulate(&mut ctx, approval_check_result, &self.metrics).await;
 						},
 						Err(_) => {}
 					}
@@ -1916,7 +2029,7 @@ impl ApprovalDistribution {
 				);
 
 				state
-					.import_and_circulate_assignment(
+					.start_assignment_import(
 						ctx,
 						&metrics,
 						MessageSource::Local,
@@ -1934,9 +2047,7 @@ impl ApprovalDistribution {
 					vote.candidate_index,
 				);
 
-				state
-					.import_and_circulate_approval(ctx, metrics, MessageSource::Local, vote)
-					.await;
+				state.start_approval_import(ctx, metrics, MessageSource::Local, vote).await;
 			},
 			ApprovalDistributionMessage::GetApprovalSignatures(indices, tx) => {
 				let sigs = state.get_approval_signatures(indices);
