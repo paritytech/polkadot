@@ -38,7 +38,6 @@ use polkadot_node_subsystem::{
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 	SubsystemSender,
 };
-use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
 use polkadot_primitives::v2::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, Hash, OccupiedCoreAssumption,
@@ -61,8 +60,11 @@ mod tests;
 
 const LOG_TARGET: &'static str = "parachain::candidate-validation";
 
-// The amount of time to wait before retrying after an AmbiguousWorkerDeath validation error.
+/// The amount of time to wait before retrying after an AmbiguousWorkerDeath validation error.
+#[cfg(not(test))]
 const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_secs(1);
+#[cfg(test)]
+const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_millis(200);
 
 /// Configuration for the candidate validation subsystem
 #[derive(Clone)]
@@ -635,7 +637,7 @@ impl ValidationBackend for ValidationHost {
 			validation_result
 		{
 			// Wait a brief delay before retrying.
-			let _: Option<()> = future::pending().timeout(PVF_EXECUTION_RETRY_DELAY).await;
+			futures_timer::Delay::new(PVF_EXECUTION_RETRY_DELAY).await;
 			execute_pvf_once(self, pvf, timeout, params.encode()).await
 		} else {
 			validation_result
