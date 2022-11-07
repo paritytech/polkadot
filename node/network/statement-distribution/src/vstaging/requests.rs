@@ -345,6 +345,7 @@ impl<'a> UnhandledResponse<'a> {
 		let entry = match manager.requests.get_mut(&identifier) {
 			None =>
 				return ResponseValidationOutput {
+					requested_peer,
 					reputation_changes: Vec::new(),
 					request_status: CandidateRequestStatus::Outdated,
 				},
@@ -380,12 +381,14 @@ impl<'a> UnhandledResponse<'a> {
 				);
 
 				return ResponseValidationOutput {
+					requested_peer: requested_peer.clone(),
 					reputation_changes: vec![(requested_peer, COST_IMPROPERLY_DECODED_RESPONSE)],
 					request_status: CandidateRequestStatus::Incomplete,
 				}
 			},
 			Err(RequestError::NetworkError(_) | RequestError::Canceled(_)) =>
 				return ResponseValidationOutput {
+					requested_peer,
 					reputation_changes: vec![],
 					request_status: CandidateRequestStatus::Incomplete,
 				},
@@ -438,6 +441,7 @@ fn validate_complete_response(
 	let invalid_candidate_output = || ResponseValidationOutput {
 		request_status: CandidateRequestStatus::Incomplete,
 		reputation_changes: vec![(requested_peer.clone(), COST_INVALID_RESPONSE)],
+		requested_peer,
 	};
 
 	// sanity-check candidate response.
@@ -545,6 +549,7 @@ fn validate_complete_response(
 	rep_changes.push((requested_peer.clone(), BENEFIT_VALID_RESPONSE));
 
 	ResponseValidationOutput {
+		requested_peer,
 		request_status: CandidateRequestStatus::Complete {
 			candidate: response.candidate_receipt,
 			persisted_validation_data: response.persisted_validation_data,
@@ -578,6 +583,8 @@ pub enum CandidateRequestStatus {
 
 /// Output of the response validation.
 pub struct ResponseValidationOutput {
+	/// The peer we requested from.
+	pub requested_peer: PeerId,
 	/// The status of the request.
 	pub request_status: CandidateRequestStatus,
 	/// Any reputation changes as a result of validating the response.
