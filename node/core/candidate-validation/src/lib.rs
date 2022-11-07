@@ -496,7 +496,7 @@ where
 }
 
 async fn validate_candidate_exhaustive(
-	mut validation_backend: impl ValidationBackend,
+	mut validation_backend: impl ValidationBackend + Send,
 	persisted_validation_data: PersistedValidationData,
 	validation_code: ValidationCode,
 	candidate_receipt: CandidateReceipt,
@@ -557,7 +557,7 @@ async fn validate_candidate_exhaustive(
 	};
 
 	let result = validation_backend
-		.validate_candidate(raw_validation_code.to_vec(), timeout, params)
+		.validate_candidate_with_retry(raw_validation_code.to_vec(), timeout, params)
 		.await;
 
 	if let Err(ref error) = result {
@@ -611,25 +611,22 @@ async fn validate_candidate_exhaustive(
 trait ValidationBackend {
 	async fn validate_candidate(
 		&mut self,
-		raw_validation_code: Vec<u8>,
+		pvf: Pvf,
 		timeout: Duration,
-		params: ValidationParams,
+		encoded_params: Vec<u8>,
 	) -> Result<WasmValidationResult, ValidationError>;
 
-	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError>;
-}
-
-#[async_trait]
-impl ValidationBackend for ValidationHost {
-	async fn validate_candidate(
+	async fn validate_candidate_with_retry(
 		&mut self,
 		raw_validation_code: Vec<u8>,
 		timeout: Duration,
 		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
+		// Construct the PVF a single time, since it is an expensive operation. Cloning it is cheap.
 		let pvf = Pvf::from_code(raw_validation_code);
 
-		let validation_result = execute_pvf_once(self, pvf.clone(), timeout, params.encode()).await;
+		let validation_result =
+			self.validate_candidate(pvf.clone(), timeout, params.encode()).await;
 
 		// If we get an AmbiguousWorkerDeath error, retry once after a brief delay, on the
 		// assumption that the conditions that caused this error may have been transient.
@@ -638,10 +635,38 @@ impl ValidationBackend for ValidationHost {
 		{
 			// Wait a brief delay before retrying.
 			futures_timer::Delay::new(PVF_EXECUTION_RETRY_DELAY).await;
-			execute_pvf_once(self, pvf, timeout, params.encode()).await
+			// Encode the params again when re-trying. We expect the retry case to be relatively
+			// rare, and we want to avoid unconditionally cloning data.
+			self.validate_candidate(pvf, timeout, params.encode()).await
 		} else {
 			validation_result
 		}
+	}
+
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError>;
+}
+
+#[async_trait]
+impl ValidationBackend for ValidationHost {
+	/// Tries executing a PVF a single time (no retries).
+	async fn validate_candidate(
+		&mut self,
+		pvf: Pvf,
+		timeout: Duration,
+		encoded_params: Vec<u8>,
+	) -> Result<WasmValidationResult, ValidationError> {
+		let priority = polkadot_node_core_pvf::Priority::Normal;
+
+		let (tx, rx) = oneshot::channel();
+		if let Err(err) = self.execute_pvf(pvf, timeout, encoded_params, priority, tx).await {
+			return Err(ValidationError::InternalError(format!(
+				"cannot send pvf to the validation host: {:?}",
+				err
+			)))
+		}
+
+		rx.await
+			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?
 	}
 
 	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError> {
@@ -654,27 +679,6 @@ impl ValidationBackend for ValidationHost {
 
 		precheck_result
 	}
-}
-
-// Tries executing a PVF a single time (no retries).
-async fn execute_pvf_once(
-	host: &mut ValidationHost,
-	pvf: Pvf,
-	timeout: Duration,
-	params: Vec<u8>,
-) -> Result<WasmValidationResult, ValidationError> {
-	let priority = polkadot_node_core_pvf::Priority::Normal;
-
-	let (tx, rx) = oneshot::channel();
-	if let Err(err) = host.execute_pvf(pvf, timeout, params, priority, tx).await {
-		return Err(ValidationError::InternalError(format!(
-			"cannot send pvf to the validation host: {:?}",
-			err
-		)))
-	}
-
-	rx.await
-		.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?
 }
 
 /// Does basic checks of a candidate. Provide the encoded PoV-block. Returns `Ok` if basic checks
