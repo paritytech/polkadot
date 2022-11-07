@@ -56,7 +56,7 @@ use cluster::{Accept as ClusterAccept, ClusterTracker, RejectIncoming as Cluster
 use grid::{GridTracker, ManifestSummary, StatementFilter};
 use groups::Groups;
 use requests::RequestManager;
-use statement_store::StatementStore;
+use statement_store::{StatementStore, StatementOrigin};
 
 mod candidates;
 mod cluster;
@@ -554,7 +554,11 @@ pub(crate) async fn share_local_statement<Context>(
 
 		match per_relay_parent
 			.statement_store
-			.insert(&per_session.groups, compact_statement.clone())
+			.insert(
+				&per_session.groups,
+				compact_statement.clone(),
+				StatementOrigin::Local,
+			)
 		{
 			Ok(false) | Err(_) => {
 				gum::warn!(
@@ -985,7 +989,11 @@ async fn handle_incoming_statement<Context>(
 	}
 
 	let was_fresh =
-		match per_relay_parent.statement_store.insert(&per_session.groups, checked_statement) {
+		match per_relay_parent.statement_store.insert(
+			&per_session.groups,
+			checked_statement,
+			StatementOrigin::Remote,
+		) {
 			Err(_) => {
 				// sanity: should never happen.
 				gum::warn!(

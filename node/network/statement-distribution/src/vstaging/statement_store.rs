@@ -31,6 +31,28 @@ use std::collections::hash_map::{Entry as HEntry, HashMap};
 
 use super::groups::Groups;
 
+/// Possible origins of a statement.
+pub enum StatementOrigin {
+	/// The statement originated locally.
+	Local,
+	/// The statement originated from a remote peer.
+	Remote,
+}
+
+impl StatementOrigin {
+	fn is_local(&self) -> bool {
+		match *self {
+			StatementOrigin::Local => true,
+			StatementOrigin::Remote => false,
+		}
+	}
+}
+
+struct StoredStatement {
+	statement: SignedStatement,
+	known_by_backing: bool,
+}
+
 /// Storage for statements. Intended to be used for statements signed under
 /// the same relay-parent. See module docs for more details.
 pub struct StatementStore {
@@ -40,7 +62,7 @@ pub struct StatementStore {
 	// producing statements about a candidate, until we have the candidate receipt
 	// itself, we can't tell which group that is.
 	group_statements: HashMap<(GroupIndex, CandidateHash), GroupStatements>,
-	known_statements: HashMap<Fingerprint, SignedStatement>,
+	known_statements: HashMap<Fingerprint, StoredStatement>,
 }
 
 impl StatementStore {
@@ -76,12 +98,11 @@ impl StatementStore {
 	/// Insert a statement. Returns `true` if was not known already, `false` if it was.
 	/// Ignores statements by unknown validators and returns an error.
 	// TODO [now]: perhaps reject over-seconded statements.
-	// TODO [now]: accept a flag indicating whether the statement comes
-	// from backing.
 	pub fn insert(
 		&mut self,
 		groups: &Groups,
 		statement: SignedStatement,
+		origin: StatementOrigin,
 	) -> Result<bool, ValidatorUnknown> {
 		let validator_index = statement.validator_index();
 
@@ -93,9 +114,18 @@ impl StatementStore {
 		let compact = statement.payload().clone();
 		let fingerprint = (validator_index, compact.clone());
 		match self.known_statements.entry(fingerprint) {
-			HEntry::Occupied(_) => return Ok(false),
+			HEntry::Occupied(mut e) => {
+				if let StatementOrigin::Local = origin {
+					e.get_mut().known_by_backing = true;
+				}
+
+				return Ok(false);
+			}
 			HEntry::Vacant(mut e) => {
-				e.insert(statement);
+				e.insert(StoredStatement {
+					statement,
+					known_by_backing: origin.is_local(),
+				});
 			},
 		}
 
@@ -166,6 +196,7 @@ impl StatementStore {
 			.flat_map(|v| v.iter_ones())
 			.filter_map(move |i| group_validators.as_ref().and_then(|g| g.get(i)))
 			.filter_map(move |v| self.known_statements.get(&(*v, statement.clone())))
+			.map(|s| &s.statement)
 	}
 
 	/// Get the full statement of this kind issued by this validator, if it is known.
@@ -174,7 +205,9 @@ impl StatementStore {
 		validator_index: ValidatorIndex,
 		statement: CompactStatement,
 	) -> Option<&SignedStatement> {
-		self.known_statements.get(&(validator_index, statement))
+		self.known_statements
+			.get(&(validator_index, statement))
+			.map(|s| &s.statement)
 	}
 }
 
