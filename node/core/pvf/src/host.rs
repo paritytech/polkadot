@@ -52,7 +52,10 @@ pub const LENIENT_PREPARATION_TIMEOUT: Duration = Duration::from_secs(360);
 
 /// The time period after which a failed preparation artifact is considered ready to be retried.
 /// Note that we will only retry if another request comes in after this cooldown has passed.
+#[cfg(not(test))]
 pub const PREPARE_FAILURE_COOLDOWN: Duration = Duration::from_secs(15 * 60);
+#[cfg(test)]
+pub const PREPARE_FAILURE_COOLDOWN: Duration = Duration::from_millis(200);
 
 /// The amount of times we will retry failed prepare jobs.
 pub const NUM_PREPARE_RETRIES: u32 = 5;
@@ -67,7 +70,6 @@ pub(crate) type PrepareResultSender = oneshot::Sender<PrepareResult>;
 #[derive(Clone)]
 pub struct ValidationHost {
 	to_host_tx: mpsc::Sender<ToHost>,
-	prepare_failure_cooldown: Duration,
 }
 
 impl ValidationHost {
@@ -109,7 +111,6 @@ impl ValidationHost {
 			.send(ToHost::ExecutePvf(ExecutePvfInputs {
 				pvf,
 				execution_timeout,
-				prepare_failure_cooldown: self.prepare_failure_cooldown,
 				params,
 				priority,
 				result_tx,
@@ -126,10 +127,7 @@ impl ValidationHost {
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
 	pub async fn heads_up(&mut self, active_pvfs: Vec<Pvf>) -> Result<(), String> {
 		self.to_host_tx
-			.send(ToHost::HeadsUp {
-				active_pvfs,
-				prepare_failure_cooldown: self.prepare_failure_cooldown,
-			})
+			.send(ToHost::HeadsUp { active_pvfs })
 			.await
 			.map_err(|_| "the inner loop hung up".to_string())
 	}
@@ -138,13 +136,12 @@ impl ValidationHost {
 enum ToHost {
 	PrecheckPvf { pvf: Pvf, result_tx: PrepareResultSender },
 	ExecutePvf(ExecutePvfInputs),
-	HeadsUp { active_pvfs: Vec<Pvf>, prepare_failure_cooldown: Duration },
+	HeadsUp { active_pvfs: Vec<Pvf> },
 }
 
 struct ExecutePvfInputs {
 	pvf: Pvf,
 	execution_timeout: Duration,
-	prepare_failure_cooldown: Duration,
 	params: Vec<u8>,
 	priority: Priority,
 	result_tx: ResultSender,
@@ -202,8 +199,7 @@ impl Config {
 pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<Output = ()>) {
 	let (to_host_tx, to_host_rx) = mpsc::channel(10);
 
-	let validation_host =
-		ValidationHost { to_host_tx, prepare_failure_cooldown: PREPARE_FAILURE_COOLDOWN };
+	let validation_host = ValidationHost { to_host_tx };
 
 	let (to_prepare_pool, from_prepare_pool, run_prepare_pool) = prepare::start_pool(
 		metrics.clone(),
@@ -438,10 +434,8 @@ async fn handle_to_host(
 			)
 			.await?;
 		},
-		ToHost::HeadsUp { active_pvfs, prepare_failure_cooldown } => {
-			handle_heads_up(artifacts, prepare_queue, active_pvfs, prepare_failure_cooldown)
-				.await?;
-		},
+		ToHost::HeadsUp { active_pvfs } =>
+			handle_heads_up(artifacts, prepare_queue, active_pvfs).await?,
 	}
 
 	Ok(())
@@ -506,14 +500,7 @@ async fn handle_execute_pvf(
 	awaiting_prepare: &mut AwaitingPrepare,
 	inputs: ExecutePvfInputs,
 ) -> Result<(), Fatal> {
-	let ExecutePvfInputs {
-		pvf,
-		execution_timeout,
-		prepare_failure_cooldown,
-		params,
-		priority,
-		result_tx,
-	} = inputs;
+	let ExecutePvfInputs { pvf, execution_timeout, params, priority, result_tx } = inputs;
 	let artifact_id = pvf.as_artifact_id();
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
@@ -537,12 +524,7 @@ async fn handle_execute_pvf(
 				awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
 			},
 			ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
-				if can_retry_prepare_after_failure(
-					*last_time_failed,
-					*num_failures,
-					error,
-					prepare_failure_cooldown,
-				) {
+				if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
 					// If we are allowed to retry the failed prepare job, change the state to
 					// Preparing and re-queue this job.
 					*state = ArtifactState::Preparing {
@@ -588,7 +570,6 @@ async fn handle_heads_up(
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
 	active_pvfs: Vec<Pvf>,
-	prepare_failure_cooldown: Duration,
 ) -> Result<(), Fatal> {
 	let now = SystemTime::now();
 
@@ -603,12 +584,7 @@ async fn handle_heads_up(
 					// The artifact is already being prepared, so we don't need to do anything.
 				},
 				ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
-					if can_retry_prepare_after_failure(
-						*last_time_failed,
-						*num_failures,
-						error,
-						prepare_failure_cooldown,
-					) {
+					if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
 						// If we are allowed to retry the failed prepare job, change the state to
 						// Preparing and re-queue this job.
 						*state = ArtifactState::Preparing {
@@ -798,7 +774,6 @@ fn can_retry_prepare_after_failure(
 	last_time_failed: SystemTime,
 	num_failures: u32,
 	error: &PrepareError,
-	prepare_failure_cooldown: Duration,
 ) -> bool {
 	use PrepareError::*;
 	match error {
@@ -807,7 +782,7 @@ fn can_retry_prepare_after_failure(
 		// Retry if the retry cooldown has elapsed and if we have already retried less than
 		// `NUM_PREPARE_RETRIES` times.
 		Panic(_) | TimedOut | DidNotMakeIt =>
-			SystemTime::now() >= last_time_failed + prepare_failure_cooldown &&
+			SystemTime::now() >= last_time_failed + PREPARE_FAILURE_COOLDOWN &&
 				num_failures <= NUM_PREPARE_RETRIES,
 	}
 }
@@ -831,8 +806,6 @@ mod tests {
 	use futures::future::BoxFuture;
 
 	const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
-
-	const TEST_PREPARE_FAILURE_COOLDOWN: Duration = Duration::from_millis(200);
 
 	#[async_std::test]
 	async fn pulse_test() {
@@ -926,7 +899,7 @@ mod tests {
 
 		fn host_handle(&mut self) -> ValidationHost {
 			let to_host_tx = self.to_host_tx.take().unwrap();
-			ValidationHost { to_host_tx, prepare_failure_cooldown: TEST_PREPARE_FAILURE_COOLDOWN }
+			ValidationHost { to_host_tx }
 		}
 
 		async fn poll_and_recv_to_prepare_queue(&mut self) -> prepare::ToQueue {
@@ -1327,7 +1300,7 @@ mod tests {
 		test.poll_ensure_to_prepare_queue_is_empty().await;
 
 		// Pause for enough time to reset the cooldown for this failed prepare request.
-		futures_timer::Delay::new(TEST_PREPARE_FAILURE_COOLDOWN).await;
+		futures_timer::Delay::new(PREPARE_FAILURE_COOLDOWN).await;
 
 		// Submit another precheck request.
 		let (result_tx_3, _result_rx_3) = oneshot::channel();
@@ -1386,7 +1359,7 @@ mod tests {
 		test.poll_ensure_to_prepare_queue_is_empty().await;
 
 		// Pause for enough time to reset the cooldown for this failed prepare request.
-		futures_timer::Delay::new(TEST_PREPARE_FAILURE_COOLDOWN).await;
+		futures_timer::Delay::new(PREPARE_FAILURE_COOLDOWN).await;
 
 		// Submit another execute request.
 		let (result_tx_3, _result_rx_3) = oneshot::channel();
@@ -1456,7 +1429,7 @@ mod tests {
 		test.poll_ensure_to_prepare_queue_is_empty().await;
 
 		// Pause for enough time to reset the cooldown for this failed prepare request.
-		futures_timer::Delay::new(TEST_PREPARE_FAILURE_COOLDOWN).await;
+		futures_timer::Delay::new(PREPARE_FAILURE_COOLDOWN).await;
 
 		// Submit another execute request.
 		let (result_tx_3, _result_rx_3) = oneshot::channel();
@@ -1504,7 +1477,7 @@ mod tests {
 		test.poll_ensure_to_prepare_queue_is_empty().await;
 
 		// Pause for enough time to reset the cooldown for this failed prepare request.
-		futures_timer::Delay::new(TEST_PREPARE_FAILURE_COOLDOWN).await;
+		futures_timer::Delay::new(PREPARE_FAILURE_COOLDOWN).await;
 
 		// Submit another heads-up request.
 		host.heads_up(vec![Pvf::from_discriminator(1)]).await.unwrap();
