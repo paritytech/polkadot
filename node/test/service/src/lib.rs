@@ -215,6 +215,7 @@ pub fn node_config(
 		announce_block: true,
 		base_path: Some(base_path),
 		informant_output_format: Default::default(),
+		delayed_canonicalization: Some(32),
 	}
 }
 
