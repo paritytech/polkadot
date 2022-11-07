@@ -119,13 +119,10 @@ impl StatementStore {
 					e.get_mut().known_by_backing = true;
 				}
 
-				return Ok(false);
-			}
+				return Ok(false)
+			},
 			HEntry::Vacant(mut e) => {
-				e.insert(StoredStatement {
-					statement,
-					known_by_backing: origin.is_local(),
-				});
+				e.insert(StoredStatement { statement, known_by_backing: origin.is_local() });
 			},
 		}
 
@@ -205,9 +202,7 @@ impl StatementStore {
 		validator_index: ValidatorIndex,
 		statement: CompactStatement,
 	) -> Option<&SignedStatement> {
-		self.known_statements
-			.get(&(validator_index, statement))
-			.map(|s| &s.statement)
+		self.known_statements.get(&(validator_index, statement)).map(|s| &s.statement)
 	}
 }
 

@@ -56,7 +56,7 @@ use cluster::{Accept as ClusterAccept, ClusterTracker, RejectIncoming as Cluster
 use grid::{GridTracker, ManifestSummary, StatementFilter};
 use groups::Groups;
 use requests::RequestManager;
-use statement_store::{StatementStore, StatementOrigin};
+use statement_store::{StatementOrigin, StatementStore};
 
 mod candidates;
 mod cluster;
@@ -418,10 +418,7 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 
 	// TODO [now]: determine which candidates are importable under the given
 	// active leaf
-	new_leaf_fragment_tree_updates(
-		ctx,
-		leaf.hash,
-	).await;
+	new_leaf_fragment_tree_updates(ctx, leaf.hash).await;
 
 	// TODO [now]: update peers which have the leaf in their view.
 	// update their implicit view. send any messages accordingly.
@@ -552,14 +549,11 @@ pub(crate) async fn share_local_statement<Context>(
 			}
 		};
 
-		match per_relay_parent
-			.statement_store
-			.insert(
-				&per_session.groups,
-				compact_statement.clone(),
-				StatementOrigin::Local,
-			)
-		{
+		match per_relay_parent.statement_store.insert(
+			&per_session.groups,
+			compact_statement.clone(),
+			StatementOrigin::Local,
+		) {
 			Ok(false) | Err(_) => {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -988,40 +982,39 @@ async fn handle_incoming_statement<Context>(
 		request_entry.get_mut().set_cluster_priority();
 	}
 
-	let was_fresh =
-		match per_relay_parent.statement_store.insert(
-			&per_session.groups,
-			checked_statement,
-			StatementOrigin::Remote,
-		) {
-			Err(_) => {
-				// sanity: should never happen.
-				gum::warn!(
-					target: LOG_TARGET,
-					?relay_parent,
-					validator_index = ?originator_index,
-					"Error - Cluster accepted message from unknown validator."
-				);
+	let was_fresh = match per_relay_parent.statement_store.insert(
+		&per_session.groups,
+		checked_statement,
+		StatementOrigin::Remote,
+	) {
+		Err(_) => {
+			// sanity: should never happen.
+			gum::warn!(
+				target: LOG_TARGET,
+				?relay_parent,
+				validator_index = ?originator_index,
+				"Error - Cluster accepted message from unknown validator."
+			);
 
-				return
-			},
-			Ok(known) => known,
-		};
+			return
+		},
+		Ok(known) => known,
+	};
 
 	let is_backed = false; // TODO [now]
 
 	if was_fresh {
 		report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT_FIRST).await;
 
-		// both of the below probably in some shared function.
-		// TODO [now]: circulate the statement
-		// TODO [now]: import the statement into backing if we can.
-		// If the candidate is confirmed and statements are importable,
-		// we send the statement to backing either if
-		//    a) it is a candidate from the cluster
-		//    b) it is a candidate from the grid and it is backed
-		//
-		// We always circulate statements at this point.
+	// both of the below probably in some shared function.
+	// TODO [now]: circulate the statement
+	// TODO [now]: import the statement into backing if we can.
+	// If the candidate is confirmed and statements are importable,
+	// we send the statement to backing either if
+	//    a) it is a candidate from the cluster
+	//    b) it is a candidate from the grid and it is backed
+	//
+	// We always circulate statements at this point.
 	} else {
 		report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT).await;
 	}
@@ -1119,10 +1112,7 @@ fn handle_grid_statement(
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-async fn new_leaf_fragment_tree_updates<Context>(
-	ctx: &mut Context,
-	leaf_hash: Hash,
-) {
+async fn new_leaf_fragment_tree_updates<Context>(ctx: &mut Context, leaf_hash: Hash) {
 	// TODO [now]
 	// 1. get hypothetical candidates
 	// 2. find out which are in the frontier

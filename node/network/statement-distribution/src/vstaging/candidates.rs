@@ -32,11 +32,13 @@ use polkadot_primitives::vstaging::{
 	PersistedValidationData,
 };
 
-use std::collections::{
-	hash_map::{Entry, HashMap},
-	HashSet,
+use std::{
+	collections::{
+		hash_map::{Entry, HashMap},
+		HashSet,
+	},
+	sync::Arc,
 };
-use std::sync::Arc;
 
 /// A tracker for all known candidates in the view.
 ///
@@ -203,8 +205,7 @@ impl Candidates {
 	/// This is only true when the candidate is known, confirmed,
 	/// and is importable in a fragment tree.
 	pub fn is_importable(&self, candidate_hash: &CandidateHash) -> bool {
-		self.get_confirmed(candidate_hash)
-			.map_or(false, |c| c.is_importable(None))
+		self.get_confirmed(candidate_hash).map_or(false, |c| c.is_importable(None))
 	}
 
 	/// Get all hypothetical candidates which should be tested
@@ -223,11 +224,8 @@ impl Candidates {
 		) {
 			for (c_hash, candidate) in i {
 				match candidate {
-					CandidateState::Unconfirmed(u) => u.extend_hypotheticals(
-						*c_hash,
-						v,
-						maybe_required_parent,
-					),
+					CandidateState::Unconfirmed(u) =>
+						u.extend_hypotheticals(*c_hash, v, maybe_required_parent),
 					CandidateState::Confirmed(c) => v.push(c.to_hypothetical(*c_hash)),
 				}
 			}
@@ -241,17 +239,9 @@ impl Candidates {
 				.flat_map(|c| c)
 				.filter_map(|c_hash| self.candidates.get_key_value(c_hash));
 
-			extend_hypotheticals(
-				&mut v,
-				i,
-				Some(parent),
-			);
+			extend_hypotheticals(&mut v, i, Some(parent));
 		} else {
-			extend_hypotheticals(
-				&mut v,
-				self.candidates.iter(),
-				None,
-			);
+			extend_hypotheticals(&mut v, self.candidates.iter(), None);
 		}
 		v
 	}
@@ -421,7 +411,7 @@ impl UnconfirmedCandidate {
 		&self,
 		candidate_hash: CandidateHash,
 		v: &mut Vec<HypotheticalCandidate>,
-		required_parent: Option<(Hash, ParaId)>
+		required_parent: Option<(Hash, ParaId)>,
 	) {
 		fn extend_hypotheticals_inner<'a>(
 			candidate_hash: CandidateHash,
@@ -446,11 +436,7 @@ impl UnconfirmedCandidate {
 				v,
 				self.parent_claims.get_key_value(&parent),
 			),
-			None => extend_hypotheticals_inner(
-				candidate_hash,
-				v,
-				self.parent_claims.iter(),
-			),
+			None => extend_hypotheticals_inner(candidate_hash, v, self.parent_claims.iter()),
 		}
 	}
 
@@ -500,7 +486,7 @@ impl ConfirmedCandidate {
 		HypotheticalCandidate::Complete {
 			candidate_hash,
 			receipt: self.receipt.clone(),
-			persisted_validation_data: self.persisted_validation_data.clone()
+			persisted_validation_data: self.persisted_validation_data.clone(),
 		}
 	}
 }
