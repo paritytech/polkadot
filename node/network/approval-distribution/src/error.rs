@@ -17,9 +17,6 @@
 
 //! Error handling related code and Error/Result definitions.
 
-use crate::LOG_TARGET;
-use fatality::Nested;
-
 #[allow(missing_docs)]
 #[fatality::fatality(splitable)]
 pub enum Error {
@@ -27,20 +24,4 @@ pub enum Error {
 	PendingCheckCanceled,
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
-
 pub type JfyiResult<T> = std::result::Result<T, JfyiError>;
-
-/// Utility for eating top level errors and log them.
-///
-/// We basically always want to try and continue on error. This utility function is meant to
-/// consume top-level errors by simply logging them.
-pub fn log_error(result: Result<()>) -> std::result::Result<(), FatalError> {
-	match result.into_nested()? {
-		Err(error @ JfyiError::PendingCheckCanceled) => {
-			gum::debug!(target: LOG_TARGET, error = ?error);
-			Ok(())
-		},
-		Ok(()) => Ok(()),
-	}
-}

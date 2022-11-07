@@ -1353,21 +1353,16 @@ impl State {
 						required_routing
 					},
 					Some(MessageState {
-						approval_state: ApprovalState::Approved(cert, signature),
-						required_routing,
-						local,
-						random_routing,
+						approval_state: ApprovalState::Approved(_cert, _signature),
+						required_routing: _,
+						local: _,
+						random_routing: _,
 					}) => {
 						// Approval has already been imported and distributed earlier, but it was from a different peer.
 						// No need to distribute it again.
 						// A `FuturesOrdered` also does the trick here, but if we do more parallelization in approval voting
 						// this case still might still need to be addressed as the ordering is screwed.
 						RequiredRouting::None
-					},
-					Some(_) => {
-						unreachable!(
-							"we only insert it after the metadata, checked the metadata above; qed"
-						);
 					},
 					None => {
 						// this would indicate a bug in approval-voting
