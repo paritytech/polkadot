@@ -23,7 +23,7 @@
 use futures::{
 	channel::oneshot,
 	pin_mut,
-	stream::{FuturesUnordered, StreamExt},
+	stream::{FuturesOrdered, StreamExt},
 	Future, FutureExt as _,
 };
 use std::{
@@ -195,16 +195,16 @@ struct State {
 	aggression_config: AggressionConfig,
 
 	/// Pending approval assignment checks.
-	pending_assignment_checks: FuturesUnordered<PendingAssignmentCheck>,
+	pending_assignment_checks: FuturesOrdered<PendingAssignmentCheck>,
 
 	/// Pending approval vote checks.
-	pending_vote_checks: FuturesUnordered<PendingApprovalCheck>,
+	pending_vote_checks: FuturesOrdered<PendingApprovalCheck>,
 
-	/// Per peer work queues.
-	work_queues: HashMap<PeerId, VecDeque<PendingWork>>,
+	/// Per candidate/validator index work queues.
+	work_queues: HashMap<(ValidatorIndex, CandidateIndex), VecDeque<PendingWork>>,
 
 	/// A flag which tells us if a queue is idle.
-	pending_work: HashMap<PeerId, bool>,
+	pending_work: HashMap<(ValidatorIndex, CandidateIndex), bool>,
 }
 
 #[derive(Debug)]
@@ -905,13 +905,15 @@ impl State {
 
 			// Add the assignment to the peer queue.
 			self.work_queues
-				.entry(peer_id.clone())
+				.entry((validator_index, claimed_candidate_index))
 				.or_default()
 				.push_back(PendingWork::Assignment(pending));
 
 			// If queue is idle we want to schedule work
-			if *self.pending_work.entry(peer_id.clone()).or_default() == false {
-				self.start_pending_work(&peer_id);
+			if *self.pending_work.entry((validator_index, claimed_candidate_index)).or_default() ==
+				false
+			{
+				self.start_pending_work(validator_index, claimed_candidate_index);
 			}
 		} else {
 			if !entry.knowledge.insert(message_subject.clone(), message_kind) {
@@ -1234,11 +1236,14 @@ impl State {
 			});
 
 			// Add the assignment to the peer queue.
-			self.work_queues.entry(peer_id.clone()).or_default().push_back(pending);
+			self.work_queues
+				.entry((validator_index, candidate_index))
+				.or_default()
+				.push_back(pending);
 
 			// If queue is idle we want to schedule work
-			if *self.pending_work.entry(peer_id.clone()).or_default() == false {
-				self.start_pending_work(&peer_id);
+			if *self.pending_work.entry((validator_index, candidate_index)).or_default() == false {
+				self.start_pending_work(validator_index, candidate_index);
 			}
 		} else {
 			if !entry.knowledge.insert(message_subject.clone(), message_kind) {
@@ -1352,16 +1357,14 @@ impl State {
 
 						required_routing
 					},
-					Some(MessageState {
-						approval_state: ApprovalState::Approved(_cert, _signature),
-						required_routing: _,
-						local: _,
-						random_routing: _,
-					}) => {
+					Some(message_state_approved) => {
 						// Approval has already been imported and distributed earlier, but it was from a different peer.
 						// No need to distribute it again.
+						//
 						// A `FuturesOrdered` also does the trick here, but if we do more parallelization in approval voting
 						// this case still might still need to be addressed as the ordering is screwed.
+						// Add the message back into candidate_entry.
+						candidate_entry.messages.insert(validator_index, message_state_approved);
 						RequiredRouting::None
 					},
 					None => {
@@ -1734,17 +1737,29 @@ impl State {
 	}
 
 	// Start processing the next approval or assignment check for a given peer.
-	fn start_pending_work(&mut self, peer_id: &PeerId) {
-		if let Some(pending_work) = self.work_queues.get_mut(&peer_id) {
+	fn start_pending_work(
+		&mut self,
+		validator_index: ValidatorIndex,
+		claimed_candidate_index: CandidateIndex,
+	) {
+		if let Some(pending_work) =
+			self.work_queues.get_mut(&(validator_index, claimed_candidate_index))
+		{
 			// Per peer FIFO message processing.
 			match pending_work.pop_front() {
 				Some(PendingWork::Approval(pending)) => {
-					*self.pending_work.entry(*peer_id).or_default() = true;
-					self.pending_vote_checks.push(pending);
+					*self
+						.pending_work
+						.entry((validator_index, claimed_candidate_index))
+						.or_default() = true;
+					self.pending_vote_checks.push_back(pending);
 				},
 				Some(PendingWork::Assignment(pending)) => {
-					*self.pending_work.entry(*peer_id).or_default() = true;
-					self.pending_assignment_checks.push(pending);
+					*self
+						.pending_work
+						.entry((validator_index, claimed_candidate_index))
+						.or_default() = true;
+					self.pending_assignment_checks.push_back(pending);
 				},
 				None => {},
 			}
@@ -1918,36 +1933,6 @@ impl ApprovalDistribution {
 	) {
 		loop {
 			futures::select_biased! {
-				maybe_assignment_check_result = state.pending_assignment_checks.select_next_some() => {
-					// TODO: include peer in error to handle clearing pending work for all cases.
-					match maybe_assignment_check_result {
-						Ok(assignment_check_result) => {
-							// Pick next pending work item if any.
-							if let Some(peer_id) = assignment_check_result.peer_id {
-								// Clear pending work.
-								*state.pending_work.entry(peer_id.clone()).or_default() = false;
-								state.start_pending_work(&peer_id);
-							}
-							state.finish_assignment_import_and_circulate(&mut ctx, assignment_check_result, &self.metrics, rng).await;
-						},
-						Err(_) => {}
-					}
-				},
-				maybe_approval_check_result = state.pending_vote_checks.select_next_some() => {
-					// Clear pendingn work flag for this peer.
-					match maybe_approval_check_result {
-						Ok(approval_check_result) => {
-							// Pick next pending work item if any.
-							if let Some(peer_id) = approval_check_result.peer_id {
-								// Clear pending work.
-								*state.pending_work.entry(peer_id.clone()).or_default() = false;
-								state.start_pending_work(&peer_id);
-							}
-							state.finish_approval_import_and_circulate(&mut ctx, approval_check_result, &self.metrics).await;
-						},
-						Err(_) => {}
-					}
-				},
 				message = ctx.recv().fuse() => {
 					let message = match message {
 						Ok(message) => message,
@@ -1974,7 +1959,36 @@ impl ApprovalDistribution {
 						FromOrchestra::Signal(OverseerSignal::Conclude) => return,
 					}
 				},
-
+				maybe_assignment_check_result = state.pending_assignment_checks.select_next_some() => {
+					// TODO: include peer in error to handle clearing pending work for all cases.
+					match maybe_assignment_check_result {
+						Ok(assignment_check_result) => {
+							// Pick next pending work item if any.
+							// Clear pending work.
+							let validator_index = assignment_check_result.assignment.validator;
+							let claimed_candidate_index = assignment_check_result.claimed_candidate_index;
+							*state.pending_work.entry((validator_index, claimed_candidate_index)).or_default() = false;
+							state.finish_assignment_import_and_circulate(&mut ctx, assignment_check_result, &self.metrics, rng).await;
+							state.start_pending_work(validator_index, claimed_candidate_index);
+						},
+						Err(_) => {}
+					}
+				},
+				maybe_approval_check_result = state.pending_vote_checks.select_next_some() => {
+					// Clear pendingn work flag for this peer.
+					match maybe_approval_check_result {
+						Ok(approval_check_result) => {
+							// Pick next pending work item if any.
+							// Clear pending work.
+							let validator_index = approval_check_result.vote.validator;
+							let claimed_candidate_index = approval_check_result.vote.candidate_index;
+							*state.pending_work.entry((validator_index, claimed_candidate_index)).or_default() = false;
+							state.finish_approval_import_and_circulate(&mut ctx, approval_check_result, &self.metrics).await;
+							state.start_pending_work(validator_index, claimed_candidate_index);
+						},
+						Err(_) => {}
+					}
+				},
 			}
 		}
 	}
