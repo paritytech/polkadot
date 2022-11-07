@@ -697,21 +697,20 @@ fn test_provide_multi_dispute_is_providing() {
 		});
 
 		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+		let inclusion_parent = sp_core::H256::repeat_byte(0xff);
+		let session = 1;
 		let stmts = vec![DisputeStatementSet {
 			candidate_hash: candidate_hash.clone(),
-			session: 1,
+			session,
 			statements: vec![
 				(
-					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(
+						inclusion_parent,
+					)),
 					ValidatorIndex(0),
-					v0.sign(
-						&ExplicitDisputeStatement {
-							valid: true,
-							candidate_hash: candidate_hash.clone(),
-							session: 1,
-						}
-						.signing_payload(),
-					),
+					v0.sign(&CompactStatement::Valid(candidate_hash).signing_payload(
+						&SigningContext { session_index: session, parent_hash: inclusion_parent },
+					)),
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
@@ -720,7 +719,7 @@ fn test_provide_multi_dispute_is_providing() {
 						&ExplicitDisputeStatement {
 							valid: false,
 							candidate_hash: candidate_hash.clone(),
-							session: 1,
+							session,
 						}
 						.signing_payload(),
 					),

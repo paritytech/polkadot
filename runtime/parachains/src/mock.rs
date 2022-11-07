@@ -41,7 +41,10 @@ use sp_runtime::{
 	transaction_validity::TransactionPriority,
 	KeyTypeId, Permill,
 };
-use std::{cell::RefCell, collections::HashMap};
+use std::{
+	cell::RefCell,
+	collections::{BTreeSet, HashMap},
+};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -269,9 +272,16 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 		session: SessionIndex,
 		_: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
-		_backers: impl IntoIterator<Item = ValidatorIndex>,
+		backers: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		PUNISH_VALIDATORS_FOR.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
+		let backers_dedup: BTreeSet<_> = backers.into_iter().collect();
+		let losers_dedup: BTreeSet<_> = losers.into_iter().collect();
+		if !losers_dedup.is_empty() {
+			assert!(backers_dedup.is_subset(&losers_dedup));
+		}
+
+		PUNISH_VALIDATORS_FOR
+			.with(|r| r.borrow_mut().push((session, losers_dedup.into_iter().collect())))
 	}
 
 	fn punish_against_valid(
