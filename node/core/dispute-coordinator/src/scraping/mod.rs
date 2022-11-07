@@ -40,6 +40,8 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
+mod candidates;
+
 /// Number of hashes to keep in the LRU.
 ///
 ///
@@ -66,9 +68,9 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: NonZeroUsize = match NonZeroUsize::new(20) {
 /// `process_active_leaves_update` any scraped votes.
 pub struct ChainScraper {
 	/// All candidates we have seen included, which not yet have been finalized.
-	included_candidates: HashSet<CandidateHash>,
+	included_candidates: candidates::RefCountedCandidates,
 	/// All candidates we have seen backed
-	backed_candidates: HashSet<CandidateHash>,
+	backed_candidates: candidates::RefCountedCandidates,
 	/// including block -> `CandidateHash`
 	///
 	/// We need this to clean up `included_candidates` on finalization.
@@ -99,8 +101,8 @@ impl ChainScraper {
 		Sender: overseer::DisputeCoordinatorSenderTrait,
 	{
 		let mut s = Self {
-			included_candidates: HashSet::new(),
-			backed_candidates: HashSet::new(),
+			included_candidates: candidates::RefCountedCandidates::new(),
+			backed_candidates: candidates::RefCountedCandidates::new(),
 			candidates_by_block_number: BTreeMap::new(),
 			last_observed_blocks: LruCache::new(LRU_OBSERVED_BLOCKS_CAPACITY),
 		};
